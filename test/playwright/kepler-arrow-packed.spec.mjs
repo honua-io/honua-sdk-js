@@ -1,12 +1,23 @@
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
 function projectRoot() {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+}
+
+function buildSplitPackage(root) {
+  const command = process.platform === "win32" ? process.env.ComSpec ?? "cmd.exe" : "npm";
+  const args = process.platform === "win32" ? ["/d", "/s", "/c", "npm run build:split-packages --silent"] : ["run", "build:split-packages", "--silent"];
+  execFileSync(command, args, {
+    cwd: root,
+    stdio: "inherit",
+    windowsHide: true,
+  });
 }
 
 function assertSplitPackageExists(root) {
@@ -117,6 +128,10 @@ function startPackageServer(root) {
 }
 
 test.describe.configure({ timeout: 240_000 });
+
+test.beforeAll(() => {
+  buildSplitPackage(projectRoot());
+});
 
 test("packed /kepler entrypoint qualifies the Arrow adapter in a real browser", async ({ page }) => {
   const root = projectRoot();

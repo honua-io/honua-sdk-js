@@ -274,6 +274,16 @@ temporal and row-identity metadata, provenance, and bridge workspace metrics.
 Run the bounded qualification with:
 
 ```bash
+npm run test:playwright:kepler-arrow-packed
+```
+
+The focused test always runs `npm run build:split-packages` from the current
+checkout before starting its browser server. This prevents a clean checkout
+from failing on missing output and prevents an ignored stale `dist/` tree from
+being qualified accidentally. To run the Playwright file directly, it has the
+same build behavior:
+
+```bash
 npx playwright test test/playwright/kepler-arrow-packed.spec.mjs
 ```
 
