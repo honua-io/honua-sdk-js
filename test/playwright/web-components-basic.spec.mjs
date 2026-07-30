@@ -115,6 +115,30 @@ test("feature table keeps keyboard selection deterministic across reconnect", as
   }
 });
 
+test("production feature editor visual baseline is reproducible", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => customElements.get("honua-feature-editor") !== undefined)).toBe(true);
+
+    await page.evaluate(() => {
+      const editor = document.createElement("honua-feature-editor");
+      editor.id = "visual-feature-editor";
+      editor.setAttribute("for", "ops-map");
+      editor.setAttribute("source", "incidents");
+      document.body.append(editor);
+    });
+    const editor = page.locator("#visual-feature-editor");
+    await expect(editor).toBeVisible();
+    await expect(editor).toHaveScreenshot("feature-editor.png", {
+      animations: "disabled",
+      caret: "hide",
+    });
+  } finally {
+    await server.close();
+  }
+});
+
 test("web components compose map, layers, legend, table, search, and editor state", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => {
