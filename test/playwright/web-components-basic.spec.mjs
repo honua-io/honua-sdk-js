@@ -70,6 +70,51 @@ test("controller-driven layer list responds to focused Space and Enter activatio
   }
 });
 
+test("feature table keeps keyboard selection deterministic across reconnect", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.ready === true)).toBe(true);
+
+    const table = page.locator("honua-feature-table");
+    const firstCell = table.locator("tbody tr[data-feature-id='101'] [role='gridcell']").first();
+    await expect(firstCell).toBeVisible();
+    await firstCell.focus();
+    await firstCell.press("ArrowDown");
+
+    await expect
+      .poll(async () =>
+        table.evaluate((element) => {
+          const active = element.shadowRoot?.activeElement;
+          return active?.closest("tr")?.getAttribute("data-feature-id");
+        }),
+      )
+      .toBe("102");
+
+    await table.evaluate((element) => {
+      element.setAttribute("data-selection-event-count", "0");
+      element.addEventListener("honua-selection-change", () => {
+        const count = Number(element.getAttribute("data-selection-event-count") ?? "0");
+        element.setAttribute("data-selection-event-count", String(count + 1));
+      });
+      element.remove();
+      document.body.append(element);
+    });
+
+    const reconnectedCell = table.locator("tbody tr[data-feature-id='102'] [role='gridcell']").first();
+    await expect(reconnectedCell).toBeVisible();
+    await reconnectedCell.focus();
+    await reconnectedCell.press("Enter");
+    await expect
+      .poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.selectedFeatureId))
+      .toBe("102");
+
+    await expect(table).toHaveAttribute("data-selection-event-count", "1");
+  } finally {
+    await server.close();
+  }
+});
+
 test("web components compose map, layers, legend, table, search, and editor state", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => {
