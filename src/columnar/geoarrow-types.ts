@@ -93,6 +93,23 @@ export interface GeoArrowConversionLimits extends ColumnarBatchLimits {
   readonly maxCopiedBytes?: number;
 }
 
+/** Bounds and migration policy for dependency-free persisted GeoArrow batches. */
+export interface GeoArrowSerializationOptions extends GeoArrowConversionLimits {
+  /** Maximum UTF-8 envelope size accepted or produced. */
+  readonly maxSerializedBytes?: number;
+}
+
+export interface GeoArrowSerializationMetrics {
+  readonly serializedBytes: number;
+  readonly backingBytes: number;
+  readonly backingBuffers: number;
+}
+
+export interface GeoArrowBatchSerializationResult {
+  readonly batch: ColumnarBatchV1;
+  readonly metrics: GeoArrowSerializationMetrics;
+}
+
 export interface GeoArrowConversionMetrics {
   readonly rows: number;
   readonly vertices: number;
@@ -255,6 +272,8 @@ export type HonuaGeoArrowErrorCode =
   | "ring-limit-exceeded"
   | "dictionary-limit-exceeded"
   | "copy-limit-exceeded"
+  | "serialization-limit-exceeded"
+  | "unsupported-serialization"
   | "missing-peer";
 
 /** Typed failures for layout drift, conversion bounds, and optional peers. */
