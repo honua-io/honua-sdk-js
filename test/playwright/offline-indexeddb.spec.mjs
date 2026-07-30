@@ -9,16 +9,15 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 
 test("IndexedDB offline region store survives reload and preserves inventory CAS", async ({ page }) => {
   const server = await startServer();
-  const database = `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   try {
-    await page.goto(`${server.url}/?mode=write&database=${encodeURIComponent(database)}`);
+    await page.goto(server.url);
     await expect.poll(() => page.evaluate(() => window.__offlineResult)).toEqual({
       receipt: "committed",
       revision: "present",
       regionCount: 1,
     });
 
-    await page.goto(`${server.url}/?mode=read&database=${encodeURIComponent(database)}`);
+    await page.reload();
     await expect.poll(() => page.evaluate(() => window.__offlineResult)).toEqual({
       revision: "present",
       regionCount: 1,
@@ -30,8 +29,14 @@ test("IndexedDB offline region store survives reload and preserves inventory CAS
 });
 
 async function startServer() {
+  const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
+    if (url.pathname === "/fixture.json") {
+      response.setHeader("content-type", "application/json; charset=utf-8");
+      response.end(JSON.stringify(fixture));
+      return;
+    }
     if (url.pathname === "/") {
       response.setHeader("content-type", "text/html; charset=utf-8");
       response.end(`<!doctype html><script type="module">
@@ -40,15 +45,17 @@ async function startServer() {
           createOfflineRegionManifest,
           downloadOfflineRegion,
         } from "/dist/src/offline/index.js";
-        const database = ${JSON.stringify(url.searchParams.get("database"))};
         const digest = async (value) => {
           const bytes = new TextEncoder().encode(value);
           const hash = await crypto.subtle.digest("SHA-256", bytes);
           return "sha256:" + [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
         };
         const run = async () => {
+          const fixture = await fetch("/fixture.json").then((response) => response.json());
+          const database = fixture.database;
+          const mode = sessionStorage.getItem("offline-test-mode") ?? "write";
           const store = createIndexedDbOfflineRegionStore({ name: database });
-          if (${JSON.stringify(url.searchParams.get("mode"))} === "write") {
+          if (mode === "write") {
             const manifest = await createOfflineRegionManifest({
               name: "reload fixture",
               sourceId: "fixture",
@@ -68,6 +75,7 @@ async function startServer() {
             });
             const inventory = await store.inventory();
             window.__offlineResult = { receipt: receipt.integrity === "verified" ? "committed" : "invalid", revision: inventory.revision === "0" ? "zero" : "present", regionCount: inventory.regions.length };
+            sessionStorage.setItem("offline-test-mode", "read");
           } else {
             const inventory = await store.inventory();
             window.__offlineResult = { revision: inventory.revision === "0" ? "zero" : "present", regionCount: inventory.regions.length, logicalByteLength: inventory.regions[0]?.logicalByteLength };
