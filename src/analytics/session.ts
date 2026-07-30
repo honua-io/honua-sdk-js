@@ -130,8 +130,30 @@ export function createAnalyticsLinkedSession(options: CreateAnalyticsLinkedSessi
   function pushLinkedState(state: AnalyticsLinkedState): void {
     for (const presentation of presentations.values()) {
       if (presentation.handle.disposed) continue;
-      presentation.handle.applyLinkedState(state);
+      try {
+        presentation.handle.applyLinkedState(state);
+      } catch (cause) {
+        removeFailedPresentation(presentation, artifact.identity.artifactId, cause);
+      }
     }
+  }
+
+  function removeFailedPresentation(
+    presentation: AnalyticsSessionPresentation,
+    artifactId: string,
+    cause: unknown,
+  ): void {
+    presentations.delete(presentation.id);
+    if (!presentation.handle.disposed) presentation.handle.dispose();
+    options.onWarning?.(
+      `The analytics presentation "${presentation.id}" was removed after it failed to accept a realtime artifact.`,
+      {
+        adapterId: presentation.adapter.id,
+        presentationId: presentation.id,
+        artifactId,
+        error: cause instanceof Error ? cause.message : String(cause),
+      },
+    );
   }
 
   const unsubscribe = binding.subscribe(pushLinkedState);
@@ -244,17 +266,7 @@ export function createAnalyticsLinkedSession(options: CreateAnalyticsLinkedSessi
           // A peer is an optional presentation, not part of the accepted
           // artifact's authority. Release a failed peer so one bad renderer
           // cannot leave the session with a half-updated live handle.
-          presentations.delete(presentation.id);
-          if (!presentation.handle.disposed) presentation.handle.dispose();
-          options.onWarning?.(
-            `The analytics presentation "${presentation.id}" was removed after it failed to accept a realtime artifact.`,
-            {
-              adapterId: presentation.adapter.id,
-              presentationId: presentation.id,
-              artifactId: next.identity.artifactId,
-              error: cause instanceof Error ? cause.message : String(cause),
-            },
-          );
+          removeFailedPresentation(presentation, next.identity.artifactId, cause);
         }
       }
       return decision;
