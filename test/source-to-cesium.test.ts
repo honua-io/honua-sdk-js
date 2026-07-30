@@ -80,6 +80,37 @@ describe("projectSourceToCesium", () => {
     ]);
   });
 
+  it("projects polygon holes and preserves them when materializing a Cesium entity", async () => {
+    const hole = [
+      [-157.85, 21.31],
+      [-157.84, 21.31],
+      [-157.84, 21.32],
+      [-157.85, 21.31],
+    ];
+    const outer = [
+      [-157.86, 21.3],
+      [-157.83, 21.3],
+      [-157.83, 21.33],
+      [-157.86, 21.3],
+    ];
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [{ attributes: { unit_id: "courtyard" }, geometry: { type: "Polygon", coordinates: [outer, hole] } }],
+    };
+    const source = fakeSource([result]);
+    const projection = projectSourceToCesium(source, plan, result);
+    expect(projection.entities[0]?.geometry).toEqual({
+      kind: "polygon",
+      coordinates: outer.map(([longitude, latitude]) => [longitude, latitude, 0]),
+      holes: [hole.map(([longitude, latitude]) => [longitude, latitude, 0])],
+    });
+
+    const collection = fakeCollection();
+    await mountSourceToCesium(collection, source, plan, { ...context, cesium: cesiumModule });
+    const entity = collection.entities.get("honua-response-units:s:courtyard");
+    expect(entity?.polygon).toMatchObject({ hierarchy: { positions: expect.any(Array), holes: [expect.anything()] } });
+  });
+
   it("rejects unbounded, oversized, non-WGS84, and identity-free plans", () => {
     const source = fakeSource([firstResult]);
     const unbounded = explainQuery({ descriptor, query: { returnGeometry: true, outSr: 4326 }, ...context });
@@ -542,7 +573,10 @@ const cesiumModule: CesiumEntityRuntimeModule = {
     constructor(public readonly intervals?: readonly unknown[]) {}
   },
   PolygonHierarchy: class {
-    constructor(public readonly positions: readonly unknown[]) {}
+    constructor(
+      public readonly positions: readonly unknown[],
+      public readonly holes?: readonly unknown[],
+    ) {}
   },
 };
 

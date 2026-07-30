@@ -43,8 +43,9 @@ entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
   `maxEntities` (10,000 by default).
 - Explicit WGS84 output (`outSr: 4326`). Coordinates are never silently
   reinterpreted or reprojected.
-- Point, single-part line, and single-ring polygon geometries in GeoJSON or
-  common Esri shapes. Finite Z values require an explicit
+- Point, single-part line, and polygon geometries with validated interior
+  rings in GeoJSON or common Esri shapes. Polygon holes are represented by
+  Cesium `PolygonHierarchy` children. Finite Z values require an explicit
   `verticalDatum: "ellipsoidal-wgs84"`; otherwise the feature is omitted with
   a stable fidelity diagnostic.
 - Stable entity identity from `featureIdField` or the source primary key.
@@ -70,8 +71,7 @@ options fail before mounting.
 
 This is not completion of issue #395 and is not yet a beta Cesium adapter.
 Terrain and imagery providers, glTF/models, point clouds and 3D Tiles continue
-through the existing scene primitive adapter. Multi-part geometry and polygon
-holes, vertical datum transforms, styling, clustering, streaming/tiled
+through the existing scene primitive adapter. Multi-part geometry, vertical datum transforms, styling, clustering, streaming/tiled
 execution, live deltas, camera/selection/filter synchronization, attribution
 UI, asset authorization/caching, browser examples, and WebGL leak/performance
 certification remain future work.

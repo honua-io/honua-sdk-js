@@ -77,7 +77,11 @@ export interface CesiumEntityInterval {
 export type CesiumEntityGeometry =
   | { readonly kind: "point"; readonly coordinates: readonly [number, number, number] }
   | { readonly kind: "polyline"; readonly coordinates: readonly (readonly [number, number, number])[] }
-  | { readonly kind: "polygon"; readonly coordinates: readonly (readonly [number, number, number])[] };
+  | {
+      readonly kind: "polygon";
+      readonly coordinates: readonly (readonly [number, number, number])[];
+      readonly holes?: readonly (readonly (readonly [number, number, number])[])[];
+    };
 
 export interface CesiumEntityProjectionItem {
   readonly id: string;
@@ -130,7 +134,7 @@ export interface CesiumEntityRuntimeModule {
   };
   readonly TimeInterval: new (options: { start: unknown; stop: unknown }) => unknown;
   readonly TimeIntervalCollection: new (intervals?: readonly unknown[]) => unknown;
-  readonly PolygonHierarchy: new (positions: readonly unknown[]) => unknown;
+  readonly PolygonHierarchy: new (positions: readonly unknown[], holes?: readonly unknown[]) => unknown;
 }
 
 export type CesiumEntityRuntimeLoader = () => Promise<CesiumEntityRuntimeModule>;
@@ -633,7 +637,16 @@ function materializeEntity(
       ? { position: positions[0], point: { pixelSize: 8 } }
       : item.geometry.kind === "polyline"
         ? { polyline: { positions, width: 2 } }
-        : { polygon: { hierarchy: new cesium.PolygonHierarchy(positions) } };
+        : {
+            polygon: {
+              hierarchy: new cesium.PolygonHierarchy(
+                positions,
+                item.geometry.holes?.map(
+                  (hole) => new cesium.PolygonHierarchy(hole.map((coordinate) => toCartesian(cesium, coordinate))),
+                ),
+              ),
+            },
+          };
   const availability = item.interval
     ? new cesium.TimeIntervalCollection([
         new cesium.TimeInterval({
@@ -672,20 +685,41 @@ function projectGeometry<T>(feature: HonuaTypedFeature<T>): CesiumEntityGeometry
     return coordinates && coordinates.length >= 2 ? { kind: "polyline", coordinates } : undefined;
   }
   if (geometry.type === "Polygon") {
-    const rings = geometry.coordinates;
-    if (!Array.isArray(rings) || rings.length !== 1 || !Object.hasOwn(rings, 0)) return undefined;
-    const coordinates = coordinates3(rings[0]);
-    return coordinates && validRing(coordinates) ? { kind: "polygon", coordinates } : undefined;
+    const rings = polygonRings(geometry.coordinates);
+    return rings
+      ? { kind: "polygon", coordinates: rings.outer, ...(rings.holes.length ? { holes: rings.holes } : {}) }
+      : undefined;
   }
   if (Array.isArray(geometry.paths) && geometry.paths.length === 1 && Object.hasOwn(geometry.paths, 0)) {
     const coordinates = coordinates3(geometry.paths[0]);
     return coordinates && coordinates.length >= 2 ? { kind: "polyline", coordinates } : undefined;
   }
-  if (Array.isArray(geometry.rings) && geometry.rings.length === 1 && Object.hasOwn(geometry.rings, 0)) {
-    const coordinates = coordinates3(geometry.rings[0]);
-    return coordinates && validRing(coordinates) ? { kind: "polygon", coordinates } : undefined;
+  if (Array.isArray(geometry.rings)) {
+    const rings = polygonRings(geometry.rings);
+    return rings
+      ? { kind: "polygon", coordinates: rings.outer, ...(rings.holes.length ? { holes: rings.holes } : {}) }
+      : undefined;
   }
   return undefined;
+}
+
+function polygonRings(value: unknown):
+  | {
+      readonly outer: readonly (readonly [number, number, number])[];
+      readonly holes: readonly (readonly (readonly [number, number, number])[])[];
+    }
+  | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const projected = value.map((ring) => {
+    const coordinates = coordinates3(ring);
+    return coordinates && validRing(coordinates) ? coordinates : undefined;
+  });
+  if (projected.some((ring) => ring === undefined)) return undefined;
+  const [outer, ...holes] = projected as [
+    readonly (readonly [number, number, number])[],
+    ...(readonly (readonly (readonly [number, number, number])[])[]),
+  ];
+  return { outer, holes };
 }
 
 function geometryHasZ(value: unknown): boolean {
