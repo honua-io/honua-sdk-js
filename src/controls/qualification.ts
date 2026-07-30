@@ -67,7 +67,7 @@ import { HONUA_COMPONENT_CATALOG, type HonuaComponentCatalogEntry } from "./cata
  * the generated manifest and any external consumer can detect a shape change
  * distinctly from a routine status update.
  */
-export const HONUA_COMPONENT_QUALIFICATION_DATA_VERSION = "1.0.0";
+export const HONUA_COMPONENT_QUALIFICATION_DATA_VERSION = "1.1.0";
 
 /** Which issue requirement a gate discharges. */
 export type HonuaComponentQualificationRequirement = "REQ-004" | "REQ-005" | "NFR-001";
@@ -103,6 +103,7 @@ export type HonuaComponentQualificationGateId =
   | "duplicate-listener"
   | "memory-leak"
   | "ssr-import"
+  | "secure-export"
   | "bundle-budget";
 
 /** One gate's definition: what it means and what would satisfy it. */
@@ -226,6 +227,13 @@ export const HONUA_COMPONENT_QUALIFICATION_GATES: readonly HonuaComponentQualifi
     title: "SSR-safe import",
     criterion:
       "The owning entrypoint imports cleanly with no DOM globals present, defining no custom element and touching no browser API at module scope.",
+  },
+  {
+    id: "secure-export",
+    requirement: "REQ-005",
+    title: "Secure export contract",
+    criterion:
+      "Snapshot and state export actions fail closed without an explicit adapter, sanitize state and adapter output, preserve required provenance, and release adapter-owned resources exactly once; the built-in browser-print action is the documented safe exception.",
   },
   {
     id: "bundle-budget",
@@ -1236,6 +1244,22 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ALL_IDS,
         evidence: [SSR_IMPORT_SUITE],
         note: "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope.",
+      },
+    ],
+  },
+
+  "secure-export": {
+    passing: [
+      {
+        ids: ["web-components.print-export"],
+        evidence: ["test/web-components-export-security.test.ts", "test/web-components-export-review2.test.ts"],
+        note: "The secure-export suites prove explicit-adapter success, fail-closed snapshot/state behavior, credential exclusion from state, bytes, filenames, errors, and provenance, plus idempotent release and cancellation.",
+      },
+    ],
+    notApplicable: [
+      {
+        ids: allExcept("web-components.print-export"),
+        note: "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export.",
       },
     ],
   },

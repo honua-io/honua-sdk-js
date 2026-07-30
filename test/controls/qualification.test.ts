@@ -178,6 +178,7 @@ describe("gate completion and catalog support tier are distinct axes", () => {
 
 describe("the production-tier feature editor is seeded honestly", () => {
   const row = getComponentQualification("web-components.feature-editor");
+  const printExportRow = getComponentQualification("web-components.print-export");
 
   it("is recorded at all", () => {
     expect(row).toBeDefined();
@@ -202,6 +203,15 @@ describe("the production-tier feature editor is seeded honestly", () => {
     expect(status("zero-console-error")).toBe("passing");
     expect(status("memory-leak")).toBe("passing");
     expect(status("rtl")).toBe("passing");
+  });
+
+  it("records the secure export contract on the print/export component", () => {
+    const secureExport = printExportRow?.gates.find((cell) => cell.gate === "secure-export");
+    expect(secureExport?.status).toBe("passing");
+    expect(secureExport?.evidence).toEqual([
+      "test/web-components-export-review2.test.ts",
+      "test/web-components-export-security.test.ts",
+    ]);
   });
 
   it("cites its own element suite as the evidence for what it claims", () => {
