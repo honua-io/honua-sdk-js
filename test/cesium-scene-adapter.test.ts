@@ -16,7 +16,7 @@ const modelFromGltfAsync = vi.fn(async (options: Record<string, unknown>) => ({
   scale: options.scale,
   show: true,
 }));
-const terrainFromUrl = vi.fn(async (url: string) => ({ kind: "terrain-provider", url }));
+const terrainFromUrl = vi.fn(async (url: string) => ({ kind: "terrain-provider", url, destroy: vi.fn() }));
 
 vi.mock("cesium", () => ({
   Cartesian3: {
@@ -380,12 +380,58 @@ describe("cesium scene adapter", () => {
       const secondProvider = scene.terrainProvider;
       expect(secondProvider).not.toBe(firstProvider);
       expect(scene.verticalExaggeration).toBe(3);
+      expect((firstProvider as { destroy: ReturnType<typeof vi.fn> }).destroy).toHaveBeenCalledTimes(1);
 
       // Removing the now-stale first handle must be a no-op: the newer provider
       // and its exaggeration stay active.
       first?.remove();
       expect(scene.terrainProvider).toBe(secondProvider);
       expect(scene.verticalExaggeration).toBe(3);
+      expect((firstProvider as { destroy: ReturnType<typeof vi.fn> }).destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("destroys the active terrain provider exactly once when its handle is removed", async () => {
+      const scene = createMockCesiumScene();
+      const cesium = (await import("cesium")) as never;
+      const handle = await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "terrain-a",
+          sourceId: "terrain-a",
+          protocol: "quantized-mesh",
+          url: "https://example.test/terrain-a",
+        },
+        cesium,
+      );
+      const provider = scene.terrainProvider as { destroy: ReturnType<typeof vi.fn> };
+
+      handle?.remove();
+      handle?.remove();
+
+      expect(provider.destroy).toHaveBeenCalledTimes(1);
+      expect(scene.terrainProvider).toBeUndefined();
+    });
+
+    it("does not destroy a caller-owned provider when replacing terrain", async () => {
+      const scene = createMockCesiumScene();
+      const callerProvider = { destroy: vi.fn() };
+      scene.terrainProvider = callerProvider;
+      const cesium = (await import("cesium")) as never;
+
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "terrain-a",
+          sourceId: "terrain-a",
+          protocol: "quantized-mesh",
+          url: "https://example.test/terrain-a",
+        },
+        cesium,
+      );
+
+      expect(callerProvider.destroy).not.toHaveBeenCalled();
     });
 
     it("sets exaggeration but skips the provider when terrain url is absent", async () => {

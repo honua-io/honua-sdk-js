@@ -190,6 +190,16 @@ It is a bounded feature/entity slice alongside the existing terrain, model,
 and 3D Tiles primitive adapter; it is not yet the production adapter described
 by issue `#395`.
 
+### Cesium layer disposal
+
+Cesium layer handles returned by the primitive adapter own the resources they
+materialize. Calling `remove()` is idempotent. Tilesets and models are removed
+through Cesium's primitive collection; terrain handles clear the active
+provider and call its optional `destroy()` method. Replacing terrain destroys
+the displaced provider immediately, while removing a stale handle never
+disturbs the newer provider. The application owns the Cesium `Viewer`/`Scene`
+itself and must dispose that target separately.
+
 ## Demo Fit
 
 The incident operations dashboard can use this workspace when the map expands
