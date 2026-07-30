@@ -14,6 +14,7 @@ export {
   loadDeckGlAdapter,
   loadDeckGlPeers,
 } from "./adapter.js";
+export { planDeckGlExecution } from "./execution-plan.js";
 export type { CreateDeckGlAdapterOptions } from "./adapter.js";
 export {
   bindColumnarBatchToDeckGl,
@@ -45,6 +46,10 @@ export type {
   DeckGlCapability,
   DeckGlDisposalHandle,
   DeckGlExecutionDiagnostic,
+  DeckGlExecutionAvailability,
+  DeckGlExecutionPlan,
+  DeckGlExecutionPlanRequest,
+  DeckGlExecutionStrategy,
   DeckGlLayer,
   DeckGlLayerConstructor,
   DeckGlLayerHost,
