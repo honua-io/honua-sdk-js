@@ -133,11 +133,11 @@
     "components": 21,
     "gates": 18,
     "cells": 378,
-    "passing": 311,
+    "passing": 312,
     "failing": 0,
-    "pending": 21,
+    "pending": 20,
     "notApplicable": 46,
-    "productionQualifiedComponents": 0,
+    "productionQualifiedComponents": 1,
     "productionTierComponents": 1
   },
   "components": [
@@ -239,7 +239,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -413,7 +413,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -582,7 +582,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -754,7 +754,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -935,7 +935,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -1112,7 +1112,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -1284,7 +1284,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -1455,7 +1455,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -1634,7 +1634,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -1806,7 +1806,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -1886,14 +1886,12 @@
       "tag": "honua-feature-editor",
       "source": "web-components",
       "supportTier": "production-tier",
-      "productionQualified": false,
-      "openGates": [
-        "visual-regression"
-      ],
+      "productionQualified": true,
+      "openGates": [],
       "summary": {
-        "passing": 15,
+        "passing": 16,
         "failing": 0,
-        "pending": 1,
+        "pending": 0,
         "notApplicable": 2
       },
       "gates": [
@@ -1983,8 +1981,11 @@
         {
           "gate": "visual-regression",
           "requirement": "REQ-005",
-          "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs"
+          ],
+          "note": "The browser fixture mounts the production-tier feature editor in its deterministic empty state and compares it with a committed Playwright baseline on every run, with animations disabled and the caret hidden."
         },
         {
           "gate": "strict-csp",
@@ -2155,7 +2156,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -2325,7 +2326,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -2501,7 +2502,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -2677,7 +2678,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -2850,7 +2851,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -3027,7 +3028,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -3199,7 +3200,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -3371,7 +3372,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -3547,7 +3548,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",
@@ -3720,7 +3721,7 @@
           "gate": "visual-regression",
           "requirement": "REQ-005",
           "status": "pending",
-          "note": "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared."
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
         },
         {
           "gate": "strict-csp",

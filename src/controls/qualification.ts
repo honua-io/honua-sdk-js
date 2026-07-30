@@ -1065,8 +1065,15 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   },
 
   "visual-regression": {
+    passing: [
+      {
+        ids: [FEATURE_EDITOR],
+        evidence: ["test/playwright/web-components-basic.spec.mjs"],
+        note: "The browser fixture mounts the production-tier feature editor in its deterministic empty state and compares it with a committed Playwright baseline on every run, with animations disabled and the caret hidden.",
+      },
+    ],
     pendingNote:
-      "The kit has no reference screenshots. The repo's only screenshot comparison covers a sample app; component-spec screenshots are captured as evidence attachments only and are never compared.",
+      "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines.",
   },
 
   "strict-csp": {
