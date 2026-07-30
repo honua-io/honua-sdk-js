@@ -199,6 +199,8 @@ export interface OfflineRegionWriteTransaction {
   evict(regionId: string): Promise<void>;
   /** Return a previously staged payload for this resource when it passed storage validation. */
   readonly readStaged?: (resource: OfflineRegionResourceV1) => Promise<Readonly<Uint8Array> | undefined>;
+  /** Discard a failed staged checkpoint before retrying the loader. */
+  readonly discardStaged?: (resource: OfflineRegionResourceV1) => Promise<void>;
   /** Resolve only after the store no longer depends on caller mutation of `bytes`. */
   write(resource: OfflineRegionResourceV1, bytes: Readonly<Uint8Array>): Promise<void>;
   commit(

@@ -320,7 +320,12 @@ export async function downloadOfflineRegion(
         resourceId: resource.id,
       });
       const stagedBytes = transaction.readStaged ? await transaction.readStaged(resource) : undefined;
-      const ownedBytes = stagedBytes === undefined ? await loadOwnedResource(resource, manifest, options) : stagedBytes;
+      let ownedBytes = stagedBytes;
+      if (ownedBytes !== undefined && (await sha256(ownedBytes)) !== resource.integrity) {
+        await transaction.discardStaged?.(resource);
+        ownedBytes = undefined;
+      }
+      if (ownedBytes === undefined) ownedBytes = await loadOwnedResource(resource, manifest, options);
       throwIfAborted(options.signal);
       if (ownedBytes.byteLength !== resource.byteLength) {
         throw new HonuaOfflineRegionError(
