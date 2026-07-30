@@ -209,8 +209,8 @@ describe("the production-tier feature editor is seeded honestly", () => {
     const secureExport = printExportRow?.gates.find((cell) => cell.gate === "secure-export");
     expect(secureExport?.status).toBe("passing");
     expect(secureExport?.evidence).toEqual([
-      "test/web-components-export-security.test.ts",
       "test/web-components-export-review2.test.ts",
+      "test/web-components-export-security.test.ts",
     ]);
   });
 

@@ -2,7 +2,7 @@
   "$schema": "./component-qualification.schema.json",
   "format": "honua.app-platform.component-qualification.v1",
   "schemaVersion": 1,
-  "dataVersion": "1.0.0",
+  "dataVersion": "1.1.0",
   "generatedFrom": [
     "src/controls/catalog.ts",
     "src/controls/qualification.ts"
@@ -120,7 +120,7 @@
       "id": "secure-export",
       "requirement": "REQ-005",
       "title": "Secure export contract",
-      "criterion": "Export actions fail closed without an explicit adapter, sanitize state and adapter output, preserve required provenance, and release adapter-owned resources exactly once."
+      "criterion": "Snapshot and state export actions fail closed without an explicit adapter, sanitize state and adapter output, preserve required provenance, and release adapter-owned resources exactly once; the built-in browser-print action is the documented safe exception."
     },
     {
       "id": "bundle-budget",
