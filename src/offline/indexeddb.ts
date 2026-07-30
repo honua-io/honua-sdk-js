@@ -120,7 +120,6 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
         return runTransaction(database, "readwrite", async (transaction) => {
           const inventoryStore = transaction.objectStore(INVENTORY_STORE);
           const regionStore = transaction.objectStore(REGION_STORE);
-          const resourceStore = transaction.objectStore(RESOURCE_STORE);
           const currentInventory = await request<InventoryRecord | undefined>(inventoryStore.get(INVENTORY_KEY));
           if ((currentInventory?.revision ?? "0") !== guard.expectedInventoryRevision) return "inventory-changed";
 
