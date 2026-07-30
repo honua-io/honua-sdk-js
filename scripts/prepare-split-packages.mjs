@@ -367,7 +367,7 @@ function createCompatPackage() {
   writePackageJson(packageRoot, {
     name: "@honua/sdk-esri-compat",
     description:
-      "ArcGIS JS API compatibility layer for migrating Esri apps to the open Honua + MapLibre stack",
+      "ArcGIS JS API compatibility layer for ArcGIS migration from Esri apps to the open Honua + MapLibre stack",
     keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "compatibility"]),
     main: "./index.js",
     types: "./index.d.ts",

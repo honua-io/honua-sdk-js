@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runNpmSync } from "./lib/npm-cli.mjs";
+import { splitPackageDiscoverabilityErrors } from "./lib/package-discoverability.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -37,6 +38,13 @@ for (const [name, directory] of Object.entries(packageDirs)) {
   }
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(directory, "package.json"), "utf8"));
+  const discoverabilityErrors = splitPackageDiscoverabilityErrors(packageJson, name);
+  if (discoverabilityErrors.length > 0) {
+    process.stderr.write(
+      `Invalid discoverability metadata for ${name}:\n${discoverabilityErrors.map((error) => `- ${error}`).join("\n")}\n`,
+    );
+    process.exit(1);
+  }
   if (packageJson?.engines?.node !== EXPECTED_PUBLISHED_NODE_ENGINE) {
     process.stderr.write(
       `Unexpected published Node engine for ${name}: ${packageJson?.engines?.node ?? "<missing>"}\n`,
