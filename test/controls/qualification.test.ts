@@ -135,15 +135,14 @@ describe("gate completion and catalog support tier are distinct axes", () => {
     }
   });
 
-  it("does NOT treat the production tier as gate completion", () => {
-    // `<honua-feature-editor>` is production-tier because issue #680 delivered
-    // its editing feature set, not because it cleared this matrix. Asserting the
-    // gap explicitly is what stops the tier from being read as a gate claim.
+  it("keeps production tier and gate completion as distinct claims", () => {
+    // A production-tier component may be promoted after clearing every gate,
+    // but the tier itself must never hide gates that remain open.
     const productionTier = HONUA_COMPONENT_CATALOG.filter((entry) => entry.supportTier === "production-tier");
     expect(productionTier.length).toBeGreaterThan(0);
     for (const entry of productionTier) {
-      expect(listOpenQualificationGates(entry.id).length, entry.id).toBeGreaterThan(0);
-      expect(isComponentProductionQualified(entry.id), entry.id).toBe(false);
+      const openGates = listOpenQualificationGates(entry.id);
+      expect(isComponentProductionQualified(entry.id), entry.id).toBe(openGates.length === 0);
     }
   });
 
