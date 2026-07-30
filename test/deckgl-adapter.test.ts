@@ -164,6 +164,21 @@ describe("deck.gl adapter", () => {
     );
   });
 
+  it("preserves the structured error when a returned layer id cannot be coerced", () => {
+    const hostileId = {
+      toString() {
+        throw new Error("foreign coercion failure");
+      },
+    };
+    class HostileLayer {
+      public readonly id = hostileId as unknown as string;
+    }
+
+    expect(() => createDeckGlAdapter({ peers: { ScatterplotLayer: HostileLayer } }).project(request(1))).toThrowError(
+      expect.objectContaining({ code: "invalid-layer", cause: expect.any(Error) }),
+    );
+  });
+
   it("retains failed removals for retry while disposing every other mount", () => {
     const adapter = createDeckGlAdapter({ peers: { ScatterplotLayer: FakeScatterplotLayer } });
     let removalAttempts = 0;

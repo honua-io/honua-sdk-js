@@ -545,9 +545,20 @@ function validateConstructedLayer(
     );
   }
   if (actualId !== layerId) {
+    let actualIdText: string;
+    try {
+      actualIdText = String(actualId);
+    } catch (cause) {
+      throw new HonuaDeckGlAdapterError(
+        "invalid-layer",
+        `Optional deck.gl peer ${peer} returned an unreadable layer id; expected "${layerId}".`,
+        { peer, layerId },
+        { cause },
+      );
+    }
     throw new HonuaDeckGlAdapterError(
       "invalid-layer",
-      `Optional deck.gl peer ${peer} returned layer id "${String(actualId)}"; expected "${layerId}".`,
+      `Optional deck.gl peer ${peer} returned layer id "${actualIdText}"; expected "${layerId}".`,
       { peer, layerId, actualId },
     );
   }
