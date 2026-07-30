@@ -131,6 +131,33 @@ describe("createKeplerWorkspaceBridge", () => {
     expect(bridge.metrics.rows).toBe(2);
   });
 
+  it("rejects credential-shaped values in every persisted provenance field", () => {
+    const fields = [
+      ["sourceVersion", "Bearer source-secret"],
+      ["schemaVersion", "https://user:password@example.test/schema"],
+      ["planId", "https://example.test/plan?access_token=secret-value"],
+      ["planFingerprint", "Bearer fingerprint-secret"],
+      ["protocol", "https://user:password@example.test/protocol"],
+    ] as const;
+
+    for (const [field, value] of fields) {
+      expect(() =>
+        projectResultToKeplerDataset(resultRequest({ provenance: { ...provenance, [field]: value } })),
+      ).toThrowError(/credential/i);
+    }
+
+    expect(() =>
+      projectResultToKeplerDataset(
+        resultRequest({
+          provenance: {
+            ...provenance,
+            freshness: { observedAt: "2026-07-30T00:00:00.000Z", validator: "Bearer validator-secret" },
+          },
+        }),
+      ),
+    ).toThrowError(/credential/i);
+  });
+
   it("dispatches through an attached host, wrapping for the Kepler instance id", () => {
     const dispatched: KeplerAction[] = [];
     const bridge = createKeplerWorkspaceBridge({

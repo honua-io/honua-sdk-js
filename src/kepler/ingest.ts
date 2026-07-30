@@ -83,11 +83,34 @@ export function normalizeKeplerProvenance(provenance: KeplerSourceProvenance): K
   ) {
     throw new HonuaKeplerBridgeError("invalid-request", "A Kepler projection requires provenance with a sourceId.");
   }
-  if (provenance.authorizationScope !== undefined) {
-    assertCredentialFreeScalar(provenance.authorizationScope, "provenance.authorizationScope");
+  const scalars = [
+    ["sourceId", provenance.sourceId],
+    ["sourceVersion", provenance.sourceVersion],
+    ["schemaVersion", provenance.schemaVersion],
+    ["planId", provenance.planId],
+    ["planFingerprint", provenance.planFingerprint],
+    ["authorizationScope", provenance.authorizationScope],
+    ["attribution", provenance.attribution],
+    ["protocol", provenance.protocol],
+  ] as const;
+  for (const [label, value] of scalars) {
+    if (value !== undefined) assertCredentialFreeScalar(value, `provenance.${label}`);
   }
-  if (provenance.attribution !== undefined) {
-    assertCredentialFreeScalar(provenance.attribution, "provenance.attribution");
+  if (provenance.freshness !== undefined) {
+    assertCredentialFreeScalar(provenance.freshness.observedAt, "provenance.freshness.observedAt");
+    if (provenance.freshness.staleAfter !== undefined) {
+      assertCredentialFreeScalar(provenance.freshness.staleAfter, "provenance.freshness.staleAfter");
+    }
+    if (provenance.freshness.validator !== undefined) {
+      assertCredentialFreeScalar(provenance.freshness.validator, "provenance.freshness.validator");
+    }
+    if (provenance.freshness.generation !== undefined) {
+      assertCredentialFreeScalar(provenance.freshness.generation, "provenance.freshness.generation");
+    }
+  }
+  for (const [index, note] of (provenance.degraded ?? []).entries()) {
+    assertCredentialFreeScalar(note.capability, `provenance.degraded[${index}].capability`);
+    assertCredentialFreeScalar(note.reason, `provenance.degraded[${index}].reason`);
   }
   return Object.freeze({
     ...provenance,
