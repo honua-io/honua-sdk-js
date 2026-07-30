@@ -678,6 +678,7 @@ export async function applyCesiumTerrain(
       // removing this (now-stale) handle must be a no-op so we don't clobber the
       // active terrain/exaggeration.
       if (scene.terrainProvider !== provider) {
+        disposeOwnedCesiumTerrainProvider(provider);
         removed = true;
         return;
       }
