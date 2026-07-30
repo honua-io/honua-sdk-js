@@ -7,6 +7,9 @@ export const HONUA_PLUGIN_API_VERSION = "1.0" as const;
 /** Version of the archived manifest-certification report schema. */
 export const HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION = 1 as const;
 
+/** Version of the host-mediated certification signing envelope contract. */
+export const HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION = 1 as const;
+
 export const HONUA_PLUGIN_KINDS = Object.freeze([
   "protocol",
   "source-format",
@@ -262,6 +265,36 @@ export interface HonuaPluginReportVerification {
   readonly ok: boolean;
   /** The report status when the report parsed, otherwise `null`. */
   readonly status: "certified" | "rejected" | null;
+  readonly diagnostics: readonly HonuaPluginDiagnostic[];
+}
+
+/**
+ * A certification report plus an application-selected external signature.
+ * The SDK deliberately carries no key material or issuer policy; `keyId` is
+ * only an opaque selector for the host's verifier.
+ */
+export interface HonuaPluginCertificationSigningEnvelope {
+  readonly envelopeVersion: typeof HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION;
+  readonly algorithm: "external";
+  readonly keyId: string;
+  readonly report: HonuaPluginCertificationReport;
+  readonly signature: string;
+}
+
+/** Host-owned verification seam. Key lookup and cryptographic policy stay out of the SDK. */
+export interface HonuaPluginCertificationSignatureVerifier {
+  readonly verify: (
+    canonicalPayload: string,
+    signature: string,
+    keyId: string,
+    signal?: AbortSignal,
+  ) => Promise<boolean>;
+}
+
+export interface HonuaPluginCertificationSigningEnvelopeVerification {
+  readonly ok: boolean;
+  readonly status: "certified" | "rejected" | null;
+  readonly keyId: string | null;
   readonly diagnostics: readonly HonuaPluginDiagnostic[];
 }
 
