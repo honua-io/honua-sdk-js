@@ -67,7 +67,7 @@ import { HONUA_COMPONENT_CATALOG, type HonuaComponentCatalogEntry } from "./cata
  * the generated manifest and any external consumer can detect a shape change
  * distinctly from a routine status update.
  */
-export const HONUA_COMPONENT_QUALIFICATION_DATA_VERSION = "1.0.0";
+export const HONUA_COMPONENT_QUALIFICATION_DATA_VERSION = "1.1.0";
 
 /** Which issue requirement a gate discharges. */
 export type HonuaComponentQualificationRequirement = "REQ-004" | "REQ-005" | "NFR-001";
@@ -233,7 +233,7 @@ export const HONUA_COMPONENT_QUALIFICATION_GATES: readonly HonuaComponentQualifi
     requirement: "REQ-005",
     title: "Secure export contract",
     criterion:
-      "Export actions fail closed without an explicit adapter, sanitize state and adapter output, preserve required provenance, and release adapter-owned resources exactly once.",
+      "Snapshot and state export actions fail closed without an explicit adapter, sanitize state and adapter output, preserve required provenance, and release adapter-owned resources exactly once; the built-in browser-print action is the documented safe exception.",
   },
   {
     id: "bundle-budget",
