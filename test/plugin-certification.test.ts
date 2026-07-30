@@ -634,18 +634,27 @@ describe("host-mediated certification signing envelope", () => {
 
   it("verifies a certified envelope through the injected host seam", async () => {
     const value = envelope();
-    const payload = createHonuaPluginCertificationSigningPayload({
-      envelopeVersion: value.envelopeVersion as 1,
-      algorithm: "external",
-      keyId: value.keyId as string,
-      report: value.report as never,
-    });
+    const payload = createHonuaPluginCertificationSigningPayload(value as never);
+    value.signature = `signed:${payload}`;
     const verify = vi.fn(async (canonical: string, signature: string, keyId: string) => {
-      return canonical === payload && signature === "sig" && keyId === "test-key-1";
+      return canonical === payload && signature === `signed:${payload}` && keyId === "test-key-1";
     });
     const result = await verifyHonuaPluginCertificationSigningEnvelope(jsonText(value), { verify });
     expect(result).toMatchObject({ ok: true, status: "certified", keyId: "test-key-1", diagnostics: [] });
     expect(verify).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a structurally assignable signature on signing payload input", () => {
+    const value = envelope();
+    const payload = createHonuaPluginCertificationSigningPayload(value as never);
+    expect(payload).toBe(
+      createHonuaPluginCertificationSigningPayload({
+        envelopeVersion: value.envelopeVersion as 1,
+        algorithm: "external",
+        keyId: value.keyId as string,
+        report: value.report as never,
+      }),
+    );
   });
 
   it("fails closed without a verifier and never treats the envelope as trusted", async () => {

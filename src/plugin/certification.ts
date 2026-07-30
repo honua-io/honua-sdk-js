@@ -741,7 +741,12 @@ export function verifyHonuaPluginCertificationReport(input: string): HonuaPlugin
 export function createHonuaPluginCertificationSigningPayload(
   envelope: Omit<HonuaPluginCertificationSigningEnvelope, "signature">,
 ): string {
-  return canonicalStringify(envelope as unknown as Parameters<typeof canonicalStringify>[0]);
+  return canonicalStringify({
+    envelopeVersion: envelope.envelopeVersion,
+    algorithm: envelope.algorithm,
+    keyId: envelope.keyId,
+    report: envelope.report,
+  } as unknown as Parameters<typeof canonicalStringify>[0]);
 }
 
 /**
