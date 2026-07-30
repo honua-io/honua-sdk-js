@@ -377,6 +377,8 @@ interface AnalyticsInteractionBase {
   readonly adapterId: string;
   /** Artifact the interaction was performed against. */
   readonly artifactId: string;
+  /** Sequence rendered when the interaction was produced. */
+  readonly artifactSequence?: number;
 }
 
 /** A mark was activated (click, Enter/Space, or programmatic toggle). */

@@ -237,6 +237,7 @@ export function createDefaultAnalyticsPresentation(
           kind: "mark-select",
           adapterId: ADAPTER_ID,
           artifactId: artifact.identity.artifactId,
+          artifactSequence: artifact.identity.sequence,
           markKeys: [key],
           replace,
         });
@@ -262,6 +263,7 @@ export function createDefaultAnalyticsPresentation(
             kind: "range-brush",
             adapterId: ADAPTER_ID,
             artifactId: artifact.identity.artifactId,
+            artifactSequence: artifact.identity.sequence,
             range: {
               min: Math.min(...marks.map((mark) => mark.min)),
               max: Math.max(...marks.map((mark) => mark.max)),
@@ -276,6 +278,7 @@ export function createDefaultAnalyticsPresentation(
             kind: "temporal-brush",
             adapterId: ADAPTER_ID,
             artifactId: artifact.identity.artifactId,
+            artifactSequence: artifact.identity.sequence,
             window: { start: marks[0].start, end: marks[marks.length - 1].end },
           });
         }
@@ -297,6 +300,7 @@ export function createDefaultAnalyticsPresentation(
               kind: "hover",
               adapterId: ADAPTER_ID,
               artifactId: artifact.identity.artifactId,
+              artifactSequence: artifact.identity.sequence,
               markKey: key,
             });
           };
@@ -305,6 +309,7 @@ export function createDefaultAnalyticsPresentation(
               kind: "hover",
               adapterId: ADAPTER_ID,
               artifactId: artifact.identity.artifactId,
+              artifactSequence: artifact.identity.sequence,
             });
           };
           button.addEventListener("click", onClick);

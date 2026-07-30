@@ -328,6 +328,7 @@ export function createUplotAnalyticsAdapter(
             kind: "temporal-brush",
             adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
             artifactId: artifactId(),
+            artifactSequence: artifact.identity.sequence,
             window: {
               start: new Date(Math.round(min * 1000)).toISOString(),
               end: new Date(Math.round(max * 1000)).toISOString(),
@@ -339,6 +340,7 @@ export function createUplotAnalyticsAdapter(
           kind: "range-brush",
           adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
           artifactId: artifactId(),
+          artifactSequence: artifact.identity.sequence,
           range: { min, max },
         });
       }
@@ -352,6 +354,7 @@ export function createUplotAnalyticsAdapter(
           kind: "hover",
           adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
           artifactId: artifactId(),
+          artifactSequence: artifact.identity.sequence,
           ...(key ? { markKey: key } : {}),
         });
       }
@@ -374,6 +377,7 @@ export function createUplotAnalyticsAdapter(
               kind: "mark-select",
               adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
               artifactId: artifactId(),
+              artifactSequence: artifact.identity.sequence,
               markKeys: [key],
               replace: true,
             });

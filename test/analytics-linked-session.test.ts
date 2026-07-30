@@ -395,6 +395,45 @@ describe("realtime updates", () => {
     linked.dispose();
   });
 
+  it("ignores a queued interaction from a superseded artifact", () => {
+    const warnings: Array<{ message: string; detail?: Readonly<Record<string, unknown>> }> = [];
+    const ctx = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+    const view = ctx.connectView({ id: "chart", role: "chart" });
+    const registry = createAnalyticsAdapterRegistry();
+    const linked = createAnalyticsLinkedSession({
+      view,
+      artifact: categoryArtifact(1, 42),
+      registry,
+      onWarning: (message, detail) => warnings.push({ message, detail }),
+    });
+
+    linked.accept(categoryArtifact(2, 55));
+    const commit = linked.apply({
+      kind: "mark-select",
+      adapterId: "test.chart",
+      artifactId: "incidents-by-status",
+      artifactSequence: 1,
+      markKeys: ["s:OPEN"],
+    });
+
+    expect(commit.changed).toBe(false);
+    expect(view.state.filters[linked.binding.clauseIds.marks]).toBeUndefined();
+    expect(view.state.selection).toEqual([]);
+    expect(warnings).toEqual([
+      {
+        message: 'The analytics interaction from "test.chart" was ignored because it targeted a superseded artifact.',
+        detail: {
+          adapterId: "test.chart",
+          interactionArtifactId: "incidents-by-status",
+          interactionArtifactSequence: 1,
+          acceptedArtifactId: "incidents-by-status",
+          acceptedArtifactSequence: 2,
+        },
+      },
+    ]);
+    linked.dispose();
+  });
+
   it("patches in place on a newer sequence and keeps the DOM presentation mounted", async () => {
     const { session: linked } = session(categoryArtifact(1, 42), [createDefaultAnalyticsPresentation()]);
     const panel = document.createElement("div");

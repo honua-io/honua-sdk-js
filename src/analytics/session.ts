@@ -169,6 +169,32 @@ export function createAnalyticsLinkedSession(options: CreateAnalyticsLinkedSessi
 
   function apply(interaction: AnalyticsInteraction): AnalyticsLinkCommit {
     assertLive("apply an interaction");
+    if (
+      interaction.artifactId !== artifact.identity.artifactId ||
+      (interaction.artifactSequence !== undefined && interaction.artifactSequence !== artifact.identity.sequence)
+    ) {
+      const detail = {
+        adapterId: interaction.adapterId,
+        interactionArtifactId: interaction.artifactId,
+        interactionArtifactSequence: interaction.artifactSequence,
+        acceptedArtifactId: artifact.identity.artifactId,
+        acceptedArtifactSequence: artifact.identity.sequence,
+      } as const;
+      options.onWarning?.(
+        `The analytics interaction from "${interaction.adapterId}" was ignored because it targeted a superseded artifact.`,
+        detail,
+      );
+      const ignored: AnalyticsLinkCommit = {
+        interaction,
+        changed: false,
+        touchedClauseIds: [],
+        touchedSelection: false,
+        linkedState: binding.linkedState,
+        undo(): void {},
+      };
+      options.onCommit?.(ignored);
+      return ignored;
+    }
     const commit = record(binding.apply(interaction));
     pushLinkedState(commit.linkedState);
     return commit;

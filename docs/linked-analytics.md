@@ -94,6 +94,14 @@ bindings in `@honua/sdk-js/interactions` already use.
 | `hover` | Ephemeral. Shared with peer presentations through the binding, never written into the reducer, so it cannot pollute a shareable snapshot |
 | `clear` | Clears the channels this view owns |
 
+Interactions also carry the rendered artifact sequence when emitted by the
+built-in presentations and the µPlot adapter. A session ignores an event whose
+`artifactId` or `artifactSequence` no longer matches the accepted artifact,
+and reports the mismatch through `onWarning`. This closes the realtime race
+where a queued click or brush from an older chart could otherwise apply its
+mark keys to newer data. Third-party adapters should copy both identity fields
+from the mounted artifact into every emitted interaction.
+
 Every commit is invertible. `apply()` captures the previous values of *only the
 slices it touched* and returns an `undo()` that restores them — never a
 whole-state snapshot restore, so a concurrent change published by a peer view
