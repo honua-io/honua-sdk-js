@@ -157,6 +157,11 @@ test("IndexedDB schema upgrade backfills legacy staging timestamps", async ({ pa
       });
     }, legacyDatabase);
     expect(createdAt).toEqual(expect.any(Number));
+  } finally {
+    await server.close();
+  }
+});
+
 test("IndexedDB store supports atomic pinning, expiry pruning, and removal", async ({ page }) => {
   const server = await startServer();
   try {
