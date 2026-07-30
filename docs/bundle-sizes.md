@@ -40,7 +40,7 @@ _Generated 2026-07-30 at commit `cd30a5c5`._
 | `/deckgl` (deck.gl external — lazy peer) | 64.2 KiB | 68.3 KiB | 17.2 KiB | 18.3 KiB |
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 944.8 KiB | 1037.6 KiB | 253.2 KiB | 277.9 KiB |
 | `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1020.4 KiB | 1120.1 KiB | 276.3 KiB | 292.6 KiB |
-| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 60.1 KiB | 60.8 KiB | 17.5 KiB | 18.1 KiB |
+| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 499.3 KiB | 506.7 KiB | 132.7 KiB | 134.6 KiB |

@@ -295,7 +295,7 @@ export function assertCredentialFreeUrl(value: string, label: string): string {
  * dataset label, …) that actually carries a credential.
  */
 export function assertCredentialFreeScalar(value: string, label: string): string {
-  if (looksLikeCredentialValue(value) || credentialQueryParameters(value).length > 0) {
+  if (hasUrlUserinfo(value) || looksLikeCredentialValue(value) || credentialQueryParameters(value).length > 0) {
     throw new HonuaKeplerBridgeError(
       "credential-leak",
       `${label} must be an opaque non-secret value; it looks like a credential.`,

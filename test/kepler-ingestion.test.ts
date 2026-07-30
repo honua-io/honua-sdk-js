@@ -106,6 +106,26 @@ describe("projectResultToKeplerDataset — direct point path", () => {
     expect(metadata.rowIdentityField).toBe("objectid");
   });
 
+  it("snapshots nested freshness so caller mutation cannot alter persisted provenance", () => {
+    const mutableFreshness = {
+      observedAt: "2026-07-25T12:00:00Z",
+      staleAfter: "2026-07-25T12:05:00Z",
+      validator: 'W/"etag-1"',
+    };
+    const projection = projectResultToKeplerDataset(
+      resultRequest({ provenance: { ...provenance, freshness: mutableFreshness } }),
+    );
+
+    mutableFreshness.validator = "https://user:secret@example.test/items?access_token=leaked";
+
+    expect(projection.dataset.metadata.provenance.freshness).toEqual({
+      observedAt: "2026-07-25T12:00:00Z",
+      staleAfter: "2026-07-25T12:05:00Z",
+      validator: 'W/"etag-1"',
+    });
+    expect(Object.isFrozen(projection.dataset.metadata.provenance.freshness)).toBe(true);
+  });
+
   it("treats an explicitly declared temporal attribute as a Kepler timestamp column", () => {
     const projection = projectResultToKeplerDataset(
       resultRequest({
@@ -385,6 +405,19 @@ describe("projectResultToKeplerDataset — capability truth", () => {
 
     expect(projection.diagnostic.losses.map((loss) => loss.kind)).toContain("row-limit-truncated");
     expect(projection.diagnostic.losses.some((loss) => loss.detail.includes("computed client-side"))).toBe(true);
+  });
+
+  it("rejects credential-bearing result degradation before serializing ingestion losses", () => {
+    expect(() =>
+      projectResultToKeplerDataset(
+        resultRequest({
+          result: {
+            features: [{ attributes: { objectid: 1 }, geometry: { x: 0, y: 0 } }],
+            degraded: [{ capability: "query", reason: "https://user:secret@example.test/items" }],
+          },
+        }),
+      ),
+    ).toThrow(/result\.degraded\[0\]\.reason/);
   });
 
   it("projects aggregate rows with no geometry and no CRS decision", () => {
