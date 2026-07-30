@@ -12,7 +12,7 @@
  */
 
 /** Bridge contract version. Bumped when the projection shapes change. */
-export const KEPLER_BRIDGE_CONTRACT_VERSION = "1.1" as const;
+export const KEPLER_BRIDGE_CONTRACT_VERSION = "1.0" as const;
 
 /**
  * Declared Kepler.gl compatibility range (NFR-001). The bridge targets the
