@@ -19,6 +19,7 @@ import type {
   AnalyticsCategoryArtifact,
   AnalyticsMeasure,
   AnalyticsPresentationAdapter,
+  AnalyticsPresentationHandle,
   AnalyticsTimeSeriesArtifact,
 } from "../src/analytics/index.js";
 import { createExplorationContext } from "../src/exploration/context.js";
@@ -84,11 +85,15 @@ function timeSeriesArtifact(): AnalyticsTimeSeriesArtifact {
   });
 }
 
-function session(artifact: AnalyticsArtifact, adapters: AnalyticsPresentationAdapter[] = []) {
+function session(
+  artifact: AnalyticsArtifact,
+  adapters: AnalyticsPresentationAdapter[] = [],
+  onWarning?: (message: string, detail?: Readonly<Record<string, unknown>>) => void,
+) {
   const ctx = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
   const view = ctx.connectView({ id: "chart", role: "chart" });
   const registry = createAnalyticsAdapterRegistry({ adapters });
-  return { ctx, view, registry, session: createAnalyticsLinkedSession({ view, artifact, registry }) };
+  return { ctx, view, registry, session: createAnalyticsLinkedSession({ view, artifact, registry, onWarning }) };
 }
 
 describe("one accepted artifact drives linked map, table, and presentations", () => {
@@ -297,6 +302,99 @@ describe("accessible states", () => {
 });
 
 describe("realtime updates", () => {
+  it("contains a presentation update failure without splitting the session", async () => {
+    const warnings: Array<{ message: string; detail?: Readonly<Record<string, unknown>> }> = [];
+    const failing: AnalyticsPresentationAdapter = {
+      ...createAccessibleTableAdapter(),
+      id: "test.failing",
+      async mount(request) {
+        const handle = await createAccessibleTableAdapter().mount(request);
+        return {
+          ...handle,
+          update() {
+            throw new Error("renderer update failed");
+          },
+        } as AnalyticsPresentationHandle;
+      },
+    };
+    const { session: linked } = session(
+      categoryArtifact(1, 42),
+      [failing, createDefaultAnalyticsPresentation()],
+      (message, detail) => warnings.push({ message, ...(detail ? { detail } : {}) }),
+    );
+    const panel = document.createElement("div");
+    const healthy = await linked.present({ id: "healthy", target: panel, preferAdapterId: "honua.default-bars" });
+    await linked.present({ id: "failing", headlessOnly: true });
+
+    const decision = linked.accept(categoryArtifact(2, 55));
+
+    expect(decision).toMatchObject({ disposition: "patch", reason: "newer-sequence" });
+    expect(linked.artifact.identity.sequence).toBe(2);
+    expect(panel.textContent).toContain("55");
+    expect(healthy.handle.disposed).toBe(false);
+    expect(linked.presentations.map((presentation) => presentation.id)).toEqual(["healthy"]);
+    expect(warnings).toEqual([
+      {
+        message: 'The analytics presentation "failing" was removed after it failed to accept a realtime artifact.',
+        detail: {
+          adapterId: "test.failing",
+          presentationId: "failing",
+          artifactId: "incidents-by-status",
+          error: "renderer update failed",
+        },
+      },
+    ]);
+    linked.dispose();
+  });
+
+  it("contains a linked-state failure triggered by retargeting", async () => {
+    const warnings: Array<{ message: string; detail?: Readonly<Record<string, unknown>> }> = [];
+    const failing: AnalyticsPresentationAdapter = {
+      ...createAccessibleTableAdapter(),
+      id: "test.failing-linked-state",
+      async mount(request) {
+        const handle = await createAccessibleTableAdapter().mount(request);
+        let initialized = false;
+        return {
+          ...handle,
+          applyLinkedState() {
+            if (!initialized) {
+              initialized = true;
+              return;
+            }
+            throw new Error("linked state failed");
+          },
+        } as AnalyticsPresentationHandle;
+      },
+    };
+    const { session: linked } = session(
+      categoryArtifact(1, 42),
+      [failing, createDefaultAnalyticsPresentation()],
+      (message, detail) => warnings.push({ message, ...(detail ? { detail } : {}) }),
+    );
+    const panel = document.createElement("div");
+    const healthy = await linked.present({ id: "healthy", target: panel, preferAdapterId: "honua.default-bars" });
+    await linked.present({ id: "failing", headlessOnly: true });
+
+    expect(() => linked.accept(categoryArtifact(2, 55))).not.toThrow();
+    expect(linked.artifact.identity.sequence).toBe(2);
+    expect(panel.textContent).toContain("55");
+    expect(healthy.handle.disposed).toBe(false);
+    expect(linked.presentations.map((presentation) => presentation.id)).toEqual(["healthy"]);
+    expect(warnings).toEqual([
+      {
+        message: 'The analytics presentation "failing" was removed after it failed to accept a realtime artifact.',
+        detail: {
+          adapterId: "test.failing-linked-state",
+          presentationId: "failing",
+          artifactId: "incidents-by-status",
+          error: "linked state failed",
+        },
+      },
+    ]);
+    linked.dispose();
+  });
+
   it("patches in place on a newer sequence and keeps the DOM presentation mounted", async () => {
     const { session: linked } = session(categoryArtifact(1, 42), [createDefaultAnalyticsPresentation()]);
     const panel = document.createElement("div");
