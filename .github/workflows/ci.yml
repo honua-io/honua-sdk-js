@@ -326,6 +326,9 @@ jobs:
       - name: Split package verification
         run: npm run verify:split-packages:prepared
 
+      - name: Root package discoverability
+        run: npm run verify:discoverability
+
       - name: Publish-surface integrity
         # split-package build cleans dist/, so restore the browser bundle first
         # (same ordering the publish workflow uses).
