@@ -701,10 +701,7 @@ function materializeEntity(
   });
 }
 
-function sampledPosition(
-  cesium: CesiumEntityRuntimeModule,
-  samples: readonly CesiumEntityPositionSample[],
-): unknown {
+ function sampledPosition(cesium: CesiumEntityRuntimeModule, samples: readonly CesiumEntityPositionSample[]): unknown {
   if (!cesium.SampledPositionProperty) {
     throw new HonuaCesiumEntityAdapterError(
       "peer-unavailable",
@@ -929,7 +926,7 @@ function projectPositionSamples(
   if (value === undefined) return null;
   if (!Array.isArray(value) || value.length < 2) return null;
   const samples: CesiumEntityPositionSample[] = [];
-  let previous = -Infinity;
+  let previous = Number.NEGATIVE_INFINITY;
   for (const entry of value) {
     if (!entry || typeof entry !== "object") return null;
     const record = entry as Record<string, unknown>;
