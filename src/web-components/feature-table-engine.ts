@@ -1596,7 +1596,27 @@ export function linkFeatureTableToExploration<T>(
 
   let applying = false;
   let suppressFilterPublish = 0;
+  /** Filter snapshots requested by inbound assignments; these are suppressed. */
+  const inboundFilterSnapshots = new Set<readonly FilterClause[]>();
+  let queuedFilterPublish = false;
   const publishedFilterIds = new Set<string>();
+
+  function publishFilters(snapshot: HonuaFeatureTableSnapshot<T>): void {
+    const currentFilterIds = new Set<string>();
+    for (const clause of snapshot.filters) {
+      const explorationClause = filterClauseToExplorationClause(clause);
+      if (explorationClause === undefined || clause.enabled === false) continue;
+      currentFilterIds.add(clause.id);
+      publishedFilterIds.add(clause.id);
+      view.setFilter(clause.id, explorationClause);
+    }
+    for (const id of publishedFilterIds) {
+      if (!currentFilterIds.has(id)) {
+        view.clearFilter(id);
+        publishedFilterIds.delete(id);
+      }
+    }
+  }
 
   const unsubscribeContext = view.subscribe(["selection", "sort", "visibleFields", "filters"], (event) => {
     if (applying) return;
@@ -1616,13 +1636,22 @@ export function linkFeatureTableToExploration<T>(
       }
       if (syncFilters && event.changedSlices.has("filters")) {
         suppressFilterPublish += 1;
-        void table
-          .setFilters(
-            Object.entries(event.state.filters).map(([id, clause]) => explorationClauseToFilterClause(id, clause)),
-          )
-          .finally(() => {
-            suppressFilterPublish -= 1;
-          });
+        const inboundRefresh = table.setFilters(
+          Object.entries(event.state.filters).map(([id, clause]) => explorationClauseToFilterClause(id, clause)),
+        );
+        // setFilters publishes its loading snapshot synchronously before it
+        // returns. Remember that exact snapshot so completion of this inbound
+        // assignment is not mistaken for a local table edit.
+        const inboundSnapshot = table.snapshot.filters;
+        inboundFilterSnapshots.add(inboundSnapshot);
+        void inboundRefresh.finally(() => {
+          inboundFilterSnapshots.delete(inboundSnapshot);
+          suppressFilterPublish -= 1;
+          if (suppressFilterPublish === 0 && queuedFilterPublish) {
+            queuedFilterPublish = false;
+            if (!inboundFilterSnapshots.has(table.snapshot.filters)) publishFilters(table.snapshot);
+          }
+        });
       }
     } finally {
       applying = false;
@@ -1661,20 +1690,11 @@ export function linkFeatureTableToExploration<T>(
         });
       }
       if (syncFilters && filtersChanged && suppressFilterPublish === 0) {
-        const currentFilterIds = new Set<string>();
-        for (const clause of snapshot.filters) {
-          const explorationClause = filterClauseToExplorationClause(clause);
-          if (explorationClause === undefined || clause.enabled === false) continue;
-          currentFilterIds.add(clause.id);
-          publishedFilterIds.add(clause.id);
-          view.setFilter(clause.id, explorationClause);
-        }
-        for (const id of publishedFilterIds) {
-          if (!currentFilterIds.has(id)) {
-            view.clearFilter(id);
-            publishedFilterIds.delete(id);
-          }
-        }
+        publishFilters(snapshot);
+      } else if (syncFilters && filtersChanged && suppressFilterPublish > 0) {
+        // A local setFilters can start while an inbound refresh is awaiting
+        // I/O. Do not lose that edit when the inbound suppression settles.
+        queuedFilterPublish = true;
       }
     } finally {
       applying = false;
@@ -1711,6 +1731,17 @@ export function explorationClauseToFilterClause(id: string, clause: ExplorationF
  */
 export function filterClauseToExplorationClause(clause: FilterClause): ExplorationFilterClause | undefined {
   if (clause.field === undefined || clause.operator === undefined) return undefined;
+  const policy = clause.valuePolicy;
+  if (policy?.secret === true) return undefined;
+  if (policy?.maxSerializedBytes !== undefined && clause.value !== undefined) {
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(clause.value);
+    } catch {
+      return undefined;
+    }
+    if (serialized.length > policy.maxSerializedBytes) return undefined;
+  }
   return {
     field: clause.field,
     operator: clause.operator,

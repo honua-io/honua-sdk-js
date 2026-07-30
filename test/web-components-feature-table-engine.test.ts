@@ -930,6 +930,65 @@ describe("linked exploration state (REQ-003)", () => {
     unlink();
   });
 
+  it("republishes a local filter changed during an inbound async refresh", async () => {
+    let releaseInbound!: () => void;
+    let inboundStarted = false;
+    const inbound = new Promise<void>((resolve) => {
+      releaseInbound = resolve;
+    });
+    const fixture = makeFixture();
+    const source: HonuaFeatureTableQuerySource<Row> = {
+      ...fixture.source,
+      async query(request) {
+        if (request?.where?.includes("SEVERITY")) {
+          inboundStarted = true;
+          await inbound;
+        }
+        return fixture.source.query(request);
+      },
+    };
+    const table = makeTable({ ...fixture, source });
+    await table.refresh();
+    const context = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+    const grid = context.connectView({ id: "grid", role: "grid" });
+    const unlink = linkFeatureTableToExploration(table, grid);
+    const filters = context.connectView({ id: "filters", role: "filter" });
+
+    filters.setFilter("remote", { field: "SEVERITY", operator: ">=", value: 4 });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(inboundStarted).toBe(true);
+    await table.setFilters([statusFilter("open")]);
+    expect(context.state.filters).not.toHaveProperty("status");
+
+    releaseInbound();
+    await vi.waitFor(() => {
+      expect(context.state.filters.status).toEqual({ field: "STATUS", operator: "=", value: "open" });
+    });
+
+    unlink();
+  });
+
+  it("keeps secret and oversized filter values table-local", async () => {
+    const table = makeTable(makeFixture());
+    await table.refresh();
+    const context = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+    const grid = context.connectView({ id: "grid", role: "grid" });
+    const unlink = linkFeatureTableToExploration(table, grid);
+    await table.setFilters([
+      { ...statusFilter("secret-value"), id: "secret", valuePolicy: { secret: true } },
+      { ...statusFilter("too-long"), id: "limited", valuePolicy: { maxSerializedBytes: 3 } },
+      { ...statusFilter("ok"), id: "safe", valuePolicy: { maxSerializedBytes: 20 } },
+    ]);
+
+    expect(context.state.filters).not.toHaveProperty("secret");
+    expect(context.state.filters).not.toHaveProperty("limited");
+    expect(context.state.filters.safe).toEqual({ field: "STATUS", operator: "=", value: "ok" });
+    expect(table.snapshot.filters).toHaveLength(3);
+
+    unlink();
+  });
+
   it("publishes the virtualization window as the shared page slice", async () => {
     const table = makeTable(makeFixture());
     await table.refresh();
@@ -989,6 +1048,12 @@ describe("linked exploration state (REQ-003)", () => {
         owner: { kind: "table", id: "grid" },
         effect: "spatial-mask",
       }),
+    ).toBeUndefined();
+    expect(
+      filterClauseToExplorationClause({ ...statusFilter("secret"), valuePolicy: { secret: true } }),
+    ).toBeUndefined();
+    expect(
+      filterClauseToExplorationClause({ ...statusFilter("long"), valuePolicy: { maxSerializedBytes: 3 } }),
     ).toBeUndefined();
   });
 });
