@@ -262,6 +262,25 @@ This is an explicit processor path, not a claim of Arrow-buffer zero-copy:
 Kepler's current processor returns a row-oriented dataset. The future
 zero-copy contract remains separately reported as unsupported.
 
+## Packed browser qualification
+
+The SDK's split package is qualified in a real browser by
+`test/playwright/kepler-arrow-packed.spec.mjs`. The test builds
+`dist/packages/honua-sdk`, serves only that packed `@honua/sdk/kepler` tree, and
+opens the Arrow adapter through the public entrypoint. It verifies the declared
+Kepler compatibility range, Arrow processor projection, zero GeoJSON bytes,
+temporal and row-identity metadata, provenance, and bridge workspace metrics.
+
+Run the bounded qualification with:
+
+```bash
+npx playwright test test/playwright/kepler-arrow-packed.spec.mjs
+```
+
+The fixture injects the processor result and therefore proves the SDK adapter
+and packed browser boundary without claiming that a live Arrow object, public
+dataset, or `honua-site` deployment has been exercised.
+
 ## Known gaps
 
 - Kepler's Arrow/GeoArrow buffer-preserving path remains unsupported; the new
