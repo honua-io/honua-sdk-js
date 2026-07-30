@@ -18,11 +18,48 @@ test("IndexedDB offline region store survives reload and preserves inventory CAS
     });
 
     await page.reload();
+    await page.context().setOffline(true);
+    await page.waitForTimeout(10);
     await expect.poll(() => page.evaluate(() => window.__offlineResult)).toEqual({
       revision: "present",
       regionCount: 1,
       logicalByteLength: 3,
+      resource: "one",
+      sourceVersion: "1",
+      lastAccessedChanged: true,
     });
+  } finally {
+    await server.close();
+  }
+});
+
+test("IndexedDB store reclaims abandoned staging records and touches LRU reads", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      const store = createIndexedDbOfflineRegionStore({ name });
+      const transaction = await store.beginWrite("abandoned");
+      await transaction.write({ id: "resource", byteLength: 3 }, new Uint8Array([1, 2, 3]));
+    }, database);
+    await page.waitForTimeout(10);
+    const stagingCount = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      const store = createIndexedDbOfflineRegionStore({ name, stagingMaxAgeMs: 0 });
+      await store.inventory();
+      return await new Promise((resolve, reject) => {
+        const request = indexedDB.open(name, 2);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const count = request.result.transaction("staging", "readonly").objectStore("staging").count();
+          count.onsuccess = () => resolve(count.result);
+          count.onerror = () => reject(count.error);
+        };
+      });
+    }, database);
+    expect(stagingCount).toBe(0);
   } finally {
     await server.close();
   }
@@ -53,6 +90,7 @@ async function startServer() {
         const run = async () => {
           const fixture = await fetch("/fixture.json").then((response) => response.json());
           const database = fixture.database;
+          window.__offlineDatabase = database;
           const mode = sessionStorage.getItem("offline-test-mode") ?? "write";
           const store = createIndexedDbOfflineRegionStore({ name: database });
           if (mode === "write") {
@@ -78,7 +116,10 @@ async function startServer() {
             sessionStorage.setItem("offline-test-mode", "read");
           } else {
             const inventory = await store.inventory();
-            window.__offlineResult = { revision: inventory.revision === "0" ? "zero" : "present", regionCount: inventory.regions.length, logicalByteLength: inventory.regions[0]?.logicalByteLength };
+            const regionId = inventory.regions[0]?.id;
+            const resource = regionId ? await store.readResource(regionId, "metadata") : undefined;
+            const afterRead = await store.inventory();
+            window.__offlineResult = { revision: inventory.revision === "0" ? "zero" : "present", regionCount: inventory.regions.length, logicalByteLength: inventory.regions[0]?.logicalByteLength, resource: resource ? new TextDecoder().decode(resource.bytes) : "missing", sourceVersion: resource?.manifest.source.sourceVersion, lastAccessedChanged: afterRead.regions[0]?.lastAccessedAt > inventory.regions[0]?.lastAccessedAt };
           }
         };
         run().catch((error) => { window.__offlineResult = { error: String(error) }; });
