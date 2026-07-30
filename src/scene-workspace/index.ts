@@ -110,6 +110,7 @@ export type {
   CesiumEntityDiagnosticCode,
   CesiumEntityGeometry,
   CesiumEntityInterval,
+  CesiumEntityTimeOptions,
   CesiumEntityProjection,
   CesiumEntityProjectionItem,
   CesiumEntityRuntimeLoader,

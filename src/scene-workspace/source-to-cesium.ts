@@ -74,6 +74,16 @@ export interface CesiumEntityInterval {
   readonly end: string;
 }
 
+/**
+ * Temporal field mapping for accepted-plan entity projections.
+ *
+ * An instant is represented as a zero-duration Cesium availability interval,
+ * preserving the source timestamp without inventing a playback duration.
+ */
+export type CesiumEntityTimeOptions =
+  | { readonly instantField: string }
+  | { readonly startField: string; readonly endField: string };
+
 export type CesiumEntityGeometry =
   | { readonly kind: "point"; readonly coordinates: readonly [number, number, number] }
   | { readonly kind: "polyline"; readonly coordinates: readonly (readonly [number, number, number])[] }
@@ -98,10 +108,7 @@ export interface ProjectSourceToCesiumOptions {
   readonly maxEntities?: number;
   /** Required before finite Z values are interpreted as Cesium ellipsoid heights. */
   readonly verticalDatum?: "ellipsoidal-wgs84";
-  readonly time?: {
-    readonly startField: string;
-    readonly endField: string;
-  };
+  readonly time?: CesiumEntityTimeOptions;
 }
 
 export interface CesiumEntityProjection {
@@ -858,6 +865,10 @@ function projectInterval(
   attributes: Readonly<Record<string, unknown>>,
   time: NonNullable<ProjectSourceToCesiumOptions["time"]>,
 ): CesiumEntityInterval | undefined {
+  if ("instantField" in time) {
+    const instant = isoInstant(attributes[time.instantField]);
+    return instant ? { start: instant, end: instant } : undefined;
+  }
   const start = isoInstant(attributes[time.startField]);
   const end = isoInstant(attributes[time.endField]);
   if (!start || !end || Date.parse(end) < Date.parse(start)) return undefined;
@@ -948,8 +959,15 @@ function validatePlanAndOptions<T>(
       "Cesium entity projection requires featureIdField or descriptor.schema.primaryKey.",
     );
   }
-  if (options.time !== undefined && (!options.time.startField || !options.time.endField)) {
-    throw new HonuaCesiumEntityAdapterError("invalid-option", "time.startField and time.endField must be non-empty.");
+  if (options.time !== undefined) {
+    const fields =
+      "instantField" in options.time ? [options.time.instantField] : [options.time.startField, options.time.endField];
+    if (fields.some((field) => !field)) {
+      throw new HonuaCesiumEntityAdapterError(
+        "invalid-option",
+        "time.instantField or time.startField/time.endField must be non-empty.",
+      );
+    }
   }
   return maxEntities;
 }
@@ -1058,7 +1076,11 @@ function snapshotMountOptions(options: MountSourceToCesiumOptions): MountSourceT
     ...(options.verticalDatum !== undefined ? { verticalDatum: options.verticalDatum } : {}),
     ...(options.time
       ? {
-          time: Object.freeze({ startField: options.time.startField, endField: options.time.endField }),
+          time: Object.freeze(
+            "instantField" in options.time
+              ? { instantField: options.time.instantField }
+              : { startField: options.time.startField, endField: options.time.endField },
+          ),
         }
       : {}),
   });

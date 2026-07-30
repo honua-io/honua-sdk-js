@@ -349,6 +349,58 @@ describe("projectSourceToCesium", () => {
     );
   });
 
+  it("projects a temporal instant as a zero-duration availability interval", async () => {
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        {
+          attributes: { unit_id: "instant", observed_at: "2026-07-15T10:00:00-10:00" },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    const source = fakeSource([result]);
+    const projection = projectSourceToCesium(source, plan, result, { time: { instantField: "observed_at" } });
+
+    expect(projection.entities[0]?.interval).toEqual({
+      start: "2026-07-15T20:00:00.000Z",
+      end: "2026-07-15T20:00:00.000Z",
+    });
+
+    const collection = fakeCollection();
+    await mountSourceToCesium(collection, source, plan, {
+      ...context,
+      cesium: cesiumModule,
+      time: { instantField: "observed_at" },
+    });
+    const entity = collection.entities.get("honua-response-units:s:instant");
+    expect(entity?.availability).toMatchObject({
+      intervals: [
+        { options: { start: { iso: "2026-07-15T20:00:00.000Z" }, stop: { iso: "2026-07-15T20:00:00.000Z" } } },
+      ],
+    });
+  });
+
+  it("omits invalid temporal instants and rejects empty instant mappings", () => {
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        { attributes: { unit_id: 1, observed_at: "2026-07-15T10:00:00" }, geometry: { x: -157, y: 21 } },
+        { attributes: { unit_id: 2, observed_at: "2026-07-15T10:00:00.0001Z" }, geometry: { x: -157, y: 21 } },
+      ],
+    };
+    const projection = projectSourceToCesium(fakeSource([result]), plan, result, {
+      time: { instantField: "observed_at" },
+    });
+    expect(projection.entities).toEqual([]);
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "time-interval-invalid", detail: { omittedFeatureCount: 2 } }),
+    );
+    expect(() => projectSourceToCesium(fakeSource([result]), plan, result, { time: { instantField: "" } })).toThrow(
+      expect.objectContaining({ code: "invalid-option" }),
+    );
+  });
+
   it("deeply snapshots caller attributes and reports incomplete fidelity truthfully", () => {
     const nested = { dispatch: { priority: 1 }, tags: ["live"] };
     const source = fakeSource([firstResult]);
