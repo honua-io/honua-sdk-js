@@ -888,16 +888,18 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
    */
   function enforceMemoryBudgets(protectedOffsets: ReadonlySet<number>): void {
     const byAge = (left: CachedPage<T>, right: CachedPage<T>) => left.sequence - right.sequence;
+    const notice = `A page exceeded the table's memory budget (${budgets.maxCachedRows} rows / ${budgets.maxCachedBytes} bytes) and was dropped. ${CACHE_BUDGET_HINT}`;
     const evictable = [...pages.values()].filter((page) => !protectedOffsets.has(page.offset)).sort(byAge);
     for (const victim of evictable) {
       if (withinMemoryBudgets()) return;
       evictPage(victim);
+      budgetNotice = notice;
     }
     if (withinMemoryBudgets()) return;
     for (const victim of [...pages.values()].sort(byAge)) {
       if (withinMemoryBudgets()) break;
       evictPage(victim);
-      budgetNotice = `A page exceeded the table's memory budget (${budgets.maxCachedRows} rows / ${budgets.maxCachedBytes} bytes) and was dropped. ${CACHE_BUDGET_HINT}`;
+      budgetNotice = notice;
     }
   }
 
@@ -1313,6 +1315,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     // Re-apply the hard cache ceilings after reconciliation so a large delta
     // cannot bypass the same bounded-memory contract as a fetched page.
     enforceMemoryBudgets(new Set());
+    if (budgetNotice !== undefined) message = budgetNotice;
     recomputeCount();
     conflicts = Object.freeze(nextConflicts.map((conflict) => Object.freeze(conflict)));
     return Object.freeze({
@@ -1330,7 +1333,12 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   function removeRow(key: HonuaFeatureTableRowKey): void {
     for (const page of [...pages.values()]) {
       if (!page.rows.some((row) => row.key === key)) continue;
-      pages.set(page.offset, { ...page, rows: Object.freeze(page.rows.filter((row) => row.key !== key)) });
+      const rows = Object.freeze(page.rows.filter((row) => row.key !== key));
+      pages.set(page.offset, {
+        ...page,
+        rows,
+        bytes: estimateBytes(rows.map((row) => ({ attributes: row.attributes }))),
+      });
       if (typeof totalKnown === "number") totalKnown = Math.max(0, totalKnown - 1);
       return;
     }

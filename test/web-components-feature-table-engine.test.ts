@@ -767,6 +767,7 @@ describe("realtime reconciliation (REQ-005)", () => {
 
     expect(table.snapshot.ledger.exhausted).toContain("bytes");
     expect(table.snapshot.ledger.evictedRows).toBe(2);
+    expect(table.snapshot.message).toContain("memory budget");
     expect(table.snapshot.rows.every((row) => row === undefined)).toBe(true);
   });
 
