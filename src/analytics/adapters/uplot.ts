@@ -329,6 +329,10 @@ export function createUplotAnalyticsAdapter(
             adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
             artifactId: artifactId(),
             artifactSequence: artifact.identity.sequence,
+            artifactSourceId: artifact.identity.sourceId,
+            artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+            artifactKind: artifact.kind,
+            artifactDimension: artifact.dimension,
             window: {
               start: new Date(Math.round(min * 1000)).toISOString(),
               end: new Date(Math.round(max * 1000)).toISOString(),
@@ -341,6 +345,10 @@ export function createUplotAnalyticsAdapter(
           adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
           artifactId: artifactId(),
           artifactSequence: artifact.identity.sequence,
+          artifactSourceId: artifact.identity.sourceId,
+          artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+          artifactKind: artifact.kind,
+          ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
           range: { min, max },
         });
       }
@@ -355,6 +363,10 @@ export function createUplotAnalyticsAdapter(
           adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
           artifactId: artifactId(),
           artifactSequence: artifact.identity.sequence,
+          artifactSourceId: artifact.identity.sourceId,
+          artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+          artifactKind: artifact.kind,
+          ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
           ...(key ? { markKey: key } : {}),
         });
       }
@@ -378,6 +390,10 @@ export function createUplotAnalyticsAdapter(
               adapterId: UPLOT_ANALYTICS_ADAPTER_ID,
               artifactId: artifactId(),
               artifactSequence: artifact.identity.sequence,
+              artifactSourceId: artifact.identity.sourceId,
+              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+              artifactKind: artifact.kind,
+              ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
               markKeys: [key],
               replace: true,
             });
