@@ -35,11 +35,12 @@ describe("plugin behavioral conformance", () => {
     expect(report.status).toBe("passed");
   });
 
-  it("covers retries, performance bounds, and bundle metadata", async () => {
+  it("covers retries, performance bounds, exactly-once cleanup, and bundle metadata", async () => {
     const report = await runHonuaPluginConformance(referenceConformanceSpec, REFERENCE_HOST);
     expect(report.scenarios.map((scenario) => scenario.scenario)).toEqual([
       "retries",
       "performance",
+      "cleanup",
       "bundle-metadata",
     ]);
     for (const scenario of report.scenarios) {
@@ -51,6 +52,8 @@ describe("plugin behavioral conformance", () => {
     const retries = report.scenarios.find((scenario) => scenario.scenario === "retries");
     expect(retries?.observations.find((o) => o.metric === "hostAttempts")?.observed).toBe(3);
     expect(retries?.observations.find((o) => o.metric === "recovered")?.observed).toBe(1);
+    const cleanup = report.scenarios.find((scenario) => scenario.scenario === "cleanup");
+    expect(cleanup?.observations.find((o) => o.metric === "disposeCalls")?.observed).toBe(1);
   });
 
   it("is deterministic and binds the certification digest", async () => {

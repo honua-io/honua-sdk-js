@@ -466,6 +466,7 @@ bound:
 | --- | --- |
 | `retries` | The plugin recovers from injected transient host failures within its declared attempt budget (`hostAttempts <= maxAttempts`, `recovered`). |
 | `performance` | One operation's host-interaction cost stays within bound and is identical across runs (`serviceCalls <= maxServiceCalls`, `deterministic`). |
+| `cleanup` | The registry completes the probe and records exactly one successful disposal for the initialized plugin (`disposeCalls == 1`). |
 | `bundle-metadata` | The declared bundle footprint stays within budget with complete inventory metadata (`minifiedBytes`, `gzipBytes`, `metadataComplete`). |
 
 The report binds the certification digest it was run against, so a conformance
