@@ -40,13 +40,24 @@ function toResponse(read: OfflineRegionResourceRead, head: boolean): Response {
     "x-honua-offline-region": read.regionId,
     "x-honua-offline-state": read.manifest.source.observation.state,
     "x-honua-offline-observed-at": read.manifest.source.observation.observedAt,
-    "x-honua-offline-source-version": read.manifest.source.sourceVersion,
-    "x-honua-offline-schema-version": read.manifest.source.schemaVersion,
-    "x-honua-offline-plan-version": read.manifest.source.planVersion,
   });
+  setHeaderIfValid(headers, "x-honua-offline-source-version", read.resource.sourceVersion);
+  setHeaderIfValid(headers, "x-honua-offline-schema-version", read.resource.schemaVersion);
+  setHeaderIfValid(headers, "x-honua-offline-plan-version", read.resource.planVersion);
   if (read.resource.contentType) headers.set("content-type", read.resource.contentType);
   if (read.manifest.expiresAt) headers.set("x-honua-offline-expires-at", read.manifest.expiresAt);
   return new Response(head ? null : Uint8Array.from(read.bytes), { status: 200, headers });
+}
+
+function setHeaderIfValid(headers: Headers, name: string, value: string): void {
+  if (
+    [...value].every((character) => {
+      const codePoint = character.codePointAt(0) ?? 0;
+      return codePoint >= 0x20 && codePoint <= 0xff && codePoint !== 0x7f;
+    })
+  ) {
+    headers.set(name, value);
+  }
 }
 
 function isExpired(read: OfflineRegionResourceRead, now: Date): boolean {

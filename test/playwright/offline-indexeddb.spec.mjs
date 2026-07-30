@@ -38,6 +38,49 @@ test("IndexedDB offline region store survives reload and preserves inventory CAS
   }
 });
 
+test("offline fetch uses resource provenance and omits invalid header values", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const result = await page.evaluate(async () => {
+      const { createOfflineRegionFetchHandler } = await import("/dist/src/offline/index.js");
+      const read = {
+        regionId: "region",
+        manifest: {
+          expiresAt: undefined,
+          source: {
+            observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+            sourceVersion: "manifest-source",
+            schemaVersion: "manifest-schema",
+            planVersion: "manifest-plan",
+          },
+        },
+        resource: {
+          sourceVersion: "resource-source",
+          schemaVersion: `resource-schema-${String.fromCharCode(1)}`,
+          planVersion: "resource-plan",
+          contentType: undefined,
+        },
+        bytes: new Uint8Array([111, 110, 101]),
+      };
+      const handler = createOfflineRegionFetchHandler({
+        store: { readResource: async () => read },
+        regionId: "region",
+        match: () => "resource",
+      });
+      const response = await handler(new Request("https://example.test/resource"));
+      return {
+        source: response?.headers.get("x-honua-offline-source-version"),
+        schema: response?.headers.get("x-honua-offline-schema-version"),
+        plan: response?.headers.get("x-honua-offline-plan-version"),
+      };
+    });
+    expect(result).toEqual({ source: "resource-source", schema: null, plan: "resource-plan" });
+  } finally {
+    await server.close();
+  }
+});
+
 test("IndexedDB store reclaims abandoned staging records and touches LRU reads", async ({ page }) => {
   const server = await startServer();
   try {
