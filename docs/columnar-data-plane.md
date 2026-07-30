@@ -82,7 +82,23 @@ an Arrow IPC file; applications needing Arrow IPC can use the optional adapter
 after restoring the validated batch.
 
 ```ts doc-test=compile
-import { deserializeGeoArrowBatch, serializeGeoArrowBatch } from "@honua/sdk-js/query-planner";
+import { createGeoArrowBatch, deserializeGeoArrowBatch, serializeGeoArrowBatch } from "@honua/sdk-js/query-planner";
+
+const { batch } = createGeoArrowBatch({
+  id: "incidents:0",
+  sequence: 0,
+  schemaId: "incidents@1",
+  identity: {
+    sourceId: "incidents-live",
+    sourceVersion: "42",
+    schemaVersion: "incidents@1",
+    planId: "plan:sha256:abc",
+    authorizationScope: "auth-scope:sha256:def",
+    ordering: { stable: true, keys: [] },
+    freshness: { observedAt: "2026-07-15T12:00:00Z" },
+  },
+  geometry: { kind: "point", values: [[-157.86, 21.31]] },
+});
 
 const persisted = serializeGeoArrowBatch(batch, { maxSerializedBytes: 16 * 1024 * 1024 });
 const restored = deserializeGeoArrowBatch(persisted, {

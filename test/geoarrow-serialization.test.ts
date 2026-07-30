@@ -5,8 +5,8 @@ import {
   deserializeGeoArrowBatch,
   inspectGeoArrowBatch,
   serializeGeoArrowBatch,
-} from "../src/columnar/index.js";
-import type { ColumnarBatchIdentityV1 } from "../src/columnar/index.js";
+} from "../src/query-planner/index.js";
+import type { ColumnarBatchIdentityV1 } from "../src/query-planner/index.js";
 
 const identity = (schemaVersion: string): ColumnarBatchIdentityV1 => ({
   sourceId: "parcels",
@@ -90,5 +90,19 @@ describe("versioned GeoArrow batch serialization", () => {
     });
     expect(() => serializeGeoArrowBatch(batch, { maxSerializedBytes: 1 })).toThrow("envelope");
     expect(() => deserializeGeoArrowBatch(new Uint8Array([123, 32]), { maxSerializedBytes: 1 })).toThrow("limit");
+  });
+
+  it("reports the accepted input byte length", () => {
+    const { batch } = createGeoArrowBatch({
+      id: "points:0",
+      sequence: 0,
+      schemaId: "points@1",
+      identity: identity("points@1"),
+      geometry: { kind: "point", values: [[1, 2]] },
+    });
+    const persisted = serializeGeoArrowBatch(batch);
+    const padded = new TextEncoder().encode(` \n${new TextDecoder().decode(persisted)}\n`);
+
+    expect(deserializeGeoArrowBatch(padded).metrics.serializedBytes).toBe(padded.byteLength);
   });
 });
