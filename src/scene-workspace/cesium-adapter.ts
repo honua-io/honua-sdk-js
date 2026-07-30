@@ -155,6 +155,10 @@ export interface CesiumSceneLike {
   pick?(windowPosition: unknown, width?: number, height?: number): unknown;
 }
 
+interface CesiumTerrainProviderLike {
+  destroy?(): void;
+}
+
 /**
  * The subset of a live Cesium `Viewer`/`Scene` the adapter drives. Supplying
  * this is optional: an adapter created without a target still diagnoses
@@ -329,9 +333,21 @@ type CesiumModule = {
     fromGltfAsync(options: Record<string, unknown>): Promise<CesiumModelLike>;
   };
   readonly CesiumTerrainProvider: {
-    fromUrl(url: string, options?: Record<string, unknown>): Promise<unknown>;
+    fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumTerrainProviderLike>;
   };
 };
+
+const ownedCesiumTerrainProviders = new WeakSet<object>();
+
+function disposeOwnedCesiumTerrainProvider(resource: unknown): void {
+  if (resource && typeof resource === "object" && ownedCesiumTerrainProviders.has(resource)) {
+    const destroy = (resource as { destroy?: unknown }).destroy;
+    if (typeof destroy === "function") {
+      destroy.call(resource);
+      ownedCesiumTerrainProviders.delete(resource);
+    }
+  }
+}
 
 /**
  * Lazily import the CesiumJS runtime. Kept in its own function so the dynamic
@@ -644,7 +660,11 @@ export async function applyCesiumTerrain(
   if (!url) return undefined;
   const mod = cesium ?? (await loadCesium());
   const provider = await mod.CesiumTerrainProvider.fromUrl(url);
+  if (provider && typeof provider === "object") ownedCesiumTerrainProviders.add(provider);
+  const previousProvider = scene.terrainProvider;
   scene.terrainProvider = provider;
+  if (previousProvider && previousProvider !== provider) disposeOwnedCesiumTerrainProvider(previousProvider);
+  let removed = false;
   return {
     id: primitive.id,
     kind: "elevation-source",
@@ -652,13 +672,19 @@ export async function applyCesiumTerrain(
       /* terrain is always on once set; visibility is a no-op for the provider. */
     },
     remove() {
+      if (removed) return;
       // Only tear down if *this* handle's provider is still the active one. If a
       // newer elevation source has since replaced `scene.terrainProvider`,
       // removing this (now-stale) handle must be a no-op so we don't clobber the
       // active terrain/exaggeration.
-      if (scene.terrainProvider !== provider) return;
+      if (scene.terrainProvider !== provider) {
+        removed = true;
+        return;
+      }
       scene.terrainProvider = undefined;
       scene.verticalExaggeration = 1;
+      disposeOwnedCesiumTerrainProvider(provider);
+      removed = true;
     },
   };
 }
