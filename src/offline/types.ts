@@ -138,6 +138,23 @@ export interface OfflineRegionResourceRead {
   readonly bytes: Uint8Array;
 }
 
+/**
+ * Resolves a browser request to a credential-free resource identity.
+ * Returning `undefined` leaves the request to the host's normal network path.
+ */
+export type OfflineRegionResourceMatcher = (request: Request) => string | undefined | Promise<string | undefined>;
+
+/** Options for creating a service-worker/fetch-event resource handler. */
+export interface OfflineRegionFetchHandlerOptions {
+  readonly store: OfflineRegionStore;
+  readonly regionId: string;
+  readonly match: OfflineRegionResourceMatcher;
+  readonly now?: () => Date;
+}
+
+/** A handler result; `undefined` means the request was not served from offline storage. */
+export type OfflineRegionFetchHandler = (request: Request) => Promise<Response | undefined>;
+
 export interface OfflineRegionCacheInventory {
   /** Opaque revision changed atomically by every committed store mutation. */
   readonly revision: string;

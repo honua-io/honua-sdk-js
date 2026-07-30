@@ -27,6 +27,11 @@ test("IndexedDB offline region store survives reload and preserves inventory CAS
       resource: "one",
       sourceVersion: "1",
       lastAccessedChanged: true,
+      intercepted: "one",
+      contentType: null,
+      sourceHeader: "1",
+      headBody: "",
+      miss: true,
     });
   } finally {
     await server.close();
@@ -80,6 +85,7 @@ async function startServer() {
         import {
           createIndexedDbOfflineRegionStore,
           createOfflineRegionManifest,
+          createOfflineRegionFetchHandler,
           downloadOfflineRegion,
         } from "/dist/src/offline/index.js";
         const digest = async (value) => {
@@ -119,7 +125,11 @@ async function startServer() {
             const regionId = inventory.regions[0]?.id;
             const resource = regionId ? await store.readResource(regionId, "metadata") : undefined;
             const afterRead = await store.inventory();
-            window.__offlineResult = { revision: inventory.revision === "0" ? "zero" : "present", regionCount: inventory.regions.length, logicalByteLength: inventory.regions[0]?.logicalByteLength, resource: resource ? new TextDecoder().decode(resource.bytes) : "missing", sourceVersion: resource?.manifest.source.sourceVersion, lastAccessedChanged: afterRead.regions[0]?.lastAccessedAt > inventory.regions[0]?.lastAccessedAt };
+            const handler = regionId ? createOfflineRegionFetchHandler({ store, regionId, match: (request) => new URL(request.url).pathname === "/features" ? "metadata" : undefined }) : undefined;
+            const response = handler ? await handler(new Request("https://example.test/features")) : undefined;
+            const head = handler ? await handler(new Request("https://example.test/features", { method: "HEAD" })) : undefined;
+            const miss = handler ? await handler(new Request("https://example.test/other")) : undefined;
+            window.__offlineResult = { revision: inventory.revision === "0" ? "zero" : "present", regionCount: inventory.regions.length, logicalByteLength: inventory.regions[0]?.logicalByteLength, resource: resource ? new TextDecoder().decode(resource.bytes) : "missing", sourceVersion: resource?.manifest.source.sourceVersion, lastAccessedChanged: afterRead.regions[0]?.lastAccessedAt > inventory.regions[0]?.lastAccessedAt, intercepted: response ? await response.text() : "missing", contentType: response?.headers.get("content-type"), sourceHeader: response?.headers.get("x-honua-offline-source-version"), headBody: head ? await head.text() : "missing", miss: miss === undefined };
           }
         };
         run().catch((error) => { window.__offlineResult = { error: String(error) }; });

@@ -17,6 +17,7 @@ export {
   planOfflineRegionAdmission,
 } from "./region.js";
 export { createIndexedDbOfflineRegionStore, IndexedDbOfflineRegionStore } from "./indexeddb.js";
+export { createOfflineRegionFetchHandler } from "./fetch-handler.js";
 export type { IndexedDbOfflineRegionStoreOptions } from "./indexeddb.js";
 export {
   DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,
@@ -38,10 +39,13 @@ export type {
   OfflineRegionDownloadProgress,
   OfflineRegionDownloadReceipt,
   OfflineRegionErrorCode,
+  OfflineRegionFetchHandler,
+  OfflineRegionFetchHandlerOptions,
   OfflineRegionLimits,
   OfflineRegionManifestV1,
   OfflineRegionObservation,
   OfflineRegionResourceInput,
+  OfflineRegionResourceMatcher,
   OfflineRegionResourceRead,
   OfflineRegionResourceKind,
   OfflineRegionResourceLoader,
