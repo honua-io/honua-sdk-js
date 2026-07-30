@@ -12,7 +12,7 @@
  */
 
 /** Bridge contract version. Bumped when the projection shapes change. */
-export const KEPLER_BRIDGE_CONTRACT_VERSION = "1.0" as const;
+export const KEPLER_BRIDGE_CONTRACT_VERSION = "1.1" as const;
 
 /**
  * Declared Kepler.gl compatibility range (NFR-001). The bridge targets the
@@ -177,6 +177,7 @@ export type KeplerIngestionStrategy =
   | "row-object-direct"
   | "point-columns-direct"
   | "columnar-columns-direct"
+  | "arrow-table-processor"
   | "geojson-column"
   | "remote-basemap-style"
   | "remote-vector-tileset";
@@ -275,6 +276,38 @@ export interface KeplerColumnarProjectionRequest extends KeplerProjectionShape {
   readonly provenance: KeplerSourceProvenance;
   /** Longitude/latitude column names, projected into a Kepler point pair. */
   readonly pointColumns?: { readonly longitude: string; readonly latitude: string };
+}
+
+/** Structural result returned by Kepler's optional `processArrowTable` peer. */
+export interface KeplerArrowProcessorResult {
+  readonly fields: readonly Readonly<{
+    readonly name: string;
+    readonly type: string;
+    readonly format?: string;
+    readonly analyzerType?: string;
+    readonly displayName?: string;
+  }>[];
+  readonly rows: ReadonlyArray<readonly unknown[]>;
+}
+
+/** Optional Kepler processor seam; it is supplied by the host or loaded dynamically. */
+export interface KeplerProcessors {
+  readonly version: string;
+  readonly processArrowTable: (arrowTable: unknown) => KeplerArrowProcessorResult | null;
+}
+
+export interface LoadKeplerProcessorsOptions {
+  /** Kepler.gl version present in the host application. */
+  readonly version: string;
+  readonly importModule?: KeplerModuleImporter;
+}
+
+/** An Apache Arrow table supplied by the host without importing Arrow in SDK core. */
+export interface KeplerArrowTableProjectionRequest extends KeplerProjectionShape {
+  readonly arrowTable: unknown;
+  readonly provenance: KeplerSourceProvenance;
+  /** Name of a GeoArrow/geometry field, when the table contains geometry. */
+  readonly geometryField?: string;
 }
 
 /** Supported remote source kinds. */

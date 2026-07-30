@@ -238,6 +238,8 @@ function strategyReason(strategy: KeplerIngestionStrategy): string {
       return "Kepler has no direct binary or tabular path for line/polygon/multi-part geometry, so geometry was serialized into a GeoJSON column.";
     case "columnar-columns-direct":
       return "Columnar artifact columns were transposed into Kepler rows in place; no GeoJSON conversion.";
+    case "arrow-table-processor":
+      return "An opaque Arrow table was interpreted by Kepler's optional processor; no GeoJSON conversion.";
     case "remote-basemap-style":
       return "The remote source was projected into a Kepler custom basemap entry; Kepler fetches its tiles itself.";
     case "remote-vector-tileset":

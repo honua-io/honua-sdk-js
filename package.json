@@ -711,6 +711,7 @@
     "@deck.gl/layers": "^9.0.0",
     "@duckdb/duckdb-wasm": "^1.29.0",
     "@kepler.gl/actions": "^3.0.0",
+    "@kepler.gl/processors": "^3.0.0",
     "@turf/area": "^7.0.0",
     "@turf/bbox": "^7.0.0",
     "@turf/boolean-contains": "^7.0.0",
@@ -800,6 +801,9 @@
       "optional": true
     },
     "@kepler.gl/actions": {
+      "optional": true
+    },
+    "@kepler.gl/processors": {
       "optional": true
     },
     "apache-arrow": {
