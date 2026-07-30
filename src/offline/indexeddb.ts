@@ -8,13 +8,15 @@ import type {
   OfflineRegionWriteTransaction,
 } from "./types.js";
 
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const INVENTORY_KEY = "current";
 const INVENTORY_STORE = "inventory";
 const REGION_STORE = "regions";
 const RESOURCE_STORE = "resources";
 const RESOURCE_SEPARATOR = "\u0000";
-let revisionCounter = 0;
+const STAGING_STORE = "staging";
+const REGION_ID_INDEX = "regionId";
+const TRANSACTION_ID_INDEX = "transactionId";
 
 interface InventoryRecord {
   readonly key: typeof INVENTORY_KEY;
@@ -33,6 +35,14 @@ interface RegionRecord {
 
 interface ResourceRecord {
   readonly key: string;
+  readonly regionId: string;
+  readonly resourceId: string;
+  readonly bytes: Uint8Array;
+}
+
+interface StagedResourceRecord {
+  readonly key: string;
+  readonly transactionId: string;
   readonly regionId: string;
   readonly resourceId: string;
   readonly bytes: Uint8Array;
@@ -84,8 +94,9 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
 
   public async beginWrite(regionId: string): Promise<OfflineRegionWriteTransaction> {
     if (typeof regionId !== "string" || regionId.length === 0) throw new Error("regionId must be non-empty.");
+    const database = await this.#database;
+    const transactionId = createTransactionId();
     const evictions: string[] = [];
-    const writes = new Map<string, ResourceRecord>();
     return {
       evict: async (id) => {
         if (!evictions.includes(id)) evictions.push(id);
@@ -95,15 +106,17 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
         if (copy.byteLength !== resource.byteLength) {
           throw new Error(`Resource ${resource.id} byte length does not match its descriptor.`);
         }
-        writes.set(resource.id, {
-          key: resourceKey(regionId, resource.id),
-          regionId,
-          resourceId: resource.id,
-          bytes: copy,
+        await runTransaction(database, "readwrite", async (transaction) => {
+          transaction.objectStore(STAGING_STORE).put({
+            key: resourceKey(transactionId, resource.id),
+            transactionId,
+            regionId,
+            resourceId: resource.id,
+            bytes: copy,
+          } satisfies StagedResourceRecord);
         });
       },
       commit: async (manifest, receipt, guard) => {
-        const database = await this.#database;
         return runTransaction(database, "readwrite", async (transaction) => {
           const inventoryStore = transaction.objectStore(INVENTORY_STORE);
           const regionStore = transaction.objectStore(REGION_STORE);
@@ -126,17 +139,8 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
           ) {
             throw new Error("IndexedDB store rejected inconsistent offline-region admission.");
           }
-          if (
-            writes.size !== manifest.resources.length ||
-            manifest.resources.some((resource) => !writes.has(resource.id))
-          ) {
-            throw new Error("IndexedDB store requires every manifest resource to be written before commit.");
-          }
-
-          const allResources = await request<ResourceRecord[]>(resourceStore.getAll());
-          for (const record of allResources) {
-            if (record.regionId === manifest.id || evicted.has(record.regionId)) resourceStore.delete(record.key);
-          }
+          await deleteResourcesByRegion(transaction, manifest.id);
+          for (const id of evictions) await deleteResourcesByRegion(transaction, id);
           for (const id of evictions) regionStore.delete(id);
           regionStore.put({
             id: manifest.id,
@@ -147,13 +151,21 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
             ...(manifest.expiresAt ? { expiresAt: manifest.expiresAt } : {}),
             ...(existing?.pinned ? { pinned: true } : {}),
           } satisfies RegionRecord);
-          for (const record of writes.values()) resourceStore.put(record);
-          inventoryStore.put({ key: INVENTORY_KEY, revision: nextRevision() } satisfies InventoryRecord);
+          await moveStagedResources(
+            transaction,
+            transactionId,
+            manifest.id,
+            new Set(manifest.resources.map((resource) => resource.id)),
+          );
+          inventoryStore.put({
+            key: INVENTORY_KEY,
+            revision: nextRevision(currentInventory?.revision),
+          } satisfies InventoryRecord);
           return "committed";
         });
       },
       rollback: async () => {
-        writes.clear();
+        await clearStagedResources(database, transactionId);
         evictions.length = 0;
       },
     };
@@ -177,6 +189,14 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
         database.createObjectStore(REGION_STORE, { keyPath: "id" });
       if (!database.objectStoreNames.contains(RESOURCE_STORE))
         database.createObjectStore(RESOURCE_STORE, { keyPath: "key" });
+      if (!database.objectStoreNames.contains(STAGING_STORE))
+        database.createObjectStore(STAGING_STORE, { keyPath: "key" });
+      const resources = request.transaction?.objectStore(RESOURCE_STORE);
+      if (resources && !resources.indexNames.contains(REGION_ID_INDEX))
+        resources.createIndex(REGION_ID_INDEX, "regionId");
+      const staging = request.transaction?.objectStore(STAGING_STORE);
+      if (staging && !staging.indexNames.contains(TRANSACTION_ID_INDEX))
+        staging.createIndex(TRANSACTION_ID_INDEX, "transactionId");
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Failed to open IndexedDB database."));
@@ -190,7 +210,7 @@ function runTransaction<T>(
   body: (transaction: IDBTransaction) => Promise<T>,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const transaction = database.transaction([INVENTORY_STORE, REGION_STORE, RESOURCE_STORE], mode);
+    const transaction = database.transaction([INVENTORY_STORE, REGION_STORE, RESOURCE_STORE, STAGING_STORE], mode);
     let result: T;
     let settled = false;
     void body(transaction).then(
@@ -253,7 +273,99 @@ function sameIds(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((id, index) => id === right[index]);
 }
 
-function nextRevision(): string {
-  revisionCounter += 1;
-  return `${Date.now().toString(36)}-${revisionCounter.toString(36)}`;
+function createTransactionId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(16).slice(2)}`;
+}
+
+function nextRevision(previous: string | undefined): string {
+  return `${previous ?? "0"}-${createTransactionId()}`;
+}
+
+function deleteResourcesByRegion(transaction: IDBTransaction, regionId: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cursorRequest = transaction
+      .objectStore(RESOURCE_STORE)
+      .index(REGION_ID_INDEX)
+      .openCursor(IDBKeyRange.only(regionId));
+    cursorRequest.onerror = () =>
+      reject(cursorRequest.error ?? new Error("Failed to enumerate offline-region resources."));
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      cursor.delete();
+      cursor.continue();
+    };
+  });
+}
+
+function moveStagedResources(
+  transaction: IDBTransaction,
+  transactionId: string,
+  regionId: string,
+  expectedResourceIds: ReadonlySet<string>,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const resourceStore = transaction.objectStore(RESOURCE_STORE);
+    const cursorRequest = transaction
+      .objectStore(STAGING_STORE)
+      .index(TRANSACTION_ID_INDEX)
+      .openCursor(IDBKeyRange.only(transactionId));
+    const seen = new Set<string>();
+    cursorRequest.onerror = () =>
+      reject(cursorRequest.error ?? new Error("Failed to enumerate staged offline-region resources."));
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        if (seen.size !== expectedResourceIds.size || [...expectedResourceIds].some((id) => !seen.has(id))) {
+          reject(new Error("IndexedDB store requires every manifest resource to be written before commit."));
+        } else {
+          resolve();
+        }
+        return;
+      }
+      const staged = cursor.value as StagedResourceRecord;
+      if (staged.regionId !== regionId || !expectedResourceIds.has(staged.resourceId) || seen.has(staged.resourceId)) {
+        reject(new Error("IndexedDB store found an unexpected staged offline-region resource."));
+        return;
+      }
+      seen.add(staged.resourceId);
+      resourceStore.put({
+        key: resourceKey(regionId, staged.resourceId),
+        regionId,
+        resourceId: staged.resourceId,
+        bytes: staged.bytes,
+      } satisfies ResourceRecord);
+      cursor.delete();
+      cursor.continue();
+    };
+  });
+}
+
+function clearStagedResources(database: IDBDatabase, transactionId: string): Promise<void> {
+  return runTransaction(database, "readwrite", async (transaction) => {
+    await deleteStagedResources(transaction, transactionId);
+  });
+}
+
+function deleteStagedResources(transaction: IDBTransaction, transactionId: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cursorRequest = transaction
+      .objectStore(STAGING_STORE)
+      .index(TRANSACTION_ID_INDEX)
+      .openCursor(IDBKeyRange.only(transactionId));
+    cursorRequest.onerror = () =>
+      reject(cursorRequest.error ?? new Error("Failed to clear staged offline-region resources."));
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      cursor.delete();
+      cursor.continue();
+    };
+  });
 }
