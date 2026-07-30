@@ -59,6 +59,33 @@
       ]
     },
     {
+      "scenario": "cleanup",
+      "status": "passed",
+      "observations": [
+        {
+          "metric": "registryDisposed",
+          "observed": 1,
+          "bound": 1,
+          "comparison": "==",
+          "satisfied": true
+        },
+        {
+          "metric": "disposeCalls",
+          "observed": 1,
+          "bound": 1,
+          "comparison": "==",
+          "satisfied": true
+        },
+        {
+          "metric": "completed",
+          "observed": 1,
+          "bound": 1,
+          "comparison": ">=",
+          "satisfied": true
+        }
+      ]
+    },
+    {
       "scenario": "bundle-metadata",
       "status": "passed",
       "observations": [
@@ -86,5 +113,5 @@
       ]
     }
   ],
-  "sha256": "sha256:6b0614a18de74e3fef5a23fbb7435a878e212e649b20809d330500db3e0deade"
+  "sha256": "sha256:06aed4667322add0b39bb9f2a46ca0d126877968f395479b4a55dfbf71759d65"
 }

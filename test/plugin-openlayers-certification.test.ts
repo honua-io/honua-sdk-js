@@ -46,7 +46,12 @@ describe("OpenLayers renderer-plugin behavioral conformance (#566)", () => {
     expect(first.certification.status).toBe("certified");
     expect(first.certification.sha256).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(first.sha256).toMatch(/^sha256:[a-f0-9]{64}$/);
-    expect(first.scenarios.map((scenario) => scenario.scenario)).toEqual(["retries", "performance", "bundle-metadata"]);
+    expect(first.scenarios.map((scenario) => scenario.scenario)).toEqual([
+      "retries",
+      "performance",
+      "cleanup",
+      "bundle-metadata",
+    ]);
     for (const scenario of first.scenarios) {
       expect(scenario.status, scenario.scenario).toBe("passed");
       for (const observation of scenario.observations) expect(observation.satisfied, observation.metric).toBe(true);

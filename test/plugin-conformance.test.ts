@@ -118,4 +118,26 @@ describe("plugin behavioral conformance", () => {
     const retries = report.scenarios.find((scenario) => scenario.scenario === "retries");
     expect(retries?.status).toBe("failed");
   });
+
+  it("fails cleanup certification when registry disposal rejects", async () => {
+    const referenceFactory = referenceConformanceSpec.factory as HonuaPluginFactory<"protocol">;
+    const factory: HonuaPluginFactory<"protocol"> = {
+      manifest: referenceFactory.manifest,
+      initialize(context) {
+        const instance = referenceFactory.initialize(context);
+        return {
+          ...instance,
+          start() {},
+          stop() {
+            throw new Error("cleanup failed");
+          },
+        };
+      },
+    };
+    const report = await runHonuaPluginConformance({ ...referenceConformanceSpec, factory }, REFERENCE_HOST);
+    const cleanup = report.scenarios.find((scenario) => scenario.scenario === "cleanup");
+    expect(cleanup?.status).toBe("failed");
+    expect(cleanup?.observations.find((o) => o.metric === "registryDisposed")?.satisfied).toBe(false);
+    expect(report.status).toBe("failed");
+  });
 });

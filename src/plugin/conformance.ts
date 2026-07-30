@@ -155,6 +155,7 @@ function instrumentedServices(counter: Counter): HonuaPluginHostServices {
 interface RunOutcome {
   readonly completed: boolean;
   readonly interactions: number;
+  readonly registryDisposed: boolean;
   readonly disposeCalls: number;
 }
 
@@ -166,6 +167,7 @@ async function runProbe(
   const counter: Counter = { interactions: 0, networkFailuresRemaining: injectedFailures };
   const registry = new HonuaPluginRegistry({ host: hostInput, services: instrumentedServices(counter) });
   let completed = false;
+  let registryDisposed = false;
   try {
     await registry.register([spec.factory as never]);
     await spec.probe(registry);
@@ -173,11 +175,17 @@ async function runProbe(
   } catch {
     completed = false;
   } finally {
-    await registry.dispose().catch(() => undefined);
+    try {
+      await registry.dispose();
+      registryDisposed = true;
+    } catch {
+      registryDisposed = false;
+    }
   }
   return {
     completed,
     interactions: counter.interactions,
+    registryDisposed,
     disposeCalls: registry.diagnostics.filter((event) => event.code === "PLUGIN_DISPOSE_SUCCEEDED").length,
   };
 }
@@ -215,6 +223,7 @@ async function runCleanupScenario(
 ): Promise<HonuaPluginConformanceScenarioResult> {
   const outcome = await runProbe(spec, hostInput, 0);
   return scenarioResult("cleanup", [
+    observe("registryDisposed", outcome.registryDisposed ? 1 : 0, 1, "=="),
     observe("disposeCalls", outcome.disposeCalls, 1, "=="),
     observe("completed", outcome.completed ? 1 : 0, 1, ">="),
   ]);
