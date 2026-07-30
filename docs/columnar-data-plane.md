@@ -225,7 +225,7 @@ writes the target CRS into the output geometry metadata. CRS math stays
 application-owned, so this operation does not import a projection library or
 make a network request.
 
-```ts
+```ts doc-test=skip reason="worker-host transform and identity are application-owned"
 const reproject = createGeoArrowReprojectOperation({
   schemaId: "parcels@2:epsg3857",
   identity: projectedIdentity,
