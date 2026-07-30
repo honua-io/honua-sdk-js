@@ -238,7 +238,7 @@ export function projectSourceToCesium<T>(
       continue;
     }
     const positionSamples = options.time?.positionField
-      ? projectPositionSamples(attributes, options.time.positionField, geometry)
+      ? projectPositionSamples(attributes, options.time.positionField, geometry, options.verticalDatum)
       : undefined;
     if (positionSamples === null) {
       invalidPositionSamples += 1;
@@ -920,6 +920,7 @@ function projectPositionSamples(
   attributes: Readonly<Record<string, unknown>>,
   field: string,
   geometry: CesiumEntityGeometry,
+  verticalDatum: ProjectSourceToCesiumOptions["verticalDatum"],
 ): readonly CesiumEntityPositionSample[] | null | undefined {
   if (geometry.kind !== "point") return null;
   const value = attributes[field];
@@ -931,6 +932,9 @@ function projectPositionSamples(
     if (!entry || typeof entry !== "object") return null;
     const record = entry as Record<string, unknown>;
     const time = isoInstant(record.time);
+    if (Array.isArray(record.coordinates) && record.coordinates.length >= 3 && verticalDatum !== "ellipsoidal-wgs84") {
+      return null;
+    }
     const coordinates = coordinate3(record.coordinates);
     if (!time || !coordinates) return null;
     const epoch = Date.parse(time);
@@ -1135,7 +1139,11 @@ function snapshotMountOptions(options: MountSourceToCesiumOptions): MountSourceT
     ...(options.verticalDatum !== undefined ? { verticalDatum: options.verticalDatum } : {}),
     ...(options.time
       ? {
-          time: Object.freeze({ startField: options.time.startField, endField: options.time.endField }),
+          time: Object.freeze({
+            startField: options.time.startField,
+            endField: options.time.endField,
+            ...(options.time.positionField !== undefined ? { positionField: options.time.positionField } : {}),
+          }),
         }
       : {}),
   });
