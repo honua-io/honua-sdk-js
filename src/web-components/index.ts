@@ -190,6 +190,7 @@ export {
   createHonuaFeatureTable,
   describeFeatureTableCount,
   explorationClauseToFilterClause,
+  filterClauseToExplorationClause,
   featureTableAriaRowCount,
   featureTableAriaSort,
   featureTablePageCacheKey,

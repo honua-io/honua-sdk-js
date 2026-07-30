@@ -19,6 +19,7 @@ import {
   featureTablePageCacheKey,
   featureTableWindow,
   featureTableWorkByTier,
+  filterClauseToExplorationClause,
   formatFeatureTableCell,
   linkFeatureTableToExploration,
 } from "../src/web-components/index.js";
@@ -908,6 +909,27 @@ describe("linked exploration state (REQ-003)", () => {
     unlink();
   });
 
+  it("publishes table filters back to shared state and clears only filters it owns", async () => {
+    const table = makeTable(makeFixture());
+    await table.refresh();
+    const context = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+    const grid = context.connectView({ id: "grid", role: "grid" });
+    const unlink = linkFeatureTableToExploration(table, grid);
+
+    grid.setFilter("map-filter", { field: "NAME", operator: "like", value: "Incident" });
+    await table.setFilters([statusFilter("open")]);
+
+    expect(context.state.filters).toMatchObject({
+      "map-filter": { field: "NAME", operator: "like", value: "Incident" },
+      status: { field: "STATUS", operator: "=", value: "open" },
+    });
+
+    await table.setFilters([]);
+    expect(context.state.filters).toEqual({ "map-filter": { field: "NAME", operator: "like", value: "Incident" } });
+
+    unlink();
+  });
+
   it("publishes the virtualization window as the shared page slice", async () => {
     const table = makeTable(makeFixture());
     await table.refresh();
@@ -951,6 +973,23 @@ describe("linked exploration state (REQ-003)", () => {
       sourceScope: ["incidents"],
       effect: "filter",
     });
+  });
+
+  it("projects a table filter back without leaking registry metadata", () => {
+    expect(
+      filterClauseToExplorationClause({
+        ...statusFilter("open"),
+        sourceScope: ["incidents"],
+        lifecycle: "session",
+      }),
+    ).toEqual({ field: "STATUS", operator: "=", value: "open", appliesTo: ["incidents"] });
+    expect(
+      filterClauseToExplorationClause({
+        id: "spatial",
+        owner: { kind: "table", id: "grid" },
+        effect: "spatial-mask",
+      }),
+    ).toBeUndefined();
   });
 });
 
