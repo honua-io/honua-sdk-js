@@ -1,6 +1,7 @@
 import type {
   CreateGeoArrowBatchInput,
   GeoArrowConversionLimits,
+  GeoArrowGeometryKind,
   GeoArrowLineString,
   GeoArrowPoint,
   GeoArrowPolygon,
@@ -39,16 +40,15 @@ function reprojectPosition(
 
 function reprojectGeometry(
   geometry: GeoArrowPoint | GeoArrowLineString | GeoArrowPolygon | null,
+  kind: GeoArrowGeometryKind,
   project: CreateGeoArrowReprojectOperationOptions["project"],
 ): GeoArrowPoint | GeoArrowLineString | GeoArrowPolygon | null {
   if (geometry === null) return null;
-  if (geometry.length === 0 || typeof geometry[0] === "number") {
-    return reprojectPosition(geometry as GeoArrowPoint, project);
+  if (kind === "point") return reprojectPosition(geometry as GeoArrowPoint, project);
+  if (kind === "linestring") {
+    return (geometry as GeoArrowLineString).map((position) => reprojectPosition(position, project));
   }
-  if (Array.isArray(geometry[0]?.[0])) {
-    return (geometry as GeoArrowPolygon).map((ring) => ring.map((position) => reprojectPosition(position, project)));
-  }
-  return (geometry as GeoArrowLineString).map((position) => reprojectPosition(position, project));
+  return (geometry as GeoArrowPolygon).map((ring) => ring.map((position) => reprojectPosition(position, project)));
 }
 
 /**
@@ -68,7 +68,9 @@ export function createGeoArrowReprojectOperation(
     const decoded = decodeGeoArrowBatch(batch, limits);
     context.signal.throwIfAborted();
     context.reportProgress(0.5, "reproject");
-    const values = decoded.rows.map((row) => reprojectGeometry(row.geometry, options.project));
+    const values = decoded.rows.map((row) =>
+      reprojectGeometry(row.geometry, inspection.geometry.kind, options.project),
+    );
     const geometry: CreateGeoArrowBatchInput["geometry"] =
       inspection.geometry.kind === "point"
         ? {
@@ -135,8 +137,17 @@ export function createGeoArrowReprojectOperation(
         : {}),
     };
     const result = createGeoArrowBatch(input, limits);
+    const output =
+      inspection.dictionary?.ordered === true
+        ? {
+            ...result.batch,
+            buffers: result.batch.buffers.map(
+              (buffer) => batch.buffers.find((original) => original.id === buffer.id) ?? buffer,
+            ),
+          }
+        : result.batch;
     context.signal.throwIfAborted();
     context.reportProgress(1, "complete");
-    return result.batch;
+    return output;
   };
 }
