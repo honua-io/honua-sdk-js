@@ -6,6 +6,7 @@ import {
   HONUA_PLUGIN_CAPABILITIES,
   HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS,
   HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION,
+  HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION,
   HONUA_PLUGIN_ENVIRONMENTS,
   HONUA_PLUGIN_KINDS,
   HONUA_PLUGIN_MANIFEST_VERSION,
@@ -13,6 +14,9 @@ import {
   type HonuaPluginCertificationCheck,
   type HonuaPluginCertificationHost,
   type HonuaPluginCertificationReport,
+  type HonuaPluginCertificationSignatureVerifier,
+  type HonuaPluginCertificationSigningEnvelope,
+  type HonuaPluginCertificationSigningEnvelopeVerification,
   type HonuaPluginDiagnostic,
   type HonuaPluginHostValidation,
   type HonuaPluginJsonValue,
@@ -727,6 +731,137 @@ export function verifyHonuaPluginCertificationReport(input: string): HonuaPlugin
 
   const sorted = sortDiagnostics(diagnostics);
   return { ok: sorted.length === 0, status, diagnostics: sorted };
+}
+
+/**
+ * Return the exact canonical payload a host must sign for a certification
+ * envelope. This is a format seam only: the SDK neither selects keys nor
+ * implements an algorithm or issuer policy.
+ */
+export function createHonuaPluginCertificationSigningPayload(
+  envelope: Omit<HonuaPluginCertificationSigningEnvelope, "signature">,
+): string {
+  return canonicalStringify({
+    envelopeVersion: envelope.envelopeVersion,
+    algorithm: envelope.algorithm,
+    keyId: envelope.keyId,
+    report: envelope.report,
+  } as unknown as Parameters<typeof canonicalStringify>[0]);
+}
+
+/**
+ * Verify a host-mediated certification signing envelope. Parsing, report
+ * integrity, schema version, and envelope shape are checked before the
+ * application-owned verifier is called. Missing verifier, malformed input,
+ * rejected reports, and verifier errors all fail closed.
+ */
+export async function verifyHonuaPluginCertificationSigningEnvelope(
+  input: string,
+  verifier?: HonuaPluginCertificationSignatureVerifier,
+  signal?: AbortSignal,
+): Promise<HonuaPluginCertificationSigningEnvelopeVerification> {
+  const inert = snapshotPlainJson(input, "/envelope");
+  if (!inert.ok || inert.value === undefined)
+    return { ok: false, status: null, keyId: null, diagnostics: inert.diagnostics };
+  const diagnostics: HonuaPluginDiagnostic[] = [];
+  const envelope = object(inert.value);
+  if (!envelope) {
+    push(diagnostics, "SIGNING_ENVELOPE_TYPE", "/envelope", "Expected a signing envelope object.");
+    return { ok: false, status: null, keyId: null, diagnostics };
+  }
+  validateSigningEnvelopeShape(envelope, diagnostics);
+  const keyId = typeof envelope.keyId === "string" ? envelope.keyId : null;
+  const report = object(envelope.report);
+  let status: "certified" | "rejected" | null = null;
+  if (report) {
+    const reportVerification = verifyHonuaPluginCertificationReport(JSON.stringify(report));
+    status = reportVerification.status;
+    diagnostics.push(...reportVerification.diagnostics);
+    if (reportVerification.status === "rejected")
+      push(diagnostics, "SIGNING_REPORT_REJECTED", "/envelope/report/status", "Rejected reports cannot be trusted.");
+    if (!reportVerification.ok)
+      push(diagnostics, "SIGNING_REPORT_INVALID", "/envelope/report", "Embedded report integrity verification failed.");
+  }
+  if (diagnostics.length === 0 && !verifier)
+    push(
+      diagnostics,
+      "SIGNING_VERIFIER_MISSING",
+      "/verifier",
+      "An explicit host verifier is required; verification fails closed.",
+    );
+  if (diagnostics.length === 0) {
+    try {
+      const valid = await verifier!.verify(
+        createHonuaPluginCertificationSigningPayload({
+          envelopeVersion: envelope.envelopeVersion as typeof HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION,
+          algorithm: "external",
+          keyId: envelope.keyId as string,
+          report: envelope.report as unknown as HonuaPluginCertificationReport,
+        }),
+        envelope.signature as string,
+        envelope.keyId as string,
+        signal,
+      );
+      if (valid !== true)
+        push(diagnostics, "SIGNING_SIGNATURE_INVALID", "/envelope/signature", "Host signature verification failed.");
+    } catch {
+      push(
+        diagnostics,
+        "SIGNING_VERIFIER_FAILED",
+        "/verifier",
+        "Host signature verification failed; verification fails closed.",
+      );
+    }
+  }
+  const sorted = sortDiagnostics(diagnostics);
+  return { ok: sorted.length === 0, status, keyId, diagnostics: sorted };
+}
+
+function validateSigningEnvelopeShape(envelope: JsonObject, diagnostics: HonuaPluginDiagnostic[]): void {
+  reportAllowedKeys(
+    envelope,
+    ["envelopeVersion", "algorithm", "keyId", "report", "signature"],
+    "/envelope",
+    diagnostics,
+  );
+  if (envelope.envelopeVersion !== HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION)
+    push(
+      diagnostics,
+      "SIGNING_ENVELOPE_VERSION_UNSUPPORTED",
+      "/envelope/envelopeVersion",
+      "Unsupported signing envelope version.",
+    );
+  if (envelope.algorithm !== "external")
+    push(
+      diagnostics,
+      "SIGNING_ALGORITHM_UNSUPPORTED",
+      "/envelope/algorithm",
+      "Only the host-mediated external algorithm is supported.",
+    );
+  if (
+    typeof envelope.keyId !== "string" ||
+    envelope.keyId.length === 0 ||
+    envelope.keyId.length > 256 ||
+    hasControlCharacters(envelope.keyId)
+  )
+    push(diagnostics, "SIGNING_KEY_ID_INVALID", "/envelope/keyId", "Expected a bounded non-empty key identifier.");
+  if (
+    typeof envelope.signature !== "string" ||
+    envelope.signature.length === 0 ||
+    envelope.signature.length > 16_384 ||
+    hasControlCharacters(envelope.signature)
+  )
+    push(diagnostics, "SIGNING_SIGNATURE_INVALID", "/envelope/signature", "Expected a bounded non-empty signature.");
+  if (!object(envelope.report))
+    push(diagnostics, "SIGNING_REPORT_INVALID", "/envelope/report", "Expected an embedded report object.");
+}
+
+function hasControlCharacters(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
 }
 
 function verifyEmbeddedFingerprint(

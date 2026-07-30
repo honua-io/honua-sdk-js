@@ -413,6 +413,24 @@ self-consistent and unmodified since issue, not which authority issued it. A
 trusted-issuer signing authority (which key, which registry) is a product
 decision and is deliberately out of scope here.
 
+### Host-mediated signing envelope (SDK-owned seam)
+
+The SDK also exports `HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION` and
+the versioned `HonuaPluginCertificationSigningEnvelope` shape. An envelope
+contains the report, an opaque application-selected `keyId`, the fixed
+`algorithm: "external"` marker, and a signature string. Hosts sign the exact
+canonical payload returned by `createHonuaPluginCertificationSigningPayload`.
+
+`verifyHonuaPluginCertificationSigningEnvelope` accepts an explicit
+`HonuaPluginCertificationSignatureVerifier` callback. It parses inert JSON,
+validates the envelope and embedded report, rejects non-certified or altered
+reports, and only then calls the callback. A missing verifier, callback error,
+unsupported version, malformed key identifier, or false result fails closed.
+The callback owns key lookup, cryptographic algorithms, issuer policy, key
+rotation, and distribution; the SDK stores no keys and makes no trust claim
+about the opaque identifier. This is an integration seam, not a governance or
+public-key-distribution implementation.
+
 ## Support-status program
 
 `support` records who backs a plugin (`community`, `partner`, or `honua`). The

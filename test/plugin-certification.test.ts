@@ -3,12 +3,15 @@ import {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS,
   HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION,
+  HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION,
   HONUA_PLUGIN_MANIFEST_VERSION,
   type HonuaPluginCertificationHost,
   type HonuaPluginManifest,
   certifyHonuaPluginManifest as certifyJsonText,
+  createHonuaPluginCertificationSigningPayload,
   validateHonuaPluginManifest as validateJsonText,
   verifyHonuaPluginCertificationReport,
+  verifyHonuaPluginCertificationSigningEnvelope,
 } from "../src/plugin/index.js";
 
 function validateHonuaPluginManifest(value: unknown) {
@@ -614,5 +617,87 @@ describe("signed certification report verification", () => {
     expect(codes).toContain("REPORT_PLUGIN_ID_INVALID");
     expect(codes).toContain("REPORT_PLUGIN_VERSION_INVALID");
     expect(codes).toContain("REPORT_PLUGIN_KIND_UNKNOWN");
+  });
+});
+
+describe("host-mediated certification signing envelope", () => {
+  function envelope(signature = "sig"): Record<string, unknown> {
+    const report = certifyHonuaPluginManifest(manifest, host);
+    return {
+      envelopeVersion: HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION,
+      algorithm: "external",
+      keyId: "test-key-1",
+      report,
+      signature,
+    };
+  }
+
+  it("verifies a certified envelope through the injected host seam", async () => {
+    const value = envelope();
+    const payload = createHonuaPluginCertificationSigningPayload(value as never);
+    value.signature = `signed:${payload}`;
+    const verify = vi.fn(async (canonical: string, signature: string, keyId: string) => {
+      return canonical === payload && signature === `signed:${payload}` && keyId === "test-key-1";
+    });
+    const result = await verifyHonuaPluginCertificationSigningEnvelope(jsonText(value), { verify });
+    expect(result).toMatchObject({ ok: true, status: "certified", keyId: "test-key-1", diagnostics: [] });
+    expect(verify).toHaveBeenCalledOnce();
+  });
+
+  it("ignores a structurally assignable signature on signing payload input", () => {
+    const value = envelope();
+    const payload = createHonuaPluginCertificationSigningPayload(value as never);
+    expect(payload).toBe(
+      createHonuaPluginCertificationSigningPayload({
+        envelopeVersion: value.envelopeVersion as 1,
+        algorithm: "external",
+        keyId: value.keyId as string,
+        report: value.report as never,
+      }),
+    );
+  });
+
+  it("fails closed without a verifier and never treats the envelope as trusted", async () => {
+    const result = await verifyHonuaPluginCertificationSigningEnvelope(jsonText(envelope()));
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics.map((item) => item.code)).toContain("SIGNING_VERIFIER_MISSING");
+  });
+
+  it("rejects a tampered report before invoking the host verifier", async () => {
+    const value = envelope();
+    value.report = { ...(value.report as Record<string, unknown>), status: "rejected" };
+    const verify = vi.fn(async () => true);
+    const result = await verifyHonuaPluginCertificationSigningEnvelope(jsonText(value), { verify });
+    expect(result.ok).toBe(false);
+    expect(result.diagnostics.map((item) => item.code)).toContain("REPORT_SIGNATURE_MISMATCH");
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported versions, control characters, and verifier failures", async () => {
+    const unsupported = envelope();
+    unsupported.envelopeVersion = 2;
+    const unsupportedResult = await verifyHonuaPluginCertificationSigningEnvelope(jsonText(unsupported), {
+      verify: vi.fn(async () => true),
+    });
+    expect(unsupportedResult.ok).toBe(false);
+    expect(unsupportedResult.diagnostics.map((item) => item.code)).toContain("SIGNING_ENVELOPE_VERSION_UNSUPPORTED");
+
+    const invalid = envelope();
+    invalid.keyId = "bad\nkey";
+    invalid.signature = "bad\u0000signature";
+    const invalidResult = await verifyHonuaPluginCertificationSigningEnvelope(jsonText(invalid), {
+      verify: vi.fn(async () => true),
+    });
+    expect(invalidResult.ok).toBe(false);
+    expect(invalidResult.diagnostics.map((item) => item.code)).toContain("SIGNING_KEY_ID_INVALID");
+    expect(invalidResult.diagnostics.map((item) => item.code)).toContain("SIGNING_SIGNATURE_INVALID");
+
+    const failed = await verifyHonuaPluginCertificationSigningEnvelope(jsonText(envelope()), {
+      verify: vi.fn(async () => {
+        throw new Error("key unavailable");
+      }),
+    });
+    expect(failed.ok).toBe(false);
+    expect(failed.diagnostics.map((item) => item.code)).toContain("SIGNING_VERIFIER_FAILED");
   });
 });
