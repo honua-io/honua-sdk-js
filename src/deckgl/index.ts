@@ -45,6 +45,7 @@ export type {
   DeckGlCapability,
   DeckGlDisposalHandle,
   DeckGlExecutionDiagnostic,
+  DeckGlGpuLayerContract,
   DeckGlLayer,
   DeckGlLayerConstructor,
   DeckGlLayerHost,

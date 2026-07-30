@@ -13,6 +13,15 @@ is always zero. Default ceilings reject more than 1,000,000 rows/features, 32
 attributes, 64 forwarded properties, or 256 MiB of unique backing allocations
 before a deck.gl layer is constructed.
 
+Every successful projection also exposes `projection.gpuContract`. This frozen
+evidence records the supported layer kind, the optional peer constructor that
+accepted it, feature/vertex counts, and `copiedBytes: 0`. The adapter validates
+the constructed peer layer and its id before returning; a malformed peer result
+fails with `HonuaDeckGlAdapterError` code `invalid-layer` instead of being
+silently treated as a GPU projection. This contract describes the accepted
+binary layer boundary only; it does not claim WebGPU availability or device
+performance, which remain runtime/browser evidence work.
+
 `feature-path` and `feature-polygon` requests address vertices through a
 request-level `data.startIndices` boundary array (one boundary per feature
 plus a trailing boundary — the same shape deck.gl's own `PathLayer` and
