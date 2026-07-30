@@ -110,6 +110,20 @@ export interface DeckGlProjectionMetrics {
   readonly copiedBytes: 0;
 }
 
+/** Runtime evidence for a constructed binary layer accepted by the optional peer. */
+export interface DeckGlGpuLayerContract {
+  readonly contractVersion: typeof DECK_GL_ADAPTER_CONTRACT_VERSION;
+  readonly layer: Extract<DeckGlLayerKind, "scatterplot" | "feature-path" | "feature-polygon">;
+  readonly peer: "ScatterplotLayer" | "PathLayer" | "SolidPolygonLayer";
+  readonly execution: "gpu-binary";
+  readonly fallback: "none";
+  readonly layerId: string;
+  readonly featureCount: number;
+  readonly vertexCount: number;
+  readonly attributes: number;
+  readonly copiedBytes: 0;
+}
+
 export interface DeckGlExecutionDiagnostic {
   readonly strategy: "gpu-binary";
   readonly fidelity: "exact-input";
@@ -181,6 +195,8 @@ export interface DeckGlProjection {
   readonly contractVersion: typeof DECK_GL_ADAPTER_CONTRACT_VERSION;
   readonly layer: DeckGlLayer;
   readonly metrics: DeckGlProjectionMetrics;
+  /** Fail-closed evidence that the optional peer returned the requested GPU layer. */
+  readonly gpuContract: DeckGlGpuLayerContract;
   readonly diagnostic: DeckGlExecutionDiagnostic;
   selectionForPick(index: number): DeckGlPickedSelection;
   mount(host: DeckGlLayerHost): DeckGlMountedProjection;
@@ -199,6 +215,7 @@ export type HonuaDeckGlAdapterErrorCode =
   | "invalid-data"
   | "limit-exceeded"
   | "unsupported-layer"
+  | "invalid-layer"
   | "dispose-failed"
   | "disposed";
 

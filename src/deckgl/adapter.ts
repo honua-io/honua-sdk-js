@@ -3,6 +3,7 @@ import {
   type DeckGlAdapter,
   type DeckGlBinaryAttribute,
   type DeckGlCapability,
+  type DeckGlGpuLayerContract,
   type DeckGlLayer,
   type DeckGlLayerConstructor,
   type DeckGlLayerHost,
@@ -128,6 +129,17 @@ function peerConstructorFor(peers: DeckGlPeers, layer: SupportedDeckGlLayerKind)
     );
   }
   return ctor;
+}
+
+function peerNameFor(layer: SupportedDeckGlLayerKind): DeckGlGpuLayerContract["peer"] {
+  switch (layer) {
+    case "scatterplot":
+      return "ScatterplotLayer";
+    case "feature-path":
+      return "PathLayer";
+    case "feature-polygon":
+      return "SolidPolygonLayer";
+  }
 }
 
 const defaultImportModule = (specifier: string): Promise<unknown> => import(specifier);
@@ -400,18 +412,32 @@ function createProjection(
     ...(validated.startIndices === undefined ? {} : { startIndices: validated.startIndices }),
   });
   const Ctor = peerConstructorFor(peers, validated.layer);
-  const layer = new Ctor({
+  const foreignLayer = new Ctor({
     ...validated.props,
     ...forcedPropsFor(validated.layer),
     id: validated.layerId,
     data: binaryData,
     pickable: true,
   });
+  const layer = validateConstructedLayer(foreignLayer, validated.layerId, peerNameFor(validated.layer));
+  const gpuContract: DeckGlGpuLayerContract = Object.freeze({
+    contractVersion: DECK_GL_ADAPTER_CONTRACT_VERSION,
+    layer: validated.layer,
+    peer: peerNameFor(validated.layer),
+    execution: "gpu-binary",
+    fallback: "none",
+    layerId: validated.layerId,
+    featureCount: validated.featureCount,
+    vertexCount: validated.rowCount,
+    attributes: Object.keys(validated.attributes).length,
+    copiedBytes: 0,
+  });
 
   return Object.freeze({
     contractVersion: DECK_GL_ADAPTER_CONTRACT_VERSION,
     layer,
     metrics: validated.metrics,
+    gpuContract,
     diagnostic: Object.freeze({
       strategy: "gpu-binary" as const,
       fidelity: "exact-input" as const,
@@ -493,6 +519,50 @@ function createProjection(
       return mountedHandle;
     },
   });
+}
+
+function validateConstructedLayer(
+  foreignLayer: unknown,
+  layerId: string,
+  peer: DeckGlGpuLayerContract["peer"],
+): DeckGlLayer {
+  if (!isRecord(foreignLayer)) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-layer",
+      `Optional deck.gl peer ${peer} did not construct an object layer.`,
+      { peer, layerId },
+    );
+  }
+  let actualId: unknown;
+  try {
+    actualId = Reflect.get(foreignLayer, "id");
+  } catch (cause) {
+    throw new HonuaDeckGlAdapterError(
+      "invalid-layer",
+      `Optional deck.gl peer ${peer} exposed an unreadable layer id.`,
+      { peer, layerId },
+      { cause },
+    );
+  }
+  if (actualId !== layerId) {
+    let actualIdText: string;
+    try {
+      actualIdText = String(actualId);
+    } catch (cause) {
+      throw new HonuaDeckGlAdapterError(
+        "invalid-layer",
+        `Optional deck.gl peer ${peer} returned an unreadable layer id; expected "${layerId}".`,
+        { peer, layerId },
+        { cause },
+      );
+    }
+    throw new HonuaDeckGlAdapterError(
+      "invalid-layer",
+      `Optional deck.gl peer ${peer} returned layer id "${actualIdText}"; expected "${layerId}".`,
+      { peer, layerId, actualId },
+    );
+  }
+  return foreignLayer as DeckGlLayer;
 }
 
 function validateProjectionSnapshot(snapshot: ProjectionSnapshot, limits: DeckGlProjectionLimits): ValidatedProjection {

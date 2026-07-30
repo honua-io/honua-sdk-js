@@ -136,6 +136,49 @@ describe("deck.gl adapter", () => {
     expect(host.addLayer).not.toHaveBeenCalled();
   });
 
+  it("publishes typed GPU-layer evidence after validating the optional peer result", () => {
+    const projection = createDeckGlAdapter({ peers: { ScatterplotLayer: FakeScatterplotLayer } }).project(request(3));
+
+    expect(projection.gpuContract).toEqual({
+      contractVersion: "1.0",
+      layer: "scatterplot",
+      peer: "ScatterplotLayer",
+      execution: "gpu-binary",
+      fallback: "none",
+      layerId: "incidents",
+      featureCount: 3,
+      vertexCount: 3,
+      attributes: 2,
+      copiedBytes: 0,
+    });
+    expect(Object.isFrozen(projection.gpuContract)).toBe(true);
+  });
+
+  it("fails closed when an optional peer does not return the requested layer identity", () => {
+    class InvalidLayer {
+      public readonly id = "different-layer";
+    }
+
+    expect(() => createDeckGlAdapter({ peers: { ScatterplotLayer: InvalidLayer } }).project(request(1))).toThrowError(
+      expect.objectContaining({ code: "invalid-layer" }),
+    );
+  });
+
+  it("preserves the structured error when a returned layer id cannot be coerced", () => {
+    const hostileId = {
+      toString() {
+        throw new Error("foreign coercion failure");
+      },
+    };
+    class HostileLayer {
+      public readonly id = hostileId as unknown as string;
+    }
+
+    expect(() => createDeckGlAdapter({ peers: { ScatterplotLayer: HostileLayer } }).project(request(1))).toThrowError(
+      expect.objectContaining({ code: "invalid-layer", cause: expect.any(Error) }),
+    );
+  });
+
   it("retains failed removals for retry while disposing every other mount", () => {
     const adapter = createDeckGlAdapter({ peers: { ScatterplotLayer: FakeScatterplotLayer } });
     let removalAttempts = 0;
