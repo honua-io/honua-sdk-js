@@ -33,7 +33,7 @@ for (const name of [
   }
 }
 
-const webComponents = await import(pathToFileURL(process.env.HONUA_PACKED_WEB_COMPONENTS_ENTRY).href);
+const webComponents = await import("@honua/app-platform/web-components");
 const { HonuaFeatureEditorElement, HonuaPrintExportElement, runHonuaExport } = webComponents;
 assert.equal(typeof HonuaFeatureEditorElement, "function");
 assert.equal(typeof HonuaPrintExportElement, "function");

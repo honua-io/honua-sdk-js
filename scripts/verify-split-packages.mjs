@@ -953,14 +953,6 @@ export const acceptsCompanionSourceDescriptor = (descriptor: CompanionSourceDesc
       env: {
         ...process.env,
         HONUA_PACKED_JSDOM_ENTRY: path.join(PROJECT_ROOT, "node_modules", "jsdom", "lib", "api.js"),
-        HONUA_PACKED_WEB_COMPONENTS_ENTRY: path.join(
-          tempRoot,
-          "node_modules",
-          "@honua",
-          "app-platform",
-          "web-components",
-          "index.js",
-        ),
       },
     },
   );
