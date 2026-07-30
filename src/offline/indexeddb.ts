@@ -1,6 +1,6 @@
 import type {
-  OfflineRegionCacheInventory,
   OfflineRegionCacheAdmin,
+  OfflineRegionCacheInventory,
   OfflineRegionCommitGuard,
   OfflineRegionDownloadReceipt,
   OfflineRegionManifestV1,
