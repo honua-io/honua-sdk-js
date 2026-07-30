@@ -35,11 +35,12 @@ describe("plugin behavioral conformance", () => {
     expect(report.status).toBe("passed");
   });
 
-  it("covers retries, performance bounds, and bundle metadata", async () => {
+  it("covers retries, performance bounds, exactly-once cleanup, and bundle metadata", async () => {
     const report = await runHonuaPluginConformance(referenceConformanceSpec, REFERENCE_HOST);
     expect(report.scenarios.map((scenario) => scenario.scenario)).toEqual([
       "retries",
       "performance",
+      "cleanup",
       "bundle-metadata",
     ]);
     for (const scenario of report.scenarios) {
@@ -51,6 +52,8 @@ describe("plugin behavioral conformance", () => {
     const retries = report.scenarios.find((scenario) => scenario.scenario === "retries");
     expect(retries?.observations.find((o) => o.metric === "hostAttempts")?.observed).toBe(3);
     expect(retries?.observations.find((o) => o.metric === "recovered")?.observed).toBe(1);
+    const cleanup = report.scenarios.find((scenario) => scenario.scenario === "cleanup");
+    expect(cleanup?.observations.find((o) => o.metric === "disposeCalls")?.observed).toBe(1);
   });
 
   it("is deterministic and binds the certification digest", async () => {
@@ -114,5 +117,27 @@ describe("plugin behavioral conformance", () => {
     expect(report.status).toBe("failed");
     const retries = report.scenarios.find((scenario) => scenario.scenario === "retries");
     expect(retries?.status).toBe("failed");
+  });
+
+  it("fails cleanup certification when registry disposal rejects", async () => {
+    const referenceFactory = referenceConformanceSpec.factory as HonuaPluginFactory<"protocol">;
+    const factory: HonuaPluginFactory<"protocol"> = {
+      manifest: referenceFactory.manifest,
+      initialize(context) {
+        const instance = referenceFactory.initialize(context);
+        return {
+          ...instance,
+          start() {},
+          stop() {
+            throw new Error("cleanup failed");
+          },
+        };
+      },
+    };
+    const report = await runHonuaPluginConformance({ ...referenceConformanceSpec, factory }, REFERENCE_HOST);
+    const cleanup = report.scenarios.find((scenario) => scenario.scenario === "cleanup");
+    expect(cleanup?.status).toBe("failed");
+    expect(cleanup?.observations.find((o) => o.metric === "registryDisposed")?.satisfied).toBe(false);
+    expect(report.status).toBe("failed");
   });
 });

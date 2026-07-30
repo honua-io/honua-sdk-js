@@ -298,7 +298,7 @@ export interface HonuaPluginCertificationSigningEnvelopeVerification {
   readonly diagnostics: readonly HonuaPluginDiagnostic[];
 }
 
-export type HonuaPluginConformanceScenario = "retries" | "performance" | "bundle-metadata";
+export type HonuaPluginConformanceScenario = "retries" | "performance" | "cleanup" | "bundle-metadata";
 
 /** One deterministic measurement compared against a declared conformance bound. */
 export interface HonuaPluginConformanceObservation {

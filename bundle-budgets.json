@@ -77,7 +77,7 @@
   "Root gzip, /contract, /runtime, and tree-shake:root-connect were reset for the WFS ProtocolModule migration (#823): the built-in WFS source now shares the authority-bound compiler/executor, bounded XML/GeoJSON response validation, exact namespace/CRS projection, and paging invariants with independently registered modules. Exact measurements are root 174,650 gzip bytes, /contract 328,408 minified / 87,596 gzip, /runtime 569,944 / 152,621, and root-connect 529,869 / 139,082; only exceeded metrics are reset to measured actual plus ~10% headroom. /query-planner, /plugin, browser, and the isolated HonuaClient fixture remain within their reviewed ceilings, so the migration adds no renderer or unrelated plugin runtime.",
   "/web-components gzip was reset after the #823 correctness review added authority-registry WFS axis ordering plus generation-, cancellation-, refresh-, and disposal-safe capability discovery. The measured 272,419 gzip bytes are budgeted at 299,661 bytes (actual plus ~10% headroom); no other ceiling moved.",
   "The exact #823 rebase over bounded direct PMTiles discovery (#820) was remeasured after preserving both protocol graphs. The combined root, /honua, /source-schema, /source-capability-discovery, browser, isolated HonuaClient, and root-createHonua graphs exceeded ceilings derived from either feature in isolation; only those exceeded metrics are reset here to the combined measured values plus 10% headroom.",
-  "/plugin was reset for the host-mediated certification signing envelope (#392): the measured 66,422 minified / 20,299 gzip bytes are budgeted at 73,065 / 22,329 with the standard ~10% headroom."
+  "/plugin was reset for the behavioral-certification follow-up in #392: the measured gzip size is 20,399 bytes and the ceiling is 22,439 bytes (actual plus ~10% headroom); the existing minified ceiling remains unchanged."
  ],
  "entrypoints": {
   ".": {
@@ -105,8 +105,8 @@
    "gzip": 220779
   },
   "/plugin": {
-   "min": 73065,
-   "gzip": 22329
+   "min": 70888,
+   "gzip": 22439
   },
   "/agent-tools": {
    "min": 39107,
