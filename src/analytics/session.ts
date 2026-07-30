@@ -188,7 +188,9 @@ export function createAnalyticsLinkedSession(options: CreateAnalyticsLinkedSessi
         interactionArtifactSequence: interaction.artifactSequence,
         acceptedArtifactId: artifact.identity.artifactId,
         acceptedArtifactSequence: artifact.identity.sequence,
-        ...(interaction.artifactSourceId !== undefined ? { interactionArtifactSourceId: interaction.artifactSourceId } : {}),
+        ...(interaction.artifactSourceId !== undefined
+          ? { interactionArtifactSourceId: interaction.artifactSourceId }
+          : {}),
         ...(interaction.artifactPlanFingerprint !== undefined
           ? { interactionArtifactPlanFingerprint: interaction.artifactPlanFingerprint }
           : {}),
