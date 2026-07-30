@@ -11,6 +11,7 @@ export {
   createDeckGlAdapter,
   DECK_GL_CAPABILITIES,
   DEFAULT_DECK_GL_PROJECTION_LIMITS,
+  loadDeckGlAdapter,
   loadDeckGlPeers,
 } from "./adapter.js";
 export type { CreateDeckGlAdapterOptions } from "./adapter.js";
@@ -47,6 +48,7 @@ export type {
   DeckGlLayer,
   DeckGlLayerConstructor,
   DeckGlLayerHost,
+  LoadDeckGlAdapterOptions,
   DeckGlLayerKind,
   DeckGlModuleImporter,
   DeckGlMountedProjection,

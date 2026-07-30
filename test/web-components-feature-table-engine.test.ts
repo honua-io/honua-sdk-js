@@ -66,8 +66,8 @@ function makeFixture(
   options: {
     readonly totalRows?: number;
     readonly reportTotalCount?: boolean;
-    readonly capabilities?: readonly Capability[];
     readonly rows?: (index: number) => Row;
+    readonly capabilities?: readonly Capability[];
   } = {},
 ): Fixture {
   const total = options.totalRows ?? TOTAL_ROWS;
@@ -409,18 +409,19 @@ describe("result truth (REQ-004)", () => {
     expect(table.snapshot.message).toContain("stable row identity");
   });
 
-  it("reports unsupported when the descriptor explicitly omits query capability", () => {
-    const table = createHonuaFeatureTable<Row>({
-      source: {
-        descriptor: { ...descriptor(), capabilities: new Set(["render"]) },
-        query: async () => ({ features: [], exceededTransferLimit: false }),
-      },
-      sourceId: "incidents",
-      columns: COLUMNS,
-    });
+  it("fails closed for a source without query capability without issuing a request", async () => {
+    const fixture = makeFixture({ capabilities: ["stream"] });
+    const table = makeTable(fixture);
 
     expect(table.snapshot.state).toBe("unsupported");
     expect(table.snapshot.message).toContain("canonical `query` capability");
+
+    const snapshot = await table.refresh();
+    const exported = await table.export({ format: "json" });
+
+    expect(snapshot.state).toBe("unsupported");
+    expect(exported.rowCount).toBe(0);
+    expect(fixture.requests).toHaveLength(0);
   });
 
   it("reports unsupported for cursor paging on a source without stream", async () => {
@@ -649,18 +650,6 @@ describe("bounded export (REQ-001)", () => {
 
     expect(result.rowCount).toBe(2);
     expect(JSON.parse(result.content).map((row: { id: number }) => row.id)).toEqual([2, 5]);
-  });
-
-  it("fails closed without querying when the descriptor omits query", async () => {
-    const fixture = makeFixture({ capabilities: ["stream"] });
-    const table = makeTable(fixture);
-
-    const result = await table.export({ format: "json", selectionOnly: false });
-
-    expect(result.rowCount).toBe(0);
-    expect(result.content).toBe("[]");
-    expect(table.snapshot.state).toBe("unsupported");
-    expect(fixture.requests).toHaveLength(0);
   });
 
   it("quotes CSV cells that contain the delimiter or a quote", async () => {

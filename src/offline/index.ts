@@ -33,6 +33,7 @@ export type {
   CreateOfflineRegionManifestInput,
   OfflineRegionAdmissionPlan,
   OfflineRegionBounds,
+  OfflineRegionCacheAdmin,
   OfflineRegionCacheInventory,
   OfflineRegionCommitGuard,
   OfflineRegionDownloadOptions,

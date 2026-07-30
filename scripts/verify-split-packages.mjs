@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { runNpmSync } from "./lib/npm-cli.mjs";
+import { splitPackageDiscoverabilityErrors } from "./lib/package-discoverability.mjs";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -37,6 +38,13 @@ for (const [name, directory] of Object.entries(packageDirs)) {
   }
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(directory, "package.json"), "utf8"));
+  const discoverabilityErrors = splitPackageDiscoverabilityErrors(packageJson, name);
+  if (discoverabilityErrors.length > 0) {
+    process.stderr.write(
+      `Invalid discoverability metadata for ${name}:\n${discoverabilityErrors.map((error) => `- ${error}`).join("\n")}\n`,
+    );
+    process.exit(1);
+  }
   if (packageJson?.engines?.node !== EXPECTED_PUBLISHED_NODE_ENGINE) {
     process.stderr.write(
       `Unexpected published Node engine for ${name}: ${packageJson?.engines?.node ?? "<missing>"}\n`,
@@ -933,15 +941,31 @@ export const acceptsCompanionSourceDescriptor = (descriptor: CompanionSourceDesc
   );
   const smokeResult = runCommand("node", ["smoke.mjs"], tempRoot);
   process.stdout.write(smokeResult.stdout);
+  fs.copyFileSync(
+    path.join(PROJECT_ROOT, "test", "fixtures", "packed-app-platform-component-smoke.mjs"),
+    path.join(tempRoot, "packed-app-platform-component-smoke.mjs"),
+  );
+  const componentSmokeResult = runCommand(
+    "node",
+    ["packed-app-platform-component-smoke.mjs"],
+    tempRoot,
+    {
+      env: {
+        ...process.env,
+        HONUA_PACKED_JSDOM_ENTRY: path.join(PROJECT_ROOT, "node_modules", "jsdom", "lib", "api.js"),
+      },
+    },
+  );
+  process.stdout.write(componentSmokeResult.stdout);
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
 
-function runCommand(command, args, cwd) {
+function runCommand(command, args, cwd, extra = {}) {
   const options = {
     cwd,
     encoding: "utf8",
-    env: process.env,
+    env: extra.env ?? process.env,
     shell: false,
   };
   const result =

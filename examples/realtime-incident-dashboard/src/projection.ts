@@ -198,6 +198,21 @@ function clauseToMapLibreFilter(clause: FilterClause): unknown[] | undefined {
       return ["==", clause.field, null];
     case "is-not-null":
       return ["!=", clause.field, null];
+    case "<":
+      return typeof clause.value === "number" ? ["<", clause.field, clause.value] : undefined;
+    case "<=":
+      return typeof clause.value === "number" ? ["<=", clause.field, clause.value] : undefined;
+    case ">":
+      return typeof clause.value === "number" ? [">", clause.field, clause.value] : undefined;
+    case ">=":
+      return typeof clause.value === "number" ? [">=", clause.field, clause.value] : undefined;
+    case "between":
+      return Array.isArray(clause.value) &&
+        clause.value.length === 2 &&
+        typeof clause.value[0] === "number" &&
+        typeof clause.value[1] === "number"
+        ? ["all", [">=", clause.field, clause.value[0]], ["<=", clause.field, clause.value[1]]]
+        : undefined;
     default:
       return undefined;
   }

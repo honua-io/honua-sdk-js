@@ -5,6 +5,7 @@ import {
   HONUA_PLUGIN_API_VERSION,
   HONUA_PLUGIN_CAPABILITIES,
   HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS,
+  HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION,
   HONUA_PLUGIN_ENVIRONMENTS,
   HONUA_PLUGIN_KINDS,
   HONUA_PLUGIN_MANIFEST_VERSION,
@@ -659,7 +660,7 @@ export function certifyHonuaPluginManifest(input: string, hostInput: string): Ho
   const manifestSnapshot = manifestValidation.snapshot ?? null;
   const hostSnapshot = hostValidation.snapshot ?? null;
   const unsignedReport = {
-    reportVersion: 1 as const,
+    reportVersion: HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION,
     plugin: manifest ? { id: manifest.id, version: manifest.version, kind: manifest.kind } : null,
     status: errorCodes.size === 0 ? ("certified" as const) : ("rejected" as const),
     manifest: { snapshot: manifestSnapshot, sha256: fingerprint(manifestSnapshot) },
@@ -700,10 +701,14 @@ export function verifyHonuaPluginCertificationReport(input: string): HonuaPlugin
     return { ok: false, status: null, diagnostics };
   }
 
+  validateCertificationReportShape(report, diagnostics);
+
   const status = report.status === "certified" || report.status === "rejected" ? report.status : null;
   const stated = typeof report.sha256 === "string" ? report.sha256 : undefined;
   if (stated === undefined) {
     push(diagnostics, "REPORT_SIGNATURE_MISSING", "/report/sha256", "Report is missing its integrity digest.");
+  } else if (!isDigest(stated)) {
+    push(diagnostics, "REPORT_SIGNATURE_INVALID", "/report/sha256", "Expected a SHA-256 integrity digest.");
   } else {
     const { sha256: _omit, ...unsigned } = report as Record<string, HonuaPluginJsonValue>;
     const recomputed = sha256(canonicalStringify(unsigned as unknown as Parameters<typeof canonicalStringify>[0]));
@@ -740,6 +745,10 @@ function verifyEmbeddedFingerprint(
     push(diagnostics, "REPORT_FINGERPRINT_INVALID", `${path}/sha256`, "Expected a SHA-256 digest or null.");
     return;
   }
+  if (stated !== null && !isDigest(stated)) {
+    push(diagnostics, "REPORT_FINGERPRINT_INVALID", `${path}/sha256`, "Expected a SHA-256 digest or null.");
+    return;
+  }
   const recomputed = fingerprint(snapshot);
   if (recomputed !== stated) {
     push(
@@ -749,6 +758,146 @@ function verifyEmbeddedFingerprint(
       "Recomputed snapshot fingerprint does not match the stored value; the snapshot was altered.",
     );
   }
+}
+
+function validateCertificationReportShape(report: JsonObject, diagnostics: HonuaPluginDiagnostic[]): void {
+  reportAllowedKeys(
+    report,
+    ["reportVersion", "sha256", "plugin", "status", "manifest", "host", "checks", "diagnostics"],
+    "/report",
+    diagnostics,
+  );
+  if (report.reportVersion !== HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION) {
+    push(
+      diagnostics,
+      "REPORT_VERSION_UNSUPPORTED",
+      "/report/reportVersion",
+      `Expected ${HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION}.`,
+    );
+  }
+  validateReportPlugin(report.plugin, diagnostics);
+  validateReportStatus(report.status, diagnostics);
+  validateReportBlock(report.manifest, "/report/manifest", diagnostics);
+  validateReportBlock(report.host, "/report/host", diagnostics);
+
+  if (!Array.isArray(report.checks)) {
+    push(diagnostics, "REPORT_FIELD_INVALID", "/report/checks", "Expected an array of certification checks.");
+  } else {
+    const checkCounts = new Map<HonuaPluginCertificationCheck, number>();
+    for (const [index, value] of report.checks.entries()) {
+      const check = object(value);
+      const path = `/report/checks/${index}`;
+      if (!check) {
+        push(diagnostics, "REPORT_FIELD_INVALID", path, "Expected a certification check object.");
+        continue;
+      }
+      reportAllowedKeys(check, ["check", "status", "diagnosticCodes"], path, diagnostics);
+      if (!CHECKS.includes(check.check as HonuaPluginCertificationCheck)) {
+        push(diagnostics, "REPORT_FIELD_INVALID", `${path}/check`, "Unknown certification check.");
+      } else {
+        const name = check.check as HonuaPluginCertificationCheck;
+        checkCounts.set(name, (checkCounts.get(name) ?? 0) + 1);
+      }
+      if (check.status !== "passed" && check.status !== "failed")
+        push(diagnostics, "REPORT_FIELD_INVALID", `${path}/status`, "Expected passed or failed.");
+      if (!isStringArray(check.diagnosticCodes))
+        push(diagnostics, "REPORT_FIELD_INVALID", `${path}/diagnosticCodes`, "Expected an array of diagnostic codes.");
+    }
+    for (const check of CHECKS) {
+      const count = checkCounts.get(check) ?? 0;
+      if (count !== 1)
+        push(
+          diagnostics,
+          "REPORT_CHECKS_INCOMPLETE",
+          "/report/checks",
+          `Expected each certification check exactly once; ${check} occurred ${count} times.`,
+        );
+    }
+  }
+
+  if (!Array.isArray(report.diagnostics)) {
+    push(diagnostics, "REPORT_FIELD_INVALID", "/report/diagnostics", "Expected an array of diagnostics.");
+  } else {
+    for (const [index, value] of report.diagnostics.entries()) {
+      const diagnostic = object(value);
+      const path = `/report/diagnostics/${index}`;
+      if (!diagnostic) {
+        push(diagnostics, "REPORT_FIELD_INVALID", path, "Expected a diagnostic object.");
+        continue;
+      }
+      reportAllowedKeys(diagnostic, ["code", "severity", "path", "message"], path, diagnostics);
+      for (const field of ["code", "path", "message"] as const) {
+        if (typeof diagnostic[field] !== "string" || diagnostic[field].length === 0)
+          push(diagnostics, "REPORT_FIELD_INVALID", `${path}/${field}`, "Expected a non-empty string.");
+      }
+      if (diagnostic.severity !== "error" && diagnostic.severity !== "warning")
+        push(diagnostics, "REPORT_FIELD_INVALID", `${path}/severity`, "Expected error or warning.");
+    }
+  }
+}
+
+function validateReportPlugin(value: HonuaPluginJsonValue | undefined, diagnostics: HonuaPluginDiagnostic[]): void {
+  if (value === null) return;
+  const plugin = object(value);
+  if (!plugin) {
+    push(diagnostics, "REPORT_FIELD_INVALID", "/report/plugin", "Expected a plugin identity object or null.");
+    return;
+  }
+  reportAllowedKeys(plugin, ["id", "version", "kind"], "/report/plugin", diagnostics);
+  for (const field of ["id", "version", "kind"] as const) {
+    if (typeof plugin[field] !== "string" || plugin[field].length === 0)
+      push(diagnostics, "REPORT_FIELD_INVALID", `/report/plugin/${field}`, "Expected a non-empty string.");
+  }
+  if (typeof plugin.id === "string" && plugin.id.length > 0 && !validPluginId(plugin.id))
+    push(diagnostics, "REPORT_PLUGIN_ID_INVALID", "/report/plugin/id", "Expected a supported plugin id.");
+  if (typeof plugin.version === "string" && plugin.version.length > 0 && !parseSemver(plugin.version))
+    push(diagnostics, "REPORT_PLUGIN_VERSION_INVALID", "/report/plugin/version", "Expected an exact semantic version.");
+  if (
+    typeof plugin.kind === "string" &&
+    plugin.kind.length > 0 &&
+    !HONUA_PLUGIN_KINDS.includes(plugin.kind as HonuaPluginKind)
+  )
+    push(diagnostics, "REPORT_PLUGIN_KIND_UNKNOWN", "/report/plugin/kind", "Unknown plugin kind.");
+}
+
+function validateReportStatus(value: HonuaPluginJsonValue | undefined, diagnostics: HonuaPluginDiagnostic[]): void {
+  if (value !== "certified" && value !== "rejected")
+    push(diagnostics, "REPORT_FIELD_INVALID", "/report/status", "Expected certified or rejected.");
+}
+
+function validateReportBlock(
+  value: HonuaPluginJsonValue | undefined,
+  path: string,
+  diagnostics: HonuaPluginDiagnostic[],
+): void {
+  const block = object(value);
+  if (!block) {
+    push(diagnostics, "REPORT_BLOCK_INVALID", path, "Report block must carry a snapshot and its digest.");
+    return;
+  }
+  reportAllowedKeys(block, ["snapshot", "sha256"], path, diagnostics);
+  if (!("snapshot" in block)) push(diagnostics, "REPORT_BLOCK_INVALID", `${path}/snapshot`, "Snapshot is required.");
+  if (!("sha256" in block)) push(diagnostics, "REPORT_BLOCK_INVALID", `${path}/sha256`, "Digest is required.");
+}
+
+function reportAllowedKeys(
+  value: JsonObject,
+  keys: readonly string[],
+  path: string,
+  diagnostics: HonuaPluginDiagnostic[],
+): void {
+  const allowed = new Set(keys);
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) push(diagnostics, "REPORT_UNKNOWN_FIELD", `${path}/${escapePointer(key)}`, "Unknown field.");
+  }
+}
+
+function isStringArray(value: HonuaPluginJsonValue | undefined): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isDigest(value: string): value is `sha256:${string}` {
+  return /^sha256:[0-9a-f]{64}$/.test(value);
 }
 
 function certifyPeers(

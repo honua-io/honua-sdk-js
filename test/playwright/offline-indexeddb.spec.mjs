@@ -70,6 +70,30 @@ test("IndexedDB store reclaims abandoned staging records and touches LRU reads",
   }
 });
 
+test("IndexedDB store supports atomic pinning, expiry pruning, and removal", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    const result = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      const store = createIndexedDbOfflineRegionStore({ name });
+      const before = await store.inventory();
+      const regionId = before.regions[0].id;
+      const pinned = await store.setRegionPinned(regionId, true);
+      const unchanged = await store.setRegionPinned(regionId, true);
+      const afterPin = await store.inventory();
+      const pruned = await store.pruneExpired(new Date("2026-07-29T00:00:00Z"));
+      const removed = await store.removeRegion(regionId);
+      const absent = await store.removeRegion(regionId);
+      return { pinned, unchanged, storedPinned: afterPin.regions[0]?.pinned, pruned, removed, absent, finalCount: (await store.inventory()).regions.length };
+    }, database);
+    expect(result).toEqual({ pinned: true, unchanged: false, storedPinned: true, pruned: [], removed: true, absent: false, finalCount: 0 });
+  } finally {
+    await server.close();
+  }
+});
+
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   const server = createServer(async (request, response) => {

@@ -22,6 +22,8 @@ this entrypoint imports them:
 - `loadKeplerPeers()` resolves `@kepler.gl/actions` through a dynamic import and
   validates the caller-declared Kepler version against
   `KEPLER_COMPATIBILITY_RANGE` (`>=3.0.0 <4.0.0`) *before* touching the peer.
+- `loadKeplerProcessors()` resolves `@kepler.gl/processors` through the same
+  optional dynamic-import seam for Arrow-table ingestion.
 - Every projection, mapping, and reconciliation function works with no peer
   present at all — peers are needed only to dispatch into a live Kepler store.
 
@@ -43,7 +45,7 @@ no GeoJSON round trip happened.
 | line / polygon / multi-part geometry | `geojson-column` | yes, measured |
 | raster tile or style source | `remote-basemap-style` | no (reference only) |
 | vector tile source | `remote-vector-tileset` | no (reference only) |
-| Arrow / GeoArrow zero-copy table | not implemented in contract v1.0 | n/a |
+| Apache Arrow table through Kepler processor | `arrow-table-processor` | no (`geoJsonBytes === 0`) |
 
 Kepler exposes no tabular or binary ingestion path for line, polygon, or
 multi-part geometry, so that case is a declared fallback rather than a silent
@@ -245,11 +247,55 @@ bytes, and 10,000 rows per bounded delta. Exceeding a budget throws
 `limit-exceeded` rather than truncating, and `bridge.dispose()` releases the
 tracked rows and every linked-state subscription.
 
+## Apache Arrow processor path
+
+`loadKeplerProcessors()` and `bridge.openArrowTable()` accept an opaque Apache
+Arrow table supplied by the host. Kepler's `processArrowTable` interprets the
+schema; the SDK validates the bounded `{ fields, rows }` result, adds Honua
+provenance and credential-free metadata, and applies the same row/field
+budgets as every other workspace path. The diagnostic strategy is
+`arrow-table-processor` and `geoJsonBytes` is always `0`: the bridge never
+serializes the table through GeoJSON. Set `geometryField` and `crs` when the
+table contains GeoArrow geometry; non-WGS84 inputs fail closed.
+
+This is an explicit processor path, not a claim of Arrow-buffer zero-copy:
+Kepler's current processor returns a row-oriented dataset. The future
+zero-copy contract remains separately reported as unsupported.
+
+## Packed browser qualification
+
+The SDK's split package is qualified in a real browser by
+`test/playwright/kepler-arrow-packed.spec.mjs`. The test builds
+`dist/packages/honua-sdk`, serves only that packed `@honua/sdk/kepler` tree, and
+opens the Arrow adapter through the public entrypoint. It verifies the declared
+Kepler compatibility range, Arrow processor projection, zero GeoJSON bytes,
+temporal and row-identity metadata, provenance, and bridge workspace metrics.
+
+Run the bounded qualification with:
+
+```bash
+npm run test:playwright:kepler-arrow-packed
+```
+
+The focused test always runs `npm run build:split-packages` from the current
+checkout before starting its browser server. This prevents a clean checkout
+from failing on missing output and prevents an ignored stale `dist/` tree from
+being qualified accidentally. To run the Playwright file directly, it has the
+same build behavior:
+
+```bash
+npx playwright test test/playwright/kepler-arrow-packed.spec.mjs
+```
+
+The fixture injects the processor result and therefore proves the SDK adapter
+and packed browser boundary without claiming that a live Arrow object, public
+dataset, or `honua-site` deployment has been exercised.
+
 ## Known gaps
 
-- Kepler's Arrow/GeoArrow ingestion (`processArrowTable`, the `geoarrow` field
-  type) is out of contract v1.0; the direct columnar path transposes into rows
-  instead.
+- Kepler's Arrow/GeoArrow buffer-preserving path remains unsupported; the new
+  processor path is bounded and GeoJSON-free but intentionally reports its
+  row-oriented processor boundary.
 - `examples/kepler-analytics/` still uses its exported-snapshot fixture wiring
   and has not been rewired onto this bridge.
 - The end-to-end analytics journey and scheduled live evidence remain follow-up

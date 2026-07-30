@@ -119,6 +119,11 @@ export interface LoadDeckGlPeersOptions {
   readonly importModule?: DeckGlModuleImporter;
 }
 
+/** Options for creating an adapter by loading the optional deck.gl layers peer. */
+export interface LoadDeckGlAdapterOptions extends LoadDeckGlPeersOptions {
+  readonly limits?: Partial<DeckGlProjectionLimits>;
+}
+
 export interface DeckGlLayerHost {
   addLayer(layer: DeckGlLayer): void;
   removeLayer(layer: DeckGlLayer): void;

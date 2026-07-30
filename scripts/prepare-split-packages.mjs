@@ -322,11 +322,13 @@ function createSdkPackage() {
     peerDependencies: {
       "@deck.gl/layers": rootPackageJson.peerDependencies["@deck.gl/layers"],
       "@kepler.gl/actions": rootPackageJson.peerDependencies["@kepler.gl/actions"],
+      "@kepler.gl/processors": rootPackageJson.peerDependencies["@kepler.gl/processors"],
       "apache-arrow": rootPackageJson.peerDependencies["apache-arrow"],
     },
     peerDependenciesMeta: {
       "@deck.gl/layers": { optional: true },
       "@kepler.gl/actions": { optional: true },
+      "@kepler.gl/processors": { optional: true },
       "apache-arrow": { optional: true },
     },
   });
@@ -367,7 +369,7 @@ function createCompatPackage() {
   writePackageJson(packageRoot, {
     name: "@honua/sdk-esri-compat",
     description:
-      "ArcGIS JS API compatibility layer for migrating Esri apps to the open Honua + MapLibre stack",
+      "ArcGIS JS API compatibility layer for ArcGIS migration from Esri apps to the open Honua + MapLibre stack",
     keywords: packageKeywords(["arcgis", "arcgis-migration", "esri", "compatibility"]),
     main: "./index.js",
     types: "./index.d.ts",

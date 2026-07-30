@@ -161,6 +161,19 @@ export interface OfflineRegionCacheInventory {
   readonly regions: readonly OfflineRegionStoredRegion[];
 }
 
+/**
+ * Atomic lifecycle operations for a persistent offline-region cache.
+ * Implementations must advance the inventory revision once for each mutation.
+ */
+export interface OfflineRegionCacheAdmin {
+  /** Remove a region and all of its resources. Returns false when absent. */
+  removeRegion(regionId: string): Promise<boolean>;
+  /** Change whether automatic admission may evict a region. Returns false when unchanged or absent. */
+  setRegionPinned(regionId: string, pinned: boolean): Promise<boolean>;
+  /** Remove all regions expired at or before `now`, returning ids in inventory order. */
+  pruneExpired(now?: Date): Promise<readonly string[]>;
+}
+
 export interface OfflineRegionAdmissionPlan {
   readonly logicalQuotaBytes: number;
   readonly logicalBytesBefore: number;
