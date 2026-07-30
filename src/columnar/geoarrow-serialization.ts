@@ -23,7 +23,7 @@ interface SerializedBuffer {
 
 interface SerializedBacking {
   readonly id: string;
-  readonly data: string;
+  data: string;
 }
 
 interface SerializedEnvelope {
@@ -82,7 +82,10 @@ function encodeEnvelope(envelope: SerializedEnvelope, limit: number): Uint8Array
   return bytes;
 }
 
-function readEnvelope(input: Uint8Array | ArrayBuffer, limit: number): SerializedEnvelope {
+function readEnvelope(
+  input: Uint8Array | ArrayBuffer,
+  limit: number,
+): { envelope: SerializedEnvelope; byteLength: number } {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   if (bytes.byteLength > limit) {
     fail(`GeoArrow envelope is ${bytes.byteLength} bytes; the limit is ${limit}.`, "serialization-limit-exceeded");
@@ -105,7 +108,7 @@ function readEnvelope(input: Uint8Array | ArrayBuffer, limit: number): Serialize
   if (!isRecord(value.batch) || !Array.isArray(value.batch.buffers) || !Array.isArray(value.backings)) {
     fail("GeoArrow envelope is missing its batch or backing buffers.", "invalid-batch");
   }
-  return value as unknown as SerializedEnvelope;
+  return { envelope: value as unknown as SerializedEnvelope, byteLength: bytes.byteLength };
 }
 
 function metrics(serializedBytes: number, batch: ColumnarBatchV1): GeoArrowSerializationMetrics {
@@ -123,6 +126,7 @@ export function serializeGeoArrowBatch(batch: ColumnarBatchV1, options: GeoArrow
   const limit = serializedLimit(options);
   const inspection = inspectGeoArrowBatch(batch, options);
   const backings: SerializedBacking[] = [];
+  const backingViews: Uint8Array[] = [];
   const backingIds = new Map<ArrayBuffer, string>();
   const buffers: SerializedBuffer[] = [];
   for (const descriptor of inspection.batch.buffers) {
@@ -130,7 +134,8 @@ export function serializeGeoArrowBatch(batch: ColumnarBatchV1, options: GeoArrow
     if (!backingId) {
       backingId = `backing-${backings.length}`;
       backingIds.set(descriptor.data, backingId);
-      backings.push({ id: backingId, data: toBase64(new Uint8Array(descriptor.data)) });
+      backings.push({ id: backingId, data: "" });
+      backingViews.push(new Uint8Array(descriptor.data));
     }
     buffers.push({
       id: descriptor.id,
@@ -147,6 +152,19 @@ export function serializeGeoArrowBatch(batch: ColumnarBatchV1, options: GeoArrow
     batch: { ...inspection.batch, buffers },
     backings,
   };
+  const base64Bytes = backingViews.reduce((total, bytes) => total + 4 * Math.ceil(bytes.byteLength / 3), 0);
+  const envelopeOverhead = new TextEncoder().encode(
+    JSON.stringify({ ...envelope, backings: backings.map(({ id }) => ({ id, data: "" })) }),
+  ).byteLength;
+  if (envelopeOverhead + base64Bytes > limit) {
+    fail(
+      `GeoArrow envelope requires at least ${envelopeOverhead + base64Bytes} bytes; the limit is ${limit}.`,
+      "serialization-limit-exceeded",
+    );
+  }
+  backings.forEach((backing, index) => {
+    backing.data = toBase64(backingViews[index]!);
+  });
   return encodeEnvelope(envelope, limit);
 }
 
@@ -156,7 +174,7 @@ export function deserializeGeoArrowBatch(
   options: GeoArrowSerializationOptions = {},
 ): GeoArrowBatchSerializationResult {
   const limit = serializedLimit(options);
-  const envelope = readEnvelope(input, limit);
+  const { envelope, byteLength } = readEnvelope(input, limit);
   const backingMap = new Map<string, ArrayBuffer>();
   let backingBytes = 0;
   for (const backing of envelope.backings) {
@@ -190,7 +208,7 @@ export function deserializeGeoArrowBatch(
   inspectGeoArrowBatch(batch, options);
   return Object.freeze({
     batch,
-    metrics: metrics(new TextEncoder().encode(JSON.stringify(envelope)).byteLength, batch),
+    metrics: metrics(byteLength, batch),
   });
 }
 
