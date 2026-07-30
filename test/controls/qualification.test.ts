@@ -168,11 +168,10 @@ describe("gate completion and catalog support tier are distinct axes", () => {
     }
   });
 
-  it("records the seed honestly: no component has cleared every gate yet", () => {
-    // Seeded from what the suite actually asserts today (issue #683). Asserted so
-    // that the day a component genuinely clears every gate, this test fails and
-    // forces a deliberate review of the promotion.
-    expect(HONUA_COMPONENT_CATALOG.filter((entry) => isComponentProductionQualified(entry.id))).toEqual([]);
+  it("records the promoted feature editor explicitly", () => {
+    expect(
+      HONUA_COMPONENT_CATALOG.filter((entry) => isComponentProductionQualified(entry.id)).map((entry) => entry.id),
+    ).toEqual(["web-components.feature-editor"]);
   });
 });
 
@@ -197,9 +196,8 @@ describe("the production-tier feature editor is seeded honestly", () => {
     // matrix doing the job it exists to do.
     expect(status("deterministic-disposal")).toBe("passing");
     expect(status("duplicate-listener")).toBe("passing");
-    // The only remaining open gate is visual comparison. The other previously
-    // pending gates now have explicit evidence in the qualification manifest.
-    expect(status("visual-regression")).toBe("pending");
+    // The visual baseline closes the final gate for this production-tier component.
+    expect(status("visual-regression")).toBe("passing");
     expect(status("zero-console-error")).toBe("passing");
     expect(status("memory-leak")).toBe("passing");
     expect(status("rtl")).toBe("passing");
