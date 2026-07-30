@@ -1,5 +1,6 @@
 import type {
   OfflineRegionCacheInventory,
+  OfflineRegionCacheAdmin,
   OfflineRegionCommitGuard,
   OfflineRegionDownloadReceipt,
   OfflineRegionManifestV1,
@@ -70,7 +71,7 @@ export interface IndexedDbOfflineRegionStoreOptions {
  * introduced by this adapter; callers provide only the already-normalized
  * manifest and resource bytes.
  */
-export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
+export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineRegionCacheAdmin {
   readonly #database: Promise<IDBDatabase>;
 
   public constructor(options: IndexedDbOfflineRegionStoreOptions = {}) {
@@ -135,6 +136,61 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
         resource,
         bytes: Uint8Array.from(stored.bytes),
       } satisfies OfflineRegionResourceRead;
+    });
+  }
+
+  public async removeRegion(regionId: string): Promise<boolean> {
+    requireId(regionId, "regionId");
+    const database = await this.#database;
+    return runTransaction(database, "readwrite", async (transaction) => {
+      const inventoryStore = transaction.objectStore(INVENTORY_STORE);
+      const regionStore = transaction.objectStore(REGION_STORE);
+      const region = await request<RegionRecord | undefined>(regionStore.get(regionId));
+      if (!region) return false;
+      await deleteResourcesByRegion(transaction, regionId);
+      regionStore.delete(regionId);
+      const inventory = await request<InventoryRecord | undefined>(inventoryStore.get(INVENTORY_KEY));
+      inventoryStore.put({ key: INVENTORY_KEY, revision: nextRevision(inventory?.revision) } satisfies InventoryRecord);
+      return true;
+    });
+  }
+
+  public async setRegionPinned(regionId: string, pinned: boolean): Promise<boolean> {
+    requireId(regionId, "regionId");
+    if (typeof pinned !== "boolean") throw new TypeError("pinned must be a boolean.");
+    const database = await this.#database;
+    return runTransaction(database, "readwrite", async (transaction) => {
+      const inventoryStore = transaction.objectStore(INVENTORY_STORE);
+      const regionStore = transaction.objectStore(REGION_STORE);
+      const region = await request<RegionRecord | undefined>(regionStore.get(regionId));
+      if (!region || Boolean(region.pinned) === pinned) return false;
+      regionStore.put({ ...region, ...(pinned ? { pinned: true } : { pinned: undefined }) } satisfies RegionRecord);
+      const inventory = await request<InventoryRecord | undefined>(inventoryStore.get(INVENTORY_KEY));
+      inventoryStore.put({ key: INVENTORY_KEY, revision: nextRevision(inventory?.revision) } satisfies InventoryRecord);
+      return true;
+    });
+  }
+
+  public async pruneExpired(now: Date = new Date()): Promise<readonly string[]> {
+    if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError("now must be a valid Date.");
+    const cutoff = now.getTime();
+    const database = await this.#database;
+    return runTransaction(database, "readwrite", async (transaction) => {
+      const regionStore = transaction.objectStore(REGION_STORE);
+      const records = await request<RegionRecord[]>(regionStore.getAll());
+      const expired = records
+        .filter((record) => record.expiresAt !== undefined && Date.parse(record.expiresAt) <= cutoff)
+        .map((record) => record.id)
+        .sort();
+      if (expired.length === 0) return expired;
+      for (const regionId of expired) {
+        await deleteResourcesByRegion(transaction, regionId);
+        regionStore.delete(regionId);
+      }
+      const inventoryStore = transaction.objectStore(INVENTORY_STORE);
+      const inventory = await request<InventoryRecord | undefined>(inventoryStore.get(INVENTORY_KEY));
+      inventoryStore.put({ key: INVENTORY_KEY, revision: nextRevision(inventory?.revision) } satisfies InventoryRecord);
+      return expired;
     });
   }
 
@@ -309,6 +365,10 @@ function toStoredRegion(record: RegionRecord): OfflineRegionStoredRegion {
     ...(record.expiresAt ? { expiresAt: record.expiresAt } : {}),
     ...(record.pinned ? { pinned: true } : {}),
   };
+}
+
+function requireId(value: string, name: string): void {
+  if (typeof value !== "string" || value.length === 0) throw new TypeError(`${name} must be non-empty.`);
 }
 
 function resourceKey(regionId: string, resourceId: string): string {
