@@ -496,6 +496,10 @@ function unsupported(
   capability: string,
   message: string,
 ): HonuaExportResult {
+  const redactedAdapterId = adapterId === undefined ? undefined : redactHonuaExportText(adapterId);
+  const redactedMessage = redactHonuaExportText(
+    redactedAdapterId && adapterId ? message.replaceAll(adapterId, redactedAdapterId) : message,
+  );
   return {
     kind,
     status: "unsupported",
@@ -504,7 +508,7 @@ function unsupported(
     redactions,
     ownership: "none",
     release: noopRelease,
-    message,
+    message: redactedMessage,
     error: new HonuaCapabilityNotSupportedError(capability, EXPORT_PROTOCOL, adapterId),
   };
 }

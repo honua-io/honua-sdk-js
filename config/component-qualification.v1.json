@@ -3433,10 +3433,11 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-export-event-security.test.ts",
             "test/web-components-export-review2.test.ts",
             "test/web-components-export-security.test.ts"
           ],
-          "note": "The secure-export suites prove explicit-adapter success, fail-closed snapshot/state behavior, credential exclusion from state, bytes, filenames, errors, and provenance, plus idempotent release and cancellation."
+          "note": "The secure-export suites prove explicit-adapter success, fail-closed snapshot/state behavior, credential exclusion from state, bytes, filenames, errors, event detail, and visible status, plus idempotent release and cancellation."
         },
         {
           "gate": "bundle-budget",

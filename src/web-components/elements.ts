@@ -2474,7 +2474,7 @@ function exportDetailFromResult(result: HonuaExportResult, title: string | undef
   };
   if (title) mutable.title = redactHonuaExportText(title);
   if (result.message) mutable.message = result.message;
-  if (result.adapterId) mutable.adapterId = result.adapterId;
+  if (result.adapterId) mutable.adapterId = redactHonuaExportText(result.adapterId);
   if (result.filename) mutable.filename = result.filename;
   if (result.mediaType) mutable.mediaType = result.mediaType;
   if (result.bytes) mutable.byteLength = result.bytes.byteLength;
