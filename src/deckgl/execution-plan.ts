@@ -23,7 +23,8 @@ export function planDeckGlExecution(request: DeckGlExecutionPlanRequest): DeckGl
       layer: request.layer,
       execution: strategy,
       fallback: strategy === primary ? "none" : strategy,
-      fidelity: strategy === "gpu-binary" ? "exact-input" : strategy === "cpu-object" ? "bounded-object" : "tile-bounded",
+      fidelity:
+        strategy === "gpu-binary" ? "exact-input" : strategy === "cpu-object" ? "bounded-object" : "tile-bounded",
       ownership: strategy === "gpu-binary" ? "sdk" : "caller",
       reason:
         strategy === "gpu-binary"

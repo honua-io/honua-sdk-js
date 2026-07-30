@@ -19,7 +19,12 @@ describe("planDeckGlExecution", () => {
         preferred: ["gpu-binary", "cpu-object", "tile"],
         availability: { gpuBinary: false, cpuObject: true },
       }),
-    ).toMatchObject({ execution: "cpu-object", fallback: "cpu-object", fidelity: "bounded-object", ownership: "caller" });
+    ).toMatchObject({
+      execution: "cpu-object",
+      fallback: "cpu-object",
+      fidelity: "bounded-object",
+      ownership: "caller",
+    });
   });
 
   it("fails closed when every requested lane is unavailable", () => {
