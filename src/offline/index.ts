@@ -42,6 +42,7 @@ export type {
   OfflineRegionManifestV1,
   OfflineRegionObservation,
   OfflineRegionResourceInput,
+  OfflineRegionResourceRead,
   OfflineRegionResourceKind,
   OfflineRegionResourceLoader,
   OfflineRegionResourceV1,

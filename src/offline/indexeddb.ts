@@ -3,6 +3,7 @@ import type {
   OfflineRegionCommitGuard,
   OfflineRegionDownloadReceipt,
   OfflineRegionManifestV1,
+  OfflineRegionResourceRead,
   OfflineRegionStore,
   OfflineRegionStoredRegion,
   OfflineRegionWriteTransaction,
@@ -89,6 +90,31 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
           .map(toStoredRegion)
           .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)),
       };
+    });
+  }
+
+  public async readResource(regionId: string, resourceId: string): Promise<OfflineRegionResourceRead | undefined> {
+    if (typeof regionId !== "string" || regionId.length === 0) throw new Error("regionId must be non-empty.");
+    if (typeof resourceId !== "string" || resourceId.length === 0) throw new Error("resourceId must be non-empty.");
+    const database = await this.#database;
+    return runTransaction(database, "readonly", async (transaction) => {
+      const region = await request<RegionRecord | undefined>(transaction.objectStore(REGION_STORE).get(regionId));
+      if (!region) return undefined;
+      const resource = region.manifest.resources.find((candidate) => candidate.id === resourceId);
+      if (!resource) return undefined;
+      const stored = await request<ResourceRecord | undefined>(
+        transaction.objectStore(RESOURCE_STORE).get(resourceKey(regionId, resourceId)),
+      );
+      if (!stored) return undefined;
+      if (stored.bytes.byteLength !== resource.byteLength) {
+        throw new Error(`Offline resource ${resourceId} failed its stored byte-length check.`);
+      }
+      return {
+        regionId,
+        manifest: region.manifest,
+        resource,
+        bytes: Uint8Array.from(stored.bytes),
+      } satisfies OfflineRegionResourceRead;
     });
   }
 

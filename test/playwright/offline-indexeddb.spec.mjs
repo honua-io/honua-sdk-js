@@ -18,10 +18,13 @@ test("IndexedDB offline region store survives reload and preserves inventory CAS
     });
 
     await page.reload();
+    await page.context().setOffline(true);
     await expect.poll(() => page.evaluate(() => window.__offlineResult)).toEqual({
       revision: "present",
       regionCount: 1,
       logicalByteLength: 3,
+      resource: "one",
+      sourceVersion: "1",
     });
   } finally {
     await server.close();
@@ -78,7 +81,9 @@ async function startServer() {
             sessionStorage.setItem("offline-test-mode", "read");
           } else {
             const inventory = await store.inventory();
-            window.__offlineResult = { revision: inventory.revision === "0" ? "zero" : "present", regionCount: inventory.regions.length, logicalByteLength: inventory.regions[0]?.logicalByteLength };
+            const regionId = inventory.regions[0]?.id;
+            const resource = regionId ? await store.readResource(regionId, "metadata") : undefined;
+            window.__offlineResult = { revision: inventory.revision === "0" ? "zero" : "present", regionCount: inventory.regions.length, logicalByteLength: inventory.regions[0]?.logicalByteLength, resource: resource ? new TextDecoder().decode(resource.bytes) : "missing", sourceVersion: resource?.manifest.source.sourceVersion };
           }
         };
         run().catch((error) => { window.__offlineResult = { error: String(error) }; });
