@@ -207,11 +207,23 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
   public async beginWrite(regionId: string): Promise<OfflineRegionWriteTransaction> {
     if (typeof regionId !== "string" || regionId.length === 0) throw new Error("regionId must be non-empty.");
     const database = await this.#database;
-    const transactionId = createTransactionId();
+    // The manifest id is the resume checkpoint identity. It is deterministic,
+    // credential-free, and cannot collide across different snapshots.
+    const transactionId = regionId;
     const evictions: string[] = [];
     return {
       evict: async (id) => {
         if (!evictions.includes(id)) evictions.push(id);
+      },
+      readStaged: async (resource) => {
+        const staged = await runTransaction(database, "readonly", async (transaction) =>
+          request<StagedResourceRecord | undefined>(
+            transaction.objectStore(STAGING_STORE).get(resourceKey(transactionId, resource.id)),
+          ),
+        );
+        if (!staged || staged.regionId !== regionId || staged.bytes.byteLength !== resource.byteLength)
+          return undefined;
+        return Uint8Array.from(staged.bytes);
       },
       write: async (resource, bytes) => {
         const copy = Uint8Array.from(bytes);
@@ -276,8 +288,8 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
           return "committed";
         });
       },
-      rollback: async () => {
-        await clearStagedResources(database, transactionId);
+      rollback: async (options) => {
+        if (!options?.preserveStaged) await clearStagedResources(database, transactionId);
         evictions.length = 0;
       },
     };

@@ -234,6 +234,62 @@ test("IndexedDB store supports atomic pinning, expiry pruning, and removal", asy
   }
 });
 
+test("IndexedDB download resumes from verified staged resources", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    const result = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore, createOfflineRegionManifest, downloadOfflineRegion } =
+        await import("/dist/src/offline/index.js");
+      const digest = async (value) => {
+        const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+        return "sha256:" + [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      };
+      const manifest = await createOfflineRegionManifest({
+        name: "resume fixture",
+        sourceId: "fixture",
+        endpoint: "https://example.test/features",
+        authorizationScopeFingerprint: "test-scope",
+        bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, crs: "EPSG:4326" },
+        sourceVersion: "1",
+        schemaVersion: "1",
+        planVersion: "1",
+        observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+        resources: [
+          { id: "first", kind: "metadata", byteLength: 3, integrity: await digest("one") },
+          { id: "second", kind: "metadata", byteLength: 3, integrity: await digest("two") },
+        ],
+      });
+      const firstStore = createIndexedDbOfflineRegionStore({ name });
+      let firstLoads = 0;
+      await downloadOfflineRegion(manifest, {
+        store: firstStore,
+        logicalQuotaBytes: 6,
+        load: async (resource) => {
+          firstLoads += 1;
+          if (resource.id === "second") throw new Error("simulated interruption");
+          return new TextEncoder().encode("one");
+        },
+      }).catch(() => undefined);
+      const secondStore = createIndexedDbOfflineRegionStore({ name });
+      const loaded = [];
+      const receipt = await downloadOfflineRegion(manifest, {
+        store: secondStore,
+        logicalQuotaBytes: 6,
+        load: async (resource) => {
+          loaded.push(resource.id);
+          return new TextEncoder().encode(resource.id === "first" ? "one" : "two");
+        },
+      });
+      return { firstLoads, loaded, receipt: receipt.integrity, regionCount: (await secondStore.inventory()).regions.length };
+    }, database);
+    expect(result).toEqual({ firstLoads: 2, loaded: ["second"], receipt: "verified", regionCount: 1 });
+  } finally {
+    await server.close();
+  }
+});
+
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   const server = createServer(async (request, response) => {

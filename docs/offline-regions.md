@@ -74,6 +74,11 @@ const receipt = await downloadOfflineRegion(manifest, {
   revision is reset to the empty baseline. Recovery scans at most 100,000
   records and 64 MiB of persisted payloads, failing closed if those bounds are
   exceeded.
+- IndexedDB staging is resumable by manifest identity. If a download is
+  cancelled or its loader fails, verified staged resources are retained for a
+  bounded period and the next attempt re-hashes them before loading only the
+  missing resources. Staging contains resource bytes and ids only; credentials,
+  URLs, and loader state are never persisted.
 
 The manifest contains logical resource ids, not request URLs. The injected
 loader may resolve short-lived signed URLs or authorization at download time;
@@ -82,7 +87,8 @@ those values never cross the persistent-store boundary.
 ## Non-goals and remaining work
 
 This slice intentionally provides no service-worker adapter, network
-reachability policy, resumable partial transaction, encryption policy, cached
+ reachability policy, resumable partial transaction, encryption policy, storage
+ schema migration, cached
 query/read integration, or local edit queue/replica conflict replay. Those
 remain required before issue #396 can satisfy its GA acceptance criteria. This
 entrypoint is `@experimental` and subpath-only so the root and browser bundles
