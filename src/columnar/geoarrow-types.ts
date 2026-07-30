@@ -1,5 +1,7 @@
 import type { ColumnarBatchIdentityV1, ColumnarBatchLimits, ColumnarBatchV1 } from "./types.js";
 
+export type { ColumnarBatchIdentityV1 } from "./types.js";
+
 /** Honua's dependency-free mapping over GeoArrow format 0.2. */
 export const HONUA_GEOARROW_LAYOUT_VERSION = "1.0" as const;
 

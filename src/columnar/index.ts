@@ -15,6 +15,13 @@
 export { ColumnarBatchLease, createColumnarBatch, inspectColumnarBatch, leaseColumnarBatch } from "./transfer.js";
 export { fromApacheArrowRecordBatch, loadApacheArrow, toApacheArrowRecordBatch } from "./apache-arrow.js";
 export { createGeoArrowBatch, decodeGeoArrowBatch, inspectGeoArrowBatch } from "./geoarrow.js";
+export { createGeoArrowReprojectOperation } from "./geoarrow-reproject.js";
+export type { CreateGeoArrowReprojectOperationOptions } from "./geoarrow-reproject.js";
+export {
+  createGeoArrowFilterOperation,
+  createGeoArrowProjectionOperation,
+  createGeoArrowTransformOperation,
+} from "./operators.js";
 export {
   GEOARROW_SPEC_VERSION,
   HONUA_GEOARROW_LAYOUT_VERSION,
@@ -63,6 +70,13 @@ export type {
   HonuaGeoArrowErrorCode,
   LoadApacheArrowOptions,
 } from "./geoarrow-types.js";
+export type {
+  CreateGeoArrowFilterOperationOptions,
+  CreateGeoArrowProjectionOperationOptions,
+  CreateGeoArrowTransformOperationOptions,
+  GeoArrowProjectionColumn,
+  GeoArrowRowPredicate,
+} from "./operators.js";
 export {
   COLUMNAR_WORKER_CANCEL_KIND,
   COLUMNAR_WORKER_ERROR_KIND,

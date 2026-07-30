@@ -754,6 +754,23 @@ describe("realtime reconciliation (REQ-005)", () => {
     expect(table.snapshot.rows[2]?.index).toBe(2);
   });
 
+  it("re-enforces the byte ceiling when a realtime update grows a resident page", async () => {
+    const fixture = makeFixture({
+      rows: (index) => ({ OBJECTID: index + 1, NAME: "x", STATUS: "o", SEVERITY: 1 }),
+    });
+    const table = makeTable(fixture, { budgets: { pageSize: 2, maxCachedBytes: 500, windowOverscan: 0 } });
+    await table.refresh();
+
+    expect(table.snapshot.rows.filter((row) => row !== undefined)).toHaveLength(2);
+
+    table.applyRealtimeDiff(diff([upsert(1, { OBJECTID: 1, NAME: "x".repeat(1_000), STATUS: "o", SEVERITY: 1 })]));
+
+    expect(table.snapshot.ledger.exhausted).toContain("bytes");
+    expect(table.snapshot.ledger.evictedRows).toBe(2);
+    expect(table.snapshot.message).toContain("memory budget");
+    expect(table.snapshot.rows.every((row) => row === undefined)).toBe(true);
+  });
+
   it("announces a documented conflict when an update changes a sorted column", async () => {
     const table = makeTable(makeFixture(), { sort: [{ field: "SEVERITY", direction: "asc" }] });
     await table.refresh();

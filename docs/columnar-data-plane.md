@@ -215,6 +215,33 @@ lease's references. It cannot revoke other references held by the caller.
 
 ## Lazy worker execution
 
+### Host-owned CRS reprojection
+
+`createGeoArrowReprojectOperation()` adds a bounded reprojection step to the
+same worker host. The SDK traverses Point, LineString, and Polygon coordinates,
+preserves temporal, dictionary, and feature-id columns, validates that the
+transform returns finite coordinates with the original dimensionality, and
+writes the target CRS into the output geometry metadata. CRS math stays
+application-owned, so this operation does not import a projection library or
+make a network request.
+
+```ts doc-test=skip reason="worker-host transform and identity are application-owned"
+const reproject = createGeoArrowReprojectOperation({
+  schemaId: "parcels@2:epsg3857",
+  identity: projectedIdentity,
+  targetCrs: "EPSG:3857",
+  project: ([x, y]) => [webMercatorX(x), webMercatorY(y)],
+});
+
+startColumnarWorkerHost({ transport, operations: { reproject } });
+```
+
+The transform is a worker-host dependency and must be deterministic for a
+given position. Callers must supply a new schema and batch identity whenever
+the output CRS or semantics change. The operation remains bounded by the
+normal GeoArrow conversion ceilings and reports `decode`, `reproject`, and
+`complete` progress stages.
+
 `createColumnarWorkerSession()` supplies the lifecycle missing from a raw
 `postMessage` call: lazy worker creation, a bounded serial queue, exact request
 correlation, monotonic progress, cross-thread cancellation, returned-batch
