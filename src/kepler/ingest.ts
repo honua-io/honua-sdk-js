@@ -112,9 +112,40 @@ export function normalizeKeplerProvenance(provenance: KeplerSourceProvenance): K
     assertCredentialFreeScalar(note.capability, `provenance.degraded[${index}].capability`);
     assertCredentialFreeScalar(note.reason, `provenance.degraded[${index}].reason`);
   }
+  const freshness = provenance.freshness;
+  const normalizedFreshness =
+    freshness === undefined
+      ? undefined
+      : Object.freeze({
+          observedAt: freshness.observedAt,
+          ...(freshness.staleAfter === undefined ? {} : { staleAfter: freshness.staleAfter }),
+          ...(freshness.validator === undefined ? {} : { validator: freshness.validator }),
+          ...(freshness.generation === undefined ? {} : { generation: freshness.generation }),
+        });
+  const normalizedDegraded = provenance.degraded?.map((note) => Object.freeze({ ...note }));
   return Object.freeze({
     ...provenance,
-    ...(provenance.degraded ? { degraded: Object.freeze([...provenance.degraded]) } : {}),
+    ...(normalizedFreshness === undefined ? {} : { freshness: normalizedFreshness }),
+    ...(normalizedDegraded === undefined ? {} : { degraded: Object.freeze(normalizedDegraded) }),
+  });
+}
+
+function normalizeKeplerResultDegradedNote(note: unknown, index: number): { capability: string; reason: string } {
+  if (
+    typeof note !== "object" ||
+    note === null ||
+    typeof (note as { capability?: unknown }).capability !== "string" ||
+    typeof (note as { reason?: unknown }).reason !== "string"
+  ) {
+    throw new HonuaKeplerBridgeError(
+      "invalid-request",
+      `Result degradation note at index ${index} must contain string capability and reason values.`,
+    );
+  }
+  const candidate = note as { readonly capability: string; readonly reason: string };
+  return Object.freeze({
+    capability: assertCredentialFreeScalar(candidate.capability, `result.degraded[${index}].capability`),
+    reason: assertCredentialFreeScalar(candidate.reason, `result.degraded[${index}].reason`),
   });
 }
 
@@ -352,6 +383,7 @@ export function projectResultToKeplerDataset(
   if (typeof result !== "object" || result === null || !Array.isArray(result.features)) {
     throw new HonuaKeplerBridgeError("invalid-request", "A Kepler result projection requires result.features.");
   }
+  const degraded = result.degraded?.map(normalizeKeplerResultDegradedNote);
   const losses: KeplerFidelityLoss[] = [];
   const useAggregates = result.features.length === 0 && (result.aggregateRows?.length ?? 0) > 0;
   const attributeRows: ReadonlyArray<Readonly<Record<string, unknown>>> = useAggregates
@@ -454,7 +486,7 @@ export function projectResultToKeplerDataset(
         "The source reported exceededTransferLimit; the Kepler workspace holds a truncated page, not the full set.",
     });
   }
-  for (const note of result.degraded ?? []) {
+  for (const note of degraded ?? []) {
     losses.push({
       kind: "unsupported-field-type",
       detail: `Source degradation carried into the workspace: ${note.capability} — ${note.reason}`,
