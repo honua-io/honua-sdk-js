@@ -92,21 +92,27 @@ test("the real optional uPlot adapter mounts, links brush state, patches, and di
       const patched = artifact(1, [3, 8, 13]);
       const decision = handle.update(patched);
       const sameChartAfterPatch = handle.chart === chart;
-      const patchedData = handle.projection.data[1];
+      const liveChartData = chart.data?.[1];
+      const originalRemoveEventListener = chart.over?.removeEventListener?.bind(chart.over);
+      let clickListenerRemoved = false;
+      if (chart.over && originalRemoveEventListener) {
+        chart.over.removeEventListener = (type, listener, options) => {
+          if (type === "click") clickListenerRemoved = true;
+          return originalRemoveEventListener(type, listener, options);
+        };
+      }
       const canvasCountBeforeDispose = target.querySelectorAll("canvas").length;
       handle.dispose();
-      const interactionsBeforeClick = interactions.length;
-      chart.over?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 
       return {
         canvasCountBeforeDispose,
         brush: interactions.find((interaction) => interaction.kind === "temporal-brush"),
         decision,
         sameChartAfterPatch,
-        patchedData,
+        liveChartData,
         disposed: handle.disposed,
         targetChildrenAfterDispose: target.children.length,
-        clickListenerRemoved: interactions.length === interactionsBeforeClick,
+        clickListenerRemoved,
       };
     });
 
@@ -114,7 +120,7 @@ test("the real optional uPlot adapter mounts, links brush state, patches, and di
     expect(result.brush).toMatchObject({ kind: "temporal-brush", artifactId: "incidents-by-hour" });
     expect(result.decision).toMatchObject({ disposition: "patch", reason: "newer-sequence" });
     expect(result.sameChartAfterPatch).toBe(true);
-    expect(result.patchedData).toEqual([3, 8, 13]);
+    expect(result.liveChartData).toEqual([3, 8, 13]);
     expect(result.disposed).toBe(true);
     expect(result.targetChildrenAfterDispose).toBe(0);
     expect(result.clickListenerRemoved).toBe(true);
