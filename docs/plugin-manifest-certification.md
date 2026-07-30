@@ -67,7 +67,10 @@ exports: serialization itself can run getters or Proxy traps before the SDK is
 called. Read third-party manifest bytes as text (for example, from the package
 file or an HTTP response) and pass that text directly to the validator.
 
-The report contains no time, machine path, or random identifier, so the same
+The report uses the exported `HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION` schema
+version. The verifier fails closed on unsupported versions, missing required
+fields, unknown fields, invalid digest shapes, or malformed check/diagnostic
+records before it accepts any integrity receipt. The report contains no time, machine path, or random identifier, so the same
 manifest and host snapshot serialize identically. Its `manifest` and `host`
 blocks contain the complete canonical snapshots plus SHA-256 fingerprints;
 changing an entrypoint, capability, data semantic, requested authority, peer,
