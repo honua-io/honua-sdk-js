@@ -561,6 +561,7 @@
     "test:migration:real-samples:prepared": "vitest run test/migration-real-sample-runtime.test.ts test/migration-feature-table-demo-runtime.test.ts",
     "test:playwright": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk --silent && node scripts/ensure-kepler-demo-deps.mjs && node examples/overture-geoparquet/prepare-duckdb-extension.mjs && playwright test",
     "test:playwright:prepared": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk:already --silent && node scripts/ensure-kepler-demo-deps.mjs && node examples/overture-geoparquet/prepare-duckdb-extension.mjs && playwright test",
+    "test:playwright:kepler-arrow-packed": "playwright test test/playwright/kepler-arrow-packed.spec.mjs",
     "test:playwright:25d": "playwright test test/playwright/storytelling-25d-map.spec.mjs",
     "test:playwright:migration": "npm run build --silent && playwright test test/playwright/migration-browser-smoke.spec.mjs test/playwright/migration-browser-real-sample.spec.mjs test/playwright/migration-browser-maplibre.spec.mjs",
     "test:maplibre-compat": "npm run build --silent && npm run demo:quickstart:typecheck --silent && npm run demo:react-quickstart:typecheck --silent && playwright test test/playwright/migration-browser-maplibre.spec.mjs",
