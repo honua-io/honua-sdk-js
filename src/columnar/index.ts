@@ -15,6 +15,8 @@
 export { ColumnarBatchLease, createColumnarBatch, inspectColumnarBatch, leaseColumnarBatch } from "./transfer.js";
 export { fromApacheArrowRecordBatch, loadApacheArrow, toApacheArrowRecordBatch } from "./apache-arrow.js";
 export { createGeoArrowBatch, decodeGeoArrowBatch, inspectGeoArrowBatch } from "./geoarrow.js";
+export { createGeoArrowReprojectOperation } from "./geoarrow-reproject.js";
+export type { CreateGeoArrowReprojectOperationOptions } from "./geoarrow-reproject.js";
 export {
   GEOARROW_SPEC_VERSION,
   HONUA_GEOARROW_LAYOUT_VERSION,
