@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-30 at commit `d70fc836`._
+_Generated 2026-07-30 at commit `cd30a5c5`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -41,8 +41,8 @@ _Generated 2026-07-30 at commit `d70fc836`._
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 944.8 KiB | 1037.6 KiB | 253.2 KiB | 277.9 KiB |
 | `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1020.4 KiB | 1120.1 KiB | 276.3 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 60.1 KiB | 60.8 KiB | 17.5 KiB | 18.1 KiB |
-| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 33.5 KiB | 35.2 KiB | 10.9 KiB | 11.6 KiB |
-| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 9.3 KiB | 10.3 KiB | 3.8 KiB | 4.2 KiB |
+| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
+| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 499.3 KiB | 506.7 KiB | 132.7 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 698.2 KiB | 754.5 KiB | 186.7 KiB | 201.3 KiB |
@@ -57,4 +57,4 @@ _Generated 2026-07-30 at commit `d70fc836`._
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.6 KiB | 44.7 KiB | 13.3 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
-| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 25.3 KiB | 26.3 KiB | 8.7 KiB | 9.2 KiB |
+| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
