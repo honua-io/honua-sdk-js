@@ -67,6 +67,13 @@ const receipt = await downloadOfflineRegion(manifest, {
 - Progress is explicit across planning, download, write, commit, and completion.
   A successful receipt reports `integrity: "verified"` and
   `quotaAccounting: "logical-payload-bytes"`.
+- The IndexedDB adapter uses a versioned schema. Startup upgrades legacy
+  staging records, then performs one bounded atomic recovery pass. Malformed
+  region metadata, orphaned or malformed resources, and invalid staging rows
+  are removed while valid regions remain available; an invalid inventory
+  revision is reset to the empty baseline. Recovery scans at most 100,000
+  records and 64 MiB of persisted payloads, failing closed if those bounds are
+  exceeded.
 
 The manifest contains logical resource ids, not request URLs. The injected
 loader may resolve short-lived signed URLs or authorization at download time;
@@ -74,9 +81,9 @@ those values never cross the persistent-store boundary.
 
 ## Non-goals and remaining work
 
-This slice intentionally provides no IndexedDB or service-worker adapter, no
-network reachability policy, no resumable partial transaction, no encryption
-policy, no storage schema migration, no cached query/read integration, and no
-local edit queue or replica conflict replay. Those remain required before issue
-#396 can satisfy its GA acceptance criteria. This entrypoint is `@experimental`
-and subpath-only so the root and browser bundles do not absorb it.
+This slice intentionally provides no service-worker adapter, network
+reachability policy, resumable partial transaction, encryption policy, cached
+query/read integration, or local edit queue/replica conflict replay. Those
+remain required before issue #396 can satisfy its GA acceptance criteria. This
+entrypoint is `@experimental` and subpath-only so the root and browser bundles
+do not absorb it.

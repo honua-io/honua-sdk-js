@@ -9,8 +9,12 @@ import type {
   OfflineRegionWriteTransaction,
 } from "./types.js";
 
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 3;
+const MAX_RECOVERY_RECORDS = 100_000;
+const MAX_RECOVERY_BYTES = 64 * 1024 * 1024;
 const INVENTORY_KEY = "current";
+const SCHEMA_STORE = "schema";
 const INVENTORY_STORE = "inventory";
 const REGION_STORE = "regions";
 const RESOURCE_STORE = "resources";
@@ -23,6 +27,11 @@ const DEFAULT_STAGING_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 interface InventoryRecord {
   readonly key: typeof INVENTORY_KEY;
   readonly revision: string;
+}
+
+interface SchemaRecord {
+  readonly key: typeof INVENTORY_KEY;
+  readonly version: typeof CURRENT_SCHEMA_VERSION;
 }
 
 interface RegionRecord {
@@ -82,6 +91,7 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
     if (!Number.isFinite(stagingMaxAgeMs) || stagingMaxAgeMs < 0)
       throw new Error("stagingMaxAgeMs must be a non-negative finite number.");
     this.#database = openDatabase(factory, name).then(async (database) => {
+      await recoverDatabase(database);
       await cleanupAbandonedStaging(database, stagingMaxAgeMs);
       return database;
     });
@@ -227,7 +237,7 @@ export function createIndexedDbOfflineRegionStore(
 function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = factory.open(name, DATABASE_VERSION);
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const database = request.result;
       if (!database.objectStoreNames.contains(INVENTORY_STORE))
         database.createObjectStore(INVENTORY_STORE, { keyPath: "key" });
@@ -237,12 +247,18 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
         database.createObjectStore(RESOURCE_STORE, { keyPath: "key" });
       if (!database.objectStoreNames.contains(STAGING_STORE))
         database.createObjectStore(STAGING_STORE, { keyPath: "key" });
+      if (!database.objectStoreNames.contains(SCHEMA_STORE))
+        database.createObjectStore(SCHEMA_STORE, { keyPath: "key" });
       const resources = request.transaction?.objectStore(RESOURCE_STORE);
       if (resources && !resources.indexNames.contains(REGION_ID_INDEX))
         resources.createIndex(REGION_ID_INDEX, "regionId");
       const staging = request.transaction?.objectStore(STAGING_STORE);
       if (staging && !staging.indexNames.contains(TRANSACTION_ID_INDEX))
         staging.createIndex(TRANSACTION_ID_INDEX, "transactionId");
+      request.transaction
+        ?.objectStore(SCHEMA_STORE)
+        .put({ key: INVENTORY_KEY, version: CURRENT_SCHEMA_VERSION } satisfies SchemaRecord);
+      migrateLegacyStaging(request.transaction, event.oldVersion);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Failed to open IndexedDB database."));
@@ -256,7 +272,10 @@ function runTransaction<T>(
   body: (transaction: IDBTransaction) => Promise<T>,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const transaction = database.transaction([INVENTORY_STORE, REGION_STORE, RESOURCE_STORE, STAGING_STORE], mode);
+    const transaction = database.transaction(
+      [INVENTORY_STORE, REGION_STORE, RESOURCE_STORE, STAGING_STORE, SCHEMA_STORE],
+      mode,
+    );
     let result: T;
     let settled = false;
     void body(transaction).then(
@@ -299,6 +318,131 @@ function request<T>(request: IDBRequest<T>): Promise<T> {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed."));
   });
+}
+
+function migrateLegacyStaging(transaction: IDBTransaction | null, oldVersion: number): void {
+  if (!transaction || oldVersion >= DATABASE_VERSION) return;
+  const store = transaction.objectStore(STAGING_STORE);
+  const cursorRequest = store.openCursor();
+  let inspected = 0;
+  let bytes = 0;
+  cursorRequest.onsuccess = () => {
+    const cursor = cursorRequest.result;
+    if (!cursor) return;
+    inspected += 1;
+    if (inspected > MAX_RECOVERY_RECORDS) throw new Error("IndexedDB migration record limit exceeded.");
+    const value = cursor.value as Partial<StagedResourceRecord>;
+    bytes += value.bytes instanceof Uint8Array ? value.bytes.byteLength : 0;
+    if (bytes > MAX_RECOVERY_BYTES) throw new Error("IndexedDB migration byte limit exceeded.");
+    if (typeof value.createdAt !== "number" || !Number.isFinite(value.createdAt)) {
+      cursor.update({ ...value, createdAt: Date.now() });
+    }
+    cursor.continue();
+  };
+}
+
+function recoverDatabase(database: IDBDatabase): Promise<void> {
+  return runTransaction(database, "readwrite", async (transaction) => {
+    const inventoryStore = transaction.objectStore(INVENTORY_STORE);
+    const inventory = await request<InventoryRecord | undefined>(inventoryStore.get(INVENTORY_KEY));
+    if (inventory !== undefined && !isValidInventory(inventory)) {
+      inventoryStore.put({ key: INVENTORY_KEY, revision: "0" } satisfies InventoryRecord);
+    }
+
+    const regionStore = transaction.objectStore(REGION_STORE);
+    const resourceStore = transaction.objectStore(RESOURCE_STORE);
+    const regions = await request<unknown[]>(regionStore.getAll());
+    const validRegionIds = new Set<string>();
+    let inspected = 0;
+    let bytes = 0;
+    for (const candidate of regions) {
+      inspected += 1;
+      if (inspected > MAX_RECOVERY_RECORDS) throw new Error("IndexedDB recovery record limit exceeded.");
+      const region = candidate as Partial<RegionRecord>;
+      if (!isValidRegion(region)) {
+        if (typeof region.id === "string") {
+          regionStore.delete(region.id);
+          await deleteResourcesByRegion(transaction, region.id);
+        }
+        continue;
+      }
+      validRegionIds.add(region.id);
+      bytes += region.logicalByteLength;
+      if (bytes > MAX_RECOVERY_BYTES) throw new Error("IndexedDB recovery byte limit exceeded.");
+    }
+
+    const resources = await request<unknown[]>(resourceStore.getAll());
+    for (const candidate of resources) {
+      inspected += 1;
+      if (inspected > MAX_RECOVERY_RECORDS) throw new Error("IndexedDB recovery record limit exceeded.");
+      const resource = candidate as Partial<ResourceRecord>;
+      const resourceBytes = resource.bytes instanceof Uint8Array ? resource.bytes.byteLength : 0;
+      bytes += resourceBytes;
+      if (bytes > MAX_RECOVERY_BYTES) throw new Error("IndexedDB recovery byte limit exceeded.");
+      if (!isValidResource(resource) || !validRegionIds.has(resource.regionId)) {
+        if (typeof resource.key === "string") resourceStore.delete(resource.key);
+      }
+    }
+
+    const stagingStore = transaction.objectStore(STAGING_STORE);
+    const staging = await request<unknown[]>(stagingStore.getAll());
+    for (const candidate of staging) {
+      inspected += 1;
+      if (inspected > MAX_RECOVERY_RECORDS) throw new Error("IndexedDB recovery record limit exceeded.");
+      const staged = candidate as Partial<StagedResourceRecord>;
+      const stagedBytes = staged.bytes instanceof Uint8Array ? staged.bytes.byteLength : 0;
+      bytes += stagedBytes;
+      if (bytes > MAX_RECOVERY_BYTES) throw new Error("IndexedDB recovery byte limit exceeded.");
+      if (!isValidStagedResource(staged)) {
+        if (typeof staged.key === "string") stagingStore.delete(staged.key);
+      }
+    }
+  });
+}
+
+function isValidInventory(value: InventoryRecord): boolean {
+  return isRecord(value) && value.key === INVENTORY_KEY && typeof value.revision === "string";
+}
+
+function isValidRegion(value: Partial<RegionRecord>): value is RegionRecord {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    value.id.length > 0 &&
+    isRecord(value.manifest) &&
+    Array.isArray(value.manifest.resources) &&
+    Number.isSafeInteger(value.logicalByteLength) &&
+    (value.logicalByteLength ?? -1) >= 0 &&
+    value.logicalByteLength === value.manifest.totalLogicalBytes &&
+    typeof value.lastAccessedAt === "string" &&
+    Number.isFinite(Date.parse(value.lastAccessedAt))
+  );
+}
+
+function isValidResource(value: Partial<ResourceRecord>): value is ResourceRecord {
+  return (
+    isRecord(value) &&
+    typeof value.key === "string" &&
+    typeof value.regionId === "string" &&
+    typeof value.resourceId === "string" &&
+    value.bytes instanceof Uint8Array
+  );
+}
+
+function isValidStagedResource(value: Partial<StagedResourceRecord>): value is StagedResourceRecord {
+  return (
+    isRecord(value) &&
+    typeof value.key === "string" &&
+    typeof value.regionId === "string" &&
+    typeof value.resourceId === "string" &&
+    value.bytes instanceof Uint8Array &&
+    typeof value.transactionId === "string" &&
+    Number.isFinite(value.createdAt)
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function toStoredRegion(record: RegionRecord): OfflineRegionStoredRegion {
