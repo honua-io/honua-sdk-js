@@ -98,7 +98,7 @@ test("IndexedDB store reclaims abandoned staging records and touches LRU reads",
       const store = createIndexedDbOfflineRegionStore({ name, stagingMaxAgeMs: 0 });
       await store.inventory();
       return await new Promise((resolve, reject) => {
-        const request = indexedDB.open(name, 2);
+        const request = indexedDB.open(name);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const count = request.result.transaction("staging", "readonly").objectStore("staging").count();
@@ -108,6 +108,103 @@ test("IndexedDB store reclaims abandoned staging records and touches LRU reads",
       });
     }, database);
     expect(stagingCount).toBe(0);
+  } finally {
+    await server.close();
+  }
+});
+
+test("IndexedDB startup recovery removes corrupt records while preserving valid regions", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineResult)).toMatchObject({ regionCount: 1 });
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    await page.evaluate(async (name) => {
+      const request = indexedDB.open(name);
+      await new Promise((resolve, reject) => {
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      }).then((db) => new Promise((resolve, reject) => {
+        const transaction = db.transaction(["regions", "resources", "staging"], "readwrite");
+        transaction.objectStore("regions").put({ id: "broken", manifest: { resources: [] }, logicalByteLength: "bad" });
+        transaction.objectStore("resources").put({ key: "orphan\\u0000resource", regionId: "missing", resourceId: "resource", bytes: new Uint8Array([1]) });
+        transaction.objectStore("staging").put({ key: "broken-stage", transactionId: "tx", regionId: "missing", resourceId: "resource", bytes: "bad", createdAt: "bad" });
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      }));
+    }, database);
+
+    const recovered = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      const store = createIndexedDbOfflineRegionStore({ name });
+      const inventory = await store.inventory();
+      const counts = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(name);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const transaction = db.transaction(["resources", "staging"], "readonly");
+          const resources = transaction.objectStore("resources").count();
+          const staging = transaction.objectStore("staging").count();
+          let resourceCount;
+          let stagingCount;
+          resources.onsuccess = () => { resourceCount = resources.result; if (stagingCount !== undefined) resolve({ resourceCount, stagingCount }); };
+          staging.onsuccess = () => { stagingCount = staging.result; if (resourceCount !== undefined) resolve({ resourceCount, stagingCount }); };
+          transaction.onerror = () => reject(transaction.error);
+        };
+      });
+      return { regionCount: inventory.regions.length, counts };
+    }, database);
+    expect(recovered).toEqual({ regionCount: 1, counts: { resourceCount: 1, stagingCount: 0 } });
+  } finally {
+    await server.close();
+  }
+});
+
+test("IndexedDB schema upgrade backfills legacy staging timestamps", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const legacyDatabase = `${await page.evaluate(() => window.__offlineDatabase)}-legacy`;
+    await page.evaluate(async (name) => {
+      const request = indexedDB.open(name, 2);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        db.createObjectStore("inventory", { keyPath: "key" });
+        db.createObjectStore("regions", { keyPath: "id" });
+        const resources = db.createObjectStore("resources", { keyPath: "key" });
+        resources.createIndex("regionId", "regionId");
+        const staging = db.createObjectStore("staging", { keyPath: "key" });
+        staging.createIndex("transactionId", "transactionId");
+      };
+      const db = await new Promise((resolve, reject) => {
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction("staging", "readwrite");
+        transaction.objectStore("staging").put({ key: "legacy-stage", transactionId: "tx", regionId: "region", resourceId: "resource", bytes: new Uint8Array([1, 2, 3]) });
+        transaction.oncomplete = resolve;
+        transaction.onerror = () => reject(transaction.error);
+      });
+      db.close();
+    }, legacyDatabase);
+    const createdAt = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      const store = createIndexedDbOfflineRegionStore({ name, stagingMaxAgeMs: 24 * 60 * 60 * 1000 });
+      await store.inventory();
+      return await new Promise((resolve, reject) => {
+        const request = indexedDB.open(name);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const transaction = request.result.transaction("staging", "readonly");
+          const get = transaction.objectStore("staging").get("legacy-stage");
+          get.onsuccess = () => resolve(get.result?.createdAt);
+          get.onerror = () => reject(get.error);
+        };
+      });
+    }, legacyDatabase);
+    expect(createdAt).toEqual(expect.any(Number));
   } finally {
     await server.close();
   }

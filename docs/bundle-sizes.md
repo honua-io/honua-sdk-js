@@ -24,7 +24,7 @@ _Generated 2026-07-29 at commit `63385552`._
 | `/nl-map-control` | 76.6 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
 | `/runtime` | 561.5 KiB | 612.2 KiB | 150.3 KiB | 163.9 KiB |
 | `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
-| `/offline` | 38.4 KiB | 44.3 KiB | 11.4 KiB | 13.2 KiB |
+| `/offline` | 50.7 KiB | 55.8 KiB | 14.6 KiB | 16.1 KiB |
 | `/query-planner` (worker runtime injected) | 633.7 KiB | 638.9 KiB | 134.8 KiB | 143.2 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 95.6 KiB | 100.0 KiB | 29.3 KiB | 30.8 KiB |
 | `/esri-compat` | 986.1 KiB | 1026.2 KiB | 245.4 KiB | 253.6 KiB |
