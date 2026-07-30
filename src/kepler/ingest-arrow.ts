@@ -41,6 +41,7 @@ import { HonuaKeplerBridgeError, KEPLER_BRIDGE_CONTRACT_VERSION } from "./types.
 
 function mappedFieldType(type: string, sample: unknown): KeplerFieldType | undefined {
   const normalized = type.trim().toLowerCase();
+  if (normalized === "geoarrow") return "geojson";
   if (["boolean", "date", "geojson", "integer", "point", "real", "string", "timestamp"].includes(normalized)) {
     return normalized as KeplerFieldType;
   }
@@ -88,8 +89,8 @@ export function projectArrowTableToKeplerDataset(
     }
     seen.add(source.name);
     const sample = processed.rows.find((row) => row[index] !== null && row[index] !== undefined)?.[index];
-    const type = mappedFieldType(source.type, sample);
-    if (type === undefined || type === "geojson") {
+    const type = request.temporalFields?.includes(source.name) ? "timestamp" : mappedFieldType(source.type, sample);
+    if (type === undefined || (type === "geojson" && source.name !== request.geometryField)) {
       losses.push({
         kind: "unsupported-field-type",
         field: source.name,
@@ -129,6 +130,17 @@ export function projectArrowTableToKeplerDataset(
     for (const [fieldIndex, sourceIndex] of indexes.entries()) {
       const type = fields[fieldIndex]?.type as KeplerFieldType;
       const raw = sourceRow[sourceIndex];
+      if (
+        typeof raw === "bigint" &&
+        (type === "integer" || type === "real") &&
+        (raw > BigInt(Number.MAX_SAFE_INTEGER) || raw < BigInt(Number.MIN_SAFE_INTEGER))
+      ) {
+        losses.push({
+          kind: "numeric-precision-narrowed",
+          field: fields[fieldIndex]?.name,
+          detail: "An unsafe Arrow bigint was narrowed to a JavaScript number for Kepler ingestion.",
+        });
+      }
       if (isNestedValue(raw) && type === "string") {
         losses.push({
           kind: "nested-value-stringified",

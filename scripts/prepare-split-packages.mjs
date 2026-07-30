@@ -322,11 +322,13 @@ function createSdkPackage() {
     peerDependencies: {
       "@deck.gl/layers": rootPackageJson.peerDependencies["@deck.gl/layers"],
       "@kepler.gl/actions": rootPackageJson.peerDependencies["@kepler.gl/actions"],
+      "@kepler.gl/processors": rootPackageJson.peerDependencies["@kepler.gl/processors"],
       "apache-arrow": rootPackageJson.peerDependencies["apache-arrow"],
     },
     peerDependenciesMeta: {
       "@deck.gl/layers": { optional: true },
       "@kepler.gl/actions": { optional: true },
+      "@kepler.gl/processors": { optional: true },
       "apache-arrow": { optional: true },
     },
   });

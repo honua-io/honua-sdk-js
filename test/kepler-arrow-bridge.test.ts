@@ -69,4 +69,55 @@ describe("Kepler Arrow processor bridge", () => {
       /processArrowTable/,
     );
   });
+
+  it("retains GeoArrow geometry and applies temporal overrides", () => {
+    const projection = projectArrowTableToKeplerDataset(
+      {
+        datasetId: "geometry-readings",
+        arrowTable: { opaque: true },
+        provenance,
+        geometryField: "shape",
+        temporalFields: ["observed_at"],
+      },
+      {
+        ...processors,
+        processArrowTable: () => ({
+          fields: [
+            { name: "shape", type: "geoarrow" },
+            { name: "observed_at", type: "string" },
+          ],
+          rows: [[{ type: "Point", coordinates: [1, 2] }, "2026-07-29T00:00:00Z"]],
+        }),
+      },
+    );
+
+    expect(projection.dataset.data.fields.map((field) => [field.name, field.type])).toEqual([
+      ["shape", "geojson"],
+      ["observed_at", "timestamp"],
+    ]);
+    expect(projection.dataset.metadata.temporalFields).toEqual(["observed_at"]);
+    expect(projection.dataset.data.rows[0]).toEqual([
+      { type: "Point", coordinates: [1, 2] },
+      Date.parse("2026-07-29T00:00:00Z"),
+    ]);
+  });
+
+  it("records precision loss when Arrow bigint values exceed the safe integer range", () => {
+    const projection = projectArrowTableToKeplerDataset(
+      { datasetId: "wide-ids", arrowTable: {}, provenance },
+      {
+        ...processors,
+        processArrowTable: () => ({
+          fields: [{ name: "id", type: "int64" }],
+          rows: [[9007199254740993n]],
+        }),
+      },
+    );
+
+    expect(projection.dataset.data.rows[0]).toEqual([9007199254740992]);
+    expect(projection.diagnostic.losses).toEqual([
+      expect.objectContaining({ kind: "numeric-precision-narrowed", field: "id" }),
+    ]);
+    expect(projection.diagnostic.fidelity).toBe("lossy");
+  });
 });
