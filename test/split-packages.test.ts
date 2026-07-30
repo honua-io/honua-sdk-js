@@ -53,7 +53,7 @@ describe("split package manifests", () => {
     );
 
     expect(verifier).toContain("packed-app-platform-component-smoke.mjs");
-    expect(verifier).toContain("HONUA_PACKED_WEB_COMPONENTS_ENTRY");
+    expect(fixture).toContain('await import("@honua/app-platform/web-components")');
     expect(fixture).toContain('"core.capability-not-supported"');
     expect(fixture).toContain("HonuaFeatureEditorElement");
     expect(fixture).toContain("packed-consumer-secret");
