@@ -14,6 +14,7 @@ import {
   type DeckGlProjectionMetrics,
   type DeckGlProjectionRequest,
   HonuaDeckGlAdapterError,
+  type LoadDeckGlAdapterOptions,
   type LoadDeckGlPeersOptions,
 } from "./types.js";
 
@@ -169,6 +170,20 @@ export async function loadDeckGlPeers(options: LoadDeckGlPeersOptions = {}): Pro
       ? { SolidPolygonLayer: SolidPolygonLayer as DeckGlLayerConstructor }
       : {}),
   });
+}
+
+/**
+ * Load the optional `@deck.gl/layers` peer and create a binary adapter.
+ *
+ * This is intentionally asynchronous and lazy: importing the SDK's deck.gl
+ * entrypoint does not import deck.gl, and the peer is loaded only when the
+ * application explicitly requests an adapter. The returned adapter has the
+ * same capabilities, limits, and disposal contract as
+ * {@link createDeckGlAdapter}.
+ */
+export async function loadDeckGlAdapter(options: LoadDeckGlAdapterOptions = {}): Promise<DeckGlAdapter> {
+  const peers = await loadDeckGlPeers(options);
+  return createDeckGlAdapter({ peers, limits: options.limits });
 }
 
 export interface CreateDeckGlAdapterOptions {
