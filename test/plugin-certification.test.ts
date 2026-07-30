@@ -589,4 +589,30 @@ describe("signed certification report verification", () => {
     expect(verification.ok).toBe(false);
     expect(verification.diagnostics.map((item) => item.code)).toContain("REPORT_UNKNOWN_FIELD");
   });
+
+  it("requires every certification check exactly once", () => {
+    const baseline = certifyHonuaPluginManifest(manifest, host);
+    const missing = JSON.parse(JSON.stringify(baseline));
+    missing.checks.pop();
+    const missingVerification = verifyHonuaPluginCertificationReport(JSON.stringify(missing));
+    expect(missingVerification.ok).toBe(false);
+    expect(missingVerification.diagnostics.map((item) => item.code)).toContain("REPORT_CHECKS_INCOMPLETE");
+
+    const duplicate = JSON.parse(JSON.stringify(baseline));
+    duplicate.checks[duplicate.checks.length - 1] = duplicate.checks[0];
+    const duplicateVerification = verifyHonuaPluginCertificationReport(JSON.stringify(duplicate));
+    expect(duplicateVerification.ok).toBe(false);
+    expect(duplicateVerification.diagnostics.map((item) => item.code)).toContain("REPORT_CHECKS_INCOMPLETE");
+  });
+
+  it("rejects unsupported plugin identities in archived reports", () => {
+    const report = JSON.parse(JSON.stringify(certifyHonuaPluginManifest(manifest, host)));
+    report.plugin = { id: "NOT VALID", version: "whatever", kind: "bogus" };
+    const verification = verifyHonuaPluginCertificationReport(JSON.stringify(report));
+    expect(verification.ok).toBe(false);
+    const codes = verification.diagnostics.map((item) => item.code);
+    expect(codes).toContain("REPORT_PLUGIN_ID_INVALID");
+    expect(codes).toContain("REPORT_PLUGIN_VERSION_INVALID");
+    expect(codes).toContain("REPORT_PLUGIN_KIND_UNKNOWN");
+  });
 });

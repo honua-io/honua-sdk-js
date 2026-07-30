@@ -783,6 +783,7 @@ function validateCertificationReportShape(report: JsonObject, diagnostics: Honua
   if (!Array.isArray(report.checks)) {
     push(diagnostics, "REPORT_FIELD_INVALID", "/report/checks", "Expected an array of certification checks.");
   } else {
+    const checkCounts = new Map<HonuaPluginCertificationCheck, number>();
     for (const [index, value] of report.checks.entries()) {
       const check = object(value);
       const path = `/report/checks/${index}`;
@@ -791,12 +792,26 @@ function validateCertificationReportShape(report: JsonObject, diagnostics: Honua
         continue;
       }
       reportAllowedKeys(check, ["check", "status", "diagnosticCodes"], path, diagnostics);
-      if (!CHECKS.includes(check.check as HonuaPluginCertificationCheck))
+      if (!CHECKS.includes(check.check as HonuaPluginCertificationCheck)) {
         push(diagnostics, "REPORT_FIELD_INVALID", `${path}/check`, "Unknown certification check.");
+      } else {
+        const name = check.check as HonuaPluginCertificationCheck;
+        checkCounts.set(name, (checkCounts.get(name) ?? 0) + 1);
+      }
       if (check.status !== "passed" && check.status !== "failed")
         push(diagnostics, "REPORT_FIELD_INVALID", `${path}/status`, "Expected passed or failed.");
       if (!isStringArray(check.diagnosticCodes))
         push(diagnostics, "REPORT_FIELD_INVALID", `${path}/diagnosticCodes`, "Expected an array of diagnostic codes.");
+    }
+    for (const check of CHECKS) {
+      const count = checkCounts.get(check) ?? 0;
+      if (count !== 1)
+        push(
+          diagnostics,
+          "REPORT_CHECKS_INCOMPLETE",
+          "/report/checks",
+          `Expected each certification check exactly once; ${check} occurred ${count} times.`,
+        );
     }
   }
 
@@ -833,6 +848,16 @@ function validateReportPlugin(value: HonuaPluginJsonValue | undefined, diagnosti
     if (typeof plugin[field] !== "string" || plugin[field].length === 0)
       push(diagnostics, "REPORT_FIELD_INVALID", `/report/plugin/${field}`, "Expected a non-empty string.");
   }
+  if (typeof plugin.id === "string" && plugin.id.length > 0 && !validPluginId(plugin.id))
+    push(diagnostics, "REPORT_PLUGIN_ID_INVALID", "/report/plugin/id", "Expected a supported plugin id.");
+  if (typeof plugin.version === "string" && plugin.version.length > 0 && !parseSemver(plugin.version))
+    push(diagnostics, "REPORT_PLUGIN_VERSION_INVALID", "/report/plugin/version", "Expected an exact semantic version.");
+  if (
+    typeof plugin.kind === "string" &&
+    plugin.kind.length > 0 &&
+    !HONUA_PLUGIN_KINDS.includes(plugin.kind as HonuaPluginKind)
+  )
+    push(diagnostics, "REPORT_PLUGIN_KIND_UNKNOWN", "/report/plugin/kind", "Unknown plugin kind.");
 }
 
 function validateReportStatus(value: HonuaPluginJsonValue | undefined, diagnostics: HonuaPluginDiagnostic[]): void {
