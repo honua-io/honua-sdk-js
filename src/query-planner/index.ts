@@ -209,12 +209,14 @@ export {
   createColumnarWorkerSession,
   createGeoArrowBatch,
   decodeGeoArrowBatch,
+  deserializeColumnarBatch,
   fromApacheArrowRecordBatch,
   inspectGeoArrowBatch,
   inspectColumnarBatch,
   leaseColumnarBatch,
   loadApacheArrow,
   startColumnarWorkerHost,
+  serializeColumnarBatch,
   toApacheArrowRecordBatch,
 } from "../columnar/index.js";
 export {
@@ -227,6 +229,11 @@ export {
   DEFAULT_COLUMNAR_BATCH_MAX_ROWS,
   DEFAULT_COLUMNAR_BATCH_MAX_SCHEMA_NODES,
   DEFAULT_COLUMNAR_BATCH_MAX_STRING_BYTES,
+  COLUMNAR_SERIALIZATION_KIND,
+  COLUMNAR_SERIALIZATION_MAGIC,
+  COLUMNAR_SERIALIZATION_VERSION,
+  DEFAULT_COLUMNAR_BATCH_MAX_SERIALIZED_BYTES,
+  HonuaColumnarSerializationError,
   HonuaColumnarTransferError,
 } from "../columnar/index.js";
 export type {
@@ -245,6 +252,10 @@ export type {
   ColumnarBatchLimits,
   ColumnarBatchMetrics,
   ColumnarBatchV1,
+  ColumnarSerializationLimits,
+  ColumnarSerializationMetrics,
+  DeserializedColumnarBatch,
+  SerializedColumnarBatch,
   ColumnarBufferRole,
   ColumnarBufferV1,
   ColumnarFieldV1,

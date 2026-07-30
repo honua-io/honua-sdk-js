@@ -17,6 +17,20 @@ export { fromApacheArrowRecordBatch, loadApacheArrow, toApacheArrowRecordBatch }
 export { createGeoArrowBatch, decodeGeoArrowBatch, inspectGeoArrowBatch } from "./geoarrow.js";
 export { createGeoArrowReprojectOperation } from "./geoarrow-reproject.js";
 export type { CreateGeoArrowReprojectOperationOptions } from "./geoarrow-reproject.js";
+export { deserializeColumnarBatch, serializeColumnarBatch } from "./serialization.js";
+export {
+  COLUMNAR_SERIALIZATION_KIND,
+  COLUMNAR_SERIALIZATION_MAGIC,
+  COLUMNAR_SERIALIZATION_VERSION,
+  DEFAULT_COLUMNAR_BATCH_MAX_SERIALIZED_BYTES,
+  HonuaColumnarSerializationError,
+} from "./serialization.js";
+export type {
+  ColumnarSerializationLimits,
+  ColumnarSerializationMetrics,
+  DeserializedColumnarBatch,
+  SerializedColumnarBatch,
+} from "./serialization.js";
 export {
   GEOARROW_SPEC_VERSION,
   HONUA_GEOARROW_LAYOUT_VERSION,

@@ -1,5 +1,30 @@
 # Columnar batch transfer contract
 
+## Versioned persistence envelope
+
+`serializeColumnarBatch()` and `deserializeColumnarBatch()` provide a bounded,
+dependency-free persistence boundary for GeoArrow-backed batches. The binary
+envelope has an explicit magic prefix and version (`1.0`), stores schema and
+batch identity as JSON metadata, and copies each unique backing allocation once
+into the payload. Deserialization restores shared buffer views and validates
+the batch against the same row, schema, metadata, buffer, backing, and total
+serialized-byte ceilings. Unknown versions, malformed lengths, and oversized
+payloads fail before the batch is exposed to callers; a future format must add
+a migration step rather than silently reinterpret bytes.
+
+```ts
+import { deserializeColumnarBatch, serializeColumnarBatch } from "@honua/sdk-js/query-planner";
+
+const stored = serializeColumnarBatch(batch, { maxSerializedBytes: 64 * 1024 * 1024 });
+await cache.put(batch.id, stored.bytes);
+const restored = deserializeColumnarBatch(await cache.get(batch.id));
+```
+
+Serialization necessarily reports the exact bytes copied into the persisted
+envelope. The in-memory batch remains owned by its caller, and deserialization
+creates new owned backing buffers; callers should dispose or evict those
+buffers according to their cache lifecycle.
+
 `@honua/sdk-js/query-planner` includes the first bounded data-plane slice for large query
 results. It defines a dependency-free Honua batch envelope, an ownership
 transfer primitive, a normative GeoArrow 0.2 mapping, and a lazy bounded
