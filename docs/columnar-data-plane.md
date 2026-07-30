@@ -7,7 +7,8 @@ worker-session protocol. The GeoArrow mapping is independently interpretable
 without loading an Arrow implementation; the optional Apache Arrow adapter is
 loaded only when explicitly requested.
 It does not decode Arrow or ship built-in filter/reprojection/aggregation
-operators. Applications register those operations in their worker module.
+operators. The bounded projection operation is the first built-in field-shaping
+operator; applications register other operations in their worker module.
 
 The entrypoint is experimental while the broader planner, streaming, renderer,
 and realtime work in issue #394 is completed.
@@ -214,6 +215,34 @@ owned.
 lease's references. It cannot revoke other references held by the caller.
 
 ## Lazy worker execution
+
+### Bounded projection operation
+
+`createGeoArrowProjectionOperation()` creates a worker operation that retains
+geometry and an explicit subset of temporal, dictionary, and feature-id
+columns. It decodes and re-encodes within the same finite conversion limits,
+preserves row order and geometry metadata, and reports decode/project/complete
+progress. Because the projected schema changes, callers must provide a new
+`schemaId` and complete output `identity`; the operation never reuses a stale
+cache identity.
+
+```ts doc-test=compile
+import { createGeoArrowProjectionOperation } from "@honua/sdk-js/query-planner";
+import type { ColumnarBatchIdentityV1 } from "@honua/sdk-js/query-planner";
+
+declare const outputIdentity: ColumnarBatchIdentityV1;
+const project = createGeoArrowProjectionOperation({
+  schemaId: "incidents@7:map",
+  identity: outputIdentity,
+  include: ["featureIds", "dictionary"],
+});
+// Register `project` in startColumnarWorkerHost({ operations: { project } }).
+```
+
+Projection is deliberately bounded and object-materializing at the worker
+operator boundary. Zero-copy inspection remains available for renderers, and
+filter, reprojection, aggregation, streaming, and cache/realtime patch
+semantics remain separate slices.
 
 `createColumnarWorkerSession()` supplies the lifecycle missing from a raw
 `postMessage` call: lazy worker creation, a bounded serial queue, exact request
