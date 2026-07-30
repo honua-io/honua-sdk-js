@@ -941,15 +941,31 @@ export const acceptsCompanionSourceDescriptor = (descriptor: CompanionSourceDesc
   );
   const smokeResult = runCommand("node", ["smoke.mjs"], tempRoot);
   process.stdout.write(smokeResult.stdout);
+  fs.copyFileSync(
+    path.join(PROJECT_ROOT, "test", "fixtures", "packed-app-platform-component-smoke.mjs"),
+    path.join(tempRoot, "packed-app-platform-component-smoke.mjs"),
+  );
+  const componentSmokeResult = runCommand(
+    "node",
+    ["packed-app-platform-component-smoke.mjs"],
+    tempRoot,
+    {
+      env: {
+        ...process.env,
+        HONUA_PACKED_JSDOM_ENTRY: path.join(PROJECT_ROOT, "node_modules", "jsdom", "lib", "api.js"),
+      },
+    },
+  );
+  process.stdout.write(componentSmokeResult.stdout);
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }
 
-function runCommand(command, args, cwd) {
+function runCommand(command, args, cwd, extra = {}) {
   const options = {
     cwd,
     encoding: "utf8",
-    env: process.env,
+    env: extra.env ?? process.env,
     shell: false,
   };
   const result =
