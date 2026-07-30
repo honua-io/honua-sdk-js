@@ -364,8 +364,8 @@ different question.
 ### Linked exploration state
 
 `linkFeatureTableToExploration(table, view)` binds the table to an
-`ExplorationViewController` in both directions. Table selection, sort, and the
-virtualization window (as the shared `page` slice) publish outward; peer
+`ExplorationViewController` in both directions. Table selection, sort, filters,
+and the virtualization window (as the shared `page` slice) publish outward; peer
 changes to selection, sort, visible fields, and filters apply inward. Row keys
 and exploration selection targets round-trip deterministically through
 `table.keysForTargets()` and `table.selectionTargets()`, so map-to-table and
@@ -604,4 +604,3 @@ Gate definitions and per-cell evidence and notes live in
 
 Regenerate with `npm run qualification:components`; `npm run
 qualification:components:check` is the CI drift and invariant gate.
-

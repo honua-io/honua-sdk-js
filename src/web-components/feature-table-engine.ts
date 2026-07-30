@@ -1560,7 +1560,7 @@ export interface LinkFeatureTableToExplorationOptions {
   readonly sort?: boolean;
   /** Sync column visibility to the shared `visibleFields` slice. @default true */
   readonly visibleFields?: boolean;
-  /** Sync the shared `filters` slice into typed table filters. @default true */
+  /** Sync table filters with the shared `filters` slice in both directions. @default true */
   readonly filters?: boolean;
   /** Publish the table's selection to the shared `selection` slice. @default true */
   readonly selection?: boolean;
@@ -1572,9 +1572,9 @@ export interface LinkFeatureTableToExplorationOptions {
  * Wire a bounded table to a shared exploration view controller in **both**
  * directions (REQ-003).
  *
- * Table → context: selection, sort, and the virtualization window (as the
- * shared `page` slice) are published as intents from the bound view, so the
- * linked-view preset decides whether peers accept them.
+ * Table → context: selection, sort, filters, and the virtualization window
+ * (as the shared `page` slice) are published as intents from the bound view,
+ * so the linked-view preset decides whether peers accept them.
  *
  * Context → table: peer changes to selection, sort, visible fields, and filters
  * are applied to the table. The view controller suppresses self-origin
@@ -1595,6 +1595,28 @@ export function linkFeatureTableToExploration<T>(
   const syncPage = options.page ?? true;
 
   let applying = false;
+  let suppressFilterPublish = 0;
+  /** Filter snapshots requested by inbound assignments; these are suppressed. */
+  const inboundFilterSnapshots = new Set<readonly FilterClause[]>();
+  let queuedFilterPublish = false;
+  const publishedFilterIds = new Set<string>();
+
+  function publishFilters(snapshot: HonuaFeatureTableSnapshot<T>): void {
+    const currentFilterIds = new Set<string>();
+    for (const clause of snapshot.filters) {
+      const explorationClause = filterClauseToExplorationClause(clause);
+      if (explorationClause === undefined || clause.enabled === false) continue;
+      currentFilterIds.add(clause.id);
+      publishedFilterIds.add(clause.id);
+      view.setFilter(clause.id, explorationClause);
+    }
+    for (const id of publishedFilterIds) {
+      if (!currentFilterIds.has(id)) {
+        view.clearFilter(id);
+        publishedFilterIds.delete(id);
+      }
+    }
+  }
 
   const unsubscribeContext = view.subscribe(["selection", "sort", "visibleFields", "filters"], (event) => {
     if (applying) return;
@@ -1613,9 +1635,23 @@ export function linkFeatureTableToExploration<T>(
         }
       }
       if (syncFilters && event.changedSlices.has("filters")) {
-        void table.setFilters(
+        suppressFilterPublish += 1;
+        const inboundRefresh = table.setFilters(
           Object.entries(event.state.filters).map(([id, clause]) => explorationClauseToFilterClause(id, clause)),
         );
+        // setFilters publishes its loading snapshot synchronously before it
+        // returns. Remember that exact snapshot so completion of this inbound
+        // assignment is not mistaken for a local table edit.
+        const inboundSnapshot = table.snapshot.filters;
+        inboundFilterSnapshots.add(inboundSnapshot);
+        void inboundRefresh.finally(() => {
+          inboundFilterSnapshots.delete(inboundSnapshot);
+          suppressFilterPublish -= 1;
+          if (suppressFilterPublish === 0 && queuedFilterPublish) {
+            queuedFilterPublish = false;
+            if (!inboundFilterSnapshots.has(table.snapshot.filters)) publishFilters(table.snapshot);
+          }
+        });
       }
     } finally {
       applying = false;
@@ -1625,7 +1661,10 @@ export function linkFeatureTableToExploration<T>(
   let lastSelection = table.snapshot.selection;
   let lastSort = table.snapshot.sort;
   let lastWindow = table.snapshot.window;
+  let lastFilters = table.snapshot.filters;
   const unsubscribeTable = table.subscribe((snapshot) => {
+    const filtersChanged = snapshot.filters !== lastFilters;
+    lastFilters = snapshot.filters;
     if (applying) return;
     applying = true;
     try {
@@ -1649,6 +1688,13 @@ export function linkFeatureTableToExploration<T>(
           offset: snapshot.window.startIndex,
           limit: Math.max(0, snapshot.window.endIndex - snapshot.window.startIndex),
         });
+      }
+      if (syncFilters && filtersChanged && suppressFilterPublish === 0) {
+        publishFilters(snapshot);
+      } else if (syncFilters && filtersChanged && suppressFilterPublish > 0) {
+        // A local setFilters can start while an inbound refresh is awaiting
+        // I/O. Do not lose that edit when the inbound suppression settles.
+        queuedFilterPublish = true;
       }
     } finally {
       applying = false;
@@ -1675,6 +1721,34 @@ export function explorationClauseToFilterClause(id: string, clause: ExplorationF
     ...(clause.value === undefined ? {} : { value: clause.value }),
     ...(clause.appliesTo && clause.appliesTo.length > 0 ? { sourceScope: [...clause.appliesTo] } : {}),
     effect: "filter",
+  };
+}
+
+/**
+ * Project a table-owned filter back onto the shared exploration filter shape.
+ * Registry-only metadata is intentionally omitted; unsupported clauses (for
+ * example spatial masks without a field/operator pair) remain table-local.
+ */
+export function filterClauseToExplorationClause(clause: FilterClause): ExplorationFilterClause | undefined {
+  if (clause.field === undefined || clause.operator === undefined) return undefined;
+  const policy = clause.valuePolicy;
+  if (policy?.secret === true) return undefined;
+  if (policy?.maxSerializedBytes !== undefined && clause.value !== undefined) {
+    let serialized: string;
+    try {
+      serialized = JSON.stringify(clause.value);
+    } catch {
+      return undefined;
+    }
+    if (serialized.length > policy.maxSerializedBytes) return undefined;
+  }
+  return {
+    field: clause.field,
+    operator: clause.operator,
+    ...(clause.value === undefined ? {} : { value: clause.value }),
+    ...(Array.isArray(clause.sourceScope) && clause.sourceScope.length > 0
+      ? { appliesTo: [...clause.sourceScope] }
+      : {}),
   };
 }
 
