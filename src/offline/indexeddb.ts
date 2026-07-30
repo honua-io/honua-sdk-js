@@ -82,6 +82,7 @@ export interface IndexedDbOfflineRegionStoreOptions {
  */
 export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineRegionCacheAdmin {
   readonly #database: Promise<IDBDatabase>;
+  readonly #stagingMaxAgeMs: number;
 
   public constructor(options: IndexedDbOfflineRegionStoreOptions = {}) {
     const factory = options.indexedDB ?? globalThis.indexedDB;
@@ -91,6 +92,7 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
     const stagingMaxAgeMs = options.stagingMaxAgeMs ?? DEFAULT_STAGING_MAX_AGE_MS;
     if (!Number.isFinite(stagingMaxAgeMs) || stagingMaxAgeMs < 0)
       throw new Error("stagingMaxAgeMs must be a non-negative finite number.");
+    this.#stagingMaxAgeMs = stagingMaxAgeMs;
     this.#database = openDatabase(factory, name).then(async (database) => {
       await recoverDatabase(database);
       await cleanupAbandonedStaging(database, stagingMaxAgeMs);
@@ -207,11 +209,38 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
   public async beginWrite(regionId: string): Promise<OfflineRegionWriteTransaction> {
     if (typeof regionId !== "string" || regionId.length === 0) throw new Error("regionId must be non-empty.");
     const database = await this.#database;
-    const transactionId = createTransactionId();
+    // The manifest id is the resume checkpoint identity. It is deterministic,
+    // credential-free, and cannot collide across different snapshots.
+    const transactionId = regionId;
     const evictions: string[] = [];
     return {
       evict: async (id) => {
         if (!evictions.includes(id)) evictions.push(id);
+      },
+      readStaged: async (resource) => {
+        const staged = await runTransaction(database, "readwrite", async (transaction) => {
+          const store = transaction.objectStore(STAGING_STORE);
+          const key = resourceKey(transactionId, resource.id);
+          const value = await request<StagedResourceRecord | undefined>(store.get(key));
+          if (
+            value &&
+            (value.regionId !== regionId ||
+              value.bytes.byteLength !== resource.byteLength ||
+              !Number.isFinite(value.createdAt) ||
+              Date.now() - value.createdAt > this.#stagingMaxAgeMs)
+          ) {
+            store.delete(key);
+            return undefined;
+          }
+          return value;
+        });
+        if (!staged) return undefined;
+        return Uint8Array.from(staged.bytes);
+      },
+      discardStaged: async (resource) => {
+        await runTransaction(database, "readwrite", async (transaction) => {
+          transaction.objectStore(STAGING_STORE).delete(resourceKey(transactionId, resource.id));
+        });
       },
       write: async (resource, bytes) => {
         const copy = Uint8Array.from(bytes);
@@ -276,8 +305,8 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
           return "committed";
         });
       },
-      rollback: async () => {
-        await clearStagedResources(database, transactionId);
+      rollback: async (options) => {
+        if (!options?.preserveStaged) await clearStagedResources(database, transactionId);
         evictions.length = 0;
       },
     };

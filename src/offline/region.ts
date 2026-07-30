@@ -319,7 +319,13 @@ export async function downloadOfflineRegion(
         totalLogicalBytes: manifest.totalLogicalBytes,
         resourceId: resource.id,
       });
-      const ownedBytes = await loadOwnedResource(resource, manifest, options);
+      const stagedBytes = transaction.readStaged ? await transaction.readStaged(resource) : undefined;
+      let ownedBytes = stagedBytes;
+      if (ownedBytes !== undefined && (await sha256(ownedBytes)) !== resource.integrity) {
+        await transaction.discardStaged?.(resource);
+        ownedBytes = undefined;
+      }
+      if (ownedBytes === undefined) ownedBytes = await loadOwnedResource(resource, manifest, options);
       throwIfAborted(options.signal);
       if (ownedBytes.byteLength !== resource.byteLength) {
         throw new HonuaOfflineRegionError(
@@ -394,7 +400,7 @@ export async function downloadOfflineRegion(
   } catch (cause) {
     if (!settled) {
       try {
-        await transaction.rollback();
+        await transaction.rollback({ preserveStaged: true });
       } catch (rollbackCause) {
         throw new HonuaOfflineRegionError("store-failed", "Offline region rollback failed.", {
           cause: new AggregateError([cause, rollbackCause]),
