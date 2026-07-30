@@ -33,6 +33,7 @@ export type CesiumEntityDiagnosticCode =
   | "attributes-unsupported"
   | "identity-missing"
   | "time-interval-invalid"
+  | "time-position-invalid"
   | "incremental-update"
   | "incremental-update-failed";
 
@@ -74,6 +75,11 @@ export interface CesiumEntityInterval {
   readonly end: string;
 }
 
+export interface CesiumEntityPositionSample {
+  readonly time: string;
+  readonly coordinates: readonly [number, number, number];
+}
+
 export type CesiumEntityGeometry =
   | { readonly kind: "point"; readonly coordinates: readonly [number, number, number] }
   | { readonly kind: "polyline"; readonly coordinates: readonly (readonly [number, number, number])[] }
@@ -89,6 +95,7 @@ export interface CesiumEntityProjectionItem {
   readonly properties: Readonly<Record<string, unknown>>;
   readonly geometry: CesiumEntityGeometry;
   readonly interval?: CesiumEntityInterval;
+  readonly positionSamples?: readonly CesiumEntityPositionSample[];
 }
 
 export interface ProjectSourceToCesiumOptions {
@@ -101,6 +108,8 @@ export interface ProjectSourceToCesiumOptions {
   readonly time?: {
     readonly startField: string;
     readonly endField: string;
+    /** JSON array of { time, coordinates } samples for point entities. */
+    readonly positionField?: string;
   };
 }
 
@@ -135,6 +144,9 @@ export interface CesiumEntityRuntimeModule {
   readonly TimeInterval: new (options: { start: unknown; stop: unknown }) => unknown;
   readonly TimeIntervalCollection: new (intervals?: readonly unknown[]) => unknown;
   readonly PolygonHierarchy: new (positions: readonly unknown[], holes?: readonly unknown[]) => unknown;
+  readonly SampledPositionProperty?: new () => {
+    addSample(time: unknown, position: unknown): void;
+  };
 }
 
 export type CesiumEntityRuntimeLoader = () => Promise<CesiumEntityRuntimeModule>;
@@ -195,6 +207,7 @@ export function projectSourceToCesium<T>(
   let unsupportedGeometry = 0;
   let missingIdentity = 0;
   let invalidIntervals = 0;
+  let invalidPositionSamples = 0;
   let unsupportedVerticalDatum = 0;
   let unsupportedAttributes = 0;
   const entityIds = new Set<string>();
@@ -224,6 +237,13 @@ export function projectSourceToCesium<T>(
       invalidIntervals += 1;
       continue;
     }
+    const positionSamples = options.time?.positionField
+      ? projectPositionSamples(attributes, options.time.positionField, geometry)
+      : undefined;
+    if (positionSamples === null) {
+      invalidPositionSamples += 1;
+      continue;
+    }
     const entityId = `${sourceId}:${typeof featureId === "number" ? "n" : "s"}:${encodeURIComponent(String(featureId))}`;
     if (entityIds.has(entityId)) {
       throw new HonuaCesiumEntityAdapterError(
@@ -240,6 +260,7 @@ export function projectSourceToCesium<T>(
         properties: attributes,
         geometry: immutableJsonSnapshot(geometry),
         ...(interval ? { interval: immutableJsonSnapshot(interval) } : {}),
+        ...(positionSamples ? { positionSamples: immutableJsonSnapshot(positionSamples) } : {}),
       }),
     );
     if (entities.length > maxEntities) {
@@ -362,6 +383,20 @@ export function projectSourceToCesium<T>(
         {
           omittedFeatureCount: invalidIntervals,
         },
+      ),
+    );
+  }
+  if (invalidPositionSamples > 0) {
+    diagnostics.push(
+      diagnostic(
+        source,
+        plan,
+        "time-position-invalid",
+        "warning",
+        "project",
+        "unsupported",
+        `${invalidPositionSamples} temporal point track(s) were invalid and omitted.`,
+        { omittedFeatureCount: invalidPositionSamples },
       ),
     );
   }
@@ -634,7 +669,10 @@ function materializeEntity(
       : item.geometry.coordinates.map((coordinate) => toCartesian(cesium, coordinate));
   const geometry =
     item.geometry.kind === "point"
-      ? { position: positions[0], point: { pixelSize: 8 } }
+      ? {
+          position: item.positionSamples ? sampledPosition(cesium, item.positionSamples) : positions[0],
+          point: { pixelSize: 8 },
+        }
       : item.geometry.kind === "polyline"
         ? { polyline: { positions, width: 2 } }
         : {
@@ -661,6 +699,23 @@ function materializeEntity(
     ...geometry,
     ...(availability ? { availability } : {}),
   });
+}
+
+function sampledPosition(
+  cesium: CesiumEntityRuntimeModule,
+  samples: readonly CesiumEntityPositionSample[],
+): unknown {
+  if (!cesium.SampledPositionProperty) {
+    throw new HonuaCesiumEntityAdapterError(
+      "peer-unavailable",
+      "The Cesium runtime does not provide SampledPositionProperty for temporal entities.",
+    );
+  }
+  const property = new cesium.SampledPositionProperty();
+  for (const sample of samples) {
+    property.addSample(cesium.JulianDate.fromIso8601(sample.time), toCartesian(cesium, sample.coordinates));
+  }
+  return property;
 }
 
 function toCartesian(cesium: CesiumEntityRuntimeModule, coordinate: readonly [number, number, number]): unknown {
@@ -862,6 +917,31 @@ function projectInterval(
   const end = isoInstant(attributes[time.endField]);
   if (!start || !end || Date.parse(end) < Date.parse(start)) return undefined;
   return { start, end };
+}
+
+function projectPositionSamples(
+  attributes: Readonly<Record<string, unknown>>,
+  field: string,
+  geometry: CesiumEntityGeometry,
+): readonly CesiumEntityPositionSample[] | null | undefined {
+  if (geometry.kind !== "point") return null;
+  const value = attributes[field];
+  if (value === undefined) return null;
+  if (!Array.isArray(value) || value.length < 2) return null;
+  const samples: CesiumEntityPositionSample[] = [];
+  let previous = -Infinity;
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") return null;
+    const record = entry as Record<string, unknown>;
+    const time = isoInstant(record.time);
+    const coordinates = coordinate3(record.coordinates);
+    if (!time || !coordinates) return null;
+    const epoch = Date.parse(time);
+    if (epoch <= previous) return null;
+    previous = epoch;
+    samples.push({ time, coordinates });
+  }
+  return samples;
 }
 
 function isoInstant(value: unknown): string | undefined {
