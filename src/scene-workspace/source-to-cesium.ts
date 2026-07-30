@@ -701,7 +701,7 @@ function materializeEntity(
   });
 }
 
- function sampledPosition(cesium: CesiumEntityRuntimeModule, samples: readonly CesiumEntityPositionSample[]): unknown {
+function sampledPosition(cesium: CesiumEntityRuntimeModule, samples: readonly CesiumEntityPositionSample[]): unknown {
   if (!cesium.SampledPositionProperty) {
     throw new HonuaCesiumEntityAdapterError(
       "peer-unavailable",
