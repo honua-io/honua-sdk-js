@@ -145,6 +145,14 @@ session.dispose();            // every presentation, listener, and peer released
 Both presentations receive the session's own artifact reference. There is no
 second copy of the numbers to drift.
 
+Presentation peers are treated as disposable views, not authorities. If a
+peer throws while accepting a newer artifact or linked state, the session
+releases that presentation, keeps the accepted artifact and healthy peers, and
+calls `onWarning` with the adapter, presentation, artifact, and error. This
+prevents a failed optional chart from leaving a realtime session split between
+old and new artifacts; hosts can use the warning to remount a fallback or
+surface their own diagnostic.
+
 ## The default presentation
 
 `createDefaultAnalyticsPresentation()` renders the shared table model as a real
