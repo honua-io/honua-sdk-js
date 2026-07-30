@@ -377,6 +377,16 @@ interface AnalyticsInteractionBase {
   readonly adapterId: string;
   /** Artifact the interaction was performed against. */
   readonly artifactId: string;
+  /** Sequence rendered when the interaction was produced. */
+  readonly artifactSequence?: number;
+  /** Source rendered when the interaction was produced. */
+  readonly artifactSourceId?: SourceId;
+  /** Query plan rendered when the interaction was produced. */
+  readonly artifactPlanFingerprint?: string;
+  /** Artifact kind rendered when the interaction was produced. */
+  readonly artifactKind?: AnalyticsArtifact["kind"];
+  /** Artifact dimension rendered when the interaction was produced. */
+  readonly artifactDimension?: string;
 }
 
 /** A mark was activated (click, Enter/Space, or programmatic toggle). */

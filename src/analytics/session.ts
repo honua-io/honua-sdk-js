@@ -33,6 +33,10 @@ import type {
   AnalyticsUpdateDecision,
 } from "./types.js";
 
+function artifactDimension(artifact: AnalyticsArtifact): string | undefined {
+  return artifact.kind === "aggregate" ? undefined : artifact.dimension;
+}
+
 /** A presentation mounted by a session. */
 export interface AnalyticsSessionPresentation {
   readonly id: string;
@@ -169,6 +173,47 @@ export function createAnalyticsLinkedSession(options: CreateAnalyticsLinkedSessi
 
   function apply(interaction: AnalyticsInteraction): AnalyticsLinkCommit {
     assertLive("apply an interaction");
+    if (
+      interaction.artifactId !== artifact.identity.artifactId ||
+      (interaction.artifactSequence !== undefined && interaction.artifactSequence !== artifact.identity.sequence) ||
+      (interaction.artifactSourceId !== undefined && interaction.artifactSourceId !== artifact.identity.sourceId) ||
+      (interaction.artifactPlanFingerprint !== undefined &&
+        interaction.artifactPlanFingerprint !== (artifact.identity.planFingerprint ?? "")) ||
+      (interaction.artifactKind !== undefined && interaction.artifactKind !== artifact.kind) ||
+      (interaction.artifactDimension !== undefined && interaction.artifactDimension !== artifactDimension(artifact))
+    ) {
+      const detail = {
+        adapterId: interaction.adapterId,
+        interactionArtifactId: interaction.artifactId,
+        interactionArtifactSequence: interaction.artifactSequence,
+        acceptedArtifactId: artifact.identity.artifactId,
+        acceptedArtifactSequence: artifact.identity.sequence,
+        ...(interaction.artifactSourceId !== undefined
+          ? { interactionArtifactSourceId: interaction.artifactSourceId }
+          : {}),
+        ...(interaction.artifactPlanFingerprint !== undefined
+          ? { interactionArtifactPlanFingerprint: interaction.artifactPlanFingerprint }
+          : {}),
+        ...(interaction.artifactKind !== undefined ? { interactionArtifactKind: interaction.artifactKind } : {}),
+        ...(interaction.artifactDimension !== undefined
+          ? { interactionArtifactDimension: interaction.artifactDimension }
+          : {}),
+      } as const;
+      options.onWarning?.(
+        `The analytics interaction from "${interaction.adapterId}" was ignored because it targeted a superseded artifact.`,
+        detail,
+      );
+      const ignored: AnalyticsLinkCommit = {
+        interaction,
+        changed: false,
+        touchedClauseIds: [],
+        touchedSelection: false,
+        linkedState: binding.linkedState,
+        undo(): void {},
+      };
+      options.onCommit?.(ignored);
+      return ignored;
+    }
     const commit = record(binding.apply(interaction));
     pushLinkedState(commit.linkedState);
     return commit;

@@ -302,6 +302,84 @@ describe("accessible states", () => {
 });
 
 describe("realtime updates", () => {
+  it("ignores a queued interaction from a superseded artifact", () => {
+    const warnings: Array<{ message: string; detail?: Readonly<Record<string, unknown>> }> = [];
+    const ctx = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+    const view = ctx.connectView({ id: "chart", role: "chart" });
+    const registry = createAnalyticsAdapterRegistry();
+    const linked = createAnalyticsLinkedSession({
+      view,
+      artifact: categoryArtifact(1, 42),
+      registry,
+      onWarning: (message, detail) => warnings.push({ message, detail }),
+    });
+
+    linked.accept(categoryArtifact(2, 55));
+    const commit = linked.apply({
+      kind: "mark-select",
+      adapterId: "test.chart",
+      artifactId: "incidents-by-status",
+      artifactSequence: 1,
+      artifactSourceId: "incidents",
+      artifactPlanFingerprint: "sha256:abc",
+      artifactKind: "category",
+      artifactDimension: "status",
+      markKeys: ["s:OPEN"],
+    });
+
+    expect(commit.changed).toBe(false);
+    expect(view.state.filters[linked.binding.clauseIds.marks]).toBeUndefined();
+    expect(view.state.selection).toEqual([]);
+    expect(warnings).toEqual([
+      {
+        message: 'The analytics interaction from "test.chart" was ignored because it targeted a superseded artifact.',
+        detail: {
+          adapterId: "test.chart",
+          interactionArtifactId: "incidents-by-status",
+          interactionArtifactSequence: 1,
+          interactionArtifactSourceId: "incidents",
+          interactionArtifactPlanFingerprint: "sha256:abc",
+          interactionArtifactKind: "category",
+          interactionArtifactDimension: "status",
+          acceptedArtifactId: "incidents-by-status",
+          acceptedArtifactSequence: 2,
+        },
+      },
+    ]);
+    linked.dispose();
+  });
+
+  it("rejects stale interactions when a new lineage reuses its artifact id and sequence", () => {
+    const linked = session(categoryArtifact(1), []).session;
+    linked.accept(categoryArtifact(1, 55));
+    const replacement = categoryArtifact(1, 55);
+    const changedSource = acceptCategoryArtifact({
+      ...replacement,
+      identity: analyticsArtifactIdentity({
+        ...replacement.identity,
+        sourceId: "assets",
+      }),
+      marks: replacement.marks,
+    });
+    linked.accept(changedSource);
+
+    const commit = linked.apply({
+      kind: "mark-select",
+      adapterId: "test.chart",
+      artifactId: "incidents-by-status",
+      artifactSequence: 1,
+      artifactSourceId: "incidents",
+      artifactPlanFingerprint: "sha256:abc",
+      artifactKind: "category",
+      artifactDimension: "status",
+      markKeys: ["s:OPEN"],
+    });
+
+    expect(commit.changed).toBe(false);
+    expect(linked.linkedState.selectedMarkKeys).toEqual([]);
+    linked.dispose();
+  });
+
   it("contains a presentation update failure without splitting the session", async () => {
     const warnings: Array<{ message: string; detail?: Readonly<Record<string, unknown>> }> = [];
     const failing: AnalyticsPresentationAdapter = {
@@ -389,6 +467,45 @@ describe("realtime updates", () => {
           presentationId: "failing",
           artifactId: "incidents-by-status",
           error: "linked state failed",
+        },
+      },
+    ]);
+    linked.dispose();
+  });
+
+  it("ignores a queued interaction from a superseded artifact", () => {
+    const warnings: Array<{ message: string; detail?: Readonly<Record<string, unknown>> }> = [];
+    const ctx = createExplorationContext({ datasetId: "incidents", sourceIds: ["incidents"] });
+    const view = ctx.connectView({ id: "chart", role: "chart" });
+    const registry = createAnalyticsAdapterRegistry();
+    const linked = createAnalyticsLinkedSession({
+      view,
+      artifact: categoryArtifact(1, 42),
+      registry,
+      onWarning: (message, detail) => warnings.push({ message, detail }),
+    });
+
+    linked.accept(categoryArtifact(2, 55));
+    const commit = linked.apply({
+      kind: "mark-select",
+      adapterId: "test.chart",
+      artifactId: "incidents-by-status",
+      artifactSequence: 1,
+      markKeys: ["s:OPEN"],
+    });
+
+    expect(commit.changed).toBe(false);
+    expect(view.state.filters[linked.binding.clauseIds.marks]).toBeUndefined();
+    expect(view.state.selection).toEqual([]);
+    expect(warnings).toEqual([
+      {
+        message: 'The analytics interaction from "test.chart" was ignored because it targeted a superseded artifact.',
+        detail: {
+          adapterId: "test.chart",
+          interactionArtifactId: "incidents-by-status",
+          interactionArtifactSequence: 1,
+          acceptedArtifactId: "incidents-by-status",
+          acceptedArtifactSequence: 2,
         },
       },
     ]);

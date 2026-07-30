@@ -237,6 +237,11 @@ export function createDefaultAnalyticsPresentation(
           kind: "mark-select",
           adapterId: ADAPTER_ID,
           artifactId: artifact.identity.artifactId,
+          artifactSequence: artifact.identity.sequence,
+          artifactSourceId: artifact.identity.sourceId,
+          artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+          artifactKind: artifact.kind,
+          ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
           markKeys: [key],
           replace,
         });
@@ -262,6 +267,11 @@ export function createDefaultAnalyticsPresentation(
             kind: "range-brush",
             adapterId: ADAPTER_ID,
             artifactId: artifact.identity.artifactId,
+            artifactSequence: artifact.identity.sequence,
+            artifactSourceId: artifact.identity.sourceId,
+            artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+            artifactKind: artifact.kind,
+            artifactDimension: artifact.dimension,
             range: {
               min: Math.min(...marks.map((mark) => mark.min)),
               max: Math.max(...marks.map((mark) => mark.max)),
@@ -276,6 +286,11 @@ export function createDefaultAnalyticsPresentation(
             kind: "temporal-brush",
             adapterId: ADAPTER_ID,
             artifactId: artifact.identity.artifactId,
+            artifactSequence: artifact.identity.sequence,
+            artifactSourceId: artifact.identity.sourceId,
+            artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+            artifactKind: artifact.kind,
+            artifactDimension: artifact.dimension,
             window: { start: marks[0].start, end: marks[marks.length - 1].end },
           });
         }
@@ -297,6 +312,11 @@ export function createDefaultAnalyticsPresentation(
               kind: "hover",
               adapterId: ADAPTER_ID,
               artifactId: artifact.identity.artifactId,
+              artifactSequence: artifact.identity.sequence,
+              artifactSourceId: artifact.identity.sourceId,
+              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+              artifactKind: artifact.kind,
+              ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
               markKey: key,
             });
           };
@@ -305,6 +325,11 @@ export function createDefaultAnalyticsPresentation(
               kind: "hover",
               adapterId: ADAPTER_ID,
               artifactId: artifact.identity.artifactId,
+              artifactSequence: artifact.identity.sequence,
+              artifactSourceId: artifact.identity.sourceId,
+              artifactPlanFingerprint: artifact.identity.planFingerprint ?? "",
+              artifactKind: artifact.kind,
+              ...(artifact.kind !== "aggregate" ? { artifactDimension: artifact.dimension } : {}),
             });
           };
           button.addEventListener("click", onClick);
