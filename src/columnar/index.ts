@@ -22,6 +22,7 @@ export {
   createGeoArrowProjectionOperation,
   createGeoArrowTransformOperation,
 } from "./operators.js";
+export { deserializeGeoArrowBatch, serializeGeoArrowBatch } from "./geoarrow-serialization.js";
 export {
   GEOARROW_SPEC_VERSION,
   HONUA_GEOARROW_LAYOUT_VERSION,
@@ -43,7 +44,10 @@ export type {
   DecodedGeoArrowBatch,
   DecodedGeoArrowRow,
   GeoArrowBatchInspection,
+  GeoArrowBatchSerializationResult,
   GeoArrowConversionLimits,
+  GeoArrowSerializationMetrics,
+  GeoArrowSerializationOptions,
   GeoArrowConversionMetrics,
   GeoArrowCoordinateLayout,
   GeoArrowCrs,

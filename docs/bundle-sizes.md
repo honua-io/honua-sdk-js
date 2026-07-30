@@ -25,8 +25,8 @@ _Generated 2026-07-30 at commit `d70fc836`._
 | `/runtime` | 562.1 KiB | 612.2 KiB | 150.4 KiB | 163.9 KiB |
 | `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
 | `/offline` | 47.9 KiB | 49.5 KiB | 14.0 KiB | 14.6 KiB |
-| `/query-planner` (worker runtime injected) | 635.8 KiB | 638.9 KiB | 135.3 KiB | 143.2 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 97.8 KiB | 100.0 KiB | 30.0 KiB | 30.8 KiB |
+| `/query-planner` (worker runtime injected) | 639.4 KiB | 703.3 KiB | 136.3 KiB | 143.2 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 97.5 KiB | 100.0 KiB | 30.0 KiB | 30.8 KiB |
 | `/esri-compat` | 992.8 KiB | 1026.2 KiB | 247.8 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |

@@ -70,6 +70,48 @@ buffers and reports `copiedBytes: 0`. Object rows are created only by the
 explicit `decodeGeoArrowBatch()` call, which applies the same ceilings and
 reports `materializedRows`; there is no unbounded conversion mode.
 
+### Versioned persistence
+
+`serializeGeoArrowBatch()` and `deserializeGeoArrowBatch()` provide a bounded,
+dependency-free persistence envelope for the normative GeoArrow mapping. The
+envelope carries a `honua.geoarrow.batch` kind and `1.0` version, deduplicates
+shared backing buffers, and restores the original batch identity and metadata.
+Deserialization re-runs the GeoArrow layout validator, so malformed or future
+version data fails instead of silently changing layout semantics. This is not
+an Arrow IPC file; applications needing Arrow IPC can use the optional adapter
+after restoring the validated batch.
+
+```ts doc-test=compile
+import { createGeoArrowBatch, deserializeGeoArrowBatch, serializeGeoArrowBatch } from "@honua/sdk-js/query-planner";
+
+const { batch } = createGeoArrowBatch({
+  id: "incidents:0",
+  sequence: 0,
+  schemaId: "incidents@1",
+  identity: {
+    sourceId: "incidents-live",
+    sourceVersion: "42",
+    schemaVersion: "incidents@1",
+    planId: "plan:sha256:abc",
+    authorizationScope: "auth-scope:sha256:def",
+    ordering: { stable: true, keys: [] },
+    freshness: { observedAt: "2026-07-15T12:00:00Z" },
+  },
+  geometry: { kind: "point", values: [[-157.86, 21.31]] },
+});
+
+const persisted = serializeGeoArrowBatch(batch, { maxSerializedBytes: 16 * 1024 * 1024 });
+const restored = deserializeGeoArrowBatch(persisted, {
+  maxSerializedBytes: 16 * 1024 * 1024,
+  maxBackingBytes: 8 * 1024 * 1024,
+});
+console.log(restored.metrics.serializedBytes);
+```
+
+There is no unbounded mode: callers should set a persistence ceiling suitable
+for their cache. Unsupported envelope kinds or versions throw
+`HonuaGeoArrowError` rather than silently migrating layout semantics.
+
 ### Optional Apache Arrow adapter
 
 Install `apache-arrow` only in applications that exchange real Arrow
