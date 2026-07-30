@@ -1309,6 +1309,10 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       }
     }
 
+    // Realtime updates can change the serialized size of a resident page.
+    // Re-apply the hard cache ceilings after reconciliation so a large delta
+    // cannot bypass the same bounded-memory contract as a fetched page.
+    enforceMemoryBudgets(new Set());
     recomputeCount();
     conflicts = Object.freeze(nextConflicts.map((conflict) => Object.freeze(conflict)));
     return Object.freeze({
@@ -1340,9 +1344,11 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       attributes: { ...(row.attributes as Record<string, unknown>), ...(attributes as Record<string, unknown>) } as T,
       ...(geometry !== undefined ? { geometry } : {}),
     });
+    const rows = Object.freeze(page.rows.map((candidate) => (candidate.key === row.key ? next : candidate)));
     pages.set(page.offset, {
       ...page,
-      rows: Object.freeze(page.rows.map((candidate) => (candidate.key === row.key ? next : candidate))),
+      rows,
+      bytes: estimateBytes(rows.map((candidate) => ({ attributes: candidate.attributes }))),
     });
   }
 
