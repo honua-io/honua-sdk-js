@@ -18,6 +18,7 @@ const RESOURCE_SEPARATOR = "\u0000";
 const STAGING_STORE = "staging";
 const REGION_ID_INDEX = "regionId";
 const TRANSACTION_ID_INDEX = "transactionId";
+const DEFAULT_STAGING_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 interface InventoryRecord {
   readonly key: typeof INVENTORY_KEY;
@@ -47,6 +48,7 @@ interface StagedResourceRecord {
   readonly regionId: string;
   readonly resourceId: string;
   readonly bytes: Uint8Array;
+  readonly createdAt: number;
 }
 
 export interface IndexedDbOfflineRegionStoreOptions {
@@ -54,6 +56,8 @@ export interface IndexedDbOfflineRegionStoreOptions {
   readonly name?: string;
   /** Injectable for browser tests and hosts with an alternate IndexedDB factory. */
   readonly indexedDB?: IDBFactory;
+  /** Maximum age of abandoned staged resources before a new store reclaims them. */
+  readonly stagingMaxAgeMs?: number;
 }
 
 /**
@@ -74,7 +78,13 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
     if (!factory) throw new Error("IndexedDB is not available in this runtime.");
     const name = options.name ?? "honua-offline-regions";
     if (name.trim().length === 0) throw new Error("IndexedDB database name must be non-empty.");
-    this.#database = openDatabase(factory, name);
+    const stagingMaxAgeMs = options.stagingMaxAgeMs ?? DEFAULT_STAGING_MAX_AGE_MS;
+    if (!Number.isFinite(stagingMaxAgeMs) || stagingMaxAgeMs < 0)
+      throw new Error("stagingMaxAgeMs must be a non-negative finite number.");
+    this.#database = openDatabase(factory, name).then(async (database) => {
+      await cleanupAbandonedStaging(database, stagingMaxAgeMs);
+      return database;
+    });
   }
 
   public async inventory(): Promise<OfflineRegionCacheInventory> {
@@ -97,7 +107,8 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
     if (typeof regionId !== "string" || regionId.length === 0) throw new Error("regionId must be non-empty.");
     if (typeof resourceId !== "string" || resourceId.length === 0) throw new Error("resourceId must be non-empty.");
     const database = await this.#database;
-    return runTransaction(database, "readonly", async (transaction) => {
+    return runTransaction(database, "readwrite", async (transaction) => {
+      const inventoryStore = transaction.objectStore(INVENTORY_STORE);
       const region = await request<RegionRecord | undefined>(transaction.objectStore(REGION_STORE).get(regionId));
       if (!region) return undefined;
       const resource = region.manifest.resources.find((candidate) => candidate.id === resourceId);
@@ -109,6 +120,15 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
       if (stored.bytes.byteLength !== resource.byteLength) {
         throw new Error(`Offline resource ${resourceId} failed its stored byte-length check.`);
       }
+      const inventory = await request<InventoryRecord | undefined>(inventoryStore.get(INVENTORY_KEY));
+      transaction.objectStore(REGION_STORE).put({
+        ...region,
+        lastAccessedAt: new Date().toISOString(),
+      } satisfies RegionRecord);
+      inventoryStore.put({
+        key: INVENTORY_KEY,
+        revision: nextRevision(inventory?.revision),
+      } satisfies InventoryRecord);
       return {
         regionId,
         manifest: region.manifest,
@@ -139,6 +159,7 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
             regionId,
             resourceId: resource.id,
             bytes: copy,
+            createdAt: Date.now(),
           } satisfies StagedResourceRecord);
         });
       },
@@ -146,7 +167,6 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore {
         return runTransaction(database, "readwrite", async (transaction) => {
           const inventoryStore = transaction.objectStore(INVENTORY_STORE);
           const regionStore = transaction.objectStore(REGION_STORE);
-          const resourceStore = transaction.objectStore(RESOURCE_STORE);
           const currentInventory = await request<InventoryRecord | undefined>(inventoryStore.get(INVENTORY_KEY));
           if ((currentInventory?.revision ?? "0") !== guard.expectedInventoryRevision) return "inventory-changed";
 
@@ -373,6 +393,31 @@ function moveStagedResources(
 function clearStagedResources(database: IDBDatabase, transactionId: string): Promise<void> {
   return runTransaction(database, "readwrite", async (transaction) => {
     await deleteStagedResources(transaction, transactionId);
+  });
+}
+
+function cleanupAbandonedStaging(database: IDBDatabase, maxAgeMs: number): Promise<void> {
+  const cutoff = Date.now() - maxAgeMs;
+  return runTransaction(database, "readwrite", async (transaction) => {
+    await deleteStagedResourcesOlderThan(transaction, cutoff);
+  });
+}
+
+function deleteStagedResourcesOlderThan(transaction: IDBTransaction, cutoff: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cursorRequest = transaction.objectStore(STAGING_STORE).openCursor();
+    cursorRequest.onerror = () =>
+      reject(cursorRequest.error ?? new Error("Failed to reclaim abandoned staged offline-region resources."));
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) {
+        resolve();
+        return;
+      }
+      const staged = cursor.value as Partial<StagedResourceRecord>;
+      if (typeof staged.createdAt !== "number" || staged.createdAt < cutoff) cursor.delete();
+      cursor.continue();
+    };
   });
 }
 
