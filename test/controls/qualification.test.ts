@@ -204,6 +204,12 @@ describe("the production-tier feature editor is seeded honestly", () => {
     expect(status("rtl")).toBe("passing");
   });
 
+  it("records the secure export contract on the print/export component", () => {
+    const secureExport = row?.gates.find((cell) => cell.gate === "secure-export");
+    expect(secureExport?.status).toBe("not-applicable");
+    expect(secureExport?.evidence).toEqual([]);
+  });
+
   it("cites its own element suite as the evidence for what it claims", () => {
     const passing = row?.gates.filter((cell) => cell.status === "passing") ?? [];
     const own = passing.filter((cell) => cell.evidence.includes("test/web-components-feature-editor-element.test.ts"));
