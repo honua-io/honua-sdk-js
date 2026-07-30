@@ -27,6 +27,16 @@ describe("planDeckGlExecution", () => {
     });
   });
 
+  it("does not select the binary lane for an adapter-declared unsupported layer", () => {
+    expect(
+      planDeckGlExecution({
+        layer: "heatmap",
+        preferred: ["gpu-binary", "tile"],
+        availability: { gpuBinary: true, tile: true },
+      }),
+    ).toMatchObject({ execution: "tile", fallback: "tile", ownership: "caller" });
+  });
+
   it("fails closed when every requested lane is unavailable", () => {
     expect(
       planDeckGlExecution({ layer: "feature-polygon", preferred: ["cpu-object", "tile"], availability: {} }),

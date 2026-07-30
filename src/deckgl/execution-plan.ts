@@ -1,3 +1,4 @@
+import { DECK_GL_CAPABILITIES } from "./adapter.js";
 import type {
   DeckGlExecutionAvailability,
   DeckGlExecutionPlan,
@@ -18,7 +19,7 @@ export function planDeckGlExecution(request: DeckGlExecutionPlanRequest): DeckGl
   const primary = preferred[0] ?? "gpu-binary";
 
   for (const strategy of preferred) {
-    if (!isAvailable(strategy, availability)) continue;
+    if (!isAvailable(strategy, request.layer, availability)) continue;
     return {
       layer: request.layer,
       execution: strategy,
@@ -43,8 +44,15 @@ export function planDeckGlExecution(request: DeckGlExecutionPlanRequest): DeckGl
   };
 }
 
-function isAvailable(strategy: DeckGlExecutionStrategy, availability: DeckGlExecutionAvailability): boolean {
-  if (strategy === "gpu-binary") return availability.gpuBinary === true;
+function isAvailable(
+  strategy: DeckGlExecutionStrategy,
+  layer: DeckGlExecutionPlanRequest["layer"],
+  availability: DeckGlExecutionAvailability,
+): boolean {
+  if (strategy === "gpu-binary") {
+    const capability = DECK_GL_CAPABILITIES.find((candidate) => candidate.layer === layer);
+    return availability.gpuBinary === true && capability?.supported === true && capability.execution === "gpu-binary";
+  }
   if (strategy === "cpu-object") return availability.cpuObject === true;
   return availability.tile === true;
 }
