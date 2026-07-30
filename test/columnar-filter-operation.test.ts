@@ -3,6 +3,7 @@ import {
   createColumnarWorkerSession,
   createGeoArrowBatch,
   createGeoArrowFilterOperation,
+  createGeoArrowProjectionOperation,
   decodeGeoArrowBatch,
   inspectGeoArrowBatch,
   startColumnarWorkerHost,
@@ -139,6 +140,79 @@ describe("GeoArrow filter worker operation", () => {
     const result = await session.execute("filter", batch());
     expect(decodeGeoArrowBatch(result.batch).rows).toEqual([
       { geometry: null, timestamp: null, dictionaryValue: "keep", featureId: 13 },
+    ]);
+    session.dispose();
+  });
+});
+
+describe("GeoArrow projection worker operation", () => {
+  it("retains requested optional columns and assigns the projected identity", async () => {
+    const progress: number[] = [];
+    const projectedIdentity = { ...identity, schemaVersion: "points-geometry-class-v2" };
+    const operation = createGeoArrowProjectionOperation({
+      id: "projected-batch",
+      schemaId: "points-geometry-class-v2",
+      identity: projectedIdentity,
+      columns: ["geometry", "dictionary"],
+    });
+    const result = await operation(batch(), {
+      requestId: "request-projection-1",
+      signal: new AbortController().signal,
+      reportProgress: (fraction) => progress.push(fraction),
+    });
+
+    expect(result.id).toBe("projected-batch");
+    expect(result.identity).toEqual(projectedIdentity);
+    expect(result.rowOffset).toBeUndefined();
+    expect(decodeGeoArrowBatch(result).rows).toEqual([
+      { geometry: [10, 20], dictionaryValue: "keep" },
+      { geometry: [30, 40], dictionaryValue: "drop" },
+      { geometry: null, dictionaryValue: "keep" },
+    ]);
+    expect(inspectGeoArrowBatch(result).temporal).toBeUndefined();
+    expect(inspectGeoArrowBatch(result).dictionary?.field).toBe("class");
+    expect(progress.at(-1)).toBe(1);
+  });
+
+  it("fails closed when an optional requested column is absent", async () => {
+    const operation = createGeoArrowProjectionOperation({
+      id: "missing-column",
+      schemaId: "missing-column-v1",
+      identity: { ...identity, schemaVersion: "missing-column-v1" },
+      columns: ["geometry", "featureId"],
+    });
+
+    await expect(
+      operation(batch(), {
+        requestId: "request-projection-2",
+        signal: new AbortController().signal,
+        reportProgress: () => undefined,
+      }),
+    ).rejects.toThrow("missing feature-id");
+  });
+
+  it("round-trips through the registered worker operation", async () => {
+    const client = new LoopbackTransport();
+    const worker = new LoopbackTransport();
+    client.peer = worker;
+    worker.peer = client;
+    startColumnarWorkerHost({
+      transport: worker,
+      operations: {
+        project: createGeoArrowProjectionOperation({
+          id: "worker-projected",
+          schemaId: "worker-projected-v1",
+          identity: { ...identity, schemaVersion: "worker-projected-v1" },
+          columns: ["geometry", "temporal", "featureId"],
+        }),
+      },
+    });
+    const session = createColumnarWorkerSession({ createWorker: () => client });
+    const result = await session.execute("project", batch());
+    expect(decodeGeoArrowBatch(result.batch).rows).toEqual([
+      { geometry: [10, 20], timestamp: 1000n, featureId: 11 },
+      { geometry: [30, 40], timestamp: 2000n, featureId: 12 },
+      { geometry: null, timestamp: null, featureId: 13 },
     ]);
     session.dispose();
   });

@@ -1,4 +1,5 @@
 import type {
+  ColumnarBatchIdentityV1,
   DecodedGeoArrowRow,
   GeoArrowConversionLimits,
   GeoArrowGeometryColumnInput,
@@ -16,6 +17,20 @@ export interface CreateGeoArrowFilterOperationOptions extends GeoArrowConversion
   /** Stable id assigned to the filtered output batch. */
   readonly id: string;
   readonly predicate: GeoArrowRowPredicate;
+}
+
+export type GeoArrowProjectionColumn = "geometry" | "temporal" | "dictionary" | "featureId";
+
+/** Options for the bounded GeoArrow column-projection worker operation. */
+export interface CreateGeoArrowProjectionOperationOptions extends GeoArrowConversionLimits {
+  /** Stable id assigned to the projected output batch. */
+  readonly id: string;
+  /** Schema id for the projected field set. */
+  readonly schemaId: string;
+  /** Identity for the projected schema; callers must provide its schema version. */
+  readonly identity: ColumnarBatchIdentityV1;
+  /** Columns to retain. Geometry is always retained even when omitted. */
+  readonly columns?: readonly GeoArrowProjectionColumn[];
 }
 
 /**
@@ -90,6 +105,109 @@ export function createGeoArrowFilterOperation(options: CreateGeoArrowFilterOpera
         sequence: batch.sequence,
         schemaId: batch.schema.id,
         identity: batch.identity,
+        geometry,
+        ...(temporal === undefined ? {} : { temporal }),
+        ...(dictionary === undefined ? {} : { dictionary }),
+        ...(featureIds === undefined ? {} : { featureIds }),
+      },
+      limits,
+    ).batch;
+  };
+}
+
+/**
+ * Create a deterministic GeoArrow column projection for registration with
+ * `startColumnarWorkerHost`.
+ *
+ * Geometry is mandatory in the normative batch. Optional temporal, dictionary,
+ * and feature-id columns are retained only when requested. A new schema id and
+ * identity are required because the projected field set is a distinct cache and
+ * authorization-visible result, even though row order and values are unchanged.
+ */
+export function createGeoArrowProjectionOperation(
+  options: CreateGeoArrowProjectionOperationOptions,
+): ColumnarWorkerOperation {
+  if (typeof options !== "object" || options === null) {
+    throw new TypeError("GeoArrow projection options must be an object");
+  }
+  if (typeof options.id !== "string" || options.id.trim() !== options.id || options.id.length === 0) {
+    throw new TypeError("GeoArrow projection id must be a non-empty trimmed string");
+  }
+  if (typeof options.schemaId !== "string" || options.schemaId.trim() !== options.schemaId || options.schemaId.length === 0) {
+    throw new TypeError("GeoArrow projection schemaId must be a non-empty trimmed string");
+  }
+  if (typeof options.identity !== "object" || options.identity === null) {
+    throw new TypeError("GeoArrow projection identity must be an object");
+  }
+  const columns = options.columns === undefined ? ["geometry"] : [...options.columns];
+  const allowed = new Set<GeoArrowProjectionColumn>(["geometry", "temporal", "dictionary", "featureId"]);
+  if (columns.length !== new Set(columns).size || columns.some((column) => !allowed.has(column))) {
+    throw new TypeError("GeoArrow projection columns must be unique supported column names");
+  }
+  const limits = { ...options };
+  delete (limits as { id?: string }).id;
+  delete (limits as { schemaId?: string }).schemaId;
+  delete (limits as { identity?: ColumnarBatchIdentityV1 }).identity;
+  delete (limits as { columns?: readonly GeoArrowProjectionColumn[] }).columns;
+  const wants = new Set(columns);
+
+  return async (batch: ColumnarBatchV1, context: ColumnarWorkerOperationContext): Promise<ColumnarBatchV1> => {
+    const inspection = inspectGeoArrowBatch(batch, limits);
+    if (wants.has("temporal") && inspection.temporal === undefined) {
+      throw new TypeError("GeoArrow projection requested a missing temporal column");
+    }
+    if (wants.has("dictionary") && inspection.dictionary === undefined) {
+      throw new TypeError("GeoArrow projection requested a missing dictionary column");
+    }
+    if (wants.has("featureId") && inspection.featureIds === undefined) {
+      throw new TypeError("GeoArrow projection requested a missing feature-id column");
+    }
+    const decoded = decodeGeoArrowBatch(batch, limits);
+    const geometryValues: GeoArrowGeometryColumnInput["values"] = [];
+    const temporalValues: Array<bigint | null> = [];
+    const dictionaryValues: Array<string | null> = [];
+    const featureIdValues: number[] = [];
+    for (let index = 0; index < decoded.rows.length; index += 1) {
+      if (context.signal.aborted) throw new DOMException("The operation was aborted", "AbortError");
+      const row = decoded.rows[index]!;
+      geometryValues.push(row.geometry);
+      if (wants.has("temporal")) temporalValues.push(row.timestamp ?? null);
+      if (wants.has("dictionary")) dictionaryValues.push(row.dictionaryValue ?? null);
+      if (wants.has("featureId")) featureIdValues.push(row.featureId!);
+      if (index === decoded.rows.length - 1 || index % 256 === 0) {
+        context.reportProgress(decoded.rows.length === 0 ? 1 : (index + 1) / decoded.rows.length, "projection");
+      }
+    }
+    const geometry: GeoArrowGeometryColumnInput = {
+      kind: inspection.geometry.kind,
+      field: inspection.geometry.field,
+      dimensions: inspection.geometry.dimensions,
+      coordinateLayout: inspection.geometry.coordinateLayout,
+      ...(inspection.geometry.crs === undefined ? {} : { crs: inspection.geometry.crs }),
+      edges: inspection.geometry.edges,
+      values: geometryValues,
+    } as GeoArrowGeometryColumnInput;
+    const temporal = wants.has("temporal")
+      ? {
+          field: inspection.temporal!.field,
+          unit: inspection.temporal!.unit,
+          ...(inspection.temporal.timezone === undefined ? {} : { timezone: inspection.temporal.timezone }),
+          values: temporalValues,
+        }
+      : undefined;
+    const dictionary = wants.has("dictionary")
+      ? { field: inspection.dictionary!.field, ordered: inspection.dictionary!.ordered, values: dictionaryValues }
+      : undefined;
+    const featureIds = wants.has("featureId")
+      ? { field: inspection.featureIds!.field, values: featureIdValues }
+      : undefined;
+    return createGeoArrowBatch(
+      {
+        id: options.id,
+        sequence: batch.sequence,
+        ...(batch.rowOffset === undefined ? {} : { rowOffset: batch.rowOffset }),
+        schemaId: options.schemaId,
+        identity: options.identity,
         geometry,
         ...(temporal === undefined ? {} : { temporal }),
         ...(dictionary === undefined ? {} : { dictionary }),
