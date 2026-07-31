@@ -99,6 +99,9 @@ async function smokeSample(browser, origin, sample) {
   });
   page.on("response", (response) => {
     const url = new URL(response.url());
+    if (url.origin !== origin) {
+      failures.push(`off-origin response: ${response.status()} ${response.request().method()} ${response.url()}`);
+    }
     if (response.status() >= 400 && url.pathname !== "/favicon.ico") {
       failures.push(`response: ${response.status()} ${response.request().method()} ${response.url()}`);
     }
@@ -212,6 +215,6 @@ function sendStatus(response, status, message) {
 }
 
 main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`);
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
 });
