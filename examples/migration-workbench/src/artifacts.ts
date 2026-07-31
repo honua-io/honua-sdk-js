@@ -24,7 +24,9 @@ export async function loadMigrationWorkbenchArtifacts(
   options: LoadMigrationWorkbenchArtifactsOptions = {},
 ): Promise<MigrationWorkbenchArtifactSet> {
   const fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
-  const artifactBaseUrl = (options.artifactBaseUrl ?? "/artifacts/v1").replace(/\/$/u, "");
+  // Keep the default relative to the built application so the workbench
+  // remains self-contained when it is published below a gallery subpath.
+  const artifactBaseUrl = (options.artifactBaseUrl ?? "./artifacts/v1").replace(/\/$/u, "");
   const [manifest, migrationReport, widgetReadiness, maplibreAssessment, diff] = await Promise.all([
     fetchJson(fetchFn, `${artifactBaseUrl}/${ARTIFACT_FILENAMES.manifest}`, options.signal),
     fetchJson(fetchFn, `${artifactBaseUrl}/${ARTIFACT_FILENAMES.migrationReport}`, options.signal),

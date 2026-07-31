@@ -348,6 +348,7 @@
     "samples:bundles:build": "node scripts/build-sample-bundles.mjs build",
     "samples:bundles:test": "node --test test/scripts/build-sample-bundles.test.mjs",
     "samples:bundles:verify": "node --test test/scripts/build-sample-bundles.test.mjs && node scripts/build-sample-bundles.mjs check",
+    "samples:bundles:smoke": "node scripts/smoke-sample-bundles.mjs",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
     "verify:api-report": "npm run build --silent && node scripts/report-api-surface.mjs --check && node scripts/check-error-codes.mjs",

@@ -10,7 +10,7 @@ import { createAssertionMatrix } from "./workflow.js";
 
 const PUBLIC_ARTIFACT_PREFIX = "examples/migration-workbench/public/";
 const GENERATED_TARGET_PATH = "examples/migration-workbench/src/generated/migrated-main.js";
-const GENERATED_TARGET_HREF = "/artifacts/v1/migrated-main.js";
+const GENERATED_TARGET_HREF = "./artifacts/v1/migrated-main.js";
 
 export function createMigrationWorkbenchViewModel(
   artifacts: MigrationWorkbenchArtifactSet,
@@ -121,7 +121,7 @@ function mappingRows(
 function publicHref(file: ArtifactManifestFile): string | undefined {
   if (file.repositoryPath === GENERATED_TARGET_PATH) return GENERATED_TARGET_HREF;
   if (!file.repositoryPath.startsWith(PUBLIC_ARTIFACT_PREFIX)) return undefined;
-  return `/${file.repositoryPath.slice(PUBLIC_ARTIFACT_PREFIX.length)}`;
+  return `./${file.repositoryPath.slice(PUBLIC_ARTIFACT_PREFIX.length)}`;
 }
 
 function assertArtifactSetCoherence(artifacts: MigrationWorkbenchArtifactSet): void {
