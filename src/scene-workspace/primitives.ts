@@ -658,6 +658,14 @@ function diagnoseRenderableImagery(
     if (!isNonEmptyString(primitive.style)) missingServiceFields.push("style");
     if (!isNonEmptyString(primitive.tileMatrixSetId)) missingServiceFields.push("tileMatrixSetId");
   }
+  if (
+    primitive.protocol === "single-tile" &&
+    typeof primitive.url === "string" &&
+    primitive.url.includes("{s}") &&
+    primitive.subdomains === undefined
+  ) {
+    missingServiceFields.push("subdomains");
+  }
   if (missingServiceFields.length > 0) {
     diagnostics.push({
       ...diagnostic(

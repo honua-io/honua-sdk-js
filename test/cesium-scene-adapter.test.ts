@@ -596,7 +596,8 @@ describe("cesium scene adapter", () => {
           id: "snapshot",
           sourceId: "snapshot",
           protocol: "single-tile",
-          url: "https://images.example.test/snapshot.png",
+          url: "https://{s}.images.example.test/snapshot.png",
+          subdomains: ["snapshot-a", "snapshot-b"],
         },
         {
           kind: "imagery-layer",
@@ -649,7 +650,7 @@ describe("cesium scene adapter", () => {
         format: "image/png",
         subdomains: ["tiles-1"],
       });
-      expect(singleTileImageryFromUrl).toHaveBeenCalledWith("https://images.example.test/snapshot.png", {});
+      expect(singleTileImageryFromUrl).toHaveBeenCalledWith("https://snapshot-a.images.example.test/snapshot.png", {});
       expect(imageryProviders[4]?.options).toMatchObject({
         url: expect.stringMatching(
           /^https:\/\/\{s\}\.services\.example\.test\/arcgis\/rest\/services\/imagery\/ImageServer\/exportImage\?/,
@@ -763,6 +764,13 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "missing-single-tile-subdomains",
+          sourceId: "missing-single-tile-subdomains",
+          protocol: "single-tile",
+          url: "https://{s}.images.example.test/snapshot.png",
+        },
+        {
+          kind: "imagery-layer",
           id: "unsafe-subdomain",
           sourceId: "unsafe-subdomain",
           protocol: "url-template",
@@ -845,6 +853,13 @@ describe("cesium scene adapter", () => {
         expect.objectContaining({
           code: "scene-primitive-imagery-subdomains-invalid",
           primitiveId: "empty-subdomains",
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-missing",
+          primitiveId: "missing-single-tile-subdomains",
+          context: { missingFields: ["subdomains"] },
         }),
       );
       expect(imageryProviders).toHaveLength(0);

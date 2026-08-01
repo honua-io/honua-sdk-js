@@ -773,7 +773,7 @@ async function createCesiumImageryProvider(
         ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
       });
     case "single-tile":
-      return cesium.SingleTileImageryProvider.fromUrl(primitive.url, {
+      return cesium.SingleTileImageryProvider.fromUrl(resolveSingleTileUrl(primitive), {
         ...(primitive.attribution ? { credit: primitive.attribution } : {}),
       });
     case "arcgis-imagery":
@@ -786,6 +786,11 @@ async function createCesiumImageryProvider(
       }
       return cesium.ArcGisMapServerImageryProvider.fromUrl(primitive.url, commonOptions);
   }
+}
+
+function resolveSingleTileUrl(primitive: SceneImageryLayerPrimitive): string {
+  const subdomain = primitive.subdomains?.[0];
+  return subdomain === undefined ? primitive.url : primitive.url.replaceAll("{s}", subdomain);
 }
 
 function normalizedWmsParameters(
