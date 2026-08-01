@@ -616,6 +616,12 @@ describe("cesium scene adapter", () => {
           protocol: "arcgis-imagery",
           url: "https://{s}.services.example.test/arcgis/rest/services/reference/MapServer",
           subdomains: ["maps-primary", "maps-secondary"],
+          parameters: {
+            layers: "show:1",
+            enable_pick_features: false,
+            usePreCachedTilesIfAvailable: false,
+            tileWidth: 512,
+          },
         },
       ]);
 
@@ -682,7 +688,12 @@ describe("cesium scene adapter", () => {
       ]);
       expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
         "https://maps-primary.services.example.test/arcgis/rest/services/reference/MapServer",
-        {},
+        {
+          layers: "show:1",
+          enablePickFeatures: false,
+          usePreCachedTilesIfAvailable: false,
+          tileWidth: 512,
+        },
       );
       expect(scene.addedImagery[0]?.alpha).toBe(0.75);
     });
@@ -849,6 +860,14 @@ describe("cesium scene adapter", () => {
           minimumLevel: 8,
           maximumLevel: 2,
         },
+        {
+          kind: "imagery-layer",
+          id: "unsupported-mapserver-parameter",
+          sourceId: "unsupported-mapserver-parameter",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/MapServer",
+          parameters: { customExportOption: "ignored" },
+        },
       ]);
 
       expect(result.status).toBe("unsupported");
@@ -869,6 +888,13 @@ describe("cesium scene adapter", () => {
           code: "scene-primitive-imagery-service-config-missing",
           primitiveId: "malformed-wmts-config",
           context: { missingFields: ["layer", "style", "tileMatrixSetId"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "unsupported-mapserver-parameter",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["customExportOption"] },
         }),
       );
       expect(result.diagnostics).toContainEqual(
@@ -1024,6 +1050,61 @@ describe("cesium scene adapter", () => {
       expect(existingProvider.destroy).toHaveBeenCalledTimes(1);
       expect(replacementProvider.destroy).toHaveBeenCalledTimes(1);
       expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("preserves the original terrain when intermediate cleanup fails", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const cesium = (await import("cesium")) as never;
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "original-terrain",
+          sourceId: "original-terrain",
+          protocol: "quantized-mesh",
+          url: "https://example.test/original-terrain",
+          exaggeration: 1.25,
+        },
+        cesium,
+      );
+      const originalProvider = scene.terrainProvider as { destroy: ReturnType<typeof vi.fn> };
+      const intermediateDestroy = vi.fn().mockImplementationOnce(() => {
+        throw new Error("intermediate terrain cleanup failed");
+      });
+      terrainFromUrl.mockImplementationOnce(async (url: string) => ({
+        kind: "terrain-provider",
+        url,
+        destroy: intermediateDestroy,
+      }));
+
+      await expect(
+        applyCesiumScenePrimitives({ camera, scene }, [
+          {
+            kind: "elevation-source",
+            id: "intermediate-terrain",
+            sourceId: "intermediate-terrain",
+            protocol: "quantized-mesh",
+            url: "https://example.test/intermediate-terrain",
+            exaggeration: 2,
+          },
+          {
+            kind: "elevation-source",
+            id: "final-terrain",
+            sourceId: "final-terrain",
+            protocol: "quantized-mesh",
+            url: "https://example.test/final-terrain",
+            exaggeration: 3,
+          },
+        ]),
+      ).rejects.toThrow("intermediate terrain cleanup failed");
+
+      const finalProvider = await terrainFromUrl.mock.results[2]?.value;
+      expect(scene.terrainProvider).toBe(originalProvider);
+      expect(scene.verticalExaggeration).toBe(1.25);
+      expect(originalProvider.destroy).not.toHaveBeenCalled();
+      expect(intermediateDestroy).toHaveBeenCalledTimes(2);
+      expect(finalProvider.destroy).toHaveBeenCalledTimes(1);
     });
 
     it("controls and disposes an owned imagery layer exactly once", async () => {

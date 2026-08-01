@@ -694,6 +694,10 @@ function diagnoseRenderableImagery(
   if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
     invalidServiceFields.push("parameters");
   }
+  const invalidParameterKeys = invalidArcGisMapServerParameterKeys(primitive);
+  if (invalidParameterKeys.length > 0 && !invalidServiceFields.includes("parameters")) {
+    invalidServiceFields.push("parameters");
+  }
   if (invalidServiceFields.length > 0) {
     diagnostics.push({
       ...diagnostic(
@@ -705,7 +709,10 @@ function diagnoseRenderableImagery(
         `Imagery protocol '${primitive.protocol}' has invalid service configuration.`,
         "Omit optional service fields or provide values in their documented form.",
       ),
-      context: { invalidFields: invalidServiceFields },
+      context: {
+        invalidFields: invalidServiceFields,
+        ...(invalidParameterKeys.length > 0 ? { invalidParameterKeys } : {}),
+      },
     });
   }
 
@@ -846,6 +853,46 @@ function isValidImagerySubdomains(value: unknown): value is readonly string[] {
     if (!Object.hasOwn(value, index) || !isSafeDnsLabel(value[index])) return false;
   }
   return true;
+}
+
+function invalidArcGisMapServerParameterKeys(primitive: SceneImageryLayerPrimitive): string[] {
+  if (
+    primitive.protocol !== "arcgis-imagery" ||
+    typeof primitive.url !== "string" ||
+    isArcGisImageServerEndpoint(primitive.url) ||
+    primitive.parameters === undefined ||
+    !isValidImageryParameters(primitive.parameters)
+  ) {
+    return [];
+  }
+  const invalidKeys: string[] = [];
+  const seenKeys = new Set<string>();
+  for (const [key, value] of Object.entries(primitive.parameters)) {
+    const canonical = canonicalParameterKey(key);
+    if (seenKeys.has(canonical)) {
+      invalidKeys.push(key);
+      continue;
+    }
+    seenKeys.add(canonical);
+    const valid =
+      (canonical === "layers" && isNonEmptyString(value)) ||
+      ((canonical === "enablepickfeatures" || canonical === "useprecachedtilesifavailable") &&
+        typeof value === "boolean") ||
+      ((canonical === "tilewidth" || canonical === "tileheight") &&
+        typeof value === "number" &&
+        Number.isInteger(value) &&
+        value > 0 &&
+        value <= 8192);
+    if (!valid) invalidKeys.push(key);
+  }
+  return invalidKeys;
+}
+
+function isArcGisImageServerEndpoint(url: string): boolean {
+  const endpoint = url.split(/[?#]/, 1)[0] ?? "";
+  let end = endpoint.length;
+  while (end > 0 && endpoint.charCodeAt(end - 1) === 47) end -= 1;
+  return endpoint.slice(0, end).toLowerCase().endsWith("/imageserver");
 }
 
 function isSafeDnsLabel(value: unknown): value is string {

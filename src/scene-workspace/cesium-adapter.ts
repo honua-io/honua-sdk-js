@@ -785,7 +785,10 @@ async function createCesiumImageryProvider(
           ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
         });
       }
-      return cesium.ArcGisMapServerImageryProvider.fromUrl(resolveConfiguredSubdomainUrl(primitive), commonOptions);
+      return cesium.ArcGisMapServerImageryProvider.fromUrl(resolveConfiguredSubdomainUrl(primitive), {
+        ...commonOptions,
+        ...arcGisMapServerOptions(primitive.parameters),
+      });
   }
 }
 
@@ -814,6 +817,32 @@ function normalizedWmsUrl(url: string, format: SceneImageryLayerPrimitive["forma
     }
   });
   return `${endpoint}${preserved.length > 0 ? `?${preserved.join("&")}` : ""}${fragment}`;
+}
+
+function arcGisMapServerOptions(
+  parameters: SceneImageryLayerPrimitive["parameters"],
+): Readonly<Record<string, string | number | boolean>> {
+  const options: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(parameters ?? {})) {
+    switch (key.toLowerCase().replaceAll(/[^a-z0-9]/g, "")) {
+      case "layers":
+        options.layers = value;
+        break;
+      case "enablepickfeatures":
+        options.enablePickFeatures = value;
+        break;
+      case "useprecachedtilesifavailable":
+        options.usePreCachedTilesIfAvailable = value;
+        break;
+      case "tilewidth":
+        options.tileWidth = value;
+        break;
+      case "tileheight":
+        options.tileHeight = value;
+        break;
+    }
+  }
+  return options;
 }
 
 function normalizedWmsParameters(
@@ -1089,7 +1118,7 @@ export async function applyCesiumScenePrimitives(
         // i3s / obj / custom: declared-capable but not materialized here.
       }
     }
-    for (const provider of deferredTerrainProviders) disposeOwnedCesiumTerrainProvider(provider);
+    for (const provider of [...deferredTerrainProviders].reverse()) disposeOwnedCesiumTerrainProvider(provider);
   } catch (cause) {
     const rollbackErrors: unknown[] = [];
     for (const handle of appliedHandles.reverse()) {
