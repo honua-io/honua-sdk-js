@@ -1,9 +1,10 @@
 # Downloadable offline regions (experimental)
 
-`@honua/sdk-js/offline` is the first bounded slice of issue
+`@honua/sdk-js/offline` contains bounded, independently usable slices of issue
 [#396](https://github.com/honua-io/honua-sdk-js/issues/396). It defines a
-versioned manifest and a storage-neutral download coordinator. It does not make
-the broader local-first feature complete.
+versioned manifest, storage-neutral download coordinator, persistent browser
+store, and durable edit queue. It does not make the broader local-first feature
+complete.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -44,6 +45,48 @@ const diagnostic = await createOfflineRegionDiagnostic(
     staleAfterMs: 15 * 60 * 1000,
   },
 );
+```
+
+## Durable edit queue
+
+The same subpath exposes a storage-neutral queue contract, a deterministic
+in-memory implementation, and a persistent IndexedDB implementation. Queue
+identity is partitioned by the already-digested authorization scope, source,
+and an opaque application idempotency key.
+
+```ts doc-test=skip reason="partial excerpt requires application replay transport"
+import { createIndexedDbOfflineEditQueue } from "@honua/sdk-js/offline";
+
+const queue = createIndexedDbOfflineEditQueue();
+const enqueued = await queue.enqueue({
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  idempotencyKey: localMutationId,
+  edit: {
+    operation: "update",
+    featureId: incidentId,
+    attributes: { status: "contained" },
+  },
+});
+
+const [leased] = await queue.claimReady({
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  workerId: replayWorkerId,
+  limit: 1,
+  leaseDurationMs: 30_000,
+});
+
+if (leased) {
+  // The application sends leased.edit and leased.idempotencyKey through its
+  // established hosted replica-sync transport, then persists the outcome.
+  await queue.markApplied(leased.id, leased.lease.token, {
+    serverOperationId,
+    serverGeneration,
+  });
+}
+
+console.log(enqueued.status); // "enqueued" or "duplicate"
 ```
 
 ## Contract guarantees
@@ -96,6 +139,28 @@ const diagnostic = await createOfflineRegionDiagnostic(
   admission/eviction plan. Endpoint and ETag values are represented only by
   domain-separated SHA-256 fingerprints; the authorization scope was already
   reduced to its persisted digest when the manifest was created.
+- Edit enqueue is atomic and idempotent within an authorization-scope/source
+  partition. Reusing an idempotency key for different content is a typed error.
+  Dependencies must already exist in the same partition, and every list or
+  claim names that partition explicitly, so a replay worker cannot lease edits
+  belonging to another authorization context.
+- IndexedDB claims serialize their read/modify/write transaction across tabs.
+  A compact indexed metadata store scans only the named partition and loads full
+  payloads only for the bounded winning claim set. Active leases exclude
+  competing workers, expired leases are recoverable, and applied, retryable,
+  and conflicted outcomes are durable. A partition-scoped cancellation
+  transition lets applications retire pending or retryable work that cannot
+  proceed, including dependents of conflicted edits. Bounded terminal pruning
+  preserves any record still required by active dependent work. Payload size,
+  queue length, dependency count, list/claim/prune size, lease duration, and
+  per-edit audit history are explicitly bounded. Audit history uses rolling
+  retention with monotonic sequence numbers so its bound cannot prevent a
+  progress-critical state transition. Pruning removes payload and audit data
+  but retains a compact identity/request-fingerprint tombstone for the lifetime
+  of the named queue database; a completed identity cannot silently be
+  re-enqueued after cleanup, and an applied tombstone continues to satisfy
+  future dependency IDs. The persisted schema accepts no request headers,
+  tokens, URLs, or raw authorization scope.
 
 The manifest contains logical resource ids, not request URLs. The injected
 loader may resolve short-lived signed URLs or authorization at download time;
@@ -106,11 +171,12 @@ those values never cross the persistent-store boundary.
 The storage-backed fetch handler can be installed in a service worker or other
 fetch integration, but the host still owns request matching and network
 reachability policy. This slice does not provide encryption policy, a complete
-application-level query/read cache, or the local edit queue and replica conflict
-replay needed for exactly-once synchronization. That replay must integrate with
-the established Honua Server replica-sync, upload-cursor, and conflict-review
+application-level query/read cache, or an edit replay coordinator. The queue's
+atomic deduplication and leases are local durability primitives; they do **not**
+claim end-to-end exactly-once synchronization. Replay must integrate with the
+established Honua Server replica-sync, upload-cursor, and conflict-review
 contracts exposed to hosted applications through `@honua/app-platform`; this
-offline storage subpath does not duplicate that client. The integration remains
-required before issue #396 can satisfy its Beta acceptance criteria. This
-entrypoint is `@experimental` and subpath-only so the root and browser bundles
-do not absorb it.
+offline storage subpath does not duplicate that client. That integration and
+server-acknowledgement proof remain required before issue #396 can satisfy its
+Beta acceptance criteria. This entrypoint is `@experimental` and subpath-only
+so the root and browser bundles do not absorb it.
