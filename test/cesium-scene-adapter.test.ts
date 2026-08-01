@@ -578,6 +578,7 @@ describe("cesium scene adapter", () => {
           layer: "precipitation",
           format: "image/png",
           parameters: { transparent: true },
+          subdomains: ["maps-a", "maps-b"],
         },
         {
           kind: "imagery-layer",
@@ -588,6 +589,7 @@ describe("cesium scene adapter", () => {
           layer: "world",
           style: "default",
           tileMatrixSetId: "WebMercatorQuad",
+          subdomains: ["tiles-1"],
         },
         {
           kind: "imagery-layer",
@@ -635,6 +637,7 @@ describe("cesium scene adapter", () => {
         url: "https://maps.example.test/wms",
         layers: "precipitation",
         parameters: { transparent: true, format: "image/png" },
+        subdomains: ["maps-a", "maps-b"],
       });
       expect(imageryProviders[2]?.options).toMatchObject({
         url: "https://maps.example.test/wmts",
@@ -642,6 +645,7 @@ describe("cesium scene adapter", () => {
         style: "default",
         tileMatrixSetID: "WebMercatorQuad",
         format: "image/png",
+        subdomains: ["tiles-1"],
       });
       expect(singleTileImageryFromUrl).toHaveBeenCalledWith("https://images.example.test/snapshot.png", {});
       expect(imageryProviders[4]?.options).toMatchObject({
@@ -732,6 +736,7 @@ describe("cesium scene adapter", () => {
           layer: 42,
           style: [],
           tileMatrixSetId: {},
+          format: 123,
         } as unknown as SceneRuntimePrimitive,
         {
           kind: "imagery-layer",
@@ -757,6 +762,7 @@ describe("cesium scene adapter", () => {
         expect.arrayContaining([
           "scene-primitive-imagery-source-missing-url",
           "scene-primitive-imagery-service-config-missing",
+          "scene-primitive-imagery-service-config-invalid",
           "scene-primitive-imagery-opacity-invalid",
           "scene-primitive-imagery-level-range-invalid",
           "scene-primitive-imagery-subdomains-invalid",
@@ -767,6 +773,13 @@ describe("cesium scene adapter", () => {
           code: "scene-primitive-imagery-service-config-missing",
           primitiveId: "malformed-wmts-config",
           context: { missingFields: ["layer", "style", "tileMatrixSetId"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "malformed-wmts-config",
+          context: { invalidFields: ["format"] },
         }),
       );
       expect(result.diagnostics).toContainEqual(

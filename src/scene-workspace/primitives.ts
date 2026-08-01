@@ -616,6 +616,29 @@ function diagnoseRenderableImagery(
     });
   }
 
+  const invalidServiceFields: string[] = [];
+  if (
+    (primitive.protocol === "wms" || primitive.protocol === "wmts") &&
+    primitive.format !== undefined &&
+    !isNonEmptyString(primitive.format)
+  ) {
+    invalidServiceFields.push("format");
+  }
+  if (invalidServiceFields.length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-imagery-service-config-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        `Imagery protocol '${primitive.protocol}' has invalid service configuration.`,
+        "Omit optional service fields or provide values in their documented form.",
+      ),
+      context: { invalidFields: invalidServiceFields },
+    });
+  }
+
   if (
     primitive.opacity !== undefined &&
     (!Number.isFinite(primitive.opacity) || primitive.opacity < 0 || primitive.opacity > 1)

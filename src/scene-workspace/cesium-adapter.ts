@@ -755,6 +755,7 @@ async function createCesiumImageryProvider(
         url: primitive.url,
         layers: primitive.layer,
         ...commonOptions,
+        ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
         ...(primitive.parameters || primitive.format
           ? {
               parameters: {
@@ -772,6 +773,7 @@ async function createCesiumImageryProvider(
         tileMatrixSetID: primitive.tileMatrixSetId,
         format: primitive.format ?? "image/png",
         ...commonOptions,
+        ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
       });
     case "single-tile":
       return cesium.SingleTileImageryProvider.fromUrl(primitive.url, {
