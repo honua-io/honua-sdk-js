@@ -43,10 +43,9 @@ jobs:
 
       - name: Run full-scale deck.gl evidence
         id: benchmark
-        # Capture against the placeholder thresholds without making them a
-        # regression gate. Once repeated reports establish reviewed budgets,
-        # switch this lane to bench:browser:full-scale (which passes --check).
-        run: npm run bench:browser:full-scale:capture
+        # Reviewed against three serialized ubuntu24/SwiftShader runs on
+        # a0b3aecd (30716684349, 30717019856, 30717020832).
+        run: npm run bench:browser:full-scale
 
       - name: Upload full-scale evidence
         if: always() && steps.benchmark.outcome != 'skipped'

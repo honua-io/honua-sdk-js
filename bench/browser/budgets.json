@@ -8,16 +8,15 @@
     "deckgl.scale-render-1m) are opt-in (HONUA_BROWSER_BENCH_SCALE=full / npm run bench:browser:full-scale) and",
     "excluded from the deterministic PR lane's default `npm run bench:browser` run; only the 10k",
     "deckgl.binary-render-interact scenario, the capability scenarios, and the lifecycle scenarios run there.",
-    "The 100k entries below were calibrated from a real LOCAL Chromium+swiftshader run, then proved wrong on a",
-    "real CI run of the same tier (render 2677.80 ms / interaction 695 ms / gpuUpload 990 ms / steadyFps 1.3 —",
-    "well past these numbers): CI's software GL is not the same runner class as any given contributor's",
-    "machine, so a same-box baseline is not a portable CI budget. Treat every number in deckgl.scale-render-100k",
-    "and deckgl.scale-render-1m below as UNCALIBRATED FOR CI. The scheduled/manual deck.gl Full-Scale Evidence",
-    "workflow now captures HONUA_BROWSER_BENCH_SCALE=full reports on a stable Ubuntu runner class. Replace these",
-    "placeholders only after repeated reports establish runner variance. swiftshader is a CPU software rasterizer,",
-    "so its fill-rate-bound circle redraw is far slower than a real GPU (observed ~1 fps steady-state at 100k",
-    "points locally, worse on CI) — do not read these as real-device performance either way. The 1M budgets are",
-    "further extrapolated from the (already CI-invalidated) 100k baseline and are even less trustworthy.",
+    "The 100k and 1M entries below were reviewed on 2026-08-01 from three serialized Full-Scale Evidence runs",
+    "on the same a0b3aecd commit, GitHub ubuntu24 runner class, Chromium 145, and SwiftShader renderer:",
+    "runs 30716684349, 30717019856, and 30717020832. Across-run coefficient of variation was 7.2-12.0% for",
+    "first frame, interaction/picking, GPU upload, conversion, and steady FPS. Every run preserved zero copied",
+    "payload bytes, passed its journey invariants, and reported 37.3 MB heap after the 1M first frame.",
+    "Warning thresholds leave approximately 25-50% headroom for first-frame, interaction/picking, GPU-upload,",
+    "and steady-FPS runner variance; faster conversion, transfer, and disposal stages retain wider absolute margins.",
+    "Failure thresholds identify hangs or material regressions rather than normal shared-runner noise.",
+    "SwiftShader is a CPU software rasterizer, so these remain regression-safety budgets, not device SLAs.",
     "stage metrics ending in Ms are upper bounds (smaller is better); steadyFrameRateFps is a lower bound",
     "(direction: at-least) since a smaller frames-per-second value is the regression."
   ],
@@ -36,27 +35,27 @@
       "interactionLatencyMs": { "warning": 750, "failure": 2000 }
     },
     "deckgl.scale-render-100k": {
-      "firstVisibleMs": { "warning": 10000, "failure": 25000 },
-      "interactionLatencyMs": { "warning": 2500, "failure": 7000 },
+      "firstVisibleMs": { "warning": 3500, "failure": 6000 },
+      "interactionLatencyMs": { "warning": 900, "failure": 1500 },
       "stages": {
-        "conversionMs": { "warning": 300, "failure": 1500 },
-        "transferMs": { "warning": 100, "failure": 500 },
-        "gpuUploadMs": { "warning": 6000, "failure": 18000 },
-        "steadyFrameRateFps": { "direction": "at-least", "warning": 0.4, "failure": 0.1 },
-        "pickingMs": { "warning": 2500, "failure": 7000 },
-        "disposalMs": { "warning": 500, "failure": 3000 }
+        "conversionMs": { "warning": 50, "failure": 100 },
+        "transferMs": { "warning": 5, "failure": 25 },
+        "gpuUploadMs": { "warning": 1500, "failure": 3000 },
+        "steadyFrameRateFps": { "direction": "at-least", "warning": 1, "failure": 0.5 },
+        "pickingMs": { "warning": 900, "failure": 1500 },
+        "disposalMs": { "warning": 10, "failure": 50 }
       }
     },
     "deckgl.scale-render-1m": {
-      "firstVisibleMs": { "warning": 30000, "failure": 90000 },
-      "interactionLatencyMs": { "warning": 15000, "failure": 40000 },
+      "firstVisibleMs": { "warning": 27500, "failure": 45000 },
+      "interactionLatencyMs": { "warning": 9000, "failure": 15000 },
       "stages": {
-        "conversionMs": { "warning": 1500, "failure": 6000 },
-        "transferMs": { "warning": 300, "failure": 1500 },
-        "gpuUploadMs": { "warning": 40000, "failure": 100000 },
-        "steadyFrameRateFps": { "direction": "at-least", "warning": 0.1, "failure": 0.02 },
-        "pickingMs": { "warning": 15000, "failure": 40000 },
-        "disposalMs": { "warning": 2000, "failure": 10000 }
+        "conversionMs": { "warning": 300, "failure": 750 },
+        "transferMs": { "warning": 5, "failure": 25 },
+        "gpuUploadMs": { "warning": 10000, "failure": 18000 },
+        "steadyFrameRateFps": { "direction": "at-least", "warning": 0.14, "failure": 0.07 },
+        "pickingMs": { "warning": 9000, "failure": 15000 },
+        "disposalMs": { "warning": 10, "failure": 50 }
       }
     }
   },
