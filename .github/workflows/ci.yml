@@ -534,6 +534,20 @@ jobs:
       - name: Verify sample bundle manifest
         run: npm run samples:bundles:verify
 
+      - name: Install Chromium for published-bundle smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke standalone bundles at their gallery subpaths
+        run: npm run samples:bundles:smoke
+
+      - name: Upload published-bundle browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sample-bundle-browser-smoke
+          path: .artifacts/sample-bundle-smoke
+          if-no-files-found: error
+
       - name: Package release assets
         run: |
           set -euo pipefail

@@ -22,7 +22,7 @@
  * default (no live override, no secret can leak in). The built
  * `examples/<id>/dist/` output is copied into `.artifacts/sample-bundles/<id>/`
  * (gitignored, so nothing this script writes is committed) and a
- * `honua.sdk.sample-bundles.v1` manifest is written describing every sample's
+ * `honua.sdk.sample-bundles.v2` manifest is written describing every sample's
  * entrypoint, per-file SHA-256 / SRI integrity, declared config surface, data
  * mode, support/lifecycle truth, runnability plus any host fixture-route
  * prerequisites, and the exact commit / package version it was built from.
@@ -958,7 +958,7 @@ async function main(argv) {
   throw new Error(`Unknown command: ${command} (expected build|check)`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   main(process.argv.slice(2)).catch((error) => {
     process.stderr.write(`build-sample-bundles failed: ${error instanceof Error ? error.stack : String(error)}\n`);
     process.exitCode = 1;

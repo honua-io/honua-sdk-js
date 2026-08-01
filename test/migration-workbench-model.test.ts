@@ -95,10 +95,10 @@ describe("migration workbench artifact model", () => {
     expect(model.diff).toBe(fs.readFileSync(path.join(artifactRoot, "migration.v1.patch"), "utf8"));
     expect(model.files).toHaveLength(artifacts.manifest.files.length);
     expect(model.files.find((file) => file.repositoryPath.endsWith("migration.v1.patch"))?.href).toBe(
-      "/artifacts/v1/migration.v1.patch",
+      "./artifacts/v1/migration.v1.patch",
     );
     expect(model.files.find((file) => file.repositoryPath.endsWith("migrated-main.js"))?.href).toBe(
-      "/artifacts/v1/migrated-main.js",
+      "./artifacts/v1/migrated-main.js",
     );
     expect(model.files.every((file) => /^[a-f0-9]{64}$/u.test(file.sha256))).toBe(true);
     expect(model.patchProof.applyCheckPassed).toBe(true);
