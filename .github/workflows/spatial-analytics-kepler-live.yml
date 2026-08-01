@@ -1,0 +1,54 @@
+name: Spatial Analytics Kepler Live Evidence
+
+# The packed bridge qualifies one bounded anonymous aggregate query against a
+# reviewed public GeoServices layer. Pull requests remain fixture-only.
+on:
+  schedule:
+    - cron: "35 7 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  packed-live-handoff:
+    name: Accepted plan to packed Kepler bridge
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install pinned dependencies
+        run: npm ci
+
+      - name: Execute accepted live plan through packed Kepler bridge
+        env:
+          HONUA_SAMPLE_SOURCE_REVISION: ${{ github.sha }}
+          HONUA_SPATIAL_ANALYTICS_BASE_URL: https://sampleserver6.arcgisonline.com/arcgis
+          HONUA_SPATIAL_ANALYTICS_SERVICE_ID: LocalGovernment/CitizenRequests
+          HONUA_SPATIAL_ANALYTICS_LAYER_ID: "0"
+          HONUA_SPATIAL_ANALYTICS_GROUP_FIELD: severity
+          HONUA_SPATIAL_ANALYTICS_VALUE_FIELD: requesttype
+          HONUA_SPATIAL_ANALYTICS_ID_FIELD: objectid
+          HONUA_SPATIAL_ANALYTICS_SOURCE_VERSION: sampleserver6-citizen-requests
+          HONUA_SPATIAL_ANALYTICS_SCHEMA_VERSION: esri-feature-layer-10.91
+          HONUA_SPATIAL_ANALYTICS_ATTRIBUTION: Esri SampleServer6 LocalGovernment CitizenRequests sample.
+        run: npm run demo:spatial-analytics:live-evidence
+
+      - name: Upload packed live handoff evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: honua-sdk-kepler-live-evidence
+          path: test-results/spatial-analytics-live-evidence.json
+          if-no-files-found: error
+          retention-days: 90

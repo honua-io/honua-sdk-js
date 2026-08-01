@@ -34,10 +34,16 @@ if (protocol === "ogc-features") {
     observedAt,
   );
 } else {
-  const [{ capabilities, createDataset }, { HonuaClient }, { executeQueryPlan, explainQuery }] = await Promise.all([
-    import("../../dist/src/contract/index.js"),
-    import("../../dist/src/honua.js"),
-    import("../../dist/src/query-planner/index.js"),
+  const [
+    { capabilities, createDataset },
+    { HonuaClient },
+    { executeQueryPlan, explainQuery },
+    { createKeplerWorkspaceBridge },
+  ] = await Promise.all([
+    import("../../dist/packages/honua-sdk/contract/index.js"),
+    import("../../dist/packages/honua-sdk/index.js"),
+    import("../../dist/packages/honua-sdk/query-planner/index.js"),
+    import("../../dist/packages/honua-sdk/kepler/index.js"),
   ]);
   const safeUrl = publicUrl(baseUrl);
   const descriptor = {
@@ -85,6 +91,39 @@ if (protocol === "ogc-features") {
   });
   const totalMs = Math.max(0, performance.now() - started);
   const rows = execution.result.aggregateRows ?? [];
+  const bridge = createKeplerWorkspaceBridge({
+    peers: {
+      version: "3.2.6",
+      addDataToMap: (payload) => ({ type: "kepler/addDataToMap", payload }),
+    },
+  });
+  try {
+    const opened = bridge.openResult({
+      datasetId: "cloud-native-risk-summary-live",
+      label: "Accepted cloud-native risk summary (live)",
+      result: execution.result,
+      provenance: {
+        sourceId: descriptor.id,
+        sourceVersion: plan.ir.source.sourceVersion,
+        schemaVersion: plan.ir.source.schemaVersion,
+        planId: plan.id,
+        planFingerprint: plan.fingerprint,
+        authorizationScope: "data:read",
+        attribution:
+          process.env.HONUA_SPATIAL_ANALYTICS_ATTRIBUTION ?? "Attribution supplied by the configured source.",
+        protocol: descriptor.protocol,
+        freshness: { observedAt },
+      },
+    });
+    if (opened.projection.diagnostic.strategy !== "row-object-direct") {
+      throw new Error(`Expected direct aggregate-row ingestion, got ${opened.projection.diagnostic.strategy}`);
+    }
+    if (opened.projection.diagnostic.geoJsonBytes !== 0 || opened.projection.metrics.rows !== rows.length) {
+      throw new Error("Packed Kepler projection changed the accepted result row count or serialized GeoJSON.");
+    }
+  } finally {
+    bridge.dispose();
+  }
   evidence = {
     $schema: "../../samples/contract/v1/schemas/sample-evidence.schema.json",
     format: "honua.sdk.sample-evidence.v1",
@@ -118,7 +157,14 @@ if (protocol === "ogc-features") {
       operation: "geoservices-queryAggregate",
       outcome: "accepted-plan-executed",
       itemCount: rows.length,
-      assertions: ["plan-fingerprint-validated", "remote-pushdown", "aggregate-rows-returned"],
+      assertions: [
+        "plan-fingerprint-validated",
+        "remote-pushdown",
+        "aggregate-rows-returned",
+        "packed-kepler-result-opened",
+        "kepler-geojson-bytes-zero",
+        "kepler-bridge-disposed",
+      ],
     },
     timing: { totalMs, firstSuccessfulInteractionMs: totalMs },
     degradation: { state: "none", reasons: [] },

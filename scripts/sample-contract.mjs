@@ -282,12 +282,14 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
   [
     "demo:spatial-analytics:live-evidence",
     {
-      definition: "npm run build --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
+      definition:
+        "npm run build:split-packages --silent && node examples/spatial-analytics-workbench/live-evidence.mjs",
       generatorPath: "examples/spatial-analytics-workbench/live-evidence.mjs",
       dependencies: {
-        build: "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
-        clean: "node scripts/clean-dist.mjs",
-        compile: "npm run clean --silent && tsc -p tsconfig.json",
+        "build:split-packages":
+          "npm run prepare:test-sdk --silent && node scripts/prepare-split-packages.mjs && npm run prepare:test-sdk:adopt --silent",
+        "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",
+        "prepare:test-sdk:adopt": "node scripts/prepare-sdk-test-artifacts.mjs --adopt-additions",
       },
     },
   ],

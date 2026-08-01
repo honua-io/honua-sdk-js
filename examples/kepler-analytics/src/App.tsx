@@ -1,8 +1,14 @@
+import {
+  type KeplerIngestionDiagnostic,
+  type KeplerProtoDataset,
+  type KeplerWorkspaceBridge,
+  createKeplerWorkspaceBridge,
+} from "@honua/sdk-js/kepler";
 import { addDataToMap, setAnimationConfig, setFilter, wrapTo } from "@kepler.gl/actions";
 import { KeplerGl } from "@kepler.gl/components";
-import { processGeojson } from "@kepler.gl/processors";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { createSpatialAnalyticsKeplerHandoff } from "../../spatial-analytics-workbench/src/kepler-handoff.js";
 import keplerConfig from "./config/kepler-config.json";
 import { store } from "./store";
 
@@ -72,17 +78,12 @@ interface FixtureMetadata {
   };
 }
 
-interface DemoDataset {
-  info: {
-    id: string;
-    label: string;
-  };
-  data: Exclude<ReturnType<typeof processGeojson>, null>;
-}
+type DemoDataset = KeplerProtoDataset;
 
 interface GeoJsonFeatureCollection {
   features?: Array<{
     properties?: Record<string, unknown> | null;
+    geometry?: unknown;
   }>;
 }
 
@@ -98,9 +99,28 @@ interface ReplayHarnessState {
 }
 
 interface ReplayHarness {
+  getBridgeState: () => BridgeHarnessState | null;
   getReplayState: () => ReplayHarnessState | null;
   setReplayWindow: (startIso: string, endIso: string) => boolean;
 }
+
+interface BridgeHarnessState {
+  contractVersion: string;
+  datasetIds: string[];
+  diagnostics: Record<string, Pick<KeplerIngestionDiagnostic, "geoJsonBytes" | "strategy">>;
+  cloudNative: {
+    planFingerprint: string | undefined;
+    rows: number;
+    state: "fixture-replay";
+  };
+  metrics: {
+    datasets: number;
+    estimatedRowBytes: number;
+    rows: number;
+  };
+}
+
+let activeBridgeState: BridgeHarnessState | null = null;
 
 type KeplerAnalyticsWindow = Window & {
   __keplerAnalyticsError?: string | null;
@@ -147,6 +167,8 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 async function loadFixtureBundle(): Promise<{
+  bridge: KeplerWorkspaceBridge;
+  bridgeState: BridgeHarnessState;
   metadata: FixtureMetadata;
   datasets: DemoDataset[];
   replayWindow: {
@@ -156,7 +178,7 @@ async function loadFixtureBundle(): Promise<{
 }> {
   const metadata = await fetchJson<FixtureMetadata>("/data/fixture-metadata.json");
   const replayTimestamps: number[] = [];
-  const datasets = await Promise.all(
+  const fixtureInputs = await Promise.all(
     metadata.datasets.map(async (dataset) => {
       const rawDataset = await fetchJson<GeoJsonFeatureCollection>(dataset.path);
       if ((REPLAY_FILTER_DATASETS as readonly string[]).includes(dataset.id)) {
@@ -171,33 +193,82 @@ async function loadFixtureBundle(): Promise<{
         }
       }
 
-      const processed = processGeojson(rawDataset);
-      if (!processed) {
-        throw new Error(`Failed to process fixture dataset ${dataset.id}.`);
-      }
-
-      return {
-        info: {
-          id: dataset.id,
-          label: dataset.label,
-        },
-        data: processed,
-      };
+      return { manifest: dataset, rawDataset };
     }),
   );
 
-  const replayWindow =
-    replayTimestamps.length > 0
-      ? {
-          start: new Date(Math.min(...replayTimestamps)).toISOString(),
-          end: new Date(Math.max(...replayTimestamps)).toISOString(),
-        }
-      : {
-          start: metadata.timeWindow.start,
-          end: metadata.timeWindow.end,
-        };
+  const bridge = createKeplerWorkspaceBridge({
+    peers: {
+      version: "3.2.6",
+      addDataToMap: (payload) => addDataToMap(payload as Parameters<typeof addDataToMap>[0]),
+    },
+  });
+  try {
+    const fixtureOpenings = fixtureInputs.map(({ manifest, rawDataset }) =>
+      bridge.openResult({
+        datasetId: manifest.id,
+        label: manifest.label,
+        crs: "EPSG:4326",
+        temporalFields: manifest.source.timeField ? [manifest.source.timeField] : [],
+        forceGeoJsonColumn: true,
+        result: {
+          features: (rawDataset.features ?? []).map((feature) => ({
+            attributes: feature.properties ?? {},
+            geometry: feature.geometry,
+          })),
+          exceededTransferLimit: false,
+        },
+        provenance: {
+          sourceId: `${manifest.source.serviceId}:${manifest.source.layerId}`,
+          sourceVersion: metadata.exportedAt,
+          planId: `${metadata.storyId}:fixture-export`,
+          authorizationScope: "public-fixture",
+          attribution: manifest.source.description,
+          protocol: "geoservices-feature-service",
+          freshness: { observedAt: metadata.exportedAt },
+        },
+      }),
+    );
+    const cloudNativeHandoff = await createSpatialAnalyticsKeplerHandoff();
+    const cloudNativeOpening = bridge.openResult(cloudNativeHandoff.request);
+    const openings = [...fixtureOpenings, cloudNativeOpening];
+    const datasets = openings.map((opening) => opening.projection.dataset);
+    const bridgeState: BridgeHarnessState = {
+      contractVersion: bridge.contractVersion,
+      datasetIds: [...bridge.datasetIds],
+      diagnostics: Object.fromEntries(
+        openings.map((opening) => [
+          opening.projection.dataset.info.id,
+          {
+            strategy: opening.projection.diagnostic.strategy,
+            geoJsonBytes: opening.projection.diagnostic.geoJsonBytes,
+          },
+        ]),
+      ),
+      cloudNative: {
+        planFingerprint: cloudNativeHandoff.request.provenance.planFingerprint,
+        rows: cloudNativeOpening.projection.metrics.rows,
+        state: cloudNativeHandoff.state,
+      },
+      metrics: { ...bridge.metrics },
+    };
 
-  return { metadata, datasets, replayWindow };
+    const replayWindow =
+      replayTimestamps.length > 0
+        ? {
+            start: new Date(Math.min(...replayTimestamps)).toISOString(),
+            end: new Date(Math.max(...replayTimestamps)).toISOString(),
+          }
+        : {
+            start: metadata.timeWindow.start,
+            end: metadata.timeWindow.end,
+          };
+
+    return { bridge, bridgeState, metadata, datasets, replayWindow };
+  } catch (error) {
+    bridge.dispose();
+    throw error;
+  }
 }
 
 function useElementSize<T extends HTMLElement>() {
@@ -407,6 +478,10 @@ function getReplayHarnessState(): ReplayHarnessState | null {
   };
 }
 
+function getBridgeHarnessState(): BridgeHarnessState | null {
+  return activeBridgeState;
+}
+
 function setReplayWindowFromHarness(startIso: string, endIso: string): boolean {
   const demoState = getDemoState();
   if (!demoState?.visState) {
@@ -438,6 +513,7 @@ export function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [mapRootRef, size] = useElementSize<HTMLDivElement>();
   const hasLoadedRef = useRef(false);
+  const bridgeRef = useRef<KeplerWorkspaceBridge | null>(null);
 
   const useMapboxDefaults =
     import.meta.env.VITE_KEPLER_USE_MAPBOX_DEFAULTS === "true" &&
@@ -466,10 +542,17 @@ export function App() {
     }
 
     hasLoadedRef.current = true;
+    let cancelled = false;
 
     void (async () => {
       try {
         const bundle = await loadFixtureBundle();
+        if (cancelled) {
+          bundle.bridge.dispose();
+          return;
+        }
+        bridgeRef.current = bundle.bridge;
+        activeBridgeState = bundle.bridgeState;
         const resolvedConfig = applyReplayWindowToConfig(cloneConfig(), bundle.replayWindow);
 
         resolvedConfig.mapStyle.styleType = useMapboxDefaults ? "dark" : PUBLIC_STYLE_ID;
@@ -478,7 +561,7 @@ export function App() {
           wrapTo(
             DEMO_ID,
             addDataToMap({
-              datasets: bundle.datasets,
+              datasets: bundle.datasets as any,
               options: {
                 centerMap: false,
                 readOnly: false,
@@ -495,6 +578,13 @@ export function App() {
         setStatus("error");
       }
     })();
+
+    return () => {
+      cancelled = true;
+      bridgeRef.current?.dispose();
+      bridgeRef.current = null;
+      activeBridgeState = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -504,6 +594,7 @@ export function App() {
     windowState.__keplerAnalyticsError = status === "error" ? errorMessage : null;
     if (status === "ready") {
       windowState.__keplerAnalyticsHarness = {
+        getBridgeState: getBridgeHarnessState,
         getReplayState: getReplayHarnessState,
         setReplayWindow: setReplayWindowFromHarness,
       };

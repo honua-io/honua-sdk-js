@@ -1624,11 +1624,20 @@ runNpmScriptSync("demo:wrong:build", {
 
     for (const [script, definition] of [
       ["build", "tsc -p forged.json"],
+      ["build:split-packages", "node scripts/forged-live-hook.mjs"],
       ["clean", "rm -rf dist forged"],
+      ["prepare:test-sdk", "node scripts/forged-live-hook.mjs"],
+      ["prepare:test-sdk:adopt", "node scripts/forged-live-hook.mjs"],
       ["prebuild", "node scripts/forged-live-hook.mjs"],
       ["postbuild", "node scripts/forged-live-hook.mjs"],
+      ["prebuild:split-packages", "node scripts/forged-live-hook.mjs"],
+      ["postbuild:split-packages", "node scripts/forged-live-hook.mjs"],
       ["preclean", "node scripts/forged-live-hook.mjs"],
       ["postclean", "node scripts/forged-live-hook.mjs"],
+      ["preprepare:test-sdk", "node scripts/forged-live-hook.mjs"],
+      ["postprepare:test-sdk", "node scripts/forged-live-hook.mjs"],
+      ["preprepare:test-sdk:adopt", "node scripts/forged-live-hook.mjs"],
+      ["postprepare:test-sdk:adopt", "node scripts/forged-live-hook.mjs"],
     ]) {
       const driftedDependencyPackage = structuredClone(packageJson);
       driftedDependencyPackage.scripts[script] = definition;

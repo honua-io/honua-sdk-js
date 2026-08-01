@@ -1,12 +1,13 @@
 # Honua kepler.gl analytics demo
 
-This example is the advanced analytics sample for `honua-sdk-js`: a fixture-first `operations replay` story that shows how Honua exports flow into a portfolio-ready kepler.gl briefing.
+This example is the advanced analytics sample for `honua-sdk-js`: a fixture-first `operations replay` story that shows how accepted Honua results flow through the reusable Kepler workspace bridge into a portfolio-ready kepler.gl briefing.
 
 ## What the demo shows
 
 - incident escalations as replayable event points
 - unit movement as timestamped response pings
 - coverage-gap zones with precomputed SLA metrics from the ETL path
+- the accepted Cloud-Native Spatial Analysis result from #547 as a fourth, tabular Kepler dataset
 - walkthrough copy, KPI cards, and provenance that are visible before anyone opens the source
 
 ## Run locally
@@ -54,7 +55,7 @@ The metadata file records:
 
 ## Fixture contract
 
-The app loads [`fixture-metadata.json`](./public/data/fixture-metadata.json) first, then fetches each dataset listed in `metadata.datasets`.
+The app loads [`fixture-metadata.json`](./public/data/fixture-metadata.json) first, then fetches each dataset listed in `metadata.datasets`. It projects every GeoJSON fixture through `createKeplerWorkspaceBridge().openResult()` with an explicit, measured `geojson-column` fallback; it does not call Kepler's example-local `processGeojson` helper. The same bridge opens the accepted #547 aggregate result through the reusable handoff in `../spatial-analytics-workbench/src/kepler-handoff.ts`, using the direct row-object path with zero GeoJSON bytes.
 
 The side rail renders `metadata.timeWindow.label`, but the shared kepler replay filter recomputes its `start` and `end` bounds from the minimum and maximum `replay_at` values present in the `incidents` and `unit-tracks` GeoJSON payloads when those timestamps exist. Fixture refreshes should keep `metadata.timeWindow` aligned with the exported timestamps so the visible copy and active replay filter stay in sync.
 
@@ -157,10 +158,11 @@ Run the focused browser smoke for this demo:
 npm run demo:kepler:smoke
 ```
 
-That build-and-smoke path validates the app shell, kepler mount, dataset labels, shared replay filtering, and browser error surface in fixture mode. The app also exposes `window.__keplerAnalyticsReady`, `window.__keplerAnalyticsError`, and `window.__keplerAnalyticsHarness` so smoke and external harnesses can wait for fixture load, inspect replay-filter state, and drive the shared replay window deterministically.
+That build-and-smoke path validates the app shell, kepler mount, dataset labels, shared replay filtering, bridge ingestion diagnostics, the accepted cloud-native result, and browser error surface in fixture mode. The app also exposes `window.__keplerAnalyticsReady`, `window.__keplerAnalyticsError`, and `window.__keplerAnalyticsHarness` so smoke and external harnesses can wait for fixture load, inspect bridge/replay state, and drive the shared replay window deterministically.
 
 `window.__keplerAnalyticsHarness` exposes:
 
+- `getBridgeState()`, which returns the bridge contract version, four dataset IDs, per-dataset ingestion strategies and GeoJSON byte counts, the #547 plan fingerprint, and bounded workspace metrics
 - `getReplayState()`, which returns `{ currentTime, dataIds, filteredCounts, layerIds, replayStatus, value }` for the shared replay filter state after kepler mounts
 - `setReplayWindow(startIso, endIso)`, which returns `true` once the demo is ready and updates the shared replay filter plus animation time
 

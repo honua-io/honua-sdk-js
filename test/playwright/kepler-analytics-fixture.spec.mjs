@@ -111,6 +111,21 @@ test("kepler analytics fixture demo renders portfolio replay shell", async ({ pa
     expect(consoleErrors).toEqual([]);
 
     await expect
+      .poll(async () => page.evaluate(() => window.__keplerAnalyticsHarness?.getBridgeState() ?? null))
+      .toMatchObject({
+        contractVersion: "1.0",
+        datasetIds: ["incidents", "unit-tracks", "coverage-zones", "cloud-native-risk-summary"],
+        diagnostics: {
+          incidents: { strategy: "geojson-column" },
+          "unit-tracks": { strategy: "geojson-column" },
+          "coverage-zones": { strategy: "geojson-column" },
+          "cloud-native-risk-summary": { strategy: "row-object-direct", geoJsonBytes: 0 }
+        },
+        cloudNative: { state: "fixture-replay", rows: 3 },
+        metrics: { datasets: 4, rows: 24 }
+      });
+
+    await expect
       .poll(async () => page.evaluate(() => window.__keplerAnalyticsHarness?.getReplayState() ?? null))
       .toEqual({
         currentTime: 1777653780000,

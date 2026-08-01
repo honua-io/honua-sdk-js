@@ -288,15 +288,31 @@ npx playwright test test/playwright/kepler-arrow-packed.spec.mjs
 ```
 
 The fixture injects the processor result and therefore proves the SDK adapter
-and packed browser boundary without claiming that a live Arrow object, public
-dataset, or `honua-site` deployment has been exercised.
+and packed browser boundary without claiming that a live Arrow object or
+`honua-site` deployment has been exercised.
+
+## Cloud-native journey handoff and live evidence
+
+`examples/spatial-analytics-workbench/src/kepler-handoff.ts` executes the
+accepted #547 fixture plan and returns a reusable `KeplerResultProjectionRequest`.
+`examples/kepler-analytics/` opens that request and its three replay datasets
+through `createKeplerWorkspaceBridge()`; the example no longer calls Kepler's
+example-local GeoJSON processor. The browser smoke exposes the four ingestion
+diagnostics, accepted plan fingerprint, row counts, and retained-byte metrics.
+
+The matching live lane is `.github/workflows/spatial-analytics-kepler-live.yml`.
+On its schedule (and on manual dispatch), it builds `@honua/sdk` split-package
+output, executes one bounded anonymous aggregate query against the reviewed
+SampleServer6 CitizenRequests layer, and opens the actual accepted result
+through the packed `@honua/sdk/kepler` entrypoint. Evidence requires direct
+aggregate-row ingestion, zero GeoJSON bytes, preserved row count and plan
+fingerprint, and disposal of the bridge. The workflow uploads the evidence for
+90 days and never substitutes fixture rows when the public query fails.
 
 ## Known gaps
 
 - Kepler's Arrow/GeoArrow buffer-preserving path remains unsupported; the new
   processor path is bounded and GeoJSON-free but intentionally reports its
   row-oriented processor boundary.
-- `examples/kepler-analytics/` still uses its exported-snapshot fixture wiring
-  and has not been rewired onto this bridge.
-- The end-to-end analytics journey and scheduled live evidence remain follow-up
-  work behind [#547](https://github.com/honua-io/honua-sdk-js/issues/547).
+- The packed fixture and scheduled public live lanes qualify the SDK-owned
+  handoff. Publication of the demo in `honua-site` remains a site-owned concern.
