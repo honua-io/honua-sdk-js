@@ -221,9 +221,11 @@ the kind of workload where that gap is largest. Both tiers are now opt-in for
 that reason, and every number in `deckgl.scale-render-100k` and
 `deckgl.scale-render-1m` in [`browser/budgets.json`](./browser/budgets.json)
 is documented in the file's own `$comment` as **uncalibrated for CI** — a
-placeholder, not a gate anyone should expect to pass out of the box — pending
-a dedicated evidence job that runs `HONUA_BROWSER_BENCH_SCALE=full` on CI's
-actual runner class and replaces them with reviewed numbers. `report.corpus`
+placeholder, not a gate anyone should expect to pass out of the box. The
+scheduled/manual `deck.gl Full-Scale Evidence` workflow now runs
+`HONUA_BROWSER_BENCH_SCALE=full` on a stable Ubuntu runner class and retains
+each report for calibration. Replace the placeholders with reviewed numbers
+only after repeated reports establish runner variance. `report.corpus`
 `.includesOptInScaleTiers` and `.activeScaleTierIds` record whether a given
 report included them.
 

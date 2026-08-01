@@ -1,0 +1,95 @@
+name: deck.gl Full-Scale Evidence
+
+# The routine PR benchmark deliberately omits the 100k and one-million-row
+# renderer tiers. This lane gives those opt-in tiers a stable Ubuntu runner
+# class so their reviewed budgets can be calibrated and then regression-gated.
+on:
+  schedule:
+    - cron: "45 8 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deckgl-full-scale-evidence
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  full-scale-evidence:
+    name: 100k + one-million-row browser evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run full-scale deck.gl evidence
+        id: benchmark
+        # Capture against the placeholder thresholds without making them a
+        # regression gate. Once repeated reports establish reviewed budgets,
+        # switch this lane to bench:browser:full-scale (which passes --check).
+        run: npm run bench:browser:full-scale:capture
+
+      - name: Upload full-scale evidence
+        if: always() && steps.benchmark.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: deckgl-full-scale-evidence
+          path: test-results/browser-benchmark/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Summarize full-scale evidence
+        if: always()
+        run: |
+          node --input-type=module <<'EOF'
+          import fs from "node:fs";
+
+          const file = "test-results/browser-benchmark/report.json";
+          if (!fs.existsSync(file)) {
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, "## deck.gl full-scale evidence\n\nNo report was produced.\n");
+            process.exit(0);
+          }
+
+          const report = JSON.parse(fs.readFileSync(file, "utf8"));
+          const scaleIds = new Set(["deckgl.scale-render-100k", "deckgl.scale-render-1m"]);
+          const metric = (value, unit) => Number.isFinite(value) ? `${value.toFixed(2)} ${unit}` : "not measured";
+          const rows = report.scenarios
+            .filter((scenario) => scaleIds.has(scenario.id))
+            .map((scenario) => [
+              `| ${scenario.id}`,
+              metric(scenario.summary?.firstVisibleMs?.median, "ms"),
+              metric(scenario.summary?.interactionLatencyMs?.median, "ms"),
+              metric(scenario.stagesSummary?.gpuUploadMs?.median, "ms"),
+              `${metric(scenario.stagesSummary?.steadyFrameRateFps?.median, "fps")} |`,
+            ].join(" | "));
+
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
+            "## deck.gl full-scale evidence",
+            "",
+            `Evaluation: **${report.evaluation.level}** · commit \`${report.gitCommit}\``,
+            "",
+            "| Scenario | First visible | Interaction | GPU upload | Steady frame rate |",
+            "| --- | ---: | ---: | ---: | ---: |",
+            ...rows,
+            "",
+          ].join("\n"));
+          EOF
