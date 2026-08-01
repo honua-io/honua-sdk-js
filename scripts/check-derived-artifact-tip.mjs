@@ -4,7 +4,10 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 
-import { evaluateDerivedArtifactTip } from "./lib/derived-artifact-loop-guard.mjs";
+import {
+  DERIVED_ARTIFACT_REGEN_MARKER,
+  evaluateDerivedArtifactTip,
+} from "./lib/derived-artifact-loop-guard.mjs";
 
 function git(args, { optional = false } = {}) {
   try {
@@ -17,6 +20,7 @@ function git(args, { optional = false } = {}) {
 
 const decision = evaluateDerivedArtifactTip({
   releaseMatrixReceiptRunId: process.env.RELEASE_MATRIX_RECEIPT_RUN_ID ?? "",
+  regenMarker: process.env.REGEN_MARKER ?? DERIVED_ARTIFACT_REGEN_MARKER,
   firstParent: git(["rev-parse", "--verify", "HEAD^1"], { optional: true }),
   secondParent: git(["rev-parse", "--verify", "HEAD^2"], { optional: true }),
   readCommit: (revision) => ({

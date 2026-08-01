@@ -12,6 +12,7 @@ export const DERIVED_ARTIFACT_REGEN_MARKER = "chore(evidence): regenerate derive
  */
 export function evaluateDerivedArtifactTip({
   releaseMatrixReceiptRunId = "",
+  regenMarker = DERIVED_ARTIFACT_REGEN_MARKER,
   firstParent,
   secondParent,
   readCommit,
@@ -43,7 +44,7 @@ export function evaluateDerivedArtifactTip({
     visited.add(chainCursor);
 
     const commit = readCommit(chainCursor);
-    if (!commit?.subject?.startsWith(DERIVED_ARTIFACT_REGEN_MARKER)) {
+    if (!commit?.subject?.startsWith(regenMarker)) {
       break;
     }
     commitCount += 1;
