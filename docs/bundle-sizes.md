@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-30 at commit `cd30a5c5`._
+_Generated 2026-08-01 at commit `78fee2f6`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -24,9 +24,9 @@ _Generated 2026-07-30 at commit `cd30a5c5`._
 | `/nl-map-control` | 76.6 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
 | `/runtime` | 562.1 KiB | 612.2 KiB | 150.4 KiB | 163.9 KiB |
 | `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
-| `/offline` | 47.9 KiB | 49.5 KiB | 14.0 KiB | 14.6 KiB |
+| `/offline` | 51.3 KiB | 55.8 KiB | 14.8 KiB | 16.1 KiB |
 | `/query-planner` (worker runtime injected) | 639.4 KiB | 703.3 KiB | 136.3 KiB | 143.2 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 97.5 KiB | 100.0 KiB | 30.0 KiB | 30.8 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 97.8 KiB | 100.0 KiB | 30.0 KiB | 30.8 KiB |
 | `/esri-compat` | 992.8 KiB | 1026.2 KiB | 247.8 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
@@ -37,9 +37,9 @@ _Generated 2026-07-30 at commit `cd30a5c5`._
 | `/map` | 179.2 KiB | 182.2 KiB | 50.6 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 129.2 KiB | 137.8 KiB | 38.9 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 64.2 KiB | 68.3 KiB | 17.2 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 944.8 KiB | 1037.6 KiB | 253.2 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1020.4 KiB | 1120.1 KiB | 276.3 KiB | 292.6 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 945.3 KiB | 1037.6 KiB | 253.3 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1021.7 KiB | 1120.1 KiB | 276.7 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
