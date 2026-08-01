@@ -798,7 +798,7 @@ function resolveConfiguredSubdomainUrl(primitive: SceneImageryLayerPrimitive): s
 }
 
 function normalizedWmsUrl(url: string, format: SceneImageryLayerPrimitive["format"]): string {
-  if (format === undefined) return url;
+  const overriddenKeys = new Set(["layers", ...(format === undefined ? [] : ["format"])]);
   const hashIndex = url.indexOf("#");
   const withoutFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
   const fragment = hashIndex === -1 ? "" : url.slice(hashIndex);
@@ -811,7 +811,7 @@ function normalizedWmsUrl(url: string, format: SceneImageryLayerPrimitive["forma
     const separatorIndex = entry.indexOf("=");
     const rawKey = separatorIndex === -1 ? entry : entry.slice(0, separatorIndex);
     try {
-      return decodeURIComponent(rawKey.replaceAll("+", " ")).toLowerCase() !== "format";
+      return !overriddenKeys.has(decodeURIComponent(rawKey.replaceAll("+", " ")).toLowerCase());
     } catch {
       return true;
     }
@@ -826,7 +826,7 @@ function arcGisMapServerOptions(
   for (const [key, value] of Object.entries(parameters ?? {})) {
     switch (key.toLowerCase().replaceAll(/[^a-z0-9]/g, "")) {
       case "layers":
-        options.layers = value;
+        options.layers = normalizeArcGisMapServerLayers(value);
         break;
       case "enablepickfeatures":
         options.enablePickFeatures = value;
@@ -845,12 +845,21 @@ function arcGisMapServerOptions(
   return options;
 }
 
+function normalizeArcGisMapServerLayers(value: string | number | boolean): string {
+  const trimmed = String(value).trim();
+  const layerList = trimmed.toLowerCase().startsWith("show:") ? trimmed.slice(5) : trimmed;
+  return layerList
+    .split(",")
+    .map((layerId) => layerId.trim())
+    .join(",");
+}
+
 function normalizedWmsParameters(
   parameters: SceneImageryLayerPrimitive["parameters"],
   format: SceneImageryLayerPrimitive["format"],
 ): Readonly<Record<string, string | number | boolean>> {
   const entries = Object.entries(parameters ?? {}).filter(
-    ([key]) => format === undefined || key.toLowerCase() !== "format",
+    ([key]) => key.toLowerCase() !== "layers" && (format === undefined || key.toLowerCase() !== "format"),
   );
   return {
     ...Object.fromEntries(entries),

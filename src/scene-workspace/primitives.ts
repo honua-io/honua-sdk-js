@@ -875,7 +875,7 @@ function invalidArcGisMapServerParameterKeys(primitive: SceneImageryLayerPrimiti
     }
     seenKeys.add(canonical);
     const valid =
-      (canonical === "layers" && isNonEmptyString(value)) ||
+      (canonical === "layers" && normalizeArcGisMapServerLayers(value) !== undefined) ||
       ((canonical === "enablepickfeatures" || canonical === "useprecachedtilesifavailable") &&
         typeof value === "boolean") ||
       ((canonical === "tilewidth" || canonical === "tileheight") &&
@@ -886,6 +886,15 @@ function invalidArcGisMapServerParameterKeys(primitive: SceneImageryLayerPrimiti
     if (!valid) invalidKeys.push(key);
   }
   return invalidKeys;
+}
+
+function normalizeArcGisMapServerLayers(value: unknown): string | undefined {
+  if (!isNonEmptyString(value)) return undefined;
+  const trimmed = value.trim();
+  const layerList = trimmed.toLowerCase().startsWith("show:") ? trimmed.slice(5) : trimmed;
+  const layerIds = layerList.split(",").map((layerId) => layerId.trim());
+  if (layerIds.length === 0 || layerIds.some((layerId) => !/^\d+$/.test(layerId))) return undefined;
+  return layerIds.join(",");
 }
 
 function isArcGisImageServerEndpoint(url: string): boolean {

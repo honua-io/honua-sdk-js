@@ -574,10 +574,10 @@ describe("cesium scene adapter", () => {
           id: "weather",
           sourceId: "weather",
           protocol: "wms",
-          url: "https://maps.example.test/wms?FORMAT=image/jpeg&cache=public",
+          url: "https://maps.example.test/wms?LAYERS=stale&FORMAT=image/jpeg&cache=public",
           layer: "precipitation",
           format: "image/png",
-          parameters: { transparent: true, FORMAT: "image/jpeg" },
+          parameters: { transparent: true, LAYERS: "older", FORMAT: "image/jpeg" },
           subdomains: ["maps-a", "maps-b"],
         },
         {
@@ -617,7 +617,7 @@ describe("cesium scene adapter", () => {
           url: "https://{s}.services.example.test/arcgis/rest/services/reference/MapServer",
           subdomains: ["maps-primary", "maps-secondary"],
           parameters: {
-            layers: "show:1",
+            layers: "show:1, 3",
             enable_pick_features: false,
             usePreCachedTilesIfAvailable: false,
             tileWidth: 512,
@@ -689,7 +689,7 @@ describe("cesium scene adapter", () => {
       expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
         "https://maps-primary.services.example.test/arcgis/rest/services/reference/MapServer",
         {
-          layers: "show:1",
+          layers: "1,3",
           enablePickFeatures: false,
           usePreCachedTilesIfAvailable: false,
           tileWidth: 512,
@@ -868,6 +868,14 @@ describe("cesium scene adapter", () => {
           url: "https://services.example.test/arcgis/rest/services/base/MapServer",
           parameters: { customExportOption: "ignored" },
         },
+        {
+          kind: "imagery-layer",
+          id: "invalid-mapserver-layers",
+          sourceId: "invalid-mapserver-layers",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/MapServer",
+          parameters: { layers: "hide:1" },
+        },
       ]);
 
       expect(result.status).toBe("unsupported");
@@ -895,6 +903,13 @@ describe("cesium scene adapter", () => {
           code: "scene-primitive-imagery-service-config-invalid",
           primitiveId: "unsupported-mapserver-parameter",
           context: { invalidFields: ["parameters"], invalidParameterKeys: ["customExportOption"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "invalid-mapserver-layers",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["layers"] },
         }),
       );
       expect(result.diagnostics).toContainEqual(
