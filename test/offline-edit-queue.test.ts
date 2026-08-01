@@ -301,7 +301,19 @@ describe("offline edit queue", () => {
       ),
       "idempotency-conflict",
     );
-    await expect(queue.enqueue(input("after-prune"))).resolves.toMatchObject({ status: "enqueued" });
+    const afterPrune = await queue.enqueue(
+      input("after-prune", {
+        edit: { operation: "update", featureId: "feature-2", attributes: { status: "open" } },
+        dependencyIds: [first.edit.id],
+      }),
+    );
+    const [claimedAfterPrune] = await queue.claimReady({
+      ...PARTITION,
+      workerId: "worker",
+      limit: 1,
+      leaseDurationMs: 10_000,
+    });
+    expect(claimedAfterPrune.id).toBe(afterPrune.edit.id);
   });
 
   it("allows blocked dependency chains to be explicitly cancelled and reclaimed", async () => {

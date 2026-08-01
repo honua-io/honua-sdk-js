@@ -148,6 +148,21 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
       } catch (error) {
         prunedDivergentCode = error.code;
       }
+      const postPrune = await queueA.enqueue({
+        ...partition,
+        idempotencyKey: "browser-post-prune-dependent",
+        edit: { operation: "update", featureId: "incident-3", attributes: { status: "open" } },
+        dependencyIds: [pruned[0]],
+      });
+      const [postPruneLease] = await queueA.claimReady({
+        ...partition,
+        workerId: "worker-a",
+        limit: 1,
+        leaseDurationMs: 60_000,
+      });
+      await queueA.markApplied(postPrune.edit.id, postPruneLease.lease.token, {
+        serverOperationId: "operation-post-prune",
+      });
       const conflictRoot = await queueA.enqueue({
         ...partition,
         idempotencyKey: "browser-conflict-root",
@@ -210,6 +225,7 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
         pruned: pruned.length,
         prunedReuseCode,
         prunedDivergentCode,
+        prunedDependencyClaimed: postPruneLease.id === postPrune.edit.id,
         remaining: (await queueA.list(partition)).length,
         blockedClaimCount: blockedClaims.length,
         cancelledState: cancelled.state,
@@ -240,7 +256,8 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
       pruned: 1,
       prunedReuseCode: "edit-pruned",
       prunedDivergentCode: "idempotency-conflict",
-      remaining: 3,
+      prunedDependencyClaimed: true,
+      remaining: 4,
       blockedClaimCount: 0,
       cancelledState: "cancelled",
       otherState: "pending",

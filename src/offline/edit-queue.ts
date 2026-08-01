@@ -268,6 +268,11 @@ interface OfflineEditQueueTombstone extends OfflineEditQueuePartition {
   readonly terminalState: "applied" | "conflicted" | "cancelled";
 }
 
+type OfflineEditDependencyEvidence =
+  | Pick<OfflineQueuedEdit, "id" | "authorizationScopeDigest" | "sourceId" | "state">
+  | OfflineEditQueueMetadata
+  | OfflineEditQueueTombstone;
+
 interface QueueStores {
   readonly edits: IDBObjectStore;
   readonly metadata: IDBObjectStore;
@@ -315,7 +320,13 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
   public async enqueue(input: EnqueueOfflineEditInput): Promise<OfflineEditEnqueueResult> {
     const prepared = await prepareEdit(input, this.#options);
     rejectPrunedIdentity(this.#tombstones.get(prepared.id), prepared);
-    const result = enqueueRecord([...this.#records.values()], prepared, timestamp(this.#options.now), this.#options);
+    const result = enqueueRecord(
+      [...this.#records.values()],
+      this.#tombstones,
+      prepared,
+      timestamp(this.#options.now),
+      this.#options,
+    );
     if (result.record) this.#records.set(result.record.id, result.record);
     return copy(result.result);
   }
@@ -337,7 +348,7 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
   }
 
   public async claimReady(options: ClaimOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]> {
-    const result = claimRecords([...this.#records.values()], options, this.#options);
+    const result = claimRecords([...this.#records.values()], this.#tombstones, options, this.#options);
     for (const record of result.changed) this.#records.set(record.id, record);
     return copy(result.claimed);
   }
@@ -433,7 +444,10 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
       const tombstone = await request<OfflineEditQueueTombstone | undefined>(tombstones.get(prepared.id));
       rejectPrunedIdentity(tombstone, prepared);
       const dependencies = await Promise.all(
-        prepared.dependencyIds.map((id) => request<OfflineEditQueueMetadata | undefined>(metadata.get(id))),
+        prepared.dependencyIds.map(async (id) => {
+          const live = await request<OfflineEditQueueMetadata | undefined>(metadata.get(id));
+          return live ?? request<OfflineEditQueueTombstone | undefined>(tombstones.get(id));
+        }),
       );
       const queueSize = await request<number>(metadata.count());
       const result = enqueuePreparedRecord(
@@ -472,8 +486,8 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
 
   public async claimReady(options: ClaimOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]> {
     const normalized = captureClaimOptions(options, this.#options);
-    return this.#run("readwrite", async ({ edits, metadata }) => {
-      const candidates = await scanReadyMetadata(metadata, normalized);
+    return this.#run("readwrite", async ({ edits, metadata, tombstones }) => {
+      const candidates = await scanReadyMetadata(metadata, tombstones, normalized);
       const claimed: OfflineQueuedEdit[] = [];
       for (const candidate of candidates) {
         const record = await request<OfflineQueuedEdit | undefined>(edits.get(candidate.id));
@@ -631,6 +645,7 @@ async function prepareEdit(input: EnqueueOfflineEditInput, options: NormalizedQu
 
 function enqueueRecord(
   records: readonly OfflineQueuedEdit[],
+  tombstones: ReadonlyMap<string, OfflineEditQueueTombstone>,
   prepared: PreparedEdit,
   now: string,
   options: NormalizedQueueOptions,
@@ -639,7 +654,7 @@ function enqueueRecord(
   const byId = new Map(records.map((record) => [record.id, record]));
   return enqueuePreparedRecord(
     existing,
-    prepared.dependencyIds.map((id) => byId.get(id)),
+    prepared.dependencyIds.map((id) => byId.get(id) ?? tombstones.get(id)),
     records.length,
     prepared,
     now,
@@ -649,11 +664,7 @@ function enqueueRecord(
 
 function enqueuePreparedRecord(
   existing: OfflineQueuedEdit | undefined,
-  dependencies: readonly (
-    | Pick<OfflineQueuedEdit, "id" | "authorizationScopeDigest" | "sourceId">
-    | OfflineEditQueueMetadata
-    | undefined
-  )[],
+  dependencies: readonly (OfflineEditDependencyEvidence | undefined)[],
   queueSize: number,
   prepared: PreparedEdit,
   now: string,
@@ -682,6 +693,12 @@ function enqueuePreparedRecord(
         path: `dependencyIds[${index}]`,
       });
     }
+    if ("terminalState" in dependency && dependency.terminalState !== "applied") {
+      fail("invalid-edit", `Offline edit dependency "${dependencyId}" did not complete successfully.`, {
+        editId: prepared.id,
+        path: `dependencyIds[${index}]`,
+      });
+    }
   }
   const record: OfflineQueuedEdit = deepFreeze({
     version: HONUA_OFFLINE_EDIT_QUEUE_VERSION,
@@ -697,6 +714,7 @@ function enqueuePreparedRecord(
 
 function claimRecords(
   records: readonly OfflineQueuedEdit[],
+  tombstones: ReadonlyMap<string, OfflineEditQueueTombstone>,
   input: ClaimOfflineEditsOptions,
   options: NormalizedQueueOptions,
 ): { readonly claimed: readonly OfflineQueuedEdit[]; readonly changed: readonly OfflineQueuedEdit[] } {
@@ -705,7 +723,12 @@ function claimRecords(
   const byId = new Map(records.map((record) => [record.id, record]));
   const eligible = sortedRecords(records).filter((record) => {
     if (!matchesPartition(record, normalized)) return false;
-    if (!record.dependencyIds.every((id) => byId.get(id)?.state === "applied")) return false;
+    if (
+      !record.dependencyIds.every(
+        (id) => byId.get(id)?.state === "applied" || tombstones.get(id)?.terminalState === "applied",
+      )
+    )
+      return false;
     if (record.state === "pending") return true;
     if (record.state === "retryable") return Date.parse(record.retry?.retryAt ?? "") <= nowMs;
     return record.state === "leased" && Date.parse(record.lease?.expiresAt ?? "") <= nowMs;
@@ -1064,6 +1087,10 @@ function rejectPrunedIdentity(tombstone: OfflineEditQueueTombstone | undefined, 
   });
 }
 
+function dependencyState(evidence: OfflineEditDependencyEvidence): OfflineQueuedEditState {
+  return "terminalState" in evidence ? evidence.terminalState : evidence.state;
+}
+
 async function scanPartitionIds(
   store: IDBObjectStore,
   partition: OfflineEditQueuePartition,
@@ -1080,22 +1107,26 @@ async function scanPartitionIds(
 }
 
 async function scanReadyMetadata(
-  store: IDBObjectStore,
+  metadataStore: IDBObjectStore,
+  tombstoneStore: IDBObjectStore,
   options: NormalizedClaimOptions,
 ): Promise<readonly OfflineEditQueueMetadata[]> {
   const states = ["pending", "retryable", "leased"] as const;
-  const cache = new Map<string, OfflineEditQueueMetadata | undefined>();
-  const candidates = (await Promise.all(states.map((state) => scanReadyState(store, state, options, cache)))).flat();
+  const cache = new Map<string, OfflineEditDependencyEvidence | undefined>();
+  const candidates = (
+    await Promise.all(states.map((state) => scanReadyState(metadataStore, tombstoneStore, state, options, cache)))
+  ).flat();
   return candidates.sort(compareMetadataCreated).slice(0, options.limit);
 }
 
 async function scanReadyState(
-  store: IDBObjectStore,
+  metadataStore: IDBObjectStore,
+  tombstoneStore: IDBObjectStore,
   state: "pending" | "retryable" | "leased",
   options: NormalizedClaimOptions,
-  cache: Map<string, OfflineEditQueueMetadata | undefined>,
+  cache: Map<string, OfflineEditDependencyEvidence | undefined>,
 ): Promise<readonly OfflineEditQueueMetadata[]> {
-  const index = store.index(PARTITION_STATE_ORDER_INDEX);
+  const index = metadataStore.index(PARTITION_STATE_ORDER_INDEX);
   let cursor = await request<IDBCursorWithValue | null>(index.openCursor(partitionStateRange(options, state)));
   const candidates: OfflineEditQueueMetadata[] = [];
   while (cursor && candidates.length < options.limit) {
@@ -1105,7 +1136,7 @@ async function scanReadyState(
         ? true
         : Date.parse(state === "retryable" ? (metadata.retryAt ?? "") : (metadata.leaseExpiresAt ?? "")) <=
           options.now.getTime();
-    if (eligibleAt && (await dependenciesAreApplied(store, metadata.dependencyIds, cache))) {
+    if (eligibleAt && (await dependenciesAreApplied(metadataStore, tombstoneStore, metadata.dependencyIds, cache))) {
       candidates.push(metadata);
     }
     cursor = await continueCursor(cursor);
@@ -1114,17 +1145,19 @@ async function scanReadyState(
 }
 
 async function dependenciesAreApplied(
-  store: IDBObjectStore,
+  metadataStore: IDBObjectStore,
+  tombstoneStore: IDBObjectStore,
   dependencyIds: readonly `sha256:${string}`[],
-  cache: Map<string, OfflineEditQueueMetadata | undefined>,
+  cache: Map<string, OfflineEditDependencyEvidence | undefined>,
 ): Promise<boolean> {
   for (const id of dependencyIds) {
     let dependency = cache.get(id);
     if (!cache.has(id)) {
-      dependency = await request<OfflineEditQueueMetadata | undefined>(store.get(id));
+      dependency = await request<OfflineEditQueueMetadata | undefined>(metadataStore.get(id));
+      dependency ??= await request<OfflineEditQueueTombstone | undefined>(tombstoneStore.get(id));
       cache.set(id, dependency);
     }
-    if (dependency?.state !== "applied") return false;
+    if (!dependency || dependencyState(dependency) !== "applied") return false;
   }
   return true;
 }

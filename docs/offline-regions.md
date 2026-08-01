@@ -158,7 +158,8 @@ console.log(enqueued.status); // "enqueued" or "duplicate"
   progress-critical state transition. Pruning removes payload and audit data
   but retains a compact identity/request-fingerprint tombstone for the lifetime
   of the named queue database; a completed identity cannot silently be
-  re-enqueued after cleanup. The persisted schema accepts no request headers,
+  re-enqueued after cleanup, and an applied tombstone continues to satisfy
+  future dependency IDs. The persisted schema accepts no request headers,
   tokens, URLs, or raw authorization scope.
 
 The manifest contains logical resource ids, not request URLs. The injected
