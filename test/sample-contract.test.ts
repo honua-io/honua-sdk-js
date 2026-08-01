@@ -418,11 +418,17 @@ describe("sample publication contract", () => {
       "- name: Refresh catalog live-evidence expiry for resealed golden lanes",
     );
     const recordIndex = workflow.indexOf("- name: Record established release-matrix lanes");
+    const passTwoIndex = workflow.indexOf("- name: Reseal sample evidence (pass two");
     expect(goldenRefreshIndex).toBeGreaterThan(passOneIndex);
     expect(recordIndex).toBeGreaterThan(goldenRefreshIndex);
+    expect(passTwoIndex).toBeGreaterThan(recordIndex);
     expect(workflow.slice(goldenRefreshIndex, recordIndex)).toContain(
       `npm run samples:migrate:v1 -- --qualification-bootstrap ${bootstrapIds.join(",")}`,
     );
+    const catalogCommitStep = workflow.slice(recordIndex, passTwoIndex);
+    expect(catalogCommitStep).toContain('release_matrix_lanes="samples/contract/v2/release-matrix-lanes.v1.json"');
+    expect(catalogCommitStep).toContain('git ls-files --error-unmatch "$release_matrix_lanes"');
+    expect(catalogCommitStep).toContain('git add -A -- "$release_matrix_lanes"');
   });
 
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
