@@ -80,6 +80,28 @@ export interface CesiumEntityPositionSample {
   readonly coordinates: readonly [number, number, number];
 }
 
+/**
+ * Temporal field mapping for accepted-plan entity projections.
+ *
+ * An instant is represented as a zero-duration Cesium availability interval,
+ * preserving the source timestamp without inventing a playback duration.
+ */
+export type CesiumEntityTimeOptions =
+  | {
+      readonly instantField: string;
+      readonly startField?: never;
+      readonly endField?: never;
+      /** JSON array of { time, coordinates } samples for point entities. */
+      readonly positionField?: string;
+    }
+  | {
+      readonly instantField?: never;
+      readonly startField: string;
+      readonly endField: string;
+      /** JSON array of { time, coordinates } samples for point entities. */
+      readonly positionField?: string;
+    };
+
 export type CesiumEntityGeometry =
   | { readonly kind: "point"; readonly coordinates: readonly [number, number, number] }
   | { readonly kind: "polyline"; readonly coordinates: readonly (readonly [number, number, number])[] }
@@ -105,12 +127,7 @@ export interface ProjectSourceToCesiumOptions {
   readonly maxEntities?: number;
   /** Required before finite Z values are interpreted as Cesium ellipsoid heights. */
   readonly verticalDatum?: "ellipsoidal-wgs84";
-  readonly time?: {
-    readonly startField: string;
-    readonly endField: string;
-    /** JSON array of { time, coordinates } samples for point entities. */
-    readonly positionField?: string;
-  };
+  readonly time?: CesiumEntityTimeOptions;
 }
 
 export interface CesiumEntityProjection {
@@ -237,8 +254,9 @@ export function projectSourceToCesium<T>(
       invalidIntervals += 1;
       continue;
     }
-    const positionSamples = options.time?.positionField
-      ? projectPositionSamples(attributes, options.time.positionField, geometry, options.verticalDatum)
+    const positionField = options.time ? ownPositionField(options.time) : undefined;
+    const positionSamples = positionField
+      ? projectPositionSamples(attributes, positionField, geometry, options.verticalDatum)
       : undefined;
     if (positionSamples === null) {
       invalidPositionSamples += 1;
@@ -910,6 +928,10 @@ function projectInterval(
   attributes: Readonly<Record<string, unknown>>,
   time: NonNullable<ProjectSourceToCesiumOptions["time"]>,
 ): CesiumEntityInterval | undefined {
+  if (hasInstantField(time)) {
+    const instant = isoInstant(attributes[time.instantField]);
+    return instant ? { start: instant, end: instant } : undefined;
+  }
   const start = isoInstant(attributes[time.startField]);
   const end = isoInstant(attributes[time.endField]);
   if (!start || !end || Date.parse(end) < Date.parse(start)) return undefined;
@@ -1029,8 +1051,22 @@ function validatePlanAndOptions<T>(
       "Cesium entity projection requires featureIdField or descriptor.schema.primaryKey.",
     );
   }
-  if (options.time !== undefined && (!options.time.startField || !options.time.endField)) {
-    throw new HonuaCesiumEntityAdapterError("invalid-option", "time.startField and time.endField must be non-empty.");
+  if (options.time !== undefined) {
+    if (!options.time || typeof options.time !== "object" || Array.isArray(options.time)) {
+      throw invalidTimeOption();
+    }
+    const time = options.time as CesiumEntityTimeOptions & Record<string, unknown>;
+    const hasInstant = Object.hasOwn(time, "instantField");
+    const hasStart = Object.hasOwn(time, "startField");
+    const hasEnd = Object.hasOwn(time, "endField");
+    const instantShape = hasInstant && !hasStart && !hasEnd && isNonEmptyString(time.instantField);
+    const intervalShape =
+      !hasInstant && hasStart && hasEnd && isNonEmptyString(time.startField) && isNonEmptyString(time.endField);
+    const hasPosition = Object.hasOwn(time, "positionField");
+    const positionFieldValid = !hasPosition || isNonEmptyString(time.positionField);
+    if ((!instantShape && !intervalShape) || !positionFieldValid) {
+      throw invalidTimeOption();
+    }
   }
   return maxEntities;
 }
@@ -1137,16 +1173,40 @@ function snapshotMountOptions(options: MountSourceToCesiumOptions): MountSourceT
     ...(options.featureIdField !== undefined ? { featureIdField: options.featureIdField } : {}),
     ...(options.maxEntities !== undefined ? { maxEntities: options.maxEntities } : {}),
     ...(options.verticalDatum !== undefined ? { verticalDatum: options.verticalDatum } : {}),
-    ...(options.time
-      ? {
-          time: Object.freeze({
-            startField: options.time.startField,
-            endField: options.time.endField,
-            ...(options.time.positionField !== undefined ? { positionField: options.time.positionField } : {}),
-          }),
-        }
-      : {}),
+    ...(options.time !== undefined ? { time: snapshotTimeOptions(options.time) } : {}),
   });
+}
+
+function snapshotTimeOptions(time: CesiumEntityTimeOptions): CesiumEntityTimeOptions {
+  if (!time || typeof time !== "object" || Array.isArray(time)) return time;
+  const record = time as CesiumEntityTimeOptions & Record<string, unknown>;
+  return Object.freeze({
+    ...(Object.hasOwn(record, "instantField") ? { instantField: record.instantField } : {}),
+    ...(Object.hasOwn(record, "startField") ? { startField: record.startField } : {}),
+    ...(Object.hasOwn(record, "endField") ? { endField: record.endField } : {}),
+    ...(Object.hasOwn(record, "positionField") ? { positionField: record.positionField } : {}),
+  }) as CesiumEntityTimeOptions;
+}
+
+function hasInstantField(
+  time: CesiumEntityTimeOptions,
+): time is Extract<CesiumEntityTimeOptions, { readonly instantField: string }> {
+  return Object.hasOwn(time, "instantField");
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function ownPositionField(time: CesiumEntityTimeOptions): string | undefined {
+  return Object.hasOwn(time, "positionField") && isNonEmptyString(time.positionField) ? time.positionField : undefined;
+}
+
+function invalidTimeOption(): HonuaCesiumEntityAdapterError {
+  return new HonuaCesiumEntityAdapterError(
+    "invalid-option",
+    "time must define one non-empty instantField or non-empty startField/endField pair; positionField must be non-empty when provided.",
+  );
 }
 
 function assertLifecycleActive(

@@ -349,6 +349,105 @@ describe("projectSourceToCesium", () => {
     );
   });
 
+  it("projects a temporal instant as zero-duration availability", async () => {
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        {
+          attributes: { unit_id: "instant", observed_at: "2026-07-15T10:00:00-10:00" },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    const source = fakeSource([result]);
+    const projection = projectSourceToCesium(source, plan, result, { time: { instantField: "observed_at" } });
+
+    expect(projection.entities[0]?.interval).toEqual({
+      start: "2026-07-15T20:00:00.000Z",
+      end: "2026-07-15T20:00:00.000Z",
+    });
+
+    const collection = fakeCollection();
+    await mountSourceToCesium(collection, source, plan, {
+      ...context,
+      cesium: cesiumModule,
+      time: { instantField: "observed_at" },
+    });
+    expect(collection.entities.get("honua-response-units:s:instant")?.availability).toMatchObject({
+      intervals: [
+        { options: { start: { iso: "2026-07-15T20:00:00.000Z" }, stop: { iso: "2026-07-15T20:00:00.000Z" } } },
+      ],
+    });
+  });
+
+  it("omits invalid temporal instants and rejects invalid time mappings", async () => {
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        { attributes: { unit_id: 1, observed_at: "2026-07-15T10:00:00" }, geometry: { x: -157, y: 21 } },
+        { attributes: { unit_id: 2, observed_at: "2026-07-15T10:00:00.0001Z" }, geometry: { x: -157, y: 21 } },
+      ],
+    };
+    const source = fakeSource([result]);
+    const projection = projectSourceToCesium(source, plan, result, { time: { instantField: "observed_at" } });
+    expect(projection.entities).toEqual([]);
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "time-interval-invalid", detail: { omittedFeatureCount: 2 } }),
+    );
+
+    expect(() => projectSourceToCesium(source, plan, result, { time: { instantField: "" } })).toThrow(
+      expect.objectContaining({ code: "invalid-option" }),
+    );
+    expect(() =>
+      projectSourceToCesium(source, plan, result, {
+        time: { instantField: "observed_at", startField: "start", endField: "end" },
+      } as unknown as Parameters<typeof projectSourceToCesium>[3]),
+    ).toThrow(expect.objectContaining({ code: "invalid-option" }));
+    await expect(
+      mountSourceToCesium(fakeCollection(), source, plan, {
+        ...context,
+        cesium: cesiumModule,
+        time: null,
+      } as unknown as Parameters<typeof mountSourceToCesium>[3]),
+    ).rejects.toEqual(expect.objectContaining({ code: "invalid-option" }));
+  });
+
+  it("preserves interval-bound sampled positions", async () => {
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        {
+          attributes: {
+            unit_id: "moving",
+            start: "2026-07-15T20:00:00Z",
+            end: "2026-07-15T20:01:00Z",
+            track: [
+              { time: "2026-07-15T20:00:00Z", coordinates: [-157, 21] },
+              { time: "2026-07-15T20:01:00Z", coordinates: [-156.9, 21.1] },
+            ],
+          },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    const source = fakeSource([result]);
+    const time = { startField: "start", endField: "end", positionField: "track" } as const;
+    const projection = projectSourceToCesium(source, plan, result, { time });
+    expect(projection.entities[0]?.positionSamples).toEqual([
+      { time: "2026-07-15T20:00:00.000Z", coordinates: [-157, 21, 0] },
+      { time: "2026-07-15T20:01:00.000Z", coordinates: [-156.9, 21.1, 0] },
+    ]);
+
+    const collection = fakeCollection();
+    await mountSourceToCesium(collection, source, plan, { ...context, cesium: cesiumModule, time });
+    expect(collection.entities.get("honua-response-units:s:moving")?.position).toMatchObject({
+      samples: [
+        { time: { iso: "2026-07-15T20:00:00.000Z" }, position: { longitude: -157, latitude: 21, height: 0 } },
+        { time: { iso: "2026-07-15T20:01:00.000Z" }, position: { longitude: -156.9, latitude: 21.1, height: 0 } },
+      ],
+    });
+  });
+
   it("deeply snapshots caller attributes and reports incomplete fidelity truthfully", () => {
     const nested = { dispatch: { priority: 1 }, tags: ["live"] };
     const source = fakeSource([firstResult]);
@@ -626,6 +725,12 @@ const cesiumModule: CesiumEntityRuntimeModule = {
       public readonly positions: readonly unknown[],
       public readonly holes?: readonly unknown[],
     ) {}
+  },
+  SampledPositionProperty: class {
+    public readonly samples: Array<{ time: unknown; position: unknown }> = [];
+    public addSample(time: unknown, position: unknown): void {
+      this.samples.push({ time, position });
+    }
   },
 };
 

@@ -113,6 +113,7 @@ export type {
   CesiumEntityProjection,
   CesiumEntityProjectionItem,
   CesiumEntityPositionSample,
+  CesiumEntityTimeOptions,
   CesiumEntityRuntimeLoader,
   CesiumEntityRuntimeModule,
   CesiumEntityWorkflowState,

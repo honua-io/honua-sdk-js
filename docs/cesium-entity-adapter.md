@@ -53,10 +53,13 @@ entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
   plain-object snapshots. Dates, class instances, sparse arrays, accessors, and
   other non-JSON values omit the feature with an unsupported-fidelity
   diagnostic rather than retaining mutable caller-owned objects.
-- Optional offset-bearing ISO instants with at most millisecond precision, or
-  integer Unix epoch-millisecond start/end attributes, mapped to Cesium
-  availability intervals. Ambiguous local-time strings and precision-losing
-  timestamps are omitted with a fidelity diagnostic.
+- Optional time mapping accepts either one `instantField`, represented as an
+  equal-start/end availability interval, or a `startField`/`endField` pair.
+  Values may be offset-bearing ISO instants with at most millisecond precision
+  or integer Unix epoch milliseconds. An optional `positionField` maps a
+  strictly ordered array of point-position samples in either variant.
+  Ambiguous local-time strings and precision-losing timestamps are omitted
+  with a fidelity diagnostic.
 - Serialized snapshot refresh, cancellation checks before renderer mutation,
   reentrant-disposal guards, rollback attempts, deterministic cleanup, and
   retryable failed disposal.
