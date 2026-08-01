@@ -168,6 +168,9 @@ Scene primitives describe 3D intent without naming a renderer package:
   explicit service configuration, opacity, attribution, and cache metadata.
   ArcGIS MapServer endpoints use Cesium's native MapServer provider; ImageServer
   endpoints use its `exportImage` operation through a bounded URL template.
+  Provider URLs may be relative, HTTP, or HTTPS; malformed URLs and bindings
+  containing userinfo, signed-URL query keys, or credential-like parameters fail
+  closed before workspace serialization or provider creation.
 - `extrusion`: a source-bound height/base/color definition that MapLibre can
   render as `fill-extrusion`.
 - `model-layer`: glTF, 3D Tiles, I3S, or custom model binding for a 3D adapter.

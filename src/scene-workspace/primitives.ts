@@ -58,6 +58,33 @@ export interface SceneElevationSourcePrimitive extends ScenePrimitiveBase {
 
 export type SceneImagerySourceProtocol = "url-template" | "wms" | "wmts" | "single-tile" | "arcgis-imagery";
 
+const SCENE_IMAGERY_URL_BASE = "https://scene.honua.invalid/";
+const CREDENTIAL_PARAMETER_KEYS = new Set([
+  "accesstoken",
+  "apikey",
+  "auth",
+  "authorization",
+  "bearer",
+  "clientsecret",
+  "credential",
+  "credentials",
+  "googleaccessid",
+  "jwt",
+  "key",
+  "passwd",
+  "password",
+  "secret",
+  "sessionid",
+  "sig",
+  "signature",
+  "token",
+  "xamzcredential",
+  "xamzsecuritytoken",
+  "xamzsignature",
+  "xgoogcredential",
+  "xgoogsignature",
+]);
+
 /**
  * A credential-free imagery binding for a scene renderer.
  *
@@ -579,6 +606,7 @@ function diagnoseRenderableImagery(
   capabilities: SceneRuntimeCapabilities,
 ): ScenePrimitiveDiagnostic[] {
   const diagnostics: ScenePrimitiveDiagnostic[] = [];
+  let urlProblem: SceneImageryUrlProblem;
   if (!isNonEmptyString(primitive.url)) {
     diagnostics.push(
       diagnostic(
@@ -589,6 +617,35 @@ function diagnoseRenderableImagery(
         capabilities,
         "Imagery layer requires a non-empty provider URL.",
         "Provide the credential-free provider endpoint before applying imagery.",
+      ),
+    );
+  } else {
+    urlProblem = sceneImageryUrlProblem(primitive.url);
+    if (urlProblem === "invalid") {
+      diagnostics.push(
+        diagnostic(
+          "scene-primitive-imagery-source-url-invalid",
+          "error",
+          "unsupported",
+          primitive,
+          capabilities,
+          "Imagery layer has an invalid provider URL.",
+          "Use a provider-safe relative, HTTP, or HTTPS URL.",
+        ),
+      );
+    }
+  }
+
+  if (urlProblem === "credentials" || hasCredentialParameter(primitive.parameters)) {
+    diagnostics.push(
+      diagnostic(
+        "scene-primitive-imagery-credentials-forbidden",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery bindings must not contain credentials, signed URLs, or credential-like service parameters.",
+        "Resolve authorization at the host boundary and store only a credential-free provider endpoint.",
       ),
     );
   }
@@ -727,6 +784,69 @@ function isNonNegativeInteger(value: number): boolean {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "";
+}
+
+type SceneImageryUrlProblem = "invalid" | "credentials" | undefined;
+
+function sceneImageryUrlProblem(value: string): SceneImageryUrlProblem {
+  let parsed: URL;
+  try {
+    parsed = new URL(value, SCENE_IMAGERY_URL_BASE);
+  } catch {
+    return "invalid";
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "invalid";
+  if (parsed.username !== "" || parsed.password !== "") return "credentials";
+  for (const key of parsed.searchParams.keys()) {
+    if (isCredentialParameterKey(key)) return "credentials";
+  }
+  return undefined;
+}
+
+function hasCredentialParameter(parameters: SceneImageryLayerPrimitive["parameters"]): boolean {
+  if (!parameters || typeof parameters !== "object" || Array.isArray(parameters)) return false;
+  return Object.keys(parameters).some(isCredentialParameterKey);
+}
+
+function isCredentialParameterKey(key: string): boolean {
+  const canonical = canonicalParameterKey(key);
+  return (
+    CREDENTIAL_PARAMETER_KEYS.has(canonical) ||
+    canonical.endsWith("credential") ||
+    canonical.endsWith("password") ||
+    canonical.endsWith("secret") ||
+    canonical.endsWith("signature") ||
+    canonical.endsWith("token")
+  );
+}
+
+function canonicalParameterKey(key: string): string {
+  let canonical = "";
+  for (const character of key.toLowerCase()) {
+    if (character >= "a" && character <= "z") canonical += character;
+    else if (character >= "0" && character <= "9") canonical += character;
+  }
+  return canonical;
+}
+
+/**
+ * Enforces the credential-free serialization boundary used by workspace state.
+ * Renderability diagnostics remain separate so incomplete-but-safe bindings can
+ * still be inspected, while unsafe or malformed URL material is never retained.
+ * @internal
+ */
+export function assertScenePrimitiveSerializable(primitive: SceneRuntimePrimitive): void {
+  if (primitive.kind !== "imagery-layer") return;
+  if (typeof primitive.url !== "string") {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' has an invalid provider URL.`);
+  }
+  const urlProblem = isNonEmptyString(primitive.url) ? sceneImageryUrlProblem(primitive.url) : undefined;
+  if (urlProblem === "invalid") {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' has an invalid provider URL.`);
+  }
+  if (urlProblem === "credentials" || hasCredentialParameter(primitive.parameters)) {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' must be credential-free.`);
+  }
 }
 
 function compileMapLibreFilters(filters: Readonly<Record<string, FilterClause>>, sourceId: string): unknown[] {

@@ -706,6 +706,36 @@ describe("cesium scene adapter", () => {
         } as unknown as SceneRuntimePrimitive,
         {
           kind: "imagery-layer",
+          id: "malformed-url",
+          sourceId: "malformed-url",
+          protocol: "single-tile",
+          url: "http://[",
+        },
+        {
+          kind: "imagery-layer",
+          id: "credential-url",
+          sourceId: "credential-url",
+          protocol: "wms",
+          url: "https://maps.example.test/wms?access_token=secret",
+          layer: "world",
+        },
+        {
+          kind: "imagery-layer",
+          id: "credential-userinfo",
+          sourceId: "credential-userinfo",
+          protocol: "single-tile",
+          url: "https://user:secret@images.example.test/snapshot.png",
+        },
+        {
+          kind: "imagery-layer",
+          id: "credential-parameters",
+          sourceId: "credential-parameters",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/ImageServer",
+          parameters: { apiKey: "secret" },
+        },
+        {
+          kind: "imagery-layer",
           id: "empty-subdomains",
           sourceId: "empty-subdomains",
           protocol: "url-template",
@@ -761,6 +791,8 @@ describe("cesium scene adapter", () => {
       expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(
         expect.arrayContaining([
           "scene-primitive-imagery-source-missing-url",
+          "scene-primitive-imagery-source-url-invalid",
+          "scene-primitive-imagery-credentials-forbidden",
           "scene-primitive-imagery-service-config-missing",
           "scene-primitive-imagery-service-config-invalid",
           "scene-primitive-imagery-opacity-invalid",

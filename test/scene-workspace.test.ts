@@ -160,6 +160,42 @@ describe("scene workspace", () => {
     expect(workspace.state.detail.attributes).toEqual({ status: "active" });
   });
 
+  it("rejects credential-bearing and malformed imagery before workspace serialization", () => {
+    const workspace = createSceneWorkspace();
+    const unsafePrimitives: SceneRuntimePrimitive[] = [
+      {
+        kind: "imagery-layer",
+        id: "signed-imagery",
+        sourceId: "signed-imagery",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png?X-Amz-Signature=secret",
+      },
+      {
+        kind: "imagery-layer",
+        id: "parameter-secret",
+        sourceId: "parameter-secret",
+        protocol: "wms",
+        url: "https://maps.example.test/wms",
+        layer: "world",
+        parameters: { token: "secret" },
+      },
+      {
+        kind: "imagery-layer",
+        id: "malformed-imagery",
+        sourceId: "malformed-imagery",
+        protocol: "single-tile",
+        url: "http://[",
+      },
+    ];
+
+    for (const primitive of unsafePrimitives) {
+      expect(() => workspace.dispatch({ kind: "set-primitives", primitives: [primitive] })).toThrow(
+        /credential-free|invalid provider URL/,
+      );
+      expect(workspace.state.primitives).toEqual({});
+    }
+  });
+
   it("serializes primitive diagnostics and MapLibre terrain/extrusion patches without renderer imports", () => {
     const primitives: SceneRuntimePrimitive[] = [
       {
