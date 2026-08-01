@@ -382,6 +382,7 @@ const SAFE_ERROR_NAMES = new Set([
   "HonuaMapPackageError",
   "HonuaNetworkError",
   "HonuaOfflineRegionError",
+  "HonuaOfflineEditQueueError",
   "HonuaPluginRegistryError",
   "HonuaQueryPlanExecutionError",
   "HonuaQueryPlanningError",
