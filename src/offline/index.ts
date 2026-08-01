@@ -6,8 +6,8 @@
  * integrations. Applications inject request matching, resource loading, and
  * network policy; the SDK owns deterministic manifest identity, credential
  * projection, cache diagnostics, quota admission, integrity checks,
- * cancellation, and progress semantics. Edit replay remains outside this
- * entrypoint.
+ * cancellation, progress semantics, and durable edit-queue state. Applications
+ * still own edit replay transport binding.
  *
  * @experimental
  */
@@ -20,6 +20,47 @@ export {
 } from "./region.js";
 export { createIndexedDbOfflineRegionStore, IndexedDbOfflineRegionStore } from "./indexeddb.js";
 export { createOfflineRegionFetchHandler } from "./fetch-handler.js";
+export {
+  createIndexedDbOfflineEditQueue,
+  createMemoryOfflineEditQueue,
+  IndexedDbOfflineEditQueue,
+  MemoryOfflineEditQueue,
+} from "./edit-queue.js";
+export {
+  DEFAULT_OFFLINE_EDIT_QUEUE_MAX_AUDIT_EVENTS,
+  DEFAULT_OFFLINE_EDIT_QUEUE_MAX_DEPENDENCIES,
+  DEFAULT_OFFLINE_EDIT_QUEUE_MAX_EDITS,
+  DEFAULT_OFFLINE_EDIT_QUEUE_MAX_PAYLOAD_BYTES,
+  HONUA_OFFLINE_EDIT_QUEUE_VERSION,
+  HonuaOfflineEditQueueError,
+  MAX_OFFLINE_EDIT_LEASE_DURATION_MS,
+} from "./edit-queue.js";
+export type {
+  ClaimOfflineEditsOptions,
+  EnqueueOfflineEditInput,
+  IndexedDbOfflineEditQueueOptions,
+  ListOfflineEditsOptions,
+  MarkOfflineEditAppliedInput,
+  MarkOfflineEditConflictedInput,
+  MarkOfflineEditRetryInput,
+  OfflineEditAppliedOutcome,
+  OfflineEditAuditEvent,
+  OfflineEditAuditEventKind,
+  OfflineEditConflictOutcome,
+  OfflineEditEnqueueResult,
+  OfflineEditJsonValue,
+  OfflineEditLease,
+  OfflineEditOperation,
+  OfflineEditQueue,
+  OfflineEditQueueErrorCode,
+  OfflineEditQueueOptions,
+  OfflineEditQueuePartition,
+  OfflineEditRetry,
+  OfflineFeatureEdit,
+  OfflineQueuedEdit,
+  OfflineQueuedEditState,
+  PruneTerminalOfflineEditsOptions,
+} from "./edit-queue.js";
 export type { IndexedDbOfflineRegionStoreOptions } from "./indexeddb.js";
 export {
   DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,

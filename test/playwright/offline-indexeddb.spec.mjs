@@ -38,6 +38,133 @@ test("IndexedDB offline region store survives reload and preserves inventory CAS
   }
 });
 
+test("IndexedDB edit queue survives reload and atomically leases dependency-ready work", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+    const expected = await page.evaluate(async () => {
+      const { createIndexedDbOfflineEditQueue } = await import("/dist/src/offline/index.js");
+      const name = `${window.__offlineDatabase}-edits`;
+      const queue = createIndexedDbOfflineEditQueue({
+        name,
+        now: () => new Date("2026-08-01T10:00:00.000Z"),
+        createLeaseToken: () => "setup-lease",
+      });
+      const authorizationScopeDigest = `sha256:${"a".repeat(64)}`;
+      const first = await queue.enqueue({
+        authorizationScopeDigest,
+        sourceId: "incidents",
+        idempotencyKey: "browser-first",
+        edit: { operation: "add", attributes: { status: "open" } },
+      });
+      const dependent = await queue.enqueue({
+        authorizationScopeDigest,
+        sourceId: "incidents",
+        idempotencyKey: "browser-dependent",
+        edit: { operation: "update", featureId: "incident-1", attributes: { status: "assigned" } },
+        dependencyIds: [first.edit.id],
+      });
+      const other = await queue.enqueue({
+        authorizationScopeDigest: `sha256:${"b".repeat(64)}`,
+        sourceId: "incidents",
+        idempotencyKey: "browser-other-partition",
+        edit: { operation: "add", attributes: { status: "private" } },
+      });
+      const value = { name, firstId: first.edit.id, dependentId: dependent.edit.id, otherId: other.edit.id };
+      sessionStorage.setItem("offline-edit-queue-fixture", JSON.stringify(value));
+      return value;
+    });
+
+    await page.reload();
+    const result = await page.evaluate(async () => {
+      const { createIndexedDbOfflineEditQueue } = await import("/dist/src/offline/index.js");
+      const fixture = JSON.parse(sessionStorage.getItem("offline-edit-queue-fixture"));
+      const options = {
+        name: fixture.name,
+        now: () => new Date("2026-08-01T10:00:01.000Z"),
+      };
+      const partition = {
+        authorizationScopeDigest: `sha256:${"a".repeat(64)}`,
+        sourceId: "incidents",
+      };
+      const queueA = createIndexedDbOfflineEditQueue({ ...options, createLeaseToken: () => "lease-a" });
+      const queueB = createIndexedDbOfflineEditQueue({ ...options, createLeaseToken: () => "lease-b" });
+      const before = await queueA.list(partition);
+      const claims = await Promise.all([
+        queueA.claimReady({ ...partition, workerId: "worker-a", limit: 10, leaseDurationMs: 60_000 }),
+        queueB.claimReady({ ...partition, workerId: "worker-b", limit: 10, leaseDurationMs: 60_000 }),
+      ]);
+      const claimed = claims.flat();
+      await queueA.markApplied(claimed[0].id, claimed[0].lease.token, {
+        serverOperationId: "operation-browser-1",
+      });
+      const next = await queueB.claimReady({
+        ...partition,
+        workerId: "worker-b",
+        limit: 10,
+        leaseDurationMs: 60_000,
+      });
+      const after = await queueA.list(partition);
+      await queueA.markApplied(next[0].id, next[0].lease.token, {
+        serverOperationId: "operation-browser-2",
+      });
+      const pruned = await queueA.pruneTerminal({
+        ...partition,
+        terminalBefore: "2026-08-01T10:00:01.000Z",
+        limit: 1,
+      });
+      const other = await queueB.get(fixture.otherId, {
+        authorizationScopeDigest: `sha256:${"b".repeat(64)}`,
+        sourceId: "incidents",
+      });
+      const metadataKeys = await new Promise((resolve, reject) => {
+        const open = indexedDB.open(fixture.name);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const getAll = open.result.transaction("edit-metadata", "readonly").objectStore("edit-metadata").getAll();
+          getAll.onerror = () => reject(getAll.error);
+          getAll.onsuccess = () =>
+            resolve([...new Set(getAll.result.flatMap((record) => Object.keys(record)))].sort());
+        };
+      });
+      return {
+        before: before.map((edit) => ({ id: edit.id, state: edit.state })),
+        claimed: claimed.map((edit) => edit.id),
+        claimCounts: claims.map((edits) => edits.length),
+        next: next.map((edit) => edit.id),
+        after: after.map((edit) => ({ id: edit.id, state: edit.state })),
+        pruned: pruned.length,
+        remaining: (await queueA.list(partition)).length,
+        otherState: other?.state,
+        metadataKeys,
+      };
+    });
+
+    expect(result.before).toHaveLength(2);
+    expect(result.before).toEqual(
+      expect.arrayContaining([
+        { id: expected.firstId, state: "pending" },
+        { id: expected.dependentId, state: "pending" },
+      ]),
+    );
+    expect(result.claimed).toEqual([expected.firstId]);
+    expect(result.claimCounts.reduce((total, count) => total + count, 0)).toBe(1);
+    expect(result.next).toEqual([expected.dependentId]);
+    expect(result.after).toHaveLength(2);
+    expect(result.after).toEqual(
+      expect.arrayContaining([
+        { id: expected.firstId, state: "applied" },
+        { id: expected.dependentId, state: "leased" },
+      ]),
+    );
+    expect(result).toMatchObject({ pruned: 1, remaining: 1, otherState: "pending" });
+    expect(result.metadataKeys).not.toEqual(expect.arrayContaining(["edit", "audit", "idempotencyKey", "lease"]));
+  } finally {
+    await server.close();
+  }
+});
+
 test("offline fetch uses resource provenance and omits invalid header values", async ({ page }) => {
   const server = await startServer();
   try {
