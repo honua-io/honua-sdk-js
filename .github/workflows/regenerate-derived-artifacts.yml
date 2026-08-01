@@ -507,10 +507,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          release_matrix_lanes="samples/contract/v2/release-matrix-lanes.v1.json"
           git add -A -- \
             samples/catalog.v2.json \
-            samples/contract/v2/migrations/catalog.v1-to-v2.json \
-            samples/contract/v2/release-matrix-lanes.v1.json
+            samples/contract/v2/migrations/catalog.v1-to-v2.json
+          # The establishment registry does not exist until a sealed release-
+          # matrix receipt has been recorded. Stage it when generated, or when
+          # a tracked copy was deleted, without making routine regenerations
+          # fail on an optional pathspec.
+          if [[ -e "$release_matrix_lanes" ]] || git ls-files --error-unmatch "$release_matrix_lanes" >/dev/null 2>&1; then
+            git add -A -- "$release_matrix_lanes"
+          fi
           git add -f -A -- samples/dist/sample-ci-selection.v2.json
           if ! git diff --quiet -- . ':(exclude)samples/evidence'; then
             echo "Catalog live-expiry refresh modified unexpected tracked content:"
