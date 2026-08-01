@@ -664,6 +664,24 @@ function diagnoseRenderableImagery(
       context: invalidLevels,
     });
   }
+  if (
+    primitive.subdomains !== undefined &&
+    (!Array.isArray(primitive.subdomains) ||
+      primitive.subdomains.length === 0 ||
+      primitive.subdomains.some((subdomain) => !isNonEmptyString(subdomain)))
+  ) {
+    diagnostics.push(
+      diagnostic(
+        "scene-primitive-imagery-subdomains-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery subdomains must be a non-empty list of non-empty strings when provided.",
+        "Omit subdomains to use the provider default or provide at least one valid subdomain.",
+      ),
+    );
+  }
   return diagnostics;
 }
 

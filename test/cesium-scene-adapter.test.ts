@@ -601,7 +601,7 @@ describe("cesium scene adapter", () => {
           id: "arcgis-image",
           sourceId: "arcgis-image",
           protocol: "arcgis-imagery",
-          url: "https://services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public&f=pjson&bbox=stale&size=1%2C1&format=jpg&transparent=false",
+          url: "https://services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public&mosaicrule=stale&MosaicRule=older&f=pjson&bbox=stale&size=1%2C1&format=jpg&transparent=false",
           parameters: { mosaicRule: "public-rule", imageSR: 4326, F: "pjson" },
         },
         {
@@ -666,6 +666,9 @@ describe("cesium scene adapter", () => {
           1,
         );
       }
+      expect([...imageServerUrl.searchParams.keys()].filter((key) => key.toLowerCase() === "mosaicrule")).toEqual([
+        "mosaicRule",
+      ]);
       expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
         "https://services.example.test/arcgis/rest/services/reference/MapServer",
         {},
@@ -697,6 +700,14 @@ describe("cesium scene adapter", () => {
           protocol: "url-template",
           url: 42,
         } as unknown as SceneRuntimePrimitive,
+        {
+          kind: "imagery-layer",
+          id: "empty-subdomains",
+          sourceId: "empty-subdomains",
+          protocol: "url-template",
+          url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png",
+          subdomains: [],
+        },
         {
           kind: "imagery-layer",
           id: "missing-wms-layer",
@@ -748,6 +759,7 @@ describe("cesium scene adapter", () => {
           "scene-primitive-imagery-service-config-missing",
           "scene-primitive-imagery-opacity-invalid",
           "scene-primitive-imagery-level-range-invalid",
+          "scene-primitive-imagery-subdomains-invalid",
         ]),
       );
       expect(result.diagnostics).toContainEqual(
@@ -755,6 +767,12 @@ describe("cesium scene adapter", () => {
           code: "scene-primitive-imagery-service-config-missing",
           primitiveId: "malformed-wmts-config",
           context: { missingFields: ["layer", "style", "tileMatrixSetId"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-subdomains-invalid",
+          primitiveId: "empty-subdomains",
         }),
       );
       expect(imageryProviders).toHaveLength(0);

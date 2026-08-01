@@ -798,15 +798,20 @@ function arcGisImageServerExportUrl(url: string, parameters: SceneImageryLayerPr
   const queryIndex = withoutFragment.indexOf("?");
   const endpoint = trimTrailingSlashes(queryIndex === -1 ? withoutFragment : withoutFragment.slice(0, queryIndex));
   const existingQuery = queryIndex === -1 ? "" : withoutFragment.slice(queryIndex + 1);
-  const preservedParameters = new URLSearchParams(existingQuery);
-  for (const key of new Set(preservedParameters.keys())) {
-    if (ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS.has(key.toLowerCase())) preservedParameters.delete(key);
-  }
+  const primitiveParameters = new Map<string, readonly [string, string]>();
   for (const [key, value] of Object.entries(parameters ?? {})) {
     if (!ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS.has(key.toLowerCase())) {
-      preservedParameters.set(key, String(value));
+      primitiveParameters.set(key.toLowerCase(), [key, String(value)]);
     }
   }
+  const preservedParameters = new URLSearchParams();
+  for (const [key, value] of new URLSearchParams(existingQuery)) {
+    const normalizedKey = key.toLowerCase();
+    if (!ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS.has(normalizedKey) && !primitiveParameters.has(normalizedKey)) {
+      preservedParameters.append(key, value);
+    }
+  }
+  for (const [key, value] of primitiveParameters.values()) preservedParameters.set(key, value);
   const requestParameters = [
     "f=image",
     "bbox={westProjected}%2C{southProjected}%2C{eastProjected}%2C{northProjected}",
