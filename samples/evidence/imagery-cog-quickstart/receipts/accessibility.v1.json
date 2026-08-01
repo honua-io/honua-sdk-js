@@ -6,9 +6,9 @@
   "gate": "accessibility",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "0b7cdebd5ae7a2a93c8290bf1e1020866d469e3e",
-  "sourceDigest": "0c93571e92624dbd257ca273982d20359cd8386cabcc27da904369c0989f874d",
-  "runRoot": "samples/evidence/imagery-cog-quickstart/runs/1a575bbf-d4a9-471b-b12f-fe34d788c129",
+  "sourceRevision": "5ed7b36156e7d0305cc84bbabc54b127b8a6ac4e",
+  "sourceDigest": "2703cc33860441442d2846d65910ec607452de06e481d4c4413dcbce62bc5c4c",
+  "runRoot": "samples/evidence/imagery-cog-quickstart/runs/311e8db4-cc0f-43e2-93a7-f091f9e9023e",
   "command": {
     "argv": [
       "npm",
@@ -22,17 +22,17 @@
     "id": "honua-sdk-sample-runner",
     "version": 1,
     "path": "scripts/sample-runner.mjs",
-    "sha256": "a9241a4ae1093ff97b0bc85fc6371f812240b7b809c9c1798a4589a8a0c452ed"
+    "sha256": "4bc29e32b521a56b9dbadabc3e16848010c5bd95ede87af15ae465ecd1640d2d"
   },
-  "observedAt": "2026-08-01T03:46:19.654Z",
-  "expiresAt": "2026-08-08T03:46:19.654Z",
-  "durationMs": 74952.588119,
+  "observedAt": "2026-08-01T19:10:55.107Z",
+  "expiresAt": "2026-08-08T19:10:55.107Z",
+  "durationMs": 76462.301807,
   "artifacts": [
     {
       "kind": "playwright-gate-report",
-      "path": "samples/evidence/imagery-cog-quickstart/runs/1a575bbf-d4a9-471b-b12f-fe34d788c129/artifacts/accessibility.json",
+      "path": "samples/evidence/imagery-cog-quickstart/runs/311e8db4-cc0f-43e2-93a7-f091f9e9023e/artifacts/accessibility.json",
       "bytes": 13562,
-      "sha256": "f62133e0938ba377e92ba613a670e41293523eb1b4f1b59b76845dc67027461a"
+      "sha256": "94844992092f8eea544028d7cd7a3e4459fbd332c8cfc2500a4b9730fb1ed381"
     }
   ]
 }

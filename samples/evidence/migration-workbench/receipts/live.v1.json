@@ -6,9 +6,9 @@
   "gate": "live",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "0b7cdebd5ae7a2a93c8290bf1e1020866d469e3e",
-  "sourceDigest": "0c93571e92624dbd257ca273982d20359cd8386cabcc27da904369c0989f874d",
-  "runRoot": "samples/evidence/migration-workbench/runs/f7c57155-ace9-4544-acf8-9371ed8749bb",
+  "sourceRevision": "5ed7b36156e7d0305cc84bbabc54b127b8a6ac4e",
+  "sourceDigest": "2703cc33860441442d2846d65910ec607452de06e481d4c4413dcbce62bc5c4c",
+  "runRoot": "samples/evidence/migration-workbench/runs/abef721f-eabd-4b56-843d-417574a6fec2",
   "command": {
     "argv": [
       "npm",
@@ -20,17 +20,17 @@
     "id": "honua-sdk-sample-runner",
     "version": 1,
     "path": "scripts/sample-runner.mjs",
-    "sha256": "a9241a4ae1093ff97b0bc85fc6371f812240b7b809c9c1798a4589a8a0c452ed"
+    "sha256": "4bc29e32b521a56b9dbadabc3e16848010c5bd95ede87af15ae465ecd1640d2d"
   },
-  "observedAt": "2026-08-01T03:47:23.324Z",
-  "expiresAt": "2026-08-08T03:47:23.324Z",
-  "durationMs": 4603.376256,
+  "observedAt": "2026-08-01T19:11:58.117Z",
+  "expiresAt": "2026-08-08T19:11:58.117Z",
+  "durationMs": 4527.720356,
   "artifacts": [
     {
       "kind": "live-evidence-report",
-      "path": "samples/evidence/migration-workbench/runs/f7c57155-ace9-4544-acf8-9371ed8749bb/artifacts/live.json",
+      "path": "samples/evidence/migration-workbench/runs/abef721f-eabd-4b56-843d-417574a6fec2/artifacts/live.json",
       "bytes": 2245,
-      "sha256": "783d455087c0de30f1dbb05b362a85c4abae0a8b3dce784b3ede039d242196b1"
+      "sha256": "5b5e58981f704c97f495b02088114601b6f123a60c1cf78e7a9395520a641bcc"
     }
   ]
 }
