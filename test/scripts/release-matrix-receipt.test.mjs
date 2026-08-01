@@ -73,6 +73,17 @@ async function withDerivedArtifactsRelax(enabled, run) {
   }
 }
 
+async function withReleaseMatrixReceiptEnforced(run) {
+  const previous = process.env.HONUA_RELEASE_MATRIX_RECEIPT_RELAX;
+  delete process.env.HONUA_RELEASE_MATRIX_RECEIPT_RELAX;
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined) delete process.env.HONUA_RELEASE_MATRIX_RECEIPT_RELAX;
+    else process.env.HONUA_RELEASE_MATRIX_RECEIPT_RELAX = previous;
+  }
+}
+
 const runIdentity = {
   repository: "honua-io/honua-sdk-js",
   workflow: "First Map Release Smoke",
@@ -605,7 +616,10 @@ for (const derivedRelax of [false, true]) {
       // assertion below reaches the independent release-matrix gate.
       qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
     };
-    const validate = () => withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options));
+    const validate = () =>
+      withReleaseMatrixReceiptEnforced(() =>
+        withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options)),
+      );
     try {
       // No receipt at all: the lane is not established and validation passes.
       await validate();
@@ -677,7 +691,9 @@ for (const derivedRelax of [false, true]) {
         qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
       };
       const validate = (options) =>
-        withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options));
+        withReleaseMatrixReceiptEnforced(() =>
+          withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options)),
+        );
 
       // Established lane, sealed green receipt present: qualified.
       await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
@@ -705,12 +721,14 @@ for (const derivedRelax of [false, true]) {
       // switch exists so a FAILING receipt can be committed, never so a projection
       // can be published for an established lane with its evidence removed.
       await assert.rejects(
-        withDerivedArtifactsRelax(derivedRelax, () =>
-          collectQualificationEvidence(catalog, {
-            receiptRoot,
-            verifyCheckout: false,
-            releaseMatrixLaneRegistryPath: established.releaseMatrixLaneRegistryPath,
-          }),
+        withReleaseMatrixReceiptEnforced(() =>
+          withDerivedArtifactsRelax(derivedRelax, () =>
+            collectQualificationEvidence(catalog, {
+              receiptRoot,
+              verifyCheckout: false,
+              releaseMatrixLaneRegistryPath: established.releaseMatrixLaneRegistryPath,
+            }),
+          ),
         ),
         /is missing; deleting sealed cross-browser evidence/u,
       );
