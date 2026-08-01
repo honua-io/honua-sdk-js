@@ -56,6 +56,32 @@ export interface SceneElevationSourcePrimitive extends ScenePrimitiveBase {
   readonly exaggeration?: number;
 }
 
+export type SceneImagerySourceProtocol = "url-template" | "wms" | "wmts" | "single-tile" | "arcgis-imagery";
+
+/**
+ * A credential-free imagery binding for a scene renderer.
+ *
+ * Service-specific configuration stays explicit rather than hiding a failed
+ * provider behind a generic URL: WMS requires `layer`; WMTS additionally
+ * requires `style` and `tileMatrixSetId`. Authorization remains the host's
+ * responsibility and must not be serialized into this primitive.
+ */
+export interface SceneImageryLayerPrimitive extends ScenePrimitiveBase {
+  readonly kind: "imagery-layer";
+  readonly sourceId: SourceId;
+  readonly protocol: SceneImagerySourceProtocol;
+  readonly url: string;
+  readonly layer?: string;
+  readonly style?: string;
+  readonly format?: string;
+  readonly tileMatrixSetId?: string;
+  readonly parameters?: Readonly<Record<string, string | number | boolean>>;
+  readonly subdomains?: readonly string[];
+  readonly minimumLevel?: number;
+  readonly maximumLevel?: number;
+  readonly opacity?: number;
+}
+
 export type SceneExtrusionValue = number | readonly unknown[];
 
 export interface SceneExtrusionPrimitive extends ScenePrimitiveBase {
@@ -96,6 +122,7 @@ export type SceneRuntimePrimitive =
   | SceneCameraPrimitive
   | SceneGroundPrimitive
   | SceneElevationSourcePrimitive
+  | SceneImageryLayerPrimitive
   | SceneExtrusionPrimitive
   | SceneModelLayerPrimitive
   | SceneLayerMetadataPrimitive;
@@ -121,6 +148,9 @@ export interface SceneRuntimeCapabilities {
   readonly terrain?: {
     readonly protocols: readonly SceneElevationSourceProtocol[];
     readonly supportsExaggeration?: boolean;
+  };
+  readonly imagery?: {
+    readonly protocols: readonly SceneImagerySourceProtocol[];
   };
   readonly extrusion?: boolean;
   readonly modelLayer?: {
@@ -290,6 +320,33 @@ export function diagnoseScenePrimitive(
         if (terrainDiagnostics.length > 0) return terrainDiagnostics;
       }
       return [supported(primitive, capabilities, "Elevation source can be applied as terrain.")];
+    }
+    case "imagery-layer": {
+      const imagery = capabilities.imagery;
+      if (!imagery) {
+        return [
+          unsupported(
+            primitive,
+            capabilities,
+            "Renderer adapter does not support imagery layers.",
+            "Keep the imagery binding in workspace diagnostics or route it to an imagery-capable renderer.",
+          ),
+        ];
+      }
+      if (!imagery.protocols.includes(primitive.protocol)) {
+        return [
+          unsupported(
+            primitive,
+            capabilities,
+            `Imagery protocol '${primitive.protocol}' is not supported by ${capabilities.renderer}.`,
+            "Use a supported imagery protocol or keep the source binding for another renderer.",
+          ),
+        ];
+      }
+      const imageryDiagnostics = diagnoseRenderableImagery(primitive, capabilities);
+      return imageryDiagnostics.length > 0
+        ? imageryDiagnostics
+        : [supported(primitive, capabilities, "Imagery layer can be materialized by the renderer.")];
     }
     case "extrusion":
       return capabilities.extrusion
@@ -517,6 +574,99 @@ function diagnoseRenderableTerrainRgb(
   return diagnostics;
 }
 
+function diagnoseRenderableImagery(
+  primitive: SceneImageryLayerPrimitive,
+  capabilities: SceneRuntimeCapabilities,
+): ScenePrimitiveDiagnostic[] {
+  const diagnostics: ScenePrimitiveDiagnostic[] = [];
+  if (primitive.url.trim() === "") {
+    diagnostics.push(
+      diagnostic(
+        "scene-primitive-imagery-source-missing-url",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery layer requires a non-empty provider URL.",
+        "Provide the credential-free provider endpoint before applying imagery.",
+      ),
+    );
+  }
+
+  const missingServiceFields: string[] = [];
+  if ((primitive.protocol === "wms" || primitive.protocol === "wmts") && !primitive.layer?.trim()) {
+    missingServiceFields.push("layer");
+  }
+  if (primitive.protocol === "wmts") {
+    if (!primitive.style?.trim()) missingServiceFields.push("style");
+    if (!primitive.tileMatrixSetId?.trim()) missingServiceFields.push("tileMatrixSetId");
+  }
+  if (missingServiceFields.length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-imagery-service-config-missing",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        `Imagery protocol '${primitive.protocol}' is missing required service configuration.`,
+        "Provide every protocol-required layer, style, and tile-matrix identifier.",
+      ),
+      context: { missingFields: missingServiceFields },
+    });
+  }
+
+  if (
+    primitive.opacity !== undefined &&
+    (!Number.isFinite(primitive.opacity) || primitive.opacity < 0 || primitive.opacity > 1)
+  ) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-imagery-opacity-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery opacity must be a finite number between 0 and 1.",
+        "Use an opacity in the inclusive [0, 1] range.",
+      ),
+      context: { opacity: primitive.opacity },
+    });
+  }
+
+  const invalidLevels: Record<string, unknown> = {};
+  if (primitive.minimumLevel !== undefined && !isNonNegativeInteger(primitive.minimumLevel)) {
+    invalidLevels.minimumLevel = primitive.minimumLevel;
+  }
+  if (primitive.maximumLevel !== undefined && !isNonNegativeInteger(primitive.maximumLevel)) {
+    invalidLevels.maximumLevel = primitive.maximumLevel;
+  }
+  if (
+    primitive.minimumLevel !== undefined &&
+    primitive.maximumLevel !== undefined &&
+    Number.isFinite(primitive.minimumLevel) &&
+    Number.isFinite(primitive.maximumLevel) &&
+    primitive.minimumLevel > primitive.maximumLevel
+  ) {
+    invalidLevels.levelRange = [primitive.minimumLevel, primitive.maximumLevel];
+  }
+  if (Object.keys(invalidLevels).length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-imagery-level-range-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery level bounds must be ordered non-negative integers.",
+        "Use non-negative integer levels with minimumLevel less than or equal to maximumLevel.",
+      ),
+      context: invalidLevels,
+    });
+  }
+  return diagnostics;
+}
+
 function hasRenderableTerrainUrl(primitive: SceneElevationSourcePrimitive): boolean {
   if (typeof primitive.url === "string" && primitive.url.trim() !== "") return true;
   return primitive.tiles?.some((tile) => typeof tile === "string" && tile.trim() !== "") === true;
@@ -528,6 +678,10 @@ function isPositiveFiniteNumber(value: number): boolean {
 
 function isZoom(value: number): boolean {
   return Number.isFinite(value) && value >= 0 && value <= 24;
+}
+
+function isNonNegativeInteger(value: number): boolean {
+  return Number.isInteger(value) && value >= 0;
 }
 
 function compileMapLibreFilters(filters: Readonly<Record<string, FilterClause>>, sourceId: string): unknown[] {

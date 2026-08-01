@@ -8,8 +8,8 @@
  *
  * As of honua-server#1197 the adapter renders Honua 3D content end-to-end:
  * 3D-Tiles tilesets (add/remove/visibility), terrain providers (quantized-mesh
- * via `CesiumTerrainProvider`, with vertical exaggeration), and glTF/GLB model
- * layers placed with heading/pitch/roll + scale. It also resolves a picked
+ * via `CesiumTerrainProvider`, with vertical exaggeration), imagery providers,
+ * and glTF/GLB model layers placed with heading/pitch/roll + scale. It also resolves a picked
  * 3D-Tiles feature's attributes (batch properties / `EXT_structural_metadata`).
  *
  * The provider wiring is still kept Cesium-mockable: every CesiumJS symbol the
@@ -23,6 +23,7 @@
 
 import {
   type SceneElevationSourcePrimitive,
+  type SceneImageryLayerPrimitive,
   type SceneModelLayerPrimitive,
   type ScenePrimitiveApplyResult,
   type SceneRuntimeAdapter,
@@ -47,6 +48,9 @@ export const CESIUM_SCENE_CAPABILITIES: SceneRuntimeCapabilities = {
   terrain: {
     protocols: ["quantized-mesh", "terrain-rgb", "raster-dem", "image-service", "custom"],
     supportsExaggeration: true,
+  },
+  imagery: {
+    protocols: ["url-template", "wms", "wmts", "single-tile", "arcgis-imagery"],
   },
   extrusion: true,
   modelLayer: {
@@ -143,13 +147,32 @@ export interface CesiumPrimitiveCollectionLike {
   contains(primitive?: unknown): boolean;
 }
 
+export interface CesiumImageryProviderLike {
+  destroy?(): void;
+  isDestroyed?(): boolean;
+}
+
+export interface CesiumImageryLayerLike {
+  show: boolean;
+  alpha: number;
+  destroy?(): void;
+  isDestroyed?(): boolean;
+}
+
+export interface CesiumImageryLayerCollectionLike {
+  addImageryProvider(provider: CesiumImageryProviderLike, index?: number): CesiumImageryLayerLike;
+  remove(layer: CesiumImageryLayerLike, destroy?: boolean): boolean;
+  contains(layer: CesiumImageryLayerLike): boolean;
+}
+
 /**
- * The Cesium `Scene` surface the adapter mutates: a primitive collection for
- * tilesets/models, a settable `terrainProvider`, vertical exaggeration, and a
+ * The Cesium `Scene` surface the adapter mutates: primitive and imagery
+ * collections, a settable `terrainProvider`, vertical exaggeration, and a
  * `pick` entry point used by {@link pickCesiumFeatureAttributes}.
  */
 export interface CesiumSceneLike {
   readonly primitives: CesiumPrimitiveCollectionLike;
+  readonly imageryLayers?: CesiumImageryLayerCollectionLike;
   terrainProvider?: unknown;
   verticalExaggeration?: number;
   pick?(windowPosition: unknown, width?: number, height?: number): unknown;
@@ -189,9 +212,11 @@ export interface CesiumModelPlacement {
  */
 export interface CesiumLayerHandle {
   readonly id: string;
-  readonly kind: "model-layer" | "elevation-source";
+  readonly kind: "model-layer" | "elevation-source" | "imagery-layer";
   readonly format?: SceneModelLayerPrimitive["format"];
+  readonly protocol?: SceneImageryLayerPrimitive["protocol"];
   setVisible(visible: boolean): void;
+  setOpacity?(opacity: number): void;
   remove(): void;
 }
 
@@ -334,6 +359,15 @@ type CesiumModule = {
   };
   readonly CesiumTerrainProvider: {
     fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumTerrainProviderLike>;
+  };
+  readonly UrlTemplateImageryProvider: new (options: Record<string, unknown>) => CesiumImageryProviderLike;
+  readonly WebMapServiceImageryProvider: new (options: Record<string, unknown>) => CesiumImageryProviderLike;
+  readonly WebMapTileServiceImageryProvider: new (options: Record<string, unknown>) => CesiumImageryProviderLike;
+  readonly SingleTileImageryProvider: {
+    fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumImageryProviderLike>;
+  };
+  readonly ArcGisMapServerImageryProvider: {
+    fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumImageryProviderLike>;
   };
 };
 
@@ -639,6 +673,116 @@ export async function addCesiumModel(
 }
 
 /**
+ * Materialize one renderer-neutral imagery primitive through Cesium's matching
+ * provider and add it to the scene's imagery collection.
+ *
+ * The returned handle owns the provider and layer it creates. Removal is
+ * idempotent, releases the layer's GPU resources through Cesium, and calls an
+ * optional provider `destroy()` exactly once.
+ */
+export async function addCesiumImageryLayer(
+  scene: CesiumSceneLike,
+  primitive: SceneImageryLayerPrimitive,
+  cesium?: CesiumModule,
+): Promise<CesiumLayerHandle> {
+  const validation = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
+    (diagnostic) => diagnostic.status === "unsupported",
+  );
+  if (validation) throw new Error(`${validation.code}: ${validation.message}`);
+  if (!scene.imageryLayers) {
+    throw new Error("scene-primitive-imagery-target-missing: Cesium scene does not expose imageryLayers.");
+  }
+
+  const mod = cesium ?? (await loadCesium());
+  const provider = await createCesiumImageryProvider(primitive, mod);
+  let layer: CesiumImageryLayerLike | undefined;
+  try {
+    layer = scene.imageryLayers.addImageryProvider(provider);
+    layer.alpha = primitive.opacity ?? 1;
+  } catch (error) {
+    if (layer && scene.imageryLayers.contains(layer)) scene.imageryLayers.remove(layer, true);
+    disposeCesiumImageryProvider(provider);
+    throw error;
+  }
+  let removed = false;
+  return {
+    id: primitive.id,
+    kind: "imagery-layer",
+    protocol: primitive.protocol,
+    setVisible(visible: boolean) {
+      if (!removed) layer.show = visible;
+    },
+    setOpacity(opacity: number) {
+      if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+        throw new RangeError("Imagery opacity must be a finite number between 0 and 1.");
+      }
+      if (!removed) layer.alpha = opacity;
+    },
+    remove() {
+      if (removed) return;
+      removed = true;
+      try {
+        if (scene.imageryLayers?.contains(layer)) scene.imageryLayers.remove(layer, true);
+      } finally {
+        disposeCesiumImageryProvider(provider);
+      }
+    },
+  };
+}
+
+function disposeCesiumImageryProvider(provider: CesiumImageryProviderLike): void {
+  if (typeof provider.destroy === "function" && provider.isDestroyed?.() !== true) provider.destroy();
+}
+
+async function createCesiumImageryProvider(
+  primitive: SceneImageryLayerPrimitive,
+  cesium: CesiumModule,
+): Promise<CesiumImageryProviderLike> {
+  const commonOptions = {
+    ...(primitive.attribution ? { credit: primitive.attribution } : {}),
+    ...(primitive.minimumLevel !== undefined ? { minimumLevel: primitive.minimumLevel } : {}),
+    ...(primitive.maximumLevel !== undefined ? { maximumLevel: primitive.maximumLevel } : {}),
+  };
+  switch (primitive.protocol) {
+    case "url-template":
+      return new cesium.UrlTemplateImageryProvider({
+        url: primitive.url,
+        ...commonOptions,
+        ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
+      });
+    case "wms":
+      return new cesium.WebMapServiceImageryProvider({
+        url: primitive.url,
+        layers: primitive.layer,
+        ...commonOptions,
+        ...(primitive.parameters || primitive.format
+          ? {
+              parameters: {
+                ...primitive.parameters,
+                ...(primitive.format ? { format: primitive.format } : {}),
+              },
+            }
+          : {}),
+      });
+    case "wmts":
+      return new cesium.WebMapTileServiceImageryProvider({
+        url: primitive.url,
+        layer: primitive.layer,
+        style: primitive.style,
+        tileMatrixSetID: primitive.tileMatrixSetId,
+        format: primitive.format ?? "image/png",
+        ...commonOptions,
+      });
+    case "single-tile":
+      return cesium.SingleTileImageryProvider.fromUrl(primitive.url, {
+        ...(primitive.attribution ? { credit: primitive.attribution } : {}),
+      });
+    case "arcgis-imagery":
+      return cesium.ArcGisMapServerImageryProvider.fromUrl(primitive.url, commonOptions);
+  }
+}
+
+/**
  * Wire a terrain provider from an elevation-source primitive onto the scene.
  *
  * `quantized-mesh` maps to `CesiumTerrainProvider.fromUrl` natively. `terrain-rgb`
@@ -752,6 +896,7 @@ export function pickCesiumFeatureAttributes(
  * As of #1197 this lands the full 3D stack against `target.scene`:
  *  - `camera` → `Camera.setView` (via the lazily-loaded `Cartesian3`).
  *  - `elevation-source` → `scene.terrainProvider` + `verticalExaggeration`.
+ *  - `imagery-layer` → a protocol-specific provider added to `scene.imageryLayers`.
  *  - `model-layer` (`3d-tiles`) → `Cesium3DTileset.fromUrl` added to
  *    `scene.primitives`; (`gltf`/`glb`) → `Model.fromGltfAsync` placed by
  *    position/rotation/scale.
@@ -768,7 +913,7 @@ export async function applyCesiumScenePrimitives(
   primitives: readonly SceneRuntimePrimitive[],
   _state?: SceneWorkspaceState,
 ): Promise<ScenePrimitiveApplyResult & { readonly layers: ReadonlyMap<string, CesiumLayerHandle> }> {
-  const diagnostics = diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES);
+  const diagnostics = [...diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES)];
   const cesium = await loadCesium();
   const toCartesian = (longitude: number, latitude: number, height: number): unknown =>
     cesium.Cartesian3.fromDegrees(longitude, latitude, height);
@@ -788,6 +933,23 @@ export async function applyCesiumScenePrimitives(
     if (primitive.kind === "elevation-source") {
       const handle = await applyCesiumTerrain(scene, primitive, cesium);
       if (handle) layers.set(handle.id, handle);
+      continue;
+    }
+    if (primitive.kind === "imagery-layer") {
+      if (!scene.imageryLayers) {
+        diagnostics.push({
+          code: "scene-primitive-imagery-target-missing",
+          severity: "error",
+          status: "unsupported",
+          primitiveId: primitive.id,
+          primitiveKind: primitive.kind,
+          renderer: "cesium",
+          message: "Cesium scene does not expose an imageryLayers collection.",
+          fallback: "Attach a complete Cesium scene target before applying imagery.",
+        });
+        continue;
+      }
+      layers.set(primitive.id, await addCesiumImageryLayer(scene, primitive, cesium));
       continue;
     }
     if (primitive.kind === "model-layer") {
@@ -812,8 +974,8 @@ export async function applyCesiumScenePrimitives(
  *
  * When `options.target` (a live Cesium `Viewer`/`Scene` surface — a `camera`
  * plus an optional `scene`) is supplied, `apply` drives the live globe: camera
- * sync plus, when a `scene` is attached, terrain providers, 3D-Tiles tilesets,
- * and glTF/GLB model layers (#1197). Without a target the adapter still
+ * sync plus, when a `scene` is attached, terrain and imagery providers,
+ * 3D-Tiles tilesets, and glTF/GLB model layers. Without a target the adapter still
  * diagnoses primitives against Cesium's true-3D capabilities — useful for
  * migration analysis before a viewer exists. CesiumJS itself is only imported
  * lazily when `apply` runs.

@@ -59,6 +59,14 @@ describe("split package manifests", () => {
     expect(fixture).toContain("packed-consumer-secret");
   });
 
+  it("qualifies Cesium imagery through the installed app-platform scene entrypoint", () => {
+    const verifier = fs.readFileSync(path.join(process.cwd(), "scripts/verify-split-packages.mjs"), "utf8");
+
+    expect(verifier).toContain("addCesiumImageryLayer");
+    expect(verifier).toContain("CESIUM_SCENE_CAPABILITIES.imagery");
+    expect(verifier).toContain("SceneImageryLayerPrimitive");
+  });
+
   it("ships the query planner imported by the React map runtime closure", () => {
     const prepareScript = fs.readFileSync(path.join(process.cwd(), "scripts/prepare-split-packages.mjs"), "utf8");
     const reactPackageFactory = prepareScript.slice(
