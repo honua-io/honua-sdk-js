@@ -18,6 +18,7 @@ jobs:
       pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
+      prs_created: ${{ steps.release.outputs.prs_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
@@ -188,6 +189,41 @@ jobs:
           if [[ "${MCP_RELEASE_CREATED}" == "true" ]]; then
             dispatch_tag_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
           fi
+
+  release-please-ci:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-please-ci-dispatch-${{ github.repository }}
+      cancel-in-progress: true
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out trusted canonical CI dispatch policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-ci-policy
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js for trusted canonical CI dispatch policy
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20.19.0"
+
+      - name: Dispatch canonical CI for the exact Release Please head
+        working-directory: trusted-ci-policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_PLEASE_PRS_CREATED: ${{ needs.release-please.outputs.prs_created }}
+          TRUSTED_POLICY_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
+          node scripts/dispatch-release-please-ci.mjs
 
   release-please-disposition:
     needs: release-please

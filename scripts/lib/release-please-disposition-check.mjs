@@ -7,8 +7,8 @@ export const RELEASE_PLEASE_EXEMPTION = "Release Please automation";
 export const REQUIRED_DISPOSITION_CHECK = "PR Issue Disposition";
 export const GITHUB_ACTIONS_APP_ID = 15368;
 
-const RELEASE_PLEASE_BASE = "trunk";
-const RELEASE_PLEASE_HEAD = "release-please--branches--trunk";
+export const RELEASE_PLEASE_BASE = "trunk";
+export const RELEASE_PLEASE_HEAD = "release-please--branches--trunk";
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 
@@ -101,7 +101,7 @@ export async function findCurrentReleasePleasePullRequest(repository, request = 
   return releasePleaseCandidateFromRest(payload[0], repository);
 }
 
-function assertMatchingSnapshots(rest, graphql) {
+export function assertMatchingReleasePleaseSnapshots(rest, graphql) {
   const exactFields = [
     "pullRequestNumber",
     "body",
@@ -162,7 +162,7 @@ export async function publishReleasePleaseDispositionCheck(input, request = gith
     { repository, pullRequestNumber: restCandidate.pullRequestNumber },
     request,
   );
-  assertMatchingSnapshots(restCandidate, current);
+  assertMatchingReleasePleaseSnapshots(restCandidate, current);
   if (current.baseSha !== trustedPolicySha) {
     throw new Error("The current Release Please base does not match the trusted trunk policy revision.");
   }
