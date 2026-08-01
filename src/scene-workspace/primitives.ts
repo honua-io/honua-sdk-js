@@ -60,10 +60,12 @@ export type SceneImagerySourceProtocol = "url-template" | "wms" | "wmts" | "sing
 
 const SCENE_IMAGERY_URL_BASE = "https://scene.honua.invalid/";
 const CREDENTIAL_PARAMETER_KEYS = new Set([
+  "accesskey",
   "accesstoken",
   "apikey",
   "auth",
   "authorization",
+  "awsaccesskeyid",
   "bearer",
   "clientsecret",
   "credential",
@@ -659,7 +661,7 @@ function diagnoseRenderableImagery(
     if (!isNonEmptyString(primitive.tileMatrixSetId)) missingServiceFields.push("tileMatrixSetId");
   }
   if (
-    primitive.protocol === "single-tile" &&
+    (primitive.protocol === "single-tile" || primitive.protocol === "arcgis-imagery") &&
     typeof primitive.url === "string" &&
     primitive.url.includes("{s}") &&
     primitive.subdomains === undefined
@@ -675,7 +677,7 @@ function diagnoseRenderableImagery(
         primitive,
         capabilities,
         `Imagery protocol '${primitive.protocol}' is missing required service configuration.`,
-        "Provide every protocol-required layer, style, and tile-matrix identifier.",
+        "Provide every protocol-required layer, style, tile-matrix identifier, and template subdomain.",
       ),
       context: { missingFields: missingServiceFields },
     });
@@ -862,6 +864,7 @@ function isCredentialParameterKey(key: string): boolean {
   const canonical = canonicalParameterKey(key);
   return (
     CREDENTIAL_PARAMETER_KEYS.has(canonical) ||
+    canonical.endsWith("accesskey") ||
     canonical.endsWith("credential") ||
     canonical.endsWith("password") ||
     canonical.endsWith("secret") ||

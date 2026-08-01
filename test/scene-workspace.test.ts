@@ -181,6 +181,22 @@ describe("scene workspace", () => {
       },
       {
         kind: "imagery-layer",
+        id: "access-key-url",
+        sourceId: "access-key-url",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png?aws_access_key_id=secret",
+      },
+      {
+        kind: "imagery-layer",
+        id: "access-key-parameter",
+        sourceId: "access-key-parameter",
+        protocol: "wms",
+        url: "https://maps.example.test/wms",
+        layer: "world",
+        parameters: { access_key: "secret" },
+      },
+      {
+        kind: "imagery-layer",
         id: "fragment-secret",
         sourceId: "fragment-secret",
         protocol: "url-template",

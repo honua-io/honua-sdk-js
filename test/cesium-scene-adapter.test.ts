@@ -574,7 +574,7 @@ describe("cesium scene adapter", () => {
           id: "weather",
           sourceId: "weather",
           protocol: "wms",
-          url: "https://maps.example.test/wms",
+          url: "https://maps.example.test/wms?FORMAT=image/jpeg&cache=public",
           layer: "precipitation",
           format: "image/png",
           parameters: { transparent: true, FORMAT: "image/jpeg" },
@@ -589,6 +589,7 @@ describe("cesium scene adapter", () => {
           layer: "world",
           style: "default",
           tileMatrixSetId: "WebMercatorQuad",
+          parameters: { Time: "2026-08-01T12:00:00Z", elevation: 250 },
           subdomains: ["tiles-1"],
         },
         {
@@ -613,7 +614,8 @@ describe("cesium scene adapter", () => {
           id: "arcgis-map",
           sourceId: "arcgis-map",
           protocol: "arcgis-imagery",
-          url: "https://services.example.test/arcgis/rest/services/reference/MapServer",
+          url: "https://{s}.services.example.test/arcgis/rest/services/reference/MapServer",
+          subdomains: ["maps-primary", "maps-secondary"],
         },
       ]);
 
@@ -636,7 +638,7 @@ describe("cesium scene adapter", () => {
         maximumLevel: 18,
       });
       expect(imageryProviders[1]?.options).toMatchObject({
-        url: "https://maps.example.test/wms",
+        url: "https://maps.example.test/wms?cache=public",
         layers: "precipitation",
         parameters: { transparent: true, format: "image/png" },
         subdomains: ["maps-a", "maps-b"],
@@ -649,6 +651,7 @@ describe("cesium scene adapter", () => {
         tileMatrixSetID: "WebMercatorQuad",
         format: "image/png",
         subdomains: ["tiles-1"],
+        dimensions: { Time: "2026-08-01T12:00:00Z", elevation: 250 },
       });
       expect(singleTileImageryFromUrl).toHaveBeenCalledWith("https://snapshot-a.images.example.test/snapshot.png", {});
       expect(imageryProviders[4]?.options).toMatchObject({
@@ -678,7 +681,7 @@ describe("cesium scene adapter", () => {
         "mosaicRule",
       ]);
       expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
-        "https://services.example.test/arcgis/rest/services/reference/MapServer",
+        "https://maps-primary.services.example.test/arcgis/rest/services/reference/MapServer",
         {},
       );
       expect(scene.addedImagery[0]?.alpha).toBe(0.75);
@@ -725,6 +728,14 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "access-key-url",
+          sourceId: "access-key-url",
+          protocol: "wms",
+          url: "https://maps.example.test/wms?aws_access_key_id=secret",
+          layer: "world",
+        },
+        {
+          kind: "imagery-layer",
           id: "credential-userinfo",
           sourceId: "credential-userinfo",
           protocol: "single-tile",
@@ -756,6 +767,17 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "access-key-parameters",
+          sourceId: "access-key-parameters",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          parameters: { access_key: "secret" },
+        },
+        {
+          kind: "imagery-layer",
           id: "empty-subdomains",
           sourceId: "empty-subdomains",
           protocol: "url-template",
@@ -776,6 +798,13 @@ describe("cesium scene adapter", () => {
           protocol: "url-template",
           url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png",
           subdomains: ["evil.test/path"],
+        },
+        {
+          kind: "imagery-layer",
+          id: "missing-mapserver-subdomains",
+          sourceId: "missing-mapserver-subdomains",
+          protocol: "arcgis-imagery",
+          url: "https://{s}.services.example.test/arcgis/rest/services/base/MapServer",
         },
         {
           kind: "imagery-layer",
@@ -862,6 +891,13 @@ describe("cesium scene adapter", () => {
           context: { missingFields: ["subdomains"] },
         }),
       );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-missing",
+          primitiveId: "missing-mapserver-subdomains",
+          context: { missingFields: ["subdomains"] },
+        }),
+      );
       expect(imageryProviders).toHaveLength(0);
       expect(scene.addedImagery).toHaveLength(0);
     });
@@ -892,6 +928,52 @@ describe("cesium scene adapter", () => {
 
       expect(scene.addedImagery).toHaveLength(0);
       expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("restores displaced terrain when a later provider fails", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const cesium = (await import("cesium")) as never;
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "existing-terrain",
+          sourceId: "existing-terrain",
+          protocol: "quantized-mesh",
+          url: "https://example.test/existing-terrain",
+          exaggeration: 1.75,
+        },
+        cesium,
+      );
+      const existingProvider = scene.terrainProvider as { destroy: ReturnType<typeof vi.fn> };
+      singleTileImageryFromUrl.mockRejectedValueOnce(new Error("single tile unavailable"));
+
+      await expect(
+        applyCesiumScenePrimitives({ camera, scene }, [
+          {
+            kind: "elevation-source",
+            id: "replacement-terrain",
+            sourceId: "replacement-terrain",
+            protocol: "quantized-mesh",
+            url: "https://example.test/replacement-terrain",
+            exaggeration: 3,
+          },
+          {
+            kind: "imagery-layer",
+            id: "failing",
+            sourceId: "failing",
+            protocol: "single-tile",
+            url: "https://images.example.test/unavailable.png",
+          },
+        ]),
+      ).rejects.toThrow("single tile unavailable");
+
+      const replacementProvider = await terrainFromUrl.mock.results[1]?.value;
+      expect(scene.terrainProvider).toBe(existingProvider);
+      expect(scene.verticalExaggeration).toBe(1.75);
+      expect(existingProvider.destroy).not.toHaveBeenCalled();
+      expect(replacementProvider.destroy).toHaveBeenCalledTimes(1);
     });
 
     it("controls and disposes an owned imagery layer exactly once", async () => {

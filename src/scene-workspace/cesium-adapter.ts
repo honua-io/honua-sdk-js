@@ -752,7 +752,7 @@ async function createCesiumImageryProvider(
       });
     case "wms":
       return new cesium.WebMapServiceImageryProvider({
-        url: primitive.url,
+        url: normalizedWmsUrl(primitive.url, primitive.format),
         layers: primitive.layer,
         ...commonOptions,
         ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
@@ -771,9 +771,10 @@ async function createCesiumImageryProvider(
         format: primitive.format ?? "image/png",
         ...commonOptions,
         ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
+        ...(primitive.parameters ? { dimensions: primitive.parameters } : {}),
       });
     case "single-tile":
-      return cesium.SingleTileImageryProvider.fromUrl(resolveSingleTileUrl(primitive), {
+      return cesium.SingleTileImageryProvider.fromUrl(resolveConfiguredSubdomainUrl(primitive), {
         ...(primitive.attribution ? { credit: primitive.attribution } : {}),
       });
     case "arcgis-imagery":
@@ -784,13 +785,35 @@ async function createCesiumImageryProvider(
           ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
         });
       }
-      return cesium.ArcGisMapServerImageryProvider.fromUrl(primitive.url, commonOptions);
+      return cesium.ArcGisMapServerImageryProvider.fromUrl(resolveConfiguredSubdomainUrl(primitive), commonOptions);
   }
 }
 
-function resolveSingleTileUrl(primitive: SceneImageryLayerPrimitive): string {
+function resolveConfiguredSubdomainUrl(primitive: SceneImageryLayerPrimitive): string {
   const subdomain = primitive.subdomains?.[0];
   return subdomain === undefined ? primitive.url : primitive.url.replaceAll("{s}", subdomain);
+}
+
+function normalizedWmsUrl(url: string, format: SceneImageryLayerPrimitive["format"]): string {
+  if (format === undefined) return url;
+  const hashIndex = url.indexOf("#");
+  const withoutFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const fragment = hashIndex === -1 ? "" : url.slice(hashIndex);
+  const queryIndex = withoutFragment.indexOf("?");
+  if (queryIndex === -1) return url;
+  const endpoint = withoutFragment.slice(0, queryIndex);
+  const query = withoutFragment.slice(queryIndex + 1);
+  const preserved = query.split("&").filter((entry) => {
+    if (entry === "") return false;
+    const separatorIndex = entry.indexOf("=");
+    const rawKey = separatorIndex === -1 ? entry : entry.slice(0, separatorIndex);
+    try {
+      return decodeURIComponent(rawKey.replaceAll("+", " ")).toLowerCase() !== "format";
+    } catch {
+      return true;
+    }
+  });
+  return `${endpoint}${preserved.length > 0 ? `?${preserved.join("&")}` : ""}${fragment}`;
 }
 
 function normalizedWmsParameters(
@@ -874,6 +897,15 @@ export async function applyCesiumTerrain(
   primitive: SceneElevationSourcePrimitive,
   cesium?: CesiumModule,
 ): Promise<CesiumLayerHandle | undefined> {
+  return applyCesiumTerrainInternal(scene, primitive, cesium, true);
+}
+
+async function applyCesiumTerrainInternal(
+  scene: CesiumSceneLike,
+  primitive: SceneElevationSourcePrimitive,
+  cesium: CesiumModule | undefined,
+  disposePreviousProvider: boolean,
+): Promise<CesiumLayerHandle | undefined> {
   const url = typeof primitive.url === "string" && primitive.url.trim() !== "" ? primitive.url : undefined;
   if (primitive.exaggeration !== undefined && Number.isFinite(primitive.exaggeration)) {
     scene.verticalExaggeration = primitive.exaggeration;
@@ -884,7 +916,9 @@ export async function applyCesiumTerrain(
   if (provider && typeof provider === "object") ownedCesiumTerrainProviders.add(provider);
   const previousProvider = scene.terrainProvider;
   scene.terrainProvider = provider;
-  if (previousProvider && previousProvider !== provider) disposeOwnedCesiumTerrainProvider(previousProvider);
+  if (disposePreviousProvider && previousProvider && previousProvider !== provider) {
+    disposeOwnedCesiumTerrainProvider(previousProvider);
+  }
   let removed = false;
   return {
     id: primitive.id,
@@ -998,7 +1032,16 @@ export async function applyCesiumScenePrimitives(
     diagnostics.filter((diagnostic) => diagnostic.status === "unsupported").map((diagnostic) => diagnostic.primitiveId),
   );
   const layers = new Map<string, CesiumLayerHandle>();
+  const appliedHandles: CesiumLayerHandle[] = [];
+  const deferredTerrainProviders: unknown[] = [];
   const scene = target.scene;
+  const originalTerrainProvider = scene?.terrainProvider;
+  const originalVerticalExaggeration = scene?.verticalExaggeration;
+  let terrainWasApplied = false;
+  const registerHandle = (handle: CesiumLayerHandle): void => {
+    appliedHandles.push(handle);
+    layers.set(handle.id, handle);
+  };
 
   try {
     for (const primitive of primitives) {
@@ -1009,8 +1052,15 @@ export async function applyCesiumScenePrimitives(
       if (!scene || unsupportedIds.has(primitive.id)) continue;
 
       if (primitive.kind === "elevation-source") {
-        const handle = await applyCesiumTerrain(scene, primitive, cesium);
-        if (handle) layers.set(handle.id, handle);
+        const previousProvider = scene.terrainProvider;
+        terrainWasApplied = true;
+        const handle = await applyCesiumTerrainInternal(scene, primitive, cesium, false);
+        if (handle) {
+          if (previousProvider && previousProvider !== scene.terrainProvider) {
+            deferredTerrainProviders.push(previousProvider);
+          }
+          registerHandle(handle);
+        }
         continue;
       }
       if (primitive.kind === "imagery-layer") {
@@ -1027,23 +1077,31 @@ export async function applyCesiumScenePrimitives(
           });
           continue;
         }
-        layers.set(primitive.id, await addCesiumImageryLayer(scene, primitive, cesium));
+        registerHandle(await addCesiumImageryLayer(scene, primitive, cesium));
         continue;
       }
       if (primitive.kind === "model-layer") {
         if (primitive.format === "3d-tiles") {
-          layers.set(primitive.id, await addCesium3DTileset(scene, primitive, cesium));
+          registerHandle(await addCesium3DTileset(scene, primitive, cesium));
         } else if (primitive.format === "gltf" || primitive.format === "glb") {
-          layers.set(primitive.id, await addCesiumModel(scene, primitive, cesium));
+          registerHandle(await addCesiumModel(scene, primitive, cesium));
         }
         // i3s / obj / custom: declared-capable but not materialized here.
       }
     }
   } catch (cause) {
     const rollbackErrors: unknown[] = [];
-    for (const handle of [...layers.values()].reverse()) {
+    for (const handle of appliedHandles.reverse()) {
       try {
         handle.remove();
+      } catch (error) {
+        rollbackErrors.push(error);
+      }
+    }
+    if (scene && terrainWasApplied) {
+      try {
+        scene.terrainProvider = originalTerrainProvider;
+        scene.verticalExaggeration = originalVerticalExaggeration;
       } catch (error) {
         rollbackErrors.push(error);
       }
@@ -1057,6 +1115,8 @@ export async function applyCesiumScenePrimitives(
     }
     throw cause;
   }
+
+  for (const provider of deferredTerrainProviders) disposeOwnedCesiumTerrainProvider(provider);
 
   return {
     status: summarizeDiagnosticStatus(diagnostics),
