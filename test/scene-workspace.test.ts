@@ -181,16 +181,32 @@ describe("scene workspace", () => {
       },
       {
         kind: "imagery-layer",
+        id: "fragment-secret",
+        sourceId: "fragment-secret",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png#access_token=secret",
+      },
+      {
+        kind: "imagery-layer",
         id: "malformed-imagery",
         sourceId: "malformed-imagery",
         protocol: "single-tile",
         url: "http://[",
       },
+      {
+        kind: "imagery-layer",
+        id: "malformed-parameters",
+        sourceId: "malformed-parameters",
+        protocol: "wms",
+        url: "https://maps.example.test/wms",
+        layer: "world",
+        parameters: [{ token: "secret" }],
+      } as unknown as SceneRuntimePrimitive,
     ];
 
     for (const primitive of unsafePrimitives) {
       expect(() => workspace.dispatch({ kind: "set-primitives", primitives: [primitive] })).toThrow(
-        /credential-free|invalid provider URL/,
+        /credential-free|invalid provider URL|invalid service parameters/,
       );
       expect(workspace.state.primitives).toEqual({});
     }

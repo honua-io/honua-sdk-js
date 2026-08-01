@@ -681,6 +681,9 @@ function diagnoseRenderableImagery(
   ) {
     invalidServiceFields.push("format");
   }
+  if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
+    invalidServiceFields.push("parameters");
+  }
   if (invalidServiceFields.length > 0) {
     diagnostics.push({
       ...diagnostic(
@@ -800,12 +803,36 @@ function sceneImageryUrlProblem(value: string): SceneImageryUrlProblem {
   for (const key of parsed.searchParams.keys()) {
     if (isCredentialParameterKey(key)) return "credentials";
   }
+  if (parsed.hash !== "") {
+    const fragmentParameters = new URLSearchParams(parsed.hash.slice(1).replaceAll("?", "&"));
+    for (const key of fragmentParameters.keys()) {
+      if (isCredentialParameterKey(key)) return "credentials";
+    }
+  }
   return undefined;
 }
 
 function hasCredentialParameter(parameters: SceneImageryLayerPrimitive["parameters"]): boolean {
-  if (!parameters || typeof parameters !== "object" || Array.isArray(parameters)) return false;
+  if (!isValidImageryParameters(parameters)) return false;
   return Object.keys(parameters).some(isCredentialParameterKey);
+}
+
+function isValidImageryParameters(value: unknown): value is Readonly<Record<string, string | number | boolean>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return false;
+    if (Object.getOwnPropertySymbols(value).length > 0) return false;
+    return Object.values(Object.getOwnPropertyDescriptors(value)).every(
+      (descriptor) =>
+        "value" in descriptor &&
+        (typeof descriptor.value === "string" ||
+          typeof descriptor.value === "boolean" ||
+          (typeof descriptor.value === "number" && Number.isFinite(descriptor.value))),
+    );
+  } catch {
+    return false;
+  }
 }
 
 function isCredentialParameterKey(key: string): boolean {
@@ -846,6 +873,9 @@ export function assertScenePrimitiveSerializable(primitive: SceneRuntimePrimitiv
   }
   if (urlProblem === "credentials" || hasCredentialParameter(primitive.parameters)) {
     throw new TypeError(`Scene imagery primitive '${primitive.id}' must be credential-free.`);
+  }
+  if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' has invalid service parameters.`);
   }
 }
 

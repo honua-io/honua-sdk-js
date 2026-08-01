@@ -730,6 +730,22 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "credential-fragment",
+          sourceId: "credential-fragment",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png#access_token=secret",
+        },
+        {
+          kind: "imagery-layer",
+          id: "malformed-parameters",
+          sourceId: "malformed-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: [{ token: "secret" }],
+        } as unknown as SceneRuntimePrimitive,
+        {
+          kind: "imagery-layer",
           id: "credential-parameters",
           sourceId: "credential-parameters",
           protocol: "arcgis-imagery",
