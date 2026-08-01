@@ -11,6 +11,7 @@ import {
   type OfflineRegionStore,
   type OfflineRegionStoredRegion,
   type OfflineRegionWriteTransaction,
+  createOfflineRegionDiagnostic,
   createOfflineRegionManifest,
   downloadOfflineRegion,
   planOfflineRegionAdmission,
@@ -351,6 +352,135 @@ describe("logical-byte quota admission", () => {
         { logicalQuotaBytes: 10, now: new Date("2026-07-10Z") },
       ),
     ).toThrowError(expect.objectContaining({ code: "expired" }));
+  });
+});
+
+describe("offline region diagnostics", () => {
+  it("reports a complete reusable hit, replacement plan, and secret-safe provenance", async () => {
+    const value = await manifest({ validator: { etag: '"diagnostic-secret-etag"' } });
+    const diagnostic = await createOfflineRegionDiagnostic(
+      value,
+      {
+        revision: "7",
+        regions: [
+          {
+            id: value.id,
+            logicalByteLength: value.totalLogicalBytes,
+            lastAccessedAt: "2026-07-10T10:01:00.000Z",
+            expiresAt: value.expiresAt,
+            pinned: true,
+          },
+        ],
+      },
+      { logicalQuotaBytes: 32, now: new Date("2026-07-10T10:05:00.000Z"), staleAfterMs: 10 * 60 * 1000 },
+    );
+
+    expect(diagnostic).toMatchObject({
+      kind: "honua.offline-region-diagnostic",
+      version: "1.0",
+      generatedAt: "2026-07-10T10:05:00.000Z",
+      inventoryRevision: "7",
+      cache: {
+        state: "offline",
+        freshness: "fresh",
+        completeness: "complete",
+        reason: "offline-entry",
+        readable: true,
+        pinned: true,
+      },
+      provenance: {
+        sourceId: "incidents",
+        endpointFingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+        authorizationScopeDigest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+        sourceVersion: "source-v3",
+        schemaVersion: "schema-v7",
+        planVersion: "plan-v2",
+        validator: { etagFingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/) },
+      },
+      contents: {
+        resourceCount: 2,
+        logicalBytes: 6,
+        resourceKinds: { metadata: 1, features: 0, tile: 1, asset: 0, attribution: 0 },
+        attributionIds: ["osm"],
+      },
+      admission: { status: "accepted", plan: { replacementLogicalBytes: 6, evictRegionIds: [] } },
+    });
+    const serialized = JSON.stringify(diagnostic);
+    expect(serialized).not.toContain("diagnostic-secret-etag");
+    expect(serialized).not.toContain("token=secret");
+    expect(serialized).not.toContain("tenant:a/role:field");
+    expect(Object.isFrozen(diagnostic.cache)).toBe(true);
+  });
+
+  it("reports a stale miss and exposes deterministic eviction admission", async () => {
+    const value = await manifest();
+    const diagnostic = await createOfflineRegionDiagnostic(
+      value,
+      {
+        revision: "8",
+        regions: [{ id: "older", logicalByteLength: 4, lastAccessedAt: "2026-07-01T00:00:00.000Z" }],
+      },
+      { logicalQuotaBytes: 6, now: new Date("2026-07-11T10:00:00.000Z"), staleAfterMs: 60 * 60 * 1000 },
+    );
+
+    expect(diagnostic.cache).toMatchObject({
+      state: "missing",
+      freshness: "stale",
+      completeness: "missing",
+      reason: "cache-miss",
+      readable: false,
+    });
+    expect(diagnostic.admission).toMatchObject({
+      status: "accepted",
+      plan: { evictRegionIds: ["older"], logicalBytesAfter: 6 },
+    });
+  });
+
+  it("reports partial expired storage and rejects the expired manifest", async () => {
+    const value = await manifest({ expiresAt: "2026-07-10T09:00:00.000Z" });
+    const diagnostic = await createOfflineRegionDiagnostic(
+      value,
+      {
+        revision: "9",
+        regions: [
+          {
+            id: value.id,
+            logicalByteLength: 3,
+            lastAccessedAt: "2026-07-10T08:00:00.000Z",
+            expiresAt: value.expiresAt,
+          },
+        ],
+      },
+      { logicalQuotaBytes: 6, now: new Date("2026-07-10T10:00:00.000Z"), staleAfterMs: 60 * 60 * 1000 },
+    );
+
+    expect(diagnostic.cache).toMatchObject({
+      state: "offline",
+      freshness: "expired",
+      completeness: "partial",
+      reason: "expired-entry",
+      readable: false,
+      storedLogicalBytes: 3,
+      expectedLogicalBytes: 6,
+    });
+    expect(diagnostic.admission).toEqual({ status: "rejected", reason: "expired", logicalQuotaBytes: 6 });
+  });
+
+  it("reports quota rejection without throwing or mutating inventory", async () => {
+    const value = await manifest();
+    const inventory = {
+      revision: "10",
+      regions: [{ id: "pinned", logicalByteLength: 5, lastAccessedAt: "2026-07-10T00:00:00.000Z", pinned: true }],
+    } as const;
+    const before = JSON.stringify(inventory);
+    const diagnostic = await createOfflineRegionDiagnostic(value, inventory, {
+      logicalQuotaBytes: 8,
+      now: new Date("2026-07-10T10:00:00.000Z"),
+      staleAfterMs: 60 * 60 * 1000,
+    });
+
+    expect(diagnostic.admission).toEqual({ status: "rejected", reason: "quota-exceeded", logicalQuotaBytes: 8 });
+    expect(JSON.stringify(inventory)).toBe(before);
   });
 });
 
