@@ -43,7 +43,10 @@ jobs:
 
       - name: Run full-scale deck.gl evidence
         id: benchmark
-        run: npm run bench:browser:full-scale
+        # Capture against the placeholder thresholds without making them a
+        # regression gate. Once repeated reports establish reviewed budgets,
+        # switch this lane to bench:browser:full-scale (which passes --check).
+        run: npm run bench:browser:full-scale:capture
 
       - name: Upload full-scale evidence
         if: always() && steps.benchmark.outcome != 'skipped'
@@ -68,14 +71,15 @@ jobs:
 
           const report = JSON.parse(fs.readFileSync(file, "utf8"));
           const scaleIds = new Set(["deckgl.scale-render-100k", "deckgl.scale-render-1m"]);
+          const metric = (value, unit) => Number.isFinite(value) ? `${value.toFixed(2)} ${unit}` : "not measured";
           const rows = report.scenarios
             .filter((scenario) => scaleIds.has(scenario.id))
             .map((scenario) => [
               `| ${scenario.id}`,
-              `${scenario.summary.firstVisibleMs.median.toFixed(2)} ms`,
-              `${scenario.summary.interactionLatencyMs.median.toFixed(2)} ms`,
-              `${scenario.stagesSummary.gpuUploadMs.median.toFixed(2)} ms`,
-              `${scenario.stagesSummary.steadyFrameRateFps.median.toFixed(2)} fps |`,
+              metric(scenario.summary?.firstVisibleMs?.median, "ms"),
+              metric(scenario.summary?.interactionLatencyMs?.median, "ms"),
+              metric(scenario.stagesSummary?.gpuUploadMs?.median, "ms"),
+              `${metric(scenario.stagesSummary?.steadyFrameRateFps?.median, "fps")} |`,
             ].join(" | "));
 
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, [
