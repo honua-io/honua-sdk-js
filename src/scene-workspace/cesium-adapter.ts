@@ -758,10 +758,7 @@ async function createCesiumImageryProvider(
         ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
         ...(primitive.parameters || primitive.format
           ? {
-              parameters: {
-                ...primitive.parameters,
-                ...(primitive.format ? { format: primitive.format } : {}),
-              },
+              parameters: normalizedWmsParameters(primitive.parameters, primitive.format),
             }
           : {}),
       });
@@ -789,6 +786,19 @@ async function createCesiumImageryProvider(
       }
       return cesium.ArcGisMapServerImageryProvider.fromUrl(primitive.url, commonOptions);
   }
+}
+
+function normalizedWmsParameters(
+  parameters: SceneImageryLayerPrimitive["parameters"],
+  format: SceneImageryLayerPrimitive["format"],
+): Readonly<Record<string, string | number | boolean>> {
+  const entries = Object.entries(parameters ?? {}).filter(
+    ([key]) => format === undefined || key.toLowerCase() !== "format",
+  );
+  return {
+    ...Object.fromEntries(entries),
+    ...(format !== undefined ? { format } : {}),
+  };
 }
 
 function isArcGisImageServerUrl(url: string): boolean {
@@ -985,43 +995,62 @@ export async function applyCesiumScenePrimitives(
   const layers = new Map<string, CesiumLayerHandle>();
   const scene = target.scene;
 
-  for (const primitive of primitives) {
-    if (primitive.kind === "camera") {
-      applyCameraStateToCesiumCamera(target.camera, primitive.camera, toCartesian);
-      continue;
-    }
-    if (!scene || unsupportedIds.has(primitive.id)) continue;
-
-    if (primitive.kind === "elevation-source") {
-      const handle = await applyCesiumTerrain(scene, primitive, cesium);
-      if (handle) layers.set(handle.id, handle);
-      continue;
-    }
-    if (primitive.kind === "imagery-layer") {
-      if (!scene.imageryLayers) {
-        diagnostics.push({
-          code: "scene-primitive-imagery-target-missing",
-          severity: "error",
-          status: "unsupported",
-          primitiveId: primitive.id,
-          primitiveKind: primitive.kind,
-          renderer: "cesium",
-          message: "Cesium scene does not expose an imageryLayers collection.",
-          fallback: "Attach a complete Cesium scene target before applying imagery.",
-        });
+  try {
+    for (const primitive of primitives) {
+      if (primitive.kind === "camera") {
+        applyCameraStateToCesiumCamera(target.camera, primitive.camera, toCartesian);
         continue;
       }
-      layers.set(primitive.id, await addCesiumImageryLayer(scene, primitive, cesium));
-      continue;
-    }
-    if (primitive.kind === "model-layer") {
-      if (primitive.format === "3d-tiles") {
-        layers.set(primitive.id, await addCesium3DTileset(scene, primitive, cesium));
-      } else if (primitive.format === "gltf" || primitive.format === "glb") {
-        layers.set(primitive.id, await addCesiumModel(scene, primitive, cesium));
+      if (!scene || unsupportedIds.has(primitive.id)) continue;
+
+      if (primitive.kind === "elevation-source") {
+        const handle = await applyCesiumTerrain(scene, primitive, cesium);
+        if (handle) layers.set(handle.id, handle);
+        continue;
       }
-      // i3s / obj / custom: declared-capable but not materialized here.
+      if (primitive.kind === "imagery-layer") {
+        if (!scene.imageryLayers) {
+          diagnostics.push({
+            code: "scene-primitive-imagery-target-missing",
+            severity: "error",
+            status: "unsupported",
+            primitiveId: primitive.id,
+            primitiveKind: primitive.kind,
+            renderer: "cesium",
+            message: "Cesium scene does not expose an imageryLayers collection.",
+            fallback: "Attach a complete Cesium scene target before applying imagery.",
+          });
+          continue;
+        }
+        layers.set(primitive.id, await addCesiumImageryLayer(scene, primitive, cesium));
+        continue;
+      }
+      if (primitive.kind === "model-layer") {
+        if (primitive.format === "3d-tiles") {
+          layers.set(primitive.id, await addCesium3DTileset(scene, primitive, cesium));
+        } else if (primitive.format === "gltf" || primitive.format === "glb") {
+          layers.set(primitive.id, await addCesiumModel(scene, primitive, cesium));
+        }
+        // i3s / obj / custom: declared-capable but not materialized here.
+      }
     }
+  } catch (cause) {
+    const rollbackErrors: unknown[] = [];
+    for (const handle of [...layers.values()].reverse()) {
+      try {
+        handle.remove();
+      } catch (error) {
+        rollbackErrors.push(error);
+      }
+    }
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError(
+        [cause, ...rollbackErrors],
+        "Cesium scene primitive application failed and layer rollback was incomplete.",
+        { cause },
+      );
+    }
+    throw cause;
   }
 
   return {

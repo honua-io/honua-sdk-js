@@ -577,7 +577,7 @@ describe("cesium scene adapter", () => {
           url: "https://maps.example.test/wms",
           layer: "precipitation",
           format: "image/png",
-          parameters: { transparent: true },
+          parameters: { transparent: true, FORMAT: "image/jpeg" },
           subdomains: ["maps-a", "maps-b"],
         },
         {
@@ -640,6 +640,7 @@ describe("cesium scene adapter", () => {
         parameters: { transparent: true, format: "image/png" },
         subdomains: ["maps-a", "maps-b"],
       });
+      expect(imageryProviders[1]?.options.parameters).toEqual({ transparent: true, format: "image/png" });
       expect(imageryProviders[2]?.options).toMatchObject({
         url: "https://maps.example.test/wmts",
         layer: "world",
@@ -762,6 +763,14 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "unsafe-subdomain",
+          sourceId: "unsafe-subdomain",
+          protocol: "url-template",
+          url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png",
+          subdomains: ["evil.test/path"],
+        },
+        {
+          kind: "imagery-layer",
           id: "missing-wms-layer",
           sourceId: "missing-wms-layer",
           protocol: "wms",
@@ -840,6 +849,34 @@ describe("cesium scene adapter", () => {
       );
       expect(imageryProviders).toHaveLength(0);
       expect(scene.addedImagery).toHaveLength(0);
+    });
+
+    it("rolls back earlier imagery layers when a later provider fails", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      singleTileImageryFromUrl.mockRejectedValueOnce(new Error("single tile unavailable"));
+
+      await expect(
+        applyCesiumScenePrimitives({ camera, scene }, [
+          {
+            kind: "imagery-layer",
+            id: "first",
+            sourceId: "first",
+            protocol: "url-template",
+            url: "https://tiles.example.test/{z}/{x}/{y}.png",
+          },
+          {
+            kind: "imagery-layer",
+            id: "failing",
+            sourceId: "failing",
+            protocol: "single-tile",
+            url: "https://images.example.test/unavailable.png",
+          },
+        ]),
+      ).rejects.toThrow("single tile unavailable");
+
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
     });
 
     it("controls and disposes an owned imagery layer exactly once", async () => {

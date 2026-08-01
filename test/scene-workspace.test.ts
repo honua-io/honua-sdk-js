@@ -202,11 +202,19 @@ describe("scene workspace", () => {
         layer: "world",
         parameters: [{ token: "secret" }],
       } as unknown as SceneRuntimePrimitive,
+      {
+        kind: "imagery-layer",
+        id: "unsafe-subdomain",
+        sourceId: "unsafe-subdomain",
+        protocol: "url-template",
+        url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png",
+        subdomains: ["evil.test/path"],
+      },
     ];
 
     for (const primitive of unsafePrimitives) {
       expect(() => workspace.dispatch({ kind: "set-primitives", primitives: [primitive] })).toThrow(
-        /credential-free|invalid provider URL|invalid service parameters/,
+        /credential-free|invalid provider URL|invalid service parameters|invalid subdomains/,
       );
       expect(workspace.state.primitives).toEqual({});
     }

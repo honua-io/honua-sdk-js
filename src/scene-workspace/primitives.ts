@@ -747,12 +747,7 @@ function diagnoseRenderableImagery(
       context: invalidLevels,
     });
   }
-  if (
-    primitive.subdomains !== undefined &&
-    (!Array.isArray(primitive.subdomains) ||
-      primitive.subdomains.length === 0 ||
-      primitive.subdomains.some((subdomain) => !isNonEmptyString(subdomain)))
-  ) {
+  if (primitive.subdomains !== undefined && !isValidImagerySubdomains(primitive.subdomains)) {
     diagnostics.push(
       diagnostic(
         "scene-primitive-imagery-subdomains-invalid",
@@ -760,8 +755,8 @@ function diagnoseRenderableImagery(
         "unsupported",
         primitive,
         capabilities,
-        "Imagery subdomains must be a non-empty list of non-empty strings when provided.",
-        "Omit subdomains to use the provider default or provide at least one valid subdomain.",
+        "Imagery subdomains must be a bounded non-empty list of host-safe DNS labels.",
+        "Omit subdomains to use the provider default or provide DNS labels containing only letters, digits, and hyphens.",
       ),
     );
   }
@@ -835,6 +830,26 @@ function isValidImageryParameters(value: unknown): value is Readonly<Record<stri
   }
 }
 
+function isValidImagerySubdomains(value: unknown): value is readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 32) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index) || !isSafeDnsLabel(value[index])) return false;
+  }
+  return true;
+}
+
+function isSafeDnsLabel(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 63) return false;
+  if (value[0] === "-" || value.at(-1) === "-") return false;
+  for (const character of value) {
+    const lower = character.toLowerCase();
+    const isLetter = lower >= "a" && lower <= "z";
+    const isDigit = character >= "0" && character <= "9";
+    if (!isLetter && !isDigit && character !== "-") return false;
+  }
+  return true;
+}
+
 function isCredentialParameterKey(key: string): boolean {
   const canonical = canonicalParameterKey(key);
   return (
@@ -876,6 +891,9 @@ export function assertScenePrimitiveSerializable(primitive: SceneRuntimePrimitiv
   }
   if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
     throw new TypeError(`Scene imagery primitive '${primitive.id}' has invalid service parameters.`);
+  }
+  if (primitive.subdomains !== undefined && !isValidImagerySubdomains(primitive.subdomains)) {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' has invalid subdomains.`);
   }
 }
 
