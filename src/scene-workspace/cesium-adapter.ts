@@ -778,8 +778,40 @@ async function createCesiumImageryProvider(
         ...(primitive.attribution ? { credit: primitive.attribution } : {}),
       });
     case "arcgis-imagery":
+      if (isArcGisImageServerUrl(primitive.url)) {
+        return new cesium.UrlTemplateImageryProvider({
+          url: arcGisImageServerExportUrl(primitive.url, primitive.parameters),
+          ...commonOptions,
+        });
+      }
       return cesium.ArcGisMapServerImageryProvider.fromUrl(primitive.url, commonOptions);
   }
+}
+
+function isArcGisImageServerUrl(url: string): boolean {
+  const endpoint = url.split(/[?#]/, 1)[0] ?? "";
+  return /\/ImageServer\/?$/i.test(endpoint);
+}
+
+function arcGisImageServerExportUrl(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
+  const [withoutFragment] = url.split("#", 1);
+  const queryIndex = withoutFragment.indexOf("?");
+  const endpoint = (queryIndex === -1 ? withoutFragment : withoutFragment.slice(0, queryIndex)).replace(/\/+$/, "");
+  const existingQuery = queryIndex === -1 ? "" : withoutFragment.slice(queryIndex + 1);
+  const requestParameters = [
+    existingQuery,
+    "f=image",
+    "bbox={westProjected}%2C{southProjected}%2C{eastProjected}%2C{northProjected}",
+    "bboxSR=3857",
+    "imageSR=3857",
+    "size={width}%2C{height}",
+    "format=png32",
+    "transparent=true",
+    ...Object.entries(parameters ?? {}).map(
+      ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
+    ),
+  ].filter(Boolean);
+  return `${endpoint}/exportImage?${requestParameters.join("&")}`;
 }
 
 /**

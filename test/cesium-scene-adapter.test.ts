@@ -598,21 +598,29 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
-          id: "arcgis",
-          sourceId: "arcgis",
+          id: "arcgis-image",
+          sourceId: "arcgis-image",
           protocol: "arcgis-imagery",
           url: "https://services.example.test/arcgis/rest/services/imagery/ImageServer",
+        },
+        {
+          kind: "imagery-layer",
+          id: "arcgis-map",
+          sourceId: "arcgis-map",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/reference/MapServer",
         },
       ]);
 
       expect(result.status).toBe("supported");
-      expect(result.layers.size).toBe(5);
-      expect(scene.addedImagery).toHaveLength(5);
+      expect(result.layers.size).toBe(6);
+      expect(scene.addedImagery).toHaveLength(6);
       expect(imageryProviders.map((provider) => provider.kind)).toEqual([
         "url-template",
         "wms",
         "wmts",
         "single-tile",
+        "url-template",
         "arcgis-imagery",
       ]);
       expect(imageryProviders[0]?.options).toMatchObject({
@@ -635,8 +643,17 @@ describe("cesium scene adapter", () => {
         format: "image/png",
       });
       expect(singleTileImageryFromUrl).toHaveBeenCalledWith("https://images.example.test/snapshot.png", {});
+      expect(imageryProviders[4]?.options).toMatchObject({
+        url: expect.stringMatching(
+          /^https:\/\/services\.example\.test\/arcgis\/rest\/services\/imagery\/ImageServer\/exportImage\?/,
+        ),
+      });
+      expect(String(imageryProviders[4]?.options.url)).toContain(
+        "bbox={westProjected}%2C{southProjected}%2C{eastProjected}%2C{northProjected}",
+      );
+      expect(String(imageryProviders[4]?.options.url)).toContain("size={width}%2C{height}");
       expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
-        "https://services.example.test/arcgis/rest/services/imagery/ImageServer",
+        "https://services.example.test/arcgis/rest/services/reference/MapServer",
         {},
       );
       expect(scene.addedImagery[0]?.alpha).toBe(0.75);
@@ -653,6 +670,19 @@ describe("cesium scene adapter", () => {
           protocol: "url-template",
           url: " ",
         },
+        {
+          kind: "imagery-layer",
+          id: "absent-url",
+          sourceId: "absent-url",
+          protocol: "url-template",
+        } as unknown as SceneRuntimePrimitive,
+        {
+          kind: "imagery-layer",
+          id: "non-string-url",
+          sourceId: "non-string-url",
+          protocol: "url-template",
+          url: 42,
+        } as unknown as SceneRuntimePrimitive,
         {
           kind: "imagery-layer",
           id: "missing-wms-layer",

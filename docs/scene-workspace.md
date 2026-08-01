@@ -166,6 +166,8 @@ Scene primitives describe 3D intent without naming a renderer package:
   attribution, and tile protocol.
 - `imagery-layer`: URL-template, WMS, WMTS, single-tile, or ArcGIS imagery with
   explicit service configuration, opacity, attribution, and cache metadata.
+  ArcGIS MapServer endpoints use Cesium's native MapServer provider; ImageServer
+  endpoints use its `exportImage` operation through a bounded URL template.
 - `extrusion`: a source-bound height/base/color definition that MapLibre can
   render as `fill-extrusion`.
 - `model-layer`: glTF, 3D Tiles, I3S, or custom model binding for a 3D adapter.

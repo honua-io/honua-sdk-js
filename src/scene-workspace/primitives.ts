@@ -579,7 +579,7 @@ function diagnoseRenderableImagery(
   capabilities: SceneRuntimeCapabilities,
 ): ScenePrimitiveDiagnostic[] {
   const diagnostics: ScenePrimitiveDiagnostic[] = [];
-  if (primitive.url.trim() === "") {
+  if (typeof primitive.url !== "string" || primitive.url.trim() === "") {
     diagnostics.push(
       diagnostic(
         "scene-primitive-imagery-source-missing-url",
