@@ -3,7 +3,10 @@
 import fs from "node:fs";
 import process from "node:process";
 
-import { publishReleasePleaseDispositionCheck } from "./lib/release-please-disposition-check.mjs";
+import {
+  publishReleasePleaseDispositionCheck,
+  validateTrustedReleasePleaseWorkflowContext,
+} from "./lib/release-please-disposition-check.mjs";
 
 function requiredEnvironment(name) {
   const value = process.env[name];
@@ -34,13 +37,12 @@ function writeSummary(result) {
 }
 
 async function main() {
-  if (process.env.GITHUB_EVENT_NAME !== "push" || process.env.GITHUB_REF !== "refs/heads/trunk") {
-    throw new Error("Trusted Release Please disposition checks may run only for a trunk push.");
-  }
-  const trustedPolicySha = requiredEnvironment("TRUSTED_POLICY_SHA");
-  if (trustedPolicySha !== requiredEnvironment("GITHUB_SHA")) {
-    throw new Error("The checked-out trusted policy must match the triggering trunk revision.");
-  }
+  const { trustedPolicySha } = validateTrustedReleasePleaseWorkflowContext({
+    eventName: requiredEnvironment("GITHUB_EVENT_NAME"),
+    ref: requiredEnvironment("GITHUB_REF"),
+    trustedPolicySha: requiredEnvironment("TRUSTED_POLICY_SHA"),
+    githubSha: requiredEnvironment("GITHUB_SHA"),
+  });
   const result = await publishReleasePleaseDispositionCheck({
     repository: requiredEnvironment("GITHUB_REPOSITORY"),
     trustedPolicySha,

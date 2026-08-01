@@ -24,6 +24,29 @@ function assertSha(sha, label) {
   if (!SHA_PATTERN.test(sha)) throw new Error(`${label} must be a full lowercase commit SHA.`);
 }
 
+/**
+ * Validate that trusted release automation is executing the exact policy at
+ * the current trunk revision. Manual dispatches provide a safe regeneration
+ * path without weakening the source-bound Release Please checks.
+ */
+export function validateTrustedReleasePleaseWorkflowContext(input) {
+  const eventName = String(input?.eventName ?? "");
+  const ref = String(input?.ref ?? "");
+  const trustedPolicySha = String(input?.trustedPolicySha ?? "");
+  const githubSha = String(input?.githubSha ?? "");
+
+  if ((eventName !== "push" && eventName !== "workflow_dispatch") || ref !== "refs/heads/trunk") {
+    throw new Error("Trusted Release Please disposition checks may run only for a trunk push or manual dispatch.");
+  }
+  assertSha(trustedPolicySha, "Trusted policy revision");
+  assertSha(githubSha, "GitHub workflow revision");
+  if (trustedPolicySha !== githubSha) {
+    throw new Error("The checked-out trusted policy must match the triggering trunk revision.");
+  }
+
+  return { eventName, ref, trustedPolicySha };
+}
+
 function apiRoot() {
   return process.env.GITHUB_API_URL ?? "https://api.github.com";
 }
