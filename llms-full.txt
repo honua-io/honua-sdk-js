@@ -1573,7 +1573,7 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-01 at commit `45f9708e`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-01 at commit `ad4e7fbb`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -1583,7 +1583,7 @@ builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-b
 | Importing only `HonuaClient` (tree-shake guard) | 225.4 KiB | 57.8 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.6 KiB | 13.3 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 326.0 KiB | 86.8 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 992.8 KiB | 247.8 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 992.9 KiB | 247.8 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
 | Routing client | 20.5 KiB | 6.3 KiB |
 
@@ -5019,10 +5019,11 @@ property or sampled-position delta application.
 
 # Downloadable offline regions (experimental)
 
-`@honua/sdk-js/offline` is the first bounded slice of issue
+`@honua/sdk-js/offline` contains bounded, independently usable slices of issue
 [#396](https://github.com/honua-io/honua-sdk-js/issues/396). It defines a
-versioned manifest and a storage-neutral download coordinator. It does not make
-the broader local-first feature complete.
+versioned manifest, storage-neutral download coordinator, persistent browser
+store, and durable edit queue. It does not make the broader local-first feature
+complete.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -5063,6 +5064,48 @@ const diagnostic = await createOfflineRegionDiagnostic(
     staleAfterMs: 15 * 60 * 1000,
   },
 );
+```
+
+## Durable edit queue
+
+The same subpath exposes a storage-neutral queue contract, a deterministic
+in-memory implementation, and a persistent IndexedDB implementation. Queue
+identity is partitioned by the already-digested authorization scope, source,
+and an opaque application idempotency key.
+
+```ts doc-test=skip reason="partial excerpt requires application replay transport"
+import { createIndexedDbOfflineEditQueue } from "@honua/sdk-js/offline";
+
+const queue = createIndexedDbOfflineEditQueue();
+const enqueued = await queue.enqueue({
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  idempotencyKey: localMutationId,
+  edit: {
+    operation: "update",
+    featureId: incidentId,
+    attributes: { status: "contained" },
+  },
+});
+
+const [leased] = await queue.claimReady({
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  workerId: replayWorkerId,
+  limit: 1,
+  leaseDurationMs: 30_000,
+});
+
+if (leased) {
+  // The application sends leased.edit and leased.idempotencyKey through its
+  // established hosted replica-sync transport, then persists the outcome.
+  await queue.markApplied(leased.id, leased.lease.token, {
+    serverOperationId,
+    serverGeneration,
+  });
+}
+
+console.log(enqueued.status); // "enqueued" or "duplicate"
 ```
 
 ## Contract guarantees
@@ -5115,6 +5158,28 @@ const diagnostic = await createOfflineRegionDiagnostic(
   admission/eviction plan. Endpoint and ETag values are represented only by
   domain-separated SHA-256 fingerprints; the authorization scope was already
   reduced to its persisted digest when the manifest was created.
+- Edit enqueue is atomic and idempotent within an authorization-scope/source
+  partition. Reusing an idempotency key for different content is a typed error.
+  Dependencies must already exist in the same partition, and every list or
+  claim names that partition explicitly, so a replay worker cannot lease edits
+  belonging to another authorization context.
+- IndexedDB claims serialize their read/modify/write transaction across tabs.
+  A compact indexed metadata store scans only the named partition and loads full
+  payloads only for the bounded winning claim set. Active leases exclude
+  competing workers, expired leases are recoverable, and applied, retryable,
+  and conflicted outcomes are durable. A partition-scoped cancellation
+  transition lets applications retire pending or retryable work that cannot
+  proceed, including dependents of conflicted edits. Bounded terminal pruning
+  preserves any record still required by active dependent work. Payload size,
+  queue length, dependency count, list/claim/prune size, lease duration, and
+  per-edit audit history are explicitly bounded. Audit history uses rolling
+  retention with monotonic sequence numbers so its bound cannot prevent a
+  progress-critical state transition. Pruning removes payload and audit data
+  but retains a compact identity/request-fingerprint tombstone for the lifetime
+  of the named queue database; a completed identity cannot silently be
+  re-enqueued after cleanup, and an applied tombstone continues to satisfy
+  future dependency IDs. The persisted schema accepts no request headers,
+  tokens, URLs, or raw authorization scope.
 
 The manifest contains logical resource ids, not request URLs. The injected
 loader may resolve short-lived signed URLs or authorization at download time;
@@ -5125,14 +5190,15 @@ those values never cross the persistent-store boundary.
 The storage-backed fetch handler can be installed in a service worker or other
 fetch integration, but the host still owns request matching and network
 reachability policy. This slice does not provide encryption policy, a complete
-application-level query/read cache, or the local edit queue and replica conflict
-replay needed for exactly-once synchronization. That replay must integrate with
-the established Honua Server replica-sync, upload-cursor, and conflict-review
+application-level query/read cache, or an edit replay coordinator. The queue's
+atomic deduplication and leases are local durability primitives; they do **not**
+claim end-to-end exactly-once synchronization. Replay must integrate with the
+established Honua Server replica-sync, upload-cursor, and conflict-review
 contracts exposed to hosted applications through `@honua/app-platform`; this
-offline storage subpath does not duplicate that client. The integration remains
-required before issue #396 can satisfy its Beta acceptance criteria. This
-entrypoint is `@experimental` and subpath-only so the root and browser bundles
-do not absorb it.
+offline storage subpath does not duplicate that client. That integration and
+server-acknowledgement proof remain required before issue #396 can satisfy its
+Beta acceptance criteria. This entrypoint is `@experimental` and subpath-only
+so the root and browser bundles do not absorb it.
 
 ---
 
@@ -8967,7 +9033,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-01 at commit `45f9708e`._
+_Generated 2026-08-01 at commit `ad4e7fbb`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -8976,17 +9042,17 @@ _Generated 2026-08-01 at commit `45f9708e`._
 | `/contract` | 326.0 KiB | 352.8 KiB | 86.8 KiB | 94.1 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 845.1 KiB | 925.5 KiB | 187.7 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 878.3 KiB | 961.8 KiB | 197.1 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 878.4 KiB | 961.8 KiB | 197.1 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 65.3 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
 | `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
-| `/nl-map-control` | 76.6 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
+| `/nl-map-control` | 76.7 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
 | `/runtime` | 562.1 KiB | 612.2 KiB | 150.4 KiB | 163.9 KiB |
 | `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
-| `/offline` | 53.7 KiB | 55.8 KiB | 15.5 KiB | 16.1 KiB |
-| `/query-planner` (worker runtime injected) | 639.4 KiB | 703.3 KiB | 136.3 KiB | 143.2 KiB |
+| `/offline` | 77.0 KiB | 82.1 KiB | 21.7 KiB | 23.2 KiB |
+| `/query-planner` (worker runtime injected) | 639.4 KiB | 703.3 KiB | 136.4 KiB | 143.2 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 97.8 KiB | 100.0 KiB | 30.0 KiB | 30.8 KiB |
-| `/esri-compat` | 992.8 KiB | 1026.2 KiB | 247.8 KiB | 253.6 KiB |
+| `/esri-compat` | 992.9 KiB | 1026.2 KiB | 247.8 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
@@ -8994,11 +9060,11 @@ _Generated 2026-08-01 at commit `45f9708e`._
 | `/auth` | 25.9 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 61.4 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
 | `/map` | 179.2 KiB | 182.2 KiB | 50.6 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 129.2 KiB | 137.8 KiB | 38.9 KiB | 40.9 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 129.3 KiB | 137.8 KiB | 38.9 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 945.3 KiB | 1037.6 KiB | 253.3 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1021.7 KiB | 1120.1 KiB | 276.7 KiB | 292.6 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1021.7 KiB | 1120.1 KiB | 276.8 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
@@ -9012,7 +9078,7 @@ _Generated 2026-08-01 at commit `45f9708e`._
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.4 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.8 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
 | tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 664.2 KiB | 717.1 KiB | 177.5 KiB | 191.3 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 239.9 KiB | 245.9 KiB | 61.1 KiB | 61.4 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 240.0 KiB | 245.9 KiB | 61.1 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.6 KiB | 44.7 KiB | 13.3 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
