@@ -579,7 +579,7 @@ function diagnoseRenderableImagery(
   capabilities: SceneRuntimeCapabilities,
 ): ScenePrimitiveDiagnostic[] {
   const diagnostics: ScenePrimitiveDiagnostic[] = [];
-  if (typeof primitive.url !== "string" || primitive.url.trim() === "") {
+  if (!isNonEmptyString(primitive.url)) {
     diagnostics.push(
       diagnostic(
         "scene-primitive-imagery-source-missing-url",
@@ -594,12 +594,12 @@ function diagnoseRenderableImagery(
   }
 
   const missingServiceFields: string[] = [];
-  if ((primitive.protocol === "wms" || primitive.protocol === "wmts") && !primitive.layer?.trim()) {
+  if ((primitive.protocol === "wms" || primitive.protocol === "wmts") && !isNonEmptyString(primitive.layer)) {
     missingServiceFields.push("layer");
   }
   if (primitive.protocol === "wmts") {
-    if (!primitive.style?.trim()) missingServiceFields.push("style");
-    if (!primitive.tileMatrixSetId?.trim()) missingServiceFields.push("tileMatrixSetId");
+    if (!isNonEmptyString(primitive.style)) missingServiceFields.push("style");
+    if (!isNonEmptyString(primitive.tileMatrixSetId)) missingServiceFields.push("tileMatrixSetId");
   }
   if (missingServiceFields.length > 0) {
     diagnostics.push({
@@ -682,6 +682,10 @@ function isZoom(value: number): boolean {
 
 function isNonNegativeInteger(value: number): boolean {
   return Number.isInteger(value) && value >= 0;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
 }
 
 function compileMapLibreFilters(filters: Readonly<Record<string, FilterClause>>, sourceId: string): unknown[] {

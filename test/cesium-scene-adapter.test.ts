@@ -701,6 +701,16 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "malformed-wmts-config",
+          sourceId: "malformed-wmts-config",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: 42,
+          style: [],
+          tileMatrixSetId: {},
+        } as unknown as SceneRuntimePrimitive,
+        {
+          kind: "imagery-layer",
           id: "invalid-opacity",
           sourceId: "invalid-opacity",
           protocol: "single-tile",
@@ -726,6 +736,13 @@ describe("cesium scene adapter", () => {
           "scene-primitive-imagery-opacity-invalid",
           "scene-primitive-imagery-level-range-invalid",
         ]),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-missing",
+          primitiveId: "malformed-wmts-config",
+          context: { missingFields: ["layer", "style", "tileMatrixSetId"] },
+        }),
       );
       expect(imageryProviders).toHaveLength(0);
       expect(scene.addedImagery).toHaveLength(0);
