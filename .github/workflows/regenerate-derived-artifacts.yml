@@ -333,7 +333,7 @@ jobs:
         if: steps.guard.outputs.skip == 'false'
         run: |
           npm run samples:refresh-live-expiry -- --sample ai-spatial-app-builder,realtime-incident-dashboard,spatial-analytics-workbench
-          npm run samples:migrate:v1
+          npm run samples:migrate:v1 -- --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
           npm run samples:write-ci-selection
 
       # Commit it before pass one for the same reason the golden-lane refresh
@@ -473,7 +473,7 @@ jobs:
         if: steps.guard.outputs.skip == 'false'
         run: |
           npm run samples:refresh-live-expiry -- --sample imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
-          npm run samples:migrate:v1
+          npm run samples:migrate:v1 -- --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
           npm run samples:write-ci-selection
 
       # Record release-matrix lane establishment (#766) in the same slot, and for

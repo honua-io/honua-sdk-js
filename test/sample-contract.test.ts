@@ -410,8 +410,19 @@ describe("sample publication contract", () => {
     // migrate-v1 projects the refreshed overlay into samples/catalog.v2.json
     // and write-ci-selection reprojects the dist copy of the same literal;
     // without both, pass one still reads the lapsed value.
-    expect(refreshStep).toContain("npm run samples:migrate:v1");
+    const bootstrapIds = ["imagery-cog-quickstart", "maplibre-quickstart", "migration-workbench", "service-explorer"];
+    expect(refreshStep).toContain(`npm run samples:migrate:v1 -- --qualification-bootstrap ${bootstrapIds.join(",")}`);
     expect(refreshStep).toContain("npm run samples:write-ci-selection");
+
+    const goldenRefreshIndex = workflow.indexOf(
+      "- name: Refresh catalog live-evidence expiry for resealed golden lanes",
+    );
+    const recordIndex = workflow.indexOf("- name: Record established release-matrix lanes");
+    expect(goldenRefreshIndex).toBeGreaterThan(passOneIndex);
+    expect(recordIndex).toBeGreaterThan(goldenRefreshIndex);
+    expect(workflow.slice(goldenRefreshIndex, recordIndex)).toContain(
+      `npm run samples:migrate:v1 -- --qualification-bootstrap ${bootstrapIds.join(",")}`,
+    );
   });
 
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {

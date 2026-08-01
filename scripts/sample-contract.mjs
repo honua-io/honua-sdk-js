@@ -7331,7 +7331,7 @@ async function main(argv) {
   if (command === "migrate-v1") {
     let qualificationBootstrapSampleId;
     if (args.length === 2 && args[0] === "--qualification-bootstrap") {
-      qualificationBootstrapSampleId = args[1];
+      qualificationBootstrapSampleId = args[1].split(",").map((id) => id.trim());
     } else {
       invariant(args.length === 0, "migrate-v1 does not accept arguments");
     }
