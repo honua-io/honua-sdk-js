@@ -80,6 +80,7 @@ export type OfflineEditReplayUnacknowledgedReason =
   | "identity-mismatch"
   | "invalid-acknowledgement"
   | "missing-lease"
+  | "repeated-claim"
   | "transition-rejected"
   | "transport-threw";
 
@@ -128,43 +129,46 @@ export async function replayOfflineEditPass(
   const normalized = captureOptions(options);
   if (normalized.signal?.aborted) return createReceipt([], 0, "cancelled");
 
-  const claimed = (
-    await queue.claimReady({
-      authorizationScopeDigest: normalized.authorizationScopeDigest,
-      sourceId: normalized.sourceId,
-      workerId: normalized.workerId,
-      limit: normalized.limit,
-      leaseDurationMs: normalized.leaseDurationMs,
-    })
-  ).slice(0, normalized.limit);
   const outcomes: OfflineEditReplayItemReceipt[] = [];
+  const invokedEditIds = new Set<string>();
   let invokedCount = 0;
   let stoppedReason: "cancelled" | undefined;
 
-  for (let index = 0; index < claimed.length; index += 1) {
-    const queued = claimed[index];
+  while (outcomes.length < normalized.limit) {
     if (normalized.signal?.aborted) {
       stoppedReason = "cancelled";
-      for (const remaining of claimed.slice(index)) {
-        outcomes.push(unacknowledged(remaining.id, "cancelled"));
-      }
+      break;
+    }
+    const [queued] = (
+      await queue.claimReady({
+        authorizationScopeDigest: normalized.authorizationScopeDigest,
+        sourceId: normalized.sourceId,
+        workerId: normalized.workerId,
+        limit: 1,
+        leaseDurationMs: normalized.leaseDurationMs,
+      })
+    ).slice(0, 1);
+    if (!queued) break;
+    if (invokedEditIds.has(queued.id)) {
+      outcomes.push(unacknowledged(queued.id, "repeated-claim"));
       break;
     }
     const leaseToken = queued.lease?.token;
     if (!leaseToken) {
       outcomes.push(unacknowledged(queued.id, "missing-lease"));
-      continue;
+      break;
     }
 
     let rawAcknowledgement: unknown;
     invokedCount += 1;
+    invokedEditIds.add(queued.id);
     try {
       rawAcknowledgement = await transport(replayRequest(queued), transportContext(normalized.signal));
     } catch {
       const cancelled = normalized.signal?.aborted === true;
       outcomes.push(unacknowledged(queued.id, cancelled ? "cancelled" : "transport-threw"));
       if (cancelled) stoppedReason = "cancelled";
-      continue;
+      break;
     }
 
     let acknowledgement: OfflineEditReplayAcknowledgement;
@@ -174,7 +178,7 @@ export async function replayOfflineEditPass(
       outcomes.push(
         unacknowledged(queued.id, error instanceof AcknowledgementError ? error.code : "invalid-acknowledgement"),
       );
-      continue;
+      break;
     }
 
     try {
@@ -201,6 +205,7 @@ export async function replayOfflineEditPass(
       outcomes.push(deepFreeze({ editId: queued.id, outcome: acknowledgement.kind }));
     } catch {
       outcomes.push(unacknowledged(queued.id, "transition-rejected"));
+      break;
     }
   }
 

@@ -163,8 +163,9 @@ console.log(receipt.appliedCount);
   re-enqueued after cleanup, and an applied tombstone continues to satisfy
   future dependency IDs. The persisted schema accepts no request headers,
   tokens, URLs, or raw authorization scope.
-- `replayOfflineEditPass()` invokes an application-owned transport sequentially
-  for one explicitly bounded claim set. Transport requests omit authorization
+- `replayOfflineEditPass()` claims immediately before each sequential
+  invocation of an application-owned transport, up to one explicit pass bound.
+  Transport requests omit authorization
   scope, lease, and audit state. Applied, retryable, and conflicted responses
   must be plain bounded data whose edit id, request fingerprint, and idempotency
   key all match the leased edit before the queue can transition. Its immutable

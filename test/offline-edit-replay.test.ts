@@ -187,7 +187,7 @@ describe("offline edit replay", () => {
     expect(reads).toBe(0);
   });
 
-  it("preserves dependency ordering across replay passes", async () => {
+  it("preserves dependency ordering while incrementally claiming a bounded pass", async () => {
     let lease = 0;
     const queue = createMemoryOfflineEditQueue({ createLeaseToken: () => `lease-${++lease}` });
     const first = await queue.enqueue(enqueueInput("dependency-first"));
@@ -203,10 +203,33 @@ describe("offline edit replay", () => {
       serverOperationId: `operation-${request.idempotencyKey}`,
     });
 
-    const firstPass = await replayOfflineEditPass(queue, transport, PASS_OPTIONS);
-    const secondPass = await replayOfflineEditPass(queue, transport, PASS_OPTIONS);
-    expect(firstPass.outcomes.map((outcome) => outcome.editId)).toEqual([first.edit.id]);
-    expect(secondPass.outcomes.map((outcome) => outcome.editId)).toEqual([dependent.edit.id]);
+    const receipt = await replayOfflineEditPass(queue, transport, PASS_OPTIONS);
+    expect(receipt.outcomes.map((outcome) => outcome.editId)).toEqual([first.edit.id, dependent.edit.id]);
+  });
+
+  it("starts each lease immediately before its transport invocation", async () => {
+    let nowMs = Date.parse("2026-08-01T10:00:00.000Z");
+    let lease = 0;
+    const queue = createMemoryOfflineEditQueue({
+      now: () => new Date(nowMs),
+      createLeaseToken: () => `lease-${++lease}`,
+    });
+    const first = await queue.enqueue(enqueueInput("lease-first"));
+    const second = await queue.enqueue(enqueueInput("lease-second"));
+
+    const receipt = await replayOfflineEditPass(
+      queue,
+      (request) => {
+        nowMs += 750;
+        return { kind: "applied", ...identity(request), serverOperationId: `operation-${request.idempotencyKey}` };
+      },
+      { ...PASS_OPTIONS, limit: 2, leaseDurationMs: 1_000 },
+    );
+
+    expect(receipt).toMatchObject({ claimedCount: 2, invokedCount: 2, appliedCount: 2, unacknowledgedCount: 0 });
+    expect(receipt.outcomes.map((outcome) => outcome.editId).sort()).toEqual([first.edit.id, second.edit.id].sort());
+    expect((await queue.get(first.edit.id, PARTITION))?.state).toBe("applied");
+    expect((await queue.get(second.edit.id, PARTITION))?.state).toBe("applied");
   });
 
   it("leaves thrown transports and rejected transitions recoverable by lease expiry", async () => {
@@ -267,18 +290,13 @@ describe("offline edit replay", () => {
     );
     expect(calls).toBe(1);
     expect(receipt).toMatchObject({
-      claimedCount: 2,
+      claimedCount: 1,
       invokedCount: 1,
       appliedCount: 1,
-      unacknowledgedCount: 1,
+      unacknowledgedCount: 0,
       stoppedReason: "cancelled",
     });
-    expect(receipt.outcomes).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ outcome: "applied" }),
-        expect.objectContaining({ outcome: "unacknowledged", reasonCode: "cancelled" }),
-      ]),
-    );
+    expect(receipt.outcomes).toEqual([expect.objectContaining({ outcome: "applied" })]);
 
     const preCancelled = new AbortController();
     preCancelled.abort();
