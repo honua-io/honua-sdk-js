@@ -639,6 +639,13 @@ test("packed archive preflight rejects traversal, links, and declared decompress
     ),
     { members: ["package/dist/x.js"], declaredBytes: 1 },
   );
+  assert.deepEqual(
+    validatePackedTarListings(
+      "package/LICENSE\n",
+      "-rw-r--r--  0 0      0       11335 Oct 25  1985 package/LICENSE\n",
+    ),
+    { members: ["package/LICENSE"], declaredBytes: 11_335 },
+  );
   assert.throws(
     () => validatePackedTarListings("package/../escape\n", "-rw-r--r-- 0/0 1 2026-01-01 00:00 package/../escape\n"),
     /unsafe packed SDK tar member/,
