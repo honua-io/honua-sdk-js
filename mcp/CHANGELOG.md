@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.3-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.2-beta.0...mcp-server-v0.1.3-beta.0) (2026-08-01)
+
+
+### Bug Fixes
+
+* **dev:** make Windows npm launches portable ([9032b0f](https://github.com/honua-io/honua-sdk-js/commit/9032b0fe1f21dca42a780a05fa4d5664408c457f))
+* **dev:** make Windows npm launches portable ([b901fd9](https://github.com/honua-io/honua-sdk-js/commit/b901fd9cc11379e1489ed9c6573e080f8b0e0864)), closes [#826](https://github.com/honua-io/honua-sdk-js/issues/826)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.3-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.2-beta.0 to ^0.1.3-beta.0
+
 ## [0.1.2-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.1-beta.0...mcp-server-v0.1.2-beta.0) (2026-07-21)
 
 
