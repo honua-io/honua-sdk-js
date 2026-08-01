@@ -161,12 +161,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # Loop guard: a historical direct regeneration commit, or a clean merge
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # Loop guard: only a clean merge
       # of this workflow's own one- to four-commit PR chain (source regen; the
       # skip-attestation catalog live-expiry refresh and the golden-lane one,
       # each when it produced a change; resealed evidence + dist), needs no
-      # further work. If trunk advanced
-      # after that chain was cut, the merge commit's
+      # further work. A one-parent marker commit is not sufficient: a squash
+      # merge destroys the generated ancestry that receipts bind to. If trunk
+      # advanced after that chain was cut, the merge commit's
       # first parent differs from the chain base and regeneration runs again
       # against the combined tree instead of accepting stale evidence.
       - name: Skip if tip is a regeneration commit
@@ -174,46 +182,7 @@ jobs:
         shell: bash
         env:
           RELEASE_MATRIX_RECEIPT_RUN_ID: ${{ inputs.release_matrix_receipt_run_id }}
-        run: |
-          set -euo pipefail
-          # A dispatch that carries a sealed release-matrix receipt always has
-          # work to do, even when trunk's tip is already a regeneration merge:
-          # the receipt is new content that no previous run could have committed.
-          if [[ -n "${RELEASE_MATRIX_RECEIPT_RUN_ID:-}" ]]; then
-            echo "Dispatch carries a release-matrix receipt from run $RELEASE_MATRIX_RECEIPT_RUN_ID; regenerating."
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          subject="$(git log -1 --format=%s)"
-          if [[ "$subject" == "$REGEN_MARKER"* ]]; then
-            echo "Tip commit is a regeneration commit; nothing to regenerate."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if generated="$(git rev-parse --verify -q HEAD^2)" && [[ "$(git log -1 --format=%s "$generated")" == "$REGEN_MARKER"* ]]; then
-            chain_base="$generated"
-            commit_count=0
-            while [[ "$(git log -1 --format=%s "$chain_base")" == "$REGEN_MARKER"* ]]; do
-              chain_base="$(git rev-parse "$chain_base^")"
-              commit_count=$((commit_count + 1))
-            done
-            first_parent="$(git rev-parse HEAD^1)"
-            if (( commit_count >= 1 && commit_count <= 4 )) && [[ "$chain_base" == "$first_parent" ]]; then
-              echo "Tip cleanly merges the current regeneration chain; nothing to regenerate."
-              echo "skip=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            echo "Regeneration PR was based on an older trunk tip; resealing the combined tree."
-          fi
-          echo "skip=false" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Node.js
-        if: steps.guard.outputs.skip == 'false'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
+        run: node scripts/check-derived-artifact-tip.mjs
 
       - name: Install dependencies
         if: steps.guard.outputs.skip == 'false'
