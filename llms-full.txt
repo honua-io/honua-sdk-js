@@ -1573,19 +1573,19 @@ Three ground rules keep this page honest:
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-07-27 at commit `91a9499a`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-01 at commit `d47ab579`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 615.8 KiB | 163.3 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 218.0 KiB | 55.8 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 42.4 KiB | 13.1 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 289.5 KiB | 76.9 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 985.5 KiB | 245.8 KiB |
-| Geocoding client | 26.8 KiB | 7.6 KiB |
-| Routing client | 20.4 KiB | 6.3 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 697.6 KiB | 186.4 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 225.4 KiB | 57.8 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.6 KiB | 13.3 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 326.0 KiB | 86.8 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 992.8 KiB | 247.8 KiB |
+| Geocoding client | 26.9 KiB | 7.6 KiB |
+| Routing client | 20.5 KiB | 6.3 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.0.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1036.3 KiB minified / **273.8 KiB gzip**.
@@ -1603,10 +1603,10 @@ on-disk build output is 8.3–10 MB across ~300–740 files. Source (pinned, ret
 
 To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest
 apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —
-our **uncompressed minified** bytes (engine 1036.3 KiB + Honua root 615.8 KiB ≈
-1.61 MB) against Esri's reported startup JavaScript total
+our **uncompressed minified** bytes (engine 1036.3 KiB + Honua root 697.6 KiB ≈
+1.69 MB) against Esri's reported startup JavaScript total
 (3.5–4.1 MB) — the open stack ships roughly a third of the JavaScript, and
-0.43 MB over the wire with gzip. Esri's totals also grow with widgets;
+0.45 MB over the wire with gzip. Esri's totals also grow with widgets;
 these figures are its *minimal* samples.
 
 **`@esri/arcgis-rest-js`** (<https://developers.arcgis.com/arcgis-rest-js/>, retrieved 2026-07-13).
@@ -3253,6 +3253,48 @@ buffers and reports `copiedBytes: 0`. Object rows are created only by the
 explicit `decodeGeoArrowBatch()` call, which applies the same ceilings and
 reports `materializedRows`; there is no unbounded conversion mode.
 
+### Versioned persistence
+
+`serializeGeoArrowBatch()` and `deserializeGeoArrowBatch()` provide a bounded,
+dependency-free persistence envelope for the normative GeoArrow mapping. The
+envelope carries a `honua.geoarrow.batch` kind and `1.0` version, deduplicates
+shared backing buffers, and restores the original batch identity and metadata.
+Deserialization re-runs the GeoArrow layout validator, so malformed or future
+version data fails instead of silently changing layout semantics. This is not
+an Arrow IPC file; applications needing Arrow IPC can use the optional adapter
+after restoring the validated batch.
+
+```ts doc-test=compile
+import { createGeoArrowBatch, deserializeGeoArrowBatch, serializeGeoArrowBatch } from "@honua/sdk-js/query-planner";
+
+const { batch } = createGeoArrowBatch({
+  id: "incidents:0",
+  sequence: 0,
+  schemaId: "incidents@1",
+  identity: {
+    sourceId: "incidents-live",
+    sourceVersion: "42",
+    schemaVersion: "incidents@1",
+    planId: "plan:sha256:abc",
+    authorizationScope: "auth-scope:sha256:def",
+    ordering: { stable: true, keys: [] },
+    freshness: { observedAt: "2026-07-15T12:00:00Z" },
+  },
+  geometry: { kind: "point", values: [[-157.86, 21.31]] },
+});
+
+const persisted = serializeGeoArrowBatch(batch, { maxSerializedBytes: 16 * 1024 * 1024 });
+const restored = deserializeGeoArrowBatch(persisted, {
+  maxSerializedBytes: 16 * 1024 * 1024,
+  maxBackingBytes: 8 * 1024 * 1024,
+});
+console.log(restored.metrics.serializedBytes);
+```
+
+There is no unbounded mode: callers should set a persistence ceiling suitable
+for their cache. Unsupported envelope kinds or versions throw
+`HonuaGeoArrowError` rather than silently migrating layout semantics.
+
 ### Optional Apache Arrow adapter
 
 Install `apache-arrow` only in applications that exchange real Arrow
@@ -3397,6 +3439,33 @@ owned.
 lease's references. It cannot revoke other references held by the caller.
 
 ## Lazy worker execution
+
+### Host-owned CRS reprojection
+
+`createGeoArrowReprojectOperation()` adds a bounded reprojection step to the
+same worker host. The SDK traverses Point, LineString, and Polygon coordinates,
+preserves temporal, dictionary, and feature-id columns, validates that the
+transform returns finite coordinates with the original dimensionality, and
+writes the target CRS into the output geometry metadata. CRS math stays
+application-owned, so this operation does not import a projection library or
+make a network request.
+
+```ts doc-test=skip reason="worker-host transform and identity are application-owned"
+const reproject = createGeoArrowReprojectOperation({
+  schemaId: "parcels@2:epsg3857",
+  identity: projectedIdentity,
+  targetCrs: "EPSG:3857",
+  project: ([x, y]) => [webMercatorX(x), webMercatorY(y)],
+});
+
+startColumnarWorkerHost({ transport, operations: { reproject } });
+```
+
+The transform is a worker-host dependency and must be deterministic for a
+given position. Callers must supply a new schema and batch identity whenever
+the output CRS or semantics change. The operation remains bounded by the
+normal GeoArrow conversion ceilings and reports `decode`, `reproject`, and
+`complete` progress stages.
 
 `createColumnarWorkerSession()` supplies the lifecycle missing from a raw
 `postMessage` call: lazy worker creation, a bounded serial queue, exact request
@@ -3679,20 +3748,22 @@ for the honesty model behind its `capabilities.kind: "polling"` /
 `onPoll` telemetry, and why it does not compose with
 `resumable-transport.ts`'s reconnect wrapper.
 
-## Scope and remaining work
+## Cross-transport conformance and remaining work
 
-This is the first production slice of issue
-[#393](https://github.com/honua-io/honua-sdk-js/issues/393), not completion of
-the full workstream. It does not claim:
+The delivery gate began as the first production slice of issue
+[#393](https://github.com/honua-io/honua-sdk-js/issues/393). The public SSE,
+WebSocket, and OData delta compositions now share the versioned fixture and
+scheduled capability evidence described in
+[`docs/realtime-conformance.md`](realtime-conformance.md). The remaining scope
+does not claim:
 
 - protocol-feed reconnection beyond SSE, WebSocket (`resumable-transport.ts`,
   #557), and OData delta-link polling (`odata-delta.ts`, #558);
 - cursor-only protocol adaptation where no trustworthy ordering sequence is
   available;
 - server support for cursor retention or expiry negotiation;
-- renderer, cache, columnar-batch, or offline-store patch integration;
-- a shared cross-transport conformance suite against a live honua-server
-  stream.
+- server-advertised transports that scheduled evidence reports as explicitly
+  unsupported.
 
 Adapters should declare unsupported resume behavior before subscription when
 the protocol can determine it. Expired server cursors must be projected as an
@@ -3772,7 +3843,10 @@ exports: serialization itself can run getters or Proxy traps before the SDK is
 called. Read third-party manifest bytes as text (for example, from the package
 file or an HTTP response) and pass that text directly to the validator.
 
-The report contains no time, machine path, or random identifier, so the same
+The report uses the exported `HONUA_PLUGIN_CERTIFICATION_REPORT_VERSION` schema
+version. The verifier fails closed on unsupported versions, missing required
+fields, unknown fields, invalid digest shapes, or malformed check/diagnostic
+records before it accepts any integrity receipt. The report contains no time, machine path, or random identifier, so the same
 manifest and host snapshot serialize identically. Its `manifest` and `host`
 blocks contain the complete canonical snapshots plus SHA-256 fingerprints;
 changing an entrypoint, capability, data semantic, requested authority, peer,
@@ -3943,7 +4017,7 @@ authorities the samples request, so the security boundary stays honest: the
 `cache` sample only writes through scoped storage, and the `protocol` sample's
 network calls are restricted to its declared origin.
 
-## First-party protocol dogfooding (issue #538)
+## First-party protocol dogfooding (issues #538 and #655)
 
 The renderer kind proved the plugin seam is real for an out-of-tree module
 (OpenLayers, issue #566): third-party and first-party (`maplibreRenderer`)
@@ -3955,9 +4029,16 @@ protocol adapter was constructed by privileged code paths inside
 
 `ProtocolModule` (`src/contract/protocol-module.ts`) is the minimal
 discovery/capability/diagnostics/disposal seam for a `Source.protocol(...)`
-escape-hatch adapter, mirroring `RendererAdapter`. The first bounded built-in
-migrated onto it is PMTiles (tiles-only; no query-family capability, so
-`compile`/`execute` are honestly absent from this first slice):
+escape-hatch adapter, mirroring `RendererAdapter`.
+`QueryCapableProtocolModule` is its atomic query extension: query-capable
+modules must implement both typed `compile` / `execute` hooks, while
+discovery-only modules implement neither. Compiler input uses a
+credential-free identity and deterministic query representation; runtime
+authority stays on the discovered handle and explicitly injected
+dependencies.
+
+The first bounded built-in migrated onto the seam was PMTiles (tiles-only, so
+it honestly omits the query pair):
 
 - `pmtilesProtocolModule()` (`src/contract/pmtiles.ts`) is the seam-shaped
   factory. `pmtilesSource()` builds its `Source.protocol("pmtiles")` escape
@@ -3977,13 +4058,91 @@ migrated onto it is PMTiles (tiles-only; no query-family capability, so
   (`test/plugin-cloud-tiles-certification.test.ts`), closing REQ-004: the
   same conformance harness runs in-tree and against an independent module.
 
-Every other built-in protocol adapter (GeoServices, OGC API Features/Tiles/
-Maps/Records/Processes, WFS 2.0, WMS, WMTS, OData v4, STAC, GeoParquet, and
-the gRPC `FeatureService` transport, plus the deterministic query-compiler
-switch in `src/query-planner/planner.ts`) still bypasses this seam; migrating
-the query-compiler pipeline onto a versioned module contract is tracked as a
-separate follow-up so it can be reviewed at the same bounded scope as this
-first slice.
+Issue #655 adds the first query-capable built-in:
+
+- `odataProtocolModule(client)` binds OData discovery, the typed
+  `HonuaOdataEntitySet` escape hatch, deterministic compilation, and
+  `query` / `queryAll` execution. Discovery remains synchronous and performs
+  no I/O; `$metadata` is still loaded lazily by the entity-set adapter. The
+  OData-specific factory and planner types are exported from the experimental
+  `@honua/sdk-js/query-planner` subpath; only the protocol-neutral module
+  contracts are exported from stable `@honua/sdk-js/contract`.
+- `odataSource()` discovers through that module and routes its existing wire
+  behavior through the module executor. The planner dispatches through the
+  exact `odataProtocolQueryCompiler` hook installed on the module, so module
+  consumers and built-in planning cannot drift onto separate compilers.
+- Executable OData artifacts use the operation-bound
+  `odata-v4-protocol-query-v1` identity and contain the exact operation plus an
+  entity-set identity, but no origin, credentials, or signal. Execution rejects
+  an artifact whose operation or entity set does not match the requested
+  execution and discovered handle before I/O, keeping the injected client's
+  authority boundary explicit. The operation-neutral `odata-v4-query-v1`
+  artifact remains the unchanged output of the legacy experimental
+  `compileOdataQuery()` helper.
+- `test/fixtures/plugins/portable-query/` is an independent, out-of-tree-style
+  query module. It imports only the public contract and plugin entrypoints,
+  certifies through `HonuaPluginRegistry`, and proves deterministic compile,
+  handle-bound execution, and idempotent disposal without sharing OData or SDK
+  internal implementation.
+
+Issue #823 migrates WFS 2.0 through that proven query seam:
+
+- `wfsProtocolModule(client)` owns synchronous feature-type discovery,
+  credential-free deterministic FES/KVP compilation, lazy GetCapabilities
+  evidence, negotiated GeoJSON output, advertised GET/POST DCP routing, and
+  canonical `query` / `queryAll` execution. `wfsSource()` routes `query`,
+  `queryAll`, and bounded page streaming through the same module while
+  preserving the existing `HonuaWfsFeatureType` escape hatch.
+- Planner dispatch and module consumers call the exact
+  `wfsProtocolQueryCompiler` hook. Executable
+  `wfs-2.0-protocol-query-v1` artifacts bind the operation, canonical
+  endpoint/type identity, method, paging, projection, sorting, CRS, and FES or
+  bbox intent without carrying credentials, signals, clients, negotiated
+  formats, or transport objects. The legacy operation-neutral
+  `compileWfsQuery()` output remains unchanged. Persisted
+  `wfs-2.0-get-feature-v1` plans are first integrity-checked against that
+  legacy compiler, then rebuilt through the operation-bound compiler before
+  parsing, serialization, or execution; the unchanged `1.0` plan version never
+  silently changes the meaning of an existing snapshot.
+- Execution accepts only handles discovered by that module instance and rejects
+  operation swaps, endpoint/type substitution, credential-query or
+  authorization-scope substitution, paging-context drift, invalid method
+  selection, and disposed handles before network I/O. Artifacts retain only a
+  secret-free authority digest. Runtime cancellation, capability/output
+  evidence, and client authority remain on the handle; only settled capability
+  snapshots are cached, so concurrent callers retain independent cancellation.
+- Before `GetFeature`, execution binds exact WFS 2.0 version, feature QName and
+  namespace, advertised DCP method/authority, GeoJSON output spelling, and
+  advertised filter/response CRS evidence. GET-only servers never receive a
+  POST; qualified GET and POST requests carry their required namespace binding.
+  Filter geometry CRS is compiled independently from response `outSr`, including
+  authority-axis ordering. Bounded XML/GeoJSON reads, bounded XML parsing,
+  strict GeoJSON projection, and zero-progress detection fail closed.
+- `test/plugin-wfs-protocol-seam.test.ts` certifies the same factory through
+  public contract/query-planner/plugin entrypoints and covers compiler parity,
+  persistence, built-in query-family behavior, authority isolation,
+  cancellation, typed capability failures, and repeated disposal. The packed
+  SDK gate also imports, types, compiles, executes, and disposes the installed
+  WFS module.
+
+### Remaining protocol-module migration assessment
+
+Issue #655 proves the versioned query seam; it does not turn the remainder into
+one mechanical migration. Future work should stay in bounded Specifica
+children of the adapter-extensibility epic:
+
+| Recommended child scope | Remaining adapters | Why it stays separate |
+| --- | --- | --- |
+| HTTP feature query adapters | OGC API Features; GeoServices feature/map/image | Pagination, aggregation, edits, and capability negotiation are wider than the OData proof |
+| Opaque/local execution adapters | GeoParquet | Resource-handle authority, optional DuckDB peer loading, worker lifecycle, and v1/v2 compiled artifacts must move together |
+| RPC query adapter | gRPC FeatureService | Generated protobuf/connect peers and transport disposal have distinct bundle and authority constraints |
+| Discovery/render/catalog adapters | OGC Tiles/Maps/Records/Processes, WMS, WMTS, STAC | These need discovery or render/search hooks rather than reusing the query executor blindly |
+| Utility-only adapters | GeoServices Geometry Service and GP Service | Job/utility lifecycles are not feature-query execution and require their own module capability contract |
+
+Each child should migrate one coherent adapter family, retain the current
+escape-hatch identity, and carry its existing protocol conformance suite plus
+bundle-budget evidence. This avoids reopening the public hook shape while also
+avoiding a high-risk all-protocol rewrite.
 
 ## Running the certification kit independently
 
@@ -4030,6 +4189,24 @@ self-consistent and unmodified since issue, not which authority issued it. A
 trusted-issuer signing authority (which key, which registry) is a product
 decision and is deliberately out of scope here.
 
+### Host-mediated signing envelope (SDK-owned seam)
+
+The SDK also exports `HONUA_PLUGIN_CERTIFICATION_SIGNING_ENVELOPE_VERSION` and
+the versioned `HonuaPluginCertificationSigningEnvelope` shape. An envelope
+contains the report, an opaque application-selected `keyId`, the fixed
+`algorithm: "external"` marker, and a signature string. Hosts sign the exact
+canonical payload returned by `createHonuaPluginCertificationSigningPayload`.
+
+`verifyHonuaPluginCertificationSigningEnvelope` accepts an explicit
+`HonuaPluginCertificationSignatureVerifier` callback. It parses inert JSON,
+validates the envelope and embedded report, rejects non-certified or altered
+reports, and only then calls the callback. A missing verifier, callback error,
+unsupported version, malformed key identifier, or false result fails closed.
+The callback owns key lookup, cryptographic algorithms, issuer policy, key
+rotation, and distribution; the SDK stores no keys and makes no trust claim
+about the opaque identifier. This is an integration seam, not a governance or
+public-key-distribution implementation.
+
 ## Support-status program
 
 `support` records who backs a plugin (`community`, `partner`, or `honua`). The
@@ -4065,6 +4242,7 @@ bound:
 | --- | --- |
 | `retries` | The plugin recovers from injected transient host failures within its declared attempt budget (`hostAttempts <= maxAttempts`, `recovered`). |
 | `performance` | One operation's host-interaction cost stays within bound and is identical across runs (`serviceCalls <= maxServiceCalls`, `deterministic`). |
+| `cleanup` | The registry completes the probe and records exactly one successful disposal for the initialized plugin (`disposeCalls == 1`). |
 | `bundle-metadata` | The declared bundle footprint stays within budget with complete inventory metadata (`minifiedBytes`, `gzipBytes`, `metadataComplete`). |
 
 The report binds the certification digest it was run against, so a conformance
@@ -4097,6 +4275,15 @@ views are forwarded to deck.gl unchanged and `projection.metrics.copiedBytes`
 is always zero. Default ceilings reject more than 1,000,000 rows/features, 32
 attributes, 64 forwarded properties, or 256 MiB of unique backing allocations
 before a deck.gl layer is constructed.
+
+Every successful projection also exposes `projection.gpuContract`. This frozen
+evidence records the supported layer kind, the optional peer constructor that
+accepted it, feature/vertex counts, and `copiedBytes: 0`. The adapter validates
+the constructed peer layer and its id before returning; a malformed peer result
+fails with `HonuaDeckGlAdapterError` code `invalid-layer` instead of being
+silently treated as a GPU projection. This contract describes the accepted
+binary layer boundary only; it does not claim WebGPU availability or device
+performance, which remain runtime/browser evidence work.
 
 `feature-path` and `feature-polygon` requests address vertices through a
 request-level `data.startIndices` boundary array (one boundary per feature
@@ -4327,6 +4514,8 @@ this entrypoint imports them:
 - `loadKeplerPeers()` resolves `@kepler.gl/actions` through a dynamic import and
   validates the caller-declared Kepler version against
   `KEPLER_COMPATIBILITY_RANGE` (`>=3.0.0 <4.0.0`) *before* touching the peer.
+- `loadKeplerProcessors()` resolves `@kepler.gl/processors` through the same
+  optional dynamic-import seam for Arrow-table ingestion.
 - Every projection, mapping, and reconciliation function works with no peer
   present at all — peers are needed only to dispatch into a live Kepler store.
 
@@ -4348,7 +4537,7 @@ no GeoJSON round trip happened.
 | line / polygon / multi-part geometry | `geojson-column` | yes, measured |
 | raster tile or style source | `remote-basemap-style` | no (reference only) |
 | vector tile source | `remote-vector-tileset` | no (reference only) |
-| Arrow / GeoArrow zero-copy table | not implemented in contract v1.0 | n/a |
+| Apache Arrow table through Kepler processor | `arrow-table-processor` | no (`geoJsonBytes === 0`) |
 
 Kepler exposes no tabular or binary ingestion path for line, polygon, or
 multi-part geometry, so that case is a declared fallback rather than a silent
@@ -4550,11 +4739,55 @@ bytes, and 10,000 rows per bounded delta. Exceeding a budget throws
 `limit-exceeded` rather than truncating, and `bridge.dispose()` releases the
 tracked rows and every linked-state subscription.
 
+## Apache Arrow processor path
+
+`loadKeplerProcessors()` and `bridge.openArrowTable()` accept an opaque Apache
+Arrow table supplied by the host. Kepler's `processArrowTable` interprets the
+schema; the SDK validates the bounded `{ fields, rows }` result, adds Honua
+provenance and credential-free metadata, and applies the same row/field
+budgets as every other workspace path. The diagnostic strategy is
+`arrow-table-processor` and `geoJsonBytes` is always `0`: the bridge never
+serializes the table through GeoJSON. Set `geometryField` and `crs` when the
+table contains GeoArrow geometry; non-WGS84 inputs fail closed.
+
+This is an explicit processor path, not a claim of Arrow-buffer zero-copy:
+Kepler's current processor returns a row-oriented dataset. The future
+zero-copy contract remains separately reported as unsupported.
+
+## Packed browser qualification
+
+The SDK's split package is qualified in a real browser by
+`test/playwright/kepler-arrow-packed.spec.mjs`. The test builds
+`dist/packages/honua-sdk`, serves only that packed `@honua/sdk/kepler` tree, and
+opens the Arrow adapter through the public entrypoint. It verifies the declared
+Kepler compatibility range, Arrow processor projection, zero GeoJSON bytes,
+temporal and row-identity metadata, provenance, and bridge workspace metrics.
+
+Run the bounded qualification with:
+
+```bash
+npm run test:playwright:kepler-arrow-packed
+```
+
+The focused test always runs `npm run build:split-packages` from the current
+checkout before starting its browser server. This prevents a clean checkout
+from failing on missing output and prevents an ignored stale `dist/` tree from
+being qualified accidentally. To run the Playwright file directly, it has the
+same build behavior:
+
+```bash
+npx playwright test test/playwright/kepler-arrow-packed.spec.mjs
+```
+
+The fixture injects the processor result and therefore proves the SDK adapter
+and packed browser boundary without claiming that a live Arrow object, public
+dataset, or `honua-site` deployment has been exercised.
+
 ## Known gaps
 
-- Kepler's Arrow/GeoArrow ingestion (`processArrowTable`, the `geoarrow` field
-  type) is out of contract v1.0; the direct columnar path transposes into rows
-  instead.
+- Kepler's Arrow/GeoArrow buffer-preserving path remains unsupported; the new
+  processor path is bounded and GeoJSON-free but intentionally reports its
+  row-oriented processor boundary.
 - `examples/kepler-analytics/` still uses its exported-snapshot fixture wiring
   and has not been rewired onto this bridge.
 - The end-to-end analytics journey and scheduled live evidence remain follow-up
@@ -4609,8 +4842,9 @@ entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
   `maxEntities` (10,000 by default).
 - Explicit WGS84 output (`outSr: 4326`). Coordinates are never silently
   reinterpreted or reprojected.
-- Point, single-part line, and single-ring polygon geometries in GeoJSON or
-  common Esri shapes. Finite Z values require an explicit
+- Point, single-part line, and polygon geometries with validated interior
+  rings in GeoJSON or common Esri shapes. Polygon holes are represented by
+  Cesium `PolygonHierarchy` children. Finite Z values require an explicit
   `verticalDatum: "ellipsoidal-wgs84"`; otherwise the feature is omitted with
   a stable fidelity diagnostic.
 - Stable entity identity from `featureIdField` or the source primary key.
@@ -4636,8 +4870,7 @@ options fail before mounting.
 
 This is not completion of issue #395 and is not yet a beta Cesium adapter.
 Terrain and imagery providers, glTF/models, point clouds and 3D Tiles continue
-through the existing scene primitive adapter. Multi-part geometry and polygon
-holes, vertical datum transforms, styling, clustering, streaming/tiled
+through the existing scene primitive adapter. Multi-part geometry, vertical datum transforms, styling, clustering, streaming/tiled
 execution, live deltas, camera/selection/filter synchronization, attribution
 UI, asset authorization/caching, browser examples, and WebGL leak/performance
 certification remain future work.
@@ -4719,6 +4952,18 @@ const receipt = await downloadOfflineRegion(manifest, {
 - Progress is explicit across planning, download, write, commit, and completion.
   A successful receipt reports `integrity: "verified"` and
   `quotaAccounting: "logical-payload-bytes"`.
+- The IndexedDB adapter uses a versioned schema. Startup upgrades legacy
+  staging records, then performs one bounded atomic recovery pass. Malformed
+  region metadata, orphaned or malformed resources, and invalid staging rows
+  are removed while valid regions remain available; an invalid inventory
+  revision is reset to the empty baseline. Recovery scans at most 100,000
+  records and 64 MiB of persisted payloads, failing closed if those bounds are
+  exceeded.
+- IndexedDB staging is resumable by manifest identity. If a download is
+  cancelled or its loader fails, verified staged resources are retained for a
+  bounded period and the next attempt re-hashes them before loading only the
+  missing resources. Staging contains resource bytes and ids only; credentials,
+  URLs, and loader state are never persisted.
 
 The manifest contains logical resource ids, not request URLs. The injected
 loader may resolve short-lived signed URLs or authorization at download time;
@@ -4726,12 +4971,13 @@ those values never cross the persistent-store boundary.
 
 ## Non-goals and remaining work
 
-This slice intentionally provides no IndexedDB or service-worker adapter, no
-network reachability policy, no resumable partial transaction, no encryption
-policy, no storage schema migration, no cached query/read integration, and no
-local edit queue or replica conflict replay. Those remain required before issue
-#396 can satisfy its GA acceptance criteria. This entrypoint is `@experimental`
-and subpath-only so the root and browser bundles do not absorb it.
+This slice intentionally provides no service-worker adapter, network
+ reachability policy, resumable partial transaction, encryption policy, storage
+ schema migration, cached
+query/read integration, or local edit queue/replica conflict replay. Those
+remain required before issue #396 can satisfy its GA acceptance criteria. This
+entrypoint is `@experimental` and subpath-only so the root and browser bundles
+do not absorb it.
 
 ---
 
@@ -6241,9 +6487,10 @@ policy in the manifest.
 | `geoservices-gp-service` | `geoprocess` | `supported` | `protocol-adapter` | `native` | [fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[fixture: geoprocessing-job-run-fixtures](../test/contract/geoprocessing-job-run.test.ts)<br>[fixture: process-runner-fixtures](../test/process-runner.test.ts) |
 | `ogc-features` | `query`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts) |
 | `ogc-features` | `queryAggregate`, `queryExtent` | `supported` | `protocol-adapter` | `client-fallback` | [fixture: contract-conformance](../test/contract/conformance.test.ts) |
-| `ogc-tiles` | `render`, `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts) |
-| `ogc-maps` | `render` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts) |
-| `ogc-records` | `query`, `queryObjectIds`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts) |
+| `ogc-tiles` | `render`, `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) |
+| `ogc-maps` | `render` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) |
+| `ogc-records` | `query` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) |
+| `ogc-records` | `queryObjectIds`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts) |
 | `stac` | `query`, `queryObjectIds`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts) |
 | `wfs` | `query`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts) |
 | `wms` | `render`, `tiles`, `query` | `supported` | `protocol-adapter` | `native` | [fixture: wms-fixtures](../test/contract/wms.test.ts) |
@@ -6255,6 +6502,43 @@ policy in the manifest.
 | `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
 | `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
 | `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
+
+### Generated discovery disposition inventory
+
+Every canonical protocol and supported static format has exactly one owner and
+discovery boundary. `explicit-only` never probes competing protocols;
+`structural-marker` currently means the explicit `pmtiles://` asset marker.
+The standalone machine projection is
+[`support/projections/connect-discovery-inventory.v1.json`](../support/projections/connect-discovery-inventory.v1.json).
+
+| Kind | Identifier | Disposition | Auto classification | Owner |
+| --- | --- | --- | --- | --- |
+| Protocol | `grpc` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `geoservices-feature-service` | `source-backed` | `structural` | `connect()` |
+| Protocol | `geoservices-map-service` | `source-backed` | `structural` | `connect()` |
+| Protocol | `geoservices-image-service` | `source-backed` | `structural` | `connect()` |
+| Protocol | `geoservices-geometry-service` | `operation-only` | `not-applicable` | `discoverGeoServices()` |
+| Protocol | `geoservices-gp-service` | `operation-only` | `not-applicable` | `discoverGeoServices()` |
+| Protocol | `ogc-features` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `ogc-tiles` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `ogc-maps` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `ogc-records` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `stac` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `wfs` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `wms` | `source-backed` | `structural` | `connect()` |
+| Protocol | `wmts` | `source-backed` | `structural` | `connect()` |
+| Protocol | `odata` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `pmtiles` | `source-backed` | `structural-marker` | `connect()` |
+| Protocol | `geoparquet` | `source-backed` | `explicit-only` | `connect()` |
+| Protocol | `maplibre-vector` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
+| Protocol | `maplibre-raster` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
+| Protocol | `maplibre-geojson` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
+| Static format | `static-stac` | `source-backed` | `explicit-only` | `connect({ protocol: 'stac' })` |
+| Static format | `pmtiles` | `source-backed` | `structural-marker` | `connect({ protocol: 'pmtiles' })` |
+| Static format | `geoparquet` | `source-backed` | `explicit-only` | `connect({ protocol: 'geoparquet' })` |
+| Static format | `cog` | `stac-classified` | `stac-evidence` | `@honua/sdk-js/cog` |
+| Static format | `tile-template` | `renderer-native` | `stac-evidence` | `@honua/sdk-js/runtime` |
+| Static format | `geojson` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
 <!-- support-manifest:protocol-matrix:end -->
 
 MapLibre-native and PMTiles sources are included in the generated table even
@@ -6924,6 +7208,15 @@ layer names) is inspected through the typed escape hatch:
 `describePmtilesArchive(url)` helper), which returns a normalized
 `PmtilesArchiveDescription`.
 
+The top-level `connect()` path accepts an explicit PMTiles protocol or the
+strong `pmtiles://https://...` auto marker and performs an auth-aware,
+abortable inspection bounded to two physical HTTP attempts, cumulative
+transfer and decompression ceilings, and stable validators for disjoint
+ranges. Filename-only auto classification and whole-file fallback remain
+disabled. The normalized descriptor records vector/raster source type while
+the inspection retains archive version, validator, and transfer-ledger
+evidence; its typed adapter reuses the reviewed description without refetching.
+
 The `pmtiles` package is an optional peer dependency imported lazily — a
 build that never inspects or renders a PMTiles archive pays no cost. The
 MapLibre runtime auto-registers the `pmtiles://` protocol on map attach
@@ -7023,15 +7316,16 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | WMTS 1.0 discovery and raster tiles | `supported` | `standalone` | `discovery` | Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms. |
 | STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
 | OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
+| PMTiles direct asset discovery | `supported` | `client-only` | `discovery` | Any static host with exact HTTP Range and readable CORS headers | connect({ protocol: 'pmtiles' }), Source.protocol('pmtiles') | [fixture: pmtiles-connect-fixtures](../test/connect-pmtiles.test.ts)<br>[fixture: pmtiles-fixtures](../test/pmtiles-contract.test.ts) | Reads only a bounded PMTiles v3 header and metadata range through the authenticated client pipeline; pmtiles:// is the sole direct auto marker, while filename-only and spoofed inputs fail closed without alternate-protocol probing. |
 | GeoParquet asset discovery | `experimental` | `client-only` | `discovery` | None; caller provides a GeoParquet profiler | connect({ protocol: 'geoparquet', geoparquet: { profiler } }) | [fixture: geoparquet-connect-fixtures](../test/connect-geoparquet.test.ts) | Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver. |
-| OGC API Tiles | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. |
-| OGC API Maps | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. |
-| OGC API Records | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. |
-| OGC API Processes discovery | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source. |
+| OGC API Tiles | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
+| OGC API Maps | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
+| OGC API Records | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
+| OGC API Processes discovery | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
 | OGC API Processes execution | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient OGC Processes methods | [integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Typed execution uses the Honua facade today; raw third-party execution is not claimed. |
 | Server compatibility gate | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
 | Authored MapPackage runtime | `facade-required` | `honua-facade` | `facade` | Honua Server | @honua/sdk-js/runtime | [fixture: map-package-fixtures](../test/runtime/map-package-fetch.test.ts) | Loads server-authored styles, layer order, and metadata. |
-| Realtime subscriptions | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts) | Subscription-backed live updates depend on the Honua realtime contract. |
+| Realtime subscriptions | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [fixture: realtime-cross-transport-fixtures](../test/realtime-cross-transport-conformance.test.ts)<br>[integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts)<br>[live: realtime-live-conformance](../scripts/realtime-conformance-evidence.mjs) | SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately. |
 | Collaboration and saved maps compatibility shim | `deprecated` | `honua-facade` | `facade` | Honua Server and @honua/app-platform | @honua/sdk-js/collaboration | Lifecycle-only claim | The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration. |
 | MCP tools and AI execution | `facade-required` | `honua-facade` | `facade` | Honua Server and @honua/mcp-server | mcp/, @honua/sdk-js/agent-tools | [fixture: agent-tools-fixtures](../test/agent-tools.test.ts) | Tool definitions are local, while discovery and query execution use the bounded Honua server surface. |
 
@@ -7394,6 +7688,7 @@ try {
 | `HonuaGeometryError` | Spatial-filter builders | Geometry classification would otherwise require guessing, or a recognized Esri geometry is malformed. | Branch on `.code`: `unknown-geometry` means no supported Esri shape discriminator was found; `malformed-geometry` means a recognized shape, coordinate, or envelope expansion is invalid. Fix the input; do not retry it unchanged. Diagnostic context is on `.detail`. |
 | `HonuaExplorationContextError` | `@honua/sdk-js/exploration` | An exploration intent referenced a missing slice / view, or the snapshot is incompatible with the active context schema. | Surface to user (UI bug) or migrate the saved snapshot. Do not retry. |
 | `HonuaWfsExceptionError` | `wfs` adapter | The WFS server returned a `<ows:ExceptionReport>`. The `exceptionCode`, optional `locator`, and formatted exception message are preserved on the instance. | Branch on `.exceptionCode` (`InvalidParameterValue`, `OperationNotSupported`, `MissingParameterValue`, etc.). Most are caller bugs; surface to user. |
+| `HonuaWfsProtocolError` | WFS protocol module | Bound WFS 2.0 capability evidence, paging progress, or a GeoJSON feature response was invalid. | Branch on `.reason`: fix/reconfigure invalid capability evidence or response shape; investigate a server paging bug for `paging-stalled`. Do not retry unchanged evidence. |
 | `HonuaJobFailedError` | OGC Processes / geoprocessing job polling | An async job (`IJobRun.results()`) reached a non-success terminal state (`failed` / `dismissed`). The terminal `.status`, `.errorCode`, and `.details` are preserved on the instance. | Branch on `.status` / `.errorCode`. Usually a server-side or input error; surface to user. Do not blindly retry. |
 | `HonuaQueryPlanningError` / `HonuaQueryPlanExecutionError` | `@honua/sdk-js/query-planner` | Query validation/compilation/planning or accepted-plan execution fails. | Branch on the existing short `.code`; fix validation/context errors or choose a supported capability/fallback. |
 | `HonuaMapLibreSourceAdapterError` | Root or `@honua/sdk-js/map` source workflow | Source projection, plan compatibility, identifier conflict, lifecycle, or renderer mutation fails. | Branch on the existing short `.code`; recreate disposed mounts and correct conflicts/options before retrying. |
@@ -7550,6 +7845,7 @@ classification is conservatively non-retryable.
 | `query.planning.fallback-disabled` | `query` | `capability` | no | Required local fallback is disabled |
 | `query.planning.unsafe-materialization` | `query` | `validation` | no | Planned local materialization exceeds its safety bound |
 | `query.execution.invalid-plan` | `query` | `validation` | no | Query plan is invalid |
+| `query.execution.wfs-protocol` | `query` | `protocol` | no | WFS protocol evidence or response is invalid |
 | `query.execution.plan-context-mismatch` | `query` | `validation` | no | Execution context does not match the accepted query plan |
 | `query.execution.unsafe-materialization` | `query` | `validation` | no | Query execution exceeded its materialization bound |
 | `query.execution.invalid-resource-handle` | `query` | `validation` | no | Query resource handle is invalid |
@@ -8516,56 +8812,56 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-07-27 at commit `91a9499a`._
+_Generated 2026-08-01 at commit `d47ab579`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 615.8 KiB | 661.1 KiB | 163.3 KiB | 168.9 KiB |
-| `/honua` | 782.5 KiB | 849.0 KiB | 208.7 KiB | 226.0 KiB |
-| `/contract` | 289.5 KiB | 317.1 KiB | 76.9 KiB | 83.7 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 762.7 KiB | 829.5 KiB | 165.2 KiB | 179.5 KiB |
-| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.0 KiB | 257.5 KiB | 31.3 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 795.7 KiB | 865.8 KiB | 173.9 KiB | 189.2 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 58.7 KiB | 62.6 KiB | 18.1 KiB | 19.3 KiB |
-| `/agent-tools` | 34.9 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
-| `/agent-safety` | 66.7 KiB | 73.2 KiB | 18.6 KiB | 20.5 KiB |
-| `/nl-map-control` | 76.6 KiB | 84.5 KiB | 22.7 KiB | 25.3 KiB |
-| `/runtime` | 533.6 KiB | 550.7 KiB | 143.6 KiB | 147.5 KiB |
-| `/realtime` | 66.1 KiB | 67.3 KiB | 19.1 KiB | 19.5 KiB |
-| `/offline` | 38.3 KiB | 44.3 KiB | 11.4 KiB | 13.2 KiB |
-| `/query-planner` (worker runtime injected) | 582.9 KiB | 638.9 KiB | 118.7 KiB | 129.9 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 94.4 KiB | 100.0 KiB | 29.1 KiB | 30.8 KiB |
-| `/esri-compat` | 985.5 KiB | 1026.2 KiB | 245.8 KiB | 253.6 KiB |
+| `.` (root) | 697.6 KiB | 753.9 KiB | 186.4 KiB | 191.4 KiB |
+| `/honua` | 864.3 KiB | 937.2 KiB | 231.8 KiB | 251.0 KiB |
+| `/contract` | 326.0 KiB | 352.8 KiB | 86.8 KiB | 94.1 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 845.1 KiB | 925.5 KiB | 187.7 KiB | 206.0 KiB |
+| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 878.3 KiB | 961.8 KiB | 197.1 KiB | 215.6 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 65.3 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
+| `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
+| `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
+| `/nl-map-control` | 76.6 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
+| `/runtime` | 562.1 KiB | 612.2 KiB | 150.4 KiB | 163.9 KiB |
+| `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
+| `/offline` | 51.3 KiB | 55.8 KiB | 14.8 KiB | 16.1 KiB |
+| `/query-planner` (worker runtime injected) | 639.4 KiB | 703.3 KiB | 136.3 KiB | 143.2 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 97.8 KiB | 100.0 KiB | 30.0 KiB | 30.8 KiB |
+| `/esri-compat` | 992.8 KiB | 1026.2 KiB | 247.8 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
-| `/geocoding` | 26.8 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
-| `/routing` | 20.4 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
-| `/auth` | 25.8 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
-| `/style` | 61.3 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
-| `/map` | 178.1 KiB | 182.2 KiB | 50.3 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 125.6 KiB | 137.8 KiB | 37.2 KiB | 40.9 KiB |
+| `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
+| `/routing` | 20.5 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
+| `/auth` | 25.9 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
+| `/style` | 61.4 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
+| `/map` | 179.2 KiB | 182.2 KiB | 50.6 KiB | 50.7 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 129.2 KiB | 137.8 KiB | 38.9 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 63.2 KiB | 68.3 KiB | 16.8 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 853.3 KiB | 920.3 KiB | 232.4 KiB | 249.7 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 927.9 KiB | 973.5 KiB | 255.2 KiB | 265.0 KiB |
-| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 55.3 KiB | 60.8 KiB | 16.5 KiB | 18.1 KiB |
-| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 33.1 KiB | 35.2 KiB | 10.8 KiB | 11.6 KiB |
-| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 9.3 KiB | 10.3 KiB | 3.8 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 463.3 KiB | 506.7 KiB | 123.0 KiB | 134.6 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 945.3 KiB | 1037.6 KiB | 253.3 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1021.7 KiB | 1120.1 KiB | 276.7 KiB | 292.6 KiB |
+| `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
+| `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
+| `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
+| `/react` (react/react-dom external) | 499.3 KiB | 506.7 KiB | 132.7 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 616.4 KiB | 661.8 KiB | 163.6 KiB | 176.3 KiB |
-| browser ESM (`./browser`) | 615.1 KiB | 660.4 KiB | 163.3 KiB | 176.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 218.0 KiB | 229.7 KiB | 55.8 KiB | 57.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 476.9 KiB | 515.1 KiB | 124.7 KiB | 135.1 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 698.2 KiB | 754.5 KiB | 186.7 KiB | 201.3 KiB |
+| browser ESM (`./browser`) | 696.9 KiB | 753.1 KiB | 186.4 KiB | 201.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 225.4 KiB | 229.7 KiB | 57.8 KiB | 63.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 570.8 KiB | 627.9 KiB | 151.7 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.3 KiB | 15.5 KiB | 4.0 KiB | 4.1 KiB |
-| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.7 KiB | 14.6 KiB | 2.9 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 582.4 KiB | 627.9 KiB | 154.5 KiB | 167.0 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 232.6 KiB | 245.9 KiB | 59.0 KiB | 61.4 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.4 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.8 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 664.2 KiB | 717.1 KiB | 177.5 KiB | 191.3 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 239.9 KiB | 245.9 KiB | 61.1 KiB | 61.4 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 42.4 KiB | 44.7 KiB | 13.1 KiB | 14.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.6 KiB | 44.7 KiB | 13.3 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
-| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 24.9 KiB | 26.3 KiB | 8.6 KiB | 9.2 KiB |
+| tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
 
 ---
 
@@ -10530,9 +10826,25 @@ the protocol escape hatch — there is no top-level
   property is read. The same walker is reused for
   `<ows:ExceptionReport>` and `<wfs:TransactionResponse>` parsing, so
   every WFS XML payload entering the canonical surface is hardened.
+  Metadata responses are capped at 2 MiB before decoding, and the walker
+  separately caps element count, nesting depth, attributes, attribute
+  bytes, and decoded text. GeoJSON feature responses are capped at 32 MiB.
 - The WFS adapter never reaches `fetch` directly; all wire calls go
   through `HonuaClient.requestText`, so the existing interceptor / retry
   / timeout / abort signal pipeline applies.
+- Canonical execution binds exact WFS 2.0 version, feature QName and
+  namespace, advertised GET/POST DCP authority, GeoJSON output format,
+  and advertised filter/response CRSes before `GetFeature`. Qualified
+  GET requests carry `NAMESPACES`; POST queries declare the QName prefix.
+  Filter geometry CRS and response `outSr` stay independent, including
+  WFS/GML authority-axis ordering for geographic CRS identifiers.
+- Capability caching stores settled snapshots only, so cancelling one
+  concurrent caller cannot reject another caller's request. Paged
+  `queryAll()` and `stream()` advance by rows actually returned, continue
+  across server-clamped pages when `numberMatched` proves more data exists,
+  and fail closed if the server stops making progress, returns more rows than
+  the requested count, or would advance beyond JavaScript's safe-integer
+  paging range.
 - WFS responses with content-type `application/xml` containing
   `<ows:ExceptionReport>` are turned into typed
   `HonuaWfsExceptionError` instances (`exceptionCode`, `locator`, and
@@ -10541,7 +10853,9 @@ the protocol escape hatch — there is no top-level
   `HonuaWfsExceptionError` is also raised when an
   `<ows:ExceptionReport>` arrives wrapped inside a `HonuaHttpError`
   body (the body is sniffed for `ExceptionReport` and re-thrown as
-  the typed error before the failure leaves the adapter).
+  the typed error before the failure leaves the adapter). Malformed GeoJSON
+  and inconsistent paging metadata surface as `HonuaWfsProtocolError`
+  rather than empty successful results.
 
 ## Server compatibility
 
@@ -12162,6 +12476,53 @@ that never touches PMTiles pays no bundle cost.
   alongside `maplibre-gl` when you use PMTiles: `npm i pmtiles`.
 - Reference an archive as a MapLibre source `url` with the `pmtiles://` scheme:
   `pmtiles://https://example.com/basemap.pmtiles`.
+
+## Discovering a direct archive with `connect()`
+
+The shared `connect()` workflow owns direct PMTiles discovery. An explicit
+`protocol: "pmtiles"` works with an ordinary HTTPS asset URL. For `auto`, use a
+`pmtiles://https://...` marker; a `.pmtiles` filename is deliberately not enough
+evidence and causes an `ambiguous-protocol` error before cache, authentication,
+or network work begins.
+
+```ts doc-test=compile
+import { connect } from "@honua/sdk-js";
+
+const connection = await connect({
+  endpoint: "pmtiles://https://example.com/basemaps/hawaii.pmtiles",
+  protocol: "auto",
+  authorizationScopeFingerprint: "public",
+});
+
+const source = connection.source();
+console.log(source.descriptor.locator.sourceType); // "vector" or "raster"
+console.log(connection.inspection.sources[0]?.metadata?.pmtiles?.bounds);
+```
+
+Discovery runs through the normal client auth/interceptor/timeout pipeline and
+accepts only exact HTTP `206` ranges. It permits at most two physical HTTP
+attempts, 512 KiB per range, 1 MiB reserved in total, and 4 MiB of cumulative
+inflated internal directory/metadata output; caller-provided `pmtiles.limits`
+may only lower those ceilings. A retryable or authentication response is not
+replayed inside this bounded lane. Redirects, compressed HTTP ranges,
+aggregate whole-archive coverage, unbounded internal compression, inconsistent
+`Content-Range`/validators, unknown magic, cancellation, and response overflow
+fail closed. Disjoint ranges require one strong ETag or canonical Last-Modified
+validator; weak ETags are not byte-identity evidence.
+The cache identity binds the canonical asset URL, authorization-scope digest,
+and normalized transfer/decompression policy; cached inspection retains and
+cross-binds retrieval time, PMTiles spec version, validator evidence, and the
+complete bounded range ledger plus cumulative decompressed-byte count. Cache
+replay rechecks that count against the current caller ceiling. The snapshot
+retains at most 1,000,000 UTF-8 bytes of canonical raw metadata and
+at most 2,048 raw `vector_layers` entries, using the same admission rules on
+live discovery and cache replay. Normalized vector-layer metadata is capped at
+8,000 retained structural nodes so every accepted live result remains portable
+through the shared cache envelope. Cached extents, the exact capability and
+provenance record, and derived source fields are cross-bound to the reviewed
+archive metadata. The returned
+typed PMTiles adapter reuses that reviewed description and does not perform a
+second native fetch.
 
 ## Rendering a PMTiles source (runtime)
 
