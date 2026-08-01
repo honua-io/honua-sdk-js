@@ -19,6 +19,7 @@ import {
   publishReleasePleaseDispositionCheck,
   RELEASE_PLEASE_EXEMPTION,
   REQUIRED_DISPOSITION_CHECK,
+  validateTrustedReleasePleaseWorkflowContext,
 } from "../../scripts/lib/release-please-disposition-check.mjs";
 
 const repository = "honua-io/honua-sdk-js";
@@ -225,11 +226,12 @@ describe("pull request issue disposition policy", () => {
       (match) => match[1],
     );
     assert.match(workflow, /^  push:\n    branches:\n      - trunk$/mu);
+    assert.match(workflow, /^  workflow_dispatch:$/mu);
     assert.doesNotMatch(workflow, /pull_request(?:_target)?:/u);
     assert.match(workflow, /^permissions: read-all$/mu);
     assert.match(
       workflow,
-      /^  release-please:\n    runs-on: ubuntu-latest\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
+      /^  release-please:\n    if: \$\{\{ github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
     );
     assert.match(
       workflow,
@@ -465,6 +467,66 @@ describe("pull request issue disposition policy", () => {
         closingIssueNumbers: [],
       }),
       { status: "exempt", exemption: "Dependabot dependency update", closes: [], refs: [] },
+    );
+  });
+});
+
+describe("trusted Release Please workflow context", () => {
+  const trustedPolicySha = "a".repeat(40);
+
+  for (const eventName of ["push", "workflow_dispatch"]) {
+    it(`accepts an exact trunk ${eventName}`, () => {
+      assert.deepEqual(
+        validateTrustedReleasePleaseWorkflowContext({
+          eventName,
+          ref: "refs/heads/trunk",
+          trustedPolicySha,
+          githubSha: trustedPolicySha,
+        }),
+        { eventName, ref: "refs/heads/trunk", trustedPolicySha },
+      );
+    });
+  }
+
+  it("fails closed for other events and refs", () => {
+    for (const [eventName, ref] of [
+      ["pull_request", "refs/heads/trunk"],
+      ["schedule", "refs/heads/trunk"],
+      ["workflow_dispatch", "refs/heads/feature"],
+    ]) {
+      assert.throws(
+        () =>
+          validateTrustedReleasePleaseWorkflowContext({
+            eventName,
+            ref,
+            trustedPolicySha,
+            githubSha: trustedPolicySha,
+          }),
+        /only for a trunk push or manual dispatch/u,
+      );
+    }
+  });
+
+  it("fails closed for malformed or mismatched workflow revisions", () => {
+    assert.throws(
+      () =>
+        validateTrustedReleasePleaseWorkflowContext({
+          eventName: "workflow_dispatch",
+          ref: "refs/heads/trunk",
+          trustedPolicySha: "not-a-sha",
+          githubSha: trustedPolicySha,
+        }),
+      /Trusted policy revision must be a full lowercase commit SHA/u,
+    );
+    assert.throws(
+      () =>
+        validateTrustedReleasePleaseWorkflowContext({
+          eventName: "workflow_dispatch",
+          ref: "refs/heads/trunk",
+          trustedPolicySha,
+          githubSha: "b".repeat(40),
+        }),
+      /must match the triggering trunk revision/u,
     );
   });
 });
