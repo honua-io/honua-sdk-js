@@ -210,24 +210,31 @@ HONUA_BROWSER_BENCH_SCALE=full npm run bench:browser   # or:
 npm run bench:browser:full-scale
 ```
 
-They started as 1M-only opt-in with locally calibrated 100k budgets, but a
-real CI run of `deckgl.scale-render-100k` measured render 2677.80 ms /
-interaction 695 ms / gpuUpload 990 ms / steadyFps 1.3 on CI's own software
-GL — well past the local Chromium+swiftshader baseline those budgets were
-calibrated from. A same-box local measurement is not a portable CI number:
-CI's runner class, load, and swiftshader build can all differ from a
-contributor's machine, and 100k's fill-rate-bound circle redraw is exactly
-the kind of workload where that gap is largest. Both tiers are now opt-in for
-that reason, and every number in `deckgl.scale-render-100k` and
-`deckgl.scale-render-1m` in [`browser/budgets.json`](./browser/budgets.json)
-is documented in the file's own `$comment` as **uncalibrated for CI** — a
-placeholder, not a gate anyone should expect to pass out of the box. The
-scheduled/manual `deck.gl Full-Scale Evidence` workflow now runs
-`HONUA_BROWSER_BENCH_SCALE=full` on a stable Ubuntu runner class and retains
-each report for calibration. Replace the placeholders with reviewed numbers
-only after repeated reports establish runner variance. `report.corpus`
-`.includesOptInScaleTiers` and `.activeScaleTierIds` record whether a given
-report included them.
+They started as locally calibrated placeholders, which a real CI run proved
+was not portable across SwiftShader runner classes. The dedicated `deck.gl
+Full-Scale Evidence` workflow now runs the tiers serially on `ubuntu24` and
+retains each report. The committed thresholds were reviewed from three runs on
+the same `a0b3aecd` implementation/corpus commit:
+
+- [run 30716684349](https://github.com/honua-io/honua-sdk-js/actions/runs/30716684349)
+- [run 30717019856](https://github.com/honua-io/honua-sdk-js/actions/runs/30717019856)
+- [run 30717020832](https://github.com/honua-io/honua-sdk-js/actions/runs/30717020832)
+
+For 100k rows, median first frame ranged 2.12-2.65 seconds, picking 0.55-0.66
+seconds, GPU upload 0.78-0.99 seconds, and steady frame rate 1.30-1.68 FPS. For
+one million rows, the ranges were 17.39-20.35 seconds, 5.41-6.43 seconds,
+5.90-6.98 seconds, and 0.186-0.218 FPS. Across-run coefficient of variation was
+7.2-12.0% for those metrics and conversion time. All runs passed journey
+invariants, copied zero payload bytes, and reported 37.3 MB heap after the 1M
+first frame. Warning thresholds leave runner-noise headroom; failures identify
+material regressions or hangs. These are still regression-safety budgets for
+the pinned software renderer, not product or real-device SLAs.
+
+The scheduled workflow enforces the reviewed thresholds with
+`bench:browser:full-scale`; `bench:browser:full-scale:capture` remains available
+for an intentional future recalibration. `report.corpus`
+`.includesOptInScaleTiers` and `.activeScaleTierIds` record whether a report
+included them.
 
 ## Million-feature columnar rendering budget
 
