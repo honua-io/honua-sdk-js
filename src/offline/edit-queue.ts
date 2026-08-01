@@ -24,6 +24,7 @@ const PRUNE_KEYS = new Set([...PARTITION_KEYS, "terminalBefore", "limit"]);
 const APPLIED_KEYS = new Set(["serverOperationId", "serverGeneration"]);
 const RETRY_KEYS = new Set(["retryAt", "reasonCode"]);
 const CONFLICT_KEYS = new Set(["conflictId", "serverGeneration"]);
+const CANCEL_KEYS = new Set(["reasonCode"]);
 
 export type OfflineEditJsonValue =
   | null
@@ -34,7 +35,7 @@ export type OfflineEditJsonValue =
   | { readonly [key: string]: OfflineEditJsonValue };
 
 export type OfflineEditOperation = "add" | "update" | "delete";
-export type OfflineQueuedEditState = "pending" | "leased" | "retryable" | "applied" | "conflicted";
+export type OfflineQueuedEditState = "pending" | "leased" | "retryable" | "applied" | "conflicted" | "cancelled";
 
 export interface OfflineFeatureEdit {
   readonly operation: OfflineEditOperation;
@@ -77,13 +78,19 @@ export interface OfflineEditConflictOutcome {
   readonly serverGeneration?: string;
 }
 
+export interface OfflineEditCancellationOutcome {
+  readonly cancelledAt: string;
+  readonly reasonCode: string;
+}
+
 export type OfflineEditAuditEventKind =
   | "enqueued"
   | "claimed"
   | "lease-reclaimed"
   | "retry-scheduled"
   | "applied"
-  | "conflicted";
+  | "conflicted"
+  | "cancelled";
 
 export interface OfflineEditAuditEvent {
   readonly sequence: number;
@@ -114,6 +121,7 @@ export interface OfflineQueuedEdit {
   readonly retry?: OfflineEditRetry;
   readonly applied?: OfflineEditAppliedOutcome;
   readonly conflict?: OfflineEditConflictOutcome;
+  readonly cancellation?: OfflineEditCancellationOutcome;
   readonly audit: readonly OfflineEditAuditEvent[];
 }
 
@@ -160,6 +168,10 @@ export interface MarkOfflineEditConflictedInput {
   readonly serverGeneration?: string;
 }
 
+export interface CancelOfflineEditInput {
+  readonly reasonCode: string;
+}
+
 export interface OfflineEditQueue {
   enqueue(input: EnqueueOfflineEditInput): Promise<OfflineEditEnqueueResult>;
   get(editId: string, partition: OfflineEditQueuePartition): Promise<OfflineQueuedEdit | undefined>;
@@ -171,6 +183,12 @@ export interface OfflineEditQueue {
     editId: string,
     leaseToken: string,
     outcome: MarkOfflineEditConflictedInput,
+  ): Promise<OfflineQueuedEdit>;
+  /** Retire unleased work that cannot proceed, such as a dependent of a conflicted edit. */
+  cancel(
+    editId: string,
+    partition: OfflineEditQueuePartition,
+    outcome: CancelOfflineEditInput,
   ): Promise<OfflineQueuedEdit>;
   pruneTerminal(options: PruneTerminalOfflineEditsOptions): Promise<readonly `sha256:${string}`[]>;
 }
@@ -184,7 +202,6 @@ export type OfflineEditQueueErrorCode =
   | "lease-mismatch"
   | "lease-expired"
   | "queue-limit-exceeded"
-  | "audit-limit-exceeded"
   | "store-failed";
 
 export class HonuaOfflineEditQueueError extends HonuaSdkError {
@@ -337,6 +354,22 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
     return this.#transition(editId, leaseToken, "conflicted", outcome);
   }
 
+  public async cancel(
+    editId: string,
+    partition: OfflineEditQueuePartition,
+    outcome: CancelOfflineEditInput,
+  ): Promise<OfflineQueuedEdit> {
+    const id = requiredId(editId, "editId");
+    const normalized = capturePartition(partition, "partition");
+    const current = this.#records.get(id);
+    if (!current || !matchesPartition(current, normalized)) {
+      fail("edit-not-found", `Offline edit "${id}" was not found.`, { editId: id });
+    }
+    const updated = cancelRecord(current, outcome, this.#options);
+    this.#records.set(id, updated);
+    return copy(updated);
+  }
+
   public async pruneTerminal(options: PruneTerminalOfflineEditsOptions): Promise<readonly `sha256:${string}`[]> {
     const normalized = capturePruneOptions(options);
     const records = [...this.#records.values()];
@@ -460,6 +493,25 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
     outcome: MarkOfflineEditConflictedInput,
   ): Promise<OfflineQueuedEdit> {
     return this.#transition(editId, leaseToken, "conflicted", outcome);
+  }
+
+  public async cancel(
+    editId: string,
+    partition: OfflineEditQueuePartition,
+    outcome: CancelOfflineEditInput,
+  ): Promise<OfflineQueuedEdit> {
+    const id = requiredId(editId, "editId");
+    const normalized = capturePartition(partition, "partition");
+    return this.#run("readwrite", async ({ edits, metadata }) => {
+      const current = await request<OfflineQueuedEdit | undefined>(edits.get(id));
+      if (!current || !matchesPartition(current, normalized)) {
+        fail("edit-not-found", `Offline edit "${id}" was not found.`, { editId: id });
+      }
+      const updated = cancelRecord(current, outcome, this.#options);
+      edits.put(updated);
+      metadata.put(metadataFor(updated));
+      return copy(updated);
+    });
   }
 
   public async pruneTerminal(options: PruneTerminalOfflineEditsOptions): Promise<readonly `sha256:${string}`[]> {
@@ -750,6 +802,28 @@ function transitionRecord(
   });
 }
 
+function cancelRecord(
+  record: OfflineQueuedEdit,
+  input: CancelOfflineEditInput,
+  options: NormalizedQueueOptions,
+): OfflineQueuedEdit {
+  if (record.state !== "pending" && record.state !== "retryable") {
+    fail("invalid-transition", "Only pending or retryable offline edits can be cancelled.", { editId: record.id });
+  }
+  const value = plainRecord(input, "outcome");
+  allowedKeys(value, CANCEL_KEYS, "outcome");
+  const reasonCode = requiredString(value.reasonCode, "reasonCode");
+  const at = timestamp(options.now);
+  return deepFreeze({
+    ...record,
+    state: "cancelled" as const,
+    updatedAt: at,
+    retry: undefined,
+    cancellation: { cancelledAt: at, reasonCode },
+    audit: appendAudit(record, { kind: "cancelled", at, attempt: record.attemptCount, reasonCode }, options),
+  });
+}
+
 function captureFeatureEdit(value: unknown, maxPayloadBytes: number): OfflineFeatureEdit {
   const record = plainRecord(value, "edit");
   allowedKeys(record, FEATURE_EDIT_KEYS, "edit");
@@ -849,10 +923,9 @@ function appendAudit(
   event: Omit<OfflineEditAuditEvent, "sequence">,
   options: NormalizedQueueOptions,
 ): readonly OfflineEditAuditEvent[] {
-  if (record.audit.length >= options.maxAuditEvents) {
-    fail("audit-limit-exceeded", "Offline edit audit event limit exceeded.", { editId: record.id });
-  }
-  return [...record.audit, { sequence: record.audit.length + 1, ...event }];
+  const sequence = (record.audit.at(-1)?.sequence ?? 0) + 1;
+  const history = [...record.audit, { sequence, ...event }];
+  return history.slice(-options.maxAuditEvents);
 }
 
 function sortedRecords(records: readonly OfflineQueuedEdit[]): readonly OfflineQueuedEdit[] {
@@ -1033,7 +1106,7 @@ async function scanTerminalMetadata(
   options: NormalizedPruneOptions,
 ): Promise<readonly OfflineEditQueueMetadata[]> {
   const candidates: OfflineEditQueueMetadata[] = [];
-  for (const state of ["applied", "conflicted"] as const) {
+  for (const state of ["applied", "conflicted", "cancelled"] as const) {
     const index = store.index(PARTITION_STATE_ORDER_INDEX);
     let cursor = await request<IDBCursorWithValue | null>(index.openCursor(partitionStateRange(options, state)));
     while (cursor) {
@@ -1079,8 +1152,8 @@ function continueCursor(cursor: IDBCursorWithValue): Promise<IDBCursorWithValue 
   });
 }
 
-function isTerminal(state: OfflineQueuedEditState): state is "applied" | "conflicted" {
-  return state === "applied" || state === "conflicted";
+function isTerminal(state: OfflineQueuedEditState): state is "applied" | "conflicted" | "cancelled" {
+  return state === "applied" || state === "conflicted" || state === "cancelled";
 }
 
 function compareMetadataCreated(left: OfflineEditQueueMetadata, right: OfflineEditQueueMetadata): number {

@@ -114,6 +114,35 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
         terminalBefore: "2026-08-01T10:00:01.000Z",
         limit: 1,
       });
+      const conflictRoot = await queueA.enqueue({
+        ...partition,
+        idempotencyKey: "browser-conflict-root",
+        edit: { operation: "add", attributes: { status: "conflicted" } },
+      });
+      const blocked = await queueA.enqueue({
+        ...partition,
+        idempotencyKey: "browser-blocked-dependent",
+        edit: { operation: "update", featureId: "incident-2", attributes: { status: "closed" } },
+        dependencyIds: [conflictRoot.edit.id],
+      });
+      const [conflictLease] = await queueA.claimReady({
+        ...partition,
+        workerId: "worker-a",
+        limit: 1,
+        leaseDurationMs: 60_000,
+      });
+      await queueA.markConflicted(conflictRoot.edit.id, conflictLease.lease.token, {
+        conflictId: "browser-conflict",
+      });
+      const blockedClaims = await queueA.claimReady({
+        ...partition,
+        workerId: "worker-a",
+        limit: 10,
+        leaseDurationMs: 60_000,
+      });
+      const cancelled = await queueA.cancel(blocked.edit.id, partition, {
+        reasonCode: "dependency-conflicted",
+      });
       const other = await queueB.get(fixture.otherId, {
         authorizationScopeDigest: `sha256:${"b".repeat(64)}`,
         sourceId: "incidents",
@@ -136,6 +165,8 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
         after: after.map((edit) => ({ id: edit.id, state: edit.state })),
         pruned: pruned.length,
         remaining: (await queueA.list(partition)).length,
+        blockedClaimCount: blockedClaims.length,
+        cancelledState: cancelled.state,
         otherState: other?.state,
         metadataKeys,
       };
@@ -158,7 +189,13 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
         { id: expected.dependentId, state: "leased" },
       ]),
     );
-    expect(result).toMatchObject({ pruned: 1, remaining: 1, otherState: "pending" });
+    expect(result).toMatchObject({
+      pruned: 1,
+      remaining: 3,
+      blockedClaimCount: 0,
+      cancelledState: "cancelled",
+      otherState: "pending",
+    });
     expect(result.metadataKeys).not.toEqual(expect.arrayContaining(["edit", "audit", "idempotencyKey", "lease"]));
   } finally {
     await server.close();

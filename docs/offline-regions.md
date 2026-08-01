@@ -148,10 +148,14 @@ console.log(enqueued.status); // "enqueued" or "duplicate"
   A compact indexed metadata store scans only the named partition and loads full
   payloads only for the bounded winning claim set. Active leases exclude
   competing workers, expired leases are recoverable, and applied, retryable,
-  and conflicted outcomes are durable. Bounded terminal pruning preserves any
-  record still required by active dependent work. Payload size, queue length,
-  dependency count, list/claim/prune size, lease duration, and per-edit audit
-  history are explicitly bounded. The persisted schema accepts no request
+  and conflicted outcomes are durable. A partition-scoped cancellation
+  transition lets applications retire pending or retryable work that cannot
+  proceed, including dependents of conflicted edits. Bounded terminal pruning
+  preserves any record still required by active dependent work. Payload size,
+  queue length, dependency count, list/claim/prune size, lease duration, and
+  per-edit audit history are explicitly bounded. Audit history uses rolling
+  retention with monotonic sequence numbers so its bound cannot prevent a
+  progress-critical state transition. The persisted schema accepts no request
   headers, tokens, URLs, or raw authorization scope.
 
 The manifest contains logical resource ids, not request URLs. The injected

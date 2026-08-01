@@ -293,6 +293,33 @@ describe("offline edit queue", () => {
     await expect(queue.enqueue(input("after-prune"))).resolves.toMatchObject({ status: "enqueued" });
   });
 
+  it("allows blocked dependency chains to be explicitly cancelled and reclaimed", async () => {
+    const queue = createMemoryOfflineEditQueue({ createLeaseToken: () => "lease" });
+    const prerequisite = await queue.enqueue(input("conflicted-prerequisite"));
+    const dependent = await queue.enqueue(
+      input("blocked-dependent", {
+        edit: { operation: "update", featureId: "feature-1", attributes: { status: "closed" } },
+        dependencyIds: [prerequisite.edit.id],
+      }),
+    );
+    await queue.claimReady({ ...PARTITION, workerId: "worker", limit: 1, leaseDurationMs: 10_000 });
+    await queue.markConflicted(prerequisite.edit.id, "lease", { conflictId: "conflict-17" });
+
+    await expect(
+      queue.claimReady({ ...PARTITION, workerId: "worker", limit: 10, leaseDurationMs: 10_000 }),
+    ).resolves.toEqual([]);
+    const cancelled = await queue.cancel(dependent.edit.id, PARTITION, {
+      reasonCode: "dependency-conflicted",
+    });
+    expect(cancelled).toMatchObject({
+      state: "cancelled",
+      cancellation: { reasonCode: "dependency-conflicted" },
+    });
+    await expect(
+      queue.pruneTerminal({ ...PARTITION, terminalBefore: cancelled.updatedAt, limit: 10 }),
+    ).resolves.toEqual(expect.arrayContaining([prerequisite.edit.id, dependent.edit.id]));
+  });
+
   it("rejects accessors, unknown secret-bearing fields, sparse arrays, and oversized payloads", async () => {
     const queue = createMemoryOfflineEditQueue({ maxPayloadBytes: 64 });
     let reads = 0;
@@ -327,7 +354,7 @@ describe("offline edit queue", () => {
     );
   });
 
-  it("enforces queue, dependency, claim, lease, and audit bounds", async () => {
+  it("enforces queue, dependency, claim, and lease bounds while rolling audit history", async () => {
     const queue = createMemoryOfflineEditQueue({
       maxEdits: 1,
       maxDependencies: 1,
@@ -362,6 +389,19 @@ describe("offline edit queue", () => {
       "leaseDurationMs",
     );
     await queue.claimReady({ ...PARTITION, workerId: "worker", limit: 1, leaseDurationMs: 1_000 });
-    await expectQueueError(queue.markApplied(first.edit.id, "lease"), "audit-limit-exceeded");
+    await queue.markRetry(first.edit.id, "lease", {
+      retryAt: "2026-08-01T10:00:00.000Z",
+      reasonCode: "transient",
+    });
+    const [retried] = await queue.claimReady({
+      ...PARTITION,
+      workerId: "worker",
+      limit: 1,
+      leaseDurationMs: 1_000,
+    });
+    const applied = await queue.markApplied(first.edit.id, retried.lease?.token ?? "");
+    expect(applied.audit).toHaveLength(2);
+    expect(applied.audit.map((event) => event.sequence)).toEqual([4, 5]);
+    expect(applied.audit.map((event) => event.kind)).toEqual(["claimed", "applied"]);
   });
 });
