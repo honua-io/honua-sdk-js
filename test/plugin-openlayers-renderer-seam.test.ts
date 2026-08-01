@@ -181,7 +181,7 @@ describe("OpenLayers renderer-seam certification (#566)", () => {
     expect(report.status).toBe("certified");
     expect(report.checks.every((check) => check.status === "passed")).toBe(true);
     expect(report.plugin).toEqual({
-      id: "io.honua.plugins.openlayers",
+      id: "org.example.honua.openlayers",
       version: "1.0.0",
       kind: "renderer",
     });
@@ -191,10 +191,10 @@ describe("OpenLayers renderer-seam certification (#566)", () => {
     const events: string[] = [];
     const registry = new HonuaPluginRegistry({ host: REGISTRY_HOST });
     await registry.register([openLayersRendererPlugin(createFakeOpenLayersPeer(), events)]);
-    const extension = registry.get<"renderer", OpenLayersRendererExtension>("renderer", "io.honua.plugins.openlayers");
+    const extension = registry.get<"renderer", OpenLayersRendererExtension>("renderer", "org.example.honua.openlayers");
     expect(extension).toBeDefined();
-    expect(extension?.adapter.kind).toBe("io.honua.plugins.openlayers");
-    expect(events).toContain("initialize:io.honua.plugins.openlayers");
+    expect(extension?.adapter.kind).toBe("org.example.honua.openlayers");
+    expect(events).toContain("initialize:org.example.honua.openlayers");
     await registry.dispose();
   });
 
@@ -229,7 +229,7 @@ describe("OpenLayers renderer-seam certification (#566)", () => {
     expect(mounted.diagnostics).toContainEqual(
       expect.objectContaining({ code: "crs-fidelity-exact", severity: "info", strategy: "vector" }),
     );
-    const map = mounted.raw("io.honua.plugins.openlayers");
+    const map = mounted.raw("org.example.honua.openlayers");
     expect(map).toBeInstanceOf(FakeOlMap);
     expect(map?.getView().getProjection().getCode()).toBe("EPSG:4326");
     expect(map?.getLayerById("honua:parcels")?.data).toHaveLength(2);
@@ -460,7 +460,7 @@ describe("OpenLayers renderer-seam certification (#566)", () => {
       if (scenario.ownership === "borrowed") (target as FakeOlMap).renderSync();
       await mounted.ready;
 
-      const map = mounted.raw("io.honua.plugins.openlayers");
+      const map = mounted.raw("org.example.honua.openlayers");
       expect(map).toBeInstanceOf(FakeOlMap);
       expect(map?.getLayers()).toHaveLength(1);
 

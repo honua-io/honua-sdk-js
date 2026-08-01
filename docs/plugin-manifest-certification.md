@@ -513,14 +513,18 @@ is untrusted and verification fails closed.
 ### Compatibility, peers, and deprecation
 
 - Manifest, plugin API, report, conformance-report, and signing-envelope
-  versions are exact. SDK and peer bounds are exact SemVer values with an
-  inclusive minimum and optional exclusive maximum; a breaking contract change
-  requires a new version rather than heuristic fallback.
+  versions are exact. SDK bounds use an exact SemVer inclusive minimum and
+  optional exclusive maximum. Manifest v1 peer requirements expose only an
+  exact SemVer minimum; a schema-level peer maximum requires a new manifest
+  version rather than heuristic fallback.
 - Required peers must be present in the explicit host snapshot at a compatible
   version. Missing optional peers remain warnings: neither certification nor
   the registry installs, imports, or fetches them. A plugin must expose only
   capabilities that work with the injected peers and return a structured
-  capability diagnostic when an optional implementation is unavailable.
+  capability diagnostic when an optional implementation is unavailable. A
+  plugin that cannot tolerate a later peer version must reject that peer at its
+  runtime boundary and cannot claim `supported` for that host until a versioned
+  upper-bound contract exists.
 - Deprecation sets `supportStatus.state` to `deprecated` and names either an
   exact `removedIn` version or a `replacement` id. Publishers keep the old id
   immutable, document migration and authority changes, and do not silently

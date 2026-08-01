@@ -11,7 +11,7 @@ import { classifyOpenLayersCrsFidelity } from "./crs-fidelity.js";
 import { type FakeOlLayer, type FakeOlMap, type FakeOpenLayersPeer, isFakeOlMap } from "./fake-ol.js";
 
 /** Stable identifier this external-style plugin registers with the public renderer seam. */
-export const OPENLAYERS_RENDERER_KIND = "io.honua.plugins.openlayers" as const;
+export const OPENLAYERS_RENDERER_KIND = "org.example.honua.openlayers" as const;
 export type OpenLayersRendererKind = typeof OPENLAYERS_RENDERER_KIND;
 
 export type OpenLayersRendererErrorCode =

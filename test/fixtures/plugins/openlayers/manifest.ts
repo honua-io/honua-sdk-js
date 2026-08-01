@@ -14,7 +14,7 @@ import { OPENLAYERS_RENDERER_KIND } from "./renderer-adapter.js";
  */
 export const openLayersRendererManifest: HonuaPluginManifest<"renderer"> = {
   manifestVersion: HONUA_PLUGIN_MANIFEST_VERSION,
-  id: "io.honua.plugins.openlayers",
+  id: "org.example.honua.openlayers",
   version: "1.0.0",
   kind: "renderer",
   package: {
