@@ -113,15 +113,21 @@ export function validatePackedTarListings(memberOutput, verboseOutput) {
   if (verboseMembers.length !== members.length) fail("packed SDK tar listings disagree");
   let declaredBytes = 0;
   for (let index = 0; index < verboseMembers.length; index += 1) {
-    const match = /^(\S+)\s+\S+\s+(\d+)\s+\S+\s+\S+\s+(.+)$/.exec(verboseMembers[index]);
-    if (!match) fail(`could not parse packed SDK tar member metadata: ${verboseMembers[index]}`);
-    const type = match[1][0];
-    const size = Number(match[2]);
-    const member = match[3];
-    if ((type !== "-" && type !== "d") || !Number.isSafeInteger(size) || size < 0) {
-      fail(`packed SDK tar contains a link, device, or unsupported member: ${member}`);
+    const line = verboseMembers[index];
+    const type = line[0];
+    if (type !== "-" && type !== "d") {
+      fail(`packed SDK tar contains a link, device, or unsupported member: ${members[index]}`);
     }
-    if (member !== members[index]) fail(`packed SDK tar member ordering or path metadata disagrees: ${member}`);
+    const member = members[index];
+    const memberSuffix = ` ${member}`;
+    if (!line.endsWith(memberSuffix)) fail(`packed SDK tar member ordering or path metadata disagrees: ${line}`);
+    const metadata = line.slice(0, -memberSuffix.length).trim().split(/\s+/);
+    const sizeToken = metadata[1]?.includes("/") ? metadata[2] : metadata[4];
+    const expectedMetadataFields = metadata[1]?.includes("/") ? 5 : 8;
+    const size = Number(sizeToken);
+    if (metadata.length !== expectedMetadataFields || !Number.isSafeInteger(size) || size < 0) {
+      fail(`could not parse packed SDK tar member metadata: ${line}`);
+    }
     if (type === "-" && size === 0 && member.endsWith("/")) fail(`packed SDK regular file has a directory path: ${member}`);
     declaredBytes += size;
     if (declaredBytes > MAX_PACKED_BYTES) fail("packed SDK declared bytes exceed the pre-extraction limit");
