@@ -784,6 +784,7 @@ async function createCesiumImageryProvider(
         return new cesium.UrlTemplateImageryProvider({
           url: arcGisImageServerExportUrl(primitive.url, primitive.parameters),
           ...commonOptions,
+          ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
         });
       }
       return cesium.ArcGisMapServerImageryProvider.fromUrl(primitive.url, commonOptions);

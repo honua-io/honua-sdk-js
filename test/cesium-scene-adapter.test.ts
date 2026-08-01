@@ -603,8 +603,9 @@ describe("cesium scene adapter", () => {
           id: "arcgis-image",
           sourceId: "arcgis-image",
           protocol: "arcgis-imagery",
-          url: "https://services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public&mosaicrule=stale&MosaicRule=older&f=pjson&bbox=stale&size=1%2C1&format=jpg&transparent=false",
+          url: "https://{s}.services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public&mosaicrule=stale&MosaicRule=older&f=pjson&bbox=stale&size=1%2C1&format=jpg&transparent=false",
           parameters: { mosaicRule: "public-rule", imageSR: 4326, F: "pjson" },
+          subdomains: ["imagery-a", "imagery-b"],
         },
         {
           kind: "imagery-layer",
@@ -650,8 +651,9 @@ describe("cesium scene adapter", () => {
       expect(singleTileImageryFromUrl).toHaveBeenCalledWith("https://images.example.test/snapshot.png", {});
       expect(imageryProviders[4]?.options).toMatchObject({
         url: expect.stringMatching(
-          /^https:\/\/services\.example\.test\/arcgis\/rest\/services\/imagery\/ImageServer\/exportImage\?/,
+          /^https:\/\/\{s\}\.services\.example\.test\/arcgis\/rest\/services\/imagery\/ImageServer\/exportImage\?/,
         ),
+        subdomains: ["imagery-a", "imagery-b"],
       });
       const imageServerUrl = new URL(String(imageryProviders[4]?.options.url));
       expect(Object.fromEntries(imageServerUrl.searchParams)).toMatchObject({
