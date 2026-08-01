@@ -7,6 +7,7 @@ the broader local-first feature complete.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
+  createOfflineRegionDiagnostic,
   createOfflineRegionManifest,
   downloadOfflineRegion,
 } from "@honua/sdk-js/offline";
@@ -33,6 +34,16 @@ const receipt = await downloadOfflineRegion(manifest, {
   signal: abortController.signal,
   onProgress: renderProgress,
 });
+
+const diagnostic = await createOfflineRegionDiagnostic(
+  manifest,
+  await applicationStore.inventory(),
+  {
+    logicalQuotaBytes: 512 * 1024 * 1024,
+    now: new Date(),
+    staleAfterMs: 15 * 60 * 1000,
+  },
+);
 ```
 
 ## Contract guarantees
@@ -79,6 +90,12 @@ const receipt = await downloadOfflineRegion(manifest, {
   bounded period and the next attempt re-hashes them before loading only the
   missing resources. Staging contains resource bytes and ids only; credentials,
   URLs, and loader state are never persisted.
+- `createOfflineRegionDiagnostic()` produces a versioned, immutable explanation
+  without reading payloads or mutating the store. It reports cache presence,
+  freshness, atomic completeness, provenance, attribution, and the exact quota
+  admission/eviction plan. Endpoint and ETag values are represented only by
+  domain-separated SHA-256 fingerprints; the authorization scope was already
+  reduced to its persisted digest when the manifest was created.
 
 The manifest contains logical resource ids, not request URLs. The injected
 loader may resolve short-lived signed URLs or authorization at download time;
@@ -86,10 +103,14 @@ those values never cross the persistent-store boundary.
 
 ## Non-goals and remaining work
 
-This slice intentionally provides no service-worker adapter, network
- reachability policy, resumable partial transaction, encryption policy, storage
- schema migration, cached
-query/read integration, or local edit queue/replica conflict replay. Those
-remain required before issue #396 can satisfy its GA acceptance criteria. This
+The storage-backed fetch handler can be installed in a service worker or other
+fetch integration, but the host still owns request matching and network
+reachability policy. This slice does not provide encryption policy, a complete
+application-level query/read cache, or the local edit queue and replica conflict
+replay needed for exactly-once synchronization. That replay must integrate with
+the established Honua Server replica-sync, upload-cursor, and conflict-review
+contracts exposed to hosted applications through `@honua/app-platform`; this
+offline storage subpath does not duplicate that client. The integration remains
+required before issue #396 can satisfy its Beta acceptance criteria. This
 entrypoint is `@experimental` and subpath-only so the root and browser bundles
 do not absorb it.

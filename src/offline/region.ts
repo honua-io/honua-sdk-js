@@ -1,17 +1,22 @@
 import { normalizeDiscoveryEndpoint } from "../contract/discovery.js";
 import {
+  type CreateOfflineRegionDiagnosticOptions,
   type CreateOfflineRegionManifestInput,
   DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,
   DEFAULT_OFFLINE_REGION_MAX_LOGICAL_BYTES,
   DEFAULT_OFFLINE_REGION_MAX_METADATA_ENTRIES,
   DEFAULT_OFFLINE_REGION_MAX_RESOURCES,
   DEFAULT_OFFLINE_REGION_MAX_STRING_BYTES,
+  HONUA_OFFLINE_REGION_DIAGNOSTIC_KIND,
+  HONUA_OFFLINE_REGION_DIAGNOSTIC_VERSION,
   HONUA_OFFLINE_REGION_KIND,
   HONUA_OFFLINE_REGION_VERSION,
   HonuaOfflineRegionError,
   type OfflineRegionAdmissionPlan,
   type OfflineRegionBounds,
   type OfflineRegionCacheInventory,
+  type OfflineRegionDiagnosticAdmission,
+  type OfflineRegionDiagnosticV1,
   type OfflineRegionDownloadOptions,
   type OfflineRegionDownloadProgress,
   type OfflineRegionDownloadReceipt,
@@ -197,6 +202,125 @@ export function planOfflineRegionAdmission(
 ): OfflineRegionAdmissionPlan {
   const prepared = captureManifest(inputManifest);
   return planPreparedAdmission(prepared.manifest, inventory, options);
+}
+
+/**
+ * Explain persistent cache state and quota admission without reading payloads,
+ * mutating storage, or exposing endpoint credentials and raw validators.
+ */
+export async function createOfflineRegionDiagnostic(
+  inputManifest: OfflineRegionManifestV1,
+  inputInventory: OfflineRegionCacheInventory,
+  options: CreateOfflineRegionDiagnosticOptions,
+): Promise<OfflineRegionDiagnosticV1> {
+  // Capture both untrusted inputs before the first digest await.
+  const prepared = captureManifest(inputManifest);
+  const manifest = prepared.manifest;
+  const inventory = normalizeInventory(inputInventory);
+  const logicalQuotaBytes = nonNegativeInteger(options.logicalQuotaBytes, "logicalQuotaBytes");
+  const staleAfterMs = nonNegativeInteger(options.staleAfterMs, "staleAfterMs");
+  const nowMs = options.now instanceof Date ? options.now.getTime() : Number.NaN;
+  if (!Number.isFinite(nowMs)) invalid("now must be a valid Date.", "now");
+
+  const [expectedId, endpointFingerprint, etagFingerprint] = await Promise.all([
+    sha256(`honua-offline-region:v1:${prepared.canonicalIdentity}`),
+    sha256(`honua-offline-endpoint:v1:${manifest.source.endpoint}`),
+    manifest.source.validator?.etag
+      ? sha256(`honua-offline-validator:v1:${manifest.source.validator.etag}`)
+      : Promise.resolve(undefined),
+  ]);
+  if (manifest.id !== expectedId) invalid("Offline region identity does not match its normalized contents.", "id");
+
+  let admission: OfflineRegionDiagnosticAdmission;
+  try {
+    admission = {
+      status: "accepted",
+      plan: planPreparedAdmission(manifest, inventory, { logicalQuotaBytes, now: new Date(nowMs) }),
+    };
+  } catch (error) {
+    if (error instanceof HonuaOfflineRegionError && (error.code === "expired" || error.code === "quota-exceeded")) {
+      admission = { status: "rejected", reason: error.code, logicalQuotaBytes };
+    } else {
+      throw error;
+    }
+  }
+
+  const stored = inventory.regions.find((region) => region.id === manifest.id);
+  const observedAtMs = Date.parse(manifest.source.observation.observedAt);
+  const ageMs = Math.max(0, nowMs - observedAtMs);
+  const expiresAt = stored?.expiresAt ?? manifest.expiresAt;
+  const expired = expiresAt !== undefined && Date.parse(expiresAt) <= nowMs;
+  const freshness = expired ? "expired" : ageMs >= staleAfterMs ? "stale" : "fresh";
+  const completeness = stored
+    ? stored.logicalByteLength === manifest.totalLogicalBytes
+      ? "complete"
+      : "partial"
+    : "missing";
+  const reason = !stored
+    ? "cache-miss"
+    : expired
+      ? "expired-entry"
+      : completeness === "partial"
+        ? "partial-entry"
+        : freshness === "stale"
+          ? "stale-entry"
+          : "offline-entry";
+  const resourceKinds: Record<OfflineRegionResourceV1["kind"], number> = {
+    metadata: 0,
+    features: 0,
+    tile: 0,
+    asset: 0,
+    attribution: 0,
+  };
+  for (const resource of manifest.resources) resourceKinds[resource.kind] += 1;
+
+  return deepFreeze({
+    kind: HONUA_OFFLINE_REGION_DIAGNOSTIC_KIND,
+    version: HONUA_OFFLINE_REGION_DIAGNOSTIC_VERSION,
+    generatedAt: new Date(nowMs).toISOString(),
+    regionId: manifest.id,
+    inventoryRevision: inventory.revision,
+    cache: {
+      state: stored ? "offline" : "missing",
+      freshness,
+      completeness,
+      reason,
+      readable: Boolean(stored && completeness === "complete" && !expired),
+      observedAt: manifest.source.observation.observedAt,
+      ageMs,
+      staleAfterMs,
+      expectedLogicalBytes: manifest.totalLogicalBytes,
+      ...(stored ? { storedLogicalBytes: stored.logicalByteLength, lastAccessedAt: stored.lastAccessedAt } : {}),
+      ...(expiresAt ? { expiresAt } : {}),
+      pinned: stored?.pinned === true,
+    },
+    provenance: {
+      sourceId: manifest.source.id,
+      endpointFingerprint,
+      authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+      sourceVersion: manifest.source.sourceVersion,
+      schemaVersion: manifest.source.schemaVersion,
+      planVersion: manifest.source.planVersion,
+      observation: manifest.source.observation,
+      ...(manifest.source.validator
+        ? {
+            validator: {
+              ...(etagFingerprint ? { etagFingerprint } : {}),
+              ...(manifest.source.validator.lastModified
+                ? { lastModified: manifest.source.validator.lastModified }
+                : {}),
+            },
+          }
+        : {}),
+    },
+    contents: {
+      resourceCount: manifest.resources.length,
+      logicalBytes: manifest.totalLogicalBytes,
+      resourceKinds,
+      attributionIds: ownKeys(manifest.attribution),
+    },
+    admission,
+  });
 }
 
 function planPreparedAdmission(
