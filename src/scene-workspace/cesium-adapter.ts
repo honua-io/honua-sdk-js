@@ -746,13 +746,13 @@ async function createCesiumImageryProvider(
   switch (primitive.protocol) {
     case "url-template":
       return new cesium.UrlTemplateImageryProvider({
-        url: primitive.url,
+        url: urlWithServiceParameters(primitive.url, primitive.parameters),
         ...commonOptions,
         ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
       });
     case "wms":
       return new cesium.WebMapServiceImageryProvider({
-        url: normalizedWmsUrl(primitive.url, primitive.format),
+        url: normalizedWmsUrl(primitive.url, primitive.parameters, primitive.format),
         layers: primitive.layer,
         ...commonOptions,
         ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
@@ -764,7 +764,7 @@ async function createCesiumImageryProvider(
       });
     case "wmts":
       return new cesium.WebMapTileServiceImageryProvider({
-        url: primitive.url,
+        url: normalizedWmtsUrl(primitive.url, primitive.parameters),
         layer: primitive.layer,
         style: primitive.style,
         tileMatrixSetID: primitive.tileMatrixSetId,
@@ -774,9 +774,12 @@ async function createCesiumImageryProvider(
         ...(primitive.parameters ? { dimensions: primitive.parameters } : {}),
       });
     case "single-tile":
-      return cesium.SingleTileImageryProvider.fromUrl(resolveConfiguredSubdomainUrl(primitive), {
-        ...(primitive.attribution ? { credit: primitive.attribution } : {}),
-      });
+      return cesium.SingleTileImageryProvider.fromUrl(
+        urlWithServiceParameters(resolveConfiguredSubdomainUrl(primitive), primitive.parameters),
+        {
+          ...(primitive.attribution ? { credit: primitive.attribution } : {}),
+        },
+      );
     case "arcgis-imagery":
       if (isArcGisImageServerUrl(primitive.url)) {
         return new cesium.UrlTemplateImageryProvider({
@@ -797,8 +800,40 @@ function resolveConfiguredSubdomainUrl(primitive: SceneImageryLayerPrimitive): s
   return subdomain === undefined ? primitive.url : primitive.url.replaceAll("{s}", subdomain);
 }
 
-function normalizedWmsUrl(url: string, format: SceneImageryLayerPrimitive["format"]): string {
-  const overriddenKeys = new Set(["layers", ...(format === undefined ? [] : ["format"])]);
+function normalizedWmsUrl(
+  url: string,
+  parameters: SceneImageryLayerPrimitive["parameters"],
+  format: SceneImageryLayerPrimitive["format"],
+): string {
+  return urlWithoutQueryKeys(url, [
+    "layers",
+    ...(format === undefined ? [] : ["format"]),
+    ...Object.keys(parameters ?? {}),
+  ]);
+}
+
+function normalizedWmtsUrl(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
+  return urlWithoutQueryKeys(url, ["layer", "style", "tilematrixset", "format", ...Object.keys(parameters ?? {})]);
+}
+
+function urlWithServiceParameters(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
+  const entries = Object.entries(parameters ?? {});
+  if (entries.length === 0) return url;
+  const normalizedUrl = urlWithoutQueryKeys(
+    url,
+    entries.map(([key]) => key),
+  );
+  const hashIndex = normalizedUrl.indexOf("#");
+  const withoutFragment = hashIndex === -1 ? normalizedUrl : normalizedUrl.slice(0, hashIndex);
+  const fragment = hashIndex === -1 ? "" : normalizedUrl.slice(hashIndex);
+  const encodedParameters = entries
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join("&");
+  return `${withoutFragment}${withoutFragment.includes("?") ? "&" : "?"}${encodedParameters}${fragment}`;
+}
+
+function urlWithoutQueryKeys(url: string, keys: readonly string[]): string {
+  const overriddenKeys = new Set(keys.map((key) => key.toLowerCase()));
   const hashIndex = url.indexOf("#");
   const withoutFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
   const fragment = hashIndex === -1 ? "" : url.slice(hashIndex);

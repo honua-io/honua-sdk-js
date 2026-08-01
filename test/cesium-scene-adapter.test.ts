@@ -562,7 +562,8 @@ describe("cesium scene adapter", () => {
           id: "osm",
           sourceId: "osm",
           protocol: "url-template",
-          url: "https://tiles.example.test/{z}/{x}/{y}.png",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png?LANGUAGE=en&cache=public#tiles",
+          parameters: { language: "fr", scale: 2 },
           subdomains: ["a", "b"],
           minimumLevel: 1,
           maximumLevel: 18,
@@ -574,10 +575,15 @@ describe("cesium scene adapter", () => {
           id: "weather",
           sourceId: "weather",
           protocol: "wms",
-          url: "https://maps.example.test/wms?LAYERS=stale&FORMAT=image/jpeg&cache=public",
+          url: "https://maps.example.test/wms?LAYERS=stale&FORMAT=image/jpeg&TIME=old&cache=public",
           layer: "precipitation",
           format: "image/png",
-          parameters: { transparent: true, LAYERS: "older", FORMAT: "image/jpeg" },
+          parameters: {
+            transparent: true,
+            Time: "2026-08-01T12:00:00Z",
+            LAYERS: "older",
+            FORMAT: "image/jpeg",
+          },
           subdomains: ["maps-a", "maps-b"],
         },
         {
@@ -585,7 +591,7 @@ describe("cesium scene adapter", () => {
           id: "basemap",
           sourceId: "basemap",
           protocol: "wmts",
-          url: "https://maps.example.test/wmts",
+          url: "https://maps.example.test/wmts?LAYER=old&TileMatrixSet=old&FORMAT=image/jpeg&TIME=old&cache=public#wmts",
           layer: "world",
           style: "default",
           tileMatrixSetId: "WebMercatorQuad",
@@ -597,8 +603,9 @@ describe("cesium scene adapter", () => {
           id: "snapshot",
           sourceId: "snapshot",
           protocol: "single-tile",
-          url: "https://{s}.images.example.test/snapshot.png",
+          url: "https://{s}.images.example.test/snapshot.png?VERSION=old#snapshot",
           subdomains: ["snapshot-a", "snapshot-b"],
+          parameters: { version: "new" },
         },
         {
           kind: "imagery-layer",
@@ -637,7 +644,7 @@ describe("cesium scene adapter", () => {
         "arcgis-imagery",
       ]);
       expect(imageryProviders[0]?.options).toMatchObject({
-        url: "https://tiles.example.test/{z}/{x}/{y}.png",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png?cache=public&language=fr&scale=2#tiles",
         credit: "Example tiles",
         subdomains: ["a", "b"],
         minimumLevel: 1,
@@ -646,12 +653,16 @@ describe("cesium scene adapter", () => {
       expect(imageryProviders[1]?.options).toMatchObject({
         url: "https://maps.example.test/wms?cache=public",
         layers: "precipitation",
-        parameters: { transparent: true, format: "image/png" },
+        parameters: { transparent: true, Time: "2026-08-01T12:00:00Z", format: "image/png" },
         subdomains: ["maps-a", "maps-b"],
       });
-      expect(imageryProviders[1]?.options.parameters).toEqual({ transparent: true, format: "image/png" });
+      expect(imageryProviders[1]?.options.parameters).toEqual({
+        transparent: true,
+        Time: "2026-08-01T12:00:00Z",
+        format: "image/png",
+      });
       expect(imageryProviders[2]?.options).toMatchObject({
-        url: "https://maps.example.test/wmts",
+        url: "https://maps.example.test/wmts?cache=public#wmts",
         layer: "world",
         style: "default",
         tileMatrixSetID: "WebMercatorQuad",
@@ -659,7 +670,10 @@ describe("cesium scene adapter", () => {
         subdomains: ["tiles-1"],
         dimensions: { Time: "2026-08-01T12:00:00Z", elevation: 250 },
       });
-      expect(singleTileImageryFromUrl).toHaveBeenCalledWith("https://snapshot-a.images.example.test/snapshot.png", {});
+      expect(singleTileImageryFromUrl).toHaveBeenCalledWith(
+        "https://snapshot-a.images.example.test/snapshot.png?version=new#snapshot",
+        {},
+      );
       expect(imageryProviders[4]?.options).toMatchObject({
         url: expect.stringMatching(
           /^https:\/\/\{s\}\.services\.example\.test\/arcgis\/rest\/services\/imagery\/ImageServer\/exportImage\?/,
