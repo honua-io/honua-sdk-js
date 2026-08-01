@@ -68,8 +68,21 @@ async function withDerivedArtifactsRelax(enabled, run) {
   try {
     return await run();
   } finally {
-    if (previous === undefined) delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+    if (previous === undefined)
+      delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
     else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = previous;
+  }
+}
+
+async function withReleaseMatrixReceiptEnforced(run) {
+  const previous = process.env.HONUA_RELEASE_MATRIX_RECEIPT_RELAX;
+  delete process.env.HONUA_RELEASE_MATRIX_RECEIPT_RELAX;
+  try {
+    return await run();
+  } finally {
+    if (previous === undefined)
+      delete process.env.HONUA_RELEASE_MATRIX_RECEIPT_RELAX;
+    else process.env.HONUA_RELEASE_MATRIX_RECEIPT_RELAX = previous;
   }
 }
 
@@ -121,7 +134,10 @@ function playwrightReport(overrides = {}) {
     config: {
       configFile: "playwright.first-map.config.mjs",
       rootDir: "test/playwright",
-      projects: (overrides.projects ?? RELEASE_MATRIX_ENGINES.map((engine) => engine.name)).map((name) => ({
+      projects: (
+        overrides.projects ??
+        RELEASE_MATRIX_ENGINES.map((engine) => engine.name)
+      ).map((name) => ({
         name,
       })),
     },
@@ -129,8 +145,12 @@ function playwrightReport(overrides = {}) {
       {
         title: "quickstart-map.spec.mjs",
         file: "quickstart-map.spec.mjs",
-        specs: (overrides.projects ?? RELEASE_MATRIX_ENGINES.map((engine) => engine.name)).map((name) => ({
-          title: "First Map proves the canonical fixture journey in source or packed mode",
+        specs: (
+          overrides.projects ??
+          RELEASE_MATRIX_ENGINES.map((engine) => engine.name)
+        ).map((name) => ({
+          title:
+            "First Map proves the canonical fixture journey in source or packed mode",
           file: "quickstart-map.spec.mjs",
           tests: [
             {
@@ -158,7 +178,10 @@ test("a sealed receipt records every declared engine inside the seven-day window
   assert.equal(sealed.sdkMode, "source");
   assert.equal(sealed.matrix.envName, "HONUA_FIRST_MAP_RELEASE_MATRIX");
   assert.equal(sealed.matrix.envValue, "true");
-  assert.equal(sealed.matrix.playwrightConfig, "playwright.first-map.config.mjs");
+  assert.equal(
+    sealed.matrix.playwrightConfig,
+    "playwright.first-map.config.mjs",
+  );
   assert.deepEqual(
     sealed.matrix.engines.map((engine) => engine.name),
     ["chromium", "firefox", "webkit"],
@@ -172,15 +195,26 @@ test("a sealed receipt records every declared engine inside the seven-day window
     Date.parse(sealed.expiresAt) - Date.parse(sealed.observedAt),
     RELEASE_MATRIX_MAX_WINDOW_MS,
   );
-  assert.equal(sealed.$schema, "../../contract/v2/schemas/sample-release-matrix-receipt.schema.json");
+  assert.equal(
+    sealed.$schema,
+    "../../contract/v2/schemas/sample-release-matrix-receipt.schema.json",
+  );
   assert.equal(sealed.producer.path, "scripts/seal-release-matrix-receipt.mjs");
-  assert.equal(releaseMatrixReceiptRelativePath(sampleId), `samples/evidence/${sampleId}/release-matrix.v1.json`);
+  assert.equal(
+    releaseMatrixReceiptRelativePath(sampleId),
+    `samples/evidence/${sampleId}/release-matrix.v1.json`,
+  );
 });
 
 test("a failing engine seals a failing receipt rather than being dropped", async () => {
-  const sealed = await receipt({ engines: engines({ webkit: { status: "timedOut" } }) });
+  const sealed = await receipt({
+    engines: engines({ webkit: { status: "timedOut" } }),
+  });
   assert.equal(sealed.status, "failed");
-  assert.equal(sealed.matrix.engines.find((engine) => engine.name === "webkit").status, "timedOut");
+  assert.equal(
+    sealed.matrix.engines.find((engine) => engine.name === "webkit").status,
+    "timedOut",
+  );
 });
 
 test("receipt sealing requires the release-matrix environment", async () => {
@@ -206,16 +240,29 @@ test("receipt validation rejects contradictions, drift, and impossible windows",
   const mutate = async (mutation, pattern) => {
     const candidate = structuredClone(base);
     mutation(candidate);
-    const directory = await mkdtemp(path.join(os.tmpdir(), "honua-release-matrix-"));
+    const directory = await mkdtemp(
+      path.join(os.tmpdir(), "honua-release-matrix-"),
+    );
     try {
-      await cp(path.join(projectRoot, "samples/evidence", sampleId, "receipts"), path.join(directory, sampleId, "receipts"), {
-        recursive: true,
-      });
+      await cp(
+        path.join(projectRoot, "samples/evidence", sampleId, "receipts"),
+        path.join(directory, sampleId, "receipts"),
+        {
+          recursive: true,
+        },
+      );
       await writeFile(
         path.join(directory, sampleId, "release-matrix.v1.json"),
         `${JSON.stringify(candidate, null, 2)}\n`,
       );
-      await assert.rejects(readReleaseMatrixReceipt({ sampleId, projectRoot, receiptRoot: directory }), pattern);
+      await assert.rejects(
+        readReleaseMatrixReceipt({
+          sampleId,
+          projectRoot,
+          receiptRoot: directory,
+        }),
+        pattern,
+      );
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -238,11 +285,15 @@ test("receipt validation rejects contradictions, drift, and impossible windows",
     candidate.matrix.engines[1].headless = true;
   }, /does not match the declared release-matrix projects/u);
   await mutate((candidate) => {
-    candidate.expiresAt = new Date(Date.parse(candidate.observedAt) + RELEASE_MATRIX_MAX_WINDOW_MS + 1000).toISOString();
+    candidate.expiresAt = new Date(
+      Date.parse(candidate.observedAt) + RELEASE_MATRIX_MAX_WINDOW_MS + 1000,
+    ).toISOString();
   }, /seven-day freshness policy/u);
   await mutate((candidate) => {
     candidate.observedAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-    candidate.expiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+    candidate.expiresAt = new Date(
+      Date.now() + 2 * 60 * 60 * 1000,
+    ).toISOString();
   }, /more than five minutes in the future/u);
   await mutate((candidate) => {
     candidate.matrix.engines.pop();
@@ -274,7 +325,10 @@ test("engines are transcribed from the Playwright report, never assumed", () => 
   const failing = releaseMatrixEnginesFromPlaywrightReport(
     playwrightReport({ statuses: { firefox: ["failed"] } }),
   );
-  assert.equal(failing.find((engine) => engine.name === "firefox").status, "failed");
+  assert.equal(
+    failing.find((engine) => engine.name === "firefox").status,
+    "failed",
+  );
   assert.equal(failing.find((engine) => engine.name === "firefox").failed, 1);
 
   // A retried test that ends green is green; the last attempt is the outcome
@@ -282,10 +336,16 @@ test("engines are transcribed from the Playwright report, never assumed", () => 
   const retried = releaseMatrixEnginesFromPlaywrightReport(
     playwrightReport({ statuses: { webkit: ["failed", "passed"] } }),
   );
-  assert.equal(retried.find((engine) => engine.name === "webkit").status, "passed");
+  assert.equal(
+    retried.find((engine) => engine.name === "webkit").status,
+    "passed",
+  );
 
   assert.throws(
-    () => releaseMatrixEnginesFromPlaywrightReport(playwrightReport({ projects: ["chromium", "firefox"] })),
+    () =>
+      releaseMatrixEnginesFromPlaywrightReport(
+        playwrightReport({ projects: ["chromium", "firefox"] }),
+      ),
     /chromium, firefox, and webkit projects/u,
   );
   const foreignConfig = playwrightReport();
@@ -316,18 +376,30 @@ test("run identity must come from a real workflow run", () => {
     }),
     runIdentity,
   );
-  assert.throws(() => releaseMatrixRunIdentity({}), /GitHub workflow run identity/u);
+  assert.throws(
+    () => releaseMatrixRunIdentity({}),
+    /GitHub workflow run identity/u,
+  );
 });
 
 test("gate severity is graduated: absent notes, failed errors, lapsed errors only in strict lanes", async () => {
-  const fresh = { receipt: await receipt(), path: releaseMatrixReceiptRelativePath(sampleId), sha256: digest, bytes: 1 };
-  const failed = {
-    receipt: await receipt({ engines: engines({ firefox: { status: "failed" } }) }),
+  const fresh = {
+    receipt: await receipt(),
     path: releaseMatrixReceiptRelativePath(sampleId),
     sha256: digest,
     bytes: 1,
   };
-  const lapsedObservedAt = new Date(Date.now() - RELEASE_MATRIX_MAX_WINDOW_MS - 60_000).toISOString();
+  const failed = {
+    receipt: await receipt({
+      engines: engines({ firefox: { status: "failed" } }),
+    }),
+    path: releaseMatrixReceiptRelativePath(sampleId),
+    sha256: digest,
+    bytes: 1,
+  };
+  const lapsedObservedAt = new Date(
+    Date.now() - RELEASE_MATRIX_MAX_WINDOW_MS - 60_000,
+  ).toISOString();
   const lapsed = {
     receipt: await receipt({ observedAt: lapsedObservedAt }),
     path: releaseMatrixReceiptRelativePath(sampleId),
@@ -338,7 +410,10 @@ test("gate severity is graduated: absent notes, failed errors, lapsed errors onl
   assert.equal(releaseMatrixState(fresh).state, RELEASE_MATRIX_STATE.current);
   assert.equal(releaseMatrixState(failed).state, RELEASE_MATRIX_STATE.failed);
   assert.equal(releaseMatrixState(lapsed).state, RELEASE_MATRIX_STATE.stale);
-  assert.equal(releaseMatrixState(undefined).state, RELEASE_MATRIX_STATE.notEstablished);
+  assert.equal(
+    releaseMatrixState(undefined).state,
+    RELEASE_MATRIX_STATE.notEstablished,
+  );
 
   assert.equal(releaseMatrixGateOutcome(fresh, { sampleId }).severity, "ok");
 
@@ -348,32 +423,79 @@ test("gate severity is graduated: absent notes, failed errors, lapsed errors onl
   assert.equal(absent.severity, "note");
   assert.match(absent.message, /not established yet/u);
 
-  assert.equal(releaseMatrixGateOutcome(failed, { sampleId }).severity, "error");
-  assert.equal(releaseMatrixGateOutcome(failed, { sampleId, derivedArtifactsRelaxed: true }).severity, "error");
-  assert.equal(releaseMatrixGateOutcome(failed, { sampleId, relaxed: true }).severity, "warning");
-  assert.match(releaseMatrixGateOutcome(failed, { sampleId }).message, /failing engine \(firefox:failed\)/u);
+  assert.equal(
+    releaseMatrixGateOutcome(failed, { sampleId }).severity,
+    "error",
+  );
+  assert.equal(
+    releaseMatrixGateOutcome(failed, {
+      sampleId,
+      derivedArtifactsRelaxed: true,
+    }).severity,
+    "error",
+  );
+  assert.equal(
+    releaseMatrixGateOutcome(failed, { sampleId, relaxed: true }).severity,
+    "warning",
+  );
+  assert.match(
+    releaseMatrixGateOutcome(failed, { sampleId }).message,
+    /failing engine \(firefox:failed\)/u,
+  );
 
-  assert.equal(releaseMatrixGateOutcome(lapsed, { sampleId }).severity, "error");
-  assert.equal(releaseMatrixGateOutcome(lapsed, { sampleId, derivedArtifactsRelaxed: true }).severity, "warning");
-  assert.equal(releaseMatrixGateOutcome(lapsed, { sampleId, relaxed: true }).severity, "warning");
+  assert.equal(
+    releaseMatrixGateOutcome(lapsed, { sampleId }).severity,
+    "error",
+  );
+  assert.equal(
+    releaseMatrixGateOutcome(lapsed, {
+      sampleId,
+      derivedArtifactsRelaxed: true,
+    }).severity,
+    "warning",
+  );
+  assert.equal(
+    releaseMatrixGateOutcome(lapsed, { sampleId, relaxed: true }).severity,
+    "warning",
+  );
 
   assert.equal(releaseMatrixReceiptRelaxed({}), false);
-  assert.equal(releaseMatrixReceiptRelaxed({ HONUA_RELEASE_MATRIX_RECEIPT_RELAX: "1" }), true);
+  assert.equal(
+    releaseMatrixReceiptRelaxed({ HONUA_RELEASE_MATRIX_RECEIPT_RELAX: "1" }),
+    true,
+  );
 
   // Deleting the sidecar after establishment is not a relaxation: it carries the
   // same severity as a failing engine, including where shared derived-artifact
   // freshness is already relaxed.
-  assert.equal(releaseMatrixState(undefined, { established: true }).state, RELEASE_MATRIX_STATE.missing);
-  const laundered = releaseMatrixGateOutcome(undefined, { sampleId, established: true });
+  assert.equal(
+    releaseMatrixState(undefined, { established: true }).state,
+    RELEASE_MATRIX_STATE.missing,
+  );
+  const laundered = releaseMatrixGateOutcome(undefined, {
+    sampleId,
+    established: true,
+  });
   assert.equal(laundered.severity, "error");
-  assert.match(laundered.message, /established the release-matrix browser lane, but/u);
+  assert.match(
+    laundered.message,
+    /established the release-matrix browser lane, but/u,
+  );
   assert.match(laundered.message, /deleting sealed cross-browser evidence/u);
   assert.equal(
-    releaseMatrixGateOutcome(undefined, { sampleId, established: true, derivedArtifactsRelaxed: true }).severity,
+    releaseMatrixGateOutcome(undefined, {
+      sampleId,
+      established: true,
+      derivedArtifactsRelaxed: true,
+    }).severity,
     "error",
   );
   assert.equal(
-    releaseMatrixGateOutcome(undefined, { sampleId, established: true, relaxed: true }).severity,
+    releaseMatrixGateOutcome(undefined, {
+      sampleId,
+      established: true,
+      relaxed: true,
+    }).severity,
     "warning",
   );
 });
@@ -382,8 +504,14 @@ test("lane establishment is recorded idempotently in reviewed contract source", 
   const sealed = await receipt();
   const first = recordedReleaseMatrixLaneRegistry(undefined, sealed);
   assert.equal(first.changed, true);
-  assert.equal(first.registry.format, "honua.sdk.sample-release-matrix-lanes.v1");
-  assert.equal(first.registry.$schema, "schemas/sample-release-matrix-lanes.schema.json");
+  assert.equal(
+    first.registry.format,
+    "honua.sdk.sample-release-matrix-lanes.v1",
+  );
+  assert.equal(
+    first.registry.$schema,
+    "schemas/sample-release-matrix-lanes.schema.json",
+  );
   assert.deepEqual(first.registry.lanes[0], {
     sampleId,
     lane: "release-matrix-browser",
@@ -402,17 +530,27 @@ test("lane establishment is recorded idempotently in reviewed contract source", 
   // A later release smoke must not rewrite establishment: the registry is inside
   // the evidence-neutral digest, so churn there would invalidate sealed receipts
   // on every regeneration.
-  const later = await receipt({ observedAt: new Date(Date.now() - 1000).toISOString() });
+  const later = await receipt({
+    observedAt: new Date(Date.now() - 1000).toISOString(),
+  });
   const second = recordedReleaseMatrixLaneRegistry(first.registry, later);
   assert.equal(second.changed, false);
   assert.deepEqual(second.registry, first.registry);
 
   assert.throws(
-    () => recordedReleaseMatrixLaneRegistry(undefined, { ...sealed, sampleId: "service-explorer" }),
+    () =>
+      recordedReleaseMatrixLaneRegistry(undefined, {
+        ...sealed,
+        sampleId: "service-explorer",
+      }),
     /requires a sample that declares the lane/u,
   );
   assert.throws(
-    () => recordedReleaseMatrixLaneRegistry(undefined, { ...sealed, format: "other" }),
+    () =>
+      recordedReleaseMatrixLaneRegistry(undefined, {
+        ...sealed,
+        format: "other",
+      }),
     /requires a release-matrix receipt/u,
   );
 });
@@ -422,7 +560,10 @@ test("the lane registry is schema-bound and rejects orphan or drifted entries", 
   // "no lane established", never as an error.
   assert.equal(await readReleaseMatrixLaneRegistry({ projectRoot }), undefined);
   assert.equal(releaseMatrixLaneEstablished(undefined, sampleId), false);
-  assert.equal(RELEASE_MATRIX_LANES_PATH, "samples/contract/v2/release-matrix-lanes.v1.json");
+  assert.equal(
+    RELEASE_MATRIX_LANES_PATH,
+    "samples/contract/v2/release-matrix-lanes.v1.json",
+  );
 
   const established = await readReleaseMatrixLaneRegistry({
     projectRoot,
@@ -434,16 +575,22 @@ test("the lane registry is schema-bound and rejects orphan or drifted entries", 
   const rejects = async (mutation, pattern) => {
     const candidate = structuredClone(base);
     mutation(candidate);
-    await assert.rejects(validateReleaseMatrixLaneRegistry(candidate, { projectRoot }), pattern);
+    await assert.rejects(
+      validateReleaseMatrixLaneRegistry(candidate, { projectRoot }),
+      pattern,
+    );
   };
   await rejects((candidate) => {
     candidate.lanes[0].sampleId = "service-explorer";
   }, /names a sample that does not declare the lane/u);
   await rejects((candidate) => {
-    candidate.lanes[0].receiptPath = "samples/evidence/service-explorer/release-matrix.v1.json";
+    candidate.lanes[0].receiptPath =
+      "samples/evidence/service-explorer/release-matrix.v1.json";
   }, /schema validation failed|receipt path drift/u);
   await rejects((candidate) => {
-    candidate.lanes[0].establishedAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    candidate.lanes[0].establishedAt = new Date(
+      Date.now() + 60 * 60 * 1000,
+    ).toISOString();
   }, /more than five minutes in the future/u);
   await rejects((candidate) => {
     candidate.lanes.push({ ...candidate.lanes[0] });
@@ -468,10 +615,16 @@ test("the published projection is clock-free and binds the receipt bytes", async
   assert.equal(projection.status, "passed");
   assert.equal(projection.receiptPath, record.path);
   assert.equal(projection.receiptSha256, digest);
-  assert.equal(projection.source.evidenceNeutralSha256, record.receipt.sourceDigest);
+  assert.equal(
+    projection.source.evidenceNeutralSha256,
+    record.receipt.sourceDigest,
+  );
   assert.equal(projection.run.runId, "42");
   assert.equal(projection.engines.length, 3);
-  assert.ok(!("state" in projection), "a derived freshness verdict would make generated bytes clock-dependent");
+  assert.ok(
+    !("state" in projection),
+    "a derived freshness verdict would make generated bytes clock-dependent",
+  );
   assert.equal(releaseMatrixEvidenceProjection(undefined), undefined);
 
   // The qualification record projects this link through the generated catalog
@@ -487,13 +640,21 @@ test("the published projection is clock-free and binds the receipt bytes", async
   assert.match(rendered, /chromium: passed/u);
   assert.match(rendered, /firefox: passed/u);
   assert.match(rendered, /webkit: passed/u);
-  assert.match(rendered, /samples\/evidence\/maplibre-quickstart\/release-matrix\.v1\.json/u);
+  assert.match(
+    rendered,
+    /samples\/evidence\/maplibre-quickstart\/release-matrix\.v1\.json/u,
+  );
   assert.match(rendered, /release-matrix-lanes\.v1\.json/u);
 
   // An established lane whose receipt was deleted is rendered as missing rather
   // than vanishing from the record.
   const missing = releaseMatrixCatalogSection([
-    { sampleId, established: true, receiptPath: record.path, projection: undefined },
+    {
+      sampleId,
+      established: true,
+      receiptPath: record.path,
+      projection: undefined,
+    },
   ]).join("\n");
   assert.match(missing, /\| missing \| receipt missing \|/u);
 
@@ -506,7 +667,10 @@ test("the published projection is clock-free and binds the receipt bytes", async
   // schema would need a coordinated version bump.
   const visualSchema = JSON.parse(
     await readFile(
-      path.join(projectRoot, "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json"),
+      path.join(
+        projectRoot,
+        "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json",
+      ),
       "utf8",
     ),
   );
@@ -520,11 +684,14 @@ test("the generated catalog is the only projection that carries the lane", async
   // collectReleaseMatrixLanes is what feeds the generated catalog. With no
   // receipt and no establishment it yields nothing, so docs/generated stays
   // byte-identical until the first release smoke lands.
-  const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
+  const catalog = JSON.parse(
+    await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"),
+  );
   assert.deepEqual(await collectReleaseMatrixLanes(catalog), []);
 
   const established = await collectReleaseMatrixLanes(catalog, {
-    releaseMatrixLaneRegistryPath: "test/fixtures/release-matrix/established-lanes.v1.json",
+    releaseMatrixLaneRegistryPath:
+      "test/fixtures/release-matrix/established-lanes.v1.json",
   });
   assert.equal(established.length, 1);
   assert.equal(established[0].sampleId, sampleId);
@@ -534,10 +701,15 @@ test("the generated catalog is the only projection that carries the lane", async
 });
 
 test("the seal CLI refuses to run outside the release matrix", async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), "honua-release-matrix-cli-"));
+  const directory = await mkdtemp(
+    path.join(os.tmpdir(), "honua-release-matrix-cli-"),
+  );
   try {
     const reportPath = path.join(directory, "playwright-report.json");
-    await writeFile(reportPath, `${JSON.stringify(playwrightReport(), null, 2)}\n`);
+    await writeFile(
+      reportPath,
+      `${JSON.stringify(playwrightReport(), null, 2)}\n`,
+    );
     const result = spawnSync(
       process.execPath,
       [
@@ -567,7 +739,9 @@ async function goldenEvidenceCopy(catalog, label) {
   // evidence root: the strict inventory requires that exact set, and sibling
   // suites create and remove their own adversary sample directories
   // concurrently, which would race a whole-tree copy.
-  for (const journey of catalog.goldenJourneys.filter((candidate) => candidate.status === "qualified")) {
+  for (const journey of catalog.goldenJourneys.filter(
+    (candidate) => candidate.status === "qualified",
+  )) {
     await cp(
       path.join(projectRoot, "samples/evidence", journey.candidateSampleId),
       path.join(receiptRoot, journey.candidateSampleId),
@@ -593,9 +767,16 @@ function qualifiedGoldenSampleIds(catalog) {
 // only a lapsed (decayed) one may soften where that variable is set.
 for (const derivedRelax of [false, true]) {
   test(`a failing release-matrix receipt turns golden qualification validation red (derived relax: ${derivedRelax})`, async () => {
-    const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
-    const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-    const { directory, receiptRoot } = await goldenEvidenceCopy(catalog, "honua-release-matrix-evidence-");
+    const catalog = JSON.parse(
+      await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"),
+    );
+    const packageJson = JSON.parse(
+      await readFile(path.join(projectRoot, "package.json"), "utf8"),
+    );
+    const { directory, receiptRoot } = await goldenEvidenceCopy(
+      catalog,
+      "honua-release-matrix-evidence-",
+    );
     const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
     const options = {
       receiptRoot,
@@ -605,7 +786,12 @@ for (const derivedRelax of [false, true]) {
       // assertion below reaches the independent release-matrix gate.
       qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
     };
-    const validate = () => withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options));
+    const validate = () =>
+      withReleaseMatrixReceiptEnforced(() =>
+        withDerivedArtifactsRelax(derivedRelax, () =>
+          validateCatalog(catalog, packageJson, options),
+        ),
+      );
     try {
       // No receipt at all: the lane is not established and validation passes.
       await validate();
@@ -618,7 +804,10 @@ for (const derivedRelax of [false, true]) {
         injected,
         `${JSON.stringify(await receipt({ engines: engines({ webkit: { status: "failed" } }) }), null, 2)}\n`,
       );
-      await assert.rejects(validate(), /release-matrix browser evidence reports a failing engine \(webkit:failed\)/u);
+      await assert.rejects(
+        validate(),
+        /release-matrix browser evidence reports a failing engine \(webkit:failed\)/u,
+      );
 
       // A present but structurally invalid receipt is rejected before any
       // severity policy applies, in both lanes.
@@ -626,7 +815,10 @@ for (const derivedRelax of [false, true]) {
       contradictory.matrix.engines[1].status = "failed";
       contradictory.matrix.engines[1].failed = 1;
       await writeFile(injected, `${JSON.stringify(contradictory, null, 2)}\n`);
-      await assert.rejects(validate(), /status contradicts its per-engine outcomes/u);
+      await assert.rejects(
+        validate(),
+        /status contradicts its per-engine outcomes/u,
+      );
 
       // Decay is the one state the derived-artifact relaxation may soften: a
       // lapsed release cadence must not block feature work that cannot fix it,
@@ -636,17 +828,26 @@ for (const derivedRelax of [false, true]) {
         injected,
         `${JSON.stringify(
           await receipt({
-            observedAt: new Date(Date.now() - RELEASE_MATRIX_MAX_WINDOW_MS - 60_000).toISOString(),
+            observedAt: new Date(
+              Date.now() - RELEASE_MATRIX_MAX_WINDOW_MS - 60_000,
+            ).toISOString(),
           }),
           null,
           2,
         )}\n`,
       );
       if (derivedRelax) await validate();
-      else await assert.rejects(validate(), /release-matrix browser evidence expired at/u);
+      else
+        await assert.rejects(
+          validate(),
+          /release-matrix browser evidence expired at/u,
+        );
 
       // A green three-engine run restores qualification with no other edit.
-      await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
+      await writeFile(
+        injected,
+        `${JSON.stringify(await receipt(), null, 2)}\n`,
+      );
       await validate();
 
       // The receipt is a declared sidecar for the First Map candidate only.
@@ -663,24 +864,43 @@ for (const derivedRelax of [false, true]) {
 // lane, which runs samples:generate/samples:verify strictly.
 for (const derivedRelax of [false, true]) {
   test(`deleting an established release-matrix receipt turns golden qualification validation red (derived relax: ${derivedRelax})`, async () => {
-    const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
-    const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-    const { directory, receiptRoot } = await goldenEvidenceCopy(catalog, "honua-release-matrix-laundering-");
+    const catalog = JSON.parse(
+      await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"),
+    );
+    const packageJson = JSON.parse(
+      await readFile(path.join(projectRoot, "package.json"), "utf8"),
+    );
+    const { directory, receiptRoot } = await goldenEvidenceCopy(
+      catalog,
+      "honua-release-matrix-laundering-",
+    );
     try {
-      const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
+      const injected = path.join(
+        receiptRoot,
+        sampleId,
+        "release-matrix.v1.json",
+      );
       const established = {
         receiptRoot,
         verifyCheckout: false,
-        releaseMatrixLaneRegistryPath: "test/fixtures/release-matrix/established-lanes.v1.json",
+        releaseMatrixLaneRegistryPath:
+          "test/fixtures/release-matrix/established-lanes.v1.json",
         // Qualification-receipt bootstrap cannot exempt release-matrix
         // evidence; the failing/missing assertions below prove that boundary.
         qualificationBootstrapSampleId: qualifiedGoldenSampleIds(catalog),
       };
       const validate = (options) =>
-        withDerivedArtifactsRelax(derivedRelax, () => validateCatalog(catalog, packageJson, options));
+        withReleaseMatrixReceiptEnforced(() =>
+          withDerivedArtifactsRelax(derivedRelax, () =>
+            validateCatalog(catalog, packageJson, options),
+          ),
+        );
 
       // Established lane, sealed green receipt present: qualified.
-      await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
+      await writeFile(
+        injected,
+        `${JSON.stringify(await receipt(), null, 2)}\n`,
+      );
       await validate(established);
 
       // Seal a failure, then try to launder it away by deleting the receipt.
@@ -688,7 +908,10 @@ for (const derivedRelax of [false, true]) {
         injected,
         `${JSON.stringify(await receipt({ engines: engines({ firefox: { status: "failed" } }) }), null, 2)}\n`,
       );
-      await assert.rejects(validate(established), /failing engine \(firefox:failed\)/u);
+      await assert.rejects(
+        validate(established),
+        /failing engine \(firefox:failed\)/u,
+      );
       await rm(injected);
       await assert.rejects(
         validate(established),
@@ -705,12 +928,15 @@ for (const derivedRelax of [false, true]) {
       // switch exists so a FAILING receipt can be committed, never so a projection
       // can be published for an established lane with its evidence removed.
       await assert.rejects(
-        withDerivedArtifactsRelax(derivedRelax, () =>
-          collectQualificationEvidence(catalog, {
-            receiptRoot,
-            verifyCheckout: false,
-            releaseMatrixLaneRegistryPath: established.releaseMatrixLaneRegistryPath,
-          }),
+        withReleaseMatrixReceiptEnforced(() =>
+          withDerivedArtifactsRelax(derivedRelax, () =>
+            collectQualificationEvidence(catalog, {
+              receiptRoot,
+              verifyCheckout: false,
+              releaseMatrixLaneRegistryPath:
+                established.releaseMatrixLaneRegistryPath,
+            }),
+          ),
         ),
         /is missing; deleting sealed cross-browser evidence/u,
       );
@@ -724,7 +950,10 @@ for (const derivedRelax of [false, true]) {
       });
 
       // Reseal green: qualified again, no manual edit.
-      await writeFile(injected, `${JSON.stringify(await receipt(), null, 2)}\n`);
+      await writeFile(
+        injected,
+        `${JSON.stringify(await receipt(), null, 2)}\n`,
+      );
       await validate(established);
     } finally {
       await rm(directory, { recursive: true, force: true });
