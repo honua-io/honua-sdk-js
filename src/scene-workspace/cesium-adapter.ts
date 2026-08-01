@@ -1089,6 +1089,7 @@ export async function applyCesiumScenePrimitives(
         // i3s / obj / custom: declared-capable but not materialized here.
       }
     }
+    for (const provider of deferredTerrainProviders) disposeOwnedCesiumTerrainProvider(provider);
   } catch (cause) {
     const rollbackErrors: unknown[] = [];
     for (const handle of appliedHandles.reverse()) {
@@ -1115,8 +1116,6 @@ export async function applyCesiumScenePrimitives(
     }
     throw cause;
   }
-
-  for (const provider of deferredTerrainProviders) disposeOwnedCesiumTerrainProvider(provider);
 
   return {
     status: summarizeDiagnosticStatus(diagnostics),

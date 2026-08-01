@@ -976,6 +976,56 @@ describe("cesium scene adapter", () => {
       expect(replacementProvider.destroy).toHaveBeenCalledTimes(1);
     });
 
+    it("rolls back applied layers when displaced terrain disposal fails", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const cesium = (await import("cesium")) as never;
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "existing-terrain",
+          sourceId: "existing-terrain",
+          protocol: "quantized-mesh",
+          url: "https://example.test/existing-terrain",
+          exaggeration: 1.5,
+        },
+        cesium,
+      );
+      const existingProvider = scene.terrainProvider as { destroy: ReturnType<typeof vi.fn> };
+      existingProvider.destroy.mockImplementationOnce(() => {
+        throw new Error("terrain cleanup failed");
+      });
+
+      await expect(
+        applyCesiumScenePrimitives({ camera, scene }, [
+          {
+            kind: "elevation-source",
+            id: "replacement-terrain",
+            sourceId: "replacement-terrain",
+            protocol: "quantized-mesh",
+            url: "https://example.test/replacement-terrain",
+            exaggeration: 2,
+          },
+          {
+            kind: "imagery-layer",
+            id: "basemap",
+            sourceId: "basemap",
+            protocol: "url-template",
+            url: "https://tiles.example.test/{z}/{x}/{y}.png",
+          },
+        ]),
+      ).rejects.toThrow("terrain cleanup failed");
+
+      const replacementProvider = await terrainFromUrl.mock.results[1]?.value;
+      expect(scene.terrainProvider).toBe(existingProvider);
+      expect(scene.verticalExaggeration).toBe(1.5);
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(existingProvider.destroy).toHaveBeenCalledTimes(1);
+      expect(replacementProvider.destroy).toHaveBeenCalledTimes(1);
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
     it("controls and disposes an owned imagery layer exactly once", async () => {
       const scene = createMockCesiumScene();
       const handle = await addCesiumImageryLayer(scene, {
