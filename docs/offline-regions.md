@@ -107,8 +107,10 @@ The storage-backed fetch handler can be installed in a service worker or other
 fetch integration, but the host still owns request matching and network
 reachability policy. This slice does not provide encryption policy, a complete
 application-level query/read cache, or the local edit queue and replica conflict
-replay needed for exactly-once synchronization. Mutation replay and durable
-cursor semantics also depend on the server contract. Those remain required
-before issue #396 can satisfy its Beta acceptance criteria. This entrypoint is
-`@experimental` and subpath-only so the root and browser bundles do not absorb
-it.
+replay needed for exactly-once synchronization. That replay must integrate with
+the established Honua Server replica-sync, upload-cursor, and conflict-review
+contracts exposed to hosted applications through `@honua/app-platform`; this
+offline storage subpath does not duplicate that client. The integration remains
+required before issue #396 can satisfy its Beta acceptance criteria. This
+entrypoint is `@experimental` and subpath-only so the root and browser bundles
+do not absorb it.
