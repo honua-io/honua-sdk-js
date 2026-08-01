@@ -6,6 +6,10 @@ export const HONUA_OFFLINE_REGION_VERSION = "1.0" as const;
 /** Stable discriminator for serialized downloadable-region manifests. */
 export const HONUA_OFFLINE_REGION_KIND = "honua.offline-region" as const;
 
+/** Stable discriminator and version for offline-region diagnostic snapshots. */
+export const HONUA_OFFLINE_REGION_DIAGNOSTIC_KIND = "honua.offline-region-diagnostic" as const;
+export const HONUA_OFFLINE_REGION_DIAGNOSTIC_VERSION = "1.0" as const;
+
 /** Conservative bounds applied before descriptors are copied or sorted. */
 export const DEFAULT_OFFLINE_REGION_MAX_RESOURCES = 100_000;
 export const DEFAULT_OFFLINE_REGION_MAX_LOGICAL_BYTES = 1024 * 1024 * 1024;
@@ -182,6 +186,67 @@ export interface OfflineRegionAdmissionPlan {
   readonly evictRegionIds: readonly string[];
   readonly evictedLogicalBytes: number;
   readonly logicalBytesAfter: number;
+}
+
+export interface CreateOfflineRegionDiagnosticOptions {
+  /** Logical payload-byte ceiling used to explain admission and eviction. */
+  readonly logicalQuotaBytes: number;
+  /** Explicit clock input so persisted diagnostics are reproducible. */
+  readonly now: Date;
+  /** Age at which the snapshot observation becomes stale. */
+  readonly staleAfterMs: number;
+}
+
+export type OfflineRegionDiagnosticAdmission =
+  | { readonly status: "accepted"; readonly plan: OfflineRegionAdmissionPlan }
+  | {
+      readonly status: "rejected";
+      readonly reason: "expired" | "quota-exceeded";
+      readonly logicalQuotaBytes: number;
+    };
+
+/** Secret-safe, payload-free explanation of one persistent offline region. */
+export interface OfflineRegionDiagnosticV1 {
+  readonly kind: typeof HONUA_OFFLINE_REGION_DIAGNOSTIC_KIND;
+  readonly version: typeof HONUA_OFFLINE_REGION_DIAGNOSTIC_VERSION;
+  readonly generatedAt: string;
+  readonly regionId: string;
+  readonly inventoryRevision: string;
+  readonly cache: {
+    readonly state: "offline" | "missing";
+    readonly freshness: "fresh" | "stale" | "expired";
+    readonly completeness: "complete" | "partial" | "missing";
+    readonly reason: "offline-entry" | "stale-entry" | "expired-entry" | "partial-entry" | "cache-miss";
+    readonly readable: boolean;
+    readonly observedAt: string;
+    readonly ageMs: number;
+    readonly staleAfterMs: number;
+    readonly expectedLogicalBytes: number;
+    readonly storedLogicalBytes?: number;
+    readonly lastAccessedAt?: string;
+    readonly expiresAt?: string;
+    readonly pinned: boolean;
+  };
+  readonly provenance: {
+    readonly sourceId: string;
+    readonly endpointFingerprint: `sha256:${string}`;
+    readonly authorizationScopeDigest: `sha256:${string}`;
+    readonly sourceVersion: string;
+    readonly schemaVersion: string;
+    readonly planVersion: string;
+    readonly observation: OfflineRegionObservation;
+    readonly validator?: {
+      readonly etagFingerprint?: `sha256:${string}`;
+      readonly lastModified?: string;
+    };
+  };
+  readonly contents: {
+    readonly resourceCount: number;
+    readonly logicalBytes: number;
+    readonly resourceKinds: Readonly<Record<OfflineRegionResourceKind, number>>;
+    readonly attributionIds: readonly string[];
+  };
+  readonly admission: OfflineRegionDiagnosticAdmission;
 }
 
 export interface OfflineRegionCommitGuard {

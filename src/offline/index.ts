@@ -2,16 +2,18 @@
  * Storage-neutral contracts for bounded, downloadable offline regions.
  *
  * This experimental entrypoint provides an IndexedDB adapter for browser
- * persistence, but deliberately does not provide service-worker, network, or
- * edit-replay implementations. Applications inject a resource loader and an
- * atomic store transaction; the SDK owns deterministic
- * manifest identity, credential projection, quota admission, integrity checks,
- * cancellation, and progress semantics.
+ * persistence and a storage-backed fetch handler for service-worker or fetch
+ * integrations. Applications inject request matching, resource loading, and
+ * network policy; the SDK owns deterministic manifest identity, credential
+ * projection, cache diagnostics, quota admission, integrity checks,
+ * cancellation, and progress semantics. Edit replay remains outside this
+ * entrypoint.
  *
  * @experimental
  */
 
 export {
+  createOfflineRegionDiagnostic,
   createOfflineRegionManifest,
   downloadOfflineRegion,
   planOfflineRegionAdmission,
@@ -25,11 +27,14 @@ export {
   DEFAULT_OFFLINE_REGION_MAX_METADATA_ENTRIES,
   DEFAULT_OFFLINE_REGION_MAX_RESOURCES,
   DEFAULT_OFFLINE_REGION_MAX_STRING_BYTES,
+  HONUA_OFFLINE_REGION_DIAGNOSTIC_KIND,
+  HONUA_OFFLINE_REGION_DIAGNOSTIC_VERSION,
   HONUA_OFFLINE_REGION_KIND,
   HONUA_OFFLINE_REGION_VERSION,
   HonuaOfflineRegionError,
 } from "./types.js";
 export type {
+  CreateOfflineRegionDiagnosticOptions,
   CreateOfflineRegionManifestInput,
   OfflineRegionAdmissionPlan,
   OfflineRegionBounds,
@@ -39,6 +44,8 @@ export type {
   OfflineRegionDownloadOptions,
   OfflineRegionDownloadProgress,
   OfflineRegionDownloadReceipt,
+  OfflineRegionDiagnosticAdmission,
+  OfflineRegionDiagnosticV1,
   OfflineRegionErrorCode,
   OfflineRegionFetchHandler,
   OfflineRegionFetchHandlerOptions,
