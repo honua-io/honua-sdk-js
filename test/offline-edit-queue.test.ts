@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { isHonuaError, serializeHonuaError } from "../src/index.js";
 import {
+  type CancelOfflineEditInput,
   type EnqueueOfflineEditInput,
   type HonuaOfflineEditQueueError,
+  type OfflineEditCancellationOutcome,
   createMemoryOfflineEditQueue,
 } from "../src/offline/index.js";
 
@@ -317,13 +319,16 @@ describe("offline edit queue", () => {
     await expect(
       queue.claimReady({ ...PARTITION, workerId: "worker", limit: 10, leaseDurationMs: 10_000 }),
     ).resolves.toEqual([]);
-    const cancelled = await queue.cancel(dependent.edit.id, PARTITION, {
+    const cancellationInput: CancelOfflineEditInput = {
       reasonCode: "dependency-conflicted",
-    });
+    };
+    const cancelled = await queue.cancel(dependent.edit.id, PARTITION, cancellationInput);
+    const cancellation: OfflineEditCancellationOutcome | undefined = cancelled.cancellation;
     expect(cancelled).toMatchObject({
       state: "cancelled",
       cancellation: { reasonCode: "dependency-conflicted" },
     });
+    expect(cancellation?.cancelledAt).toBe(cancelled.updatedAt);
     await expect(
       queue.pruneTerminal({ ...PARTITION, terminalBefore: cancelled.updatedAt, limit: 10 }),
     ).resolves.toEqual(expect.arrayContaining([prerequisite.edit.id, dependent.edit.id]));

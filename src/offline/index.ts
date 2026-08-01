@@ -36,6 +36,7 @@ export {
   MAX_OFFLINE_EDIT_LEASE_DURATION_MS,
 } from "./edit-queue.js";
 export type {
+  CancelOfflineEditInput,
   ClaimOfflineEditsOptions,
   EnqueueOfflineEditInput,
   IndexedDbOfflineEditQueueOptions,
@@ -46,6 +47,7 @@ export type {
   OfflineEditAppliedOutcome,
   OfflineEditAuditEvent,
   OfflineEditAuditEventKind,
+  OfflineEditCancellationOutcome,
   OfflineEditConflictOutcome,
   OfflineEditEnqueueResult,
   OfflineEditJsonValue,
