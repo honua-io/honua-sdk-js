@@ -601,7 +601,7 @@ describe("cesium scene adapter", () => {
           id: "arcgis-image",
           sourceId: "arcgis-image",
           protocol: "arcgis-imagery",
-          url: "https://services.example.test/arcgis/rest/services/imagery/ImageServer",
+          url: "https://services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public",
         },
         {
           kind: "imagery-layer",
@@ -651,6 +651,7 @@ describe("cesium scene adapter", () => {
       expect(String(imageryProviders[4]?.options.url)).toContain(
         "bbox={westProjected}%2C{southProjected}%2C{eastProjected}%2C{northProjected}",
       );
+      expect(String(imageryProviders[4]?.options.url)).toContain("?cacheKey=public&f=image");
       expect(String(imageryProviders[4]?.options.url)).toContain("size={width}%2C{height}");
       expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
         "https://services.example.test/arcgis/rest/services/reference/MapServer",

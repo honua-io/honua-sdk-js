@@ -790,13 +790,13 @@ async function createCesiumImageryProvider(
 
 function isArcGisImageServerUrl(url: string): boolean {
   const endpoint = url.split(/[?#]/, 1)[0] ?? "";
-  return /\/ImageServer\/?$/i.test(endpoint);
+  return trimTrailingSlashes(endpoint).toLowerCase().endsWith("/imageserver");
 }
 
 function arcGisImageServerExportUrl(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
   const [withoutFragment] = url.split("#", 1);
   const queryIndex = withoutFragment.indexOf("?");
-  const endpoint = (queryIndex === -1 ? withoutFragment : withoutFragment.slice(0, queryIndex)).replace(/\/+$/, "");
+  const endpoint = trimTrailingSlashes(queryIndex === -1 ? withoutFragment : withoutFragment.slice(0, queryIndex));
   const existingQuery = queryIndex === -1 ? "" : withoutFragment.slice(queryIndex + 1);
   const requestParameters = [
     existingQuery,
@@ -812,6 +812,12 @@ function arcGisImageServerExportUrl(url: string, parameters: SceneImageryLayerPr
     ),
   ].filter(Boolean);
   return `${endpoint}/exportImage?${requestParameters.join("&")}`;
+}
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
 }
 
 /**
