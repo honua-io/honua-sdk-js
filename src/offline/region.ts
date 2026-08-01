@@ -214,12 +214,22 @@ export async function createOfflineRegionDiagnostic(
   options: CreateOfflineRegionDiagnosticOptions,
 ): Promise<OfflineRegionDiagnosticV1> {
   // Capture both untrusted inputs before the first digest await.
-  const manifest = captureManifest(inputManifest).manifest;
+  const prepared = captureManifest(inputManifest);
+  const manifest = prepared.manifest;
   const inventory = normalizeInventory(inputInventory);
   const logicalQuotaBytes = nonNegativeInteger(options.logicalQuotaBytes, "logicalQuotaBytes");
   const staleAfterMs = nonNegativeInteger(options.staleAfterMs, "staleAfterMs");
   const nowMs = options.now instanceof Date ? options.now.getTime() : Number.NaN;
   if (!Number.isFinite(nowMs)) invalid("now must be a valid Date.", "now");
+
+  const [expectedId, endpointFingerprint, etagFingerprint] = await Promise.all([
+    sha256(`honua-offline-region:v1:${prepared.canonicalIdentity}`),
+    sha256(`honua-offline-endpoint:v1:${manifest.source.endpoint}`),
+    manifest.source.validator?.etag
+      ? sha256(`honua-offline-validator:v1:${manifest.source.validator.etag}`)
+      : Promise.resolve(undefined),
+  ]);
+  if (manifest.id !== expectedId) invalid("Offline region identity does not match its normalized contents.", "id");
 
   let admission: OfflineRegionDiagnosticAdmission;
   try {
@@ -263,13 +273,6 @@ export async function createOfflineRegionDiagnostic(
     attribution: 0,
   };
   for (const resource of manifest.resources) resourceKinds[resource.kind] += 1;
-
-  const [endpointFingerprint, etagFingerprint] = await Promise.all([
-    sha256(`honua-offline-endpoint:v1:${manifest.source.endpoint}`),
-    manifest.source.validator?.etag
-      ? sha256(`honua-offline-validator:v1:${manifest.source.validator.etag}`)
-      : Promise.resolve(undefined),
-  ]);
 
   return deepFreeze({
     kind: HONUA_OFFLINE_REGION_DIAGNOSTIC_KIND,

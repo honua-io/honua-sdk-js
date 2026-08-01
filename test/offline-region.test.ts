@@ -482,6 +482,26 @@ describe("offline region diagnostics", () => {
     expect(diagnostic.admission).toEqual({ status: "rejected", reason: "quota-exceeded", logicalQuotaBytes: 8 });
     expect(JSON.stringify(inventory)).toBe(before);
   });
+
+  it("rejects a well-shaped manifest whose identity no longer matches its contents", async () => {
+    const value = await manifest();
+    const tampered = {
+      ...value,
+      source: { ...value.source, sourceVersion: "tampered-source-version" },
+    };
+
+    await expect(
+      createOfflineRegionDiagnostic(
+        tampered,
+        { revision: "11", regions: [] },
+        {
+          logicalQuotaBytes: 6,
+          now: new Date("2026-07-10T10:00:00.000Z"),
+          staleAfterMs: 60 * 60 * 1000,
+        },
+      ),
+    ).rejects.toMatchObject({ code: "invalid-manifest", path: "id" });
+  });
 });
 
 describe("offline region download isolation and atomicity", () => {
