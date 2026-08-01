@@ -8,9 +8,10 @@ export const DEFAULT_OFFLINE_EDIT_QUEUE_MAX_DEPENDENCIES = 256;
 export const MAX_OFFLINE_EDIT_LEASE_DURATION_MS = 24 * 60 * 60 * 1000;
 
 const EDIT_ID_PATTERN = /^sha256:[a-f0-9]{64}$/;
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const EDIT_STORE = "edits";
 const METADATA_STORE = "edit-metadata";
+const TOMBSTONE_STORE = "edit-tombstones";
 const PARTITION_ORDER_INDEX = "partition-order";
 const PARTITION_STATE_ORDER_INDEX = "partition-state-order";
 const DEPENDENCY_INDEX = "dependency";
@@ -196,6 +197,7 @@ export interface OfflineEditQueue {
 export type OfflineEditQueueErrorCode =
   | "invalid-edit"
   | "idempotency-conflict"
+  | "edit-pruned"
   | "dependency-not-found"
   | "edit-not-found"
   | "invalid-transition"
@@ -259,9 +261,17 @@ interface OfflineEditQueueMetadata extends OfflineEditQueuePartition {
   readonly leaseExpiresAt?: string;
 }
 
+interface OfflineEditQueueTombstone extends OfflineEditQueuePartition {
+  readonly id: `sha256:${string}`;
+  readonly requestFingerprint: `sha256:${string}`;
+  readonly prunedAt: string;
+  readonly terminalState: "applied" | "conflicted" | "cancelled";
+}
+
 interface QueueStores {
   readonly edits: IDBObjectStore;
   readonly metadata: IDBObjectStore;
+  readonly tombstones: IDBObjectStore;
 }
 
 interface NormalizedQueueOptions {
@@ -295,6 +305,7 @@ interface JsonCaptureBudget {
 /** Deterministic in-memory implementation for tests and non-persistent hosts. */
 export class MemoryOfflineEditQueue implements OfflineEditQueue {
   readonly #records = new Map<string, OfflineQueuedEdit>();
+  readonly #tombstones = new Map<string, OfflineEditQueueTombstone>();
   readonly #options: NormalizedQueueOptions;
 
   public constructor(options: OfflineEditQueueOptions = {}) {
@@ -303,6 +314,7 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
 
   public async enqueue(input: EnqueueOfflineEditInput): Promise<OfflineEditEnqueueResult> {
     const prepared = await prepareEdit(input, this.#options);
+    rejectPrunedIdentity(this.#tombstones.get(prepared.id), prepared);
     const result = enqueueRecord([...this.#records.values()], prepared, timestamp(this.#options.now), this.#options);
     if (result.record) this.#records.set(result.record.id, result.record);
     return copy(result.result);
@@ -372,10 +384,12 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
 
   public async pruneTerminal(options: PruneTerminalOfflineEditsOptions): Promise<readonly `sha256:${string}`[]> {
     const normalized = capturePruneOptions(options);
+    const prunedAt = timestamp(this.#options.now);
     const records = [...this.#records.values()];
     const removed: `sha256:${string}`[] = [];
     for (const record of terminalPruneCandidates(records, normalized)) {
       if (hasActiveDependent(records, record.id)) continue;
+      this.#tombstones.set(record.id, tombstoneFor(record, prunedAt));
       this.#records.delete(record.id);
       removed.push(record.id);
       if (removed.length === normalized.limit) break;
@@ -414,8 +428,10 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
 
   public async enqueue(input: EnqueueOfflineEditInput): Promise<OfflineEditEnqueueResult> {
     const prepared = await prepareEdit(input, this.#options);
-    return this.#run("readwrite", async ({ edits, metadata }) => {
+    return this.#run("readwrite", async ({ edits, metadata, tombstones }) => {
       const existing = await request<OfflineQueuedEdit | undefined>(edits.get(prepared.id));
+      const tombstone = await request<OfflineEditQueueTombstone | undefined>(tombstones.get(prepared.id));
+      rejectPrunedIdentity(tombstone, prepared);
       const dependencies = await Promise.all(
         prepared.dependencyIds.map((id) => request<OfflineEditQueueMetadata | undefined>(metadata.get(id))),
       );
@@ -516,11 +532,15 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
 
   public async pruneTerminal(options: PruneTerminalOfflineEditsOptions): Promise<readonly `sha256:${string}`[]> {
     const normalized = capturePruneOptions(options);
-    return this.#run("readwrite", async ({ edits, metadata }) => {
+    const prunedAt = timestamp(this.#options.now);
+    return this.#run("readwrite", async ({ edits, metadata, tombstones }) => {
       const candidates = await scanTerminalMetadata(metadata, normalized);
       const removed: `sha256:${string}`[] = [];
       for (const candidate of candidates) {
         if (await hasActiveMetadataDependent(metadata, candidate.id)) continue;
+        const record = await request<OfflineQueuedEdit | undefined>(edits.get(candidate.id));
+        if (!record) throw new Error(`Offline edit metadata references missing edit "${candidate.id}".`);
+        tombstones.put(tombstoneFor(record, prunedAt));
         edits.delete(candidate.id);
         metadata.delete(candidate.id);
         removed.push(candidate.id);
@@ -1018,6 +1038,32 @@ function metadataFor(record: OfflineQueuedEdit): OfflineEditQueueMetadata {
   };
 }
 
+function tombstoneFor(record: OfflineQueuedEdit, prunedAt: string): OfflineEditQueueTombstone {
+  if (!isTerminal(record.state)) {
+    fail("invalid-transition", "Only terminal offline edits can be pruned.", { editId: record.id });
+  }
+  return {
+    id: record.id,
+    requestFingerprint: record.requestFingerprint,
+    authorizationScopeDigest: record.authorizationScopeDigest,
+    sourceId: record.sourceId,
+    prunedAt,
+    terminalState: record.state,
+  };
+}
+
+function rejectPrunedIdentity(tombstone: OfflineEditQueueTombstone | undefined, prepared: PreparedEdit): void {
+  if (!tombstone) return;
+  if (tombstone.requestFingerprint !== prepared.requestFingerprint) {
+    fail("idempotency-conflict", "Idempotency key was reused for a different pruned offline edit.", {
+      editId: prepared.id,
+    });
+  }
+  fail("edit-pruned", "Offline edit identity was already completed and pruned; it cannot be enqueued again.", {
+    editId: prepared.id,
+  });
+}
+
 async function scanPartitionIds(
   store: IDBObjectStore,
   partition: OfflineEditQueuePartition,
@@ -1193,6 +1239,9 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
       if (metadata && !metadata.indexNames.contains(DEPENDENCY_INDEX)) {
         metadata.createIndex(DEPENDENCY_INDEX, "dependencyIds", { multiEntry: true });
       }
+      if (!open.result.objectStoreNames.contains(TOMBSTONE_STORE)) {
+        open.result.createObjectStore(TOMBSTONE_STORE, { keyPath: "id" });
+      }
     };
     open.onsuccess = () => resolve(open.result);
     open.onerror = () => reject(open.error ?? new Error("Failed to open offline edit queue."));
@@ -1206,10 +1255,11 @@ function runTransaction<T>(
   body: (stores: QueueStores) => Promise<T>,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const transaction = database.transaction([EDIT_STORE, METADATA_STORE], mode);
+    const transaction = database.transaction([EDIT_STORE, METADATA_STORE, TOMBSTONE_STORE], mode);
     const stores = {
       edits: transaction.objectStore(EDIT_STORE),
       metadata: transaction.objectStore(METADATA_STORE),
+      tombstones: transaction.objectStore(TOMBSTONE_STORE),
     };
     let result: T;
     let settled = false;

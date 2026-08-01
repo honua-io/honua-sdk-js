@@ -290,6 +290,15 @@ describe("offline edit queue", () => {
     });
     expect(removed).toEqual([first.edit.id]);
     expect(await queue.get(first.edit.id, PARTITION)).toBeUndefined();
+    await expectQueueError(queue.enqueue(input("prune-first")), "edit-pruned");
+    await expectQueueError(
+      queue.enqueue(
+        input("prune-first", {
+          edit: { operation: "add", attributes: { status: "divergent" } },
+        }),
+      ),
+      "idempotency-conflict",
+    );
     await expect(queue.enqueue(input("after-prune"))).resolves.toMatchObject({ status: "enqueued" });
   });
 

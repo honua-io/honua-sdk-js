@@ -114,6 +114,40 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
         terminalBefore: "2026-08-01T10:00:01.000Z",
         limit: 1,
       });
+      const prunedIdentity =
+        pruned[0] === fixture.firstId
+          ? {
+              idempotencyKey: "browser-first",
+              edit: { operation: "add", attributes: { status: "open" } },
+            }
+          : {
+              idempotencyKey: "browser-dependent",
+              edit: {
+                operation: "update",
+                featureId: "incident-1",
+                attributes: { status: "assigned" },
+              },
+              dependencyIds: [fixture.firstId],
+            };
+      let prunedReuseCode;
+      try {
+        await queueA.enqueue({
+          ...partition,
+          ...prunedIdentity,
+        });
+      } catch (error) {
+        prunedReuseCode = error.code;
+      }
+      let prunedDivergentCode;
+      try {
+        await queueA.enqueue({
+          ...partition,
+          ...prunedIdentity,
+          edit: { ...prunedIdentity.edit, attributes: { status: "divergent" } },
+        });
+      } catch (error) {
+        prunedDivergentCode = error.code;
+      }
       const conflictRoot = await queueA.enqueue({
         ...partition,
         idempotencyKey: "browser-conflict-root",
@@ -157,6 +191,16 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
             resolve([...new Set(getAll.result.flatMap((record) => Object.keys(record)))].sort());
         };
       });
+      const tombstoneKeys = await new Promise((resolve, reject) => {
+        const open = indexedDB.open(fixture.name);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const getAll = open.result.transaction("edit-tombstones", "readonly").objectStore("edit-tombstones").getAll();
+          getAll.onerror = () => reject(getAll.error);
+          getAll.onsuccess = () =>
+            resolve([...new Set(getAll.result.flatMap((record) => Object.keys(record)))].sort());
+        };
+      });
       return {
         before: before.map((edit) => ({ id: edit.id, state: edit.state })),
         claimed: claimed.map((edit) => edit.id),
@@ -164,11 +208,14 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
         next: next.map((edit) => edit.id),
         after: after.map((edit) => ({ id: edit.id, state: edit.state })),
         pruned: pruned.length,
+        prunedReuseCode,
+        prunedDivergentCode,
         remaining: (await queueA.list(partition)).length,
         blockedClaimCount: blockedClaims.length,
         cancelledState: cancelled.state,
         otherState: other?.state,
         metadataKeys,
+        tombstoneKeys,
       };
     });
 
@@ -191,12 +238,17 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
     );
     expect(result).toMatchObject({
       pruned: 1,
+      prunedReuseCode: "edit-pruned",
+      prunedDivergentCode: "idempotency-conflict",
       remaining: 3,
       blockedClaimCount: 0,
       cancelledState: "cancelled",
       otherState: "pending",
     });
     expect(result.metadataKeys).not.toEqual(expect.arrayContaining(["edit", "audit", "idempotencyKey", "lease"]));
+    expect(result.tombstoneKeys).not.toEqual(
+      expect.arrayContaining(["edit", "audit", "idempotencyKey", "lease", "conflict", "cancellation"]),
+    );
   } finally {
     await server.close();
   }

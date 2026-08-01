@@ -155,8 +155,11 @@ console.log(enqueued.status); // "enqueued" or "duplicate"
   queue length, dependency count, list/claim/prune size, lease duration, and
   per-edit audit history are explicitly bounded. Audit history uses rolling
   retention with monotonic sequence numbers so its bound cannot prevent a
-  progress-critical state transition. The persisted schema accepts no request
-  headers, tokens, URLs, or raw authorization scope.
+  progress-critical state transition. Pruning removes payload and audit data
+  but retains a compact identity/request-fingerprint tombstone for the lifetime
+  of the named queue database; a completed identity cannot silently be
+  re-enqueued after cleanup. The persisted schema accepts no request headers,
+  tokens, URLs, or raw authorization scope.
 
 The manifest contains logical resource ids, not request URLs. The injected
 loader may resolve short-lived signed URLs or authorization at download time;
