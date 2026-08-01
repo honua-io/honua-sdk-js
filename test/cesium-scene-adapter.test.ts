@@ -601,7 +601,8 @@ describe("cesium scene adapter", () => {
           id: "arcgis-image",
           sourceId: "arcgis-image",
           protocol: "arcgis-imagery",
-          url: "https://services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public",
+          url: "https://services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public&f=pjson&bbox=stale&size=1%2C1&format=jpg&transparent=false",
+          parameters: { mosaicRule: "public-rule", imageSR: 4326, F: "pjson" },
         },
         {
           kind: "imagery-layer",
@@ -648,11 +649,23 @@ describe("cesium scene adapter", () => {
           /^https:\/\/services\.example\.test\/arcgis\/rest\/services\/imagery\/ImageServer\/exportImage\?/,
         ),
       });
-      expect(String(imageryProviders[4]?.options.url)).toContain(
-        "bbox={westProjected}%2C{southProjected}%2C{eastProjected}%2C{northProjected}",
-      );
-      expect(String(imageryProviders[4]?.options.url)).toContain("?cacheKey=public&f=image");
-      expect(String(imageryProviders[4]?.options.url)).toContain("size={width}%2C{height}");
+      const imageServerUrl = new URL(String(imageryProviders[4]?.options.url));
+      expect(Object.fromEntries(imageServerUrl.searchParams)).toMatchObject({
+        cacheKey: "public",
+        mosaicRule: "public-rule",
+        f: "image",
+        bbox: "{westProjected},{southProjected},{eastProjected},{northProjected}",
+        bboxSR: "3857",
+        imageSR: "3857",
+        size: "{width},{height}",
+        format: "png32",
+        transparent: "true",
+      });
+      for (const reservedKey of ["f", "bbox", "bboxsr", "imagesr", "size", "format", "transparent"]) {
+        expect([...imageServerUrl.searchParams.keys()].filter((key) => key.toLowerCase() === reservedKey)).toHaveLength(
+          1,
+        );
+      }
       expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
         "https://services.example.test/arcgis/rest/services/reference/MapServer",
         {},

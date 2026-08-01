@@ -798,8 +798,16 @@ function arcGisImageServerExportUrl(url: string, parameters: SceneImageryLayerPr
   const queryIndex = withoutFragment.indexOf("?");
   const endpoint = trimTrailingSlashes(queryIndex === -1 ? withoutFragment : withoutFragment.slice(0, queryIndex));
   const existingQuery = queryIndex === -1 ? "" : withoutFragment.slice(queryIndex + 1);
+  const preservedParameters = new URLSearchParams(existingQuery);
+  for (const key of new Set(preservedParameters.keys())) {
+    if (ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS.has(key.toLowerCase())) preservedParameters.delete(key);
+  }
+  for (const [key, value] of Object.entries(parameters ?? {})) {
+    if (!ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS.has(key.toLowerCase())) {
+      preservedParameters.set(key, String(value));
+    }
+  }
   const requestParameters = [
-    existingQuery,
     "f=image",
     "bbox={westProjected}%2C{southProjected}%2C{eastProjected}%2C{northProjected}",
     "bboxSR=3857",
@@ -807,12 +815,20 @@ function arcGisImageServerExportUrl(url: string, parameters: SceneImageryLayerPr
     "size={width}%2C{height}",
     "format=png32",
     "transparent=true",
-    ...Object.entries(parameters ?? {}).map(
-      ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`,
-    ),
-  ].filter(Boolean);
-  return `${endpoint}/exportImage?${requestParameters.join("&")}`;
+  ];
+  const preservedQuery = preservedParameters.toString();
+  return `${endpoint}/exportImage?${preservedQuery ? `${preservedQuery}&` : ""}${requestParameters.join("&")}`;
 }
+
+const ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS = new Set([
+  "f",
+  "bbox",
+  "bboxsr",
+  "imagesr",
+  "size",
+  "format",
+  "transparent",
+]);
 
 function trimTrailingSlashes(value: string): string {
   let end = value.length;
