@@ -226,11 +226,12 @@ describe("pull request issue disposition policy", () => {
       (match) => match[1],
     );
     assert.match(workflow, /^  push:\n    branches:\n      - trunk$/mu);
+    assert.match(workflow, /^  workflow_dispatch:$/mu);
     assert.doesNotMatch(workflow, /pull_request(?:_target)?:/u);
     assert.match(workflow, /^permissions: read-all$/mu);
     assert.match(
       workflow,
-      /^  release-please:\n    runs-on: ubuntu-latest\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
+      /^  release-please:\n    if: \$\{\{ github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
     );
     assert.match(
       workflow,
