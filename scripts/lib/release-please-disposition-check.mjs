@@ -7,8 +7,8 @@ export const RELEASE_PLEASE_EXEMPTION = "Release Please automation";
 export const REQUIRED_DISPOSITION_CHECK = "PR Issue Disposition";
 export const GITHUB_ACTIONS_APP_ID = 15368;
 
-const RELEASE_PLEASE_BASE = "trunk";
-const RELEASE_PLEASE_HEAD = "release-please--branches--trunk";
+export const RELEASE_PLEASE_BASE = "trunk";
+export const RELEASE_PLEASE_HEAD = "release-please--branches--trunk";
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u;
 
@@ -22,6 +22,29 @@ function assertRepository(repository) {
 
 function assertSha(sha, label) {
   if (!SHA_PATTERN.test(sha)) throw new Error(`${label} must be a full lowercase commit SHA.`);
+}
+
+/**
+ * Validate that trusted release automation is executing the exact policy at
+ * the current trunk revision. Manual dispatches provide a safe regeneration
+ * path without weakening the source-bound Release Please checks.
+ */
+export function validateTrustedReleasePleaseWorkflowContext(input) {
+  const eventName = String(input?.eventName ?? "");
+  const ref = String(input?.ref ?? "");
+  const trustedPolicySha = String(input?.trustedPolicySha ?? "");
+  const githubSha = String(input?.githubSha ?? "");
+
+  if ((eventName !== "push" && eventName !== "workflow_dispatch") || ref !== "refs/heads/trunk") {
+    throw new Error("Trusted Release Please disposition checks may run only for a trunk push or manual dispatch.");
+  }
+  assertSha(trustedPolicySha, "Trusted policy revision");
+  assertSha(githubSha, "GitHub workflow revision");
+  if (trustedPolicySha !== githubSha) {
+    throw new Error("The checked-out trusted policy must match the triggering trunk revision.");
+  }
+
+  return { eventName, ref, trustedPolicySha };
 }
 
 function apiRoot() {
@@ -78,7 +101,7 @@ export async function findCurrentReleasePleasePullRequest(repository, request = 
   return releasePleaseCandidateFromRest(payload[0], repository);
 }
 
-function assertMatchingSnapshots(rest, graphql) {
+export function assertMatchingReleasePleaseSnapshots(rest, graphql) {
   const exactFields = [
     "pullRequestNumber",
     "body",
@@ -139,7 +162,7 @@ export async function publishReleasePleaseDispositionCheck(input, request = gith
     { repository, pullRequestNumber: restCandidate.pullRequestNumber },
     request,
   );
-  assertMatchingSnapshots(restCandidate, current);
+  assertMatchingReleasePleaseSnapshots(restCandidate, current);
   if (current.baseSha !== trustedPolicySha) {
     throw new Error("The current Release Please base does not match the trusted trunk policy revision.");
   }

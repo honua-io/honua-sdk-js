@@ -1,4 +1,6 @@
 name: SDK CI
+run-name: >-
+  ${{ inputs.release_head_sha && format('SDK CI | trusted release #{0} @ {1}', inputs.release_pull_request_number, inputs.release_head_sha) || 'SDK CI' }}
 
 on:
   push:
@@ -24,6 +26,20 @@ on:
         required: false
         default: false
         type: boolean
+      release_pull_request_number:
+        description: >-
+          Exact Release Please pull request validated by trusted trunk policy.
+          Reserved for release-please.yml.
+        required: false
+        default: ""
+        type: string
+      release_head_sha:
+        description: >-
+          Exact Release Please head validated by trusted trunk policy. Reserved
+          for release-please.yml.
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
@@ -66,6 +82,9 @@ jobs:
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
 
+      - name: Test Release Please CI dispatch policy
+        run: node --test test/scripts/release-please-ci-dispatch.test.mjs
+
       - name: Test backlog dependency reconciliation policy
         run: node --test test/scripts/backlog-dependencies.test.mjs
 
@@ -99,7 +118,7 @@ jobs:
     # stays enforced). Release branches and post-regeneration dispatches remain
     # strict; the trunk workflow is the authority that re-binds the pin.
     env:
-      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release-please--branches--trunk' && inputs.release_head_sha == github.sha) && '1' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -138,11 +157,37 @@ jobs:
       # dispatches this workflow in strict mode on trunk post-merge. Functional gates (typecheck/build/test, kit
       # qualification from source and packed SDK, verify:bundle-budgets) are
       # unaffected and still fail a PR that genuinely breaks a sample.
-      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
+      HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/release-please--branches--trunk' && inputs.release_head_sha == github.sha) && '1' || '' }}
       # Release-matrix receipt gate (#766): enforced unless the evidence
       # publication automation asked for report-only mode.
       HONUA_RELEASE_MATRIX_RECEIPT_RELAX: ${{ inputs.release_matrix_receipt_relax && '1' || '' }}
     steps:
+      - name: Validate trusted Release Please dispatch
+        if: ${{ github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/release-please--branches--trunk' || inputs.release_pull_request_number != '' || inputs.release_head_sha != '') }}
+        working-directory: .
+        shell: bash
+        env:
+          RELEASE_PULL_REQUEST_NUMBER: ${{ inputs.release_pull_request_number }}
+          RELEASE_HEAD_SHA: ${{ inputs.release_head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_PULL_REQUEST_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Trusted release dispatch requires a positive pull-request number."
+            exit 1
+          fi
+          if [[ ! "${RELEASE_HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Trusted release dispatch requires a full lowercase head SHA."
+            exit 1
+          fi
+          if [[ "${GITHUB_REF}" != "refs/heads/release-please--branches--trunk" ]]; then
+            echo "::error::Trusted release dispatch must target the canonical Release Please branch."
+            exit 1
+          fi
+          if [[ "${GITHUB_SHA}" != "${RELEASE_HEAD_SHA}" ]]; then
+            echo "::error::Dispatched release head ${RELEASE_HEAD_SHA} is stale; current workflow head is ${GITHUB_SHA}."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
@@ -156,6 +201,9 @@ jobs:
 
       - name: Test pull request issue-disposition policy
         run: node --test test/scripts/pr-issue-disposition.test.mjs
+
+      - name: Test Release Please CI dispatch policy
+        run: node --test test/scripts/release-please-ci-dispatch.test.mjs
 
       - name: Test backlog dependency reconciliation policy
         run: node --test test/scripts/backlog-dependencies.test.mjs
@@ -416,6 +464,32 @@ jobs:
       run:
         working-directory: mcp
     steps:
+      - name: Validate trusted Release Please dispatch
+        if: ${{ github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/release-please--branches--trunk' || inputs.release_pull_request_number != '' || inputs.release_head_sha != '') }}
+        working-directory: .
+        shell: bash
+        env:
+          RELEASE_PULL_REQUEST_NUMBER: ${{ inputs.release_pull_request_number }}
+          RELEASE_HEAD_SHA: ${{ inputs.release_head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_PULL_REQUEST_NUMBER}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Trusted release dispatch requires a positive pull-request number."
+            exit 1
+          fi
+          if [[ ! "${RELEASE_HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Trusted release dispatch requires a full lowercase head SHA."
+            exit 1
+          fi
+          if [[ "${GITHUB_REF}" != "refs/heads/release-please--branches--trunk" ]]; then
+            echo "::error::Trusted release dispatch must target the canonical Release Please branch."
+            exit 1
+          fi
+          if [[ "${GITHUB_SHA}" != "${RELEASE_HEAD_SHA}" ]]; then
+            echo "::error::Dispatched release head ${RELEASE_HEAD_SHA} is stale; current workflow head is ${GITHUB_SHA}."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Setup Node.js
