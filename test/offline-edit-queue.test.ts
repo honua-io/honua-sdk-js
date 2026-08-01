@@ -328,6 +328,15 @@ describe("offline edit queue", () => {
     await queue.claimReady({ ...PARTITION, workerId: "worker", limit: 1, leaseDurationMs: 10_000 });
     await queue.markConflicted(prerequisite.edit.id, "lease", { conflictId: "conflict-17" });
 
+    await expectQueueError(
+      queue.enqueue(
+        input("already-failed-dependent", {
+          dependencyIds: [prerequisite.edit.id],
+        }),
+      ),
+      "invalid-edit",
+      "dependencyIds[0]",
+    );
     await expect(
       queue.claimReady({ ...PARTITION, workerId: "worker", limit: 10, leaseDurationMs: 10_000 }),
     ).resolves.toEqual([]);

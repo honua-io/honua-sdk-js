@@ -693,7 +693,8 @@ function enqueuePreparedRecord(
         path: `dependencyIds[${index}]`,
       });
     }
-    if ("terminalState" in dependency && dependency.terminalState !== "applied") {
+    const state = dependencyState(dependency);
+    if (state === "conflicted" || state === "cancelled") {
       fail("invalid-edit", `Offline edit dependency "${dependencyId}" did not complete successfully.`, {
         editId: prepared.id,
         path: `dependencyIds[${index}]`,
@@ -1276,7 +1277,10 @@ function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
         open.result.createObjectStore(TOMBSTONE_STORE, { keyPath: "id" });
       }
     };
-    open.onsuccess = () => resolve(open.result);
+    open.onsuccess = () => {
+      open.result.onversionchange = () => open.result.close();
+      resolve(open.result);
+    };
     open.onerror = () => reject(open.error ?? new Error("Failed to open offline edit queue."));
     open.onblocked = () => reject(new Error("Offline edit queue database upgrade is blocked."));
   });

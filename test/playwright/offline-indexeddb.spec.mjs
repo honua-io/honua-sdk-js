@@ -183,6 +183,17 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
       await queueA.markConflicted(conflictRoot.edit.id, conflictLease.lease.token, {
         conflictId: "browser-conflict",
       });
+      let liveFailedDependencyCode;
+      try {
+        await queueA.enqueue({
+          ...partition,
+          idempotencyKey: "browser-already-failed-dependent",
+          edit: { operation: "add", attributes: { status: "blocked" } },
+          dependencyIds: [conflictRoot.edit.id],
+        });
+      } catch (error) {
+        liveFailedDependencyCode = error.code;
+      }
       const blockedClaims = await queueA.claimReady({
         ...partition,
         workerId: "worker-a",
@@ -200,20 +211,36 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
         const open = indexedDB.open(fixture.name);
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
-          const getAll = open.result.transaction("edit-metadata", "readonly").objectStore("edit-metadata").getAll();
+          const database = open.result;
+          const getAll = database.transaction("edit-metadata", "readonly").objectStore("edit-metadata").getAll();
           getAll.onerror = () => reject(getAll.error);
-          getAll.onsuccess = () =>
+          getAll.onsuccess = () => {
+            database.close();
             resolve([...new Set(getAll.result.flatMap((record) => Object.keys(record)))].sort());
+          };
         };
       });
       const tombstoneKeys = await new Promise((resolve, reject) => {
         const open = indexedDB.open(fixture.name);
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
-          const getAll = open.result.transaction("edit-tombstones", "readonly").objectStore("edit-tombstones").getAll();
+          const database = open.result;
+          const getAll = database.transaction("edit-tombstones", "readonly").objectStore("edit-tombstones").getAll();
           getAll.onerror = () => reject(getAll.error);
-          getAll.onsuccess = () =>
+          getAll.onsuccess = () => {
+            database.close();
             resolve([...new Set(getAll.result.flatMap((record) => Object.keys(record)))].sort());
+          };
+        };
+      });
+      const remaining = (await queueA.list(partition)).length;
+      const upgradedVersion = await new Promise((resolve, reject) => {
+        const open = indexedDB.open(fixture.name, 3);
+        open.onerror = () => reject(open.error);
+        open.onblocked = () => reject(new Error("IndexedDB version upgrade was blocked."));
+        open.onsuccess = () => {
+          resolve(open.result.version);
+          open.result.close();
         };
       });
       return {
@@ -226,7 +253,9 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
         prunedReuseCode,
         prunedDivergentCode,
         prunedDependencyClaimed: postPruneLease.id === postPrune.edit.id,
-        remaining: (await queueA.list(partition)).length,
+        remaining,
+        upgradedVersion,
+        liveFailedDependencyCode,
         blockedClaimCount: blockedClaims.length,
         cancelledState: cancelled.state,
         otherState: other?.state,
@@ -258,6 +287,8 @@ test("IndexedDB edit queue survives reload and atomically leases dependency-read
       prunedDivergentCode: "idempotency-conflict",
       prunedDependencyClaimed: true,
       remaining: 4,
+      upgradedVersion: 3,
+      liveFailedDependencyCode: "invalid-edit",
       blockedClaimCount: 0,
       cancelledState: "cancelled",
       otherState: "pending",
