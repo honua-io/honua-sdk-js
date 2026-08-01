@@ -1,9 +1,11 @@
 # Plugin manifest and certification contract
 
-The experimental `@honua/sdk-js/plugin` entrypoint is the first bounded slice
-of the plugin SDK tracked by [issue #392](https://github.com/honua-io/honua-sdk-js/issues/392).
+The experimental `@honua/sdk-js/plugin` entrypoint is the versioned plugin SDK
+tracked by [issue #392](https://github.com/honua-io/honua-sdk-js/issues/392).
 It lets a third-party package describe its compatibility and authority boundary
-as inert JSON, then produces a deterministic report for a specific host.
+as inert JSON, produces a deterministic report for a specific host, and runs an
+application-local lifecycle plus behavioral conformance without granting the
+plugin ambient authority.
 
 The SDK does **not** import plugin code, install packages, or maintain a global
 registry. A certified manifest means only that its declaration is well formed
@@ -93,8 +95,10 @@ receipt for externally archived evidence, not a signature or proof of issuer.
   deterministic ASCII identifier order rather than the process locale.
 - Environment and peer checks use only the explicit host snapshot. A missing
   required peer rejects certification; a missing optional peer is a warning.
-- This experimental API is not yet the GA compatibility promise requested by
-  #392. Promotion requires the remaining runtime and independent-kit phases.
+- The API remains experimental until its eventual 1.0 promotion. Experimental
+  does not mean unversioned: hosts still fail closed on an unknown manifest,
+  plugin API, certification report, conformance report, or signing-envelope
+  version instead of guessing compatibility.
 
 ## Security boundary
 
@@ -110,9 +114,9 @@ receipt for externally archived evidence, not a signature or proof of issuer.
   and scoped storage. The full machine-readable mapping is exported as
   `HONUA_PLUGIN_CAPABILITY_REQUIRED_GRANTS`.
 - Certification fails if the application grant set is weaker than the plugin
-  request. A report is not itself an enforcement mechanism; the future host
-  runtime must inject only the certified grants and must never expose ambient
-  credentials or mutation authority.
+  request. A report is not itself an enforcement mechanism; the
+  application-local registry injects only the certified grants and never
+  exposes ambient credentials or mutation authority.
 - The package entrypoint is repeatedly percent-decoded to a stable form before
   validation, normalized in the certified snapshot, and rejected on encoded or
   literal traversal, absolute escape, backslashes, query/fragment suffixes, or
@@ -474,9 +478,123 @@ result cannot be replayed against a different manifest or host. The reference
 retry-capable plugin exercised end to end lives at
 `test/fixtures/plugins/reference/conformance.ts`.
 
-## Remaining governance decisions in #392
+## Certification governance policy
 
-The code-buildable core of every named criterion is delivered above. What
-remains is process, not code: a trusted third-party signing authority and key
-distribution for reports, and the certification governance policy (who grants
-`partner`/`honua` support tiers, security-review sign-off, and naming rules).
+Honua certification is a portable evidence format, not a central plugin
+registry or certificate authority. The SDK validates inert declarations,
+produces digest-bound reports, and verifies a host-mediated signing envelope
+through an application-supplied callback. The consuming application remains the
+policy authority: it selects trusted issuers and keys, decides which support
+tier is acceptable, and may reject a schema-valid plugin for local policy
+reasons. With no configured verifier or matching trust record, signed evidence
+is untrusted and verification fails closed.
+
+### Identity and naming
+
+- A plugin id is either a scoped npm package name such as
+  `@example/honua-cloud-tiles` or a lowercase reverse-DNS name such as
+  `com.example.cloud-tiles`. The owner must control the corresponding npm scope
+  or DNS name. Unscoped npm package names are valid package metadata but are not
+  sufficient proof of a governed plugin id.
+- The manifest id is the durable ecosystem identity; package name and
+  entrypoint identify one distribution of it. Publishers must not reuse an id
+  for a different plugin, kind, or authority owner. A rename publishes a new id
+  and deprecates the old one with `replacement`; consumers do not infer aliases.
+- An ownership transfer records the old and new owner, affected plugin id,
+  report digest, effective version, and signer key ids in durable release
+  evidence. During a planned transfer, applications may trust both owners for a
+  bounded overlap. Losing control of the scope/domain is an immediate
+  revocation event, not an implicit transfer.
+- The reserved `honua` support tier and `io.honua.*` identities require Honua
+  repository ownership and a Honua-controlled signer. Names that imply Honua
+  ownership or certification without those controls are rejected by governance
+  even when their manifest syntax is valid.
+
+### Compatibility, peers, and deprecation
+
+- Manifest, plugin API, report, conformance-report, and signing-envelope
+  versions are exact. SDK bounds use an exact SemVer inclusive minimum and
+  optional exclusive maximum. Manifest v1 peer requirements expose only an
+  exact SemVer minimum; a schema-level peer maximum requires a new manifest
+  version rather than heuristic fallback.
+- Required peers must be present in the explicit host snapshot at a compatible
+  version. Missing optional peers remain warnings: neither certification nor
+  the registry installs, imports, or fetches them. A plugin must expose only
+  capabilities that work with the injected peers and return a structured
+  capability diagnostic when an optional implementation is unavailable. A
+  plugin that cannot tolerate a later peer version must reject that peer at its
+  runtime boundary and cannot claim `supported` for that host until a versioned
+  upper-bound contract exists.
+- Deprecation sets `supportStatus.state` to `deprecated` and names either an
+  exact `removedIn` version or a `replacement` id. Publishers keep the old id
+  immutable, document migration and authority changes, and do not silently
+  repoint it. A removed plugin is absent from an approved inventory; consumers
+  must not reinterpret absence as continued support.
+- State migration is unsupported by manifest v1. Replacing a registered id or
+  changing its persisted state format requires a future versioned migration
+  contract; the current registry refuses to guess.
+
+### Security review and support tiers
+
+Support tier and lifecycle state are independent. `community` means the author
+is the support authority and carries no Honua endorsement. `partner` requires a
+current commercial/technical relationship, a partner-controlled identity and
+signer, and recorded security approval by the consuming program. `honua` is
+reserved for Honua-owned code with approval from a Honua maintainer who did not
+author the reviewed change. Downgrading a tier or lifecycle state is permitted
+immediately; upgrading requires fresh evidence.
+
+Before `partner` or `honua` approval, the reviewer records all of the following
+against the exact plugin version and certification digest:
+
+1. A certified inert manifest with reviewed package ownership, entrypoint,
+   compatibility bounds, capabilities, peers, environment, support status,
+   lifecycle, and complete cache/freshness/auth/provenance/mutation/realtime
+   semantics.
+2. Least-privilege grants: exact HTTPS origins, scope identifiers rather than
+   secrets, bounded storage, and explicit mutation/realtime authority. Reports,
+   review records, diagnostics, and fixtures must contain no credentials,
+   private keys, tokens, copied authorization headers, or customer payloads.
+3. Reproducible semantic and adversarial fixtures covering invalid input,
+   structured errors, cancellation, bounded retries, deterministic cleanup,
+   data/secret boundaries, and any declared mutation or realtime behavior.
+4. A digest-bound behavioral report showing the declared performance and
+   bundle-metadata budgets, plus an installed-consumer/tree-shake check proving
+   that an unused plugin adds no root runtime or optional peer.
+5. Dependency and license review, the owner and response path for security
+   findings, the approved signer key id, and a re-review trigger. A new grant,
+   capability, required peer, entrypoint, ownership change, or incompatible
+   major version always triggers re-review.
+
+Community plugins may self-attest, but applications should apply the same
+checklist when their risk warrants it. Certification status alone never upgrades
+a support tier.
+
+### Issuers, key rotation, revocation, and expiry
+
+- Each application owns an allowlist mapping the envelope's opaque `keyId` to a
+  verifier and local constraints such as allowed plugin ids, support tiers,
+  report digests, validity window, and issuer identity. `keyId` has no global
+  meaning and is never a lookup URL.
+- Private keys and credential material stay outside the SDK and its evidence.
+  The verification callback receives the canonical signing payload and returns
+  only a decision; an error, unknown key, altered report, unsupported version,
+  disallowed identity/tier, expired trust record, or false result rejects the
+  envelope.
+- Rotation adds the new key before issuance, optionally accepts old and new ids
+  for a bounded overlap, reissues evidence under the new id, then removes the
+  old trust record. Applications must not rewrite an archived envelope or treat
+  a new key as equivalent without an explicit trust update.
+- Revocation removes the key or affected plugin/report constraint immediately.
+  Applications re-evaluate archived evidence at load/deploy time so a valid
+  historical signature does not override current revocation policy.
+- Signing envelopes intentionally contain no wall-clock timestamp. Expiry and
+  `notBefore` are therefore properties of the application's external trust
+  record, bound to the key id and optionally the plugin id/version/report
+  digest. The verifier returns false outside that window. Adding timestamps or
+  online status to the portable envelope requires a new envelope version.
+
+This policy completes the SDK-owned governance contract without creating a
+hosted marketplace, global key service, or implicit endorsement. A future
+catalog may distribute inventories and trust records, but applications still
+opt in to those roots explicitly.
