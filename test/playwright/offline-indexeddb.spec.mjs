@@ -71,6 +71,34 @@ test("offline reference workflow reloads after browser networking is disabled", 
   }
 });
 
+test("offline reference rejects an oversized data response before persistence", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    server.setOfflineDataOversized(true);
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: false,
+      availability: "unavailable",
+      error: 'Failed to load resource "incidents".',
+    });
+
+    server.setOfflineDataOversized(false);
+    await page.reload({ waitUntil: "load" });
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      availability: "ready",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+    });
+    expect(server.offlineDataRequests).toBe(2);
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
 test("offline reference installs its exact worker when a broader worker already controls the page", async ({
   page,
   context,
@@ -970,6 +998,7 @@ test("IndexedDB download resumes from verified staged resources", async ({ page 
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   let offlineDataRequests = 0;
+  let offlineDataOversized = false;
   let shellHanging = false;
   const shellManifests = new Map();
   let shellUnavailable = false;
@@ -979,7 +1008,7 @@ async function startServer() {
       offlineDataRequests += 1;
       response.setHeader("cache-control", "no-store");
       response.setHeader("content-type", "application/json; charset=utf-8");
-      response.end(OFFLINE_REFERENCE_PAYLOAD);
+      response.end(offlineDataOversized ? Buffer.alloc(1024 * 1024, 32) : OFFLINE_REFERENCE_PAYLOAD);
       return;
     }
     if (shellHanging && (url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/"))) return;
@@ -1135,6 +1164,9 @@ async function startServer() {
     url: `http://127.0.0.1:${address.port}`,
     get offlineDataRequests() {
       return offlineDataRequests;
+    },
+    setOfflineDataOversized(value) {
+      offlineDataOversized = value;
     },
     setShellUnavailable(value) {
       shellUnavailable = value;

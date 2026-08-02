@@ -10,6 +10,7 @@ const DATABASE_NAME = "honua-offline-region-reference-v1";
 const DATA_PATH = "/offline-data.json";
 const SHELL_MANIFEST_PATH = "./shell-manifest.v1.json";
 const RESOURCE_ID = "incidents";
+const RESOURCE_BYTE_LENGTH = 50;
 const RESOURCE_INTEGRITY = "sha256:01bffe15679e8bd02244b4c9a402bddb86e1e9e1a4ece7f6e0be9df512c0059d";
 const LOGICAL_QUOTA_BYTES = 1024;
 const OBSERVED_AT = "2026-08-01T10:00:00.000Z";
@@ -41,6 +42,41 @@ function canonicalizeLaunchUrl() {
   window.history.replaceState(window.history.state, "", url);
 }
 
+async function readBoundedResponseBytes(response, maxBytes) {
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error("Offline resource exceeds its byte budget.");
+  }
+  if (!response.body) return new Uint8Array();
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (totalBytes + value.byteLength > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error("Offline resource exceeds its byte budget.");
+      }
+      chunks.push(value);
+      totalBytes += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 async function manifest() {
   return createOfflineRegionManifest({
     name: "Incident field snapshot",
@@ -58,7 +94,7 @@ async function manifest() {
       {
         id: RESOURCE_ID,
         kind: "features",
-        byteLength: 50,
+        byteLength: RESOURCE_BYTE_LENGTH,
         integrity: RESOURCE_INTEGRITY,
         contentType: "application/json; charset=utf-8",
         attributionIds: ["county"],
@@ -80,7 +116,7 @@ async function downloadWhenNeeded(value, store) {
     load: async () => {
       const response = await fetch(DATA_PATH, { cache: "no-store", credentials: "omit" });
       if (!response.ok) throw new Error(`Fixture request failed with ${response.status}.`);
-      return new Uint8Array(await response.arrayBuffer());
+      return readBoundedResponseBytes(response, RESOURCE_BYTE_LENGTH);
     },
   });
 }

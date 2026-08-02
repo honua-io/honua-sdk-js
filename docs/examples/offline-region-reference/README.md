@@ -16,6 +16,8 @@ cannot combine a new entry point with an older dependency graph.
 Manifest and asset bodies are read incrementally and canceled as soon as their
 declared or fixed byte ceiling is exceeded, so the ceilings also bound worker
 memory use for a malformed response.
+The same streaming ceiling is applied to the declared offline data resource
+before the SDK receives any bytes for persistence.
 
 Shell refresh is best effort once a complete generation exists. The worker
 stages and validates the complete replacement under a new cache name, commits
