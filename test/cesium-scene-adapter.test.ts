@@ -640,7 +640,7 @@ describe("cesium scene adapter", () => {
           id: "arcgis-map",
           sourceId: "arcgis-map",
           protocol: "arcgis-imagery",
-          url: "https://{s}.services.example.test/arcgis/rest/services/reference/MapServer?LAYERS=show%3A2&enablePickFeatures=true&cache=public#map",
+          url: "https://{s}.services.example.test/arcgis/rest/services/reference/MapServer?LAYERS=show%3A2&enablePickFeatures=true&F=pjson&BBOX=stale&BBOX_SR=4326&IMAGE-SR=4326&SIZE=1%2C1&FORMAT=jpg&TRANSPARENT=false&cache=public#map",
           subdomains: ["maps-primary", "maps-secondary"],
           parameters: {
             layers: "show:1, 3",

@@ -690,7 +690,7 @@ export async function addCesiumImageryLayer(
   );
   if (validation) throw new Error(`${validation.code}: ${validation.message}`);
   if (!scene.imageryLayers) {
-    throw new Error("scene-primitive-imagery-target-missing: Cesium scene does not expose imageryLayers.");
+    throw new Error("scene-primitive-imagery-target-missing: Cesium imageryLayers unavailable.");
   }
 
   const mod = cesium ?? (await loadCesium());
@@ -789,7 +789,11 @@ async function createCesiumImageryProvider(
         });
       }
       return cesium.ArcGisMapServerImageryProvider.fromUrl(
-        urlWithoutQueryKeys(resolveConfiguredSubdomainUrl(primitive), Object.keys(primitive.parameters ?? {}), true),
+        urlWithoutQueryKeys(
+          resolveConfiguredSubdomainUrl(primitive),
+          [...ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS, "layers", ...Object.keys(primitive.parameters ?? {})],
+          true,
+        ),
         {
           ...commonOptions,
           ...arcGisMapServerOptions(primitive.parameters),
@@ -1180,7 +1184,7 @@ export async function applyCesiumScenePrimitives(
             primitiveId: primitive.id,
             primitiveKind: primitive.kind,
             renderer: "cesium",
-            message: "Cesium scene does not expose an imageryLayers collection.",
+            message: "Cesium imageryLayers unavailable.",
             fallback: "Attach a complete Cesium scene target before applying imagery.",
           });
           continue;

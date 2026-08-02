@@ -20,6 +20,25 @@ const CREDENTIAL_QUERY_TOKENS = new Set([
   "sessionid",
   "sig",
 ]);
+const CREDENTIAL_QUERY_SUFFIXES = [
+  "accountkey",
+  "accesskey",
+  "apikey",
+  "consumerkey",
+  "credential",
+  "encryptionkey",
+  "masterkey",
+  "passphrase",
+  "password",
+  "privatekey",
+  "secret",
+  "secretkey",
+  "signingkey",
+  "signature",
+  "storagekey",
+  "subscriptionkey",
+  "token",
+] as const;
 
 /** URLSearchParams has already percent-decoded names before this check. */
 export function isCredentialQueryName(name: string): boolean {
@@ -43,19 +62,7 @@ export function isCredentialQueryName(name: string): boolean {
       CREDENTIAL_QUERY_TOKENS.has(token) ||
       token.startsWith("xamz") ||
       token.startsWith("xgoog") ||
-      token.endsWith("accesskey") ||
-      token.endsWith("apikey") ||
-      token.endsWith("credential") ||
-      token.endsWith("encryptionkey") ||
-      token.endsWith("passphrase") ||
-      token.endsWith("password") ||
-      token.endsWith("privatekey") ||
-      token.endsWith("secret") ||
-      token.endsWith("secretkey") ||
-      token.endsWith("signingkey") ||
-      token.endsWith("signature") ||
-      token.endsWith("subscriptionkey") ||
-      token.endsWith("token")
+      CREDENTIAL_QUERY_SUFFIXES.some((suffix) => token.endsWith(suffix))
     );
   });
 }
