@@ -1,4 +1,5 @@
-const CACHE_NAMESPACE = "honua-offline-region-reference-shell-";
+const scopeUrl = new URL(self.registration.scope);
+const CACHE_NAMESPACE = `honua-offline-region-reference-shell-${encodeURIComponent(scopeUrl.pathname)}-`;
 const CONTROL_CACHE_NAME = `${CACHE_NAMESPACE}control-v1`;
 const GENERATION_CACHE_PREFIX = `${CACHE_NAMESPACE}generation-v1-`;
 const LEGACY_CACHE_NAME = `${CACHE_NAMESPACE}v1`;
@@ -9,7 +10,6 @@ const MAX_SHELL_MANIFEST_BYTES = 64 * 1024;
 const SHELL_REFRESH_TIMEOUT_MS = 3000;
 const SHELL_MANIFEST_FORMAT = "honua.offline-shell-manifest.v1";
 const SHELL_UPDATE_LOCK_NAME = `${CACHE_NAMESPACE}update-v1`;
-const scopeUrl = new URL(self.registration.scope);
 const activePointerUrl = new URL("__honua-active-shell-v1__", scopeUrl);
 const committedGenerationMarkerBaseUrl = new URL("__honua-committed-shell-v1__/", scopeUrl);
 let shellUpdateQueue = Promise.resolve();
@@ -152,11 +152,31 @@ async function pointedGenerationName() {
   if (!response) return undefined;
   const name = await response.text();
   if (!name.startsWith(GENERATION_CACHE_PREFIX) || name.length > 256) return undefined;
-  return (await caches.keys()).includes(name) ? name : undefined;
+  return name;
 }
 
-async function activeShellCacheName() {
-  return pointedGenerationName();
+function generationReadLockName(name) {
+  return `${name}-read-v1`;
+}
+
+async function withPointedGeneration(read) {
+  if (!self.navigator.locks) return undefined;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const activeName = await pointedGenerationName();
+    if (!activeName) return undefined;
+    const result = await self.navigator.locks.request(
+      generationReadLockName(activeName),
+      { ifAvailable: true, mode: "shared" },
+      async (lock) => {
+        if (!lock || (await pointedGenerationName()) !== activeName || !(await caches.has(activeName))) {
+          return { retry: true };
+        }
+        return { retry: false, value: await read(activeName) };
+      },
+    );
+    if (!result.retry) return result.value;
+  }
+  return undefined;
 }
 
 function committedGenerationMarkerUrl(name) {
@@ -174,21 +194,11 @@ async function isGenerationCommitted(name) {
 }
 
 async function hasRetainedShell() {
-  if (!self.navigator.locks) return false;
-  return self.navigator.locks.request(SHELL_UPDATE_LOCK_NAME, { mode: "shared" }, async () => {
-    const activeName = await activeShellCacheName();
-    if (!activeName) return false;
-    return (await (await caches.open(activeName)).keys()).length > 0;
-  });
+  return Boolean(await withPointedGeneration(async (activeName) => (await (await caches.open(activeName)).keys()).length));
 }
 
 async function matchActiveShell(url) {
-  if (!self.navigator.locks) return undefined;
-  return self.navigator.locks.request(SHELL_UPDATE_LOCK_NAME, { mode: "shared" }, async () => {
-    const activeName = await activeShellCacheName();
-    if (!activeName) return undefined;
-    return (await caches.open(activeName)).match(cacheKey(url));
-  });
+  return withPointedGeneration(async (activeName) => (await caches.open(activeName)).match(cacheKey(url)));
 }
 
 async function deleteInactiveShellCaches() {
@@ -199,12 +209,14 @@ async function deleteInactiveShellCaches() {
       continue;
     }
     if (!name.startsWith(GENERATION_CACHE_PREFIX)) continue;
-    if ((await activeShellCacheName()) === name) continue;
-    await caches.delete(name);
-    if (await isGenerationCommitted(name)) {
-      const control = await caches.open(CONTROL_CACHE_NAME);
-      await control.delete(cacheKey(committedGenerationMarkerUrl(name)));
-    }
+    await self.navigator.locks.request(generationReadLockName(name), { mode: "exclusive" }, async () => {
+      if ((await pointedGenerationName()) === name) return;
+      await caches.delete(name);
+      if (await isGenerationCommitted(name)) {
+        const control = await caches.open(CONTROL_CACHE_NAME);
+        await control.delete(cacheKey(committedGenerationMarkerUrl(name)));
+      }
+    });
   }
 }
 
@@ -278,14 +290,21 @@ self.addEventListener("message", (event) => {
   if (event.data?.type !== "HONUA_PRECACHE_V2" || !event.ports[0]) return;
   const port = event.ports[0];
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), SHELL_REFRESH_TIMEOUT_MS);
-  const update = shellUpdateQueue
-    .then(() => replaceApplicationShellLocked(event.data.manifestUrl, controller.signal))
-    .finally(() => clearTimeout(timeout));
-  shellUpdateQueue = update.then(
+  let timeout;
+  const deadline = new Promise((_, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error("Application shell refresh timed out."));
+    }, SHELL_REFRESH_TIMEOUT_MS);
+  });
+  const replacement = shellUpdateQueue.then(() =>
+    replaceApplicationShellLocked(event.data.manifestUrl, controller.signal),
+  );
+  shellUpdateQueue = replacement.then(
     () => undefined,
     () => undefined,
   );
+  const update = Promise.race([replacement, deadline]).finally(() => clearTimeout(timeout));
   event.waitUntil(
     update
       .then((receipt) => port.postMessage({ ok: true, ...receipt }))
@@ -299,7 +318,6 @@ self.addEventListener("fetch", (event) => {
   if (!url) return;
   event.respondWith(
     (async () => {
-      await shellUpdateQueue;
       const cached = await matchActiveShell(url);
       if (cached) return cached;
       return fetch(cacheKey(url));

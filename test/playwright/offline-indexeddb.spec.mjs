@@ -9,11 +9,10 @@ import { expect, test } from "@playwright/test";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OFFLINE_REFERENCE_PAYLOAD = '{"features":[{"id":"incident-1","status":"open"}]}';
-const SHELL_CACHE_NAMESPACE = "honua-offline-region-reference-shell-";
+const SHELL_CACHE_NAMESPACE = `honua-offline-region-reference-shell-${encodeURIComponent("/reference/")}-`;
 const SHELL_CONTROL_CACHE = `${SHELL_CACHE_NAMESPACE}control-v1`;
 const SHELL_GENERATION_PREFIX = `${SHELL_CACHE_NAMESPACE}generation-v1-`;
 const SHELL_LEGACY_CACHE = `${SHELL_CACHE_NAMESPACE}v1`;
-const SHELL_UPDATE_LOCK = `${SHELL_CACHE_NAMESPACE}update-v1`;
 
 test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
   test.slow();
@@ -68,6 +67,41 @@ test("offline reference workflow reloads after browser networking is disabled", 
       expect(value).not.toMatch(/(?:authorization|password|secret|sig|token)=/i);
     }
   } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference isolates committed shell generations by worker scope", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  let alternatePage;
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      availability: "ready",
+    });
+    const primary = await readShellState(page);
+
+    alternatePage = await context.newPage();
+    await alternatePage.goto(`${server.url}/reference-alt/`);
+    await expect.poll(() => alternatePage.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      availability: "ready",
+    });
+    const alternate = await readShellState(alternatePage);
+    expect(alternate.activeName).not.toBe(primary.activeName);
+    expect(alternate.contentCacheNames).toEqual([alternate.activeName]);
+
+    const primaryAfterAlternateRefresh = await readShellState(page);
+    expect(primaryAfterAlternateRefresh.activeName).toBe(primary.activeName);
+    expect(primaryAfterAlternateRefresh.contentCacheNames).toEqual([primary.activeName]);
+    expect(primaryAfterAlternateRefresh.urls).toEqual(primary.urls);
+  } finally {
+    await alternatePage?.close().catch(() => undefined);
     await cleanupOfflineReference(page, context);
     await server.close();
   }
@@ -488,6 +522,72 @@ test("offline reference serializes shell replacement across worker versions", as
   }
 });
 
+test("offline reference serves its committed shell while a refresh digest stalls", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  const heldPath = "/reference/shell-upgrade-digest-stall.mjs";
+  let refreshPage;
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      availability: "ready",
+    });
+    refreshPage = await context.newPage();
+    await refreshPage.goto(`${server.url}/reference/`);
+    await expect.poll(() => refreshPage.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      availability: "ready",
+    });
+    const before = await readShellState(page);
+
+    server.setReferenceWorkerDigestHanging(true);
+    await page.evaluate(async () => {
+      const registration = await navigator.serviceWorker.getRegistration("./");
+      const previous = navigator.serviceWorker.controller;
+      if (!registration || !previous) throw new Error("Reference worker is not controlling the page.");
+      await registration.update();
+      const deadline = Date.now() + 5000;
+      while (navigator.serviceWorker.controller === previous) {
+        if (Date.now() >= deadline) throw new Error("Digest-stalling replacement worker did not take control.");
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    });
+
+    server.holdShellResource(heldPath, "x");
+    const manifestPath = "/reference/test-shell-manifest-digest-stall.json";
+    server.setShellManifest(manifestPath, {
+      deploymentId: "test-digest-stall",
+      resources: [shellResource(`${server.url}${heldPath}`, "x")],
+    });
+    const refresh = requestShellRefresh(refreshPage, `${server.url}${manifestPath}`);
+    await server.waitForHeldShellResource(heldPath);
+    server.releaseHeldShellResource(heldPath);
+    await refreshPage.waitForTimeout(100);
+
+    await context.setOffline(true);
+    await page.reload({ timeout: 7000, waitUntil: "load" });
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__), { timeout: 7000 }).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "offline",
+      availability: "ready",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+    });
+    await expect(refresh).resolves.toEqual({ ok: false, retained: true });
+    const after = await readShellState(page);
+    expect(after.activeName).toBe(before.activeName);
+    expect(after.urls).toEqual(before.urls);
+  } finally {
+    server.releaseHeldShellResource(heldPath);
+    await refreshPage?.close().catch(() => undefined);
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
 test("offline reference retains its committed shell when an updated worker does not reply", async ({ page, context }) => {
   test.slow();
   const server = await startServer();
@@ -501,16 +601,16 @@ test("offline reference retains its committed shell when an updated worker does 
     });
 
     server.setReferenceWorkerMessagesMuted(true);
-    await page.addInitScript((lockName) => {
+    await page.addInitScript((generationPrefix) => {
       const requestLock = navigator.locks.request.bind(navigator.locks);
       navigator.locks.request = (...args) => {
         const [name, options] = args;
-        if (name === lockName && options?.mode === "shared") {
+        if (name.startsWith(generationPrefix) && name.endsWith("-read-v1") && options?.mode === "shared") {
           window.__HONUA_PAGE_SHELL_LOCK_REQUESTS__ = (window.__HONUA_PAGE_SHELL_LOCK_REQUESTS__ ?? 0) + 1;
         }
         return requestLock(...args);
       };
-    }, SHELL_UPDATE_LOCK);
+    }, SHELL_GENERATION_PREFIX);
     await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration("./");
       const previous = navigator.serviceWorker.controller;
@@ -1155,6 +1255,7 @@ async function startServer() {
   let shellHanging = false;
   const compressedShellResources = new Set();
   const heldShellResources = new Map();
+  let referenceWorkerDigestHanging = false;
   let referenceWorkerMessagesMuted = false;
   const shellManifests = new Map();
   const shellManifestRequestCounts = new Map();
@@ -1235,6 +1336,11 @@ async function startServer() {
       ["/reference/shell-manifest.v1.json", "shell-manifest.v1.json"],
       ["/reference/service-worker.mjs", "service-worker.mjs"],
       ["/reference/service-worker-v2.mjs", "service-worker.mjs"],
+      ["/reference-alt/", "index.html"],
+      ["/reference-alt/index.html", "index.html"],
+      ["/reference-alt/app.mjs", "app.mjs"],
+      ["/reference-alt/shell-manifest.v1.json", "shell-manifest.v1.json"],
+      ["/reference-alt/service-worker.mjs", "service-worker.mjs"],
     ]);
     const referenceFile = referenceFiles.get(url.pathname);
     if (referenceFile) {
@@ -1253,6 +1359,15 @@ async function startServer() {
       let responseFile = file;
       if (url.pathname.endsWith("service-worker-v2.mjs")) {
         responseFile = Buffer.concat([file, Buffer.from("\n// replacement worker version\n")]);
+      } else if (url.pathname.endsWith("service-worker.mjs") && referenceWorkerDigestHanging) {
+        responseFile = Buffer.from(
+          file
+            .toString("utf8")
+            .replace(
+              'const digest = await crypto.subtle.digest("SHA-256", bytes);',
+              "const digest = await new Promise(() => {});",
+            ),
+        );
       } else if (url.pathname.endsWith("service-worker.mjs") && referenceWorkerMessagesMuted) {
         responseFile = Buffer.from(file.toString("utf8").replaceAll("HONUA_PRECACHE_V2", "HONUA_PRECACHE_DISABLED"));
       }
@@ -1374,6 +1489,9 @@ async function startServer() {
     setReferenceWorkerMessagesMuted(value) {
       referenceWorkerMessagesMuted = value;
     },
+    setReferenceWorkerDigestHanging(value) {
+      referenceWorkerDigestHanging = value;
+    },
     setShellManifest(manifestPath, manifest) {
       shellManifests.set(manifestPath, {
         format: "honua.offline-shell-manifest.v1",
@@ -1444,7 +1562,12 @@ function shellResource(url, value) {
 
 async function readShellState(page) {
   return page.evaluate(
-    async ({ controlCacheName, generationPrefix, legacyCacheName }) => {
+    async (cacheNamespaceBase) => {
+      const scopePath = new URL("./", window.location.href).pathname;
+      const cacheNamespace = `${cacheNamespaceBase}${encodeURIComponent(scopePath)}-`;
+      const controlCacheName = `${cacheNamespace}control-v1`;
+      const generationPrefix = `${cacheNamespace}generation-v1-`;
+      const legacyCacheName = `${cacheNamespace}v1`;
       const cacheNames = await caches.keys();
       const control = await caches.open(controlCacheName);
       const pointerUrl = new URL("./__honua-active-shell-v1__", window.location.href);
@@ -1479,11 +1602,7 @@ async function readShellState(page) {
         resources,
       };
     },
-    {
-      controlCacheName: SHELL_CONTROL_CACHE,
-      generationPrefix: SHELL_GENERATION_PREFIX,
-      legacyCacheName: SHELL_LEGACY_CACHE,
-    },
+    "honua-offline-region-reference-shell-",
   );
 }
 

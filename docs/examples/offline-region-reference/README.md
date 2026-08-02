@@ -30,15 +30,17 @@ obsolete URLs from accumulating past the entry or total-byte ceilings across
 deployments.
 Only a generation named by the persistent commit pointer qualifies as retained;
 unpointed or legacy caches are cleaned up but never trusted as a complete shell.
-An origin-scoped Web Lock serializes replacement across old and newly activated
-worker instances, preventing either version from deleting the other's staging
-or newly committed generation. A committed-generation marker is written only
-after its pointer update, and cleanup re-reads the active pointer immediately
-before removing each inactive generation, so overlapping worker lifecycles also
-fail safe. Failure receipts and the page's pre-refresh retained-shell probe read
-the pointer and retained cache under the same shared lock, so they cannot
-observe a generation halfway through a worker swap. Fetch handling likewise
-holds that lock from pointer lookup through cache match.
+The normalized worker scope is part of every cache and lock name, so sibling
+copies on one origin cannot delete each other's generations. A scope-specific
+update lock serializes replacement across old and newly activated worker
+instances, preventing either version from deleting the other's staging or newly
+committed generation. A committed-generation marker is written only after its
+pointer update, and cleanup re-reads the active pointer immediately before
+removing each inactive generation, so overlapping worker lifecycles also fail
+safe. Per-generation reader locks keep a selected immutable generation alive
+through page probes and fetch matches. Readers acquire those locks without
+queueing and retry the current pointer if cleanup already owns one, so a stalled
+refresh cannot block an offline read of the prior committed shell.
 
 The Playwright coverage in `test/playwright/offline-indexeddb.spec.mjs` serves
 these files from an isolated loopback origin. It also removes the downloaded
@@ -51,7 +53,8 @@ is aborted before the host's response timeout, including while it waits behind
 another refresh, so the committed shell remains usable across concurrent tabs.
 The host also verifies an existing committed generation before refreshing and
 treats a worker replacement, send failure, or late reply as retained only when
-that prior shell is present.
+that prior shell is present. The worker's receipt deadline races the complete
+replacement task, including non-abortable digest and Cache API work.
 Query-bearing launch URLs are replaced in browser history with the
 credential-free canonical document URL before the shell is declared ready.
 
