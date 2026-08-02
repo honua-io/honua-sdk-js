@@ -6,6 +6,105 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const OFFLINE_REFERENCE_PAYLOAD = '{"features":[{"id":"incident-1","status":"open"}]}';
+
+test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      availability: "ready",
+      freshness: "fresh",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+      attribution: "Honua deterministic incident fixture",
+      sourceVersion: "source-v1",
+      schemaVersion: "schema-v1",
+      planVersion: "plan-v1",
+    });
+    expect(server.offlineDataRequests).toBe(1);
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "offline",
+      availability: "ready",
+      freshness: "stale",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+      attribution: "Honua deterministic incident fixture",
+      sourceVersion: "source-v1",
+      schemaVersion: "schema-v1",
+      planVersion: "plan-v1",
+    });
+    expect(server.offlineDataRequests).toBe(1);
+
+    const shell = await page.evaluate(async () => {
+      const cache = await caches.open("honua-offline-region-reference-shell-v1");
+      const requests = await cache.keys();
+      return {
+        urls: requests.map((request) => request.url),
+        hasAuthorization: requests.some((request) => request.headers.has("authorization")),
+      };
+    });
+    expect(shell.urls.length).toBeGreaterThan(2);
+    expect(shell.urls.length).toBeLessThanOrEqual(128);
+    expect(shell.hasAuthorization).toBe(false);
+    for (const value of shell.urls) {
+      const url = new URL(value);
+      expect(url.origin).toBe(server.url);
+      expect(url.search).toBe("");
+      expect(url.hash).toBe("");
+      expect(url.username).toBe("");
+      expect(url.password).toBe("");
+      expect(url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/")).toBe(true);
+      expect(value).not.toMatch(/(?:authorization|password|secret|sig|token)=/i);
+    }
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference workflow fails visibly when its persisted region is missing", async ({ page, context }) => {
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      availability: "ready",
+    });
+    expect(server.offlineDataRequests).toBe(1);
+    const removed = await page.evaluate(async () => {
+      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      const store = createIndexedDbOfflineRegionStore({ name: "honua-offline-region-reference-v1" });
+      const inventory = await store.inventory();
+      return inventory.regions[0] ? store.removeRegion(inventory.regions[0].id) : false;
+    });
+    expect(removed).toBe(true);
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "offline",
+      availability: "unavailable",
+      error: "Persisted region is unavailable (cache-miss).",
+    });
+    expect(server.offlineDataRequests).toBe(1);
+    await expect(page.locator("main")).toHaveAttribute("data-state", "unavailable");
+    await expect(page.getByRole("alert")).toContainText("cache-miss");
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
 
 test("IndexedDB offline region store survives reload and preserves inventory CAS", async ({ page }) => {
   const server = await startServer();
@@ -577,8 +676,32 @@ test("IndexedDB download resumes from verified staged resources", async ({ page 
 
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+  let offlineDataRequests = 0;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
+    if (url.pathname === "/offline-data.json") {
+      offlineDataRequests += 1;
+      response.setHeader("cache-control", "no-store");
+      response.setHeader("content-type", "application/json; charset=utf-8");
+      response.end(OFFLINE_REFERENCE_PAYLOAD);
+      return;
+    }
+    const referenceFiles = new Map([
+      ["/reference/", "index.html"],
+      ["/reference/app.mjs", "app.mjs"],
+      ["/reference/service-worker.mjs", "service-worker.mjs"],
+    ]);
+    const referenceFile = referenceFiles.get(url.pathname);
+    if (referenceFile) {
+      const file = await readFile(path.join(repoRoot, "docs/examples/offline-region-reference", referenceFile));
+      response.setHeader(
+        "content-type",
+        referenceFile.endsWith(".html") ? "text/html; charset=utf-8" : "application/javascript; charset=utf-8",
+      );
+      if (referenceFile === "service-worker.mjs") response.setHeader("cache-control", "no-store");
+      response.end(file);
+      return;
+    }
     if (url.pathname === "/fixture.json") {
       response.setHeader("content-type", "application/json; charset=utf-8");
       response.end(JSON.stringify(fixture));
@@ -659,6 +782,25 @@ async function startServer() {
   const address = server.address();
   return {
     url: `http://127.0.0.1:${address.port}`,
-    close: () => new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
+    get offlineDataRequests() {
+      return offlineDataRequests;
+    },
+    close: () =>
+      new Promise((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+        server.closeAllConnections?.();
+      }),
   };
+}
+
+async function cleanupOfflineReference(page, context) {
+  await context.setOffline(false).catch(() => undefined);
+  const cleanup = page.evaluate(async () => {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+  });
+  await Promise.race([cleanup, new Promise((resolve) => setTimeout(resolve, 1000))]).catch(() => undefined);
+  await page.close().catch(() => undefined);
 }

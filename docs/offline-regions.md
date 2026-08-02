@@ -6,6 +6,12 @@ versioned manifest, storage-neutral download coordinator, persistent browser
 store, and durable edit queue. It does not make the broader local-first feature
 complete.
 
+The checked-in
+[network-disabled reference workflow](./examples/offline-region-reference/README.md)
+shows the public IndexedDB, diagnostic, and fetch-handler contracts booting
+through a host-owned application-shell worker when networking is disabled
+before reload.
+
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
   createOfflineRegionDiagnostic,

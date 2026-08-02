@@ -1,0 +1,202 @@
+import {
+  createIndexedDbOfflineRegionStore,
+  createOfflineRegionDiagnostic,
+  createOfflineRegionFetchHandler,
+  createOfflineRegionManifest,
+  downloadOfflineRegion,
+} from "/dist/src/offline/index.js";
+
+const DATABASE_NAME = "honua-offline-region-reference-v1";
+const DATA_PATH = "/offline-data.json";
+const RESOURCE_ID = "incidents";
+const RESOURCE_INTEGRITY = "sha256:01bffe15679e8bd02244b4c9a402bddb86e1e9e1a4ece7f6e0be9df512c0059d";
+const LOGICAL_QUOTA_BYTES = 1024;
+const OBSERVED_AT = "2026-08-01T10:00:00.000Z";
+const ONLINE_NOW = new Date("2026-08-01T10:05:00.000Z");
+const OFFLINE_NOW = new Date("2026-08-02T10:00:00.000Z");
+const STALE_AFTER_MS = 60 * 60 * 1000;
+
+function text(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value;
+}
+
+function publish(result) {
+  document.querySelector("main")?.setAttribute("data-state", result.availability);
+  text("status", `${result.mode} · ${result.availability}`);
+  text("payload", result.payload ?? "Unavailable");
+  text("freshness", result.freshness);
+  text("provenance", `${result.sourceVersion} / ${result.schemaVersion} / ${result.planVersion}`);
+  text("attribution", result.attribution || "Unavailable");
+  text("error", result.error ?? "");
+  window.__HONUA_OFFLINE_REFERENCE__ = Object.freeze(result);
+}
+
+async function manifest() {
+  return createOfflineRegionManifest({
+    name: "Incident field snapshot",
+    sourceId: "incidents",
+    endpoint: new URL(DATA_PATH, window.location.href),
+    authorizationScopeFingerprint: "offline-reference-public-scope",
+    bounds: { minX: -158.3, minY: 21.2, maxX: -157.6, maxY: 21.8, crs: "EPSG:4326" },
+    sourceVersion: "source-v1",
+    schemaVersion: "schema-v1",
+    planVersion: "plan-v1",
+    observation: { state: "live", observedAt: OBSERVED_AT },
+    expiresAt: "2030-01-01T00:00:00.000Z",
+    attribution: { county: "Honua deterministic incident fixture" },
+    resources: [
+      {
+        id: RESOURCE_ID,
+        kind: "features",
+        byteLength: 50,
+        integrity: RESOURCE_INTEGRITY,
+        contentType: "application/json; charset=utf-8",
+        attributionIds: ["county"],
+      },
+    ],
+  });
+}
+
+async function downloadWhenNeeded(value, store) {
+  const diagnostic = await createOfflineRegionDiagnostic(value, await store.inventory(), {
+    logicalQuotaBytes: LOGICAL_QUOTA_BYTES,
+    now: ONLINE_NOW,
+    staleAfterMs: STALE_AFTER_MS,
+  });
+  if (diagnostic.cache.readable || !navigator.onLine) return;
+  await downloadOfflineRegion(value, {
+    store,
+    logicalQuotaBytes: LOGICAL_QUOTA_BYTES,
+    load: async () => {
+      const response = await fetch(DATA_PATH, { cache: "no-store", credentials: "omit" });
+      if (!response.ok) throw new Error(`Fixture request failed with ${response.status}.`);
+      return new Uint8Array(await response.arrayBuffer());
+    },
+  });
+}
+
+async function readSnapshot(value, store) {
+  const now = navigator.onLine ? ONLINE_NOW : OFFLINE_NOW;
+  const inventory = await store.inventory();
+  const diagnostic = await createOfflineRegionDiagnostic(value, inventory, {
+    logicalQuotaBytes: LOGICAL_QUOTA_BYTES,
+    now,
+    staleAfterMs: STALE_AFTER_MS,
+  });
+  if (!diagnostic.cache.readable) {
+    return {
+      diagnostic,
+      payload: undefined,
+      error: `Persisted region is unavailable (${diagnostic.cache.reason}).`,
+    };
+  }
+  const handler = createOfflineRegionFetchHandler({
+    store,
+    regionId: value.id,
+    match: (request) => (new URL(request.url).pathname === DATA_PATH ? RESOURCE_ID : undefined),
+    now: () => now,
+  });
+  const response = await handler(new Request(new URL(DATA_PATH, window.location.href)));
+  if (!response) {
+    return { diagnostic, payload: undefined, error: "Persisted resource is unavailable." };
+  }
+  return { diagnostic, payload: await response.text(), error: undefined };
+}
+
+async function waitForController() {
+  if (navigator.serviceWorker.controller) return;
+  await new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error("Service worker did not take control.")), 5000);
+    navigator.serviceWorker.addEventListener(
+      "controllerchange",
+      () => {
+        window.clearTimeout(timeout);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
+
+function reviewedShellUrls() {
+  const scope = new URL("./", window.location.href);
+  const urls = new Set([scope.href, new URL("./app.mjs", scope).href]);
+  for (const entry of performance.getEntriesByType("resource")) {
+    const url = new URL(entry.name);
+    if (
+      url.origin === window.location.origin &&
+      (url.pathname.startsWith(scope.pathname) || url.pathname.startsWith("/dist/")) &&
+      !url.search &&
+      !url.hash
+    ) {
+      urls.add(url.href);
+    }
+  }
+  return [...urls].sort();
+}
+
+async function prepareApplicationShell() {
+  if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable.");
+  let registration = await navigator.serviceWorker.getRegistration("./");
+  if (!registration && navigator.onLine) {
+    registration = await navigator.serviceWorker.register("./service-worker.mjs", { scope: "./" });
+  }
+  if (!registration) throw new Error("The application shell is not installed.");
+  await navigator.serviceWorker.ready;
+  await waitForController();
+  if (!navigator.onLine) return;
+  const active = registration.active;
+  if (!active) throw new Error("The application shell worker is inactive.");
+  const channel = new MessageChannel();
+  const reply = new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error("Application shell caching timed out.")), 5000);
+    channel.port1.onmessage = (event) => {
+      window.clearTimeout(timeout);
+      if (event.data?.ok === true) resolve();
+      else reject(new Error("Application shell caching failed."));
+    };
+  });
+  active.postMessage({ type: "HONUA_PRECACHE_V1", urls: reviewedShellUrls() }, [channel.port2]);
+  await reply;
+}
+
+async function main() {
+  const value = await manifest();
+  const store = createIndexedDbOfflineRegionStore({ name: DATABASE_NAME });
+  await downloadWhenNeeded(value, store);
+  const snapshot = await readSnapshot(value, store);
+  await prepareApplicationShell();
+  const diagnostic = snapshot.diagnostic;
+  publish({
+    ready: true,
+    shellReady: true,
+    mode: navigator.onLine ? "online" : "offline",
+    availability: diagnostic.cache.readable ? "ready" : "unavailable",
+    freshness: diagnostic.cache.freshness,
+    payload: snapshot.payload,
+    attribution: diagnostic.contents.attributionIds
+      .map((id) => value.attribution[id])
+      .filter(Boolean)
+      .join("; "),
+    sourceVersion: diagnostic.provenance.sourceVersion,
+    schemaVersion: diagnostic.provenance.schemaVersion,
+    planVersion: diagnostic.provenance.planVersion,
+    error: snapshot.error,
+  });
+}
+
+void main().catch((error) => {
+  publish({
+    ready: true,
+    shellReady: false,
+    mode: navigator.onLine ? "online" : "offline",
+    availability: "unavailable",
+    freshness: "unknown",
+    sourceVersion: "unknown",
+    schemaVersion: "unknown",
+    planVersion: "unknown",
+    attribution: "",
+    error: error instanceof Error ? error.message : "Offline startup failed.",
+  });
+});
