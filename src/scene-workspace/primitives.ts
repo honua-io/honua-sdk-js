@@ -604,8 +604,8 @@ function diagnoseRenderableImagery(
         "unsupported",
         primitive,
         capabilities,
-        "Imagery layer requires a non-empty provider URL.",
-        "Provide the credential-free provider endpoint before applying imagery.",
+        "Imagery requires a provider URL.",
+        "Provide a credential-free URL.",
       ),
     );
   } else {
@@ -618,8 +618,8 @@ function diagnoseRenderableImagery(
           "unsupported",
           primitive,
           capabilities,
-          "Imagery layer has an invalid provider URL.",
-          "Use a provider-safe relative, HTTP, or HTTPS URL.",
+          "Imagery provider URL is invalid.",
+          "Use a relative, HTTP, or HTTPS URL.",
         ),
       );
     }
@@ -633,8 +633,8 @@ function diagnoseRenderableImagery(
         "unsupported",
         primitive,
         capabilities,
-        "Imagery bindings must not contain credentials, signed URLs, or credential-like service parameters.",
-        "Resolve authorization at the host boundary and store only a credential-free provider endpoint.",
+        "Imagery bindings cannot contain credentials or signed URLs.",
+        "Resolve authorization at the host boundary.",
       ),
     );
   }
@@ -663,8 +663,8 @@ function diagnoseRenderableImagery(
         "unsupported",
         primitive,
         capabilities,
-        `Imagery protocol '${primitive.protocol}' is missing required service configuration.`,
-        "Provide every protocol-required layer, style, tile-matrix identifier, and template subdomain.",
+        `Imagery configuration for '${primitive.protocol}' is incomplete.`,
+        "Provide required layer, style, matrix-set, and subdomain fields.",
       ),
       context: { missingFields: missingServiceFields },
     });
@@ -672,6 +672,13 @@ function diagnoseRenderableImagery(
 
   const invalidServiceFields: string[] = [];
   const isWebMapService = primitive.protocol === "wms" || primitive.protocol === "wmts";
+  const arcGisEndpoint =
+    primitive.protocol === "arcgis-imagery" && typeof primitive.url === "string"
+      ? arcGisImageryEndpoint(primitive.url)
+      : undefined;
+  if (primitive.protocol === "arcgis-imagery" && isNonEmptyString(primitive.url) && !arcGisEndpoint) {
+    invalidServiceFields.push("url");
+  }
   if (primitive.layer !== undefined && !isWebMapService) invalidServiceFields.push("layer");
   if (
     primitive.style !== undefined &&
@@ -688,13 +695,7 @@ function diagnoseRenderableImagery(
   if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
     invalidServiceFields.push("parameters");
   }
-  if (
-    (primitive.protocol === "single-tile" ||
-      (primitive.protocol === "arcgis-imagery" &&
-        typeof primitive.url === "string" &&
-        !isArcGisImageServerEndpoint(primitive.url))) &&
-    primitive.minimumLevel !== undefined
-  ) {
+  if ((primitive.protocol === "single-tile" || arcGisEndpoint === "map") && primitive.minimumLevel !== undefined) {
     invalidServiceFields.push("minimumLevel");
   }
   if (primitive.protocol === "single-tile" && primitive.maximumLevel !== undefined) {
@@ -712,8 +713,8 @@ function diagnoseRenderableImagery(
         "unsupported",
         primitive,
         capabilities,
-        `Imagery protocol '${primitive.protocol}' has invalid service configuration.`,
-        "Omit optional service fields or provide values in their documented form.",
+        `Imagery configuration for '${primitive.protocol}' is invalid.`,
+        "Omit unsupported fields or use documented values.",
       ),
       context: {
         invalidFields: invalidServiceFields,
@@ -733,8 +734,8 @@ function diagnoseRenderableImagery(
         "unsupported",
         primitive,
         capabilities,
-        "Imagery opacity must be a finite number between 0 and 1.",
-        "Use an opacity in the inclusive [0, 1] range.",
+        "Imagery opacity must be finite and between 0 and 1.",
+        "Use opacity in [0, 1].",
       ),
       context: { opacity: primitive.opacity },
     });
@@ -765,7 +766,7 @@ function diagnoseRenderableImagery(
         primitive,
         capabilities,
         "Imagery level bounds must be ordered non-negative integers.",
-        "Use non-negative integer levels with minimumLevel less than or equal to maximumLevel.",
+        "Use integer levels with minimumLevel <= maximumLevel.",
       ),
       context: invalidLevels,
     });
@@ -884,7 +885,7 @@ function invalidImageryParameterKeys(primitive: SceneImageryLayerPrimitive): str
   if (
     primitive.protocol !== "arcgis-imagery" ||
     typeof primitive.url !== "string" ||
-    isArcGisImageServerEndpoint(primitive.url) ||
+    arcGisImageryEndpoint(primitive.url) === "image" ||
     primitive.parameters === undefined ||
     !isValidImageryParameters(primitive.parameters)
   ) {
@@ -936,11 +937,13 @@ function normalizeArcGisMapServerLayers(value: unknown): string | undefined {
   return layerIds.join(",");
 }
 
-function isArcGisImageServerEndpoint(url: string): boolean {
+function arcGisImageryEndpoint(url: string): "image" | "map" | undefined {
   const endpoint = url.split(/[?#]/, 1)[0] ?? "";
   let end = endpoint.length;
   while (end > 0 && endpoint.charCodeAt(end - 1) === 47) end -= 1;
-  return endpoint.slice(0, end).toLowerCase().endsWith("/imageserver");
+  const normalized = endpoint.slice(0, end).toLowerCase();
+  if (normalized.endsWith("/imageserver")) return "image";
+  return normalized.endsWith("/mapserver") ? "map" : undefined;
 }
 
 function isSafeDnsLabel(value: unknown): value is string {

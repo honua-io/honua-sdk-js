@@ -863,6 +863,61 @@ describe("cesium scene adapter", () => {
       expect(imageryProviders).toHaveLength(0);
     });
 
+    it("rejects ArcGIS imagery URLs that are not service roots", async () => {
+      for (const [id, url] of [
+        ["feature-server", "https://services.example.test/arcgis/rest/services/base/FeatureServer"],
+        ["map-layer", "https://services.example.test/arcgis/rest/services/base/MapServer/0"],
+        ["arbitrary", "https://services.example.test/tiles"],
+      ] as const) {
+        const scene = createMockCesiumScene();
+        const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+          { kind: "imagery-layer", id, sourceId: id, protocol: "arcgis-imagery", url },
+        ]);
+        expect(result.status).toBe("unsupported");
+        expect(result.diagnostics).toContainEqual(
+          expect.objectContaining({
+            code: "scene-primitive-imagery-service-config-invalid",
+            primitiveId: id,
+            context: { invalidFields: ["url"] },
+          }),
+        );
+        expect(scene.addedImagery).toHaveLength(0);
+      }
+      expect(imageryProviders).toHaveLength(0);
+      expect(arcGisImageryFromUrl).not.toHaveBeenCalled();
+    });
+
+    it("removes a displaced imagery handle before replacing a duplicate primitive ID", async () => {
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        {
+          kind: "imagery-layer",
+          id: "duplicate-imagery",
+          sourceId: "first",
+          protocol: "url-template",
+          url: "https://tiles.example.test/first/{z}/{x}/{y}.png",
+        },
+        {
+          kind: "imagery-layer",
+          id: "duplicate-imagery",
+          sourceId: "second",
+          protocol: "url-template",
+          url: "https://tiles.example.test/second/{z}/{x}/{y}.png",
+        },
+      ]);
+
+      expect(result.status).toBe("supported");
+      expect(result.layers.size).toBe(1);
+      expect(scene.addedImagery).toHaveLength(1);
+      expect(imageryProviders).toHaveLength(2);
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+      expect(scene.addedImagery[0]?.imageryProvider).toBe(imageryProviders[1]);
+
+      result.layers.get("duplicate-imagery")?.remove();
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(imageryProviders[1]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
     it("fails invalid imagery configuration closed before loading a provider", async () => {
       const camera = createMockCesiumCamera();
       const scene = createMockCesiumScene();

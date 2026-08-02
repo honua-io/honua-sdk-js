@@ -176,6 +176,8 @@ Scene primitives describe 3D intent without naming a renderer package:
   instead of silently ignoring them. Custom subdomains require a `{s}` URL
   placeholder. ArcGIS MapServer rejects `minimumLevel`, which Cesium does not
   expose as a constructor option, while ImageServer URL templates support it.
+  ArcGIS imagery URLs must identify a MapServer or ImageServer service. When a
+  later layer reuses an ID, its predecessor is removed before replacement.
   Cesium-owned WMS/WMTS operation keys are removed from endpoint URLs, and WMTS
   dimensions that alias provider fields fail closed instead of creating
   case-insensitive KVP conflicts.

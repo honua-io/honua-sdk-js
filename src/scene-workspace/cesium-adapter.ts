@@ -1142,6 +1142,7 @@ export async function applyCesiumScenePrimitives(
   const originalVerticalExaggeration = scene?.verticalExaggeration;
   let terrainWasApplied = false;
   const registerHandle = (handle: CesiumLayerHandle): void => {
+    layers.get(handle.id)?.remove();
     appliedHandles.push(handle);
     layers.set(handle.id, handle);
   };
