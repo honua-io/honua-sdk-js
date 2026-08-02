@@ -48,7 +48,13 @@ function canonicalizeLaunchUrl() {
 
 async function readBoundedResponseBytes(response, maxBytes) {
   const contentLength = response.headers.get("content-length");
-  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > maxBytes) {
+  const contentEncoding = response.headers.get("content-encoding")?.trim().toLowerCase();
+  if (
+    (!contentEncoding || contentEncoding === "identity") &&
+    contentLength &&
+    /^\d+$/.test(contentLength) &&
+    Number(contentLength) > maxBytes
+  ) {
     await response.body?.cancel().catch(() => undefined);
     throw new Error("Offline resource exceeds its byte budget.");
   }

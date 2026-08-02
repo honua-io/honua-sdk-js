@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync } from "node:zlib";
 
 import { expect, test } from "@playwright/test";
 
@@ -86,6 +87,7 @@ test("offline reference rejects an oversized data response before persistence", 
     });
 
     server.setOfflineDataOversized(false);
+    server.setOfflineDataCompressed(true);
     await page.reload({ waitUntil: "load" });
     await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
       ready: true,
@@ -328,6 +330,7 @@ test("offline reference shell replaces complete generations and retains the comm
       `${server.url}/reference/shell-upgrade-ok.mjs`,
       "export const shellUpgradeFixture = true;",
     );
+    server.setShellResourceCompressed("/reference/shell-upgrade-ok.mjs", true);
     const failedManifestPath = "/reference/test-shell-manifest-failure.json";
     server.setShellManifest(failedManifestPath, {
       deploymentId: "test-failure",
@@ -1148,7 +1151,9 @@ async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   let offlineDataRequests = 0;
   let offlineDataOversized = false;
+  let offlineDataCompressed = false;
   let shellHanging = false;
+  const compressedShellResources = new Set();
   const heldShellResources = new Map();
   let referenceWorkerMessagesMuted = false;
   const shellManifests = new Map();
@@ -1160,7 +1165,13 @@ async function startServer() {
       offlineDataRequests += 1;
       response.setHeader("cache-control", "no-store");
       response.setHeader("content-type", "application/json; charset=utf-8");
-      response.end(offlineDataOversized ? Buffer.alloc(1024 * 1024, 32) : OFFLINE_REFERENCE_PAYLOAD);
+      const payload = offlineDataOversized ? Buffer.alloc(1024 * 1024, 32) : OFFLINE_REFERENCE_PAYLOAD;
+      if (offlineDataCompressed) {
+        response.setHeader("content-encoding", "gzip");
+        response.end(gzipSync(payload));
+      } else {
+        response.end(payload);
+      }
       return;
     }
     if (shellHanging && (url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/"))) return;
@@ -1176,7 +1187,13 @@ async function startServer() {
     }
     if (url.pathname === "/reference/shell-upgrade-ok.mjs") {
       response.setHeader("content-type", "application/javascript; charset=utf-8");
-      response.end("export const shellUpgradeFixture = true;");
+      const payload = "export const shellUpgradeFixture = true;";
+      if (compressedShellResources.has(url.pathname)) {
+        response.setHeader("content-encoding", "gzip");
+        response.end(gzipSync(payload));
+      } else {
+        response.end(payload);
+      }
       return;
     }
     if (url.pathname === "/reference/shell-upgrade-new-worker.mjs") {
@@ -1340,6 +1357,13 @@ async function startServer() {
     },
     setOfflineDataOversized(value) {
       offlineDataOversized = value;
+    },
+    setOfflineDataCompressed(value) {
+      offlineDataCompressed = value;
+    },
+    setShellResourceCompressed(resourcePath, value) {
+      if (value) compressedShellResources.add(resourcePath);
+      else compressedShellResources.delete(resourcePath);
     },
     setShellUnavailable(value) {
       shellUnavailable = value;

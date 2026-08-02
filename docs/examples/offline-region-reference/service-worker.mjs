@@ -55,7 +55,13 @@ async function sha256Integrity(bytes) {
 
 async function readBoundedResponseBytes(response, maxBytes, label) {
   const contentLength = response.headers.get("content-length");
-  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > maxBytes) {
+  const contentEncoding = response.headers.get("content-encoding")?.trim().toLowerCase();
+  if (
+    (!contentEncoding || contentEncoding === "identity") &&
+    contentLength &&
+    /^\d+$/.test(contentLength) &&
+    Number(contentLength) > maxBytes
+  ) {
     await response.body?.cancel().catch(() => undefined);
     throw new Error(`${label} exceeds its byte budget.`);
   }

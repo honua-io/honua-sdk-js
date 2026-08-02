@@ -15,7 +15,9 @@ manifest fresh and commits nothing unless every response matches, so a rollout
 cannot combine a new entry point with an older dependency graph.
 Manifest and asset bodies are read incrementally and canceled as soon as their
 declared or fixed byte ceiling is exceeded, so the ceilings also bound worker
-memory use for a malformed response.
+memory use for a malformed response. `Content-Length` is used as an early check
+only for identity encoding; compressed responses are bounded by their decoded
+stream so valid small resources are not rejected by a larger wire size.
 The same streaming ceiling is applied to the declared offline data resource
 before the SDK receives any bytes for persistence.
 
