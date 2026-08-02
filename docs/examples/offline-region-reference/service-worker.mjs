@@ -176,6 +176,15 @@ async function hasRetainedShell() {
   });
 }
 
+async function matchActiveShell(url) {
+  if (!self.navigator.locks) return undefined;
+  return self.navigator.locks.request(SHELL_UPDATE_LOCK_NAME, { mode: "shared" }, async () => {
+    const activeName = await activeShellCacheName();
+    if (!activeName) return undefined;
+    return (await caches.open(activeName)).match(cacheKey(url));
+  });
+}
+
 async function deleteInactiveShellCaches() {
   const names = await caches.keys();
   for (const name of names) {
@@ -285,13 +294,9 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     (async () => {
       await shellUpdateQueue;
-      const activeName = await activeShellCacheName();
-      const key = cacheKey(url);
-      if (activeName) {
-        const cached = await (await caches.open(activeName)).match(key);
-        if (cached) return cached;
-      }
-      return fetch(key);
+      const cached = await matchActiveShell(url);
+      if (cached) return cached;
+      return fetch(cacheKey(url));
     })(),
   );
 });

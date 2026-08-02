@@ -467,6 +467,16 @@ test("offline reference serializes shell replacement across worker versions", as
     expect(after.contentCacheNames).toEqual([after.activeName]);
     expect(after.activeName).toContain("test-new-worker");
     expect(after.urls).toEqual(newResources.map((resource) => resource.url));
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "offline",
+      availability: "ready",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+    });
   } finally {
     server.releaseHeldShellResource(heldPath);
     await cleanupOfflineReference(page, context);
