@@ -45,14 +45,20 @@ test("offline reference workflow reloads after browser networking is disabled", 
     const shell = await page.evaluate(async () => {
       const cache = await caches.open("honua-offline-region-reference-shell-v1");
       const requests = await cache.keys();
+      const byteLengths = await Promise.all(
+        requests.map(async (request) => (await (await cache.match(request)).arrayBuffer()).byteLength),
+      );
       return {
         urls: requests.map((request) => request.url),
         hasAuthorization: requests.some((request) => request.headers.has("authorization")),
+        byteLengths,
       };
     });
     expect(shell.urls.length).toBeGreaterThan(2);
     expect(shell.urls.length).toBeLessThanOrEqual(128);
     expect(shell.hasAuthorization).toBe(false);
+    expect(Math.max(...shell.byteLengths)).toBeLessThanOrEqual(4 * 1024 * 1024);
+    expect(shell.byteLengths.reduce((total, value) => total + value, 0)).toBeLessThanOrEqual(16 * 1024 * 1024);
     for (const value of shell.urls) {
       const url = new URL(value);
       expect(url.origin).toBe(server.url);

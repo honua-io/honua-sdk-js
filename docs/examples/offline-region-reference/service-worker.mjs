@@ -1,5 +1,7 @@
 const CACHE_NAME = "honua-offline-region-reference-shell-v1";
 const MAX_SHELL_URLS = 128;
+const MAX_SHELL_ASSET_BYTES = 4 * 1024 * 1024;
+const MAX_SHELL_TOTAL_BYTES = 16 * 1024 * 1024;
 const scopeUrl = new URL(self.registration.scope);
 
 function normalizedShellUrl(value) {
@@ -57,13 +59,21 @@ self.addEventListener("message", (event) => {
       const urls = values.map(normalizedShellUrl);
       if (urls.some((url) => url === undefined)) throw new Error("Unreviewed application shell URL.");
       const cache = await caches.open(CACHE_NAME);
+      let totalBytes = 0;
       for (const url of urls) {
         const key = cacheKey(url);
         const response = await fetch(key, { cache: "reload" });
-        if (!response.ok) throw new Error("Application shell request failed.");
+        if (!response.ok || response.redirected || response.url !== url.href) {
+          throw new Error("Application shell request failed.");
+        }
+        const byteLength = (await response.clone().arrayBuffer()).byteLength;
+        totalBytes += byteLength;
+        if (byteLength > MAX_SHELL_ASSET_BYTES || totalBytes > MAX_SHELL_TOTAL_BYTES) {
+          throw new Error("Application shell exceeds its byte budget.");
+        }
         await cache.put(key, response);
       }
-      port.postMessage({ ok: true, count: urls.length });
+      port.postMessage({ ok: true, count: urls.length, totalBytes });
     })().catch(() => port.postMessage({ ok: false })),
   );
 });
