@@ -788,10 +788,13 @@ async function createCesiumImageryProvider(
           ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
         });
       }
-      return cesium.ArcGisMapServerImageryProvider.fromUrl(resolveConfiguredSubdomainUrl(primitive), {
-        ...commonOptions,
-        ...arcGisMapServerOptions(primitive.parameters),
-      });
+      return cesium.ArcGisMapServerImageryProvider.fromUrl(
+        urlWithoutQueryKeys(resolveConfiguredSubdomainUrl(primitive), Object.keys(primitive.parameters ?? {}), true),
+        {
+          ...commonOptions,
+          ...arcGisMapServerOptions(primitive.parameters),
+        },
+      );
   }
 }
 
@@ -824,8 +827,10 @@ function urlWithServiceParameters(url: string, parameters: SceneImageryLayerPrim
   return `${withoutFragment}${withoutFragment.includes("?") ? "&" : "?"}${encodedParameters}${fragment}`;
 }
 
-function urlWithoutQueryKeys(url: string, keys: readonly string[]): string {
-  const overriddenKeys = new Set(keys.map((key) => key.toLowerCase()));
+function urlWithoutQueryKeys(url: string, keys: readonly string[], canonical = false): string {
+  const overriddenKeys = new Set(
+    keys.map((key) => (canonical ? key.toLowerCase().replaceAll(/[^a-z0-9]/g, "") : key.toLowerCase())),
+  );
   const hashIndex = url.indexOf("#");
   const withoutFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
   const fragment = hashIndex === -1 ? "" : url.slice(hashIndex);
@@ -838,7 +843,8 @@ function urlWithoutQueryKeys(url: string, keys: readonly string[]): string {
     const separatorIndex = entry.indexOf("=");
     const rawKey = separatorIndex === -1 ? entry : entry.slice(0, separatorIndex);
     try {
-      return !overriddenKeys.has(decodeURIComponent(rawKey.replaceAll("+", " ")).toLowerCase());
+      const decodedKey = decodeURIComponent(rawKey.replaceAll("+", " ")).toLowerCase();
+      return !overriddenKeys.has(canonical ? decodedKey.replaceAll(/[^a-z0-9]/g, "") : decodedKey);
     } catch {
       return true;
     }

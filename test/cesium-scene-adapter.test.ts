@@ -621,7 +621,7 @@ describe("cesium scene adapter", () => {
           id: "arcgis-map",
           sourceId: "arcgis-map",
           protocol: "arcgis-imagery",
-          url: "https://{s}.services.example.test/arcgis/rest/services/reference/MapServer",
+          url: "https://{s}.services.example.test/arcgis/rest/services/reference/MapServer?LAYERS=show%3A2&enablePickFeatures=true&cache=public#map",
           subdomains: ["maps-primary", "maps-secondary"],
           parameters: {
             layers: "show:1, 3",
@@ -701,7 +701,7 @@ describe("cesium scene adapter", () => {
         "mosaicRule",
       ]);
       expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
-        "https://maps-primary.services.example.test/arcgis/rest/services/reference/MapServer",
+        "https://maps-primary.services.example.test/arcgis/rest/services/reference/MapServer?cache=public#map",
         {
           layers: "1,3",
           enablePickFeatures: false,
