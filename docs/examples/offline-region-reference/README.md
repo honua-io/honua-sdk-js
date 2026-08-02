@@ -33,7 +33,8 @@ worker instances, preventing either version from deleting the other's staging
 or newly committed generation. A committed-generation marker is written only
 after its pointer update, and cleanup re-reads the active pointer immediately
 before removing each inactive generation, so overlapping worker lifecycles also
-fail safe.
+fail safe. Failure receipts read the pointer and retained cache under the same
+lock, so they cannot observe a generation halfway through a worker swap.
 
 The Playwright coverage in `test/playwright/offline-indexeddb.spec.mjs` serves
 these files from an isolated loopback origin. It also removes the downloaded

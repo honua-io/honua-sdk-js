@@ -168,9 +168,12 @@ async function isGenerationCommitted(name) {
 }
 
 async function hasRetainedShell() {
-  const activeName = await activeShellCacheName();
-  if (!activeName) return false;
-  return (await (await caches.open(activeName)).keys()).length > 0;
+  if (!self.navigator.locks) return false;
+  return self.navigator.locks.request(SHELL_UPDATE_LOCK_NAME, { mode: "shared" }, async () => {
+    const activeName = await activeShellCacheName();
+    if (!activeName) return false;
+    return (await (await caches.open(activeName)).keys()).length > 0;
+  });
 }
 
 async function deleteInactiveShellCaches() {
