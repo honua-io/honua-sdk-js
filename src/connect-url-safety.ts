@@ -1,45 +1,24 @@
 /** Internal credential rejection and canonical query helpers for discovery URLs. */
 
 const CREDENTIAL_QUERY_TOKENS = new Set([
-  "accesstoken",
-  "accesskey",
-  "apikey",
   "auth",
   "authorization",
-  "authtoken",
   "awsaccesskeyid",
   "bearer",
-  "bearertoken",
-  "clientsecret",
   "code",
-  "credential",
   "credentials",
   "expires",
   "googleaccessid",
-  "idtoken",
   "jwt",
   "key",
   "keypairid",
-  "ocpapimsubscriptionkey",
-  "password",
   "passwd",
   "policy",
-  "privatekey",
   "pwd",
-  "refreshtoken",
   "sas",
-  "secret",
-  "securitytoken",
   "session",
   "sessionid",
-  "sessiontoken",
   "sig",
-  "signature",
-  "sharedaccesskey",
-  "sharedaccesssignature",
-  "subscriptionkey",
-  "token",
-  "xapikey",
 ]);
 
 /** URLSearchParams has already percent-decoded names before this check. */
@@ -65,10 +44,16 @@ export function isCredentialQueryName(name: string): boolean {
       token.startsWith("xamz") ||
       token.startsWith("xgoog") ||
       token.endsWith("accesskey") ||
+      token.endsWith("apikey") ||
       token.endsWith("credential") ||
+      token.endsWith("encryptionkey") ||
       token.endsWith("password") ||
+      token.endsWith("privatekey") ||
       token.endsWith("secret") ||
+      token.endsWith("secretkey") ||
+      token.endsWith("signingkey") ||
       token.endsWith("signature") ||
+      token.endsWith("subscriptionkey") ||
       token.endsWith("token")
     );
   });
