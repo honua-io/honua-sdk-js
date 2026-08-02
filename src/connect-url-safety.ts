@@ -60,7 +60,17 @@ export function isCredentialQueryName(name: string): boolean {
   return normalized.split(/[&;?#]/u).some((part) => {
     const candidate = part.split(/[=:]/u, 1)[0]?.trim() ?? "";
     const token = candidate.replace(/[^a-z0-9]/gu, "");
-    return CREDENTIAL_QUERY_TOKENS.has(token) || token.startsWith("xamz") || token.startsWith("xgoog");
+    return (
+      CREDENTIAL_QUERY_TOKENS.has(token) ||
+      token.startsWith("xamz") ||
+      token.startsWith("xgoog") ||
+      token.endsWith("accesskey") ||
+      token.endsWith("credential") ||
+      token.endsWith("password") ||
+      token.endsWith("secret") ||
+      token.endsWith("signature") ||
+      token.endsWith("token")
+    );
   });
 }
 
