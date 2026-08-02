@@ -76,8 +76,7 @@ async function downloadWhenNeeded(value, store) {
   });
 }
 
-async function readSnapshot(value, store) {
-  const now = navigator.onLine ? ONLINE_NOW : OFFLINE_NOW;
+async function readSnapshot(value, store, now) {
   const inventory = await store.inventory();
   const diagnostic = await createOfflineRegionDiagnostic(value, inventory, {
     logicalQuotaBytes: LOGICAL_QUOTA_BYTES,
@@ -139,13 +138,12 @@ function reviewedShellUrls() {
 async function prepareApplicationShell() {
   if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable.");
   let registration = await navigator.serviceWorker.getRegistration("./");
-  if (!registration && navigator.onLine) {
+  if (!registration) {
     registration = await navigator.serviceWorker.register("./service-worker.mjs", { scope: "./" });
   }
   if (!registration) throw new Error("The application shell is not installed.");
   await navigator.serviceWorker.ready;
   await waitForController();
-  if (!navigator.onLine) return;
   const active = registration.active;
   if (!active) throw new Error("The application shell worker is inactive.");
   const channel = new MessageChannel();
@@ -153,25 +151,27 @@ async function prepareApplicationShell() {
     const timeout = window.setTimeout(() => reject(new Error("Application shell caching timed out.")), 5000);
     channel.port1.onmessage = (event) => {
       window.clearTimeout(timeout);
-      if (event.data?.ok === true) resolve();
+      if (event.data?.ok === true) resolve("refreshed");
+      else if (event.data?.retained === true) resolve("retained");
       else reject(new Error("Application shell caching failed."));
     };
   });
   active.postMessage({ type: "HONUA_PRECACHE_V1", urls: reviewedShellUrls() }, [channel.port2]);
-  await reply;
+  return reply;
 }
 
 async function main() {
   const value = await manifest();
   const store = createIndexedDbOfflineRegionStore({ name: DATABASE_NAME });
   await downloadWhenNeeded(value, store);
-  const snapshot = await readSnapshot(value, store);
-  await prepareApplicationShell();
+  const shellState = await prepareApplicationShell();
+  const disconnected = !navigator.onLine || shellState === "retained";
+  const snapshot = await readSnapshot(value, store, disconnected ? OFFLINE_NOW : ONLINE_NOW);
   const diagnostic = snapshot.diagnostic;
   publish({
     ready: true,
     shellReady: true,
-    mode: navigator.onLine ? "online" : "offline",
+    mode: disconnected ? "offline" : "online",
     availability: diagnostic.cache.readable ? "ready" : "unavailable",
     freshness: diagnostic.cache.freshness,
     payload: snapshot.payload,

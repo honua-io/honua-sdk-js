@@ -7,6 +7,10 @@ import { expect, test } from "@playwright/test";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const OFFLINE_REFERENCE_PAYLOAD = '{"features":[{"id":"incident-1","status":"open"}]}';
+const SHELL_CACHE_NAMESPACE = "honua-offline-region-reference-shell-";
+const SHELL_CONTROL_CACHE = `${SHELL_CACHE_NAMESPACE}control-v1`;
+const SHELL_GENERATION_PREFIX = `${SHELL_CACHE_NAMESPACE}generation-v1-`;
+const SHELL_LEGACY_CACHE = `${SHELL_CACHE_NAMESPACE}v1`;
 
 test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
   const server = await startServer();
@@ -42,18 +46,7 @@ test("offline reference workflow reloads after browser networking is disabled", 
     });
     expect(server.offlineDataRequests).toBe(1);
 
-    const shell = await page.evaluate(async () => {
-      const cache = await caches.open("honua-offline-region-reference-shell-v1");
-      const requests = await cache.keys();
-      const byteLengths = await Promise.all(
-        requests.map(async (request) => (await (await cache.match(request)).arrayBuffer()).byteLength),
-      );
-      return {
-        urls: requests.map((request) => request.url),
-        hasAuthorization: requests.some((request) => request.headers.has("authorization")),
-        byteLengths,
-      };
-    });
+    const shell = await readShellState(page);
     expect(shell.urls.length).toBeGreaterThan(2);
     expect(shell.urls.length).toBeLessThanOrEqual(128);
     expect(shell.hasAuthorization).toBe(false);
@@ -69,6 +62,116 @@ test("offline reference workflow reloads after browser networking is disabled", 
       expect(url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/")).toBe(true);
       expect(value).not.toMatch(/(?:authorization|password|secret|sig|token)=/i);
     }
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference workflow retains its snapshot when the origin is unreachable but the browser is online", async ({
+  page,
+}) => {
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      availability: "ready",
+      freshness: "fresh",
+    });
+    expect(server.offlineDataRequests).toBe(1);
+
+    server.setShellUnavailable(true);
+    await page.reload({ waitUntil: "load" });
+    expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "offline",
+      availability: "ready",
+      freshness: "stale",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+    });
+    expect(server.offlineDataRequests).toBe(1);
+  } finally {
+    await cleanupOfflineReference(page, page.context());
+    await server.close();
+  }
+});
+
+test("offline reference shell replaces complete generations and retains the committed one on failure", async ({
+  page,
+  context,
+}) => {
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      availability: "ready",
+    });
+    const before = await readShellState(page);
+    expect(before.contentCacheNames).toEqual([before.activeName]);
+
+    const failedRefresh = await requestShellRefresh(page, [
+      ...before.urls,
+      `${server.url}/reference/shell-upgrade-ok.mjs`,
+      `${server.url}/reference/shell-upgrade-fail.mjs`,
+    ]);
+    expect(failedRefresh).toEqual({ ok: false, retained: true });
+    const afterFailure = await readShellState(page);
+    expect(afterFailure.activeName).toBe(before.activeName);
+    expect(afterFailure.urls).toEqual(before.urls);
+    expect(afterFailure.contentCacheNames).toEqual([before.activeName]);
+
+    const oversizedRefresh = await requestShellRefresh(page, [
+      ...before.urls,
+      `${server.url}/reference/shell-upgrade-large.mjs`,
+    ]);
+    expect(oversizedRefresh).toEqual({ ok: false, retained: true });
+    const afterOversized = await readShellState(page);
+    expect(afterOversized.activeName).toBe(before.activeName);
+    expect(afterOversized.urls).toEqual(before.urls);
+    expect(afterOversized.contentCacheNames).toEqual([before.activeName]);
+
+    const accumulated = await page.evaluate(
+      async ({ activeName, origin }) => {
+        const cache = await caches.open(activeName);
+        for (let index = 0; index < 130; index += 1) {
+          await cache.put(`${origin}/reference/obsolete-entry-${index}.mjs`, new Response("x"));
+        }
+        return (await cache.keys()).length;
+      },
+      { activeName: before.activeName, origin: server.url },
+    );
+    expect(accumulated).toBeGreaterThan(128);
+
+    const replacementUrls = [...before.urls, `${server.url}/reference/shell-upgrade-ok.mjs`].sort();
+    const successfulRefresh = await requestShellRefresh(page, replacementUrls);
+    expect(successfulRefresh).toMatchObject({ ok: true, count: replacementUrls.length });
+    const afterSuccess = await readShellState(page);
+    expect(afterSuccess.activeName).not.toBe(before.activeName);
+    expect(afterSuccess.contentCacheNames).toEqual([afterSuccess.activeName]);
+    expect(afterSuccess.urls).toEqual(replacementUrls);
+    expect(afterSuccess.urls.some((url) => url.includes("obsolete-"))).toBe(false);
+    expect(afterSuccess.byteLengths.length).toBeLessThanOrEqual(128);
+    expect(Math.max(...afterSuccess.byteLengths)).toBeLessThanOrEqual(4 * 1024 * 1024);
+    expect(afterSuccess.byteLengths.reduce((total, value) => total + value, 0)).toBeLessThanOrEqual(
+      16 * 1024 * 1024,
+    );
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "offline",
+      availability: "ready",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+    });
   } finally {
     await cleanupOfflineReference(page, context);
     await server.close();
@@ -683,6 +786,7 @@ test("IndexedDB download resumes from verified staged resources", async ({ page 
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   let offlineDataRequests = 0;
+  let shellUnavailable = false;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
     if (url.pathname === "/offline-data.json") {
@@ -690,6 +794,26 @@ async function startServer() {
       response.setHeader("cache-control", "no-store");
       response.setHeader("content-type", "application/json; charset=utf-8");
       response.end(OFFLINE_REFERENCE_PAYLOAD);
+      return;
+    }
+    if (shellUnavailable && (url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/"))) {
+      response.statusCode = 503;
+      response.end("shell unavailable");
+      return;
+    }
+    if (url.pathname === "/reference/shell-upgrade-fail.mjs") {
+      response.statusCode = 503;
+      response.end("upgrade failed");
+      return;
+    }
+    if (url.pathname === "/reference/shell-upgrade-ok.mjs") {
+      response.setHeader("content-type", "application/javascript; charset=utf-8");
+      response.end("export const shellUpgradeFixture = true;");
+      return;
+    }
+    if (url.pathname === "/reference/shell-upgrade-large.mjs") {
+      response.setHeader("content-type", "application/javascript; charset=utf-8");
+      response.end(Buffer.alloc(4 * 1024 * 1024 + 1, 32));
       return;
     }
     const referenceFiles = new Map([
@@ -791,12 +915,65 @@ async function startServer() {
     get offlineDataRequests() {
       return offlineDataRequests;
     },
+    setShellUnavailable(value) {
+      shellUnavailable = value;
+    },
     close: () =>
       new Promise((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
         server.closeAllConnections?.();
       }),
   };
+}
+
+async function requestShellRefresh(page, urls) {
+  return page.evaluate(async (values) => {
+    const registration = await navigator.serviceWorker.getRegistration("./");
+    if (!registration?.active) throw new Error("Offline reference service worker is inactive.");
+    const channel = new MessageChannel();
+    const reply = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Offline reference shell refresh timed out.")), 5000);
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timeout);
+        resolve(event.data);
+      };
+    });
+    registration.active.postMessage({ type: "HONUA_PRECACHE_V1", urls: values }, [channel.port2]);
+    return reply;
+  }, urls);
+}
+
+async function readShellState(page) {
+  return page.evaluate(
+    async ({ controlCacheName, generationPrefix, legacyCacheName }) => {
+      const cacheNames = await caches.keys();
+      const control = await caches.open(controlCacheName);
+      const pointerUrl = new URL("./__honua-active-shell-v1__", window.location.href);
+      const pointer = await control.match(new Request(pointerUrl, { credentials: "omit", method: "GET" }));
+      const pointedName = pointer ? await pointer.text() : undefined;
+      const activeName = pointedName ?? (cacheNames.includes(legacyCacheName) ? legacyCacheName : undefined);
+      if (!activeName) throw new Error("Offline reference has no active shell cache.");
+      const cache = await caches.open(activeName);
+      const requests = await cache.keys();
+      const byteLengths = await Promise.all(
+        requests.map(async (request) => (await (await cache.match(request)).arrayBuffer()).byteLength),
+      );
+      return {
+        activeName,
+        contentCacheNames: cacheNames
+          .filter((name) => name === legacyCacheName || name.startsWith(generationPrefix))
+          .sort(),
+        urls: requests.map((request) => request.url).sort(),
+        hasAuthorization: requests.some((request) => request.headers.has("authorization")),
+        byteLengths,
+      };
+    },
+    {
+      controlCacheName: SHELL_CONTROL_CACHE,
+      generationPrefix: SHELL_GENERATION_PREFIX,
+      legacyCacheName: SHELL_LEGACY_CACHE,
+    },
+  );
 }
 
 async function cleanupOfflineReference(page, context) {

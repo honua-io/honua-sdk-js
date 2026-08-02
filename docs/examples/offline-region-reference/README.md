@@ -9,11 +9,21 @@ reload can therefore boot with networking disabled, read the resource through
 `createOfflineRegionFetchHandler()`, and show its stale state, version
 provenance, and attribution.
 
+Shell refresh is best effort once a complete generation exists. The worker
+stages and validates the complete replacement under a new cache name, commits
+it by changing one persistent active-generation pointer, and then removes the
+previous generation. A failed request or budget check deletes the staging
+cache and retains the prior shell. Replacing the whole generation also prevents
+obsolete URLs from accumulating past the entry or total-byte ceilings across
+deployments.
+
 The Playwright coverage in `test/playwright/offline-indexeddb.spec.mjs` serves
 these files from an isolated loopback origin. It also removes the downloaded
 region through the public cache-admin contract before a disconnected reload,
 proving that a cache miss is visibly unavailable rather than an empty
-successful result.
+successful result. It also covers an unreachable origin while
+`navigator.onLine` remains true, failed and oversized shell refreshes, and
+replacement of an intentionally overfilled prior generation.
 
 This is a disconnected-read reference only. It does not implement reconnect,
 edit replay, replica synchronization, or server acknowledgement semantics.
