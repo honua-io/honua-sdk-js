@@ -5,7 +5,9 @@ const LEGACY_CACHE_NAME = `${CACHE_NAMESPACE}v1`;
 const MAX_SHELL_URLS = 128;
 const MAX_SHELL_ASSET_BYTES = 4 * 1024 * 1024;
 const MAX_SHELL_TOTAL_BYTES = 16 * 1024 * 1024;
+const MAX_SHELL_MANIFEST_BYTES = 64 * 1024;
 const SHELL_REFRESH_TIMEOUT_MS = 3000;
+const SHELL_MANIFEST_FORMAT = "honua.offline-shell-manifest.v1";
 const scopeUrl = new URL(self.registration.scope);
 const activePointerUrl = new URL("__honua-active-shell-v1__", scopeUrl);
 let shellUpdateQueue = Promise.resolve();
@@ -36,11 +38,70 @@ function cacheKey(url) {
   return new Request(url.href, { credentials: "omit", method: "GET" });
 }
 
-function createGenerationName() {
+function createGenerationName(deploymentId) {
   const nonce = new Uint32Array(2);
   crypto.getRandomValues(nonce);
   const suffix = [...nonce].map((value) => value.toString(16).padStart(8, "0")).join("");
-  return `${GENERATION_CACHE_PREFIX}${Date.now()}-${suffix}`;
+  return `${GENERATION_CACHE_PREFIX}${deploymentId}-${Date.now()}-${suffix}`;
+}
+
+async function sha256Integrity(bytes) {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return `sha256:${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+async function loadShellManifest(value, signal) {
+  const manifestUrl = normalizedShellUrl(value);
+  if (!manifestUrl) throw new Error("Unreviewed application shell manifest URL.");
+  const response = await fetch(cacheKey(manifestUrl), { cache: "reload", signal });
+  if (!response.ok || response.redirected || response.url !== manifestUrl.href) {
+    throw new Error("Application shell manifest request failed.");
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_SHELL_MANIFEST_BYTES) {
+    throw new Error("Application shell manifest exceeds its byte budget.");
+  }
+  let manifest;
+  try {
+    manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+  } catch {
+    throw new Error("Application shell manifest is invalid JSON.");
+  }
+  if (
+    manifest?.format !== SHELL_MANIFEST_FORMAT ||
+    typeof manifest.deploymentId !== "string" ||
+    !/^[a-z0-9][a-z0-9.-]{0,63}$/.test(manifest.deploymentId) ||
+    !Array.isArray(manifest.resources) ||
+    manifest.resources.length === 0 ||
+    manifest.resources.length > MAX_SHELL_URLS
+  ) {
+    throw new Error("Application shell manifest is invalid.");
+  }
+
+  let declaredTotalBytes = 0;
+  const resources = manifest.resources.map((resource) => {
+    if (
+      typeof resource?.url !== "string" ||
+      !Number.isSafeInteger(resource.byteLength) ||
+      resource.byteLength < 0 ||
+      resource.byteLength > MAX_SHELL_ASSET_BYTES ||
+      typeof resource.integrity !== "string" ||
+      !/^sha256:[0-9a-f]{64}$/.test(resource.integrity)
+    ) {
+      throw new Error("Application shell manifest resource is invalid.");
+    }
+    const url = normalizedShellUrl(new URL(resource.url, manifestUrl).href);
+    if (!url) throw new Error("Unreviewed application shell URL.");
+    declaredTotalBytes += resource.byteLength;
+    if (declaredTotalBytes > MAX_SHELL_TOTAL_BYTES) {
+      throw new Error("Application shell manifest exceeds its byte budget.");
+    }
+    return { url, byteLength: resource.byteLength, integrity: resource.integrity };
+  });
+  if (new Set(resources.map((resource) => resource.url.href)).size !== resources.length) {
+    throw new Error("Duplicate application shell URL.");
+  }
+  return { deploymentId: manifest.deploymentId, resources };
 }
 
 async function pointedGenerationName() {
@@ -73,37 +134,34 @@ async function deleteInactiveShellCaches(activeName) {
   );
 }
 
-async function replaceApplicationShell(values, signal) {
-  if (!Array.isArray(values) || values.length === 0 || values.length > MAX_SHELL_URLS) {
-    throw new Error("Invalid application shell list.");
-  }
-  const urls = values.map(normalizedShellUrl);
-  if (urls.some((url) => url === undefined)) throw new Error("Unreviewed application shell URL.");
-  if (new Set(urls.map((url) => url.href)).size !== urls.length) {
-    throw new Error("Duplicate application shell URL.");
-  }
-
+async function replaceApplicationShell(manifestUrl, signal) {
+  const manifest = await loadShellManifest(manifestUrl, signal);
   const previousName = await activeShellCacheName();
   await deleteInactiveShellCaches(previousName);
-  const generationName = createGenerationName();
+  const generationName = createGenerationName(manifest.deploymentId);
   const generation = await caches.open(generationName);
   let committed = false;
   let totalBytes = 0;
   try {
-    for (const url of urls) {
-      const key = cacheKey(url);
+    for (const resource of manifest.resources) {
+      const key = cacheKey(resource.url);
       const response = await fetch(key, { cache: "reload", signal });
-      if (!response.ok || response.redirected || response.url !== url.href) {
+      if (!response.ok || response.redirected || response.url !== resource.url.href) {
         throw new Error("Application shell request failed.");
       }
-      const byteLength = (await response.clone().arrayBuffer()).byteLength;
+      const bytes = await response.clone().arrayBuffer();
+      const byteLength = bytes.byteLength;
       totalBytes += byteLength;
-      if (byteLength > MAX_SHELL_ASSET_BYTES || totalBytes > MAX_SHELL_TOTAL_BYTES) {
-        throw new Error("Application shell exceeds its byte budget.");
+      if (
+        byteLength !== resource.byteLength ||
+        totalBytes > MAX_SHELL_TOTAL_BYTES ||
+        (await sha256Integrity(bytes)) !== resource.integrity
+      ) {
+        throw new Error("Application shell resource integrity failed.");
       }
       await generation.put(key, response);
     }
-    if ((await generation.keys()).length !== urls.length) {
+    if ((await generation.keys()).length !== manifest.resources.length) {
       throw new Error("Application shell staging is incomplete.");
     }
 
@@ -114,7 +172,7 @@ async function replaceApplicationShell(values, signal) {
     );
     committed = true;
     await deleteInactiveShellCaches(generationName);
-    return { count: urls.length, totalBytes };
+    return { count: manifest.resources.length, deploymentId: manifest.deploymentId, totalBytes };
   } finally {
     if (!committed) await caches.delete(generationName);
   }
@@ -129,13 +187,13 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
-  if (event.data?.type !== "HONUA_PRECACHE_V1" || !event.ports[0]) return;
+  if (event.data?.type !== "HONUA_PRECACHE_V2" || !event.ports[0]) return;
   const port = event.ports[0];
   const update = shellUpdateQueue.then(async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), SHELL_REFRESH_TIMEOUT_MS);
     try {
-      return await replaceApplicationShell(event.data.urls, controller.signal);
+      return await replaceApplicationShell(event.data.manifestUrl, controller.signal);
     } finally {
       clearTimeout(timeout);
     }

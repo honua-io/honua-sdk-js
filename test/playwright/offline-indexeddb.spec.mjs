@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -13,6 +14,7 @@ const SHELL_GENERATION_PREFIX = `${SHELL_CACHE_NAMESPACE}generation-v1-`;
 const SHELL_LEGACY_CACHE = `${SHELL_CACHE_NAMESPACE}v1`;
 
 test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
+  test.slow();
   const server = await startServer();
   try {
     await page.goto(`${server.url}/reference/index.html?preview=1#offline`);
@@ -73,6 +75,7 @@ test("offline reference installs its exact worker when a broader worker already 
   page,
   context,
 }) => {
+  test.slow();
   const server = await startServer();
   try {
     await page.goto(`${server.url}/broad-worker-setup`);
@@ -140,6 +143,7 @@ test("offline reference installs its exact worker when a broader worker already 
 test("offline reference workflow retains its snapshot when the origin is unreachable but the browser is online", async ({
   page,
 }) => {
+  test.slow();
   const server = await startServer();
   try {
     await page.goto(`${server.url}/reference/`);
@@ -171,6 +175,7 @@ test("offline reference workflow retains its snapshot when the origin is unreach
 });
 
 test("offline reference workflow bounds a hanging shell refresh and retains its snapshot", async ({ page }) => {
+  test.slow();
   const server = await startServer();
   try {
     await page.goto(`${server.url}/reference/`);
@@ -207,6 +212,7 @@ test("offline reference shell replaces complete generations and retains the comm
   page,
   context,
 }) => {
+  test.slow();
   const server = await startServer();
   try {
     await page.goto(`${server.url}/reference/`);
@@ -218,21 +224,52 @@ test("offline reference shell replaces complete generations and retains the comm
     const before = await readShellState(page);
     expect(before.contentCacheNames).toEqual([before.activeName]);
 
-    const failedRefresh = await requestShellRefresh(page, [
-      ...before.urls,
+    const mixedManifestPath = "/reference/test-shell-manifest-mixed.json";
+    const mismatchedResources = before.resources.map((resource) =>
+      resource.url.endsWith("/reference/app.mjs")
+        ? { ...resource, integrity: `sha256:${"0".repeat(64)}` }
+        : resource,
+    );
+    server.setShellManifest(mixedManifestPath, {
+      deploymentId: "test-mixed",
+      resources: mismatchedResources,
+    });
+    const mixedRefresh = await requestShellRefresh(page, `${server.url}${mixedManifestPath}`);
+    expect(mixedRefresh).toEqual({ ok: false, retained: true });
+    const afterMixed = await readShellState(page);
+    expect(afterMixed.activeName).toBe(before.activeName);
+    expect(afterMixed.urls).toEqual(before.urls);
+    expect(afterMixed.contentCacheNames).toEqual([before.activeName]);
+
+    const okResource = shellResource(
       `${server.url}/reference/shell-upgrade-ok.mjs`,
-      `${server.url}/reference/shell-upgrade-fail.mjs`,
-    ]);
+      "export const shellUpgradeFixture = true;",
+    );
+    const failedManifestPath = "/reference/test-shell-manifest-failure.json";
+    server.setShellManifest(failedManifestPath, {
+      deploymentId: "test-failure",
+      resources: [
+        ...before.resources,
+        okResource,
+        shellResource(`${server.url}/reference/shell-upgrade-fail.mjs`, "upgrade failed"),
+      ],
+    });
+    const failedRefresh = await requestShellRefresh(page, `${server.url}${failedManifestPath}`);
     expect(failedRefresh).toEqual({ ok: false, retained: true });
     const afterFailure = await readShellState(page);
     expect(afterFailure.activeName).toBe(before.activeName);
     expect(afterFailure.urls).toEqual(before.urls);
     expect(afterFailure.contentCacheNames).toEqual([before.activeName]);
 
-    const oversizedRefresh = await requestShellRefresh(page, [
-      ...before.urls,
-      `${server.url}/reference/shell-upgrade-large.mjs`,
-    ]);
+    const oversizedManifestPath = "/reference/test-shell-manifest-oversized.json";
+    server.setShellManifest(oversizedManifestPath, {
+      deploymentId: "test-oversized",
+      resources: [
+        ...before.resources,
+        shellResource(`${server.url}/reference/shell-upgrade-large.mjs`, "declared-small"),
+      ],
+    });
+    const oversizedRefresh = await requestShellRefresh(page, `${server.url}${oversizedManifestPath}`);
     expect(oversizedRefresh).toEqual({ ok: false, retained: true });
     const afterOversized = await readShellState(page);
     expect(afterOversized.activeName).toBe(before.activeName);
@@ -251,9 +288,21 @@ test("offline reference shell replaces complete generations and retains the comm
     );
     expect(accumulated).toBeGreaterThan(128);
 
-    const replacementUrls = [...before.urls, `${server.url}/reference/shell-upgrade-ok.mjs`].sort();
-    const successfulRefresh = await requestShellRefresh(page, replacementUrls);
-    expect(successfulRefresh).toMatchObject({ ok: true, count: replacementUrls.length });
+    const replacementManifestPath = "/reference/test-shell-manifest-replacement.json";
+    const replacementResources = [...before.resources, okResource].sort((left, right) =>
+      left.url.localeCompare(right.url),
+    );
+    server.setShellManifest(replacementManifestPath, {
+      deploymentId: "test-replacement",
+      resources: replacementResources,
+    });
+    const replacementUrls = replacementResources.map((resource) => resource.url);
+    const successfulRefresh = await requestShellRefresh(page, `${server.url}${replacementManifestPath}`);
+    expect(successfulRefresh).toMatchObject({
+      ok: true,
+      count: replacementUrls.length,
+      deploymentId: "test-replacement",
+    });
     const afterSuccess = await readShellState(page);
     expect(afterSuccess.activeName).not.toBe(before.activeName);
     expect(afterSuccess.contentCacheNames).toEqual([afterSuccess.activeName]);
@@ -281,6 +330,7 @@ test("offline reference shell replaces complete generations and retains the comm
 });
 
 test("offline reference workflow fails visibly when its persisted region is missing", async ({ page, context }) => {
+  test.slow();
   const server = await startServer();
   try {
     await page.goto(`${server.url}/reference/`);
@@ -889,6 +939,7 @@ async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   let offlineDataRequests = 0;
   let shellHanging = false;
+  const shellManifests = new Map();
   let shellUnavailable = false;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
@@ -920,10 +971,18 @@ async function startServer() {
       response.end(Buffer.alloc(4 * 1024 * 1024 + 1, 32));
       return;
     }
+    const shellManifest = shellManifests.get(url.pathname);
+    if (shellManifest) {
+      response.setHeader("cache-control", "no-store");
+      response.setHeader("content-type", "application/json; charset=utf-8");
+      response.end(JSON.stringify(shellManifest));
+      return;
+    }
     const referenceFiles = new Map([
       ["/reference/", "index.html"],
       ["/reference/index.html", "index.html"],
       ["/reference/app.mjs", "app.mjs"],
+      ["/reference/shell-manifest.v1.json", "shell-manifest.v1.json"],
       ["/reference/service-worker.mjs", "service-worker.mjs"],
     ]);
     const referenceFile = referenceFiles.get(url.pathname);
@@ -931,9 +990,15 @@ async function startServer() {
       const file = await readFile(path.join(repoRoot, "docs/examples/offline-region-reference", referenceFile));
       response.setHeader(
         "content-type",
-        referenceFile.endsWith(".html") ? "text/html; charset=utf-8" : "application/javascript; charset=utf-8",
+        referenceFile.endsWith(".html")
+          ? "text/html; charset=utf-8"
+          : referenceFile.endsWith(".json")
+            ? "application/json; charset=utf-8"
+            : "application/javascript; charset=utf-8",
       );
-      if (referenceFile === "service-worker.mjs") response.setHeader("cache-control", "no-store");
+      if (referenceFile === "service-worker.mjs" || referenceFile === "shell-manifest.v1.json") {
+        response.setHeader("cache-control", "no-store");
+      }
       response.end(file);
       return;
     }
@@ -1039,6 +1104,13 @@ async function startServer() {
     setShellHanging(value) {
       shellHanging = value;
     },
+    setShellManifest(manifestPath, manifest) {
+      shellManifests.set(manifestPath, {
+        format: "honua.offline-shell-manifest.v1",
+        deploymentId: manifest.deploymentId,
+        resources: manifest.resources,
+      });
+    },
     close: () =>
       new Promise((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
@@ -1047,8 +1119,8 @@ async function startServer() {
   };
 }
 
-async function requestShellRefresh(page, urls) {
-  return page.evaluate(async (values) => {
+async function requestShellRefresh(page, manifestUrl) {
+  return page.evaluate(async (value) => {
     const registration = await navigator.serviceWorker.getRegistration("./");
     if (!registration?.active) throw new Error("Offline reference service worker is inactive.");
     const channel = new MessageChannel();
@@ -1059,9 +1131,18 @@ async function requestShellRefresh(page, urls) {
         resolve(event.data);
       };
     });
-    registration.active.postMessage({ type: "HONUA_PRECACHE_V1", urls: values }, [channel.port2]);
+    registration.active.postMessage({ type: "HONUA_PRECACHE_V2", manifestUrl: value }, [channel.port2]);
     return reply;
-  }, urls);
+  }, manifestUrl);
+}
+
+function shellResource(url, value) {
+  const bytes = Buffer.from(value);
+  return {
+    url,
+    byteLength: bytes.byteLength,
+    integrity: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+  };
 }
 
 async function readShellState(page) {
@@ -1076,17 +1157,29 @@ async function readShellState(page) {
       if (!activeName) throw new Error("Offline reference has no active shell cache.");
       const cache = await caches.open(activeName);
       const requests = await cache.keys();
-      const byteLengths = await Promise.all(
-        requests.map(async (request) => (await (await cache.match(request)).arrayBuffer()).byteLength),
+      const resources = await Promise.all(
+        requests.map(async (request) => {
+          const bytes = await (await cache.match(request)).arrayBuffer();
+          const digest = await crypto.subtle.digest("SHA-256", bytes);
+          return {
+            url: request.url,
+            byteLength: bytes.byteLength,
+            integrity: `sha256:${[...new Uint8Array(digest)]
+              .map((byte) => byte.toString(16).padStart(2, "0"))
+              .join("")}`,
+          };
+        }),
       );
+      resources.sort((left, right) => left.url.localeCompare(right.url));
       return {
         activeName,
         contentCacheNames: cacheNames
           .filter((name) => name === legacyCacheName || name.startsWith(generationPrefix))
           .sort(),
-        urls: requests.map((request) => request.url).sort(),
+        urls: resources.map((resource) => resource.url),
         hasAuthorization: requests.some((request) => request.headers.has("authorization")),
-        byteLengths,
+        byteLengths: resources.map((resource) => resource.byteLength),
+        resources,
       };
     },
     {

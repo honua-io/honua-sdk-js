@@ -9,6 +9,11 @@ reload can therefore boot with networking disabled, read the resource through
 `createOfflineRegionFetchHandler()`, and show its stale state, version
 provenance, and attribution.
 
+`shell-manifest.v1.json` identifies one deployment and pins every document and
+transitive SDK module by URL, byte length, and SHA-256. The worker fetches this
+manifest fresh and commits nothing unless every response matches, so a rollout
+cannot combine a new entry point with an older dependency graph.
+
 Shell refresh is best effort once a complete generation exists. The worker
 stages and validates the complete replacement under a new cache name, commits
 it by changing one persistent active-generation pointer, and then removes the

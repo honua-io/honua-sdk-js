@@ -8,6 +8,7 @@ import {
 
 const DATABASE_NAME = "honua-offline-region-reference-v1";
 const DATA_PATH = "/offline-data.json";
+const SHELL_MANIFEST_PATH = "./shell-manifest.v1.json";
 const RESOURCE_ID = "incidents";
 const RESOURCE_INTEGRITY = "sha256:01bffe15679e8bd02244b4c9a402bddb86e1e9e1a4ece7f6e0be9df512c0059d";
 const LOGICAL_QUOTA_BYTES = 1024;
@@ -161,26 +162,6 @@ async function waitForController(scriptUrl) {
   });
 }
 
-function reviewedShellUrls() {
-  const scope = new URL("./", window.location.href);
-  const documentUrl = new URL(window.location.href);
-  documentUrl.search = "";
-  documentUrl.hash = "";
-  const urls = new Set([scope.href, documentUrl.href, new URL("./app.mjs", scope).href]);
-  for (const entry of performance.getEntriesByType("resource")) {
-    const url = new URL(entry.name);
-    if (
-      url.origin === window.location.origin &&
-      (url.pathname.startsWith(scope.pathname) || url.pathname.startsWith("/dist/")) &&
-      !url.search &&
-      !url.hash
-    ) {
-      urls.add(url.href);
-    }
-  }
-  return [...urls].sort();
-}
-
 async function prepareApplicationShell() {
   if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable.");
   const scopeUrl = new URL("./", window.location.href);
@@ -206,7 +187,10 @@ async function prepareApplicationShell() {
       else reject(new Error("Application shell caching failed."));
     };
   });
-  active.postMessage({ type: "HONUA_PRECACHE_V1", urls: reviewedShellUrls() }, [channel.port2]);
+  active.postMessage(
+    { type: "HONUA_PRECACHE_V2", manifestUrl: new URL(SHELL_MANIFEST_PATH, window.location.href).href },
+    [channel.port2],
+  );
   return reply;
 }
 
