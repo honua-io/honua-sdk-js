@@ -852,18 +852,14 @@ function invalidImageryParameterKeys(primitive: SceneImageryLayerPrimitive): str
     primitive.parameters !== undefined &&
     isValidImageryParameters(primitive.parameters)
   ) {
-    return Object.keys(primitive.parameters).filter((key) =>
-      WMS_RESERVED_PARAMETER_KEYS.has(canonicalParameterKey(key)),
-    );
+    return invalidCaseInsensitiveParameterKeys(primitive.parameters, WMS_RESERVED_PARAMETER_KEYS);
   }
   if (
     primitive.protocol === "wmts" &&
     primitive.parameters !== undefined &&
     isValidImageryParameters(primitive.parameters)
   ) {
-    return Object.keys(primitive.parameters).filter((key) =>
-      WMTS_RESERVED_DIMENSION_KEYS.has(canonicalParameterKey(key)),
-    );
+    return invalidCaseInsensitiveParameterKeys(primitive.parameters, WMTS_RESERVED_DIMENSION_KEYS);
   }
   if (
     primitive.protocol !== "arcgis-imagery" ||
@@ -893,6 +889,20 @@ function invalidImageryParameterKeys(primitive: SceneImageryLayerPrimitive): str
         value > 0 &&
         value <= 8192);
     if (!valid) invalidKeys.push(key);
+  }
+  return invalidKeys;
+}
+
+function invalidCaseInsensitiveParameterKeys(
+  parameters: Readonly<Record<string, string | number | boolean>>,
+  reservedKeys: ReadonlySet<string>,
+): string[] {
+  const invalidKeys: string[] = [];
+  const seenKeys = new Set<string>();
+  for (const key of Object.keys(parameters)) {
+    const caseInsensitiveKey = key.toLowerCase();
+    if (seenKeys.has(caseInsensitiveKey) || reservedKeys.has(canonicalParameterKey(key))) invalidKeys.push(key);
+    seenKeys.add(caseInsensitiveKey);
   }
   return invalidKeys;
 }

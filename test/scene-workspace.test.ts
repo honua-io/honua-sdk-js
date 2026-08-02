@@ -204,6 +204,13 @@ describe("scene workspace", () => {
       },
       {
         kind: "imagery-layer",
+        id: "encoded-fragment-secret",
+        sourceId: "encoded-fragment-secret",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png#access_token%3Dsecret",
+      },
+      {
+        kind: "imagery-layer",
         id: "malformed-imagery",
         sourceId: "malformed-imagery",
         protocol: "single-tile",
@@ -241,6 +248,7 @@ describe("scene workspace", () => {
     "access_token",
     "api-key",
     "x-api-key",
+    "credentials",
     "subscription-key",
     "Ocp-Apim-Subscription-Key",
     "refresh-token",
@@ -248,7 +256,6 @@ describe("scene workspace", () => {
     "x-goog-signature",
     "sas",
     "shared-access-signature",
-    "sv",
   ])("rejects credential-shaped imagery key alias %s in URLs and parameters", (key) => {
     const workspace = createSceneWorkspace();
     const encodedKey = encodeURIComponent(key);
@@ -285,7 +292,7 @@ describe("scene workspace", () => {
     expect(workspace.state.primitives).toEqual({});
   });
 
-  it.each(["language", "time", "elevation", "layers", "format", "style", "cache"])(
+  it.each(["language", "time", "elevation", "layers", "format", "style", "cache", "sr", "se", "sp", "spr", "sv"])(
     "preserves ordinary imagery service parameter %s",
     (key) => {
       const workspace = createSceneWorkspace();

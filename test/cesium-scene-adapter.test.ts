@@ -884,7 +884,7 @@ describe("cesium scene adapter", () => {
           layer: "world",
           style: "default",
           tileMatrixSetId: "WebMercatorQuad",
-          parameters: { LAYER: "stale", TileMatrixSet: "stale", time: "2026-08-01" },
+          parameters: { LAYER: "stale", TileMatrixSet: "stale", time: "old", TIME: "new" },
         },
         {
           kind: "imagery-layer",
@@ -894,6 +894,15 @@ describe("cesium scene adapter", () => {
           url: "https://maps.example.test/wms",
           layer: "world",
           parameters: { REQUEST: "GetCapabilities", SERVICE: "WMS", time: "2026-08-01" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "duplicate-wms-parameters",
+          sourceId: "duplicate-wms-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: { time: "old", TIME: "new" },
         },
         {
           kind: "imagery-layer",
@@ -969,8 +978,15 @@ describe("cesium scene adapter", () => {
       expect(result.diagnostics).toContainEqual(
         expect.objectContaining({
           code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "duplicate-wms-parameters",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["TIME"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
           primitiveId: "reserved-wmts-dimensions",
-          context: { invalidFields: ["parameters"], invalidParameterKeys: ["LAYER", "TileMatrixSet"] },
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["LAYER", "TileMatrixSet", "TIME"] },
         }),
       );
       expect(result.diagnostics).toContainEqual(
