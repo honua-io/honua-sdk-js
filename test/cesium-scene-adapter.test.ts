@@ -18,9 +18,14 @@ const modelFromGltfAsync = vi.fn(async (options: Record<string, unknown>) => ({
 }));
 const terrainFromUrl = vi.fn(async (url: string) => ({ kind: "terrain-provider", url, destroy: vi.fn() }));
 const imageryProviders: MockImageryProvider[] = [];
+let failNextImageryDestroy = false;
 
 class MockImageryProvider {
   readonly destroy = vi.fn(() => {
+    if (failNextImageryDestroy) {
+      failNextImageryDestroy = false;
+      throw new Error("imagery cleanup failed");
+    }
     this.destroyed = true;
   });
   private destroyed = false;
@@ -377,6 +382,7 @@ describe("cesium scene adapter", () => {
       modelFromGltfAsync.mockClear();
       terrainFromUrl.mockClear();
       imageryProviders.length = 0;
+      failNextImageryDestroy = false;
       singleTileImageryFromUrl.mockClear();
       arcGisImageryFromUrl.mockClear();
     });
@@ -623,7 +629,7 @@ describe("cesium scene adapter", () => {
           sourceId: "arcgis-image",
           protocol: "arcgis-imagery",
           url: "https://{s}.services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public&mosaicrule=stale&MosaicRule=older&f=pjson&bbox=stale&size=1%2C1&format=jpg&transparent=false",
-          parameters: { mosaicRule: "public-rule", imageSR: 4326, F: "pjson" },
+          parameters: { mosaicRule: "public-rule" },
           subdomains: ["imagery-a", "imagery-b"],
           minimumLevel: 3,
           maximumLevel: 15,
@@ -918,6 +924,61 @@ describe("cesium scene adapter", () => {
       expect(imageryProviders[1]?.destroy).toHaveBeenCalledTimes(1);
     });
 
+    it("applies a valid replacement after an unsupported primitive with the same ID", async () => {
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        {
+          kind: "imagery-layer",
+          id: "mixed-imagery",
+          sourceId: "invalid",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/FeatureServer",
+        },
+        {
+          kind: "imagery-layer",
+          id: "mixed-imagery",
+          sourceId: "valid",
+          protocol: "url-template",
+          url: "https://tiles.example.test/valid/{z}/{x}/{y}.png",
+        },
+      ]);
+
+      expect(result.status).toBe("unsupported");
+      expect(result.layers.size).toBe(1);
+      expect(scene.addedImagery).toHaveLength(1);
+      expect(imageryProviders).toHaveLength(1);
+      expect(imageryProviders[0]?.options.url).toContain("/valid/");
+    });
+
+    it("rolls back a replacement when displaced-handle cleanup throws", async () => {
+      const scene = createMockCesiumScene();
+      failNextImageryDestroy = true;
+
+      await expect(
+        applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+          {
+            kind: "imagery-layer",
+            id: "cleanup-failure",
+            sourceId: "first",
+            protocol: "url-template",
+            url: "https://tiles.example.test/first/{z}/{x}/{y}.png",
+          },
+          {
+            kind: "imagery-layer",
+            id: "cleanup-failure",
+            sourceId: "second",
+            protocol: "url-template",
+            url: "https://tiles.example.test/second/{z}/{x}/{y}.png",
+          },
+        ]),
+      ).rejects.toThrow("imagery cleanup failed");
+
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(imageryProviders).toHaveLength(2);
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+      expect(imageryProviders[1]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
     it("fails invalid imagery configuration closed before loading a provider", async () => {
       const camera = createMockCesiumCamera();
       const scene = createMockCesiumScene();
@@ -1146,6 +1207,14 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "reserved-imageserver-parameters",
+          sourceId: "reserved-imageserver-parameters",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/ImageServer",
+          parameters: { imageSR: 4326, FORMAT: "jpg", transparent: false },
+        },
+        {
+          kind: "imagery-layer",
           id: "invalid-mapserver-layers",
           sourceId: "invalid-mapserver-layers",
           protocol: "arcgis-imagery",
@@ -1207,6 +1276,16 @@ describe("cesium scene adapter", () => {
           code: "scene-primitive-imagery-service-config-invalid",
           primitiveId: "unsupported-mapserver-parameter",
           context: { invalidFields: ["parameters"], invalidParameterKeys: ["customExportOption"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "reserved-imageserver-parameters",
+          context: {
+            invalidFields: ["parameters"],
+            invalidParameterKeys: ["imageSR", "FORMAT", "transparent"],
+          },
         }),
       );
       expect(

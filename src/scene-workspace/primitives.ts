@@ -61,6 +61,15 @@ export type SceneImagerySourceProtocol = "url-template" | "wms" | "wmts" | "sing
 
 const SCENE_IMAGERY_URL_BASE = "https://scene.honua.invalid/";
 const WMS_RESERVED_PARAMETER_KEYS = new Set(["bbox", "crs", "height", "request", "service", "srs", "width"]);
+const ARCGIS_IMAGE_SERVER_RESERVED_PARAMETER_KEYS = new Set([
+  "bbox",
+  "bboxsr",
+  "f",
+  "format",
+  "imagesr",
+  "size",
+  "transparent",
+]);
 const WMTS_RESERVED_DIMENSION_KEYS = new Set([
   "format",
   "layer",
@@ -664,7 +673,7 @@ function diagnoseRenderableImagery(
         primitive,
         capabilities,
         `Imagery configuration for '${primitive.protocol}' is incomplete.`,
-        "Provide required layer, style, matrix-set, and subdomain fields.",
+        "Provide required service fields.",
       ),
       context: { missingFields: missingServiceFields },
     });
@@ -714,7 +723,7 @@ function diagnoseRenderableImagery(
         primitive,
         capabilities,
         `Imagery configuration for '${primitive.protocol}' is invalid.`,
-        "Omit unsupported fields or use documented values.",
+        "Omit unsupported fields.",
       ),
       context: {
         invalidFields: invalidServiceFields,
@@ -784,8 +793,8 @@ function diagnoseRenderableImagery(
         "unsupported",
         primitive,
         capabilities,
-        "Imagery subdomains require host-safe DNS labels and a {s} URL.",
-        "Omit subdomains or add {s} to the provider URL.",
+        "Subdomains require DNS labels and a {s} URL.",
+        "Omit subdomains or add {s}.",
       ),
     );
   }
@@ -885,11 +894,13 @@ function invalidImageryParameterKeys(primitive: SceneImageryLayerPrimitive): str
   if (
     primitive.protocol !== "arcgis-imagery" ||
     typeof primitive.url !== "string" ||
-    arcGisImageryEndpoint(primitive.url) === "image" ||
     primitive.parameters === undefined ||
     !isValidImageryParameters(primitive.parameters)
   ) {
     return [];
+  }
+  if (arcGisImageryEndpoint(primitive.url) === "image") {
+    return invalidCaseInsensitiveParameterKeys(primitive.parameters, ARCGIS_IMAGE_SERVER_RESERVED_PARAMETER_KEYS);
   }
   const invalidKeys: string[] = [];
   const seenKeys = new Set<string>();

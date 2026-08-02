@@ -1131,8 +1131,12 @@ export async function applyCesiumScenePrimitives(
   const cesium = await loadCesium();
   const toCartesian = (longitude: number, latitude: number, height: number): unknown =>
     cesium.Cartesian3.fromDegrees(longitude, latitude, height);
-  const unsupportedIds = new Set(
-    diagnostics.filter((diagnostic) => diagnostic.status === "unsupported").map((diagnostic) => diagnostic.primitiveId),
+  const unsupportedPrimitives = new Set(
+    primitives.filter((primitive) =>
+      diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).some(
+        (diagnostic) => diagnostic.status === "unsupported",
+      ),
+    ),
   );
   const layers = new Map<string, CesiumLayerHandle>();
   const appliedHandles: CesiumLayerHandle[] = [];
@@ -1142,8 +1146,8 @@ export async function applyCesiumScenePrimitives(
   const originalVerticalExaggeration = scene?.verticalExaggeration;
   let terrainWasApplied = false;
   const registerHandle = (handle: CesiumLayerHandle): void => {
-    layers.get(handle.id)?.remove();
     appliedHandles.push(handle);
+    layers.get(handle.id)?.remove();
     layers.set(handle.id, handle);
   };
 
@@ -1153,7 +1157,7 @@ export async function applyCesiumScenePrimitives(
         applyCameraStateToCesiumCamera(target.camera, primitive.camera, toCartesian);
         continue;
       }
-      if (!scene || unsupportedIds.has(primitive.id)) continue;
+      if (!scene || unsupportedPrimitives.has(primitive)) continue;
 
       if (primitive.kind === "elevation-source") {
         const previousProvider = scene.terrainProvider;
