@@ -8,8 +8,10 @@ const MAX_SHELL_TOTAL_BYTES = 16 * 1024 * 1024;
 const MAX_SHELL_MANIFEST_BYTES = 64 * 1024;
 const SHELL_REFRESH_TIMEOUT_MS = 3000;
 const SHELL_MANIFEST_FORMAT = "honua.offline-shell-manifest.v1";
+const SHELL_UPDATE_LOCK_NAME = `${CACHE_NAMESPACE}update-v1`;
 const scopeUrl = new URL(self.registration.scope);
 const activePointerUrl = new URL("__honua-active-shell-v1__", scopeUrl);
+const committedGenerationMarkerBaseUrl = new URL("__honua-committed-shell-v1__/", scopeUrl);
 let shellUpdateQueue = Promise.resolve();
 
 function normalizedShellUrl(value) {
@@ -27,6 +29,7 @@ function normalizedShellUrl(value) {
     url.search ||
     url.hash ||
     url.href === activePointerUrl.href ||
+    url.href.startsWith(committedGenerationMarkerBaseUrl.href) ||
     (!url.pathname.startsWith(scopeUrl.pathname) && !url.pathname.startsWith("/dist/"))
   ) {
     return undefined;
@@ -150,25 +153,46 @@ async function activeShellCacheName() {
   return pointedGenerationName();
 }
 
+function committedGenerationMarkerUrl(name) {
+  return new URL(encodeURIComponent(name), committedGenerationMarkerBaseUrl);
+}
+
+async function markGenerationCommitted(name) {
+  const control = await caches.open(CONTROL_CACHE_NAME);
+  await control.put(cacheKey(committedGenerationMarkerUrl(name)), new Response("committed"));
+}
+
+async function isGenerationCommitted(name) {
+  const control = await caches.open(CONTROL_CACHE_NAME);
+  return Boolean(await control.match(cacheKey(committedGenerationMarkerUrl(name))));
+}
+
 async function hasRetainedShell() {
   const activeName = await activeShellCacheName();
   if (!activeName) return false;
   return (await (await caches.open(activeName)).keys()).length > 0;
 }
 
-async function deleteInactiveShellCaches(activeName) {
+async function deleteInactiveShellCaches() {
   const names = await caches.keys();
-  await Promise.all(
-    names
-      .filter((name) => (name === LEGACY_CACHE_NAME || name.startsWith(GENERATION_CACHE_PREFIX)) && name !== activeName)
-      .map((name) => caches.delete(name)),
-  );
+  for (const name of names) {
+    if (name === LEGACY_CACHE_NAME) {
+      await caches.delete(name);
+      continue;
+    }
+    if (!name.startsWith(GENERATION_CACHE_PREFIX)) continue;
+    if ((await activeShellCacheName()) === name) continue;
+    await caches.delete(name);
+    if (await isGenerationCommitted(name)) {
+      const control = await caches.open(CONTROL_CACHE_NAME);
+      await control.delete(cacheKey(committedGenerationMarkerUrl(name)));
+    }
+  }
 }
 
 async function replaceApplicationShell(manifestUrl, signal) {
   const manifest = await loadShellManifest(manifestUrl, signal);
-  const previousName = await activeShellCacheName();
-  await deleteInactiveShellCaches(previousName);
+  await deleteInactiveShellCaches();
   const generationName = createGenerationName(manifest.deploymentId);
   const generation = await caches.open(generationName);
   let committed = false;
@@ -209,11 +233,19 @@ async function replaceApplicationShell(manifestUrl, signal) {
       new Response(generationName, { headers: { "content-type": "text/plain; charset=utf-8" } }),
     );
     committed = true;
-    await deleteInactiveShellCaches(generationName);
+    await markGenerationCommitted(generationName);
+    await deleteInactiveShellCaches();
     return { count: manifest.resources.length, deploymentId: manifest.deploymentId, totalBytes };
   } finally {
     if (!committed) await caches.delete(generationName);
   }
+}
+
+async function replaceApplicationShellLocked(manifestUrl, signal) {
+  if (!self.navigator.locks) throw new Error("Cross-worker shell locking is unavailable.");
+  return self.navigator.locks.request(SHELL_UPDATE_LOCK_NAME, { mode: "exclusive", signal }, () =>
+    replaceApplicationShell(manifestUrl, signal),
+  );
 }
 
 self.addEventListener("install", (event) => {
@@ -230,7 +262,7 @@ self.addEventListener("message", (event) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), SHELL_REFRESH_TIMEOUT_MS);
   const update = shellUpdateQueue
-    .then(() => replaceApplicationShell(event.data.manifestUrl, controller.signal))
+    .then(() => replaceApplicationShellLocked(event.data.manifestUrl, controller.signal))
     .finally(() => clearTimeout(timeout));
   shellUpdateQueue = update.then(
     () => undefined,

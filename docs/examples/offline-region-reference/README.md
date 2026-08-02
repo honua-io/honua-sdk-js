@@ -28,6 +28,12 @@ obsolete URLs from accumulating past the entry or total-byte ceilings across
 deployments.
 Only a generation named by the persistent commit pointer qualifies as retained;
 unpointed or legacy caches are cleaned up but never trusted as a complete shell.
+An origin-scoped Web Lock serializes replacement across old and newly activated
+worker instances, preventing either version from deleting the other's staging
+or newly committed generation. A committed-generation marker is written only
+after its pointer update, and cleanup re-reads the active pointer immediately
+before removing each inactive generation, so overlapping worker lifecycles also
+fail safe.
 
 The Playwright coverage in `test/playwright/offline-indexeddb.spec.mjs` serves
 these files from an isolated loopback origin. It also removes the downloaded

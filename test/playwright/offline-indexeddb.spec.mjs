@@ -411,6 +411,69 @@ test("offline reference shell replaces complete generations and retains the comm
   }
 });
 
+test("offline reference serializes shell replacement across worker versions", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  const heldPath = "/reference/shell-upgrade-held-old.mjs";
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      availability: "ready",
+    });
+    const before = await readShellState(page);
+
+    const heldSource = "export const heldOldWorkerGeneration = true;";
+    const oldManifestPath = "/reference/test-shell-manifest-old-worker.json";
+    server.holdShellResource(heldPath, heldSource);
+    server.setShellManifest(oldManifestPath, {
+      deploymentId: "test-old-worker",
+      resources: [...before.resources, shellResource(`${server.url}${heldPath}`, heldSource)],
+    });
+    const oldRefresh = requestShellRefresh(page, `${server.url}${oldManifestPath}`).catch((error) => ({
+      error: error instanceof Error ? error.message : String(error),
+      ok: false,
+    }));
+    await server.waitForHeldShellResource(heldPath);
+
+    await page.evaluate(async () => {
+      const scope = new URL("./", window.location.href).href;
+      const scriptUrl = new URL("./service-worker-v2.mjs", window.location.href).href;
+      const registration = await navigator.serviceWorker.register(scriptUrl, { scope });
+      const deadline = Date.now() + 5000;
+      while (registration.active?.scriptURL !== scriptUrl) {
+        if (Date.now() >= deadline) throw new Error("Replacement service worker did not activate.");
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    });
+
+    const newManifestPath = "/reference/test-shell-manifest-new-worker.json";
+    const newSource = "export const newWorkerGeneration = true;";
+    const newResource = shellResource(`${server.url}/reference/shell-upgrade-new-worker.mjs`, newSource);
+    const newResources = [...before.resources, newResource].sort((left, right) => left.url.localeCompare(right.url));
+    server.setShellManifest(newManifestPath, {
+      deploymentId: "test-new-worker",
+      resources: newResources,
+    });
+    const newRefresh = requestShellRefresh(page, `${server.url}${newManifestPath}`);
+    await page.waitForTimeout(250);
+
+    server.releaseHeldShellResource(heldPath);
+    await oldRefresh;
+    await expect(newRefresh).resolves.toMatchObject({ ok: true, deploymentId: "test-new-worker" });
+    expect(server.shellManifestRequests(newManifestPath)).toBe(1);
+    const after = await readShellState(page);
+    expect(after.contentCacheNames).toEqual([after.activeName]);
+    expect(after.activeName).toContain("test-new-worker");
+    expect(after.urls).toEqual(newResources.map((resource) => resource.url));
+  } finally {
+    server.releaseHeldShellResource(heldPath);
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
 test("offline reference workflow fails visibly when its persisted region is missing", async ({ page, context }) => {
   test.slow();
   const server = await startServer();
@@ -1022,7 +1085,9 @@ async function startServer() {
   let offlineDataRequests = 0;
   let offlineDataOversized = false;
   let shellHanging = false;
+  const heldShellResources = new Map();
   const shellManifests = new Map();
+  const shellManifestRequestCounts = new Map();
   let shellUnavailable = false;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
@@ -1049,6 +1114,11 @@ async function startServer() {
       response.end("export const shellUpgradeFixture = true;");
       return;
     }
+    if (url.pathname === "/reference/shell-upgrade-new-worker.mjs") {
+      response.setHeader("content-type", "application/javascript; charset=utf-8");
+      response.end("export const newWorkerGeneration = true;");
+      return;
+    }
     if (url.pathname === "/reference/shell-upgrade-large.mjs") {
       response.setHeader("content-type", "application/javascript; charset=utf-8");
       response.end(Buffer.alloc(4 * 1024 * 1024 + 1, 32));
@@ -1060,8 +1130,17 @@ async function startServer() {
       response.end(Buffer.alloc(64 * 1024 + 1, 32));
       return;
     }
+    const heldShellResource = heldShellResources.get(url.pathname);
+    if (heldShellResource) {
+      heldShellResource.markRequested();
+      await heldShellResource.released;
+      response.setHeader("content-type", "application/javascript; charset=utf-8");
+      response.end(heldShellResource.content);
+      return;
+    }
     const shellManifest = shellManifests.get(url.pathname);
     if (shellManifest) {
+      shellManifestRequestCounts.set(url.pathname, (shellManifestRequestCounts.get(url.pathname) ?? 0) + 1);
       response.setHeader("cache-control", "no-store");
       response.setHeader("content-type", "application/json; charset=utf-8");
       response.end(JSON.stringify(shellManifest));
@@ -1073,6 +1152,7 @@ async function startServer() {
       ["/reference/app.mjs", "app.mjs"],
       ["/reference/shell-manifest.v1.json", "shell-manifest.v1.json"],
       ["/reference/service-worker.mjs", "service-worker.mjs"],
+      ["/reference/service-worker-v2.mjs", "service-worker.mjs"],
     ]);
     const referenceFile = referenceFiles.get(url.pathname);
     if (referenceFile) {
@@ -1088,7 +1168,11 @@ async function startServer() {
       if (referenceFile === "service-worker.mjs" || referenceFile === "shell-manifest.v1.json") {
         response.setHeader("cache-control", "no-store");
       }
-      response.end(file);
+      response.end(
+        url.pathname.endsWith("service-worker-v2.mjs")
+          ? Buffer.concat([file, Buffer.from("\n// replacement worker version\n")])
+          : file,
+      );
       return;
     }
     if (url.pathname === "/broad-worker-setup") {
@@ -1203,8 +1287,35 @@ async function startServer() {
         resources: manifest.resources,
       });
     },
+    shellManifestRequests(manifestPath) {
+      return shellManifestRequestCounts.get(manifestPath) ?? 0;
+    },
+    holdShellResource(resourcePath, content) {
+      let markRequested;
+      let release;
+      heldShellResources.set(resourcePath, {
+        content,
+        requested: new Promise((resolve) => {
+          markRequested = resolve;
+        }),
+        released: new Promise((resolve) => {
+          release = resolve;
+        }),
+        markRequested,
+        release,
+      });
+    },
+    waitForHeldShellResource(resourcePath) {
+      const resource = heldShellResources.get(resourcePath);
+      if (!resource) throw new Error(`Shell resource is not held: ${resourcePath}`);
+      return resource.requested;
+    },
+    releaseHeldShellResource(resourcePath) {
+      heldShellResources.get(resourcePath)?.release();
+    },
     close: () =>
       new Promise((resolve, reject) => {
+        for (const resource of heldShellResources.values()) resource.release();
         server.close((error) => (error ? reject(error) : resolve()));
         server.closeAllConnections?.();
       }),
@@ -1245,7 +1356,7 @@ async function readShellState(page) {
       const pointerUrl = new URL("./__honua-active-shell-v1__", window.location.href);
       const pointer = await control.match(new Request(pointerUrl, { credentials: "omit", method: "GET" }));
       const pointedName = pointer ? await pointer.text() : undefined;
-      const activeName = pointedName ?? (cacheNames.includes(legacyCacheName) ? legacyCacheName : undefined);
+      const activeName = pointedName;
       if (!activeName) throw new Error("Offline reference has no active shell cache.");
       const cache = await caches.open(activeName);
       const requests = await cache.keys();
