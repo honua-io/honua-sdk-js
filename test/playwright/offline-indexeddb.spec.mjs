@@ -15,7 +15,7 @@ const SHELL_LEGACY_CACHE = `${SHELL_CACHE_NAMESPACE}v1`;
 test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
   const server = await startServer();
   try {
-    await page.goto(`${server.url}/reference/index.html`);
+    await page.goto(`${server.url}/reference/index.html?preview=1#offline`);
     await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
       ready: true,
       shellReady: true,
@@ -28,6 +28,7 @@ test("offline reference workflow reloads after browser networking is disabled", 
       schemaVersion: "schema-v1",
       planVersion: "plan-v1",
     });
+    expect(page.url()).toBe(`${server.url}/reference/index.html`);
     expect(server.offlineDataRequests).toBe(1);
 
     await context.setOffline(true);

@@ -32,6 +32,14 @@ function publish(result) {
   window.__HONUA_OFFLINE_REFERENCE__ = Object.freeze(result);
 }
 
+function canonicalizeLaunchUrl() {
+  const url = new URL(window.location.href);
+  if (!url.search && !url.hash) return;
+  url.search = "";
+  url.hash = "";
+  window.history.replaceState(window.history.state, "", url);
+}
+
 async function manifest() {
   return createOfflineRegionManifest({
     name: "Incident field snapshot",
@@ -203,6 +211,7 @@ async function prepareApplicationShell() {
 }
 
 async function main() {
+  canonicalizeLaunchUrl();
   const value = await manifest();
   const store = createIndexedDbOfflineRegionStore({ name: DATABASE_NAME });
   await downloadWhenNeeded(value, store);
