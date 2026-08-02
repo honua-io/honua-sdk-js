@@ -575,7 +575,7 @@ describe("cesium scene adapter", () => {
           id: "weather",
           sourceId: "weather",
           protocol: "wms",
-          url: "https://maps.example.test/wms?LAYERS=stale&FORMAT=image/jpeg&TIME=old&cache=public",
+          url: "https://maps.example.test/wms?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0&LAYERS=stale&FORMAT=image/jpeg&TIME=old&BBOX=stale&cache=public",
           layer: "precipitation",
           format: "image/png",
           parameters: {
@@ -591,7 +591,7 @@ describe("cesium scene adapter", () => {
           id: "basemap",
           sourceId: "basemap",
           protocol: "wmts",
-          url: "https://maps.example.test/wmts?LAYER=old&TileMatrixSet=old&FORMAT=image/jpeg&TIME=old&cache=public#wmts",
+          url: "https://maps.example.test/wmts?SERVICE=WMTS&REQUEST=GetCapabilities&VERSION=1.0.0&LAYER=old&TileMatrixSet=old&TileMatrix=old&TileRow=1&TileCol=2&FORMAT=image/jpeg&TIME=old&cache=public#wmts",
           layer: "world",
           style: "default",
           tileMatrixSetId: "WebMercatorQuad",
@@ -877,6 +877,26 @@ describe("cesium scene adapter", () => {
         } as unknown as SceneRuntimePrimitive,
         {
           kind: "imagery-layer",
+          id: "reserved-wmts-dimensions",
+          sourceId: "reserved-wmts-dimensions",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          parameters: { LAYER: "stale", TileMatrixSet: "stale", time: "2026-08-01" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "reserved-wms-parameters",
+          sourceId: "reserved-wms-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: { REQUEST: "GetCapabilities", SERVICE: "WMS", time: "2026-08-01" },
+        },
+        {
+          kind: "imagery-layer",
           id: "invalid-opacity",
           sourceId: "invalid-opacity",
           protocol: "single-tile",
@@ -937,6 +957,20 @@ describe("cesium scene adapter", () => {
           code: "scene-primitive-imagery-service-config-missing",
           primitiveId: "malformed-wmts-config",
           context: { missingFields: ["layer", "style", "tileMatrixSetId"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "reserved-wms-parameters",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["REQUEST", "SERVICE"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "reserved-wmts-dimensions",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["LAYER", "TileMatrixSet"] },
         }),
       );
       expect(result.diagnostics).toContainEqual(

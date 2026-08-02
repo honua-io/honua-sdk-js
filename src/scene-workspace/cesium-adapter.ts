@@ -752,7 +752,7 @@ async function createCesiumImageryProvider(
       });
     case "wms":
       return new cesium.WebMapServiceImageryProvider({
-        url: normalizedWmsUrl(primitive.url, primitive.parameters, primitive.format),
+        url: normalizedWmsUrl(primitive.url, primitive.parameters),
         layers: primitive.layer,
         ...commonOptions,
         ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
@@ -800,20 +800,12 @@ function resolveConfiguredSubdomainUrl(primitive: SceneImageryLayerPrimitive): s
   return subdomain === undefined ? primitive.url : primitive.url.replaceAll("{s}", subdomain);
 }
 
-function normalizedWmsUrl(
-  url: string,
-  parameters: SceneImageryLayerPrimitive["parameters"],
-  format: SceneImageryLayerPrimitive["format"],
-): string {
-  return urlWithoutQueryKeys(url, [
-    "layers",
-    ...(format === undefined ? [] : ["format"]),
-    ...Object.keys(parameters ?? {}),
-  ]);
+function normalizedWmsUrl(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
+  return urlWithoutQueryKeys(url, [...WMS_PROVIDER_QUERY_KEYS, ...Object.keys(parameters ?? {})]);
 }
 
 function normalizedWmtsUrl(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
-  return urlWithoutQueryKeys(url, ["layer", "style", "tilematrixset", "format", ...Object.keys(parameters ?? {})]);
+  return urlWithoutQueryKeys(url, [...WMTS_PROVIDER_QUERY_KEYS, ...Object.keys(parameters ?? {})]);
 }
 
 function urlWithServiceParameters(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
@@ -948,6 +940,33 @@ const ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS = new Set([
   "format",
   "transparent",
 ]);
+const WMS_PROVIDER_QUERY_KEYS = [
+  "bbox",
+  "crs",
+  "format",
+  "height",
+  "layers",
+  "request",
+  "service",
+  "srs",
+  "styles",
+  "transparent",
+  "version",
+  "width",
+] as const;
+const WMTS_PROVIDER_QUERY_KEYS = [
+  "format",
+  "layer",
+  "request",
+  "service",
+  "style",
+  "tilecol",
+  "tilematrix",
+  "tilematrixset",
+  "tilematrixsetid",
+  "tilerow",
+  "version",
+] as const;
 
 function trimTrailingSlashes(value: string): string {
   let end = value.length;

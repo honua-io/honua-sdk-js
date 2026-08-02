@@ -60,6 +60,20 @@ export interface SceneElevationSourcePrimitive extends ScenePrimitiveBase {
 export type SceneImagerySourceProtocol = "url-template" | "wms" | "wmts" | "single-tile" | "arcgis-imagery";
 
 const SCENE_IMAGERY_URL_BASE = "https://scene.honua.invalid/";
+const WMS_RESERVED_PARAMETER_KEYS = new Set(["bbox", "crs", "height", "request", "service", "srs", "width"]);
+const WMTS_RESERVED_DIMENSION_KEYS = new Set([
+  "format",
+  "layer",
+  "request",
+  "service",
+  "style",
+  "tilecol",
+  "tilematrix",
+  "tilematrixset",
+  "tilematrixsetid",
+  "tilerow",
+  "version",
+]);
 /**
  * A credential-free imagery binding for a scene renderer.
  *
@@ -671,7 +685,7 @@ function diagnoseRenderableImagery(
     if (primitive.minimumLevel !== undefined) invalidServiceFields.push("minimumLevel");
     if (primitive.maximumLevel !== undefined) invalidServiceFields.push("maximumLevel");
   }
-  const invalidParameterKeys = invalidArcGisMapServerParameterKeys(primitive);
+  const invalidParameterKeys = invalidImageryParameterKeys(primitive);
   if (invalidParameterKeys.length > 0 && !invalidServiceFields.includes("parameters")) {
     invalidServiceFields.push("parameters");
   }
@@ -832,7 +846,25 @@ function isValidImagerySubdomains(value: unknown): value is readonly string[] {
   return true;
 }
 
-function invalidArcGisMapServerParameterKeys(primitive: SceneImageryLayerPrimitive): string[] {
+function invalidImageryParameterKeys(primitive: SceneImageryLayerPrimitive): string[] {
+  if (
+    primitive.protocol === "wms" &&
+    primitive.parameters !== undefined &&
+    isValidImageryParameters(primitive.parameters)
+  ) {
+    return Object.keys(primitive.parameters).filter((key) =>
+      WMS_RESERVED_PARAMETER_KEYS.has(canonicalParameterKey(key)),
+    );
+  }
+  if (
+    primitive.protocol === "wmts" &&
+    primitive.parameters !== undefined &&
+    isValidImageryParameters(primitive.parameters)
+  ) {
+    return Object.keys(primitive.parameters).filter((key) =>
+      WMTS_RESERVED_DIMENSION_KEYS.has(canonicalParameterKey(key)),
+    );
+  }
   if (
     primitive.protocol !== "arcgis-imagery" ||
     typeof primitive.url !== "string" ||
