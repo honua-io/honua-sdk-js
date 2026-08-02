@@ -47,6 +47,7 @@ export function isCredentialQueryName(name: string): boolean {
       token.endsWith("apikey") ||
       token.endsWith("credential") ||
       token.endsWith("encryptionkey") ||
+      token.endsWith("passphrase") ||
       token.endsWith("password") ||
       token.endsWith("privatekey") ||
       token.endsWith("secret") ||

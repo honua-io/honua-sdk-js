@@ -171,6 +171,11 @@ Scene primitives describe 3D intent without naming a renderer package:
   Service parameters override case-insensitive query keys already present in the
   endpoint: URL-template and single-tile bindings append them to the URL, WMS
   forwards them as request parameters, and WMTS forwards them as dimensions.
+  WMS and WMTS accept explicit `layer`, `style`, and `format` fields (plus
+  `tileMatrixSetId` for WMTS); other provider kinds reject those service fields
+  instead of silently ignoring them. Custom subdomains require a `{s}` URL
+  placeholder. ArcGIS MapServer rejects `minimumLevel`, which Cesium does not
+  expose as a constructor option, while ImageServer URL templates support it.
   Cesium-owned WMS/WMTS operation keys are removed from endpoint URLs, and WMTS
   dimensions that alias provider fields fail closed instead of creating
   case-insensitive KVP conflicts.

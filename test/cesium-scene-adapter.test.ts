@@ -562,7 +562,7 @@ describe("cesium scene adapter", () => {
           id: "osm",
           sourceId: "osm",
           protocol: "url-template",
-          url: "https://tiles.example.test/{z}/{x}/{y}.png?LANGUAGE=en&cache=public#tiles",
+          url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png?LANGUAGE=en&cache=public#tiles",
           parameters: { language: "fr", scale: 2 },
           subdomains: ["a", "b"],
           minimumLevel: 1,
@@ -575,28 +575,37 @@ describe("cesium scene adapter", () => {
           id: "weather",
           sourceId: "weather",
           protocol: "wms",
-          url: "https://maps.example.test/wms?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0&LAYERS=stale&FORMAT=image/jpeg&TIME=old&BBOX=stale&cache=public",
+          url: "https://{s}.maps.example.test/wms?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0&LAYERS=stale&STYLES=stale&FORMAT=image/jpeg&TIME=old&BBOX=stale&cache=public",
           layer: "precipitation",
+          style: "radar",
           format: "image/png",
           parameters: {
             transparent: true,
             Time: "2026-08-01T12:00:00Z",
             LAYERS: "older",
+            Styles: "older",
             FORMAT: "image/jpeg",
           },
           subdomains: ["maps-a", "maps-b"],
+          minimumLevel: 2,
+          maximumLevel: 12,
+          attribution: "Example WMS",
+          opacity: 0.6,
         },
         {
           kind: "imagery-layer",
           id: "basemap",
           sourceId: "basemap",
           protocol: "wmts",
-          url: "https://maps.example.test/wmts?SERVICE=WMTS&REQUEST=GetCapabilities&VERSION=1.0.0&LAYER=old&TileMatrixSet=old&TileMatrix=old&TileRow=1&TileCol=2&FORMAT=image/jpeg&TIME=old&cache=public#wmts",
+          url: "https://{s}.maps.example.test/wmts?SERVICE=WMTS&REQUEST=GetCapabilities&VERSION=1.0.0&LAYER=old&TileMatrixSet=old&TileMatrix=old&TileRow=1&TileCol=2&FORMAT=image/jpeg&TIME=old&cache=public#wmts",
           layer: "world",
           style: "default",
           tileMatrixSetId: "WebMercatorQuad",
           parameters: { Time: "2026-08-01T12:00:00Z", elevation: 250 },
           subdomains: ["tiles-1"],
+          minimumLevel: 1,
+          maximumLevel: 14,
+          attribution: "Example WMTS",
         },
         {
           kind: "imagery-layer",
@@ -606,6 +615,7 @@ describe("cesium scene adapter", () => {
           url: "https://{s}.images.example.test/snapshot.png?VERSION=old#snapshot",
           subdomains: ["snapshot-a", "snapshot-b"],
           parameters: { version: "new" },
+          attribution: "Example snapshot",
         },
         {
           kind: "imagery-layer",
@@ -615,6 +625,9 @@ describe("cesium scene adapter", () => {
           url: "https://{s}.services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public&mosaicrule=stale&MosaicRule=older&f=pjson&bbox=stale&size=1%2C1&format=jpg&transparent=false",
           parameters: { mosaicRule: "public-rule", imageSR: 4326, F: "pjson" },
           subdomains: ["imagery-a", "imagery-b"],
+          minimumLevel: 3,
+          maximumLevel: 15,
+          attribution: "Example ImageServer",
         },
         {
           kind: "imagery-layer",
@@ -629,6 +642,8 @@ describe("cesium scene adapter", () => {
             usePreCachedTilesIfAvailable: false,
             tileWidth: 512,
           },
+          maximumLevel: 16,
+          attribution: "Example MapServer",
         },
       ]);
 
@@ -644,41 +659,56 @@ describe("cesium scene adapter", () => {
         "arcgis-imagery",
       ]);
       expect(imageryProviders[0]?.options).toMatchObject({
-        url: "https://tiles.example.test/{z}/{x}/{y}.png?cache=public&language=fr&scale=2#tiles",
+        url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png?cache=public&language=fr&scale=2#tiles",
         credit: "Example tiles",
         subdomains: ["a", "b"],
         minimumLevel: 1,
         maximumLevel: 18,
       });
       expect(imageryProviders[1]?.options).toMatchObject({
-        url: "https://maps.example.test/wms?cache=public",
+        url: "https://{s}.maps.example.test/wms?cache=public",
         layers: "precipitation",
-        parameters: { transparent: true, Time: "2026-08-01T12:00:00Z", format: "image/png" },
+        parameters: {
+          transparent: true,
+          Time: "2026-08-01T12:00:00Z",
+          format: "image/png",
+          styles: "radar",
+        },
         subdomains: ["maps-a", "maps-b"],
+        minimumLevel: 2,
+        maximumLevel: 12,
+        credit: "Example WMS",
       });
       expect(imageryProviders[1]?.options.parameters).toEqual({
         transparent: true,
         Time: "2026-08-01T12:00:00Z",
         format: "image/png",
+        styles: "radar",
       });
       expect(imageryProviders[2]?.options).toMatchObject({
-        url: "https://maps.example.test/wmts?cache=public#wmts",
+        url: "https://{s}.maps.example.test/wmts?cache=public#wmts",
         layer: "world",
         style: "default",
         tileMatrixSetID: "WebMercatorQuad",
         format: "image/png",
         subdomains: ["tiles-1"],
         dimensions: { Time: "2026-08-01T12:00:00Z", elevation: 250 },
+        minimumLevel: 1,
+        maximumLevel: 14,
+        credit: "Example WMTS",
       });
       expect(singleTileImageryFromUrl).toHaveBeenCalledWith(
         "https://snapshot-a.images.example.test/snapshot.png?version=new#snapshot",
-        {},
+        { credit: "Example snapshot" },
       );
       expect(imageryProviders[4]?.options).toMatchObject({
         url: expect.stringMatching(
           /^https:\/\/\{s\}\.services\.example\.test\/arcgis\/rest\/services\/imagery\/ImageServer\/exportImage\?/,
         ),
         subdomains: ["imagery-a", "imagery-b"],
+        minimumLevel: 3,
+        maximumLevel: 15,
+        credit: "Example ImageServer",
       });
       const imageServerUrl = new URL(String(imageryProviders[4]?.options.url));
       expect(Object.fromEntries(imageServerUrl.searchParams)).toMatchObject({
@@ -707,9 +737,130 @@ describe("cesium scene adapter", () => {
           enablePickFeatures: false,
           usePreCachedTilesIfAvailable: false,
           tileWidth: 512,
+          maximumLevel: 16,
+          credit: "Example MapServer",
         },
       );
       expect(scene.addedImagery[0]?.alpha).toBe(0.75);
+      expect(scene.addedImagery[1]?.alpha).toBe(0.6);
+    });
+
+    it("fails closed for provider-specific fields that a protocol cannot apply", async () => {
+      const cases: readonly {
+        readonly primitive: SceneRuntimePrimitive;
+        readonly invalidFields: readonly string[];
+      }[] = [
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "url-template-service-fields",
+            sourceId: "url-template-service-fields",
+            protocol: "url-template",
+            url: "https://tiles.example.test/{z}/{x}/{y}.png",
+            layer: "ignored",
+            style: "ignored",
+            format: "image/png",
+            tileMatrixSetId: "ignored",
+          },
+          invalidFields: ["layer", "style", "format", "tileMatrixSetId"],
+        },
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "single-tile-service-fields",
+            sourceId: "single-tile-service-fields",
+            protocol: "single-tile",
+            url: "https://images.example.test/snapshot.png",
+            layer: "ignored",
+            style: "ignored",
+            format: "image/png",
+            tileMatrixSetId: "ignored",
+            minimumLevel: 1,
+            maximumLevel: 2,
+          },
+          invalidFields: ["layer", "style", "format", "tileMatrixSetId", "minimumLevel", "maximumLevel"],
+        },
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "wms-service-fields",
+            sourceId: "wms-service-fields",
+            protocol: "wms",
+            url: "https://maps.example.test/wms",
+            layer: "world",
+            style: 42,
+            tileMatrixSetId: "ignored",
+          } as unknown as SceneRuntimePrimitive,
+          invalidFields: ["style", "tileMatrixSetId"],
+        },
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "mapserver-service-fields",
+            sourceId: "mapserver-service-fields",
+            protocol: "arcgis-imagery",
+            url: "https://services.example.test/arcgis/rest/services/base/MapServer",
+            layer: "ignored",
+            style: "ignored",
+            format: "image/png",
+            tileMatrixSetId: "ignored",
+            minimumLevel: 1,
+          },
+          invalidFields: ["layer", "style", "format", "tileMatrixSetId", "minimumLevel"],
+        },
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "imageserver-service-fields",
+            sourceId: "imageserver-service-fields",
+            protocol: "arcgis-imagery",
+            url: "https://services.example.test/arcgis/rest/services/base/ImageServer",
+            layer: "ignored",
+            style: "ignored",
+            format: "image/png",
+            tileMatrixSetId: "ignored",
+            minimumLevel: 1,
+          },
+          invalidFields: ["layer", "style", "format", "tileMatrixSetId"],
+        },
+      ];
+
+      for (const { primitive, invalidFields } of cases) {
+        const scene = createMockCesiumScene();
+        const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [primitive]);
+        expect(result.status).toBe("unsupported");
+        expect(result.diagnostics).toContainEqual(
+          expect.objectContaining({
+            code: "scene-primitive-imagery-service-config-invalid",
+            primitiveId: primitive.id,
+            context: { invalidFields },
+          }),
+        );
+        expect(scene.addedImagery).toHaveLength(0);
+      }
+
+      const scene = createMockCesiumScene();
+      const unusedSubdomains = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        {
+          kind: "imagery-layer",
+          id: "wmts-unused-subdomains",
+          sourceId: "wmts-unused-subdomains",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          subdomains: ["tiles-a"],
+        },
+      ]);
+      expect(unusedSubdomains.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-subdomains-invalid",
+          primitiveId: "wmts-unused-subdomains",
+        }),
+      );
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(imageryProviders).toHaveLength(0);
     });
 
     it("fails invalid imagery configuration closed before loading a provider", async () => {

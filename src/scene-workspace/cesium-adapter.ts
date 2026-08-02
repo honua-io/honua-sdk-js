@@ -756,9 +756,9 @@ async function createCesiumImageryProvider(
         layers: primitive.layer,
         ...commonOptions,
         ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
-        ...(primitive.parameters || primitive.format
+        ...(primitive.parameters || primitive.format || primitive.style
           ? {
-              parameters: normalizedWmsParameters(primitive.parameters, primitive.format),
+              parameters: normalizedWmsParameters(primitive.parameters, primitive.format, primitive.style),
             }
           : {}),
       });
@@ -890,13 +890,18 @@ function normalizeArcGisMapServerLayers(value: string | number | boolean): strin
 function normalizedWmsParameters(
   parameters: SceneImageryLayerPrimitive["parameters"],
   format: SceneImageryLayerPrimitive["format"],
+  style: SceneImageryLayerPrimitive["style"],
 ): Readonly<Record<string, string | number | boolean>> {
   const entries = Object.entries(parameters ?? {}).filter(
-    ([key]) => key.toLowerCase() !== "layers" && (format === undefined || key.toLowerCase() !== "format"),
+    ([key]) =>
+      key.toLowerCase() !== "layers" &&
+      (format === undefined || key.toLowerCase() !== "format") &&
+      (style === undefined || key.toLowerCase() !== "styles"),
   );
   return {
     ...Object.fromEntries(entries),
     ...(format !== undefined ? { format } : {}),
+    ...(style !== undefined ? { styles: style } : {}),
   };
 }
 

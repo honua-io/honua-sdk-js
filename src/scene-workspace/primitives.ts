@@ -671,19 +671,34 @@ function diagnoseRenderableImagery(
   }
 
   const invalidServiceFields: string[] = [];
+  const isWebMapService = primitive.protocol === "wms" || primitive.protocol === "wmts";
+  if (primitive.layer !== undefined && !isWebMapService) invalidServiceFields.push("layer");
   if (
-    (primitive.protocol === "wms" || primitive.protocol === "wmts") &&
-    primitive.format !== undefined &&
-    !isNonEmptyString(primitive.format)
+    primitive.style !== undefined &&
+    (!isWebMapService || (primitive.protocol === "wms" && !isNonEmptyString(primitive.style)))
   ) {
-    invalidServiceFields.push("format");
+    invalidServiceFields.push("style");
+  }
+  if (primitive.format !== undefined) {
+    if (!isWebMapService || !isNonEmptyString(primitive.format)) invalidServiceFields.push("format");
+  }
+  if (primitive.tileMatrixSetId !== undefined && primitive.protocol !== "wmts") {
+    invalidServiceFields.push("tileMatrixSetId");
   }
   if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
     invalidServiceFields.push("parameters");
   }
-  if (primitive.protocol === "single-tile") {
-    if (primitive.minimumLevel !== undefined) invalidServiceFields.push("minimumLevel");
-    if (primitive.maximumLevel !== undefined) invalidServiceFields.push("maximumLevel");
+  if (
+    (primitive.protocol === "single-tile" ||
+      (primitive.protocol === "arcgis-imagery" &&
+        typeof primitive.url === "string" &&
+        !isArcGisImageServerEndpoint(primitive.url))) &&
+    primitive.minimumLevel !== undefined
+  ) {
+    invalidServiceFields.push("minimumLevel");
+  }
+  if (primitive.protocol === "single-tile" && primitive.maximumLevel !== undefined) {
+    invalidServiceFields.push("maximumLevel");
   }
   const invalidParameterKeys = invalidImageryParameterKeys(primitive);
   if (invalidParameterKeys.length > 0 && !invalidServiceFields.includes("parameters")) {
@@ -755,7 +770,12 @@ function diagnoseRenderableImagery(
       context: invalidLevels,
     });
   }
-  if (primitive.subdomains !== undefined && !isValidImagerySubdomains(primitive.subdomains)) {
+  if (
+    primitive.subdomains !== undefined &&
+    (!isValidImagerySubdomains(primitive.subdomains) ||
+      typeof primitive.url !== "string" ||
+      !primitive.url.includes("{s}"))
+  ) {
     diagnostics.push(
       diagnostic(
         "scene-primitive-imagery-subdomains-invalid",
@@ -763,8 +783,8 @@ function diagnoseRenderableImagery(
         "unsupported",
         primitive,
         capabilities,
-        "Imagery subdomains must be a bounded non-empty list of host-safe DNS labels.",
-        "Omit subdomains to use the provider default or provide DNS labels containing only letters, digits, and hyphens.",
+        "Imagery subdomains require host-safe DNS labels and a {s} URL.",
+        "Omit subdomains or add {s} to the provider URL.",
       ),
     );
   }
