@@ -23,7 +23,7 @@
   "/map was reset for the accepted-plan source workflow (#390): 62.6 to 79.5 KiB min and 16.2 to 21.8 KiB gzip after removing the generic aggregate executor. Keeping the adapter on /map preserves the canonical endpoint-to-map import; 'tree-shake:map-source-workflow' isolates its 17.1 KiB min / 6.4 KiB gzip consumer cost.",
   "/contract gzip was reset for credential-safe discovery (#391): provider-aware Azure SAS, CloudFront, AWS, and GCS signed-URL normalization plus runtime evidence-kind validation. The measured 61,493 bytes gzip is budgeted at 67,643 bytes per the 10% headroom policy.",
   "/realtime gained its first dedicated guard with the resumable checkpoint kernel (#393); its trust-boundary hardening adds runtime event validation and credential-free envelope projection. The ceiling is the measured subpath bundle plus 10% headroom.",
-  "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic region and edit-queue growth. The budget was reset for the reviewed durable ordered edit queue (#907): storage-neutral state transitions, bounded trust-boundary validation, deterministic SHA-256 identity, partition-scoped indexed metadata, leases, and terminal retention measure 76,465 minified / 21,557 gzip bytes. Both ceilings are measured actual plus 10% headroom, and root/browser barrels remain unchanged.",
+  "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic region and edit-replay growth. The budget was reset for acknowledged one-pass replay (#914): strict edit/request/idempotency binding, bounded transport invocation, cancellation, credential-free receipts, and all queue primitives measure 85,533 minified / 23,740 gzip bytes. Both ceilings are measured actual plus 10% headroom, and root/browser barrels remain unchanged.",
   "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
   "/query-planner was reset for the DuckDB SQL and gRPC query compilers plus spatial-aggregation pushdown (#389): the DuckDB compiler reuses the dependency-free geoparquet-sql builder so planner and adapter emit identical SQL. Measured 75,024 minified / 22,254 gzip; the ceiling is actual plus ~10% headroom.",
   "/agent-safety was reset again for binding safety authorization to accepted-plan and discovery evidence (#468): derived accepted-evidence gating over the approved execution/audit boundary (#456) measures 51,401 minified / 14,693 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
@@ -128,9 +128,9 @@
    "min": 77264,
    "gzip": 22175
   },
-  "/offline": {
-   "min": 84112,
-   "gzip": 23713
+ "/offline": {
+   "min": 94087,
+   "gzip": 26114
   },
   "/query-planner": {
    "min": 720180,

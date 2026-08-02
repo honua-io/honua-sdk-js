@@ -26,6 +26,7 @@ export {
   IndexedDbOfflineEditQueue,
   MemoryOfflineEditQueue,
 } from "./edit-queue.js";
+export { HONUA_OFFLINE_EDIT_REPLAY_VERSION, replayOfflineEditPass } from "./edit-replay.js";
 export {
   DEFAULT_OFFLINE_EDIT_QUEUE_MAX_AUDIT_EVENTS,
   DEFAULT_OFFLINE_EDIT_QUEUE_MAX_DEPENDENCIES,
@@ -63,6 +64,20 @@ export type {
   OfflineQueuedEditState,
   PruneTerminalOfflineEditsOptions,
 } from "./edit-queue.js";
+export type {
+  OfflineEditAppliedAcknowledgement,
+  OfflineEditConflictedAcknowledgement,
+  OfflineEditReplayAcknowledgement,
+  OfflineEditReplayIdentity,
+  OfflineEditReplayItemReceipt,
+  OfflineEditReplayPassReceipt,
+  OfflineEditReplayRequest,
+  OfflineEditReplayTransport,
+  OfflineEditReplayTransportContext,
+  OfflineEditReplayUnacknowledgedReason,
+  OfflineEditRetryableAcknowledgement,
+  ReplayOfflineEditPassOptions,
+} from "./edit-replay.js";
 export type { IndexedDbOfflineRegionStoreOptions } from "./indexeddb.js";
 export {
   DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,
