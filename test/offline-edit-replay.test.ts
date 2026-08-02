@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   HONUA_OFFLINE_EDIT_REPLAY_VERSION,
+  type OfflineEditQueue,
   type OfflineEditReplayAcknowledgement,
   type OfflineEditReplayRequest,
   createMemoryOfflineEditQueue,
@@ -305,5 +306,45 @@ describe("offline edit replay", () => {
       signal: preCancelled.signal,
     });
     expect(empty).toMatchObject({ claimedCount: 0, invokedCount: 0, stoppedReason: "cancelled" });
+  });
+
+  it("does not invoke transport when cancellation arrives while a claim is pending", async () => {
+    const queue = createMemoryOfflineEditQueue({ createLeaseToken: () => "lease" });
+    const enqueued = await queue.enqueue(enqueueInput("cancel-during-claim"));
+    const controller = new AbortController();
+    const delayedQueue = new Proxy(queue, {
+      get(target, property) {
+        if (property === "claimReady") {
+          return async (options: Parameters<OfflineEditQueue["claimReady"]>[0]) => {
+            const claimed = await target.claimReady(options);
+            controller.abort();
+            return claimed;
+          };
+        }
+        const value = Reflect.get(target, property, target) as unknown;
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as OfflineEditQueue;
+    let calls = 0;
+
+    const receipt = await replayOfflineEditPass(
+      delayedQueue,
+      () => {
+        calls += 1;
+      },
+      { ...PASS_OPTIONS, limit: 1, signal: controller.signal },
+    );
+
+    expect(calls).toBe(0);
+    expect(receipt).toMatchObject({
+      claimedCount: 1,
+      invokedCount: 0,
+      unacknowledgedCount: 1,
+      stoppedReason: "cancelled",
+    });
+    expect(receipt.outcomes).toEqual([
+      { editId: enqueued.edit.id, outcome: "unacknowledged", reasonCode: "cancelled" },
+    ]);
+    expect((await queue.get(enqueued.edit.id, PARTITION))?.state).toBe("leased");
   });
 });

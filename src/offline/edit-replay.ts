@@ -149,6 +149,11 @@ export async function replayOfflineEditPass(
       })
     ).slice(0, 1);
     if (!queued) break;
+    if (normalized.signal?.aborted) {
+      outcomes.push(unacknowledged(queued.id, "cancelled"));
+      stoppedReason = "cancelled";
+      break;
+    }
     if (invokedEditIds.has(queued.id)) {
       outcomes.push(unacknowledged(queued.id, "repeated-claim"));
       break;
