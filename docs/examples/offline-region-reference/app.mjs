@@ -11,6 +11,7 @@ const DATA_PATH = "/offline-data.json";
 const SHELL_CACHE_NAMESPACE = "honua-offline-region-reference-shell-";
 const SHELL_CONTROL_CACHE_NAME = `${SHELL_CACHE_NAMESPACE}control-v1`;
 const SHELL_GENERATION_PREFIX = `${SHELL_CACHE_NAMESPACE}generation-v1-`;
+const SHELL_UPDATE_LOCK_NAME = `${SHELL_CACHE_NAMESPACE}update-v1`;
 const SHELL_MANIFEST_PATH = "./shell-manifest.v1.json";
 const RESOURCE_ID = "incidents";
 const RESOURCE_BYTE_LENGTH = 50;
@@ -202,13 +203,16 @@ async function waitForController(scriptUrl) {
 }
 
 async function hasCommittedApplicationShell(scopeUrl) {
-  const control = await caches.open(SHELL_CONTROL_CACHE_NAME);
-  const pointerUrl = new URL("__honua-active-shell-v1__", scopeUrl);
-  const pointer = await control.match(new Request(pointerUrl, { credentials: "omit", method: "GET" }));
-  if (!pointer) return false;
-  const name = await pointer.text();
-  if (!name.startsWith(SHELL_GENERATION_PREFIX) || name.length > 256 || !(await caches.has(name))) return false;
-  return (await (await caches.open(name)).keys()).length > 0;
+  if (!navigator.locks) return false;
+  return navigator.locks.request(SHELL_UPDATE_LOCK_NAME, { mode: "shared" }, async () => {
+    const control = await caches.open(SHELL_CONTROL_CACHE_NAME);
+    const pointerUrl = new URL("__honua-active-shell-v1__", scopeUrl);
+    const pointer = await control.match(new Request(pointerUrl, { credentials: "omit", method: "GET" }));
+    if (!pointer) return false;
+    const name = await pointer.text();
+    if (!name.startsWith(SHELL_GENERATION_PREFIX) || name.length > 256 || !(await caches.has(name))) return false;
+    return (await (await caches.open(name)).keys()).length > 0;
+  });
 }
 
 function requestApplicationShellRefresh(worker, manifestUrl, retainedBeforeRefresh) {

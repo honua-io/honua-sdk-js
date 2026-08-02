@@ -12,6 +12,7 @@ const SHELL_CACHE_NAMESPACE = "honua-offline-region-reference-shell-";
 const SHELL_CONTROL_CACHE = `${SHELL_CACHE_NAMESPACE}control-v1`;
 const SHELL_GENERATION_PREFIX = `${SHELL_CACHE_NAMESPACE}generation-v1-`;
 const SHELL_LEGACY_CACHE = `${SHELL_CACHE_NAMESPACE}v1`;
+const SHELL_UPDATE_LOCK = `${SHELL_CACHE_NAMESPACE}update-v1`;
 
 test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
   test.slow();
@@ -497,6 +498,16 @@ test("offline reference retains its committed shell when an updated worker does 
     });
 
     server.setReferenceWorkerMessagesMuted(true);
+    await page.addInitScript((lockName) => {
+      const requestLock = navigator.locks.request.bind(navigator.locks);
+      navigator.locks.request = (...args) => {
+        const [name, options] = args;
+        if (name === lockName && options?.mode === "shared") {
+          window.__HONUA_PAGE_SHELL_LOCK_REQUESTS__ = (window.__HONUA_PAGE_SHELL_LOCK_REQUESTS__ ?? 0) + 1;
+        }
+        return requestLock(...args);
+      };
+    }, SHELL_UPDATE_LOCK);
     await page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration("./");
       const previous = navigator.serviceWorker.controller;
@@ -520,6 +531,7 @@ test("offline reference retains its committed shell when an updated worker does 
         freshness: "stale",
         payload: OFFLINE_REFERENCE_PAYLOAD,
       });
+    await expect.poll(() => page.evaluate(() => window.__HONUA_PAGE_SHELL_LOCK_REQUESTS__)).toBe(1);
   } finally {
     await cleanupOfflineReference(page, context);
     await server.close();
