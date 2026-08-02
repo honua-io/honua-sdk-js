@@ -13,6 +13,9 @@ provenance, and attribution.
 transitive SDK module by URL, byte length, and SHA-256. The worker fetches this
 manifest fresh and commits nothing unless every response matches, so a rollout
 cannot combine a new entry point with an older dependency graph.
+Manifest and asset bodies are read incrementally and canceled as soon as their
+declared or fixed byte ceiling is exceeded, so the ceilings also bound worker
+memory use for a malformed response.
 
 Shell refresh is best effort once a complete generation exists. The worker
 stages and validates the complete replacement under a new cache name, commits
@@ -29,8 +32,9 @@ proving that a cache miss is visibly unavailable rather than an empty
 successful result. It also covers an unreachable origin while
 `navigator.onLine` remains true, failed and oversized shell refreshes, and
 replacement of an intentionally overfilled prior generation. A hanging refresh
-is aborted before the host's response timeout so the committed shell remains
-usable. Query-bearing launch URLs are replaced in browser history with the
+is aborted before the host's response timeout, including while it waits behind
+another refresh, so the committed shell remains usable across concurrent tabs.
+Query-bearing launch URLs are replaced in browser history with the
 credential-free canonical document URL before the shell is declared ready.
 
 This is a disconnected-read reference only. It does not implement reconnect,

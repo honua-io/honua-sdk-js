@@ -174,9 +174,13 @@ test("offline reference workflow retains its snapshot when the origin is unreach
   }
 });
 
-test("offline reference workflow bounds a hanging shell refresh and retains its snapshot", async ({ page }) => {
+test("offline reference workflow bounds queued hanging shell refreshes and retains its snapshot", async ({
+  page,
+  context,
+}) => {
   test.slow();
   const server = await startServer();
+  let secondPage;
   try {
     await page.goto(`${server.url}/reference/`);
     await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
@@ -188,22 +192,40 @@ test("offline reference workflow bounds a hanging shell refresh and retains its 
     });
     expect(server.offlineDataRequests).toBe(1);
 
+    secondPage = await context.newPage();
+    await secondPage.goto(`${server.url}/reference/`);
+    await expect.poll(() => secondPage.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      availability: "ready",
+      freshness: "fresh",
+    });
+
     server.setShellHanging(true);
-    await page.reload({ waitUntil: "load" });
+    await Promise.all([page.reload({ waitUntil: "load" }), secondPage.reload({ waitUntil: "load" })]);
     expect(await page.evaluate(() => navigator.onLine)).toBe(true);
-    await expect
-      .poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__), { timeout: 7000 })
-      .toMatchObject({
-        ready: true,
-        shellReady: true,
-        mode: "offline",
-        availability: "ready",
-        freshness: "stale",
-        payload: OFFLINE_REFERENCE_PAYLOAD,
-      });
+    const retainedSnapshot = {
+      ready: true,
+      shellReady: true,
+      mode: "offline",
+      availability: "ready",
+      freshness: "stale",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+    };
+    await Promise.all([
+      expect
+        .poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__), { timeout: 7000 })
+        .toMatchObject(retainedSnapshot),
+      expect
+        .poll(() => secondPage.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__), { timeout: 7000 })
+        .toMatchObject(retainedSnapshot),
+    ]);
     expect(server.offlineDataRequests).toBe(1);
   } finally {
-    await cleanupOfflineReference(page, page.context());
+    server.setShellHanging(false);
+    await secondPage?.close().catch(() => undefined);
+    await cleanupOfflineReference(page, context);
     await server.close();
   }
 });
@@ -240,6 +262,16 @@ test("offline reference shell replaces complete generations and retains the comm
     expect(afterMixed.activeName).toBe(before.activeName);
     expect(afterMixed.urls).toEqual(before.urls);
     expect(afterMixed.contentCacheNames).toEqual([before.activeName]);
+
+    const oversizedManifestRefresh = await requestShellRefresh(
+      page,
+      `${server.url}/reference/test-shell-manifest-oversized.json`,
+    );
+    expect(oversizedManifestRefresh).toEqual({ ok: false, retained: true });
+    const afterOversizedManifest = await readShellState(page);
+    expect(afterOversizedManifest.activeName).toBe(before.activeName);
+    expect(afterOversizedManifest.urls).toEqual(before.urls);
+    expect(afterOversizedManifest.contentCacheNames).toEqual([before.activeName]);
 
     const okResource = shellResource(
       `${server.url}/reference/shell-upgrade-ok.mjs`,
@@ -969,6 +1001,12 @@ async function startServer() {
     if (url.pathname === "/reference/shell-upgrade-large.mjs") {
       response.setHeader("content-type", "application/javascript; charset=utf-8");
       response.end(Buffer.alloc(4 * 1024 * 1024 + 1, 32));
+      return;
+    }
+    if (url.pathname === "/reference/test-shell-manifest-oversized.json") {
+      response.setHeader("cache-control", "no-store");
+      response.setHeader("content-type", "application/json; charset=utf-8");
+      response.end(Buffer.alloc(64 * 1024 + 1, 32));
       return;
     }
     const shellManifest = shellManifests.get(url.pathname);

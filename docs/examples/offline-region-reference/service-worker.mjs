@@ -50,6 +50,41 @@ async function sha256Integrity(bytes) {
   return `sha256:${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
+async function readBoundedResponseBytes(response, maxBytes, label) {
+  const contentLength = response.headers.get("content-length");
+  if (contentLength && /^\d+$/.test(contentLength) && Number(contentLength) > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error(`${label} exceeds its byte budget.`);
+  }
+  if (!response.body) return new Uint8Array();
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (totalBytes + value.byteLength > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(`${label} exceeds its byte budget.`);
+      }
+      chunks.push(value);
+      totalBytes += value.byteLength;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 async function loadShellManifest(value, signal) {
   const manifestUrl = normalizedShellUrl(value);
   if (!manifestUrl) throw new Error("Unreviewed application shell manifest URL.");
@@ -57,10 +92,8 @@ async function loadShellManifest(value, signal) {
   if (!response.ok || response.redirected || response.url !== manifestUrl.href) {
     throw new Error("Application shell manifest request failed.");
   }
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength === 0 || bytes.byteLength > MAX_SHELL_MANIFEST_BYTES) {
-    throw new Error("Application shell manifest exceeds its byte budget.");
-  }
+  const bytes = await readBoundedResponseBytes(response, MAX_SHELL_MANIFEST_BYTES, "Application shell manifest");
+  if (bytes.byteLength === 0) throw new Error("Application shell manifest is empty.");
   let manifest;
   try {
     manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
@@ -149,7 +182,7 @@ async function replaceApplicationShell(manifestUrl, signal) {
       if (!response.ok || response.redirected || response.url !== resource.url.href) {
         throw new Error("Application shell request failed.");
       }
-      const bytes = await response.clone().arrayBuffer();
+      const bytes = await readBoundedResponseBytes(response, resource.byteLength, "Application shell resource");
       const byteLength = bytes.byteLength;
       totalBytes += byteLength;
       if (
@@ -159,7 +192,14 @@ async function replaceApplicationShell(manifestUrl, signal) {
       ) {
         throw new Error("Application shell resource integrity failed.");
       }
-      await generation.put(key, response);
+      await generation.put(
+        key,
+        new Response(bytes, {
+          headers: response.headers,
+          status: response.status,
+          statusText: response.statusText,
+        }),
+      );
     }
     if ((await generation.keys()).length !== manifest.resources.length) {
       throw new Error("Application shell staging is incomplete.");
@@ -189,15 +229,11 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "HONUA_PRECACHE_V2" || !event.ports[0]) return;
   const port = event.ports[0];
-  const update = shellUpdateQueue.then(async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), SHELL_REFRESH_TIMEOUT_MS);
-    try {
-      return await replaceApplicationShell(event.data.manifestUrl, controller.signal);
-    } finally {
-      clearTimeout(timeout);
-    }
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SHELL_REFRESH_TIMEOUT_MS);
+  const update = shellUpdateQueue
+    .then(() => replaceApplicationShell(event.data.manifestUrl, controller.signal))
+    .finally(() => clearTimeout(timeout));
   shellUpdateQueue = update.then(
     () => undefined,
     () => undefined,
