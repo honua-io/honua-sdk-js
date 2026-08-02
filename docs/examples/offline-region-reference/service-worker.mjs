@@ -147,9 +147,7 @@ async function pointedGenerationName() {
 }
 
 async function activeShellCacheName() {
-  const pointed = await pointedGenerationName();
-  if (pointed) return pointed;
-  return (await caches.keys()).includes(LEGACY_CACHE_NAME) ? LEGACY_CACHE_NAME : undefined;
+  return pointedGenerationName();
 }
 
 async function hasRetainedShell() {

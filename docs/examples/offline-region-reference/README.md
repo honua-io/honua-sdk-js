@@ -26,6 +26,8 @@ previous generation. A failed request or budget check deletes the staging
 cache and retains the prior shell. Replacing the whole generation also prevents
 obsolete URLs from accumulating past the entry or total-byte ceilings across
 deployments.
+Only a generation named by the persistent commit pointer qualifies as retained;
+unpointed or legacy caches are cleaned up but never trusted as a complete shell.
 
 The Playwright coverage in `test/playwright/offline-indexeddb.spec.mjs` serves
 these files from an isolated loopback origin. It also removes the downloaded

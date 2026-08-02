@@ -162,6 +162,28 @@ test("offline reference installs its exact worker when a broader worker already 
       availability: "ready",
       payload: OFFLINE_REFERENCE_PAYLOAD,
     });
+
+    await context.setOffline(false);
+    const legacyEntries = await page.evaluate(
+      async ({ controlName, generationPrefix, legacyName, origin }) => {
+        await caches.delete(controlName);
+        const names = await caches.keys();
+        await Promise.all(names.filter((name) => name.startsWith(generationPrefix)).map((name) => caches.delete(name)));
+        const legacy = await caches.open(legacyName);
+        await legacy.put(`${origin}/reference/`, new Response("partial legacy shell"));
+        return (await legacy.keys()).length;
+      },
+      {
+        controlName: SHELL_CONTROL_CACHE,
+        generationPrefix: SHELL_GENERATION_PREFIX,
+        legacyName: SHELL_LEGACY_CACHE,
+        origin: server.url,
+      },
+    );
+    expect(legacyEntries).toBe(1);
+    server.setShellUnavailable(true);
+    const legacyRefresh = await requestShellRefresh(page, `${server.url}/reference/shell-manifest.v1.json`);
+    expect(legacyRefresh).toEqual({ ok: false, retained: false });
   } finally {
     await cleanupOfflineReference(page, context);
     await server.close();
