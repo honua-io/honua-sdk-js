@@ -60,8 +60,12 @@ describe("split package manifests", () => {
   });
 
   it("qualifies Cesium imagery through the installed app-platform scene entrypoint", () => {
+    const prepareScript = fs.readFileSync(path.join(process.cwd(), "scripts/prepare-split-packages.mjs"), "utf8");
     const verifier = fs.readFileSync(path.join(process.cwd(), "scripts/verify-split-packages.mjs"), "utf8");
+    const appPlatformFactory = prepareScript.slice(prepareScript.indexOf("function createAppPlatformPackage()"));
 
+    expect(appPlatformFactory).toContain('DIST_SRC_ROOT, "connect-url-safety.js"');
+    expect(appPlatformFactory).toContain('DIST_SRC_ROOT, "connect-url-safety.d.ts"');
     expect(verifier).toContain("addCesiumImageryLayer");
     expect(verifier).toContain("CESIUM_SCENE_CAPABILITIES.imagery");
     expect(verifier).toContain("SceneImageryLayerPrimitive");

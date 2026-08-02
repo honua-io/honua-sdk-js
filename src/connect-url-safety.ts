@@ -43,6 +43,7 @@ const CREDENTIAL_QUERY_NAMES = new Set([
 
 const CREDENTIAL_QUERY_TOKENS = new Set([
   "accesstoken",
+  "accesskey",
   "apikey",
   "auth",
   "authorization",
@@ -67,6 +68,7 @@ const CREDENTIAL_QUERY_TOKENS = new Set([
   "pwd",
   "refreshtoken",
   "sas",
+  "se",
   "secret",
   "securitytoken",
   "session",
@@ -74,7 +76,13 @@ const CREDENTIAL_QUERY_TOKENS = new Set([
   "sessiontoken",
   "sig",
   "signature",
+  "sharedaccesskey",
+  "sharedaccesssignature",
+  "sp",
+  "spr",
+  "sr",
   "subscriptionkey",
+  "sv",
   "token",
   "xapikey",
 ]);

@@ -171,6 +171,8 @@ Scene primitives describe 3D intent without naming a renderer package:
   Service parameters override case-insensitive query keys already present in the
   endpoint: URL-template and single-tile bindings append them to the URL, WMS
   forwards them as request parameters, and WMTS forwards them as dimensions.
+  Single-tile bindings reject tile-level bounds because the provider represents
+  one untiled image and cannot honor minimum or maximum tile levels.
   Provider URLs may be relative, HTTP, or HTTPS; malformed URLs and bindings
   containing userinfo, signed-URL query keys, or credential-like parameters fail
   closed before workspace serialization or provider creation.

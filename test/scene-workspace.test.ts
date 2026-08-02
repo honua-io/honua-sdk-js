@@ -236,6 +236,78 @@ describe("scene workspace", () => {
     }
   });
 
+  it.each([
+    "access-key",
+    "access_token",
+    "api-key",
+    "x-api-key",
+    "subscription-key",
+    "Ocp-Apim-Subscription-Key",
+    "refresh-token",
+    "key-pair-id",
+    "x-goog-signature",
+    "sas",
+    "shared-access-signature",
+    "sv",
+  ])("rejects credential-shaped imagery key alias %s in URLs and parameters", (key) => {
+    const workspace = createSceneWorkspace();
+    const encodedKey = encodeURIComponent(key);
+    expect(() =>
+      workspace.dispatch({
+        kind: "set-primitives",
+        primitives: [
+          {
+            kind: "imagery-layer",
+            id: "credential-url",
+            sourceId: "credential-url",
+            protocol: "url-template",
+            url: `https://tiles.example.test/{z}/{x}/{y}.png?${encodedKey}=secret`,
+          },
+        ],
+      }),
+    ).toThrow(/credential-free/);
+    expect(() =>
+      workspace.dispatch({
+        kind: "set-primitives",
+        primitives: [
+          {
+            kind: "imagery-layer",
+            id: "credential-parameter",
+            sourceId: "credential-parameter",
+            protocol: "wms",
+            url: "https://maps.example.test/wms",
+            layer: "world",
+            parameters: { [key]: "secret" },
+          },
+        ],
+      }),
+    ).toThrow(/credential-free/);
+    expect(workspace.state.primitives).toEqual({});
+  });
+
+  it.each(["language", "time", "elevation", "layers", "format", "style", "cache"])(
+    "preserves ordinary imagery service parameter %s",
+    (key) => {
+      const workspace = createSceneWorkspace();
+      expect(() =>
+        workspace.dispatch({
+          kind: "set-primitives",
+          primitives: [
+            {
+              kind: "imagery-layer",
+              id: "public-imagery",
+              sourceId: "public-imagery",
+              protocol: "wms",
+              url: "https://maps.example.test/wms",
+              layer: "world",
+              parameters: { [key]: "public" },
+            },
+          ],
+        }),
+      ).not.toThrow();
+    },
+  );
+
   it("serializes primitive diagnostics and MapLibre terrain/extrusion patches without renderer imports", () => {
     const primitives: SceneRuntimePrimitive[] = [
       {

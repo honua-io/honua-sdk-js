@@ -1,3 +1,4 @@
+import { isCredentialQueryName } from "../connect-url-safety.js";
 import type { FeatureId, SourceId } from "../contract/types.js";
 import type { FilterClause } from "../exploration/index.js";
 import type { SceneCameraState, SceneLayerState, SceneWorkspaceState } from "./types.js";
@@ -59,34 +60,6 @@ export interface SceneElevationSourcePrimitive extends ScenePrimitiveBase {
 export type SceneImagerySourceProtocol = "url-template" | "wms" | "wmts" | "single-tile" | "arcgis-imagery";
 
 const SCENE_IMAGERY_URL_BASE = "https://scene.honua.invalid/";
-const CREDENTIAL_PARAMETER_KEYS = new Set([
-  "accesskey",
-  "accesstoken",
-  "apikey",
-  "auth",
-  "authorization",
-  "awsaccesskeyid",
-  "bearer",
-  "clientsecret",
-  "credential",
-  "credentials",
-  "googleaccessid",
-  "jwt",
-  "key",
-  "passwd",
-  "password",
-  "secret",
-  "sessionid",
-  "sig",
-  "signature",
-  "token",
-  "xamzcredential",
-  "xamzsecuritytoken",
-  "xamzsignature",
-  "xgoogcredential",
-  "xgoogsignature",
-]);
-
 /**
  * A credential-free imagery binding for a scene renderer.
  *
@@ -694,6 +667,10 @@ function diagnoseRenderableImagery(
   if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
     invalidServiceFields.push("parameters");
   }
+  if (primitive.protocol === "single-tile") {
+    if (primitive.minimumLevel !== undefined) invalidServiceFields.push("minimumLevel");
+    if (primitive.maximumLevel !== undefined) invalidServiceFields.push("maximumLevel");
+  }
   const invalidParameterKeys = invalidArcGisMapServerParameterKeys(primitive);
   if (invalidParameterKeys.length > 0 && !invalidServiceFields.includes("parameters")) {
     invalidServiceFields.push("parameters");
@@ -813,12 +790,12 @@ function sceneImageryUrlProblem(value: string): SceneImageryUrlProblem {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "invalid";
   if (parsed.username !== "" || parsed.password !== "") return "credentials";
   for (const key of parsed.searchParams.keys()) {
-    if (isCredentialParameterKey(key)) return "credentials";
+    if (isCredentialQueryName(key)) return "credentials";
   }
   if (parsed.hash !== "") {
     const fragmentParameters = new URLSearchParams(parsed.hash.slice(1).replaceAll("?", "&"));
     for (const key of fragmentParameters.keys()) {
-      if (isCredentialParameterKey(key)) return "credentials";
+      if (isCredentialQueryName(key)) return "credentials";
     }
   }
   return undefined;
@@ -826,7 +803,7 @@ function sceneImageryUrlProblem(value: string): SceneImageryUrlProblem {
 
 function hasCredentialParameter(parameters: SceneImageryLayerPrimitive["parameters"]): boolean {
   if (!isValidImageryParameters(parameters)) return false;
-  return Object.keys(parameters).some(isCredentialParameterKey);
+  return Object.keys(parameters).some(isCredentialQueryName);
 }
 
 function isValidImageryParameters(value: unknown): value is Readonly<Record<string, string | number | boolean>> {
@@ -914,19 +891,6 @@ function isSafeDnsLabel(value: unknown): value is string {
     if (!isLetter && !isDigit && character !== "-") return false;
   }
   return true;
-}
-
-function isCredentialParameterKey(key: string): boolean {
-  const canonical = canonicalParameterKey(key);
-  return (
-    CREDENTIAL_PARAMETER_KEYS.has(canonical) ||
-    canonical.endsWith("accesskey") ||
-    canonical.endsWith("credential") ||
-    canonical.endsWith("password") ||
-    canonical.endsWith("secret") ||
-    canonical.endsWith("signature") ||
-    canonical.endsWith("token")
-  );
 }
 
 function canonicalParameterKey(key: string): string {

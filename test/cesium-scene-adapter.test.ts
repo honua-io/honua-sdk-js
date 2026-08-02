@@ -761,6 +761,13 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "subscription-key-url",
+          sourceId: "subscription-key-url",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png?subscription-key=secret",
+        },
+        {
+          kind: "imagery-layer",
           id: "credential-userinfo",
           sourceId: "credential-userinfo",
           protocol: "single-tile",
@@ -800,6 +807,17 @@ describe("cesium scene adapter", () => {
           style: "default",
           tileMatrixSetId: "WebMercatorQuad",
           parameters: { access_key: "secret" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "subscription-key-parameters",
+          sourceId: "subscription-key-parameters",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          parameters: { "ocp-apim-subscription-key": "secret" },
         },
         {
           kind: "imagery-layer",
@@ -876,6 +894,15 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "single-tile-levels",
+          sourceId: "single-tile-levels",
+          protocol: "single-tile",
+          url: "https://images.example.test/snapshot.png",
+          minimumLevel: 2,
+          maximumLevel: 4,
+        },
+        {
+          kind: "imagery-layer",
           id: "unsupported-mapserver-parameter",
           sourceId: "unsupported-mapserver-parameter",
           protocol: "arcgis-imagery",
@@ -915,10 +942,22 @@ describe("cesium scene adapter", () => {
       expect(result.diagnostics).toContainEqual(
         expect.objectContaining({
           code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "single-tile-levels",
+          context: { invalidFields: ["minimumLevel", "maximumLevel"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
           primitiveId: "unsupported-mapserver-parameter",
           context: { invalidFields: ["parameters"], invalidParameterKeys: ["customExportOption"] },
         }),
       );
+      expect(
+        result.diagnostics
+          .filter((diagnostic) => diagnostic.code === "scene-primitive-imagery-credentials-forbidden")
+          .map((diagnostic) => diagnostic.primitiveId),
+      ).toEqual(expect.arrayContaining(["subscription-key-url", "subscription-key-parameters"]));
       expect(result.diagnostics).toContainEqual(
         expect.objectContaining({
           code: "scene-primitive-imagery-service-config-invalid",
