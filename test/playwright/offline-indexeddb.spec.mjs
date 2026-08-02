@@ -169,6 +169,39 @@ test("offline reference workflow retains its snapshot when the origin is unreach
   }
 });
 
+test("offline reference workflow bounds a hanging shell refresh and retains its snapshot", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      availability: "ready",
+      freshness: "fresh",
+    });
+    expect(server.offlineDataRequests).toBe(1);
+
+    server.setShellHanging(true);
+    await page.reload({ waitUntil: "load" });
+    expect(await page.evaluate(() => navigator.onLine)).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__), { timeout: 7000 })
+      .toMatchObject({
+        ready: true,
+        shellReady: true,
+        mode: "offline",
+        availability: "ready",
+        freshness: "stale",
+        payload: OFFLINE_REFERENCE_PAYLOAD,
+      });
+    expect(server.offlineDataRequests).toBe(1);
+  } finally {
+    await cleanupOfflineReference(page, page.context());
+    await server.close();
+  }
+});
+
 test("offline reference shell replaces complete generations and retains the committed one on failure", async ({
   page,
   context,
@@ -854,6 +887,7 @@ test("IndexedDB download resumes from verified staged resources", async ({ page 
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   let offlineDataRequests = 0;
+  let shellHanging = false;
   let shellUnavailable = false;
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
@@ -864,6 +898,7 @@ async function startServer() {
       response.end(OFFLINE_REFERENCE_PAYLOAD);
       return;
     }
+    if (shellHanging && (url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/"))) return;
     if (shellUnavailable && (url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/"))) {
       response.statusCode = 503;
       response.end("shell unavailable");
@@ -999,6 +1034,9 @@ async function startServer() {
     },
     setShellUnavailable(value) {
       shellUnavailable = value;
+    },
+    setShellHanging(value) {
+      shellHanging = value;
     },
     close: () =>
       new Promise((resolve, reject) => {

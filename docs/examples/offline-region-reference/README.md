@@ -23,7 +23,9 @@ region through the public cache-admin contract before a disconnected reload,
 proving that a cache miss is visibly unavailable rather than an empty
 successful result. It also covers an unreachable origin while
 `navigator.onLine` remains true, failed and oversized shell refreshes, and
-replacement of an intentionally overfilled prior generation.
+replacement of an intentionally overfilled prior generation. A hanging refresh
+is aborted before the host's response timeout so the committed shell remains
+usable.
 
 This is a disconnected-read reference only. It does not implement reconnect,
 edit replay, replica synchronization, or server acknowledgement semantics.

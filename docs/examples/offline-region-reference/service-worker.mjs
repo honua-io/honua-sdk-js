@@ -5,6 +5,7 @@ const LEGACY_CACHE_NAME = `${CACHE_NAMESPACE}v1`;
 const MAX_SHELL_URLS = 128;
 const MAX_SHELL_ASSET_BYTES = 4 * 1024 * 1024;
 const MAX_SHELL_TOTAL_BYTES = 16 * 1024 * 1024;
+const SHELL_REFRESH_TIMEOUT_MS = 3000;
 const scopeUrl = new URL(self.registration.scope);
 const activePointerUrl = new URL("__honua-active-shell-v1__", scopeUrl);
 let shellUpdateQueue = Promise.resolve();
@@ -72,7 +73,7 @@ async function deleteInactiveShellCaches(activeName) {
   );
 }
 
-async function replaceApplicationShell(values) {
+async function replaceApplicationShell(values, signal) {
   if (!Array.isArray(values) || values.length === 0 || values.length > MAX_SHELL_URLS) {
     throw new Error("Invalid application shell list.");
   }
@@ -91,7 +92,7 @@ async function replaceApplicationShell(values) {
   try {
     for (const url of urls) {
       const key = cacheKey(url);
-      const response = await fetch(key, { cache: "reload" });
+      const response = await fetch(key, { cache: "reload", signal });
       if (!response.ok || response.redirected || response.url !== url.href) {
         throw new Error("Application shell request failed.");
       }
@@ -130,7 +131,15 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "HONUA_PRECACHE_V1" || !event.ports[0]) return;
   const port = event.ports[0];
-  const update = shellUpdateQueue.then(() => replaceApplicationShell(event.data.urls));
+  const update = shellUpdateQueue.then(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SHELL_REFRESH_TIMEOUT_MS);
+    try {
+      return await replaceApplicationShell(event.data.urls, controller.signal);
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
   shellUpdateQueue = update.then(
     () => undefined,
     () => undefined,
