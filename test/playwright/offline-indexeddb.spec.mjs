@@ -15,7 +15,7 @@ const SHELL_LEGACY_CACHE = `${SHELL_CACHE_NAMESPACE}v1`;
 test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
   const server = await startServer();
   try {
-    await page.goto(`${server.url}/reference/`);
+    await page.goto(`${server.url}/reference/index.html`);
     await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
       ready: true,
       shellReady: true,
@@ -62,6 +62,74 @@ test("offline reference workflow reloads after browser networking is disabled", 
       expect(url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/")).toBe(true);
       expect(value).not.toMatch(/(?:authorization|password|secret|sig|token)=/i);
     }
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference installs its exact worker when a broader worker already controls the page", async ({
+  page,
+  context,
+}) => {
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/broad-worker-setup`);
+    await page.evaluate(async () => {
+      const scriptUrl = new URL("/broad-service-worker.mjs", window.location.href).href;
+      const registration = await navigator.serviceWorker.register(scriptUrl, { scope: "/" });
+      await navigator.serviceWorker.ready;
+      if (navigator.serviceWorker.controller?.scriptURL !== scriptUrl) {
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("Broad service worker did not take control.")), 5000);
+          navigator.serviceWorker.addEventListener(
+            "controllerchange",
+            () => {
+              clearTimeout(timeout);
+              resolve();
+            },
+            { once: true },
+          );
+        });
+      }
+      if (registration.active?.scriptURL !== scriptUrl) throw new Error("Broad service worker is inactive.");
+    });
+
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      availability: "ready",
+    });
+    const identity = await page.evaluate(async () => {
+      const expectedScope = new URL("./", window.location.href).href;
+      const expectedScript = new URL("./service-worker.mjs", expectedScope).href;
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      const exact = registrations.find((registration) => registration.scope === expectedScope);
+      return {
+        scope: exact?.scope,
+        activeScript: exact?.active?.scriptURL,
+        controllerScript: navigator.serviceWorker.controller?.scriptURL,
+        expectedScope,
+        expectedScript,
+      };
+    });
+    expect(identity).toMatchObject({
+      scope: identity.expectedScope,
+      activeScript: identity.expectedScript,
+      controllerScript: identity.expectedScript,
+    });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "offline",
+      availability: "ready",
+      payload: OFFLINE_REFERENCE_PAYLOAD,
+    });
   } finally {
     await cleanupOfflineReference(page, context);
     await server.close();
@@ -818,6 +886,7 @@ async function startServer() {
     }
     const referenceFiles = new Map([
       ["/reference/", "index.html"],
+      ["/reference/index.html", "index.html"],
       ["/reference/app.mjs", "app.mjs"],
       ["/reference/service-worker.mjs", "service-worker.mjs"],
     ]);
@@ -830,6 +899,19 @@ async function startServer() {
       );
       if (referenceFile === "service-worker.mjs") response.setHeader("cache-control", "no-store");
       response.end(file);
+      return;
+    }
+    if (url.pathname === "/broad-worker-setup") {
+      response.setHeader("content-type", "text/html; charset=utf-8");
+      response.end("<!doctype html><title>Broad worker setup</title>");
+      return;
+    }
+    if (url.pathname === "/broad-service-worker.mjs") {
+      response.setHeader("cache-control", "no-store");
+      response.setHeader("content-type", "application/javascript; charset=utf-8");
+      response.end(
+        'self.addEventListener("install", (event) => event.waitUntil(self.skipWaiting())); self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));',
+      );
       return;
     }
     if (url.pathname === "/fixture.json") {

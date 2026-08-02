@@ -103,24 +103,62 @@ async function readSnapshot(value, store, now) {
   return { diagnostic, payload: await response.text(), error: undefined };
 }
 
-async function waitForController() {
-  if (navigator.serviceWorker.controller) return;
+function referenceWorker(registration, scriptUrl) {
+  return [registration.active, registration.installing, registration.waiting].find(
+    (worker) => worker?.scriptURL === scriptUrl,
+  );
+}
+
+async function waitForActiveWorker(registration, scriptUrl) {
+  if (registration.active?.scriptURL === scriptUrl) return registration.active;
+  const worker = referenceWorker(registration, scriptUrl);
+  if (!worker) throw new Error("The reference application shell worker is missing.");
   await new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error("Service worker did not take control.")), 5000);
-    navigator.serviceWorker.addEventListener(
-      "controllerchange",
-      () => {
-        window.clearTimeout(timeout);
-        resolve();
-      },
-      { once: true },
+    const finish = (result) => {
+      window.clearTimeout(timeout);
+      worker.removeEventListener("statechange", stateChanged);
+      result();
+    };
+    const stateChanged = () => {
+      if (registration.active?.scriptURL === scriptUrl) {
+        finish(resolve);
+      } else if (worker.state === "redundant") {
+        finish(() => reject(new Error("The reference application shell worker became redundant.")));
+      }
+    };
+    const timeout = window.setTimeout(() => finish(() => reject(new Error("Service worker did not activate."))), 5000);
+    worker.addEventListener("statechange", stateChanged);
+  });
+  return registration.active;
+}
+
+async function waitForController(scriptUrl) {
+  if (navigator.serviceWorker.controller?.scriptURL === scriptUrl) return;
+  await new Promise((resolve, reject) => {
+    const finish = (result) => {
+      window.clearTimeout(timeout);
+      navigator.serviceWorker.removeEventListener("controllerchange", controllerChanged);
+      result();
+    };
+    const controllerChanged = () => {
+      if (navigator.serviceWorker.controller?.scriptURL === scriptUrl) {
+        finish(resolve);
+      }
+    };
+    const timeout = window.setTimeout(
+      () => finish(() => reject(new Error("Service worker did not take control."))),
+      5000,
     );
+    navigator.serviceWorker.addEventListener("controllerchange", controllerChanged);
   });
 }
 
 function reviewedShellUrls() {
   const scope = new URL("./", window.location.href);
-  const urls = new Set([scope.href, new URL("./app.mjs", scope).href]);
+  const documentUrl = new URL(window.location.href);
+  documentUrl.search = "";
+  documentUrl.hash = "";
+  const urls = new Set([scope.href, documentUrl.href, new URL("./app.mjs", scope).href]);
   for (const entry of performance.getEntriesByType("resource")) {
     const url = new URL(entry.name);
     if (
@@ -137,14 +175,18 @@ function reviewedShellUrls() {
 
 async function prepareApplicationShell() {
   if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable.");
-  let registration = await navigator.serviceWorker.getRegistration("./");
+  const scopeUrl = new URL("./", window.location.href);
+  const scriptUrl = new URL("./service-worker.mjs", scopeUrl).href;
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  let registration = registrations.find(
+    (candidate) => candidate.scope === scopeUrl.href && referenceWorker(candidate, scriptUrl),
+  );
   if (!registration) {
-    registration = await navigator.serviceWorker.register("./service-worker.mjs", { scope: "./" });
+    registration = await navigator.serviceWorker.register(scriptUrl, { scope: scopeUrl.href });
   }
-  if (!registration) throw new Error("The application shell is not installed.");
-  await navigator.serviceWorker.ready;
-  await waitForController();
-  const active = registration.active;
+  if (registration.scope !== scopeUrl.href) throw new Error("The reference application shell scope is unavailable.");
+  const active = await waitForActiveWorker(registration, scriptUrl);
+  await waitForController(scriptUrl);
   if (!active) throw new Error("The application shell worker is inactive.");
   const channel = new MessageChannel();
   const reply = new Promise((resolve, reject) => {
