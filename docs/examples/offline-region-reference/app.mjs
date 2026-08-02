@@ -8,6 +8,9 @@ import {
 
 const DATABASE_NAME = "honua-offline-region-reference-v1";
 const DATA_PATH = "/offline-data.json";
+const SHELL_CACHE_NAMESPACE = "honua-offline-region-reference-shell-";
+const SHELL_CONTROL_CACHE_NAME = `${SHELL_CACHE_NAMESPACE}control-v1`;
+const SHELL_GENERATION_PREFIX = `${SHELL_CACHE_NAMESPACE}generation-v1-`;
 const SHELL_MANIFEST_PATH = "./shell-manifest.v1.json";
 const RESOURCE_ID = "incidents";
 const RESOURCE_BYTE_LENGTH = 50;
@@ -198,6 +201,54 @@ async function waitForController(scriptUrl) {
   });
 }
 
+async function hasCommittedApplicationShell(scopeUrl) {
+  const control = await caches.open(SHELL_CONTROL_CACHE_NAME);
+  const pointerUrl = new URL("__honua-active-shell-v1__", scopeUrl);
+  const pointer = await control.match(new Request(pointerUrl, { credentials: "omit", method: "GET" }));
+  if (!pointer) return false;
+  const name = await pointer.text();
+  if (!name.startsWith(SHELL_GENERATION_PREFIX) || name.length > 256 || !(await caches.has(name))) return false;
+  return (await (await caches.open(name)).keys()).length > 0;
+}
+
+function requestApplicationShellRefresh(worker, manifestUrl, retainedBeforeRefresh) {
+  return new Promise((resolve, reject) => {
+    const channel = new MessageChannel();
+    let settled = false;
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      channel.port1.close();
+      callback();
+    };
+    const timeout = window.setTimeout(
+      () =>
+        finish(() =>
+          retainedBeforeRefresh
+            ? resolve("retained")
+            : reject(new Error("Application shell caching timed out.")),
+        ),
+      5000,
+    );
+    channel.port1.onmessage = (event) => {
+      finish(() => {
+        if (event.data?.ok === true) resolve("refreshed");
+        else if (event.data?.retained === true) resolve("retained");
+        else reject(new Error("Application shell caching failed."));
+      });
+    };
+    try {
+      worker.postMessage({ type: "HONUA_PRECACHE_V2", manifestUrl }, [channel.port2]);
+    } catch (error) {
+      finish(() => {
+        if (retainedBeforeRefresh) resolve("retained");
+        else reject(error);
+      });
+    }
+  });
+}
+
 async function prepareApplicationShell() {
   if (!("serviceWorker" in navigator)) throw new Error("Service workers are unavailable.");
   const scopeUrl = new URL("./", window.location.href);
@@ -210,24 +261,18 @@ async function prepareApplicationShell() {
     registration = await navigator.serviceWorker.register(scriptUrl, { scope: scopeUrl.href });
   }
   if (registration.scope !== scopeUrl.href) throw new Error("The reference application shell scope is unavailable.");
-  const active = await waitForActiveWorker(registration, scriptUrl);
+  await waitForActiveWorker(registration, scriptUrl);
   await waitForController(scriptUrl);
-  if (!active) throw new Error("The application shell worker is inactive.");
-  const channel = new MessageChannel();
-  const reply = new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error("Application shell caching timed out.")), 5000);
-    channel.port1.onmessage = (event) => {
-      window.clearTimeout(timeout);
-      if (event.data?.ok === true) resolve("refreshed");
-      else if (event.data?.retained === true) resolve("retained");
-      else reject(new Error("Application shell caching failed."));
-    };
-  });
-  active.postMessage(
-    { type: "HONUA_PRECACHE_V2", manifestUrl: new URL(SHELL_MANIFEST_PATH, window.location.href).href },
-    [channel.port2],
+  const retainedBeforeRefresh = await hasCommittedApplicationShell(scopeUrl);
+  const currentWorker = navigator.serviceWorker.controller;
+  if (!currentWorker || currentWorker.scriptURL !== scriptUrl) {
+    throw new Error("The application shell worker is inactive.");
+  }
+  return requestApplicationShellRefresh(
+    currentWorker,
+    new URL(SHELL_MANIFEST_PATH, window.location.href).href,
+    retainedBeforeRefresh,
   );
-  return reply;
 }
 
 async function main() {

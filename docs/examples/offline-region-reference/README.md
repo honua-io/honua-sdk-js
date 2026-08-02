@@ -44,6 +44,9 @@ successful result. It also covers an unreachable origin while
 replacement of an intentionally overfilled prior generation. A hanging refresh
 is aborted before the host's response timeout, including while it waits behind
 another refresh, so the committed shell remains usable across concurrent tabs.
+The host also verifies an existing committed generation before refreshing and
+treats a worker replacement, send failure, or late reply as retained only when
+that prior shell is present.
 Query-bearing launch URLs are replaced in browser history with the
 credential-free canonical document URL before the shell is declared ready.
 

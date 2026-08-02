@@ -474,6 +474,48 @@ test("offline reference serializes shell replacement across worker versions", as
   }
 });
 
+test("offline reference retains its committed shell when an updated worker does not reply", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      availability: "ready",
+    });
+
+    server.setReferenceWorkerMessagesMuted(true);
+    await page.evaluate(async () => {
+      const registration = await navigator.serviceWorker.getRegistration("./");
+      const previous = navigator.serviceWorker.controller;
+      if (!registration || !previous) throw new Error("Reference worker is not controlling the page.");
+      await registration.update();
+      const deadline = Date.now() + 5000;
+      while (navigator.serviceWorker.controller === previous) {
+        if (Date.now() >= deadline) throw new Error("Muted replacement worker did not take control.");
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    });
+
+    await page.reload({ waitUntil: "load" });
+    await expect
+      .poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__), { timeout: 7000 })
+      .toMatchObject({
+        ready: true,
+        shellReady: true,
+        mode: "offline",
+        availability: "ready",
+        freshness: "stale",
+        payload: OFFLINE_REFERENCE_PAYLOAD,
+      });
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
 test("offline reference workflow fails visibly when its persisted region is missing", async ({ page, context }) => {
   test.slow();
   const server = await startServer();
@@ -1086,6 +1128,7 @@ async function startServer() {
   let offlineDataOversized = false;
   let shellHanging = false;
   const heldShellResources = new Map();
+  let referenceWorkerMessagesMuted = false;
   const shellManifests = new Map();
   const shellManifestRequestCounts = new Map();
   let shellUnavailable = false;
@@ -1168,11 +1211,13 @@ async function startServer() {
       if (referenceFile === "service-worker.mjs" || referenceFile === "shell-manifest.v1.json") {
         response.setHeader("cache-control", "no-store");
       }
-      response.end(
-        url.pathname.endsWith("service-worker-v2.mjs")
-          ? Buffer.concat([file, Buffer.from("\n// replacement worker version\n")])
-          : file,
-      );
+      let responseFile = file;
+      if (url.pathname.endsWith("service-worker-v2.mjs")) {
+        responseFile = Buffer.concat([file, Buffer.from("\n// replacement worker version\n")]);
+      } else if (url.pathname.endsWith("service-worker.mjs") && referenceWorkerMessagesMuted) {
+        responseFile = Buffer.from(file.toString("utf8").replaceAll("HONUA_PRECACHE_V2", "HONUA_PRECACHE_DISABLED"));
+      }
+      response.end(responseFile);
       return;
     }
     if (url.pathname === "/broad-worker-setup") {
@@ -1279,6 +1324,9 @@ async function startServer() {
     },
     setShellHanging(value) {
       shellHanging = value;
+    },
+    setReferenceWorkerMessagesMuted(value) {
+      referenceWorkerMessagesMuted = value;
     },
     setShellManifest(manifestPath, manifest) {
       shellManifests.set(manifestPath, {
