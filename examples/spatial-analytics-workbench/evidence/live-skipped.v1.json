@@ -5,8 +5,8 @@
   "sampleId": "spatial-analytics-workbench",
   "lane": "live",
   "status": "skipped",
-  "reason": "No public GeoServices source configuration was supplied; fixture fallback was not substituted.",
-  "observedAt": "2026-05-05T08:00:00.000Z",
+  "reason": "HONUA_SPATIAL_ANALYTICS_BASE_URL, SERVICE_ID, and integer LAYER_ID are required; fixture fallback was not substituted.",
+  "observedAt": "2026-08-03T08:34:51.355Z",
   "authMode": "anonymous",
   "sdk": {
     "package": "@honua/sdk-js",
