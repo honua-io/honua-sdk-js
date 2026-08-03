@@ -1561,7 +1561,12 @@ function wktPoint(pt: ArrayLike<unknown>, context: string): string {
   return `${wktCoordinate(pt[0], `${context}[0]`)} ${wktCoordinate(pt[1], `${context}[1]`)}`;
 }
 
-function geometryToWkt(geometry: Record<string, unknown>, geometryType: string): string {
+/**
+ * Serialize a canonical (Esri-shaped) geometry as WKT. Shared with the
+ * canonical CQL2 filter compiler so both wire dialects emit identical geometry
+ * text from the same geometry value.
+ */
+export function geometryToWkt(geometry: Record<string, unknown>, geometryType: string): string {
   if (geometryType === "esriGeometryEnvelope") {
     const xmin = wktCoordinate(geometry.xmin, "envelope.xmin");
     const ymin = wktCoordinate(geometry.ymin, "envelope.ymin");

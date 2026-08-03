@@ -77,20 +77,21 @@
   "Root gzip, /contract, /runtime, and tree-shake:root-connect were reset for the WFS ProtocolModule migration (#823): the built-in WFS source now shares the authority-bound compiler/executor, bounded XML/GeoJSON response validation, exact namespace/CRS projection, and paging invariants with independently registered modules. Exact measurements are root 174,650 gzip bytes, /contract 328,408 minified / 87,596 gzip, /runtime 569,944 / 152,621, and root-connect 529,869 / 139,082; only exceeded metrics are reset to measured actual plus ~10% headroom. /query-planner, /plugin, browser, and the isolated HonuaClient fixture remain within their reviewed ceilings, so the migration adds no renderer or unrelated plugin runtime.",
   "/web-components gzip was reset after the #823 correctness review added authority-registry WFS axis ordering plus generation-, cancellation-, refresh-, and disposal-safe capability discovery. The measured 272,419 gzip bytes are budgeted at 299,661 bytes (actual plus ~10% headroom); no other ceiling moved.",
   "The exact #823 rebase over bounded direct PMTiles discovery (#820) was remeasured after preserving both protocol graphs. The combined root, /honua, /source-schema, /source-capability-discovery, browser, isolated HonuaClient, and root-createHonua graphs exceeded ceilings derived from either feature in isolation; only those exceeded metrics are reset here to the combined measured values plus 10% headroom.",
-  "/plugin was reset for the behavioral-certification follow-up in #392: the measured gzip size is 20,399 bytes and the ceiling is 22,439 bytes (actual plus ~10% headroom); the existing minified ceiling remains unchanged."
+  "/plugin was reset for the behavioral-certification follow-up in #392: the measured gzip size is 20,399 bytes and the ceiling is 22,439 bytes (actual plus ~10% headroom); the existing minified ceiling remains unchanged.",
+  "The typed semantic filter and temporal predicates reached the canonical Source.query() surface (#947): the protocol-neutral filter AST, its GeoServices SQL-92 / CQL2 / OData / DuckDB lowerings, and the fail-closed validation are reachable from every adapter, so /contract measures 372,908 minified / 100,553 gzip and /geoparquet 144,184 / 43,341 bytes. The FES 2.0 lowering lives in its own leaf module so only WFS consumers pay for it. Root gzip and tree-shake:HonuaClient were already above their ceilings on trunk before this change (203,273 gzip and 236,429 minified bytes measured at 87191dbd); each affected ceiling is reset to measured actual plus ~10% headroom."
  ],
  "entrypoints": {
   ".": {
    "min": 771970,
-   "gzip": 196018
+   "gzip": 223601
   },
   "/honua": {
    "min": 959741,
    "gzip": 257025
   },
   "/contract": {
-   "min": 361249,
-   "gzip": 96356
+   "min": 410199,
+   "gzip": 110609
   },
   "/source-schema": {
    "min": 947680,
@@ -173,8 +174,8 @@
    "gzip": 57500
   },
   "/geoparquet": {
-   "min": 141117,
-   "gzip": 41854
+   "min": 158603,
+   "gzip": 47676
   },
   "/cog": {
    "min": 57455,
@@ -213,7 +214,7 @@
    "gzip": 205783
   },
   "tree-shake:HonuaClient": {
-   "min": 235231,
+   "min": 260072,
    "gzip": 65132
   },
   "tree-shake:root-connect": {

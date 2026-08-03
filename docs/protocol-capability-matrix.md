@@ -135,6 +135,49 @@ field-statistics `queryAggregate` path. No protocol receives it by default. A
 source may advertise it only after backend metadata confirms an indexed
 aggregation implementation for that source.
 
+## Typed filter and temporal support
+
+<!-- support-manifest:filter-matrix:start -->
+Status: generated from [`config/support-manifest.v1.json`](../config/support-manifest.v1.json); do not edit this section by hand.
+
+`Query.filter` is the typed, protocol-neutral semantic filter and
+`Query.temporalFilter` is the canonical time constraint. A construct the target
+cannot express exactly throws `HonuaCapabilityNotSupportedError` naming the
+construct and the protocol; a documented widening (the GeoParquet bbox
+reduction) is reported through `Result.degraded`.
+
+- `✓` full attribute, spatial, and temporal predicate compilation
+- `◐` attribute and temporal predicates only (a spatial node is refused)
+- `—` no filterable query surface
+- `source-dimension` — a temporal filter without a field uses the protocol's own
+  time parameter (`time=`, `datetime=`)
+- `field-predicate` — a temporal filter that names its field compiles to an
+  exact predicate on that field
+
+| Protocol | Typed filter | Dialect | Temporal forms | Notes |
+| --- | :-: | --- | --- | --- |
+| `grpc` | ✓ | `honua-grpc (SQL-92 where)` | `field-predicate` | QueryFeatures has no time parameter, so a temporal filter must name its field. |
+| `geoservices-feature-service` | ✓ | `geoservices-sql92` | `source-dimension`, `field-predicate` | One geometry per request: a spatial node must be conjunctive and unique, otherwise the compile refuses. |
+| `geoservices-map-service` | ✓ | `geoservices-sql92` | `source-dimension`, `field-predicate` | Same request vocabulary as FeatureServer through the MapServer layer query endpoint. |
+| `geoservices-image-service` | ◐ | `geoservices-sql92` | `source-dimension`, `field-predicate` | The raster catalog endpoint accepts no geometry parameters; a spatial filter node is refused. |
+| `geoservices-geometry-service` | — | — | — | No feature query surface. |
+| `geoservices-gp-service` | — | — | — | No feature query surface. |
+| `ogc-features` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | Spatial and attribute predicates emit CQL2 (Part 3); a bare temporal window uses `datetime=`. |
+| `ogc-tiles` | — | — | — | Render-only adapter. |
+| `ogc-maps` | — | — | — | Render-only adapter. |
+| `ogc-records` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | Records `filter=` carries CQL2 text; `datetime=` carries a bare temporal window. |
+| `stac` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | STAC API only. Static catalog traversal has no CQL2 evaluator and refuses attribute filters. |
+| `wfs` | ✓ | `fes-2.0` | `field-predicate` | FES 2.0 Before/After/During/AnyInteracts; WFS has no time parameter, so a temporal filter names its field. |
+| `wms` | — | — | — | GetFeatureInfo has no attribute filter; time is a map dimension on the typed WMS envelope. |
+| `wmts` | — | — | — | Render-only adapter. |
+| `odata` | ✓ | `odata-4.0` | `field-predicate` | `geo.intersects` is the only standard topological function; other predicates and interior LIKE wildcards refuse. |
+| `pmtiles` | — | — | — | Render-only archive adapter. |
+| `geoparquet` | ✓ | `duckdb-sql` | `field-predicate` | Spatial predicates reduce to the bbox pushdown; a non-envelope geometry is reported through `Result.degraded`. |
+| `maplibre-vector` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
+| `maplibre-raster` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
+| `maplibre-geojson` | — | — | — | Reserved identifier with no query path. |
+<!-- support-manifest:filter-matrix:end -->
+
 ## Notes by protocol
 
 ### gRPC FeatureService

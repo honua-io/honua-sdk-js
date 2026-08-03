@@ -24,7 +24,14 @@
  * @module
  */
 
+import {
+  type QueryFilterContext,
+  andQueryFilters,
+  compileQueryFilterToDuckDbSql,
+  temporalFilterToExpression,
+} from "../contract/query-filter.js";
 import type { AggregationFn, AggregationSpec, Query, SortSpec } from "../contract/types.js";
+import { HonuaCapabilityNotSupportedError } from "./errors.js";
 import type { SpatialFilter } from "./spatial-filter.js";
 
 // ── Identifier / literal escaping ─────────────────────────────
@@ -630,13 +637,55 @@ const DEFAULT_GEOMETRY_ALIAS = "geometry";
  * {@link validateWhereExpression} first, so a hostile expression throws a
  * {@link GeoParquetWhereClauseError} here instead of reaching DuckDB.
  */
-function whereClause(query: Query, spatial: string | undefined): string {
+function whereClause(query: Query, spatial: string | undefined, typed?: string): string {
   const clauses: string[] = [];
   if (typeof query.where === "string" && query.where.trim().length > 0) {
     clauses.push(`(${validateWhereExpression(query.where)})`);
   }
+  if (typed) clauses.push(`(${typed})`);
   if (spatial) clauses.push(`(${spatial})`);
   return clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
+}
+
+/**
+ * Compile `Query.filter` / `Query.temporalFilter` into DuckDB SQL. Spatial
+ * nodes reduce to the bbox predicate the driver already pushes down; a
+ * non-envelope geometry is therefore a documented widening, reported through
+ * `bboxApproximated` (and from there `Result.degraded`) rather than dropped.
+ * GeoParquet has no protocol-level time parameter, so a temporal filter must
+ * name its field.
+ */
+function typedFilterSql(query: Query, options: CompileOptions): { sql?: string; bboxApproximated: boolean } {
+  const ctx: QueryFilterContext = {
+    protocol: "geoparquet",
+    ...(options.geometry ? { geometryProperty: options.geometry.column } : {}),
+  };
+  const temporal = query.temporalFilter ? temporalFilterToExpression(query.temporalFilter, ctx) : undefined;
+  if (query.temporalFilter && temporal === undefined) {
+    throw new HonuaCapabilityNotSupportedError("temporalFilter.field", "geoparquet");
+  }
+  const expression = andQueryFilters(query.filter, temporal);
+  if (!expression) return { bboxApproximated: false };
+  const compiled = compileQueryFilterToDuckDbSql(expression, ctx, (node) => {
+    const geometry = options.geometry;
+    if (!geometry) {
+      throw new HonuaCapabilityNotSupportedError("filter.spatial.geometry-column", "geoparquet");
+    }
+    const spatialFilter: SpatialFilter = {
+      geometry: node.geometry.geometry,
+      geometryType: node.geometry.geometryType,
+    };
+    const bbox = bboxFromSpatialFilter(spatialFilter);
+    if (!bbox) {
+      throw new HonuaCapabilityNotSupportedError("filter.spatial.geometry", "geoparquet");
+    }
+    if (node.operator !== "intersects" && node.operator !== "bbox-intersects") {
+      // A bbox predicate cannot preserve within / contains / crosses semantics.
+      throw new HonuaCapabilityNotSupportedError(`filter.spatial.${node.operator}`, "geoparquet");
+    }
+    return { sql: spatialPredicate(bbox, geometry), bboxApproximated: !isEnvelopeFilter(spatialFilter) };
+  });
+  return { sql: compiled.sql, bboxApproximated: compiled.bboxApproximated };
 }
 
 function orderByClause(orderBy: readonly SortSpec[] | undefined): string {
@@ -723,7 +772,9 @@ export function compileQuery(query: Query, options: CompileOptions): CompiledSql
       bboxApproximated = !isEnvelopeFilter(query.spatialFilter);
     }
   }
-  const sql = `SELECT ${projection(query, options)} FROM ${from}${whereClause(query, spatial)}${orderByClause(query.orderBy)}${limitOffsetClause(query)}`;
+  const typed = typedFilterSql(query, options);
+  if (typed.bboxApproximated) bboxApproximated = true;
+  const sql = `SELECT ${projection(query, options)} FROM ${from}${whereClause(query, spatial, typed.sql)}${orderByClause(query.orderBy)}${limitOffsetClause(query)}`;
   return { sql, bboxApproximated };
 }
 
@@ -779,8 +830,10 @@ export function compileAggregate(
     }
   }
 
+  const typed = typedFilterSql(query, options);
+  if (typed.bboxApproximated) bboxApproximated = true;
   const groupByClause = groupBy.length > 0 ? ` GROUP BY ${groupBy.map((f) => quoteIdentifier(f)).join(", ")}` : "";
-  const sql = `SELECT ${selectParts.join(", ")} FROM ${from}${whereClause(query, spatial)}${groupByClause}${orderByClause(query.orderBy)}${limitOffsetClause(query)}`;
+  const sql = `SELECT ${selectParts.join(", ")} FROM ${from}${whereClause(query, spatial, typed.sql)}${groupByClause}${orderByClause(query.orderBy)}${limitOffsetClause(query)}`;
   return { sql, bboxApproximated };
 }
 

@@ -128,6 +128,7 @@ export {
   PROTOCOL_DEFAULT_CAPABILITIES,
   capabilities,
   createDataset,
+  queryFilter,
 } from "./contract/index.js";
 export type {
   AdapterFor,
@@ -154,6 +155,12 @@ export type {
   PaginationSpec,
   Protocol,
   Query,
+  QueryFilterExpression,
+  QueryFilterSpatialNode,
+  QueryFilterSpatialPredicate,
+  QueryFilterTemporalNode,
+  QueryFilterTemporalPredicate,
+  QueryTemporalFilter,
   Result,
   SortSpec,
   Source,

@@ -164,6 +164,35 @@ export {
 export type { SourceSchemaV2Envelope } from "./schema-envelope.js";
 
 export {
+  MAX_QUERY_FILTER_DEPTH,
+  MAX_QUERY_FILTER_NODES,
+  assertQueryFilter,
+  assertTemporalFilter,
+  queryFilter,
+} from "./query-filter.js";
+export type {
+  QueryFilterBooleanNode,
+  QueryFilterComparisonNode,
+  QueryFilterComparisonOperator,
+  QueryFilterExpression,
+  QueryFilterGeometryOperand,
+  QueryFilterListNode,
+  QueryFilterLiteralNode,
+  QueryFilterNotNode,
+  QueryFilterNullNode,
+  QueryFilterPatternNode,
+  QueryFilterPropertyNode,
+  QueryFilterRangeNode,
+  QueryFilterScalar,
+  QueryFilterSpatialNode,
+  QueryFilterSpatialPredicate,
+  QueryFilterTemporalLiteralNode,
+  QueryFilterTemporalNode,
+  QueryFilterTemporalPredicate,
+  QueryTemporalFilter,
+} from "./query-filter.js";
+
+export {
   HONUA_DISCOVERY_ADAPTER_VERSION,
   HONUA_DISCOVERY_PROJECTION_VERSION,
   createDiscoveryCacheIdentity,

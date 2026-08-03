@@ -19,6 +19,7 @@ import type { HonuaClient } from "../core/client.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import type { HonuaExtent, HonuaFieldInfo, HonuaServerCompatibilityFeature, HonuaTypedFeature } from "../core/types.js";
 import type { CapabilityId, CapabilityProfile } from "../source-capability-types.js";
+import type { QueryFilterExpression, QueryTemporalFilter } from "./query-filter.js";
 import type { SourceSchemaV2Envelope } from "./schema-envelope.js";
 import type { SchemaIdentity } from "./schema.js";
 
@@ -615,16 +616,23 @@ export interface AggregationMetric {
  * into a `QueryFeaturesRequest`, `MapLayerQueryRequest`, `OgcItemsRequest`,
  * or the corresponding WFS / OData request.
  *
- * `spatialFilter` is a `SpatialFilter` produced by the spatial-filter builders
- * (`envelope`, `point`, `polygon`, `bufferEnvelope`, …), not an inline literal.
+ * `filter` is the typed, protocol-neutral semantic filter: the same expression
+ * compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`, and DuckDB
+ * SQL. `spatialFilter` is a `SpatialFilter` produced by the spatial-filter
+ * builders (`envelope`, `point`, `polygon`, `bufferEnvelope`, …), and
+ * `temporalFilter` is the canonical time constraint (instant or interval).
  *
  * @example
  * ```ts
- * import { envelope, type Query } from "@honua/sdk-js";
+ * import { envelope, queryFilter, type Query } from "@honua/sdk-js";
  *
  * const query: Query<{ OBJECTID: number; NAME: string }> = {
  *   outFields: ["OBJECTID", "NAME"],
- *   spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
+ *   filter: queryFilter.and(
+ *     queryFilter.eq("STATUS", "open"),
+ *     queryFilter.spatial("intersects", envelope(-158.5, 21.2, -157.6, 21.7)),
+ *   ),
+ *   temporalFilter: { kind: "interval", start: "2026-01-01T00:00:00Z", end: null },
  *   orderBy: [{ field: "REPORTED_AT", direction: "desc" }],
  *   pagination: { limit: 500 },
  *   returnGeometry: true,
@@ -633,15 +641,31 @@ export interface AggregationMetric {
  */
 export interface Query<_T = Record<string, unknown>> {
   /**
+   * Typed semantic filter. Protocol neutral: adapters compile it to the target
+   * dialect and throw `HonuaCapabilityNotSupportedError` naming the construct
+   * and protocol when the target cannot express it exactly — a construct is
+   * never silently dropped or widened.
+   *
+   * Composes with `spatialFilter`, `temporalFilter`, and (during migration)
+   * `where`; every present constraint is conjunctive.
+   */
+  filter?: QueryFilterExpression;
+  /**
+   * Canonical time constraint. Without `field` it targets the source's own time
+   * dimension (GeoServices `time=`, OGC / STAC `datetime=`); with `field` it
+   * compiles to an explicit temporal predicate, which is the only form OData,
+   * WFS, and GeoParquet can express.
+   */
+  temporalFilter?: QueryTemporalFilter;
+  /**
    * Source-native filter text retained for v1 compatibility. Its language is
    * selected by the source adapter (for example GeoServices SQL-92, CQL2 text,
    * OData, or DuckDB SQL) and is never protocol neutral.
    *
-   * @deprecated Retained only for raw, source-native migration compatibility.
-   * The experimental semantic planner has a separate compiler/execution path,
-   * and its AST is not accepted by `Source.query()`. Use
-   * `legacyWhereToNativeFilter` only while migrating existing protocol-bound
-   * text.
+   * @deprecated Use the typed `filter` member, which is protocol neutral and
+   * fails closed. `where` is retained only for raw, source-native migration
+   * compatibility; `legacyWhereToNativeFilter` tags existing protocol-bound
+   * text while it is being ported.
    */
   where?: string;
   /** Spatial constraint. Reuses `core/spatial-filter.ts`. */

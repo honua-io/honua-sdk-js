@@ -310,15 +310,34 @@ const result = await states.queryAll({
 console.log(`Loaded ${result.features.length} states`);
 ```
 
-The starter deliberately omits an attribute filter. The protocol-neutral
-`Query.where` member remains operational only as deprecated, source-native v1
-compatibility; its grammar changes with the adapter. A stable semantic-filter
-builder is not yet wired into `Source.query()`. New code that can accept
-pre-1.0 API changes can use the typed semantic AST from the experimental
-[`@honua/sdk-js/query-planner`](./docs/query-planner.md), whose examples are
-compile-checked.
+Filtering uses the same typed, protocol-neutral `Query.filter`. One expression
+compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`, or DuckDB SQL,
+and `Query.temporalFilter` compiles to the protocol's own time parameter
+(`time=`, `datetime=`) or an exact predicate on a named field. A construct the
+target cannot express throws `HonuaCapabilityNotSupportedError` naming the
+construct and the protocol — it is never silently dropped or widened:
 
-The same unfiltered query envelope works against any GeoServices, OGC API
+```ts doc-test=compile
+import { envelope, queryFilter, type Query } from "@honua/sdk-js";
+
+const filtered: Query = {
+  filter: queryFilter.and(
+    queryFilter.gt("Total_Pop_2020", 1_000_000),
+    queryFilter.spatial("intersects", envelope(-125, 24, -66, 50)),
+  ),
+  temporalFilter: { kind: "interval", start: "2026-01-01T00:00:00Z", end: null },
+  outFields: ["NAME", "Total_Pop_2020"],
+  pagination: { limit: 100 },
+};
+```
+
+The deprecated `Query.where` member remains operational only as source-native
+v1 migration compatibility; its grammar changes with the adapter, so new code
+should use `Query.filter`. The experimental
+[`@honua/sdk-js/query-planner`](./docs/query-planner.md) adds a schema-verified
+builder and explain plans over the same filter shape.
+
+The same query envelope works against any GeoServices, OGC API
 Features, WFS, OData, or STAC endpoint. Migrating from `esri-leaflet`? The raw
 GeoServices API remains available, but its `where` member below is explicitly
 GeoServices SQL rather than the deprecated protocol-neutral `Query.where`:
