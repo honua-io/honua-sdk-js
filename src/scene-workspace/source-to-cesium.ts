@@ -80,6 +80,25 @@ export interface CesiumEntityPositionSample {
   readonly coordinates: readonly [number, number, number];
 }
 
+/**
+ * Temporal field mapping for accepted-plan entity projections.
+ *
+ * An instant is represented as a zero-duration Cesium availability interval,
+ * preserving the source timestamp without inventing a playback duration.
+ */
+export type CesiumEntityTimeOptions =
+  | {
+      readonly instantField: string;
+      /** JSON array of { time, coordinates } samples for point entities. */
+      readonly positionField?: string;
+    }
+  | {
+      readonly startField: string;
+      readonly endField: string;
+      /** JSON array of { time, coordinates } samples for point entities. */
+      readonly positionField?: string;
+    };
+
 export type CesiumEntityGeometry =
   | { readonly kind: "point"; readonly coordinates: readonly [number, number, number] }
   | { readonly kind: "polyline"; readonly coordinates: readonly (readonly [number, number, number])[] }
@@ -105,12 +124,7 @@ export interface ProjectSourceToCesiumOptions {
   readonly maxEntities?: number;
   /** Required before finite Z values are interpreted as Cesium ellipsoid heights. */
   readonly verticalDatum?: "ellipsoidal-wgs84";
-  readonly time?: {
-    readonly startField: string;
-    readonly endField: string;
-    /** JSON array of { time, coordinates } samples for point entities. */
-    readonly positionField?: string;
-  };
+  readonly time?: CesiumEntityTimeOptions;
 }
 
 export interface CesiumEntityProjection {
@@ -908,8 +922,12 @@ function validRing(coordinates: readonly (readonly [number, number, number])[]):
 
 function projectInterval(
   attributes: Readonly<Record<string, unknown>>,
-  time: NonNullable<ProjectSourceToCesiumOptions["time"]>,
+  time: CesiumEntityTimeOptions,
 ): CesiumEntityInterval | undefined {
+  if ("instantField" in time) {
+    const instant = isoInstant(attributes[time.instantField]);
+    return instant ? { start: instant, end: instant } : undefined;
+  }
   const start = isoInstant(attributes[time.startField]);
   const end = isoInstant(attributes[time.endField]);
   if (!start || !end || Date.parse(end) < Date.parse(start)) return undefined;
@@ -1029,8 +1047,15 @@ function validatePlanAndOptions<T>(
       "Cesium entity projection requires featureIdField or descriptor.schema.primaryKey.",
     );
   }
-  if (options.time !== undefined && (!options.time.startField || !options.time.endField)) {
-    throw new HonuaCesiumEntityAdapterError("invalid-option", "time.startField and time.endField must be non-empty.");
+  if (options.time !== undefined) {
+    const fields =
+      "instantField" in options.time ? [options.time.instantField] : [options.time.startField, options.time.endField];
+    if (fields.some((field) => !field)) {
+      throw new HonuaCesiumEntityAdapterError(
+        "invalid-option",
+        "time.instantField or time.startField/time.endField must be non-empty.",
+      );
+    }
   }
   return maxEntities;
 }
@@ -1137,16 +1162,17 @@ function snapshotMountOptions(options: MountSourceToCesiumOptions): MountSourceT
     ...(options.featureIdField !== undefined ? { featureIdField: options.featureIdField } : {}),
     ...(options.maxEntities !== undefined ? { maxEntities: options.maxEntities } : {}),
     ...(options.verticalDatum !== undefined ? { verticalDatum: options.verticalDatum } : {}),
-    ...(options.time
-      ? {
-          time: Object.freeze({
-            startField: options.time.startField,
-            endField: options.time.endField,
-            ...(options.time.positionField !== undefined ? { positionField: options.time.positionField } : {}),
-          }),
-        }
-      : {}),
+    ...(options.time ? { time: snapshotTimeOptions(options.time) } : {}),
   });
+}
+
+function snapshotTimeOptions(time: CesiumEntityTimeOptions): CesiumEntityTimeOptions {
+  const position = time.positionField !== undefined ? { positionField: time.positionField } : {};
+  return Object.freeze(
+    "instantField" in time
+      ? { instantField: time.instantField, ...position }
+      : { startField: time.startField, endField: time.endField, ...position },
+  );
 }
 
 function assertLifecycleActive(

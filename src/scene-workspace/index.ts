@@ -119,6 +119,7 @@ export type {
   CesiumEntityPositionSample,
   CesiumEntityRuntimeLoader,
   CesiumEntityRuntimeModule,
+  CesiumEntityTimeOptions,
   CesiumEntityWorkflowState,
   MountedCesiumEntitySource,
   MountSourceToCesiumOptions,
