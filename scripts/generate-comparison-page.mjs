@@ -11,10 +11,17 @@
  *   - `docs/protocol-capability-matrix.md` (Honua's protocol lanes)
  *   - `docs/data/time-to-first-map.json`   (written by `npm run bench:ttfm -- --write-reference`)
  *   - `node_modules/maplibre-gl`           (engine size measured locally from the pinned dependency)
+ *   - `docs/data/competitor-evidence.v1.json` (every external claim, as
+ *     structured evidence validated by scripts/lib/competitor-evidence.mjs)
  *
- * External (competitor) figures are cited claims, each with a pinned source
- * URL and an as-of date, curated in the CITATIONS block below — never inline
- * in the markdown.
+ * External (competitor) figures are NOT inline constants here. They are
+ * schema-validated evidence records carrying product/package, version line,
+ * primary source URL, observedAt/expiresAt, methodology, per-metric
+ * unit + compression, and comparability notes (#499 REQ-005). Generation fails
+ * when a record is missing, expired, non-primary, or when the page would
+ * combine non-comparable metrics without a caveat (#499 NFR-002), and a
+ * `historical` record is structurally barred from backing a current ratio or
+ * superiority headline (#499 REQ-006).
  *
  * Modes:
  *   - `npm run docs:comparison`        (write): regenerate docs/comparison.md
@@ -27,44 +34,20 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gzipSync } from "node:zlib";
 
+import {
+  assertComparableMetrics,
+  formatProvenance,
+  loadCompetitorEvidence,
+  operationCell,
+  projectEvidence,
+  requireCurrentEvidence,
+} from "./lib/competitor-evidence.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const OUTPUT_FILE = path.join(ROOT, "docs", "comparison.md");
 const BUNDLE_SIZES_FILE = path.join(ROOT, "docs", "bundle-sizes.md");
 const CAPABILITY_MATRIX_FILE = path.join(ROOT, "docs", "protocol-capability-matrix.md");
 const TTFM_REFERENCE_FILE = path.join(ROOT, "docs", "data", "time-to-first-map.json");
-
-// ---------------------------------------------------------------------------
-// Cited external figures. Every number here must carry a pinned source URL and
-// an as-of date. Be conservative and honest: when a range is published, quote
-// the range; when the comparison is not apples-to-apples, say so in prose.
-// ---------------------------------------------------------------------------
-const CITATIONS = {
-  arcgisCore: {
-    label: "`@arcgis/core` 4.30 (ArcGIS Maps SDK for JavaScript)",
-    mainBundleMin: "1.31–1.49 MB",
-    mainBundleGzip: "0.36–0.42 MB",
-    totalJsTransferred: "3.5–4.1 MB",
-    buildOutput: "8.3–10 MB across ~300–740 files",
-    asOf: "2024-06-27 (4.30, the last core-sample metrics Esri published in jsapi-resources)",
-    retrieved: "2026-07-13",
-    source:
-      "https://github.com/Esri/jsapi-resources/blob/9fe7d8cc709c5daf3a342e921e897d459955b347/core-samples/.metrics/4.30.0.csv",
-    note:
-      "Esri's own automated build metrics for its minimal `@arcgis/core` map samples (esbuild, Angular, React, Vue, Rollup, Webpack lanes).",
-  },
-  esriArcgisRestJs: {
-    label: "`@esri/arcgis-rest-js`",
-    source: "https://developers.arcgis.com/arcgis-rest-js/",
-    retrieved: "2026-07-13",
-    note: "Esri's lightweight REST client family. Small per-package footprint; speaks ArcGIS services only, no map runtime.",
-  },
-  openlayers: {
-    label: "OpenLayers (`ol`)",
-    source: "https://openlayers.org/",
-    retrieved: "2026-07-13",
-    note: "A full renderer + formats library, not a typed multi-protocol service client; size depends heavily on tree-shaken imports.",
-  },
-};
 
 // ---------------------------------------------------------------------------
 // Bundle-size input parsing (docs/bundle-sizes.md is itself generated; this
@@ -301,6 +284,111 @@ function deriveProtocolMatrix(matrixMarkdown, bundle) {
 }
 
 // ---------------------------------------------------------------------------
+// Operation-level behaviour (#499 REQ-003). A protocol checkbox is not
+// behaviour: "supports WFS" says nothing about whether paging, edits, CRS
+// negotiation, or planning are actually done for you. Each row below is
+// anchored to something real in this repository (`matrixOperation` = a row of
+// the generated capability matrix; `repoFile` = a shipped source/doc file;
+// `sourceSymbol` = a symbol exported from the public surface), and generation
+// fails when an anchor disappears — so a behaviour claim cannot outlive the
+// implementation it describes.
+//
+// Competitor cells describe each product's FIRST-PARTY documented surface only
+// (evidence records supply the primary source URLs). They stay deliberately
+// coarse: ✓ first-party, ◐ partial or caller-assembled, — not provided.
+// ---------------------------------------------------------------------------
+const OPERATION_ROWS = [
+  {
+    key: "discovery",
+    operation: "Discovery",
+    detail: "enumerate datasets/layers from a service root with typed metadata",
+    repoFile: path.join("docs", "discovery-contract.md"),
+    honua: "✓ typed `describe()` contract",
+  },
+  {
+    key: "paging",
+    operation: "Paging",
+    detail: "walk a result set past the service page limit",
+    matrixOperation: "stream",
+    honua: "✓ streamed + bounded queries",
+  },
+  {
+    key: "edits",
+    operation: "Edits",
+    detail: "create/update/delete features through the protocol's transaction",
+    matrixOperation: "applyEdits",
+    honua: "✓ GeoServices / OGC Features / WFS / OData",
+  },
+  {
+    key: "crs",
+    operation: "CRS",
+    detail: "declare, validate, and negotiate coordinate reference systems",
+    repoFile: path.join("src", "contract", "generated", "projjson-v0.7-crs-validator.ts"),
+    honua: "✓ validated PROJJSON + per-source CRS",
+  },
+  {
+    key: "capabilityNegotiation",
+    operation: "Capability negotiation",
+    detail: "know before you call whether an operation is supported",
+    repoFile: path.join("docs", "source-capabilities.md"),
+    honua: "✓ claimed / observed / effective",
+  },
+  {
+    key: "planning",
+    operation: "Planning / explainability",
+    detail: "inspect the accepted plan before execution",
+    sourceSymbol: "explainQuery",
+    honua: "✓ `explainQuery` + `hashQueryPlan`",
+  },
+  {
+    key: "rendering",
+    operation: "Rendering",
+    detail: "draw the map",
+    matrixOperation: "render",
+    honua: "— (by design: rides a renderer)",
+  },
+  {
+    key: "lifecycle",
+    operation: "Lifecycle",
+    detail: "tear down sources, layers, and listeners deterministically",
+    repoFile: path.join("src", "map", "data-to-map-bridge.ts"),
+    repoFileText: "dispose(): void",
+    honua: "✓ `dispose()` on the mounted bridge",
+  },
+];
+
+
+function deriveOperationMatrix(matrixMarkdown, rootDir) {
+  const surfaceEntry = fs.readFileSync(path.join(rootDir, "src", "index.ts"), "utf8");
+  for (const row of OPERATION_ROWS) {
+    if (row.matrixOperation && !matrixMarkdown.includes(`| \`${row.matrixOperation}\` |`)) {
+      throw new Error(
+        `protocol-capability-matrix.md no longer has operation "${row.matrixOperation}" (row "${row.operation}") — update scripts/generate-comparison-page.mjs`,
+      );
+    }
+    if (row.repoFile) {
+      const target = path.join(rootDir, row.repoFile);
+      if (!fs.existsSync(target)) {
+        throw new Error(
+          `${row.repoFile} no longer exists (operation row "${row.operation}") — update scripts/generate-comparison-page.mjs`,
+        );
+      }
+      if (row.repoFileText && !fs.readFileSync(target, "utf8").includes(row.repoFileText)) {
+        throw new Error(
+          `${row.repoFile} no longer contains "${row.repoFileText}" (operation row "${row.operation}") — update scripts/generate-comparison-page.mjs`,
+        );
+      }
+    }
+    if (row.sourceSymbol && !surfaceEntry.includes(row.sourceSymbol)) {
+      throw new Error(
+        `src/index.ts no longer exports "${row.sourceSymbol}" (operation row "${row.operation}") — update scripts/generate-comparison-page.mjs`,
+      );
+    }
+  }
+  return OPERATION_ROWS;
+}
+
+// ---------------------------------------------------------------------------
 // Time-to-first-map reference figures.
 // ---------------------------------------------------------------------------
 
@@ -327,7 +415,7 @@ const sumAsMb = (...kibTexts) => `${(kibTexts.reduce((total, text) => total + ki
 // Page rendering.
 // ---------------------------------------------------------------------------
 
-export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
+export function renderComparisonPage({ bundle, maplibre, lanes, operations, evidence, ttfm }) {
   const honuaRows = [
     bundleRow(bundle, "`.` (root)", "Full root entrypoint: connect → query → explain → mount workflow"),
     bundleRow(bundle, "tree-shake guard (`{ HonuaClient }` only)", "Importing only `HonuaClient` (tree-shake guard)"),
@@ -342,7 +430,69 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
     bundleRow(bundle, "`/routing`", "Routing client"),
   ];
 
-  const c = CITATIONS;
+  // projectEvidence() enforces NFR-002 freshness at the point of publication.
+  // Records the page does NOT project (archived observations) are deliberately
+  // allowed to sit expired in the evidence file, which is what makes the
+  // "add a new observation, never rewrite the old one" recovery workable.
+  const arcgisCore = projectEvidence(evidence, "arcgis-core-4-30-core-sample-build-metrics", {
+    context: "the @arcgis/core build-metrics block",
+  });
+  const arcgisCoreCurrent = projectEvidence(evidence, "arcgis-core-current-release-line", {
+    context: "the @arcgis/core current release-line statement",
+  });
+  const arcgisRest = projectEvidence(evidence, "esri-arcgis-rest-js-scope", {
+    context: "the ArcGIS REST JS column",
+  });
+  const openlayers = projectEvidence(evidence, "openlayers-scope", { context: "the OpenLayers column" });
+  const maplibreScope = projectEvidence(evidence, "maplibre-gl-scope", { context: "the MapLibre GL JS column" });
+  // The release-line statement below IS a claim about the product as it ships
+  // today, so it must come from non-historical evidence. The 4.30 build metrics
+  // are deliberately NOT passed through this gate — they would be refused.
+  const currentArcgisLine = requireCurrentEvidence(arcgisCoreCurrent, {
+    claimKind: "current release-line statement",
+  });
+  const metricOf = (record, key) => {
+    const metric = record.metrics.find((entry) => entry.key === key);
+    if (!metric) throw new Error(`evidence record "${record.id}" is missing metric "${key}"`);
+    return metric;
+  };
+
+  // The only arithmetic on this page adds figures this repo measured itself,
+  // under one harness, in one unit and compression. These two calls prove that
+  // precondition holds before the totals are rendered (#499 NFR-002).
+  assertComparableMetrics(
+    [
+      { key: "maplibre-minified", unit: "KiB", compression: "none" },
+      { key: "honua-root-minified", unit: "KiB", compression: "none" },
+    ],
+    { context: "Honua + MapLibre minified total" },
+  );
+  assertComparableMetrics(
+    [
+      { key: "maplibre-gzip", unit: "KiB", compression: "gzip" },
+      { key: "honua-root-gzip", unit: "KiB", compression: "gzip" },
+    ],
+    { context: "Honua + MapLibre gzip total" },
+  );
+
+  // Honua's locally measured bytes and Esri's reported startup total are NOT
+  // comparable — different unit, different workload, different harness. The
+  // gate refuses to combine them and hands back the caveat that must be
+  // rendered next to them, so the page cannot quietly divide one by the other.
+  const startupComparison = assertComparableMetrics(
+    [
+      { key: "honua-root-minified", unit: "KiB", compression: "none" },
+      { key: "arcgis-core-startup", unit: metricOf(arcgisCore, "startupJavaScript").unit, compression: "none" },
+    ],
+    {
+      caveat: arcgisCore.comparability,
+      context: "Honua bytes vs @arcgis/core startup JavaScript",
+    },
+  );
+  if (startupComparison.comparable) {
+    throw new Error("expected Honua KiB figures and @arcgis/core MB startup totals to be non-comparable");
+  }
+
   const maplibreFiles = maplibre.files.map((file) => `\`${file}\``).join(", ");
   const lines = [];
   const push = (...parts) => lines.push(...parts);
@@ -350,7 +500,7 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
   push(
     "<!-- GENERATED FILE — do not edit by hand. -->",
     "<!-- Regenerate with: npm run docs:comparison -->",
-    "<!-- Inputs: docs/bundle-sizes.md, docs/protocol-capability-matrix.md, docs/data/time-to-first-map.json, node_modules/maplibre-gl. -->",
+    "<!-- Inputs: docs/bundle-sizes.md, docs/protocol-capability-matrix.md, docs/data/time-to-first-map.json, docs/data/competitor-evidence.v1.json, node_modules/maplibre-gl. -->",
     "<!-- Freshness is enforced by npm run docs:comparison:check. -->",
     "",
     "# How Honua compares",
@@ -361,15 +511,44 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
     "things Honua actually claims: the bytes you ship, the protocols you get a real client for,",
     "and how fast a new project reaches a working map.",
     "",
-    "Three ground rules keep this page honest:",
+    "Four ground rules keep this page honest:",
     "",
     "1. **Every Honua number is generated, never hand-edited.** This whole file is produced by",
     "   `npm run docs:comparison` from committed, regenerable inputs; CI fails when it drifts",
     "   (`npm run docs:comparison:check`). See [Methodology](#methodology-and-freshness).",
-    "2. **Every external number carries a source URL and an as-of date.**",
-    "3. **Non-goals are stated.** Esri's 3D/SceneView stack and MapLibre's rendering quality are",
+    "2. **Every external figure, and every operation-level cell, is a structured evidence record**,",
+    "   not prose — with a primary source URL, the version it describes, an observation date, an",
+    "   expiry, its methodology, and its metric's unit and compression. See",
+    "   [Evidence contract](#evidence-contract). The protocol-coverage table is the one exception,",
+    "   and says so where it appears.",
+    "3. **Categories are never mixed silently.** A renderer, a headless client, and an all-in-one",
+    "   SDK are different products; the boundary is named below before anything is compared.",
+    "4. **Non-goals are stated.** Esri's 3D/SceneView stack and MapLibre's rendering quality are",
     "   not competitions we enter; see the",
     "   [three-lanes strategy](./decisions/market-strategy-2026-three-lanes.md).",
+    "",
+    "## What is being compared",
+    "",
+    "Most SDK comparisons quietly compare a renderer against a data client, or swap in a smaller",
+    "package for one vendor to flatter a byte count. This page names the exact package behind every",
+    "column first, and only compares within a category — or says explicitly when it is crossing one.",
+    "",
+    "| Product | Package compared | Category |",
+    "| --- | --- | --- |",
+    `| Honua SDK | \`@honua/sdk-js\` | ${evidence.categories["headless-service-client"].label} |`,
+    `| ${maplibreScope.product} | \`${maplibreScope.package}\` (${maplibre.version} pinned and measured here; ${maplibreScope.versionLine} published) | ${evidence.categories[maplibreScope.category].label} |`,
+    `| ${arcgisCore.product} | \`${arcgisCore.package}\` | ${evidence.categories[arcgisCore.category].label} |`,
+    `| ${arcgisRest.product} | \`${arcgisRest.package}\` | ${evidence.categories[arcgisRest.category].label} |`,
+    `| ${openlayers.product} | \`${openlayers.package}\` | ${evidence.categories[openlayers.category].label} |`,
+    "",
+    "What each category means:",
+    "",
+    ...Object.values(evidence.categories).map((category) => `- **${category.label}.** ${category.definition}`),
+    "",
+    "The consequence, stated up front: `@honua/sdk-js` ships no renderer, so its byte count is not",
+    "comparable with `@arcgis/core`'s or `ol`'s on its own. Where this page puts them near each",
+    "other it compares *Honua + MapLibre* against the all-in-one SDK, and says so at the point of",
+    "comparison.",
     "",
     "## Bundle size",
     "",
@@ -392,27 +571,45 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
     "A complete Honua + MapLibre app therefore ships roughly the engine plus whichever Honua",
     "entrypoints it imports.",
     "",
+    "A complete open stack, measured here, in one unit:",
+    "",
+    `- **Minified:** engine ${maplibre.min} + Honua root ${honuaRows[0].min} ≈ **${sumAsMb(maplibre.min, honuaRows[0].min)}**.`,
+    `- **Gzip:** engine ${maplibre.gzip} + Honua root ${honuaRows[0].gzip} ≈ **${sumAsMb(maplibre.gzip, honuaRows[0].gzip)}**.`,
+    "",
+    "Both totals add figures produced by the same local harness in the same unit and compression,",
+    "which is the only arithmetic this page performs.",
+    "",
     "### Against the alternatives",
     "",
-    `**${c.arcgisCore.label}.** ${c.arcgisCore.note} As of ${c.arcgisCore.asOf}:`,
-    `the main bundle alone is ${c.arcgisCore.mainBundleMin} minified (${c.arcgisCore.mainBundleGzip} gzip), a`,
-    `simple map view loads **${c.arcgisCore.totalJsTransferred} of JavaScript** at startup, and the`,
-    `on-disk build output is ${c.arcgisCore.buildOutput}. Source (pinned, retrieved ${c.arcgisCore.retrieved}):`,
-    `<${c.arcgisCore.source}>.`,
+    `**${arcgisCore.product} (\`${arcgisCore.package}\`) — historical evidence, ${arcgisCore.versionLine}.**`,
+    `${arcgisCore.methodology}`,
+    `As observed ${arcgisCore.observedAt}: the main bundle alone is ${metricOf(arcgisCore, "mainBundleMinified").value} minified`,
+    `(${metricOf(arcgisCore, "mainBundleGzip").value} gzip), a simple map view loads`,
+    `**${metricOf(arcgisCore, "startupJavaScript").value} of JavaScript** at startup, and the on-disk build output is`,
+    `${metricOf(arcgisCore, "buildOutput").value}.`,
     "",
-    "To be fair in both directions: `@arcgis/core` bundles its own renderer, so the honest",
-    "apples-to-apples is *Honua + MapLibre* against `@arcgis/core`. Compared conservatively —",
-    `our **uncompressed minified** bytes (engine ${maplibre.min} + Honua root ${honuaRows[0].min} ≈`,
-    `${sumAsMb(maplibre.min, honuaRows[0].min)}) against Esri's reported startup JavaScript total`,
-    `(${c.arcgisCore.totalJsTransferred}) — the open stack ships roughly a third of the JavaScript, and`,
-    `${sumAsMb(maplibre.gzip, honuaRows[0].gzip)} over the wire with gzip. Esri's totals also grow with widgets;`,
-    "these figures are its *minimal* samples.",
+    `> **This is a historical measurement and no current claim rests on it.** ${arcgisCore.historicalReason}`,
+    `> The current published line is \`${currentArcgisLine.package}\` ${currentArcgisLine.versionLine}`,
+    `> (observed ${currentArcgisLine.observedAt}, <${currentArcgisLine.sourceUrl}>), which this repo has **not**`,
+    "> measured. Until the same committed harness measures both products under equivalent workloads and",
+    "> units, this page states no ratio, multiple, or \"smaller than\" headline against `@arcgis/core` —",
+    "> the numbers above and the Honua totals are reported side by side and left uncombined.",
     "",
-    `**${c.esriArcgisRestJs.label}** (<${c.esriArcgisRestJs.source}>, retrieved ${c.esriArcgisRestJs.retrieved}).`,
-    `${c.esriArcgisRestJs.note} If all you need is small requests against ArcGIS-only services, it is a`,
-    "fine, lighter choice — the comparison that matters is protocol coverage (below), not bytes.",
+    `Why they are not combined: ${startupComparison.caveat}`,
     "",
-    `**${c.openlayers.label}** (<${c.openlayers.source}>, retrieved ${c.openlayers.retrieved}). ${c.openlayers.note}`,
+    `Provenance — ${formatProvenance(arcgisCore)}`,
+    "",
+    `**${arcgisRest.product} (\`${arcgisRest.package}\`) — ${arcgisRest.versionLine}.** ${arcgisRest.claim}`,
+    "It is the one alternative here in Honua's own category, so the comparison that matters is",
+    "protocol and operation coverage (below), not bytes. If all you need is small requests against",
+    "ArcGIS-only services, it is a fine, lighter choice.",
+    "",
+    `Provenance — ${formatProvenance(arcgisRest)}`,
+    "",
+    `**${openlayers.product} (\`${openlayers.package}\`) — ${openlayers.versionLine}.** ${openlayers.claim}`,
+    `${openlayers.comparability}`,
+    "",
+    `Provenance — ${formatProvenance(openlayers)}`,
     "",
     "## Protocol coverage",
     "",
@@ -423,6 +620,10 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
     "results). Competitor columns are deliberately coarse: ✓ first-party support, ◐ partial or",
     "manual assembly, — not provided.",
     "",
+    "**Scope note.** Unlike the figures and the operation table below, these competitor columns are",
+    "maintained characterisations of each product's documented protocol surface, not evidence",
+    "records — treat them as orientation and check the linked products for anything load-bearing.",
+    "",
     "| Protocol lane | Honua SDK | raw `maplibre-gl` | `@esri/arcgis-rest-js` | OpenLayers |",
     "| --- | --- | --- | --- | --- |",
   );
@@ -430,6 +631,44 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
     push(`| ${lane.lane} | ${lane.honua} | ${lane.maplibre} | ${lane.arcgisRest} | ${lane.openlayers} |`);
   }
   push("", ...PROTOCOL_FOOTNOTES, "");
+
+  push(
+    "## Operation-level behaviour",
+    "",
+    "A protocol checkbox is not behaviour. \"Speaks WFS\" says nothing about whether paging, edits,",
+    "CRS negotiation, or capability checks are done *for* you or left on your desk. This table",
+    "compares the operations themselves. Honua's column is anchored to real artifacts in this",
+    "repository — a capability-matrix operation, a shipped source file, or an exported symbol — and",
+    "generation fails if an anchor disappears, so a claim here cannot outlive its implementation.",
+    "",
+    "Every competitor cell is **projected from that product's evidence record** — not written",
+    "inline here — so each column is bound to the version, primary source, and expiry shown beneath",
+    "the table, and generation fails if a record omits a row that the page renders. Cells stay",
+    "deliberately coarse: ✓ first-party, ◐ partial or caller-assembled, — not provided.",
+    "",
+    `| Operation | What it means | Honua SDK | \`${maplibreScope.package}\` | \`${arcgisRest.package}\` | \`${openlayers.package}\` |`,
+    "| --- | --- | --- | --- | --- | --- |",
+  );
+  for (const row of operations) {
+    push(
+      `| ${row.operation} | ${row.detail} | ${row.honua} | ${operationCell(maplibreScope, row.key)} | ` +
+        `${operationCell(arcgisRest, row.key)} | ${operationCell(openlayers, row.key)} |`,
+    );
+  }
+  push(
+    "",
+    "Competitor columns as observed:",
+    "",
+    ...[maplibreScope, arcgisRest, openlayers].map(
+      (record) =>
+        `- \`${record.package}\` ${record.versionLine} — observed ${record.observedAt}, expires ${record.expiresAt}, ` +
+        `from <${record.sourceUrl}>`,
+    ),
+    "",
+    "Read the rendering row as the point of the whole page: Honua deliberately scores `—` there.",
+    "It is a data client. The comparison it invites is on the other seven rows.",
+    "",
+  );
 
   push("## Time to first map", "");
   if (ttfm) {
@@ -486,13 +725,43 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
     "| `maplibre-gl` engine size | measured from the pinned `node_modules/maplibre-gl` during `npm run docs:comparison` |",
     "| Protocol lanes (Honua column) | derived from [`docs/protocol-capability-matrix.md`](./protocol-capability-matrix.md) during `npm run docs:comparison` |",
     "| Time to first map | `npm run bench:ttfm -- --write-reference` |",
+    "| Operation-level rows (Honua column) | anchored to capability-matrix operations, shipped source files, and exported symbols during `npm run docs:comparison` |",
+    "| External claims | validated from [`docs/data/competitor-evidence.v1.json`](./data/competitor-evidence.v1.json) during `npm run docs:comparison` |",
     "| This page | `npm run docs:comparison` |",
     "",
     "This file is **generated** (`scripts/generate-comparison-page.mjs`) and CI fails when it is",
     "hand-edited or stale (`npm run docs:comparison:check`), mirroring the README's",
-    "generated-bundle-table discipline. External figures are cited claims with pinned source URLs",
-    "and retrieval dates in the generator source — update them there, with a new date, or not at",
-    "all.",
+    "generated-bundle-table discipline.",
+    "",
+    "### Evidence contract",
+    "",
+    "External claims — every competitor figure *and* every competitor cell in the operation table —",
+    "are not prose. Each is a record in",
+    "[`docs/data/competitor-evidence.v1.json`](./data/competitor-evidence.v1.json), validated against",
+    "[`schemas/competitor-evidence.v1.json`](../schemas/competitor-evidence.v1.json) by",
+    "`scripts/lib/competitor-evidence.mjs`. Every record must carry the product and the **exact**",
+    "package it represents, the version or release line, the claim, a primary source URL, `observedAt`,",
+    "`expiresAt`, its methodology, each metric's unit and compression, and comparability notes.",
+    "",
+    "Generation — and therefore CI — **fails** when:",
+    "",
+    "- a projected claim has no evidence record, or the record is missing a required field;",
+    "- a **projected** record has expired (`expiresAt` in the past);",
+    "- a record's `sourceUrl` is not under a trusted primary-source origin **for that package**.",
+    "  The trusted origins live in code (`TRUSTED_PRIMARY_SOURCE_PREFIXES`), not in the evidence",
+    "  file, so a record cannot whitelist its own source and a third-party restatement of a vendor",
+    "  number cannot pass as primary evidence. A package with no trusted entry cannot be projected;",
+    "- the page would **combine or rank metrics whose unit or compression differ** without an",
+    "  explicit rendered caveat;",
+    "- the page renders an operation row a competitor's record does not state;",
+    "- a record marked `historical` is used to support a current headline, ratio, or superiority",
+    "  claim. This is a code path, not a style guide: the generator refuses, so the page cannot say it.",
+    "",
+    "Records are **immutable per observation**. Refreshing a claim adds a new record with its own",
+    "`observedAt` and repoints the generator at it; it never rewrites an existing record's provenance.",
+    "Freshness is therefore checked where it belongs — on the record actually being **published** —",
+    "so a superseded observation may remain in the file, and expire, as archived provenance without",
+    "breaking generation. That is what makes the immutability rule usable rather than a dead letter.",
     "",
     "## Try it",
     "",
@@ -504,13 +773,17 @@ export function renderComparisonPage({ bundle, maplibre, lanes, ttfm }) {
   return `${lines.join("\n").replace(/\n+$/, "")}\n`;
 }
 
-export function buildPage(rootDir = ROOT) {
+export function buildPage(rootDir = ROOT, { now } = {}) {
   const bundle = parseBundleSizes(fs.readFileSync(BUNDLE_SIZES_FILE, "utf8"));
   const matrixMarkdown = fs.readFileSync(CAPABILITY_MATRIX_FILE, "utf8");
   const maplibre = measureMapLibre(rootDir);
   const lanes = deriveProtocolMatrix(matrixMarkdown, bundle);
+  const operations = deriveOperationMatrix(matrixMarkdown, rootDir);
+  // Validates schema, primary sources, freshness and historical labelling
+  // before a single external figure reaches the page (#499 REQ-005/NFR-002).
+  const evidence = loadCompetitorEvidence({ rootDir, now });
   const ttfm = loadTtfmReference();
-  return renderComparisonPage({ bundle, maplibre, lanes, ttfm });
+  return renderComparisonPage({ bundle, maplibre, lanes, operations, evidence, ttfm });
 }
 
 function main() {

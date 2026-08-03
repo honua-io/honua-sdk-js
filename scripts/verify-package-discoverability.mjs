@@ -32,8 +32,39 @@ if (missingLinks.length > 0) {
   throw new Error(`README is missing discoverability links: ${missingLinks.join(", ")}`);
 }
 
-if (!listing.includes("Status: **prepared, not filed**")) {
-  throw new Error("ecosystem listing kit must state that external submissions are not filed by SDK CI");
+// The listing kit doubles as the external-submission ledger. It must keep
+// saying that this repository never files submissions itself, and every ledger
+// row must carry a real state, so the kit cannot drift into implying an
+// acceptance that never happened (honua-io/honua-sdk-js#499).
+if (!/SDK CI never files anything/.test(listing)) {
+  throw new Error("ecosystem listing kit must state that external submissions are never filed by SDK CI");
+}
+
+const afterLedgerHeading = listing.split("## Submission ledger")[1];
+if (!afterLedgerHeading) {
+  throw new Error("ecosystem listing kit must carry a '## Submission ledger' section recording each external submission");
+}
+// Stop at the next top-level heading so a later section's tables cannot be
+// mistaken for ledger rows.
+const ledgerSection = afterLedgerHeading.split(/^## /m)[0];
+
+const ledgerRows = ledgerSection
+  .split(/\r?\n/)
+  .filter((line) => line.startsWith("|") && !/^\|\s*-+/.test(line))
+  .slice(1) // drop the header row
+  .map((line) => line.split("|").map((cell) => cell.trim()).filter((cell) => cell.length > 0));
+
+if (ledgerRows.length === 0) {
+  throw new Error("submission ledger must list at least one external target");
+}
+
+for (const [target, submission, state] of ledgerRows) {
+  if (!submission || !/\bhttps?:\/\//.test(submission)) {
+    throw new Error(`submission ledger row "${target}" must link the actual submission`);
+  }
+  if (!state || !/merged|open|closed|declined/i.test(state)) {
+    throw new Error(`submission ledger row "${target}" must record a real state (merged/open/closed/declined), got "${state ?? ""}"`);
+  }
 }
 
 console.log(`Discoverability metadata verified for ${packageJson.name}`);

@@ -144,10 +144,13 @@ The honest comparisons are the service-client libraries, not the renderers:
   happy hand-rolling service calls; pick Honua *on top of* MapLibre when you want the typed
   client, the ArcGIS migration path, or the server-authored `MapPackage` runtime.
 
-The numbers behind those claims — generated bundle sizes, a protocol-coverage matrix against
-raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and a scripted time-to-first-map benchmark
-with a runnable repro (`npm run bench:ttfm`) — live in
-[`docs/comparison.md`](./docs/comparison.md).
+The numbers behind those claims — generated bundle sizes, a protocol-coverage matrix and an
+operation-level behaviour table against raw MapLibre / `@esri/arcgis-rest-js` / OpenLayers, and
+a scripted time-to-first-map benchmark with a runnable repro (`npm run bench:ttfm`) — live in
+[`docs/comparison.md`](./docs/comparison.md). That page names the category boundary behind
+every column (headless client vs renderer vs all-in-one SDK) and backs each external figure
+with a dated, primary-sourced evidence record; a measurement of a superseded release line is
+labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
 **Honua Server is optional for standards clients.** Supported GeoServices, OGC API
@@ -260,8 +263,9 @@ in.
 
 Full per-entrypoint table (min + gzip, generated, not hand-written):
 [`docs/bundle-sizes.md`](./docs/bundle-sizes.md). Refresh it with
-`npm run report:bundle-sizes`. For how these sizes stack up against
-`@arcgis/core` and friends, see the generated
+`npm run report:bundle-sizes`. For how these sizes sit against `@arcgis/core`
+and friends — at a named category boundary, with every external figure dated
+and primary-sourced — see the generated
 [comparison page](./docs/comparison.md).
 
 ## 60-second quickstart
@@ -411,7 +415,8 @@ Linking to Honua from a plugin directory or ecosystem list? Point at
 [First Map](./docs/quickstart.md)
 ([hosted walkthrough](https://honua-io.github.io/honua-sdk-js/guides/quickstart.html),
 [source](./examples/maplibre-quickstart/README.md)) — CI keeps its fixture lane externally network-blocked and its
-release smoke green across Chromium, Firefox, and WebKit. Prepared directory entries live in
+release smoke green across Chromium, Firefox, and WebKit. Reusable directory entries — and the
+ledger of which ecosystem submissions were filed and accepted — live in
 [`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
