@@ -1262,6 +1262,220 @@ test("IndexedDB download resumes from verified staged resources", async ({ page 
   }
 });
 
+test("persisted offline region and edit-queue records stay credential-free", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect
+      .poll(() => page.evaluate(() => window.__offlineResult))
+      .toMatchObject({ receipt: "committed", regionCount: 1 });
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    const audit = await page.evaluate(async (name) => {
+      const {
+        createIndexedDbOfflineEditQueue,
+        createIndexedDbOfflineRegionStore,
+        createOfflineRegionManifest,
+        downloadOfflineRegion,
+      } = await import("/dist/src/offline/index.js");
+      const digest = async (value) => {
+        const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+        return "sha256:" + [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      };
+      // Distinctive so the record scan below cannot pass by coincidence.
+      const SECRET = "P4ssThisMustNeverReachDisk";
+      const refusals = [];
+      const refused = async (label, run) => {
+        try {
+          await run();
+          refusals.push(`${label}:accepted`);
+        } catch (error) {
+          refusals.push(`${label}:${error?.path ?? "no-path"}`);
+          if (typeof error?.message === "string" && error.message.includes(SECRET)) refusals.push(`${label}:echoed`);
+        }
+      };
+      const baseInput = {
+        name: "credential-free fixture",
+        sourceId: "fixture",
+        endpoint: "https://example.test/features",
+        authorizationScopeFingerprint: "test-scope",
+        bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, crs: "EPSG:4326" },
+        sourceVersion: "1",
+        schemaVersion: "1",
+        planVersion: "1",
+        observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+        resources: [{ id: "metadata", kind: "metadata", byteLength: 3, integrity: await digest("one") }],
+      };
+
+      await refused("manifest", () =>
+        createOfflineRegionManifest({ ...baseInput, sourceId: `fixture?token=${SECRET}` }),
+      );
+
+      const manifest = await createOfflineRegionManifest(baseInput);
+      const store = createIndexedDbOfflineRegionStore({ name });
+      await refused("beginWrite", () => store.beginWrite(`region?token=${SECRET}`));
+
+      // A direct store caller that bypassed downloadOfflineRegion.
+      const inventory = await store.inventory();
+      const transaction = await store.beginWrite(manifest.id);
+      const tampered = {
+        ...manifest,
+        source: { ...manifest.source, endpoint: `https://example.test/features?token=${SECRET}` },
+      };
+      const receipt = {
+        regionId: manifest.id,
+        resourceCount: 1,
+        logicalByteLength: 3,
+        evictedRegionIds: [],
+        integrity: "verified",
+        quotaAccounting: "logical-payload-bytes",
+        completedAt: "2026-07-29T00:00:00.000Z",
+      };
+      const guard = {
+        expectedInventoryRevision: inventory.revision,
+        logicalQuotaBytes: 3,
+        admission: {
+          logicalQuotaBytes: 3,
+          logicalBytesBefore: 3,
+          replacementLogicalBytes: 3,
+          requiredLogicalBytes: 3,
+          evictRegionIds: [],
+          evictedLogicalBytes: 0,
+          logicalBytesAfter: 3,
+        },
+      };
+      await refused("commit", () => transaction.commit(tampered, receipt, guard));
+      await transaction.rollback();
+
+      // A committed, credential-free region so the scan has real records.
+      await downloadOfflineRegion(manifest, {
+        store,
+        logicalQuotaBytes: 3,
+        load: async () => new TextEncoder().encode("one"),
+      });
+
+      const queueName = `${name}-credential-screen-edits`;
+      const queue = createIndexedDbOfflineEditQueue({ name: queueName });
+      const authorizationScopeDigest = await digest("browser-scope");
+      await refused("enqueue", () =>
+        queue.enqueue({
+          authorizationScopeDigest,
+          sourceId: "fixture",
+          idempotencyKey: `local-1&sig=${SECRET}`,
+          edit: { operation: "add", attributes: { status: "open" } },
+        }),
+      );
+      await queue.enqueue({
+        authorizationScopeDigest,
+        sourceId: "fixture",
+        idempotencyKey: "browser-credential-free",
+        edit: { operation: "add", attributes: { status: "open" } },
+      });
+
+      const openDatabase = (databaseName) =>
+        new Promise((resolve, reject) => {
+          const request = indexedDB.open(databaseName);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+      const readAll = (handle, storeName) =>
+        new Promise((resolve, reject) => {
+          const request = handle.transaction(storeName, "readonly").objectStore(storeName).getAll();
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+      const readAllKeys = (handle, storeName) =>
+        new Promise((resolve, reject) => {
+          const request = handle.transaction(storeName, "readonly").objectStore(storeName).getAllKeys();
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+
+      const decoder = new TextDecoder();
+      const strings = [];
+      const collect = (value) => {
+        if (typeof value === "string") {
+          strings.push(value);
+          return;
+        }
+        if (value instanceof Uint8Array) {
+          strings.push(decoder.decode(value));
+          return;
+        }
+        if (Array.isArray(value)) {
+          for (const item of value) collect(item);
+          return;
+        }
+        if (value && typeof value === "object") {
+          for (const key of Object.keys(value)) {
+            strings.push(key);
+            collect(value[key]);
+          }
+        }
+      };
+
+      const scanned = [];
+      for (const databaseName of [name, queueName]) {
+        const handle = await openDatabase(databaseName);
+        for (const storeName of [...handle.objectStoreNames]) {
+          const records = await readAll(handle, storeName);
+          const keys = await readAllKeys(handle, storeName);
+          scanned.push({ database: databaseName, store: storeName, records: records.length });
+          for (const key of keys) collect(key);
+          for (const record of records) collect(record);
+        }
+        handle.close();
+      }
+
+      // Independent of the SDK's own denylist so this is evidence, not a tautology.
+      // Written with literal scans so the audit itself cannot backtrack.
+      const CREDENTIAL_WORDS = [
+        "token",
+        "key",
+        "secret",
+        "signature",
+        "password",
+        "passwd",
+        "credential",
+        "auth",
+        "sig",
+        "cookie",
+      ];
+      const isCredentialShaped = (value) => {
+        const lower = value.toLowerCase();
+        if (lower.includes("x-amz-") || lower.includes("x-goog-") || lower.includes("bearer ")) return true;
+        const scheme = lower.indexOf("://");
+        if (scheme > 0 && lower.slice(scheme + 3).split("/")[0].includes("@")) return true;
+        for (const segment of lower.split(/[?&;#]/u)) {
+          const assignment = segment.indexOf("=");
+          if (assignment < 0) continue;
+          const key = segment.slice(0, assignment);
+          if (CREDENTIAL_WORDS.some((word) => key.includes(word))) return true;
+        }
+        return false;
+      };
+      const offenders = [];
+      for (const value of strings) {
+        if (value.includes(SECRET)) offenders.push("secret");
+        else if (isCredentialShaped(value)) offenders.push(value.slice(0, 24));
+      }
+      return { refusals, offenders, scannedStrings: strings.length, scanned };
+    }, database);
+
+    expect(audit.refusals).toEqual([
+      "manifest:sourceId",
+      "beginWrite:regionId",
+      "commit:source.endpoint",
+      "enqueue:idempotencyKey",
+    ]);
+    expect(audit.offenders).toEqual([]);
+    expect(audit.scannedStrings).toBeGreaterThan(0);
+    // Both databases must actually have been enumerated with records present.
+    expect(audit.scanned.filter((entry) => entry.records > 0).length).toBeGreaterThanOrEqual(4);
+  } finally {
+    await server.close();
+  }
+});
+
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
   let offlineDataRequests = 0;
