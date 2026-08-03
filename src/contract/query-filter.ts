@@ -194,7 +194,7 @@ function literal(value: QueryFilterScalar): QueryFilterLiteralNode {
  * );
  * ```
  */
-export const queryFilter = Object.freeze({
+export const queryFilter = /* @__PURE__ */ Object.freeze({
   eq: (field: string, value: QueryFilterScalar): QueryFilterComparisonNode => ({
     kind: "comparison",
     operator: "eq",
@@ -566,15 +566,6 @@ const SQL_COMPARISON: Record<QueryFilterComparisonOperator, string> = {
   gte: ">=",
 };
 
-const CQL2_COMPARISON: Record<QueryFilterComparisonOperator, string> = {
-  eq: "=",
-  ne: "<>",
-  lt: "<",
-  lte: "<=",
-  gt: ">",
-  gte: ">=",
-};
-
 const ODATA_COMPARISON: Record<QueryFilterComparisonOperator, string> = {
   eq: "eq",
   ne: "ne",
@@ -630,7 +621,8 @@ export const GEOSERVICES_SPATIAL_REL: Record<QueryFilterSpatialPredicate, EsriSp
 export function compileQueryFilterToSql92(filter: QueryFilterExpression, ctx: QueryFilterContext): CompiledSql92Filter {
   assertQueryFilter(filter, ctx);
   const spatial: QueryFilterSpatialNode[] = [];
-  const where = splitConjunctiveSpatial(filter, ctx, spatial, (node) => sql92Expression(node, ctx));
+  const dialect = sql92Dialect(ctx);
+  const where = splitConjunctiveSpatial(filter, ctx, spatial, (node) => emitSql(node, ctx, dialect));
   if (spatial.length > 1) refuseQueryFilterConstruct("filter.spatial.multiple", ctx);
   const node = spatial[0];
   return {
@@ -689,52 +681,80 @@ function containsSpatial(filter: QueryFilterExpression): boolean {
   return false;
 }
 
-function sql92Expression(filter: QueryFilterExpression, ctx: QueryFilterContext): string {
+/**
+ * Per-dialect differences between the two SQL emitters. GeoServices SQL-92 and
+ * DuckDB agree on every operator this filter can express, so they share one
+ * emitter: only identifier quoting, case-insensitive matching, and how a
+ * spatial node is handled differ.
+ */
+interface SqlDialect {
+  /** Quote a validated source field name. */
+  readonly identifier: (name: string) => string;
+  /** Emit a case-insensitive pattern match. */
+  readonly caseInsensitiveLike: (field: string, pattern: string) => string;
+  /** Emit (or refuse) an inline spatial predicate. */
+  readonly spatial: (node: QueryFilterSpatialNode) => string;
+}
+
+function emitSql(filter: QueryFilterExpression, ctx: QueryFilterContext, dialect: SqlDialect): string {
+  const field = (name: string) => dialect.identifier(name);
   switch (filter.kind) {
     case "comparison": {
-      const field = filter.left.name;
-      const value = sqlLiteral(filter.right, true);
+      const left = field(filter.left.name);
       if (filter.right.value === null) {
         return filter.operator === "eq"
-          ? `${field} IS NULL`
+          ? `${left} IS NULL`
           : filter.operator === "ne"
-            ? `${field} IS NOT NULL`
+            ? `${left} IS NOT NULL`
             : refuseQueryFilterConstruct(`filter.comparison.${filter.operator}.null`, ctx);
       }
-      return `${field} ${SQL_COMPARISON[filter.operator]} ${value}`;
+      return `${left} ${SQL_COMPARISON[filter.operator]} ${sqlLiteral(filter.right, true)}`;
     }
     case "list":
-      return `${filter.operand.name} IN (${filter.values.map((value) => sqlLiteral(value, true)).join(", ")})`;
+      return `${field(filter.operand.name)} IN (${filter.values.map((value) => sqlLiteral(value, true)).join(", ")})`;
     case "range":
-      return `${filter.operand.name} BETWEEN ${sqlLiteral(filter.lower, true)} AND ${sqlLiteral(filter.upper, true)}`;
+      return `${field(filter.operand.name)} BETWEEN ${sqlLiteral(filter.lower, true)} AND ${sqlLiteral(
+        filter.upper,
+        true,
+      )}`;
     case "null":
-      return `${filter.operand.name} IS ${filter.operator === "is-null" ? "NULL" : "NOT NULL"}`;
+      return `${field(filter.operand.name)} IS ${filter.operator === "is-null" ? "NULL" : "NOT NULL"}`;
     case "pattern": {
       const pattern = sqlText(filter.pattern);
+      const operand = field(filter.operand.name);
       return filter.caseSensitive === false
-        ? `UPPER(${filter.operand.name}) LIKE UPPER(${pattern})`
-        : `${filter.operand.name} LIKE ${pattern}`;
+        ? dialect.caseInsensitiveLike(operand, pattern)
+        : `${operand} LIKE ${pattern}`;
     }
     case "temporal": {
       const bounds = temporalBounds(filter, ctx);
-      const field = filter.operand.name;
-      if (bounds.instant !== undefined) return `${field} = ${sqlTimestamp(bounds.instant)}`;
+      const operand = field(filter.operand.name);
+      if (bounds.instant !== undefined) return `${operand} = ${sqlTimestamp(bounds.instant)}`;
       const parts: string[] = [];
-      if (bounds.start !== undefined) parts.push(`${field} >= ${sqlTimestamp(bounds.start)}`);
-      if (bounds.end !== undefined) parts.push(`${field} <= ${sqlTimestamp(bounds.end)}`);
+      if (bounds.start !== undefined) parts.push(`${operand} >= ${sqlTimestamp(bounds.start)}`);
+      if (bounds.end !== undefined) parts.push(`${operand} <= ${sqlTimestamp(bounds.end)}`);
       return parts.length === 1 ? parts[0] : `(${parts.join(" AND ")})`;
     }
-    case "boolean": {
-      const joiner = filter.operator === "and" ? " AND " : " OR ";
-      return filter.args.map((arg) => `(${sql92Expression(arg, ctx)})`).join(joiner);
-    }
+    case "boolean":
+      return filter.args
+        .map((arg) => `(${emitSql(arg, ctx, dialect)})`)
+        .join(filter.operator === "and" ? " AND " : " OR ");
     case "not":
-      return `NOT (${sql92Expression(filter.arg, ctx)})`;
+      return `NOT (${emitSql(filter.arg, ctx, dialect)})`;
     case "spatial":
-      return refuseQueryFilterConstruct("filter.spatial.disjunction", ctx);
+      return dialect.spatial(filter);
     default:
       return refuseQueryFilterConstruct("filter.node", ctx);
   }
+}
+
+/** GeoServices carries geometry as request parameters, never inside the SQL. */
+function sql92Dialect(ctx: QueryFilterContext): SqlDialect {
+  return {
+    identifier: (name) => name,
+    caseInsensitiveLike: (operand, pattern) => `UPPER(${operand}) LIKE UPPER(${pattern})`,
+    spatial: () => refuseQueryFilterConstruct("filter.spatial.disjunction", ctx),
+  };
 }
 
 // ── DuckDB SQL (GeoParquet) ───────────────────────────────────
@@ -757,61 +777,16 @@ export function compileQueryFilterToDuckDbSql(
 ): CompiledDuckDbFilter {
   assertQueryFilter(filter, ctx);
   let bboxApproximated = false;
-  const emit = (node: QueryFilterExpression): string => {
-    switch (node.kind) {
-      case "spatial": {
-        const compiled = emitSpatial(node);
-        if (compiled.bboxApproximated) bboxApproximated = true;
-        return compiled.sql;
-      }
-      case "pattern":
-        return node.caseSensitive === false
-          ? `${duckDbIdentifier(node.operand.name)} ILIKE ${sqlText(node.pattern)}`
-          : `${duckDbIdentifier(node.operand.name)} LIKE ${sqlText(node.pattern)}`;
-      case "comparison": {
-        const field = duckDbIdentifier(node.left.name);
-        if (node.right.value === null) {
-          return node.operator === "eq"
-            ? `${field} IS NULL`
-            : node.operator === "ne"
-              ? `${field} IS NOT NULL`
-              : refuseQueryFilterConstruct(`filter.comparison.${node.operator}.null`, ctx);
-        }
-        return `${field} ${SQL_COMPARISON[node.operator]} ${sqlLiteral(node.right, true)}`;
-      }
-      case "list":
-        return `${duckDbIdentifier(node.operand.name)} IN (${node.values
-          .map((value) => sqlLiteral(value, true))
-          .join(", ")})`;
-      case "range":
-        return `${duckDbIdentifier(node.operand.name)} BETWEEN ${sqlLiteral(node.lower, true)} AND ${sqlLiteral(
-          node.upper,
-          true,
-        )}`;
-      case "null":
-        return `${duckDbIdentifier(node.operand.name)} IS ${node.operator === "is-null" ? "NULL" : "NOT NULL"}`;
-      case "temporal": {
-        const bounds = temporalBounds(node, ctx);
-        const field = duckDbIdentifier(node.operand.name);
-        if (bounds.instant !== undefined) return `${field} = ${sqlTimestamp(bounds.instant)}`;
-        const parts: string[] = [];
-        if (bounds.start !== undefined) parts.push(`${field} >= ${sqlTimestamp(bounds.start)}`);
-        if (bounds.end !== undefined) parts.push(`${field} <= ${sqlTimestamp(bounds.end)}`);
-        return parts.length === 1 ? parts[0] : `(${parts.join(" AND ")})`;
-      }
-      case "boolean":
-        return node.args.map((arg) => `(${emit(arg)})`).join(node.operator === "and" ? " AND " : " OR ");
-      case "not":
-        return `NOT (${emit(node.arg)})`;
-      default:
-        return refuseQueryFilterConstruct("filter.node", ctx);
-    }
-  };
-  return { sql: emit(filter), bboxApproximated };
-}
-
-function duckDbIdentifier(name: string): string {
-  return `"${name}"`;
+  const sql = emitSql(filter, ctx, {
+    identifier: (name) => `"${name}"`,
+    caseInsensitiveLike: (operand, pattern) => `${operand} ILIKE ${pattern}`,
+    spatial: (node) => {
+      const compiled = emitSpatial(node);
+      if (compiled.bboxApproximated) bboxApproximated = true;
+      return compiled.sql;
+    },
+  });
+  return { sql, bboxApproximated };
 }
 
 // ── CQL2 text (OGC API Features / Records / STAC) ─────────────
@@ -847,7 +822,7 @@ export function compileQueryFilterToCql2Text(
               ? `${node.left.name} IS NOT NULL`
               : refuseQueryFilterConstruct(`filter.comparison.${node.operator}.null`, ctx);
         }
-        return `${node.left.name} ${CQL2_COMPARISON[node.operator]} ${cql2Literal(node.right)}`;
+        return `${node.left.name} ${SQL_COMPARISON[node.operator]} ${cql2Literal(node.right)}`;
       }
       case "list":
         return `${node.operand.name} IN (${node.values.map(cql2Literal).join(", ")})`;

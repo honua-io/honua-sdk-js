@@ -4,13 +4,21 @@ import { type Plugin, defineConfig } from "vite";
 
 import { createSampleViteConfig } from "../_kit/vite.config.js";
 
-// Reset for the connect batch that adds WMS/WMTS discovery (#551), OData lossless
-// writes (#585), and GeoParquet lossless JSON (#586): the demo's connect() import
-// path now reaches that added discovery/codec surface, measured 1,828,695 JS /
-// 485,371 gzip. Ceilings are measured actual plus ~4% headroom.
+// Reset for the typed semantic filter reaching Source.query() (#947): every
+// adapter lowers Query.filter / Query.temporalFilter onto its own dialect, and
+// all adapters live in the single contract/source module this demo's
+// createDataset() path imports, so the lowering layer is reachable code rather
+// than shakeable dead weight — even though First Map itself never passes a
+// filter. The FES lowering was split into its own module and the queryFilter
+// builder is `@__PURE__`-annotated so an app that composes no filter drops it;
+// what remains is the SQL-92 / CQL2 / OData lowering the adapters call.
+// Measured 1,913,004 JS / 503,392 gzip (from 1,892,447 / 498,120 at 87191dbd,
+// which already sat at 99.6% of the previous ceiling). Ceilings are measured
+// actual plus ~4% headroom, as with the earlier connect/discovery reset
+// (#551/#585/#586, measured 1,828,695 JS / 485,371 gzip).
 export const FIRST_MAP_BUNDLE_BUDGET = Object.freeze({
-  javascriptBytes: 1_900_000,
-  javascriptGzipBytes: 505_000,
+  javascriptBytes: 1_990_000,
+  javascriptGzipBytes: 524_000,
 });
 
 let bundleBudgetFailure: Error | undefined;

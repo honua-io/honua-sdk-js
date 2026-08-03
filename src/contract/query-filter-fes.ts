@@ -9,13 +9,7 @@
  */
 
 import type { EsriSpatialRel } from "../core/types.js";
-import {
-  type FesLiteral,
-  type FesNode,
-  type FesSpatialOp,
-  UNSUPPORTED_FES,
-  compileSpatialFilter,
-} from "../core/wfs-filter.js";
+import { type FesLiteral, type FesNode, UNSUPPORTED_FES, compileSpatialFilter } from "../core/wfs-filter.js";
 import {
   GEOSERVICES_SPATIAL_REL,
   type QueryFilterComparisonOperator,
@@ -138,15 +132,3 @@ function fesLiteral(node: QueryFilterLiteralNode, ctx: QueryFilterContext): FesL
   if (typeof value === "boolean") return { kind: "string", value: value ? "true" : "false" };
   return refuseQueryFilterConstruct("filter.literal.null", ctx);
 }
-
-/** Spatial operator names FES understands, exported for capability reporting. */
-export const FES_SPATIAL_OPERATORS: readonly FesSpatialOp[] = [
-  "Intersects",
-  "Within",
-  "Contains",
-  "Crosses",
-  "Disjoint",
-  "Touches",
-  "Overlaps",
-  "Equals",
-];
