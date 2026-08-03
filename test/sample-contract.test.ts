@@ -6,6 +6,15 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createFixtureBuildEnvironment } from "../scripts/lib/fixture-build-environment.mjs";
 import {
+  SKIP_ATTESTATION_RENEWAL_POLICY,
+  assertRenewedAttestation,
+  canonicalAttestation,
+  evidenceSchemaReference,
+  planSkipAttestationRenewal,
+  serializeAttestation,
+  skipAttestationLanes,
+} from "../scripts/lib/skip-attestation-renewal.mjs";
+import {
   buildBrowserArtifactManifest,
   classifyConfigurationName,
   collectQualificationEvidence,
@@ -21,6 +30,7 @@ import {
   migrateCatalogV1ToV2,
   parseJsonDocument,
   refreshOverlayLiveExpiry,
+  reviewedLiveProducer,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
@@ -429,6 +439,389 @@ describe("sample publication contract", () => {
     expect(catalogCommitStep).toContain('release_matrix_lanes="samples/contract/v2/release-matrix-lanes.v1.json"');
     expect(catalogCommitStep).toContain('git ls-files --error-unmatch "$release_matrix_lanes"');
     expect(catalogCommitStep).toContain('git add -A -- "$release_matrix_lanes"');
+  });
+
+  // honua-io/honua-sdk-js#972. Everything above keeps a skip attestation's
+  // catalog *projection* honest; none of it renews the observation the
+  // projection describes. A skip attestation is a dated observation with a
+  // 90-day ceiling and nothing re-observed it, so every ~90 days one lapsed,
+  // validateCatalog's wall-clock check failed the whole catalog, and every open
+  // PR went red on "Verify sample publication contract" -- including the
+  // regeneration workflow's own reseal passes, which is what made each outage
+  // self-sustaining. The tests below pin the renewal contract that closes it.
+  describe("skip-attestation renewal", () => {
+    const nonExecutedMaxDays = 90;
+    const observedAt = "2026-01-01T00:00:00.000Z";
+    const laneEvidencePath = "test-results/skip-attestation-renewal/live-skipped.v1.json";
+    const dayMs = 24 * 60 * 60 * 1000;
+    // now = observedAt + `age` days, i.e. `90 - age` days of policy window left.
+    const atAge = (days: number) => new Date(Date.parse(observedAt) + days * dayMs).toISOString();
+
+    const attestation = (overrides: Record<string, unknown> = {}) => ({
+      $schema: "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
+      format: "honua.sdk.sample-evidence.v1",
+      schemaVersion: 1,
+      sampleId: "fixture-skip-lane",
+      lane: "live",
+      status: "skipped",
+      reason: "No live configuration was supplied; no fixture data was substituted.",
+      observedAt,
+      authMode: "anonymous",
+      sdk: { package: "@honua/sdk-js", version: "0.0.0", gitCommit: null },
+      source: {
+        provider: "fixture",
+        identity: "fixture-source",
+        endpoint: null,
+        deploymentVersion: null,
+        dataVersion: null,
+      },
+      provenance: null,
+      semantics: { operation: "fixture-journey", outcome: null, itemCount: null, assertions: [] },
+      timing: { totalMs: null, firstSuccessfulInteractionMs: null },
+      degradation: { state: "unavailable", reasons: ["live-config-unavailable"] },
+      artifacts: [],
+      ...overrides,
+    });
+
+    const fixtureMigration = () => ({
+      configuration: { evidenceExpiry: { executedMaxDays: 31, nonExecutedMaxDays, maxFutureSkewSeconds: 300 } },
+      sampleOverrides: {
+        "fixture-skip-lane": {
+          live: {
+            mode: "unavailable",
+            targetMode: "public-live",
+            status: "skipped",
+            evidencePath: laneEvidencePath,
+            expiresAt: "2026-04-01T00:00:00.000Z",
+          },
+        },
+        "fixture-executed-lane": {
+          live: { mode: "public-live", status: "executed", evidencePath: "samples/evidence/x/live.v1.json" },
+        },
+      },
+    });
+
+    const fixtureCatalogV1 = () => ({
+      samples: [
+        {
+          id: "fixture-skip-lane",
+          lanes: { live: { status: "skipped", commands: ["npm run demo:spatial-analytics:live-evidence"] } },
+        },
+      ],
+    });
+
+    const planFixture = (now: string, policy?: Record<string, number>) =>
+      planSkipAttestationRenewal({
+        migration: fixtureMigration(),
+        catalogV1: fixtureCatalogV1(),
+        now,
+        ...(policy ? { policy } : {}),
+        readEvidence: async () => attestation(),
+      });
+
+    // The core time-travel proof: an attestation observed at T is re-observed
+    // strictly BEFORE its policy horizon at T+90d, with a full renewal window
+    // of margin -- not at the boundary, and never after it. The 6-hourly
+    // regeneration cadence means the first run inside the window renews, so the
+    // realised margin is the window minus at most six hours.
+    it("renews a near-lapse lane before the policy boundary and holds while it is still current", async () => {
+      const { renewWithinDays, alertWithinDays } = SKIP_ATTESTATION_RENEWAL_POLICY;
+
+      // Comfortably current: one day before the renewal window opens.
+      const current = await planFixture(atAge(nonExecutedMaxDays - renewWithinDays - 1));
+      expect(current.lanes).toHaveLength(1);
+      expect(current.lanes[0]).toMatchObject({
+        sampleId: "fixture-skip-lane",
+        action: "hold",
+        alert: false,
+        lapsed: false,
+      });
+      expect(current.lanes[0].policyExpiresAt).toBe(atAge(nonExecutedMaxDays));
+      // The horizon it plans against is the observation's own, not the
+      // overlay's hand-set literal (which is projected FROM it moments later).
+      expect(current.lanes[0].overlayExpiresAt).toBe("2026-04-01T00:00:00.000Z");
+
+      // The moment the window opens, renewal is due -- with the full window of
+      // runway left, so the six-hour cadence has ~120 chances to act.
+      const opening = await planFixture(atAge(nonExecutedMaxDays - renewWithinDays));
+      expect(opening.lanes[0]).toMatchObject({ action: "renew", alert: false, lapsed: false });
+      expect(opening.lanes[0].daysRemaining).toBeCloseTo(renewWithinDays, 6);
+
+      // Deep inside the window but still days from the boundary: still "renew",
+      // and now ALSO alerting -- which can only be reached if every renewal
+      // opportunity in the preceding two weeks was missed.
+      const alerting = await planFixture(atAge(nonExecutedMaxDays - alertWithinDays));
+      expect(alerting.lanes[0]).toMatchObject({ action: "renew", alert: true, lapsed: false });
+
+      // Past the boundary: this is the state that wedged trunk. Renewal is
+      // still the answer (re-observing always works, unlike refreshing the
+      // projected literal, which refuses here by design).
+      const lapsed = await planFixture(atAge(nonExecutedMaxDays + 1));
+      expect(lapsed.lanes[0]).toMatchObject({ action: "renew", alert: true, lapsed: true });
+      expect(lapsed.lanes[0].daysRemaining).toBeLessThan(0);
+
+      // Renewal strictly precedes the alert, so an alert always means "renewal
+      // did not happen" and never "renewal is happening normally". Inverting
+      // that ordering is rejected rather than silently making the early warning
+      // meaningless.
+      expect(alertWithinDays).toBeLessThan(renewWithinDays);
+      await expect(planFixture(atAge(1), { renewWithinDays: 10, alertWithinDays: 10 })).rejects.toThrow(
+        "alertWithinDays must be strictly less than renewWithinDays",
+      );
+      // A renewal window at or beyond the policy window would mean every lane is
+      // permanently "due", which is renewal churn rather than renewal.
+      await expect(planFixture(atAge(1), { renewWithinDays: nonExecutedMaxDays, alertWithinDays: 14 })).rejects.toThrow(
+        "must be inside the 90-day non-executed policy window",
+      );
+
+      // Only skip-attested lanes are planned; an executed lane is renewed by
+      // resealing and must not be re-observed by this path.
+      expect(current.lanes.map((lane: { sampleId: string }) => lane.sampleId)).toEqual(["fixture-skip-lane"]);
+    });
+
+    // The installer half. Producers write to a run-scoped path two directories
+    // deep; the committed attestation lives three deep. Getting `$schema` wrong
+    // was the most error-prone step of the manual heal, so it is derived from
+    // the destination rather than copied.
+    it("normalizes a produced attestation onto the committed lane's shape", async () => {
+      expect(evidenceSchemaReference("examples/spatial-analytics-workbench/evidence/live-skipped.v1.json")).toBe(
+        "../../../samples/contract/v1/schemas/sample-evidence.schema.json",
+      );
+      expect(evidenceSchemaReference("samples/evidence/maplibre-quickstart/live.v1.json")).toBe(
+        "../../contract/v1/schemas/sample-evidence.schema.json",
+      );
+
+      // A producer that spreads `source`/`reason` last (the AI builder does)
+      // still lands in schema order, so a renewal's diff is the fields that
+      // changed and not a reshuffle of the whole file.
+      const produced = attestation();
+      const shuffled: Record<string, unknown> = { ...produced };
+      delete shuffled.$schema;
+      delete shuffled.source;
+      delete shuffled.reason;
+      shuffled.source = produced.source;
+      shuffled.reason = produced.reason;
+      const canonical = canonicalAttestation(shuffled, laneEvidencePath);
+      expect(Object.keys(canonical)).toEqual(Object.keys(produced));
+      expect(canonical.$schema).toBe(evidenceSchemaReference(laneEvidencePath));
+      expect(serializeAttestation(canonical).endsWith("}\n")).toBe(true);
+      expect(() => canonicalAttestation({ ...produced, surprise: 1 }, laneEvidencePath)).toThrow(
+        "unknown properties: surprise",
+      );
+
+      // Every real committed attestation already matches what a renewal would
+      // write, so renewal changes the observation and nothing else.
+      const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+      const catalogV1 = await readJson("samples/catalog.v1.json");
+      for (const lane of skipAttestationLanes(migration, catalogV1)) {
+        const committed = await readJson(lane.evidencePath);
+        expect(committed.$schema).toBe(evidenceSchemaReference(lane.evidencePath));
+        expect(Object.keys(canonicalAttestation(committed, lane.evidencePath))).toEqual(Object.keys(committed));
+      }
+    });
+
+    // Renewal may re-date a reviewed attestation; it may never change what the
+    // attestation claims. A scheduled job with commit authority that could
+    // publish a different classification would be strictly worse than the lapse
+    // it replaces.
+    it("refuses a renewal that changes what the lane claims", () => {
+      const lane = { sampleId: "fixture-skip-lane", declaredStatus: "skipped", evidencePath: laneEvidencePath };
+      const previous = attestation();
+      const fresh = attestation({ observedAt: atAge(60), reason: "A different, still-unavailable explanation." });
+
+      // Re-dating with a changed reason is the normal case: `reason` is prose
+      // about what THIS observation found, and re-observing may honestly find a
+      // different unavailability.
+      expect(assertRenewedAttestation(fresh, { lane, previous })).toBe(fresh);
+
+      expect(() =>
+        assertRenewedAttestation(attestation({ observedAt: atAge(60), status: "executed" }), { lane, previous }),
+      ).toThrow("needs human review rather than automated renewal");
+      expect(() =>
+        assertRenewedAttestation(
+          attestation({ observedAt: atAge(60), degradation: { state: "degraded", reasons: [] } }),
+          { lane, previous },
+        ),
+      ).toThrow("degradation state");
+      expect(() =>
+        assertRenewedAttestation(
+          attestation({
+            observedAt: atAge(60),
+            semantics: { operation: "some-other-journey", outcome: null, itemCount: null, assertions: [] },
+          }),
+          { lane, previous },
+        ),
+      ).toThrow("describes journey");
+      // A producer that reported a stale or identical timestamp has not
+      // re-observed anything, so it cannot renew anything either.
+      expect(() => assertRenewedAttestation(attestation(), { lane, previous })).toThrow(
+        "does not follow the committed",
+      );
+    });
+
+    // Dry run against a fixture catalog, through the real CLI: this is the
+    // rehearsal path an operator (or a reviewer of this automation) can use to
+    // see exactly which lanes a given date would re-observe, without touching a
+    // single committed attestation.
+    it("reports, but does not perform, renewals in dry-run mode against a fixture catalog", async () => {
+      const fixtureRoot = "test-results/skip-attestation-renewal";
+      const migrationPath = `${fixtureRoot}/catalog.v1-to-v2.json`;
+      const catalogPath = `${fixtureRoot}/catalog.v1.json`;
+      try {
+        await mkdir(fixtureRoot, { recursive: true });
+        await writeFile(migrationPath, JSON.stringify(fixtureMigration(), null, 2), "utf8");
+        await writeFile(catalogPath, JSON.stringify(fixtureCatalogV1(), null, 2), "utf8");
+        await writeFile(laneEvidencePath, `${JSON.stringify(attestation(), null, 2)}\n`, "utf8");
+        const before = await readFile(laneEvidencePath, "utf8");
+
+        const { stdout } = await execFileAsync(process.execPath, [
+          "scripts/renew-skip-attestations.mjs",
+          "--dry-run",
+          "--json",
+          "--now",
+          atAge(nonExecutedMaxDays - 3),
+          "--migration",
+          migrationPath,
+          "--catalog-v1",
+          catalogPath,
+        ]);
+        const report = JSON.parse(stdout);
+        expect(report.dryRun).toBe(true);
+        expect(report.renewals).toEqual([]);
+        expect(report.lanes).toHaveLength(1);
+        expect(report.lanes[0]).toMatchObject({
+          sampleId: "fixture-skip-lane",
+          action: "renew",
+          alert: true,
+          lapsed: false,
+          command: "npm run demo:spatial-analytics:live-evidence",
+        });
+        // The rehearsal wrote nothing.
+        expect(await readFile(laneEvidencePath, "utf8")).toBe(before);
+
+        // ...and a fixture can only ever be a rehearsal: pointing the *writing*
+        // mode at non-reviewed contract inputs is refused, so nothing a test or
+        // a stray file lays down can steer what the scheduled job commits.
+        await expect(
+          execFileAsync(process.execPath, [
+            "scripts/renew-skip-attestations.mjs",
+            "--migration",
+            migrationPath,
+            "--catalog-v1",
+            catalogPath,
+          ]),
+        ).rejects.toThrow("only honoured with --dry-run");
+      } finally {
+        await rm(fixtureRoot, { recursive: true, force: true });
+      }
+    });
+
+    // Renewal against the repository's own contract: every skip-attested lane
+    // is discovered (by declared shape, not a hardcoded list), bound to the
+    // producer the published catalog names, and currently far from its horizon.
+    it("plans every real skip-attested lane against its reviewed producer", async () => {
+      const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+      const catalogV1 = await readJson("samples/catalog.v1.json");
+      const catalog = await readJson("samples/catalog.v2.json");
+      const plan = await planSkipAttestationRenewal({ migration, catalogV1 });
+
+      const overlaySkipIds = Object.entries(migration.sampleOverrides)
+        .filter(([, override]: [string, any]) => override.live?.status === "skipped")
+        .map(([sampleId]) => sampleId)
+        .sort();
+      expect(plan.lanes.map((lane: { sampleId: string }) => lane.sampleId)).toEqual(overlaySkipIds);
+      expect(plan.nonExecutedMaxDays).toBe(migration.configuration.evidenceExpiry.nonExecutedMaxDays);
+
+      for (const lane of plan.lanes) {
+        const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === lane.sampleId);
+        // The command this plan would run is the one the published catalog
+        // names as the lane's reviewed producer -- never a second definition.
+        expect(sample.evidence.live.commands).toEqual([lane.command]);
+        expect(sample.evidence.live.evidencePath).toBe(lane.evidencePath);
+        expect(sample.evidence.live.mode).toBe("unavailable");
+        // Every lane resolves to a generator that exists and can be executed
+        // directly, without the npm wrapper's build steps: those exist only for
+        // the executed branch an `unavailable` lane never takes.
+        const producer = reviewedLiveProducer(lane.command);
+        expect(producer).toBeTruthy();
+        await expect(readFile(producer!.generatorPath, "utf8")).resolves.toBeTruthy();
+        // Nothing in the repository is currently near its horizon; if this
+        // fails, renewal has stopped working and a lapse is imminent.
+        expect(lane.daysRemaining).toBeGreaterThan(SKIP_ATTESTATION_RENEWAL_POLICY.alertWithinDays);
+      }
+    });
+
+    // The recurrence half, mirroring the #810 ordering test above: renewal is
+    // only useful if the automation actually runs it, before the step that
+    // depends on it, and can carry its output all the way through the protected
+    // automation-PR path.
+    it("wires renewal into the regeneration workflow ahead of the expiry refresh it feeds", async () => {
+      const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
+      const catalogV1 = await readJson("samples/catalog.v1.json");
+      const lanes = skipAttestationLanes(migration, catalogV1);
+      const workflow = await readFile(".github/workflows/regenerate-derived-artifacts.yml", "utf8");
+
+      const probeIndex = workflow.indexOf("- name: Check skip-attestation renewal window");
+      const guardIndex = workflow.indexOf("- name: Skip if tip is a regeneration commit");
+      const decisionIndex = workflow.indexOf("- name: Resolve regeneration decision");
+      const renewIndex = workflow.indexOf("- name: Renew skip attestations approaching their policy expiry");
+      const refreshIndex = workflow.indexOf("- name: Refresh catalog live-evidence expiry for skip-attested lanes");
+      const commitIndex = workflow.indexOf("- name: Stage and commit refreshed skip-attestation catalog locally");
+
+      // The probe runs before the loop guard so a due renewal can veto the
+      // guard's skip. Without that veto, a quiet trunk (tip already a
+      // regeneration merge) skips every scheduled run -- and an attestation
+      // ages on wall-clock time, not on merge activity, so renewal would stop
+      // happening exactly when nothing else is moving.
+      expect(probeIndex).toBeGreaterThan(-1);
+      expect(guardIndex).toBeGreaterThan(probeIndex);
+      expect(decisionIndex).toBeGreaterThan(guardIndex);
+      expect(workflow.slice(decisionIndex, renewIndex)).toContain(
+        'if [[ "$GUARD_SKIP" == "true" && "$RENEWAL_DUE" != "true" ]]; then',
+      );
+      expect(workflow).toContain("RENEWAL_DUE: ${{ steps.renewal.outputs.renewal_due }}");
+      // Every gated step consumes the combined decision, so the guard and the
+      // renewal veto cannot disagree across the workflow.
+      expect(workflow).not.toContain("steps.guard.outputs.skip == 'false'");
+
+      // Re-observation must precede the refresh that reprojects the expiry
+      // literal FROM the observation, and both must precede the commit that
+      // lands them together.
+      expect(renewIndex).toBeGreaterThan(-1);
+      expect(refreshIndex).toBeGreaterThan(renewIndex);
+      expect(commitIndex).toBeGreaterThan(refreshIndex);
+      expect(workflow.slice(renewIndex, refreshIndex)).toContain("npm run samples:renew-skip-attestations");
+
+      // Renewed attestations ride the same commit as the literal derived from
+      // them, and the write-enabled job's path allowlist admits them -- without
+      // both, a renewal is produced and then silently dropped.
+      const commitStep = workflow.slice(
+        commitIndex,
+        workflow.indexOf("- name: Install the sealed release-matrix receipt"),
+      );
+      const publishStep = workflow.slice(workflow.indexOf("- name: Validate and publish regeneration commits"));
+      for (const lane of lanes) {
+        const evidenceDirectory = lane.evidencePath.slice(0, lane.evidencePath.lastIndexOf("/"));
+        expect(commitStep).toContain(evidenceDirectory);
+        expect(publishStep).toContain(`${evidenceDirectory}/*`);
+      }
+    });
+
+    // The renewal-window probe runs BEFORE `npm ci`, so its static import graph
+    // has to stay free of anything node_modules provides. sample-contract.mjs
+    // requires ajv and typescript at module scope, so it is imported
+    // dynamically and only on the writing path.
+    it("keeps the pre-install renewal probe free of installed dependencies", async () => {
+      for (const scriptPath of ["scripts/renew-skip-attestations.mjs", "scripts/lib/skip-attestation-renewal.mjs"]) {
+        const source = await readFile(scriptPath, "utf8");
+        const specifiers = [...source.matchAll(/^import\s[^;]*?from\s+"([^"]+)";$/gmu)].map((match) => match[1]);
+        expect(specifiers.length).toBeGreaterThan(0);
+        for (const specifier of specifiers) {
+          expect(specifier.startsWith("node:") || specifier === "./lib/skip-attestation-renewal.mjs").toBe(true);
+        }
+        expect(source).not.toMatch(/^import\s[^;]*?from\s+"\.\/sample-contract\.mjs";$/mu);
+      }
+    });
   });
 
   it("rejects duplicate JSON properties before permissive parsing can hide them", () => {
