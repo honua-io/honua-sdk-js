@@ -89,12 +89,15 @@ export interface CesiumEntityPositionSample {
 export type CesiumEntityTimeOptions =
   | {
       readonly instantField: string;
+      readonly startField?: never;
+      readonly endField?: never;
       /** JSON array of { time, coordinates } samples for point entities. */
       readonly positionField?: string;
     }
   | {
       readonly startField: string;
       readonly endField: string;
+      readonly instantField?: never;
       /** JSON array of { time, coordinates } samples for point entities. */
       readonly positionField?: string;
     };
@@ -924,7 +927,7 @@ function projectInterval(
   attributes: Readonly<Record<string, unknown>>,
   time: CesiumEntityTimeOptions,
 ): CesiumEntityInterval | undefined {
-  if ("instantField" in time) {
+  if (time.instantField !== undefined) {
     const instant = isoInstant(attributes[time.instantField]);
     return instant ? { start: instant, end: instant } : undefined;
   }
@@ -1047,17 +1050,32 @@ function validatePlanAndOptions<T>(
       "Cesium entity projection requires featureIdField or descriptor.schema.primaryKey.",
     );
   }
-  if (options.time !== undefined) {
-    const fields =
-      "instantField" in options.time ? [options.time.instantField] : [options.time.startField, options.time.endField];
-    if (fields.some((field) => !field)) {
-      throw new HonuaCesiumEntityAdapterError(
-        "invalid-option",
-        "time.instantField or time.startField/time.endField must be non-empty.",
-      );
-    }
-  }
+  if (options.time !== undefined) assertTimeOptions(options.time);
   return maxEntities;
+}
+
+/**
+ * Accept exactly one temporal mapping. A mixed instant/interval request is a
+ * caller mistake that TypeScript unions and untyped callers cannot both catch,
+ * so it is rejected instead of silently preferring either variant.
+ */
+function assertTimeOptions(time: CesiumEntityTimeOptions): void {
+  const declared = time as Readonly<Record<string, unknown>>;
+  const instantMapping = declared.instantField !== undefined;
+  const intervalMapping = declared.startField !== undefined || declared.endField !== undefined;
+  if (instantMapping === intervalMapping) {
+    throw new HonuaCesiumEntityAdapterError(
+      "invalid-option",
+      "time must declare exactly one of instantField or startField/endField.",
+    );
+  }
+  const fields = instantMapping ? [declared.instantField] : [declared.startField, declared.endField];
+  if (fields.some((field) => typeof field !== "string" || field.length === 0)) {
+    throw new HonuaCesiumEntityAdapterError(
+      "invalid-option",
+      "time.instantField or time.startField/time.endField must be non-empty.",
+    );
+  }
 }
 
 function unsupportedPlan(plan: QueryExecutionPlanV1): HonuaCesiumEntityAdapterError {
@@ -1166,13 +1184,12 @@ function snapshotMountOptions(options: MountSourceToCesiumOptions): MountSourceT
   });
 }
 
+/** Validate before narrowing so a mixed mapping cannot be normalized away. */
 function snapshotTimeOptions(time: CesiumEntityTimeOptions): CesiumEntityTimeOptions {
+  assertTimeOptions(time);
   const position = time.positionField !== undefined ? { positionField: time.positionField } : {};
-  return Object.freeze(
-    "instantField" in time
-      ? { instantField: time.instantField, ...position }
-      : { startField: time.startField, endField: time.endField, ...position },
-  );
+  if (time.instantField !== undefined) return Object.freeze({ instantField: time.instantField, ...position });
+  return Object.freeze({ startField: time.startField, endField: time.endField, ...position });
 }
 
 function assertLifecycleActive(

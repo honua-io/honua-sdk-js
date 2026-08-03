@@ -401,6 +401,49 @@ describe("projectSourceToCesium", () => {
     );
   });
 
+  it("rejects mixed and absent temporal mappings instead of preferring one variant", async () => {
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        {
+          attributes: {
+            unit_id: 1,
+            observed_at: "2026-07-15T10:00:00Z",
+            start: "2026-07-15T10:00:00Z",
+            end: "2026-07-15T10:01:00Z",
+          },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    // Untyped callers can supply both variants; the union alone cannot stop them.
+    const mixed = {
+      instantField: "observed_at",
+      startField: "start",
+      endField: "end",
+    } as unknown as CesiumEntityTimeOptions;
+    expect(() => projectSourceToCesium(fakeSource([result]), plan, result, { time: mixed })).toThrow(
+      expect.objectContaining({ code: "invalid-option" }),
+    );
+    await expect(
+      mountSourceToCesium(fakeCollection(), fakeSource([result]), plan, {
+        ...context,
+        cesium: cesiumModule,
+        time: mixed,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-option" });
+
+    const empty = {} as unknown as CesiumEntityTimeOptions;
+    expect(() => projectSourceToCesium(fakeSource([result]), plan, result, { time: empty })).toThrow(
+      expect.objectContaining({ code: "invalid-option" }),
+    );
+    expect(() =>
+      projectSourceToCesium(fakeSource([result]), plan, result, {
+        time: { startField: "start" } as unknown as CesiumEntityTimeOptions,
+      }),
+    ).toThrow(expect.objectContaining({ code: "invalid-option" }));
+  });
+
   it("keeps sampled positions available under both temporal mappings", () => {
     const samples = [
       { time: "2026-07-15T10:00:00Z", coordinates: [-157, 21] },
