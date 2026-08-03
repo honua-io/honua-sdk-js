@@ -831,6 +831,7 @@ test("IndexedDB edit queue counts a partition larger than its bounded list windo
           limit: 1,
           leaseDurationMs: 60_000,
         });
+        if (claimed.id !== enqueued.edit.id) throw new Error("Claimed an unexpected edit while seeding the partition.");
         await queue.markApplied(claimed.id, claimed.lease.token, { serverOperationId: `op-${index}` });
       }
       await queue.enqueue({
