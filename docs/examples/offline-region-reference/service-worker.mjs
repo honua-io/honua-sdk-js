@@ -9,6 +9,10 @@ const MAX_SHELL_TOTAL_BYTES = 16 * 1024 * 1024;
 const MAX_SHELL_MANIFEST_BYTES = 64 * 1024;
 const SHELL_REFRESH_TIMEOUT_MS = 3000;
 const SHELL_MANIFEST_FORMAT = "honua.offline-shell-manifest.v1";
+// One bounded type/subtype essence. Correct bytes served under a media type the
+// browser refuses for its role (a module delivered as text/plain) boot no shell,
+// so the essence is pinned alongside the byte length and digest.
+const SHELL_MEDIA_TYPE_PATTERN = /^[a-z0-9][a-z0-9.+-]{0,62}\/[a-z0-9][a-z0-9.+-]{0,62}$/;
 const SHELL_UPDATE_LOCK_NAME = `${CACHE_NAMESPACE}update-v1`;
 const activePointerUrl = new URL("__honua-active-shell-v1__", scopeUrl);
 const committedGenerationMarkerBaseUrl = new URL("__honua-committed-shell-v1__/", scopeUrl);
@@ -51,6 +55,13 @@ function createGenerationName(deploymentId) {
 async function sha256Integrity(bytes) {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return `sha256:${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function responseMediaType(response) {
+  const value = response.headers.get("content-type");
+  if (typeof value !== "string") return undefined;
+  const essence = value.split(";", 1)[0].trim().toLowerCase();
+  return essence.length > 0 ? essence : undefined;
 }
 
 async function readBoundedResponseBytes(response, maxBytes, label) {
@@ -128,7 +139,9 @@ async function loadShellManifest(value, signal) {
       resource.byteLength < 0 ||
       resource.byteLength > MAX_SHELL_ASSET_BYTES ||
       typeof resource.integrity !== "string" ||
-      !/^sha256:[0-9a-f]{64}$/.test(resource.integrity)
+      !/^sha256:[0-9a-f]{64}$/.test(resource.integrity) ||
+      typeof resource.mediaType !== "string" ||
+      !SHELL_MEDIA_TYPE_PATTERN.test(resource.mediaType)
     ) {
       throw new Error("Application shell manifest resource is invalid.");
     }
@@ -138,7 +151,12 @@ async function loadShellManifest(value, signal) {
     if (declaredTotalBytes > MAX_SHELL_TOTAL_BYTES) {
       throw new Error("Application shell manifest exceeds its byte budget.");
     }
-    return { url, byteLength: resource.byteLength, integrity: resource.integrity };
+    return {
+      url,
+      byteLength: resource.byteLength,
+      integrity: resource.integrity,
+      mediaType: resource.mediaType,
+    };
   });
   if (new Set(resources.map((resource) => resource.url.href)).size !== resources.length) {
     throw new Error("Duplicate application shell URL.");
@@ -233,6 +251,13 @@ async function replaceApplicationShell(manifestUrl, signal) {
       const response = await fetch(key, { cache: "reload", signal });
       if (!response.ok || response.redirected || response.url !== resource.url.href) {
         throw new Error("Application shell request failed.");
+      }
+      // Pinned bytes served under an unusable media type still fail every later
+      // module load, so reject them here rather than committing a shell that
+      // cannot boot the next time this origin is reloaded offline.
+      if (responseMediaType(response) !== resource.mediaType) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new Error("Application shell resource media type mismatch.");
       }
       const bytes = await readBoundedResponseBytes(response, resource.byteLength, "Application shell resource");
       const byteLength = bytes.byteLength;

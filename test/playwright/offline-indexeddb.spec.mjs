@@ -381,6 +381,21 @@ test("offline reference shell replaces complete generations and retains the comm
     expect(afterFailure.urls).toEqual(before.urls);
     expect(afterFailure.contentCacheNames).toEqual([before.activeName]);
 
+    const wrongTypeManifestPath = "/reference/test-shell-manifest-media-type.json";
+    server.setShellManifest(wrongTypeManifestPath, {
+      deploymentId: "test-media-type",
+      resources: [
+        ...before.resources,
+        shellResource(`${server.url}/reference/shell-upgrade-wrong-type.mjs`, "export const wrongMediaType = true;"),
+      ],
+    });
+    const wrongTypeRefresh = await requestShellRefresh(page, `${server.url}${wrongTypeManifestPath}`);
+    expect(wrongTypeRefresh).toEqual({ ok: false, retained: true });
+    const afterWrongType = await readShellState(page);
+    expect(afterWrongType.activeName).toBe(before.activeName);
+    expect(afterWrongType.urls).toEqual(before.urls);
+    expect(afterWrongType.contentCacheNames).toEqual([before.activeName]);
+
     const oversizedManifestPath = "/reference/test-shell-manifest-oversized.json";
     server.setShellManifest(oversizedManifestPath, {
       deploymentId: "test-oversized",
@@ -1297,6 +1312,12 @@ async function startServer() {
       }
       return;
     }
+    if (url.pathname === "/reference/shell-upgrade-wrong-type.mjs") {
+      // Pinned bytes under a media type no browser accepts for a module.
+      response.setHeader("content-type", "text/plain; charset=utf-8");
+      response.end("export const wrongMediaType = true;");
+      return;
+    }
     if (url.pathname === "/reference/shell-upgrade-new-worker.mjs") {
       response.setHeader("content-type", "application/javascript; charset=utf-8");
       response.end("export const newWorkerGeneration = true;");
@@ -1551,12 +1572,13 @@ async function requestShellRefresh(page, manifestUrl) {
   }, manifestUrl);
 }
 
-function shellResource(url, value) {
+function shellResource(url, value, mediaType = "application/javascript") {
   const bytes = Buffer.from(value);
   return {
     url,
     byteLength: bytes.byteLength,
     integrity: `sha256:${createHash("sha256").update(bytes).digest("hex")}`,
+    mediaType,
   };
 }
 
@@ -1579,7 +1601,8 @@ async function readShellState(page) {
       const requests = await cache.keys();
       const resources = await Promise.all(
         requests.map(async (request) => {
-          const bytes = await (await cache.match(request)).arrayBuffer();
+          const cached = await cache.match(request);
+          const bytes = await cached.arrayBuffer();
           const digest = await crypto.subtle.digest("SHA-256", bytes);
           return {
             url: request.url,
@@ -1587,6 +1610,7 @@ async function readShellState(page) {
             integrity: `sha256:${[...new Uint8Array(digest)]
               .map((byte) => byte.toString(16).padStart(2, "0"))
               .join("")}`,
+            mediaType: (cached.headers.get("content-type") ?? "").split(";", 1)[0].trim().toLowerCase(),
           };
         }),
       );

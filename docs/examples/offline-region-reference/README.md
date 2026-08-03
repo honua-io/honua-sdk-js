@@ -10,9 +10,14 @@ reload can therefore boot with networking disabled, read the resource through
 provenance, and attribution.
 
 `shell-manifest.v1.json` identifies one deployment and pins every document and
-transitive SDK module by URL, byte length, and SHA-256. The worker fetches this
-manifest fresh and commits nothing unless every response matches, so a rollout
-cannot combine a new entry point with an older dependency graph.
+transitive SDK module by URL, byte length, SHA-256, and media type. The worker
+fetches this manifest fresh and commits nothing unless every response matches,
+so a rollout cannot combine a new entry point with an older dependency graph.
+The media-type pin is checked before any body is staged: a deployment that
+returns the pinned bytes under a `Content-Type` the browser refuses for that
+role — a module served as `text/plain` — is rejected instead of replacing a
+generation that still boots, because `fetch` itself enforces no module MIME
+rule and the failure would otherwise surface only on the next offline reload.
 Manifest and asset bodies are read incrementally and canceled as soon as their
 declared or fixed byte ceiling is exceeded, so the ceilings also bound worker
 memory use for a malformed response. `Content-Length` is used as an early check
