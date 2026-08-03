@@ -77,7 +77,7 @@ import {
   checkedWfsPageEnd,
   wfsProtocolModule,
 } from "../query-planner/wfs-protocol-module.js";
-import { wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
+import { wfsSpatialFilterNeedsGeometryProperty, wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
@@ -1527,8 +1527,6 @@ export function stacSearchSource<T>(
 
 // ── WFS 2.0 ───────────────────────────────────────────────────
 
-const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
-
 /**
  * Adapter factory for a WFS 2.0 endpoint.
  *
@@ -1537,6 +1535,14 @@ const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
  * `OperationsMetadata` negotiation. `applyEdits()` builds
  * `<wfs:Transaction>` bodies. Reach `Source.protocol("wfs")` for raw GML /
  * `LockFeature` / stored-query access.
+ *
+ * FES spatial predicates and transaction geometry name the feature type's
+ * geometry property, which is server-specific (`the_geom` on
+ * PostGIS-via-GeoServer, `msGeometry` on MapServer, arbitrary per-schema names
+ * elsewhere). The adapter resolves it from `DescribeFeatureType` on first use
+ * and caches it; `locator.geometryName` pins it explicitly. Resolution failure
+ * fails closed rather than guessing a default that would silently match
+ * nothing.
  *
  * @example
  * ```ts
@@ -1561,7 +1567,7 @@ export function wfsSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
-  const { typeName, featureNamespace, srsName: wfsSrsName } = requireWfsLocator(descriptor);
+  const { typeName, featureNamespace, srsName: wfsSrsName, geometryName } = requireWfsLocator(descriptor);
   const module = wfsProtocolModule(client);
   const discovered = module.discover(descriptor);
   if (discovered instanceof Promise) {
@@ -1600,23 +1606,58 @@ export function wfsSource<T>(
     return choice;
   }
 
-  function compileSourceQuery(request: Query<T> | undefined, operation: "query" | "queryAll") {
+  /**
+   * Geometry property of this feature type, from `locator.geometryName` or —
+   * once, lazily — from `DescribeFeatureType`. Throws
+   * `HonuaWfsProtocolError("unresolved-geometry-property")` when neither
+   * names it, so a spatial filter or transaction never targets a guessed
+   * property that silently matches nothing.
+   */
+  async function resolveGeometryProperty(signal: AbortSignal | undefined): Promise<string> {
+    if (geometryName !== undefined) return geometryName;
+    return featureType.geometryPropertyName(signal ? { signal } : undefined);
+  }
+
+  /**
+   * Descriptor whose locator carries the resolved geometry property, so the
+   * compiler emits it on every reference in the request it plans.
+   */
+  let geometryResolvedDescriptor: SourceDescriptor | undefined;
+  async function geometryBoundDescriptor(signal: AbortSignal | undefined): Promise<SourceDescriptor> {
+    if (geometryName !== undefined) return descriptor;
+    if (!geometryResolvedDescriptor) {
+      const resolved = await resolveGeometryProperty(signal);
+      geometryResolvedDescriptor = { ...descriptor, locator: { ...descriptor.locator, geometryName: resolved } };
+    }
+    return geometryResolvedDescriptor;
+  }
+
+  async function compileSourceQuery(request: Query<T> | undefined, operation: "query" | "queryAll") {
     try {
       const normalizedRequest = normalizeWfsModuleQuery(request);
-      const ir =
+      const buildIr = (source: SourceDescriptor) =>
         normalizedRequest === undefined
-          ? createQueryIr({ descriptor })
-          : createQueryIr({ descriptor, query: normalizedRequest });
+          ? createQueryIr({ descriptor: source })
+          : createQueryIr({ descriptor: source, query: normalizedRequest });
       // The legacy WFS Source accepted an explicitly empty `where`. Preserve
       // its wire distinction from an omitted `where`: with a spatial filter,
       // the former takes the FES path while the latter may use the bbox KVP.
-      const query: CanonicalQuery =
+      const canonicalQuery = (ir: ReturnType<typeof buildIr>): CanonicalQuery =>
         request?.where === ""
           ? Object.freeze({
               ...ir.query,
               where: Object.freeze({ kind: "source-native" as const, expression: "" }),
             })
           : ir.query;
+      let ir = buildIr(descriptor);
+      let query = canonicalQuery(ir);
+      // Only an FES spatial predicate names the geometry property on the wire;
+      // the `bbox=` shortcut addresses the default geometry positionally. Pay
+      // for schema resolution exactly when the request depends on the name.
+      if (ir.source.geometryProperty === undefined && wfsSpatialFilterNeedsGeometryProperty(query)) {
+        ir = buildIr(await geometryBoundDescriptor(request?.signal));
+        query = canonicalQuery(ir);
+      }
       return module.compile({ source: ir.source, query, operation });
     } catch (error) {
       if (error instanceof HonuaQueryPlanningError && error.code === "unsupported-query") {
@@ -1635,7 +1676,7 @@ export function wfsSource<T>(
         throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
       }
       return module.execute<T>(discovered, {
-        compiled: compileSourceQuery(request, "query"),
+        compiled: await compileSourceQuery(request, "query"),
         operation: "query",
         query: {},
         ...(request?.signal ? { signal: request.signal } : {}),
@@ -1646,7 +1687,7 @@ export function wfsSource<T>(
       const requestedLimit = request?.pagination?.limit;
       const limit = typeof requestedLimit === "number" && requestedLimit >= 0 ? requestedLimit : undefined;
       return module.execute<T>(discovered, {
-        compiled: compileSourceQuery(request, "queryAll"),
+        compiled: await compileSourceQuery(request, "queryAll"),
         operation: "queryAll",
         query: {
           ...(limit !== undefined ? { logicalLimit: limit } : {}),
@@ -1691,7 +1732,7 @@ export function wfsSource<T>(
           featureType,
           choice,
           featureNamespace,
-          compileSourceQuery(pageRequest, "query"),
+          await compileSourceQuery(pageRequest, "query"),
         );
         const page = computeExtentFromFeatureCollection(json);
         count += page.count;
@@ -1725,7 +1766,7 @@ export function wfsSource<T>(
           pagination: { offset, limit: pageSize },
         };
         const result = await module.execute<T>(discovered, {
-          compiled: compileSourceQuery(pageRequest, "query"),
+          compiled: await compileSourceQuery(pageRequest, "query"),
           operation: "query",
           query: {},
           ...(request?.signal ? { signal: request.signal } : {}),
@@ -1794,7 +1835,7 @@ export function wfsSource<T>(
           featureType,
           choice,
           featureNamespace,
-          compileSourceQuery(pageRequest, "query"),
+          await compileSourceQuery(pageRequest, "query"),
         );
         const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
         const features = collection.features ?? [];
@@ -1840,7 +1881,14 @@ export function wfsSource<T>(
         // same root, so the capabilities promise is already settled there.
         await root.capabilities(envelope.signal ? { signal: envelope.signal } : undefined);
         const filtered: EditEnvelope<T> = { ...envelope, updates: validUpdates };
-        const body = buildTransactionBody(typeName, filtered, featureNamespace, wfsSrsName);
+        // Attribute-only edits and deletes never name the geometry property,
+        // so only a geometry-bearing transaction pays for (and fails closed
+        // on) schema resolution.
+        const writesGeometry =
+          adds.some((add) => add.geometry !== undefined && add.geometry !== null) ||
+          validUpdates.some((update) => update.geometry !== undefined && update.geometry !== null);
+        const geometryProperty = writesGeometry ? await resolveGeometryProperty(envelope.signal) : undefined;
+        const body = buildTransactionBody(typeName, filtered, featureNamespace, wfsSrsName, geometryProperty);
         const transactionOptions: { body: string; signal?: AbortSignal } = { body };
         if (envelope.signal) transactionOptions.signal = envelope.signal;
         summary = await featureType.transaction(transactionOptions);
@@ -1884,8 +1932,9 @@ function requireWfsLocator(descriptor: SourceDescriptor): {
   typeName: string;
   featureNamespace: string | undefined;
   srsName: string | undefined;
+  geometryName: string | undefined;
 } {
-  const { url, typeName, featureNamespace, srsName } = descriptor.locator;
+  const { url, typeName, featureNamespace, srsName, geometryName } = descriptor.locator;
   if (typeof url !== "string" || url.length === 0) {
     throw new Error(`createDataset: source "${descriptor.id}" (wfs) requires locator.url`);
   }
@@ -1897,12 +1946,25 @@ function requireWfsLocator(descriptor: SourceDescriptor): {
       `createDataset: source "${descriptor.id}" (wfs) locator.featureNamespace must be a non-empty string`,
     );
   }
+  // The geometry property is spliced into FES `<fes:ValueReference>` and
+  // transaction element names, so an override must be a plain XML name.
+  if (geometryName !== undefined && (typeof geometryName !== "string" || !isWfsPropertyName(geometryName))) {
+    throw new Error(
+      `createDataset: source "${descriptor.id}" (wfs) locator.geometryName must be a valid geometry property name`,
+    );
+  }
   return {
     url,
     typeName,
     featureNamespace: typeof featureNamespace === "string" ? featureNamespace : undefined,
     srsName: wfsSrsNameFromOutSr(srsName),
+    geometryName: typeof geometryName === "string" ? geometryName : undefined,
   };
+}
+
+/** Optionally prefixed XML name, the only shape a WFS property reference takes. */
+function isWfsPropertyName(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_.-]*(?::[A-Za-z_][A-Za-z0-9_.-]*)?$/.test(value);
 }
 
 function toWfsExtentDrainRequest<T>(request: Query<T> | undefined): Query<T> {
@@ -2035,6 +2097,7 @@ function buildTransactionBody<T>(
   envelope: EditEnvelope<T>,
   featureNamespace: string | undefined,
   srsName: string | undefined,
+  geometryProperty: string | undefined,
 ): string {
   const releaseAction = envelope.rollbackOnFailure ? "ALL" : "SOME";
   const { prefix } = splitTypeName(typeName);
@@ -2055,12 +2118,12 @@ function buildTransactionBody<T>(
   // result-mapping side cannot drift.
   const adds = envelope.adds ?? [];
   for (let i = 0; i < adds.length; i += 1) {
-    blocks.push(buildInsertBlock(typeName, adds[i], wfsInsertHandle(i), srsName));
+    blocks.push(buildInsertBlock(typeName, adds[i], wfsInsertHandle(i), srsName, geometryProperty));
   }
   let handleCounter = adds.length;
   for (const update of envelope.updates ?? []) {
     handleCounter += 1;
-    blocks.push(buildUpdateBlock(typeName, update, `upd-${handleCounter}`, srsName));
+    blocks.push(buildUpdateBlock(typeName, update, `upd-${handleCounter}`, srsName, geometryProperty));
   }
   for (const id of envelope.deletes ?? []) {
     handleCounter += 1;
@@ -2096,6 +2159,7 @@ function buildInsertBlock<T>(
   feature: { attributes: T; geometry?: Record<string, unknown> | null },
   handle: string,
   srsName: string | undefined,
+  geometryProperty: string | undefined,
 ): string {
   const attributes = feature.attributes as Record<string, unknown>;
   const propertyXml = Object.entries(attributes)
@@ -2105,8 +2169,8 @@ function buildInsertBlock<T>(
     )
     .join("");
   const geometryXml = feature.geometry ? (geoJsonGeometryToGml(feature.geometry, srsName) ?? "") : "";
-  const geometryProperty = escapeXmlElement(DEFAULT_WFS_GEOMETRY_PROPERTY);
-  const featureXml = `<${escapeXmlElement(typeName)}>${propertyXml}${geometryXml ? `<${geometryProperty}>${geometryXml}</${geometryProperty}>` : ""}</${escapeXmlElement(typeName)}>`;
+  const property = geometryXml ? escapeXmlElement(requireTransactionGeometryProperty(geometryProperty)) : "";
+  const featureXml = `<${escapeXmlElement(typeName)}>${propertyXml}${geometryXml ? `<${property}>${geometryXml}</${property}>` : ""}</${escapeXmlElement(typeName)}>`;
   return `<wfs:Insert handle="${handle}">${featureXml}</wfs:Insert>`;
 }
 
@@ -2115,6 +2179,7 @@ function buildUpdateBlock<T>(
   feature: { id?: FeatureId; attributes: T; geometry?: Record<string, unknown> | null },
   handle: string,
   srsName: string | undefined,
+  geometryProperty: string | undefined,
 ): string {
   const attributes = feature.attributes as Record<string, unknown>;
   const properties = Object.entries(attributes)
@@ -2124,14 +2189,29 @@ function buildUpdateBlock<T>(
         `<wfs:Property><wfs:ValueReference>${escapeXmlText(key)}</wfs:ValueReference><wfs:Value>${escapeXmlText(formatLiteral(value))}</wfs:Value></wfs:Property>`,
     )
     .join("");
-  const geometryProperty = feature.geometry
-    ? `<wfs:Property><wfs:ValueReference>${escapeXmlText(DEFAULT_WFS_GEOMETRY_PROPERTY)}</wfs:ValueReference><wfs:Value>${geoJsonGeometryToGml(feature.geometry, srsName) ?? ""}</wfs:Value></wfs:Property>`
+  const geometryXml = feature.geometry
+    ? `<wfs:Property><wfs:ValueReference>${escapeXmlText(requireTransactionGeometryProperty(geometryProperty))}</wfs:ValueReference><wfs:Value>${geoJsonGeometryToGml(feature.geometry, srsName) ?? ""}</wfs:Value></wfs:Property>`
     : "";
   const filter =
     feature.id !== undefined
       ? `<fes:Filter><fes:ResourceId rid="${escapeXmlAttr(String(feature.id))}"/></fes:Filter>`
       : "";
-  return `<wfs:Update handle="${handle}" typeName="${escapeXmlAttr(typeName)}">${properties}${geometryProperty}${filter}</wfs:Update>`;
+  return `<wfs:Update handle="${handle}" typeName="${escapeXmlAttr(typeName)}">${properties}${geometryXml}${filter}</wfs:Update>`;
+}
+
+/**
+ * Fail closed rather than write geometry into a guessed property: a
+ * transaction that targets the wrong element name is accepted by some servers
+ * and silently drops the geometry.
+ */
+function requireTransactionGeometryProperty(geometryProperty: string | undefined): string {
+  if (geometryProperty === undefined) {
+    throw new HonuaWfsProtocolError(
+      "unresolved-geometry-property",
+      "WFS transaction geometry requires the feature type's geometry property; set locator.geometryName or make DescribeFeatureType reachable",
+    );
+  }
+  return geometryProperty;
 }
 
 function buildDeleteBlock(typeName: string, id: FeatureId, handle: string): string {

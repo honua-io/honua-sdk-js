@@ -36,6 +36,7 @@ import {
   type ParcelAttrs,
   makeMockClient,
   wfsCapabilitiesXml,
+  wfsDescribeFeatureTypeXsd,
   wfsExceptionXml,
   wfsGeoJsonResponse,
   wfsListStoredQueriesXml,
@@ -1030,6 +1031,7 @@ describe("wfs / canonical Source", () => {
         async (url, init) => {
           const request = url.searchParams.get("request");
           if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "DescribeFeatureType") return xmlResponse(wfsDescribeFeatureTypeXsd());
           if (init?.method === "POST") {
             observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
             return xmlResponse(wfsTransactionResponseXml());
@@ -1071,6 +1073,7 @@ describe("wfs / canonical Source", () => {
           async (url, init) => {
             const request = url.searchParams.get("request");
             if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+            if (request === "DescribeFeatureType") return xmlResponse(wfsDescribeFeatureTypeXsd());
             if (init?.method === "POST") {
               observedBody = typeof init.body === "string" ? init.body : await new Response(init.body).text();
               return xmlResponse(wfsTransactionResponseXml());
@@ -1323,6 +1326,7 @@ describe("wfs / canonical Source", () => {
         async (url, init) => {
           const request = url.searchParams.get("request");
           if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "DescribeFeatureType") return xmlResponse(wfsDescribeFeatureTypeXsd());
           if (init?.method === "POST") return xmlResponse(reorderedTransactionResponse);
           return new Response("not found", { status: 404 });
         },
@@ -1371,6 +1375,7 @@ describe("wfs / canonical Source", () => {
         async (url, init) => {
           const request = url.searchParams.get("request");
           if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "DescribeFeatureType") return xmlResponse(wfsDescribeFeatureTypeXsd());
           if (init?.method === "POST") return xmlResponse(partialTransactionResponse);
           return new Response("not found", { status: 404 });
         },
@@ -1418,6 +1423,7 @@ describe("wfs / canonical Source", () => {
         async (url, init) => {
           const request = url.searchParams.get("request");
           if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "DescribeFeatureType") return xmlResponse(wfsDescribeFeatureTypeXsd());
           if (init?.method === "POST") return xmlResponse(noHandleTransactionResponse);
           return new Response("not found", { status: 404 });
         },
@@ -1511,6 +1517,7 @@ describe("wfs / canonical Source", () => {
         (url) => {
           const request = url.searchParams.get("request");
           if (request === "GetCapabilities") return xmlResponse(wfsCapabilitiesXml());
+          if (request === "DescribeFeatureType") return xmlResponse(wfsDescribeFeatureTypeXsd());
           if (request === "GetFeature") {
             getFeatureUrl = url;
             return new Response(JSON.stringify(wfsGeoJsonResponse()), {

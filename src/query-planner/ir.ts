@@ -140,7 +140,12 @@ export function queryIrSourceIdentity(
   if (authorizationScope.some((scope) => !isStableAuthorizationScope(scope))) {
     throw new HonuaQueryPlanningError("invalid-query", "authorization scope identity is invalid");
   }
-  const geometryProperty = descriptor.schema?.fields?.find((field) => field.type === "esriFieldTypeGeometry")?.name;
+  // WFS names its geometry property per feature type; `locator.geometryName`
+  // carries either the caller's explicit pin or the value the adapter resolved
+  // from DescribeFeatureType, and outranks descriptor schema evidence.
+  const geometryProperty =
+    (descriptor.protocol === "wfs" ? descriptor.locator.geometryName : undefined) ??
+    descriptor.schema?.fields?.find((field) => field.type === "esriFieldTypeGeometry")?.name;
   const geoparquet =
     descriptor.protocol === "geoparquet" ? geoparquetIdentity(descriptor, geometryProperty) : undefined;
   const schemaVersion = optionalPlanMetadata(context.schemaVersion, "schema version");

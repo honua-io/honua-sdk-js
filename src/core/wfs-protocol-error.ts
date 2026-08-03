@@ -4,7 +4,9 @@ export type WfsProtocolErrorReason =
   | "invalid-capabilities"
   | "invalid-feature-response"
   | "paging-stalled"
-  | "unknown-axis-order";
+  | "unknown-axis-order"
+  /** `DescribeFeatureType` did not yield the feature type's geometry property. */
+  | "unresolved-geometry-property";
 
 /** Typed, credential-safe fail-closed WFS protocol error. */
 export class HonuaWfsProtocolError extends HonuaSdkError {
