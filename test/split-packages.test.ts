@@ -71,6 +71,15 @@ describe("split package manifests", () => {
     expect(verifier).toContain("SceneImageryLayerPrimitive");
   });
 
+  it("qualifies the Cesium model-layer contract through the installed app-platform scene entrypoint", () => {
+    const verifier = fs.readFileSync(path.join(process.cwd(), "scripts/verify-split-packages.mjs"), "utf8");
+
+    expect(verifier).toContain("addCesium3DTileset");
+    expect(verifier).toContain("addCesiumModel");
+    expect(verifier).toContain("CESIUM_SCENE_CAPABILITIES.modelLayer?.materializedFormats");
+    expect(verifier).toContain("scene-primitive-model-credentials-forbidden");
+  });
+
   it("ships the query planner imported by the React map runtime closure", () => {
     const prepareScript = fs.readFileSync(path.join(process.cwd(), "scripts/prepare-split-packages.mjs"), "utf8");
     const reactPackageFactory = prepareScript.slice(

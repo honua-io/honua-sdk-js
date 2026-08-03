@@ -217,8 +217,11 @@ import {
 } from "@honua/app-platform/app-workspace";
 import {
   CESIUM_SCENE_CAPABILITIES,
+  addCesium3DTileset,
   addCesiumImageryLayer,
+  addCesiumModel,
   createSceneWorkspace,
+  diagnoseScenePrimitives,
   sceneWorkspaceIntentFromAdapterEvent,
 } from "@honua/app-platform/scene-workspace";
 import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
@@ -597,6 +600,19 @@ if (typeof sceneWorkspaceIntentFromAdapterEvent !== "function")
   throw new Error("sceneWorkspaceIntentFromAdapterEvent export missing from @honua/sdk/scene-workspace");
 if (typeof addCesiumImageryLayer !== "function" || !CESIUM_SCENE_CAPABILITIES.imagery?.protocols.includes("wmts"))
   throw new Error("Cesium imagery exports missing from @honua/app-platform/scene-workspace");
+if (
+  typeof addCesium3DTileset !== "function" ||
+  typeof addCesiumModel !== "function" ||
+  !CESIUM_SCENE_CAPABILITIES.modelLayer?.materializedFormats?.includes("3d-tiles")
+)
+  throw new Error("Cesium model-layer exports missing from @honua/app-platform/scene-workspace");
+if (
+  diagnoseScenePrimitives(
+    [{ kind: "model-layer", id: "signed", uri: "https://example.test/t.json?api_key=x", format: "3d-tiles" }],
+    CESIUM_SCENE_CAPABILITIES,
+  ).some((diagnostic) => diagnostic.code !== "scene-primitive-model-credentials-forbidden")
+)
+  throw new Error("Cesium model-layer credential diagnostics missing from @honua/app-platform/scene-workspace");
 if (typeof HonuaMap !== "function")
   throw new Error("HonuaMap export missing from @honua/sdk/map");
 if (typeof validateHonuaStyle !== "function")
