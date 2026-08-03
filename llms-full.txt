@@ -13373,16 +13373,31 @@ non-loopback network request. Gallery projection is tracked by #550.
 
 ## Widget kit registration
 
-**This is a required step, not a footnote.** Every migrated app that
-constructs a compat widget must register the Honua web-component kit once,
-or those widgets render nothing.
+**This is a required step, not a footnote.** A migrated app that constructs
+`LegendCompat` or `LayerListCompat` must register the Honua web-component kit
+once, or those two widgets render nothing.
 
-The `@honua/sdk-esri-compat` widget shims (`LegendCompat`, `LayerListCompat`,
-…) carry the full ArcGIS state model, but they draw UI by delegating to the
-Honua web components. The compat entry point never imports that kit — not even
-dynamically: `/esri-compat` is bundle-budgeted, and any intra-package import
-would pull the whole component set plus its geometry closure into every compat
-bundle. The application injects it instead, as early as the entry module runs:
+Be precise about the scope, because it cuts both ways:
+
+| Shim | With a registered kit | Without one |
+| --- | --- | --- |
+| `LegendCompat` (`<honua-legend>`) | renders the delegated component | state-model-only, container stays empty, diagnostic fires |
+| `LayerListCompat` (`<honua-layer-list>`) | renders the delegated component | state-model-only, container stays empty, diagnostic fires |
+| every other container-bearing shim (`SearchCompat`, `MeasurementCompat`, `ExpandCompat`, `BasemapGalleryCompat`, `SketchCompat`, …) | **still state-model-only** | state-model-only, no diagnostic |
+
+Registration is *necessary* for the first two and *not sufficient* for the
+rest: about two dozen shims accept a `container` option, but only `LegendCompat`
+and `LayerListCompat` construct a `HonuaWidgetHost` today. The others carry the
+ArcGIS state model — properties, `watch`, events, methods — and expect the
+application to render their state itself. Registering the kit does not give
+them UI, and they never emit the missing-kit diagnostic, so do not read a
+silent `SearchCompat` as a registration problem.
+
+The two delegating shims draw UI through the Honua web components. The compat
+entry point never imports that kit — not even dynamically: `/esri-compat` is
+bundle-budgeted, and any intra-package import would pull the whole component
+set plus its geometry closure into every compat bundle. The application injects
+it instead, as early as the entry module runs:
 
 ```ts doc-test=skip reason="wiring snippet requires an application host"
 import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
@@ -13392,12 +13407,14 @@ registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
 ```
 
 Register before you construct widgets. The call is idempotent, and passing
-`undefined` unregisters (returning the shims to headless mode).
+`undefined` unregisters: the delegating shims return to state-model-only mode
+and any component they had already mounted is removed from its container on the
+next refresh, so unregistering never strands stale UI.
 
-Without it the shims degrade to state-model-only: `legend.items` is populated,
-`layerList.toggle()` mutates layers, events still fire — and the `container`
-you passed stays empty. Since a migrated app in that state simply looks
-broken, the first widget mount without a registered kit emits a one-time
+Without a kit those two shims degrade to state-model-only: `legend.items` is
+populated, `layerList.toggle()` mutates layers, events still fire — and the
+`container` you passed stays empty. Since a migrated app in that state simply
+looks broken, the first mount without a registered kit emits a one-time
 diagnostic (honua-io/honua-sdk-js#957):
 
 - a `console.warn` naming `registerHonuaWidgetKit`, quoting the exact call, and
@@ -13416,7 +13433,7 @@ kit — not once per widget instance — so subscribe before constructing widget
 It re-arms whenever `registerHonuaWidgetKit` is called again, which keeps
 register-then-unregister cycles honest.
 
-Two consequences worth planning for:
+Three consequences worth planning for:
 
 - The standalone `@honua/sdk-esri-compat` split package does not ship the kit.
   An app on that package installs `@honua/sdk-js` (or
@@ -13424,6 +13441,10 @@ Two consequences worth planning for:
 - The codemod does not insert this call for you yet — it is tracked on
   honua-io/honua-sdk-js#957 against the `honua-migrate` engine. Until it lands,
   add the registration to every migrated entry point by hand.
+- Widgets outside the delegation set need a rendering plan of their own. Budget
+  for it during migration rather than discovering it after: read the shim's
+  state model and render it with your own components, or with the Honua web
+  components directly.
 
 ## How it differs from the other targets
 
@@ -13853,13 +13874,16 @@ hold the surface stable).
    These rewrite cleanly only for the simple case; arrow-function
    field-info `format` callbacks fall through to manual TODO.
 6. **Widget UI behavior.** The widget shims accept the same
-   constructor options ArcGIS does, but they render through the
-   Honua widget host (`HonuaWidgetHost`), and only after the app
-   registers the web-component kit — see
+   constructor options ArcGIS does, but only `LegendCompat` and
+   `LayerListCompat` render, through the Honua widget host
+   (`HonuaWidgetHost`) and only after the app registers the
+   web-component kit — see
    [widget kit registration](./migration-honua-maplibre.md#widget-kit-registration).
-   Visual parity (icons, ARIA, CSS class names that downstream apps
-   style against) is **not** byte-identical. Apps that rely on
-   `calcite-action--`-prefixed selectors will need style work.
+   Their visual parity (icons, ARIA, CSS class names that downstream
+   apps style against) is **not** byte-identical; apps that rely on
+   `calcite-action--`-prefixed selectors will need style work. Every
+   other container-bearing shim is state-model-only and needs the
+   application to render it.
 7. **`reactiveUtils.watch` semantics (partial).** Compat `watch` is
    property-name-based and synchronous. ArcGIS `watch` accepts an
    accessor function and returns a `WatchHandle` with `pause()` /

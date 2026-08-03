@@ -28,11 +28,11 @@ npm run demo:migration-workbench:artifacts:check
 
 ## Required follow-up step: register the widget kit
 
-Reading a green migration report is not the end of the migration. The compat
-widget shims (`LegendCompat`, `LayerListCompat`, …) carry the ArcGIS state
-model but render UI only after the application injects the Honua
-web-component kit, and the codemod does not insert that call for you
-(honua-io/honua-sdk-js#957). Add it once to the migrated entry point:
+Reading a green migration report is not the end of the migration. `LegendCompat`
+and `LayerListCompat` carry the ArcGIS state model but render UI only after the
+application injects the Honua web-component kit, and the codemod does not insert
+that call for you (honua-io/honua-sdk-js#957). Add it once to the migrated entry
+point:
 
 ```ts doc-test=skip reason="wiring snippet requires an application host"
 import { registerHonuaWidgetKit } from "@honua/sdk-js/esri-compat";
@@ -40,9 +40,12 @@ import { registerHonuaWidgetKit } from "@honua/sdk-js/esri-compat";
 registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
 ```
 
-Skip it and the widgets in the migrated app come up blank while every report
-gate stays green. The first mount in that state warns on the console and emits
-a `widget-kit.missing` event on the shim's `CompatEventBus`; see
+Skip it and those two widgets come up blank while every report gate stays green.
+The first mount in that state warns on the console and emits a
+`widget-kit.missing` event on the shim's `CompatEventBus`. Other
+container-bearing shims (`SearchCompat`, `MeasurementCompat`, …) do not
+delegate to the kit at all and stay state-model-only either way, so they need
+their own rendering plan; see
 [widget kit registration](../../docs/migration-honua-maplibre.md#widget-kit-registration)
 for the full contract.
 

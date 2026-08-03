@@ -85,7 +85,14 @@ export class LayerListCompat {
    * Headless usage keeps the state-model-only behavior.
    */
   private readonly widgetHost: HonuaWidgetHost | undefined;
-  private widgetHostBound = false;
+  /**
+   * The element the toggle listener is currently bound to. Tracked per element
+   * rather than as a "bound once" flag because the host legitimately mounts a
+   * *new* element after a teardown — an unregister/re-register cycle, or a
+   * container whose children were replaced — and a flag would leave that new
+   * element without a listener, silently breaking visibility toggles.
+   */
+  private widgetHostBoundElement: unknown;
 
   public constructor(options: LayerListCompatOptions = {}) {
     this.view = options.view;
@@ -268,8 +275,8 @@ export class LayerListCompat {
     if (!host) return;
     const rows = flattenLayerListItems(this.items);
     await host.update((element) => {
-      if (!this.widgetHostBound) {
-        this.widgetHostBound = true;
+      if (this.widgetHostBoundElement !== element) {
+        this.widgetHostBoundElement = element;
         (element as unknown as EventTarget).addEventListener("honua-layer-visibility-change", (event) => {
           const detail = (event as CustomEvent<{ layerId?: string; visible?: boolean }>).detail;
           if (detail?.layerId === undefined || typeof detail.visible !== "boolean") return;

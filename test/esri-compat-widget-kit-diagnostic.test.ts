@@ -43,6 +43,15 @@ async function flushMicrotasks(): Promise<void> {
   }
 }
 
+/** Shims render through fire-and-forget `void host.update(...)` calls. */
+async function until(predicate: () => boolean, timeoutMs = 3000): Promise<void> {
+  const start = Date.now();
+  while (!predicate()) {
+    if (Date.now() - start > timeoutMs) throw new Error("condition not reached in time");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
 beforeEach(() => {
   document.body.innerHTML = "";
   // Re-arms the one-time diagnostic, then leaves the host with no kit.
@@ -119,6 +128,98 @@ describe("missing widget-kit diagnostic", () => {
 
     expect(warn).not.toHaveBeenCalled();
     expect(events).toEqual([]);
+  });
+
+  it("drops a previously mounted element when the kit is unregistered", async () => {
+    registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+    const bus = new CompatEventBus();
+    const events = collectMissingKitEvents(bus);
+    const container = makeContainer("legend-container");
+    const host = new HonuaWidgetHost("honua-legend", container, bus);
+
+    const element = await host.mount();
+    expect(element?.tagName.toLowerCase()).toBe("honua-legend");
+    expect(container.children).toHaveLength(1);
+
+    // The documented unregister flow must return the shim to state-model-only
+    // mode rather than stranding a live component that no longer updates.
+    registerHonuaWidgetKit(undefined);
+    await host.update((mounted) => {
+      mounted.items = [{ id: "stale", label: "Stale" }];
+    });
+
+    expect(container.children).toHaveLength(0);
+    expect(element?.isConnected).toBe(false);
+    expect(host.element).toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(events).toHaveLength(1);
+
+    // Re-registering mounts a fresh element into the same container.
+    registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+    const remounted = await host.mount();
+    expect(remounted?.tagName.toLowerCase()).toBe("honua-legend");
+    expect(remounted).not.toBe(element);
+    expect(container.children).toHaveLength(1);
+  });
+
+  it("clears rendered LegendCompat UI when the kit is unregistered mid-flight", async () => {
+    registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+    const container = makeContainer("legend-container");
+    const legend = new LegendCompat({
+      map: {
+        layers: [
+          {
+            id: "parcels",
+            title: "Parcels",
+            visible: true,
+            getLegend: () => ({
+              layers: [{ layerId: 0, layerName: "Parcels", legend: [{ label: "Residential" }] }],
+            }),
+          },
+        ],
+      },
+      container,
+    });
+    await legend.load();
+    await until(() => container.querySelector("honua-legend") !== null);
+
+    registerHonuaWidgetKit(undefined);
+    await legend.refresh();
+    await until(() => container.querySelector("honua-legend") === null);
+
+    // State model survives; only the rendering degrades.
+    expect(legend.items).toHaveLength(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+    legend.destroy();
+  });
+
+  it("rebinds LayerListCompat toggles to the element remounted after a kit cycle", async () => {
+    registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+    const container = makeContainer("list-container");
+    const roads = { id: "roads", title: "Roads", visible: true };
+    const layerList = new LayerListCompat({ map: { layers: [roads] }, container });
+    await layerList.load();
+    await until(() => container.querySelector("honua-layer-list")?.shadowRoot?.textContent?.includes("Roads") === true);
+
+    registerHonuaWidgetKit(undefined);
+    await layerList.refresh();
+    await until(() => container.querySelector("honua-layer-list") === null);
+
+    registerHonuaWidgetKit(() => import("../src/web-components/index.js"));
+    await layerList.refresh();
+    await until(() => container.querySelector("honua-layer-list")?.shadowRoot?.textContent?.includes("Roads") === true);
+
+    // The remounted element is a new node: its change listener must have been
+    // rebound, or toggles silently stop reaching the shim.
+    const checkbox = container
+      .querySelector("honua-layer-list")
+      ?.shadowRoot?.querySelector<HTMLInputElement>("input[data-layer-id='roads']");
+    expect(checkbox?.checked).toBe(true);
+    checkbox!.checked = false;
+    checkbox!.dispatchEvent(new Event("change"));
+    await until(() => roads.visible === false);
+
+    layerList.destroy();
   });
 
   it("re-arms when the kit is registered and then unregistered again", async () => {

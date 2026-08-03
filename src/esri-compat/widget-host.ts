@@ -5,6 +5,15 @@
  * renders through the shared component set instead of shim-only markup
  * (issue #493, REQ-004).
  *
+ * Only two shims delegate through this host today — `LegendCompat`
+ * (`honua-legend`) and `LayerListCompat` (`honua-layer-list`). The other ~23
+ * shims that accept a `container` option are state-model-only regardless of
+ * registration: they never construct a host, never mount a component, and
+ * never emit the missing-kit diagnostic below. {@link expectedKitConstructor}
+ * additionally knows `honua-search` / `honua-measurement`, ready for the day
+ * `SearchCompat` / `MeasurementCompat` adopt the host; until then, do not
+ * describe the registration as something that makes "the widgets" render.
+ *
  * The host **never imports the web-component kit** — not even dynamically:
  * the `/esri-compat` entrypoint is bundle-budgeted, and any intra-package
  * import (static or `import()`) would pull the whole kit plus its geometry
@@ -93,7 +102,10 @@ let missingWidgetKitReported = false;
  * Injects the web-component kit that {@link HonuaWidgetHost} delegates to.
  * Call once from application code with the `@honua/sdk-js/web-components`
  * (or `@honua/app-platform/web-components`) module — eagerly or as a lazy
- * loader. Pass `undefined` to unregister (shims return to headless mode).
+ * loader. Pass `undefined` to unregister: delegating shims return to headless
+ * mode, and each host drops any element it had mounted on its next
+ * {@link HonuaWidgetHost.mount} / {@link HonuaWidgetHost.update} rather than
+ * stranding a live component that no longer receives updates.
  *
  * Calling this also re-arms the one-time missing-kit diagnostic: registration
  * is exactly the state the warning asks for, so an app that later unregisters
@@ -108,9 +120,10 @@ export function registerHonuaWidgetKit(source: HonuaWidgetKitSource | undefined)
 function missingWidgetKitMessage(tagName: string): string {
   return [
     `[honua/esri-compat] <${tagName}> was not mounted because no Honua widget kit is registered,`,
-    "so the compat widget shims stay state-model-only and the container you passed renders nothing.",
+    "so this widget stays state-model-only and its container renders nothing.",
     'Call registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components")) once during application',
-    `startup, before constructing compat widgets. See ${WIDGET_KIT_DOCS_URL}`,
+    "startup, before constructing compat widgets. This affects the shims that delegate to the widget",
+    `kit — LegendCompat and LayerListCompat. See ${WIDGET_KIT_DOCS_URL}`,
   ].join(" ");
 }
 
@@ -178,6 +191,13 @@ export class HonuaWidgetHost {
     const container = this.#container;
     if (!container || !globalDom.document) return undefined;
     if (!widgetKitSource) {
+      // An element mounted under an earlier registration must not survive
+      // `registerHonuaWidgetKit(undefined)`. Leaving it connected would strand
+      // a live component that no longer receives updates — stale UI that
+      // contradicts both the documented "shims return to headless mode"
+      // contract and the diagnostic below. Detach first, so the claim is true
+      // by the time it is made.
+      this.destroy();
       reportMissingWidgetKit(this.#tagName, this.#eventBus, this);
       return undefined;
     }
