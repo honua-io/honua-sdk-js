@@ -8,13 +8,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // adapter touches lazily (`Cartesian3.fromDegrees`, the model-matrix helpers,
 // and the async layer factories) so `apply()` stays a fast, pure wiring test.
 // The 2D bundle never loads this module — see the static-import guard test.
-const tilesetFromUrl = vi.fn(async (url: string) => ({ kind: "tileset", url, show: true, modelMatrix: undefined }));
+const tilesetFromUrl = vi.fn(async (url: string, options?: Record<string, unknown>) => ({
+  kind: "tileset",
+  url,
+  options,
+  show: true,
+  modelMatrix: undefined,
+}));
 const modelFromGltfAsync = vi.fn(async (options: Record<string, unknown>) => ({
   kind: "model",
   url: options.url,
   modelMatrix: options.modelMatrix,
   scale: options.scale,
   show: true,
+  color: undefined as unknown,
 }));
 const terrainFromUrl = vi.fn(async (url: string) => ({ kind: "terrain-provider", url, destroy: vi.fn() }));
 const imageryProviders: MockImageryProvider[] = [];
@@ -88,7 +95,11 @@ vi.mock("cesium", () => ({
     clone: (matrix: unknown) => matrix,
   },
   Cesium3DTileset: {
-    fromUrl: (url: string) => tilesetFromUrl(url),
+    fromUrl: (url: string, options?: Record<string, unknown>) =>
+      options === undefined ? tilesetFromUrl(url) : tilesetFromUrl(url, options),
+  },
+  Color: {
+    WHITE: { withAlpha: (alpha: number) => ({ kind: "color", alpha }) },
   },
   Model: {
     fromGltfAsync: (options: Record<string, unknown>) => modelFromGltfAsync(options),
@@ -112,8 +123,11 @@ import {
   type CesiumCameraLike,
   type CesiumSceneLike,
   type SceneCameraState,
+  type SceneModelLayerPrimitive,
   type SceneRuntimePrimitive,
+  addCesium3DTileset,
   addCesiumImageryLayer,
+  addCesiumModel,
   applyCameraStateToCesiumCamera,
   applyCesiumScenePrimitives,
   applyCesiumTerrain,
@@ -121,6 +135,7 @@ import {
   cesiumCameraToSceneState,
   createCesiumSceneAdapter,
   createSceneWorkspace,
+  diagnoseScenePrimitives,
   modelLayerToCesiumPlacement,
   pickCesiumFeatureAttributes,
   resolveCesiumModelScale,
@@ -1706,6 +1721,353 @@ describe("cesium scene adapter", () => {
       expect(resolvePickedFeatureAttributes({ primitive: {} })).toBeUndefined();
       const scene = createMockCesiumScene(undefined);
       expect(pickCesiumFeatureAttributes(scene, { x: 0, y: 0 })).toBeUndefined();
+    });
+  });
+
+  describe("model-layer contract (#927)", () => {
+    beforeEach(() => {
+      tilesetFromUrl.mockClear();
+      modelFromGltfAsync.mockClear();
+    });
+
+    const modelPrimitive = (
+      overrides: Partial<SceneModelLayerPrimitive> & Pick<SceneModelLayerPrimitive, "format">,
+    ): SceneModelLayerPrimitive => ({
+      kind: "model-layer",
+      id: "asset",
+      uri: "https://example.test/tileset.json",
+      ...overrides,
+    });
+
+    it.each([
+      ["", "scene-primitive-model-source-missing-uri"],
+      ["   ", "scene-primitive-model-source-missing-uri"],
+      ["javascript:alert(1)", "scene-primitive-model-source-uri-invalid"],
+      ["data:model/gltf+json,{}", "scene-primitive-model-source-uri-invalid"],
+      ["https://user:secret@example.test/tileset.json", "scene-primitive-model-credentials-forbidden"],
+      ["https://example.test/tileset.json?access_token=abc", "scene-primitive-model-credentials-forbidden"],
+      ["https://example.test/tileset.json#api_key=abc", "scene-primitive-model-credentials-forbidden"],
+    ])("fails a model URI %j closed with %s", async (uri, code) => {
+      const primitive = modelPrimitive({ format: "3d-tiles", uri });
+      const diagnostics = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES);
+      expect(diagnostics.map((diagnostic) => diagnostic.code)).toContain(code);
+      expect(diagnostics.every((diagnostic) => diagnostic.status === "unsupported")).toBe(true);
+
+      // Nothing reaches the renderer: neither via apply() nor via the direct
+      // exported factory.
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [primitive]);
+      expect(result.status).toBe("unsupported");
+      expect(scene.added).toHaveLength(0);
+      expect(tilesetFromUrl).not.toHaveBeenCalled();
+      await expect(addCesium3DTileset(scene, primitive)).rejects.toThrow(code);
+      expect(tilesetFromUrl).not.toHaveBeenCalled();
+    });
+
+    it("accepts a relative, credential-free asset URI", () => {
+      const diagnostics = diagnoseScenePrimitives(
+        [modelPrimitive({ format: "3d-tiles", uri: "/assets/city/tileset.json" })],
+        CESIUM_SCENE_CAPABILITIES,
+      );
+      expect(diagnostics.map((diagnostic) => diagnostic.status)).toEqual(["supported"]);
+    });
+
+    it.each([
+      ["position", { position: [Number.NaN, 10, 0] as const }],
+      ["position", { position: [200, 10, 0] as const }],
+      ["position", { position: [10, 95, 0] as const }],
+      ["position", { position: [10, 20, Number.POSITIVE_INFINITY] as const }],
+      ["rotation", { rotation: [Number.NaN, 0, 0] as const }],
+      ["scale", { scale: 0 }],
+      ["scale", { scale: -2 }],
+      ["scale", { scale: [1, 0, 1] as const }],
+    ])("fails invalid placement (%s) closed before loading the peer", async (field, overrides) => {
+      const primitive = modelPrimitive({ format: "glb", uri: "https://example.test/turbine.glb", ...overrides });
+      const diagnostics = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES);
+      const placement = diagnostics.find((diagnostic) => diagnostic.code === "scene-primitive-model-placement-invalid");
+      expect(placement?.status).toBe("unsupported");
+      expect(placement?.context).toEqual({ invalidFields: [field] });
+
+      const scene = createMockCesiumScene();
+      await expect(addCesiumModel(scene, primitive)).rejects.toThrow("scene-primitive-model-placement-invalid");
+      expect(modelFromGltfAsync).not.toHaveBeenCalled();
+    });
+
+    it("keeps a valid placement supported", () => {
+      const diagnostics = diagnoseScenePrimitives(
+        [
+          modelPrimitive({
+            format: "glb",
+            uri: "https://example.test/turbine.glb",
+            position: [-180, -90, -12.5],
+            rotation: [0, -90, 359],
+            scale: [2, 2, 2],
+          }),
+        ],
+        CESIUM_SCENE_CAPABILITIES,
+      );
+      expect(diagnostics.map((diagnostic) => diagnostic.status)).toEqual(["supported"]);
+    });
+
+    it("passes validated point-cloud shading through to the tileset factory", async () => {
+      const scene = createMockCesiumScene();
+      const primitive = modelPrimitive({
+        id: "lidar",
+        format: "3d-tiles",
+        uri: "https://example.test/lidar/tileset.json",
+        pointCloudShading: {
+          attenuation: true,
+          maximumAttenuation: 4,
+          geometricErrorScale: 0.75,
+          eyeDomeLighting: true,
+          eyeDomeLightingStrength: 1.5,
+          eyeDomeLightingRadius: 2,
+        },
+      });
+
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [primitive]);
+
+      expect(result.status).toBe("supported");
+      expect(tilesetFromUrl).toHaveBeenCalledWith("https://example.test/lidar/tileset.json", {
+        pointCloudShading: {
+          attenuation: true,
+          maximumAttenuation: 4,
+          geometricErrorScale: 0.75,
+          eyeDomeLighting: true,
+          eyeDomeLightingStrength: 1.5,
+          eyeDomeLightingRadius: 2,
+        },
+      });
+    });
+
+    it("omits the options bag entirely when no shading is configured", async () => {
+      const scene = createMockCesiumScene();
+      await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        modelPrimitive({ format: "3d-tiles" }),
+      ]);
+      expect(tilesetFromUrl).toHaveBeenCalledWith("https://example.test/tileset.json");
+    });
+
+    it.each([
+      ["attenuation", { attenuation: "yes" }],
+      ["maximumAttenuation", { maximumAttenuation: 0 }],
+      ["geometricErrorScale", { geometricErrorScale: Number.NaN }],
+      ["eyeDomeLighting", { eyeDomeLighting: 1 }],
+      ["eyeDomeLightingStrength", { eyeDomeLightingStrength: -1 }],
+      ["eyeDomeLightingRadius", { eyeDomeLightingRadius: Number.POSITIVE_INFINITY }],
+    ])("fails invalid point-cloud shading (%s) closed", async (field, shading) => {
+      const primitive = modelPrimitive({
+        format: "3d-tiles",
+        pointCloudShading: shading as SceneModelLayerPrimitive["pointCloudShading"],
+      });
+      const diagnostic = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
+        (entry) => entry.code === "scene-primitive-model-point-cloud-shading-invalid",
+      );
+      expect(diagnostic?.status).toBe("unsupported");
+      expect(diagnostic?.context).toEqual({ invalidFields: [field] });
+
+      await expect(addCesium3DTileset(createMockCesiumScene(), primitive)).rejects.toThrow(
+        "scene-primitive-model-point-cloud-shading-invalid",
+      );
+      expect(tilesetFromUrl).not.toHaveBeenCalled();
+    });
+
+    it("rejects point-cloud shading on a non-tiled model format", () => {
+      const diagnostic = diagnoseScenePrimitives(
+        [
+          modelPrimitive({
+            format: "glb",
+            uri: "https://example.test/turbine.glb",
+            pointCloudShading: { attenuation: true },
+          }),
+        ],
+        CESIUM_SCENE_CAPABILITIES,
+      ).find((entry) => entry.code === "scene-primitive-model-point-cloud-shading-invalid");
+      expect(diagnostic?.status).toBe("unsupported");
+      expect(diagnostic?.context).toEqual({ invalidFields: ["pointCloudShading"] });
+    });
+
+    it("fails a declared-but-unmaterialized format closed instead of silently rendering nothing", async () => {
+      const primitive = modelPrimitive({
+        id: "i3s-city",
+        format: "i3s",
+        uri: "https://example.test/SceneServer/layers/0",
+      });
+      // Cesium the engine can consume I3S, so the format stays declared...
+      expect(CESIUM_SCENE_CAPABILITIES.modelLayer?.formats).toContain("i3s");
+      // ...but this adapter does not materialize it, and says so.
+      expect(CESIUM_SCENE_CAPABILITIES.modelLayer?.materializedFormats).toEqual(["gltf", "glb", "3d-tiles"]);
+
+      const diagnostics = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES);
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]).toMatchObject({
+        code: "scene-primitive-model-format-not-materialized",
+        status: "unsupported",
+        severity: "error",
+        primitiveId: "i3s-city",
+        renderer: "cesium",
+        context: { format: "i3s", materializedFormats: ["gltf", "glb", "3d-tiles"] },
+      });
+
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [primitive]);
+      expect(result.status).toBe("unsupported");
+      expect(result.layers.size).toBe(0);
+      expect(scene.added).toHaveLength(0);
+      expect(tilesetFromUrl).not.toHaveBeenCalled();
+      expect(modelFromGltfAsync).not.toHaveBeenCalled();
+    });
+
+    it("keeps an entirely unsupported format on the existing capability diagnostic", () => {
+      const diagnostics = diagnoseScenePrimitives(
+        [modelPrimitive({ id: "obj-asset", format: "obj", uri: "https://example.test/model.obj" })],
+        CESIUM_SCENE_CAPABILITIES,
+      );
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]?.code).toBe("scene-primitive-unsupported");
+      expect(diagnostics[0]?.message).toContain("'obj' is not supported by cesium");
+    });
+
+    it("controls model opacity through the handle and refuses out-of-range values", async () => {
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        modelPrimitive({ id: "turbine", format: "glb", uri: "https://example.test/turbine.glb" }),
+      ]);
+      const handle = result.layers.get("turbine");
+      const model = scene.added[0] as { color?: unknown };
+
+      expect(handle?.setOpacity).toBeTypeOf("function");
+      handle?.setOpacity?.(0.25);
+      expect(model.color).toEqual({ kind: "color", alpha: 0.25 });
+      expect(() => handle?.setOpacity?.(1.5)).toThrow(RangeError);
+      expect(() => handle?.setOpacity?.(Number.NaN)).toThrow(RangeError);
+    });
+
+    it("omits setOpacity for tilesets, whose translucency is a style concern", async () => {
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        modelPrimitive({ id: "city-tiles", format: "3d-tiles" }),
+      ]);
+      expect(result.layers.get("city-tiles")?.setOpacity).toBeUndefined();
+    });
+
+    it("removes an owned tileset exactly once and no-ops afterwards", async () => {
+      const scene = createMockCesiumScene();
+      const destroy = vi.fn();
+      let destroyed = false;
+      tilesetFromUrl.mockImplementationOnce(async (url: string) => ({
+        kind: "tileset",
+        url,
+        options: undefined,
+        show: true,
+        modelMatrix: undefined,
+        // A collection with `destroyPrimitives = false` would otherwise leak the
+        // tileset, so the handle asserts the destroy behind `isDestroyed()`.
+        destroy: () => {
+          destroyed = true;
+          destroy();
+        },
+        isDestroyed: () => destroyed,
+      }));
+
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        modelPrimitive({ id: "city-tiles", format: "3d-tiles" }),
+      ]);
+      const handle = result.layers.get("city-tiles");
+      const tileset = scene.added[0] as { show: boolean };
+
+      handle?.remove();
+      expect(scene.added).toHaveLength(0);
+      expect(destroy).toHaveBeenCalledTimes(1);
+
+      handle?.remove();
+      expect(destroy).toHaveBeenCalledTimes(1);
+
+      // Post-removal control calls must not mutate a destroyed object.
+      handle?.setVisible(false);
+      expect(tileset.show).toBe(true);
+    });
+
+    it("destroys an owned tileset when the style sidecar fails after load", async () => {
+      const scene = createMockCesiumScene();
+      const destroy = vi.fn();
+      let destroyed = false;
+      tilesetFromUrl.mockImplementationOnce(async (url: string) => ({
+        kind: "tileset",
+        url,
+        options: undefined,
+        show: true,
+        modelMatrix: undefined,
+        extras: { honua_style: { encoding: "3d-tiles-styling", version: "1.0", uri: "style.json" } },
+        destroy: () => {
+          destroyed = true;
+          destroy();
+        },
+        isDestroyed: () => destroyed,
+      }));
+      const fetchImpl = vi.fn(async () => {
+        throw new Error("style sidecar unreachable");
+      });
+
+      await expect(
+        addCesium3DTileset(scene, modelPrimitive({ id: "city-tiles", format: "3d-tiles" }), undefined, {
+          fetchImpl: fetchImpl as unknown as typeof fetch,
+        }),
+      ).rejects.toThrow("style sidecar unreachable");
+
+      expect(scene.added).toHaveLength(0);
+      expect(destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("destroys an owned model when the primitive collection rejects it", async () => {
+      const scene = createMockCesiumScene();
+      scene.primitives.add = () => {
+        throw new Error("collection rejected the model");
+      };
+      const destroy = vi.fn();
+      let destroyed = false;
+      modelFromGltfAsync.mockImplementationOnce(async (options: Record<string, unknown>) => ({
+        kind: "model",
+        url: options.url,
+        modelMatrix: options.modelMatrix,
+        scale: undefined,
+        show: true,
+        color: undefined,
+        destroy: () => {
+          destroyed = true;
+          destroy();
+        },
+        isDestroyed: () => destroyed,
+      }));
+
+      await expect(
+        addCesiumModel(scene, modelPrimitive({ id: "turbine", format: "glb", uri: "https://example.test/t.glb" })),
+      ).rejects.toThrow("collection rejected the model");
+      expect(destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("refuses to serialize a credential-bearing model binding into workspace state", () => {
+      const workspace = createSceneWorkspace();
+      const dispatchPrimitive = (primitive: SceneModelLayerPrimitive) => () => {
+        workspace.dispatch({ kind: "set-primitives", primitives: [primitive] });
+      };
+
+      expect(
+        dispatchPrimitive(
+          modelPrimitive({
+            id: "signed",
+            format: "3d-tiles",
+            uri: "https://example.test/tileset.json?api_key=secret",
+          }),
+        ),
+      ).toThrow(/credential-free/);
+      expect(dispatchPrimitive(modelPrimitive({ id: "bad", format: "3d-tiles", uri: "javascript:alert(1)" }))).toThrow(
+        /invalid asset URI/,
+      );
+      expect(workspace.state.primitives).toEqual({});
+
+      expect(dispatchPrimitive(modelPrimitive({ id: "ok", format: "3d-tiles" }))).not.toThrow();
+      expect(Object.keys(workspace.state.primitives)).toEqual(["ok"]);
     });
   });
 

@@ -59,7 +59,7 @@ export interface SceneElevationSourcePrimitive extends ScenePrimitiveBase {
 
 export type SceneImagerySourceProtocol = "url-template" | "wms" | "wmts" | "single-tile" | "arcgis-imagery";
 
-const SCENE_IMAGERY_URL_BASE = "https://scene.honua.invalid/";
+const SCENE_ASSET_URL_BASE = "https://scene.honua.invalid/";
 const WMS_RESERVED_PARAMETER_KEYS = new Set(["bbox", "crs", "height", "request", "service", "srs", "width"]);
 const ARCGIS_IMAGE_SERVER_RESERVED_PARAMETER_KEYS = new Set([
   "bbox",
@@ -123,6 +123,30 @@ export interface SceneExtrusionPrimitive extends ScenePrimitiveBase {
 
 export type SceneModelFormat = "gltf" | "glb" | "3d-tiles" | "i3s" | "obj" | "custom";
 
+/**
+ * Bounded point-cloud rendering controls for a tiled point-cloud asset.
+ *
+ * Point clouds ride the same `3d-tiles` model-layer path as any other tileset,
+ * but they need splat sizing and eye-dome lighting to be legible. These fields
+ * are the renderer-neutral subset every 3D engine can honor; each is validated
+ * before the renderer peer is loaded, so an out-of-range value fails closed
+ * rather than silently reverting to a renderer default.
+ */
+export interface ScenePointCloudShading {
+  /** Scale point size with geometric error / eye distance. */
+  readonly attenuation?: boolean;
+  /** Upper bound on attenuated point size, in pixels. Must be finite and > 0. */
+  readonly maximumAttenuation?: number;
+  /** Multiplier applied to the tile geometric error when sizing points. Must be finite and > 0. */
+  readonly geometricErrorScale?: number;
+  /** Apply eye-dome lighting to emphasize point-cloud depth. */
+  readonly eyeDomeLighting?: boolean;
+  /** Eye-dome lighting contrast. Must be finite and > 0. */
+  readonly eyeDomeLightingStrength?: number;
+  /** Eye-dome lighting sampling radius, in pixels. Must be finite and > 0. */
+  readonly eyeDomeLightingRadius?: number;
+}
+
 export interface SceneModelLayerPrimitive extends ScenePrimitiveBase {
   readonly kind: "model-layer";
   readonly sourceId?: SourceId;
@@ -132,6 +156,8 @@ export interface SceneModelLayerPrimitive extends ScenePrimitiveBase {
   readonly rotation?: readonly [number, number, number];
   readonly scale?: number | readonly [number, number, number];
   readonly featureId?: FeatureId;
+  /** Point-cloud rendering controls. Only meaningful for tiled (`3d-tiles`) assets. */
+  readonly pointCloudShading?: ScenePointCloudShading;
 }
 
 export interface SceneLayerMetadataPrimitive extends ScenePrimitiveBase {
@@ -179,7 +205,16 @@ export interface SceneRuntimeCapabilities {
   };
   readonly extrusion?: boolean;
   readonly modelLayer?: {
+    /** Formats the underlying renderer engine can consume. */
     readonly formats: readonly SceneModelFormat[];
+    /**
+     * The subset of {@link formats} this adapter actually materializes on a live
+     * scene. Omit when the adapter renders everything it declares. When present,
+     * a declared-but-unmaterialized format diagnoses as
+     * `scene-primitive-model-format-not-materialized` instead of reporting
+     * `supported` and then silently rendering nothing.
+     */
+    readonly materializedFormats?: readonly SceneModelFormat[];
   };
   readonly sceneLayerMetadata?: boolean;
 }
@@ -385,17 +420,37 @@ export function diagnoseScenePrimitive(
             ),
           ];
     case "model-layer": {
-      const formats = capabilities.modelLayer?.formats ?? [];
-      if (formats.includes(primitive.format))
-        return [supported(primitive, capabilities, "Model layer format is supported.")];
-      return [
-        unsupported(
-          primitive,
-          capabilities,
-          `Model format '${primitive.format}' is not supported by ${capabilities.renderer}.`,
-          "Preserve model metadata and route to a 3D renderer adapter.",
-        ),
-      ];
+      const modelLayer = capabilities.modelLayer;
+      const formats = modelLayer?.formats ?? [];
+      if (!formats.includes(primitive.format)) {
+        return [
+          unsupported(
+            primitive,
+            capabilities,
+            `Model format '${primitive.format}' is not supported by ${capabilities.renderer}.`,
+            "Preserve model metadata and route to a 3D renderer adapter.",
+          ),
+        ];
+      }
+      const modelDiagnostics = diagnoseRenderableModelLayer(primitive, capabilities);
+      const materializedFormats = modelLayer?.materializedFormats;
+      if (materializedFormats !== undefined && !materializedFormats.includes(primitive.format)) {
+        modelDiagnostics.push({
+          ...diagnostic(
+            "scene-primitive-model-format-not-materialized",
+            "error",
+            "unsupported",
+            primitive,
+            capabilities,
+            `Model format '${primitive.format}' is consumable by ${capabilities.renderer} but this adapter does not materialize it.`,
+            "Publish the asset as a 3D-Tiles or glTF/GLB model layer, or keep the binding for an adapter that renders it.",
+          ),
+          context: { format: primitive.format, materializedFormats: [...materializedFormats] },
+        });
+      }
+      return modelDiagnostics.length > 0
+        ? modelDiagnostics
+        : [supported(primitive, capabilities, "Model layer format is supported.")];
     }
     case "scene-layer-metadata":
       return capabilities.sceneLayerMetadata
@@ -604,7 +659,7 @@ function diagnoseRenderableImagery(
   capabilities: SceneRuntimeCapabilities,
 ): ScenePrimitiveDiagnostic[] {
   const diagnostics: ScenePrimitiveDiagnostic[] = [];
-  let urlProblem: SceneImageryUrlProblem;
+  let urlProblem: SceneAssetUrlProblem;
   if (!isNonEmptyString(primitive.url)) {
     diagnostics.push(
       diagnostic(
@@ -618,7 +673,7 @@ function diagnoseRenderableImagery(
       ),
     );
   } else {
-    urlProblem = sceneImageryUrlProblem(primitive.url);
+    urlProblem = sceneAssetUrlProblem(primitive.url);
     if (urlProblem === "invalid") {
       diagnostics.push(
         diagnostic(
@@ -801,6 +856,143 @@ function diagnoseRenderableImagery(
   return diagnostics;
 }
 
+/**
+ * Renderability checks for a model layer, mirroring the imagery contract: the
+ * asset URI must be a credential-free relative/HTTP/HTTPS URL, the placement
+ * must be expressible as a real position on the globe, and point-cloud shading
+ * must be in range. Every failure is fail-closed (`unsupported`), so nothing is
+ * handed to a renderer factory that would either throw opaquely or, worse,
+ * produce a silently wrong model matrix.
+ */
+function diagnoseRenderableModelLayer(
+  primitive: SceneModelLayerPrimitive,
+  capabilities: SceneRuntimeCapabilities,
+): ScenePrimitiveDiagnostic[] {
+  const diagnostics: ScenePrimitiveDiagnostic[] = [];
+  if (!isNonEmptyString(primitive.uri)) {
+    diagnostics.push(
+      diagnostic(
+        "scene-primitive-model-source-missing-uri",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Model layer requires an asset URI.",
+        "Provide a credential-free URI.",
+      ),
+    );
+  } else {
+    const uriProblem = sceneAssetUrlProblem(primitive.uri);
+    if (uriProblem === "invalid") {
+      diagnostics.push(
+        diagnostic(
+          "scene-primitive-model-source-uri-invalid",
+          "error",
+          "unsupported",
+          primitive,
+          capabilities,
+          "Model layer asset URI is invalid.",
+          "Use a relative, HTTP, or HTTPS URI.",
+        ),
+      );
+    } else if (uriProblem === "credentials") {
+      diagnostics.push(
+        diagnostic(
+          "scene-primitive-model-credentials-forbidden",
+          "error",
+          "unsupported",
+          primitive,
+          capabilities,
+          "Model bindings cannot contain credentials or signed URIs.",
+          "Resolve authorization at the host boundary.",
+        ),
+      );
+    }
+  }
+
+  const invalidPlacementFields = invalidModelPlacementFields(primitive);
+  if (invalidPlacementFields.length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-model-placement-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Model placement must use finite longitude/latitude/height, rotation, and positive scale values.",
+        "Correct the placement or omit it to place the asset at its authored origin.",
+      ),
+      context: { invalidFields: invalidPlacementFields },
+    });
+  }
+
+  const invalidShadingFields = invalidPointCloudShadingFields(primitive);
+  if (invalidShadingFields.length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-model-point-cloud-shading-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Point-cloud shading requires boolean toggles and finite positive magnitudes on a tiled asset.",
+        "Correct the shading values or omit pointCloudShading.",
+      ),
+      context: { invalidFields: invalidShadingFields },
+    });
+  }
+  return diagnostics;
+}
+
+function invalidModelPlacementFields(primitive: SceneModelLayerPrimitive): string[] {
+  const invalidFields: string[] = [];
+  const { position, rotation, scale } = primitive;
+  if (position !== undefined) {
+    if (!Array.isArray(position) || position.length < 2 || position.length > 3) invalidFields.push("position");
+    else {
+      const [longitude, latitude, height] = position;
+      const validLongitude = Number.isFinite(longitude) && longitude >= -180 && longitude <= 180;
+      const validLatitude = Number.isFinite(latitude) && latitude >= -90 && latitude <= 90;
+      const validHeight = height === undefined || Number.isFinite(height);
+      if (!validLongitude || !validLatitude || !validHeight) invalidFields.push("position");
+    }
+  }
+  if (rotation !== undefined) {
+    if (!Array.isArray(rotation) || rotation.length !== 3 || !rotation.every((angle) => Number.isFinite(angle))) {
+      invalidFields.push("rotation");
+    }
+  }
+  if (scale !== undefined) {
+    const validScale = Array.isArray(scale)
+      ? scale.length === 3 && scale.every((axis) => typeof axis === "number" && isPositiveFiniteNumber(axis))
+      : typeof scale === "number" && isPositiveFiniteNumber(scale);
+    if (!validScale) invalidFields.push("scale");
+  }
+  return invalidFields;
+}
+
+function invalidPointCloudShadingFields(primitive: SceneModelLayerPrimitive): string[] {
+  const shading = primitive.pointCloudShading;
+  if (shading === undefined) return [];
+  if (!shading || typeof shading !== "object" || Array.isArray(shading)) return ["pointCloudShading"];
+  if (primitive.format !== "3d-tiles") return ["pointCloudShading"];
+  const invalidFields: string[] = [];
+  for (const field of ["attenuation", "eyeDomeLighting"] as const) {
+    const value = shading[field];
+    if (value !== undefined && typeof value !== "boolean") invalidFields.push(field);
+  }
+  for (const field of [
+    "maximumAttenuation",
+    "geometricErrorScale",
+    "eyeDomeLightingStrength",
+    "eyeDomeLightingRadius",
+  ] as const) {
+    const value = shading[field];
+    if (value !== undefined && (typeof value !== "number" || !isPositiveFiniteNumber(value))) invalidFields.push(field);
+  }
+  return invalidFields;
+}
+
 function hasRenderableTerrainUrl(primitive: SceneElevationSourcePrimitive): boolean {
   if (typeof primitive.url === "string" && primitive.url.trim() !== "") return true;
   return primitive.tiles?.some((tile) => typeof tile === "string" && tile.trim() !== "") === true;
@@ -822,12 +1014,12 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim() !== "";
 }
 
-type SceneImageryUrlProblem = "invalid" | "credentials" | undefined;
+type SceneAssetUrlProblem = "invalid" | "credentials" | undefined;
 
-function sceneImageryUrlProblem(value: string): SceneImageryUrlProblem {
+function sceneAssetUrlProblem(value: string): SceneAssetUrlProblem {
   let parsed: URL;
   try {
-    parsed = new URL(value, SCENE_IMAGERY_URL_BASE);
+    parsed = new URL(value, SCENE_ASSET_URL_BASE);
   } catch {
     return "invalid";
   }
@@ -985,11 +1177,15 @@ function canonicalParameterKey(key: string): string {
  * @internal
  */
 export function assertScenePrimitiveSerializable(primitive: SceneRuntimePrimitive): void {
+  if (primitive.kind === "model-layer") {
+    assertSceneModelPrimitiveSerializable(primitive);
+    return;
+  }
   if (primitive.kind !== "imagery-layer") return;
   if (typeof primitive.url !== "string") {
     throw new TypeError(`Scene imagery primitive '${primitive.id}' has an invalid provider URL.`);
   }
-  const urlProblem = isNonEmptyString(primitive.url) ? sceneImageryUrlProblem(primitive.url) : undefined;
+  const urlProblem = isNonEmptyString(primitive.url) ? sceneAssetUrlProblem(primitive.url) : undefined;
   if (urlProblem === "invalid") {
     throw new TypeError(`Scene imagery primitive '${primitive.id}' has an invalid provider URL.`);
   }
@@ -1001,6 +1197,24 @@ export function assertScenePrimitiveSerializable(primitive: SceneRuntimePrimitiv
   }
   if (primitive.subdomains !== undefined && !isValidImagerySubdomains(primitive.subdomains)) {
     throw new TypeError(`Scene imagery primitive '${primitive.id}' has invalid subdomains.`);
+  }
+}
+
+/**
+ * Model layers cross the same serialization boundary as imagery: a persisted
+ * plan must never carry a signed tileset/model URI. Placement and shading stay
+ * on the diagnostic path so an incomplete-but-safe binding is still inspectable.
+ */
+function assertSceneModelPrimitiveSerializable(primitive: SceneModelLayerPrimitive): void {
+  if (typeof primitive.uri !== "string") {
+    throw new TypeError(`Scene model primitive '${primitive.id}' has an invalid asset URI.`);
+  }
+  const uriProblem = isNonEmptyString(primitive.uri) ? sceneAssetUrlProblem(primitive.uri) : undefined;
+  if (uriProblem === "invalid") {
+    throw new TypeError(`Scene model primitive '${primitive.id}' has an invalid asset URI.`);
+  }
+  if (uriProblem === "credentials") {
+    throw new TypeError(`Scene model primitive '${primitive.id}' must be credential-free.`);
   }
 }
 

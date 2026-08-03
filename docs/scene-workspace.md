@@ -189,7 +189,17 @@ Scene primitives describe 3D intent without naming a renderer package:
   closed before workspace serialization or provider creation.
 - `extrusion`: a source-bound height/base/color definition that MapLibre can
   render as `fill-extrusion`.
-- `model-layer`: glTF, 3D Tiles, I3S, or custom model binding for a 3D adapter.
+- `model-layer`: glTF, 3D Tiles, I3S, or custom model binding for a 3D adapter,
+  optionally placed by `position` (lon/lat/height), `rotation` (heading/pitch/roll
+  in degrees), and `scale`. Tiled point clouds ride the `3d-tiles` format and
+  accept bounded `pointCloudShading` (attenuation, maximum attenuation,
+  geometric-error scale, and eye-dome lighting strength/radius). Asset URIs obey
+  the same credential-free rule as imagery: relative, HTTP, or HTTPS only, with
+  userinfo, signed-URL query keys, and credential-like fragment parameters
+  rejected before workspace serialization or renderer materialization. Placement
+  outside the globe's coordinate ranges, non-finite rotation, non-positive scale,
+  and out-of-range shading fail closed rather than producing a silently wrong
+  model matrix. See [Model-layer diagnostics](#model-layer-diagnostics).
 - `scene-layer-metadata`: SceneServer/mesh/point-cloud metadata preserved when a
   renderer cannot draw it directly.
 
@@ -219,6 +229,32 @@ SceneServer layer as metadata while the MapLibre map keeps terrain and
 extrusions active. Unsupported means the primitive should be routed to another
 adapter or retained in migration diagnostics rather than silently dropped.
 
+### Model-layer diagnostics
+
+A model layer is validated before any renderer peer loads, so an unrenderable
+binding never reaches a Cesium factory. Every code below is `error` severity and
+`unsupported` status; `applyCesiumScenePrimitives()` skips the primitive and
+reports the diagnostic instead of attaching anything.
+
+| Code | Raised when |
+| --- | --- |
+| `scene-primitive-model-source-missing-uri` | `uri` is absent or blank. |
+| `scene-primitive-model-source-uri-invalid` | `uri` is malformed or uses a scheme other than relative/HTTP/HTTPS. |
+| `scene-primitive-model-credentials-forbidden` | `uri` carries userinfo or a credential-like query/fragment key. |
+| `scene-primitive-model-placement-invalid` | `position`, `rotation`, or `scale` is non-finite, out of range, or non-positive. `context.invalidFields` names the offenders. |
+| `scene-primitive-model-point-cloud-shading-invalid` | `pointCloudShading` is set on a non-tiled format or carries a non-boolean toggle or non-positive magnitude. `context.invalidFields` names the offenders. |
+| `scene-primitive-model-format-not-materialized` | The renderer engine can consume the format but this adapter does not attach it. |
+| `scene-primitive-unsupported` | The renderer engine cannot consume the format at all. |
+
+The last two are deliberately distinct. `SceneRuntimeCapabilities.modelLayer`
+carries both `formats` (what the engine can consume) and an optional
+`materializedFormats` (what the adapter actually attaches). Cesium declares
+`i3s` in `formats` because CesiumJS can consume I3S, but omits it from
+`materializedFormats` because this adapter does not wire it — so an I3S binding
+fails closed with `scene-primitive-model-format-not-materialized` and its
+`context.materializedFormats`, instead of reporting `supported` and then
+rendering nothing.
+
 ## Cesium entity queries
 
 The experimental accepted-plan `Source` to Cesium entity lifecycle is
@@ -230,12 +266,25 @@ by issue `#395`.
 ### Cesium layer disposal
 
 Cesium layer handles returned by the primitive adapter own the resources they
-materialize. Calling `remove()` is idempotent. Tilesets and models are removed
-through Cesium's primitive collection; terrain handles clear the active
-provider and call its optional `destroy()` method. Replacing terrain destroys
-the displaced provider immediately, while removing a stale handle never
-disturbs the newer provider. Imagery handles control visibility and opacity,
-remove their Cesium imagery layer, and destroy an owned provider at most once.
+materialize. Calling `remove()` is idempotent, and control calls made after
+removal are no-ops rather than mutations of a destroyed object.
+
+Tilesets and models are removed through Cesium's primitive collection and then
+destroyed exactly once behind an `isDestroyed()` check, so a collection
+configured with `destroyPrimitives = false` cannot leak them. Terrain handles
+clear the active provider and call its optional `destroy()` method; replacing
+terrain destroys the displaced provider immediately, while removing a stale
+handle never disturbs the newer provider. Imagery handles control visibility and
+opacity, remove their Cesium imagery layer, and destroy an owned provider at
+most once.
+
+`setOpacity` is present only where the adapter owns an alpha channel: imagery
+layers (`ImageryLayer.alpha`) and glTF/GLB models (`Model.color` alpha). A
+`Cesium3DTileset` has no tileset-wide alpha — tileset translucency is a
+`Cesium3DTileStyle` concern owned by the server styling contract — so tileset
+handles omit `setOpacity` rather than clobbering an applied style. Callers must
+feature-detect it.
+
 The application owns the Cesium `Viewer`/`Scene` itself and must dispose that
 target separately.
 
