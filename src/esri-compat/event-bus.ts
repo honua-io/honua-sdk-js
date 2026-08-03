@@ -30,6 +30,26 @@ export interface CompatEventPayloads {
   "feature-layer.scale-range-changed": { layerId: string; minScale: number; maxScale: number };
   "feature-layer.legend-enabled-changed": { layerId: string; legendEnabled: boolean };
   "feature-layer.time-extent-change": { layerId: string; timeExtent: { start: Date; end: Date } | undefined };
+  /**
+   * Emitted the first time a compat widget shim tries to mount its delegated
+   * web component while no widget kit is registered (see
+   * `esri-compat/widget-host.ts`). Without a kit the shims stay
+   * state-model-only and their `container` renders nothing, so this is the
+   * machine-readable half of the one-time `console.warn` the host emits.
+   *
+   * Subscribe before constructing widgets: the diagnostic fires once per
+   * runtime and re-arms only when `registerHonuaWidgetKit` is called again.
+   */
+  "widget-kit.missing": {
+    /** Delegation tag the shim failed to mount (e.g. `honua-legend`). */
+    tagName: string;
+    /** The API the application must call to fix this. */
+    api: "registerHonuaWidgetKit";
+    /** Documentation entry describing the required registration step. */
+    docs: string;
+    /** The same human-readable text written to `console.warn`. */
+    message: string;
+  };
 }
 
 type UntypedCompatEventListener = CompatEventListener<unknown>;
