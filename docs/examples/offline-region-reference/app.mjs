@@ -1,5 +1,7 @@
 import {
+  createIndexedDbOfflineEditQueue,
   createIndexedDbOfflineRegionStore,
+  createLocalFirstStatus,
   createOfflineRegionDiagnostic,
   createOfflineRegionFetchHandler,
   createOfflineRegionManifest,
@@ -7,6 +9,8 @@ import {
 } from "/dist/src/offline/index.js";
 
 const DATABASE_NAME = "honua-offline-region-reference-v1";
+const EDIT_QUEUE_DATABASE_NAME = "honua-offline-region-reference-edits-v1";
+const EDIT_IDEMPOTENCY_KEY = "offline-reference-incident-1-close";
 const DATA_PATH = "/offline-data.json";
 const SHELL_SCOPE_PATH = new URL("./", window.location.href).pathname;
 const SHELL_CACHE_NAMESPACE = `honua-offline-region-reference-shell-${encodeURIComponent(SHELL_SCOPE_PATH)}-`;
@@ -34,6 +38,8 @@ function publish(result) {
   text("freshness", result.freshness);
   text("provenance", `${result.sourceVersion} / ${result.schemaVersion} / ${result.planVersion}`);
   text("attribution", result.attribution || "Unavailable");
+  text("local-first", result.localFirst ? `${result.localFirst.state} · ${result.localFirst.reason}` : "Unavailable");
+  text("undelivered", result.localFirst ? String(result.localFirst.undeliveredCount) : "Unavailable");
   text("error", result.error ?? "");
   window.__HONUA_OFFLINE_REFERENCE__ = Object.freeze(result);
 }
@@ -156,6 +162,28 @@ async function readSnapshot(value, store, now) {
     return { diagnostic, payload: undefined, error: "Persisted resource is unavailable." };
   }
   return { diagnostic, payload: await response.text(), error: undefined };
+}
+
+/**
+ * Records the field edit only while the endpoint is unreachable, then reports
+ * every durable edit for this partition. The idempotency key is stable, so a
+ * repeated disconnected launch returns the existing edit instead of queueing a
+ * second copy.
+ */
+async function captureDisconnectedEdit(value, disconnected) {
+  const queue = createIndexedDbOfflineEditQueue({ name: EDIT_QUEUE_DATABASE_NAME });
+  const partition = {
+    authorizationScopeDigest: value.source.authorizationScopeDigest,
+    sourceId: value.source.id,
+  };
+  if (disconnected) {
+    await queue.enqueue({
+      ...partition,
+      idempotencyKey: EDIT_IDEMPOTENCY_KEY,
+      edit: { operation: "update", featureId: "incident-1", attributes: { status: "closed" } },
+    });
+  }
+  return queue.list({ ...partition, limit: 100 });
 }
 
 function referenceWorker(registration, scriptUrl) {
@@ -304,8 +332,16 @@ async function main() {
   await downloadWhenNeeded(value, store);
   const shellState = await prepareApplicationShell();
   const disconnected = !navigator.onLine || shellState === "retained";
-  const snapshot = await readSnapshot(value, store, disconnected ? OFFLINE_NOW : ONLINE_NOW);
+  const now = disconnected ? OFFLINE_NOW : ONLINE_NOW;
+  const snapshot = await readSnapshot(value, store, now);
   const diagnostic = snapshot.diagnostic;
+  const edits = await captureDisconnectedEdit(value, disconnected);
+  const status = createLocalFirstStatus({
+    connectivity: disconnected ? "offline" : "online",
+    now,
+    regions: [diagnostic],
+    edits,
+  });
   publish({
     ready: true,
     shellReady: true,
@@ -320,6 +356,16 @@ async function main() {
     sourceVersion: diagnostic.provenance.sourceVersion,
     schemaVersion: diagnostic.provenance.schemaVersion,
     planVersion: diagnostic.provenance.planVersion,
+    localFirst: {
+      state: status.state,
+      reason: status.reason,
+      connectivity: status.connectivity,
+      availability: status.reads.availability,
+      freshness: status.reads.freshness,
+      completeness: status.reads.completeness,
+      undeliveredCount: status.writes.undeliveredCount,
+      conflictedCount: status.writes.conflictedCount,
+    },
     error: snapshot.error,
   });
 }
@@ -335,6 +381,7 @@ void main().catch((error) => {
     schemaVersion: "unknown",
     planVersion: "unknown",
     attribution: "",
+    localFirst: undefined,
     error: error instanceof Error ? error.message : "Offline startup failed.",
   });
 });

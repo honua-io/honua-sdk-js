@@ -6,8 +6,10 @@
  * integrations. Applications inject request matching, resource loading, and
  * network policy; the SDK owns deterministic manifest identity, credential
  * projection, cache diagnostics, quota admission, integrity checks,
- * cancellation, progress semantics, and durable edit-queue state. Applications
- * still own edit replay transport binding.
+ * cancellation, progress semantics, durable edit-queue state, and the composed
+ * local-first status that names one honest state across cached reads and
+ * undelivered writes. Applications still own connectivity policy and edit
+ * replay transport binding.
  *
  * @experimental
  */
@@ -27,6 +29,29 @@ export {
   MemoryOfflineEditQueue,
 } from "./edit-queue.js";
 export { HONUA_OFFLINE_EDIT_REPLAY_VERSION, replayOfflineEditPass } from "./edit-replay.js";
+export {
+  createLocalFirstStatus,
+  DEFAULT_LOCAL_FIRST_MAX_EDITS,
+  DEFAULT_LOCAL_FIRST_MAX_LISTED_EDIT_IDS,
+  DEFAULT_LOCAL_FIRST_MAX_REGIONS,
+  HONUA_LOCAL_FIRST_STATUS_KIND,
+  HONUA_LOCAL_FIRST_STATUS_VERSION,
+} from "./status.js";
+export type {
+  CreateLocalFirstStatusOptions,
+  LocalFirstCompleteness,
+  LocalFirstConnectivity,
+  LocalFirstFreshness,
+  LocalFirstReadAvailability,
+  LocalFirstReads,
+  LocalFirstRegionSummary,
+  LocalFirstState,
+  LocalFirstStateReason,
+  LocalFirstStatusLimits,
+  LocalFirstStatusV1,
+  LocalFirstWrites,
+  LocalFirstWriteState,
+} from "./status.js";
 export {
   DEFAULT_OFFLINE_EDIT_QUEUE_MAX_AUDIT_EVENTS,
   DEFAULT_OFFLINE_EDIT_QUEUE_MAX_DEPENDENCIES,

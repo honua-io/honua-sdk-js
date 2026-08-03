@@ -686,13 +686,13 @@
     {
       "id": "offline-region-reference",
       "title": "Network-disabled offline region reference",
-      "summary": "Proves that a persisted IndexedDB region and bounded host-owned application shell survive reload after browser networking is disabled.",
+      "summary": "Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, and reports one composed local-first state.",
       "sourceKind": "docs-example",
       "track": "fixture",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Retain as browser evidence for the disconnected-read acceptance slice of the experimental offline region contract."
+        "reason": "Retain as browser evidence for the disconnected-read and composed local-first state acceptance slices of the experimental offline region contract."
       },
       "sourcePath": "docs/examples/offline-region-reference",
       "docsPath": "docs/examples/offline-region-reference/README.md",
@@ -729,7 +729,7 @@
           "commands": []
         }
       },
-      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss; the fixture does not synthesize an empty success or claim reconnect, edit replay, or server synchronization.",
+      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss and a partial/missing-regions local-first state that a queued edit cannot mask; the fixture does not synthesize an empty success or claim reconnect, edit replay, or server synchronization.",
       "validationProfile": "browser-fixture",
       "validation": [
         "npx playwright test test/playwright/offline-indexeddb.spec.mjs"

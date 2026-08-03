@@ -1,23 +1,23 @@
 {
   "format": "honua.offline-shell-manifest.v1",
-  "deploymentId": "offline-region-reference-2026-08-01-v1",
+  "deploymentId": "offline-region-reference-2026-08-02-v2",
   "resources": [
     {
       "url": "./",
-      "byteLength": 1545,
-      "integrity": "sha256:541e92e00157ed0070c47931ea1239da27b88846d7fc338b28e93845c250036a",
+      "byteLength": 1691,
+      "integrity": "sha256:dbfc03455e766318d7740a2754ee5b3265d0e59fd9e4e4ebb156b68ab0c3af52",
       "mediaType": "text/html"
     },
     {
       "url": "./app.mjs",
-      "byteLength": 12561,
-      "integrity": "sha256:a7069d51f164833073421a053a57cdf5d631cbb27faa23685a30473372a0f99e",
+      "byteLength": 14428,
+      "integrity": "sha256:6eab1cf7c2fae0717aeeffd60745adc2c21930464ded40b3330e0a31db6f8471",
       "mediaType": "application/javascript"
     },
     {
       "url": "./index.html",
-      "byteLength": 1545,
-      "integrity": "sha256:541e92e00157ed0070c47931ea1239da27b88846d7fc338b28e93845c250036a",
+      "byteLength": 1691,
+      "integrity": "sha256:dbfc03455e766318d7740a2754ee5b3265d0e59fd9e4e4ebb156b68ab0c3af52",
       "mediaType": "text/html"
     },
     {
@@ -76,8 +76,8 @@
     },
     {
       "url": "/dist/src/offline/index.js",
-      "byteLength": 1857,
-      "integrity": "sha256:504c6929352ccfa980d148b0d1a3aa8f7b651404a236bfc827857d5674ddb7b4",
+      "byteLength": 2216,
+      "integrity": "sha256:000ea125de81c2514e9d7374e1066ea25f4a8d7e0d1048090ba618cae67cde89",
       "mediaType": "application/javascript"
     },
     {
@@ -90,6 +90,12 @@
       "url": "/dist/src/offline/region.js",
       "byteLength": 44961,
       "integrity": "sha256:1666b8c44d3cf66d14f725a4aa72316a03eac3dc430ad2da9e68cef756f83645",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/status.js",
+      "byteLength": 16967,
+      "integrity": "sha256:d5cef7b13d17ff14ee82cf67f644683fb731f1dcfddf12c75265b2f5396e8f3a",
       "mediaType": "application/javascript"
     },
     {

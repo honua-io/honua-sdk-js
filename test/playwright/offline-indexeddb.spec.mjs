@@ -30,6 +30,16 @@ test("offline reference workflow reloads after browser networking is disabled", 
       sourceVersion: "source-v1",
       schemaVersion: "schema-v1",
       planVersion: "plan-v1",
+      localFirst: {
+        state: "online",
+        reason: "connected",
+        connectivity: "online",
+        availability: "live",
+        freshness: "fresh",
+        completeness: "complete",
+        undeliveredCount: 0,
+        conflictedCount: 0,
+      },
     });
     expect(page.url()).toBe(`${server.url}/reference/index.html`);
     expect(server.offlineDataRequests).toBe(1);
@@ -47,6 +57,17 @@ test("offline reference workflow reloads after browser networking is disabled", 
       sourceVersion: "source-v1",
       schemaVersion: "schema-v1",
       planVersion: "plan-v1",
+      // Undelivered local work outranks staleness in the documented precedence.
+      localFirst: {
+        state: "pending",
+        reason: "undelivered-edits",
+        connectivity: "offline",
+        availability: "cached",
+        freshness: "stale",
+        completeness: "complete",
+        undeliveredCount: 1,
+        conflictedCount: 0,
+      },
     });
     expect(server.offlineDataRequests).toBe(1);
 
@@ -684,10 +705,69 @@ test("offline reference workflow fails visibly when its persisted region is miss
       mode: "offline",
       availability: "unavailable",
       error: "Persisted region is unavailable (cache-miss).",
+      // A cache problem outranks undelivered local work, so the queued edit
+      // cannot mask the fact that the region is gone.
+      localFirst: {
+        state: "partial",
+        reason: "missing-regions",
+        connectivity: "offline",
+        availability: "unavailable",
+        completeness: "missing",
+        undeliveredCount: 1,
+      },
     });
     expect(server.offlineDataRequests).toBe(1);
     await expect(page.locator("main")).toHaveAttribute("data-state", "unavailable");
     await expect(page.getByRole("alert")).toContainText("cache-miss");
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference keeps one undelivered edit across repeated disconnected reloads", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      localFirst: { state: "online", undeliveredCount: 0 },
+    });
+
+    await context.setOffline(true);
+    for (let reload = 0; reload < 2; reload += 1) {
+      await page.reload({ waitUntil: "load" });
+      await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+        ready: true,
+        localFirst: { state: "pending", reason: "undelivered-edits", undeliveredCount: 1, conflictedCount: 0 },
+      });
+    }
+
+    // The status reads the durable queue, so a stable idempotency key must not
+    // accumulate a second copy of the same disconnected edit.
+    const queued = await page.evaluate(async () => {
+      const { createIndexedDbOfflineEditQueue } = await import("/dist/src/offline/index.js");
+      const queue = createIndexedDbOfflineEditQueue({ name: "honua-offline-region-reference-edits-v1" });
+      const store = await import("/dist/src/offline/index.js").then(({ createIndexedDbOfflineRegionStore }) =>
+        createIndexedDbOfflineRegionStore({ name: "honua-offline-region-reference-v1" }),
+      );
+      const inventory = await store.inventory();
+      const region = inventory.regions[0];
+      const read = region ? await store.readResource(region.id, "incidents") : undefined;
+      const edits = read
+        ? await queue.list({
+            authorizationScopeDigest: read.manifest.source.authorizationScopeDigest,
+            sourceId: read.manifest.source.id,
+            limit: 100,
+          })
+        : [];
+      return edits.map((edit) => ({ state: edit.state, idempotencyKey: edit.idempotencyKey, audit: edit.audit.length }));
+    });
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({ state: "pending", idempotencyKey: "offline-reference-incident-1-close" });
+    expect(queued[0].audit).toBe(1);
+    expect(server.offlineDataRequests).toBe(1);
   } finally {
     await cleanupOfflineReference(page, context);
     await server.close();
