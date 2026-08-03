@@ -15,6 +15,7 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
+import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
 import type { HonuaOdataEncodedEntityKey, HonuaOdataEncodedWriteBody } from "../core/odata-write-codec.js";
 import {
   type HonuaOdataAdvertisedCapabilities,
@@ -1372,10 +1373,14 @@ export function wmtsSource<T>(
 /**
  * Adapter factory for a STAC API search endpoint.
  *
- * The canonical `Source.query()` runs a `POST /search` against the STAC root,
- * with `Query.spatialFilter` (e.g. an `envelope(...)` bounding box) translated
- * into STAC's `bbox` parameter. The deprecated source-native `Query.where`
- * migration member maps to STAC `datetime` / `filter` parameters.
+ * The canonical `Source.query()` runs a search against the STAC root, using
+ * `POST /search` when the landing page advertises a `rel="search"` link with
+ * `method: "POST"` (long CQL2 filters and `intersects` geometries overflow GET
+ * URL limits) and falling back to the universally supported `GET /search`
+ * otherwise. `Query.spatialFilter` translates to STAC's `bbox` for an
+ * `envelope(...)` and to `intersects` for any other GeoJSON-convertible
+ * geometry. The deprecated source-native `Query.where` migration member maps
+ * to STAC `datetime` / `filter` parameters.
  *
  * @example
  * ```ts
@@ -1419,6 +1424,16 @@ export function stacSearchSource<T>(
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     stac,
   };
+  /**
+   * Build the wire search request, negotiating the HTTP method once per
+   * source: `POST /search` when the API advertises it, `GET /search`
+   * otherwise. A static catalog has no search endpoint, so it never probes.
+   */
+  const toNegotiatedStacRequest = async (request?: Query<T>): Promise<StacSearchRequest> => {
+    const stacRequest = toStacRequest(request, collectionScope);
+    if (!staticCatalog && (await stac.supportsPostSearch())) stacRequest.usePost = true;
+    return stacRequest;
+  };
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
@@ -1426,7 +1441,7 @@ export function stacSearchSource<T>(
       if (request?.aggregation) {
         throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
       }
-      const stacRequest = toStacRequest(request, collectionScope);
+      const stacRequest = await toNegotiatedStacRequest(request);
       const response = staticCatalog
         ? await staticCatalog.search(toStacStaticParams(stacRequest))
         : await stac.search(stacRequest);
@@ -1449,7 +1464,7 @@ export function stacSearchSource<T>(
         return { features, exceededTransferLimit, totalCount: features.length } satisfies Result<T>;
       }
       const items = await stac.searchAll({
-        ...toStacRequest(request, collectionScope),
+        ...(await toNegotiatedStacRequest(request)),
         ...withPagingBounds({}, limit),
       });
       const typed = items.map(toTypedFeatureFromStac<T>);
@@ -1480,7 +1495,7 @@ export function stacSearchSource<T>(
         return;
       }
       const stream = stac.searchStream({
-        ...toStacRequest(request, collectionScope),
+        ...(await toNegotiatedStacRequest(request)),
         pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
         maxPages: Number.MAX_SAFE_INTEGER,
       });
@@ -1501,7 +1516,7 @@ export function stacSearchSource<T>(
       const items = staticCatalog
         ? ((await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope)))).features ?? [])
         : await stac.searchAll({
-            ...toStacRequest(request, collectionScope),
+            ...(await toNegotiatedStacRequest(request)),
             ...withPagingBounds({}, limit),
           });
       const ids: FeatureId[] = [];
@@ -3692,19 +3707,35 @@ function toStacRequest<T>(
     out.sortby = request.orderBy.map((s) => `${s.direction === "desc" ? "-" : ""}${s.field}`).join(",");
   }
   if (request?.spatialFilter) {
-    if (request.spatialFilter.geometryType !== "esriGeometryEnvelope") {
-      throw new Error(
-        `stac: spatialFilter.geometryType "${request.spatialFilter.geometryType}" is not supported; only "esriGeometryEnvelope" translates to STAC bbox.`,
-      );
-    }
-    const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
-    if (
-      typeof env.xmin === "number" &&
-      typeof env.ymin === "number" &&
-      typeof env.xmax === "number" &&
-      typeof env.ymax === "number"
-    ) {
-      out.bbox = [env.xmin, env.ymin, env.xmax, env.ymax];
+    if (request.spatialFilter.geometryType === "esriGeometryEnvelope") {
+      const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
+      if (
+        typeof env.xmin === "number" &&
+        typeof env.ymin === "number" &&
+        typeof env.xmax === "number" &&
+        typeof env.ymax === "number"
+      ) {
+        out.bbox = [env.xmin, env.ymin, env.xmax, env.ymax];
+      }
+    } else {
+      // STAC Item Search takes an arbitrary GeoJSON geometry on `intersects`
+      // (OGC 21-047 §7.2), so a polygon AOI does not have to be degraded to
+      // its envelope. `intersects` is the only predicate the parameter
+      // expresses; refuse other spatial relationships instead of silently
+      // widening them.
+      const rel = request.spatialFilter.spatialRel;
+      if (rel !== undefined && rel !== "esriSpatialRelIntersects" && rel !== "esriSpatialRelEnvelopeIntersects") {
+        throw new Error(
+          `stac: spatialFilter.spatialRel "${rel}" is not supported; STAC search only expresses an intersects predicate.`,
+        );
+      }
+      const geometry = toStacIntersectsGeometry(request.spatialFilter.geometry);
+      if (geometry === null) {
+        throw new Error(
+          `stac: spatialFilter.geometryType "${request.spatialFilter.geometryType}" could not be converted to a GeoJSON geometry for STAC intersects.`,
+        );
+      }
+      out.intersects = geometry;
     }
   }
   if (collectionScope !== undefined && collectionScope !== "") {
@@ -3715,10 +3746,32 @@ function toStacRequest<T>(
 }
 
 /**
+ * Normalize a canonical `spatialFilter.geometry` into the GeoJSON geometry
+ * STAC `intersects` expects. Esri-shaped geometries (the shape the
+ * `polygon()` / `spatialIntersects()` builders emit) are converted; a
+ * geometry that is already GeoJSON passes through untouched.
+ */
+function toStacIntersectsGeometry(geometry: Record<string, unknown>): Record<string, unknown> | null {
+  if (typeof geometry.type === "string" && (geometry.coordinates !== undefined || geometry.geometries !== undefined)) {
+    return geometry;
+  }
+  const converted = esriGeometryToGeoJSON(geometry);
+  return converted === null ? null : (converted as unknown as Record<string, unknown>);
+}
+
+/**
  * Project a STAC API search request onto the client-side filter params a
  * static catalog traversal applies (it has no server-side query grammar).
  */
 function toStacStaticParams(request: StacSearchRequest): StacStaticSearchParams {
+  if (request.intersects !== undefined) {
+    // A static catalog has no search endpoint; traversal only applies the
+    // bbox / datetime / collection filters below. Silently dropping the
+    // geometry would return an unfiltered superset.
+    throw new Error(
+      "stac-static: an `intersects` geometry filter is not supported by static catalog traversal; use an envelope spatial filter.",
+    );
+  }
   const out: StacStaticSearchParams = {};
   if (request.collections && request.collections.length > 0) out.collections = request.collections;
   if (request.bbox) out.bbox = request.bbox;

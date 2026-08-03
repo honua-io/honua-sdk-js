@@ -198,9 +198,18 @@ const everything = await stac.searchAll({ collections: ["sentinel-2"] });
 `rel=next` link whose `href` carries `?offset=N`. `searchAll` /
 `searchStream` follow that link verbatim. `next` is kept as optional
 support for non-Honua STAC servers that advertise an opaque `?next=…`
-token instead. `intersects` and `fields` are serialized onto the GET
-query (intersects as JSON; fields as `id,properties.datetime,-assets.thumbnail`)
-in addition to the POST body.
+token instead. Any other cursor is followed opaquely: the query string of
+a GET `rel=next` link (pgstac / stac-fastapi `?token=next:…`) is replayed
+verbatim, and a POST `rel=next` link's `body` (`{"token":"next:…"}` with
+`"merge": true`) is merged over the next POST body. `intersects` and
+`fields` are serialized onto the GET query (intersects as JSON; fields as
+`id,properties.datetime,-assets.thumbnail`) in addition to the POST body.
+
+`usePost` forces the POST path on the raw `HonuaStacSearch` surface. The
+canonical `Source.query()` does not need it: the STAC adapter reads the
+landing page's `rel="search"` links and posts when the API advertises
+`method: "POST"`, falling back to `GET /search` when it does not (or when
+an advertised POST is refused on the first attempt).
 
 ### OGC API Records
 
