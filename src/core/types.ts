@@ -1297,6 +1297,17 @@ export interface HonuaOgcLink {
   rel?: string;
   type?: string;
   title?: string;
+  /**
+   * HTTP method the link target expects. STAC API uses it on the landing
+   * page (`rel="search"` advertised for `GET` and/or `POST`) and on
+   * pagination links (a `POST` `rel="next"` carries its cursor in `body`
+   * rather than on the href query string).
+   */
+  method?: string;
+  /** Request-body members a `POST` link contributes to the next request. */
+  body?: Record<string, unknown>;
+  /** When true, `body` merges over the originating request body. */
+  merge?: boolean;
 }
 
 // ── OGC Metadata Responses ───────────────────
@@ -1630,6 +1641,19 @@ export interface StacSearchRequest {
    * advertise an opaque `?next=…` token instead of `offset`.
    */
   next?: string;
+  /**
+   * Opaque continuation query params captured verbatim from a server
+   * `rel="next"` link whose cursor is neither `offset` nor `next` (pgstac /
+   * stac-fastapi emit `?token=next:…`). Merged over the serialized search
+   * params so the next page is requested exactly the way the server asked.
+   */
+  nextParams?: Readonly<Record<string, string>>;
+  /**
+   * Opaque continuation body members captured from a `POST` `rel="next"`
+   * link (`{ "method": "POST", "body": { "token": "next:…" }, "merge": true }`).
+   * Merged over the serialized `POST /search` body.
+   */
+  nextBody?: Readonly<Record<string, unknown>>;
   /** Subset of asset / item properties to return. */
   fields?: { include?: readonly string[]; exclude?: readonly string[] };
   sortby?: string;

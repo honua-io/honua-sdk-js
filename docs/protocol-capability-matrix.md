@@ -330,17 +330,24 @@ asset search and Honua admin/control-plane metadata APIs.
 ### STAC API
 STAC piggy-backs on OGC API Features for items but adds a
 cross-collection `/search` endpoint. The canonical `Source.query` uses
-`/search` (GET by default; opt into POST with `usePost: true`). Both
-the GET and POST paths serialize `intersects` (as JSON on GET, raw on
+`/search` and negotiates the method from the landing page: a
+`rel="search"` link advertising `method: "POST"` selects `POST /search`
+(the first call verifies the advertisement, falling back to GET once and
+staying there if the POST is refused); everything else stays on
+`GET /search`. Both paths serialize `intersects` (as JSON on GET, raw on
 POST) and `fields` (as a CSV with `-` prefixes on GET, structured on
 POST) so caller-supplied geometry constraints and selections are not
-silently dropped. `spatialFilter` translates to STAC `bbox` only —
-`intersects` geometry support requires CQL2 and is left to a downstream
-extension. Paging follows the server's `rel=next` link: honua-server
-emits `?offset=N` on the href and the adapter parses that numeric
-offset; non-Honua STAC servers that emit an opaque `?next=…` token
-remain supported as a fallback. `Query.pagination.offset` propagates
-through to the STAC `offset` parameter on the initial request.
+silently dropped. `spatialFilter` translates to STAC `bbox` for an
+envelope and to `intersects` for any other GeoJSON-convertible geometry;
+only intersects-style spatial relationships are accepted, and a
+`stac-static` catalog rejects an `intersects` filter rather than
+traversing to an unfiltered superset. Paging follows the server's
+`rel=next` link: honua-server emits `?offset=N` on the href and the
+adapter parses that numeric offset, `?next=…` tokens stay supported, and
+any other cursor — pgstac / stac-fastapi `?token=next:…` on a GET link,
+or the `body` cursor on a POST link — is replayed opaquely.
+`Query.pagination.offset` propagates through to the STAC `offset`
+parameter on the initial request.
 `queryAggregate` and `queryExtent` are not advertised. STAC's
 collection-scoping is handled via `locator.collectionId`; the adapter
 forwards it as the `collections=[id]` parameter on the wire.
