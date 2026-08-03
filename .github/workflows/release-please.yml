@@ -121,6 +121,9 @@ jobs:
                 llms.txt | llms-full.txt | \
                 examples/migration-workbench/public/artifacts/* | \
                 examples/migration-workbench/src/generated/* | \
+                examples/ai-spatial-app-builder/evidence/* | \
+                examples/realtime-incident-dashboard/evidence/* | \
+                examples/spatial-analytics-workbench/evidence/* | \
                 samples/catalog.v2.json | \
                 samples/contract/v2/migrations/catalog.v1-to-v2.json | \
                 samples/contract/v2/release-matrix-lanes.v1.json | \

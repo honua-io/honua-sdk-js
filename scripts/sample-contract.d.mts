@@ -485,6 +485,16 @@ export function validateLiveEvidenceProducer(
   sample: Record<string, unknown>,
   options?: { relaxed?: boolean },
 ): Promise<void>;
+export function reviewedLiveProducer(command: string):
+  | {
+      script: string;
+      definition: string;
+      generatorPath: string;
+      sampleId?: string;
+      operation?: string;
+      dependencies?: Record<string, string>;
+    }
+  | undefined;
 export function buildBrowserArtifactManifest(options: {
   artifacts: Array<{ path: string; entrypoint: string; mediaType?: string }>;
   gitCommit: string;
