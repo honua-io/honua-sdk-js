@@ -31,12 +31,15 @@ import type {
   HonuaOgcProcessesResponse,
   OgcMetadataRequest,
   OgcProcessExecuteRequest,
+  OgcProcessJobRequest,
   OgcProcessStatus,
 } from "./types.js";
 import { createOgcMetadataParams, mergeHeaders } from "./wire-shared.js";
 
 export interface HonuaOgcProcessesOptions {
   client: HonuaClient;
+  /** Raw endpoint path prefix (defaults to the Honua facade `/ogc/processes`). */
+  basePath?: string;
 }
 
 export interface HonuaOgcProcessJobOptions {
@@ -50,6 +53,8 @@ export interface HonuaOgcProcessJobOptions {
   pollIntervalMs?: number;
   /** Override of the default polling behavior; useful in tests. */
   pollFn?: (jobId: string, signal?: AbortSignal) => Promise<HonuaOgcProcessJobStatus>;
+  /** Raw endpoint path prefix (defaults to the Honua facade `/ogc/processes`). */
+  basePath?: string;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
@@ -82,25 +87,31 @@ function processesBaseKey(request: { basePath?: string }): string {
 /** Top-level OGC API Processes handle. */
 export class HonuaOgcProcesses {
   public readonly client: HonuaClient;
+  private readonly basePath: string | undefined;
 
   public constructor(options: HonuaOgcProcessesOptions) {
     this.client = options.client;
+    this.basePath = options.basePath;
+  }
+
+  private withBase<T extends { basePath?: string }>(request: T): T {
+    return this.basePath !== undefined ? { ...request, basePath: this.basePath } : request;
   }
 
   public async landing(request: OgcMetadataRequest = {}): Promise<HonuaOgcLandingResponse> {
-    return this.client.getOgcProcessesLanding(request);
+    return this.client.getOgcProcessesLanding(this.withBase(request));
   }
 
   public async conformance(request: OgcMetadataRequest = {}): Promise<HonuaOgcConformanceResponse> {
-    return this.client.getOgcProcessesConformance(request);
+    return this.client.getOgcProcessesConformance(this.withBase(request));
   }
 
   public async list(request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessesResponse> {
-    return this.client.listOgcProcesses(request);
+    return this.client.listOgcProcesses(this.withBase(request));
   }
 
   public async describe(processId: string, request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessDescription> {
-    return this.client.getOgcProcess({ ...request, processId });
+    return this.client.getOgcProcess(this.withBase({ ...request, processId }));
   }
 
   /**
@@ -110,7 +121,8 @@ export class HonuaOgcProcesses {
    * `mode` is `"async"` or `"auto"`.
    */
   public async execute<T = unknown>(request: OgcProcessExecuteRequest): Promise<IJobRun<T>> {
-    const accepted = await this.client.executeOgcProcess(request);
+    const executeRequest = this.withBase(request);
+    const accepted = await this.client.executeOgcProcess(executeRequest);
     return new HonuaOgcProcessJobRun<T>({
       client: this.client,
       jobId: accepted.jobID,
@@ -120,15 +132,20 @@ export class HonuaOgcProcesses {
         processID: accepted.processID ?? request.processId,
         status: accepted.status,
       },
+      // The job routes live under the same root the execution was posted to;
+      // a job created against a discovered root must never poll the facade.
+      ...(executeRequest.basePath !== undefined ? { basePath: executeRequest.basePath } : {}),
     });
   }
 
   /** Adopt an existing job by id (useful when reconnecting after navigation). */
-  public job<T = unknown>(jobId: string, options: { processId?: string } = {}): IJobRun<T> {
+  public job<T = unknown>(jobId: string, options: { processId?: string; basePath?: string } = {}): IJobRun<T> {
+    const { basePath } = this.withBase(options);
     return new HonuaOgcProcessJobRun<T>({
       client: this.client,
       jobId,
       processId: options.processId,
+      ...(basePath !== undefined ? { basePath } : {}),
     });
   }
 }
@@ -145,6 +162,7 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
   public readonly type: string;
 
   private readonly client: HonuaClient;
+  private readonly basePath: string | undefined;
   private readonly pollIntervalMs: number;
   private readonly pollFn: (jobId: string, signal?: AbortSignal) => Promise<HonuaOgcProcessJobStatus>;
   private currentStatus: JobStatus;
@@ -157,8 +175,13 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
     this.client = options.client;
     this.id = options.jobId;
     this.type = options.processId ?? options.initialStatus?.processID ?? "unknown";
+    this.basePath = options.basePath;
     this.pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-    this.pollFn = options.pollFn ?? ((jobId, signal) => options.client.getOgcProcessJob({ jobId, signal }));
+    const basePath = options.basePath;
+    this.pollFn =
+      options.pollFn ??
+      ((jobId, signal) =>
+        options.client.getOgcProcessJob({ jobId, signal, ...(basePath !== undefined ? { basePath } : {}) }));
     const initial = options.initialStatus;
     this.currentStatus = (initial?.status as JobStatus) ?? "accepted";
     this.currentProgress = progressFromOgcStatus(initial);
@@ -203,7 +226,7 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
       return this.currentStatus;
     }
     try {
-      const cancelled = await this.client.cancelOgcProcessJob({ jobId: this.id });
+      const cancelled = await this.client.cancelOgcProcessJob(this.jobRequest());
       const snapshot = await this.handleOgcStatus(cancelled);
       return snapshot.status;
     } catch (error) {
@@ -318,7 +341,7 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
         // outputs map itself (honua-server returns `{}` for the canonical
         // V1 process; populated maps are keyed by output id). Wrap it into
         // the canonical `JobResult.outputs` envelope.
-        const results = await this.client.getOgcProcessJobResults({ jobId: this.id });
+        const results = await this.client.getOgcProcessJobResults(this.jobRequest());
         const snapshot: JobSnapshot<T> = {
           status: "successful",
           progress,
@@ -358,6 +381,11 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
     const snapshot: JobSnapshot<T> = { status, progress };
     this.notify(snapshot);
     return snapshot;
+  }
+
+  /** Job-route envelope pinned to the root the job was created against. */
+  private jobRequest(): OgcProcessJobRequest {
+    return { jobId: this.id, ...(this.basePath !== undefined ? { basePath: this.basePath } : {}) };
   }
 
   private notify(snapshot: JobSnapshot<T>): void {
@@ -524,9 +552,10 @@ export async function getOgcProcess(
   request: { processId: string } & OgcMetadataRequest,
 ): Promise<HonuaOgcProcessDescription> {
   const params = createOgcMetadataParams(request);
+  const base = processesBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcProcessDescription>(
-    `ogc-processes:process:${request.processId}:${params.toString()}`,
-    `/ogc/processes/processes/${encodeURIComponent(request.processId)}?${params.toString()}`,
+    `ogc-processes:process:${processesBaseKey(request)}${request.processId}:${params.toString()}`,
+    `${base}/processes/${encodeURIComponent(request.processId)}?${params.toString()}`,
     request,
   );
 }
@@ -540,7 +569,7 @@ export async function executeOgcProcess(
     request.headers,
     preferHeaderForExecute(request),
   );
-  const path = `/ogc/processes/processes/${encodeURIComponent(request.processId)}/execution`;
+  const path = `${processesBase(request)}/processes/${encodeURIComponent(request.processId)}/execution`;
   // honua-server only supports `response: "document"` and rejects "raw"
   // with HTTP 501; the SDK pins the supported value here.
   const body = JSON.stringify({
@@ -553,17 +582,12 @@ export async function executeOgcProcess(
 
 export async function getOgcProcessJob(
   transport: HonuaProtocolTransport,
-  request: {
-    jobId: string;
-    signal?: AbortSignal;
-    responseFormat?: string;
-    extraParams?: Record<string, string | number | boolean>;
-  },
+  request: OgcProcessJobRequest,
 ): Promise<HonuaOgcProcessJobStatus> {
   const params = createOgcMetadataParams(request);
   return transport.requestJson<HonuaOgcProcessJobStatus>(
     "GET",
-    `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}?${params.toString()}`,
+    `${processesBase(request)}/jobs/${encodeURIComponent(request.jobId)}?${params.toString()}`,
     undefined,
     request.signal,
   );
@@ -571,17 +595,12 @@ export async function getOgcProcessJob(
 
 export async function getOgcProcessJobResults(
   transport: HonuaProtocolTransport,
-  request: {
-    jobId: string;
-    signal?: AbortSignal;
-    responseFormat?: string;
-    extraParams?: Record<string, string | number | boolean>;
-  },
+  request: OgcProcessJobRequest,
 ): Promise<HonuaOgcProcessJobResults> {
   const params = createOgcMetadataParams(request);
   return transport.requestJson<HonuaOgcProcessJobResults>(
     "GET",
-    `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}/results?${params.toString()}`,
+    `${processesBase(request)}/jobs/${encodeURIComponent(request.jobId)}/results?${params.toString()}`,
     undefined,
     request.signal,
   );
@@ -589,17 +608,12 @@ export async function getOgcProcessJobResults(
 
 export async function cancelOgcProcessJob(
   transport: HonuaProtocolTransport,
-  request: {
-    jobId: string;
-    signal?: AbortSignal;
-    responseFormat?: string;
-    extraParams?: Record<string, string | number | boolean>;
-  },
+  request: OgcProcessJobRequest,
 ): Promise<HonuaOgcProcessJobStatus> {
   const params = createOgcMetadataParams(request);
   return transport.requestJson<HonuaOgcProcessJobStatus>(
     "DELETE",
-    `/ogc/processes/jobs/${encodeURIComponent(request.jobId)}?${params.toString()}`,
+    `${processesBase(request)}/jobs/${encodeURIComponent(request.jobId)}?${params.toString()}`,
     undefined,
     request.signal,
   );

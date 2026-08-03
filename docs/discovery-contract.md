@@ -459,7 +459,13 @@ metadata requests (landing, `/conformance`, `/processes`), and returns a
 capability/metadata result: the advertised process list plus the effective
 `processes` capability intersected from conformance (with a structured
 `discovery-unavailable` diagnostic when Processes core conformance is absent).
-It never constructs a `connect()` `Source` or dataset.
+It never constructs a `connect()` `Source` or dataset. The discovered root is
+returned on `result.basePath`; passing it to `client.ogcProcesses({ basePath })`
+keeps the process-description, execution, and job (status / results / dismiss)
+routes on the advertised root rather than the `/ogc/processes` facade, and a
+job created from that handle stays pinned to the same root. Typed execution
+against third-party servers remains unclaimed in the capability matrix until
+live evidence exists; this is URL resolution, not a support claim.
 
 GeoParquet / static-file discovery has no HTTP metadata document: it reads the
 Parquet footer and the GeoParquet `geo` metadata through an injected

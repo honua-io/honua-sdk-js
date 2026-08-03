@@ -200,6 +200,7 @@ import type {
   OgcMetadataRequest,
   OgcPatchItemRequest,
   OgcProcessExecuteRequest,
+  OgcProcessJobRequest,
   OgcRecordItemRequest,
   OgcRecordRawItemRequest,
   OgcRecordsRawSearchRequest,
@@ -859,8 +860,18 @@ export class HonuaClient {
     return new HonuaWmts({ client: this, serviceId });
   }
 
-  public ogcProcesses(): HonuaOgcProcesses {
-    return new HonuaOgcProcesses({ client: this });
+  /**
+   * Construct the OGC API Processes client wrapper.
+   *
+   * `basePath` pins every describe / execute / job route to a raw third-party
+   * service root (as discovered by `discoverOgcProcesses()`); omitting it uses
+   * the Honua facade prefix `/ogc/processes`.
+   */
+  public ogcProcesses(options: { basePath?: string } = {}): HonuaOgcProcesses {
+    return new HonuaOgcProcesses({
+      client: this,
+      ...(options.basePath !== undefined ? { basePath: options.basePath } : {}),
+    });
   }
 
   public stac(): HonuaStacSearch {
@@ -883,8 +894,8 @@ export class HonuaClient {
     return createHonuaProcessRunner(adapter);
   }
 
-  public ogcProcessRunner(): HonuaProcessRunner {
-    return createHonuaProcessRunner(createOgcProcessesAdapter(this.ogcProcesses()));
+  public ogcProcessRunner(options: { basePath?: string } = {}): HonuaProcessRunner {
+    return createHonuaProcessRunner(createOgcProcessesAdapter(this.ogcProcesses(options)));
   }
 
   public geoprocessingRunner(serviceId: string, taskName?: string): HonuaProcessRunner {
@@ -1654,30 +1665,15 @@ export class HonuaClient {
     return executeOgcProcess(this.protocolTransport, request);
   }
 
-  public async getOgcProcessJob(request: {
-    jobId: string;
-    signal?: AbortSignal;
-    responseFormat?: string;
-    extraParams?: Record<string, string | number | boolean>;
-  }): Promise<HonuaOgcProcessJobStatus> {
+  public async getOgcProcessJob(request: OgcProcessJobRequest): Promise<HonuaOgcProcessJobStatus> {
     return getOgcProcessJob(this.protocolTransport, request);
   }
 
-  public async getOgcProcessJobResults(request: {
-    jobId: string;
-    signal?: AbortSignal;
-    responseFormat?: string;
-    extraParams?: Record<string, string | number | boolean>;
-  }): Promise<HonuaOgcProcessJobResults> {
+  public async getOgcProcessJobResults(request: OgcProcessJobRequest): Promise<HonuaOgcProcessJobResults> {
     return getOgcProcessJobResults(this.protocolTransport, request);
   }
 
-  public async cancelOgcProcessJob(request: {
-    jobId: string;
-    signal?: AbortSignal;
-    responseFormat?: string;
-    extraParams?: Record<string, string | number | boolean>;
-  }): Promise<HonuaOgcProcessJobStatus> {
+  public async cancelOgcProcessJob(request: OgcProcessJobRequest): Promise<HonuaOgcProcessJobStatus> {
     return cancelOgcProcessJob(this.protocolTransport, request);
   }
 

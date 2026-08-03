@@ -734,6 +734,7 @@ export type {
   OgcProcessExecuteRequest,
   OgcProcessIoValue,
   OgcProcessInputs,
+  OgcProcessJobRequest,
   OgcProcessStatus,
   OgcReplaceItemRequest,
   OgcResponseFormat,
