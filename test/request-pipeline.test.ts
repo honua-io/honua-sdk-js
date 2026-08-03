@@ -1,7 +1,11 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { HonuaAbortError, HonuaHttpError, HonuaNetworkError, HonuaTimeoutError } from "../src/core/errors.js";
 import {
+  DEFAULT_RETRYABLE_GRPC_CODES,
+  DEFAULT_RETRY_METHODS,
+  DEFAULT_RETRY_STATUSES,
   type NormalizedRetryOptions,
   connectErrorCode,
   createTimeoutSignal,
@@ -66,6 +70,40 @@ describe("request-pipeline: normalizeRetryOptions", () => {
   it("falls back to default statuses when none are valid", () => {
     const normalized = normalizeRetryOptions({ maxRetries: 1, retryStatuses: [9999] });
     expect(normalized?.retryStatuses).toEqual(new Set([429, 502, 503, 504]));
+  });
+});
+
+describe("request-pipeline: documented retry defaults (#954)", () => {
+  const errorsDoc = readFileSync(new URL("../docs/errors.md", import.meta.url), "utf8");
+  const codeList = (values: Iterable<number | string>) => [...values].map((value) => `\`${value}\``).join(" / ");
+
+  it("pins the retry-loop defaults the docs describe", () => {
+    expect([...DEFAULT_RETRY_STATUSES]).toEqual([429, 502, 503, 504]);
+    expect([...DEFAULT_RETRY_METHODS]).toEqual(["GET", "HEAD", "PUT", "DELETE"]);
+    expect([...DEFAULT_RETRYABLE_GRPC_CODES]).toEqual([4, 8, 10, 14]);
+  });
+
+  it("never replays statuses that are only classified transient (408 / 500)", () => {
+    const options = normalizeRetryOptions({ maxRetries: 2 });
+    // 408 and 500 carry `core.http.transient` classification metadata. That
+    // metadata is descriptive: the loop reads `retryStatuses` only, so the
+    // narrower default set stays authoritative for request behavior.
+    for (const status of [408, 500]) {
+      expect(new HonuaHttpError(status, "transient", undefined).sdkCode).toBe("core.http.transient");
+      expect(shouldRetryRequest(options, "GET", 0, status, undefined)).toBe(false);
+    }
+    for (const status of DEFAULT_RETRY_STATUSES) {
+      expect(shouldRetryRequest(options, "GET", 0, status, undefined)).toBe(true);
+    }
+  });
+
+  it("keeps the docs/errors.md retry table in sync with the implementation", () => {
+    expect(errorsDoc).toContain(`default \`[${[...DEFAULT_RETRY_STATUSES].join(", ")}]\``);
+    expect(errorsDoc).toContain(`replay-safe methods only (${codeList(DEFAULT_RETRY_METHODS)})`);
+    expect(errorsDoc).toContain(`transient code (${codeList(DEFAULT_RETRYABLE_GRPC_CODES)}`);
+    // The gRPC-web transport has applied the configured retry policy to unary
+    // calls since the parity fix; the old "not applied" claim must stay gone.
+    expect(errorsDoc).not.toContain("`retry` policy is not applied to the gRPC-web transport");
   });
 });
 

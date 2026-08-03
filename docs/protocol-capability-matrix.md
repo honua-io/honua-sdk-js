@@ -467,9 +467,12 @@ Stored queries that advertise only GML (e.g. Honua Server's
 the canonical `Source.query()` envelope; the canonical surface throws
 `HonuaCapabilityNotSupportedError("query")` and points the caller at
 the protocol escape hatch.
-Locking (`LockFeature` / `GetFeatureWithLock`) is not exposed in the
-canonical surface; callers that need it reach the wire through
-`Source.protocol("wfs")`.
+Locking (`LockFeature` / `GetFeatureWithLock`) is not implemented: it is
+absent from the canonical surface and has no typed helper on the
+protocol escape hatch either. Callers that need it must POST their own
+request XML through `Source.protocol("wfs")!.root.requestText(...)` and
+parse the raw response themselves — no `lockId` is extracted and no lock
+is attached to a later `applyEdits()` transaction.
 The capabilities XML walker refuses any document declaring
 `<!DOCTYPE>` or `<!ENTITY>` to defend against XXE-class attacks.
 WFS `Result.totalCount` populates from the `numberMatched` GeoJSON

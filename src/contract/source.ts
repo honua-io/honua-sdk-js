@@ -139,7 +139,7 @@ import {
  *
  * Operations the canonical surface does not cover stay reachable through the typed
  * `source.protocol(...)` escape hatch (e.g. ImageServer `exportImage`, GeometryServer
- * `project`, GPServer `submitJob`, WFS `LockFeature`).
+ * `project`, GPServer `submitJob`, WFS `GetPropertyValue`).
  *
  * @param options - The dataset id, the `HonuaClient` to talk to, the list of
  *   `SourceDescriptor`s, and (optionally) `capabilityPolicy` and a custom
@@ -1671,8 +1671,14 @@ export function stacSearchSource<T>(
  * `Query.spatialFilter` and the deprecated source-native `Query.where`
  * migration member compile to FES 2.0; GeoJSON is preferred over GML via
  * `OperationsMetadata` negotiation. `applyEdits()` builds
- * `<wfs:Transaction>` bodies. Reach `Source.protocol("wfs")` for raw GML /
- * `LockFeature` / stored-query access.
+ * `<wfs:Transaction>` bodies. Reach `Source.protocol("wfs")` for raw GML,
+ * custom FES filters, `GetPropertyValue`, raw `<wfs:Transaction>` bodies, and
+ * stored queries.
+ *
+ * Locking (`LockFeature` / `GetFeatureWithLock`) has no typed helper anywhere in
+ * the SDK. Callers that need locks must send their own request XML through
+ * `Source.protocol("wfs")!.root.requestText(...)` and parse the response
+ * themselves; no lock id is extracted and no lock state is tracked.
  *
  * FES spatial predicates and transaction geometry name the feature type's
  * geometry property, which is server-specific (`the_geom` on
