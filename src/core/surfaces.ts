@@ -51,6 +51,7 @@ import type {
   HonuaOgcFeatureCollectionResponse,
   HonuaOgcFeatureResponse,
   HonuaOgcLandingResponse,
+  HonuaOgcLink,
   HonuaOgcQueryablesResponse,
   HonuaQueryAttachmentsResponse,
   HonuaQueryResponse,
@@ -1190,36 +1191,16 @@ export class HonuaOgcFeatures {
   }
 
   public async itemsAll(request: HonuaOgcItemsAllRequest): Promise<HonuaOgcFeatureResponse[]> {
-    const pageSize = normalizePageSize(request.pageSize, request.limit);
-    const maxPages = normalizeMaxPages(request.maxPages);
-    const offset = normalizeOffset(request.offset);
     const totalLimit = normalizeTotalLimit(request.limit);
     const features: HonuaOgcFeatureResponse[] = [];
 
-    for (let page = 0; page < maxPages; page += 1) {
-      if (totalLimit !== undefined && features.length >= totalLimit) {
-        break;
-      }
-      const remainingLimit = totalLimit === undefined ? pageSize : Math.max(0, totalLimit - features.length);
-      if (remainingLimit < 1) {
-        break;
-      }
-
-      const limit = Math.min(pageSize, remainingLimit);
-      const response = await this.items({
-        ...request,
-        limit,
-        offset: offset + page * pageSize,
-      });
-      const pageFeatures = extractOgcFeatures(response);
-      if (pageFeatures.length === 0) {
-        break;
-      }
-
-      features.push(...pageFeatures);
-      if (pageFeatures.length < limit) {
-        break;
-      }
+    for await (const page of drainOgcItemPages((pageRequest) => this.items(withOgcItemsPage(request, pageRequest)), {
+      pageSize: normalizePageSize(request.pageSize, request.limit),
+      maxPages: normalizeMaxPages(request.maxPages),
+      startOffset: normalizeOffset(request.offset),
+      ...(totalLimit !== undefined ? { totalLimit } : {}),
+    })) {
+      features.push(...page);
     }
 
     if (totalLimit !== undefined && features.length > totalLimit) {
@@ -1297,36 +1278,16 @@ export class HonuaOgcFeatureCollection {
   }
 
   public async itemsAll(request: HonuaOgcCollectionItemsAllRequest = {}): Promise<HonuaOgcFeatureResponse[]> {
-    const pageSize = normalizePageSize(request.pageSize, request.limit);
-    const maxPages = normalizeMaxPages(request.maxPages);
-    const offset = normalizeOffset(request.offset);
     const totalLimit = normalizeTotalLimit(request.limit);
     const features: HonuaOgcFeatureResponse[] = [];
 
-    for (let page = 0; page < maxPages; page += 1) {
-      if (totalLimit !== undefined && features.length >= totalLimit) {
-        break;
-      }
-      const remainingLimit = totalLimit === undefined ? pageSize : Math.max(0, totalLimit - features.length);
-      if (remainingLimit < 1) {
-        break;
-      }
-
-      const limit = Math.min(pageSize, remainingLimit);
-      const response = await this.items({
-        ...request,
-        limit,
-        offset: offset + page * pageSize,
-      });
-      const pageFeatures = extractOgcFeatures(response);
-      if (pageFeatures.length === 0) {
-        break;
-      }
-
-      features.push(...pageFeatures);
-      if (pageFeatures.length < limit) {
-        break;
-      }
+    for await (const page of drainOgcItemPages((pageRequest) => this.items(withOgcItemsPage(request, pageRequest)), {
+      pageSize: normalizePageSize(request.pageSize, request.limit),
+      maxPages: normalizeMaxPages(request.maxPages),
+      startOffset: normalizeOffset(request.offset),
+      ...(totalLimit !== undefined ? { totalLimit } : {}),
+    })) {
+      features.push(...page);
     }
 
     if (totalLimit !== undefined && features.length > totalLimit) {
@@ -1338,26 +1299,13 @@ export class HonuaOgcFeatureCollection {
   public async *itemsStream(
     request: HonuaOgcCollectionItemsAllRequest = {},
   ): AsyncGenerator<HonuaOgcFeatureResponse[], void, undefined> {
-    const pageSize = normalizePageSize(request.pageSize, request.limit);
-    const maxPages = normalizeMaxPages(request.maxPages);
-    const offset = normalizeOffset(request.offset);
-
-    for (let page = 0; page < maxPages; page += 1) {
-      const response = await this.items({
-        ...request,
-        limit: pageSize,
-        offset: offset + page * pageSize,
-      });
-      const pageFeatures = extractOgcFeatures(response);
-      if (pageFeatures.length === 0) {
-        break;
-      }
-
-      yield pageFeatures;
-      if (pageFeatures.length < pageSize) {
-        break;
-      }
-    }
+    // The stream yields every page the drain produces; `limit` selects the
+    // page size here (as it always has) rather than capping the total.
+    yield* drainOgcItemPages((pageRequest) => this.items(withOgcItemsPage(request, pageRequest)), {
+      pageSize: normalizePageSize(request.pageSize, request.limit),
+      maxPages: normalizeMaxPages(request.maxPages),
+      startOffset: normalizeOffset(request.offset),
+    });
   }
 
   public async item(request: HonuaOgcCollectionItemRequest): Promise<HonuaOgcFeatureResponse> {
@@ -2751,6 +2699,301 @@ function normalizeTotalLimit(limit: number | undefined): number | undefined {
     return undefined;
   }
   return limit;
+}
+
+/**
+ * Query-string keys on an OGC API Features `rel="next"` link that must not be
+ * replayed on the follow-up request: the drain owns the page size (`limit`)
+ * and the caller owns the response format (`f`). Every other param on the
+ * link — `offset` / `startindex` on an offset server, an opaque
+ * `token` / `cursor` / `next` on a cursor server — is the server's own paging
+ * state and is echoed back verbatim, subject to the stale-offset rules in
+ * {@link ogcCursorFromHref}.
+ */
+const OGC_NEXT_LINK_RESERVED_PARAMS: ReadonlySet<string> = new Set(["f", "limit"]);
+
+/**
+ * Params that express a numeric start position. Compared case-insensitively:
+ * `offset` is Honua Server's spelling, `startindex` / `startIndex` the OGC API
+ * spelling servers vary the casing of.
+ */
+const OGC_OFFSET_PARAM_NAMES: ReadonlySet<string> = new Set(["offset", "startindex"]);
+
+/**
+ * Params that express an opaque paging cursor. Matched case-insensitively with
+ * `-` / `_` stripped, so `page_token` and `pageToken` both hit. When one of
+ * these drives the next link, the token owns the read position and any
+ * `offset` / `startindex` on the same link is a stale echo of the request the
+ * server just answered.
+ */
+const OGC_CURSOR_PARAM_NAMES: ReadonlySet<string> = new Set([
+  "token",
+  "nexttoken",
+  "pagetoken",
+  "continuationtoken",
+  "resumptiontoken",
+  "cursor",
+  "next",
+  "page",
+  "searchafter",
+  "scroll",
+  "scrollid",
+]);
+
+/** Base used only to parse relative `rel="next"` hrefs; never requested. */
+const OGC_NEXT_LINK_PARSE_BASE = "https://placeholder.test";
+
+/** The server's own paging state, lifted off a `rel="next"` link. */
+interface OgcItemsCursor {
+  /** Stable identity of the cursor, used to detect a stalled next link. */
+  readonly key: string;
+  readonly params: Record<string, string>;
+}
+
+/** One page request emitted by {@link drainOgcItemPages}. */
+interface OgcItemsPageRequest {
+  readonly limit: number;
+  /** Computed offset; `undefined` while a server-supplied cursor is driving. */
+  readonly offset: number | undefined;
+  readonly cursorParams: Record<string, string> | undefined;
+}
+
+interface OgcItemsDrainOptions {
+  readonly pageSize: number;
+  readonly maxPages: number;
+  readonly startOffset: number;
+  /** Global cap on emitted features (`itemsAll`); `undefined` drains fully. */
+  readonly totalLimit?: number;
+}
+
+/**
+ * Page `/items` the way OGC API Features Core specifies: follow the
+ * `rel="next"` link the server returns, and only fall back to `limit`/`offset`
+ * arithmetic when the response advertises no usable next link. Offset
+ * arithmetic alone silently mis-pages every server that pages by opaque token
+ * or cursor (pgstac-backed APIs, several pygeoapi deployments): the cursor is
+ * dropped, so pages repeat or skip with no error.
+ *
+ * Anti-corruption invariants, preserved on both paths:
+ * - an empty page ends the drain;
+ * - a page whose feature identity repeats an already-yielded page is dropped
+ *   and ends the drain, so a looping server can never duplicate features;
+ * - a `rel="next"` link that repeats a cursor already followed is treated as
+ *   a stalled pager and ends the drain;
+ * - a stale `offset` / `startindex` echoed on a cursor link never reaches the
+ *   wire beside the cursor (see {@link ogcCursorFromHref});
+ * - `maxPages` still caps the total number of requests.
+ *
+ * On the link-driven path a short page is deliberately *not* a stop signal:
+ * OGC API Features permits a server to return fewer than `limit` items on a
+ * non-final page while still advertising `rel="next"` (the same tolerance the
+ * Records drain applies). On the offset path a short page still ends the
+ * drain, as it always has.
+ */
+async function* drainOgcItemPages(
+  fetchPage: (page: OgcItemsPageRequest) => Promise<HonuaOgcFeatureCollectionResponse>,
+  options: OgcItemsDrainOptions,
+): AsyncGenerator<HonuaOgcFeatureResponse[], void, undefined> {
+  const { pageSize, maxPages, startOffset, totalLimit } = options;
+  const seenCursorKeys = new Set<string>();
+  const seenPageKeys = new Set<string>();
+  let cursor: OgcItemsCursor | undefined;
+  let emitted = 0;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    const remaining = totalLimit === undefined ? pageSize : Math.max(0, totalLimit - emitted);
+    if (remaining < 1) {
+      break;
+    }
+    const limit = Math.min(pageSize, remaining);
+    // A server cursor carries its own position; re-sending the computed offset
+    // alongside it is what makes token pagers skip rows.
+    const sentOffset = cursor === undefined ? startOffset + page * pageSize : undefined;
+    const response = await fetchPage({
+      limit,
+      offset: sentOffset,
+      cursorParams: cursor?.params,
+    });
+
+    const pageFeatures = extractOgcFeatures(response);
+    if (pageFeatures.length === 0) {
+      break;
+    }
+    const pageKey = ogcPageIdentityKey(pageFeatures);
+    if (pageKey !== undefined) {
+      if (seenPageKeys.has(pageKey)) {
+        break;
+      }
+      seenPageKeys.add(pageKey);
+    }
+
+    yield pageFeatures;
+    emitted += pageFeatures.length;
+
+    const next = ogcNextItemsCursor(response.links, sentOffset);
+    if (next !== undefined) {
+      if (seenCursorKeys.has(next.key)) {
+        break;
+      }
+      seenCursorKeys.add(next.key);
+      cursor = next;
+      continue;
+    }
+    if (cursor !== undefined) {
+      // Link-driven drain and the server stopped advertising a next link:
+      // that is the spec's end-of-results signal.
+      break;
+    }
+    if (pageFeatures.length < limit) {
+      break;
+    }
+  }
+}
+
+/**
+ * Merge one {@link drainOgcItemPages} page request onto the caller's request.
+ * Cursor params ride on `extraParams`, which the OGC wire layer serializes
+ * before the typed fields, so the caller's `filter` / `bbox` / `crs` still win
+ * and only the paging state comes from the server.
+ */
+function withOgcItemsPage<T extends { extraParams?: Record<string, string | number | boolean> }>(
+  request: T,
+  page: OgcItemsPageRequest,
+): T & { limit: number; offset: number | undefined } {
+  return {
+    ...request,
+    limit: page.limit,
+    offset: page.offset,
+    ...(page.cursorParams ? { extraParams: { ...request.extraParams, ...page.cursorParams } } : {}),
+  };
+}
+
+/**
+ * Resolve the server's next-page cursor from an `/items` response. Only the
+ * link's query params are replayed (not its host or path), so a next link
+ * rewritten by a proxy — or emitted with the server's internal hostname —
+ * still pages correctly. Returns `undefined` when no `rel="next"` link carries
+ * usable paging state, which is what selects the offset fallback.
+ *
+ * @param sentOffset the `offset` sent for the page that produced these links,
+ *   or `undefined` when a cursor already drove that request. Used to spot an
+ *   `offset` on the link that merely echoes the request just answered.
+ */
+function ogcNextItemsCursor(
+  links: readonly HonuaOgcLink[] | undefined,
+  sentOffset: number | undefined,
+): OgcItemsCursor | undefined {
+  if (!links) {
+    return undefined;
+  }
+  for (const link of links) {
+    if (link.rel !== "next" || typeof link.href !== "string") {
+      continue;
+    }
+    // An HTML alternate of the next page carries the same cursor but is not
+    // the representation we are draining; prefer a data link when both exist.
+    if (typeof link.type === "string" && link.type.includes("html")) {
+      continue;
+    }
+    const cursor = ogcCursorFromHref(link.href, sentOffset);
+    if (cursor !== undefined) {
+      return cursor;
+    }
+  }
+  return undefined;
+}
+
+/** Fold a query-param name to its comparison form (case / `-` / `_` insensitive). */
+function ogcParamKey(name: string): string {
+  let folded = "";
+  for (const char of name) {
+    if (char === "-" || char === "_") continue;
+    folded += char.toLowerCase();
+  }
+  return folded;
+}
+
+/**
+ * Lift the paging state off one `rel="next"` href.
+ *
+ * Servers routinely build the next link by preserving the query string of the
+ * request they just answered and appending their cursor, so the link can carry
+ * both a stale `offset=0` and a live `token=…`. Replaying both is exactly the
+ * mis-paging this drain exists to prevent — a server that honors `offset`
+ * alongside its own token re-reads or skips a page. Two rules keep the two
+ * paging styles apart:
+ *
+ * 1. an opaque cursor on the link (`token`, `cursor`, `next`, `page`, …) owns
+ *    the read position, so every `offset` / `startindex` on that link is
+ *    dropped;
+ * 2. otherwise an `offset` / `startindex` that merely repeats the offset just
+ *    sent cannot advance the drain, so it is dropped too — and if that leaves
+ *    the link with nothing, the drain falls back to offset arithmetic.
+ *
+ * A genuine offset link (`offset=10` after requesting `offset=0`) is kept and
+ * drives the next page, which is what pygeoapi / ldproxy deployments emit.
+ */
+function ogcCursorFromHref(href: string, sentOffset: number | undefined): OgcItemsCursor | undefined {
+  let url: URL;
+  try {
+    url = new URL(href, OGC_NEXT_LINK_PARSE_BASE);
+  } catch {
+    return undefined;
+  }
+  const candidates: Array<[string, string]> = [];
+  let hasOpaqueCursor = false;
+  for (const [key, value] of url.searchParams) {
+    if (OGC_NEXT_LINK_RESERVED_PARAMS.has(key)) {
+      continue;
+    }
+    if (OGC_CURSOR_PARAM_NAMES.has(ogcParamKey(key))) {
+      hasOpaqueCursor = true;
+    }
+    candidates.push([key, value]);
+  }
+  const params: Record<string, string> = {};
+  let hasPagingState = false;
+  for (const [key, value] of candidates) {
+    const folded = ogcParamKey(key);
+    if (OGC_OFFSET_PARAM_NAMES.has(folded)) {
+      if (hasOpaqueCursor) {
+        continue;
+      }
+      if (sentOffset !== undefined && Number(value) === sentOffset) {
+        continue;
+      }
+      hasPagingState = true;
+    } else if (OGC_CURSOR_PARAM_NAMES.has(folded)) {
+      hasPagingState = true;
+    }
+    params[key] = value;
+  }
+  // Everything that survived is an echo of the query we just sent (`bbox`,
+  // `filter`, `sortby`, …): the link advertises no forward progress, so the
+  // offset arithmetic below stays in charge rather than re-reading this page.
+  if (!hasPagingState) {
+    return undefined;
+  }
+  const entries = Object.entries(params).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return { key: entries.map(([key, value]) => `${key}=${value}`).join("&"), params };
+}
+
+/**
+ * Cheap identity signature for one `/items` page, used to detect a server that
+ * replays a page it already returned. Returns `undefined` when any feature
+ * lacks a GeoJSON `id`, in which case the drain simply skips the check rather
+ * than serializing whole geometries.
+ */
+function ogcPageIdentityKey(features: readonly HonuaOgcFeatureResponse[]): string | undefined {
+  const ids: string[] = [];
+  for (const feature of features) {
+    const id = feature?.id;
+    if (typeof id !== "string" && typeof id !== "number") {
+      return undefined;
+    }
+    ids.push(String(id));
+  }
+  return JSON.stringify(ids);
 }
 
 function isFinitePositiveInteger(value: number | undefined): value is number {
