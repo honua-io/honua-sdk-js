@@ -16,9 +16,11 @@ Four ground rules keep this page honest:
 1. **Every Honua number is generated, never hand-edited.** This whole file is produced by
    `npm run docs:comparison` from committed, regenerable inputs; CI fails when it drifts
    (`npm run docs:comparison:check`). See [Methodology](#methodology-and-freshness).
-2. **Every external claim is a structured evidence record**, not prose — with a primary
-   source URL, the version it describes, an observation date, an expiry, its methodology,
-   and its metric's unit and compression. See [Evidence contract](#evidence-contract).
+2. **Every external figure, and every operation-level cell, is a structured evidence record**,
+   not prose — with a primary source URL, the version it describes, an observation date, an
+   expiry, its methodology, and its metric's unit and compression. See
+   [Evidence contract](#evidence-contract). The protocol-coverage table is the one exception,
+   and says so where it appears.
 3. **Categories are never mixed silently.** A renderer, a headless client, and an all-in-one
    SDK are different products; the boundary is named below before anything is compared.
 4. **Non-goals are stated.** Esri's 3D/SceneView stack and MapLibre's rendering quality are
@@ -121,6 +123,10 @@ derived from the maintained
 there; capability misses throw `HonuaCapabilityNotSupportedError` instead of returning empty
 results). Competitor columns are deliberately coarse: ✓ first-party support, ◐ partial or
 manual assembly, — not provided.
+
+**Scope note.** Unlike the figures and the operation table below, these competitor columns are
+maintained characterisations of each product's documented protocol surface, not evidence
+records — treat them as orientation and check the linked products for anything load-bearing.
 
 | Protocol lane | Honua SDK | raw `maplibre-gl` | `@esri/arcgis-rest-js` | OpenLayers |
 | --- | --- | --- | --- | --- |
