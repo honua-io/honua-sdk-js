@@ -293,11 +293,12 @@ It runs as part of `npm run bench:lab`, so it is reported in
 `test-results/benchmark-lab.json`, uploaded by the `benchmark-lab` CI job, and
 gated by `--check`.
 
-Six semantic invariants are machine independent and gate every repetition:
-zero payload copies across transfer *and* projection, sender backing buffers
-detached after transfer, renderer attributes aliasing the batch's own
-`ArrayBuffer`s, monotonic worker progress terminating at 1, a preserved row
-count, and an operation that observed every row.
+Seven invariants gate every repetition. Six are machine independent: zero
+payload copies across transfer *and* projection, sender backing buffers detached
+after transfer, renderer attributes aliasing the batch's own `ArrayBuffer`s,
+monotonic worker progress terminating at 1, a preserved row count, and an
+operation that observed every row. The seventh, `collectedBaseline`, records
+that a collector was available — see the note on retained memory below.
 
 The performance numbers carry **absolute budgets**, declared per scenario in
 [`budgets.json`](./budgets.json). Absolute budgets need no baseline, which
@@ -321,10 +322,25 @@ materialization costs 300+ bytes/feature and an order of magnitude of
 throughput, and any payload copy fails the zero-copy invariant outright.
 
 `peakRetainedBytesPerFeature` samples `heapUsed + arrayBuffers` at each stage
-boundary and takes the peak rather than a start-to-end delta. A plain delta goes
-negative whenever a collection lands inside the window, which would silently
-disarm the ceiling; the peak is taken while the packed fixture is provably live,
-so it stays monotone and interpretable.
+boundary and takes the peak relative to a **collected** baseline. Both halves of
+that are load-bearing:
+
+- The baseline follows a forced collection, so it holds live bytes only. An
+  uncollected baseline would carry unreachable objects from the warm-up run and
+  the five preceding scenarios; a collection landing inside this scenario's
+  window would then offset the very allocations being measured, and a regression
+  materializing hundreds of bytes per feature could still report under the
+  ceiling. `npm run bench:lab` therefore runs Node with `--expose-gc`, and the
+  `collectedBaseline` invariant **fails the scenario** when no collector is
+  available rather than publishing an unsound number.
+- The value is a peak rather than a start-to-end delta, because a delta goes
+  negative whenever a collection lands in the window. From a collected baseline
+  the peak can only rise: garbage may be created during the run, but none is
+  carried into it.
+
+Running `node dist/bench/lab.js` directly without `--expose-gc` will fail this
+scenario by design. `vitest.config.ts` passes the same flag so
+`test/columnar-data-plane-bench.test.ts` exercises the enforced path.
 
 ## Stream / pagination scenario
 

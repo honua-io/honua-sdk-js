@@ -68,14 +68,24 @@ export interface ColumnarDataPlaneSample {
   /** Unique backing allocation bytes divided by row count. */
   backingBytesPerFeature: number;
   /**
-   * Peak `heapUsed + arrayBuffers` observed at any stage boundary, minus the
-   * pre-run reading, divided by row count.
+   * Peak `heapUsed + arrayBuffers` observed at any stage boundary, minus a
+   * **collected** pre-run reading, divided by row count.
    *
-   * A plain start-to-end delta is unusable here: a garbage collection inside
-   * the window drives it negative, which would silently disarm the ceiling.
-   * Sampling the peak across the stage boundaries keeps the value monotone —
-   * the packed fixture is provably live at the first sample — so the ceiling
-   * stays a real anti-materialization gate.
+   * Two properties make this a sound ceiling rather than a decorative number.
+   *
+   * First, the baseline is taken immediately after a forced collection, so it
+   * measures live bytes only. Without that, the baseline would carry unreachable
+   * objects from the warm-up run and the five preceding corpus scenarios; a
+   * collection landing inside this scenario's window would then offset — or
+   * exceed — the allocations being measured, and a regression materializing
+   * hundreds of bytes per feature could still report under the ceiling.
+   * `collectedBaseline` fails the scenario when no collector is available, so
+   * the gate refuses to publish an unsound reading instead of passing silently.
+   *
+   * Second, the value is a peak across the stage boundaries rather than a
+   * start-to-end delta. A delta goes negative whenever a collection lands in the
+   * window. From a collected baseline the peak can only rise, because garbage
+   * can be created during the run but none is carried into it.
    */
   peakRetainedBytesPerFeature: number;
   /** Payload bytes copied across the transfer and the projection. Always zero. */
@@ -100,6 +110,14 @@ export interface ColumnarDataPlaneBenchmarkResult {
       rowCountPreserved: boolean;
       /** The worker operation observed every row of the packed geometry column. */
       operationScannedEveryRow: boolean;
+      /**
+       * A collector was available, so `peakRetainedBytesPerFeature` was measured
+       * from a garbage-free baseline. Run Node with `--expose-gc`; `npm run
+       * bench:lab` already does. Without it the memory ceiling cannot be
+       * enforced soundly, so the scenario fails rather than reporting a number
+       * that a mid-run collection may have quietly deflated.
+       */
+      collectedBaseline: boolean;
     };
     passed: boolean;
   };
@@ -117,6 +135,18 @@ type FaultListener = (event: ColumnarWorkerFaultEvent) => void;
 function retainedBytes(): number {
   const usage = process.memoryUsage();
   return usage.heapUsed + usage.arrayBuffers;
+}
+
+/**
+ * Force a collection so the memory baseline contains no carried-over garbage.
+ * Returns false when Node was started without `--expose-gc`, which makes the
+ * retained-memory reading unsound and fails the scenario.
+ */
+function collectGarbage(): boolean {
+  const collect = (globalThis as { gc?: () => void }).gc;
+  if (typeof collect !== "function") return false;
+  collect();
+  return true;
 }
 
 /**
@@ -219,7 +249,7 @@ async function runOnce(featureCount: number): Promise<DataPlaneRun> {
   });
   const session = createColumnarWorkerSession({ createWorker: () => new MessagePortTransport(channel.port1) });
   try {
-    if (typeof globalThis.gc === "function") globalThis.gc();
+    const collectedBaseline = collectGarbage();
     const retainedBefore = retainedBytes();
 
     const buildStarted = performance.now();
@@ -275,6 +305,7 @@ async function runOnce(featureCount: number): Promise<DataPlaneRun> {
           progress.every((fraction, index) => index === 0 || fraction >= progress[index - 1]!),
         rowCountPreserved: executed.batch.rowCount === featureCount,
         operationScannedEveryRow: scanned() === featureCount,
+        collectedBaseline,
       },
     };
   } finally {
@@ -306,6 +337,7 @@ export async function runColumnarDataPlaneBenchmark(
     monotonicProgress: measured.every((run) => run.checks.monotonicProgress),
     rowCountPreserved: measured.every((run) => run.checks.rowCountPreserved),
     operationScannedEveryRow: measured.every((run) => run.checks.operationScannedEveryRow),
+    collectedBaseline: measured.every((run) => run.checks.collectedBaseline),
   };
   return {
     samples: measured.map((run) => run.sample),

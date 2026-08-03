@@ -14,6 +14,22 @@ const BUDGETS = {
 } as const;
 
 describe("columnar data-plane benchmark", () => {
+  it("requires a collector so the memory ceiling is measured from a garbage-free baseline", async () => {
+    // `vitest.config.ts` passes `--expose-gc`, and `npm run bench:lab` does the
+    // same. Without it the harness must fail rather than publish a retained
+    // reading that a mid-run collection could have deflated below the ceiling.
+    expect(typeof (globalThis as { gc?: () => void }).gc).toBe("function");
+
+    const result = await runColumnarDataPlaneBenchmark({
+      featureCount: 512,
+      warmupRuns: 0,
+      measurementRuns: 1,
+    });
+
+    expect(result.invariants.checks.collectedBaseline).toBe(true);
+    expect(result.samples[0]!.peakRetainedBytesPerFeature).toBeGreaterThan(0);
+  });
+
   it("rejects non-positive options before doing any work", async () => {
     await expect(runColumnarDataPlaneBenchmark({ featureCount: 0, warmupRuns: 0, measurementRuns: 1 })).rejects.toThrow(
       "positive integers",
@@ -43,6 +59,7 @@ describe("columnar data-plane benchmark", () => {
         monotonicProgress: true,
         rowCountPreserved: true,
         operationScannedEveryRow: true,
+        collectedBaseline: true,
       },
     });
     for (const sample of result.samples) {
