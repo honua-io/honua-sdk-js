@@ -333,6 +333,29 @@ export function wfsCapabilitiesXml(): string {
 </wfs:WFS_Capabilities>`;
 }
 
+/**
+ * `DescribeFeatureType` XSD for `parcels:lot`. The adapter reads it to resolve
+ * the feature type's geometry property instead of assuming a vendor default.
+ */
+export function wfsDescribeFeatureTypeXsd(geometryProperty = "the_geom"): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:parcels="http://parcels.example.test/ns" elementFormDefault="qualified" targetNamespace="http://parcels.example.test/ns" version="1.0">
+  <xsd:import namespace="http://www.opengis.net/gml/3.2" schemaLocation="https://mock.honua.test/schemas/gml/3.2.1/gml.xsd"/>
+  <xsd:complexType name="lotType">
+    <xsd:complexContent>
+      <xsd:extension base="gml:AbstractFeatureType">
+        <xsd:sequence>
+          <xsd:element maxOccurs="1" minOccurs="0" name="STATE" nillable="true" type="xsd:string"/>
+          <xsd:element maxOccurs="1" minOccurs="0" name="ACRES" nillable="true" type="xsd:double"/>
+          <xsd:element maxOccurs="1" minOccurs="0" name="${geometryProperty}" nillable="true" type="gml:PointPropertyType"/>
+        </xsd:sequence>
+      </xsd:extension>
+    </xsd:complexContent>
+  </xsd:complexType>
+  <xsd:element name="lot" substitutionGroup="gml:AbstractFeature" type="parcels:lotType"/>
+</xsd:schema>`;
+}
+
 /** Same shape as `ogcItemsResponse` but used by the WFS adapter through GeoJSON output. */
 export function wfsGeoJsonResponse(features = PARCEL_FEATURES): {
   type: "FeatureCollection";

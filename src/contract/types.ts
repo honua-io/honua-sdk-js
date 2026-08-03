@@ -379,6 +379,16 @@ export interface SourceLocator {
    * feature.
    */
   srsName?: string | number;
+  /**
+   * WFS geometry property name (e.g. `the_geom`, `msGeometry`, `geom`) used by
+   * FES spatial predicates and WFS-T `<wfs:Insert>` / `<wfs:Update>` payloads.
+   * When omitted the adapter resolves it per feature type from
+   * `DescribeFeatureType` and caches it; set this to pin the property on
+   * schema-less servers, on types that declare several geometries, or to skip
+   * the schema round-trip entirely. Resolution failure fails closed — the
+   * adapter never falls back to a vendor default.
+   */
+  geometryName?: string;
   /** OData entity-set identifier. */
   entitySet?: string;
   /** GP Service task identifier (for `geoservices-gp-service`). */

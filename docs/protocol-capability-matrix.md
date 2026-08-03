@@ -399,7 +399,8 @@ WFS `propertyName=` drops every property the caller does not list,
 including the geometry column, so `Query.outFields` and
 `Query.returnGeometry` are resolved together: an `outFields` list with
 `returnGeometry !== false` appends the geometry property
-(`the_geom` by default) before the projection lands on the wire so
+(`locator.geometryName` / descriptor geometry field, else the reviewed
+`the_geom` default) before the projection lands on the wire so
 geometry survives; `returnGeometry === false` paired with an
 `outFields` list emits exactly the requested fields (no geometry); a
 `returnGeometry === false` request without an `outFields` list throws

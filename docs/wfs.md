@@ -142,9 +142,28 @@ honors the relation rather than silently widening to bbox semantics.
 Geometry serialization is GML 3.2 simple (point / line / polygon);
 curves and surfaces throw and require the escape hatch.
 
-The geometry property name defaults to `the_geom`. Servers using a
-different name (`geometry`, `shape`, …) can supply a per-source filter
-through the protocol escape hatch.
+### Geometry property resolution
+
+The geometry property is named per feature type, not per protocol:
+PostGIS via GeoServer serves `the_geom`, MapServer serves `msGeometry`,
+and app-schema / deegree deployments use whatever the schema declares.
+A spatial predicate that references the wrong property matches nothing,
+so the adapter resolves the real name instead of assuming one:
+
+1. `locator.geometryName`, when set, wins and costs no round-trip.
+2. Otherwise the adapter issues `DescribeFeatureType` once per feature
+   type, caches the result alongside the capabilities snapshot, and uses
+   the first geometry property the schema declares.
+3. If neither names it, the request fails closed with
+   `HonuaWfsProtocolError("unresolved-geometry-property")` — the adapter
+   never falls back to a vendor default.
+
+Resolution is lazy: it happens only when the request names the property
+on the wire (an FES spatial predicate, or `<wfs:Insert>` / `<wfs:Update>`
+geometry). The `bbox=` KVP shortcut addresses the default geometry
+positionally, so envelope-intersects queries need no schema round-trip.
+Feature types that declare several geometries resolve to the first one;
+pin a different one with `locator.geometryName`.
 
 ## Field projection (`outFields` and `returnGeometry`)
 

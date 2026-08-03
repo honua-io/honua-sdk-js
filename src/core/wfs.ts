@@ -26,9 +26,11 @@ import {
   type WfsTransactionSummary,
   parseListStoredQueriesResponse,
   parseWfsCapabilities,
+  parseWfsDescribeFeatureTypeGeometry,
   parseWfsExceptionReport,
   parseWfsTransactionResponse,
 } from "./wfs-capabilities.js";
+import { HonuaWfsProtocolError } from "./wfs-protocol-error.js";
 
 const DEFAULT_VERSION = "2.0.0";
 const SERVICE_PARAM = "WFS";
@@ -109,6 +111,8 @@ export class HonuaWfs {
 
   private rawCapabilitiesXml: string | undefined;
   private resolvedSnapshot: WfsCapabilitiesSnapshot | undefined;
+  /** Resolved geometry property per feature type; shares the metadata cache lifecycle. */
+  private readonly geometryPropertyNames = new Map<string, string>();
 
   public constructor(options: HonuaWfsOptions) {
     this.client = options.client;
@@ -173,7 +177,75 @@ export class HonuaWfs {
     state.flight = undefined;
     this.rawCapabilitiesXml = undefined;
     this.resolvedSnapshot = undefined;
+    this.geometryPropertyNames.clear();
     if (staleFlight && !staleFlight.settled) staleFlight.controller.abort();
+  }
+
+  /**
+   * Fetch the `DescribeFeatureType` XSD for one feature type. Returned raw so
+   * `Source.protocol("wfs")` callers can read schema detail the canonical
+   * surface does not model.
+   */
+  public async describeFeatureType(
+    typeName: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<{ text: string; contentType: string }> {
+    const params = new URLSearchParams({
+      service: SERVICE_PARAM,
+      version: this.version,
+      request: "DescribeFeatureType",
+      typeNames: typeName,
+    });
+    const requestOptions: { accept: string; signal?: AbortSignal; maxResponseBytes: number } = {
+      accept: "application/xml, text/xml",
+      maxResponseBytes: WFS_METADATA_MAX_RESPONSE_BYTES,
+    };
+    if (options?.signal) requestOptions.signal = options.signal;
+    const { text, contentType } = await this.requestText(
+      "GET",
+      appendQuery(this.operationUrl("DescribeFeatureType", "GET"), params),
+      requestOptions,
+    );
+    return { text, contentType };
+  }
+
+  /**
+   * Resolve the geometry property name of one feature type from its
+   * `DescribeFeatureType` schema, caching the result alongside the
+   * capabilities snapshot. Fails closed with
+   * `HonuaWfsProtocolError("unresolved-geometry-property")` rather than
+   * assuming a vendor default: `the_geom` is only the PostGIS-via-GeoServer
+   * convention, MapServer serves `msGeometry`, and other servers use
+   * per-schema names, so guessing silently matches nothing.
+   *
+   * Feature types that declare several geometry properties resolve to the
+   * first declared one (the server's default geometry); pin a different one
+   * with `locator.geometryName`.
+   */
+  public async geometryPropertyName(typeName: string, options?: { signal?: AbortSignal }): Promise<string> {
+    const cached = this.geometryPropertyNames.get(typeName);
+    if (cached !== undefined) return cached;
+    let candidates: readonly string[];
+    try {
+      const { text } = await this.describeFeatureType(typeName, options);
+      candidates = parseWfsDescribeFeatureTypeGeometry(text, typeName);
+    } catch (error) {
+      if (error instanceof HonuaAbortError) throw error;
+      throw new HonuaWfsProtocolError(
+        "unresolved-geometry-property",
+        `WFS DescribeFeatureType could not resolve the geometry property of feature type "${typeName}"; set locator.geometryName to name it explicitly`,
+        { cause: error },
+      );
+    }
+    const resolved = candidates[0];
+    if (resolved === undefined) {
+      throw new HonuaWfsProtocolError(
+        "unresolved-geometry-property",
+        `WFS DescribeFeatureType declares no geometry property for feature type "${typeName}"; set locator.geometryName to name it explicitly`,
+      );
+    }
+    this.geometryPropertyNames.set(typeName, resolved);
+    return resolved;
   }
 
   /**
@@ -430,6 +502,20 @@ export class HonuaWfsFeatureType {
   /** Convenience: capabilities snapshot from the bound root. */
   public capabilities(options?: { signal?: AbortSignal }): Promise<WfsCapabilitiesSnapshot> {
     return this.root.capabilities(options);
+  }
+
+  /** Raw `DescribeFeatureType` XSD for the bound type name. */
+  public describeFeatureType(options?: { signal?: AbortSignal }): Promise<{ text: string; contentType: string }> {
+    return this.root.describeFeatureType(this.typeName, options);
+  }
+
+  /**
+   * Geometry property name of the bound feature type, resolved from
+   * `DescribeFeatureType` and cached on the root. Fails closed when the schema
+   * does not name one — see {@link HonuaWfs.geometryPropertyName}.
+   */
+  public geometryPropertyName(options?: { signal?: AbortSignal }): Promise<string> {
+    return this.root.geometryPropertyName(this.typeName, options);
   }
 
   /**

@@ -20,11 +20,19 @@ import type { CanonicalQuery, QueryIrSourceIdentity, WfsCompiledQueryV1, WfsProt
 import { HonuaQueryPlanningError } from "./types.js";
 
 const WFS_GET_FILTER_BUDGET = 7000;
+/**
+ * Metadata-free planning fallback only. The live WFS adapter resolves the real
+ * geometry property per feature type (DescribeFeatureType, or an explicit
+ * `locator.geometryName`) and carries it on the IR source identity, so this
+ * legacy PostGIS-via-GeoServer default is used only when a caller compiles a
+ * plan without any geometry evidence at all.
+ */
 const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
 
 /** Compile canonical query IR to the legacy deterministic WFS 2.0 GetFeature request. */
 export function compileWfsQuery(source: QueryIrSourceIdentity, query: CanonicalQuery): WfsCompiledQueryV1 {
   const typeName = requireWfsTypeName(source);
+  const geometryProperty = wfsGeometryProperty(source);
   assertNoWfsAggregation(query);
   if (query.spatialFilter && query.outSr !== undefined) {
     throw new HonuaQueryPlanningError(
@@ -33,8 +41,8 @@ export function compileWfsQuery(source: QueryIrSourceIdentity, query: CanonicalQ
     );
   }
 
-  const filter = compileWfsFes(typeName, query);
-  const propertyName = compileWfsPropertyNames(query);
+  const filter = compileWfsFes(typeName, query, geometryProperty);
+  const propertyName = compileWfsPropertyNames(query, geometryProperty);
 
   return {
     compiler: "wfs-2.0-get-feature-v1",
@@ -80,10 +88,12 @@ export const wfsProtocolQueryCompiler = Object.freeze({
     }
     const srsName = wfsSrsNameFromOutSr(input.query.outSr);
     const filterSrsName = wfsSpatialFilterSrsName(input.source, input.query);
+    const geometryProperty = wfsGeometryProperty(input.source);
     const bbox = wfsBboxKvp(input.query, filterSrsName);
-    const filter = bbox === undefined ? compileWfsFes(typeName, input.query, filterSrsName) : undefined;
+    const filter =
+      bbox === undefined ? compileWfsFes(typeName, input.query, geometryProperty, filterSrsName) : undefined;
     const method = wfsProtocolMethodForFilter(filter);
-    const propertyName = compileWfsPropertyNames(input.query);
+    const propertyName = compileWfsPropertyNames(input.query, geometryProperty);
     const sortBy =
       input.query.orderBy && input.query.orderBy.length > 0
         ? input.query.orderBy.map((sort) => `${sort.field}${sort.direction === "desc" ? " D" : " A"}`).join(",")
@@ -214,6 +224,14 @@ function normalizeWfsEndpoint(value: string, allowRuntimeAuthority: boolean): st
 }
 
 function wfsBboxKvp(query: CanonicalQuery, filterSrsName: string | undefined): string | undefined {
+  const envelope = wfsBboxShortcutEnvelope(query);
+  if (!envelope) return undefined;
+  return formatWfsBboxKvp(envelope.xmin, envelope.ymin, envelope.xmax, envelope.ymax, filterSrsName);
+}
+
+function wfsBboxShortcutEnvelope(
+  query: CanonicalQuery,
+): { xmin: number; ymin: number; xmax: number; ymax: number } | undefined {
   const filter = query.spatialFilter;
   if (!filter || query.where !== undefined || filter.geometryType !== "esriGeometryEnvelope") return undefined;
   if (
@@ -232,7 +250,24 @@ function wfsBboxKvp(query: CanonicalQuery, filterSrsName: string | undefined): s
   ) {
     return undefined;
   }
-  return formatWfsBboxKvp(envelope.xmin, envelope.ymin, envelope.xmax, envelope.ymax, filterSrsName);
+  return { xmin: envelope.xmin, ymin: envelope.ymin, xmax: envelope.xmax, ymax: envelope.ymax };
+}
+
+/**
+ * @internal True when the compiled request must name the geometry property in
+ * an FES spatial predicate. The `bbox=` KVP shortcut addresses the feature
+ * type's default geometry positionally, so it needs no name; every other
+ * spatial predicate emits `<fes:ValueReference>` and does. The live adapter
+ * uses this to resolve the property (and fail closed) only when the wire
+ * actually depends on it.
+ */
+export function wfsSpatialFilterNeedsGeometryProperty(query: CanonicalQuery): boolean {
+  return query.spatialFilter !== undefined && wfsBboxShortcutEnvelope(query) === undefined;
+}
+
+/** Geometry property the compiled request references by name. */
+function wfsGeometryProperty(source: QueryIrSourceIdentity): string {
+  return source.geometryProperty ?? DEFAULT_WFS_GEOMETRY_PROPERTY;
 }
 
 /** @internal Shared with legacy non-query WFS drains to preserve CRS parity. */
@@ -321,7 +356,12 @@ function assertNoWfsAggregation(query: CanonicalQuery): void {
   }
 }
 
-function compileWfsFes(typeName: string, query: CanonicalQuery, srsName?: string): string | undefined {
+function compileWfsFes(
+  typeName: string,
+  query: CanonicalQuery,
+  geometryProperty: string,
+  srsName?: string,
+): string | undefined {
   const filters: FesNode[] = [];
   if (query.where) {
     const where = compileWhere(query.where.expression);
@@ -338,7 +378,7 @@ function compileWfsFes(typeName: string, query: CanonicalQuery, srsName?: string
         ...(query.spatialFilter.spatialRel ? { spatialRel: query.spatialFilter.spatialRel } : {}),
       } as SpatialFilter,
       {
-        geometryProperty: DEFAULT_WFS_GEOMETRY_PROPERTY,
+        geometryProperty,
         ...(srsName !== undefined ? { srsName } : {}),
       },
     );
@@ -350,17 +390,17 @@ function compileWfsFes(typeName: string, query: CanonicalQuery, srsName?: string
   return filters.length > 0 ? serializeFes(filters, { typeName }) : undefined;
 }
 
-function compileWfsPropertyNames(query: CanonicalQuery): readonly string[] | undefined {
+function compileWfsPropertyNames(query: CanonicalQuery, geometryProperty: string): readonly string[] | undefined {
   if (query.outFields && query.outFields.length > 0) {
     const fields = [...query.outFields];
-    if (query.returnGeometry === false && fields.includes(DEFAULT_WFS_GEOMETRY_PROPERTY)) {
+    if (query.returnGeometry === false && fields.includes(geometryProperty)) {
       throw new HonuaQueryPlanningError(
         "unsupported-query",
-        `WFS returnGeometry=false conflicts with outFields containing the geometry property "${DEFAULT_WFS_GEOMETRY_PROPERTY}"`,
+        `WFS returnGeometry=false conflicts with outFields containing the geometry property "${geometryProperty}"`,
       );
     }
-    if (query.returnGeometry !== false && !fields.includes(DEFAULT_WFS_GEOMETRY_PROPERTY)) {
-      fields.push(DEFAULT_WFS_GEOMETRY_PROPERTY);
+    if (query.returnGeometry !== false && !fields.includes(geometryProperty)) {
+      fields.push(geometryProperty);
     }
     return fields;
   }
