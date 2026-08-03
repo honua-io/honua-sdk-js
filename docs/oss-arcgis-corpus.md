@@ -127,6 +127,25 @@ The regression gate compares a fresh run against the published observation and
 fails when an app's auto-migrated ratio drops or when usage that was previously
 visible stops being detected.
 
+## Gaps the corpus has already found
+
+The first sweep (2026-08-03) is why this corpus exists. Three of the six pinned
+apps produced `filesWithArcGisImports=0` — the scanner saw nothing at all —
+because `findArcGisImports` in `src/migration/scanner.ts` matches only
+`@arcgis/core/*` specifiers. Each gap is filed with the app and the construct
+that exposed it:
+
+| Issue | Gap | Exposed by |
+| --- | --- | --- |
+| [#980](https://github.com/honua-io/honua-sdk-js/issues/980) | AMD `define([...])` / `require([...])` dependency arrays with bare `esri/*` specifiers are invisible | `cmv/cmv-app` — `viewer/js/config/viewer.js`, `viewer/js/gis/dijit/Basemaps.js` |
+| [#981](https://github.com/honua-io/honua-sdk-js/issues/981) | Bare `esri/*` ES-module specifiers, including TypeScript `import X = require("esri/...")`, are invisible | `WSDOT-GIS/bridge-clearance-app` — `src/main.ts`; `ekenes/national-park-visits` — `app/main.ts`, `app/widgets.ts` |
+| [#982](https://github.com/honua-io/honua-sdk-js/issues/982) | A scan that detects nothing reports `readiness: "ready"` with all three gates passing vacuously | All three apps above |
+
+#981 also records a concrete internal inconsistency: on
+`ekenes/national-park-visits` the **widget** scanner reported four widget usage
+sites in the same files the ArcGIS scanner reported zero imports in, so the two
+scanners disagree about the same source.
+
 ## Adding an app
 
 1. Confirm the repository exists, note its default branch, and read its license
