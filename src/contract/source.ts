@@ -57,6 +57,8 @@ import type {
 } from "../core/types.js";
 import { geoJsonGeometryToGml } from "../core/wfs-filter.js";
 import type { HonuaWfsFeatureType, OutputFormatChoice } from "../core/wfs.js";
+import { executeWmsFeatureInfo, resolveWmsQueryCrs } from "../core/wms-feature-info.js";
+import type { WmsFeatureInfoRequest } from "../core/wms-types.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import { createQueryIr } from "../query-planner/ir.js";
@@ -96,6 +98,7 @@ import {
   type AttachmentQuery,
   type AttachmentUpdate,
   CAPABILITIES,
+  type Capabilities,
   type Capability,
   type CapabilityAwareSource,
   type CapabilityPolicy,
@@ -106,6 +109,7 @@ import {
   type EditOutcome,
   type EditResult,
   type FeatureId,
+  type FeatureInfoRequestBinding,
   PROTOCOL_DEFAULT_CAPABILITIES,
   type Protocol,
   type Query,
@@ -1218,13 +1222,27 @@ export function wmsSource<T>(
   descriptor = normalizeCapabilityDescriptor(descriptor);
   const advertisedCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wms;
   if (typeof descriptor.locator.serviceId !== "string" || descriptor.locator.serviceId.length === 0) {
-    if (descriptor.locator.raster?.kind !== "wms-kvp") requireWmsLocator(descriptor);
+    const featureInfoBinding = descriptor.locator.featureInfo;
+    if (descriptor.locator.raster?.kind !== "wms-kvp" && featureInfoBinding?.kind !== "wms-kvp") {
+      requireWmsLocator(descriptor);
+    }
     // Raw third-party discovery is renderable through the existing descriptor
-    // → MapLibre raster projection. The existing canonical FeatureInfo adapter
-    // is Honua-service-id based, so keep that surface fail-closed here.
-    const caps = new Set([...advertisedCaps].filter((capability) => capability !== "query"));
-    descriptor = { ...descriptor, capabilities: caps };
-    return makeSource<T>(descriptor, caps, policy, {}, unsupportedFeatureSurface<T>(descriptor));
+    // → MapLibre raster projection, and queryable whenever discovery reviewed a
+    // GetFeatureInfo operation (queryable layer + projectable INFO_FORMAT +
+    // provable CRS axis order). Without that binding the query surface stays
+    // fail-closed.
+    if (featureInfoBinding?.kind !== "wms-kvp" || !advertisedCaps.has("query")) {
+      const caps = new Set([...advertisedCaps].filter((capability) => capability !== "query"));
+      descriptor = { ...descriptor, capabilities: caps };
+      return makeSource<T>(descriptor, caps, policy, {}, unsupportedFeatureSurface<T>(descriptor));
+    }
+    return standaloneWmsSource<T>(
+      { ...descriptor, capabilities: advertisedCaps },
+      featureInfoBinding,
+      client,
+      policy,
+      advertisedCaps,
+    );
   }
   const { serviceId } = requireWmsLocator(descriptor);
   const layerName = descriptor.locator.typeName;
@@ -1254,24 +1272,11 @@ export function wmsSource<T>(
       ensureCapability(descriptor, caps, "query");
       requireWmsCompatibleQuery(descriptor, request);
       const layers = wmsRequireLayers(descriptor, layerName);
-      const { x: px, y: py, crs } = wmsExtractPointFromQuery(request, descriptor);
-      const bboxRadius = 0.0001; // tiny envelope around the point keeps the request a 1×1 image.
-      const widthHeight = 1;
-      const featureCount = request?.pagination?.limit;
+      const point = wmsExtractPointFromQuery(request, descriptor);
       const response = await client.getWmsFeatureInfo<T>({
         serviceId,
-        layers,
-        ...(styleId !== undefined ? { styles: [styleId] } : {}),
-        queryLayers: layers,
-        crs,
-        bbox: [px - bboxRadius, py - bboxRadius, px + bboxRadius, py + bboxRadius],
-        width: widthHeight,
-        height: widthHeight,
-        i: 0,
-        j: 0,
+        ...wmsPointFeatureInfoRequest({ layers, styleId, crs: point.crs, x: point.x, y: point.y, request }),
         infoFormat: "application/json",
-        ...(featureCount !== undefined ? { featureCount } : {}),
-        ...(request?.signal ? { signal: request.signal } : {}),
       });
       return {
         features: response.features ?? [],
@@ -1306,6 +1311,124 @@ export function wmsSource<T>(
     },
     attachments: unsupportedAttachmentApi(descriptor),
   });
+}
+
+/**
+ * Radius of the envelope drawn around the queried point. WMS has no point
+ * request: `GetFeatureInfo` addresses a pixel inside a rendered image, so the
+ * canonical point query renders a 1×1 image whose BBOX is this tiny envelope
+ * and reads pixel (0, 0).
+ */
+const WMS_FEATURE_INFO_POINT_RADIUS = 0.0001;
+
+/**
+ * Build the shared `GetFeatureInfo` envelope for a canonical point query. Both
+ * the Honua service-id path and the capabilities-driven third-party path use
+ * it, so LAYERS / QUERY_LAYERS / STYLES / BBOX / WIDTH / HEIGHT / I / J /
+ * FEATURE_COUNT are derived once.
+ */
+function wmsPointFeatureInfoRequest<T>(options: {
+  readonly layers: readonly string[];
+  readonly styleId: string | undefined;
+  readonly crs: string;
+  readonly x: number;
+  readonly y: number;
+  readonly request: Query<T> | undefined;
+}): WmsFeatureInfoRequest {
+  const radius = WMS_FEATURE_INFO_POINT_RADIUS;
+  const featureCount = options.request?.pagination?.limit;
+  const signal = options.request?.signal;
+  return {
+    layers: [...options.layers],
+    ...(options.styleId !== undefined ? { styles: [options.styleId] } : {}),
+    queryLayers: [...options.layers],
+    crs: options.crs,
+    bbox: [options.x - radius, options.y - radius, options.x + radius, options.y + radius],
+    width: 1,
+    height: 1,
+    i: 0,
+    j: 0,
+    ...(featureCount !== undefined ? { featureCount } : {}),
+    ...(signal ? { signal } : {}),
+  };
+}
+
+/**
+ * `Source` adapter for a third-party WMS 1.3.0 endpoint that `connect()`
+ * reviewed a `GetFeatureInfo` binding for. Canonical `Source.query()` issues
+ * the point request against the capabilities-advertised operation URL under the
+ * same same-origin, credential-free policy discovery applied to `GetMap`.
+ *
+ * The raw `Source.protocol("wms")` handles stay unavailable here: they are
+ * Honua-service-id bound. Render/tiles continue to flow through the descriptor
+ * → MapLibre raster projection.
+ */
+function standaloneWmsSource<T>(
+  descriptor: SourceDescriptor,
+  binding: FeatureInfoRequestBinding,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+  caps: Capabilities,
+): CapabilityAwareSource<T> {
+  const layerName = descriptor.locator.typeName;
+  const styleId = descriptor.locator.styleId;
+  const runQuery = async (request: Query<T> | undefined): Promise<Result<T>> => {
+    ensureCapability(descriptor, caps, "query");
+    requireWmsCompatibleQuery(descriptor, request);
+    const layers = wmsRequireLayers(descriptor, layerName);
+    const point = wmsExtractPointFromQuery(request, descriptor);
+    const crs = resolveWmsQueryCrs(binding.crs, point.crs);
+    if (crs === undefined) {
+      throw new HonuaCapabilityNotSupportedError(
+        "query",
+        descriptor.protocol,
+        `${descriptor.id} (GetFeatureInfo CRS "${point.crs}" is not one of the layer's reviewed CRS identifiers: ${binding.crs.join(", ")})`,
+      );
+    }
+    const features = await executeWmsFeatureInfo<T>(client, {
+      binding: { url: binding.url, format: binding.format },
+      request: wmsPointFeatureInfoRequest({ layers, styleId, crs, x: point.x, y: point.y, request }),
+      sourceId: descriptor.id,
+    });
+    return { features, exceededTransferLimit: false } satisfies Result<T>;
+  };
+
+  return makeSource<T>(
+    descriptor,
+    caps,
+    policy,
+    {},
+    {
+      async query(request) {
+        return runQuery(request);
+      },
+      async queryAll(request) {
+        // GetFeatureInfo returns a single response set; queryAll degenerates to
+        // query() because there is no paging on the wire.
+        return runQuery(request);
+      },
+      async queryAggregate() {
+        throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+      },
+      async queryExtent() {
+        throw new HonuaCapabilityNotSupportedError("queryExtent", descriptor.protocol, descriptor.id);
+      },
+      // biome-ignore lint/correctness/useYield: WMS exposes only single-shot GetFeatureInfo, which is delivered through query()
+      async *stream() {
+        throw new HonuaCapabilityNotSupportedError("stream", descriptor.protocol, descriptor.id);
+      },
+      async queryObjectIds() {
+        throw new HonuaCapabilityNotSupportedError("queryObjectIds", descriptor.protocol, descriptor.id);
+      },
+      async applyEdits() {
+        throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
+      },
+      async queryRelated() {
+        throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+      },
+      attachments: unsupportedAttachmentApi(descriptor),
+    },
+  );
 }
 
 // ── WMTS 1.0 ──────────────────────────────────────────────────
