@@ -1035,6 +1035,20 @@ describe("cesium scene adapter", () => {
         },
         {
           kind: "imagery-layer",
+          id: "proxy-authorization-url",
+          sourceId: "proxy-authorization-url",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png?Proxy-Authorization=Basic%20c2VjcmV0",
+        },
+        {
+          kind: "imagery-layer",
+          id: "cookie-url",
+          sourceId: "cookie-url",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png?Cookie=session%3Dsecret",
+        },
+        {
+          kind: "imagery-layer",
           id: "credential-userinfo",
           sourceId: "credential-userinfo",
           protocol: "single-tile",
@@ -1085,6 +1099,24 @@ describe("cesium scene adapter", () => {
           style: "default",
           tileMatrixSetId: "WebMercatorQuad",
           parameters: { "ocp-apim-subscription-key": "secret" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "proxy-authorization-parameters",
+          sourceId: "proxy-authorization-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: { "Proxy-Authorization": "Basic c2VjcmV0" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "set-cookie-parameters",
+          sourceId: "set-cookie-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: { "Set-Cookie": "session=secret" },
         },
         {
           kind: "imagery-layer",
@@ -1292,7 +1324,16 @@ describe("cesium scene adapter", () => {
         result.diagnostics
           .filter((diagnostic) => diagnostic.code === "scene-primitive-imagery-credentials-forbidden")
           .map((diagnostic) => diagnostic.primitiveId),
-      ).toEqual(expect.arrayContaining(["subscription-key-url", "subscription-key-parameters"]));
+      ).toEqual(
+        expect.arrayContaining([
+          "subscription-key-url",
+          "subscription-key-parameters",
+          "proxy-authorization-url",
+          "cookie-url",
+          "proxy-authorization-parameters",
+          "set-cookie-parameters",
+        ]),
+      );
       expect(result.diagnostics).toContainEqual(
         expect.objectContaining({
           code: "scene-primitive-imagery-service-config-invalid",

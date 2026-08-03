@@ -2,7 +2,6 @@
 
 const CREDENTIAL_QUERY_TOKENS = new Set([
   "auth",
-  "authorization",
   "awsaccesskeyid",
   "bearer",
   "code",
@@ -20,11 +19,16 @@ const CREDENTIAL_QUERY_TOKENS = new Set([
   "sessionid",
   "sig",
 ]);
+// Suffix matching keeps prefixed spellings (`proxy-authorization`, `set-cookie`,
+// `x-api-key`) credential-bearing, matching the plan-persistence classifier in
+// `src/query-planner/planner.ts`.
 const CREDENTIAL_QUERY_SUFFIXES = [
   "accountkey",
   "accesskey",
   "apikey",
+  "authorization",
   "consumerkey",
+  "cookie",
   "credential",
   "encryptionkey",
   "masterkey",
