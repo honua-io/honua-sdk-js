@@ -77,12 +77,13 @@
   "Root gzip, /contract, /runtime, and tree-shake:root-connect were reset for the WFS ProtocolModule migration (#823): the built-in WFS source now shares the authority-bound compiler/executor, bounded XML/GeoJSON response validation, exact namespace/CRS projection, and paging invariants with independently registered modules. Exact measurements are root 174,650 gzip bytes, /contract 328,408 minified / 87,596 gzip, /runtime 569,944 / 152,621, and root-connect 529,869 / 139,082; only exceeded metrics are reset to measured actual plus ~10% headroom. /query-planner, /plugin, browser, and the isolated HonuaClient fixture remain within their reviewed ceilings, so the migration adds no renderer or unrelated plugin runtime.",
   "/web-components gzip was reset after the #823 correctness review added authority-registry WFS axis ordering plus generation-, cancellation-, refresh-, and disposal-safe capability discovery. The measured 272,419 gzip bytes are budgeted at 299,661 bytes (actual plus ~10% headroom); no other ceiling moved.",
   "The exact #823 rebase over bounded direct PMTiles discovery (#820) was remeasured after preserving both protocol graphs. The combined root, /honua, /source-schema, /source-capability-discovery, browser, isolated HonuaClient, and root-createHonua graphs exceeded ceilings derived from either feature in isolation; only those exceeded metrics are reset here to the combined measured values plus 10% headroom.",
-  "/plugin was reset for the behavioral-certification follow-up in #392: the measured gzip size is 20,399 bytes and the ceiling is 22,439 bytes (actual plus ~10% headroom); the existing minified ceiling remains unchanged."
+  "/plugin was reset for the behavioral-certification follow-up in #392: the measured gzip size is 20,399 bytes and the ceiling is 22,439 bytes (actual plus ~10% headroom); the existing minified ceiling remains unchanged.",
+  "Root gzip and 'tree-shake:HonuaClient' minified were reset for accumulated protocol-correctness drift, not for any single change: the WFS per-feature geometry property (#968), STAC POST /search plus token cursors (#969), capabilities-driven WMS GetFeatureInfo (#970), and OGC API Features rel=next paging (#966) each added a few hundred bytes to the shared connect/core graph while docs/bundle-sizes.md still carried a much older baseline. Measured 197,176 gzip on root and 236,429 minified on the tree-shake guard; only the two exceeded metrics were reset to measured actual plus ~10% headroom. Root minified, the tree-shake guard's gzip, and every other ceiling remain unchanged."
  ],
  "entrypoints": {
   ".": {
    "min": 771970,
-   "gzip": 196018
+   "gzip": 216894
   },
   "/honua": {
    "min": 959741,
@@ -213,7 +214,7 @@
    "gzip": 205783
   },
   "tree-shake:HonuaClient": {
-   "min": 235231,
+   "min": 260072,
    "gzip": 65132
   },
   "tree-shake:root-connect": {
