@@ -281,6 +281,12 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/oauth-signin/mock-server.mjs is a mock OAuth identity provider the sample redirects to and exchanges codes against at runtime (catalog data.authMode oauth); the flow needs a live participant process, not a static data origin.",
   },
   {
+    id: "offline-region-reference",
+    runtimeHosting: "not-a-runtime-sample",
+    auditedVia:
+      "docs/examples/offline-region-reference has no vite.config.ts; it is a bounded documentation reference exercised by test/playwright/offline-indexeddb.spec.mjs with an isolated loopback fixture origin.",
+  },
+  {
     id: "overture-geoparquet",
     runtimeHosting: "self-contained",
     // `demo:overture:build` orchestrates the pinned-extension prepare step
