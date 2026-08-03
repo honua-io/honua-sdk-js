@@ -1610,17 +1610,17 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-03 at commit `122b3650`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-03 at commit `4984c388`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 697.2 KiB | 186.3 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 225.4 KiB | 57.8 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 716.2 KiB | 192.6 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 230.9 KiB | 59.6 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.6 KiB | 13.3 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 326.0 KiB | 86.8 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 992.9 KiB | 247.8 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 344.9 KiB | 92.9 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 999.2 KiB | 250.0 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
 | Routing client | 20.5 KiB | 6.3 KiB |
 
@@ -1632,8 +1632,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 697.2 KiB ≈ **1.69 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 186.3 KiB ≈ **0.45 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 716.2 KiB ≈ **1.71 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 192.6 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -3015,8 +3015,10 @@ aggregate runs only after the materialization ceilings pass.
 WFS plans compile the supported SQL-92 subset and spatial predicates to FES
 2.0 XML, and expose `propertyName`, `sortBy`, `startIndex`, `count`, and
 `srsName`. XML literals and identifiers go through the same escaping compiler
-used by the WFS adapter; the portable compiler deliberately retains that
-adapter's reviewed `the_geom` default. OData plans translate the canonical predicate to
+used by the WFS adapter. The geometry property comes from the source identity
+(`locator.geometryName`, which the live adapter fills from
+`DescribeFeatureType`, or a descriptor geometry field); metadata-free plans
+compiled without either fall back to the reviewed `the_geom` default. OData plans translate the canonical predicate to
 `$filter`, including supported `geo.intersects` geometry, and expose
 `$select`/`$expand`, `$orderby`, `$skip`, and `$top`. Both compilers fail
 closed when exact translation is impossible. In particular, metadata-free
@@ -5249,6 +5251,29 @@ console.log(receipt.appliedCount);
 - URL credentials and recognized signed/auth query parameters are removed.
   Only a domain-separated SHA-256 digest of the caller's authorization scope
   fingerprint is persisted.
+- **Persisted identities are non-secret by contract, and the stores enforce it.**
+  `name`, `sourceId`, `resource.id`, `contentType`, attribution ids and text, and
+  the source/schema/plan versions are screened against the same credential
+  denylist that governs endpoint normalization. Machine identities are also
+  refused when they are shaped like a request reference — an absolute URL
+  carrying userinfo, a query, or a fragment, or a relative reference containing
+  `?`, `#`, or `@` — so an ArcGIS `?token=` or S3 `?X-Amz-Signature=` URL cannot
+  become a stored identity by way of an `OfflineRegionResourceMatcher`. Human
+  prose (`name`, attribution text) is held only to the embedded-assignment and
+  absolute-URL rules, so an ordinary label is still persistable. A match fails
+  the whole manifest closed with `invalid-manifest` and a structured `path`;
+  nothing is silently rewritten, because a rewritten identity would change the
+  deterministic region id and the resource primary key, and the rejection names
+  the path without echoing the offending value. Screening is defence in depth: it
+  is not a licence to pass secrets as identities.
+- The enforcement is not a trust assumption about the caller.
+  `createIndexedDbOfflineRegionStore`, `beginWrite`, and `commit` are public
+  exports, so `beginWrite` and `write` re-screen the region and resource ids they
+  key staged rows by, and `commit` re-checks the whole manifest — endpoint
+  included — before it opens its IndexedDB transaction. A caller that bypasses
+  `downloadOfflineRegion` cannot persist a credential-bearing manifest. The
+  durable edit queue applies the same screen to `sourceId` and `idempotencyKey`,
+  which are its persisted partition and identity keys.
 - Every resource has an exact logical byte length and required SHA-256 digest.
   Loader output is copied into coordinator-owned memory before hashing, progress,
   or writing, so later loader mutation cannot alter committed bytes. Each resource also carries
@@ -7193,7 +7218,8 @@ WFS `propertyName=` drops every property the caller does not list,
 including the geometry column, so `Query.outFields` and
 `Query.returnGeometry` are resolved together: an `outFields` list with
 `returnGeometry !== false` appends the geometry property
-(`the_geom` by default) before the projection lands on the wire so
+(`locator.geometryName` / descriptor geometry field, else the reviewed
+`the_geom` default) before the projection lands on the wire so
 geometry survives; `returnGeometry === false` paired with an
 `outFields` list emits exactly the requested fields (no geometry); a
 `returnGeometry === false` request without an `outFields` list throws
@@ -7295,6 +7321,31 @@ must stamp the spatial filter geometry's `spatialReference` with the
 desired CRS (the wire CRS is derived from there) or reproject the
 result client-side. `Query.pagination.limit` is honored — it maps to
 `FEATURE_COUNT` on the wire.
+
+The same canonical `query()` works against a third-party WMS 1.3
+endpoint discovered by `connect()`, with no Honua service id involved.
+Discovery reviews the advertised `GetFeatureInfo` operation and pins it
+on `locator.featureInfo` (`{ kind: "wms-kvp", url, format, crs }`) only
+when the layer is `queryable`, the operation advertises a safe
+same-origin GET URL, an advertised `INFO_FORMAT` can be projected into
+canonical features, and at least one advertised CRS has a provable WMS
+1.3 axis order. Format preference is GeoJSON/JSON first, then GML
+(`application/vnd.ogc.gml`, `application/gml+xml`, `text/xml;
+subtype=gml/*`) decoded from `gml:featureMember` / `gml:featureMembers`
+containers or MapServer's `msGMLOutput` wrapper — leaf property elements
+become attributes, complex properties and `gml:boundedBy` are skipped,
+and `geometry` is `null`. Unstructured `text/plain` and `text/html` are
+never selected because their bodies are template-defined per deployment,
+so an endpoint advertising only those keeps `query` disabled. The wire
+CRS is resolved against the reviewed list (`CRS:84` and `EPSG:4326` are
+interchangeable inputs for the same canonical `(lon, lat)` point); a CRS
+the layer never advertised throws
+`HonuaCapabilityNotSupportedError("query", "wms", id)` rather than being
+sent. A response body that does not decode into features (an OGC
+exception report, malformed JSON, or an unrecognized GML container)
+raises the same capability error instead of degrading into an empty
+result. The raw `Source.protocol("wms")` handles stay unavailable on
+third-party sources — they are Honua-service-id bound.
 
 `Source.protocol("wms-layer")` is registered only when
 `locator.typeName` parses to a single non-empty layer token because
@@ -7686,7 +7737,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | Geometry operations | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
 | OGC API Features | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
 | WFS 2.0 | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | connect(), Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
-| WMS 1.3 discovery and raster rendering | `supported` | `standalone` | `discovery` | Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding; canonical query remains disabled unless a Honua service id binds the existing FeatureInfo adapter. |
+| WMS 1.3 discovery, raster rendering, and GetFeatureInfo | `supported` | `standalone` | `discovery` | Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding; canonical query additionally needs a queryable layer advertising a GeoJSON, JSON, or GML GetFeatureInfo format | connect(), Source descriptor, Source.query(), @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding and answer canonical point query() through the capabilities-advertised GetFeatureInfo URL, preferring GeoJSON/JSON and falling back to GML. Query stays disabled when the layer is not queryable, no same-origin GetFeatureInfo GET URL is advertised, the only advertised info formats are unstructured (text/plain, text/html), or no advertised CRS has a provable WMS 1.3 axis order. |
 | WMTS 1.0 discovery and raster tiles | `supported` | `standalone` | `discovery` | Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms. |
 | STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
 | OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
@@ -9210,52 +9261,52 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-03 at commit `122b3650`._
+_Generated 2026-08-03 at commit `4984c388`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 697.2 KiB | 753.9 KiB | 186.3 KiB | 191.4 KiB |
-| `/honua` | 863.9 KiB | 937.2 KiB | 231.8 KiB | 251.0 KiB |
-| `/contract` | 326.0 KiB | 352.8 KiB | 86.8 KiB | 94.1 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 844.7 KiB | 925.5 KiB | 187.7 KiB | 206.0 KiB |
+| `.` (root) | 716.2 KiB | 753.9 KiB | 192.6 KiB | 211.8 KiB |
+| `/honua` | 880.7 KiB | 937.2 KiB | 237.3 KiB | 251.0 KiB |
+| `/contract` | 344.9 KiB | 352.8 KiB | 92.9 KiB | 94.1 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 860.2 KiB | 925.5 KiB | 192.8 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 878.0 KiB | 961.8 KiB | 197.1 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 893.4 KiB | 961.8 KiB | 202.3 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 65.3 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
 | `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.7 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 562.1 KiB | 612.2 KiB | 150.4 KiB | 163.9 KiB |
+| `/runtime` | 580.9 KiB | 612.2 KiB | 156.6 KiB | 163.9 KiB |
 | `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
-| `/offline` | 83.6 KiB | 91.9 KiB | 23.2 KiB | 25.5 KiB |
-| `/query-planner` (worker runtime injected) | 639.4 KiB | 703.3 KiB | 136.4 KiB | 143.2 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 112.2 KiB | 122.9 KiB | 34.5 KiB | 37.7 KiB |
-| `/esri-compat` | 992.9 KiB | 1026.2 KiB | 247.8 KiB | 253.6 KiB |
+| `/offline` | 87.0 KiB | 91.9 KiB | 24.3 KiB | 25.5 KiB |
+| `/query-planner` (worker runtime injected) | 643.1 KiB | 703.3 KiB | 137.8 KiB | 143.2 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.5 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
+| `/esri-compat` | 999.2 KiB | 1026.2 KiB | 250.0 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
 | `/routing` | 20.5 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
 | `/auth` | 25.9 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
-| `/style` | 61.4 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
-| `/map` | 179.2 KiB | 182.2 KiB | 50.6 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 129.3 KiB | 137.8 KiB | 38.9 KiB | 40.9 KiB |
+| `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
+| `/map` | 180.6 KiB | 198.2 KiB | 51.2 KiB | 56.2 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 132.7 KiB | 137.8 KiB | 40.1 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 945.3 KiB | 1037.6 KiB | 253.3 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1021.7 KiB | 1120.1 KiB | 276.8 KiB | 292.6 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 959.0 KiB | 1037.6 KiB | 257.7 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1035.4 KiB | 1120.1 KiB | 281.0 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 499.3 KiB | 506.7 KiB | 132.7 KiB | 134.6 KiB |
+| `/react` (react/react-dom external) | 518.1 KiB | 562.6 KiB | 138.9 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 697.8 KiB | 754.5 KiB | 186.6 KiB | 201.3 KiB |
-| browser ESM (`./browser`) | 696.5 KiB | 753.1 KiB | 186.3 KiB | 201.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 225.4 KiB | 229.7 KiB | 57.8 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 570.4 KiB | 627.9 KiB | 151.7 KiB | 166.9 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 716.8 KiB | 754.5 KiB | 192.8 KiB | 201.3 KiB |
+| browser ESM (`./browser`) | 715.5 KiB | 753.1 KiB | 192.5 KiB | 201.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 230.9 KiB | 254.0 KiB | 59.6 KiB | 63.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 585.9 KiB | 627.9 KiB | 156.4 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.4 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.8 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 663.8 KiB | 717.1 KiB | 177.5 KiB | 191.3 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 240.0 KiB | 245.9 KiB | 61.1 KiB | 61.4 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 682.8 KiB | 717.1 KiB | 183.7 KiB | 191.3 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 245.5 KiB | 267.0 KiB | 62.9 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.6 KiB | 44.7 KiB | 13.3 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
@@ -11020,9 +11071,28 @@ honors the relation rather than silently widening to bbox semantics.
 Geometry serialization is GML 3.2 simple (point / line / polygon);
 curves and surfaces throw and require the escape hatch.
 
-The geometry property name defaults to `the_geom`. Servers using a
-different name (`geometry`, `shape`, …) can supply a per-source filter
-through the protocol escape hatch.
+### Geometry property resolution
+
+The geometry property is named per feature type, not per protocol:
+PostGIS via GeoServer serves `the_geom`, MapServer serves `msGeometry`,
+and app-schema / deegree deployments use whatever the schema declares.
+A spatial predicate that references the wrong property matches nothing,
+so the adapter resolves the real name instead of assuming one:
+
+1. `locator.geometryName`, when set, wins and costs no round-trip.
+2. Otherwise the adapter issues `DescribeFeatureType` once per feature
+   type, caches the result alongside the capabilities snapshot, and uses
+   the first geometry property the schema declares.
+3. If neither names it, the request fails closed with
+   `HonuaWfsProtocolError("unresolved-geometry-property")` — the adapter
+   never falls back to a vendor default.
+
+Resolution is lazy: it happens only when the request names the property
+on the wire (an FES spatial predicate, or `<wfs:Insert>` / `<wfs:Update>`
+geometry). The `bbox=` KVP shortcut addresses the default geometry
+positionally, so envelope-intersects queries need no schema round-trip.
+Feature types that declare several geometries resolve to the first one;
+pin a different one with `locator.geometryName`.
 
 ## Field projection (`outFields` and `returnGeometry`)
 
@@ -11455,7 +11525,7 @@ values.
 | `Query` field | DuckDB SQL |
 | --- | --- |
 | `outFields` | quoted identifier projection; geometry projected as `ST_AsGeoJSON(...)` |
-| `where` | passed through verbatim, wrapped in `( … )` (caller-authored SQL, like GeoServices `where`) |
+| `where` | validated as a single boolean expression, then wrapped in `( … )` (see [SQL-injection safety](#sql-injection-safety)) |
 | `spatialFilter` (envelope) | `ST_Intersects(<geom>, ST_MakeEnvelope(xmin, ymin, xmax, ymax))`, or a GeoParquet 1.1 `bbox` covering-column comparison (row-group prune) |
 | `spatialFilter` (point/polyline/polygon) | reduced to its bounding box; reported in `Result.degraded` as an approximation |
 | `orderBy` | `ORDER BY "field" ASC|DESC` |
@@ -11473,10 +11543,45 @@ Every value the compiler interpolates is escaped:
   doubled; NUL rejected.
 - **Numeric literals** (bbox, limit, offset): validated finite / non-negative.
 
-The one deliberate exception is `Query.where`, which — exactly like the
-GeoServices and OGC adapters — is caller-authored filter SQL passed through
-verbatim. The trust boundary on `where` is the caller's, identical to a
-GeoServices `where` clause. The compiler is covered by snapshot tests in
+`Query.where` is the one raw-text lane: it is caller-authored filter SQL, so it
+cannot be escaped like a value. It is instead **contained** by
+`validateWhereExpression` before it is embedded, and a rejected expression
+throws a typed `GeoParquetWhereClauseError` carrying a fixed
+`GEOPARQUET_WHERE_*` code (the message never echoes the offending text). The
+planner surfaces the same rejection as `HonuaQueryPlanningError`
+(`code: "invalid-query"`).
+
+Rejected: statement separators (`;`) and multi-statement input; SQL line and
+block comments (including the trailing `--` that would otherwise swallow the
+compiler's own `AND (<spatial predicate>)`); unterminated string or
+quoted-identifier literals (`x' OR 1=1`); `E'…'` escape strings, whose
+backslash escaping would make every literal boundary after them mis-parse
+(plain literals with doubled quotes carry the same data); unbalanced
+parentheses, so the wrapping `( … )` cannot be closed early to re-associate or
+append clauses; `SELECT` / `UNION` and other statement or set-operation
+keywords plus a table-context `FROM`, so a filter cannot become a subquery or
+UNION probe against other tables and files registered in the same DuckDB
+session; parameter markers (`?`, `$1`, `$name`), which this lane never binds;
+and control characters other than tab / newline / carriage return.
+
+Accepted unchanged: ordinary comparisons, `AND`/`OR`/`NOT`, `IN` value lists,
+`BETWEEN`, `LIKE`, `CASE … END`, scalar function calls, struct/field paths,
+the expression forms of `FROM` (`EXTRACT(YEAR FROM ts)`,
+`TRIM(BOTH ' ' FROM name)`, `SUBSTRING(name FROM 2 FOR 3)`, `OVERLAY(…)`, and
+`POSITION(a IN b)`), and string literals containing any of the above
+characters as data (`note = 'a ; b -- c'`). A column whose name collides with
+a rejected keyword stays addressable by quoting it (`"union" = 1`), because
+quoted identifiers are skipped by the validator.
+
+This is containment, not a semantic parser. Accepted text is still executed by
+DuckDB: it can reference any column in the scanned files, call any scalar
+function the session exposes, and cost arbitrary CPU. Applications that forward
+end-user input (a filter box, a URL parameter) should build the expression from
+typed inputs and treat the validator as a backstop; the typed, parameterized
+semantic compiler (`compileSemanticDuckDbQuery`) removes the raw-text lane
+entirely. `source.protocol("geoparquet").sql(...)` remains an explicit, opt-in
+raw-SQL escape hatch and is deliberately not covered by this validation. The
+compiler is covered by snapshot and rejection tests in
 `test/geoparquet-sql.test.ts`.
 
 ## Both metadata styles
