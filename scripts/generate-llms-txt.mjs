@@ -77,7 +77,7 @@ const SECTIONS = [
       {
         path: "docs/comparison.md",
         description:
-          "Generated comparison page: bundle sizes vs @arcgis/core, protocol coverage vs raw MapLibre / arcgis-rest-js / OpenLayers, and the scripted time-to-first-map benchmark.",
+          "Generated comparison page: named category boundaries (headless client vs renderer vs all-in-one SDK), bundle sizes, protocol coverage and operation-level behaviour vs raw MapLibre / arcgis-rest-js / OpenLayers, the scripted time-to-first-map benchmark, and the competitor-evidence contract (primary sources, dated observations, no current claim from historical figures).",
       },
     ],
   },

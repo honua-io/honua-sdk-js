@@ -1,11 +1,28 @@
 # MapLibre ecosystem listing kit
 
-Status: **prepared, not filed**. This file contains everything needed to file
-the external directory submissions for issue
-[#499](https://github.com/honua-io/honua-sdk-js/issues/499) in minutes. The
-submissions themselves are external PRs to other projects and are tracked as
-acceptance items on the issue — they are deliberately **not** part of the repo
-PR that added this file. Record the filed PR links on #499.
+Status: **filed by the maintainer; SDK CI never files anything.** This file is
+both the reusable entry kit and the submission ledger for issue
+[#499](https://github.com/honua-io/honua-sdk-js/issues/499). Submissions are PRs
+to *other projects*: no automation in this repository opens, updates, or merges
+them, and no repo PR may claim an acceptance the ledger below does not record.
+
+## Submission ledger
+
+Verified against each target repository on 2026-08-02.
+
+| Target | Submission | State |
+| --- | --- | --- |
+| `maplibre/awesome-maplibre` (also renders the official plugin directory) | [#176](https://github.com/maplibre/awesome-maplibre/pull/176) | **Merged** 2026-08-01 |
+| `sacridini/Awesome-Geospatial` | [#237](https://github.com/sacridini/Awesome-Geospatial/pull/237) | **Merged** 2026-08-02 |
+| `protomaps/docs` | [#136](https://github.com/protomaps/docs/pull/136) | Open, awaiting upstream review |
+
+Two of the three ecosystem submissions are accepted, which satisfies #499's
+"at least one is accepted" acceptance criterion. The Protomaps entry is
+upstream-owned from here — nothing in this repository can advance it.
+
+Keep this ledger truthful: `npm run verify:discoverability` fails when a target
+row carries no state, so the kit cannot silently drift back into claiming an
+unfiled or unaccepted submission.
 
 ## The linkable, CI-green example every listing points at
 
@@ -93,11 +110,15 @@ Exact line to add:
 
 ## Filing checklist (for the human doing the submissions)
 
+This repository never files a submission automatically. When adding a new
+target, or refreshing an existing one:
+
 1. Confirm the linked example is green on trunk (latest CI run includes the
    Playwright standalone smoke).
-2. File the three PRs above; keep each to the single bullet line in the
-   documented section (alphabetical placement where the list is sorted).
-3. Record the PR links (and later, acceptance) on issue #499.
-4. When at least one is accepted, tick the corresponding acceptance criterion
-   on #499 and add the external URLs to the docs-site link-check allowlist if
-   they are ever referenced from docs.
+2. File the PR by hand; keep each to the single bullet line in the documented
+   section (alphabetical placement where the list is sorted).
+3. Add the target to the submission ledger above with its real state, and
+   record the PR link on issue #499.
+4. When a submission is accepted, update its ledger row and tick the
+   corresponding acceptance criterion on #499. Add the external URL to the
+   docs-site link-check allowlist if it is ever referenced from docs.
