@@ -608,9 +608,25 @@ export interface HonuaClientOptions {
 }
 
 export interface HonuaRetryOptions {
+  /**
+   * Maximum number of retry attempts after the initial request. Retry is
+   * entirely opt-in: values below `1` (including the default `0`) disable the
+   * retry loop, and every request is then issued exactly once.
+   */
   maxRetries?: number;
+  /** First backoff delay in milliseconds; doubles per attempt. Default: `100`. */
   baseDelayMs?: number;
+  /** Upper bound on any single backoff delay, including a server `Retry-After`. Default: `2000`. */
   maxDelayMs?: number;
+  /**
+   * HTTP statuses the loop replays on replay-safe methods
+   * (`GET` / `HEAD` / `PUT` / `DELETE`). Default: `[429, 502, 503, 504]` — the
+   * statuses that explicitly invite the same request again. This is
+   * intentionally narrower than the broader `408, 429, 500, 502, 503, 504` set
+   * that {@link HonuaHttpError} classifies as transient `retryable` metadata:
+   * that classification is descriptive and never initiates a retry. Pass the
+   * broader set here to opt into replaying `408` / `500`.
+   */
   retryStatuses?: readonly number[];
 }
 

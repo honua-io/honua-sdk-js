@@ -218,8 +218,9 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles the
   deprecated, source-native `Query.where` migration field and `Query.spatialFilter` to FES 2.0, prefers
   GeoJSON over GML via `OperationsMetadata` negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`,
-  and reaches raw GML / `LockFeature` / `GetPropertyValue` / stored queries through
-  `Source.protocol("wfs")`. The OData adapter exposes
+  and reaches raw GML / `GetPropertyValue` / stored queries through
+  `Source.protocol("wfs")` (locking has no typed helper — see
+  [`docs/wfs.md`](./wfs.md#locking)). The OData adapter exposes
   `query` / `queryObjectIds` / `stream` / `applyEdits` first-party
   (PATCH-with-full-body in place of PUT, per the parity matrix) and surfaces `$batch` / `$apply` /
   `$search` / `$deltatoken` through `Source.protocol("odata")` on a `HonuaOdataEntitySet`; it is also

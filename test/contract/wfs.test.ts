@@ -6,6 +6,7 @@
  * stored-query escape hatch, and the XXE defense.
  */
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor, createDataset } from "../../src/contract/index.js";
@@ -1687,6 +1688,26 @@ describe("wfs / protocol escape hatch", () => {
     const wfs = source.protocol("wfs");
     expect(wfs).toBeInstanceOf(HonuaWfsFeatureType);
     expect((wfs as HonuaWfsFeatureType).typeName).toBe("parcels:lot");
+  });
+
+  it("exposes no LockFeature helper — locking is raw XML through requestText (#954)", () => {
+    const dataset = buildWfsDataset([]);
+    const source = dataset.source<ParcelAttrs>("parcels-wfs")!;
+    const wfs = source.protocol("wfs") as HonuaWfsFeatureType;
+
+    // Docstrings used to imply the escape hatch carried LockFeature the way it
+    // carries GetPropertyValue or stored queries. It does not: there is no
+    // typed lock affordance anywhere, only the generic raw-XML request path.
+    for (const surface of [wfs, wfs.root] as unknown as Record<string, unknown>[]) {
+      for (const name of ["lock", "lockFeature", "getFeatureWithLock", "releaseLock"]) {
+        expect(surface[name]).toBeUndefined();
+      }
+    }
+    expect((source as unknown as Record<string, unknown>).lock).toBeUndefined();
+    expect(typeof wfs.root.requestText).toBe("function");
+
+    const wfsDoc = readFileSync(new URL("../../docs/wfs.md", import.meta.url), "utf8");
+    expect(wfsDoc).toContain("WFS `LockFeature` / `GetFeatureWithLock` are **not implemented**");
   });
 
   it("storedQueries() returns the advertised identifiers", async () => {

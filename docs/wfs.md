@@ -344,10 +344,32 @@ the canonical `Source` surface when they need full FES expressivity.
 
 ## Locking
 
-WFS `LockFeature` / `GetFeatureWithLock` are not exposed in the
-canonical contract. Callers that need locks reach the wire through
-the protocol escape hatch — there is no top-level
-`Source.lock()` concept.
+WFS `LockFeature` / `GetFeatureWithLock` are **not implemented**. There
+is no top-level `Source.lock()` concept and no typed helper on the
+protocol escape hatch either — `HonuaWfsFeatureType` and `HonuaWfs`
+expose no `lockFeature` / `getFeatureWithLock` method, and the adapter
+never issues a lock request on the caller's behalf.
+
+The only path to a lock is the raw-XML escape hatch: build the request
+document yourself and POST it through `HonuaWfs.requestText`, then parse
+the response text yourself. The SDK does not extract `lockId`, does not
+track lock expiry, and does not attach a lock to a subsequent
+`applyEdits()` transaction.
+
+```ts doc-test=skip reason="partial excerpt requires application host context and a locking WFS server"
+const wfs = source.protocol("wfs")!;
+const { text } = await wfs.root.requestText("POST", wfs.root.operationUrl("LockFeature", "POST"), {
+  accept: "application/xml",
+  contentType: "text/xml",
+  body: rawLockFeatureXml,
+});
+// `text` is the raw `<wfs:LockFeatureResponse>`; parse `lockId` yourself.
+```
+
+Everything `requestText` shares with the canonical surface still
+applies: auth headers, interceptors, retry, timeout, abort signals, the
+response-size cap, and `<ows:ExceptionReport>` → `HonuaWfsExceptionError`
+mapping.
 
 ## Defenses
 

@@ -7246,9 +7246,12 @@ Stored queries that advertise only GML (e.g. Honua Server's
 the canonical `Source.query()` envelope; the canonical surface throws
 `HonuaCapabilityNotSupportedError("query")` and points the caller at
 the protocol escape hatch.
-Locking (`LockFeature` / `GetFeatureWithLock`) is not exposed in the
-canonical surface; callers that need it reach the wire through
-`Source.protocol("wfs")`.
+Locking (`LockFeature` / `GetFeatureWithLock`) is not implemented: it is
+absent from the canonical surface and has no typed helper on the
+protocol escape hatch either. Callers that need it must POST their own
+request XML through `Source.protocol("wfs")!.root.requestText(...)` and
+parse the raw response themselves — no `lockId` is extracted and no lock
+is attached to a later `applyEdits()` transaction.
 The capabilities XML walker refuses any document declaring
 `<!DOCTYPE>` or `<!ENTITY>` to defend against XXE-class attacks.
 WFS `Result.totalCount` populates from the `numberMatched` GeoJSON
@@ -8045,7 +8048,7 @@ try {
 | `HonuaTimeoutError` | Any REST call | The `timeoutMs` configured on the client elapsed before the response arrived. | Increase `timeoutMs` per-call (the per-request `AbortSignal` is independent), or surface a "server slow" indicator. The request is idempotent-safe to retry. |
 | `HonuaNetworkError` | Any REST call | The transport itself failed (`fetch` rejected) — DNS, TLS, offline, or upstream connection reset. | Inspect `.cause` if present; back off and retry. For browsers, this is also the most common error to render as "Check your connection." |
 | `HonuaAbortError` | Any REST call | The caller's `AbortSignal` was aborted (or the SDK aborted on timeout — see `HonuaTimeoutError` for that case). | Do **not** retry. The caller asked to stop. Treat as a successful cancellation. |
-| `HonuaGrpcError` | `transport: "grpc-web"` only | A gRPC-Web call returned a non-OK `Code`. | Branch on `.code` (Connect/`google.rpc.Code`): `UNAUTHENTICATED` → refresh credentials, `PERMISSION_DENIED` → surface; `UNAVAILABLE` → retry with backoff; `DEADLINE_EXCEEDED` → increase deadline or retry; `INVALID_ARGUMENT` → fix the call site. |
+| `HonuaGrpcError` | `transport: "grpc-web"` only | A gRPC-Web call returned a non-OK `Code`. | Branch on `.code` (Connect/`google.rpc.Code`): `UNAUTHENTICATED` → refresh credentials, `PERMISSION_DENIED` → surface; `UNAVAILABLE` → retry with backoff (a configured `retry` already replays this class on unary calls — see [Retry policy](#retry-policy)); `DEADLINE_EXCEEDED` → increase deadline or retry; `INVALID_ARGUMENT` → fix the call site. |
 | `HonuaAuthError` | `@honua/sdk-js/auth` providers (`oauth2`, `clientCredentials`) | A credential could not be produced. | Branch on `.code`: `interaction_required` → start interactive sign-in (`auth.signIn()`); `refresh_failed` → transient token-endpoint failure, retry later; `invalid_grant` → refresh token/authorization code expired or revoked (the stored credential is cleared) → interactive sign-in. The underlying transport/parse failure, when present, is on `.cause`. |
 | `HonuaCapabilityNotSupportedError` | `Source.query` / `Source.applyEdits` / etc. | Under the default `capabilityPolicy: "strict"`, the active source does not support the requested operation (e.g. `query()` on a `wmts` source). | Either downgrade the request (drop the unsupported clause), fall back to `Source.protocol(...)` for raw protocol access, or set `capabilityPolicy: "degraded"` on `createDataset` to coerce best-effort behavior with a `degraded` reason in the `Result`. |
 | `HonuaDiscoveryError` | `connect`, discovery truth, cache identity | Endpoint metadata, protocol hints, source selection, or cached discovery observations are invalid or ambiguous. | Branch on `.code`: provide an explicit supported protocol for `ambiguous-protocol`; select a listed source ID for `ambiguous-source`; use a reviewed adapter for `unsupported-protocol`; evict/rebuild entries for `invalid-discovery-cache`. Do not retry unchanged invalid input. |
@@ -8353,10 +8356,10 @@ subset of these errors when configured:
 
 | Error | Retried by built-in `retry`? |
 |-------|-------------------------------|
-| `HonuaHttpError` with status in `retryStatuses` (default `[408, 429, 500, 502, 503, 504]`) | Yes |
+| `HonuaHttpError` with status in `retryStatuses` (default `[429, 502, 503, 504]`) | Yes — on replay-safe methods only (`GET` / `HEAD` / `PUT` / `DELETE`) |
 | `HonuaNetworkError` | Yes |
 | `HonuaTimeoutError` | Yes |
-| `HonuaGrpcError` with retryable code | **No** — the built-in `retry` policy is not applied to the gRPC-web transport; wrap these calls yourself |
+| `HonuaGrpcError` with a transient code (`4` / `8` / `10` / `14` — `deadline_exceeded`, `resource_exhausted`, `aborted`, `unavailable`) | Yes — replay-safe **unary** calls only, using the same backoff/jitter and `retry-after` handling as REST. Server-streaming calls are never retried (a stream cannot be safely replayed mid-iteration), and no attempt is made once the call's abort/`timeoutMs` deadline has fired. |
 | `HonuaAuthError` | **No** — resolved by the auth provider's own silent-refresh / single-flight logic; a 401/403 additionally triggers one force-refresh + replay. Branch on `.code` to sign in or surface. |
 | `HonuaAbortError` | **No** — caller asked to stop |
 | `HonuaRealtimeResumeError` | **No automatic retry** — the realtime transport and resumable delivery gate retain their existing reconnect/resnapshot policy; use `.sdkCode` only to classify the observed transition. |
@@ -8370,6 +8373,30 @@ subset of these errors when configured:
 | `HonuaAgentToolError` | **No** — caller/config bug |
 | `HonuaAgentSafetyError` / `HonuaAgentExecutionError` | **No automatic retry** — every agent-safety classification is conservatively non-retryable; the host must correct plan/policy/approval input or re-request approval explicitly. |
 | `HonuaGeneratedAppError` | **No automatic retry** — manifest/projection/load/render diagnostics are surfaced for the embedder to correct or retry explicitly. |
+
+### Retry defaults are narrower than the `retryable` classification
+
+Two HTTP status sets exist, and they are deliberately different:
+
+| Set | Value | Role |
+|-----|-------|------|
+| Retry-loop default (`DEFAULT_RETRY_STATUSES` in `src/core/request-pipeline.ts`) | `429, 502, 503, 504` | The statuses the opt-in retry loop replays when `retry` is configured and no `retryStatuses` override is supplied. |
+| Transient classification (`core.http.transient`, and `runtime.query-tiles.transient` for query tiles) | `408, 429, 500, 502, 503, 504` | The statuses whose error instance carries `retryable: true` metadata. |
+
+The loop default is the narrower set on purpose: `429`, `502`, `503`, and `504`
+all carry an explicit "this exact request may succeed if sent again" signal (and
+frequently a `Retry-After` header). `408` and `500` are classified transient so
+triage and telemetry can group them with the recoverable failures, but they are
+not replayed automatically — a `500` is an unexplained server fault that a blind
+replay usually just reproduces, and a `408` normally means the request was never
+fully received. Applications that want the broader set opt in explicitly, e.g.
+`retry: { maxRetries: 2, retryStatuses: [408, 429, 500, 502, 503, 504] }`.
+
+The registry's `retryable` metadata does **not** drive the retry loop. The loop
+reads only the configured `retryStatuses` (or the default above), the replay-safe
+method gate, and the transient network/timeout error types; the classification is
+descriptive metadata for callers that implement their own backoff. Changing an
+`sdkCode`'s `retryable` flag therefore changes reporting, not request behavior.
 
 ## Capability policy
 
@@ -9451,8 +9478,9 @@ protocol-neutral contract and exploration state module that wrap (not replace) t
   point-only `GetFeatureInfo`; WMTS is render-only (`Source.query()` throws). The WFS adapter compiles the
   deprecated, source-native `Query.where` migration field and `Query.spatialFilter` to FES 2.0, prefers
   GeoJSON over GML via `OperationsMetadata` negotiation, builds `<wfs:Transaction>` bodies for `applyEdits`,
-  and reaches raw GML / `LockFeature` / `GetPropertyValue` / stored queries through
-  `Source.protocol("wfs")`. The OData adapter exposes
+  and reaches raw GML / `GetPropertyValue` / stored queries through
+  `Source.protocol("wfs")` (locking has no typed helper — see
+  [`docs/wfs.md`](./wfs.md#locking)). The OData adapter exposes
   `query` / `queryObjectIds` / `stream` / `applyEdits` first-party
   (PATCH-with-full-body in place of PUT, per the parity matrix) and surfaces `$batch` / `$apply` /
   `$search` / `$deltatoken` through `Source.protocol("odata")` on a `HonuaOdataEntitySet`; it is also
@@ -11178,10 +11206,32 @@ the canonical `Source` surface when they need full FES expressivity.
 
 ## Locking
 
-WFS `LockFeature` / `GetFeatureWithLock` are not exposed in the
-canonical contract. Callers that need locks reach the wire through
-the protocol escape hatch — there is no top-level
-`Source.lock()` concept.
+WFS `LockFeature` / `GetFeatureWithLock` are **not implemented**. There
+is no top-level `Source.lock()` concept and no typed helper on the
+protocol escape hatch either — `HonuaWfsFeatureType` and `HonuaWfs`
+expose no `lockFeature` / `getFeatureWithLock` method, and the adapter
+never issues a lock request on the caller's behalf.
+
+The only path to a lock is the raw-XML escape hatch: build the request
+document yourself and POST it through `HonuaWfs.requestText`, then parse
+the response text yourself. The SDK does not extract `lockId`, does not
+track lock expiry, and does not attach a lock to a subsequent
+`applyEdits()` transaction.
+
+```ts doc-test=skip reason="partial excerpt requires application host context and a locking WFS server"
+const wfs = source.protocol("wfs")!;
+const { text } = await wfs.root.requestText("POST", wfs.root.operationUrl("LockFeature", "POST"), {
+  accept: "application/xml",
+  contentType: "text/xml",
+  body: rawLockFeatureXml,
+});
+// `text` is the raw `<wfs:LockFeatureResponse>`; parse `lockId` yourself.
+```
+
+Everything `requestText` shares with the canonical surface still
+applies: auth headers, interceptors, retry, timeout, abort signals, the
+response-size cap, and `<ows:ExceptionReport>` → `HonuaWfsExceptionError`
+mapping.
 
 ## Defenses
 
