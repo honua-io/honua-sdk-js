@@ -34,7 +34,7 @@ column first, and only compares within a category — or says explicitly when it
 | Product | Package compared | Category |
 | --- | --- | --- |
 | Honua SDK | `@honua/sdk-js` | Headless service clients |
-| MapLibre GL JS | `maplibre-gl` 6.0.0 | Renderer engines |
+| MapLibre GL JS | `maplibre-gl` (6.0.0 pinned and measured here; 6.1.0 published) | Renderer engines |
 | ArcGIS Maps SDK for JavaScript | `@arcgis/core` | All-in-one renderer SDKs |
 | ArcGIS REST JS | `@esri/arcgis-rest-request` | Headless service clients |
 | OpenLayers | `ol` | Renderer engines |
@@ -101,14 +101,14 @@ Why they are not combined: Bundles a renderer, so the only category-correct coun
 
 Provenance — **Historical evidence.** ArcGIS Maps SDK for JavaScript `@arcgis/core` 4.30 · observed 2024-06-27, retrieved 2026-07-13, expires 2027-07-13 · primary source: <https://github.com/Esri/jsapi-resources/blob/9fe7d8cc709c5daf3a342e921e897d459955b347/core-samples/.metrics/4.30.0.csv>
 
-**ArcGIS REST JS (`@esri/arcgis-rest-request`) — 4.10.3.** ArcGIS REST JS is Esri's lightweight, modular REST client family for ArcGIS services. It provides no map runtime, and its geocoding and routing packages address Esri's ArcGIS location services.
+**ArcGIS REST JS (`@esri/arcgis-rest-request`) — 4.10.3.** ArcGIS REST JS is Esri's lightweight, modular REST client family for ArcGIS services. It provides no map runtime; it exposes ArcGIS service metadata, paging parameters, an output-spatial-reference parameter, and applyEdits, and its geocoding and routing packages address Esri's ArcGIS location services. It exposes no query-plan/explain surface and its request helpers are stateless.
 It is the one alternative here in Honua's own category, so the comparison that matters is
 protocol and operation coverage (below), not bytes. If all you need is small requests against
 ArcGIS-only services, it is a fine, lighter choice.
 
 Provenance — ArcGIS REST JS `@esri/arcgis-rest-request` 4.10.3 · observed 2026-07-13, retrieved 2026-08-02, expires 2027-07-13 · primary source: <https://developers.arcgis.com/arcgis-rest-js/>
 
-**OpenLayers (`ol`) — 10.10.0.** OpenLayers is a map rendering library that also ships format parsers (for example GeoJSON, EsriJSON, WFS/GML) and tile/image sources.
+**OpenLayers (`ol`) — 10.10.0.** OpenLayers is a map rendering library that also ships format parsers (for example GeoJSON, EsriJSON, WFS/GML), tile/image sources, WMS/WMTS capabilities parsers, and built-in coordinate transforms. It provides no cross-protocol discovery contract, no service paging client, and no query-plan surface; WFS transactions are built as XML the caller sends.
 A renderer engine, not a headless service client. Its footprint depends heavily on which modules a consumer tree-shakes, so no single bundle number is quoted; the category-correct comparison is operation coverage of its first-party format/source modules.
 
 Provenance — OpenLayers `ol` 10.10.0 · observed 2026-07-13, retrieved 2026-08-02, expires 2027-07-13 · primary source: <https://openlayers.org/>
@@ -161,28 +161,27 @@ compares the operations themselves. Honua's column is anchored to real artifacts
 repository — a capability-matrix operation, a shipped source file, or an exported symbol — and
 generation fails if an anchor disappears, so a claim here cannot outlive its implementation.
 
-Competitor cells describe each product's first-party documented surface (sources in the
-[evidence contract](#evidence-contract)) and stay deliberately coarse: ✓ first-party,
-◐ partial or caller-assembled, — not provided.
+Every competitor cell is **projected from that product's evidence record** — not written
+inline here — so each column is bound to the version, primary source, and expiry shown beneath
+the table, and generation fails if a record omits a row that the page renders. Cells stay
+deliberately coarse: ✓ first-party, ◐ partial or caller-assembled, — not provided.
 
-| Operation | What it means | Honua SDK | `maplibre-gl` | `@esri/arcgis-rest-js` | `ol` |
+| Operation | What it means | Honua SDK | `maplibre-gl` | `@esri/arcgis-rest-request` | `ol` |
 | --- | --- | --- | --- | --- | --- |
-| Discovery | enumerate datasets/layers from a service root with typed metadata | ✓ typed `describe()` contract | — | ✓ ArcGIS service metadata | ◐ (k) |
-| Paging | walk a result set past the service page limit | ✓ streamed + bounded queries | — | ◐ (l) | — |
-| Edits | create/update/delete features through the protocol's transaction | ✓ GeoServices / OGC Features / WFS / OData | — | ✓ ArcGIS `applyEdits` | ◐ (m) |
-| CRS | declare, validate, and negotiate coordinate reference systems | ✓ validated PROJJSON + per-source CRS | ◐ (n) | ◐ (o) | ✓ built-in transforms |
-| Capability negotiation | know before you call whether an operation is supported | ✓ claimed / observed / effective | — | ◐ (o) | — |
+| Discovery | enumerate datasets/layers from a service root with typed metadata | ✓ typed `describe()` contract | — | ✓ ArcGIS service metadata | ◐ WMS/WMTS capabilities parsers only |
+| Paging | walk a result set past the service page limit | ✓ streamed + bounded queries | — | ◐ params exposed; caller drives the loop | — |
+| Edits | create/update/delete features through the protocol's transaction | ✓ GeoServices / OGC Features / WFS / OData | — | ✓ ArcGIS `applyEdits` | ◐ `ol/format/WFS` builds transaction XML |
+| CRS | declare, validate, and negotiate coordinate reference systems | ✓ validated PROJJSON + per-source CRS | ◐ renders in its own display projection | ◐ output-spatial-reference parameter | ✓ built-in transforms |
+| Capability negotiation | know before you call whether an operation is supported | ✓ claimed / observed / effective | — | ◐ service metadata you interpret | — |
 | Planning / explainability | inspect the accepted plan before execution | ✓ `explainQuery` + `hashQueryPlan` | — | — | — |
 | Rendering | draw the map | — (by design: rides a renderer) | ✓ | — | ✓ |
-| Lifecycle | tear down sources, layers, and listeners deterministically | ✓ `dispose()` on the mounted bridge | ✓ `map.remove()` | — (stateless requests) | ✓ map/layer disposal |
+| Lifecycle | tear down sources, layers, and listeners deterministically | ✓ `dispose()` on the mounted bridge | ✓ `map.remove()` | — stateless requests | ✓ map/layer disposal |
 
-Notes:
+Competitor columns as observed:
 
-- (k) OpenLayers parses WMS/WMTS capabilities documents into source options; there is no cross-protocol discovery contract.
-- (l) Paging parameters are exposed on the request; the caller writes and drives the loop.
-- (m) `ol/format/WFS` builds transaction XML; sending it, and the bookkeeping around it, is yours.
-- (n) MapLibre renders in its own display projection; it does not negotiate a source CRS for you.
-- (o) Service metadata and an output-spatial-reference parameter are exposed; interpreting them is the caller's job.
+- `maplibre-gl` 6.1.0 — observed 2026-08-02, expires 2027-08-02, from <https://maplibre.org/maplibre-gl-js/docs/>
+- `@esri/arcgis-rest-request` 4.10.3 — observed 2026-07-13, expires 2027-07-13, from <https://developers.arcgis.com/arcgis-rest-js/>
+- `ol` 10.10.0 — observed 2026-07-13, expires 2027-07-13, from <https://openlayers.org/>
 
 Read the rendering row as the point of the whole page: Honua deliberately scores `—` there.
 It is a data client. The comparison it invites is on the other seven rows.
@@ -237,7 +236,8 @@ generated-bundle-table discipline.
 
 ### Evidence contract
 
-External claims are not prose. Each one is a record in
+External claims — every competitor figure *and* every competitor cell in the operation table —
+are not prose. Each is a record in
 [`docs/data/competitor-evidence.v1.json`](./data/competitor-evidence.v1.json), validated against
 [`schemas/competitor-evidence.v1.json`](../schemas/competitor-evidence.v1.json) by
 `scripts/lib/competitor-evidence.mjs`. Every record must carry the product and the **exact**
@@ -247,17 +247,22 @@ package it represents, the version or release line, the claim, a primary source 
 Generation — and therefore CI — **fails** when:
 
 - a projected claim has no evidence record, or the record is missing a required field;
-- a record has **expired** (`expiresAt` in the past): re-observe it and add a new record;
-- a record's `sourceUrl` is not under that product's declared primary-source prefixes, so a
-  third-party restatement of a vendor number cannot pass as primary evidence;
+- a **projected** record has expired (`expiresAt` in the past);
+- a record's `sourceUrl` is not under a trusted primary-source origin **for that package**.
+  The trusted origins live in code (`TRUSTED_PRIMARY_SOURCE_PREFIXES`), not in the evidence
+  file, so a record cannot whitelist its own source and a third-party restatement of a vendor
+  number cannot pass as primary evidence. A package with no trusted entry cannot be projected;
 - the page would **combine or rank metrics whose unit or compression differ** without an
   explicit rendered caveat;
+- the page renders an operation row a competitor's record does not state;
 - a record marked `historical` is used to support a current headline, ratio, or superiority
   claim. This is a code path, not a style guide: the generator refuses, so the page cannot say it.
 
 Records are **immutable per observation**. Refreshing a claim adds a new record with its own
-`observedAt`; it never rewrites an existing record's provenance, so a historical figure stays
-traceable to the version and date it actually described.
+`observedAt` and repoints the generator at it; it never rewrites an existing record's provenance.
+Freshness is therefore checked where it belongs — on the record actually being **published** —
+so a superseded observation may remain in the file, and expire, as archived provenance without
+breaking generation. That is what makes the immutability rule usable rather than a dead letter.
 
 ## Try it
 

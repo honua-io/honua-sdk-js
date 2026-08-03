@@ -15,9 +15,14 @@ import { fileURLToPath } from "node:url";
 import {
   CompetitorEvidenceError,
   EVIDENCE_FORMAT,
+  OPERATION_KEYS,
+  TRUSTED_PRIMARY_SOURCE_PREFIXES,
   assertComparableMetrics,
   loadCompetitorEvidence,
+  operationCell,
+  projectEvidence,
   requireCurrentEvidence,
+  requireFreshEvidence,
   validateCompetitorEvidence,
 } from "../../scripts/lib/competitor-evidence.mjs";
 
@@ -28,25 +33,24 @@ function validDocument() {
   return {
     format: EVIDENCE_FORMAT,
     categories: {
-      "headless-service-client": { label: "Headless service clients", definition: "Clients without a renderer." },
+      "renderer-engine": { label: "Renderer engines", definition: "Engines that draw maps." },
     },
     records: [
       {
-        id: "example-client-scope",
-        product: "Example Client",
-        package: "@example/client",
-        category: "headless-service-client",
-        versionLine: "1.2.3",
-        claim: "Example Client is a headless service client.",
-        sourceUrl: "https://example.invalid/docs/client",
+        id: "openlayers-example",
+        product: "OpenLayers",
+        package: "ol",
+        category: "renderer-engine",
+        versionLine: "10.10.0",
+        claim: "OpenLayers is a map rendering library.",
+        sourceUrl: "https://openlayers.org/doc/",
         sourceType: "primary",
-        primarySourcePrefixes: ["https://example.invalid/"],
         observedAt: "2026-01-01",
         retrievedAt: "2026-01-02",
         expiresAt: "2027-01-01",
         methodology: "Read from the product's official documentation.",
-        metrics: [{ key: "latestVersion", label: "Latest version", value: "1.2.3", unit: "release-line", compression: "not-applicable" }],
-        comparability: "Same category as @honua/sdk-js.",
+        metrics: [{ key: "latestVersion", label: "Latest version", value: "10.10.0", unit: "release-line", compression: "not-applicable" }],
+        comparability: "A renderer engine, not a headless client.",
       },
     ],
   };
@@ -71,24 +75,53 @@ test("the committed evidence document is valid today", () => {
 test("a fixture document with every required field validates", () => {
   const evidence = validate(validDocument());
   assert.equal(evidence.records.length, 1);
-  assert.ok(evidence.byId.has("example-client-scope"));
+  assert.ok(evidence.byId.has("openlayers-example"));
 });
 
-// --- negative case: expired -------------------------------------------------
+// --- negative case: expired --------------------------------------------------
+// Freshness is enforced where the requirement puts it: on a PROJECTED claim.
+// An archived observation is allowed to age, otherwise the documented recovery
+// ("add a new observation, never rewrite the old one") could never work.
 
-test("an expired record fails validation", () => {
+test("an expired record is marked expired but does not reject the document", () => {
   const document = validDocument();
   document.records[0].expiresAt = "2026-07-01";
+  const evidence = validate(document);
+  assert.equal(evidence.byId.get("openlayers-example").expired, true);
+});
+
+test("projecting an expired record fails", () => {
+  const document = validDocument();
+  document.records[0].expiresAt = "2026-07-01";
+  const evidence = validate(document);
   assert.throws(
-    () => validate(document),
+    () => projectEvidence(evidence, "openlayers-example"),
     (error) => error instanceof CompetitorEvidenceError && /expired on 2026-07-01/.test(error.message),
   );
 });
 
-test("a record expiring in the future still validates", () => {
+test("an archived expired record can coexist with a fresh replacement", () => {
   const document = validDocument();
-  document.records[0].expiresAt = "2026-08-03";
-  assert.ok(validate(document).byId.has("example-client-scope"));
+  document.records[0].expiresAt = "2026-07-01";
+  document.records[0].historical = true;
+  document.records[0].historicalReason = "Superseded by a newer observation.";
+  document.records[0].supersededBy = "openlayers-example-2026";
+  document.records.push({
+    ...validDocument().records[0],
+    id: "openlayers-example-2026",
+    observedAt: "2026-08-01",
+    retrievedAt: "2026-08-01",
+    expiresAt: "2027-08-01",
+  });
+  const evidence = validate(document);
+  // The whole document still validates, and only the replacement is projectable.
+  assert.equal(projectEvidence(evidence, "openlayers-example-2026").id, "openlayers-example-2026");
+  assert.throws(() => projectEvidence(evidence, "openlayers-example"), CompetitorEvidenceError);
+});
+
+test("projecting a fresh record returns it", () => {
+  const evidence = validate(validDocument());
+  assert.equal(requireFreshEvidence(evidence.byId.get("openlayers-example")).id, "openlayers-example");
 });
 
 // --- negative case: missing version -----------------------------------------
@@ -107,13 +140,41 @@ test("a record with an empty version line fails validation", () => {
 
 // --- negative case: non-primary source --------------------------------------
 
-test("a source URL outside the declared primary prefixes fails validation", () => {
+test("a source URL outside the trusted origins for the package fails validation", () => {
   const document = validDocument();
   document.records[0].sourceUrl = "https://some-blog.invalid/post/restating-the-vendor-number";
   assert.throws(
     () => validate(document),
-    (error) => error instanceof CompetitorEvidenceError && /not under a declared primary-source prefix/.test(error.message),
+    (error) => error instanceof CompetitorEvidenceError && /not under a trusted primary-source origin/.test(error.message),
   );
+});
+
+test("a record cannot whitelist its own source origin", () => {
+  const document = validDocument();
+  document.records[0].sourceUrl = "https://some-blog.invalid/post";
+  // Declaring the blog inside the record must not help: trust comes from code,
+  // and the schema rejects the unknown property outright.
+  document.records[0].primarySourcePrefixes = ["https://some-blog.invalid/"];
+  assert.throws(() => validate(document), CompetitorEvidenceError);
+});
+
+test("a package with no trusted origins cannot be projected", () => {
+  const document = validDocument();
+  document.records[0].package = "@some/unreviewed-package";
+  assert.throws(
+    () => validate(document),
+    (error) => error instanceof CompetitorEvidenceError && /has no trusted primary-source origins/.test(error.message),
+  );
+});
+
+test("trusted origins are declared in code for every projected package", () => {
+  const evidence = loadCompetitorEvidence({ rootDir: ROOT, now: NOW });
+  for (const record of evidence.records) {
+    assert.ok(
+      TRUSTED_PRIMARY_SOURCE_PREFIXES[record.package],
+      `${record.package} must have reviewed trusted origins in scripts/lib/competitor-evidence.mjs`,
+    );
+  }
 });
 
 test("a record declared secondary may not be projected", () => {
@@ -199,6 +260,39 @@ test("the committed @arcgis/core build metrics are labelled historical and are n
   assert.throws(() => requireCurrentEvidence(record, { claimKind: "current ratio" }), CompetitorEvidenceError);
 });
 
+// --- REQ-003: operation cells come from evidence, not inline constants ------
+
+test("every competitor column projected onto the page states all rendered operations", () => {
+  const evidence = loadCompetitorEvidence({ rootDir: ROOT, now: NOW });
+  for (const id of ["maplibre-gl-scope", "esri-arcgis-rest-js-scope", "openlayers-scope"]) {
+    const record = evidence.byId.get(id);
+    assert.ok(record, `${id} must exist`);
+    for (const key of OPERATION_KEYS) {
+      assert.doesNotThrow(() => operationCell(record, key), `${id} must state operation ${key}`);
+    }
+  }
+});
+
+test("rendering an operation the record does not state fails", () => {
+  const evidence = loadCompetitorEvidence({ rootDir: ROOT, now: NOW });
+  const record = { ...evidence.byId.get("openlayers-scope"), operations: { discovery: { support: "✓" } } };
+  assert.throws(
+    () => operationCell(record, "paging"),
+    (error) => error instanceof CompetitorEvidenceError && /does not state operation "paging"/.test(error.message),
+  );
+});
+
+test("an unknown operation key is a programming error, not an evidence error", () => {
+  const evidence = loadCompetitorEvidence({ rootDir: ROOT, now: NOW });
+  assert.throws(() => operationCell(evidence.byId.get("openlayers-scope"), "teleport"), TypeError);
+});
+
+test("an invalid operation support glyph fails schema validation", () => {
+  const document = validDocument();
+  document.records[0].operations = { discovery: { support: "yes" } };
+  assert.throws(() => validate(document), /schema validation/);
+});
+
 // --- structural integrity ---------------------------------------------------
 
 test("an unknown category is rejected", () => {
@@ -225,9 +319,9 @@ test("supersededBy must reference a real record", () => {
   assert.throws(() => validate(document), /references unknown record/);
 });
 
-test("page generation itself fails once the committed evidence expires", async () => {
+test("page generation fails once a projected record expires", async () => {
   const { buildPage } = await import("../../scripts/generate-comparison-page.mjs");
-  // Every committed record expires well before 2030, so generation at that
+  // Every projected record expires well before 2030, so generation at that
   // instant must refuse rather than publish a stale external claim (NFR-002).
   assert.throws(
     () => buildPage(ROOT, { now: "2030-01-01" }),
@@ -246,4 +340,6 @@ test("the generated comparison page projects the evidence and states no current 
   assert.match(page, /## Operation-level behaviour/);
   assert.match(page, /## What is being compared/);
   assert.match(page, /### Evidence contract/);
+  // Operation cells must be traceable to a dated, sourced observation.
+  assert.match(page, /Competitor columns as observed/);
 });

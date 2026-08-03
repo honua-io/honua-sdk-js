@@ -38,6 +38,8 @@ import {
   assertComparableMetrics,
   formatProvenance,
   loadCompetitorEvidence,
+  operationCell,
+  projectEvidence,
   requireCurrentEvidence,
 } from "./lib/competitor-evidence.mjs";
 
@@ -297,89 +299,64 @@ function deriveProtocolMatrix(matrixMarkdown, bundle) {
 // ---------------------------------------------------------------------------
 const OPERATION_ROWS = [
   {
+    key: "discovery",
     operation: "Discovery",
     detail: "enumerate datasets/layers from a service root with typed metadata",
     repoFile: path.join("docs", "discovery-contract.md"),
     honua: "✓ typed `describe()` contract",
-    maplibre: "—",
-    arcgisRest: "✓ ArcGIS service metadata",
-    openlayers: "◐ (k)",
   },
   {
+    key: "paging",
     operation: "Paging",
     detail: "walk a result set past the service page limit",
     matrixOperation: "stream",
     honua: "✓ streamed + bounded queries",
-    maplibre: "—",
-    arcgisRest: "◐ (l)",
-    openlayers: "—",
   },
   {
+    key: "edits",
     operation: "Edits",
     detail: "create/update/delete features through the protocol's transaction",
     matrixOperation: "applyEdits",
     honua: "✓ GeoServices / OGC Features / WFS / OData",
-    maplibre: "—",
-    arcgisRest: "✓ ArcGIS `applyEdits`",
-    openlayers: "◐ (m)",
   },
   {
+    key: "crs",
     operation: "CRS",
     detail: "declare, validate, and negotiate coordinate reference systems",
     repoFile: path.join("src", "contract", "generated", "projjson-v0.7-crs-validator.ts"),
     honua: "✓ validated PROJJSON + per-source CRS",
-    maplibre: "◐ (n)",
-    arcgisRest: "◐ (o)",
-    openlayers: "✓ built-in transforms",
   },
   {
+    key: "capabilityNegotiation",
     operation: "Capability negotiation",
     detail: "know before you call whether an operation is supported",
     repoFile: path.join("docs", "source-capabilities.md"),
     honua: "✓ claimed / observed / effective",
-    maplibre: "—",
-    arcgisRest: "◐ (o)",
-    openlayers: "—",
   },
   {
+    key: "planning",
     operation: "Planning / explainability",
     detail: "inspect the accepted plan before execution",
     sourceSymbol: "explainQuery",
     honua: "✓ `explainQuery` + `hashQueryPlan`",
-    maplibre: "—",
-    arcgisRest: "—",
-    openlayers: "—",
   },
   {
+    key: "rendering",
     operation: "Rendering",
     detail: "draw the map",
     matrixOperation: "render",
     honua: "— (by design: rides a renderer)",
-    maplibre: "✓",
-    arcgisRest: "—",
-    openlayers: "✓",
   },
   {
+    key: "lifecycle",
     operation: "Lifecycle",
     detail: "tear down sources, layers, and listeners deterministically",
     repoFile: path.join("src", "map", "data-to-map-bridge.ts"),
     repoFileText: "dispose(): void",
     honua: "✓ `dispose()` on the mounted bridge",
-    maplibre: "✓ `map.remove()`",
-    arcgisRest: "— (stateless requests)",
-    openlayers: "✓ map/layer disposal",
   },
 ];
 
-const OPERATION_FOOTNOTES = [
-  "Notes:",
-  "",
-  "- (k) OpenLayers parses WMS/WMTS capabilities documents into source options; there is no cross-protocol discovery contract.",
-  "- (l) Paging parameters are exposed on the request; the caller writes and drives the loop.",
-  "- (m) `ol/format/WFS` builds transaction XML; sending it, and the bookkeeping around it, is yours.",
-  "- (n) MapLibre renders in its own display projection; it does not negotiate a source CRS for you.",
-  "- (o) Service metadata and an output-spatial-reference parameter are exposed; interpreting them is the caller's job.",
-];
 
 function deriveOperationMatrix(matrixMarkdown, rootDir) {
   const surfaceEntry = fs.readFileSync(path.join(rootDir, "src", "index.ts"), "utf8");
@@ -453,18 +430,21 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     bundleRow(bundle, "`/routing`", "Routing client"),
   ];
 
-  const arcgisCore = evidence.byId.get("arcgis-core-4-30-core-sample-build-metrics");
-  const arcgisCoreCurrent = evidence.byId.get("arcgis-core-current-release-line");
-  const arcgisRest = evidence.byId.get("esri-arcgis-rest-js-scope");
-  const openlayers = evidence.byId.get("openlayers-scope");
-  for (const [id, record] of [
-    ["arcgis-core-4-30-core-sample-build-metrics", arcgisCore],
-    ["arcgis-core-current-release-line", arcgisCoreCurrent],
-    ["esri-arcgis-rest-js-scope", arcgisRest],
-    ["openlayers-scope", openlayers],
-  ]) {
-    if (!record) throw new Error(`docs/data/competitor-evidence.v1.json is missing required record "${id}"`);
-  }
+  // projectEvidence() enforces NFR-002 freshness at the point of publication.
+  // Records the page does NOT project (archived observations) are deliberately
+  // allowed to sit expired in the evidence file, which is what makes the
+  // "add a new observation, never rewrite the old one" recovery workable.
+  const arcgisCore = projectEvidence(evidence, "arcgis-core-4-30-core-sample-build-metrics", {
+    context: "the @arcgis/core build-metrics block",
+  });
+  const arcgisCoreCurrent = projectEvidence(evidence, "arcgis-core-current-release-line", {
+    context: "the @arcgis/core current release-line statement",
+  });
+  const arcgisRest = projectEvidence(evidence, "esri-arcgis-rest-js-scope", {
+    context: "the ArcGIS REST JS column",
+  });
+  const openlayers = projectEvidence(evidence, "openlayers-scope", { context: "the OpenLayers column" });
+  const maplibreScope = projectEvidence(evidence, "maplibre-gl-scope", { context: "the MapLibre GL JS column" });
   // The release-line statement below IS a claim about the product as it ships
   // today, so it must come from non-historical evidence. The 4.30 build metrics
   // are deliberately NOT passed through this gate — they would be refused.
@@ -554,7 +534,7 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "| Product | Package compared | Category |",
     "| --- | --- | --- |",
     `| Honua SDK | \`@honua/sdk-js\` | ${evidence.categories["headless-service-client"].label} |`,
-    `| MapLibre GL JS | \`maplibre-gl\` ${maplibre.version} | ${evidence.categories["renderer-engine"].label} |`,
+    `| ${maplibreScope.product} | \`${maplibreScope.package}\` (${maplibre.version} pinned and measured here; ${maplibreScope.versionLine} published) | ${evidence.categories[maplibreScope.category].label} |`,
     `| ${arcgisCore.product} | \`${arcgisCore.package}\` | ${evidence.categories[arcgisCore.category].label} |`,
     `| ${arcgisRest.product} | \`${arcgisRest.package}\` | ${evidence.categories[arcgisRest.category].label} |`,
     `| ${openlayers.product} | \`${openlayers.package}\` | ${evidence.categories[openlayers.category].label} |`,
@@ -655,19 +635,29 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "repository — a capability-matrix operation, a shipped source file, or an exported symbol — and",
     "generation fails if an anchor disappears, so a claim here cannot outlive its implementation.",
     "",
-    "Competitor cells describe each product's first-party documented surface (sources in the",
-    "[evidence contract](#evidence-contract)) and stay deliberately coarse: ✓ first-party,",
-    "◐ partial or caller-assembled, — not provided.",
+    "Every competitor cell is **projected from that product's evidence record** — not written",
+    "inline here — so each column is bound to the version, primary source, and expiry shown beneath",
+    "the table, and generation fails if a record omits a row that the page renders. Cells stay",
+    "deliberately coarse: ✓ first-party, ◐ partial or caller-assembled, — not provided.",
     "",
-    "| Operation | What it means | Honua SDK | `maplibre-gl` | `@esri/arcgis-rest-js` | `ol` |",
+    `| Operation | What it means | Honua SDK | \`${maplibreScope.package}\` | \`${arcgisRest.package}\` | \`${openlayers.package}\` |`,
     "| --- | --- | --- | --- | --- | --- |",
   );
   for (const row of operations) {
-    push(`| ${row.operation} | ${row.detail} | ${row.honua} | ${row.maplibre} | ${row.arcgisRest} | ${row.openlayers} |`);
+    push(
+      `| ${row.operation} | ${row.detail} | ${row.honua} | ${operationCell(maplibreScope, row.key)} | ` +
+        `${operationCell(arcgisRest, row.key)} | ${operationCell(openlayers, row.key)} |`,
+    );
   }
   push(
     "",
-    ...OPERATION_FOOTNOTES,
+    "Competitor columns as observed:",
+    "",
+    ...[maplibreScope, arcgisRest, openlayers].map(
+      (record) =>
+        `- \`${record.package}\` ${record.versionLine} — observed ${record.observedAt}, expires ${record.expiresAt}, ` +
+        `from <${record.sourceUrl}>`,
+    ),
     "",
     "Read the rendering row as the point of the whole page: Honua deliberately scores `—` there.",
     "It is a data client. The comparison it invites is on the other seven rows.",
@@ -739,7 +729,8 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "",
     "### Evidence contract",
     "",
-    "External claims are not prose. Each one is a record in",
+    "External claims — every competitor figure *and* every competitor cell in the operation table —",
+    "are not prose. Each is a record in",
     "[`docs/data/competitor-evidence.v1.json`](./data/competitor-evidence.v1.json), validated against",
     "[`schemas/competitor-evidence.v1.json`](../schemas/competitor-evidence.v1.json) by",
     "`scripts/lib/competitor-evidence.mjs`. Every record must carry the product and the **exact**",
@@ -749,17 +740,22 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "Generation — and therefore CI — **fails** when:",
     "",
     "- a projected claim has no evidence record, or the record is missing a required field;",
-    "- a record has **expired** (`expiresAt` in the past): re-observe it and add a new record;",
-    "- a record's `sourceUrl` is not under that product's declared primary-source prefixes, so a",
-    "  third-party restatement of a vendor number cannot pass as primary evidence;",
+    "- a **projected** record has expired (`expiresAt` in the past);",
+    "- a record's `sourceUrl` is not under a trusted primary-source origin **for that package**.",
+    "  The trusted origins live in code (`TRUSTED_PRIMARY_SOURCE_PREFIXES`), not in the evidence",
+    "  file, so a record cannot whitelist its own source and a third-party restatement of a vendor",
+    "  number cannot pass as primary evidence. A package with no trusted entry cannot be projected;",
     "- the page would **combine or rank metrics whose unit or compression differ** without an",
     "  explicit rendered caveat;",
+    "- the page renders an operation row a competitor's record does not state;",
     "- a record marked `historical` is used to support a current headline, ratio, or superiority",
     "  claim. This is a code path, not a style guide: the generator refuses, so the page cannot say it.",
     "",
     "Records are **immutable per observation**. Refreshing a claim adds a new record with its own",
-    "`observedAt`; it never rewrites an existing record's provenance, so a historical figure stays",
-    "traceable to the version and date it actually described.",
+    "`observedAt` and repoints the generator at it; it never rewrites an existing record's provenance.",
+    "Freshness is therefore checked where it belongs — on the record actually being **published** —",
+    "so a superseded observation may remain in the file, and expire, as archived provenance without",
+    "breaking generation. That is what makes the immutability rule usable rather than a dead letter.",
     "",
     "## Try it",
     "",

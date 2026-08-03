@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/competitor-evidence.v1.json",
   "format": "honua.sdk.competitor-evidence.v1",
-  "note": "Structured evidence for every external claim projected into docs/comparison.md. Each record is immutable per observation: refreshing a claim ADDS a record (with its own observedAt) rather than editing an existing one, so a historical figure keeps its provenance. Validated and projected by scripts/lib/competitor-evidence.mjs; CI fails on a missing field, a non-primary source, an expired record, or a non-comparable metric combination (honua-io/honua-sdk-js#499 REQ-005/REQ-006, NFR-002).",
+  "note": "Structured evidence for every external claim projected into docs/comparison.md, including the operation-level behaviour cells. Each record is immutable per observation: refreshing a claim ADDS a record (with its own observedAt) and the generator is pointed at the new id, rather than editing an existing one — so a superseded observation keeps its provenance and is allowed to sit here expired once it is no longer projected. Allowed primary-source origins are NOT declared here; they live in TRUSTED_PRIMARY_SOURCE_PREFIXES in scripts/lib/competitor-evidence.mjs so evidence cannot whitelist its own source. Validated and projected by that module (honua-io/honua-sdk-js#499 REQ-003/REQ-005/REQ-006, NFR-002).",
   "categories": {
     "headless-service-client": {
       "label": "Headless service clients",
@@ -26,7 +26,6 @@
       "claim": "Esri's own automated build metrics for its minimal @arcgis/core map samples report a 1.31–1.49 MB minified main bundle (0.36–0.42 MB gzip), 3.5–4.1 MB of JavaScript loaded at startup for a simple map view, and 8.3–10 MB of on-disk build output across roughly 300–740 files.",
       "sourceUrl": "https://github.com/Esri/jsapi-resources/blob/9fe7d8cc709c5daf3a342e921e897d459955b347/core-samples/.metrics/4.30.0.csv",
       "sourceType": "primary",
-      "primarySourcePrefixes": ["https://github.com/Esri/", "https://developers.arcgis.com/"],
       "observedAt": "2024-06-27",
       "retrievedAt": "2026-07-13",
       "expiresAt": "2027-07-13",
@@ -51,7 +50,6 @@
       "claim": "The current published @arcgis/core release line on the npm registry is 5.1.15, later than the 4.30 line for which Esri last published core-sample build metrics.",
       "sourceUrl": "https://registry.npmjs.org/@arcgis/core",
       "sourceType": "primary",
-      "primarySourcePrefixes": ["https://registry.npmjs.org/", "https://www.npmjs.com/package/"],
       "observedAt": "2026-08-02",
       "retrievedAt": "2026-08-02",
       "expiresAt": "2027-08-02",
@@ -67,18 +65,27 @@
       "package": "@esri/arcgis-rest-request",
       "category": "headless-service-client",
       "versionLine": "4.10.3",
-      "claim": "ArcGIS REST JS is Esri's lightweight, modular REST client family for ArcGIS services. It provides no map runtime, and its geocoding and routing packages address Esri's ArcGIS location services.",
+      "claim": "ArcGIS REST JS is Esri's lightweight, modular REST client family for ArcGIS services. It provides no map runtime; it exposes ArcGIS service metadata, paging parameters, an output-spatial-reference parameter, and applyEdits, and its geocoding and routing packages address Esri's ArcGIS location services. It exposes no query-plan/explain surface and its request helpers are stateless.",
       "sourceUrl": "https://developers.arcgis.com/arcgis-rest-js/",
       "sourceType": "primary",
-      "primarySourcePrefixes": ["https://developers.arcgis.com/", "https://github.com/Esri/", "https://registry.npmjs.org/"],
       "observedAt": "2026-07-13",
       "retrievedAt": "2026-08-02",
       "expiresAt": "2027-07-13",
-      "methodology": "Product scope read from Esri's official ArcGIS REST JS documentation; the version line is the latest `@esri/arcgis-rest-request` published to the npm registry, read with `npm view`.",
+      "methodology": "Product scope and operation-level surface read from Esri's official ArcGIS REST JS documentation; the version line is the latest `@esri/arcgis-rest-request` published to the npm registry, read with `npm view`.",
       "metrics": [
         { "key": "latestVersion", "label": "Latest published `@esri/arcgis-rest-request`", "value": "4.10.3", "unit": "release-line", "compression": "not-applicable" }
       ],
-      "comparability": "Same category as @honua/sdk-js (headless service client), so protocol and operation coverage compare directly. No bundle-size figure is claimed here, and none should be inferred: this repo has not measured it under the same harness as its own entrypoints."
+      "comparability": "Same category as @honua/sdk-js (headless service client), so protocol and operation coverage compare directly. No bundle-size figure is claimed here, and none should be inferred: this repo has not measured it under the same harness as its own entrypoints.",
+      "operations": {
+        "discovery": { "support": "✓", "note": "ArcGIS service metadata" },
+        "paging": { "support": "◐", "note": "params exposed; caller drives the loop" },
+        "edits": { "support": "✓", "note": "ArcGIS `applyEdits`" },
+        "crs": { "support": "◐", "note": "output-spatial-reference parameter" },
+        "capabilityNegotiation": { "support": "◐", "note": "service metadata you interpret" },
+        "planning": { "support": "—" },
+        "rendering": { "support": "—" },
+        "lifecycle": { "support": "—", "note": "stateless requests" }
+      }
     },
     {
       "id": "openlayers-scope",
@@ -86,18 +93,55 @@
       "package": "ol",
       "category": "renderer-engine",
       "versionLine": "10.10.0",
-      "claim": "OpenLayers is a map rendering library that also ships format parsers (for example GeoJSON, EsriJSON, WFS/GML) and tile/image sources.",
+      "claim": "OpenLayers is a map rendering library that also ships format parsers (for example GeoJSON, EsriJSON, WFS/GML), tile/image sources, WMS/WMTS capabilities parsers, and built-in coordinate transforms. It provides no cross-protocol discovery contract, no service paging client, and no query-plan surface; WFS transactions are built as XML the caller sends.",
       "sourceUrl": "https://openlayers.org/",
       "sourceType": "primary",
-      "primarySourcePrefixes": ["https://openlayers.org/", "https://github.com/openlayers/", "https://registry.npmjs.org/"],
       "observedAt": "2026-07-13",
       "retrievedAt": "2026-08-02",
       "expiresAt": "2027-07-13",
-      "methodology": "Product scope read from the official OpenLayers site; the version line is the latest `ol` published to the npm registry, read with `npm view`.",
+      "methodology": "Product scope and operation-level surface read from the official OpenLayers site and its API documentation; the version line is the latest `ol` published to the npm registry, read with `npm view`.",
       "metrics": [
         { "key": "latestVersion", "label": "Latest published `ol`", "value": "10.10.0", "unit": "release-line", "compression": "not-applicable" }
       ],
-      "comparability": "A renderer engine, not a headless service client. Its footprint depends heavily on which modules a consumer tree-shakes, so no single bundle number is quoted; the category-correct comparison is operation coverage of its first-party format/source modules."
+      "comparability": "A renderer engine, not a headless service client. Its footprint depends heavily on which modules a consumer tree-shakes, so no single bundle number is quoted; the category-correct comparison is operation coverage of its first-party format/source modules.",
+      "operations": {
+        "discovery": { "support": "◐", "note": "WMS/WMTS capabilities parsers only" },
+        "paging": { "support": "—" },
+        "edits": { "support": "◐", "note": "`ol/format/WFS` builds transaction XML" },
+        "crs": { "support": "✓", "note": "built-in transforms" },
+        "capabilityNegotiation": { "support": "—" },
+        "planning": { "support": "—" },
+        "rendering": { "support": "✓" },
+        "lifecycle": { "support": "✓", "note": "map/layer disposal" }
+      }
+    },
+    {
+      "id": "maplibre-gl-scope",
+      "product": "MapLibre GL JS",
+      "package": "maplibre-gl",
+      "category": "renderer-engine",
+      "versionLine": "6.1.0",
+      "claim": "MapLibre GL JS is a map rendering engine. It renders sources a developer configures, in its own display projection, and exposes map teardown via `map.remove()`. It provides no service discovery, no feature paging, no edit transactions, no capability negotiation, and no query-plan surface.",
+      "sourceUrl": "https://maplibre.org/maplibre-gl-js/docs/",
+      "sourceType": "primary",
+      "observedAt": "2026-08-02",
+      "retrievedAt": "2026-08-02",
+      "expiresAt": "2027-08-02",
+      "methodology": "Product scope and operation-level surface read from the official MapLibre GL JS documentation; the version line is the latest `maplibre-gl` published to the npm registry, read with `npm view`. Byte measurements on the comparison page are taken locally from this repository's pinned `maplibre-gl` dependency, not from this record.",
+      "metrics": [
+        { "key": "latestVersion", "label": "Latest published `maplibre-gl`", "value": "6.1.0", "unit": "release-line", "compression": "not-applicable" }
+      ],
+      "comparability": "A renderer engine and Honua's intended runtime partner, not a competitor in the headless-client category. Its operation cells describe what the renderer alone provides, which is exactly the gap Honua fills.",
+      "operations": {
+        "discovery": { "support": "—" },
+        "paging": { "support": "—" },
+        "edits": { "support": "—" },
+        "crs": { "support": "◐", "note": "renders in its own display projection" },
+        "capabilityNegotiation": { "support": "—" },
+        "planning": { "support": "—" },
+        "rendering": { "support": "✓" },
+        "lifecycle": { "support": "✓", "note": "`map.remove()`" }
+      }
     }
   ]
 }

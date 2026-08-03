@@ -36,6 +36,53 @@ export const EVIDENCE_FORMAT = "honua.sdk.competitor-evidence.v1";
 export const EVIDENCE_RELATIVE_PATH = path.join("docs", "data", "competitor-evidence.v1.json");
 export const EVIDENCE_SCHEMA_RELATIVE_PATH = path.join("schemas", "competitor-evidence.v1.json");
 
+/**
+ * Trusted primary-source origins, keyed by the exact package a record claims to
+ * describe. This lives in CODE, not in the evidence file, on purpose: if a
+ * record could declare its own allowed origins, the primary-source rule would
+ * be self-certifying and a blog restating a vendor number could whitelist
+ * itself. A record naming a package that is absent here cannot be projected at
+ * all, so adding a new competitor is a reviewed change to this list.
+ */
+export const TRUSTED_PRIMARY_SOURCE_PREFIXES = Object.freeze({
+  "@arcgis/core": Object.freeze([
+    "https://github.com/Esri/",
+    "https://developers.arcgis.com/",
+    "https://registry.npmjs.org/@arcgis/core",
+    "https://www.npmjs.com/package/@arcgis/core",
+  ]),
+  "@esri/arcgis-rest-request": Object.freeze([
+    "https://github.com/Esri/",
+    "https://developers.arcgis.com/",
+    "https://registry.npmjs.org/@esri/arcgis-rest-request",
+    "https://www.npmjs.com/package/@esri/arcgis-rest-request",
+  ]),
+  ol: Object.freeze([
+    "https://openlayers.org/",
+    "https://github.com/openlayers/",
+    "https://registry.npmjs.org/ol",
+    "https://www.npmjs.com/package/ol",
+  ]),
+  "maplibre-gl": Object.freeze([
+    "https://maplibre.org/",
+    "https://github.com/maplibre/",
+    "https://registry.npmjs.org/maplibre-gl",
+    "https://www.npmjs.com/package/maplibre-gl",
+  ]),
+});
+
+/** Operation axis rendered by the comparison page (#499 REQ-003). */
+export const OPERATION_KEYS = Object.freeze([
+  "discovery",
+  "paging",
+  "edits",
+  "crs",
+  "capabilityNegotiation",
+  "planning",
+  "rendering",
+  "lifecycle",
+]);
+
 /** Thrown for every evidence-contract violation so callers can distinguish it from an I/O error. */
 export class CompetitorEvidenceError extends Error {
   constructor(message) {
@@ -106,17 +153,23 @@ export function validateCompetitorEvidence(document, { now, schema, rootDir = DE
       fail(`evidence record "${record.id}": unknown category "${record.category}" — declare it in the document's categories block (REQ-002)`);
     }
 
-    // REQ-005: primary-source enforcement. A vendor number restated by a blog
-    // or an aggregator is not admissible, so the URL must sit under one of the
-    // product's own declared official prefixes.
+    // REQ-005: primary-source enforcement, against the TRUSTED list in this
+    // module rather than anything the record itself declares.
     if (record.sourceType !== "primary") {
       fail(`evidence record "${record.id}": sourceType is "${record.sourceType}" — only primary sources may be projected (REQ-005)`);
     }
-    const primary = record.primarySourcePrefixes.some((prefix) => record.sourceUrl.startsWith(prefix));
-    if (!primary) {
+    const trusted = TRUSTED_PRIMARY_SOURCE_PREFIXES[record.package];
+    if (!trusted) {
       fail(
-        `evidence record "${record.id}": sourceUrl ${record.sourceUrl} is not under a declared primary-source prefix ` +
-          `(${record.primarySourcePrefixes.join(", ")}) — a restatement of a vendor claim is not primary evidence (REQ-005)`,
+        `evidence record "${record.id}": package "${record.package}" has no trusted primary-source origins — ` +
+          `add them to TRUSTED_PRIMARY_SOURCE_PREFIXES in scripts/lib/competitor-evidence.mjs (a reviewed code change), ` +
+          `so evidence cannot whitelist its own source (REQ-005)`,
+      );
+    }
+    if (!trusted.some((prefix) => record.sourceUrl.startsWith(prefix))) {
+      fail(
+        `evidence record "${record.id}": sourceUrl ${record.sourceUrl} is not under a trusted primary-source origin for ` +
+          `${record.package} (${trusted.join(", ")}) — a restatement of a vendor claim is not primary evidence (REQ-005)`,
       );
     }
 
@@ -130,14 +183,14 @@ export function validateCompetitorEvidence(document, { now, schema, rootDir = DE
       fail(`evidence record "${record.id}": expiresAt (${record.expiresAt}) must be after observedAt (${record.observedAt})`);
     }
 
-    // NFR-002: freshness. An expired claim fails generation rather than
-    // silently ageing on a published page.
-    if (expiresAt < instant) {
-      fail(
-        `evidence record "${record.id}" expired on ${record.expiresAt} — re-observe the claim from ${record.sourceUrl} ` +
-          `and ADD a new record (immutable per observation); do not edit this one's provenance (NFR-002)`,
-      );
-    }
+    // NFR-002 freshness is deliberately NOT enforced here. Records are
+    // immutable per observation, so an archived observation is *expected* to
+    // age past its expiry and must be allowed to stay in the file — otherwise
+    // the documented recovery ("add a new observation, never rewrite the old
+    // one") could never work and the whole document would be permanently
+    // rejected. Freshness is enforced where the requirement actually places it:
+    // on the record a page PROJECTS. See requireFreshEvidence().
+    record.expired = expiresAt < instant;
 
     if (record.historical && !record.historicalReason) {
       fail(`evidence record "${record.id}": historical records must explain why the release line is superseded (REQ-006)`);
@@ -149,13 +202,61 @@ export function validateCompetitorEvidence(document, { now, schema, rootDir = DE
     byId.set(record.id, record);
   }
 
-  return { records: document.records, byId, categories: document.categories };
+  return { records: document.records, byId, categories: document.categories, now: instant };
 }
 
 export function loadCompetitorEvidence({ rootDir = DEFAULT_ROOT, now } = {}) {
   const file = path.join(rootDir, EVIDENCE_RELATIVE_PATH);
   const document = JSON.parse(fs.readFileSync(file, "utf8"));
   return validateCompetitorEvidence(document, { now, rootDir });
+}
+
+/**
+ * NFR-002 freshness gate, applied at the moment a record is projected onto the
+ * page. Archived observations may sit expired in the evidence file forever;
+ * what CI refuses is *publishing* one.
+ */
+export function requireFreshEvidence(record, { context = "projected claim" } = {}) {
+  if (!record) fail(`a ${context} was requested with no evidence record (NFR-002)`);
+  if (record.expired) {
+    fail(
+      `evidence record "${record.id}" expired on ${record.expiresAt} and cannot back a ${context} — ` +
+        `re-observe the claim from ${record.sourceUrl}, ADD a new record (records are immutable per observation), ` +
+        `and point the generator at the new id. Leave this record in place as archived provenance (NFR-002)`,
+    );
+  }
+  return record;
+}
+
+/**
+ * Fetch a record by id and enforce freshness in one step. The generator uses
+ * this for every external figure it renders, so an unprojected/archived record
+ * is never freshness-checked and a projected one always is.
+ */
+export function projectEvidence(evidence, id, { context } = {}) {
+  const record = evidence.byId.get(id);
+  if (!record) fail(`docs/data/competitor-evidence.v1.json is missing required record "${id}"`);
+  return requireFreshEvidence(record, { context: context ?? `projection of "${id}"` });
+}
+
+/**
+ * Read a competitor's operation-level cell from its evidence record, so a
+ * published behaviour claim is bound to that product's version, primary source
+ * and expiry rather than living as an inline constant in the generator
+ * (#499 REQ-003/REQ-005).
+ */
+export function operationCell(record, operationKey) {
+  if (!OPERATION_KEYS.includes(operationKey)) {
+    throw new TypeError(`unknown operation key: ${operationKey}`);
+  }
+  const cell = record.operations?.[operationKey];
+  if (!cell) {
+    fail(
+      `evidence record "${record.id}" does not state operation "${operationKey}", but the comparison page renders that row — ` +
+        `add it to the record (with the product version and source it was read from) or stop rendering the row (REQ-003)`,
+    );
+  }
+  return cell.note ? `${cell.support} ${cell.note}` : cell.support;
 }
 
 /**
