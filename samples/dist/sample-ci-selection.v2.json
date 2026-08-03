@@ -63,7 +63,8 @@
         "liveEvidence": false
       },
       "sampleIds": [
-        "automatic-source-workflow"
+        "automatic-source-workflow",
+        "offline-region-reference"
       ]
     },
     {
@@ -549,7 +550,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-09-02T09:33:51.945Z"
+        "expiresAt": "2026-09-03T03:51:17.535Z"
       }
     },
     {
@@ -635,7 +636,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-09-02T09:31:49.125Z"
+        "expiresAt": "2026-09-03T03:49:11.697Z"
       }
     },
     {
@@ -721,7 +722,7 @@
         "mode": "demo-live",
         "status": "executed",
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-09-02T09:34:14.175Z"
+        "expiresAt": "2026-09-03T03:51:40.581Z"
       }
     },
     {
@@ -842,6 +843,45 @@
       "liveEvidence": {
         "mode": "authenticated",
         "status": "planned"
+      }
+    },
+    {
+      "id": "offline-region-reference",
+      "sourcePath": "docs/examples/offline-region-reference",
+      "track": "fixture",
+      "supportTier": "experimental",
+      "validationProfile": "browser-fixture",
+      "gates": {
+        "packedBuild": false,
+        "browser": true,
+        "accessibility": false,
+        "console": true,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npx playwright test test/playwright/offline-indexeddb.spec.mjs"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npx playwright test test/playwright/offline-indexeddb.spec.mjs"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
       }
     },
     {
@@ -1147,7 +1187,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-09-02T09:35:08.325Z"
+        "expiresAt": "2026-09-03T03:52:36.293Z"
       }
     },
     {
