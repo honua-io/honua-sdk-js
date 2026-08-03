@@ -1,5 +1,10 @@
 import { normalizeDiscoveryEndpoint } from "../contract/discovery.js";
 import {
+  type CredentialScreenStrictness,
+  credentialScreenMessage,
+  screenPersistedString,
+} from "./credential-screen.js";
+import {
   type CreateOfflineRegionDiagnosticOptions,
   type CreateOfflineRegionManifestInput,
   DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,
@@ -150,11 +155,30 @@ class TrustBudget {
     return normalized;
   }
 
+  /** A persisted machine key: also refused when it carries credential or request-URL shape. */
+  public identity(value: unknown, path: string, normalizedRequired: boolean): string {
+    return this.#screened(value, path, normalizedRequired, "identity");
+  }
+
+  /** Persisted human prose: refused only for embedded credential assignments and URLs. */
+  public label(value: unknown, path: string, normalizedRequired: boolean): string {
+    return this.#screened(value, path, normalizedRequired, "label");
+  }
+
   public metadata(count: number, path: string): void {
     if (count < 0 || this.#metadataEntries > this.limits.maxMetadataEntries - count) {
       limit(`${path} exceeds the metadata entry limit.`, path);
     }
     this.#metadataEntries += count;
+  }
+
+  // Screening runs on the normalized value and before any caller-visible echo of
+  // it, so a rejected secret is never repeated back in a message (NFR-002).
+  #screened(value: unknown, path: string, normalizedRequired: boolean, strictness: CredentialScreenStrictness): string {
+    const normalized = this.string(value, path, normalizedRequired);
+    const reason = screenPersistedString(normalized, strictness);
+    if (reason) invalid(credentialScreenMessage(path, reason), path);
+    return normalized;
   }
 }
 
@@ -542,17 +566,19 @@ function captureCreationInput(input: CreateOfflineRegionManifestInput): Creation
     allowedKeys(record, CREATE_KEYS, "input");
     const limits = normalizeLimits(record.limits);
     const budget = new TrustBudget(limits);
-    const name = budget.string(record.name, "name", false);
-    const sourceId = budget.string(record.sourceId, "sourceId", false);
+    const name = budget.label(record.name, "name", false);
+    const sourceId = budget.identity(record.sourceId, "sourceId", false);
+    // The fingerprint is never persisted; only its domain-separated digest is,
+    // so it is deliberately budgeted without being screened or normalized.
     const authorizationScopeFingerprint = budget.string(
       record.authorizationScopeFingerprint,
       "authorizationScopeFingerprint",
       false,
     );
     const endpoint = credentialFreeEndpoint(record.endpoint, budget, false);
-    const sourceVersion = budget.string(record.sourceVersion, "sourceVersion", false);
-    const schemaVersion = budget.string(record.schemaVersion, "schemaVersion", false);
-    const planVersion = budget.string(record.planVersion, "planVersion", false);
+    const sourceVersion = budget.identity(record.sourceVersion, "sourceVersion", false);
+    const schemaVersion = budget.identity(record.schemaVersion, "schemaVersion", false);
+    const planVersion = budget.identity(record.planVersion, "planVersion", false);
     const observation = normalizeObservation(record.observation, budget, false);
     const validator = normalizeValidator(record.validator, budget, false);
     const bounds = normalizeBounds(record.bounds, budget, false);
@@ -614,10 +640,10 @@ function captureManifest(input: OfflineRegionManifestV1): PreparedManifest {
     if (record.kind !== HONUA_OFFLINE_REGION_KIND) invalid("Unsupported offline region kind.", "kind");
     if (record.version !== HONUA_OFFLINE_REGION_VERSION) invalid("Unsupported offline region version.", "version");
     const id = integrityString(record.id, "id", budget, true);
-    const name = budget.string(record.name, "name", true);
+    const name = budget.label(record.name, "name", true);
     const sourceRecord = plainRecord(record.source, "source");
     allowedKeys(sourceRecord, SOURCE_KEYS, "source");
-    const sourceId = budget.string(sourceRecord.id, "source.id", true);
+    const sourceId = budget.identity(sourceRecord.id, "source.id", true);
     const endpoint = credentialFreeEndpoint(sourceRecord.endpoint, budget, true);
     const authorizationScopeDigest = integrityString(
       sourceRecord.authorizationScopeDigest,
@@ -625,9 +651,9 @@ function captureManifest(input: OfflineRegionManifestV1): PreparedManifest {
       budget,
       true,
     );
-    const sourceVersion = budget.string(sourceRecord.sourceVersion, "source.sourceVersion", true);
-    const schemaVersion = budget.string(sourceRecord.schemaVersion, "source.schemaVersion", true);
-    const planVersion = budget.string(sourceRecord.planVersion, "source.planVersion", true);
+    const sourceVersion = budget.identity(sourceRecord.sourceVersion, "source.sourceVersion", true);
+    const schemaVersion = budget.identity(sourceRecord.schemaVersion, "source.schemaVersion", true);
+    const planVersion = budget.identity(sourceRecord.planVersion, "source.planVersion", true);
     const observation = normalizeObservation(sourceRecord.observation, budget, true);
     const validator = normalizeValidator(sourceRecord.validator, budget, true);
     const bounds = normalizeBounds(record.bounds, budget, true);
@@ -728,7 +754,7 @@ function normalizeResources(
     const record = plainRecord(input[index], path);
     allowedKeys(record, RESOURCE_KEYS, path);
     budget.metadata(1, path);
-    const id = budget.string(record.id, `${path}.id`, normalizedRequired);
+    const id = budget.identity(record.id, `${path}.id`, normalizedRequired);
     if (ids.has(id)) invalid(`Duplicate resource id "${id}".`, `${path}.id`);
     ids.add(id);
     if (normalizedRequired && previousId !== undefined && compareCodeUnits(previousId, id) >= 0) {
@@ -746,18 +772,18 @@ function normalizeResources(
     const contentType =
       record.contentType === undefined
         ? undefined
-        : budget.string(record.contentType, `${path}.contentType`, normalizedRequired);
-    const sourceVersion = budget.string(
+        : budget.identity(record.contentType, `${path}.contentType`, normalizedRequired);
+    const sourceVersion = budget.identity(
       record.sourceVersion ?? defaults.sourceVersion,
       `${path}.sourceVersion`,
       normalizedRequired,
     );
-    const schemaVersion = budget.string(
+    const schemaVersion = budget.identity(
       record.schemaVersion ?? defaults.schemaVersion,
       `${path}.schemaVersion`,
       normalizedRequired,
     );
-    const planVersion = budget.string(
+    const planVersion = budget.identity(
       record.planVersion ?? defaults.planVersion,
       `${path}.planVersion`,
       normalizedRequired,
@@ -775,7 +801,7 @@ function normalizeResources(
     let previousAttribution: string | undefined;
     const seenAttribution = new Set<string>();
     for (let item = 0; item < attributionInput.length; item += 1) {
-      const attributionId = budget.string(
+      const attributionId = budget.identity(
         attributionInput[item],
         `${path}.attributionIds[${item}]`,
         normalizedRequired,
@@ -827,8 +853,8 @@ function normalizeAttribution(
     if (!Object.hasOwn(record, rawId)) continue;
     if (entries.length >= limits.maxAttributions) limit("attribution exceeds the entry limit.", "attribution");
     budget.metadata(1, `attribution.${rawId}`);
-    const id = budget.string(rawId, "attribution id", normalizedRequired);
-    const text = budget.string(record[rawId], `attribution.${id}`, normalizedRequired);
+    const id = budget.identity(rawId, "attribution id", normalizedRequired);
+    const text = budget.label(record[rawId], `attribution.${id}`, normalizedRequired);
     entries.push([id, text]);
   }
   entries.sort(([left], [right]) => compareCodeUnits(left, right));

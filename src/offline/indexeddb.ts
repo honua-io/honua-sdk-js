@@ -1,13 +1,15 @@
-import type {
-  OfflineRegionCacheAdmin,
-  OfflineRegionCacheInventory,
-  OfflineRegionCommitGuard,
-  OfflineRegionDownloadReceipt,
-  OfflineRegionManifestV1,
-  OfflineRegionResourceRead,
-  OfflineRegionStore,
-  OfflineRegionStoredRegion,
-  OfflineRegionWriteTransaction,
+import { assertCredentialFreeManifest, credentialScreenMessage, screenPersistedString } from "./credential-screen.js";
+import {
+  HonuaOfflineRegionError,
+  type OfflineRegionCacheAdmin,
+  type OfflineRegionCacheInventory,
+  type OfflineRegionCommitGuard,
+  type OfflineRegionDownloadReceipt,
+  type OfflineRegionManifestV1,
+  type OfflineRegionResourceRead,
+  type OfflineRegionStore,
+  type OfflineRegionStoredRegion,
+  type OfflineRegionWriteTransaction,
 } from "./types.js";
 
 const DATABASE_VERSION = 3;
@@ -79,6 +81,12 @@ export interface IndexedDbOfflineRegionStoreOptions {
  * calculated from the same inventory. Credentials and request URLs are never
  * introduced by this adapter; callers provide only the already-normalized
  * manifest and resource bytes.
+ *
+ * That is enforced rather than assumed. `beginWrite`, `write`, and `commit` are
+ * public exports, so each re-screens the identities it is about to persist and
+ * `commit` re-checks the whole manifest. A caller that bypasses
+ * `downloadOfflineRegion` cannot persist a credential-bearing endpoint, region
+ * id, or resource id.
  */
 export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineRegionCacheAdmin {
   readonly #database: Promise<IDBDatabase>;
@@ -208,6 +216,9 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
 
   public async beginWrite(regionId: string): Promise<OfflineRegionWriteTransaction> {
     if (typeof regionId !== "string" || regionId.length === 0) throw new Error("regionId must be non-empty.");
+    // Staged rows are keyed by this value, so it is screened before any write
+    // rather than only at commit.
+    assertCredentialFreeIdentity(regionId, "regionId");
     const database = await this.#database;
     // The manifest id is the resume checkpoint identity. It is deterministic,
     // credential-free, and cannot collide across different snapshots.
@@ -243,6 +254,7 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
         });
       },
       write: async (resource, bytes) => {
+        assertCredentialFreeIdentity(resource.id, "resource.id");
         const copy = Uint8Array.from(bytes);
         if (copy.byteLength !== resource.byteLength) {
           throw new Error(`Resource ${resource.id} byte length does not match its descriptor.`);
@@ -259,6 +271,10 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
         });
       },
       commit: async (manifest, receipt, guard) => {
+        // `commit` is a public export. Re-enforce the credential-free manifest
+        // invariant here so a caller that bypassed `downloadOfflineRegion`
+        // cannot persist a credential-bearing endpoint or identity.
+        assertCredentialFreeManifest(manifest);
         return runTransaction(database, "readwrite", async (transaction) => {
           const inventoryStore = transaction.objectStore(INVENTORY_STORE);
           const regionStore = transaction.objectStore(REGION_STORE);
@@ -578,6 +594,17 @@ function toStoredRegion(record: RegionRecord): OfflineRegionStoredRegion {
 
 function requireId(value: string, name: string): void {
   if (typeof value !== "string" || value.length === 0) throw new TypeError(`${name} must be non-empty.`);
+}
+
+/** Refuse a persisted key that carries credential or request-URL shape, without echoing it. */
+function assertCredentialFreeIdentity(value: string, path: string): void {
+  if (typeof value !== "string") {
+    throw new HonuaOfflineRegionError("invalid-manifest", `${path} must be a string.`, { path });
+  }
+  const reason = screenPersistedString(value, "identity");
+  if (reason) {
+    throw new HonuaOfflineRegionError("invalid-manifest", credentialScreenMessage(path, reason), { path });
+  }
 }
 
 function resourceKey(regionId: string, resourceId: string): string {

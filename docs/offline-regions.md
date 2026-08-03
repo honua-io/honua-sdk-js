@@ -177,6 +177,29 @@ confidently wrong headline.
 - URL credentials and recognized signed/auth query parameters are removed.
   Only a domain-separated SHA-256 digest of the caller's authorization scope
   fingerprint is persisted.
+- **Persisted identities are non-secret by contract, and the stores enforce it.**
+  `name`, `sourceId`, `resource.id`, `contentType`, attribution ids and text, and
+  the source/schema/plan versions are screened against the same credential
+  denylist that governs endpoint normalization. Machine identities are also
+  refused when they are shaped like a request reference — an absolute URL
+  carrying userinfo, a query, or a fragment, or a relative reference containing
+  `?`, `#`, or `@` — so an ArcGIS `?token=` or S3 `?X-Amz-Signature=` URL cannot
+  become a stored identity by way of an `OfflineRegionResourceMatcher`. Human
+  prose (`name`, attribution text) is held only to the embedded-assignment and
+  absolute-URL rules, so an ordinary label is still persistable. A match fails
+  the whole manifest closed with `invalid-manifest` and a structured `path`;
+  nothing is silently rewritten, because a rewritten identity would change the
+  deterministic region id and the resource primary key, and the rejection names
+  the path without echoing the offending value. Screening is defence in depth: it
+  is not a licence to pass secrets as identities.
+- The enforcement is not a trust assumption about the caller.
+  `createIndexedDbOfflineRegionStore`, `beginWrite`, and `commit` are public
+  exports, so `beginWrite` and `write` re-screen the region and resource ids they
+  key staged rows by, and `commit` re-checks the whole manifest — endpoint
+  included — before it opens its IndexedDB transaction. A caller that bypasses
+  `downloadOfflineRegion` cannot persist a credential-bearing manifest. The
+  durable edit queue applies the same screen to `sourceId` and `idempotencyKey`,
+  which are its persisted partition and identity keys.
 - Every resource has an exact logical byte length and required SHA-256 digest.
   Loader output is copied into coordinator-owned memory before hashing, progress,
   or writing, so later loader mutation cannot alter committed bytes. Each resource also carries

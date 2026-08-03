@@ -1,6 +1,6 @@
 {
   "format": "honua.offline-shell-manifest.v1",
-  "deploymentId": "offline-region-reference-2026-08-02-v2",
+  "deploymentId": "offline-region-reference-2026-08-03-v2",
   "resources": [
     {
       "url": "./",
@@ -19,6 +19,12 @@
       "byteLength": 1691,
       "integrity": "sha256:dbfc03455e766318d7740a2754ee5b3265d0e59fd9e4e4ebb156b68ab0c3af52",
       "mediaType": "text/html"
+    },
+    {
+      "url": "/dist/src/connect-url-safety.js",
+      "byteLength": 5001,
+      "integrity": "sha256:1db4bd5012e448f0be4a39c3ea0882ca5d02fef638ece95cb5d9a8bf1563cf1e",
+      "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/contract/discovery.js",
@@ -57,9 +63,15 @@
       "mediaType": "application/javascript"
     },
     {
+      "url": "/dist/src/offline/credential-screen.js",
+      "byteLength": 5498,
+      "integrity": "sha256:9e7bffa21db856dec47bc792e1c912d8f3b350cb53241bbf1a7c32dcb785cacd",
+      "mediaType": "application/javascript"
+    },
+    {
       "url": "/dist/src/offline/edit-queue.js",
-      "byteLength": 48143,
-      "integrity": "sha256:7025940fa0d032705f721ed86656fcb879ae822aeabebe9b5866d3e331a65769",
+      "byteLength": 48780,
+      "integrity": "sha256:60141f597bc90d75183a14524681186ce0d161eb4e39a08130e937e01240ecfc",
       "mediaType": "application/javascript"
     },
     {
@@ -82,14 +94,14 @@
     },
     {
       "url": "/dist/src/offline/indexeddb.js",
-      "byteLength": 27963,
-      "integrity": "sha256:1750919978477c3f2004966ebde7a71da1f8a6e58706457059fd34db754d16f1",
+      "byteLength": 29523,
+      "integrity": "sha256:c98c22364bbec523109bfcac9b075936bf48a7356c07efde37001e0ec685772d",
       "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/offline/region.js",
-      "byteLength": 44961,
-      "integrity": "sha256:1666b8c44d3cf66d14f725a4aa72316a03eac3dc430ad2da9e68cef756f83645",
+      "byteLength": 46173,
+      "integrity": "sha256:0d850f7bb072c20988773327f5578eb5eab2da81d2030e2911c848b4998654d6",
       "mediaType": "application/javascript"
     },
     {

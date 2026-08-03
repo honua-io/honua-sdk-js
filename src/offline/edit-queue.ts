@@ -1,4 +1,5 @@
 import { type HonuaErrorCode, HonuaSdkError } from "../core/error-envelope.js";
+import { credentialScreenMessage, screenPersistedString } from "./credential-screen.js";
 
 export const HONUA_OFFLINE_EDIT_QUEUE_VERSION = "1.0" as const;
 export const DEFAULT_OFFLINE_EDIT_QUEUE_MAX_EDITS = 10_000;
@@ -673,8 +674,8 @@ async function prepareEdit(input: EnqueueOfflineEditInput, options: NormalizedQu
   const record = plainRecord(input, "input");
   allowedKeys(record, ENQUEUE_KEYS, "input");
   const authorizationScopeDigest = requiredDigest(record.authorizationScopeDigest, "authorizationScopeDigest");
-  const sourceId = requiredString(record.sourceId, "sourceId");
-  const idempotencyKey = requiredString(record.idempotencyKey, "idempotencyKey");
+  const sourceId = requiredPersistedIdentity(record.sourceId, "sourceId");
+  const idempotencyKey = requiredPersistedIdentity(record.idempotencyKey, "idempotencyKey");
   const edit = captureFeatureEdit(record.edit, options.maxPayloadBytes);
   const dependencyIds = captureDependencies(record.dependencyIds, options.maxDependencies);
   const identity = { authorizationScopeDigest, sourceId, idempotencyKey };
@@ -1074,7 +1075,7 @@ function capturePartition(value: OfflineEditQueuePartition, path: string): Offli
 function partitionFromRecord(record: Record<string, unknown>, path: string): OfflineEditQueuePartition {
   return {
     authorizationScopeDigest: requiredDigest(record.authorizationScopeDigest, `${path}.authorizationScopeDigest`),
-    sourceId: requiredString(record.sourceId, `${path}.sourceId`),
+    sourceId: requiredPersistedIdentity(record.sourceId, `${path}.sourceId`),
   };
 }
 
@@ -1492,6 +1493,18 @@ function requiredString(value: unknown, path: string): string {
     fail("invalid-edit", `${path} must be a normalized non-empty string of at most 1024 UTF-8 bytes.`, { path });
   }
   return value;
+}
+
+/**
+ * A durable partition key that is persisted verbatim and used as an index key.
+ * Screened with the same denylist that governs endpoint normalization; the
+ * message names the path and never echoes the rejected value.
+ */
+function requiredPersistedIdentity(value: unknown, path: string): string {
+  const normalized = requiredString(value, path);
+  const reason = screenPersistedString(normalized, "identity");
+  if (reason) fail("invalid-edit", credentialScreenMessage(path, reason), { path });
+  return normalized;
 }
 
 function requiredDigest(value: unknown, path: string): `sha256:${string}` {
