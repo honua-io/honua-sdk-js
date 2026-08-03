@@ -94,6 +94,8 @@ export {
   type GeoArrowNativeGeometryEncoding,
   type GeometryColumnPlan,
   type GeometryEncoding,
+  GeoParquetWhereClauseError,
+  type GeoParquetWhereRejectionCode,
   geometryExpr,
   integerLiteral,
   isGeoArrowNativeEncoding,
@@ -102,6 +104,7 @@ export {
   quoteIdentifier,
   spatialPredicate,
   stringLiteral,
+  validateWhereExpression,
 } from "../core/geoparquet-sql.js";
 
 import { createBrowserDuckDbDriver } from "./driver.js";

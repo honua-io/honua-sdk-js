@@ -77,7 +77,8 @@ export class LegendCompat {
     this.watchListeners = new Map();
     this.subscriptions = [];
     this.refreshRevision = 0;
-    const widgetHost = options.container != null ? new HonuaWidgetHost("honua-legend", options.container) : undefined;
+    const widgetHost =
+      options.container != null ? new HonuaWidgetHost("honua-legend", options.container, this.eventBus) : undefined;
     this.widgetHost = widgetHost?.available ? widgetHost : undefined;
 
     if (this.autoRefresh) {

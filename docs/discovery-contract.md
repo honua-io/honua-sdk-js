@@ -331,9 +331,19 @@ WMTS additionally requires one selected style, a GoogleMapsCompatible Web
 Mercator matrix set whose identifiers map exactly to MapLibre zooms, and a
 safe GetTile KVP or ResourceURL binding. The selected request is pinned on
 `locator.raster`, so the MapLibre projector executes reviewed metadata rather
-than guessing a URL. Raw WMS and WMTS sources remain query-disabled on the
-canonical `Source` surface; a canonical `/MapServer/WMS` binding may retain the
-existing Honua FeatureInfo adapter when capabilities prove it.
+than guessing a URL.
+
+WMS `query` is execution-aware in the same way and no longer depends on a Honua
+service id. It requires a `queryable` layer, a safe GET `GetFeatureInfo`
+binding, an advertised info format the canonical `Result` can carry (GeoJSON and
+JSON preferred, GML as the interoperable fallback; unstructured `text/plain` and
+`text/html` never qualify), and at least one advertised CRS with a provable WMS
+1.3 axis order. The reviewed operation is pinned on `locator.featureInfo`
+(`{ kind, url, format, crs }`), so canonical point `Source.query()` executes the
+advertised operation URL under the same same-origin, credential-free policy as
+`GetMap` and emits `BBOX` in the authority-defined axis order. Any missing piece
+keeps `query` disabled and the surface throwing. Raw WMTS sources remain
+query-disabled on the canonical `Source` surface.
 
 Capabilities XML is byte-, depth-, element-, attribute-, text-, and
 deadline-bounded without a new parser dependency. A per-client cache is keyed

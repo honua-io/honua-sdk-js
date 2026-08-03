@@ -5,6 +5,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { HONUA_ERROR_RUNTIME_CLASSIFICATIONS } from "../dist/src/core/error-classifications.js";
 import { HONUA_ERROR_CODE_REGISTRY } from "../dist/src/core/error-code-registry.js";
+import { HonuaHttpError } from "../dist/src/core/errors.js";
+import {
+  DEFAULT_RETRY_METHODS,
+  DEFAULT_RETRY_STATUSES,
+  DEFAULT_RETRYABLE_GRPC_CODES,
+} from "../dist/src/core/request-pipeline.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DOC_PATH = path.join(ROOT, "docs/errors.md");
@@ -147,11 +153,39 @@ for (const requiredText of [
   if (!doc.includes(requiredText)) failures.push(`docs/errors.md is missing ${requiredText}`);
 }
 
+// Retry-policy drift gate (#954). The retry table in docs/errors.md has drifted
+// from the implementation twice: it documented the broader transient
+// *classification* set as the retry-loop default, and it claimed the built-in
+// policy never reaches the gRPC-web transport (which it has since the unary
+// retry parity landed). Derive every documented claim from the shipped
+// constants so the same drift fails this check instead of shipping.
+const documentedRetryStatuses = [...DEFAULT_RETRY_STATUSES].join(", ");
+const documentedRetryMethods = [...DEFAULT_RETRY_METHODS].map((method) => `\`${method}\``).join(" / ");
+const documentedGrpcCodes = [...DEFAULT_RETRYABLE_GRPC_CODES].map((code) => `\`${code}\``).join(" / ");
+const documentedTransientStatuses = [];
+for (let status = 400; status <= 599; status += 1) {
+  if (new HonuaHttpError(status, "probe", undefined).sdkCode === "core.http.transient") {
+    documentedTransientStatuses.push(status);
+  }
+}
+
+for (const [claim, requiredText] of [
+  ["retry-loop default status set", `default \`[${documentedRetryStatuses}]\``],
+  ["retry-loop default status set (rationale table)", `| \`${documentedRetryStatuses}\` |`],
+  ["replay-safe method gate", `replay-safe methods only (${documentedRetryMethods})`],
+  ["retryable gRPC status codes", `transient code (${documentedGrpcCodes}`],
+  ["transient HTTP classification set", `| \`${documentedTransientStatuses.join(", ")}\` |`],
+]) {
+  if (!doc.includes(requiredText)) {
+    failures.push(`docs/errors.md retry policy drifted from the implementation (${claim}): expected ${requiredText}`);
+  }
+}
+
 if (failures.length > 0) {
   process.stderr.write(`Error-code registry check failed:\n${failures.map((failure) => `- ${failure}`).join("\n")}\n`);
   process.exit(1);
 }
 
 process.stdout.write(
-  `${process.argv.includes("--write") ? "Wrote" : "Verified"} error-code registry: ${codes.length} unique codes, ${MIGRATED_PUBLIC_CLASSES.length} documented public classes.\n`,
+  `${process.argv.includes("--write") ? "Wrote" : "Verified"} error-code registry: ${codes.length} unique codes, ${MIGRATED_PUBLIC_CLASSES.length} documented public classes, retry-policy claims verified.\n`,
 );

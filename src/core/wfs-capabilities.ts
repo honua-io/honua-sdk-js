@@ -439,6 +439,108 @@ export function parseListStoredQueriesResponse(xml: string): readonly string[] {
 }
 
 /**
+ * GML property types that carry a geometry value. A `DescribeFeatureType`
+ * XSD names the feature type's geometry property through one of these, so the
+ * set is what lets the adapter resolve the real property name per server
+ * (`the_geom` on PostGIS-via-GeoServer, `msGeometry` on MapServer, arbitrary
+ * per-schema names elsewhere) instead of assuming one vendor default.
+ */
+const GML_GEOMETRY_PROPERTY_TYPES = new Set([
+  "GeometryPropertyType",
+  "GeometryAssociationType",
+  "GeometryArrayPropertyType",
+  "MultiGeometryPropertyType",
+  "AbstractGeometryType",
+  "PointPropertyType",
+  "MultiPointPropertyType",
+  "LineStringPropertyType",
+  "MultiLineStringPropertyType",
+  "CurvePropertyType",
+  "MultiCurvePropertyType",
+  "PolygonPropertyType",
+  "MultiPolygonPropertyType",
+  "SurfacePropertyType",
+  "MultiSurfacePropertyType",
+  "SolidPropertyType",
+  "MultiSolidPropertyType",
+]);
+
+/** GML namespace prefixes bind to a URI under this root in every GML version. */
+const GML_NAMESPACE_ROOT = "http://www.opengis.net/gml";
+
+/**
+ * Parse a `DescribeFeatureType` XSD and return the geometry property names
+ * declared for `typeName`, in schema declaration order. Empty when the schema
+ * declares no GML geometry property (schema-less / non-spatial types) — the
+ * caller fails closed rather than guessing a vendor default.
+ *
+ * Only the requested feature type's own complex type is walked, so a schema
+ * carrying several types cannot leak another type's geometry property.
+ */
+export function parseWfsDescribeFeatureTypeGeometry(xml: string, typeName: string): readonly string[] {
+  const root = parseXml(xml);
+  if (root.local !== "schema") {
+    if (root.local === "ExceptionReport") {
+      const report = parseExceptionFromRoot(root);
+      throw new HonuaWfsExceptionError(report.exceptionCode, report.message, report.locator);
+    }
+    throw new Error(`WFS DescribeFeatureType: expected <schema>, got <${root.qname}>`);
+  }
+  const declaration = findFeatureTypeDeclaration(root, stripPrefix(typeName));
+  if (!declaration) return Object.freeze([]);
+  const names: string[] = [];
+  collectGeometryPropertyNames(declaration, names);
+  return Object.freeze(names);
+}
+
+/**
+ * Locate the complex type that declares one feature type's properties. Servers
+ * spell this three ways: a global `<element name="lot" type="ns:lotType"/>`
+ * pointing at a named `<complexType>`, an inline anonymous `<complexType>` on
+ * that element, or (single-type responses) just the one complex type in the
+ * document.
+ */
+function findFeatureTypeDeclaration(root: ElementNode, localTypeName: string): ElementNode | undefined {
+  const complexTypes = findChildren(root, "complexType");
+  const element = findChildren(root, "element").find((node) => node.attributes.name === localTypeName);
+  if (element) {
+    const typeRef = element.attributes.type;
+    const named = typeRef
+      ? complexTypes.find((node) => node.attributes.name === stripPrefix(typeRef))
+      : findChild(element, "complexType");
+    if (named) return named;
+  }
+  const conventional = complexTypes.find((node) => node.attributes.name === `${localTypeName}Type`);
+  if (conventional) return conventional;
+  return complexTypes.length === 1 ? complexTypes[0] : undefined;
+}
+
+function collectGeometryPropertyNames(node: ElementNode, out: string[]): void {
+  for (const child of node.children) {
+    if (child.local === "element") {
+      const name = child.attributes.name;
+      const type = child.attributes.type;
+      if (name && type && isGmlGeometryPropertyType(child, type)) {
+        out.push(name);
+        continue;
+      }
+    }
+    collectGeometryPropertyNames(child, out);
+  }
+}
+
+function isGmlGeometryPropertyType(node: ElementNode, type: string): boolean {
+  const colon = type.indexOf(":");
+  const prefix = colon > 0 ? type.slice(0, colon) : undefined;
+  if (!GML_GEOMETRY_PROPERTY_TYPES.has(stripPrefix(type))) return false;
+  // A prefix that resolves to a non-GML namespace is a same-named schema type
+  // from another vocabulary, not a geometry property. An unresolvable prefix
+  // is accepted: servers routinely omit the binding from the fragment we read.
+  const uri = prefix === undefined ? undefined : node.namespaces[prefix];
+  return uri === undefined || uri.startsWith(GML_NAMESPACE_ROOT);
+}
+
+/**
  * Parse the response of a `Transaction` request. Returns the per-bucket
  * counts plus any insert handles surfaced in `<wfs:InsertResults>`.
  */

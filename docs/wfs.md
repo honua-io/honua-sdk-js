@@ -142,9 +142,28 @@ honors the relation rather than silently widening to bbox semantics.
 Geometry serialization is GML 3.2 simple (point / line / polygon);
 curves and surfaces throw and require the escape hatch.
 
-The geometry property name defaults to `the_geom`. Servers using a
-different name (`geometry`, `shape`, …) can supply a per-source filter
-through the protocol escape hatch.
+### Geometry property resolution
+
+The geometry property is named per feature type, not per protocol:
+PostGIS via GeoServer serves `the_geom`, MapServer serves `msGeometry`,
+and app-schema / deegree deployments use whatever the schema declares.
+A spatial predicate that references the wrong property matches nothing,
+so the adapter resolves the real name instead of assuming one:
+
+1. `locator.geometryName`, when set, wins and costs no round-trip.
+2. Otherwise the adapter issues `DescribeFeatureType` once per feature
+   type, caches the result alongside the capabilities snapshot, and uses
+   the first geometry property the schema declares.
+3. If neither names it, the request fails closed with
+   `HonuaWfsProtocolError("unresolved-geometry-property")` — the adapter
+   never falls back to a vendor default.
+
+Resolution is lazy: it happens only when the request names the property
+on the wire (an FES spatial predicate, or `<wfs:Insert>` / `<wfs:Update>`
+geometry). The `bbox=` KVP shortcut addresses the default geometry
+positionally, so envelope-intersects queries need no schema round-trip.
+Feature types that declare several geometries resolve to the first one;
+pin a different one with `locator.geometryName`.
 
 ## Field projection (`outFields` and `returnGeometry`)
 
@@ -344,10 +363,46 @@ the canonical `Source` surface when they need full FES expressivity.
 
 ## Locking
 
-WFS `LockFeature` / `GetFeatureWithLock` are not exposed in the
-canonical contract. Callers that need locks reach the wire through
-the protocol escape hatch — there is no top-level
-`Source.lock()` concept.
+WFS `LockFeature` / `GetFeatureWithLock` are **not implemented**. There
+is no top-level `Source.lock()` concept and no typed helper on the
+protocol escape hatch either — `HonuaWfsFeatureType` and `HonuaWfs`
+expose no `lockFeature` / `getFeatureWithLock` method, and the adapter
+never issues a lock request on the caller's behalf.
+
+The only path to a lock is the raw-XML escape hatch: build the request
+document yourself and POST it through `HonuaWfs.requestText`, then parse
+the response text yourself. The SDK does not extract `lockId`, does not
+track lock expiry, and does not attach a lock to a subsequent
+`applyEdits()` transaction.
+
+```ts doc-test=skip reason="partial excerpt requires application host context and a locking WFS server"
+const wfs = source.protocol("wfs")!;
+// `operationUrl()` reads the already-resolved capabilities snapshot
+// synchronously and falls back to the configured endpoint URL when none has
+// been fetched yet. Resolve capabilities first, or the request goes to the
+// endpoint URL instead of the advertised LockFeature DCP address.
+await wfs.root.capabilities();
+const { text } = await wfs.root.requestText("POST", wfs.root.operationUrl("LockFeature", "POST"), {
+  accept: "application/xml",
+  contentType: "text/xml",
+  body: rawLockFeatureXml,
+});
+// `text` is the raw `<wfs:LockFeatureResponse>`; parse `lockId` yourself.
+```
+
+Everything `requestText` shares with the canonical surface still
+applies: auth headers, interceptors, retry, timeout, abort signals, and
+the response-size cap.
+
+Exception mapping is the one thing that does **not** fully carry over.
+`requestText` converts an `<ows:ExceptionReport>` into
+`HonuaWfsExceptionError` only when the server returns it with a non-2xx
+status (the conversion runs on the thrown `HonuaHttpError`). A server
+that reports a lock failure as an `<ows:ExceptionReport>` inside an HTTP
+`200` — permitted by OWS, and how some servers signal
+`CannotLockAllFeatures` — comes back as ordinary response text. Inspect
+the payload for `ExceptionReport` yourself before treating it as a
+`<wfs:LockFeatureResponse>`.
 
 ## Defenses
 

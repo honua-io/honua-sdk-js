@@ -27,7 +27,7 @@ import type {
   DiscoveryTileMatrixSetMetadata,
 } from "./contract/discovery.js";
 import { unavailableSchemaIdentity } from "./contract/schema.js";
-import type { Capability, RasterRequestBinding, SourceLocator } from "./contract/types.js";
+import type { Capability, FeatureInfoRequestBinding, RasterRequestBinding, SourceLocator } from "./contract/types.js";
 import {
   HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS,
   type HonuaCacheValidator,
@@ -51,6 +51,11 @@ import {
   type WmsCapabilityOperation,
   parseWmsCapabilities,
 } from "./core/wms-capabilities.js";
+import {
+  type WmsFeatureInfoFormatChoice,
+  reviewedWmsQueryCrs,
+  selectWmsFeatureInfoFormat,
+} from "./core/wms-feature-info.js";
 import {
   type WmtsCapabilities,
   type WmtsCapabilityLayer,
@@ -302,14 +307,10 @@ function projectWms(
     const styles = validateWmsStyles(layer, identity.endpoint, partialReasons);
     const selectedStyle = selectStyle(styles, options.styleId, layer.name, "WMS", false);
     const mapFormat = preferredFormat(capabilities.formats.map, SUPPORTED_IMAGE_FORMATS);
-    const featureInfoFormat = preferredFormat(capabilities.formats.featureInfo, SUPPORTED_FEATURE_INFO_FORMATS);
+    const featureInfoFormat = selectWmsFeatureInfoFormat(capabilities.formats.featureInfo);
+    const featureInfoCrs = reviewedWmsQueryCrs(layer.crs);
     const renderReason = wmsRenderUnavailableReason(layer, map, mapFormat);
-    const advertisedQueryReason = wmsQueryUnavailableReason(layer, featureInfo, featureInfoFormat);
-    const queryReason =
-      advertisedQueryReason ??
-      (target.serviceId
-        ? undefined
-        : "Raw WMS GetFeatureInfo requires a Honua service binding for the existing canonical query adapter.");
+    const queryReason = wmsQueryUnavailableReason(layer, featureInfo, featureInfoFormat, featureInfoCrs);
     const legendReason = wmsLegendUnavailableReason(legend, capabilities.formats.legend);
     if (renderReason) partialReasons.push(renderReason);
     if (layer.queryable && queryReason) partialReasons.push(queryReason);
@@ -323,6 +324,17 @@ function projectWms(
             url: map.getUrls[0],
             format: mapFormat,
           }) satisfies RasterRequestBinding)
+        : undefined;
+    // The reviewed GetFeatureInfo operation is what makes canonical query()
+    // executable against any WMS 1.3 endpoint, Honua-bound or not.
+    const featureInfoBinding =
+      queryAvailable && featureInfoFormat && featureInfo?.getUrls[0]
+        ? (Object.freeze({
+            kind: "wms-kvp",
+            url: featureInfo.getUrls[0],
+            format: featureInfoFormat.format,
+            crs: Object.freeze([...featureInfoCrs]),
+          }) satisfies FeatureInfoRequestBinding)
         : undefined;
     const capabilitiesEnabled: Capability[] = [
       ...(renderAvailable ? (["render", "tiles"] as const) : []),
@@ -358,6 +370,7 @@ function projectWms(
       typeName: layer.name,
       ...(selectedStyle ? { styleId: selectedStyle.id } : {}),
       ...(raster ? { raster } : {}),
+      ...(featureInfoBinding ? { featureInfo: featureInfoBinding } : {}),
     });
     const schemaV2State = sourceSchemaProjection
       ? unavailableSchemaIdentity({
@@ -622,12 +635,16 @@ function wmsRenderUnavailableReason(
 function wmsQueryUnavailableReason(
   layer: WmsCapabilityLayer,
   operation: ValidatedOperation | undefined,
-  format: string | undefined,
+  format: WmsFeatureInfoFormatChoice | undefined,
+  crs: readonly string[],
 ): string | undefined {
   if (!layer.queryable) return "The WMS layer is not queryable.";
   if (!operation) return "WMS GetFeatureInfo was not advertised.";
   if (operation.getUrls.length === 0) return "WMS GetFeatureInfo did not advertise a safe GET URL.";
-  if (!format) return "WMS GetFeatureInfo advertises no supported JSON feature format.";
+  if (!format) return "WMS GetFeatureInfo advertises no supported GeoJSON, JSON, or GML feature format.";
+  if (crs.length === 0) {
+    return "WMS layer advertises no CRS whose WMS 1.3 axis order the point feature-info adapter can prove.";
+  }
   return undefined;
 }
 
