@@ -16,10 +16,10 @@
  * (b) a string literal escaped by {@link stringLiteral} (single quotes doubled,
  * embedded NULs rejected), or (c) a SQL identifier escaped by
  * {@link quoteIdentifier} (double quotes doubled, embedded NULs / control chars
- * rejected). The one exception is {@link Query.where}: like the GeoServices and
- * OGC adapters, `where` is caller-authored filter SQL and is passed through
- * verbatim (wrapped in parentheses). Callers are responsible for the trust
- * boundary on `where`, exactly as they are for a GeoServices `where` clause.
+ * rejected). {@link Query.where} is the one raw-text lane: it is caller-authored
+ * DuckDB filter SQL, so it cannot be escaped like a value. It is instead
+ * **contained** by {@link validateWhereExpression} before it is embedded — see
+ * that function for the exact trust model.
  *
  * @module
  */
@@ -81,6 +81,328 @@ export function integerLiteral(value: number): string {
     throw new Error(`geoparquet: expected a non-negative integer, received ${String(value)}`);
   }
   return String(Math.trunc(value));
+}
+
+// ── Query.where containment ───────────────────────────────────
+
+/**
+ * Fixed rejection codes emitted by {@link validateWhereExpression}. Codes are
+ * stable and the thrown message never echoes the rejected text, so a hostile
+ * `where` cannot smuggle content into logs or a UI error toast.
+ */
+export type GeoParquetWhereRejectionCode =
+  | "GEOPARQUET_WHERE_NOT_TEXT"
+  | "GEOPARQUET_WHERE_EMPTY"
+  | "GEOPARQUET_WHERE_CONTROL_CHARACTER"
+  | "GEOPARQUET_WHERE_UNTERMINATED_QUOTE"
+  | "GEOPARQUET_WHERE_STATEMENT_SEPARATOR"
+  | "GEOPARQUET_WHERE_COMMENT"
+  | "GEOPARQUET_WHERE_UNBALANCED_PARENTHESES"
+  | "GEOPARQUET_WHERE_PARAMETER_MARKER"
+  | "GEOPARQUET_WHERE_ESCAPE_STRING"
+  | "GEOPARQUET_WHERE_FORBIDDEN_KEYWORD";
+
+/**
+ * A `Query.where` expression was rejected before it could be embedded in
+ * DuckDB SQL. Carries a fixed {@link GeoParquetWhereRejectionCode} rather than
+ * the offending text.
+ */
+export class GeoParquetWhereClauseError extends Error {
+  public readonly code: GeoParquetWhereRejectionCode;
+  /** The denylisted keyword for `GEOPARQUET_WHERE_FORBIDDEN_KEYWORD`; never caller text otherwise. */
+  public readonly keyword: string | undefined;
+
+  public constructor(code: GeoParquetWhereRejectionCode, detail: string, keyword?: string) {
+    super(`geoparquet: ${code}: ${detail}`);
+    this.name = "GeoParquetWhereClauseError";
+    this.code = code;
+    this.keyword = keyword;
+  }
+}
+
+/**
+ * Keywords that would turn a filter expression into a statement, a set
+ * operation, or a second table scan. They are rejected as bare words only:
+ * a column genuinely named `union` or `select` stays addressable by quoting it
+ * (`"union" = 1`), because quoted identifiers are skipped by the scanner.
+ *
+ * `FROM` is contextual: it is denied as a table context but allowed inside the
+ * SQL-standard expression forms listed in {@link WHERE_EXPRESSION_FROM_HEADS}.
+ */
+const WHERE_FORBIDDEN_KEYWORDS: ReadonlySet<string> = new Set([
+  "ABORT",
+  "ALTER",
+  "ANALYZE",
+  "ATTACH",
+  "BEGIN",
+  "CALL",
+  "CHECKPOINT",
+  "COMMIT",
+  "COPY",
+  "CREATE",
+  "DEALLOCATE",
+  "DELETE",
+  "DESCRIBE",
+  "DETACH",
+  "DROP",
+  "EXCEPT",
+  "EXECUTE",
+  "EXPLAIN",
+  "EXPORT",
+  "FROM",
+  "GRANT",
+  "IMPORT",
+  "INSERT",
+  "INSTALL",
+  "INTERSECT",
+  "JOIN",
+  "LATERAL",
+  "LOAD",
+  "MERGE",
+  "PIVOT",
+  "PRAGMA",
+  "PREPARE",
+  "REINDEX",
+  "RESET",
+  "REVOKE",
+  "ROLLBACK",
+  "SELECT",
+  "SET",
+  "START",
+  "SUMMARIZE",
+  "TRUNCATE",
+  "UNION",
+  "UNPIVOT",
+  "UPDATE",
+  "USE",
+  "VACUUM",
+  "VALUES",
+  "WITH",
+]);
+
+/**
+ * Function heads whose SQL-standard grammar uses `FROM` inside an expression:
+ * `EXTRACT(YEAR FROM ts)`, `TRIM(BOTH ' ' FROM name)`,
+ * `SUBSTRING(name FROM 2 FOR 3)`, `OVERLAY(a PLACING b FROM 2)`. A `FROM`
+ * whose innermost enclosing parenthesis was opened by one of these is an
+ * expression operand, not a table context. (`POSITION(a IN b)` spells its
+ * separator `IN`, which is never denied.)
+ */
+const WHERE_EXPRESSION_FROM_HEADS: ReadonlySet<string> = new Set(["EXTRACT", "TRIM", "SUBSTRING", "OVERLAY"]);
+
+// Tab / newline / carriage return are legitimate formatting in a multi-line
+// filter; every other C0 control character and DEL is a smuggling vector.
+// biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control chars in caller SQL is the point
+const WHERE_CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+const WHERE_WORD_START = /[\p{L}_]/u;
+const WHERE_WORD_CHARACTER = /[\p{L}\p{N}_]/u;
+// Sticky (not anchored-on-a-slice) so scanning stays linear in the input size.
+const WHERE_DOLLAR_QUOTE = /\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/y;
+
+/** The `$tag$` dollar-quote delimiter starting exactly at `index`, if any. */
+function dollarQuoteDelimiterAt(text: string, index: number): string | undefined {
+  WHERE_DOLLAR_QUOTE.lastIndex = index;
+  return WHERE_DOLLAR_QUOTE.exec(text)?.[0];
+}
+
+/**
+ * Contain a caller-authored {@link Query.where} expression before it is
+ * embedded in generated DuckDB SQL, returning the trimmed text on success.
+ *
+ * ## Trust model
+ *
+ * `where` is raw filter SQL — the GeoParquet/DuckDB lane has no value-escaping
+ * equivalent for it, and the semantic (typed, parameterized) compiler in
+ * `query-planner/duckdb.ts` is the path that removes the raw text entirely.
+ * Until a caller migrates to that path, this validator draws the boundary:
+ *
+ * **Guaranteed by this function.** The accepted text is a *single* expression
+ * that cannot leave the `WHERE ( … )` slot it is spliced into. It rejects, with
+ * a typed {@link GeoParquetWhereClauseError}:
+ *
+ * - statement separators (`;`) and therefore chained/multi-statement input;
+ * - SQL comments — both line (`--`) and block comment markers — including the
+ *   trailing-comment trick that would otherwise swallow the compiler's own
+ *   `AND (<spatial predicate>)`;
+ * - unterminated string / quoted-identifier literals, which is how `x' OR 1=1`
+ *   style probes escape a literal;
+ * - `E'…'` escape strings, where a backslash escapes a quote: that second
+ *   escaping grammar would let a literal end for this scanner but not for
+ *   DuckDB, so every boundary after it is mis-parsed. Plain literals with
+ *   doubled quotes carry the same data;
+ * - unbalanced parentheses, so the wrapping `( … )` cannot be closed early to
+ *   re-associate or append clauses;
+ * - `SELECT` / `UNION` and other statement or set-operation keywords, plus a
+ *   table-context `FROM`, so a filter cannot become a subquery or UNION probe
+ *   that reads other tables or files registered in the same DuckDB session.
+ *   `FROM` stays available in its expression forms — `EXTRACT(YEAR FROM ts)`,
+ *   `TRIM(BOTH ' ' FROM name)`, `SUBSTRING(name FROM 2 FOR 3)`, `OVERLAY(…)`;
+ * - parameter markers (`?`, `$1`, `$name`) — this lane binds no values;
+ * - control characters other than tab / newline / carriage return.
+ *
+ * **Still the caller's responsibility.** This is containment, not a semantic
+ * parser: accepted text is still executed by DuckDB. It can reference any
+ * column in the scanned files, call any scalar function the session exposes,
+ * and cost arbitrary CPU. Fabricating a syntactically invalid expression still
+ * fails at DuckDB, not here. Applications that forward end-user input (a filter
+ * box, a URL parameter) should build the expression from typed inputs rather
+ * than concatenating strings, and treat this validator as a backstop.
+ *
+ * The `Source.protocol("geoparquet").sql(...)` handle remains an explicit,
+ * opt-in raw-SQL escape hatch and is deliberately not covered here.
+ */
+export function validateWhereExpression(where: string): string {
+  if (typeof where !== "string") {
+    throw new GeoParquetWhereClauseError("GEOPARQUET_WHERE_NOT_TEXT", "where must be a string expression");
+  }
+  const text = where.trim();
+  if (text.length === 0) {
+    throw new GeoParquetWhereClauseError("GEOPARQUET_WHERE_EMPTY", "where must not be blank");
+  }
+  if (WHERE_CONTROL_CHARACTERS.test(text)) {
+    throw new GeoParquetWhereClauseError(
+      "GEOPARQUET_WHERE_CONTROL_CHARACTER",
+      "where contains a control character outside tab/newline/carriage return",
+    );
+  }
+
+  // One entry per open parenthesis, holding the function head that opened it
+  // (`EXTRACT` for `EXTRACT(`), so a contextual `FROM` can be told apart from a
+  // table context. Its length is the current nesting depth.
+  const parenHeads: (string | undefined)[] = [];
+  // The most recent bare word, still eligible to be the head of a `(` that
+  // follows it across whitespace only.
+  let pendingHead: string | undefined;
+  let index = 0;
+  while (index < text.length) {
+    const character = text[index] as string;
+    if (character === "'" || character === '"') {
+      index = skipWhereQuotedToken(text, index, character);
+      pendingHead = undefined;
+      continue;
+    }
+    if (character === "$") {
+      const delimiter = dollarQuoteDelimiterAt(text, index);
+      if (!delimiter) {
+        throw new GeoParquetWhereClauseError(
+          "GEOPARQUET_WHERE_PARAMETER_MARKER",
+          "where must not contain a parameter marker; this lane binds no values",
+        );
+      }
+      const end = text.indexOf(delimiter, index + delimiter.length);
+      if (end === -1) {
+        throw new GeoParquetWhereClauseError(
+          "GEOPARQUET_WHERE_UNTERMINATED_QUOTE",
+          "where contains an unterminated dollar-quoted literal",
+        );
+      }
+      index = end + delimiter.length;
+      pendingHead = undefined;
+      continue;
+    }
+    if (character === "?") {
+      throw new GeoParquetWhereClauseError(
+        "GEOPARQUET_WHERE_PARAMETER_MARKER",
+        "where must not contain a parameter marker; this lane binds no values",
+      );
+    }
+    if (character === ";") {
+      throw new GeoParquetWhereClauseError(
+        "GEOPARQUET_WHERE_STATEMENT_SEPARATOR",
+        "where must be one expression, not a statement sequence",
+      );
+    }
+    if (
+      (character === "-" && text[index + 1] === "-") ||
+      (character === "/" && text[index + 1] === "*") ||
+      (character === "*" && text[index + 1] === "/")
+    ) {
+      throw new GeoParquetWhereClauseError("GEOPARQUET_WHERE_COMMENT", "where must not contain a SQL comment");
+    }
+    if (character === "(") {
+      parenHeads.push(pendingHead);
+      pendingHead = undefined;
+      index += 1;
+      continue;
+    }
+    if (character === ")") {
+      if (parenHeads.length === 0) {
+        throw new GeoParquetWhereClauseError(
+          "GEOPARQUET_WHERE_UNBALANCED_PARENTHESES",
+          "where closes more parentheses than it opens",
+        );
+      }
+      parenHeads.pop();
+      pendingHead = undefined;
+      index += 1;
+      continue;
+    }
+    if (WHERE_WORD_START.test(character)) {
+      let end = index + 1;
+      while (end < text.length && WHERE_WORD_CHARACTER.test(text[end] as string)) end += 1;
+      const word = text.slice(index, end).toUpperCase();
+      // `E'…'` / `e'…'` escape strings give backslash its escaping power, so
+      // `\'` would end the literal for this scanner but not for DuckDB. Refuse
+      // the prefix rather than model a second escaping grammar.
+      if (word === "E" && text[end] === "'") {
+        throw new GeoParquetWhereClauseError(
+          "GEOPARQUET_WHERE_ESCAPE_STRING",
+          "where must not use an E-prefixed escape string; use a plain literal with doubled quotes",
+        );
+      }
+      if (word === "FROM" && !WHERE_EXPRESSION_FROM_HEADS.has(parenHeads[parenHeads.length - 1] ?? "")) {
+        throw new GeoParquetWhereClauseError(
+          "GEOPARQUET_WHERE_FORBIDDEN_KEYWORD",
+          "where must be a single boolean expression; a table-context FROM keyword is not addressable from a filter (FROM is allowed only inside EXTRACT/TRIM/SUBSTRING/OVERLAY)",
+          word,
+        );
+      }
+      if (word !== "FROM" && WHERE_FORBIDDEN_KEYWORDS.has(word)) {
+        throw new GeoParquetWhereClauseError(
+          "GEOPARQUET_WHERE_FORBIDDEN_KEYWORD",
+          `where must be a single boolean expression; the ${word} keyword is not addressable from a filter (quote it to reference a column of that name)`,
+          word,
+        );
+      }
+      pendingHead = word;
+      index = end;
+      continue;
+    }
+    // Whitespace keeps a pending function head alive across `EXTRACT (…`.
+    if (!(character === " " || character === "\t" || character === "\n" || character === "\r")) {
+      pendingHead = undefined;
+    }
+    index += 1;
+  }
+  if (parenHeads.length !== 0) {
+    throw new GeoParquetWhereClauseError("GEOPARQUET_WHERE_UNBALANCED_PARENTHESES", "where leaves a parenthesis open");
+  }
+  return text;
+}
+
+/**
+ * Advance past a `'…'` string literal or a `"…"` quoted identifier, honouring
+ * the SQL doubled-quote escape. Throws when the literal never closes.
+ */
+function skipWhereQuotedToken(text: string, start: number, quote: "'" | '"'): number {
+  let index = start + 1;
+  while (index < text.length) {
+    if (text[index] !== quote) {
+      index += 1;
+      continue;
+    }
+    if (text[index + 1] === quote) {
+      index += 2;
+      continue;
+    }
+    return index + 1;
+  }
+  throw new GeoParquetWhereClauseError(
+    "GEOPARQUET_WHERE_UNTERMINATED_QUOTE",
+    quote === "'"
+      ? "where contains an unterminated string literal"
+      : "where contains an unterminated quoted identifier",
+  );
 }
 
 // ── read_parquet(...) source expression ───────────────────────
@@ -303,10 +625,15 @@ const DEFAULT_GEOMETRY_ALIAS = "geometry";
 
 // ── WHERE + ORDER BY + LIMIT fragments ────────────────────────
 
+/**
+ * Assemble the `WHERE` fragment. A caller-authored `where` is contained by
+ * {@link validateWhereExpression} first, so a hostile expression throws a
+ * {@link GeoParquetWhereClauseError} here instead of reaching DuckDB.
+ */
 function whereClause(query: Query, spatial: string | undefined): string {
   const clauses: string[] = [];
   if (typeof query.where === "string" && query.where.trim().length > 0) {
-    clauses.push(`(${query.where})`);
+    clauses.push(`(${validateWhereExpression(query.where)})`);
   }
   if (spatial) clauses.push(`(${spatial})`);
   return clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";

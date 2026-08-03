@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 
 import { PROTOCOL_DEFAULT_CAPABILITIES, type SourceDescriptor, createDataset } from "../../src/contract/index.js";
 import { HonuaClient } from "../../src/core/client.js";
+import { envelope, polygon, spatialContains, spatialIntersects } from "../../src/core/spatial-filter.js";
 
 const FIXTURES = fileURLToPath(new URL("../fixtures/backend-agnostic/", import.meta.url));
 function fixture(rel: string): unknown {
@@ -28,16 +29,19 @@ function jsonResponse(body: unknown): Response {
 }
 function routeClient(
   baseUrl: string,
-  routes: Array<[string, () => unknown]>,
-  onRequest?: (u: URL) => void,
+  routes: Array<[string, (url: URL, init: RequestInit | undefined) => unknown]>,
+  onRequest?: (u: URL, init: RequestInit | undefined) => void,
 ): HonuaClient {
   return new HonuaClient({
     baseUrl,
-    fetchFn: async (input) => {
+    fetchFn: async (input, init) => {
       const url = new URL(String(input));
-      onRequest?.(url);
+      onRequest?.(url, init);
       for (const [needle, make] of routes) {
-        if (url.pathname === needle || url.pathname.endsWith(needle)) return jsonResponse(make());
+        if (url.pathname === needle || url.pathname.endsWith(needle)) {
+          const produced = make(url, init);
+          return produced instanceof Response ? produced : jsonResponse(produced);
+        }
       }
       return new Response("not found", { status: 404 });
     },
@@ -74,6 +78,316 @@ describe("stac backend-agnostic / raw STAC API root (earth-search)", () => {
     // Hit the raw API path, NOT /stac/search.
     expect(paths).toContain("/v1/search");
     expect(paths.some((p) => p.includes("/stac/"))).toBe(false);
+  });
+});
+
+/**
+ * Search-method negotiation, opaque next-link paging, and geometry search.
+ * The canonical `Source.query()` must POST when the API advertises a POST
+ * search link, follow token cursors it cannot reconstruct, and pass a polygon
+ * AOI through as STAC `intersects` instead of degrading it to an envelope.
+ */
+describe("stac backend-agnostic / search request assembly", () => {
+  const ROOT = "https://stac.example.test/v1";
+
+  interface RecordedRequest {
+    path: string;
+    method: string;
+    search: URLSearchParams;
+    body: Record<string, unknown> | undefined;
+  }
+
+  function requestRecorder(): {
+    seen: RecordedRequest[];
+    record: (url: URL, init: RequestInit | undefined) => void;
+  } {
+    const seen: RecordedRequest[] = [];
+    return {
+      seen,
+      record(url, init) {
+        seen.push({
+          path: url.pathname,
+          method: (init?.method ?? "GET").toUpperCase(),
+          search: url.searchParams,
+          body: typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : undefined,
+        });
+      },
+    };
+  }
+
+  function searches(seen: readonly RecordedRequest[]): RecordedRequest[] {
+    return seen.filter((entry) => entry.path.endsWith("/search"));
+  }
+
+  /** Landing page advertising `rel="search"` once per supported method. */
+  function landing(methods: readonly string[]): Record<string, unknown> {
+    return {
+      type: "Catalog",
+      stac_version: "1.0.0",
+      id: "example-catalog",
+      description: "search method advertisement",
+      conformsTo: ["https://api.stacspec.org/v1.0.0/core", "https://api.stacspec.org/v1.0.0/item-search"],
+      links: [
+        { rel: "self", type: "application/json", href: ROOT },
+        ...methods.map((method) => ({
+          rel: "search",
+          type: "application/geo+json",
+          href: `${ROOT}/search`,
+          method,
+        })),
+      ],
+    };
+  }
+
+  function item(id: string): Record<string, unknown> {
+    return {
+      type: "Feature",
+      stac_version: "1.0.0",
+      id,
+      collection: "sentinel-2-l2a",
+      geometry: { type: "Point", coordinates: [-157.9, 21.4] },
+      properties: { datetime: "2024-04-01T00:00:00Z" },
+    };
+  }
+
+  function itemCollection(ids: readonly string[], links: readonly unknown[] = []): Record<string, unknown> {
+    return { type: "FeatureCollection", features: ids.map(item), links, numberReturned: ids.length };
+  }
+
+  function apiSource(client: HonuaClient) {
+    return createDataset({
+      id: "stac-api",
+      client,
+      skipCompatibilityCheck: true,
+      sources: [
+        {
+          id: "sentinel",
+          protocol: "stac",
+          locator: { url: ROOT, collectionId: "sentinel-2-l2a", layout: "stac-api" },
+          capabilities: PROTOCOL_DEFAULT_CAPABILITIES.stac,
+        } satisfies SourceDescriptor,
+      ],
+    }).source("sentinel")!;
+  }
+
+  // Esri-shaped AOI (clockwise exterior ring) as the `polygon()` builder emits.
+  const AOI_RINGS = [
+    [
+      [-158.5, 21.2],
+      [-158.5, 21.7],
+      [-157.6, 21.7],
+      [-157.6, 21.2],
+      [-158.5, 21.2],
+    ],
+  ];
+  const AOI_VERTICES = JSON.stringify([...AOI_RINGS[0]].sort());
+
+  it("issues POST /search with a JSON body when the landing page advertises a POST search link", async () => {
+    const { seen, record } = requestRecorder();
+    const client = routeClient(
+      ROOT,
+      [
+        ["/v1/search", () => itemCollection(["a", "b"])],
+        // Recorded from Earth Search: `rel="search"` advertised for GET and POST.
+        ["/v1", () => fixture("earth-search-stac/landing.json")],
+      ],
+      record,
+    );
+    const result = await apiSource(client).query({
+      pagination: { limit: 2 },
+      spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
+    });
+
+    expect(result.features).toHaveLength(2);
+    const search = searches(seen);
+    expect(search).toHaveLength(1);
+    expect(search[0].method).toBe("POST");
+    expect(search[0].body).toMatchObject({
+      collections: ["sentinel-2-l2a"],
+      limit: 2,
+      bbox: [-158.5, 21.2, -157.6, 21.7],
+    });
+    // The filter never lands on the URL when POST is negotiated.
+    expect(search[0].search.get("bbox")).toBeNull();
+  });
+
+  it("keeps GET /search when the landing page advertises only a GET search link", async () => {
+    const { seen, record } = requestRecorder();
+    const client = routeClient(
+      ROOT,
+      [
+        ["/v1/search", () => itemCollection(["a"])],
+        ["/v1", () => landing(["GET"])],
+      ],
+      record,
+    );
+    const result = await apiSource(client).query({
+      pagination: { limit: 1 },
+      spatialFilter: envelope(-158.5, 21.2, -157.6, 21.7),
+    });
+
+    expect(result.features).toHaveLength(1);
+    const search = searches(seen);
+    expect(search).toHaveLength(1);
+    expect(search[0].method).toBe("GET");
+    expect(search[0].body).toBeUndefined();
+    expect(search[0].search.get("bbox")).toBe("-158.5,21.2,-157.6,21.7");
+    expect(search[0].search.get("collections")).toBe("sentinel-2-l2a");
+  });
+
+  it("falls back to GET when an advertised POST search is refused", async () => {
+    // An advertisement is not a guarantee: proxies, CORS policies, and
+    // read-only fetch seams refuse POST for endpoints the catalog lists.
+    const { seen, record } = requestRecorder();
+    const client = routeClient(
+      ROOT,
+      [
+        [
+          "/v1/search",
+          (_url, init) =>
+            (init?.method ?? "GET").toUpperCase() === "POST"
+              ? new Response("method not allowed", { status: 405 })
+              : itemCollection(["a"]),
+        ],
+        ["/v1", () => landing(["GET", "POST"])],
+      ],
+      record,
+    );
+
+    const source = apiSource(client);
+    expect((await source.query({ pagination: { limit: 1 } })).features).toHaveLength(1);
+    // The refusal is remembered: the second query goes straight to GET.
+    expect((await source.query({ pagination: { limit: 1 } })).features).toHaveLength(1);
+    expect(searches(seen).map((entry) => entry.method)).toEqual(["POST", "GET", "GET"]);
+  });
+
+  it("drains opaque token cursors advertised on GET rel=next links", async () => {
+    // pgstac / stac-fastapi page with `?token=next:…`; the token is server
+    // state the client cannot reconstruct from offsets.
+    const { seen, record } = requestRecorder();
+    const pages: Record<string, Record<string, unknown>> = {
+      "": itemCollection(["a"], [{ rel: "next", href: `${ROOT}/search?limit=1&token=next%3Apage-2` }]),
+      "next:page-2": itemCollection(["b"], [{ rel: "next", href: `${ROOT}/search?limit=1&token=next%3Apage-3` }]),
+      "next:page-3": itemCollection(["c"]),
+    };
+    const client = routeClient(
+      ROOT,
+      [
+        ["/v1/search", (url) => pages[url.searchParams.get("token") ?? ""]],
+        ["/v1", () => landing(["GET"])],
+      ],
+      record,
+    );
+
+    const result = await apiSource(client).queryAll({});
+    expect(result.features).toHaveLength(3);
+    expect(searches(seen).map((entry) => entry.search.get("token"))).toEqual([null, "next:page-2", "next:page-3"]);
+  });
+
+  it("drains POST body token cursors advertised on POST rel=next links", async () => {
+    // The stac-fastapi POST pagination shape: the cursor rides in the link
+    // body, not on the href.
+    const { seen, record } = requestRecorder();
+    const pages: Record<string, Record<string, unknown>> = {
+      "": itemCollection(
+        ["a"],
+        [{ rel: "next", method: "POST", href: `${ROOT}/search`, body: { token: "next:page-2" }, merge: true }],
+      ),
+      "next:page-2": itemCollection(
+        ["b"],
+        [{ rel: "next", method: "POST", href: `${ROOT}/search`, body: { token: "next:page-3" }, merge: true }],
+      ),
+      "next:page-3": itemCollection(["c"]),
+    };
+    const client = routeClient(
+      ROOT,
+      [
+        [
+          "/v1/search",
+          (_url, init) => {
+            const body = typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
+            return pages[typeof body.token === "string" ? body.token : ""];
+          },
+        ],
+        ["/v1", () => landing(["GET", "POST"])],
+      ],
+      record,
+    );
+
+    const result = await apiSource(client).queryAll({});
+    expect(result.features).toHaveLength(3);
+    const search = searches(seen);
+    expect(search.map((entry) => entry.method)).toEqual(["POST", "POST", "POST"]);
+    expect(search.map((entry) => entry.body?.token)).toEqual([undefined, "next:page-2", "next:page-3"]);
+  });
+
+  it("stops paging when the server keeps advertising the same next link", async () => {
+    // A cursorless (or repeated) rel=next link must not loop: re-requesting
+    // the same page would duplicate items until the page cap.
+    const { seen, record } = requestRecorder();
+    const client = routeClient(
+      ROOT,
+      [
+        ["/v1/search", () => itemCollection(["a"], [{ rel: "next", href: `${ROOT}/search?limit=1&token=stuck` }])],
+        ["/v1", () => landing(["GET"])],
+      ],
+      record,
+    );
+
+    const result = await apiSource(client).queryAll({});
+    expect(searches(seen)).toHaveLength(2);
+    expect(result.features).toHaveLength(2);
+  });
+
+  it("passes a polygon AOI through as STAC intersects on GET", async () => {
+    const { seen, record } = requestRecorder();
+    const client = routeClient(
+      ROOT,
+      [
+        ["/v1/search", () => itemCollection(["a"])],
+        ["/v1", () => landing(["GET"])],
+      ],
+      record,
+    );
+
+    const result = await apiSource(client).query({ spatialFilter: polygon(AOI_RINGS) });
+    expect(result.features).toHaveLength(1);
+    const search = searches(seen);
+    expect(search[0].search.get("bbox")).toBeNull();
+    const intersects = JSON.parse(search[0].search.get("intersects") ?? "null") as {
+      type: string;
+      coordinates: number[][][];
+    };
+    expect(intersects.type).toBe("Polygon");
+    expect(intersects.coordinates).toHaveLength(1);
+    expect(JSON.stringify([...intersects.coordinates[0]].sort())).toBe(AOI_VERTICES);
+  });
+
+  it("passes a polygon AOI through as STAC intersects on POST", async () => {
+    const { seen, record } = requestRecorder();
+    const client = routeClient(
+      ROOT,
+      [
+        ["/v1/search", () => itemCollection(["a"])],
+        ["/v1", () => landing(["GET", "POST"])],
+      ],
+      record,
+    );
+
+    await apiSource(client).query({ spatialFilter: spatialIntersects({ rings: AOI_RINGS }) });
+    const body = searches(seen)[0].body as { intersects?: { type: string; coordinates: number[][][] } };
+    expect(body.intersects?.type).toBe("Polygon");
+    expect(JSON.stringify([...(body.intersects?.coordinates[0] ?? [])].sort())).toBe(AOI_VERTICES);
+  });
+
+  it("refuses a spatial relationship STAC intersects cannot express", async () => {
+    const client = routeClient(ROOT, [
+      ["/v1/search", () => itemCollection(["a"])],
+      ["/v1", () => landing(["GET"])],
+    ]);
+    await expect(apiSource(client).query({ spatialFilter: spatialContains({ rings: AOI_RINGS }) })).rejects.toThrow(
+      /spatialRel/,
+    );
   });
 });
 
@@ -114,6 +428,29 @@ describe("stac backend-agnostic / static catalog.json tree", () => {
   it("applies a client-side limit over the traversed items", async () => {
     const result = await staticSource().query({ pagination: { limit: 1 } });
     expect(result.features).toHaveLength(1);
+  });
+
+  it("refuses an intersects geometry it cannot apply instead of returning an unfiltered superset", async () => {
+    // Traversal only applies bbox / datetime / collection filters, so a
+    // polygon AOI must fail loudly rather than come back silently unfiltered.
+    await expect(
+      staticSource().query({
+        spatialFilter: polygon([
+          [
+            [-158.5, 21.2],
+            [-158.5, 21.7],
+            [-157.6, 21.7],
+            [-157.6, 21.2],
+            [-158.5, 21.2],
+          ],
+        ]),
+      }),
+    ).rejects.toThrow(/intersects/);
+  });
+
+  it("still applies an envelope spatial filter through the static bbox path", async () => {
+    const result = await staticSource().query({ spatialFilter: envelope(-180, -90, 180, 90) });
+    expect(result.features).toHaveLength(2);
   });
 
   it("projects item ids through queryObjectIds", async () => {

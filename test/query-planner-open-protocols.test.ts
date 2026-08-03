@@ -64,7 +64,9 @@ describe("WFS query planning", () => {
         endpoint: "https://geo.example.test/wfs",
         typeName: "cad:parcels",
         method: "GET",
-        propertyName: ["parcel_id", "status", "the_geom"],
+        // Geometry property comes from the descriptor's declared geometry
+        // field, not the PostGIS-via-GeoServer `the_geom` convention.
+        propertyName: ["parcel_id", "status", "shape"],
         sortBy: "parcel_id D",
         startIndex: 5,
         count: 25,
@@ -137,7 +139,7 @@ describe("WFS query planning", () => {
     expect(() =>
       explainQuery({
         descriptor: wfsDescriptor(),
-        query: { outFields: ["parcel_id", "the_geom"], returnGeometry: false },
+        query: { outFields: ["parcel_id", "shape"], returnGeometry: false },
       }),
     ).toThrowError(expect.objectContaining({ code: "unsupported-query" }));
   });

@@ -129,6 +129,7 @@ import type {
   HonuaStacLandingResponse,
   OgcEndpointLayout,
 } from "./core/types.js";
+import { classifyWmsFeatureInfoFormat, reviewedWmsQueryCrs } from "./core/wms-feature-info.js";
 import type { CapabilityProfile } from "./source-capability-types.js";
 
 export interface ConnectSourceSchemaProjectionContext {
@@ -2175,7 +2176,7 @@ function validateSnapshotLocator(
   if (target.protocol === "wms" || target.protocol === "wmts") {
     assertCachedKeys(
       locator as unknown as Record<string, unknown>,
-      ["url", "serviceId", "typeName", "styleId", "tileMatrixSetId", "raster"],
+      ["url", "serviceId", "typeName", "styleId", "tileMatrixSetId", "raster", "featureInfo"],
       `${target.protocol.toUpperCase()} source locator`,
     );
     if (locator.url !== target.endpoint || locator.typeName !== sourceId) {
@@ -2206,6 +2207,7 @@ function validateSnapshotLocator(
       throw new HonuaDiscoveryError("invalid-discovery-cache", "Cached WMTS tile matrix set id is invalid.");
     }
     validateCachedRasterLocatorBinding(locator.raster, target.protocol, target.endpoint);
+    validateCachedFeatureInfoLocatorBinding(locator.featureInfo, target.protocol, target.endpoint);
     return;
   }
   if (target.protocol === "odata") {
@@ -2308,10 +2310,14 @@ function sameStacLocatorPolicy(value: SourceLocator["stacStatic"], expected: Sta
 
 function freezeCachedLocator(locator: SourceLocator, stacPolicy?: StacStaticTraversalPolicy): SourceLocator {
   const raster = locator.raster ? Object.freeze({ ...locator.raster }) : undefined;
+  const featureInfo = locator.featureInfo
+    ? Object.freeze({ ...locator.featureInfo, crs: Object.freeze([...locator.featureInfo.crs]) })
+    : undefined;
   return Object.freeze({
     ...locator,
     ...(locator.layout === "stac-static" && stacPolicy ? { stacStatic: stacPolicy } : {}),
     ...(raster ? { raster } : {}),
+    ...(featureInfo ? { featureInfo } : {}),
   });
 }
 
@@ -2347,6 +2353,7 @@ function validateCachedRasterMetadataBinding(
       cacheMetadataError("Cached WMS operations contradict cached capability evidence.");
     }
     validateCachedExecutableRasterBinding(locator, metadata.operations?.render, render);
+    validateCachedExecutableFeatureInfoBinding(locator, metadata, query);
     validateCachedWmsAxisOrders(metadata);
     if (render && !metadata.crs?.some(isAdvertisedWebMercatorCrs)) {
       cacheMetadataError("Cached executable WMS source does not advertise an exact EPSG:3857 CRS.");
@@ -2556,6 +2563,55 @@ function validateCachedRasterLocatorBinding(
   }
   validateCachedMetadataUrl(value.url, "raster binding", endpoint);
   immutableString(value.format, "Cached raster binding format");
+}
+
+function validateCachedFeatureInfoLocatorBinding(
+  value: SourceLocator["featureInfo"],
+  protocol: "wms" | "wmts",
+  endpoint: string,
+): void {
+  if (value === undefined) return;
+  if (protocol !== "wms") {
+    cacheMetadataError("Cached WMTS locator contains a WMS GetFeatureInfo binding.");
+  }
+  if (!isPlainObject(value)) cacheMetadataError("Cached feature-info binding must be an object.");
+  assertCachedKeys(value, ["kind", "url", "format", "crs"], "WMS feature-info binding");
+  if (value.kind !== "wms-kvp") cacheMetadataError("Cached WMS feature-info binding kind is invalid.");
+  validateCachedMetadataUrl(value.url, "feature-info binding", endpoint);
+  immutableString(value.format, "Cached feature-info binding format");
+  if (classifyWmsFeatureInfoFormat(value.format) === undefined) {
+    cacheMetadataError("Cached WMS feature-info format cannot be projected into canonical features.");
+  }
+  const crs = Array.isArray(value.crs) ? value.crs : undefined;
+  if (!crs || crs.length === 0) {
+    cacheMetadataError("Cached WMS feature-info binding must carry at least one reviewed CRS.");
+  }
+  for (const code of crs) {
+    immutableString(code, "Cached feature-info binding CRS");
+  }
+  if (reviewedWmsQueryCrs(crs as readonly string[]).length !== crs.length) {
+    cacheMetadataError("Cached WMS feature-info CRS list contains an identifier with no provable axis order.");
+  }
+}
+
+function validateCachedExecutableFeatureInfoBinding(
+  locator: SourceLocator,
+  metadata: DiscoverySourceMetadata,
+  available: boolean,
+): void {
+  const binding = locator.featureInfo;
+  if (available !== (binding !== undefined)) {
+    cacheMetadataError("Cached WMS query capability and executable feature-info binding contradict each other.");
+  }
+  if (!binding) return;
+  const operation = metadata.operations?.featureInfo;
+  if (!operation?.urls.includes(binding.url) || !operation.formats.includes(binding.format)) {
+    cacheMetadataError("Cached WMS feature-info binding was not present in the reviewed operation metadata.");
+  }
+  const advertised = metadata.crs ?? [];
+  if (binding.crs.some((code) => !advertised.includes(code))) {
+    cacheMetadataError("Cached WMS feature-info CRS was not advertised by the layer.");
+  }
 }
 
 function validateCachedExecutableRasterBinding(

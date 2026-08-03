@@ -50,6 +50,14 @@ const DEFAULT_STAC_MAX_PAGES = 100;
 export class HonuaStacSearch {
   public readonly client: HonuaClient;
   private readonly basePath: string | undefined;
+  private postSearchProbe: Promise<boolean> | undefined;
+  /**
+   * Verified state of the POST search path: `undefined` until the first POST
+   * attempt, `true` once one succeeded, `false` once one failed (a wrong
+   * advertisement, a proxy that refuses non-GET, a blocked CORS preflight, or
+   * a read-only fetch seam).
+   */
+  private postSearchUsable: boolean | undefined;
 
   public constructor(options: HonuaStacSearchOptions) {
     this.client = options.client;
@@ -86,7 +94,62 @@ export class HonuaStacSearch {
   }
 
   public async search(request: StacSearchRequest = {}): Promise<HonuaStacItemCollectionResponse> {
-    return this.client.searchStac(this.withBase(request));
+    return this.dispatchSearch(request);
+  }
+
+  /**
+   * Issue one search, verifying an advertised POST path before trusting it.
+   * `usePost` reflects what the landing page claims; the first attempt is the
+   * proof. If it fails, the same search is replayed once as `GET /search` and
+   * the instance stays on GET — an advertisement is not a guarantee, and a
+   * search that works over GET must not fail because a proxy, a CORS policy,
+   * or a read-only fetch seam refuses POST. Once a POST search has succeeded,
+   * later failures (including mid-drain pages) surface to the caller.
+   */
+  private async dispatchSearch(request: StacSearchRequest): Promise<HonuaStacItemCollectionResponse> {
+    const wire = this.withBase(request);
+    if (wire.usePost !== true) return this.client.searchStac(wire);
+    if (this.postSearchUsable === false) return this.client.searchStac({ ...wire, usePost: false });
+    try {
+      const response = await this.client.searchStac(wire);
+      this.postSearchUsable = true;
+      return response;
+    } catch (error) {
+      if (this.postSearchUsable !== undefined || request.signal?.aborted === true) throw error;
+      this.postSearchUsable = false;
+      return this.client.searchStac({ ...wire, usePost: false });
+    }
+  }
+
+  /**
+   * Whether the API advertises `POST /search`.
+   *
+   * STAC API - Item Search requires `GET /search` and makes `POST` optional,
+   * so the POST support has to be discovered rather than assumed: servers
+   * list the endpoint on the landing page as a `rel="search"` link per
+   * method (stac-fastapi / pgstac and stac-server emit both a `GET` and a
+   * `POST` link). The probe runs at most once per instance and resolves to
+   * `false` when the landing page is unreachable or advertises no POST
+   * search link, so callers fall back to the universally supported `GET`.
+   */
+  public async supportsPostSearch(): Promise<boolean> {
+    this.postSearchProbe ??= this.probePostSearch();
+    return this.postSearchProbe;
+  }
+
+  private async probePostSearch(): Promise<boolean> {
+    try {
+      const landing = await this.landing();
+      for (const link of landing.links ?? []) {
+        if (link.rel !== "search") continue;
+        if (typeof link.method === "string" && link.method.toUpperCase() === "POST") return true;
+      }
+      return false;
+    } catch {
+      // Landing page unreachable / not a STAC document: stay on GET rather
+      // than failing the search the caller actually asked for.
+      return false;
+    }
   }
 
   public async searchAll(request: HonuaStacSearchAllRequest = {}): Promise<HonuaStacItemResponse[]> {
@@ -95,23 +158,21 @@ export class HonuaStacSearch {
     const items: HonuaStacItemResponse[] = [];
     let cursor: StacPageCursor = { offset: request.offset, next: request.next };
     for (let page = 0; page < maxPages; page += 1) {
-      const response = await this.client.searchStac(
-        this.withBase({
-          ...request,
-          limit: pageSize,
-          offset: cursor.offset,
-          next: cursor.next,
-        }),
-      );
+      const response = await this.dispatchSearch({
+        ...request,
+        limit: pageSize,
+        ...cursorRequest(cursor),
+      });
       const pageItems = response.features ?? [];
       if (pageItems.length === 0) break;
       items.push(...pageItems);
-      cursor = nextStacCursor(response.links);
+      const advanced = nextStacCursor(response.links);
       // Continuation is driven solely by the next-link cursor (and the
       // maxPages cap). STAC permits a server to return fewer than `limit`
       // items on a non-final page while still advertising a `rel=next` link,
       // so a short page must not stop paging.
-      if (cursor.offset === undefined && cursor.next === undefined) break;
+      if (!hasStacCursor(advanced) || stacCursorKey(advanced) === stacCursorKey(cursor)) break;
+      cursor = advanced;
     }
     return items;
   }
@@ -123,21 +184,19 @@ export class HonuaStacSearch {
     const maxPages = request.maxPages ?? DEFAULT_STAC_MAX_PAGES;
     let cursor: StacPageCursor = { offset: request.offset, next: request.next };
     for (let page = 0; page < maxPages; page += 1) {
-      const response: HonuaStacItemCollectionResponse = await this.client.searchStac(
-        this.withBase({
-          ...request,
-          limit: pageSize,
-          offset: cursor.offset,
-          next: cursor.next,
-        }),
-      );
+      const response: HonuaStacItemCollectionResponse = await this.dispatchSearch({
+        ...request,
+        limit: pageSize,
+        ...cursorRequest(cursor),
+      });
       const pageItems = response.features ?? [];
       if (pageItems.length === 0) break;
       yield pageItems;
-      cursor = nextStacCursor(response.links);
       // See searchAll: a short page is not a termination signal; rely on the
       // next-link cursor and the maxPages cap.
-      if (cursor.offset === undefined && cursor.next === undefined) break;
+      const advanced = nextStacCursor(response.links);
+      if (!hasStacCursor(advanced) || stacCursorKey(advanced) === stacCursorKey(cursor)) break;
+      cursor = advanced;
     }
   }
 }
@@ -145,19 +204,58 @@ export class HonuaStacSearch {
 interface StacPageCursor {
   offset?: number;
   next?: string;
+  /** Opaque query params captured verbatim from a GET `rel=next` href. */
+  params?: Record<string, string>;
+  /** Opaque body members captured from a POST `rel=next` link. */
+  body?: Record<string, unknown>;
+}
+
+/** Project a page cursor onto the paging members of a search request. */
+function cursorRequest(cursor: StacPageCursor): Partial<StacSearchRequest> {
+  return {
+    offset: cursor.offset,
+    next: cursor.next,
+    nextParams: cursor.params,
+    nextBody: cursor.body,
+  };
+}
+
+function hasStacCursor(cursor: StacPageCursor): boolean {
+  return (
+    cursor.offset !== undefined || cursor.next !== undefined || cursor.params !== undefined || cursor.body !== undefined
+  );
+}
+
+/**
+ * Stable identity for a page cursor. A server that keeps advertising the
+ * same `rel=next` link (or one whose href carries no cursor at all) would
+ * otherwise re-request the same page until `maxPages`, duplicating items.
+ */
+function stacCursorKey(cursor: StacPageCursor): string {
+  return JSON.stringify([cursor.offset ?? null, cursor.next ?? null, cursor.params ?? null, cursor.body ?? null]);
 }
 
 /**
  * Resolve the next-page cursor for STAC paging. honua-server emits a
- * `rel=next` link with `?offset=N` on the href; some non-Honua STAC
- * servers emit `?next=…` opaque tokens instead. Prefer `offset` when the
- * link carries it, otherwise fall back to `next`. When the server omits
- * a usable `rel=next` link, return an empty cursor so the caller stops.
+ * `rel=next` link with `?offset=N` on the href and some servers emit a
+ * `?next=…` token; both are honored as named cursors. Everything else is
+ * followed opaquely: a POST `rel=next` link carries its cursor in `body`
+ * (`{"method":"POST","body":{"token":"next:…"},"merge":true}` — the pgstac /
+ * stac-fastapi shape) and a GET link carries it on the href query string
+ * under a server-chosen name (`token`, `page`, `cursor`, …), so the whole
+ * query string is replayed rather than guessing the parameter name. When
+ * the server omits a usable `rel=next` link, return an empty cursor so the
+ * caller stops.
  */
 function nextStacCursor(links: HonuaStacItemCollectionResponse["links"] | undefined): StacPageCursor {
   if (!links) return {};
   for (const link of links) {
-    if (link.rel !== "next" || typeof link.href !== "string") continue;
+    if (link.rel !== "next") continue;
+    const body = link.body;
+    if (body && typeof body === "object" && !Array.isArray(body) && Object.keys(body).length > 0) {
+      return { body: { ...body } };
+    }
+    if (typeof link.href !== "string") continue;
     try {
       const url = new URL(link.href, "https://placeholder.test");
       const offsetParam = url.searchParams.get("offset");
@@ -167,6 +265,9 @@ function nextStacCursor(links: HonuaStacItemCollectionResponse["links"] | undefi
       }
       const nextParam = url.searchParams.get("next");
       if (nextParam !== null) return { next: nextParam };
+      const params: Record<string, string> = {};
+      for (const [key, value] of url.searchParams) params[key] = value;
+      if (Object.keys(params).length > 0) return { params };
     } catch {
       // ignore unparsable hrefs; keep scanning for a usable link
     }
@@ -260,9 +361,13 @@ export async function searchStac(
 ): Promise<HonuaStacItemCollectionResponse> {
   const base = stacBase(request);
   if (request.usePost) {
+    // A GET-shaped continuation (href query string) still applies when the
+    // server answered a POST search with a GET `rel=next` link.
+    const query =
+      request.nextParams === undefined ? "" : `?${new URLSearchParams({ ...request.nextParams }).toString()}`;
     return transport.requestJson<HonuaStacItemCollectionResponse>(
       "POST",
-      `${base}/search`,
+      `${base}/search${query}`,
       {
         headers: mergeHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
         body: JSON.stringify(stacSearchBody(request)),
@@ -301,6 +406,12 @@ function serializeStacSearchParams(request: StacSearchRequest): URLSearchParams 
   if (request.offset !== undefined) params.set("offset", String(request.offset));
   if (request.next !== undefined) params.set("next", request.next);
   if (request.sortby !== undefined) params.set("sortby", request.sortby);
+  // An opaque continuation captured from a `rel=next` href wins over the
+  // locally derived paging params: the server stated exactly how to ask for
+  // the next page (token cursors carry state the client cannot reconstruct).
+  if (request.nextParams !== undefined) {
+    for (const [key, value] of Object.entries(request.nextParams)) params.set(key, value);
+  }
   return params;
 }
 
@@ -318,6 +429,9 @@ function stacSearchBody(request: StacSearchRequest): Record<string, unknown> {
   if (request.next !== undefined) out.next = request.next;
   if (request.sortby !== undefined) out.sortby = request.sortby;
   if (request.fields !== undefined) out.fields = request.fields;
+  // `merge: true` semantics for a POST `rel=next` link: the advertised body
+  // members override the ones this request derived locally.
+  if (request.nextBody !== undefined) Object.assign(out, request.nextBody);
   return out;
 }
 

@@ -15,6 +15,7 @@
 
 import type { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError, HonuaHttpError } from "../core/errors.js";
+import { esriGeometryToGeoJSON } from "../core/esri-geojson.js";
 import type { HonuaOdataEncodedEntityKey, HonuaOdataEncodedWriteBody } from "../core/odata-write-codec.js";
 import {
   type HonuaOdataAdvertisedCapabilities,
@@ -57,6 +58,8 @@ import type {
 } from "../core/types.js";
 import { geoJsonGeometryToGml } from "../core/wfs-filter.js";
 import type { HonuaWfsFeatureType, OutputFormatChoice } from "../core/wfs.js";
+import { executeWmsFeatureInfo, resolveWmsQueryCrs } from "../core/wms-feature-info.js";
+import type { WmsFeatureInfoRequest } from "../core/wms-types.js";
 import { HonuaWms, HonuaWmsLayer, parseWmsLayerNames } from "../core/wms.js";
 import { HonuaWmts, HonuaWmtsLayer, HonuaWmtsTileset } from "../core/wmts.js";
 import { createQueryIr } from "../query-planner/ir.js";
@@ -77,7 +80,7 @@ import {
   checkedWfsPageEnd,
   wfsProtocolModule,
 } from "../query-planner/wfs-protocol-module.js";
-import { wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
+import { wfsSpatialFilterNeedsGeometryProperty, wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
@@ -96,6 +99,7 @@ import {
   type AttachmentQuery,
   type AttachmentUpdate,
   CAPABILITIES,
+  type Capabilities,
   type Capability,
   type CapabilityAwareSource,
   type CapabilityPolicy,
@@ -106,6 +110,7 @@ import {
   type EditOutcome,
   type EditResult,
   type FeatureId,
+  type FeatureInfoRequestBinding,
   PROTOCOL_DEFAULT_CAPABILITIES,
   type Protocol,
   type Query,
@@ -134,7 +139,7 @@ import {
  *
  * Operations the canonical surface does not cover stay reachable through the typed
  * `source.protocol(...)` escape hatch (e.g. ImageServer `exportImage`, GeometryServer
- * `project`, GPServer `submitJob`, WFS `LockFeature`).
+ * `project`, GPServer `submitJob`, WFS `GetPropertyValue`).
  *
  * @param options - The dataset id, the `HonuaClient` to talk to, the list of
  *   `SourceDescriptor`s, and (optionally) `capabilityPolicy` and a custom
@@ -1218,13 +1223,27 @@ export function wmsSource<T>(
   descriptor = normalizeCapabilityDescriptor(descriptor);
   const advertisedCaps = descriptor.capabilities ?? PROTOCOL_DEFAULT_CAPABILITIES.wms;
   if (typeof descriptor.locator.serviceId !== "string" || descriptor.locator.serviceId.length === 0) {
-    if (descriptor.locator.raster?.kind !== "wms-kvp") requireWmsLocator(descriptor);
+    const featureInfoBinding = descriptor.locator.featureInfo;
+    if (descriptor.locator.raster?.kind !== "wms-kvp" && featureInfoBinding?.kind !== "wms-kvp") {
+      requireWmsLocator(descriptor);
+    }
     // Raw third-party discovery is renderable through the existing descriptor
-    // → MapLibre raster projection. The existing canonical FeatureInfo adapter
-    // is Honua-service-id based, so keep that surface fail-closed here.
-    const caps = new Set([...advertisedCaps].filter((capability) => capability !== "query"));
-    descriptor = { ...descriptor, capabilities: caps };
-    return makeSource<T>(descriptor, caps, policy, {}, unsupportedFeatureSurface<T>(descriptor));
+    // → MapLibre raster projection, and queryable whenever discovery reviewed a
+    // GetFeatureInfo operation (queryable layer + projectable INFO_FORMAT +
+    // provable CRS axis order). Without that binding the query surface stays
+    // fail-closed.
+    if (featureInfoBinding?.kind !== "wms-kvp" || !advertisedCaps.has("query")) {
+      const caps = new Set([...advertisedCaps].filter((capability) => capability !== "query"));
+      descriptor = { ...descriptor, capabilities: caps };
+      return makeSource<T>(descriptor, caps, policy, {}, unsupportedFeatureSurface<T>(descriptor));
+    }
+    return standaloneWmsSource<T>(
+      { ...descriptor, capabilities: advertisedCaps },
+      featureInfoBinding,
+      client,
+      policy,
+      advertisedCaps,
+    );
   }
   const { serviceId } = requireWmsLocator(descriptor);
   const layerName = descriptor.locator.typeName;
@@ -1254,24 +1273,11 @@ export function wmsSource<T>(
       ensureCapability(descriptor, caps, "query");
       requireWmsCompatibleQuery(descriptor, request);
       const layers = wmsRequireLayers(descriptor, layerName);
-      const { x: px, y: py, crs } = wmsExtractPointFromQuery(request, descriptor);
-      const bboxRadius = 0.0001; // tiny envelope around the point keeps the request a 1×1 image.
-      const widthHeight = 1;
-      const featureCount = request?.pagination?.limit;
+      const point = wmsExtractPointFromQuery(request, descriptor);
       const response = await client.getWmsFeatureInfo<T>({
         serviceId,
-        layers,
-        ...(styleId !== undefined ? { styles: [styleId] } : {}),
-        queryLayers: layers,
-        crs,
-        bbox: [px - bboxRadius, py - bboxRadius, px + bboxRadius, py + bboxRadius],
-        width: widthHeight,
-        height: widthHeight,
-        i: 0,
-        j: 0,
+        ...wmsPointFeatureInfoRequest({ layers, styleId, crs: point.crs, x: point.x, y: point.y, request }),
         infoFormat: "application/json",
-        ...(featureCount !== undefined ? { featureCount } : {}),
-        ...(request?.signal ? { signal: request.signal } : {}),
       });
       return {
         features: response.features ?? [],
@@ -1306,6 +1312,124 @@ export function wmsSource<T>(
     },
     attachments: unsupportedAttachmentApi(descriptor),
   });
+}
+
+/**
+ * Radius of the envelope drawn around the queried point. WMS has no point
+ * request: `GetFeatureInfo` addresses a pixel inside a rendered image, so the
+ * canonical point query renders a 1×1 image whose BBOX is this tiny envelope
+ * and reads pixel (0, 0).
+ */
+const WMS_FEATURE_INFO_POINT_RADIUS = 0.0001;
+
+/**
+ * Build the shared `GetFeatureInfo` envelope for a canonical point query. Both
+ * the Honua service-id path and the capabilities-driven third-party path use
+ * it, so LAYERS / QUERY_LAYERS / STYLES / BBOX / WIDTH / HEIGHT / I / J /
+ * FEATURE_COUNT are derived once.
+ */
+function wmsPointFeatureInfoRequest<T>(options: {
+  readonly layers: readonly string[];
+  readonly styleId: string | undefined;
+  readonly crs: string;
+  readonly x: number;
+  readonly y: number;
+  readonly request: Query<T> | undefined;
+}): WmsFeatureInfoRequest {
+  const radius = WMS_FEATURE_INFO_POINT_RADIUS;
+  const featureCount = options.request?.pagination?.limit;
+  const signal = options.request?.signal;
+  return {
+    layers: [...options.layers],
+    ...(options.styleId !== undefined ? { styles: [options.styleId] } : {}),
+    queryLayers: [...options.layers],
+    crs: options.crs,
+    bbox: [options.x - radius, options.y - radius, options.x + radius, options.y + radius],
+    width: 1,
+    height: 1,
+    i: 0,
+    j: 0,
+    ...(featureCount !== undefined ? { featureCount } : {}),
+    ...(signal ? { signal } : {}),
+  };
+}
+
+/**
+ * `Source` adapter for a third-party WMS 1.3.0 endpoint that `connect()`
+ * reviewed a `GetFeatureInfo` binding for. Canonical `Source.query()` issues
+ * the point request against the capabilities-advertised operation URL under the
+ * same same-origin, credential-free policy discovery applied to `GetMap`.
+ *
+ * The raw `Source.protocol("wms")` handles stay unavailable here: they are
+ * Honua-service-id bound. Render/tiles continue to flow through the descriptor
+ * → MapLibre raster projection.
+ */
+function standaloneWmsSource<T>(
+  descriptor: SourceDescriptor,
+  binding: FeatureInfoRequestBinding,
+  client: HonuaClient,
+  policy: CapabilityPolicy,
+  caps: Capabilities,
+): CapabilityAwareSource<T> {
+  const layerName = descriptor.locator.typeName;
+  const styleId = descriptor.locator.styleId;
+  const runQuery = async (request: Query<T> | undefined): Promise<Result<T>> => {
+    ensureCapability(descriptor, caps, "query");
+    requireWmsCompatibleQuery(descriptor, request);
+    const layers = wmsRequireLayers(descriptor, layerName);
+    const point = wmsExtractPointFromQuery(request, descriptor);
+    const crs = resolveWmsQueryCrs(binding.crs, point.crs);
+    if (crs === undefined) {
+      throw new HonuaCapabilityNotSupportedError(
+        "query",
+        descriptor.protocol,
+        `${descriptor.id} (GetFeatureInfo CRS "${point.crs}" is not one of the layer's reviewed CRS identifiers: ${binding.crs.join(", ")})`,
+      );
+    }
+    const features = await executeWmsFeatureInfo<T>(client, {
+      binding: { url: binding.url, format: binding.format },
+      request: wmsPointFeatureInfoRequest({ layers, styleId, crs, x: point.x, y: point.y, request }),
+      sourceId: descriptor.id,
+    });
+    return { features, exceededTransferLimit: false } satisfies Result<T>;
+  };
+
+  return makeSource<T>(
+    descriptor,
+    caps,
+    policy,
+    {},
+    {
+      async query(request) {
+        return runQuery(request);
+      },
+      async queryAll(request) {
+        // GetFeatureInfo returns a single response set; queryAll degenerates to
+        // query() because there is no paging on the wire.
+        return runQuery(request);
+      },
+      async queryAggregate() {
+        throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
+      },
+      async queryExtent() {
+        throw new HonuaCapabilityNotSupportedError("queryExtent", descriptor.protocol, descriptor.id);
+      },
+      // biome-ignore lint/correctness/useYield: WMS exposes only single-shot GetFeatureInfo, which is delivered through query()
+      async *stream() {
+        throw new HonuaCapabilityNotSupportedError("stream", descriptor.protocol, descriptor.id);
+      },
+      async queryObjectIds() {
+        throw new HonuaCapabilityNotSupportedError("queryObjectIds", descriptor.protocol, descriptor.id);
+      },
+      async applyEdits() {
+        throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
+      },
+      async queryRelated() {
+        throw new HonuaCapabilityNotSupportedError("queryRelated", descriptor.protocol, descriptor.id);
+      },
+      attachments: unsupportedAttachmentApi(descriptor),
+    },
+  );
 }
 
 // ── WMTS 1.0 ──────────────────────────────────────────────────
@@ -1372,10 +1496,14 @@ export function wmtsSource<T>(
 /**
  * Adapter factory for a STAC API search endpoint.
  *
- * The canonical `Source.query()` runs a `POST /search` against the STAC root,
- * with `Query.spatialFilter` (e.g. an `envelope(...)` bounding box) translated
- * into STAC's `bbox` parameter. The deprecated source-native `Query.where`
- * migration member maps to STAC `datetime` / `filter` parameters.
+ * The canonical `Source.query()` runs a search against the STAC root, using
+ * `POST /search` when the landing page advertises a `rel="search"` link with
+ * `method: "POST"` (long CQL2 filters and `intersects` geometries overflow GET
+ * URL limits) and falling back to the universally supported `GET /search`
+ * otherwise. `Query.spatialFilter` translates to STAC's `bbox` for an
+ * `envelope(...)` and to `intersects` for any other GeoJSON-convertible
+ * geometry. The deprecated source-native `Query.where` migration member maps
+ * to STAC `datetime` / `filter` parameters.
  *
  * @example
  * ```ts
@@ -1419,6 +1547,16 @@ export function stacSearchSource<T>(
   const adapterRegistry: Partial<Record<AdapterKind, unknown>> = {
     stac,
   };
+  /**
+   * Build the wire search request, negotiating the HTTP method once per
+   * source: `POST /search` when the API advertises it, `GET /search`
+   * otherwise. A static catalog has no search endpoint, so it never probes.
+   */
+  const toNegotiatedStacRequest = async (request?: Query<T>): Promise<StacSearchRequest> => {
+    const stacRequest = toStacRequest(request, collectionScope);
+    if (!staticCatalog && (await stac.supportsPostSearch())) stacRequest.usePost = true;
+    return stacRequest;
+  };
 
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
@@ -1426,7 +1564,7 @@ export function stacSearchSource<T>(
       if (request?.aggregation) {
         throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
       }
-      const stacRequest = toStacRequest(request, collectionScope);
+      const stacRequest = await toNegotiatedStacRequest(request);
       const response = staticCatalog
         ? await staticCatalog.search(toStacStaticParams(stacRequest))
         : await stac.search(stacRequest);
@@ -1449,7 +1587,7 @@ export function stacSearchSource<T>(
         return { features, exceededTransferLimit, totalCount: features.length } satisfies Result<T>;
       }
       const items = await stac.searchAll({
-        ...toStacRequest(request, collectionScope),
+        ...(await toNegotiatedStacRequest(request)),
         ...withPagingBounds({}, limit),
       });
       const typed = items.map(toTypedFeatureFromStac<T>);
@@ -1480,7 +1618,7 @@ export function stacSearchSource<T>(
         return;
       }
       const stream = stac.searchStream({
-        ...toStacRequest(request, collectionScope),
+        ...(await toNegotiatedStacRequest(request)),
         pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
         maxPages: Number.MAX_SAFE_INTEGER,
       });
@@ -1501,7 +1639,7 @@ export function stacSearchSource<T>(
       const items = staticCatalog
         ? ((await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope)))).features ?? [])
         : await stac.searchAll({
-            ...toStacRequest(request, collectionScope),
+            ...(await toNegotiatedStacRequest(request)),
             ...withPagingBounds({}, limit),
           });
       const ids: FeatureId[] = [];
@@ -1527,16 +1665,28 @@ export function stacSearchSource<T>(
 
 // ── WFS 2.0 ───────────────────────────────────────────────────
 
-const DEFAULT_WFS_GEOMETRY_PROPERTY = "the_geom";
-
 /**
  * Adapter factory for a WFS 2.0 endpoint.
  *
  * `Query.spatialFilter` and the deprecated source-native `Query.where`
  * migration member compile to FES 2.0; GeoJSON is preferred over GML via
  * `OperationsMetadata` negotiation. `applyEdits()` builds
- * `<wfs:Transaction>` bodies. Reach `Source.protocol("wfs")` for raw GML /
- * `LockFeature` / stored-query access.
+ * `<wfs:Transaction>` bodies. Reach `Source.protocol("wfs")` for raw GML,
+ * custom FES filters, `GetPropertyValue`, raw `<wfs:Transaction>` bodies, and
+ * stored queries.
+ *
+ * Locking (`LockFeature` / `GetFeatureWithLock`) has no typed helper anywhere in
+ * the SDK. Callers that need locks must send their own request XML through
+ * `Source.protocol("wfs")!.root.requestText(...)` and parse the response
+ * themselves; no lock id is extracted and no lock state is tracked.
+ *
+ * FES spatial predicates and transaction geometry name the feature type's
+ * geometry property, which is server-specific (`the_geom` on
+ * PostGIS-via-GeoServer, `msGeometry` on MapServer, arbitrary per-schema names
+ * elsewhere). The adapter resolves it from `DescribeFeatureType` on first use
+ * and caches it; `locator.geometryName` pins it explicitly. Resolution failure
+ * fails closed rather than guessing a default that would silently match
+ * nothing.
  *
  * @example
  * ```ts
@@ -1561,7 +1711,7 @@ export function wfsSource<T>(
   policy: CapabilityPolicy,
 ): CapabilityAwareSource<T> {
   descriptor = normalizeCapabilityDescriptor(descriptor);
-  const { typeName, featureNamespace, srsName: wfsSrsName } = requireWfsLocator(descriptor);
+  const { typeName, featureNamespace, srsName: wfsSrsName, geometryName } = requireWfsLocator(descriptor);
   const module = wfsProtocolModule(client);
   const discovered = module.discover(descriptor);
   if (discovered instanceof Promise) {
@@ -1600,23 +1750,58 @@ export function wfsSource<T>(
     return choice;
   }
 
-  function compileSourceQuery(request: Query<T> | undefined, operation: "query" | "queryAll") {
+  /**
+   * Geometry property of this feature type, from `locator.geometryName` or —
+   * once, lazily — from `DescribeFeatureType`. Throws
+   * `HonuaWfsProtocolError("unresolved-geometry-property")` when neither
+   * names it, so a spatial filter or transaction never targets a guessed
+   * property that silently matches nothing.
+   */
+  async function resolveGeometryProperty(signal: AbortSignal | undefined): Promise<string> {
+    if (geometryName !== undefined) return geometryName;
+    return featureType.geometryPropertyName(signal ? { signal } : undefined);
+  }
+
+  /**
+   * Descriptor whose locator carries the resolved geometry property, so the
+   * compiler emits it on every reference in the request it plans.
+   */
+  let geometryResolvedDescriptor: SourceDescriptor | undefined;
+  async function geometryBoundDescriptor(signal: AbortSignal | undefined): Promise<SourceDescriptor> {
+    if (geometryName !== undefined) return descriptor;
+    if (!geometryResolvedDescriptor) {
+      const resolved = await resolveGeometryProperty(signal);
+      geometryResolvedDescriptor = { ...descriptor, locator: { ...descriptor.locator, geometryName: resolved } };
+    }
+    return geometryResolvedDescriptor;
+  }
+
+  async function compileSourceQuery(request: Query<T> | undefined, operation: "query" | "queryAll") {
     try {
       const normalizedRequest = normalizeWfsModuleQuery(request);
-      const ir =
+      const buildIr = (source: SourceDescriptor) =>
         normalizedRequest === undefined
-          ? createQueryIr({ descriptor })
-          : createQueryIr({ descriptor, query: normalizedRequest });
+          ? createQueryIr({ descriptor: source })
+          : createQueryIr({ descriptor: source, query: normalizedRequest });
       // The legacy WFS Source accepted an explicitly empty `where`. Preserve
       // its wire distinction from an omitted `where`: with a spatial filter,
       // the former takes the FES path while the latter may use the bbox KVP.
-      const query: CanonicalQuery =
+      const canonicalQuery = (ir: ReturnType<typeof buildIr>): CanonicalQuery =>
         request?.where === ""
           ? Object.freeze({
               ...ir.query,
               where: Object.freeze({ kind: "source-native" as const, expression: "" }),
             })
           : ir.query;
+      let ir = buildIr(descriptor);
+      let query = canonicalQuery(ir);
+      // Only an FES spatial predicate names the geometry property on the wire;
+      // the `bbox=` shortcut addresses the default geometry positionally. Pay
+      // for schema resolution exactly when the request depends on the name.
+      if (ir.source.geometryProperty === undefined && wfsSpatialFilterNeedsGeometryProperty(query)) {
+        ir = buildIr(await geometryBoundDescriptor(request?.signal));
+        query = canonicalQuery(ir);
+      }
       return module.compile({ source: ir.source, query, operation });
     } catch (error) {
       if (error instanceof HonuaQueryPlanningError && error.code === "unsupported-query") {
@@ -1635,7 +1820,7 @@ export function wfsSource<T>(
         throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
       }
       return module.execute<T>(discovered, {
-        compiled: compileSourceQuery(request, "query"),
+        compiled: await compileSourceQuery(request, "query"),
         operation: "query",
         query: {},
         ...(request?.signal ? { signal: request.signal } : {}),
@@ -1646,7 +1831,7 @@ export function wfsSource<T>(
       const requestedLimit = request?.pagination?.limit;
       const limit = typeof requestedLimit === "number" && requestedLimit >= 0 ? requestedLimit : undefined;
       return module.execute<T>(discovered, {
-        compiled: compileSourceQuery(request, "queryAll"),
+        compiled: await compileSourceQuery(request, "queryAll"),
         operation: "queryAll",
         query: {
           ...(limit !== undefined ? { logicalLimit: limit } : {}),
@@ -1691,7 +1876,7 @@ export function wfsSource<T>(
           featureType,
           choice,
           featureNamespace,
-          compileSourceQuery(pageRequest, "query"),
+          await compileSourceQuery(pageRequest, "query"),
         );
         const page = computeExtentFromFeatureCollection(json);
         count += page.count;
@@ -1725,7 +1910,7 @@ export function wfsSource<T>(
           pagination: { offset, limit: pageSize },
         };
         const result = await module.execute<T>(discovered, {
-          compiled: compileSourceQuery(pageRequest, "query"),
+          compiled: await compileSourceQuery(pageRequest, "query"),
           operation: "query",
           query: {},
           ...(request?.signal ? { signal: request.signal } : {}),
@@ -1794,7 +1979,7 @@ export function wfsSource<T>(
           featureType,
           choice,
           featureNamespace,
-          compileSourceQuery(pageRequest, "query"),
+          await compileSourceQuery(pageRequest, "query"),
         );
         const collection = json as { features?: ReadonlyArray<{ id?: unknown }> };
         const features = collection.features ?? [];
@@ -1840,7 +2025,14 @@ export function wfsSource<T>(
         // same root, so the capabilities promise is already settled there.
         await root.capabilities(envelope.signal ? { signal: envelope.signal } : undefined);
         const filtered: EditEnvelope<T> = { ...envelope, updates: validUpdates };
-        const body = buildTransactionBody(typeName, filtered, featureNamespace, wfsSrsName);
+        // Attribute-only edits and deletes never name the geometry property,
+        // so only a geometry-bearing transaction pays for (and fails closed
+        // on) schema resolution.
+        const writesGeometry =
+          adds.some((add) => add.geometry !== undefined && add.geometry !== null) ||
+          validUpdates.some((update) => update.geometry !== undefined && update.geometry !== null);
+        const geometryProperty = writesGeometry ? await resolveGeometryProperty(envelope.signal) : undefined;
+        const body = buildTransactionBody(typeName, filtered, featureNamespace, wfsSrsName, geometryProperty);
         const transactionOptions: { body: string; signal?: AbortSignal } = { body };
         if (envelope.signal) transactionOptions.signal = envelope.signal;
         summary = await featureType.transaction(transactionOptions);
@@ -1884,8 +2076,9 @@ function requireWfsLocator(descriptor: SourceDescriptor): {
   typeName: string;
   featureNamespace: string | undefined;
   srsName: string | undefined;
+  geometryName: string | undefined;
 } {
-  const { url, typeName, featureNamespace, srsName } = descriptor.locator;
+  const { url, typeName, featureNamespace, srsName, geometryName } = descriptor.locator;
   if (typeof url !== "string" || url.length === 0) {
     throw new Error(`createDataset: source "${descriptor.id}" (wfs) requires locator.url`);
   }
@@ -1897,12 +2090,25 @@ function requireWfsLocator(descriptor: SourceDescriptor): {
       `createDataset: source "${descriptor.id}" (wfs) locator.featureNamespace must be a non-empty string`,
     );
   }
+  // The geometry property is spliced into FES `<fes:ValueReference>` and
+  // transaction element names, so an override must be a plain XML name.
+  if (geometryName !== undefined && (typeof geometryName !== "string" || !isWfsPropertyName(geometryName))) {
+    throw new Error(
+      `createDataset: source "${descriptor.id}" (wfs) locator.geometryName must be a valid geometry property name`,
+    );
+  }
   return {
     url,
     typeName,
     featureNamespace: typeof featureNamespace === "string" ? featureNamespace : undefined,
     srsName: wfsSrsNameFromOutSr(srsName),
+    geometryName: typeof geometryName === "string" ? geometryName : undefined,
   };
+}
+
+/** Optionally prefixed XML name, the only shape a WFS property reference takes. */
+function isWfsPropertyName(value: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_.-]*(?::[A-Za-z_][A-Za-z0-9_.-]*)?$/.test(value);
 }
 
 function toWfsExtentDrainRequest<T>(request: Query<T> | undefined): Query<T> {
@@ -2035,6 +2241,7 @@ function buildTransactionBody<T>(
   envelope: EditEnvelope<T>,
   featureNamespace: string | undefined,
   srsName: string | undefined,
+  geometryProperty: string | undefined,
 ): string {
   const releaseAction = envelope.rollbackOnFailure ? "ALL" : "SOME";
   const { prefix } = splitTypeName(typeName);
@@ -2055,12 +2262,12 @@ function buildTransactionBody<T>(
   // result-mapping side cannot drift.
   const adds = envelope.adds ?? [];
   for (let i = 0; i < adds.length; i += 1) {
-    blocks.push(buildInsertBlock(typeName, adds[i], wfsInsertHandle(i), srsName));
+    blocks.push(buildInsertBlock(typeName, adds[i], wfsInsertHandle(i), srsName, geometryProperty));
   }
   let handleCounter = adds.length;
   for (const update of envelope.updates ?? []) {
     handleCounter += 1;
-    blocks.push(buildUpdateBlock(typeName, update, `upd-${handleCounter}`, srsName));
+    blocks.push(buildUpdateBlock(typeName, update, `upd-${handleCounter}`, srsName, geometryProperty));
   }
   for (const id of envelope.deletes ?? []) {
     handleCounter += 1;
@@ -2096,6 +2303,7 @@ function buildInsertBlock<T>(
   feature: { attributes: T; geometry?: Record<string, unknown> | null },
   handle: string,
   srsName: string | undefined,
+  geometryProperty: string | undefined,
 ): string {
   const attributes = feature.attributes as Record<string, unknown>;
   const propertyXml = Object.entries(attributes)
@@ -2105,8 +2313,8 @@ function buildInsertBlock<T>(
     )
     .join("");
   const geometryXml = feature.geometry ? (geoJsonGeometryToGml(feature.geometry, srsName) ?? "") : "";
-  const geometryProperty = escapeXmlElement(DEFAULT_WFS_GEOMETRY_PROPERTY);
-  const featureXml = `<${escapeXmlElement(typeName)}>${propertyXml}${geometryXml ? `<${geometryProperty}>${geometryXml}</${geometryProperty}>` : ""}</${escapeXmlElement(typeName)}>`;
+  const property = geometryXml ? escapeXmlElement(requireTransactionGeometryProperty(geometryProperty)) : "";
+  const featureXml = `<${escapeXmlElement(typeName)}>${propertyXml}${geometryXml ? `<${property}>${geometryXml}</${property}>` : ""}</${escapeXmlElement(typeName)}>`;
   return `<wfs:Insert handle="${handle}">${featureXml}</wfs:Insert>`;
 }
 
@@ -2115,6 +2323,7 @@ function buildUpdateBlock<T>(
   feature: { id?: FeatureId; attributes: T; geometry?: Record<string, unknown> | null },
   handle: string,
   srsName: string | undefined,
+  geometryProperty: string | undefined,
 ): string {
   const attributes = feature.attributes as Record<string, unknown>;
   const properties = Object.entries(attributes)
@@ -2124,14 +2333,29 @@ function buildUpdateBlock<T>(
         `<wfs:Property><wfs:ValueReference>${escapeXmlText(key)}</wfs:ValueReference><wfs:Value>${escapeXmlText(formatLiteral(value))}</wfs:Value></wfs:Property>`,
     )
     .join("");
-  const geometryProperty = feature.geometry
-    ? `<wfs:Property><wfs:ValueReference>${escapeXmlText(DEFAULT_WFS_GEOMETRY_PROPERTY)}</wfs:ValueReference><wfs:Value>${geoJsonGeometryToGml(feature.geometry, srsName) ?? ""}</wfs:Value></wfs:Property>`
+  const geometryXml = feature.geometry
+    ? `<wfs:Property><wfs:ValueReference>${escapeXmlText(requireTransactionGeometryProperty(geometryProperty))}</wfs:ValueReference><wfs:Value>${geoJsonGeometryToGml(feature.geometry, srsName) ?? ""}</wfs:Value></wfs:Property>`
     : "";
   const filter =
     feature.id !== undefined
       ? `<fes:Filter><fes:ResourceId rid="${escapeXmlAttr(String(feature.id))}"/></fes:Filter>`
       : "";
-  return `<wfs:Update handle="${handle}" typeName="${escapeXmlAttr(typeName)}">${properties}${geometryProperty}${filter}</wfs:Update>`;
+  return `<wfs:Update handle="${handle}" typeName="${escapeXmlAttr(typeName)}">${properties}${geometryXml}${filter}</wfs:Update>`;
+}
+
+/**
+ * Fail closed rather than write geometry into a guessed property: a
+ * transaction that targets the wrong element name is accepted by some servers
+ * and silently drops the geometry.
+ */
+function requireTransactionGeometryProperty(geometryProperty: string | undefined): string {
+  if (geometryProperty === undefined) {
+    throw new HonuaWfsProtocolError(
+      "unresolved-geometry-property",
+      "WFS transaction geometry requires the feature type's geometry property; set locator.geometryName or make DescribeFeatureType reachable",
+    );
+  }
+  return geometryProperty;
 }
 
 function buildDeleteBlock(typeName: string, id: FeatureId, handle: string): string {
@@ -3692,19 +3916,35 @@ function toStacRequest<T>(
     out.sortby = request.orderBy.map((s) => `${s.direction === "desc" ? "-" : ""}${s.field}`).join(",");
   }
   if (request?.spatialFilter) {
-    if (request.spatialFilter.geometryType !== "esriGeometryEnvelope") {
-      throw new Error(
-        `stac: spatialFilter.geometryType "${request.spatialFilter.geometryType}" is not supported; only "esriGeometryEnvelope" translates to STAC bbox.`,
-      );
-    }
-    const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
-    if (
-      typeof env.xmin === "number" &&
-      typeof env.ymin === "number" &&
-      typeof env.xmax === "number" &&
-      typeof env.ymax === "number"
-    ) {
-      out.bbox = [env.xmin, env.ymin, env.xmax, env.ymax];
+    if (request.spatialFilter.geometryType === "esriGeometryEnvelope") {
+      const env = request.spatialFilter.geometry as { xmin?: number; ymin?: number; xmax?: number; ymax?: number };
+      if (
+        typeof env.xmin === "number" &&
+        typeof env.ymin === "number" &&
+        typeof env.xmax === "number" &&
+        typeof env.ymax === "number"
+      ) {
+        out.bbox = [env.xmin, env.ymin, env.xmax, env.ymax];
+      }
+    } else {
+      // STAC Item Search takes an arbitrary GeoJSON geometry on `intersects`
+      // (OGC 21-047 §7.2), so a polygon AOI does not have to be degraded to
+      // its envelope. `intersects` is the only predicate the parameter
+      // expresses; refuse other spatial relationships instead of silently
+      // widening them.
+      const rel = request.spatialFilter.spatialRel;
+      if (rel !== undefined && rel !== "esriSpatialRelIntersects" && rel !== "esriSpatialRelEnvelopeIntersects") {
+        throw new Error(
+          `stac: spatialFilter.spatialRel "${rel}" is not supported; STAC search only expresses an intersects predicate.`,
+        );
+      }
+      const geometry = toStacIntersectsGeometry(request.spatialFilter.geometry);
+      if (geometry === null) {
+        throw new Error(
+          `stac: spatialFilter.geometryType "${request.spatialFilter.geometryType}" could not be converted to a GeoJSON geometry for STAC intersects.`,
+        );
+      }
+      out.intersects = geometry;
     }
   }
   if (collectionScope !== undefined && collectionScope !== "") {
@@ -3715,10 +3955,32 @@ function toStacRequest<T>(
 }
 
 /**
+ * Normalize a canonical `spatialFilter.geometry` into the GeoJSON geometry
+ * STAC `intersects` expects. Esri-shaped geometries (the shape the
+ * `polygon()` / `spatialIntersects()` builders emit) are converted; a
+ * geometry that is already GeoJSON passes through untouched.
+ */
+function toStacIntersectsGeometry(geometry: Record<string, unknown>): Record<string, unknown> | null {
+  if (typeof geometry.type === "string" && (geometry.coordinates !== undefined || geometry.geometries !== undefined)) {
+    return geometry;
+  }
+  const converted = esriGeometryToGeoJSON(geometry);
+  return converted === null ? null : (converted as unknown as Record<string, unknown>);
+}
+
+/**
  * Project a STAC API search request onto the client-side filter params a
  * static catalog traversal applies (it has no server-side query grammar).
  */
 function toStacStaticParams(request: StacSearchRequest): StacStaticSearchParams {
+  if (request.intersects !== undefined) {
+    // A static catalog has no search endpoint; traversal only applies the
+    // bbox / datetime / collection filters below. Silently dropping the
+    // geometry would return an unfiltered superset.
+    throw new Error(
+      "stac-static: an `intersects` geometry filter is not supported by static catalog traversal; use an envelope spatial filter.",
+    );
+  }
   const out: StacStaticSearchParams = {};
   if (request.collections && request.collections.length > 0) out.collections = request.collections;
   if (request.bbox) out.bbox = request.bbox;

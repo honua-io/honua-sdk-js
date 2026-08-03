@@ -608,9 +608,33 @@ export interface HonuaClientOptions {
 }
 
 export interface HonuaRetryOptions {
+  /**
+   * Maximum number of transient-failure retry attempts after the initial
+   * request. Retry is entirely opt-in: values below `1` (including the default
+   * `0`) disable the retry loop, so no status, network, or timeout failure is
+   * replayed.
+   *
+   * This option does not govern the authentication replay. When an
+   * {@link HonuaClientOptions.auth} provider is configured, a replay-safe
+   * request (`GET` / `HEAD` / `PUT` / `DELETE`) answered with `401` or `403` is
+   * still reissued once after a forced credential refresh, even with retries
+   * disabled. Instrumentation that counts requests should expect that one extra
+   * attempt.
+   */
   maxRetries?: number;
+  /** First backoff delay in milliseconds; doubles per attempt. Default: `100`. */
   baseDelayMs?: number;
+  /** Upper bound on any single backoff delay, including a server `Retry-After`. Default: `2000`. */
   maxDelayMs?: number;
+  /**
+   * HTTP statuses the loop replays on replay-safe methods
+   * (`GET` / `HEAD` / `PUT` / `DELETE`). Default: `[429, 502, 503, 504]` — the
+   * statuses that explicitly invite the same request again. This is
+   * intentionally narrower than the broader `408, 429, 500, 502, 503, 504` set
+   * that {@link HonuaHttpError} classifies as transient `retryable` metadata:
+   * that classification is descriptive and never initiates a retry. Pass the
+   * broader set here to opt into replaying `408` / `500`.
+   */
   retryStatuses?: readonly number[];
 }
 
@@ -1297,6 +1321,17 @@ export interface HonuaOgcLink {
   rel?: string;
   type?: string;
   title?: string;
+  /**
+   * HTTP method the link target expects. STAC API uses it on the landing
+   * page (`rel="search"` advertised for `GET` and/or `POST`) and on
+   * pagination links (a `POST` `rel="next"` carries its cursor in `body`
+   * rather than on the href query string).
+   */
+  method?: string;
+  /** Request-body members a `POST` link contributes to the next request. */
+  body?: Record<string, unknown>;
+  /** When true, `body` merges over the originating request body. */
+  merge?: boolean;
 }
 
 // ── OGC Metadata Responses ───────────────────
@@ -1630,6 +1665,19 @@ export interface StacSearchRequest {
    * advertise an opaque `?next=…` token instead of `offset`.
    */
   next?: string;
+  /**
+   * Opaque continuation query params captured verbatim from a server
+   * `rel="next"` link whose cursor is neither `offset` nor `next` (pgstac /
+   * stac-fastapi emit `?token=next:…`). Merged over the serialized search
+   * params so the next page is requested exactly the way the server asked.
+   */
+  nextParams?: Readonly<Record<string, string>>;
+  /**
+   * Opaque continuation body members captured from a `POST` `rel="next"`
+   * link (`{ "method": "POST", "body": { "token": "next:…" }, "merge": true }`).
+   * Merged over the serialized `POST /search` body.
+   */
+  nextBody?: Readonly<Record<string, unknown>>;
   /** Subset of asset / item properties to return. */
   fields?: { include?: readonly string[]; exclude?: readonly string[] };
   sortby?: string;

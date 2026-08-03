@@ -908,15 +908,18 @@ describe("connectWithSourceCapabilities", () => {
       effective: "policy-disabled",
       reasons: ["policy-disabled"],
     });
+    // The fixture advertises a queryable layer, a same-origin GetFeatureInfo
+    // GET URL, and application/geo+json, so canonical query() is executable
+    // against the raw endpoint without a Honua service binding.
     expect(capability(wms.source(), "query")).toMatchObject({
       claimed: "supported",
-      observed: "unsupported",
-      effective: "unsupported",
-      reasons: ["unsupported-by-observation"],
+      observed: "supported",
+      effective: "supported",
+      reasons: ["supported-by-claim-and-observation"],
     });
     expect(wms.source().supports("render")).toBe(true);
     expect(wms.source().supports("tiles")).toBe(false);
-    expect(wms.source().supports("query")).toBe(false);
+    expect(wms.source().supports("query")).toBe(true);
     expect(capability(wmts.source(), "render")).toMatchObject({
       claimed: "supported",
       observed: "supported",

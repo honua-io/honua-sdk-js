@@ -330,17 +330,24 @@ asset search and Honua admin/control-plane metadata APIs.
 ### STAC API
 STAC piggy-backs on OGC API Features for items but adds a
 cross-collection `/search` endpoint. The canonical `Source.query` uses
-`/search` (GET by default; opt into POST with `usePost: true`). Both
-the GET and POST paths serialize `intersects` (as JSON on GET, raw on
+`/search` and negotiates the method from the landing page: a
+`rel="search"` link advertising `method: "POST"` selects `POST /search`
+(the first call verifies the advertisement, falling back to GET once and
+staying there if the POST is refused); everything else stays on
+`GET /search`. Both paths serialize `intersects` (as JSON on GET, raw on
 POST) and `fields` (as a CSV with `-` prefixes on GET, structured on
 POST) so caller-supplied geometry constraints and selections are not
-silently dropped. `spatialFilter` translates to STAC `bbox` only —
-`intersects` geometry support requires CQL2 and is left to a downstream
-extension. Paging follows the server's `rel=next` link: honua-server
-emits `?offset=N` on the href and the adapter parses that numeric
-offset; non-Honua STAC servers that emit an opaque `?next=…` token
-remain supported as a fallback. `Query.pagination.offset` propagates
-through to the STAC `offset` parameter on the initial request.
+silently dropped. `spatialFilter` translates to STAC `bbox` for an
+envelope and to `intersects` for any other GeoJSON-convertible geometry;
+only intersects-style spatial relationships are accepted, and a
+`stac-static` catalog rejects an `intersects` filter rather than
+traversing to an unfiltered superset. Paging follows the server's
+`rel=next` link: honua-server emits `?offset=N` on the href and the
+adapter parses that numeric offset, `?next=…` tokens stay supported, and
+any other cursor — pgstac / stac-fastapi `?token=next:…` on a GET link,
+or the `body` cursor on a POST link — is replayed opaquely.
+`Query.pagination.offset` propagates through to the STAC `offset`
+parameter on the initial request.
 `queryAggregate` and `queryExtent` are not advertised. STAC's
 collection-scoping is handled via `locator.collectionId`; the adapter
 forwards it as the `collections=[id]` parameter on the wire.
@@ -399,7 +406,8 @@ WFS `propertyName=` drops every property the caller does not list,
 including the geometry column, so `Query.outFields` and
 `Query.returnGeometry` are resolved together: an `outFields` list with
 `returnGeometry !== false` appends the geometry property
-(`the_geom` by default) before the projection lands on the wire so
+(`locator.geometryName` / descriptor geometry field, else the reviewed
+`the_geom` default) before the projection lands on the wire so
 geometry survives; `returnGeometry === false` paired with an
 `outFields` list emits exactly the requested fields (no geometry); a
 `returnGeometry === false` request without an `outFields` list throws
@@ -459,9 +467,12 @@ Stored queries that advertise only GML (e.g. Honua Server's
 the canonical `Source.query()` envelope; the canonical surface throws
 `HonuaCapabilityNotSupportedError("query")` and points the caller at
 the protocol escape hatch.
-Locking (`LockFeature` / `GetFeatureWithLock`) is not exposed in the
-canonical surface; callers that need it reach the wire through
-`Source.protocol("wfs")`.
+Locking (`LockFeature` / `GetFeatureWithLock`) is not implemented: it is
+absent from the canonical surface and has no typed helper on the
+protocol escape hatch either. Callers that need it must POST their own
+request XML through `Source.protocol("wfs")!.root.requestText(...)` and
+parse the raw response themselves — no `lockId` is extracted and no lock
+is attached to a later `applyEdits()` transaction.
 The capabilities XML walker refuses any document declaring
 `<!DOCTYPE>` or `<!ENTITY>` to defend against XXE-class attacks.
 WFS `Result.totalCount` populates from the `numberMatched` GeoJSON
@@ -498,6 +509,31 @@ must stamp the spatial filter geometry's `spatialReference` with the
 desired CRS (the wire CRS is derived from there) or reproject the
 result client-side. `Query.pagination.limit` is honored — it maps to
 `FEATURE_COUNT` on the wire.
+
+The same canonical `query()` works against a third-party WMS 1.3
+endpoint discovered by `connect()`, with no Honua service id involved.
+Discovery reviews the advertised `GetFeatureInfo` operation and pins it
+on `locator.featureInfo` (`{ kind: "wms-kvp", url, format, crs }`) only
+when the layer is `queryable`, the operation advertises a safe
+same-origin GET URL, an advertised `INFO_FORMAT` can be projected into
+canonical features, and at least one advertised CRS has a provable WMS
+1.3 axis order. Format preference is GeoJSON/JSON first, then GML
+(`application/vnd.ogc.gml`, `application/gml+xml`, `text/xml;
+subtype=gml/*`) decoded from `gml:featureMember` / `gml:featureMembers`
+containers or MapServer's `msGMLOutput` wrapper — leaf property elements
+become attributes, complex properties and `gml:boundedBy` are skipped,
+and `geometry` is `null`. Unstructured `text/plain` and `text/html` are
+never selected because their bodies are template-defined per deployment,
+so an endpoint advertising only those keeps `query` disabled. The wire
+CRS is resolved against the reviewed list (`CRS:84` and `EPSG:4326` are
+interchangeable inputs for the same canonical `(lon, lat)` point); a CRS
+the layer never advertised throws
+`HonuaCapabilityNotSupportedError("query", "wms", id)` rather than being
+sent. A response body that does not decode into features (an OGC
+exception report, malformed JSON, or an unrecognized GML container)
+raises the same capability error instead of degrading into an empty
+result. The raw `Source.protocol("wms")` handles stay unavailable on
+third-party sources — they are Honua-service-id bound.
 
 `Source.protocol("wms-layer")` is registered only when
 `locator.typeName` parses to a single non-empty layer token because
