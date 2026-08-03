@@ -8,8 +8,8 @@
  *
  * As of honua-server#1197 the adapter renders Honua 3D content end-to-end:
  * 3D-Tiles tilesets (add/remove/visibility), terrain providers (quantized-mesh
- * via `CesiumTerrainProvider`, with vertical exaggeration), and glTF/GLB model
- * layers placed with heading/pitch/roll + scale. It also resolves a picked
+ * via `CesiumTerrainProvider`, with vertical exaggeration), imagery providers,
+ * and glTF/GLB model layers placed with heading/pitch/roll + scale. It also resolves a picked
  * 3D-Tiles feature's attributes (batch properties / `EXT_structural_metadata`).
  *
  * The provider wiring is still kept Cesium-mockable: every CesiumJS symbol the
@@ -23,6 +23,7 @@
 
 import {
   type SceneElevationSourcePrimitive,
+  type SceneImageryLayerPrimitive,
   type SceneModelLayerPrimitive,
   type ScenePrimitiveApplyResult,
   type SceneRuntimeAdapter,
@@ -47,6 +48,9 @@ export const CESIUM_SCENE_CAPABILITIES: SceneRuntimeCapabilities = {
   terrain: {
     protocols: ["quantized-mesh", "terrain-rgb", "raster-dem", "image-service", "custom"],
     supportsExaggeration: true,
+  },
+  imagery: {
+    protocols: ["url-template", "wms", "wmts", "single-tile", "arcgis-imagery"],
   },
   extrusion: true,
   modelLayer: {
@@ -143,13 +147,32 @@ export interface CesiumPrimitiveCollectionLike {
   contains(primitive?: unknown): boolean;
 }
 
+export interface CesiumImageryProviderLike {
+  destroy?(): void;
+  isDestroyed?(): boolean;
+}
+
+export interface CesiumImageryLayerLike {
+  show: boolean;
+  alpha: number;
+  destroy?(): void;
+  isDestroyed?(): boolean;
+}
+
+export interface CesiumImageryLayerCollectionLike {
+  addImageryProvider(provider: CesiumImageryProviderLike, index?: number): CesiumImageryLayerLike;
+  remove(layer: CesiumImageryLayerLike, destroy?: boolean): boolean;
+  contains(layer: CesiumImageryLayerLike): boolean;
+}
+
 /**
- * The Cesium `Scene` surface the adapter mutates: a primitive collection for
- * tilesets/models, a settable `terrainProvider`, vertical exaggeration, and a
+ * The Cesium `Scene` surface the adapter mutates: primitive and imagery
+ * collections, a settable `terrainProvider`, vertical exaggeration, and a
  * `pick` entry point used by {@link pickCesiumFeatureAttributes}.
  */
 export interface CesiumSceneLike {
   readonly primitives: CesiumPrimitiveCollectionLike;
+  readonly imageryLayers?: CesiumImageryLayerCollectionLike;
   terrainProvider?: unknown;
   verticalExaggeration?: number;
   pick?(windowPosition: unknown, width?: number, height?: number): unknown;
@@ -189,9 +212,11 @@ export interface CesiumModelPlacement {
  */
 export interface CesiumLayerHandle {
   readonly id: string;
-  readonly kind: "model-layer" | "elevation-source";
+  readonly kind: "model-layer" | "elevation-source" | "imagery-layer";
   readonly format?: SceneModelLayerPrimitive["format"];
+  readonly protocol?: SceneImageryLayerPrimitive["protocol"];
   setVisible(visible: boolean): void;
+  setOpacity?(opacity: number): void;
   remove(): void;
 }
 
@@ -334,6 +359,15 @@ type CesiumModule = {
   };
   readonly CesiumTerrainProvider: {
     fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumTerrainProviderLike>;
+  };
+  readonly UrlTemplateImageryProvider: new (options: Record<string, unknown>) => CesiumImageryProviderLike;
+  readonly WebMapServiceImageryProvider: new (options: Record<string, unknown>) => CesiumImageryProviderLike;
+  readonly WebMapTileServiceImageryProvider: new (options: Record<string, unknown>) => CesiumImageryProviderLike;
+  readonly SingleTileImageryProvider: {
+    fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumImageryProviderLike>;
+  };
+  readonly ArcGisMapServerImageryProvider: {
+    fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumImageryProviderLike>;
   };
 };
 
@@ -639,6 +673,323 @@ export async function addCesiumModel(
 }
 
 /**
+ * Materialize one renderer-neutral imagery primitive through Cesium's matching
+ * provider and add it to the scene's imagery collection.
+ *
+ * The returned handle owns the provider and layer it creates. Removal is
+ * idempotent, releases the layer's GPU resources through Cesium, and calls an
+ * optional provider `destroy()` exactly once.
+ */
+export async function addCesiumImageryLayer(
+  scene: CesiumSceneLike,
+  primitive: SceneImageryLayerPrimitive,
+  cesium?: CesiumModule,
+): Promise<CesiumLayerHandle> {
+  const validation = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
+    (diagnostic) => diagnostic.status === "unsupported",
+  );
+  if (validation) throw new Error(`${validation.code}: ${validation.message}`);
+  if (!scene.imageryLayers) {
+    throw new Error("scene-primitive-imagery-target-missing: Cesium imageryLayers unavailable.");
+  }
+
+  const mod = cesium ?? (await loadCesium());
+  const provider = await createCesiumImageryProvider(primitive, mod);
+  let layer: CesiumImageryLayerLike | undefined;
+  try {
+    layer = scene.imageryLayers.addImageryProvider(provider);
+    layer.alpha = primitive.opacity ?? 1;
+  } catch (error) {
+    if (layer && scene.imageryLayers.contains(layer)) scene.imageryLayers.remove(layer, true);
+    disposeCesiumImageryProvider(provider);
+    throw error;
+  }
+  let removed = false;
+  return {
+    id: primitive.id,
+    kind: "imagery-layer",
+    protocol: primitive.protocol,
+    setVisible(visible: boolean) {
+      if (!removed) layer.show = visible;
+    },
+    setOpacity(opacity: number) {
+      if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+        throw new RangeError("Imagery opacity must be a finite number between 0 and 1.");
+      }
+      if (!removed) layer.alpha = opacity;
+    },
+    remove() {
+      if (removed) return;
+      removed = true;
+      try {
+        if (scene.imageryLayers?.contains(layer)) scene.imageryLayers.remove(layer, true);
+      } finally {
+        disposeCesiumImageryProvider(provider);
+      }
+    },
+  };
+}
+
+function disposeCesiumImageryProvider(provider: CesiumImageryProviderLike): void {
+  if (typeof provider.destroy === "function" && provider.isDestroyed?.() !== true) provider.destroy();
+}
+
+async function createCesiumImageryProvider(
+  primitive: SceneImageryLayerPrimitive,
+  cesium: CesiumModule,
+): Promise<CesiumImageryProviderLike> {
+  const commonOptions = {
+    ...(primitive.attribution ? { credit: primitive.attribution } : {}),
+    ...(primitive.minimumLevel !== undefined ? { minimumLevel: primitive.minimumLevel } : {}),
+    ...(primitive.maximumLevel !== undefined ? { maximumLevel: primitive.maximumLevel } : {}),
+  };
+  switch (primitive.protocol) {
+    case "url-template":
+      return new cesium.UrlTemplateImageryProvider({
+        url: urlWithServiceParameters(primitive.url, primitive.parameters),
+        ...commonOptions,
+        ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
+      });
+    case "wms":
+      return new cesium.WebMapServiceImageryProvider({
+        url: normalizedWmsUrl(primitive.url, primitive.parameters),
+        layers: primitive.layer,
+        ...commonOptions,
+        ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
+        ...(primitive.parameters || primitive.format || primitive.style
+          ? {
+              parameters: normalizedWmsParameters(primitive.parameters, primitive.format, primitive.style),
+            }
+          : {}),
+      });
+    case "wmts":
+      return new cesium.WebMapTileServiceImageryProvider({
+        url: normalizedWmtsUrl(primitive.url, primitive.parameters),
+        layer: primitive.layer,
+        style: primitive.style,
+        tileMatrixSetID: primitive.tileMatrixSetId,
+        format: primitive.format ?? "image/png",
+        ...commonOptions,
+        ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
+        ...(primitive.parameters ? { dimensions: primitive.parameters } : {}),
+      });
+    case "single-tile":
+      return cesium.SingleTileImageryProvider.fromUrl(
+        urlWithServiceParameters(resolveConfiguredSubdomainUrl(primitive), primitive.parameters),
+        {
+          ...(primitive.attribution ? { credit: primitive.attribution } : {}),
+        },
+      );
+    case "arcgis-imagery":
+      if (isArcGisImageServerUrl(primitive.url)) {
+        return new cesium.UrlTemplateImageryProvider({
+          url: arcGisImageServerExportUrl(primitive.url, primitive.parameters),
+          ...commonOptions,
+          ...(primitive.subdomains ? { subdomains: primitive.subdomains } : {}),
+        });
+      }
+      return cesium.ArcGisMapServerImageryProvider.fromUrl(
+        urlWithoutQueryKeys(
+          resolveConfiguredSubdomainUrl(primitive),
+          [...ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS, "layers", ...Object.keys(primitive.parameters ?? {})],
+          true,
+        ),
+        {
+          ...commonOptions,
+          ...arcGisMapServerOptions(primitive.parameters),
+        },
+      );
+  }
+}
+
+function resolveConfiguredSubdomainUrl(primitive: SceneImageryLayerPrimitive): string {
+  const subdomain = primitive.subdomains?.[0];
+  return subdomain === undefined ? primitive.url : primitive.url.replaceAll("{s}", subdomain);
+}
+
+function normalizedWmsUrl(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
+  return urlWithoutQueryKeys(url, [...WMS_PROVIDER_QUERY_KEYS, ...Object.keys(parameters ?? {})]);
+}
+
+function normalizedWmtsUrl(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
+  return urlWithoutQueryKeys(url, [...WMTS_PROVIDER_QUERY_KEYS, ...Object.keys(parameters ?? {})]);
+}
+
+function urlWithServiceParameters(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
+  const entries = Object.entries(parameters ?? {});
+  if (entries.length === 0) return url;
+  const normalizedUrl = urlWithoutQueryKeys(
+    url,
+    entries.map(([key]) => key),
+  );
+  const hashIndex = normalizedUrl.indexOf("#");
+  const withoutFragment = hashIndex === -1 ? normalizedUrl : normalizedUrl.slice(0, hashIndex);
+  const fragment = hashIndex === -1 ? "" : normalizedUrl.slice(hashIndex);
+  const encodedParameters = entries
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join("&");
+  return `${withoutFragment}${withoutFragment.includes("?") ? "&" : "?"}${encodedParameters}${fragment}`;
+}
+
+function urlWithoutQueryKeys(url: string, keys: readonly string[], canonical = false): string {
+  const overriddenKeys = new Set(
+    keys.map((key) => (canonical ? key.toLowerCase().replaceAll(/[^a-z0-9]/g, "") : key.toLowerCase())),
+  );
+  const hashIndex = url.indexOf("#");
+  const withoutFragment = hashIndex === -1 ? url : url.slice(0, hashIndex);
+  const fragment = hashIndex === -1 ? "" : url.slice(hashIndex);
+  const queryIndex = withoutFragment.indexOf("?");
+  if (queryIndex === -1) return url;
+  const endpoint = withoutFragment.slice(0, queryIndex);
+  const query = withoutFragment.slice(queryIndex + 1);
+  const preserved = query.split("&").filter((entry) => {
+    if (entry === "") return false;
+    const separatorIndex = entry.indexOf("=");
+    const rawKey = separatorIndex === -1 ? entry : entry.slice(0, separatorIndex);
+    try {
+      const decodedKey = decodeURIComponent(rawKey.replaceAll("+", " ")).toLowerCase();
+      return !overriddenKeys.has(canonical ? decodedKey.replaceAll(/[^a-z0-9]/g, "") : decodedKey);
+    } catch {
+      return true;
+    }
+  });
+  return `${endpoint}${preserved.length > 0 ? `?${preserved.join("&")}` : ""}${fragment}`;
+}
+
+function arcGisMapServerOptions(
+  parameters: SceneImageryLayerPrimitive["parameters"],
+): Readonly<Record<string, string | number | boolean>> {
+  const options: Record<string, string | number | boolean> = {};
+  for (const [key, value] of Object.entries(parameters ?? {})) {
+    switch (key.toLowerCase().replaceAll(/[^a-z0-9]/g, "")) {
+      case "layers":
+        options.layers = normalizeArcGisMapServerLayers(value);
+        break;
+      case "enablepickfeatures":
+        options.enablePickFeatures = value;
+        break;
+      case "useprecachedtilesifavailable":
+        options.usePreCachedTilesIfAvailable = value;
+        break;
+      case "tilewidth":
+        options.tileWidth = value;
+        break;
+      case "tileheight":
+        options.tileHeight = value;
+        break;
+    }
+  }
+  return options;
+}
+
+function normalizeArcGisMapServerLayers(value: string | number | boolean): string {
+  const trimmed = String(value).trim();
+  const layerList = trimmed.toLowerCase().startsWith("show:") ? trimmed.slice(5) : trimmed;
+  return layerList
+    .split(",")
+    .map((layerId) => layerId.trim())
+    .join(",");
+}
+
+function normalizedWmsParameters(
+  parameters: SceneImageryLayerPrimitive["parameters"],
+  format: SceneImageryLayerPrimitive["format"],
+  style: SceneImageryLayerPrimitive["style"],
+): Readonly<Record<string, string | number | boolean>> {
+  const entries = Object.entries(parameters ?? {}).filter(
+    ([key]) =>
+      key.toLowerCase() !== "layers" &&
+      (format === undefined || key.toLowerCase() !== "format") &&
+      (style === undefined || key.toLowerCase() !== "styles"),
+  );
+  return {
+    ...Object.fromEntries(entries),
+    ...(format !== undefined ? { format } : {}),
+    ...(style !== undefined ? { styles: style } : {}),
+  };
+}
+
+function isArcGisImageServerUrl(url: string): boolean {
+  const endpoint = url.split(/[?#]/, 1)[0] ?? "";
+  return trimTrailingSlashes(endpoint).toLowerCase().endsWith("/imageserver");
+}
+
+function arcGisImageServerExportUrl(url: string, parameters: SceneImageryLayerPrimitive["parameters"]): string {
+  const [withoutFragment] = url.split("#", 1);
+  const queryIndex = withoutFragment.indexOf("?");
+  const endpoint = trimTrailingSlashes(queryIndex === -1 ? withoutFragment : withoutFragment.slice(0, queryIndex));
+  const existingQuery = queryIndex === -1 ? "" : withoutFragment.slice(queryIndex + 1);
+  const primitiveParameters = new Map<string, readonly [string, string]>();
+  for (const [key, value] of Object.entries(parameters ?? {})) {
+    if (!ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS.has(key.toLowerCase())) {
+      primitiveParameters.set(key.toLowerCase(), [key, String(value)]);
+    }
+  }
+  const preservedParameters = new URLSearchParams();
+  for (const [key, value] of new URLSearchParams(existingQuery)) {
+    const normalizedKey = key.toLowerCase();
+    if (!ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS.has(normalizedKey) && !primitiveParameters.has(normalizedKey)) {
+      preservedParameters.append(key, value);
+    }
+  }
+  for (const [key, value] of primitiveParameters.values()) preservedParameters.set(key, value);
+  const requestParameters = [
+    "f=image",
+    "bbox={westProjected}%2C{southProjected}%2C{eastProjected}%2C{northProjected}",
+    "bboxSR=3857",
+    "imageSR=3857",
+    "size={width}%2C{height}",
+    "format=png32",
+    "transparent=true",
+  ];
+  const preservedQuery = preservedParameters.toString();
+  return `${endpoint}/exportImage?${preservedQuery ? `${preservedQuery}&` : ""}${requestParameters.join("&")}`;
+}
+
+const ARCGIS_IMAGE_SERVER_RESERVED_PARAMETERS = new Set([
+  "f",
+  "bbox",
+  "bboxsr",
+  "imagesr",
+  "size",
+  "format",
+  "transparent",
+]);
+const WMS_PROVIDER_QUERY_KEYS = [
+  "bbox",
+  "crs",
+  "format",
+  "height",
+  "layers",
+  "request",
+  "service",
+  "srs",
+  "styles",
+  "transparent",
+  "version",
+  "width",
+] as const;
+const WMTS_PROVIDER_QUERY_KEYS = [
+  "format",
+  "layer",
+  "request",
+  "service",
+  "style",
+  "tilecol",
+  "tilematrix",
+  "tilematrixset",
+  "tilematrixsetid",
+  "tilerow",
+  "version",
+] as const;
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
+}
+
+/**
  * Wire a terrain provider from an elevation-source primitive onto the scene.
  *
  * `quantized-mesh` maps to `CesiumTerrainProvider.fromUrl` natively. `terrain-rgb`
@@ -653,6 +1004,15 @@ export async function applyCesiumTerrain(
   primitive: SceneElevationSourcePrimitive,
   cesium?: CesiumModule,
 ): Promise<CesiumLayerHandle | undefined> {
+  return applyCesiumTerrainInternal(scene, primitive, cesium, true);
+}
+
+async function applyCesiumTerrainInternal(
+  scene: CesiumSceneLike,
+  primitive: SceneElevationSourcePrimitive,
+  cesium: CesiumModule | undefined,
+  disposePreviousProvider: boolean,
+): Promise<CesiumLayerHandle | undefined> {
   const url = typeof primitive.url === "string" && primitive.url.trim() !== "" ? primitive.url : undefined;
   if (primitive.exaggeration !== undefined && Number.isFinite(primitive.exaggeration)) {
     scene.verticalExaggeration = primitive.exaggeration;
@@ -663,7 +1023,9 @@ export async function applyCesiumTerrain(
   if (provider && typeof provider === "object") ownedCesiumTerrainProviders.add(provider);
   const previousProvider = scene.terrainProvider;
   scene.terrainProvider = provider;
-  if (previousProvider && previousProvider !== provider) disposeOwnedCesiumTerrainProvider(previousProvider);
+  if (disposePreviousProvider && previousProvider && previousProvider !== provider) {
+    disposeOwnedCesiumTerrainProvider(previousProvider);
+  }
   let removed = false;
   return {
     id: primitive.id,
@@ -752,6 +1114,7 @@ export function pickCesiumFeatureAttributes(
  * As of #1197 this lands the full 3D stack against `target.scene`:
  *  - `camera` → `Camera.setView` (via the lazily-loaded `Cartesian3`).
  *  - `elevation-source` → `scene.terrainProvider` + `verticalExaggeration`.
+ *  - `imagery-layer` → a protocol-specific provider added to `scene.imageryLayers`.
  *  - `model-layer` (`3d-tiles`) → `Cesium3DTileset.fromUrl` added to
  *    `scene.primitives`; (`gltf`/`glb`) → `Model.fromGltfAsync` placed by
  *    position/rotation/scale.
@@ -768,36 +1131,102 @@ export async function applyCesiumScenePrimitives(
   primitives: readonly SceneRuntimePrimitive[],
   _state?: SceneWorkspaceState,
 ): Promise<ScenePrimitiveApplyResult & { readonly layers: ReadonlyMap<string, CesiumLayerHandle> }> {
-  const diagnostics = diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES);
+  const diagnostics = [...diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES)];
   const cesium = await loadCesium();
   const toCartesian = (longitude: number, latitude: number, height: number): unknown =>
     cesium.Cartesian3.fromDegrees(longitude, latitude, height);
-  const unsupportedIds = new Set(
-    diagnostics.filter((diagnostic) => diagnostic.status === "unsupported").map((diagnostic) => diagnostic.primitiveId),
+  const unsupportedPrimitives = new Set(
+    primitives.filter((primitive) =>
+      diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).some(
+        (diagnostic) => diagnostic.status === "unsupported",
+      ),
+    ),
   );
   const layers = new Map<string, CesiumLayerHandle>();
+  const appliedHandles: CesiumLayerHandle[] = [];
+  const deferredTerrainProviders: unknown[] = [];
   const scene = target.scene;
+  const originalTerrainProvider = scene?.terrainProvider;
+  const originalVerticalExaggeration = scene?.verticalExaggeration;
+  let terrainWasApplied = false;
+  const registerHandle = (handle: CesiumLayerHandle): void => {
+    appliedHandles.push(handle);
+    layers.get(handle.id)?.remove();
+    layers.set(handle.id, handle);
+  };
 
-  for (const primitive of primitives) {
-    if (primitive.kind === "camera") {
-      applyCameraStateToCesiumCamera(target.camera, primitive.camera, toCartesian);
-      continue;
-    }
-    if (!scene || unsupportedIds.has(primitive.id)) continue;
-
-    if (primitive.kind === "elevation-source") {
-      const handle = await applyCesiumTerrain(scene, primitive, cesium);
-      if (handle) layers.set(handle.id, handle);
-      continue;
-    }
-    if (primitive.kind === "model-layer") {
-      if (primitive.format === "3d-tiles") {
-        layers.set(primitive.id, await addCesium3DTileset(scene, primitive, cesium));
-      } else if (primitive.format === "gltf" || primitive.format === "glb") {
-        layers.set(primitive.id, await addCesiumModel(scene, primitive, cesium));
+  try {
+    for (const primitive of primitives) {
+      if (primitive.kind === "camera") {
+        applyCameraStateToCesiumCamera(target.camera, primitive.camera, toCartesian);
+        continue;
       }
-      // i3s / obj / custom: declared-capable but not materialized here.
+      if (!scene || unsupportedPrimitives.has(primitive)) continue;
+
+      if (primitive.kind === "elevation-source") {
+        const previousProvider = scene.terrainProvider;
+        terrainWasApplied = true;
+        const handle = await applyCesiumTerrainInternal(scene, primitive, cesium, false);
+        if (handle) {
+          if (previousProvider && previousProvider !== scene.terrainProvider) {
+            deferredTerrainProviders.push(previousProvider);
+          }
+          registerHandle(handle);
+        }
+        continue;
+      }
+      if (primitive.kind === "imagery-layer") {
+        if (!scene.imageryLayers) {
+          diagnostics.push({
+            code: "scene-primitive-imagery-target-missing",
+            severity: "error",
+            status: "unsupported",
+            primitiveId: primitive.id,
+            primitiveKind: primitive.kind,
+            renderer: "cesium",
+            message: "Cesium imageryLayers unavailable.",
+            fallback: "Attach a complete Cesium scene target before applying imagery.",
+          });
+          continue;
+        }
+        registerHandle(await addCesiumImageryLayer(scene, primitive, cesium));
+        continue;
+      }
+      if (primitive.kind === "model-layer") {
+        if (primitive.format === "3d-tiles") {
+          registerHandle(await addCesium3DTileset(scene, primitive, cesium));
+        } else if (primitive.format === "gltf" || primitive.format === "glb") {
+          registerHandle(await addCesiumModel(scene, primitive, cesium));
+        }
+        // i3s / obj / custom: declared-capable but not materialized here.
+      }
     }
+    for (const provider of [...deferredTerrainProviders].reverse()) disposeOwnedCesiumTerrainProvider(provider);
+  } catch (cause) {
+    const rollbackErrors: unknown[] = [];
+    for (const handle of appliedHandles.reverse()) {
+      try {
+        handle.remove();
+      } catch (error) {
+        rollbackErrors.push(error);
+      }
+    }
+    if (scene && terrainWasApplied) {
+      try {
+        scene.terrainProvider = originalTerrainProvider;
+        scene.verticalExaggeration = originalVerticalExaggeration;
+      } catch (error) {
+        rollbackErrors.push(error);
+      }
+    }
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError(
+        [cause, ...rollbackErrors],
+        "Cesium scene primitive application failed and layer rollback was incomplete.",
+        { cause },
+      );
+    }
+    throw cause;
   }
 
   return {
@@ -812,8 +1241,8 @@ export async function applyCesiumScenePrimitives(
  *
  * When `options.target` (a live Cesium `Viewer`/`Scene` surface — a `camera`
  * plus an optional `scene`) is supplied, `apply` drives the live globe: camera
- * sync plus, when a `scene` is attached, terrain providers, 3D-Tiles tilesets,
- * and glTF/GLB model layers (#1197). Without a target the adapter still
+ * sync plus, when a `scene` is attached, terrain and imagery providers,
+ * 3D-Tiles tilesets, and glTF/GLB model layers. Without a target the adapter still
  * diagnoses primitives against Cesium's true-3D capabilities — useful for
  * migration analysis before a viewer exists. CesiumJS itself is only imported
  * lazily when `apply` runs.

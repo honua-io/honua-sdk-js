@@ -1,3 +1,4 @@
+import { isCredentialQueryName } from "../connect-url-safety.js";
 import type { FeatureId, SourceId } from "../contract/types.js";
 import type { FilterClause } from "../exploration/index.js";
 import type { SceneCameraState, SceneLayerState, SceneWorkspaceState } from "./types.js";
@@ -56,6 +57,56 @@ export interface SceneElevationSourcePrimitive extends ScenePrimitiveBase {
   readonly exaggeration?: number;
 }
 
+export type SceneImagerySourceProtocol = "url-template" | "wms" | "wmts" | "single-tile" | "arcgis-imagery";
+
+const SCENE_IMAGERY_URL_BASE = "https://scene.honua.invalid/";
+const WMS_RESERVED_PARAMETER_KEYS = new Set(["bbox", "crs", "height", "request", "service", "srs", "width"]);
+const ARCGIS_IMAGE_SERVER_RESERVED_PARAMETER_KEYS = new Set([
+  "bbox",
+  "bboxsr",
+  "f",
+  "format",
+  "imagesr",
+  "size",
+  "transparent",
+]);
+const WMTS_RESERVED_DIMENSION_KEYS = new Set([
+  "format",
+  "layer",
+  "request",
+  "service",
+  "style",
+  "tilecol",
+  "tilematrix",
+  "tilematrixset",
+  "tilematrixsetid",
+  "tilerow",
+  "version",
+]);
+/**
+ * A credential-free imagery binding for a scene renderer.
+ *
+ * Service-specific configuration stays explicit rather than hiding a failed
+ * provider behind a generic URL: WMS requires `layer`; WMTS additionally
+ * requires `style` and `tileMatrixSetId`. Authorization remains the host's
+ * responsibility and must not be serialized into this primitive.
+ */
+export interface SceneImageryLayerPrimitive extends ScenePrimitiveBase {
+  readonly kind: "imagery-layer";
+  readonly sourceId: SourceId;
+  readonly protocol: SceneImagerySourceProtocol;
+  readonly url: string;
+  readonly layer?: string;
+  readonly style?: string;
+  readonly format?: string;
+  readonly tileMatrixSetId?: string;
+  readonly parameters?: Readonly<Record<string, string | number | boolean>>;
+  readonly subdomains?: readonly string[];
+  readonly minimumLevel?: number;
+  readonly maximumLevel?: number;
+  readonly opacity?: number;
+}
+
 export type SceneExtrusionValue = number | readonly unknown[];
 
 export interface SceneExtrusionPrimitive extends ScenePrimitiveBase {
@@ -96,6 +147,7 @@ export type SceneRuntimePrimitive =
   | SceneCameraPrimitive
   | SceneGroundPrimitive
   | SceneElevationSourcePrimitive
+  | SceneImageryLayerPrimitive
   | SceneExtrusionPrimitive
   | SceneModelLayerPrimitive
   | SceneLayerMetadataPrimitive;
@@ -121,6 +173,9 @@ export interface SceneRuntimeCapabilities {
   readonly terrain?: {
     readonly protocols: readonly SceneElevationSourceProtocol[];
     readonly supportsExaggeration?: boolean;
+  };
+  readonly imagery?: {
+    readonly protocols: readonly SceneImagerySourceProtocol[];
   };
   readonly extrusion?: boolean;
   readonly modelLayer?: {
@@ -290,6 +345,33 @@ export function diagnoseScenePrimitive(
         if (terrainDiagnostics.length > 0) return terrainDiagnostics;
       }
       return [supported(primitive, capabilities, "Elevation source can be applied as terrain.")];
+    }
+    case "imagery-layer": {
+      const imagery = capabilities.imagery;
+      if (!imagery) {
+        return [
+          unsupported(
+            primitive,
+            capabilities,
+            "Renderer adapter does not support imagery layers.",
+            "Keep the imagery binding in workspace diagnostics or route it to an imagery-capable renderer.",
+          ),
+        ];
+      }
+      if (!imagery.protocols.includes(primitive.protocol)) {
+        return [
+          unsupported(
+            primitive,
+            capabilities,
+            `Imagery protocol '${primitive.protocol}' is not supported by ${capabilities.renderer}.`,
+            "Use a supported imagery protocol or keep the source binding for another renderer.",
+          ),
+        ];
+      }
+      const imageryDiagnostics = diagnoseRenderableImagery(primitive, capabilities);
+      return imageryDiagnostics.length > 0
+        ? imageryDiagnostics
+        : [supported(primitive, capabilities, "Imagery layer can be materialized by the renderer.")];
     }
     case "extrusion":
       return capabilities.extrusion
@@ -517,6 +599,208 @@ function diagnoseRenderableTerrainRgb(
   return diagnostics;
 }
 
+function diagnoseRenderableImagery(
+  primitive: SceneImageryLayerPrimitive,
+  capabilities: SceneRuntimeCapabilities,
+): ScenePrimitiveDiagnostic[] {
+  const diagnostics: ScenePrimitiveDiagnostic[] = [];
+  let urlProblem: SceneImageryUrlProblem;
+  if (!isNonEmptyString(primitive.url)) {
+    diagnostics.push(
+      diagnostic(
+        "scene-primitive-imagery-source-missing-url",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery requires a provider URL.",
+        "Provide a credential-free URL.",
+      ),
+    );
+  } else {
+    urlProblem = sceneImageryUrlProblem(primitive.url);
+    if (urlProblem === "invalid") {
+      diagnostics.push(
+        diagnostic(
+          "scene-primitive-imagery-source-url-invalid",
+          "error",
+          "unsupported",
+          primitive,
+          capabilities,
+          "Imagery provider URL is invalid.",
+          "Use a relative, HTTP, or HTTPS URL.",
+        ),
+      );
+    }
+  }
+
+  if (urlProblem === "credentials" || hasCredentialParameter(primitive.parameters)) {
+    diagnostics.push(
+      diagnostic(
+        "scene-primitive-imagery-credentials-forbidden",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery bindings cannot contain credentials or signed URLs.",
+        "Resolve authorization at the host boundary.",
+      ),
+    );
+  }
+
+  const missingServiceFields: string[] = [];
+  if ((primitive.protocol === "wms" || primitive.protocol === "wmts") && !isNonEmptyString(primitive.layer)) {
+    missingServiceFields.push("layer");
+  }
+  if (primitive.protocol === "wmts") {
+    if (!isNonEmptyString(primitive.style)) missingServiceFields.push("style");
+    if (!isNonEmptyString(primitive.tileMatrixSetId)) missingServiceFields.push("tileMatrixSetId");
+  }
+  if (
+    (primitive.protocol === "single-tile" || primitive.protocol === "arcgis-imagery") &&
+    typeof primitive.url === "string" &&
+    primitive.url.includes("{s}") &&
+    primitive.subdomains === undefined
+  ) {
+    missingServiceFields.push("subdomains");
+  }
+  if (missingServiceFields.length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-imagery-service-config-missing",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        `Imagery configuration for '${primitive.protocol}' is incomplete.`,
+        "Provide required service fields.",
+      ),
+      context: { missingFields: missingServiceFields },
+    });
+  }
+
+  const invalidServiceFields: string[] = [];
+  const isWebMapService = primitive.protocol === "wms" || primitive.protocol === "wmts";
+  const arcGisEndpoint =
+    primitive.protocol === "arcgis-imagery" && typeof primitive.url === "string"
+      ? arcGisImageryEndpoint(primitive.url)
+      : undefined;
+  if (primitive.protocol === "arcgis-imagery" && isNonEmptyString(primitive.url) && !arcGisEndpoint) {
+    invalidServiceFields.push("url");
+  }
+  if (primitive.layer !== undefined && !isWebMapService) invalidServiceFields.push("layer");
+  if (
+    primitive.style !== undefined &&
+    (!isWebMapService || (primitive.protocol === "wms" && !isNonEmptyString(primitive.style)))
+  ) {
+    invalidServiceFields.push("style");
+  }
+  if (primitive.format !== undefined) {
+    if (!isWebMapService || !isNonEmptyString(primitive.format)) invalidServiceFields.push("format");
+  }
+  if (primitive.tileMatrixSetId !== undefined && primitive.protocol !== "wmts") {
+    invalidServiceFields.push("tileMatrixSetId");
+  }
+  if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
+    invalidServiceFields.push("parameters");
+  }
+  if ((primitive.protocol === "single-tile" || arcGisEndpoint === "map") && primitive.minimumLevel !== undefined) {
+    invalidServiceFields.push("minimumLevel");
+  }
+  if (primitive.protocol === "single-tile" && primitive.maximumLevel !== undefined) {
+    invalidServiceFields.push("maximumLevel");
+  }
+  const invalidParameterKeys = invalidImageryParameterKeys(primitive);
+  if (invalidParameterKeys.length > 0 && !invalidServiceFields.includes("parameters")) {
+    invalidServiceFields.push("parameters");
+  }
+  if (invalidServiceFields.length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-imagery-service-config-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        `Imagery configuration for '${primitive.protocol}' is invalid.`,
+        "Omit unsupported fields.",
+      ),
+      context: {
+        invalidFields: invalidServiceFields,
+        ...(invalidParameterKeys.length > 0 ? { invalidParameterKeys } : {}),
+      },
+    });
+  }
+
+  if (
+    primitive.opacity !== undefined &&
+    (!Number.isFinite(primitive.opacity) || primitive.opacity < 0 || primitive.opacity > 1)
+  ) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-imagery-opacity-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery opacity must be finite and between 0 and 1.",
+        "Use opacity in [0, 1].",
+      ),
+      context: { opacity: primitive.opacity },
+    });
+  }
+
+  const invalidLevels: Record<string, unknown> = {};
+  if (primitive.minimumLevel !== undefined && !isNonNegativeInteger(primitive.minimumLevel)) {
+    invalidLevels.minimumLevel = primitive.minimumLevel;
+  }
+  if (primitive.maximumLevel !== undefined && !isNonNegativeInteger(primitive.maximumLevel)) {
+    invalidLevels.maximumLevel = primitive.maximumLevel;
+  }
+  if (
+    primitive.minimumLevel !== undefined &&
+    primitive.maximumLevel !== undefined &&
+    Number.isFinite(primitive.minimumLevel) &&
+    Number.isFinite(primitive.maximumLevel) &&
+    primitive.minimumLevel > primitive.maximumLevel
+  ) {
+    invalidLevels.levelRange = [primitive.minimumLevel, primitive.maximumLevel];
+  }
+  if (Object.keys(invalidLevels).length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-imagery-level-range-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Imagery level bounds must be ordered non-negative integers.",
+        "Use integer levels with minimumLevel <= maximumLevel.",
+      ),
+      context: invalidLevels,
+    });
+  }
+  if (
+    primitive.subdomains !== undefined &&
+    (!isValidImagerySubdomains(primitive.subdomains) ||
+      typeof primitive.url !== "string" ||
+      !primitive.url.includes("{s}"))
+  ) {
+    diagnostics.push(
+      diagnostic(
+        "scene-primitive-imagery-subdomains-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        "Subdomains require DNS labels and a {s} URL.",
+        "Omit subdomains or add {s}.",
+      ),
+    );
+  }
+  return diagnostics;
+}
+
 function hasRenderableTerrainUrl(primitive: SceneElevationSourcePrimitive): boolean {
   if (typeof primitive.url === "string" && primitive.url.trim() !== "") return true;
   return primitive.tiles?.some((tile) => typeof tile === "string" && tile.trim() !== "") === true;
@@ -528,6 +812,196 @@ function isPositiveFiniteNumber(value: number): boolean {
 
 function isZoom(value: number): boolean {
   return Number.isFinite(value) && value >= 0 && value <= 24;
+}
+
+function isNonNegativeInteger(value: number): boolean {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+type SceneImageryUrlProblem = "invalid" | "credentials" | undefined;
+
+function sceneImageryUrlProblem(value: string): SceneImageryUrlProblem {
+  let parsed: URL;
+  try {
+    parsed = new URL(value, SCENE_IMAGERY_URL_BASE);
+  } catch {
+    return "invalid";
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "invalid";
+  if (parsed.username !== "" || parsed.password !== "") return "credentials";
+  for (const key of parsed.searchParams.keys()) {
+    if (isCredentialQueryName(key)) return "credentials";
+  }
+  if (parsed.hash !== "") {
+    const fragmentParameters = new URLSearchParams(parsed.hash.slice(1).replaceAll("?", "&"));
+    for (const key of fragmentParameters.keys()) {
+      if (isCredentialQueryName(key)) return "credentials";
+    }
+  }
+  return undefined;
+}
+
+function hasCredentialParameter(parameters: SceneImageryLayerPrimitive["parameters"]): boolean {
+  if (!isValidImageryParameters(parameters)) return false;
+  return Object.keys(parameters).some(isCredentialQueryName);
+}
+
+function isValidImageryParameters(value: unknown): value is Readonly<Record<string, string | number | boolean>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return false;
+    if (Object.getOwnPropertySymbols(value).length > 0) return false;
+    return Object.values(Object.getOwnPropertyDescriptors(value)).every(
+      (descriptor) =>
+        "value" in descriptor &&
+        (typeof descriptor.value === "string" ||
+          typeof descriptor.value === "boolean" ||
+          (typeof descriptor.value === "number" && Number.isFinite(descriptor.value))),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isValidImagerySubdomains(value: unknown): value is readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 32) return false;
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.hasOwn(value, index) || !isSafeDnsLabel(value[index])) return false;
+  }
+  return true;
+}
+
+function invalidImageryParameterKeys(primitive: SceneImageryLayerPrimitive): string[] {
+  if (
+    primitive.protocol === "wms" &&
+    primitive.parameters !== undefined &&
+    isValidImageryParameters(primitive.parameters)
+  ) {
+    return invalidCaseInsensitiveParameterKeys(primitive.parameters, WMS_RESERVED_PARAMETER_KEYS);
+  }
+  if (
+    primitive.protocol === "wmts" &&
+    primitive.parameters !== undefined &&
+    isValidImageryParameters(primitive.parameters)
+  ) {
+    return invalidCaseInsensitiveParameterKeys(primitive.parameters, WMTS_RESERVED_DIMENSION_KEYS);
+  }
+  if (
+    primitive.protocol !== "arcgis-imagery" ||
+    typeof primitive.url !== "string" ||
+    primitive.parameters === undefined ||
+    !isValidImageryParameters(primitive.parameters)
+  ) {
+    return [];
+  }
+  if (arcGisImageryEndpoint(primitive.url) === "image") {
+    return invalidCaseInsensitiveParameterKeys(primitive.parameters, ARCGIS_IMAGE_SERVER_RESERVED_PARAMETER_KEYS);
+  }
+  const invalidKeys: string[] = [];
+  const seenKeys = new Set<string>();
+  for (const [key, value] of Object.entries(primitive.parameters)) {
+    const canonical = canonicalParameterKey(key);
+    if (seenKeys.has(canonical)) {
+      invalidKeys.push(key);
+      continue;
+    }
+    seenKeys.add(canonical);
+    const valid =
+      (canonical === "layers" && normalizeArcGisMapServerLayers(value) !== undefined) ||
+      ((canonical === "enablepickfeatures" || canonical === "useprecachedtilesifavailable") &&
+        typeof value === "boolean") ||
+      ((canonical === "tilewidth" || canonical === "tileheight") &&
+        typeof value === "number" &&
+        Number.isInteger(value) &&
+        value > 0 &&
+        value <= 8192);
+    if (!valid) invalidKeys.push(key);
+  }
+  return invalidKeys;
+}
+
+function invalidCaseInsensitiveParameterKeys(
+  parameters: Readonly<Record<string, string | number | boolean>>,
+  reservedKeys: ReadonlySet<string>,
+): string[] {
+  const invalidKeys: string[] = [];
+  const seenKeys = new Set<string>();
+  for (const key of Object.keys(parameters)) {
+    const caseInsensitiveKey = key.toLowerCase();
+    if (seenKeys.has(caseInsensitiveKey) || reservedKeys.has(canonicalParameterKey(key))) invalidKeys.push(key);
+    seenKeys.add(caseInsensitiveKey);
+  }
+  return invalidKeys;
+}
+
+function normalizeArcGisMapServerLayers(value: unknown): string | undefined {
+  if (!isNonEmptyString(value)) return undefined;
+  const trimmed = value.trim();
+  const layerList = trimmed.toLowerCase().startsWith("show:") ? trimmed.slice(5) : trimmed;
+  const layerIds = layerList.split(",").map((layerId) => layerId.trim());
+  if (layerIds.length === 0 || layerIds.some((layerId) => !/^\d+$/.test(layerId))) return undefined;
+  return layerIds.join(",");
+}
+
+function arcGisImageryEndpoint(url: string): "image" | "map" | undefined {
+  const endpoint = url.split(/[?#]/, 1)[0] ?? "";
+  let end = endpoint.length;
+  while (end > 0 && endpoint.charCodeAt(end - 1) === 47) end -= 1;
+  const normalized = endpoint.slice(0, end).toLowerCase();
+  if (normalized.endsWith("/imageserver")) return "image";
+  return normalized.endsWith("/mapserver") ? "map" : undefined;
+}
+
+function isSafeDnsLabel(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0 || value.length > 63) return false;
+  if (value[0] === "-" || value.at(-1) === "-") return false;
+  for (const character of value) {
+    const lower = character.toLowerCase();
+    const isLetter = lower >= "a" && lower <= "z";
+    const isDigit = character >= "0" && character <= "9";
+    if (!isLetter && !isDigit && character !== "-") return false;
+  }
+  return true;
+}
+
+function canonicalParameterKey(key: string): string {
+  let canonical = "";
+  for (const character of key.toLowerCase()) {
+    if (character >= "a" && character <= "z") canonical += character;
+    else if (character >= "0" && character <= "9") canonical += character;
+  }
+  return canonical;
+}
+
+/**
+ * Enforces the credential-free serialization boundary used by workspace state.
+ * Renderability diagnostics remain separate so incomplete-but-safe bindings can
+ * still be inspected, while unsafe or malformed URL material is never retained.
+ * @internal
+ */
+export function assertScenePrimitiveSerializable(primitive: SceneRuntimePrimitive): void {
+  if (primitive.kind !== "imagery-layer") return;
+  if (typeof primitive.url !== "string") {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' has an invalid provider URL.`);
+  }
+  const urlProblem = isNonEmptyString(primitive.url) ? sceneImageryUrlProblem(primitive.url) : undefined;
+  if (urlProblem === "invalid") {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' has an invalid provider URL.`);
+  }
+  if (urlProblem === "credentials" || hasCredentialParameter(primitive.parameters)) {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' must be credential-free.`);
+  }
+  if (primitive.parameters !== undefined && !isValidImageryParameters(primitive.parameters)) {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' has invalid service parameters.`);
+  }
+  if (primitive.subdomains !== undefined && !isValidImagerySubdomains(primitive.subdomains)) {
+    throw new TypeError(`Scene imagery primitive '${primitive.id}' has invalid subdomains.`);
+  }
 }
 
 function compileMapLibreFilters(filters: Readonly<Record<string, FilterClause>>, sourceId: string): unknown[] {

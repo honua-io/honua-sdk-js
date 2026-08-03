@@ -17,6 +17,57 @@ const modelFromGltfAsync = vi.fn(async (options: Record<string, unknown>) => ({
   show: true,
 }));
 const terrainFromUrl = vi.fn(async (url: string) => ({ kind: "terrain-provider", url, destroy: vi.fn() }));
+const imageryProviders: MockImageryProvider[] = [];
+let failNextImageryDestroy = false;
+
+class MockImageryProvider {
+  readonly destroy = vi.fn(() => {
+    if (failNextImageryDestroy) {
+      failNextImageryDestroy = false;
+      throw new Error("imagery cleanup failed");
+    }
+    this.destroyed = true;
+  });
+  private destroyed = false;
+
+  constructor(
+    readonly kind: string,
+    readonly options: Record<string, unknown>,
+  ) {
+    imageryProviders.push(this);
+  }
+
+  isDestroyed(): boolean {
+    return this.destroyed;
+  }
+}
+
+class MockUrlTemplateImageryProvider extends MockImageryProvider {
+  constructor(options: Record<string, unknown>) {
+    super("url-template", options);
+  }
+}
+
+class MockWebMapServiceImageryProvider extends MockImageryProvider {
+  constructor(options: Record<string, unknown>) {
+    super("wms", options);
+  }
+}
+
+class MockWebMapTileServiceImageryProvider extends MockImageryProvider {
+  constructor(options: Record<string, unknown>) {
+    super("wmts", options);
+  }
+}
+
+const singleTileImageryFromUrl = vi.fn(
+  async (url: string, options: Record<string, unknown> = {}) =>
+    new MockImageryProvider("single-tile", { url, ...options }),
+);
+const arcGisImageryFromUrl = vi.fn(
+  async (url: string, options: Record<string, unknown> = {}) =>
+    new MockImageryProvider("arcgis-imagery", { url, ...options }),
+);
 
 vi.mock("cesium", () => ({
   Cartesian3: {
@@ -45,6 +96,15 @@ vi.mock("cesium", () => ({
   CesiumTerrainProvider: {
     fromUrl: (url: string) => terrainFromUrl(url),
   },
+  UrlTemplateImageryProvider: MockUrlTemplateImageryProvider,
+  WebMapServiceImageryProvider: MockWebMapServiceImageryProvider,
+  WebMapTileServiceImageryProvider: MockWebMapTileServiceImageryProvider,
+  SingleTileImageryProvider: {
+    fromUrl: (url: string, options?: Record<string, unknown>) => singleTileImageryFromUrl(url, options),
+  },
+  ArcGisMapServerImageryProvider: {
+    fromUrl: (url: string, options?: Record<string, unknown>) => arcGisImageryFromUrl(url, options),
+  },
 }));
 
 import {
@@ -53,6 +113,7 @@ import {
   type CesiumSceneLike,
   type SceneCameraState,
   type SceneRuntimePrimitive,
+  addCesiumImageryLayer,
   applyCameraStateToCesiumCamera,
   applyCesiumScenePrimitives,
   applyCesiumTerrain,
@@ -120,12 +181,29 @@ function createMockCesiumCamera(): CesiumCameraLike & {
  */
 function createMockCesiumScene(pickResult: unknown = undefined): CesiumSceneLike & {
   added: unknown[];
+  addedImagery: Array<{
+    imageryProvider: unknown;
+    show: boolean;
+    alpha: number;
+    destroy: ReturnType<typeof vi.fn>;
+  }>;
   pick: ReturnType<typeof vi.fn>;
 } {
   const added: unknown[] = [];
+  const addedImagery: Array<{
+    imageryProvider: unknown;
+    show: boolean;
+    alpha: number;
+    destroy: ReturnType<typeof vi.fn>;
+  }> = [];
   const pick = vi.fn(() => pickResult);
-  const scene: CesiumSceneLike & { added: unknown[]; pick: ReturnType<typeof vi.fn> } = {
+  const scene: CesiumSceneLike & {
+    added: unknown[];
+    addedImagery: typeof addedImagery;
+    pick: ReturnType<typeof vi.fn>;
+  } = {
     added,
+    addedImagery,
     verticalExaggeration: 1,
     terrainProvider: undefined,
     primitives: {
@@ -143,6 +221,23 @@ function createMockCesiumScene(pickResult: unknown = undefined): CesiumSceneLike
         return added.includes(primitive);
       },
     },
+    imageryLayers: {
+      addImageryProvider(imageryProvider) {
+        const layer = { imageryProvider, show: true, alpha: 1, destroy: vi.fn() };
+        addedImagery.push(layer);
+        return layer;
+      },
+      remove(layer, destroy = true) {
+        const index = addedImagery.indexOf(layer as (typeof addedImagery)[number]);
+        if (index === -1) return false;
+        addedImagery.splice(index, 1);
+        if (destroy) layer.destroy?.();
+        return true;
+      },
+      contains(layer) {
+        return addedImagery.includes(layer as (typeof addedImagery)[number]);
+      },
+    },
     pick,
   };
   return scene;
@@ -154,6 +249,13 @@ describe("cesium scene adapter", () => {
     expect(CESIUM_SCENE_CAPABILITIES.camera).toBe(true);
     expect(CESIUM_SCENE_CAPABILITIES.terrain?.protocols).toContain("quantized-mesh");
     expect(CESIUM_SCENE_CAPABILITIES.terrain?.supportsExaggeration).toBe(true);
+    expect(CESIUM_SCENE_CAPABILITIES.imagery?.protocols).toEqual([
+      "url-template",
+      "wms",
+      "wmts",
+      "single-tile",
+      "arcgis-imagery",
+    ]);
     expect(CESIUM_SCENE_CAPABILITIES.modelLayer?.formats).toEqual(
       expect.arrayContaining(["gltf", "glb", "3d-tiles", "i3s"]),
     );
@@ -279,6 +381,10 @@ describe("cesium scene adapter", () => {
       tilesetFromUrl.mockClear();
       modelFromGltfAsync.mockClear();
       terrainFromUrl.mockClear();
+      imageryProviders.length = 0;
+      failNextImageryDestroy = false;
+      singleTileImageryFromUrl.mockClear();
+      arcGisImageryFromUrl.mockClear();
     });
 
     it("loads a 3D-Tiles tileset, adds it to the scene, and toggles visibility", async () => {
@@ -451,6 +557,1074 @@ describe("cesium scene adapter", () => {
       expect(scene.terrainProvider).toBeUndefined();
       expect(scene.verticalExaggeration).toBe(1.5);
       expect(result.layers.has("terrain-no-url")).toBe(false);
+    });
+
+    it("materializes every supported imagery protocol with explicit provider configuration", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        {
+          kind: "imagery-layer",
+          id: "osm",
+          sourceId: "osm",
+          protocol: "url-template",
+          url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png?LANGUAGE=en&cache=public#tiles",
+          parameters: { language: "fr", scale: 2 },
+          subdomains: ["a", "b"],
+          minimumLevel: 1,
+          maximumLevel: 18,
+          attribution: "Example tiles",
+          opacity: 0.75,
+        },
+        {
+          kind: "imagery-layer",
+          id: "weather",
+          sourceId: "weather",
+          protocol: "wms",
+          url: "https://{s}.maps.example.test/wms?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0&LAYERS=stale&STYLES=stale&FORMAT=image/jpeg&TIME=old&BBOX=stale&cache=public",
+          layer: "precipitation",
+          style: "radar",
+          format: "image/png",
+          parameters: {
+            transparent: true,
+            Time: "2026-08-01T12:00:00Z",
+            LAYERS: "older",
+            Styles: "older",
+            FORMAT: "image/jpeg",
+          },
+          subdomains: ["maps-a", "maps-b"],
+          minimumLevel: 2,
+          maximumLevel: 12,
+          attribution: "Example WMS",
+          opacity: 0.6,
+        },
+        {
+          kind: "imagery-layer",
+          id: "basemap",
+          sourceId: "basemap",
+          protocol: "wmts",
+          url: "https://{s}.maps.example.test/wmts?SERVICE=WMTS&REQUEST=GetCapabilities&VERSION=1.0.0&LAYER=old&TileMatrixSet=old&TileMatrix=old&TileRow=1&TileCol=2&FORMAT=image/jpeg&TIME=old&cache=public#wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          parameters: { Time: "2026-08-01T12:00:00Z", elevation: 250 },
+          subdomains: ["tiles-1"],
+          minimumLevel: 1,
+          maximumLevel: 14,
+          attribution: "Example WMTS",
+        },
+        {
+          kind: "imagery-layer",
+          id: "snapshot",
+          sourceId: "snapshot",
+          protocol: "single-tile",
+          url: "https://{s}.images.example.test/snapshot.png?VERSION=old#snapshot",
+          subdomains: ["snapshot-a", "snapshot-b"],
+          parameters: { version: "new" },
+          attribution: "Example snapshot",
+        },
+        {
+          kind: "imagery-layer",
+          id: "arcgis-image",
+          sourceId: "arcgis-image",
+          protocol: "arcgis-imagery",
+          url: "https://{s}.services.example.test/arcgis/rest/services/imagery/ImageServer///?cacheKey=public&mosaicrule=stale&MosaicRule=older&f=pjson&bbox=stale&size=1%2C1&format=jpg&transparent=false",
+          parameters: { mosaicRule: "public-rule" },
+          subdomains: ["imagery-a", "imagery-b"],
+          minimumLevel: 3,
+          maximumLevel: 15,
+          attribution: "Example ImageServer",
+        },
+        {
+          kind: "imagery-layer",
+          id: "arcgis-map",
+          sourceId: "arcgis-map",
+          protocol: "arcgis-imagery",
+          url: "https://{s}.services.example.test/arcgis/rest/services/reference/MapServer?LAYERS=show%3A2&enablePickFeatures=true&F=pjson&BBOX=stale&BBOX_SR=4326&IMAGE-SR=4326&SIZE=1%2C1&FORMAT=jpg&TRANSPARENT=false&cache=public#map",
+          subdomains: ["maps-primary", "maps-secondary"],
+          parameters: {
+            layers: "show:1, 3",
+            enable_pick_features: false,
+            usePreCachedTilesIfAvailable: false,
+            tileWidth: 512,
+          },
+          maximumLevel: 16,
+          attribution: "Example MapServer",
+        },
+      ]);
+
+      expect(result.status).toBe("supported");
+      expect(result.layers.size).toBe(6);
+      expect(scene.addedImagery).toHaveLength(6);
+      expect(imageryProviders.map((provider) => provider.kind)).toEqual([
+        "url-template",
+        "wms",
+        "wmts",
+        "single-tile",
+        "url-template",
+        "arcgis-imagery",
+      ]);
+      expect(imageryProviders[0]?.options).toMatchObject({
+        url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png?cache=public&language=fr&scale=2#tiles",
+        credit: "Example tiles",
+        subdomains: ["a", "b"],
+        minimumLevel: 1,
+        maximumLevel: 18,
+      });
+      expect(imageryProviders[1]?.options).toMatchObject({
+        url: "https://{s}.maps.example.test/wms?cache=public",
+        layers: "precipitation",
+        parameters: {
+          transparent: true,
+          Time: "2026-08-01T12:00:00Z",
+          format: "image/png",
+          styles: "radar",
+        },
+        subdomains: ["maps-a", "maps-b"],
+        minimumLevel: 2,
+        maximumLevel: 12,
+        credit: "Example WMS",
+      });
+      expect(imageryProviders[1]?.options.parameters).toEqual({
+        transparent: true,
+        Time: "2026-08-01T12:00:00Z",
+        format: "image/png",
+        styles: "radar",
+      });
+      expect(imageryProviders[2]?.options).toMatchObject({
+        url: "https://{s}.maps.example.test/wmts?cache=public#wmts",
+        layer: "world",
+        style: "default",
+        tileMatrixSetID: "WebMercatorQuad",
+        format: "image/png",
+        subdomains: ["tiles-1"],
+        dimensions: { Time: "2026-08-01T12:00:00Z", elevation: 250 },
+        minimumLevel: 1,
+        maximumLevel: 14,
+        credit: "Example WMTS",
+      });
+      expect(singleTileImageryFromUrl).toHaveBeenCalledWith(
+        "https://snapshot-a.images.example.test/snapshot.png?version=new#snapshot",
+        { credit: "Example snapshot" },
+      );
+      expect(imageryProviders[4]?.options).toMatchObject({
+        url: expect.stringMatching(
+          /^https:\/\/\{s\}\.services\.example\.test\/arcgis\/rest\/services\/imagery\/ImageServer\/exportImage\?/,
+        ),
+        subdomains: ["imagery-a", "imagery-b"],
+        minimumLevel: 3,
+        maximumLevel: 15,
+        credit: "Example ImageServer",
+      });
+      const imageServerUrl = new URL(String(imageryProviders[4]?.options.url));
+      expect(Object.fromEntries(imageServerUrl.searchParams)).toMatchObject({
+        cacheKey: "public",
+        mosaicRule: "public-rule",
+        f: "image",
+        bbox: "{westProjected},{southProjected},{eastProjected},{northProjected}",
+        bboxSR: "3857",
+        imageSR: "3857",
+        size: "{width},{height}",
+        format: "png32",
+        transparent: "true",
+      });
+      for (const reservedKey of ["f", "bbox", "bboxsr", "imagesr", "size", "format", "transparent"]) {
+        expect([...imageServerUrl.searchParams.keys()].filter((key) => key.toLowerCase() === reservedKey)).toHaveLength(
+          1,
+        );
+      }
+      expect([...imageServerUrl.searchParams.keys()].filter((key) => key.toLowerCase() === "mosaicrule")).toEqual([
+        "mosaicRule",
+      ]);
+      expect(arcGisImageryFromUrl).toHaveBeenCalledWith(
+        "https://maps-primary.services.example.test/arcgis/rest/services/reference/MapServer?cache=public#map",
+        {
+          layers: "1,3",
+          enablePickFeatures: false,
+          usePreCachedTilesIfAvailable: false,
+          tileWidth: 512,
+          maximumLevel: 16,
+          credit: "Example MapServer",
+        },
+      );
+      expect(scene.addedImagery[0]?.alpha).toBe(0.75);
+      expect(scene.addedImagery[1]?.alpha).toBe(0.6);
+    });
+
+    it("fails closed for provider-specific fields that a protocol cannot apply", async () => {
+      const cases: readonly {
+        readonly primitive: SceneRuntimePrimitive;
+        readonly invalidFields: readonly string[];
+      }[] = [
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "url-template-service-fields",
+            sourceId: "url-template-service-fields",
+            protocol: "url-template",
+            url: "https://tiles.example.test/{z}/{x}/{y}.png",
+            layer: "ignored",
+            style: "ignored",
+            format: "image/png",
+            tileMatrixSetId: "ignored",
+          },
+          invalidFields: ["layer", "style", "format", "tileMatrixSetId"],
+        },
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "single-tile-service-fields",
+            sourceId: "single-tile-service-fields",
+            protocol: "single-tile",
+            url: "https://images.example.test/snapshot.png",
+            layer: "ignored",
+            style: "ignored",
+            format: "image/png",
+            tileMatrixSetId: "ignored",
+            minimumLevel: 1,
+            maximumLevel: 2,
+          },
+          invalidFields: ["layer", "style", "format", "tileMatrixSetId", "minimumLevel", "maximumLevel"],
+        },
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "wms-service-fields",
+            sourceId: "wms-service-fields",
+            protocol: "wms",
+            url: "https://maps.example.test/wms",
+            layer: "world",
+            style: 42,
+            tileMatrixSetId: "ignored",
+          } as unknown as SceneRuntimePrimitive,
+          invalidFields: ["style", "tileMatrixSetId"],
+        },
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "mapserver-service-fields",
+            sourceId: "mapserver-service-fields",
+            protocol: "arcgis-imagery",
+            url: "https://services.example.test/arcgis/rest/services/base/MapServer",
+            layer: "ignored",
+            style: "ignored",
+            format: "image/png",
+            tileMatrixSetId: "ignored",
+            minimumLevel: 1,
+          },
+          invalidFields: ["layer", "style", "format", "tileMatrixSetId", "minimumLevel"],
+        },
+        {
+          primitive: {
+            kind: "imagery-layer",
+            id: "imageserver-service-fields",
+            sourceId: "imageserver-service-fields",
+            protocol: "arcgis-imagery",
+            url: "https://services.example.test/arcgis/rest/services/base/ImageServer",
+            layer: "ignored",
+            style: "ignored",
+            format: "image/png",
+            tileMatrixSetId: "ignored",
+            minimumLevel: 1,
+          },
+          invalidFields: ["layer", "style", "format", "tileMatrixSetId"],
+        },
+      ];
+
+      for (const { primitive, invalidFields } of cases) {
+        const scene = createMockCesiumScene();
+        const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [primitive]);
+        expect(result.status).toBe("unsupported");
+        expect(result.diagnostics).toContainEqual(
+          expect.objectContaining({
+            code: "scene-primitive-imagery-service-config-invalid",
+            primitiveId: primitive.id,
+            context: { invalidFields },
+          }),
+        );
+        expect(scene.addedImagery).toHaveLength(0);
+      }
+
+      const scene = createMockCesiumScene();
+      const unusedSubdomains = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        {
+          kind: "imagery-layer",
+          id: "wmts-unused-subdomains",
+          sourceId: "wmts-unused-subdomains",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          subdomains: ["tiles-a"],
+        },
+      ]);
+      expect(unusedSubdomains.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-subdomains-invalid",
+          primitiveId: "wmts-unused-subdomains",
+        }),
+      );
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(imageryProviders).toHaveLength(0);
+    });
+
+    it("rejects ArcGIS imagery URLs that are not service roots", async () => {
+      for (const [id, url] of [
+        ["feature-server", "https://services.example.test/arcgis/rest/services/base/FeatureServer"],
+        ["map-layer", "https://services.example.test/arcgis/rest/services/base/MapServer/0"],
+        ["arbitrary", "https://services.example.test/tiles"],
+      ] as const) {
+        const scene = createMockCesiumScene();
+        const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+          { kind: "imagery-layer", id, sourceId: id, protocol: "arcgis-imagery", url },
+        ]);
+        expect(result.status).toBe("unsupported");
+        expect(result.diagnostics).toContainEqual(
+          expect.objectContaining({
+            code: "scene-primitive-imagery-service-config-invalid",
+            primitiveId: id,
+            context: { invalidFields: ["url"] },
+          }),
+        );
+        expect(scene.addedImagery).toHaveLength(0);
+      }
+      expect(imageryProviders).toHaveLength(0);
+      expect(arcGisImageryFromUrl).not.toHaveBeenCalled();
+    });
+
+    it("removes a displaced imagery handle before replacing a duplicate primitive ID", async () => {
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        {
+          kind: "imagery-layer",
+          id: "duplicate-imagery",
+          sourceId: "first",
+          protocol: "url-template",
+          url: "https://tiles.example.test/first/{z}/{x}/{y}.png",
+        },
+        {
+          kind: "imagery-layer",
+          id: "duplicate-imagery",
+          sourceId: "second",
+          protocol: "url-template",
+          url: "https://tiles.example.test/second/{z}/{x}/{y}.png",
+        },
+      ]);
+
+      expect(result.status).toBe("supported");
+      expect(result.layers.size).toBe(1);
+      expect(scene.addedImagery).toHaveLength(1);
+      expect(imageryProviders).toHaveLength(2);
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+      expect(scene.addedImagery[0]?.imageryProvider).toBe(imageryProviders[1]);
+
+      result.layers.get("duplicate-imagery")?.remove();
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(imageryProviders[1]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("applies a valid replacement after an unsupported primitive with the same ID", async () => {
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+        {
+          kind: "imagery-layer",
+          id: "mixed-imagery",
+          sourceId: "invalid",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/FeatureServer",
+        },
+        {
+          kind: "imagery-layer",
+          id: "mixed-imagery",
+          sourceId: "valid",
+          protocol: "url-template",
+          url: "https://tiles.example.test/valid/{z}/{x}/{y}.png",
+        },
+      ]);
+
+      expect(result.status).toBe("unsupported");
+      expect(result.layers.size).toBe(1);
+      expect(scene.addedImagery).toHaveLength(1);
+      expect(imageryProviders).toHaveLength(1);
+      expect(imageryProviders[0]?.options.url).toContain("/valid/");
+    });
+
+    it("rolls back a replacement when displaced-handle cleanup throws", async () => {
+      const scene = createMockCesiumScene();
+      failNextImageryDestroy = true;
+
+      await expect(
+        applyCesiumScenePrimitives({ camera: createMockCesiumCamera(), scene }, [
+          {
+            kind: "imagery-layer",
+            id: "cleanup-failure",
+            sourceId: "first",
+            protocol: "url-template",
+            url: "https://tiles.example.test/first/{z}/{x}/{y}.png",
+          },
+          {
+            kind: "imagery-layer",
+            id: "cleanup-failure",
+            sourceId: "second",
+            protocol: "url-template",
+            url: "https://tiles.example.test/second/{z}/{x}/{y}.png",
+          },
+        ]),
+      ).rejects.toThrow("imagery cleanup failed");
+
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(imageryProviders).toHaveLength(2);
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+      expect(imageryProviders[1]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("fails invalid imagery configuration closed before loading a provider", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        {
+          kind: "imagery-layer",
+          id: "missing-url",
+          sourceId: "missing-url",
+          protocol: "url-template",
+          url: " ",
+        },
+        {
+          kind: "imagery-layer",
+          id: "absent-url",
+          sourceId: "absent-url",
+          protocol: "url-template",
+        } as unknown as SceneRuntimePrimitive,
+        {
+          kind: "imagery-layer",
+          id: "non-string-url",
+          sourceId: "non-string-url",
+          protocol: "url-template",
+          url: 42,
+        } as unknown as SceneRuntimePrimitive,
+        {
+          kind: "imagery-layer",
+          id: "malformed-url",
+          sourceId: "malformed-url",
+          protocol: "single-tile",
+          url: "http://[",
+        },
+        {
+          kind: "imagery-layer",
+          id: "credential-url",
+          sourceId: "credential-url",
+          protocol: "wms",
+          url: "https://maps.example.test/wms?access_token=secret",
+          layer: "world",
+        },
+        {
+          kind: "imagery-layer",
+          id: "access-key-url",
+          sourceId: "access-key-url",
+          protocol: "wms",
+          url: "https://maps.example.test/wms?aws_access_key_id=secret",
+          layer: "world",
+        },
+        {
+          kind: "imagery-layer",
+          id: "subscription-key-url",
+          sourceId: "subscription-key-url",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png?subscription-key=secret",
+        },
+        {
+          kind: "imagery-layer",
+          id: "proxy-authorization-url",
+          sourceId: "proxy-authorization-url",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png?Proxy-Authorization=Basic%20c2VjcmV0",
+        },
+        {
+          kind: "imagery-layer",
+          id: "cookie-url",
+          sourceId: "cookie-url",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png?Cookie=session%3Dsecret",
+        },
+        {
+          kind: "imagery-layer",
+          id: "credential-userinfo",
+          sourceId: "credential-userinfo",
+          protocol: "single-tile",
+          url: "https://user:secret@images.example.test/snapshot.png",
+        },
+        {
+          kind: "imagery-layer",
+          id: "credential-fragment",
+          sourceId: "credential-fragment",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png#access_token=secret",
+        },
+        {
+          kind: "imagery-layer",
+          id: "malformed-parameters",
+          sourceId: "malformed-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: [{ token: "secret" }],
+        } as unknown as SceneRuntimePrimitive,
+        {
+          kind: "imagery-layer",
+          id: "credential-parameters",
+          sourceId: "credential-parameters",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/ImageServer",
+          parameters: { apiKey: "secret" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "access-key-parameters",
+          sourceId: "access-key-parameters",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          parameters: { access_key: "secret" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "subscription-key-parameters",
+          sourceId: "subscription-key-parameters",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          parameters: { "ocp-apim-subscription-key": "secret" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "proxy-authorization-parameters",
+          sourceId: "proxy-authorization-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: { "Proxy-Authorization": "Basic c2VjcmV0" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "set-cookie-parameters",
+          sourceId: "set-cookie-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: { "Set-Cookie": "session=secret" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "empty-subdomains",
+          sourceId: "empty-subdomains",
+          protocol: "url-template",
+          url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png",
+          subdomains: [],
+        },
+        {
+          kind: "imagery-layer",
+          id: "missing-single-tile-subdomains",
+          sourceId: "missing-single-tile-subdomains",
+          protocol: "single-tile",
+          url: "https://{s}.images.example.test/snapshot.png",
+        },
+        {
+          kind: "imagery-layer",
+          id: "unsafe-subdomain",
+          sourceId: "unsafe-subdomain",
+          protocol: "url-template",
+          url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png",
+          subdomains: ["evil.test/path"],
+        },
+        {
+          kind: "imagery-layer",
+          id: "missing-mapserver-subdomains",
+          sourceId: "missing-mapserver-subdomains",
+          protocol: "arcgis-imagery",
+          url: "https://{s}.services.example.test/arcgis/rest/services/base/MapServer",
+        },
+        {
+          kind: "imagery-layer",
+          id: "missing-wms-layer",
+          sourceId: "missing-wms-layer",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+        },
+        {
+          kind: "imagery-layer",
+          id: "missing-wmts-config",
+          sourceId: "missing-wmts-config",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+        },
+        {
+          kind: "imagery-layer",
+          id: "malformed-wmts-config",
+          sourceId: "malformed-wmts-config",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: 42,
+          style: [],
+          tileMatrixSetId: {},
+          format: 123,
+        } as unknown as SceneRuntimePrimitive,
+        {
+          kind: "imagery-layer",
+          id: "reserved-wmts-dimensions",
+          sourceId: "reserved-wmts-dimensions",
+          protocol: "wmts",
+          url: "https://maps.example.test/wmts",
+          layer: "world",
+          style: "default",
+          tileMatrixSetId: "WebMercatorQuad",
+          parameters: { LAYER: "stale", TileMatrixSet: "stale", time: "old", TIME: "new" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "reserved-wms-parameters",
+          sourceId: "reserved-wms-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: { REQUEST: "GetCapabilities", SERVICE: "WMS", time: "2026-08-01" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "duplicate-wms-parameters",
+          sourceId: "duplicate-wms-parameters",
+          protocol: "wms",
+          url: "https://maps.example.test/wms",
+          layer: "world",
+          parameters: { time: "old", TIME: "new" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "invalid-opacity",
+          sourceId: "invalid-opacity",
+          protocol: "single-tile",
+          url: "https://images.example.test/snapshot.png",
+          opacity: 1.5,
+        },
+        {
+          kind: "imagery-layer",
+          id: "invalid-levels",
+          sourceId: "invalid-levels",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/MapServer",
+          minimumLevel: 8,
+          maximumLevel: 2,
+        },
+        {
+          kind: "imagery-layer",
+          id: "single-tile-levels",
+          sourceId: "single-tile-levels",
+          protocol: "single-tile",
+          url: "https://images.example.test/snapshot.png",
+          minimumLevel: 2,
+          maximumLevel: 4,
+        },
+        {
+          kind: "imagery-layer",
+          id: "unsupported-mapserver-parameter",
+          sourceId: "unsupported-mapserver-parameter",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/MapServer",
+          parameters: { customExportOption: "ignored" },
+        },
+        {
+          kind: "imagery-layer",
+          id: "reserved-imageserver-parameters",
+          sourceId: "reserved-imageserver-parameters",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/ImageServer",
+          parameters: { imageSR: 4326, FORMAT: "jpg", transparent: false },
+        },
+        {
+          kind: "imagery-layer",
+          id: "invalid-mapserver-layers",
+          sourceId: "invalid-mapserver-layers",
+          protocol: "arcgis-imagery",
+          url: "https://services.example.test/arcgis/rest/services/base/MapServer",
+          parameters: { layers: "hide:1" },
+        },
+      ]);
+
+      expect(result.status).toBe("unsupported");
+      expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toEqual(
+        expect.arrayContaining([
+          "scene-primitive-imagery-source-missing-url",
+          "scene-primitive-imagery-source-url-invalid",
+          "scene-primitive-imagery-credentials-forbidden",
+          "scene-primitive-imagery-service-config-missing",
+          "scene-primitive-imagery-service-config-invalid",
+          "scene-primitive-imagery-opacity-invalid",
+          "scene-primitive-imagery-level-range-invalid",
+          "scene-primitive-imagery-subdomains-invalid",
+        ]),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-missing",
+          primitiveId: "malformed-wmts-config",
+          context: { missingFields: ["layer", "style", "tileMatrixSetId"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "reserved-wms-parameters",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["REQUEST", "SERVICE"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "duplicate-wms-parameters",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["TIME"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "reserved-wmts-dimensions",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["LAYER", "TileMatrixSet", "TIME"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "single-tile-levels",
+          context: { invalidFields: ["minimumLevel", "maximumLevel"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "unsupported-mapserver-parameter",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["customExportOption"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "reserved-imageserver-parameters",
+          context: {
+            invalidFields: ["parameters"],
+            invalidParameterKeys: ["imageSR", "FORMAT", "transparent"],
+          },
+        }),
+      );
+      expect(
+        result.diagnostics
+          .filter((diagnostic) => diagnostic.code === "scene-primitive-imagery-credentials-forbidden")
+          .map((diagnostic) => diagnostic.primitiveId),
+      ).toEqual(
+        expect.arrayContaining([
+          "subscription-key-url",
+          "subscription-key-parameters",
+          "proxy-authorization-url",
+          "cookie-url",
+          "proxy-authorization-parameters",
+          "set-cookie-parameters",
+        ]),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "invalid-mapserver-layers",
+          context: { invalidFields: ["parameters"], invalidParameterKeys: ["layers"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-invalid",
+          primitiveId: "malformed-wmts-config",
+          context: { invalidFields: ["format"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-subdomains-invalid",
+          primitiveId: "empty-subdomains",
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-missing",
+          primitiveId: "missing-single-tile-subdomains",
+          context: { missingFields: ["subdomains"] },
+        }),
+      );
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-service-config-missing",
+          primitiveId: "missing-mapserver-subdomains",
+          context: { missingFields: ["subdomains"] },
+        }),
+      );
+      expect(imageryProviders).toHaveLength(0);
+      expect(scene.addedImagery).toHaveLength(0);
+    });
+
+    it("rolls back earlier imagery layers when a later provider fails", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      singleTileImageryFromUrl.mockRejectedValueOnce(new Error("single tile unavailable"));
+
+      await expect(
+        applyCesiumScenePrimitives({ camera, scene }, [
+          {
+            kind: "imagery-layer",
+            id: "first",
+            sourceId: "first",
+            protocol: "url-template",
+            url: "https://tiles.example.test/{z}/{x}/{y}.png",
+          },
+          {
+            kind: "imagery-layer",
+            id: "failing",
+            sourceId: "failing",
+            protocol: "single-tile",
+            url: "https://images.example.test/unavailable.png",
+          },
+        ]),
+      ).rejects.toThrow("single tile unavailable");
+
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("restores displaced terrain when a later provider fails", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const cesium = (await import("cesium")) as never;
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "existing-terrain",
+          sourceId: "existing-terrain",
+          protocol: "quantized-mesh",
+          url: "https://example.test/existing-terrain",
+          exaggeration: 1.75,
+        },
+        cesium,
+      );
+      const existingProvider = scene.terrainProvider as { destroy: ReturnType<typeof vi.fn> };
+      singleTileImageryFromUrl.mockRejectedValueOnce(new Error("single tile unavailable"));
+
+      await expect(
+        applyCesiumScenePrimitives({ camera, scene }, [
+          {
+            kind: "elevation-source",
+            id: "replacement-terrain",
+            sourceId: "replacement-terrain",
+            protocol: "quantized-mesh",
+            url: "https://example.test/replacement-terrain",
+            exaggeration: 3,
+          },
+          {
+            kind: "imagery-layer",
+            id: "failing",
+            sourceId: "failing",
+            protocol: "single-tile",
+            url: "https://images.example.test/unavailable.png",
+          },
+        ]),
+      ).rejects.toThrow("single tile unavailable");
+
+      const replacementProvider = await terrainFromUrl.mock.results[1]?.value;
+      expect(scene.terrainProvider).toBe(existingProvider);
+      expect(scene.verticalExaggeration).toBe(1.75);
+      expect(existingProvider.destroy).not.toHaveBeenCalled();
+      expect(replacementProvider.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("rolls back applied layers when displaced terrain disposal fails", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const cesium = (await import("cesium")) as never;
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "existing-terrain",
+          sourceId: "existing-terrain",
+          protocol: "quantized-mesh",
+          url: "https://example.test/existing-terrain",
+          exaggeration: 1.5,
+        },
+        cesium,
+      );
+      const existingProvider = scene.terrainProvider as { destroy: ReturnType<typeof vi.fn> };
+      existingProvider.destroy.mockImplementationOnce(() => {
+        throw new Error("terrain cleanup failed");
+      });
+
+      await expect(
+        applyCesiumScenePrimitives({ camera, scene }, [
+          {
+            kind: "elevation-source",
+            id: "replacement-terrain",
+            sourceId: "replacement-terrain",
+            protocol: "quantized-mesh",
+            url: "https://example.test/replacement-terrain",
+            exaggeration: 2,
+          },
+          {
+            kind: "imagery-layer",
+            id: "basemap",
+            sourceId: "basemap",
+            protocol: "url-template",
+            url: "https://tiles.example.test/{z}/{x}/{y}.png",
+          },
+        ]),
+      ).rejects.toThrow("terrain cleanup failed");
+
+      const replacementProvider = await terrainFromUrl.mock.results[1]?.value;
+      expect(scene.terrainProvider).toBe(existingProvider);
+      expect(scene.verticalExaggeration).toBe(1.5);
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(existingProvider.destroy).toHaveBeenCalledTimes(1);
+      expect(replacementProvider.destroy).toHaveBeenCalledTimes(1);
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("preserves the original terrain when intermediate cleanup fails", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+      const cesium = (await import("cesium")) as never;
+      await applyCesiumTerrain(
+        scene,
+        {
+          kind: "elevation-source",
+          id: "original-terrain",
+          sourceId: "original-terrain",
+          protocol: "quantized-mesh",
+          url: "https://example.test/original-terrain",
+          exaggeration: 1.25,
+        },
+        cesium,
+      );
+      const originalProvider = scene.terrainProvider as { destroy: ReturnType<typeof vi.fn> };
+      const intermediateDestroy = vi.fn().mockImplementationOnce(() => {
+        throw new Error("intermediate terrain cleanup failed");
+      });
+      terrainFromUrl.mockImplementationOnce(async (url: string) => ({
+        kind: "terrain-provider",
+        url,
+        destroy: intermediateDestroy,
+      }));
+
+      await expect(
+        applyCesiumScenePrimitives({ camera, scene }, [
+          {
+            kind: "elevation-source",
+            id: "intermediate-terrain",
+            sourceId: "intermediate-terrain",
+            protocol: "quantized-mesh",
+            url: "https://example.test/intermediate-terrain",
+            exaggeration: 2,
+          },
+          {
+            kind: "elevation-source",
+            id: "final-terrain",
+            sourceId: "final-terrain",
+            protocol: "quantized-mesh",
+            url: "https://example.test/final-terrain",
+            exaggeration: 3,
+          },
+        ]),
+      ).rejects.toThrow("intermediate terrain cleanup failed");
+
+      const finalProvider = await terrainFromUrl.mock.results[2]?.value;
+      expect(scene.terrainProvider).toBe(originalProvider);
+      expect(scene.verticalExaggeration).toBe(1.25);
+      expect(originalProvider.destroy).not.toHaveBeenCalled();
+      expect(intermediateDestroy).toHaveBeenCalledTimes(2);
+      expect(finalProvider.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("controls and disposes an owned imagery layer exactly once", async () => {
+      const scene = createMockCesiumScene();
+      const handle = await addCesiumImageryLayer(scene, {
+        kind: "imagery-layer",
+        id: "orthophoto",
+        sourceId: "orthophoto",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.jpg",
+        opacity: 0.4,
+      });
+      const layer = scene.addedImagery[0];
+      const provider = imageryProviders[0];
+
+      expect(handle.kind).toBe("imagery-layer");
+      expect(handle.protocol).toBe("url-template");
+      expect(layer?.alpha).toBe(0.4);
+      handle.setVisible(false);
+      expect(layer?.show).toBe(false);
+      handle.setOpacity?.(0.8);
+      expect(layer?.alpha).toBe(0.8);
+      expect(() => handle.setOpacity?.(2)).toThrow(RangeError);
+
+      handle.remove();
+      handle.remove();
+      expect(scene.addedImagery).toHaveLength(0);
+      expect(layer?.destroy).toHaveBeenCalledTimes(1);
+      expect(provider?.destroy).toHaveBeenCalledTimes(1);
+    });
+
+    it("disposes a provider when the imagery collection rejects its layer", async () => {
+      const scene = createMockCesiumScene();
+      vi.spyOn(
+        scene.imageryLayers as NonNullable<CesiumSceneLike["imageryLayers"]>,
+        "addImageryProvider",
+      ).mockImplementation(() => {
+        throw new Error("imagery layer rejected");
+      });
+
+      await expect(
+        addCesiumImageryLayer(scene, {
+          kind: "imagery-layer",
+          id: "rejected",
+          sourceId: "rejected",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.jpg",
+        }),
+      ).rejects.toThrow("imagery layer rejected");
+      expect(imageryProviders[0]?.destroy).toHaveBeenCalledTimes(1);
+      expect(scene.addedImagery).toHaveLength(0);
+    });
+
+    it("reports a stable diagnostic when the Cesium target lacks imagery layers", async () => {
+      const camera = createMockCesiumCamera();
+      const sceneWithImagery = createMockCesiumScene();
+      const scene: CesiumSceneLike = { primitives: sceneWithImagery.primitives };
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        {
+          kind: "imagery-layer",
+          id: "no-target",
+          sourceId: "no-target",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png",
+        },
+      ]);
+
+      expect(result.status).toBe("unsupported");
+      expect(result.diagnostics).toContainEqual(
+        expect.objectContaining({
+          code: "scene-primitive-imagery-target-missing",
+          primitiveId: "no-target",
+          status: "unsupported",
+        }),
+      );
+      expect(imageryProviders).toHaveLength(0);
     });
 
     it("places a glTF model at its position/rotation/scale", async () => {

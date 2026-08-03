@@ -31,7 +31,7 @@
   "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
   "/plugin gained its first dedicated guard with the application-local lifecycle (#455): certification, deterministic dependency ordering, transactional rollback, scoped service wrappers, and immutable diagnostics measure 35,329 minified / 11,814 gzip bytes; the ceiling is measured actual plus 10% headroom.",
   "/plugin was reset for the behavioral-conformance kit, signed-report verification, and support-status program (#392): the deterministic conformance harness, report digest re-verification, and supportStatus validation measure 40,714 minified / 13,410 gzip bytes; the ceiling is measured actual plus ~10% headroom.",
-  "/scene-workspace guards renderer-neutral shared state while MapLibre and Cesium stay external optional peers.",
+  "/scene-workspace was reset for protocol-neutral Cesium imagery (#901): URL-template, WMS, WMTS, single-tile, and ArcGIS provider mapping, stable fail-closed diagnostics, transactional provider rollback, and deterministic visibility/opacity/removal ownership measure 114,406 minified / 35,131 gzip bytes. The optional scene entrypoint ceiling is measured actual plus 10% headroom; Cesium remains external and dynamically imported, while root and browser entrypoints stay within their existing ceilings.",
   "/contract min was reset for edit-sketch snapping (#491): the renderer-neutral SnapIndex packed grid, deterministic candidate resolution, and edit-session invalidation hooks measure 243,020 minified bytes (gzip stayed under its existing ceiling); the ceiling is measured actual plus ~10% headroom.",
   "Root and browser ceilings were reset downward for the final reviewed common surface (#451), then measured again after raw STAC connect discovery merged: root is 355,624 minified / 94,225 gzip bytes. /honua retains the advanced WMS/WMTS and STAC APIs at 475,004 / 126,346 bytes. Each changed ceiling is measured actual plus 10% headroom.",
   "/geocoding was reset for the provider-pluggable geocoding interface (#495): the GeocodingProvider contract plus Nominatim/Photon/Pelias/Honua adapters with capability declarations and attribution provenance measure 12,775 minified / 4,023 gzip bytes; the ceiling is measured actual plus ~10% headroom. /routing gained its first dedicated guard in the same change (RoutingProvider contract, OSRM/Valhalla adapters, polyline decoding, esri-compat bridge) at 6,124 minified / 2,491 gzip bytes; the entrypoint is subpath-only and stays out of the root/browser barrels, which are unchanged.",
@@ -137,8 +137,8 @@
    "gzip": 146665
   },
   "/scene-workspace": {
-   "min": 102449,
-   "gzip": 31583
+   "min": 125847,
+   "gzip": 38644
   },
   "/esri-compat": {
    "min": 1050877,

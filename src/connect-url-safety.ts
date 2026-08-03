@@ -1,83 +1,48 @@
 /** Internal credential rejection and canonical query helpers for discovery URLs. */
 
-const CREDENTIAL_QUERY_NAMES = new Set([
-  "access-token",
-  "access_token",
-  "apikey",
-  "api-key",
-  "api_key",
-  "auth",
-  "authorization",
-  "awsaccesskeyid",
-  "bearer",
-  "client-secret",
-  "client_secret",
-  "code",
-  "credential",
-  "googleaccessid",
-  "id-token",
-  "id_token",
-  "jwt",
-  "key",
-  "key-pair-id",
-  "ocp-apim-subscription-key",
-  "password",
-  "passwd",
-  "policy",
-  "refresh-token",
-  "refresh_token",
-  "sas",
-  "secret",
-  "securitytoken",
-  "session",
-  "session-id",
-  "session_id",
-  "sessionid",
-  "sig",
-  "signature",
-  "subscription-key",
-  "subscription_key",
-  "token",
-  "x-api-key",
-]);
-
 const CREDENTIAL_QUERY_TOKENS = new Set([
-  "accesstoken",
-  "apikey",
   "auth",
-  "authorization",
-  "authtoken",
   "awsaccesskeyid",
   "bearer",
-  "bearertoken",
-  "clientsecret",
   "code",
-  "credential",
+  "credentials",
   "expires",
   "googleaccessid",
-  "idtoken",
   "jwt",
   "key",
   "keypairid",
-  "ocpapimsubscriptionkey",
-  "password",
   "passwd",
   "policy",
-  "privatekey",
   "pwd",
-  "refreshtoken",
   "sas",
-  "secret",
-  "securitytoken",
   "session",
   "sessionid",
-  "sessiontoken",
   "sig",
+]);
+// Suffix matching keeps prefixed spellings (`proxy-authorization`, `set-cookie`,
+// `x-api-key`) credential-bearing, matching the plan-persistence classifier in
+// `src/query-planner/planner.ts`.
+const CREDENTIAL_QUERY_SUFFIXES = [
+  "accountkey",
+  "accesskey",
+  "apikey",
+  "authorization",
+  "consumerkey",
+  "cookie",
+  "credential",
+  "encryptionkey",
+  "masterkey",
+  "passphrase",
+  "password",
+  "privatekey",
+  "secret",
+  "secretkey",
+  "signingkey",
   "signature",
+  "storagekey",
   "subscriptionkey",
   "token",
-  "xapikey",
-]);
+] as const;
 
 /** URLSearchParams has already percent-decoded names before this check. */
 export function isCredentialQueryName(name: string): boolean {
@@ -94,13 +59,16 @@ export function isCredentialQueryName(name: string): boolean {
   // More than four encoding layers is never required for a legitimate
   // service parameter and must not bypass a credential-name comparison.
   if (/%[0-9a-f]{2}/i.test(normalized)) return true;
-  const token = normalized.replace(/[^a-z0-9]/gu, "");
-  return (
-    CREDENTIAL_QUERY_NAMES.has(normalized) ||
-    CREDENTIAL_QUERY_TOKENS.has(token) ||
-    token.startsWith("xamz") ||
-    token.startsWith("xgoog")
-  );
+  return normalized.split(/[&;?#]/u).some((part) => {
+    const candidate = part.split(/[=:]/u, 1)[0]?.trim() ?? "";
+    const token = candidate.replace(/[^a-z0-9]/gu, "");
+    return (
+      CREDENTIAL_QUERY_TOKENS.has(token) ||
+      token.startsWith("xamz") ||
+      token.startsWith("xgoog") ||
+      CREDENTIAL_QUERY_SUFFIXES.some((suffix) => token.endsWith(suffix))
+    );
+  });
 }
 
 export function hasCredentialQuery(parameters: URLSearchParams): boolean {

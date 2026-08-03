@@ -1,5 +1,9 @@
 import { featureSelectionKey } from "../exploration/index.js";
-import type { ScenePrimitiveDiagnostic, SceneRuntimePrimitive } from "./primitives.js";
+import {
+  type ScenePrimitiveDiagnostic,
+  type SceneRuntimePrimitive,
+  assertScenePrimitiveSerializable,
+} from "./primitives.js";
 import type {
   SceneEvidenceReference,
   SceneLayerState,
@@ -383,6 +387,7 @@ function cloneLayer(layer: SceneLayerState): SceneLayerState {
 }
 
 function clonePrimitive(primitive: SceneRuntimePrimitive): SceneRuntimePrimitive {
+  assertScenePrimitiveSerializable(primitive);
   return cloneValue(primitive);
 }
 

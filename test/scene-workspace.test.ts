@@ -160,6 +160,223 @@ describe("scene workspace", () => {
     expect(workspace.state.detail.attributes).toEqual({ status: "active" });
   });
 
+  it("rejects credential-bearing and malformed imagery before workspace serialization", () => {
+    const workspace = createSceneWorkspace();
+    const unsafePrimitives: SceneRuntimePrimitive[] = [
+      {
+        kind: "imagery-layer",
+        id: "signed-imagery",
+        sourceId: "signed-imagery",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png?X-Amz-Signature=secret",
+      },
+      {
+        kind: "imagery-layer",
+        id: "parameter-secret",
+        sourceId: "parameter-secret",
+        protocol: "wms",
+        url: "https://maps.example.test/wms",
+        layer: "world",
+        parameters: { token: "secret" },
+      },
+      {
+        kind: "imagery-layer",
+        id: "access-key-url",
+        sourceId: "access-key-url",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png?aws_access_key_id=secret",
+      },
+      {
+        kind: "imagery-layer",
+        id: "access-key-parameter",
+        sourceId: "access-key-parameter",
+        protocol: "wms",
+        url: "https://maps.example.test/wms",
+        layer: "world",
+        parameters: { access_key: "secret" },
+      },
+      {
+        kind: "imagery-layer",
+        id: "fragment-secret",
+        sourceId: "fragment-secret",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png#access_token=secret",
+      },
+      {
+        kind: "imagery-layer",
+        id: "encoded-fragment-secret",
+        sourceId: "encoded-fragment-secret",
+        protocol: "url-template",
+        url: "https://tiles.example.test/{z}/{x}/{y}.png#access_token%3Dsecret",
+      },
+      {
+        kind: "imagery-layer",
+        id: "malformed-imagery",
+        sourceId: "malformed-imagery",
+        protocol: "single-tile",
+        url: "http://[",
+      },
+      {
+        kind: "imagery-layer",
+        id: "malformed-parameters",
+        sourceId: "malformed-parameters",
+        protocol: "wms",
+        url: "https://maps.example.test/wms",
+        layer: "world",
+        parameters: [{ token: "secret" }],
+      } as unknown as SceneRuntimePrimitive,
+      {
+        kind: "imagery-layer",
+        id: "unsafe-subdomain",
+        sourceId: "unsafe-subdomain",
+        protocol: "url-template",
+        url: "https://{s}.tiles.example.test/{z}/{x}/{y}.png",
+        subdomains: ["evil.test/path"],
+      },
+    ];
+
+    for (const primitive of unsafePrimitives) {
+      expect(() => workspace.dispatch({ kind: "set-primitives", primitives: [primitive] })).toThrow(
+        /credential-free|invalid provider URL|invalid service parameters|invalid subdomains/,
+      );
+      expect(workspace.state.primitives).toEqual({});
+    }
+  });
+
+  it.each([
+    "access-key",
+    "access_token",
+    "api-key",
+    "x-api-key",
+    "credentials",
+    "subscription-key",
+    "Ocp-Apim-Subscription-Key",
+    "refresh-token",
+    "key-pair-id",
+    "x-goog-signature",
+    "sas",
+    "shared-access-signature",
+    "aws_secret_access_key",
+    "secret_access_key",
+    "secret_key",
+    "secret-key",
+    "client_secret_key",
+    "account_key",
+    "account-key",
+    "client_account_key",
+    "storage_key",
+    "storage-key",
+    "azure_storage_key",
+    "master_key",
+    "master-key",
+    "database_master_key",
+    "consumer_key",
+    "consumer-key",
+    "oauth_consumer_key",
+    "private_key",
+    "client_private_key",
+    "signing_key",
+    "client_signing_key",
+    "encryption_key",
+    "client_encryption_key",
+    "passphrase",
+    "client_passphrase",
+    "tenant_api_key",
+    "vendor_subscription_key",
+    "oauth_token",
+    "database_password",
+    "client_credential",
+  ])("rejects credential-shaped imagery key alias %s in URLs and parameters", (key) => {
+    const workspace = createSceneWorkspace();
+    const encodedKey = encodeURIComponent(key);
+    expect(() =>
+      workspace.dispatch({
+        kind: "set-primitives",
+        primitives: [
+          {
+            kind: "imagery-layer",
+            id: "credential-url",
+            sourceId: "credential-url",
+            protocol: "url-template",
+            url: `https://tiles.example.test/{z}/{x}/{y}.png?${encodedKey}=secret`,
+          },
+        ],
+      }),
+    ).toThrow(/credential-free/);
+    expect(() =>
+      workspace.dispatch({
+        kind: "set-primitives",
+        primitives: [
+          {
+            kind: "imagery-layer",
+            id: "credential-parameter",
+            sourceId: "credential-parameter",
+            protocol: "wms",
+            url: "https://maps.example.test/wms",
+            layer: "world",
+            parameters: { [key]: "secret" },
+          },
+        ],
+      }),
+    ).toThrow(/credential-free/);
+    expect(workspace.state.primitives).toEqual({});
+  });
+
+  it.each([
+    "language",
+    "time",
+    "elevation",
+    "layers",
+    "format",
+    "style",
+    "cache",
+    "sr",
+    "se",
+    "sp",
+    "spr",
+    "sv",
+    "tokenizer",
+    "credentialType",
+    "passwordPolicy",
+    "secretary",
+    "secretKeyframe",
+    "accountKeyboard",
+    "accountKeyFormat",
+    "storageKeyboard",
+    "storageKeyVersion",
+    "masterKeyboard",
+    "masterKeyframe",
+    "consumerKeyboard",
+    "consumerKeyName",
+    "privateKeyboard",
+    "signingKeyboard",
+    "encryptionKeyboard",
+    "passphrasePolicy",
+    "apiKeyFormat",
+    "subscriptionKeyboard",
+    "monkey",
+    "keyframe",
+    "signatureAlgorithm",
+  ])("preserves ordinary imagery service parameter %s", (key) => {
+    const workspace = createSceneWorkspace();
+    expect(() =>
+      workspace.dispatch({
+        kind: "set-primitives",
+        primitives: [
+          {
+            kind: "imagery-layer",
+            id: "public-imagery",
+            sourceId: "public-imagery",
+            protocol: "wms",
+            url: "https://maps.example.test/wms",
+            layer: "world",
+            parameters: { [key]: "public" },
+          },
+        ],
+      }),
+    ).not.toThrow();
+  });
+
   it("serializes primitive diagnostics and MapLibre terrain/extrusion patches without renderer imports", () => {
     const primitives: SceneRuntimePrimitive[] = [
       {

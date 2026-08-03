@@ -577,6 +577,10 @@ function createAppPlatformPackage() {
   for (const directory of [...appPlatformDirectories, ...stableClosureDirectories]) {
     copyDirectory(path.join(DIST_SRC_ROOT, directory), path.join(packageRoot, directory));
   }
+  // Scene imagery applies the same credential-name classifier as discovery so
+  // the app-platform package must carry this internal stable-tier dependency.
+  copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.js"), path.join(packageRoot, "connect-url-safety.js"));
+  copyFile(path.join(DIST_SRC_ROOT, "connect-url-safety.d.ts"), path.join(packageRoot, "connect-url-safety.d.ts"));
   copySourceCapabilityContractSupport(packageRoot);
 
   const subpathExport = (dir) => ({

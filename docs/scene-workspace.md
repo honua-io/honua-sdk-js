@@ -1,10 +1,14 @@
 # Scene Workspace Interop
 
-`@honua/sdk-js/scene-workspace` is a renderer-neutral coordination layer for
+`@honua/app-platform/scene-workspace` is a renderer-neutral coordination layer for
 apps that combine a 3D scene, 2D map, table, detail panel, timeline, evidence
 tray, and realtime status. It does not import Cesium, MapLibre, or a UI
 framework. Renderers translate their native events into typed workspace intents
 and subscribe to narrow slices or selectors.
+
+The former `@honua/sdk-js/scene-workspace` subpath is a deprecated 0.1.x
+forwarder. New applications should install `@honua/app-platform` plus only the
+optional renderer peers they use.
 
 ## Sample Pattern
 
@@ -17,7 +21,7 @@ import {
   selectSceneEvidenceForFeature,
   selectScenePrimitivesByKind,
   selectSceneVisibleLayers,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 import { sourceFeatureSelectionTarget } from "@honua/sdk-js/exploration";
 
 const workspace = createSceneWorkspace({
@@ -37,6 +41,16 @@ const workspace = createSceneWorkspace({
       encoding: "mapbox",
       tileSize: 512,
       exaggeration: 1.25,
+      cache: { status: "ready", scope: "tiles", ttlMs: 86400000 },
+    },
+    orthophoto: {
+      kind: "imagery-layer",
+      id: "orthophoto",
+      sourceId: "orthophoto",
+      protocol: "url-template",
+      url: "/imagery/{z}/{x}/{y}.jpg",
+      opacity: 0.85,
+      attribution: "County orthophotography",
       cache: { status: "ready", scope: "tiles", ttlMs: 86400000 },
     },
     buildings: {
@@ -98,7 +112,7 @@ source/schema/plan identity, renderer origin, and an explicit
 import {
   createSceneStateSynchronizer,
   defaultSceneStateSyncMappings,
-} from "@honua/sdk-js/scene-workspace";
+} from "@honua/app-platform/scene-workspace";
 
 const sharedState = createSceneStateSynchronizer({
   applicationId: "incident-command",
@@ -150,6 +164,29 @@ Scene primitives describe 3D intent without naming a renderer package:
 - `camera`: serializable view state separate from source data state.
 - `ground` and `elevation-source`: terrain/ground metadata, cache policy,
   attribution, and tile protocol.
+- `imagery-layer`: URL-template, WMS, WMTS, single-tile, or ArcGIS imagery with
+  explicit service configuration, opacity, attribution, and cache metadata.
+  ArcGIS MapServer endpoints use Cesium's native MapServer provider; ImageServer
+  endpoints use its `exportImage` operation through a bounded URL template.
+  Service parameters override case-insensitive query keys already present in the
+  endpoint: URL-template and single-tile bindings append them to the URL, WMS
+  forwards them as request parameters, and WMTS forwards them as dimensions.
+  WMS and WMTS accept explicit `layer`, `style`, and `format` fields (plus
+  `tileMatrixSetId` for WMTS); other provider kinds reject those service fields
+  instead of silently ignoring them. Custom subdomains require a `{s}` URL
+  placeholder. ArcGIS MapServer rejects `minimumLevel`, which Cesium does not
+  expose as a constructor option, while ImageServer URL templates support it.
+  ArcGIS imagery URLs must identify a MapServer or ImageServer service. When a
+  later layer reuses an ID, its predecessor is removed before replacement.
+  Cesium-owned WMS/WMTS operation keys are removed from endpoint URLs, and WMTS
+  dimensions that alias provider fields fail closed instead of creating
+  case-insensitive KVP conflicts. ImageServer parameters cannot override the
+  adapter-owned export format, projection, viewport, or response type.
+  Single-tile bindings reject tile-level bounds because the provider represents
+  one untiled image and cannot honor minimum or maximum tile levels.
+  Provider URLs may be relative, HTTP, or HTTPS; malformed URLs and bindings
+  containing userinfo, signed-URL query keys, or credential-like parameters fail
+  closed before workspace serialization or provider creation.
 - `extrusion`: a source-bound height/base/color definition that MapLibre can
   render as `fill-extrusion`.
 - `model-layer`: glTF, 3D Tiles, I3S, or custom model binding for a 3D adapter.
@@ -197,8 +234,10 @@ materialize. Calling `remove()` is idempotent. Tilesets and models are removed
 through Cesium's primitive collection; terrain handles clear the active
 provider and call its optional `destroy()` method. Replacing terrain destroys
 the displaced provider immediately, while removing a stale handle never
-disturbs the newer provider. The application owns the Cesium `Viewer`/`Scene`
-itself and must dispose that target separately.
+disturbs the newer provider. Imagery handles control visibility and opacity,
+remove their Cesium imagery layer, and destroy an owned provider at most once.
+The application owns the Cesium `Viewer`/`Scene` itself and must dispose that
+target separately.
 
 ## Demo Fit
 

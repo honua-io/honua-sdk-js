@@ -216,6 +216,8 @@ import {
   selectHonuaAppWorkspaceMetadataCacheModel,
 } from "@honua/app-platform/app-workspace";
 import {
+  CESIUM_SCENE_CAPABILITIES,
+  addCesiumImageryLayer,
   createSceneWorkspace,
   sceneWorkspaceIntentFromAdapterEvent,
 } from "@honua/app-platform/scene-workspace";
@@ -593,6 +595,8 @@ if (typeof createSceneWorkspace !== "function")
   throw new Error("createSceneWorkspace export missing from @honua/sdk/scene-workspace");
 if (typeof sceneWorkspaceIntentFromAdapterEvent !== "function")
   throw new Error("sceneWorkspaceIntentFromAdapterEvent export missing from @honua/sdk/scene-workspace");
+if (typeof addCesiumImageryLayer !== "function" || !CESIUM_SCENE_CAPABILITIES.imagery?.protocols.includes("wmts"))
+  throw new Error("Cesium imagery exports missing from @honua/app-platform/scene-workspace");
 if (typeof HonuaMap !== "function")
   throw new Error("HonuaMap export missing from @honua/sdk/map");
 if (typeof validateHonuaStyle !== "function")
@@ -899,6 +903,7 @@ import type { SourceDescriptor as EsriCompatSourceDescriptor } from "./node_modu
 import type { SourceDescriptor as ReactSourceDescriptor } from "./node_modules/@honua/react/contract/index.js";
 import type { SourceDescriptor as GeometrySourceDescriptor } from "./node_modules/@honua/geometry/contract/index.js";
 import type { SourceDescriptor as AppPlatformSourceDescriptor } from "./node_modules/@honua/app-platform/contract/index.js";
+import type { SceneImageryLayerPrimitive } from "./node_modules/@honua/app-platform/scene-workspace/index.js";
 
 type CompanionSourceDescriptor =
   | EsriCompatSourceDescriptor
@@ -907,6 +912,7 @@ type CompanionSourceDescriptor =
   | AppPlatformSourceDescriptor;
 
 export const acceptsCompanionSourceDescriptor = (descriptor: CompanionSourceDescriptor): string => descriptor.id;
+export const acceptsSceneImageryPrimitive = (primitive: SceneImageryLayerPrimitive): string => primitive.protocol;
 `.trimStart();
   fs.writeFileSync(path.join(tempRoot, "smoke-types.ts"), declarationSmoke, "utf8");
   fs.writeFileSync(
