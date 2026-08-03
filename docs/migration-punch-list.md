@@ -163,9 +163,11 @@ hold the surface stable).
    field-info `format` callbacks fall through to manual TODO.
 6. **Widget UI behavior.** The widget shims accept the same
    constructor options ArcGIS does, but they render through the
-   Honua widget host (`HonuaWidgetHost`). Visual parity (icons,
-   ARIA, CSS class names that downstream apps style against) is
-   **not** byte-identical. Apps that rely on
+   Honua widget host (`HonuaWidgetHost`), and only after the app
+   registers the web-component kit — see
+   [widget kit registration](./migration-honua-maplibre.md#widget-kit-registration).
+   Visual parity (icons, ARIA, CSS class names that downstream apps
+   style against) is **not** byte-identical. Apps that rely on
    `calcite-action--`-prefixed selectors will need style work.
 7. **`reactiveUtils.watch` semantics (partial).** Compat `watch` is
    property-name-based and synchronous. ArcGIS `watch` accepts an

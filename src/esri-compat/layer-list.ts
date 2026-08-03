@@ -102,7 +102,7 @@ export class LayerListCompat {
     this.watchListeners = new Map();
     this.subscriptions = [];
     const widgetHost =
-      options.container != null ? new HonuaWidgetHost("honua-layer-list", options.container) : undefined;
+      options.container != null ? new HonuaWidgetHost("honua-layer-list", options.container, this.eventBus) : undefined;
     this.widgetHost = widgetHost?.available ? widgetHost : undefined;
 
     if (this.autoRefresh) {

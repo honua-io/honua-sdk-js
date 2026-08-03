@@ -25,8 +25,14 @@
  *   working with no DOM side effects.
  * - Without a registered kit — the default, and the only possibility in the
  *   standalone `@honua/sdk-esri-compat` split package unless the app installs
- *   the kit — mounting quietly no-ops and the shims stay state-model-only,
- *   exactly their pre-delegation behavior.
+ *   the kit — mounting no-ops and the shims stay state-model-only, exactly
+ *   their pre-delegation behavior. That degradation is deliberate but silent
+ *   in a way that reads as a broken app, so the **first** mount in that state
+ *   emits a one-time diagnostic (issue #957): a `console.warn` naming
+ *   {@link registerHonuaWidgetKit} and linking the migration guide, plus a
+ *   `widget-kit.missing` event on the owning shim's `CompatEventBus`. The
+ *   diagnostic is per runtime, not per widget instance, and re-arms whenever
+ *   {@link registerHonuaWidgetKit} is called again.
  * - The delegation tag must be owned by the kit's own element class; a
  *   foreign registrant (e.g. an app that explicitly opted into the controls
  *   kit's `honua-legend` via `defineHonuaLegend()`, which has a different
@@ -35,12 +41,22 @@
  * @module
  */
 
+import type { CompatEventBus } from "./event-bus.js";
+
 type WidgetHostDom = {
   document?: Document;
   customElements?: CustomElementRegistry;
 };
 
 const globalDom = globalThis as typeof globalThis & WidgetHostDom;
+
+/**
+ * Where the required registration step is documented. Named verbatim in the
+ * missing-kit diagnostic so a developer staring at an empty container has the
+ * exact call and the exact page in one line of console output.
+ */
+const WIDGET_KIT_DOCS_URL =
+  "https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/migration-honua-maplibre.md#widget-kit-registration";
 
 /** Element surface the host hands back to shim update callbacks. */
 export interface HonuaWidgetHostElement extends HTMLElement {
@@ -66,25 +82,75 @@ export type HonuaWidgetKitSource = HonuaWidgetKitLike | (() => HonuaWidgetKitLik
 let widgetKitSource: HonuaWidgetKitSource | undefined;
 
 /**
+ * Latch for the one-time missing-kit diagnostic. Deliberately module-scoped
+ * rather than per-host: an app that forgot the registration usually builds
+ * several widgets, and one actionable line is a signal while one line per
+ * widget instance is noise.
+ */
+let missingWidgetKitReported = false;
+
+/**
  * Injects the web-component kit that {@link HonuaWidgetHost} delegates to.
  * Call once from application code with the `@honua/sdk-js/web-components`
  * (or `@honua/app-platform/web-components`) module — eagerly or as a lazy
  * loader. Pass `undefined` to unregister (shims return to headless mode).
+ *
+ * Calling this also re-arms the one-time missing-kit diagnostic: registration
+ * is exactly the state the warning asks for, so an app that later unregisters
+ * and mounts again is told again.
  */
 export function registerHonuaWidgetKit(source: HonuaWidgetKitSource | undefined): void {
   widgetKitSource = source;
+  missingWidgetKitReported = false;
+}
+
+/** Human-readable half of the missing-kit diagnostic. */
+function missingWidgetKitMessage(tagName: string): string {
+  return [
+    `[honua/esri-compat] <${tagName}> was not mounted because no Honua widget kit is registered,`,
+    "so the compat widget shims stay state-model-only and the container you passed renders nothing.",
+    'Call registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components")) once during application',
+    `startup, before constructing compat widgets. See ${WIDGET_KIT_DOCS_URL}`,
+  ].join(" ");
+}
+
+/**
+ * Emits the one-time missing-kit diagnostic: a `console.warn` plus a
+ * `widget-kit.missing` event on the shim's bus (issue #957). Both halves share
+ * one latch, so the event lands on the bus of the first widget that tried to
+ * mount — subscribe before constructing widgets.
+ */
+function reportMissingWidgetKit(tagName: string, eventBus: CompatEventBus | undefined, source: unknown): void {
+  if (missingWidgetKitReported) return;
+  missingWidgetKitReported = true;
+
+  const message = missingWidgetKitMessage(tagName);
+  const consoleLike = (globalThis as { console?: { warn?: (message: string) => void } }).console;
+  consoleLike?.warn?.(message);
+  eventBus?.emit(
+    "widget-kit.missing",
+    { tagName, api: "registerHonuaWidgetKit", docs: WIDGET_KIT_DOCS_URL, message },
+    source,
+  );
 }
 
 export class HonuaWidgetHost {
   readonly #tagName: string;
   readonly #container: HTMLElement | undefined;
+  readonly #eventBus: CompatEventBus | undefined;
   #element: HonuaWidgetHostElement | undefined;
   #kitLoad: Promise<boolean> | undefined;
   #kitLoadSource: HonuaWidgetKitSource | undefined;
 
-  public constructor(tagName: string, container: unknown) {
+  /**
+   * @param eventBus Bus the owning shim publishes on. Optional so headless /
+   *   standalone construction keeps working; when omitted the missing-kit
+   *   diagnostic still reaches the console.
+   */
+  public constructor(tagName: string, container: unknown, eventBus?: CompatEventBus) {
     this.#tagName = tagName;
     this.#container = resolveContainer(container);
+    this.#eventBus = eventBus;
   }
 
   /** Whether a usable container was resolved (requires a DOM). */
@@ -102,10 +168,19 @@ export class HonuaWidgetHost {
    * mounted into the container. Returns the element, or `undefined` when no
    * DOM / container / kit is available (headless shims, or an application
    * that never called {@link registerHonuaWidgetKit}).
+   *
+   * A container was supplied but no kit was registered — the "migrated app
+   * comes up blank" case — is the one failure worth being loud about, so it
+   * emits the one-time diagnostic. Headless usage (no DOM, no container) stays
+   * silent: that is a legitimate state-model-only mode, not a mistake.
    */
   public async mount(): Promise<HonuaWidgetHostElement | undefined> {
     const container = this.#container;
     if (!container || !globalDom.document) return undefined;
+    if (!widgetKitSource) {
+      reportMissingWidgetKit(this.#tagName, this.#eventBus, this);
+      return undefined;
+    }
     if (!(await this.#loadKit())) return undefined;
     if (!this.#element || !this.#element.isConnected) {
       const element = globalDom.document.createElement(this.#tagName) as HonuaWidgetHostElement;

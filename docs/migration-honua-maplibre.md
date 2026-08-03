@@ -38,6 +38,60 @@ journey (#549); its live-evidence lane proves liveness by re-running the real
 `honua-migrate` CLI right now, since the workbench itself never makes a
 non-loopback network request. Gallery projection is tracked by #550.
 
+## Widget kit registration
+
+**This is a required step, not a footnote.** Every migrated app that
+constructs a compat widget must register the Honua web-component kit once,
+or those widgets render nothing.
+
+The `@honua/sdk-esri-compat` widget shims (`LegendCompat`, `LayerListCompat`,
+…) carry the full ArcGIS state model, but they draw UI by delegating to the
+Honua web components. The compat entry point never imports that kit — not even
+dynamically: `/esri-compat` is bundle-budgeted, and any intra-package import
+would pull the whole component set plus its geometry closure into every compat
+bundle. The application injects it instead, as early as the entry module runs:
+
+```ts doc-test=skip reason="wiring snippet requires an application host"
+import { registerHonuaWidgetKit } from "@honua/sdk-esri-compat";
+
+// Eager (module object) or lazy (loader) — both work.
+registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components"));
+```
+
+Register before you construct widgets. The call is idempotent, and passing
+`undefined` unregisters (returning the shims to headless mode).
+
+Without it the shims degrade to state-model-only: `legend.items` is populated,
+`layerList.toggle()` mutates layers, events still fire — and the `container`
+you passed stays empty. Since a migrated app in that state simply looks
+broken, the first widget mount without a registered kit emits a one-time
+diagnostic (honua-io/honua-sdk-js#957):
+
+- a `console.warn` naming `registerHonuaWidgetKit`, quoting the exact call, and
+  linking back to this section; and
+- a `widget-kit.missing` event on the shim's `CompatEventBus`, carrying
+  `{ tagName, api, docs, message }` for telemetry or a first-run banner.
+
+```ts doc-test=skip reason="wiring snippet requires an application host"
+legend.eventBus.on("widget-kit.missing", (event) => {
+  reportFirstRunProblem(event.payload.message);
+});
+```
+
+The diagnostic fires **once per runtime**, on the first mount that finds no
+kit — not once per widget instance — so subscribe before constructing widgets.
+It re-arms whenever `registerHonuaWidgetKit` is called again, which keeps
+register-then-unregister cycles honest.
+
+Two consequences worth planning for:
+
+- The standalone `@honua/sdk-esri-compat` split package does not ship the kit.
+  An app on that package installs `@honua/sdk-js` (or
+  `@honua/app-platform`) as well to have something to register.
+- The codemod does not insert this call for you yet — it is tracked on
+  honua-io/honua-sdk-js#957 against the `honua-migrate` engine. Until it lands,
+  add the registration to every migrated entry point by hand.
+
 ## How it differs from the other targets
 
 The migration codemod (`src/migration/codemod.ts`) exposes three
@@ -271,7 +325,10 @@ list:
   entry: the compat shims accept ArcGIS option shapes but render
   through the Honua widget host with non-byte-identical visuals.
   `honua-maplibre` does not paper over this — widget constructors
-  fall to manual TODO instead of being silently rewritten.
+  fall to manual TODO instead of being silently rewritten. Under
+  `honua-compat` they are rewritten, but rendering still depends on
+  the app performing the [widget kit registration](#widget-kit-registration)
+  the codemod does not yet insert.
 - **3D / SceneView and scene layers.** `scene-view`,
   `SceneLayer`/`BuildingSceneLayer`/`IntegratedMeshLayer`/
   `PointCloudLayer`/`MeshLayer`/`ElevationLayer`/`VoxelLayer` are
