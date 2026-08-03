@@ -683,7 +683,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-02T09:33:51.945Z"
+          "expiresAt": "2026-09-03T03:33:29.468Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -802,7 +802,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-02T09:31:49.125Z"
+          "expiresAt": "2026-09-03T03:31:23.012Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -915,7 +915,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-02T09:34:14.175Z"
+          "expiresAt": "2026-09-03T03:33:51.539Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -1086,6 +1086,58 @@
         }
       },
       "expectedDegradation": "Live sign-in is unavailable until the host supplies an OAuth configuration."
+    },
+    {
+      "id": "offline-region-reference",
+      "title": "Network-disabled offline region reference",
+      "summary": "Proves that a persisted IndexedDB region and bounded host-owned application shell survive reload after browser networking is disabled.",
+      "sourceKind": "docs-example",
+      "track": "fixture",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as browser evidence for the disconnected-read acceptance slice of the experimental offline region contract."
+      },
+      "validationProfile": "browser-fixture",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "docs/examples/offline-region-reference",
+        "docsPath": "docs/examples/offline-region-reference/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.2-beta.0"
+      },
+      "capabilities": [
+        "offline",
+        "provenance"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "One committed integrity-, length-, and version-pinned fixture served from an isolated loopback origin and persisted through the public IndexedDB offline contract.",
+        "attribution": "Honua deterministic incident fixture.",
+        "freshness": "Explicit online observation time and stale disconnected diagnostic time.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss; the fixture does not synthesize an empty success or claim reconnect, edit replay, or server synchronization."
     },
     {
       "id": "overture-geoparquet",
@@ -1503,7 +1555,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-02T09:35:08.325Z"
+          "expiresAt": "2026-09-03T03:34:48.183Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -2349,6 +2401,11 @@
         "id": "oauth-signin",
         "category": "requires-companion-server",
         "reason": "The default flow needs its own running companion server process at runtime, not just a data origin. examples/oauth-signin/mock-server.mjs is a mock OAuth identity provider the sample redirects to and exchanges codes against at runtime (catalog data.authMode oauth); the flow needs a live participant process, not a static data origin."
+      },
+      {
+        "id": "offline-region-reference",
+        "category": "non-runtime-sample",
+        "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. docs/examples/offline-region-reference has no vite.config.ts; it is a bounded documentation reference exercised by test/playwright/offline-indexeddb.spec.mjs with an isolated loopback fixture origin."
       },
       {
         "id": "realtime-incident-dashboard",
