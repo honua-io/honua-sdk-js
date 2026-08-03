@@ -9,6 +9,7 @@ import type { QueryExecutionPlanV1 } from "../src/query-planner/types.js";
 import {
   type CesiumEntityCollectionTarget,
   type CesiumEntityRuntimeModule,
+  type CesiumEntityTimeOptions,
   mountSourceToCesium,
   projectSourceToCesium,
 } from "../src/scene-workspace/index.js";
@@ -347,6 +348,184 @@ describe("projectSourceToCesium", () => {
     expect(projection.diagnostics).toContainEqual(
       expect.objectContaining({ code: "time-interval-invalid", detail: { omittedFeatureCount: 2 } }),
     );
+  });
+
+  it("projects a temporal instant as a zero-duration availability interval", async () => {
+    const time: CesiumEntityTimeOptions = { instantField: "observed_at" };
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        {
+          attributes: { unit_id: "instant", observed_at: "2026-07-15T10:00:00-10:00" },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    const source = fakeSource([result]);
+    const projection = projectSourceToCesium(source, plan, result, { time });
+
+    expect(projection.entities[0]?.interval).toEqual({
+      start: "2026-07-15T20:00:00.000Z",
+      end: "2026-07-15T20:00:00.000Z",
+    });
+
+    const collection = fakeCollection();
+    await mountSourceToCesium(collection, source, plan, { ...context, cesium: cesiumModule, time });
+    const entity = collection.entities.get("honua-response-units:s:instant");
+    expect(entity?.availability).toMatchObject({
+      intervals: [
+        { options: { start: { iso: "2026-07-15T20:00:00.000Z" }, stop: { iso: "2026-07-15T20:00:00.000Z" } } },
+      ],
+    });
+  });
+
+  it("omits invalid temporal instants and rejects empty instant mappings", () => {
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        { attributes: { unit_id: 1, observed_at: "2026-07-15T10:00:00" }, geometry: { x: -157, y: 21 } },
+        { attributes: { unit_id: 2, observed_at: "2026-07-15T10:00:00.0001Z" }, geometry: { x: -157, y: 21 } },
+        { attributes: { unit_id: 3, observed_at: "not-a-timestamp" }, geometry: { x: -157, y: 21 } },
+        { attributes: { unit_id: 4 }, geometry: { x: -157, y: 21 } },
+      ],
+    };
+    const projection = projectSourceToCesium(fakeSource([result]), plan, result, {
+      time: { instantField: "observed_at" },
+    });
+    expect(projection.entities).toEqual([]);
+    expect(projection.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "time-interval-invalid", detail: { omittedFeatureCount: 4 } }),
+    );
+    expect(() => projectSourceToCesium(fakeSource([result]), plan, result, { time: { instantField: "" } })).toThrow(
+      expect.objectContaining({ code: "invalid-option" }),
+    );
+  });
+
+  it("rejects mixed and absent temporal mappings instead of preferring one variant", async () => {
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        {
+          attributes: {
+            unit_id: 1,
+            observed_at: "2026-07-15T10:00:00Z",
+            start: "2026-07-15T10:00:00Z",
+            end: "2026-07-15T10:01:00Z",
+          },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    // Untyped callers can supply both variants; the union alone cannot stop them.
+    const mixed = {
+      instantField: "observed_at",
+      startField: "start",
+      endField: "end",
+    } as unknown as CesiumEntityTimeOptions;
+    expect(() => projectSourceToCesium(fakeSource([result]), plan, result, { time: mixed })).toThrow(
+      expect.objectContaining({ code: "invalid-option" }),
+    );
+    await expect(
+      mountSourceToCesium(fakeCollection(), fakeSource([result]), plan, {
+        ...context,
+        cesium: cesiumModule,
+        time: mixed,
+      }),
+    ).rejects.toMatchObject({ code: "invalid-option" });
+
+    const empty = {} as unknown as CesiumEntityTimeOptions;
+    expect(() => projectSourceToCesium(fakeSource([result]), plan, result, { time: empty })).toThrow(
+      expect.objectContaining({ code: "invalid-option" }),
+    );
+    expect(() =>
+      projectSourceToCesium(fakeSource([result]), plan, result, {
+        time: { startField: "start" } as unknown as CesiumEntityTimeOptions,
+      }),
+    ).toThrow(expect.objectContaining({ code: "invalid-option" }));
+  });
+
+  it("keeps sampled positions available under both temporal mappings", () => {
+    const samples = [
+      { time: "2026-07-15T10:00:00Z", coordinates: [-157, 21] },
+      { time: "2026-07-15T10:01:00Z", coordinates: [-157.1, 21.1] },
+    ];
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        {
+          attributes: {
+            unit_id: "route",
+            observed_at: "2026-07-15T10:00:00Z",
+            start: "2026-07-15T10:00:00Z",
+            end: "2026-07-15T10:01:00Z",
+            track: samples,
+          },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    const expected = [
+      { time: "2026-07-15T10:00:00.000Z", coordinates: [-157, 21, 0] },
+      { time: "2026-07-15T10:01:00.000Z", coordinates: [-157.1, 21.1, 0] },
+    ];
+
+    const interval = projectSourceToCesium(fakeSource([result]), plan, result, {
+      time: { startField: "start", endField: "end", positionField: "track" },
+    });
+    expect(interval.entities[0]?.positionSamples).toEqual(expected);
+    expect(interval.entities[0]?.interval).toEqual({
+      start: "2026-07-15T10:00:00.000Z",
+      end: "2026-07-15T10:01:00.000Z",
+    });
+
+    const instant = projectSourceToCesium(fakeSource([result]), plan, result, {
+      time: { instantField: "observed_at", positionField: "track" },
+    });
+    expect(instant.entities[0]?.positionSamples).toEqual(expected);
+    expect(instant.entities[0]?.interval).toEqual({
+      start: "2026-07-15T10:00:00.000Z",
+      end: "2026-07-15T10:00:00.000Z",
+    });
+  });
+
+  it("materializes sampled positions through the injected Cesium runtime", async () => {
+    const addSample = vi.fn();
+    const runtime: CesiumEntityRuntimeModule = {
+      ...cesiumModule,
+      SampledPositionProperty: class {
+        public addSample = addSample;
+      },
+    };
+    const result: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [
+        {
+          attributes: {
+            unit_id: "route",
+            observed_at: "2026-07-15T10:00:00Z",
+            track: [
+              { time: "2026-07-15T10:00:00Z", coordinates: [-157, 21] },
+              { time: "2026-07-15T10:01:00Z", coordinates: [-157.1, 21.1] },
+            ],
+          },
+          geometry: { x: -157, y: 21 },
+        },
+      ],
+    };
+    const collection = fakeCollection();
+    await mountSourceToCesium(collection, fakeSource([result]), plan, {
+      ...context,
+      cesium: runtime,
+      time: { instantField: "observed_at", positionField: "track" },
+    });
+
+    expect(addSample).toHaveBeenCalledTimes(2);
+    expect(addSample.mock.calls[0]?.[0]).toEqual({ iso: "2026-07-15T10:00:00.000Z" });
+    expect(collection.entities.get("honua-response-units:s:route")?.availability).toMatchObject({
+      intervals: [
+        { options: { start: { iso: "2026-07-15T10:00:00.000Z" }, stop: { iso: "2026-07-15T10:00:00.000Z" } } },
+      ],
+    });
   });
 
   it("deeply snapshots caller attributes and reports incomplete fidelity truthfully", () => {

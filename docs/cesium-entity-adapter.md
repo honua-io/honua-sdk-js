@@ -57,6 +57,10 @@ entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
   integer Unix epoch-millisecond start/end attributes, mapped to Cesium
   availability intervals. Ambiguous local-time strings and precision-losing
   timestamps are omitted with a fidelity diagnostic.
+- A single-timestamp mapping (`time: { instantField: "observed_at" }`) projects
+  one source instant as a zero-duration availability interval rather than
+  inventing a playback duration. The same validation and
+  `time-interval-invalid` diagnostic apply.
 - Serialized snapshot refresh, cancellation checks before renderer mutation,
   reentrant-disposal guards, rollback attempts, deterministic cleanup, and
   retryable failed disposal.
