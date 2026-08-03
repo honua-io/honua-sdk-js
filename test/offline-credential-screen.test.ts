@@ -204,7 +204,7 @@ describe("direct offline region store commits", () => {
     } as OfflineRegionManifestV1;
     expect(findManifestCredentialLeak(tampered)).toEqual({
       path: "source.endpoint",
-      reason: "credential-shaped",
+      reason: "endpoint-not-normalized",
     });
     expect(() => assertCredentialFreeManifest(tampered)).toThrowError(/source\.endpoint/);
     try {

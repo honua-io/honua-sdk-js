@@ -17,16 +17,17 @@ import { HonuaOfflineRegionError, type OfflineRegionManifestV1 } from "./types.j
 
 export type { CredentialScreenStrictness };
 
-export type CredentialScreenReason = "credential-shaped" | "url-shaped";
+export type CredentialScreenReason = "credential-shaped" | "url-shaped" | "endpoint-not-normalized";
 
 /**
  * Report why a persisted string must be refused, or `undefined` when it is safe.
  *
- * Both strictness levels reject an absolute URL carrying userinfo, a query, or a
+ * Both strictness levels reject a request URL carrying userinfo, a query, or a
  * fragment. `identity` additionally refuses a relative request reference — any
  * embedded `?`, `#`, or `@` — mirroring the persisted-source shape check in
  * `src/query-planner/planner.ts`, so a matched request URL cannot become a stored
- * identity by accident.
+ * identity by accident. Never returns `endpoint-not-normalized`, which only
+ * applies to the endpoint's own normalization contract.
  */
 export function screenPersistedString(
   value: string,
@@ -38,9 +39,9 @@ export function screenPersistedString(
 
 /** Message for `reason` at `path`. Never echoes the offending value (NFR-002). */
 export function credentialScreenMessage(path: string, reason: CredentialScreenReason): string {
-  return reason === "url-shaped"
-    ? `${path} must not be a request URL carrying userinfo, a query, or a fragment.`
-    : `${path} must not contain credential-shaped material.`;
+  if (reason === "url-shaped") return `${path} must not be a request URL carrying userinfo, a query, or a fragment.`;
+  if (reason === "endpoint-not-normalized") return `${path} must be a normalized, credential-free absolute URL.`;
+  return `${path} must not contain credential-shaped material.`;
 }
 
 /**
@@ -58,7 +59,7 @@ export function findManifestCredentialLeak(
   const source = asRecord(record.source);
   const endpoint = source?.endpoint;
   if (!source || typeof endpoint !== "string" || !isNormalizedCredentialFreeEndpoint(endpoint)) {
-    return { path: "source.endpoint", reason: "credential-shaped" };
+    return { path: "source.endpoint", reason: "endpoint-not-normalized" };
   }
   for (const [path, value, strictness] of screenedManifestStrings(record, source)) {
     if (typeof value !== "string") continue;
