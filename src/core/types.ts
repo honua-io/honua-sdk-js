@@ -609,9 +609,17 @@ export interface HonuaClientOptions {
 
 export interface HonuaRetryOptions {
   /**
-   * Maximum number of retry attempts after the initial request. Retry is
-   * entirely opt-in: values below `1` (including the default `0`) disable the
-   * retry loop, and every request is then issued exactly once.
+   * Maximum number of transient-failure retry attempts after the initial
+   * request. Retry is entirely opt-in: values below `1` (including the default
+   * `0`) disable the retry loop, so no status, network, or timeout failure is
+   * replayed.
+   *
+   * This option does not govern the authentication replay. When an
+   * {@link HonuaClientOptions.auth} provider is configured, a replay-safe
+   * request (`GET` / `HEAD` / `PUT` / `DELETE`) answered with `401` or `403` is
+   * still reissued once after a forced credential refresh, even with retries
+   * disabled. Instrumentation that counts requests should expect that one extra
+   * attempt.
    */
   maxRetries?: number;
   /** First backoff delay in milliseconds; doubles per attempt. Default: `100`. */

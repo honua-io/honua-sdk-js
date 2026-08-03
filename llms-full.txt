@@ -11220,6 +11220,11 @@ track lock expiry, and does not attach a lock to a subsequent
 
 ```ts doc-test=skip reason="partial excerpt requires application host context and a locking WFS server"
 const wfs = source.protocol("wfs")!;
+// `operationUrl()` reads the already-resolved capabilities snapshot
+// synchronously and falls back to the configured endpoint URL when none has
+// been fetched yet. Resolve capabilities first, or the request goes to the
+// endpoint URL instead of the advertised LockFeature DCP address.
+await wfs.root.capabilities();
 const { text } = await wfs.root.requestText("POST", wfs.root.operationUrl("LockFeature", "POST"), {
   accept: "application/xml",
   contentType: "text/xml",
@@ -11229,9 +11234,18 @@ const { text } = await wfs.root.requestText("POST", wfs.root.operationUrl("LockF
 ```
 
 Everything `requestText` shares with the canonical surface still
-applies: auth headers, interceptors, retry, timeout, abort signals, the
-response-size cap, and `<ows:ExceptionReport>` → `HonuaWfsExceptionError`
-mapping.
+applies: auth headers, interceptors, retry, timeout, abort signals, and
+the response-size cap.
+
+Exception mapping is the one thing that does **not** fully carry over.
+`requestText` converts an `<ows:ExceptionReport>` into
+`HonuaWfsExceptionError` only when the server returns it with a non-2xx
+status (the conversion runs on the thrown `HonuaHttpError`). A server
+that reports a lock failure as an `<ows:ExceptionReport>` inside an HTTP
+`200` — permitted by OWS, and how some servers signal
+`CannotLockAllFeatures` — comes back as ordinary response text. Inspect
+the payload for `ExceptionReport` yourself before treating it as a
+`<wfs:LockFeatureResponse>`.
 
 ## Defenses
 
