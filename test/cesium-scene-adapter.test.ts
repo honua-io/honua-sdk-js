@@ -1872,6 +1872,40 @@ describe("cesium scene adapter", () => {
       expect(tilesetFromUrl).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ["unknown key", { maximumAttenutation: 4 }, ["maximumAttenutation"]],
+      ["extra key alongside a valid one", { attenuation: true, sizeInMeters: true }, ["sizeInMeters"]],
+      ["array", [] as unknown, ["pointCloudShading"]],
+      ["class instance", new (class {})() as unknown, ["pointCloudShading"]],
+      ["null-ish", null as unknown, ["pointCloudShading"]],
+    ])("treats point-cloud shading as a closed record and rejects %s", (_label, shading, invalidFields) => {
+      const primitive = modelPrimitive({
+        format: "3d-tiles",
+        pointCloudShading: shading as SceneModelLayerPrimitive["pointCloudShading"],
+      });
+      const diagnostic = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
+        (entry) => entry.code === "scene-primitive-model-point-cloud-shading-invalid",
+      );
+      // An unknown key would otherwise be dropped on the way to Cesium, so the
+      // layer would render with engine defaults while reporting `supported`.
+      expect(diagnostic?.status).toBe("unsupported");
+      expect(diagnostic?.context).toEqual({ invalidFields });
+    });
+
+    it("rejects a shading record carrying an accessor instead of plain data", () => {
+      const shading = Object.defineProperty({}, "attenuation", { get: () => true, enumerable: true });
+      const diagnostic = diagnoseScenePrimitives(
+        [
+          modelPrimitive({
+            format: "3d-tiles",
+            pointCloudShading: shading as SceneModelLayerPrimitive["pointCloudShading"],
+          }),
+        ],
+        CESIUM_SCENE_CAPABILITIES,
+      ).find((entry) => entry.code === "scene-primitive-model-point-cloud-shading-invalid");
+      expect(diagnostic?.context).toEqual({ invalidFields: ["pointCloudShading"] });
+    });
+
     it("rejects point-cloud shading on a non-tiled model format", () => {
       const diagnostic = diagnoseScenePrimitives(
         [

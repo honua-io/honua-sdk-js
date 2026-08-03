@@ -132,6 +132,18 @@ export type SceneModelFormat = "gltf" | "glb" | "3d-tiles" | "i3s" | "obj" | "cu
  * before the renderer peer is loaded, so an out-of-range value fails closed
  * rather than silently reverting to a renderer default.
  */
+const POINT_CLOUD_SHADING_BOOLEAN_KEYS = ["attenuation", "eyeDomeLighting"] as const;
+const POINT_CLOUD_SHADING_MAGNITUDE_KEYS = [
+  "maximumAttenuation",
+  "geometricErrorScale",
+  "eyeDomeLightingStrength",
+  "eyeDomeLightingRadius",
+] as const;
+const POINT_CLOUD_SHADING_KEYS: ReadonlySet<string> = new Set<string>([
+  ...POINT_CLOUD_SHADING_BOOLEAN_KEYS,
+  ...POINT_CLOUD_SHADING_MAGNITUDE_KEYS,
+]);
+
 export interface ScenePointCloudShading {
   /** Scale point size with geometric error / eye distance. */
   readonly attenuation?: boolean;
@@ -971,22 +983,29 @@ function invalidModelPlacementFields(primitive: SceneModelLayerPrimitive): strin
   return invalidFields;
 }
 
+/**
+ * Point-cloud shading is validated as a closed record: an unknown or misspelled
+ * own key (`maximumAttenutation`) is itself a failure, because
+ * `normalizePointCloudShading` would otherwise drop it and the layer would
+ * render with Cesium's defaults while still reporting `supported`. The `typeof`
+ * guards are load-bearing at runtime even though the declared type narrows
+ * them — deserialized plan JSON is not type-checked.
+ */
 function invalidPointCloudShadingFields(primitive: SceneModelLayerPrimitive): string[] {
   const shading = primitive.pointCloudShading;
   if (shading === undefined) return [];
-  if (!shading || typeof shading !== "object" || Array.isArray(shading)) return ["pointCloudShading"];
-  if (primitive.format !== "3d-tiles") return ["pointCloudShading"];
+  // Only a tiled asset has points to shade, and only a plain data record can be
+  // checked key-by-key.
+  if (primitive.format !== "3d-tiles" || !isPlainRecord(shading)) return ["pointCloudShading"];
   const invalidFields: string[] = [];
-  for (const field of ["attenuation", "eyeDomeLighting"] as const) {
+  for (const key of Object.keys(shading)) {
+    if (!POINT_CLOUD_SHADING_KEYS.has(key)) invalidFields.push(key);
+  }
+  for (const field of POINT_CLOUD_SHADING_BOOLEAN_KEYS) {
     const value = shading[field];
     if (value !== undefined && typeof value !== "boolean") invalidFields.push(field);
   }
-  for (const field of [
-    "maximumAttenuation",
-    "geometricErrorScale",
-    "eyeDomeLightingStrength",
-    "eyeDomeLightingRadius",
-  ] as const) {
+  for (const field of POINT_CLOUD_SHADING_MAGNITUDE_KEYS) {
     const value = shading[field];
     if (value !== undefined && (typeof value !== "number" || !isPositiveFiniteNumber(value))) invalidFields.push(field);
   }
@@ -1042,22 +1061,29 @@ function hasCredentialParameter(parameters: SceneImageryLayerPrimitive["paramete
   return Object.keys(parameters).some(isCredentialQueryName);
 }
 
-function isValidImageryParameters(value: unknown): value is Readonly<Record<string, string | number | boolean>> {
+/**
+ * A plain, inspectable data record: object literal (or null-prototype), not an
+ * array, no symbol keys, and no accessors. Anything else cannot be validated
+ * key-by-key without invoking foreign code, so it fails closed.
+ */
+function isPlainRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   try {
     const prototype = Object.getPrototypeOf(value);
     if (prototype !== Object.prototype && prototype !== null) return false;
     if (Object.getOwnPropertySymbols(value).length > 0) return false;
-    return Object.values(Object.getOwnPropertyDescriptors(value)).every(
-      (descriptor) =>
-        "value" in descriptor &&
-        (typeof descriptor.value === "string" ||
-          typeof descriptor.value === "boolean" ||
-          (typeof descriptor.value === "number" && Number.isFinite(descriptor.value))),
-    );
+    return Object.values(Object.getOwnPropertyDescriptors(value)).every((descriptor) => "value" in descriptor);
   } catch {
     return false;
   }
+}
+
+function isValidImageryParameters(value: unknown): value is Readonly<Record<string, string | number | boolean>> {
+  if (!isPlainRecord(value)) return false;
+  return Object.values(value).every(
+    (entry) =>
+      typeof entry === "string" || typeof entry === "boolean" || (typeof entry === "number" && Number.isFinite(entry)),
+  );
 }
 
 function isValidImagerySubdomains(value: unknown): value is readonly string[] {

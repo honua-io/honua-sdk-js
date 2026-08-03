@@ -193,7 +193,9 @@ Scene primitives describe 3D intent without naming a renderer package:
   optionally placed by `position` (lon/lat/height), `rotation` (heading/pitch/roll
   in degrees), and `scale`. Tiled point clouds ride the `3d-tiles` format and
   accept bounded `pointCloudShading` (attenuation, maximum attenuation,
-  geometric-error scale, and eye-dome lighting strength/radius). Asset URIs obey
+  geometric-error scale, and eye-dome lighting strength/radius), validated as a
+  closed record so a misspelled key fails closed instead of silently falling
+  back to renderer defaults. Asset URIs obey
   the same credential-free rule as imagery: relative, HTTP, or HTTPS only, with
   userinfo, signed-URL query keys, and credential-like fragment parameters
   rejected before workspace serialization or renderer materialization. Placement
@@ -242,7 +244,7 @@ reports the diagnostic instead of attaching anything.
 | `scene-primitive-model-source-uri-invalid` | `uri` is malformed or uses a scheme other than relative/HTTP/HTTPS. |
 | `scene-primitive-model-credentials-forbidden` | `uri` carries userinfo or a credential-like query/fragment key. |
 | `scene-primitive-model-placement-invalid` | `position`, `rotation`, or `scale` is non-finite, out of range, or non-positive. `context.invalidFields` names the offenders. |
-| `scene-primitive-model-point-cloud-shading-invalid` | `pointCloudShading` is set on a non-tiled format or carries a non-boolean toggle or non-positive magnitude. `context.invalidFields` names the offenders. |
+| `scene-primitive-model-point-cloud-shading-invalid` | `pointCloudShading` is set on a non-tiled format, is not a plain data record, or carries an unknown key, a non-boolean toggle, or a non-positive magnitude. `context.invalidFields` names the offenders. |
 | `scene-primitive-model-format-not-materialized` | The renderer engine can consume the format but this adapter does not attach it. |
 | `scene-primitive-unsupported` | The renderer engine cannot consume the format at all. |
 
