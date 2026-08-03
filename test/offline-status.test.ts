@@ -312,6 +312,45 @@ describe("local-first status composition", () => {
     expect(status.writes.conflictedEditIdsTruncated).toBe(true);
   });
 
+  it("treats a bounded sample as a lower bound and authoritative counts as the total", () => {
+    const sample = [
+      queuedEdit({ id: editId("1"), state: "applied", applied: { appliedAt: "2026-08-01T11:59:00.000Z" } }),
+    ];
+
+    const sampled = createLocalFirstStatus({ connectivity: "online", now: NOW, edits: sample });
+    expect(sampled.writes.coverage).toBe("sampled");
+    expect(sampled.state).toBe("online");
+
+    // The same visible sample, but the partition really holds undelivered and
+    // conflicted work beyond the 100-record list window.
+    const complete = createLocalFirstStatus({
+      connectivity: "online",
+      now: NOW,
+      edits: sample,
+      editCounts: { pending: 3, leased: 1, retryable: 2, applied: 140, conflicted: 4, cancelled: 0 },
+    });
+    expect(complete.writes.coverage).toBe("complete");
+    expect(complete.writes.undeliveredCount).toBe(6);
+    expect(complete.writes.conflictedCount).toBe(4);
+    expect(complete.writes.conflictedEditIds).toEqual([]);
+    expect(complete.writes.conflictedEditIdsTruncated).toBe(true);
+    expect(complete.state).toBe("conflicted");
+    expect(complete.reason).toBe("conflicted-edits");
+  });
+
+  it("reports undelivered totals that the sample cannot show", () => {
+    const status = createLocalFirstStatus({
+      connectivity: "offline",
+      now: NOW,
+      edits: [],
+      editCounts: { pending: 0, leased: 0, retryable: 7, applied: 100, conflicted: 0, cancelled: 0 },
+    });
+
+    expect(status.state).toBe("pending");
+    expect(status.writes.undeliveredCount).toBe(7);
+    expect(status.writes.counts.applied).toBe(100);
+  });
+
   it("returns no credentials, endpoints, payload values, or scope fingerprints", async () => {
     const status = createLocalFirstStatus({
       connectivity: "offline",
@@ -456,6 +495,80 @@ describe("local-first status trust boundary", () => {
     expect(rejection({ connectivity: "online", now: NOW, regions: [valid, valid] }).path).toBe(
       "options.regions[1].regionId",
     );
+  });
+
+  it("rejects cache facets that cannot have been produced together", async () => {
+    const valid = await diagnostic();
+    const tamperedPath = (mutate: (value: Record<string, any>) => void): string | undefined => {
+      const copy = structuredClone(valid) as Record<string, any>;
+      mutate(copy);
+      return rejection({ connectivity: "online", now: NOW, regions: [copy] }).path;
+    };
+
+    // A missing entry claiming to be complete and readable would otherwise
+    // resolve to a confident "cached, complete" headline.
+    expect(
+      tamperedPath((value) => {
+        value.cache.state = "missing";
+      }),
+    ).toBe("options.regions[0].cache.completeness");
+    expect(
+      tamperedPath((value) => {
+        value.cache.readable = false;
+      }),
+    ).toBe("options.regions[0].cache.readable");
+    expect(
+      tamperedPath((value) => {
+        value.cache.freshness = "expired";
+      }),
+    ).toBe("options.regions[0].cache.readable");
+    expect(
+      tamperedPath((value) => {
+        value.cache.reason = "stale-entry";
+      }),
+    ).toBe("options.regions[0].cache.reason");
+    expect(
+      tamperedPath((value) => {
+        value.cache.completeness = "partial";
+        value.cache.readable = false;
+      }),
+    ).toBe("options.regions[0].cache.reason");
+  });
+
+  it("rejects authoritative counts that contradict the supplied sample", () => {
+    const edits = [
+      queuedEdit({ id: editId("1"), state: "pending" }),
+      queuedEdit({ id: editId("2"), state: "pending" }),
+    ];
+
+    const error = rejection({
+      connectivity: "online",
+      now: NOW,
+      edits,
+      editCounts: { pending: 1, leased: 0, retryable: 0, applied: 0, conflicted: 0, cancelled: 0 },
+    });
+    expect(error.path).toBe("options.editCounts.pending");
+    expect(
+      rejection({
+        connectivity: "online",
+        now: NOW,
+        editCounts: { pending: 1, leased: 0, retryable: 0, applied: 0, conflicted: 0, cancelled: -1 },
+      }).path,
+    ).toBe("options.editCounts.cancelled");
+    expect(
+      rejection({
+        connectivity: "online",
+        now: NOW,
+        editCounts: { pending: 1, leased: 0, retryable: 0, applied: 0, conflicted: 0, cancelled: 0, rogue: 1 },
+      }).path,
+    ).toBe("options.editCounts.rogue");
+    expect(
+      rejection({
+        connectivity: "online",
+        now: NOW,
+        editCounts: { pending: 1, leased: 0, retryable: 0, applied: 0, conflicted: 0 },
+      }).path,
+    ).toBe("options.editCounts.cancelled");
   });
 
   it("rejects tampered queued edits", () => {

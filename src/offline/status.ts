@@ -1,4 +1,4 @@
-import type { OfflineQueuedEdit, OfflineQueuedEditState } from "./edit-queue.js";
+import type { OfflineEditQueueStateCounts, OfflineQueuedEdit, OfflineQueuedEditState } from "./edit-queue.js";
 import {
   HONUA_OFFLINE_REGION_DIAGNOSTIC_KIND,
   HONUA_OFFLINE_REGION_DIAGNOSTIC_VERSION,
@@ -40,6 +40,7 @@ export type LocalFirstReadAvailability = "live" | "cached" | "unavailable";
 export type LocalFirstFreshness = "fresh" | "stale" | "expired";
 export type LocalFirstCompleteness = "complete" | "partial" | "missing";
 export type LocalFirstWriteState = "idle" | "pending" | "conflicted";
+export type LocalFirstWriteCoverage = "complete" | "sampled";
 
 type DiagnosticCacheReason = OfflineRegionDiagnosticV1["cache"]["reason"];
 
@@ -76,7 +77,13 @@ export interface LocalFirstReads {
 
 export interface LocalFirstWrites {
   readonly state: LocalFirstWriteState;
-  readonly counts: Readonly<Record<OfflineQueuedEditState, number>>;
+  /**
+   * `complete` when authoritative queue totals were supplied; `sampled` when
+   * the counts were derived from a bounded `edits` list, which `list` caps at
+   * 100 records without a cursor.
+   */
+  readonly coverage: LocalFirstWriteCoverage;
+  readonly counts: OfflineEditQueueStateCounts;
   /** `pending`, `leased`, and `retryable` work: local, durable, unacknowledged. */
   readonly undeliveredCount: number;
   readonly conflictedCount: number;
@@ -112,7 +119,14 @@ export interface CreateLocalFirstStatusOptions {
   /** Explicit clock input so a persisted status stays reproducible. */
   readonly now: Date;
   readonly regions?: readonly OfflineRegionDiagnosticV1[];
+  /**
+   * Bounded detail sample used for conflicted identities and timing. `list`
+   * caps at 100 records with no cursor, so supply `editCounts` whenever a
+   * partition can hold more work than the sample can show.
+   */
   readonly edits?: readonly OfflineQueuedEdit[];
+  /** Authoritative partition totals from `OfflineEditQueue.countByState`. */
+  readonly editCounts?: OfflineEditQueueStateCounts;
   readonly limits?: LocalFirstStatusLimits;
 }
 
@@ -123,7 +137,7 @@ interface NormalizedLocalFirstLimits {
 }
 
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
-const OPTION_KEYS = new Set(["connectivity", "now", "regions", "edits", "limits"]);
+const OPTION_KEYS = new Set(["connectivity", "now", "regions", "edits", "editCounts", "limits"]);
 const LIMIT_KEYS = new Set(["maxRegions", "maxEdits", "maxListedEditIds"]);
 const DIAGNOSTIC_KEYS = new Set([
   "kind",
@@ -214,7 +228,7 @@ export function createLocalFirstStatus(options: CreateLocalFirstStatusOptions): 
 
   // Only an absent key defaults; an explicit null must not read as "none".
   const reads = summarizeReads(record.regions === undefined ? [] : record.regions, connectivity, limits);
-  const writes = summarizeWrites(record.edits === undefined ? [] : record.edits, limits);
+  const writes = summarizeWrites(record.edits === undefined ? [] : record.edits, record.editCounts, limits);
   const { state, reason } = resolveHeadline(reads, writes, connectivity);
 
   return deepFreeze({
@@ -329,6 +343,8 @@ function captureRegionSummary(value: unknown, path: string): LocalFirstRegionSum
     `${path}.cache.completeness`,
   ) as LocalFirstCompleteness;
   const reason = memberOf(cache.reason, CACHE_REASONS, `${path}.cache.reason`) as DiagnosticCacheReason;
+  const readable = requiredBoolean(cache.readable, `${path}.cache.readable`);
+  assertCacheFacetsAgree({ state, freshness, completeness, reason, readable }, `${path}.cache`);
 
   return {
     regionId: requiredString(record.regionId, `${path}.regionId`),
@@ -341,7 +357,7 @@ function captureRegionSummary(value: unknown, path: string): LocalFirstRegionSum
     freshness,
     completeness,
     reason,
-    readable: requiredBoolean(cache.readable, `${path}.cache.readable`),
+    readable,
     observedAt: normalizedTimestamp(cache.observedAt, `${path}.cache.observedAt`),
     ageMs: nonNegativeInteger(cache.ageMs, `${path}.cache.ageMs`),
     ...(cache.expiresAt === undefined
@@ -351,7 +367,46 @@ function captureRegionSummary(value: unknown, path: string): LocalFirstRegionSum
   };
 }
 
-function summarizeWrites(value: unknown, limits: NormalizedLocalFirstLimits): LocalFirstWrites {
+/**
+ * `createOfflineRegionDiagnostic` derives every cache facet from one stored
+ * entry, so the facets are not independent. Checking each literal in isolation
+ * would accept impossible combinations - a `missing` entry claiming to be
+ * `complete` and `readable` - and an impossible input would then resolve to a
+ * confidently wrong headline. Reject the combination instead.
+ */
+function assertCacheFacetsAgree(
+  facets: {
+    readonly state: "offline" | "missing";
+    readonly freshness: LocalFirstFreshness;
+    readonly completeness: LocalFirstCompleteness;
+    readonly reason: DiagnosticCacheReason;
+    readonly readable: boolean;
+  },
+  path: string,
+): void {
+  const stored = facets.state === "offline";
+  if (stored !== (facets.completeness !== "missing")) {
+    invalid(`${path}.completeness does not agree with ${path}.state.`, `${path}.completeness`);
+  }
+  const readable = stored && facets.completeness === "complete" && facets.freshness !== "expired";
+  if (facets.readable !== readable) {
+    invalid(`${path}.readable does not agree with the reported cache facets.`, `${path}.readable`);
+  }
+  const reason: DiagnosticCacheReason = !stored
+    ? "cache-miss"
+    : facets.freshness === "expired"
+      ? "expired-entry"
+      : facets.completeness === "partial"
+        ? "partial-entry"
+        : facets.freshness === "stale"
+          ? "stale-entry"
+          : "offline-entry";
+  if (facets.reason !== reason) {
+    invalid(`${path}.reason does not agree with the reported cache facets.`, `${path}.reason`);
+  }
+}
+
+function summarizeWrites(value: unknown, countsValue: unknown, limits: NormalizedLocalFirstLimits): LocalFirstWrites {
   const input = denseArray(value, "options.edits", limits.maxEdits);
   const counts: Record<OfflineQueuedEditState, number> = {
     pending: 0,
@@ -396,18 +451,48 @@ function summarizeWrites(value: unknown, limits: NormalizedLocalFirstLimits): Lo
   }
 
   conflictedEditIds.sort(compareCodeUnits);
-  const conflictedCount = conflictedEditIds.length;
-  const truncated = conflictedCount > limits.maxListedEditIds;
+  // Authoritative totals win. A bounded sample can only ever be a lower bound,
+  // and reporting it as the total would let later undelivered work read as idle.
+  const authoritative = captureEditCounts(countsValue, counts);
+  const totals = authoritative ?? counts;
+  const conflictedCount = totals.conflicted;
   return {
-    state: conflictedCount > 0 ? "conflicted" : undeliveredCount > 0 ? "pending" : "idle",
-    counts: { ...counts },
-    undeliveredCount,
+    state: conflictedCount > 0 ? "conflicted" : undeliveredTotal(totals) > 0 ? "pending" : "idle",
+    coverage: authoritative ? "complete" : "sampled",
+    counts: { ...totals },
+    undeliveredCount: undeliveredTotal(totals),
     conflictedCount,
     conflictedEditIds: conflictedEditIds.slice(0, limits.maxListedEditIds),
-    conflictedEditIdsTruncated: truncated,
+    conflictedEditIdsTruncated: conflictedCount > Math.min(conflictedEditIds.length, limits.maxListedEditIds),
     ...(nextRetryAt === undefined ? {} : { nextRetryAt }),
     ...(oldestUndeliveredAt === undefined ? {} : { oldestUndeliveredAt }),
   };
+}
+
+function undeliveredTotal(counts: Record<OfflineQueuedEditState, number>): number {
+  let total = 0;
+  for (const state of EDIT_STATES) if (UNDELIVERED_EDIT_STATES.has(state)) total += counts[state];
+  return total;
+}
+
+function captureEditCounts(
+  value: unknown,
+  sampled: Record<OfflineQueuedEditState, number>,
+): Record<OfflineQueuedEditState, number> | undefined {
+  if (value === undefined) return undefined;
+  const record = plainRecord(value, "options.editCounts");
+  allowedKeys(record, new Set<string>(EDIT_STATES), "options.editCounts");
+  const totals = { ...sampled };
+  for (const state of EDIT_STATES) {
+    const total = nonNegativeInteger(record[state], `options.editCounts.${state}`);
+    // A sample that exceeds its own total means the two inputs disagree; refuse
+    // rather than publish a status that cannot be true.
+    if (total < sampled[state]) {
+      invalid(`options.editCounts.${state} is smaller than the supplied sample.`, `options.editCounts.${state}`);
+    }
+    totals[state] = total;
+  }
+  return totals;
 }
 
 function normalizeLimits(value: unknown): NormalizedLocalFirstLimits {

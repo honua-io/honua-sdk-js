@@ -38,6 +38,19 @@ export type OfflineEditJsonValue =
 export type OfflineEditOperation = "add" | "update" | "delete";
 export type OfflineQueuedEditState = "pending" | "leased" | "retryable" | "applied" | "conflicted" | "cancelled";
 
+const QUEUE_STATES = [
+  "pending",
+  "leased",
+  "retryable",
+  "applied",
+  "conflicted",
+  "cancelled",
+] as const satisfies readonly OfflineQueuedEditState[];
+
+function emptyStateCounts(): Record<OfflineQueuedEditState, number> {
+  return { pending: 0, leased: 0, retryable: 0, applied: 0, conflicted: 0, cancelled: 0 };
+}
+
 export interface OfflineFeatureEdit {
   readonly operation: OfflineEditOperation;
   readonly featureId?: string | number;
@@ -136,6 +149,9 @@ export interface OfflineEditQueuePartition {
   readonly sourceId: string;
 }
 
+/** Complete, unbounded partition totals for every queue state. */
+export type OfflineEditQueueStateCounts = Readonly<Record<OfflineQueuedEditState, number>>;
+
 export interface ClaimOfflineEditsOptions extends OfflineEditQueuePartition {
   readonly workerId: string;
   readonly limit: number;
@@ -177,6 +193,12 @@ export interface OfflineEditQueue {
   enqueue(input: EnqueueOfflineEditInput): Promise<OfflineEditEnqueueResult>;
   get(editId: string, partition: OfflineEditQueuePartition): Promise<OfflineQueuedEdit | undefined>;
   list(options: ListOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]>;
+  /**
+   * Exact partition totals for every state. `list` is bounded to 100 records
+   * and has no cursor, so it cannot be counted; anything that must be truthful
+   * about how much work exists has to read these totals instead.
+   */
+  countByState(partition: OfflineEditQueuePartition): Promise<OfflineEditQueueStateCounts>;
   claimReady(options: ClaimOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]>;
   markApplied(editId: string, leaseToken: string, outcome?: MarkOfflineEditAppliedInput): Promise<OfflineQueuedEdit>;
   markRetry(editId: string, leaseToken: string, outcome: MarkOfflineEditRetryInput): Promise<OfflineQueuedEdit>;
@@ -347,6 +369,15 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
     );
   }
 
+  public async countByState(partition: OfflineEditQueuePartition): Promise<OfflineEditQueueStateCounts> {
+    const normalized = capturePartition(partition, "partition");
+    const counts = emptyStateCounts();
+    for (const record of this.#records.values()) {
+      if (matchesPartition(record, normalized)) counts[record.state] += 1;
+    }
+    return Object.freeze(counts);
+  }
+
   public async claimReady(options: ClaimOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]> {
     const result = claimRecords([...this.#records.values()], this.#tombstones, options, this.#options);
     for (const record of result.changed) this.#records.set(record.id, record);
@@ -481,6 +512,20 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
       const ids = await scanPartitionIds(metadata, partition, limit);
       const records = await Promise.all(ids.map((id) => request<OfflineQueuedEdit | undefined>(edits.get(id))));
       return copy(records.filter((record): record is OfflineQueuedEdit => record !== undefined));
+    });
+  }
+
+  public async countByState(partition: OfflineEditQueuePartition): Promise<OfflineEditQueueStateCounts> {
+    const normalized = capturePartition(partition, "partition");
+    return this.#run("readonly", async ({ metadata }) => {
+      const index = metadata.index(PARTITION_STATE_ORDER_INDEX);
+      const counts = emptyStateCounts();
+      // The compound partition/state index counts without materializing or
+      // reading any edit payload.
+      for (const state of QUEUE_STATES) {
+        counts[state] = await request<number>(index.count(partitionStateRange(normalized, state)));
+      }
+      return Object.freeze(counts);
     });
   }
 

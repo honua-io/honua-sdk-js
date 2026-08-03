@@ -166,9 +166,10 @@ async function readSnapshot(value, store, now) {
 
 /**
  * Records the field edit only while the endpoint is unreachable, then reports
- * every durable edit for this partition. The idempotency key is stable, so a
- * repeated disconnected launch returns the existing edit instead of queueing a
- * second copy.
+ * this partition's durable state. The idempotency key is stable, so a repeated
+ * disconnected launch returns the existing edit instead of queueing a second
+ * copy. `list` is a bounded detail sample; the counts come from
+ * `countByState`, which is the only truthful total for a partition.
  */
 async function captureDisconnectedEdit(value, disconnected) {
   const queue = createIndexedDbOfflineEditQueue({ name: EDIT_QUEUE_DATABASE_NAME });
@@ -183,7 +184,10 @@ async function captureDisconnectedEdit(value, disconnected) {
       edit: { operation: "update", featureId: "incident-1", attributes: { status: "closed" } },
     });
   }
-  return queue.list({ ...partition, limit: 100 });
+  return {
+    edits: await queue.list({ ...partition, limit: 100 }),
+    editCounts: await queue.countByState(partition),
+  };
 }
 
 function referenceWorker(registration, scriptUrl) {
@@ -335,12 +339,13 @@ async function main() {
   const now = disconnected ? OFFLINE_NOW : ONLINE_NOW;
   const snapshot = await readSnapshot(value, store, now);
   const diagnostic = snapshot.diagnostic;
-  const edits = await captureDisconnectedEdit(value, disconnected);
+  const { edits, editCounts } = await captureDisconnectedEdit(value, disconnected);
   const status = createLocalFirstStatus({
     connectivity: disconnected ? "offline" : "online",
     now,
     regions: [diagnostic],
     edits,
+    editCounts,
   });
   publish({
     ready: true,
@@ -363,6 +368,7 @@ async function main() {
       availability: status.reads.availability,
       freshness: status.reads.freshness,
       completeness: status.reads.completeness,
+      coverage: status.writes.coverage,
       undeliveredCount: status.writes.undeliveredCount,
       conflictedCount: status.writes.conflictedCount,
     },

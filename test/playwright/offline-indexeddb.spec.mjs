@@ -37,6 +37,7 @@ test("offline reference workflow reloads after browser networking is disabled", 
         availability: "live",
         freshness: "fresh",
         completeness: "complete",
+        coverage: "complete",
         undeliveredCount: 0,
         conflictedCount: 0,
       },
@@ -65,6 +66,7 @@ test("offline reference workflow reloads after browser networking is disabled", 
         availability: "cached",
         freshness: "stale",
         completeness: "complete",
+        coverage: "complete",
         undeliveredCount: 1,
         conflictedCount: 0,
       },
@@ -801,6 +803,73 @@ test("IndexedDB offline region store survives reload and preserves inventory CAS
       miss: true,
     });
   } finally {
+    await server.close();
+  }
+});
+
+test("IndexedDB edit queue counts a partition larger than its bounded list window", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+    const result = await page.evaluate(async () => {
+      const { createIndexedDbOfflineEditQueue, createLocalFirstStatus } = await import("/dist/src/offline/index.js");
+      const queue = createIndexedDbOfflineEditQueue({
+        name: `${window.__offlineDatabase}-counts`,
+        createLeaseToken: () => "lease",
+      });
+      const partition = { authorizationScopeDigest: `sha256:${"c".repeat(64)}`, sourceId: "incidents" };
+      for (let index = 0; index < 110; index += 1) {
+        const enqueued = await queue.enqueue({
+          ...partition,
+          idempotencyKey: `applied-${index}`,
+          edit: { operation: "add", attributes: { status: "open" } },
+        });
+        const [claimed] = await queue.claimReady({
+          ...partition,
+          workerId: "worker",
+          limit: 1,
+          leaseDurationMs: 60_000,
+        });
+        await queue.markApplied(claimed.id, claimed.lease.token, { serverOperationId: `op-${index}` });
+      }
+      await queue.enqueue({
+        ...partition,
+        idempotencyKey: "beyond-the-window",
+        edit: { operation: "update", featureId: "incident-9", attributes: { status: "closed" } },
+      });
+      const edits = await queue.list({ ...partition, limit: 100 });
+      const editCounts = await queue.countByState(partition);
+      const sampled = createLocalFirstStatus({ connectivity: "online", now: new Date(), edits });
+      const complete = createLocalFirstStatus({ connectivity: "online", now: new Date(), edits, editCounts });
+      return {
+        listed: edits.length,
+        pendingVisible: edits.some((edit) => edit.state === "pending"),
+        editCounts,
+        sampled: { state: sampled.state, coverage: sampled.writes.coverage },
+        complete: {
+          state: complete.state,
+          coverage: complete.writes.coverage,
+          undeliveredCount: complete.writes.undeliveredCount,
+        },
+      };
+    });
+
+    expect(result.listed).toBe(100);
+    expect(result.pendingVisible).toBe(false);
+    expect(result.editCounts).toEqual({
+      pending: 1,
+      leased: 0,
+      retryable: 0,
+      applied: 110,
+      conflicted: 0,
+      cancelled: 0,
+    });
+    // The bounded sample cannot see the pending edit; the authoritative totals can.
+    expect(result.sampled).toEqual({ state: "online", coverage: "sampled" });
+    expect(result.complete).toEqual({ state: "pending", coverage: "complete", undeliveredCount: 1 });
+  } finally {
+    await page.close().catch(() => undefined);
     await server.close();
   }
 });

@@ -49,6 +49,7 @@ export type {
   LocalFirstStateReason,
   LocalFirstStatusLimits,
   LocalFirstStatusV1,
+  LocalFirstWriteCoverage,
   LocalFirstWrites,
   LocalFirstWriteState,
 } from "./status.js";
@@ -83,6 +84,7 @@ export type {
   OfflineEditQueueErrorCode,
   OfflineEditQueueOptions,
   OfflineEditQueuePartition,
+  OfflineEditQueueStateCounts,
   OfflineEditRetry,
   OfflineFeatureEdit,
   OfflineQueuedEdit,

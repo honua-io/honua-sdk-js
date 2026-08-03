@@ -107,23 +107,40 @@ that names a single state.
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import { createLocalFirstStatus } from "@honua/sdk-js/offline";
 
+const partition = {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+};
+
 const status = createLocalFirstStatus({
   // Reachability is host policy. The SDK never reads navigator.onLine, because
   // link state is not endpoint reachability.
   connectivity: endpointReachable ? "online" : "offline",
   now: new Date(),
   regions: [diagnostic],
-  edits: await queue.list({
-    authorizationScopeDigest: manifest.source.authorizationScopeDigest,
-    sourceId: manifest.source.id,
-  }),
+  // A bounded detail sample for conflicted identities and timing...
+  edits: await queue.list({ ...partition, limit: 100 }),
+  // ...and the authoritative totals, because list() is capped at 100 records
+  // and has no cursor.
+  editCounts: await queue.countByState(partition),
 });
 
 console.log(status.state); // "pending"
 console.log(status.reason); // "undelivered-edits"
 console.log(status.reads.availability, status.reads.freshness);
+console.log(status.writes.coverage); // "complete"
 console.log(status.writes.undeliveredCount, status.writes.conflictedCount);
 ```
+
+`OfflineEditQueue.list()` returns at most 100 records in created order and has
+no cursor, so it can never be counted. Pass `editCounts` from
+`countByState()`, which reads the partition/state index without materializing
+any edit payload; the returned totals are authoritative and drive both
+`writes.counts` and the headline state. Without it, `writes.coverage` is
+`sampled` and the counts are only a lower bound, so a partition whose first 100
+records are terminal would read as `idle` while later work is still
+undelivered. A sample that disagrees with its own totals is rejected rather
+than published.
 
 The headline `state` is resolved by a total, deterministic precedence. Data
 problems outrank undelivered work, which outranks mere staleness, which
@@ -146,6 +163,12 @@ reports connectivity, `cached` when it does not but a region is readable, and
 `unavailable` when it is neither. The status is deeply frozen, JSON
 serializable, deterministic for identical inputs regardless of supplied order,
 and never reads `edit.attributes` or `edit.geometry`.
+
+Cache facets are validated together, not independently. A diagnostic is derived
+from one stored entry, so `state`, `freshness`, `completeness`, `reason`, and
+`readable` cannot vary freely; a tampered or hand-built combination that the
+diagnostic could never have produced is rejected instead of resolving to a
+confidently wrong headline.
 
 ## Contract guarantees
 
