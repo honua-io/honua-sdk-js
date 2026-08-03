@@ -140,7 +140,7 @@ values.
 | `Query` field | DuckDB SQL |
 | --- | --- |
 | `outFields` | quoted identifier projection; geometry projected as `ST_AsGeoJSON(...)` |
-| `where` | passed through verbatim, wrapped in `( … )` (caller-authored SQL, like GeoServices `where`) |
+| `where` | validated as a single boolean expression, then wrapped in `( … )` (see [SQL-injection safety](#sql-injection-safety)) |
 | `spatialFilter` (envelope) | `ST_Intersects(<geom>, ST_MakeEnvelope(xmin, ymin, xmax, ymax))`, or a GeoParquet 1.1 `bbox` covering-column comparison (row-group prune) |
 | `spatialFilter` (point/polyline/polygon) | reduced to its bounding box; reported in `Result.degraded` as an approximation |
 | `orderBy` | `ORDER BY "field" ASC|DESC` |
@@ -158,10 +158,41 @@ Every value the compiler interpolates is escaped:
   doubled; NUL rejected.
 - **Numeric literals** (bbox, limit, offset): validated finite / non-negative.
 
-The one deliberate exception is `Query.where`, which — exactly like the
-GeoServices and OGC adapters — is caller-authored filter SQL passed through
-verbatim. The trust boundary on `where` is the caller's, identical to a
-GeoServices `where` clause. The compiler is covered by snapshot tests in
+`Query.where` is the one raw-text lane: it is caller-authored filter SQL, so it
+cannot be escaped like a value. It is instead **contained** by
+`validateWhereExpression` before it is embedded, and a rejected expression
+throws a typed `GeoParquetWhereClauseError` carrying a fixed
+`GEOPARQUET_WHERE_*` code (the message never echoes the offending text). The
+planner surfaces the same rejection as `HonuaQueryPlanningError`
+(`code: "invalid-query"`).
+
+Rejected: statement separators (`;`) and multi-statement input; SQL line and
+block comments (including the trailing `--` that would otherwise swallow the
+compiler's own `AND (<spatial predicate>)`); unterminated string or
+quoted-identifier literals (`x' OR 1=1`); unbalanced parentheses, so the
+wrapping `( … )` cannot be closed early to re-associate or append clauses;
+`SELECT` / `FROM` / `UNION` and other statement, set-operation, or
+table-context keywords, so a filter cannot become a subquery or UNION probe
+against other tables and files registered in the same DuckDB session;
+parameter markers (`?`, `$1`, `$name`), which this lane never binds; and
+control characters other than tab / newline / carriage return.
+
+Accepted unchanged: ordinary comparisons, `AND`/`OR`/`NOT`, `IN` value lists,
+`BETWEEN`, `LIKE`, `CASE … END`, scalar function calls, struct/field paths, and
+string literals containing any of the above characters as data (`note = 'a ;
+b -- c'`). A column whose name collides with a rejected keyword stays
+addressable by quoting it (`"union" = 1`), because quoted identifiers are
+skipped by the validator.
+
+This is containment, not a semantic parser. Accepted text is still executed by
+DuckDB: it can reference any column in the scanned files, call any scalar
+function the session exposes, and cost arbitrary CPU. Applications that forward
+end-user input (a filter box, a URL parameter) should build the expression from
+typed inputs and treat the validator as a backstop; the typed, parameterized
+semantic compiler (`compileSemanticDuckDbQuery`) removes the raw-text lane
+entirely. `source.protocol("geoparquet").sql(...)` remains an explicit, opt-in
+raw-SQL escape hatch and is deliberately not covered by this validation. The
+compiler is covered by snapshot and rejection tests in
 `test/geoparquet-sql.test.ts`.
 
 ## Both metadata styles
