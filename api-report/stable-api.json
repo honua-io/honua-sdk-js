@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 165,
-      "signatureSha256": "9c069d7604c97cac6b0cc94d9227841b288792e02c55c4f3a6689edad4416c3f",
+      "signatureSha256": "6883b0def68721ed2fe45418f069c4457d03830544fa134b39b4dfe05369ee41",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -178,7 +178,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 165,
-      "signatureSha256": "9c069d7604c97cac6b0cc94d9227841b288792e02c55c4f3a6689edad4416c3f",
+      "signatureSha256": "6883b0def68721ed2fe45418f069c4457d03830544fa134b39b4dfe05369ee41",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -350,8 +350,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1179,
-      "signatureSha256": "8ccd3b9b55397a11774ca52874500a6bd13ec556c88291d255d07d7eebf90246",
+      "exportCount": 1180,
+      "signatureSha256": "5492859821cc210b54bc00238d0894767cf58d43a63451ad3fc4bafae256b209",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -538,6 +538,7 @@
         "FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID — const",
         "FIRST_PARTY_PROTOCOLS — const",
         "FeatureId — type",
+        "FeatureInfoRequestBinding — type",
         "FeatureSelectionTarget — type",
         "FeatureStateMap — interface",
         "FeatureStateSelectionSyncOptions — interface",
@@ -1566,8 +1567,8 @@
     {
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
-      "exportCount": 451,
-      "signatureSha256": "4d17698777103ecfab54108d4ab1bb9e897ede4e8628f4a82a3f8271e6a82824",
+      "exportCount": 452,
+      "signatureSha256": "d86f313697df8a4a105d805be99bf44d647f6ba33eb2430125d3f04777785296",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1688,6 +1689,7 @@
         "FEATURE_SERVER_H3_SPATIAL_AGGREGATION_INDEX_MODEL_ID — const",
         "FIRST_PARTY_PROTOCOLS — const",
         "FeatureId — type",
+        "FeatureInfoRequestBinding — type",
         "HONUA_DISCOVERY_ADAPTER_VERSION — const",
         "HONUA_DISCOVERY_PROJECTION_VERSION — const",
         "HonuaDiscoveryError — class",

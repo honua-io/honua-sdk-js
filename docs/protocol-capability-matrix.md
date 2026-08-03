@@ -507,6 +507,31 @@ desired CRS (the wire CRS is derived from there) or reproject the
 result client-side. `Query.pagination.limit` is honored — it maps to
 `FEATURE_COUNT` on the wire.
 
+The same canonical `query()` works against a third-party WMS 1.3
+endpoint discovered by `connect()`, with no Honua service id involved.
+Discovery reviews the advertised `GetFeatureInfo` operation and pins it
+on `locator.featureInfo` (`{ kind: "wms-kvp", url, format, crs }`) only
+when the layer is `queryable`, the operation advertises a safe
+same-origin GET URL, an advertised `INFO_FORMAT` can be projected into
+canonical features, and at least one advertised CRS has a provable WMS
+1.3 axis order. Format preference is GeoJSON/JSON first, then GML
+(`application/vnd.ogc.gml`, `application/gml+xml`, `text/xml;
+subtype=gml/*`) decoded from `gml:featureMember` / `gml:featureMembers`
+containers or MapServer's `msGMLOutput` wrapper — leaf property elements
+become attributes, complex properties and `gml:boundedBy` are skipped,
+and `geometry` is `null`. Unstructured `text/plain` and `text/html` are
+never selected because their bodies are template-defined per deployment,
+so an endpoint advertising only those keeps `query` disabled. The wire
+CRS is resolved against the reviewed list (`CRS:84` and `EPSG:4326` are
+interchangeable inputs for the same canonical `(lon, lat)` point); a CRS
+the layer never advertised throws
+`HonuaCapabilityNotSupportedError("query", "wms", id)` rather than being
+sent. A response body that does not decode into features (an OGC
+exception report, malformed JSON, or an unrecognized GML container)
+raises the same capability error instead of degrading into an empty
+result. The raw `Source.protocol("wms")` handles stay unavailable on
+third-party sources — they are Honua-service-id bound.
+
 `Source.protocol("wms-layer")` is registered only when
 `locator.typeName` parses to a single non-empty layer token because
 `HonuaWmsLayer` is a single-layer handle (its `describe()` resolves

@@ -74,6 +74,7 @@ export type {
   EditOutcome,
   EditResult,
   FeatureId,
+  FeatureInfoRequestBinding,
   MapBinding,
   PaginationSpec,
   Protocol,
