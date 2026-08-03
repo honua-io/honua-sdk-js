@@ -1,0 +1,262 @@
+{
+  "format": "honua.sdk.sample-packed-build-gate.v1",
+  "sampleId": "migration-workbench",
+  "sourceRevision": "86ccedfe0ac319504768454aec16e2ab352bbfb0",
+  "command": [
+    "npm",
+    "run",
+    "demo:migration-workbench:build"
+  ],
+  "sdkMode": "packed",
+  "packageTarballSha256": "a1b0e86a5aac491a9c2ace4f4c673fa91a34b7f44f119019fdfa6201ef5e73e1",
+  "packageTarball": "samples/evidence/migration-workbench/runs/341dc036-9fa7-48a3-8049-568ca6ce0baf/artifacts/honua-sdk-js-0.1.2-beta.0.tgz",
+  "packageTarballBytes": 2654109,
+  "sampleDistRoot": "samples/evidence/migration-workbench/runs/341dc036-9fa7-48a3-8049-568ca6ce0baf/artifacts/packed-sample-dist",
+  "resolution": {
+    "format": "honua.sdk.sample-resolution.v1",
+    "schemaVersion": 1,
+    "mode": "packed",
+    "package": {
+      "name": "@honua/sdk-js",
+      "version": "0.1.2-beta.0"
+    },
+    "entrypoints": [
+      {
+        "specifier": "@honua/sdk-js/esri-compat",
+        "exportTarget": "./dist/src/esri-compat-entry.js",
+        "hashSubject": "packed-published-entrypoint-file",
+        "sha256": "4302148fdc9d7fa3afb711898bb9ea550cdd0004ea5d9cf545602c168bd8795e"
+      }
+    ],
+    "bundle": [
+      {
+        "fileName": "assets/index-DCZz_u0y.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 33290,
+        "sha256": "fcbfe16637e8f1056a44640711264c0b34a957738e4c3120c684e36cb0d6cb5b"
+      },
+      {
+        "fileName": "assets/errors-BFRUuChe.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 29690,
+        "sha256": "d6900308c85d866e02e18a6f9b85d0430203dcf899d44dc38ab4b862b876b958"
+      },
+      {
+        "fileName": "assets/esm-43ltykJI.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 691,
+        "sha256": "526a0efff54fa5abec8d9fc57f0fd257db2c59bb7925ba0eaef4aa03011f550f"
+      },
+      {
+        "fileName": "assets/esm-BfJANlUL.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 18857,
+        "sha256": "5fbf66bd2c89216528362fad7b102ee3514b594c80a52ab0abf5c65bc0687a5e"
+      },
+      {
+        "fileName": "assets/esm-DWXyzSch.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 170994,
+        "sha256": "dfcb9c1b2d749d980f3ce6716431e2b429512c1aec2fc87f62c3a999d580d8d0"
+      },
+      {
+        "fileName": "assets/feature_service_pb-Dm71OsPs.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 1540,
+        "sha256": "6abc78fca4740a0d729b50aab3b50522256e038a9e7fc7389b41f4d361eb0bb2"
+      },
+      {
+        "fileName": "assets/feature_service_pb-gZgMpru8.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 20398,
+        "sha256": "606a17718fa921096b316450b8cbda1dbc4c97687bb3680dd860b11a2f782c37"
+      },
+      {
+        "fileName": "assets/file-Cyyt2sFU.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 150068,
+        "sha256": "20a4040613661e9bd578911d334708c68c5c71d6ebc1763f9495cf54b080f224"
+      },
+      {
+        "fileName": "assets/grpc-adapter-Bhj_0N0n.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 21228,
+        "sha256": "cf94eae6f7b95071809e1f63317ba60635611b127a71660310c9294a6f13b3dd"
+      },
+      {
+        "fileName": "assets/migrated-main-BNtuIsDx.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 511326,
+        "sha256": "88ce7b986487b233d4fb2dba0f0e4e1f3dc0ba05208894571243b6ba8f69513e"
+      },
+      {
+        "fileName": "assets/preload-helper-hQ-dqvUN.js",
+        "kind": "chunk",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 2113,
+        "sha256": "d61318d1ae4d64c385ddef8810ab22a48cd9d66c2db2efb67ad40fd5949c8b49"
+      },
+      {
+        "fileName": "artifacts/v1/migrated-main.js",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 5159,
+        "sha256": "ea75ce5a0c267391b846f8825ad54e941a5b6ec31c9fa8cf05f3469712a636a4"
+      },
+      {
+        "fileName": "assets/index-DuH7ryFn.css",
+        "kind": "asset",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 56424,
+        "sha256": "4a2b8d710a4bcb07f1894093d876e485c2f8596da53c12a2a9a9c72190919f5a"
+      },
+      {
+        "fileName": "artifacts/v1/manifest.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 6129,
+        "sha256": "2124a65ebbdd2d025ce9c0850b02f6584dc867884c44deb2e420be1d0021587e"
+      },
+      {
+        "fileName": "artifacts/v1/maplibre-assessment.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 50274,
+        "sha256": "84e1f8a56c621cb0fbdd2d11857ebd2e8eeb613bcbdc9b8a81a3fc8b18b7a179"
+      },
+      {
+        "fileName": "artifacts/v1/migration-report.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 61201,
+        "sha256": "9f909007976a61d7fc3ca51662de66cce5fbf8d5656c4c6bcdd1c0a617be8acd"
+      },
+      {
+        "fileName": "artifacts/v1/migration.v1.patch",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 3864,
+        "sha256": "5af0f80709512a3bd9f600716a14ab4b9194dc103369294c3db0c944c04e3a9b"
+      },
+      {
+        "fileName": "artifacts/v1/widget-readiness.v1.json",
+        "kind": "public",
+        "hashSubject": "final-written-bundle-file",
+        "bytes": 5610,
+        "sha256": "93398a8e73ef72e6bfb95e3990e5aeea0ea842b44ba3e0c82424b0e9783ca506"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "artifacts/v1/manifest.v1.json",
+      "bytes": 6129,
+      "sha256": "2124a65ebbdd2d025ce9c0850b02f6584dc867884c44deb2e420be1d0021587e"
+    },
+    {
+      "path": "artifacts/v1/maplibre-assessment.v1.json",
+      "bytes": 50274,
+      "sha256": "84e1f8a56c621cb0fbdd2d11857ebd2e8eeb613bcbdc9b8a81a3fc8b18b7a179"
+    },
+    {
+      "path": "artifacts/v1/migrated-main.js",
+      "bytes": 5159,
+      "sha256": "ea75ce5a0c267391b846f8825ad54e941a5b6ec31c9fa8cf05f3469712a636a4"
+    },
+    {
+      "path": "artifacts/v1/migration-report.v1.json",
+      "bytes": 61201,
+      "sha256": "9f909007976a61d7fc3ca51662de66cce5fbf8d5656c4c6bcdd1c0a617be8acd"
+    },
+    {
+      "path": "artifacts/v1/migration.v1.patch",
+      "bytes": 3864,
+      "sha256": "5af0f80709512a3bd9f600716a14ab4b9194dc103369294c3db0c944c04e3a9b"
+    },
+    {
+      "path": "artifacts/v1/widget-readiness.v1.json",
+      "bytes": 5610,
+      "sha256": "93398a8e73ef72e6bfb95e3990e5aeea0ea842b44ba3e0c82424b0e9783ca506"
+    },
+    {
+      "path": "assets/errors-BFRUuChe.js",
+      "bytes": 29690,
+      "sha256": "d6900308c85d866e02e18a6f9b85d0430203dcf899d44dc38ab4b862b876b958"
+    },
+    {
+      "path": "assets/esm-43ltykJI.js",
+      "bytes": 691,
+      "sha256": "526a0efff54fa5abec8d9fc57f0fd257db2c59bb7925ba0eaef4aa03011f550f"
+    },
+    {
+      "path": "assets/esm-BfJANlUL.js",
+      "bytes": 18857,
+      "sha256": "5fbf66bd2c89216528362fad7b102ee3514b594c80a52ab0abf5c65bc0687a5e"
+    },
+    {
+      "path": "assets/esm-DWXyzSch.js",
+      "bytes": 170994,
+      "sha256": "dfcb9c1b2d749d980f3ce6716431e2b429512c1aec2fc87f62c3a999d580d8d0"
+    },
+    {
+      "path": "assets/feature_service_pb-Dm71OsPs.js",
+      "bytes": 1540,
+      "sha256": "6abc78fca4740a0d729b50aab3b50522256e038a9e7fc7389b41f4d361eb0bb2"
+    },
+    {
+      "path": "assets/feature_service_pb-gZgMpru8.js",
+      "bytes": 20398,
+      "sha256": "606a17718fa921096b316450b8cbda1dbc4c97687bb3680dd860b11a2f782c37"
+    },
+    {
+      "path": "assets/file-Cyyt2sFU.js",
+      "bytes": 150068,
+      "sha256": "20a4040613661e9bd578911d334708c68c5c71d6ebc1763f9495cf54b080f224"
+    },
+    {
+      "path": "assets/grpc-adapter-Bhj_0N0n.js",
+      "bytes": 21228,
+      "sha256": "cf94eae6f7b95071809e1f63317ba60635611b127a71660310c9294a6f13b3dd"
+    },
+    {
+      "path": "assets/index-DCZz_u0y.js",
+      "bytes": 33290,
+      "sha256": "fcbfe16637e8f1056a44640711264c0b34a957738e4c3120c684e36cb0d6cb5b"
+    },
+    {
+      "path": "assets/index-DuH7ryFn.css",
+      "bytes": 56424,
+      "sha256": "4a2b8d710a4bcb07f1894093d876e485c2f8596da53c12a2a9a9c72190919f5a"
+    },
+    {
+      "path": "assets/migrated-main-BNtuIsDx.js",
+      "bytes": 511326,
+      "sha256": "88ce7b986487b233d4fb2dba0f0e4e1f3dc0ba05208894571243b6ba8f69513e"
+    },
+    {
+      "path": "assets/preload-helper-hQ-dqvUN.js",
+      "bytes": 2113,
+      "sha256": "d61318d1ae4d64c385ddef8810ab22a48cd9d66c2db2efb67ad40fd5949c8b49"
+    },
+    {
+      "path": "honua-sample-sdk-resolution.json",
+      "bytes": 4839,
+      "sha256": "3178eb06fac07c74ec4fca50b48a6548c9d15824a308c73fffa4263d67def6ed"
+    },
+    {
+      "path": "index.html",
+      "bytes": 10931,
+      "sha256": "dbbbffd840fcfa47819b778b2add3afca172381dd6ce523b81fdfda6f65ababb"
+    }
+  ]
+}
