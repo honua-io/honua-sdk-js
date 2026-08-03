@@ -3,9 +3,25 @@
     "Correctness and repeated-run stability are gated on every benchmark run.",
     "Relative performance budgets are evaluated only when --baseline points to a",
     "report with the same corpus hash, implementation, OS, architecture, Node major,",
-    "and CPU model. This prevents results from unlike machines becoming a false gate."
+    "and CPU model. This prevents results from unlike machines becoming a false gate.",
+    "Absolute budgets need no baseline, so they are the class that actually gates a",
+    "pull request. Their thresholds are deliberately generous against measured",
+    "values so a loaded or shared runner cannot flake them; tight regression",
+    "detection remains the job of the relative lane against a compatible baseline.",
+    "columnar.data-plane.million-feature was measured on a shared linux host while",
+    "two other build agents ran, deliberately including its heaviest contention:",
+    "20.00 backing bytes/feature (deterministic — the packed fixture is 8 + 4 + 4 + 4",
+    "bytes/row), 20.0-35.8 peak retained bytes/feature, and a median throughput",
+    "between 2,154,706 and 8,776,756 features/second for the complete build + worker",
+    "round trip + deck.gl binding pipeline over 1,000,000 rows.",
+    "The ceilings and floor below sit 1.2x, 4.5x, and 4.3x clear of the worst of",
+    "those observations, so contention cannot flake them. They still gate real",
+    "regressions: a per-feature JavaScript object result for the same fixture costs",
+    "300+ bytes/feature and an order of magnitude less throughput, and any payload",
+    "copy reintroduced into the transfer or projection path fails the scenario's",
+    "zero-copy invariant outright rather than merely slowing it down."
   ],
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "variability": {
     "warningCoefficientOfVariation": 0.2,
     "failureCoefficientOfVariation": 0.5
@@ -20,6 +36,25 @@
       "direction": "higher-is-better",
       "warningPercent": 15,
       "failurePercent": 30
+    }
+  },
+  "absolute": {
+    "columnar.data-plane.million-feature": {
+      "backingBytesPerFeature": {
+        "direction": "lower-is-better",
+        "warning": 20,
+        "failure": 24
+      },
+      "peakRetainedBytesPerFeature": {
+        "direction": "lower-is-better",
+        "warning": 64,
+        "failure": 160
+      },
+      "featuresPerSecond": {
+        "direction": "higher-is-better",
+        "warning": 2000000,
+        "failure": 500000
+      }
     }
   }
 }

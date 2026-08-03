@@ -131,9 +131,10 @@ describe("deterministic resilience benchmark", () => {
       ),
     ).toBe(true);
     const evaluation = evaluateReport(topLevelLeak, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       variability: { warningCoefficientOfVariation: 0.2, failureCoefficientOfVariation: 0.5 },
       relativeRegression: {},
+      absolute: {},
     });
     expect(evaluation.level).toBe("failure");
     expect(evaluation.items).toContainEqual(expect.objectContaining({ metric: "artifact-safety", level: "failure" }));

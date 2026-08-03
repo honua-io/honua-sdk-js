@@ -6,6 +6,12 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+import {
+  type ColumnarDataPlaneBenchmarkOptions,
+  type ColumnarDataPlaneBenchmarkResult,
+  type ColumnarDataPlaneSample,
+  runColumnarDataPlaneBenchmark,
+} from "./columnar-data-plane-bench.js";
 import { validateCrossSdkReferenceFiles } from "./cross-sdk/validate.js";
 
 import {
@@ -51,11 +57,17 @@ interface QueryResourceHandleCorpusScenario extends QueryResourceHandleBenchmark
   kind: "query-resource-handle";
 }
 
+interface ColumnarDataPlaneCorpusScenario extends ColumnarDataPlaneBenchmarkOptions {
+  id: string;
+  kind: "columnar-data-plane";
+}
+
 type CorpusScenario =
   | StreamCorpusScenario
   | OfflineReloadCorpusScenario
   | RealtimeReconnectCorpusScenario
-  | QueryResourceHandleCorpusScenario;
+  | QueryResourceHandleCorpusScenario
+  | ColumnarDataPlaneCorpusScenario;
 
 interface Corpus {
   schemaVersion: 2;
@@ -70,13 +82,31 @@ interface RelativeBudget {
   failurePercent: number;
 }
 
+/**
+ * A machine-independent ceiling or floor for one scenario metric. Unlike
+ * `RelativeBudget` this needs no baseline, so it is the only budget class that
+ * actually gates a pull request: CI runs the lab without `--baseline`, and a
+ * baseline is discarded whenever the corpus hash or host identity differs.
+ *
+ * Thresholds are absolute values of the metric's median, not percentages.
+ * `warning` is optional; `failure` is required so a declared budget can never
+ * be advisory only.
+ */
+interface AbsoluteBudget {
+  direction: Direction;
+  warning?: number;
+  failure: number;
+}
+
 interface Budgets {
-  schemaVersion: 1;
+  schemaVersion: 2;
   variability: {
     warningCoefficientOfVariation: number;
     failureCoefficientOfVariation: number;
   };
   relativeRegression: Record<string, RelativeBudget>;
+  /** Scenario id → metric name → absolute budget. Evaluated on every run. */
+  absolute: Record<string, Record<string, AbsoluteBudget>>;
 }
 
 export interface SampleMetrics {
@@ -102,7 +132,7 @@ interface ScenarioResult {
   id: string;
   kind: CorpusScenario["kind"];
   parameters: Record<string, number | boolean>;
-  samples: Array<SampleMetrics | { totalDurationMs: number; operationsPerSecond: number }>;
+  samples: Array<SampleMetrics | { totalDurationMs: number; operationsPerSecond: number } | ColumnarDataPlaneSample>;
   summary: {
     totalDurationMs: MetricSummary;
     timeToFirstPageMs?: MetricSummary;
@@ -110,6 +140,11 @@ interface ScenarioResult {
     operationsPerSecond?: MetricSummary;
     heapUsedDeltaBytes?: MetricSummary;
     heapUsedPeakBytes?: MetricSummary;
+    buildDurationMs?: MetricSummary;
+    workerDurationMs?: MetricSummary;
+    renderDurationMs?: MetricSummary;
+    backingBytesPerFeature?: MetricSummary;
+    peakRetainedBytesPerFeature?: MetricSummary;
   };
   invariants: {
     expectedTotalFeatures?: number;
@@ -280,6 +315,9 @@ function validateCorpus(value: unknown): Corpus {
     } else if (scenario.kind === "query-resource-handle") {
       allowedKeys = new Set([...commonKeys, "operationCount"]);
       if (!positive(scenario.operationCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+    } else if (scenario.kind === "columnar-data-plane") {
+      allowedKeys = new Set([...commonKeys, "featureCount"]);
+      if (!positive(scenario.featureCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
     } else {
       throw new Error(`Invalid benchmark scenario kind: ${String((scenario as { kind?: unknown }).kind)}`);
     }
@@ -302,8 +340,17 @@ function validWarmup(scenario: { warmupRuns: number }): boolean {
 
 function validateBudgets(value: unknown): Budgets {
   const budgets = value as Partial<Budgets>;
-  if (budgets.schemaVersion !== 1 || !budgets.variability || !budgets.relativeRegression) {
-    throw new Error("Invalid benchmark budgets: expected schemaVersion 1 and budget definitions");
+  if (budgets.schemaVersion !== 2 || !budgets.variability || !budgets.relativeRegression || !budgets.absolute) {
+    throw new Error("Invalid benchmark budgets: expected schemaVersion 2, variability, relativeRegression, absolute");
+  }
+  for (const [scenarioId, metrics] of Object.entries(budgets.absolute)) {
+    for (const [metric, budget] of Object.entries(metrics)) {
+      const directional = budget.direction === "lower-is-better" || budget.direction === "higher-is-better";
+      const warningIsValid = budget.warning === undefined || Number.isFinite(budget.warning);
+      if (!directional || !Number.isFinite(budget.failure) || !warningIsValid) {
+        throw new Error(`Invalid absolute benchmark budget: ${scenarioId}.${metric}`);
+      }
+    }
   }
   return budgets as Budgets;
 }
@@ -420,11 +467,48 @@ function queryResourceResult(
   };
 }
 
+function columnarDataPlaneResult(
+  scenario: ColumnarDataPlaneCorpusScenario,
+  result: ColumnarDataPlaneBenchmarkResult,
+): ScenarioResult {
+  const metrics: Array<keyof ColumnarDataPlaneSample> = [
+    "totalDurationMs",
+    "buildDurationMs",
+    "workerDurationMs",
+    "renderDurationMs",
+    "featuresPerSecond",
+    "backingBytesPerFeature",
+    "peakRetainedBytesPerFeature",
+  ];
+  const summary = Object.fromEntries(
+    metrics.map((metric) => [metric, summarizeSamples(result.samples.map((sample) => sample[metric]))]),
+  ) as ScenarioResult["summary"];
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      featureCount: scenario.featureCount,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary,
+    invariants: {
+      expectedTotalFeatures: scenario.featureCount,
+      checks: result.invariants.checks,
+      passed: result.invariants.passed,
+    },
+  };
+}
+
 async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
   if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
   if (scenario.kind === "realtime-reconnect") {
     return resilienceResult(scenario, await runRealtimeReconnectBenchmark(scenario));
+  }
+  if (scenario.kind === "columnar-data-plane") {
+    return columnarDataPlaneResult(scenario, await runColumnarDataPlaneBenchmark(scenario));
   }
   return queryResourceResult(scenario, await runQueryResourceHandleBenchmark(scenario));
 }
@@ -509,6 +593,67 @@ export function evaluateRelativeBudget(
   return { level, regressionPercent: regression };
 }
 
+/**
+ * Compare one measured median against a fixed threshold. `lower-is-better`
+ * treats the thresholds as ceilings, `higher-is-better` treats them as floors.
+ */
+export function evaluateAbsoluteBudget(
+  candidate: number,
+  budget: AbsoluteBudget,
+): Exclude<EvaluationLevel, "not-compared"> {
+  const breaches = (threshold: number): boolean =>
+    budget.direction === "lower-is-better" ? candidate > threshold : candidate < threshold;
+  if (breaches(budget.failure)) return "failure";
+  if (budget.warning !== undefined && breaches(budget.warning)) return "warning";
+  return "pass";
+}
+
+/**
+ * Evaluate every declared absolute budget. This needs no baseline, so it is the
+ * gate that actually protects a pull request. It fails closed: a budget naming
+ * an absent scenario or an absent summary metric is a failure, never a silent
+ * skip, so a renamed scenario or a dropped metric cannot quietly disarm a gate.
+ */
+function evaluateAbsoluteBudgets(candidate: BenchmarkReport, budgets: Budgets): EvaluationItem[] {
+  const items: EvaluationItem[] = [];
+  for (const [scenarioId, metrics] of Object.entries(budgets.absolute)) {
+    const scenario = candidate.scenarios.find((item) => item.id === scenarioId);
+    if (!scenario) {
+      items.push({
+        scenarioId,
+        metric: "absolute-budget",
+        level: "failure",
+        message: "An absolute budget is declared for a scenario the corpus did not produce",
+      });
+      continue;
+    }
+    for (const [metric, budget] of Object.entries(metrics)) {
+      const actual = scenario.summary[metric as keyof ScenarioResult["summary"]]?.median;
+      if (actual === undefined) {
+        items.push({
+          scenarioId,
+          metric,
+          level: "failure",
+          message: "An absolute budget is declared for a metric this scenario does not report",
+        });
+        continue;
+      }
+      const level = evaluateAbsoluteBudget(actual, budget);
+      const bound = budget.direction === "lower-is-better" ? "ceiling" : "floor";
+      items.push({
+        scenarioId,
+        metric: `${metric}.absolute`,
+        level,
+        actual,
+        message: `${actual.toFixed(2)} against a ${budget.failure} ${bound}${
+          budget.warning === undefined ? "" : ` (warning at ${budget.warning})`
+        }`,
+      });
+    }
+  }
+  return items;
+}
+
 function overallLevel(
   items: readonly EvaluationItem[],
   compatibility: BenchmarkReport["evaluation"]["baselineCompatibility"],
@@ -560,6 +705,7 @@ export function evaluateReport(
       message: `Repeated-run coefficient of variation is ${(variation * 100).toFixed(2)}%`,
     });
   }
+  items.push(...evaluateAbsoluteBudgets(candidate, budgets));
 
   const compatibility = baseline ? baselineCompatibility(candidate, baseline) : null;
   if (baseline && compatibility?.comparable) {

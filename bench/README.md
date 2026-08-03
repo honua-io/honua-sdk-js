@@ -26,6 +26,14 @@ readers must reject or upgrade before consuming the new scenario/sample unions;
 the lab marks a version 1 baseline `not-compared` rather than silently treating
 it as compatible.
 
+`budgets.json` uses `schemaVersion: 2`, which adds the `absolute` section
+alongside `variability` and `relativeRegression`. Absolute budgets are keyed by
+scenario id and then metric name, declare a `direction` plus a required
+`failure` and an optional `warning` threshold, and are evaluated on **every**
+run with no baseline required — see the columnar data-plane scenario below for
+the first set. They fail closed: a budget naming a scenario the corpus did not
+produce, or a metric the scenario does not report, is a failure.
+
 Relative budgets are not evaluated when the corpus hash, SDK implementation,
 OS/kernel release, architecture, Node major, CPU model, CI/local mode, or
 available GitHub runner-image identifier differs. Two local reports may both
@@ -257,10 +265,66 @@ projected attribute buffers alias the batch's own backing allocations
 (`zeroCopyVerified`, `copiedBytes: 0`), that memory stays bounded to the packed
 columns (20 bytes/feature, independent of feature count — no per-feature object
 materialization), and reports sustained projection throughput in
-features/second. The `test/columnar-million-feature-bench.test.ts` unit test
-enforces these budgets in CI. Like the other harnesses this measures SDK
-columnar → GPU-binary projection overhead only: there is no live server or real
-renderer, and it is not a cross-SDK comparison.
+features/second. Like the other harnesses this measures SDK columnar →
+GPU-binary projection overhead only: there is no live server or real renderer,
+and it is not a cross-SDK comparison.
+
+This harness covers the **renderer projection stage only**, and its budgets are
+hardcoded constants asserted by `test/columnar-million-feature-bench.test.ts`.
+That test runs in CI because the whole Vitest suite does, but the harness
+produces no benchmark report, uploads no artifact, and has no baseline. For the
+budgeted end-to-end path, see the columnar data-plane scenario below.
+
+## Million-feature columnar data-plane scenario
+
+[`columnar-data-plane-bench.ts`](./columnar-data-plane-bench.ts) is the
+benchmark-lab scenario (`columnar.data-plane.million-feature`) that walks the
+whole #394 data plane for one batch rather than a single stage:
+
+1. **build** — the same deterministic packed fixture, plus `createColumnarBatch`
+   validation.
+2. **worker** — a one-owner lease, a structured-clone transfer across a real
+   `MessageChannel` worker boundary, a registered columnar worker operation that
+   scans the packed geometry column without materializing a row, and ownership
+   returned to the caller.
+3. **render** — `bindColumnarBatchToDeckGl(...)` plus `DeckGlAdapter.project`.
+
+It runs as part of `npm run bench:lab`, so it is reported in
+`test-results/benchmark-lab.json`, uploaded by the `benchmark-lab` CI job, and
+gated by `--check`.
+
+Six semantic invariants are machine independent and gate every repetition:
+zero payload copies across transfer *and* projection, sender backing buffers
+detached after transfer, renderer attributes aliasing the batch's own
+`ArrayBuffer`s, monotonic worker progress terminating at 1, a preserved row
+count, and an operation that observed every row.
+
+The performance numbers carry **absolute budgets**, declared per scenario in
+[`budgets.json`](./budgets.json). Absolute budgets need no baseline, which
+matters because CI runs the lab without `--baseline` and a baseline is discarded
+whenever the corpus hash or host identity differs — so the absolute class is the
+only one that actually gates a pull request. They fail closed: a budget naming a
+scenario the corpus did not produce, or a metric the scenario does not report,
+is a failure rather than a silent skip.
+
+| Metric | Warning | Failure | Measured |
+| --- | ---: | ---: | --- |
+| `backingBytesPerFeature` | 20 | 24 | exactly 20.00 (deterministic: 8 + 4 + 4 + 4 bytes/row) |
+| `peakRetainedBytesPerFeature` | 64 | 160 | 20.0–35.8 |
+| `featuresPerSecond` | 2,000,000 | 500,000 | 2,154,706–8,776,756 |
+
+The measured ranges were taken on a shared host while two other build agents
+ran, deliberately including the heaviest contention observed, so the thresholds
+sit 1.2x, 4.5x, and 4.3x clear of the worst reading and cannot flake under load.
+They still catch real regressions: reintroducing per-feature object
+materialization costs 300+ bytes/feature and an order of magnitude of
+throughput, and any payload copy fails the zero-copy invariant outright.
+
+`peakRetainedBytesPerFeature` samples `heapUsed + arrayBuffers` at each stage
+boundary and takes the peak rather than a start-to-end delta. A plain delta goes
+negative whenever a collection lands inside the window, which would silently
+disarm the ceiling; the peak is taken while the packed fixture is provably live,
+so it stays monotone and interpretable.
 
 ## Stream / pagination scenario
 
