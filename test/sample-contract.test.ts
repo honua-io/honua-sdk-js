@@ -795,15 +795,25 @@ describe("sample publication contract", () => {
       // Renewed attestations ride the same commit as the literal derived from
       // them, and the write-enabled job's path allowlist admits them -- without
       // both, a renewal is produced and then silently dropped.
+      //
+      // release-please.yml carries the mirror of that allowlist: regeneration
+      // PRODUCES these commits, the release job CONSUMES them and decides a
+      // release may publish from them and move its tag onto them. A path in one
+      // and not the other stalls every release (or, in the other direction,
+      // would let non-generated content ride into a release), so both are
+      // asserted here as well as by test/scripts/release-seal.test.mjs, which
+      // pins the two sets equal.
       const commitStep = workflow.slice(
         commitIndex,
         workflow.indexOf("- name: Install the sealed release-matrix receipt"),
       );
       const publishStep = workflow.slice(workflow.indexOf("- name: Validate and publish regeneration commits"));
+      const releaseWorkflow = await readFile(".github/workflows/release-please.yml", "utf8");
       for (const lane of lanes) {
         const evidenceDirectory = lane.evidencePath.slice(0, lane.evidencePath.lastIndexOf("/"));
         expect(commitStep).toContain(evidenceDirectory);
         expect(publishStep).toContain(`${evidenceDirectory}/*`);
+        expect(releaseWorkflow).toContain(`${evidenceDirectory}/*`);
       }
     });
 
