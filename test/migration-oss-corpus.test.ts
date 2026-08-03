@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import Ajv2020 from "ajv/dist/2020.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -164,6 +165,18 @@ describe("committed OSS ArcGIS corpus manifest", () => {
       });
       expect(ignored, `${laneDir} must be git-ignored`).toBe(true);
     }
+  });
+
+  it("validates against the committed JSON schema", () => {
+    const ajv = new Ajv2020.default({ strict: false, allErrors: true });
+    const validate = ajv.compile(
+      JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "config", "oss-arcgis-corpus.schema.json"), "utf8")),
+    );
+    const valid = validate(manifestJson());
+    if (!valid) {
+      throw new Error(`schema validation failed: ${JSON.stringify(validate.errors?.slice(0, 4))}`);
+    }
+    expect(valid).toBe(true);
   });
 
   it("matches the published observation the summary page is generated from", () => {
