@@ -684,6 +684,58 @@
       ]
     },
     {
+      "id": "offline-region-reference",
+      "title": "Network-disabled offline region reference",
+      "summary": "Proves that a persisted IndexedDB region and bounded host-owned application shell survive reload after browser networking is disabled.",
+      "sourceKind": "docs-example",
+      "track": "fixture",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as browser evidence for the disconnected-read acceptance slice of the experimental offline region contract."
+      },
+      "sourcePath": "docs/examples/offline-region-reference",
+      "docsPath": "docs/examples/offline-region-reference/README.md",
+      "capabilities": [
+        "offline",
+        "provenance"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "configurationStatus": "not-required",
+        "config": [],
+        "provenance": "One committed integrity-, length-, and version-pinned fixture served from an isolated loopback origin and persisted through the public IndexedDB offline contract.",
+        "attribution": "Honua deterministic incident fixture.",
+        "freshness": "Explicit online observation time and stale disconnected diagnostic time."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": [
+            "npx playwright test test/playwright/offline-indexeddb.spec.mjs"
+          ]
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
+      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss; the fixture does not synthesize an empty success or claim reconnect, edit replay, or server synchronization.",
+      "validationProfile": "browser-fixture",
+      "validation": [
+        "npx playwright test test/playwright/offline-indexeddb.spec.mjs"
+      ]
+    },
+    {
       "id": "shared-renderer-state",
       "title": "Shared renderer state lab",
       "summary": "Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium.",

@@ -1563,7 +1563,6 @@
         "offline",
         "provenance"
       ],
-      "capabilityKeys": [],
       "protocols": [
         "honua"
       ],
@@ -1598,7 +1597,8 @@
       "validationProfile": "browser-fixture",
       "validation": [
         "npx playwright test test/playwright/offline-indexeddb.spec.mjs"
-      ]
+      ],
+      "capabilityKeys": []
     },
     {
       "id": "overture-geoparquet",
