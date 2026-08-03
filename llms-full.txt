@@ -1610,17 +1610,17 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-03 at commit `122b3650`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-03 at commit `fb2ae7e4`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 697.2 KiB | 186.3 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 225.4 KiB | 57.8 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 705.4 KiB | 188.9 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 229.5 KiB | 59.0 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.6 KiB | 13.3 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 326.0 KiB | 86.8 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 992.9 KiB | 247.8 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 331.4 KiB | 88.5 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 997.0 KiB | 248.9 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
 | Routing client | 20.5 KiB | 6.3 KiB |
 
@@ -1632,8 +1632,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 697.2 KiB ≈ **1.69 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 186.3 KiB ≈ **0.45 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 705.4 KiB ≈ **1.70 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 188.9 KiB ≈ **0.45 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -3015,8 +3015,10 @@ aggregate runs only after the materialization ceilings pass.
 WFS plans compile the supported SQL-92 subset and spatial predicates to FES
 2.0 XML, and expose `propertyName`, `sortBy`, `startIndex`, `count`, and
 `srsName`. XML literals and identifiers go through the same escaping compiler
-used by the WFS adapter; the portable compiler deliberately retains that
-adapter's reviewed `the_geom` default. OData plans translate the canonical predicate to
+used by the WFS adapter. The geometry property comes from the source identity
+(`locator.geometryName`, which the live adapter fills from
+`DescribeFeatureType`, or a descriptor geometry field); metadata-free plans
+compiled without either fall back to the reviewed `the_geom` default. OData plans translate the canonical predicate to
 `$filter`, including supported `geo.intersects` geometry, and expose
 `$select`/`$expand`, `$orderby`, `$skip`, and `$top`. Both compilers fail
 closed when exact translation is impossible. In particular, metadata-free
@@ -7193,7 +7195,8 @@ WFS `propertyName=` drops every property the caller does not list,
 including the geometry column, so `Query.outFields` and
 `Query.returnGeometry` are resolved together: an `outFields` list with
 `returnGeometry !== false` appends the geometry property
-(`the_geom` by default) before the projection lands on the wire so
+(`locator.geometryName` / descriptor geometry field, else the reviewed
+`the_geom` default) before the projection lands on the wire so
 geometry survives; `returnGeometry === false` paired with an
 `outFields` list emits exactly the requested fields (no geometry); a
 `returnGeometry === false` request without an `outFields` list throws
@@ -9183,52 +9186,52 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-03 at commit `122b3650`._
+_Generated 2026-08-03 at commit `fb2ae7e4`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 697.2 KiB | 753.9 KiB | 186.3 KiB | 191.4 KiB |
-| `/honua` | 863.9 KiB | 937.2 KiB | 231.8 KiB | 251.0 KiB |
-| `/contract` | 326.0 KiB | 352.8 KiB | 86.8 KiB | 94.1 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 844.7 KiB | 925.5 KiB | 187.7 KiB | 206.0 KiB |
+| `.` (root) | 705.4 KiB | 753.9 KiB | 188.9 KiB | 191.4 KiB |
+| `/honua` | 869.8 KiB | 937.2 KiB | 233.6 KiB | 251.0 KiB |
+| `/contract` | 331.4 KiB | 352.8 KiB | 88.5 KiB | 94.1 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 852.8 KiB | 925.5 KiB | 190.2 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 878.0 KiB | 961.8 KiB | 197.1 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 886.1 KiB | 961.8 KiB | 199.7 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 65.3 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
 | `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.7 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 562.1 KiB | 612.2 KiB | 150.4 KiB | 163.9 KiB |
+| `/runtime` | 567.5 KiB | 612.2 KiB | 152.2 KiB | 163.9 KiB |
 | `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
 | `/offline` | 83.6 KiB | 91.9 KiB | 23.2 KiB | 25.5 KiB |
-| `/query-planner` (worker runtime injected) | 639.4 KiB | 703.3 KiB | 136.4 KiB | 143.2 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 112.2 KiB | 122.9 KiB | 34.5 KiB | 37.7 KiB |
-| `/esri-compat` | 992.9 KiB | 1026.2 KiB | 247.8 KiB | 253.6 KiB |
+| `/query-planner` (worker runtime injected) | 639.6 KiB | 703.3 KiB | 136.4 KiB | 143.2 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.4 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
+| `/esri-compat` | 997.0 KiB | 1026.2 KiB | 248.9 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
 | `/routing` | 20.5 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
 | `/auth` | 25.9 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 61.4 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
-| `/map` | 179.2 KiB | 182.2 KiB | 50.6 KiB | 50.7 KiB |
+| `/map` | 179.3 KiB | 182.2 KiB | 50.6 KiB | 50.7 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 129.3 KiB | 137.8 KiB | 38.9 KiB | 40.9 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 945.3 KiB | 1037.6 KiB | 253.3 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1021.7 KiB | 1120.1 KiB | 276.8 KiB | 292.6 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 953.5 KiB | 1037.6 KiB | 255.9 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1029.9 KiB | 1120.1 KiB | 279.3 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 499.3 KiB | 506.7 KiB | 132.7 KiB | 134.6 KiB |
+| `/react` (react/react-dom external) | 504.7 KiB | 506.7 KiB | 134.5 KiB | 134.6 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 697.8 KiB | 754.5 KiB | 186.6 KiB | 201.3 KiB |
-| browser ESM (`./browser`) | 696.5 KiB | 753.1 KiB | 186.3 KiB | 201.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 225.4 KiB | 229.7 KiB | 57.8 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 570.4 KiB | 627.9 KiB | 151.7 KiB | 166.9 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 705.9 KiB | 754.5 KiB | 189.1 KiB | 201.3 KiB |
+| browser ESM (`./browser`) | 704.6 KiB | 753.1 KiB | 188.8 KiB | 201.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 229.5 KiB | 229.7 KiB | 59.0 KiB | 63.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 578.5 KiB | 627.9 KiB | 154.2 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.4 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.8 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 663.8 KiB | 717.1 KiB | 177.5 KiB | 191.3 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 240.0 KiB | 245.9 KiB | 61.1 KiB | 61.4 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 671.9 KiB | 717.1 KiB | 180.0 KiB | 191.3 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 244.1 KiB | 267.0 KiB | 62.3 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.6 KiB | 44.7 KiB | 13.3 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
@@ -10992,9 +10995,28 @@ honors the relation rather than silently widening to bbox semantics.
 Geometry serialization is GML 3.2 simple (point / line / polygon);
 curves and surfaces throw and require the escape hatch.
 
-The geometry property name defaults to `the_geom`. Servers using a
-different name (`geometry`, `shape`, …) can supply a per-source filter
-through the protocol escape hatch.
+### Geometry property resolution
+
+The geometry property is named per feature type, not per protocol:
+PostGIS via GeoServer serves `the_geom`, MapServer serves `msGeometry`,
+and app-schema / deegree deployments use whatever the schema declares.
+A spatial predicate that references the wrong property matches nothing,
+so the adapter resolves the real name instead of assuming one:
+
+1. `locator.geometryName`, when set, wins and costs no round-trip.
+2. Otherwise the adapter issues `DescribeFeatureType` once per feature
+   type, caches the result alongside the capabilities snapshot, and uses
+   the first geometry property the schema declares.
+3. If neither names it, the request fails closed with
+   `HonuaWfsProtocolError("unresolved-geometry-property")` — the adapter
+   never falls back to a vendor default.
+
+Resolution is lazy: it happens only when the request names the property
+on the wire (an FES spatial predicate, or `<wfs:Insert>` / `<wfs:Update>`
+geometry). The `bbox=` KVP shortcut addresses the default geometry
+positionally, so envelope-intersects queries need no schema round-trip.
+Feature types that declare several geometries resolve to the first one;
+pin a different one with `locator.geometryName`.
 
 ## Field projection (`outFields` and `returnGeometry`)
 
