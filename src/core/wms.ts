@@ -302,19 +302,32 @@ export async function getWmsFeatureInfo<T = Record<string, unknown>>(
   transport: HonuaProtocolTransport,
   request: { serviceId: string } & WmsFeatureInfoRequest,
 ): Promise<HonuaWmsFeatureInfoResponse<T>> {
+  const params = serializeWmsFeatureInfoParams(request);
+  const infoFormat = params.get("INFO_FORMAT")!;
+  const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
+  const response = await transport.requestBytes("GET", path, infoFormat, undefined, request.signal);
+  return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
+}
+
+/**
+ * Serialize the WMS 1.3.0 KVP for a `GetFeatureInfo` request, including the
+ * authority-defined `BBOX` axis order for the requested CRS.
+ *
+ * Shared by the Honua service-id path above and the capabilities-driven
+ * third-party path (`wms-feature-info.ts`) so both emit byte-identical query
+ * state and only differ in which URL receives it.
+ */
+export function serializeWmsFeatureInfoParams(request: WmsFeatureInfoRequest): URLSearchParams {
   const params = serializeWmsMapParams(request);
   params.set("REQUEST", "GetFeatureInfo");
   params.set("QUERY_LAYERS", request.queryLayers.join(","));
   params.set("I", String(Math.trunc(request.i)));
   params.set("J", String(Math.trunc(request.j)));
-  const infoFormat = request.infoFormat ?? "application/json";
-  params.set("INFO_FORMAT", infoFormat);
+  params.set("INFO_FORMAT", request.infoFormat ?? "application/json");
   if (request.featureCount !== undefined) {
     params.set("FEATURE_COUNT", String(Math.trunc(request.featureCount)));
   }
-  const path = `${wmsBasePath(request.serviceId)}?${params.toString()}`;
-  const response = await transport.requestBytes("GET", path, infoFormat, undefined, request.signal);
-  return decodeWmsFeatureInfoResponse<T>(response.bytes, response.contentType, infoFormat);
+  return params;
 }
 
 /**
@@ -347,7 +360,7 @@ export async function getWmsLegend(
   return { bytes: response.bytes, contentType: response.contentType };
 }
 
-function serializeWmsMapParams(request: WmsMapRequest & { serviceId: string }): URLSearchParams {
+function serializeWmsMapParams(request: WmsMapRequest): URLSearchParams {
   const params = new URLSearchParams();
   params.set("SERVICE", "WMS");
   params.set("VERSION", "1.3.0");

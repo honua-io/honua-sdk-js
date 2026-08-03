@@ -1047,6 +1047,7 @@ export type {
   EditSketchWorkflowOptions,
   EditSketchWorkflowSnapshot,
   FeatureId,
+  FeatureInfoRequestBinding,
   IndexedSpatialSourceDescriptor,
   IJobRun,
   JobError,

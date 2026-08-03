@@ -12,6 +12,7 @@ import {
   HonuaNetworkError,
   HonuaTimeoutError,
 } from "../src/core/errors.js";
+import { point } from "../src/core/spatial-filter.js";
 import { projectRasterSourceToMapLibre } from "../src/map/raster-source-strategy.js";
 
 const WMS_CAPABILITIES = readFileSync(
@@ -67,9 +68,10 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
     const imagery = connection.inspection.sources.find((source) => source.descriptor.id === "imagery")!;
     expect(parcels.descriptor.capabilities.has("render")).toBe(true);
     expect(parcels.descriptor.capabilities.has("tiles")).toBe(true);
-    expect(parcels.descriptor.capabilities.has("query")).toBe(false);
+    expect(parcels.descriptor.capabilities.has("query")).toBe(true);
     expect(imagery.descriptor.capabilities.has("render")).toBe(true);
     expect(imagery.descriptor.capabilities.has("query")).toBe(false);
+    expect(imagery.descriptor.locator.featureInfo).toBeUndefined();
     expect(imagery.metadata?.operations?.featureInfo).toMatchObject({
       available: false,
       reason: "The WMS layer is not queryable.",
@@ -82,6 +84,12 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
         kind: "wms-kvp",
         url: "https://maps.example/ogc/render?tenant=public",
         format: "image/png",
+      },
+      featureInfo: {
+        kind: "wms-kvp",
+        url: "https://maps.example/ogc/feature-info?tenant=public",
+        format: "application/geo+json",
+        crs: ["EPSG:4326", "EPSG:3857", "CRS:84"],
       },
     });
     expect(parcels.metadata?.protocolVersion).toBe("1.3.0");
@@ -110,8 +118,10 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       urls: ["https://maps.example/ogc/render?tenant=public", "https://maps.example/ogc/render-post?tenant=public"],
     });
     expect(parcels.metadata?.operations?.featureInfo).toMatchObject({
-      available: false,
-      reason: "Raw WMS GetFeatureInfo requires a Honua service binding for the existing canonical query adapter.",
+      available: true,
+      methods: ["GET"],
+      formats: ["application/geo+json", "text/plain"],
+      urls: ["https://maps.example/ogc/feature-info?tenant=public"],
     });
     expect(parcels.metadata?.operations?.legend).toMatchObject({
       available: true,
@@ -157,6 +167,12 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
         kind: "wms-kvp",
         url: "https://maps.example/render?tenant=public",
         format: "image/png",
+      },
+      featureInfo: {
+        kind: "wms-kvp",
+        url: "https://maps.example/feature-info?tenant=public",
+        format: "application/geo+json",
+        crs: ["EPSG:4326", "EPSG:3857", "CRS:84"],
       },
     });
     expect(fetchFn).toHaveBeenCalledTimes(1);
@@ -530,7 +546,7 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       expect(requests).toHaveLength(2);
       expect(requests[1]?.headers.get(requestHeader)).toBe(value);
       expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("render")).toBe(true);
-      expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("query")).toBe(false);
+      expect(refreshed.inspection.sources[0]?.descriptor.capabilities.has("query")).toBe(true);
     },
   );
 
@@ -637,7 +653,7 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
       expect.arrayContaining([
         expect.objectContaining({
           code: "partial-discovery",
-          message: "WMS metadata retained 2 structured partial-discovery reasons.",
+          message: "WMS metadata retained 1 structured partial-discovery reason.",
         }),
       ]),
     );
@@ -1096,5 +1112,371 @@ describe("connect() — WMS/WMTS capabilities discovery", () => {
 
     expect(error).toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-endpoint" });
     expect(JSON.stringify(error)).not.toContain("TOP-SECRET");
+  });
+});
+
+// ── Capabilities-driven GetFeatureInfo on third-party WMS (#952) ────────────
+
+const FEATURE_INFO_FORMATS = "<Format>application/geo+json</Format>\n        <Format>text/plain</Format>";
+
+const GEOJSON_FEATURE_INFO = JSON.stringify({
+  type: "FeatureCollection",
+  features: [
+    {
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [-157.9, 21.3] },
+      properties: { PARCEL_ID: "TMK-1-2-3", ACRES: 0.42 },
+    },
+  ],
+});
+
+const GML_FEATURE_INFO = `<?xml version="1.0" encoding="UTF-8"?>
+<wfs:FeatureCollection xmlns:wfs="http://www.opengis.net/wfs" xmlns:gml="http://www.opengis.net/gml" xmlns:pub="https://maps.example/public">
+  <gml:featureMember>
+    <pub:parcels fid="parcels.42">
+      <gml:boundedBy><gml:Box><gml:coordinates>-157.91,21.29 -157.89,21.31</gml:coordinates></gml:Box></gml:boundedBy>
+      <pub:PARCEL_ID>TMK-1-2-3</pub:PARCEL_ID>
+      <pub:ACRES>0.42</pub:ACRES>
+      <pub:the_geom><gml:Point><gml:coordinates>-157.9,21.3</gml:coordinates></gml:Point></pub:the_geom>
+    </pub:parcels>
+  </gml:featureMember>
+</wfs:FeatureCollection>`;
+
+const MAPSERVER_GML_FEATURE_INFO = `<?xml version="1.0" encoding="UTF-8"?>
+<msGMLOutput xmlns:gml="http://www.opengis.net/gml">
+  <parcels_layer>
+    <gml:name>parcels</gml:name>
+    <parcels_feature>
+      <PARCEL_ID>TMK-9-9-9</PARCEL_ID>
+    </parcels_feature>
+  </parcels_layer>
+</msGMLOutput>`;
+
+/**
+ * Serve the capabilities document for `GetCapabilities` and delegate every
+ * other request (the GetFeatureInfo lane) to `respond`, recording it.
+ */
+function featureInfoFetch(
+  capabilities: string,
+  requests: Request[],
+  respond: (request: Request) => Response,
+): typeof fetch {
+  return vi.fn(async (input, init) => {
+    const request = new Request(input, init);
+    if (new URL(request.url).searchParams.get("REQUEST") === "GetCapabilities") {
+      return xml(capabilities, { ETag: '"capabilities-v1"' });
+    }
+    requests.push(request);
+    return respond(request);
+  }) as unknown as typeof fetch;
+}
+
+function body(payload: string, contentType: string): Response {
+  return new Response(payload, { status: 200, headers: { "Content-Type": contentType } });
+}
+
+function numericBbox(url: URL): number[] {
+  return url.searchParams.get("BBOX")!.split(",").map(Number);
+}
+
+describe("connect() — capabilities-driven WMS GetFeatureInfo", () => {
+  it("queries a third-party WMS through the advertised GetFeatureInfo URL and decodes GeoJSON", async () => {
+    const requests: Request[] = [];
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        apiKey: "test-key",
+        fetchFn: featureInfoFetch(WMS_CAPABILITIES, requests, () => body(GEOJSON_FEATURE_INFO, "application/geo+json")),
+      },
+    });
+    const source = connection.source();
+
+    expect(source.descriptor.locator.serviceId).toBeUndefined();
+    expect(source.capabilities.has("query")).toBe(true);
+    expect(source.descriptor.locator.featureInfo).toEqual({
+      kind: "wms-kvp",
+      url: "https://maps.example/ogc/feature-info?tenant=public",
+      format: "application/geo+json",
+      crs: ["EPSG:4326", "EPSG:3857", "CRS:84"],
+    });
+
+    const result = await source.query({ spatialFilter: point(-157.9, 21.3), pagination: { limit: 5 } });
+
+    expect(requests).toHaveLength(1);
+    const url = new URL(requests[0]!.url);
+    expect(`${url.origin}${url.pathname}`).toBe("https://maps.example/ogc/feature-info");
+    expect(requests[0]!.headers.get("x-api-key")).toBe("test-key");
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({
+      // Vendor query state advertised on the operation URL survives.
+      tenant: "public",
+      SERVICE: "WMS",
+      VERSION: "1.3.0",
+      REQUEST: "GetFeatureInfo",
+      LAYERS: "parcels",
+      QUERY_LAYERS: "parcels",
+      CRS: "CRS:84",
+      WIDTH: "1",
+      HEIGHT: "1",
+      I: "0",
+      J: "0",
+      INFO_FORMAT: "application/geo+json",
+      FEATURE_COUNT: "5",
+    });
+    const bbox = numericBbox(url);
+    // CRS:84 is longitude/latitude, so the canonical envelope is not transposed.
+    expect(bbox[0]).toBeCloseTo(-157.9001, 9);
+    expect(bbox[1]).toBeCloseTo(21.2999, 9);
+    expect(bbox[2]).toBeCloseTo(-157.8999, 9);
+    expect(bbox[3]).toBeCloseTo(21.3001, 9);
+    expect(result.exceededTransferLimit).toBe(false);
+    expect(result.features).toEqual([
+      {
+        attributes: { PARCEL_ID: "TMK-1-2-3", ACRES: 0.42 },
+        geometry: { type: "Point", coordinates: [-157.9, 21.3] },
+      },
+    ]);
+  });
+
+  it("falls back to an advertised GML format when the endpoint offers no JSON output", async () => {
+    const gmlOnly = WMS_CAPABILITIES.replace(
+      FEATURE_INFO_FORMATS,
+      "<Format>text/plain</Format>\n        <Format>application/vnd.ogc.gml</Format>",
+    );
+    const requests: Request[] = [];
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: featureInfoFetch(gmlOnly, requests, () => body(GML_FEATURE_INFO, "application/vnd.ogc.gml")),
+      },
+    });
+    const source = connection.source();
+
+    expect(source.capabilities.has("query")).toBe(true);
+    expect(source.descriptor.locator.featureInfo?.format).toBe("application/vnd.ogc.gml");
+
+    const result = await source.query({ spatialFilter: point(-157.9, 21.3) });
+
+    expect(new URL(requests[0]!.url).searchParams.get("INFO_FORMAT")).toBe("application/vnd.ogc.gml");
+    // Leaf property elements become attributes; gml:boundedBy and the complex
+    // geometry property are skipped rather than flattened.
+    expect(result.features).toEqual([{ attributes: { PARCEL_ID: "TMK-1-2-3", ACRES: "0.42" }, geometry: null }]);
+  });
+
+  it("decodes the MapServer msGMLOutput feature container", async () => {
+    const gmlOnly = WMS_CAPABILITIES.replace(
+      FEATURE_INFO_FORMATS,
+      "<Format>text/plain</Format>\n        <Format>application/vnd.ogc.gml</Format>",
+    );
+    const requests: Request[] = [];
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: featureInfoFetch(gmlOnly, requests, () => body(MAPSERVER_GML_FEATURE_INFO, "application/vnd.ogc.gml")),
+      },
+    });
+
+    const result = await connection.source().query({ spatialFilter: point(-157.9, 21.3) });
+
+    expect(result.features).toEqual([{ attributes: { PARCEL_ID: "TMK-9-9-9" }, geometry: null }]);
+  });
+
+  it("transposes the point envelope for an axis-order-sensitive advertised CRS", async () => {
+    const latLonOnly = WMS_CAPABILITIES.replace("      <CRS>CRS:84</CRS>\n", "");
+    const requests: Request[] = [];
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: featureInfoFetch(latLonOnly, requests, () => body(GEOJSON_FEATURE_INFO, "application/geo+json")),
+      },
+    });
+    const source = connection.source();
+
+    expect(source.descriptor.locator.featureInfo?.crs).toEqual(["EPSG:4326", "EPSG:3857"]);
+
+    // No spatial reference on the geometry: the canonical (lon, lat) point is
+    // satisfied by the advertised EPSG:4326 spelling, whose WMS 1.3 axis order
+    // is latitude/longitude on the wire.
+    await source.query({ spatialFilter: point(-157.9, 21.3) });
+    const latLon = new URL(requests[0]!.url);
+    expect(latLon.searchParams.get("CRS")).toBe("EPSG:4326");
+    const transposed = numericBbox(latLon);
+    expect(transposed[0]).toBeCloseTo(21.2999, 9);
+    expect(transposed[1]).toBeCloseTo(-157.9001, 9);
+    expect(transposed[2]).toBeCloseTo(21.3001, 9);
+    expect(transposed[3]).toBeCloseTo(-157.8999, 9);
+
+    // An explicitly stamped projected CRS the layer advertises stays in x/y.
+    await source.query({ spatialFilter: point(-17580000, 2430000, { wkid: 3857 }) });
+    const webMercator = new URL(requests[1]!.url);
+    expect(webMercator.searchParams.get("CRS")).toBe("EPSG:3857");
+    expect(numericBbox(webMercator)[0]).toBeCloseTo(-17580000.0001, 4);
+
+    // A CRS the layer never advertised fails closed instead of guessing.
+    await expect(source.query({ spatialFilter: point(300000, 100000, { wkid: 27700 }) })).rejects.toBeInstanceOf(
+      HonuaCapabilityNotSupportedError,
+    );
+    expect(requests).toHaveLength(2);
+  });
+
+  it("keeps query disabled for a non-queryable layer without issuing a request", async () => {
+    const requests: Request[] = [];
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "imagery",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: featureInfoFetch(WMS_CAPABILITIES, requests, () => body(GEOJSON_FEATURE_INFO, "application/geo+json")),
+      },
+    });
+    const source = connection.source();
+
+    expect(source.capabilities.has("query")).toBe(false);
+    expect(source.descriptor.locator.featureInfo).toBeUndefined();
+    expect(connection.inspection.sources[0]?.metadata?.operations?.featureInfo).toMatchObject({
+      available: false,
+      reason: "The WMS layer is not queryable.",
+    });
+    await expect(source.query({ spatialFilter: point(-157.9, 21.3) })).rejects.toBeInstanceOf(
+      HonuaCapabilityNotSupportedError,
+    );
+    expect(requests).toHaveLength(0);
+  });
+
+  it("keeps query disabled when only unstructured info formats are advertised", async () => {
+    const unstructured = WMS_CAPABILITIES.replace(
+      FEATURE_INFO_FORMATS,
+      "<Format>text/plain</Format>\n        <Format>text/html</Format>",
+    );
+    const requests: Request[] = [];
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: featureInfoFetch(unstructured, requests, () => body("Results for 'parcels'", "text/plain")),
+      },
+    });
+    const source = connection.source();
+
+    expect(source.capabilities.has("query")).toBe(false);
+    expect(source.descriptor.locator.featureInfo).toBeUndefined();
+    expect(connection.inspection.sources[0]?.metadata?.operations?.featureInfo).toMatchObject({
+      available: false,
+      reason: "WMS GetFeatureInfo advertises no supported GeoJSON, JSON, or GML feature format.",
+    });
+    await expect(source.query({ spatialFilter: point(-157.9, 21.3) })).rejects.toBeInstanceOf(
+      HonuaCapabilityNotSupportedError,
+    );
+    expect(requests).toHaveLength(0);
+  });
+
+  it("keeps query disabled when GetFeatureInfo advertises no safe same-origin GET URL", async () => {
+    const crossOrigin = WMS_CAPABILITIES.replace(
+      '<GetFeatureInfo>\n        <Format>application/geo+json</Format>\n        <Format>text/plain</Format>\n        <DCPType><HTTP><Get><OnlineResource xlink:href="./feature-info?tenant=public"/></Get></HTTP></DCPType>',
+      '<GetFeatureInfo>\n        <Format>application/geo+json</Format>\n        <Format>text/plain</Format>\n        <DCPType><HTTP><Get><OnlineResource xlink:href="https://elsewhere.example/feature-info"/></Get></HTTP></DCPType>',
+    );
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: { fetchFn: capabilitiesFetch(crossOrigin) },
+    });
+    const source = connection.source();
+
+    expect(source.capabilities.has("query")).toBe(false);
+    expect(source.descriptor.locator.featureInfo).toBeUndefined();
+    expect(connection.inspection.sources[0]?.metadata?.operations?.featureInfo).toMatchObject({
+      available: false,
+      reason: "WMS GetFeatureInfo did not advertise a safe GET URL.",
+    });
+  });
+
+  it("fails closed when GetFeatureInfo answers with an exception report instead of features", async () => {
+    const requests: Request[] = [];
+    const connection = await connect({
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms",
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+      clientOptions: {
+        fetchFn: featureInfoFetch(WMS_CAPABILITIES, requests, () =>
+          body(
+            '<?xml version="1.0"?><ServiceExceptionReport><ServiceException code="LayerNotQueryable"/></ServiceExceptionReport>',
+            "application/vnd.ogc.se_xml",
+          ),
+        ),
+      },
+    });
+
+    await expect(connection.source().query({ spatialFilter: point(-157.9, 21.3) })).rejects.toBeInstanceOf(
+      HonuaCapabilityNotSupportedError,
+    );
+    expect(requests).toHaveLength(1);
+  });
+
+  it("replays a cached WMS feature-info binding and rejects tampered cached bindings", async () => {
+    let snapshot: ConnectDiscoverySnapshot | undefined;
+    const options = {
+      endpoint: "https://maps.example/ogc/wms",
+      protocol: "wms" as const,
+      typeName: "parcels",
+      authorizationScopeFingerprint: "anonymous",
+    };
+    await connect({
+      ...options,
+      clientOptions: { fetchFn: capabilitiesFetch(WMS_CAPABILITIES) },
+      cache: {
+        get: () => undefined,
+        set: (_identity, value) => {
+          snapshot = value;
+        },
+      },
+    });
+
+    const replay = await connect({
+      ...options,
+      clientOptions: { fetchFn: vi.fn() },
+      cache: { get: () => snapshot, set: vi.fn() },
+    });
+    expect(replay.inspection.cacheStatus).toBe("hit");
+    expect(replay.source().descriptor.locator.featureInfo?.url).toBe(
+      "https://maps.example/ogc/feature-info?tenant=public",
+    );
+    expect(Object.isFrozen(replay.source().descriptor.locator.featureInfo)).toBe(true);
+
+    const tampered = structuredClone(snapshot!);
+    (tampered.sources[0]!.locator.featureInfo as { url: string }).url = "https://maps.example/ogc/not-advertised";
+    await expect(
+      connect({
+        ...options,
+        clientOptions: { fetchFn: vi.fn() },
+        cache: { get: () => tampered, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
+
+    const unprojectable = structuredClone(snapshot!);
+    (unprojectable.sources[0]!.locator.featureInfo as { format: string }).format = "text/plain";
+    await expect(
+      connect({
+        ...options,
+        clientOptions: { fetchFn: vi.fn() },
+        cache: { get: () => unprojectable, set: vi.fn() },
+      }),
+    ).rejects.toMatchObject({ name: "HonuaDiscoveryError", code: "invalid-discovery-cache" });
   });
 });

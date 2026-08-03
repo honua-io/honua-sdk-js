@@ -658,8 +658,10 @@ aggregate runs only after the materialization ceilings pass.
 WFS plans compile the supported SQL-92 subset and spatial predicates to FES
 2.0 XML, and expose `propertyName`, `sortBy`, `startIndex`, `count`, and
 `srsName`. XML literals and identifiers go through the same escaping compiler
-used by the WFS adapter; the portable compiler deliberately retains that
-adapter's reviewed `the_geom` default. OData plans translate the canonical predicate to
+used by the WFS adapter. The geometry property comes from the source identity
+(`locator.geometryName`, which the live adapter fills from
+`DescribeFeatureType`, or a descriptor geometry field); metadata-free plans
+compiled without either fall back to the reviewed `the_geom` default. OData plans translate the canonical predicate to
 `$filter`, including supported `geo.intersects` geometry, and expose
 `$select`/`$expand`, `$orderby`, `$skip`, and `$top`. Both compilers fail
 closed when exact translation is impossible. In particular, metadata-free

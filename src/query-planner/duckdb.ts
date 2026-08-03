@@ -23,6 +23,7 @@ import type {
 import type { AggregationSpec } from "../contract/types.js";
 import {
   type CompileOptions,
+  GeoParquetWhereClauseError,
   type GeometryColumnPlan,
   compileAggregate,
   compileQuery,
@@ -172,10 +173,24 @@ export function compileDuckDbQuery(source: QueryIrSourceIdentity, query: Canonic
       ...(compiled.bboxApproximated ? { bboxApproximated: true } : {}),
     };
   } catch (error) {
+    rethrowRejectedWhere(error);
     throw new HonuaQueryPlanningError(
       "unsupported-query",
       `DuckDB query cannot be compiled deterministically: ${error instanceof Error ? error.message : String(error)}`,
     );
+  }
+}
+
+/**
+ * Surface a contained `Query.where` rejection as an invalid query rather than
+ * an unsupported one: the raw-text lane is supported, this specific expression
+ * is refused. Only the fixed rejection code travels, never the caller's text.
+ */
+function rethrowRejectedWhere(error: unknown): void {
+  if (error instanceof GeoParquetWhereClauseError) {
+    throw new HonuaQueryPlanningError("invalid-query", `Query.where was rejected before SQL assembly: ${error.code}`, {
+      cause: error,
+    });
   }
 }
 
@@ -219,7 +234,8 @@ export function compileDuckDbQueryV2(source: QueryIrSourceIdentityV2, query: Can
       ...(geometry ? { geometryColumn: geometry.column, geometryEncoding: geometry.encoding } : {}),
       ...(compiled.bboxApproximated ? { bboxApproximated: true } : {}),
     };
-  } catch {
+  } catch (error) {
+    rethrowRejectedWhere(error);
     throw new HonuaQueryPlanningError(
       "unsupported-query",
       "DuckDB query cannot be compiled safely for an opaque GeoParquet resource",

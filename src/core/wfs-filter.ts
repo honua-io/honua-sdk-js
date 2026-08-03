@@ -84,9 +84,9 @@ export function compileWhere(input: string | undefined): FesCompileResult {
 
 /**
  * Compile the canonical `SpatialFilter` (Esri-flavored) into the FES spatial
- * leaf the adapter splices into the request. Default geometry property
- * name is `the_geom`; callers may override (some servers use `geometry`,
- * `shape`, etc.).
+ * leaf the adapter splices into the request. `geometryProperty` is required
+ * and caller-resolved: it is per feature type (`the_geom`, `msGeometry`,
+ * `shape`, …), and a wrong name silently matches nothing.
  */
 export function compileSpatialFilter(
   filter: SpatialFilter,

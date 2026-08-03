@@ -7,10 +7,15 @@
  * when a live {@link CesiumSceneRuntimeTarget} is actually driven.
  *
  * As of honua-server#1197 the adapter renders Honua 3D content end-to-end:
- * 3D-Tiles tilesets (add/remove/visibility), terrain providers (quantized-mesh
- * via `CesiumTerrainProvider`, with vertical exaggeration), imagery providers,
- * and glTF/GLB model layers placed with heading/pitch/roll + scale. It also resolves a picked
- * 3D-Tiles feature's attributes (batch properties / `EXT_structural_metadata`).
+ * 3D-Tiles tilesets (add/remove/visibility, including point clouds with bounded
+ * shading), terrain providers (quantized-mesh via `CesiumTerrainProvider`, with
+ * vertical exaggeration), imagery providers, and glTF/GLB model layers placed
+ * with heading/pitch/roll + scale. It also resolves a picked 3D-Tiles feature's
+ * attributes (batch properties / `EXT_structural_metadata`).
+ *
+ * Every model/imagery binding is validated before the peer loads, so an
+ * unrenderable primitive fails closed with a stable diagnostic instead of
+ * reaching a Cesium factory or silently rendering nothing.
  *
  * The provider wiring is still kept Cesium-mockable: every CesiumJS symbol the
  * adapter touches is read off the lazily-imported module, so the wiring is
@@ -54,11 +59,14 @@ export const CESIUM_SCENE_CAPABILITIES: SceneRuntimeCapabilities = {
   },
   extrusion: true,
   modelLayer: {
-    // glTF/glb single models and 3D Tiles tilesets (incl. point clouds) are
-    // rendered live by this adapter as of #1197. I3S scene layers remain
-    // declared-capable (Cesium can consume them) but Honua's server does not yet
-    // emit i3s model-layer primitives, so they fall through to diagnostics only.
+    // CesiumJS itself can consume all four formats. `materializedFormats` is the
+    // narrower set this adapter actually attaches to a live scene: glTF/GLB
+    // single models and 3D-Tiles tilesets (point clouds ride the tileset path).
+    // I3S stays declared-capable but unmaterialized, so an i3s primitive fails
+    // closed with `scene-primitive-model-format-not-materialized` instead of
+    // reporting `supported` and then rendering nothing.
     formats: ["gltf", "glb", "3d-tiles", "i3s"],
+    materializedFormats: ["gltf", "glb", "3d-tiles"],
   },
   sceneLayerMetadata: true,
 };
@@ -129,10 +137,15 @@ export interface CesiumTilesetLike {
 /**
  * A glTF/GLB model handle (the bits the adapter mutates). Real Cesium `Model`
  * instances satisfy this.
+ *
+ * `color` is Cesium's per-model blend color; its alpha channel is how a `Model`
+ * expresses opacity, which is what backs {@link CesiumLayerHandle.setOpacity}
+ * on the glTF/GLB path.
  */
 export interface CesiumModelLike {
   show: boolean;
   modelMatrix?: unknown;
+  color?: unknown;
   destroy?(): void;
   isDestroyed?(): boolean;
 }
@@ -209,6 +222,13 @@ export interface CesiumModelPlacement {
 /**
  * The handle returned by {@link applyCesiumScenePrimitives} so callers can
  * later toggle visibility or tear a layer down. Keyed by the primitive id.
+ *
+ * `setOpacity` is present only where the underlying Cesium object exposes an
+ * alpha channel the adapter owns: imagery layers (`ImageryLayer.alpha`) and
+ * glTF/GLB models (`Model.color` alpha). A `Cesium3DTileset` has no tileset-wide
+ * alpha — tileset translucency is a `Cesium3DTileStyle` concern owned by the
+ * server styling contract — so tileset handles deliberately omit it rather than
+ * clobbering an applied style. Callers must feature-detect.
  */
 export interface CesiumLayerHandle {
   readonly id: string;
@@ -354,6 +374,9 @@ type CesiumModule = {
     fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumTilesetLike>;
   };
   readonly Cesium3DTileStyle: new (style?: Record<string, unknown>) => unknown;
+  readonly Color: {
+    readonly WHITE: { withAlpha(alpha: number): unknown };
+  };
   readonly Model: {
     fromGltfAsync(options: Record<string, unknown>): Promise<CesiumModelLike>;
   };
@@ -636,28 +659,42 @@ export async function addCesium3DTileset(
   cesium?: CesiumModule,
   options: AddCesium3DTilesetOptions = {},
 ): Promise<CesiumLayerHandle> {
+  assertRenderableModelLayer(primitive);
   const mod = cesium ?? (await loadCesium());
-  const tileset = await mod.Cesium3DTileset.fromUrl(primitive.uri);
-  if (primitive.position) {
-    tileset.modelMatrix = placementToModelMatrix(mod, modelLayerToCesiumPlacement(primitive));
+  const pointCloudShading = normalizePointCloudShading(primitive.pointCloudShading);
+  const tileset = await (pointCloudShading
+    ? mod.Cesium3DTileset.fromUrl(primitive.uri, { pointCloudShading })
+    : mod.Cesium3DTileset.fromUrl(primitive.uri));
+  // From here on the tileset is adapter-owned. A placement, style-sidecar, or
+  // collection failure must not strand it: nothing else holds a reference, so
+  // it would otherwise retain its GPU/worker resources for the process lifetime.
+  try {
+    if (primitive.position) {
+      tileset.modelMatrix = placementToModelMatrix(mod, modelLayerToCesiumPlacement(primitive));
+    }
+    if (options.applyServerStyle !== false) {
+      await applyTilesetServerStyle(tileset, primitive.uri, mod, options.fetchImpl ?? fetch.bind(globalThis));
+    }
+    scene.primitives.add(tileset);
+  } catch (error) {
+    if (scene.primitives.contains(tileset)) scene.primitives.remove(tileset);
+    destroyOwnedCesiumPrimitive(tileset);
+    throw error;
   }
-  if (options.applyServerStyle !== false) {
-    await applyTilesetServerStyle(tileset, primitive.uri, mod, options.fetchImpl ?? fetch.bind(globalThis));
-  }
-  scene.primitives.add(tileset);
-  return makeLayerHandle(scene, primitive.id, tileset, "model-layer", primitive.format);
+  return makeLayerHandle(scene, primitive.id, tileset, primitive.format);
 }
 
 /**
  * Materialize a glTF/GLB model from a model-layer primitive, placing it at the
  * primitive's position/rotation/scale, and add it to the scene. Returns a
- * handle for visibility / teardown.
+ * handle for visibility / opacity / teardown.
  */
 export async function addCesiumModel(
   scene: CesiumSceneLike,
   primitive: SceneModelLayerPrimitive,
   cesium?: CesiumModule,
 ): Promise<CesiumLayerHandle> {
+  assertRenderableModelLayer(primitive);
   const mod = cesium ?? (await loadCesium());
   const placement = modelLayerToCesiumPlacement(primitive);
   // `placementToModelMatrix` already folds the uniform scale into the model
@@ -668,8 +705,58 @@ export async function addCesiumModel(
     url: primitive.uri,
     modelMatrix: placementToModelMatrix(mod, placement),
   });
-  scene.primitives.add(model);
-  return makeLayerHandle(scene, primitive.id, model, "model-layer", primitive.format);
+  try {
+    scene.primitives.add(model);
+  } catch (error) {
+    destroyOwnedCesiumPrimitive(model);
+    throw error;
+  }
+  return makeLayerHandle(scene, primitive.id, model, primitive.format, mod);
+}
+
+/**
+ * Destroy an adapter-owned tileset/model exactly once. Cesium's
+ * `PrimitiveCollection.remove` normally destroys what it removes, but a
+ * collection configured with `destroyPrimitives = false` — and any failure
+ * before the primitive reaches a collection at all — would otherwise leak it.
+ */
+function destroyOwnedCesiumPrimitive(primitive: CesiumTilesetLike | CesiumModelLike): void {
+  if (typeof primitive.destroy === "function" && primitive.isDestroyed?.() !== true) primitive.destroy();
+}
+
+/**
+ * Fail closed on an unrenderable model layer *before* the optional Cesium peer
+ * is loaded, mirroring {@link addCesiumImageryLayer}. A missing/invalid/signed
+ * asset URI, an impossible placement, or out-of-range point-cloud shading must
+ * never reach a Cesium factory: `Cesium3DTileset.fromUrl("")` throws opaquely
+ * and `Cartesian3.fromDegrees(NaN, …)` produces a silently broken model matrix.
+ */
+function assertRenderableModelLayer(primitive: SceneModelLayerPrimitive): void {
+  const validation = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
+    (diagnostic) => diagnostic.status === "unsupported",
+  );
+  if (validation) throw new Error(`${validation.code}: ${validation.message}`);
+}
+
+/**
+ * Project validated point-cloud shading onto Cesium's `PointCloudShading`
+ * option bag, dropping absent fields so Cesium keeps its own defaults instead
+ * of receiving explicit `undefined`s. Returns `undefined` when nothing is set.
+ */
+function normalizePointCloudShading(
+  shading: SceneModelLayerPrimitive["pointCloudShading"],
+): Record<string, boolean | number> | undefined {
+  if (!shading) return undefined;
+  const options: Record<string, boolean | number> = {};
+  if (shading.attenuation !== undefined) options.attenuation = shading.attenuation;
+  if (shading.maximumAttenuation !== undefined) options.maximumAttenuation = shading.maximumAttenuation;
+  if (shading.geometricErrorScale !== undefined) options.geometricErrorScale = shading.geometricErrorScale;
+  if (shading.eyeDomeLighting !== undefined) options.eyeDomeLighting = shading.eyeDomeLighting;
+  if (shading.eyeDomeLightingStrength !== undefined) {
+    options.eyeDomeLightingStrength = shading.eyeDomeLightingStrength;
+  }
+  if (shading.eyeDomeLightingRadius !== undefined) options.eyeDomeLightingRadius = shading.eyeDomeLightingRadius;
+  return Object.keys(options).length > 0 ? options : undefined;
 }
 
 /**
@@ -1052,22 +1139,52 @@ async function applyCesiumTerrainInternal(
   };
 }
 
+/**
+ * Wrap an adapter-owned tileset/model in a bounded handle.
+ *
+ * Ownership rules mirror {@link addCesiumImageryLayer}: `remove()` is idempotent
+ * and destroys the object exactly once (see
+ * {@link destroyOwnedCesiumPrimitive}), and post-removal control calls are
+ * no-ops rather than mutations of a destroyed object.
+ *
+ * `setOpacity` is only wired for glTF/GLB models, where `Model.color`'s alpha is
+ * the adapter-owned opacity channel. Tilesets omit it — see
+ * {@link CesiumLayerHandle}.
+ */
 function makeLayerHandle(
   scene: CesiumSceneLike,
   id: string,
   primitive: CesiumTilesetLike | CesiumModelLike,
-  kind: "model-layer",
   format: SceneModelLayerPrimitive["format"],
+  cesium?: CesiumModule,
 ): CesiumLayerHandle {
+  let removed = false;
+  const model = cesium && (format === "gltf" || format === "glb") ? (primitive as CesiumModelLike) : undefined;
   return {
     id,
-    kind,
+    kind: "model-layer",
     format,
     setVisible(visible: boolean) {
-      primitive.show = visible;
+      if (!removed) primitive.show = visible;
     },
+    ...(model && cesium
+      ? {
+          setOpacity(opacity: number) {
+            if (!Number.isFinite(opacity) || opacity < 0 || opacity > 1) {
+              throw new RangeError("Model opacity must be a finite number between 0 and 1.");
+            }
+            if (!removed) model.color = cesium.Color.WHITE.withAlpha(opacity);
+          },
+        }
+      : {}),
     remove() {
-      if (scene.primitives.contains(primitive)) scene.primitives.remove(primitive);
+      if (removed) return;
+      removed = true;
+      try {
+        if (scene.primitives.contains(primitive)) scene.primitives.remove(primitive);
+      } finally {
+        destroyOwnedCesiumPrimitive(primitive);
+      }
     },
   };
 }
@@ -1121,10 +1238,12 @@ export function pickCesiumFeatureAttributes(
  *
  * Returns the diagnostics plus the live layer handles keyed by primitive id so
  * callers can toggle visibility / tear layers down. Layer rendering is skipped
- * (gracefully) when no `scene` is attached or when a primitive diagnoses as
- * unsupported. I3S model layers and extrusions are declared-capable but not yet
- * materialized here (no Honua server primitives emit them); point clouds ride
- * the 3D-Tiles path and are gated on server ingest (honua-server#1201).
+ * when no `scene` is attached or when a primitive diagnoses as unsupported —
+ * and every skip is accounted for by a diagnostic, so nothing is silently
+ * dropped. Point clouds ride the 3D-Tiles path with optional
+ * `pointCloudShading`. I3S is declared-capable but unmaterialized, so it
+ * diagnoses `scene-primitive-model-format-not-materialized`; extrusions remain
+ * a MapLibre-path concern.
  */
 export async function applyCesiumScenePrimitives(
   target: CesiumSceneRuntimeTarget,
@@ -1193,12 +1312,13 @@ export async function applyCesiumScenePrimitives(
         continue;
       }
       if (primitive.kind === "model-layer") {
+        // Only materialized formats reach here: anything else already diagnosed
+        // as unsupported above and was filtered into `unsupportedPrimitives`.
         if (primitive.format === "3d-tiles") {
           registerHandle(await addCesium3DTileset(scene, primitive, cesium));
-        } else if (primitive.format === "gltf" || primitive.format === "glb") {
+        } else {
           registerHandle(await addCesiumModel(scene, primitive, cesium));
         }
-        // i3s / obj / custom: declared-capable but not materialized here.
       }
     }
     for (const provider of [...deferredTerrainProviders].reverse()) disposeOwnedCesiumTerrainProvider(provider);

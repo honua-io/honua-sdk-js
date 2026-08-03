@@ -155,9 +155,12 @@ v4, WMS 1.3.0, and WMTS 1.0.0. WMS/WMTS capabilities are projected without a
 second metadata request: WMS produces a zero-field schema with unknown feature
 geometry because GetFeatureInfo has no portable field inventory; render-only
 WMTS produces an explicit zero-field, no-geometry closed schema. Effective
-profiles separate adapter claims from endpoint evidence, so raw WMS query stays
-unsupported while a canonical Honua WMS binding may retain the existing
-FeatureInfo adapter. Discovery caches retain raw metadata evidence
+profiles separate adapter claims from endpoint evidence, so raw WMS query is
+observed as supported only when the capabilities document proves a queryable
+layer, a same-origin GetFeatureInfo GET URL, a projectable info format
+(GeoJSON/JSON preferred, GML as fallback), and at least one advertised CRS with
+a provable WMS 1.3 axis order; anything less keeps query unsupported.
+Discovery caches retain raw metadata evidence
 and SourceSchemaV2, never evaluated truth. Every cache hit reconstructs the
 canonical descriptor endpoint, rebuilds the static profile, and reapplies the
 current clock, freshness window, policy, runtime environment, peers, and

@@ -296,6 +296,25 @@ export type RasterRequestBinding =
     };
 
 /**
+ * Validated point feature-info request binding selected during WMS discovery.
+ *
+ * Mirrors {@link RasterRequestBinding} for the query lane: the binding carries
+ * the exact same-origin `GetFeatureInfo` operation URL advertised by
+ * `GetCapabilities`, the negotiated `INFO_FORMAT` the canonical adapter can
+ * project into features, and the advertised CRS identifiers whose WMS 1.3 axis
+ * order the SDK can prove. Its presence is what makes canonical `Source.query()`
+ * executable against a third-party WMS; without it the query surface stays
+ * fail-closed.
+ */
+export type FeatureInfoRequestBinding = {
+  readonly kind: "wms-kvp";
+  readonly url: string;
+  readonly format: string;
+  /** Advertised CRS identifiers usable for the point envelope, in advertised order. */
+  readonly crs: readonly string[];
+};
+
+/**
  * Protocol-specific endpoint information. Field-compatible with the server
  * `SourceBinding.locator` shape documented in
  * `docs/source-binding-alignment.md` (a Honua SDK `SourceDescriptor` may be
@@ -356,6 +375,8 @@ export interface SourceLocator {
   styleId?: string;
   /** Exact, capability-reviewed raster operation selected by `connect()`. */
   raster?: RasterRequestBinding;
+  /** Exact, capability-reviewed WMS `GetFeatureInfo` operation selected by `connect()`. */
+  featureInfo?: FeatureInfoRequestBinding;
   /** WFS / WMS type-name identifier. */
   typeName?: string;
   /**
@@ -379,6 +400,16 @@ export interface SourceLocator {
    * feature.
    */
   srsName?: string | number;
+  /**
+   * WFS geometry property name (e.g. `the_geom`, `msGeometry`, `geom`) used by
+   * FES spatial predicates and WFS-T `<wfs:Insert>` / `<wfs:Update>` payloads.
+   * When omitted the adapter resolves it per feature type from
+   * `DescribeFeatureType` and caches it; set this to pin the property on
+   * schema-less servers, on types that declare several geometries, or to skip
+   * the schema round-trip entirely. Resolution failure fails closed — the
+   * adapter never falls back to a vendor default.
+   */
+  geometryName?: string;
   /** OData entity-set identifier. */
   entitySet?: string;
   /** GP Service task identifier (for `geoservices-gp-service`). */

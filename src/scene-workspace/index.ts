@@ -204,6 +204,7 @@ export type {
   SceneLayerMetadataPrimitive,
   SceneModelFormat,
   SceneModelLayerPrimitive,
+  ScenePointCloudShading,
   ScenePrimitiveApplyResult,
   ScenePrimitiveDiagnostic,
   ScenePrimitiveDiagnosticSeverity,
