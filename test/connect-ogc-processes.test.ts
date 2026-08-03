@@ -294,6 +294,29 @@ describe("OGC API Processes execution against a discovered base path", () => {
     ]);
   });
 
+  it("does not alias process descriptions across roots whose paths and ids contain colons", async () => {
+    // `/a` + `b:c` and `/a:b` + `c` are distinct request URLs. A cache key that
+    // concatenates the components with the same `:` separator it uses between
+    // them would collapse both onto one entry and answer the second describe()
+    // with the first process's metadata.
+    const requests: string[] = [];
+    const fetchFn = vi.fn(async (input, init) => {
+      const path = new URL(new Request(input, init).url).pathname;
+      requests.push(path);
+      if (path === "/a/processes/b%3Ac") return json({ id: "b:c", title: "Colon in the process id" });
+      if (path === "/a:b/processes/c") return json({ id: "c", title: "Colon in the base path" });
+      return new Response("not found", { status: 404 });
+    });
+    const client = new HonuaClient({ baseUrl: "https://proc.example", fetchFn });
+
+    const first = await client.ogcProcesses({ basePath: "/a" }).describe("b:c");
+    const second = await client.ogcProcesses({ basePath: "/a:b" }).describe("c");
+
+    expect(first.id).toBe("b:c");
+    expect(second.id).toBe("c");
+    expect(requests).toEqual(["/a/processes/b%3Ac", "/a:b/processes/c"]);
+  });
+
   it("still uses the Honua facade prefix when no base path is supplied", async () => {
     const { fetchFn, requests } = mountedProcessesServer("/ogc/processes");
     const client = new HonuaClient({ baseUrl: "https://honua.example", fetchFn });

@@ -78,10 +78,18 @@ function processesBase(request: { basePath?: string }): string {
   return base.slice(0, end);
 }
 
-/** Cache-key discriminator so a discovered root never collides with the facade. */
+/**
+ * Cache-key discriminator so a discovered root never collides with the facade.
+ *
+ * The base path is percent-encoded because cache keys join their components
+ * with `:` and a service root may legally contain one. Without encoding,
+ * `{ basePath: "/a", processId: "b:c" }` and `{ basePath: "/a:b", processId: "c" }`
+ * would produce the same key for two different request URLs, so a cached
+ * `describe()` could answer with the wrong process's metadata.
+ */
 function processesBaseKey(request: { basePath?: string }): string {
   const base = processesBase(request);
-  return base === PROCESSES_FACADE_BASE ? "" : `${base}:`;
+  return base === PROCESSES_FACADE_BASE ? "" : `${encodeURIComponent(base)}:`;
 }
 
 /** Top-level OGC API Processes handle. */
@@ -554,7 +562,9 @@ export async function getOgcProcess(
   const params = createOgcMetadataParams(request);
   const base = processesBase(request);
   return transport.requestCachedMetadataJson<HonuaOgcProcessDescription>(
-    `ogc-processes:process:${processesBaseKey(request)}${request.processId}:${params.toString()}`,
+    // Both components are percent-encoded so neither can smuggle the `:`
+    // separator and alias a different (basePath, processId) pair.
+    `ogc-processes:process:${processesBaseKey(request)}${encodeURIComponent(request.processId)}:${params.toString()}`,
     `${base}/processes/${encodeURIComponent(request.processId)}?${params.toString()}`,
     request,
   );
