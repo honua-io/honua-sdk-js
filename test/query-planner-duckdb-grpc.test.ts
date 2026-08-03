@@ -137,6 +137,26 @@ describe("DuckDB SQL compiler", () => {
       expect.objectContaining({ code: "unsupported-query" }),
     );
   });
+
+  it("refuses a hostile raw where before it reaches the plan artifact", () => {
+    const marker = "duckdb-plan-where-marker";
+    for (const where of [
+      `name = '${marker}'; DROP TABLE parcels`,
+      `name = '${marker}' OR 1=1 --`,
+      `1=1 UNION SELECT '${marker}'`,
+    ]) {
+      let thrown: unknown;
+      try {
+        explainQuery({ descriptor: geoparquetDescriptor(), query: { where } });
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown, where).toBeInstanceOf(HonuaQueryPlanningError);
+      expect((thrown as HonuaQueryPlanningError).code).toBe("invalid-query");
+      expect(String(thrown)).toContain("GEOPARQUET_WHERE_");
+      expect(String(thrown)).not.toContain(marker);
+    }
+  });
 });
 
 describe("gRPC FeatureService compiler", () => {
