@@ -2707,9 +2707,38 @@ function normalizeTotalLimit(limit: number | undefined): number | undefined {
  * and the caller owns the response format (`f`). Every other param on the
  * link — `offset` / `startindex` on an offset server, an opaque
  * `token` / `cursor` / `next` on a cursor server — is the server's own paging
- * state and is echoed back verbatim.
+ * state and is echoed back verbatim, subject to the stale-offset rules in
+ * {@link ogcCursorFromHref}.
  */
 const OGC_NEXT_LINK_RESERVED_PARAMS: ReadonlySet<string> = new Set(["f", "limit"]);
+
+/**
+ * Params that express a numeric start position. Compared case-insensitively:
+ * `offset` is Honua Server's spelling, `startindex` / `startIndex` the OGC API
+ * spelling servers vary the casing of.
+ */
+const OGC_OFFSET_PARAM_NAMES: ReadonlySet<string> = new Set(["offset", "startindex"]);
+
+/**
+ * Params that express an opaque paging cursor. Matched case-insensitively with
+ * `-` / `_` stripped, so `page_token` and `pageToken` both hit. When one of
+ * these drives the next link, the token owns the read position and any
+ * `offset` / `startindex` on the same link is a stale echo of the request the
+ * server just answered.
+ */
+const OGC_CURSOR_PARAM_NAMES: ReadonlySet<string> = new Set([
+  "token",
+  "nexttoken",
+  "pagetoken",
+  "continuationtoken",
+  "resumptiontoken",
+  "cursor",
+  "next",
+  "page",
+  "searchafter",
+  "scroll",
+  "scrollid",
+]);
 
 /** Base used only to parse relative `rel="next"` hrefs; never requested. */
 const OGC_NEXT_LINK_PARSE_BASE = "https://placeholder.test";
@@ -2751,6 +2780,8 @@ interface OgcItemsDrainOptions {
  *   and ends the drain, so a looping server can never duplicate features;
  * - a `rel="next"` link that repeats a cursor already followed is treated as
  *   a stalled pager and ends the drain;
+ * - a stale `offset` / `startindex` echoed on a cursor link never reaches the
+ *   wire beside the cursor (see {@link ogcCursorFromHref});
  * - `maxPages` still caps the total number of requests.
  *
  * On the link-driven path a short page is deliberately *not* a stop signal:
@@ -2775,11 +2806,12 @@ async function* drainOgcItemPages(
       break;
     }
     const limit = Math.min(pageSize, remaining);
+    // A server cursor carries its own position; re-sending the computed offset
+    // alongside it is what makes token pagers skip rows.
+    const sentOffset = cursor === undefined ? startOffset + page * pageSize : undefined;
     const response = await fetchPage({
       limit,
-      // A server cursor carries its own position; re-sending the computed
-      // offset alongside it is what makes token pagers skip rows.
-      offset: cursor === undefined ? startOffset + page * pageSize : undefined,
+      offset: sentOffset,
       cursorParams: cursor?.params,
     });
 
@@ -2798,7 +2830,7 @@ async function* drainOgcItemPages(
     yield pageFeatures;
     emitted += pageFeatures.length;
 
-    const next = ogcNextItemsCursor(response.links);
+    const next = ogcNextItemsCursor(response.links, sentOffset);
     if (next !== undefined) {
       if (seenCursorKeys.has(next.key)) {
         break;
@@ -2842,8 +2874,15 @@ function withOgcItemsPage<T extends { extraParams?: Record<string, string | numb
  * rewritten by a proxy — or emitted with the server's internal hostname —
  * still pages correctly. Returns `undefined` when no `rel="next"` link carries
  * usable paging state, which is what selects the offset fallback.
+ *
+ * @param sentOffset the `offset` sent for the page that produced these links,
+ *   or `undefined` when a cursor already drove that request. Used to spot an
+ *   `offset` on the link that merely echoes the request just answered.
  */
-function ogcNextItemsCursor(links: readonly HonuaOgcLink[] | undefined): OgcItemsCursor | undefined {
+function ogcNextItemsCursor(
+  links: readonly HonuaOgcLink[] | undefined,
+  sentOffset: number | undefined,
+): OgcItemsCursor | undefined {
   if (!links) {
     return undefined;
   }
@@ -2856,7 +2895,7 @@ function ogcNextItemsCursor(links: readonly HonuaOgcLink[] | undefined): OgcItem
     if (typeof link.type === "string" && link.type.includes("html")) {
       continue;
     }
-    const cursor = ogcCursorFromHref(link.href);
+    const cursor = ogcCursorFromHref(link.href, sentOffset);
     if (cursor !== undefined) {
       return cursor;
     }
@@ -2864,24 +2903,78 @@ function ogcNextItemsCursor(links: readonly HonuaOgcLink[] | undefined): OgcItem
   return undefined;
 }
 
-function ogcCursorFromHref(href: string): OgcItemsCursor | undefined {
+/** Fold a query-param name to its comparison form (case / `-` / `_` insensitive). */
+function ogcParamKey(name: string): string {
+  let folded = "";
+  for (const char of name) {
+    if (char === "-" || char === "_") continue;
+    folded += char.toLowerCase();
+  }
+  return folded;
+}
+
+/**
+ * Lift the paging state off one `rel="next"` href.
+ *
+ * Servers routinely build the next link by preserving the query string of the
+ * request they just answered and appending their cursor, so the link can carry
+ * both a stale `offset=0` and a live `token=…`. Replaying both is exactly the
+ * mis-paging this drain exists to prevent — a server that honors `offset`
+ * alongside its own token re-reads or skips a page. Two rules keep the two
+ * paging styles apart:
+ *
+ * 1. an opaque cursor on the link (`token`, `cursor`, `next`, `page`, …) owns
+ *    the read position, so every `offset` / `startindex` on that link is
+ *    dropped;
+ * 2. otherwise an `offset` / `startindex` that merely repeats the offset just
+ *    sent cannot advance the drain, so it is dropped too — and if that leaves
+ *    the link with nothing, the drain falls back to offset arithmetic.
+ *
+ * A genuine offset link (`offset=10` after requesting `offset=0`) is kept and
+ * drives the next page, which is what pygeoapi / ldproxy deployments emit.
+ */
+function ogcCursorFromHref(href: string, sentOffset: number | undefined): OgcItemsCursor | undefined {
   let url: URL;
   try {
     url = new URL(href, OGC_NEXT_LINK_PARSE_BASE);
   } catch {
     return undefined;
   }
-  const params: Record<string, string> = {};
+  const candidates: Array<[string, string]> = [];
+  let hasOpaqueCursor = false;
   for (const [key, value] of url.searchParams) {
     if (OGC_NEXT_LINK_RESERVED_PARAMS.has(key)) {
       continue;
     }
+    if (OGC_CURSOR_PARAM_NAMES.has(ogcParamKey(key))) {
+      hasOpaqueCursor = true;
+    }
+    candidates.push([key, value]);
+  }
+  const params: Record<string, string> = {};
+  let hasPagingState = false;
+  for (const [key, value] of candidates) {
+    const folded = ogcParamKey(key);
+    if (OGC_OFFSET_PARAM_NAMES.has(folded)) {
+      if (hasOpaqueCursor) {
+        continue;
+      }
+      if (sentOffset !== undefined && Number(value) === sentOffset) {
+        continue;
+      }
+      hasPagingState = true;
+    } else if (OGC_CURSOR_PARAM_NAMES.has(folded)) {
+      hasPagingState = true;
+    }
     params[key] = value;
   }
-  const entries = Object.entries(params).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  if (entries.length === 0) {
+  // Everything that survived is an echo of the query we just sent (`bbox`,
+  // `filter`, `sortby`, …): the link advertises no forward progress, so the
+  // offset arithmetic below stays in charge rather than re-reading this page.
+  if (!hasPagingState) {
     return undefined;
   }
+  const entries = Object.entries(params).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   return { key: entries.map(([key, value]) => `${key}=${value}`).join("&"), params };
 }
 
