@@ -99,6 +99,7 @@ export type GeoParquetWhereRejectionCode =
   | "GEOPARQUET_WHERE_COMMENT"
   | "GEOPARQUET_WHERE_UNBALANCED_PARENTHESES"
   | "GEOPARQUET_WHERE_PARAMETER_MARKER"
+  | "GEOPARQUET_WHERE_ESCAPE_STRING"
   | "GEOPARQUET_WHERE_FORBIDDEN_KEYWORD";
 
 /**
@@ -124,6 +125,9 @@ export class GeoParquetWhereClauseError extends Error {
  * operation, or a second table scan. They are rejected as bare words only:
  * a column genuinely named `union` or `select` stays addressable by quoting it
  * (`"union" = 1`), because quoted identifiers are skipped by the scanner.
+ *
+ * `FROM` is contextual: it is denied as a table context but allowed inside the
+ * SQL-standard expression forms listed in {@link WHERE_EXPRESSION_FROM_HEADS}.
  */
 const WHERE_FORBIDDEN_KEYWORDS: ReadonlySet<string> = new Set([
   "ABORT",
@@ -176,6 +180,16 @@ const WHERE_FORBIDDEN_KEYWORDS: ReadonlySet<string> = new Set([
   "WITH",
 ]);
 
+/**
+ * Function heads whose SQL-standard grammar uses `FROM` inside an expression:
+ * `EXTRACT(YEAR FROM ts)`, `TRIM(BOTH ' ' FROM name)`,
+ * `SUBSTRING(name FROM 2 FOR 3)`, `OVERLAY(a PLACING b FROM 2)`. A `FROM`
+ * whose innermost enclosing parenthesis was opened by one of these is an
+ * expression operand, not a table context. (`POSITION(a IN b)` spells its
+ * separator `IN`, which is never denied.)
+ */
+const WHERE_EXPRESSION_FROM_HEADS: ReadonlySet<string> = new Set(["EXTRACT", "TRIM", "SUBSTRING", "OVERLAY"]);
+
 // Tab / newline / carriage return are legitimate formatting in a multi-line
 // filter; every other C0 control character and DEL is a smuggling vector.
 // biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control chars in caller SQL is the point
@@ -212,11 +226,17 @@ function dollarQuoteDelimiterAt(text: string, index: number): string | undefined
  *   `AND (<spatial predicate>)`;
  * - unterminated string / quoted-identifier literals, which is how `x' OR 1=1`
  *   style probes escape a literal;
+ * - `E'…'` escape strings, where a backslash escapes a quote: that second
+ *   escaping grammar would let a literal end for this scanner but not for
+ *   DuckDB, so every boundary after it is mis-parsed. Plain literals with
+ *   doubled quotes carry the same data;
  * - unbalanced parentheses, so the wrapping `( … )` cannot be closed early to
  *   re-associate or append clauses;
- * - `SELECT` / `FROM` / `UNION` and other statement, set-operation, or
- *   table-context keywords, so a filter cannot become a subquery or UNION probe
- *   that reads other tables or files registered in the same DuckDB session;
+ * - `SELECT` / `UNION` and other statement or set-operation keywords, plus a
+ *   table-context `FROM`, so a filter cannot become a subquery or UNION probe
+ *   that reads other tables or files registered in the same DuckDB session.
+ *   `FROM` stays available in its expression forms — `EXTRACT(YEAR FROM ts)`,
+ *   `TRIM(BOTH ' ' FROM name)`, `SUBSTRING(name FROM 2 FOR 3)`, `OVERLAY(…)`;
  * - parameter markers (`?`, `$1`, `$name`) — this lane binds no values;
  * - control characters other than tab / newline / carriage return.
  *
@@ -246,12 +266,19 @@ export function validateWhereExpression(where: string): string {
     );
   }
 
-  let depth = 0;
+  // One entry per open parenthesis, holding the function head that opened it
+  // (`EXTRACT` for `EXTRACT(`), so a contextual `FROM` can be told apart from a
+  // table context. Its length is the current nesting depth.
+  const parenHeads: (string | undefined)[] = [];
+  // The most recent bare word, still eligible to be the head of a `(` that
+  // follows it across whitespace only.
+  let pendingHead: string | undefined;
   let index = 0;
   while (index < text.length) {
     const character = text[index] as string;
     if (character === "'" || character === '"') {
       index = skipWhereQuotedToken(text, index, character);
+      pendingHead = undefined;
       continue;
     }
     if (character === "$") {
@@ -270,6 +297,7 @@ export function validateWhereExpression(where: string): string {
         );
       }
       index = end + delimiter.length;
+      pendingHead = undefined;
       continue;
     }
     if (character === "?") {
@@ -292,18 +320,20 @@ export function validateWhereExpression(where: string): string {
       throw new GeoParquetWhereClauseError("GEOPARQUET_WHERE_COMMENT", "where must not contain a SQL comment");
     }
     if (character === "(") {
-      depth += 1;
+      parenHeads.push(pendingHead);
+      pendingHead = undefined;
       index += 1;
       continue;
     }
     if (character === ")") {
-      depth -= 1;
-      if (depth < 0) {
+      if (parenHeads.length === 0) {
         throw new GeoParquetWhereClauseError(
           "GEOPARQUET_WHERE_UNBALANCED_PARENTHESES",
           "where closes more parentheses than it opens",
         );
       }
+      parenHeads.pop();
+      pendingHead = undefined;
       index += 1;
       continue;
     }
@@ -311,19 +341,40 @@ export function validateWhereExpression(where: string): string {
       let end = index + 1;
       while (end < text.length && WHERE_WORD_CHARACTER.test(text[end] as string)) end += 1;
       const word = text.slice(index, end).toUpperCase();
-      if (WHERE_FORBIDDEN_KEYWORDS.has(word)) {
+      // `E'…'` / `e'…'` escape strings give backslash its escaping power, so
+      // `\'` would end the literal for this scanner but not for DuckDB. Refuse
+      // the prefix rather than model a second escaping grammar.
+      if (word === "E" && text[end] === "'") {
+        throw new GeoParquetWhereClauseError(
+          "GEOPARQUET_WHERE_ESCAPE_STRING",
+          "where must not use an E-prefixed escape string; use a plain literal with doubled quotes",
+        );
+      }
+      if (word === "FROM" && !WHERE_EXPRESSION_FROM_HEADS.has(parenHeads[parenHeads.length - 1] ?? "")) {
+        throw new GeoParquetWhereClauseError(
+          "GEOPARQUET_WHERE_FORBIDDEN_KEYWORD",
+          "where must be a single boolean expression; a table-context FROM keyword is not addressable from a filter (FROM is allowed only inside EXTRACT/TRIM/SUBSTRING/OVERLAY)",
+          word,
+        );
+      }
+      if (word !== "FROM" && WHERE_FORBIDDEN_KEYWORDS.has(word)) {
         throw new GeoParquetWhereClauseError(
           "GEOPARQUET_WHERE_FORBIDDEN_KEYWORD",
           `where must be a single boolean expression; the ${word} keyword is not addressable from a filter (quote it to reference a column of that name)`,
           word,
         );
       }
+      pendingHead = word;
       index = end;
       continue;
     }
+    // Whitespace keeps a pending function head alive across `EXTRACT (…`.
+    if (!(character === " " || character === "\t" || character === "\n" || character === "\r")) {
+      pendingHead = undefined;
+    }
     index += 1;
   }
-  if (depth !== 0) {
+  if (parenHeads.length !== 0) {
     throw new GeoParquetWhereClauseError("GEOPARQUET_WHERE_UNBALANCED_PARENTHESES", "where leaves a parenthesis open");
   }
   return text;

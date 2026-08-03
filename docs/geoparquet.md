@@ -169,20 +169,24 @@ planner surfaces the same rejection as `HonuaQueryPlanningError`
 Rejected: statement separators (`;`) and multi-statement input; SQL line and
 block comments (including the trailing `--` that would otherwise swallow the
 compiler's own `AND (<spatial predicate>)`); unterminated string or
-quoted-identifier literals (`x' OR 1=1`); unbalanced parentheses, so the
-wrapping `( … )` cannot be closed early to re-associate or append clauses;
-`SELECT` / `FROM` / `UNION` and other statement, set-operation, or
-table-context keywords, so a filter cannot become a subquery or UNION probe
-against other tables and files registered in the same DuckDB session;
-parameter markers (`?`, `$1`, `$name`), which this lane never binds; and
-control characters other than tab / newline / carriage return.
+quoted-identifier literals (`x' OR 1=1`); `E'…'` escape strings, whose
+backslash escaping would make every literal boundary after them mis-parse
+(plain literals with doubled quotes carry the same data); unbalanced
+parentheses, so the wrapping `( … )` cannot be closed early to re-associate or
+append clauses; `SELECT` / `UNION` and other statement or set-operation
+keywords plus a table-context `FROM`, so a filter cannot become a subquery or
+UNION probe against other tables and files registered in the same DuckDB
+session; parameter markers (`?`, `$1`, `$name`), which this lane never binds;
+and control characters other than tab / newline / carriage return.
 
 Accepted unchanged: ordinary comparisons, `AND`/`OR`/`NOT`, `IN` value lists,
-`BETWEEN`, `LIKE`, `CASE … END`, scalar function calls, struct/field paths, and
-string literals containing any of the above characters as data (`note = 'a ;
-b -- c'`). A column whose name collides with a rejected keyword stays
-addressable by quoting it (`"union" = 1`), because quoted identifiers are
-skipped by the validator.
+`BETWEEN`, `LIKE`, `CASE … END`, scalar function calls, struct/field paths,
+the expression forms of `FROM` (`EXTRACT(YEAR FROM ts)`,
+`TRIM(BOTH ' ' FROM name)`, `SUBSTRING(name FROM 2 FOR 3)`, `OVERLAY(…)`, and
+`POSITION(a IN b)`), and string literals containing any of the above
+characters as data (`note = 'a ; b -- c'`). A column whose name collides with
+a rejected keyword stays addressable by quoting it (`"union" = 1`), because
+quoted identifiers are skipped by the validator.
 
 This is containment, not a semantic parser. Accepted text is still executed by
 DuckDB: it can reference any column in the scanned files, call any scalar
