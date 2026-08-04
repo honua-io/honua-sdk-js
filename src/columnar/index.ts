@@ -22,11 +22,72 @@ export {
   createGeoArrowProjectionOperation,
   createGeoArrowTransformOperation,
 } from "./operators.js";
-export { deserializeGeoArrowBatch, serializeGeoArrowBatch } from "./geoarrow-serialization.js";
+export {
+  GEOARROW_ENVELOPE_MIGRATIONS,
+  HONUA_GEOARROW_ENVELOPE_KIND,
+  HONUA_GEOARROW_ENVELOPE_VERSION,
+  deserializeGeoArrowBatch,
+  planGeoArrowEnvelopeMigration,
+  readableGeoArrowEnvelopeVersions,
+  serializeGeoArrowBatch,
+} from "./geoarrow-serialization.js";
+export {
+  DEFAULT_COLUMNAR_BATCH_CACHE_MAX_AGE_MS,
+  DEFAULT_COLUMNAR_BATCH_CACHE_MAX_RECORDS,
+  DEFAULT_COLUMNAR_BATCH_CACHE_QUOTA_BYTES,
+  HONUA_COLUMNAR_BATCH_CACHE_FORMAT,
+  MAX_COLUMNAR_BATCH_CACHE_MAX_AGE_MS,
+  MAX_COLUMNAR_BATCH_CACHE_MAX_RECORDS,
+  MAX_COLUMNAR_BATCH_CACHE_QUOTA_BYTES,
+  columnarAuthorizationScopeDigest,
+  columnarBatchCacheKey,
+  columnarBatchCacheOrderingDigest,
+  createColumnarBatchCache,
+  createMemoryColumnarBatchCacheStorage,
+  planColumnarBatchCacheAdmission,
+} from "./batch-cache.js";
+export type {
+  ColumnarBatchCacheAdmissionV1,
+  ColumnarBatchCacheDiagnosticV1,
+  ColumnarBatchCacheEntryV1,
+  ColumnarBatchCacheFreshnessV1,
+  ColumnarBatchCacheHandle,
+  ColumnarBatchCacheMissReason,
+  ColumnarBatchCacheOptions,
+  ColumnarBatchCacheReadOptions,
+  ColumnarBatchCacheReadV1,
+  ColumnarBatchCacheRecordV1,
+  ColumnarBatchCacheRefusalReason,
+  ColumnarBatchCacheStaleReason,
+  ColumnarBatchCacheStorage,
+  ColumnarBatchCacheWriteOptions,
+  ColumnarBatchCacheWriteV1,
+} from "./batch-cache.js";
+export { createIndexedDbColumnarBatchCacheStorage } from "./batch-cache-indexeddb.js";
+export type { IndexedDbColumnarBatchCacheStorageOptions } from "./batch-cache-indexeddb.js";
+export {
+  COLUMNAR_BATCH_CACHE_CONFORMANCE_CASES,
+  HONUA_COLUMNAR_BATCH_CACHE_CONFORMANCE_KIND,
+  HONUA_COLUMNAR_BATCH_CACHE_CONFORMANCE_VERSION,
+  columnarBatchCacheFixtureBatch,
+  columnarBatchCacheFixtureIdentity,
+  columnarBatchCacheLegacyEntry,
+  runColumnarBatchCacheConformance,
+} from "./batch-cache-conformance.js";
+export type {
+  ColumnarBatchCacheConformanceCaseResultV1,
+  ColumnarBatchCacheConformanceOptions,
+  ColumnarBatchCacheConformanceReportV1,
+} from "./batch-cache-conformance.js";
 export {
   GEOARROW_SPEC_VERSION,
   HONUA_GEOARROW_LAYOUT_VERSION,
   HonuaGeoArrowError,
+} from "./geoarrow-types.js";
+export type {
+  GeoArrowEnvelopeMigrationPlanV1,
+  GeoArrowEnvelopeMigrationRefusal,
+  GeoArrowEnvelopeMigrationV1,
 } from "./geoarrow-types.js";
 export type {
   ApacheArrowAdapterMetrics,

@@ -7,6 +7,12 @@ import path from "node:path";
 import process from "node:process";
 
 import {
+  type ColumnarBatchPersistenceBenchmarkOptions,
+  type ColumnarBatchPersistenceBenchmarkResult,
+  type ColumnarBatchPersistenceSample,
+  runColumnarBatchPersistenceBenchmark,
+} from "./columnar-batch-persistence-bench.js";
+import {
   type ColumnarDataPlaneBenchmarkOptions,
   type ColumnarDataPlaneBenchmarkResult,
   type ColumnarDataPlaneSample,
@@ -62,12 +68,18 @@ interface ColumnarDataPlaneCorpusScenario extends ColumnarDataPlaneBenchmarkOpti
   kind: "columnar-data-plane";
 }
 
+interface ColumnarBatchPersistenceCorpusScenario extends ColumnarBatchPersistenceBenchmarkOptions {
+  id: string;
+  kind: "columnar-batch-persistence";
+}
+
 type CorpusScenario =
   | StreamCorpusScenario
   | OfflineReloadCorpusScenario
   | RealtimeReconnectCorpusScenario
   | QueryResourceHandleCorpusScenario
-  | ColumnarDataPlaneCorpusScenario;
+  | ColumnarDataPlaneCorpusScenario
+  | ColumnarBatchPersistenceCorpusScenario;
 
 interface Corpus {
   schemaVersion: 2;
@@ -318,6 +330,9 @@ function validateCorpus(value: unknown): Corpus {
     } else if (scenario.kind === "columnar-data-plane") {
       allowedKeys = new Set([...commonKeys, "featureCount"]);
       if (!positive(scenario.featureCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+    } else if (scenario.kind === "columnar-batch-persistence") {
+      allowedKeys = new Set([...commonKeys, "rowCount"]);
+      if (!positive(scenario.rowCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
     } else {
       throw new Error(`Invalid benchmark scenario kind: ${String((scenario as { kind?: unknown }).kind)}`);
     }
@@ -501,6 +516,40 @@ function columnarDataPlaneResult(
   };
 }
 
+function columnarBatchPersistenceResult(
+  scenario: ColumnarBatchPersistenceCorpusScenario,
+  result: ColumnarBatchPersistenceBenchmarkResult,
+): ScenarioResult {
+  const metrics: Array<keyof ColumnarBatchPersistenceSample> = [
+    "totalDurationMs",
+    "serializeDurationMs",
+    "deserializeDurationMs",
+    "rowsPerSecond",
+    "envelopeBytesPerBackingByte",
+    "serializedBytesPerRow",
+    "peakRetainedBytesPerRow",
+  ];
+  const summary = Object.fromEntries(
+    metrics.map((metric) => [metric, summarizeSamples(result.samples.map((sample) => sample[metric]))]),
+  ) as ScenarioResult["summary"];
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      rowCount: scenario.rowCount,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary,
+    invariants: {
+      expectedTotalFeatures: scenario.rowCount,
+      checks: result.invariants.checks,
+      passed: result.invariants.passed,
+    },
+  };
+}
+
 async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
   if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
@@ -509,6 +558,9 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   }
   if (scenario.kind === "columnar-data-plane") {
     return columnarDataPlaneResult(scenario, await runColumnarDataPlaneBenchmark(scenario));
+  }
+  if (scenario.kind === "columnar-batch-persistence") {
+    return columnarBatchPersistenceResult(scenario, await runColumnarBatchPersistenceBenchmark(scenario));
   }
   return queryResourceResult(scenario, await runQueryResourceHandleBenchmark(scenario));
 }

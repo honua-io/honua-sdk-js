@@ -10,7 +10,7 @@
     "detection remains the job of the relative lane against a compatible baseline.",
     "columnar.data-plane.million-feature was measured on a shared linux host while",
     "two other build agents ran, deliberately including its heaviest contention:",
-    "20.00 backing bytes/feature (deterministic — the packed fixture is 8 + 4 + 4 + 4",
+    "20.00 backing bytes/feature (deterministic \u2014 the packed fixture is 8 + 4 + 4 + 4",
     "bytes/row), 20.0-35.8 peak retained bytes/feature, and a median throughput",
     "between 2,154,706 and 8,776,756 features/second for the complete build + worker",
     "round trip + deck.gl binding pipeline over 1,000,000 rows.",
@@ -19,7 +19,10 @@
     "regressions: a per-feature JavaScript object result for the same fixture costs",
     "300+ bytes/feature and an order of magnitude less throughput, and any payload",
     "copy reintroduced into the transfer or projection path fails the scenario's",
-    "zero-copy invariant outright rather than merely slowing it down."
+    "zero-copy invariant outright rather than merely slowing it down.",
+    "columnar.batch-cache.million-row-round-trip covers the persistence path issue",
+    "#940 states its NFRs against: serialize plus deserialize of a 1,000,000-row",
+    "packed fixture (16,000,000 backing bytes). MEASURED_PLACEHOLDER"
   ],
   "schemaVersion": 2,
   "variability": {
@@ -54,6 +57,23 @@
         "direction": "higher-is-better",
         "warning": 2000000,
         "failure": 500000
+      }
+    },
+    "columnar.batch-cache.million-row-round-trip": {
+      "envelopeBytesPerBackingByte": {
+        "direction": "lower-is-better",
+        "warning": 1.4,
+        "failure": 1.5
+      },
+      "rowsPerSecond": {
+        "direction": "higher-is-better",
+        "warning": 750000,
+        "failure": 250000
+      },
+      "peakRetainedBytesPerRow": {
+        "direction": "lower-is-better",
+        "warning": 80,
+        "failure": 160
       }
     }
   }

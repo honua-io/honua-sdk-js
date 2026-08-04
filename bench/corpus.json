@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "id": "honua-sdk-js-deterministic-v2",
-  "description": "Fixture-backed SDK overhead, opaque resource planning, offline reload, realtime reconnect, and million-row columnar data-plane scenarios. No network or renderer time is included.",
+  "description": "Fixture-backed SDK overhead, opaque resource planning, offline reload, realtime reconnect, million-row columnar data-plane, and million-row columnar persistence scenarios. No network or renderer time is included.",
   "scenarios": [
     {
       "id": "stream.pagination.geometry",
@@ -53,6 +53,13 @@
       "id": "columnar.data-plane.million-feature",
       "kind": "columnar-data-plane",
       "featureCount": 1000000,
+      "warmupRuns": 1,
+      "measurementRuns": 5
+    },
+    {
+      "id": "columnar.batch-cache.million-row-round-trip",
+      "kind": "columnar-batch-persistence",
+      "rowCount": 1000000,
       "warmupRuns": 1,
       "measurementRuns": 5
     }
