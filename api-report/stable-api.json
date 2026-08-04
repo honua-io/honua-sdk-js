@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 172,
-      "signatureSha256": "02cc5df6761887cbc7e0c61a46411719a445e5b69e046c635ef0243e3a873ab8",
+      "signatureSha256": "da2915e27e8c25ed990d37750fc0a471460af446c4e3720378e874d617cf144e",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -185,7 +185,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 172,
-      "signatureSha256": "02cc5df6761887cbc7e0c61a46411719a445e5b69e046c635ef0243e3a873ab8",
+      "signatureSha256": "da2915e27e8c25ed990d37750fc0a471460af446c4e3720378e874d617cf144e",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -2067,8 +2067,8 @@
     {
       "subpath": "@honua/sdk-js/esri-compat",
       "types": "dist/src/esri-compat-entry.d.ts",
-      "exportCount": 521,
-      "signatureSha256": "018d353cb2d597141565b230bd095c336e24d3c32ce1547283919a83061eb974",
+      "exportCount": 522,
+      "signatureSha256": "2ccbca34b01672f538abd3456cdad13290ac74a4923d805b294e785954949ef4",
       "exports": [
         "AddressToLocationsParamsCompat — interface",
         "AddressesToLocationsParamsCompat — interface",
@@ -2165,6 +2165,7 @@
         "FeatureCompatOptions — interface",
         "FeatureFilterCompat — class",
         "FeatureFilterCompatOptions — interface",
+        "FeatureFilterEsriProperties — interface",
         "FeatureFilterGeometryCompat — interface",
         "FeatureFilterHandleCompat — interface",
         "FeatureFilterLoadStatusCompat — type",

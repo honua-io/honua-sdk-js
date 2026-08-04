@@ -56,6 +56,11 @@ A `honua.realtime-checkpoint@1` binds all resume positions to:
   and delta-token positions;
 - a bounded recent event-id window.
 
+The plan fingerprint is the planner's own, so a planner contract change rotates
+it: adding the result-representation axis (#1042) changes every plan
+fingerprint, and checkpoints stored against a pre-#1042 plan resolve to
+`resnapshot-required` rather than silently resuming under a different plan.
+
 Changing any bound identity produces `resnapshot-required`; the SDK never
 silently reuses the cursor. A new subscription without a compatible checkpoint
 also requires a replacement snapshot before deltas can apply.

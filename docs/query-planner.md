@@ -874,8 +874,13 @@ do not have to infer safety or fidelity from prose:
   sources, validators, and authorization scopes are represented by
   domain-separated SHA-256 fingerprints where a raw value is unnecessary.
 - `warnings` are stable objects with `code`, `path`, `message`, and
-  `remediation`. Bounded local execution, geometry transfer, and approximate
-  spatial filtering therefore remain machine-actionable.
+  `remediation`. Bounded local execution, geometry transfer, approximate
+  spatial filtering, and a declined columnar representation therefore remain
+  machine-actionable.
+- `representation` is the deterministic result-representation decision
+  (`object` or `columnar`) with the declared source metadata and caller
+  estimates that produced it, the representations this source and query can
+  serve, and the reason. See [Result representation](#result-representation).
 
 `cache` is a deterministic decision, not a cache side effect. The caller may
 select `bypass`, `prefer-cache`, or `require-fresh` and report `fresh`, `stale`,
@@ -886,6 +891,94 @@ validators do not enter serialized plans. Cache storage and conditional
 requests remain the responsibility of the plan consumer. `bypass` always
 normalizes to `freshness: "unknown"` with no validator, so irrelevant cache
 observations cannot fragment plan identity.
+
+## Result representation
+
+`executionMode` answers *when* rows arrive (`snapshot` or `delta`).
+`representation` answers *what shape* they arrive in, and is selected by the
+planner rather than by a caller who already knows the columnar library exists:
+
+- `object` — the protocol-neutral `Result` feature objects every adapter
+  produces. This is the default and the only representation most sources offer.
+- `columnar` — a `ColumnarBatchV1` (see
+  [columnar-data-plane.md](./columnar-data-plane.md)) whose identity is derived
+  from the plan, so nothing per-row is materialized on the way out.
+
+Selection is metadata-only: it reads the declared source protocol and physical
+geometry encoding plus the caller's `estimates`, and never reads result data,
+constructs a worker, or performs I/O. The decision, its inputs, and its reason
+are recorded on `plan.representation`; the selected strategy is bound into
+`plan.validity.representation` and therefore into the plan fingerprint.
+
+```ts doc-test=compile
+import { capabilities } from "@honua/sdk-js/contract";
+import { COLUMNAR_REPRESENTATION_MIN_ROWS, explainQuery } from "@honua/sdk-js/query-planner";
+
+const plan = explainQuery({
+  descriptor: {
+    id: "parcels",
+    protocol: "geoparquet",
+    locator: {
+      url: "https://example.test/parcels.parquet",
+      geoparquet: { geometryColumn: "geometry", geometryEncoding: "geoarrow-point", nativeDimensions: "xy" },
+    },
+    capabilities: capabilities(["query"]),
+  },
+  estimates: { rows: COLUMNAR_REPRESENTATION_MIN_ROWS },
+  schemaVersion: "parcels-schema-3",
+  sourceVersion: "parcels-source-9",
+  authorizationScope: ["data:read"],
+});
+
+console.log(plan.representation.selected); // "columnar"
+console.log(plan.representation.reason); // "workload-above-threshold"
+console.log(plan.representation.available); // ["object", "columnar"]
+```
+
+Columnar is offered only where an executable producer exists. Today that is a
+GeoParquet source whose declared geometry encoding is `geoarrow-point`,
+`geoarrow-linestring`, or `geoarrow-polygon`, for a feature query that returns
+geometry. The multi-part `geoarrow-multipoint` / `geoarrow-multilinestring` /
+`geoarrow-multipolygon` encodings are deliberately excluded: this SDK's
+dependency-free GeoArrow mapping has no multi-part kind, and re-labelling their
+parts as a single-part column would misreport the geometry type.
+
+Every outcome is explained rather than defaulted. `representation.reason` is one
+of `explicit-pin`, `workload-above-threshold`, `workload-below-threshold`,
+`estimate-unavailable`, `protocol-not-columnar`, `encoding-not-columnar`,
+`aggregation-not-columnar`, or `geometry-not-requested`. When columnar was
+genuinely on offer and object was chosen anyway, the plan also carries a
+`columnar-representation-declined` warning; a source that never offered
+columnar produces no warning, because nothing was declined.
+
+A caller may pin the strategy with `representation: "object"` or
+`representation: "columnar"`. An unsatisfiable columnar pin throws
+`HonuaCapabilityNotSupportedError` naming `columnar-execution`, the protocol,
+and the source — it never degrades to object results. For the same reason,
+`executeQueryPlan` (the object executor) refuses a columnar-selected plan
+instead of answering it with feature objects.
+
+### Plan-derived batch identity
+
+`columnarBatchIdentityFromPlan(plan, { observedAt })` produces the
+`ColumnarBatchIdentityV1` a columnar-selected plan implies. `planId` is the
+plan's own `validity.fingerprint`; `sourceId`, `sourceVersion`,
+`schemaVersion`, and `authorizationScope` come from the plan's declared source
+identity and provenance fingerprints (never the raw scope); `ordering` is the
+canonical query's `orderBy`. Only freshness is supplied at execution, so
+planning stays observation-clock free and the plan fingerprint stays stable.
+
+`plan.fingerprint` is deliberately not used as the `planId`: it also covers cost
+estimates, which change nothing about which rows come back. Two plans that
+differ only in their estimates are interchangeable for cache reuse, and share a
+cache entry; any change to source, schema, scope, query, policy, execution mode,
+or representation moves `validity.fingerprint` and therefore the cache key.
+
+Calling it with an object plan throws `HonuaCapabilityNotSupportedError`, so a
+batch can never claim provenance the planner did not grant. The producer side —
+`GeoparquetSourceHandle.queryColumnar()` and
+`createGeoParquetNativeGeometryBatch()` in `@honua/sdk-js/geoparquet` — requires
+that identity and has no placeholder path.
 
 ## Bounded degraded execution
 
@@ -926,8 +1019,16 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
   cache decision, and discovery evidence.
 - The versioned `validity` binding covers planner/contract version, source,
   schema, capabilities, authorization scope, discovery, query, CRS, policy,
-  and execution mode. Signals, observation timestamps, expiry clocks, and raw
-  realtime cursors are execution state and never enter the fingerprint.
+  execution mode, and result representation. Signals, observation timestamps,
+  expiry clocks, and raw realtime cursors are execution state and never enter
+  the fingerprint.
+- Adding the representation axis is additive to the plan contract but not
+  fingerprint-neutral: `plan.representation` and
+  `validity.representation` are hashed like every other plan member, so plans
+  and plan cache keys persisted before this axis existed are rejected by
+  `parseQueryPlan` and must be re-explained. Plan versions stay `1.0` / `2.0`;
+  the rebuild-and-compare persistence guard is what makes the rotation visible
+  rather than silent.
 - CRS validity includes the source SRS, input/filter geometry CRS bindings,
   output CRS, and the no-implicit-transform policy. It never infers a transform
   from output CRS alone.
