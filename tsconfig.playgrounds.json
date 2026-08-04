@@ -1,0 +1,30 @@
+{
+  "//": "Repository-local typecheck for the generated sample playgrounds (scripts/sample-playgrounds.mjs, #958). A playground resolves @honua/sdk-js from the published package; this overlay points the same copied sources at the repository's SDK source so CI proves they still compile standalone without a registry install.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
+    "baseUrl": ".",
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@honua/sdk-js": ["src/index.ts"],
+      "@honua/sdk-js/agent-safety": ["src/agent-safety/index.ts"],
+      "@honua/sdk-js/agent-tools": ["src/agent-tools/index.ts"],
+      "@honua/sdk-js/app-workspace": ["src/app-workspace/index.ts"],
+      "@honua/sdk-js/contract": ["src/contract/index.ts"],
+      "@honua/sdk-js/exploration": ["src/exploration/index.ts"],
+      "@honua/sdk-js/honua": ["src/honua.ts"],
+      "@honua/sdk-js/map": ["src/map/index.ts"],
+      "@honua/sdk-js/query-planner": ["src/query-planner/index.ts"],
+      "@honua/sdk-js/runtime": ["src/runtime/index.ts"],
+      "@honua/sdk-js/style": ["src/style/index.ts"],
+      "@honua/sdk-js/web-components": ["src/web-components/index.ts"]
+    }
+  },
+  "include": ["playgrounds/*/src/**/*.ts", "playgrounds/*/vite.config.ts"]
+}

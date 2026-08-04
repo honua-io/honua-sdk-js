@@ -1,0 +1,202 @@
+{
+  "$schema": "../contract/v2/schemas/sample-playgrounds.schema.json",
+  "format": "honua.sdk.sample-playgrounds.v1",
+  "schemaVersion": 1,
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.2-beta.0"
+  },
+  "playgrounds": [
+    {
+      "sampleId": "ai-spatial-app-builder",
+      "projectPath": "playgrounds/ai-spatial-app-builder",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder"
+        }
+      ]
+    },
+    {
+      "sampleId": "sketch-editing",
+      "projectPath": "playgrounds/sketch-editing",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing"
+        }
+      ]
+    },
+    {
+      "sampleId": "stac-imagery-browser",
+      "projectPath": "playgrounds/stac-imagery-browser",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+        }
+      ]
+    },
+    {
+      "sampleId": "temporal-playback",
+      "projectPath": "playgrounds/temporal-playback",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback"
+        }
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "sampleId": "app-bootstrap-basic",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is retire."
+    },
+    {
+      "sampleId": "arcgis-source-app",
+      "category": "unsupported-support-tier",
+      "detail": "Support tier internal may not gain a public runnable surface."
+    },
+    {
+      "sampleId": "edit-workflow-demo",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is replace."
+    },
+    {
+      "sampleId": "geocoding-quickstart",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is rework."
+    },
+    {
+      "sampleId": "geoprocessing-job-runner",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is merge."
+    },
+    {
+      "sampleId": "imagery-cog-quickstart",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+    },
+    {
+      "sampleId": "kepler-analytics",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is rework."
+    },
+    {
+      "sampleId": "maplibre-quickstart",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+    },
+    {
+      "sampleId": "mcp-gis-assistant",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is rework."
+    },
+    {
+      "sampleId": "migration-workbench",
+      "category": "repository-vite-kit",
+      "detail": "Builds through the shared example kit rather than a plain Vite config."
+    },
+    {
+      "sampleId": "nl-map-control",
+      "category": "shared-repository-source",
+      "detail": "Source imports repository files outside the sample: ../../../test/fixtures/nl-map-control/recorded-completions.json."
+    },
+    {
+      "sampleId": "node-backend-quickstart",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is server-side-app; a playground would need a generated data origin."
+    },
+    {
+      "sampleId": "oauth-signin",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is companion-process; a playground would need a generated data origin."
+    },
+    {
+      "sampleId": "overture-geoparquet",
+      "category": "binary-asset",
+      "detail": "Needs committed non-source assets: public/overture-places.parquet."
+    },
+    {
+      "sampleId": "planning-permitting-workbench",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+    },
+    {
+      "sampleId": "pmtiles-static",
+      "category": "binary-asset",
+      "detail": "Needs committed non-source assets: public/basemap.pmtiles, public/overlay.pmtiles."
+    },
+    {
+      "sampleId": "react-quickstart",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+    },
+    {
+      "sampleId": "realtime-incident-dashboard",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is external-live-endpoint; a playground would need a generated data origin."
+    },
+    {
+      "sampleId": "runtime-parity-showcase",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is replace."
+    },
+    {
+      "sampleId": "service-explorer",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+    },
+    {
+      "sampleId": "spatial-analytics-workbench",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is rework."
+    },
+    {
+      "sampleId": "storytelling-25d-map",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is merge."
+    },
+    {
+      "sampleId": "terrain-rgb-elevation",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is merge."
+    },
+    {
+      "sampleId": "unified-ops-workspace",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is retire."
+    },
+    {
+      "sampleId": "web-components-basic",
+      "category": "lifecycle-not-active",
+      "detail": "Catalog lifecycle is retire."
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A deterministic, approval-bound safe-agent workflow for spatial queries." />
+    <title>Honua Safe Agent Workbench</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#workflow">Skip to workflow</a>
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Honua safe-agent flagship</p>
+        <h1>Agents propose. Policy validates. You approve. Honua executes.</h1>
+        <p class="lede">Model output is untrusted input—not permission. Every effect is typed, bounded, context-bound, and receipted.</p>
+      </div>
+      <div class="status-cluster" aria-label="Runtime status">
+        <span>mode <strong>deterministic fixture</strong></span>
+        <span>state <strong id="state-value">proposed</strong></span>
+        <span>source reads <strong id="effect-count">0</strong></span>
+        <span>live lane <strong id="live-status">skipped</strong></span>
+      </div>
+    </header>
+    <main id="workflow">
+      <section class="workflow-rail" aria-label="Safety workflow">
+        <span>1 Proposal</span><span>2 Validation</span><span>3 Approval</span><span>4 Execution</span><span>5 Receipt</span>
+      </section>
+      <div class="workspace">
+        <section class="panel proposal-panel">
+          <div class="panel-heading"><div><p class="step">01 · Untrusted input</p><h2>Agent proposal</h2></div><span class="badge neutral" id="proposal-origin"></span></div>
+          <p id="proposal-prompt"></p>
+          <dl class="compact"><dt>Requested effect</dt><dd id="proposal-effect"></dd><dt>Important</dt><dd>Loading this proposal performs no read, write, subscription, or app effect.</dd></dl>
+          <h3>Proposed tool calls</h3><ul class="tool-list" id="tool-calls"></ul>
+          <div class="button-row"><button id="validate" type="button">Validate against policy</button><button id="reset" class="secondary" type="button">Reset fixture</button></div>
+        </section>
+        <section class="panel" id="plan-panel" data-state="pending">
+          <div class="panel-heading"><div><p class="step">02 · Side-effect free</p><h2>Typed plan &amp; bindings</h2></div><span class="badge" id="plan-state">Waiting for policy validation</span></div>
+          <div id="plan-details"></div>
+        </section>
+        <section class="panel approval-panel">
+          <div class="panel-heading"><div><p class="step">03 · Human control</p><h2>Explicit approval</h2></div><span class="badge warning" id="approval-state">No approval grant exists</span></div>
+          <p>Approval binds the exact plan digest, reviewer, effect, context, maximum rows, and maximum bytes. Inspect the request/row/byte estimate, fidelity, cache policy, and provenance in the dry-run plan before granting it. Narrowing cannot widen the proposal.</p>
+          <div class="button-row"><button id="approve" type="button" disabled>Approve 5-row read</button><button id="narrow" class="secondary" type="button" disabled>Narrow to 2 rows</button><button id="reject" class="danger" type="button" disabled>Reject</button><button id="execute" class="execute" type="button" disabled>Execute approved read</button></div>
+        </section>
+        <section class="panel refusal-panel">
+          <div class="panel-heading"><div><p class="step">Policy lab</p><h2>Prove refusal paths</h2></div><span class="badge danger">effects disabled</span></div>
+          <p>These proposals are intentionally invalid. Each must fail before any source call.</p>
+          <div class="button-row"><button class="secondary" data-refusal="mutation" type="button">Mutation</button><button class="secondary" data-refusal="realtime" type="button">Realtime</button><button class="secondary" data-refusal="excessive-limit" type="button">500-row limit</button><button class="secondary" data-refusal="unsupported-tool" type="button">Publish tool</button></div>
+        </section>
+        <section class="panel results-panel">
+          <div class="panel-heading"><div><p class="step">04 · Approved effect</p><h2>Bounded result</h2></div><span class="badge success"><strong id="row-count">0</strong> rows</span></div>
+          <div class="table-wrap"><table><caption>Rows returned by the approved read</caption><thead><tr><th>ID</th><th>Parcel</th><th>Zone</th><th>Built</th><th>Value</th></tr></thead><tbody id="result-rows"></tbody></table></div>
+        </section>
+        <section class="panel receipt-panel">
+          <div class="panel-heading"><div><p class="step">05 · Verifiable outcome</p><h2>Tamper-evident receipt</h2></div><span class="badge success" id="receipt-state">No execution receipt</span></div>
+          <p>Integrity check: <strong id="receipt-integrity">not-run</strong>. The receipt binds plan, approval, result, source/schema versions, scope, and time.</p><pre id="receipt-json"></pre>
+        </section>
+        <section class="panel host-panel">
+          <div class="panel-heading"><div><p class="step">Optional lane</p><h2>Host-mediated model &amp; live data</h2></div><span class="badge neutral">no browser secrets</span></div>
+          <p id="live-detail"></p><p>Model providers and data credentials belong behind same-origin host endpoints. Missing configuration records a structured skip; it never masquerades fixture output as live.</p>
+        </section>
+      </div>
+      <p id="event-log" class="event-log" role="status" aria-live="polite">Proposal loaded. No source or tool effect has run.</p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

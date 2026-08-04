@@ -164,6 +164,30 @@
       },
       "additionalProperties": false
     },
+    "playground": {
+      "description": "Generated zero-install playground for this sample (scripts/sample-playgrounds.mjs, #958). Present only for samples whose committed source qualifies for a standalone project; every other sample carries a machine-readable exclusion category in the generator's decision list.",
+      "type": "object",
+      "required": ["projectPath", "providers"],
+      "properties": {
+        "projectPath": { "type": "string", "pattern": "^playgrounds/[a-z0-9]+(?:-[a-z0-9]+)*$" },
+        "providers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["id", "title", "url"],
+            "properties": {
+              "id": { "$ref": "#/$defs/slug" },
+              "title": { "type": "string", "minLength": 1 },
+              "url": { "type": "string", "format": "uri", "pattern": "^https://[^?#]+$" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "replacement": {
       "type": "object",
       "required": ["kind", "id"],
@@ -242,6 +266,7 @@
         "lifecycle": { "$ref": "#/$defs/lifecycle" },
         "sourcePath": { "type": "string", "minLength": 1 },
         "docsPath": { "type": "string", "minLength": 1 },
+        "playground": { "$ref": "#/$defs/playground" },
         "capabilities": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
         "capabilityKeys": {
           "type": "array",

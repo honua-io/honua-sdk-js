@@ -1,0 +1,27 @@
+{
+  "name": "honua-playground-ai-spatial-app-builder",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Zero-install playground generated from examples/ai-spatial-app-builder.",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.13.0",
+    "@connectrpc/connect": "2.1.2",
+    "@connectrpc/connect-web": "2.1.2",
+    "@honua/sdk-js": "0.1.2-beta.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "typescript": "5.9.3",
+    "vite": "8.2.0"
+  }
+}
