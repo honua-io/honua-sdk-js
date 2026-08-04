@@ -192,6 +192,32 @@ test("projected order follows the code declaration, not the file order", () => {
   );
 });
 
+test("table cells survive pipes and backslashes without breaking the row", () => {
+  const document = committedDocument();
+  // A query is rendered into a table cell; escaping that handles "|" but not
+  // "\" would let `\|` through as a bare cell terminator.
+  document.registry.resultsPerPage = 20;
+  const rendered = renderNpmSearchMarkdown({
+    ...document,
+    observations: document.observations,
+  });
+  for (const row of rendered.split("\n").filter((line) => line.startsWith("| `"))) {
+    const cells = row.split(/(?<!\\)\|/);
+    assert.equal(cells.length, 7, `row must have five cells: ${row}`);
+  }
+});
+
+test("a scoped package name is fully encoded in the registry URL", async () => {
+  const seen = [];
+  const fetchImpl = async (url) => {
+    seen.push(url);
+    return { ok: true, status: 200 };
+  };
+  await resolvePublishedPackages({ trackedPackages: ["@scope/with/slashes"], fetchImpl });
+  assert.equal(seen[0], "https://registry.npmjs.org/@scope%2Fwith%2Fslashes");
+  assert.ok(!seen[0].includes("/with"), "every slash in the package name must be encoded");
+});
+
 test("pageOf converts a rank into the page a human sees", () => {
   assert.equal(pageOf(1, 20), 1);
   assert.equal(pageOf(20, 20), 1);

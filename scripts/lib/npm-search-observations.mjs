@@ -249,8 +249,21 @@ function statusOf(hit, registry) {
   return page === 1 ? `**page 1** (rank ${hit.rank})` : `page ${page} (rank ${hit.rank})`;
 }
 
+// One linear pass over a lookup map, matching the convention in
+// `mcp-eval-scorecard.mjs`. Deliberately NOT a chain of .replace() calls: a
+// chain that escapes "|" without first escaping "\" is self-defeating, because
+// the input `\|` would emit `\\|`, whose escaped backslash leaves a bare "|"
+// that still ends the cell. A single pass maps each character exactly once.
+const CELL_ESCAPES = new Map([
+  ["\\", "\\\\"],
+  ["|", "\\|"],
+  ["\n", " "],
+  ["\r", " "],
+  ["\t", " "],
+]);
+
 function escapeCell(value) {
-  return String(value).replace(/\|/g, "\\|");
+  return String(value).replace(/[\\|\n\r\t]/g, (character) => CELL_ESCAPES.get(character) ?? character);
 }
 
 /** Render the generated verification page from the committed observations. */
@@ -476,7 +489,9 @@ export async function observeQuery({
 export async function resolvePublishedPackages({ trackedPackages, fetchImpl = fetch }) {
   const published = [];
   for (const name of trackedPackages) {
-    const response = await fetchImpl(`https://registry.npmjs.org/${name.replace("/", "%2F")}`, {
+    // Every "/" must be encoded, not just the first: the registry addresses a
+    // scoped package as a single path segment.
+    const response = await fetchImpl(`https://registry.npmjs.org/${name.replaceAll("/", "%2F")}`, {
       headers: { accept: "application/json" },
     });
     if (response.ok) {
