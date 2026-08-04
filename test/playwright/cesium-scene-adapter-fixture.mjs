@@ -14,6 +14,15 @@
  * @module
  */
 
+import {
+  ENTITY_EXPECTATIONS,
+  ENTITY_ID_FIELD,
+  ENTITY_PICK_POSITIONS,
+  ENTITY_SOURCE_LAYER_PATH,
+  ENTITY_SOURCE_SNAPSHOT_PATH,
+  ENTITY_TIMES,
+} from "./cesium-entity-source-fixture.mjs";
+
 const probe = globalThis.__honuaSceneProbe;
 
 /** Fixture anchor, mirrored from `cesium-scene-fixture-assets.mjs`. */
@@ -206,13 +215,57 @@ function boundarySummary(reports) {
   return reports.map((report) => `${report.id}:${report.boundary}:${report.incremental ? "in-place" : "rebuilt"}`).sort();
 }
 
+/**
+ * The accepted plan the entity lane executes (#1050).
+ *
+ * Bounded, geometry-bearing, and explicitly WGS84 — the only plan shape the
+ * entity slice accepts. The limit is comfortably above the fixture's feature
+ * count so the ceiling is exercised deliberately (`entityCeilingFailsClosed`)
+ * rather than incidentally.
+ */
+const ENTITY_QUERY = { pagination: { limit: 50 }, returnGeometry: true, outSr: 4326 };
+
+/**
+ * The scene the entities are mounted over.
+ *
+ * Entities never render into a vacuum in a real application, and none of these
+ * bindings materialize an entity, so the collection state stays attributable to
+ * the entity mount alone. Terrain earns its place twice over: releasing an
+ * elevation-source handle resets the globe's terrain provider, and *that* is
+ * what lets the globe's surface tiles — and with them the WebGL context — become
+ * collectible after the viewer is destroyed. A cycle that leaves the default
+ * `EllipsoidTerrainProvider` in place holds its context alive well past
+ * `viewer.destroy()`, which was measured before this plan was chosen.
+ */
+const ENTITY_SCENE_PLAN = ["fixture-camera", "fixture-terrain", "fixture-imagery"].map((id) =>
+  PRIMITIVE_BY_ID.get(id),
+);
+
+/** Below the accepted plan's limit: the mount must refuse before touching Cesium. */
+const ENTITY_CEILING = 3;
+
 let adapterModule;
 let cesiumModule;
+let sdkModule;
+let plannerModule;
 
 async function loadModules() {
   adapterModule ??= await import("/dist/src/scene-workspace/index.js");
   cesiumModule ??= await import("cesium");
   return { adapter: adapterModule, Cesium: cesiumModule };
+}
+
+/**
+ * The entity lane additionally needs the SDK kernel and the query planner: it
+ * connects to the fixture service and accepts a plan the same way an application
+ * does, because the entity mount validates the plan against the live descriptor
+ * and executes it itself.
+ */
+async function loadEntityModules() {
+  const loaded = await loadModules();
+  sdkModule ??= await import("/dist/src/index.js");
+  plannerModule ??= await import("/dist/src/query-planner/index.js");
+  return { ...loaded, sdk: sdkModule, planner: plannerModule };
 }
 
 function createViewer(Cesium, container) {
@@ -629,6 +682,427 @@ async function runTemporalCycle(options) {
   };
 }
 
+// ── Accepted-plan Source → Cesium entity lane (#1050) ────────────────────────
+//
+// Everything below drives `mountSourceToCesium` — the SDK's real entity code
+// path — against a live `Viewer`, a real `EntityCollection`, and a real
+// `Source` opened with `createHonua()` over the loopback fixture service. No
+// Cesium module is injected into the mount, so the lane also exercises the lazy
+// optional-peer `import("cesium")` inside a browser.
+
+/** Open the fixture service and accept a plan exactly as an application would. */
+async function openEntitySource(sdk, planner) {
+  const honua = sdk.createHonua();
+  const connection = await honua.connect({
+    url: new URL(ENTITY_SOURCE_LAYER_PATH, location.origin).href,
+    protocol: "geoservices-feature-service",
+  });
+  const source = connection.source();
+  const plan = planner.explainQuery({ descriptor: source.descriptor, query: ENTITY_QUERY });
+  return {
+    source,
+    plan,
+    async close() {
+      await connection.dispose();
+      await honua.dispose();
+    },
+  };
+}
+
+/** Pick which snapshot the fixture layer answers with, so `refresh()` observes a real change. */
+async function selectEntitySnapshot(name) {
+  const response = await fetch(`${ENTITY_SOURCE_SNAPSHOT_PATH}?name=${name}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(`Entity fixture snapshot "${name}" was refused (${response.status}).`);
+  return (await response.json()).snapshot;
+}
+
+/**
+ * Advance application time and draw.
+ *
+ * `viewer.clock` is what Cesium evaluates entity availability against, so the
+ * clock is moved and the entity display is updated at that instant before
+ * anything is picked. The viewer's own clock is parked (`shouldAnimate = false`)
+ * so the instant under test does not drift between the update and the pick.
+ */
+async function renderEntitiesAt(Cesium, viewer, iso, frames) {
+  const time = Cesium.JulianDate.fromIso8601(iso);
+  viewer.clock.currentTime = time;
+  for (let frame = 0; frame < frames; frame += 1) {
+    viewer.dataSourceDisplay.update(time);
+    viewer.scene.render(time);
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  }
+  return time;
+}
+
+/**
+ * Entity ids drawn at a ground position, read back out of the GPU pick pass.
+ *
+ * This is the lane's "did it actually render" evidence: `drillPick` runs a real
+ * render into the pick framebuffer, so an entity that materialized but never
+ * reached the GPU is picked by nobody.
+ */
+function pickedEntityIds(Cesium, viewer, cartesian) {
+  const windowPosition = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, cartesian);
+  if (!windowPosition) return [];
+  return viewer.scene
+    .drillPick(windowPosition, 8, 6, 6)
+    .flatMap((picked) => (picked?.id instanceof Cesium.Entity ? [picked.id.id] : []));
+}
+
+function pickedAtDegrees(Cesium, viewer, longitude, latitude, height) {
+  return pickedEntityIds(Cesium, viewer, Cesium.Cartesian3.fromDegrees(longitude, latitude, height));
+}
+
+/** Everything the spec asserts about one mounted entity, read off the real Cesium object. */
+function describeEntity(Cesium, viewer, id, time) {
+  const entity = viewer.entities.getById(id);
+  if (!entity) return { id, present: false };
+  const position = entity.position?.getValue(time);
+  const cartographic = position ? Cesium.Cartographic.fromCartesian(position) : undefined;
+  const hierarchy = entity.polygon?.hierarchy?.getValue(time);
+  const polyline = entity.polyline?.positions?.getValue(time);
+  return {
+    id,
+    present: true,
+    // Cesium ships minified, so identity is asserted with `instanceof` against
+    // the real runtime's constructors rather than by class name.
+    isCesiumEntity: entity instanceof Cesium.Entity,
+    kind: entity.point ? "point" : entity.polyline ? "polyline" : entity.polygon ? "polygon" : "unknown",
+    positionIsCartesian3: position instanceof Cesium.Cartesian3,
+    cartographic: cartographic
+      ? {
+          longitude: Number(Cesium.Math.toDegrees(cartographic.longitude).toFixed(6)),
+          latitude: Number(Cesium.Math.toDegrees(cartographic.latitude).toFixed(6)),
+          height: Number(cartographic.height.toFixed(2)),
+        }
+      : null,
+    availabilityIsTimeIntervalCollection: entity.availability instanceof Cesium.TimeIntervalCollection,
+    hierarchyIsPolygonHierarchy: hierarchy === undefined ? null : hierarchy instanceof Cesium.PolygonHierarchy,
+    holeCount: hierarchy?.holes?.length ?? null,
+    hierarchyPositionsAreCartesian3: hierarchy
+      ? hierarchy.positions.every((value) => value instanceof Cesium.Cartesian3)
+      : null,
+    polylineVertexCount: polyline?.length ?? null,
+    polylinePositionsAreCartesian3: polyline
+      ? polyline.every((value) => value instanceof Cesium.Cartesian3)
+      : null,
+    // Source attributes reached a real Cesium `PropertyBag`, not a copied literal.
+    label: entity.properties?.getValue(time)?.label ?? null,
+  };
+}
+
+function entityDiagnostics(diagnostics) {
+  return diagnostics.map((entry) => `${entry.code}:${entry.severity}:${entry.fidelity}`);
+}
+
+/**
+ * One entity cycle: connect, accept a plan, mount, prove what reached Cesium,
+ * refresh against a changed source, then tear everything down under
+ * instrumentation. Repeated on fresh viewers, this is the lane's leak budget.
+ */
+async function runEntityCycle(index) {
+  const { adapter, Cesium, sdk, planner } = await loadEntityModules();
+  const container = document.createElement("div");
+  container.className = "scene-host";
+  document.getElementById("scene-hosts").append(container);
+
+  const before = probe.snapshot();
+  const viewer = createViewer(Cesium, container);
+  // Park the clock: the lane asserts availability at two named instants, and a
+  // ticking clock would move the instant between the display update and the pick.
+  viewer.clock.shouldAnimate = false;
+  const canvas = viewer.scene.canvas;
+  const target = { camera: viewer.camera, scene: viewer.scene, clock: viewer.clock };
+  const baselineEntityCount = viewer.entities.values.length;
+
+  // The scene under the entities comes from the primitive adapter rather than
+  // from hand-set Cesium state, so both halves of the plan go through the same
+  // public surface (see `ENTITY_SCENE_PLAN`).
+  const sceneMount = await adapter.mountScenePrimitivesToCesium(target, ENTITY_SCENE_PLAN);
+
+  await selectEntitySnapshot("a");
+  const opened = await openEntitySource(sdk, planner);
+
+  const mountStartedAt = performance.now();
+  const mounted = await adapter.mountSourceToCesium(viewer.entities, opened.source, opened.plan, {
+    featureIdField: ENTITY_ID_FIELD,
+    verticalDatum: "ellipsoidal-wgs84",
+    time: { startField: "observed_at", endField: "expires_at" },
+  });
+  const mountMs = performance.now() - mountStartedAt;
+
+  // `state`, `entityIds`, and `diagnostics` are live getters on the mount, so
+  // they are snapshotted here rather than read back after disposal.
+  const mountState = mounted.state;
+  const mountDiagnostics = entityDiagnostics(mounted.diagnostics);
+  const mountedIds = [...mounted.entityIds];
+  const insideTime = await renderEntitiesAt(Cesium, viewer, ENTITY_TIMES.insideWindow, 8);
+  const expectedIds = ENTITY_EXPECTATIONS.a.map((entry) => `${mounted.sourceId}:${entry.suffix}`);
+
+  const described = Object.fromEntries(
+    ENTITY_EXPECTATIONS.a.map((entry, at) => [entry.featureId, describeEntity(Cesium, viewer, expectedIds[at], insideTime)]),
+  );
+
+  // --- availability, decided by Cesium against the clock the page moved -------
+  const availability = {};
+  for (const instant of ["insideWindow", "earlyWindow"]) {
+    const time = await renderEntitiesAt(Cesium, viewer, ENTITY_TIMES[instant], 8);
+    availability[instant] = {
+      isAvailable: Object.fromEntries(
+        ENTITY_EXPECTATIONS.a.map((entry, at) => [
+          entry.featureId,
+          viewer.entities.getById(expectedIds[at])?.isAvailable(time) ?? null,
+        ]),
+      ),
+      // Rendered, not merely available: the point pair is picked out of a real
+      // GPU pick pass at its own projected position.
+      picked: Object.fromEntries(
+        ENTITY_EXPECTATIONS.a
+          .filter((entry) => entry.kind === "point")
+          .map((entry) => {
+            const id = `${mounted.sourceId}:${entry.suffix}`;
+            const position = viewer.entities.getById(id)?.position?.getValue(time);
+            return [entry.featureId, position ? pickedEntityIds(Cesium, viewer, position).includes(id) : false];
+          }),
+      ),
+    };
+  }
+
+  // --- the polygon's interior ring reached the GPU ---------------------------
+  await renderEntitiesAt(Cesium, viewer, ENTITY_TIMES.insideWindow, 6);
+  const zoneId = `${mounted.sourceId}:${ENTITY_EXPECTATIONS.a.find((entry) => entry.kind === "polygon").suffix}`;
+  const polygonPicks = {
+    solid: pickedAtDegrees(Cesium, viewer, ...ENTITY_PICK_POSITIONS.polygonSolid, 0).includes(zoneId),
+    hole: pickedAtDegrees(Cesium, viewer, ...ENTITY_PICK_POSITIONS.polygonHole, 0).includes(zoneId),
+  };
+  // Read while the canvas is still live: `preserveDrawingBuffer` keeps the colour
+  // buffer readable after a render, but only until the viewer is destroyed.
+  const litPixels = countLitPixels(canvas);
+
+  // --- refresh against a changed source --------------------------------------
+  await selectEntitySnapshot("b");
+  const identityBefore = new Map(mountedIds.map((id) => [id, viewer.entities.getById(id)]));
+  const refreshStartedAt = performance.now();
+  const refreshed = await mounted.refresh();
+  const refreshMs = performance.now() - refreshStartedAt;
+  const refreshTime = await renderEntitiesAt(Cesium, viewer, ENTITY_TIMES.insideWindow, 6);
+  const refreshedIds = [...mounted.entityIds];
+  const unchangedId = `${mounted.sourceId}:${ENTITY_EXPECTATIONS.b[0].suffix}`;
+  const movedId = `${mounted.sourceId}:${ENTITY_EXPECTATIONS.b[1].suffix}`;
+  const departedId = mountedIds.find((id) => !refreshedIds.includes(id));
+  const arrivedId = refreshedIds.find((id) => !mountedIds.includes(id));
+
+  const refresh = {
+    ms: Number(refreshMs.toFixed(2)),
+    state: refreshed.state,
+    ids: refreshedIds,
+    expectedIds: ENTITY_EXPECTATIONS.b.map((entry) => `${mounted.sourceId}:${entry.suffix}`),
+    departedId: departedId ?? null,
+    departedRemovedFromCollection: departedId ? viewer.entities.getById(departedId) === undefined : null,
+    arrivedId: arrivedId ?? null,
+    arrived: arrivedId ? describeEntity(Cesium, viewer, arrivedId, refreshTime) : null,
+    moved: describeEntity(Cesium, viewer, movedId, refreshTime),
+    // The load-bearing measurement behind the tier decision: `medic-1` was
+    // byte-identical in both snapshots, yet the refresh replaced its `Entity`.
+    // That is the documented `entity-snapshot` rebuild boundary, observed on a
+    // live collection rather than inferred from the source.
+    unchangedEntityPreserved: viewer.entities.getById(unchangedId) === identityBefore.get(unchangedId),
+    unchangedStillPresent: viewer.entities.getById(unchangedId) !== undefined,
+    rebuildBoundary:
+      refreshed.diagnostics.find((entry) => entry.code === "incremental-update")?.detail?.rebuildBoundary ?? null,
+    diagnostics: entityDiagnostics(refreshed.diagnostics),
+    entityCount: viewer.entities.values.length - baselineEntityCount,
+  };
+
+  // --- teardown ---------------------------------------------------------------
+  // The entity mount is released first and measured on its own, so "the mount
+  // released every entity it owns" cannot be satisfied by destroying the viewer
+  // underneath it.
+  const canvasRef = new WeakRef(canvas);
+  const viewerRef = new WeakRef(viewer);
+  const entityWeakRefs = refreshedIds.flatMap((id) => {
+    const entity = viewer.entities.getById(id);
+    return entity ? [new WeakRef(entity)] : [];
+  });
+  const entityTeardownStartedAt = performance.now();
+  mounted.dispose();
+  mounted.dispose(); // idempotence: a second disposal must not throw or double-remove
+  const entityTeardownMs = performance.now() - entityTeardownStartedAt;
+  const afterEntityRemoval = {
+    entityCount: viewer.entities.values.length - baselineEntityCount,
+    mountState: mounted.state,
+    residualIds: refreshedIds.filter((id) => viewer.entities.getById(id) !== undefined),
+  };
+
+  sceneMount.dispose();
+  await opened.close();
+
+  const viewerDestroyStartedAt = performance.now();
+  viewer.destroy();
+  const viewerDestroyMs = performance.now() - viewerDestroyStartedAt;
+  container.remove();
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+  const after = probe.snapshot();
+  return {
+    index,
+    cesiumVersion: Cesium.VERSION,
+    mountMs: Number(mountMs.toFixed(2)),
+    state: mountState,
+    sourceId: mounted.sourceId,
+    planId: mounted.planId,
+    planFingerprint: mounted.planFingerprint,
+    descriptorProtocol: opened.source.descriptor.protocol,
+    mountedIds,
+    expectedIds,
+    described,
+    diagnostics: mountDiagnostics,
+    availability,
+    polygonPicks,
+    litPixels,
+    refresh,
+    teardown: {
+      entityTeardownMs: Number(entityTeardownMs.toFixed(2)),
+      viewerDestroyMs: Number(viewerDestroyMs.toFixed(2)),
+      totalMs: Number((entityTeardownMs + viewerDestroyMs).toFixed(2)),
+      afterEntityRemoval,
+      viewerDestroyed: viewer.isDestroyed(),
+      canvasesInContainer: container.querySelectorAll("canvas").length,
+      pendingAnimationFrames: after.pendingAnimationFrames,
+    },
+    resources: {
+      workersCreated: after.workersCreated - before.workersCreated,
+      netListeners: after.netListeners - before.netListeners,
+    },
+    retain: { canvasRef, viewerRef, entityRefs: entityWeakRefs },
+  };
+}
+
+/**
+ * One viewer, two mounts (#1050 REQ-003 / NFR-002).
+ *
+ * The entity mount and the scene primitive mount own different Cesium
+ * collections, and this cycle is the evidence that they can be composed by one
+ * application today: each releases exactly its own resources and leaves the
+ * other's live objects untouched by identity. It also proves the entity ceiling
+ * fails closed — the refused mount adds nothing to a collection that is already
+ * carrying a healthy mount.
+ */
+async function runEntityCoexistenceCycle(options) {
+  const { adapter, Cesium, sdk, planner } = await loadEntityModules();
+  const container = document.createElement("div");
+  container.className = "scene-host";
+  document.getElementById("scene-hosts").append(container);
+
+  const viewer = createViewer(Cesium, container);
+  viewer.clock.shouldAnimate = false;
+  const target = { camera: viewer.camera, scene: viewer.scene, clock: viewer.clock };
+  const baselineEntityCount = viewer.entities.values.length;
+
+  const primitivePlan = ["fixture-camera", "fixture-imagery", "fixture-tileset"].map((id) => PRIMITIVE_BY_ID.get(id));
+  const primitiveMount = await adapter.mountScenePrimitivesToCesium(target, primitivePlan);
+  const tileset = findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset");
+  await renderUntil(
+    viewer,
+    () => (tileset ? tileset.statistics.numberOfTilesWithContentReady > 0 : true),
+    options.readyTimeoutMs,
+  );
+
+  await selectEntitySnapshot("a");
+  const opened = await openEntitySource(sdk, planner);
+  const mounted = await adapter.mountSourceToCesium(viewer.entities, opened.source, opened.plan, {
+    featureIdField: ENTITY_ID_FIELD,
+    verticalDatum: "ellipsoidal-wgs84",
+    time: { startField: "observed_at", endField: "expires_at" },
+  });
+  const time = await renderEntitiesAt(Cesium, viewer, ENTITY_TIMES.insideWindow, 8);
+  const imageryLayer = viewer.scene.imageryLayers.get(0);
+
+  const pointExpectation = ENTITY_EXPECTATIONS.a.find((entry) => entry.kind === "point");
+  const pointId = `${mounted.sourceId}:${pointExpectation.suffix}`;
+  // Entity visualizers add their own primitives to `scene.primitives`, so the
+  // primitive mount's resources are identified by object rather than by count.
+  const both = {
+    entityCount: viewer.entities.values.length - baselineEntityCount,
+    tilesetPresent: findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset") !== undefined,
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+    entityPicked: pickedEntityIds(Cesium, viewer, viewer.entities.getById(pointId).position.getValue(time)).includes(
+      pointId,
+    ),
+    tilesetContentReady: tileset?.statistics?.numberOfTilesWithContentReady ?? 0,
+    primitiveMountState: primitiveMount.state,
+    entityMountState: mounted.state,
+  };
+
+  // --- the entity ceiling refuses without disturbing the live collection ------
+  let ceilingError = null;
+  try {
+    await adapter.mountSourceToCesium(viewer.entities, opened.source, opened.plan, {
+      featureIdField: ENTITY_ID_FIELD,
+      verticalDatum: "ellipsoidal-wgs84",
+      maxEntities: ENTITY_CEILING,
+    });
+  } catch (error) {
+    ceilingError = {
+      name: error?.name ?? null,
+      code: error?.code ?? null,
+      isAdapterError: error instanceof adapter.HonuaCesiumEntityAdapterError,
+      detail: error?.detail ? { ...error.detail } : null,
+    };
+  }
+  const afterCeiling = {
+    entityCount: viewer.entities.values.length - baselineEntityCount,
+    tilesetPresent: findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset") !== undefined,
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+  };
+
+  // --- one owner releases; the other is untouched -----------------------------
+  mounted.dispose();
+  const afterEntityDispose = {
+    entityCount: viewer.entities.values.length - baselineEntityCount,
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+    imageryLayerPreserved: viewer.scene.imageryLayers.get(0) === imageryLayer,
+    tilesetPreserved: findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset") === tileset,
+    primitiveMountState: primitiveMount.state,
+    entityMountState: mounted.state,
+  };
+
+  const layerTeardownStartedAt = performance.now();
+  primitiveMount.dispose();
+  const layerTeardownMs = performance.now() - layerTeardownStartedAt;
+  const afterPrimitiveDispose = {
+    entityCount: viewer.entities.values.length - baselineEntityCount,
+    tilesetPresent: findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset") !== undefined,
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+    primitiveMountState: primitiveMount.state,
+  };
+
+  await opened.close();
+  const viewerDestroyStartedAt = performance.now();
+  viewer.destroy();
+  const viewerDestroyMs = performance.now() - viewerDestroyStartedAt;
+  container.remove();
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+  return {
+    cesiumVersion: Cesium.VERSION,
+    both,
+    ceilingError,
+    afterCeiling,
+    afterEntityDispose,
+    afterPrimitiveDispose,
+    teardown: {
+      layerTeardownMs: Number(layerTeardownMs.toFixed(2)),
+      viewerDestroyMs: Number(viewerDestroyMs.toFixed(2)),
+      totalMs: Number((layerTeardownMs + viewerDestroyMs).toFixed(2)),
+      viewerDestroyed: viewer.isDestroyed(),
+      canvasesInContainer: container.querySelectorAll("canvas").length,
+    },
+  };
+}
+
 globalThis.__honuaCesiumSceneFixture = {
   matrix: FIXTURE_MATRIX.map(({ id, expect, materializes, expectedDiagnostics }) => ({
     id,
@@ -664,6 +1138,30 @@ globalThis.__honuaCesiumSceneFixture = {
     const report = await runTemporalCycle({ readyTimeoutMs: options.readyTimeoutMs ?? 25_000 });
     return { temporal: report, probe: probe.snapshot(), console: probe.consoleErrors, errors: probe.pageErrors };
   },
+  /** The entity expectations the fixture service declares, for the spec to assert against. */
+  entityExpectations: ENTITY_EXPECTATIONS,
+  /**
+   * Run `cycles` independent connect → mount → refresh → teardown cycles of the
+   * accepted-plan entity path (#1050), retaining the same weak references the
+   * matrix lane does so collectability can be probed after a forced GC.
+   */
+  async runEntityCycles(options = {}) {
+    const cycles = options.cycles ?? 1;
+    const reports = [];
+    globalThis.__honuaCesiumEntityRetained = [];
+    for (let index = 0; index < cycles; index += 1) {
+      const report = await runEntityCycle(index);
+      globalThis.__honuaCesiumEntityRetained.push(report.retain);
+      delete report.retain;
+      reports.push(report);
+    }
+    return { cycles: reports, probe: probe.snapshot(), console: probe.consoleErrors, errors: probe.pageErrors };
+  },
+  /** Run the entity/primitive coexistence and fail-closed-ceiling cycle (#1050). */
+  async runEntityCoexistence(options = {}) {
+    const report = await runEntityCoexistenceCycle({ readyTimeoutMs: options.readyTimeoutMs ?? 25_000 });
+    return { coexistence: report, probe: probe.snapshot(), console: probe.consoleErrors, errors: probe.pageErrors };
+  },
   /** How many of the retained per-cycle canvases / viewers are still reachable. */
   liveRetained() {
     const retained = globalThis.__honuaCesiumSceneRetained ?? [];
@@ -672,6 +1170,27 @@ globalThis.__honuaCesiumSceneFixture = {
       viewers: retained.filter((entry) => entry.viewerRef.deref() !== undefined).length,
       liveCanvasCycles: retained.flatMap((entry, index) => (entry.canvasRef.deref() === undefined ? [] : [index])),
       liveViewerCycles: retained.flatMap((entry, index) => (entry.viewerRef.deref() === undefined ? [] : [index])),
+      total: retained.length,
+    };
+  },
+  /**
+   * Live retention for the entity lane: every destroyed viewer, its canvas, and
+   * every `Entity` the mount ever owned.
+   */
+  liveEntityRetained() {
+    const retained = globalThis.__honuaCesiumEntityRetained ?? [];
+    return {
+      canvases: retained.filter((entry) => entry.canvasRef.deref() !== undefined).length,
+      viewers: retained.filter((entry) => entry.viewerRef.deref() !== undefined).length,
+      entities: retained.reduce(
+        (total, entry) => total + entry.entityRefs.filter((reference) => reference.deref() !== undefined).length,
+        0,
+      ),
+      liveCanvasCycles: retained.flatMap((entry, index) => (entry.canvasRef.deref() === undefined ? [] : [index])),
+      liveViewerCycles: retained.flatMap((entry, index) => (entry.viewerRef.deref() === undefined ? [] : [index])),
+      liveEntityCycles: retained.flatMap((entry, index) =>
+        entry.entityRefs.some((reference) => reference.deref() !== undefined) ? [index] : [],
+      ),
       total: retained.length,
     };
   },
