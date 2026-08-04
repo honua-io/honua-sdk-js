@@ -20,13 +20,13 @@ import {
   type ColumnarBatchCacheRecordV1,
   type ColumnarBatchCacheStorage,
   HONUA_COLUMNAR_BATCH_CACHE_FORMAT,
-  columnarAuthorizationScopeDigest,
   columnarBatchCacheKey,
   columnarBatchCacheOrderingDigest,
   createColumnarBatchCache,
 } from "./batch-cache.js";
 import { HONUA_GEOARROW_ENVELOPE_VERSION, serializeGeoArrowBatch } from "./geoarrow-serialization.js";
 import { createGeoArrowBatch } from "./geoarrow.js";
+import { columnarAuthorizationScopeDigest } from "./telemetry.js";
 import type { ColumnarBatchIdentityV1, ColumnarBatchV1 } from "./types.js";
 
 export const HONUA_COLUMNAR_BATCH_CACHE_CONFORMANCE_KIND = "honua.columnar-batch-cache-conformance" as const;
