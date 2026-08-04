@@ -396,13 +396,11 @@ export async function columnarBatchCacheLegacyEntry(
   };
 }
 
+// The null test precedes the `typeof` test because `typeof null === "object"`.
 function isEntry(value: unknown): value is { record: ColumnarBatchCacheRecordV1; envelope: Uint8Array } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    (value as { envelope?: unknown }).envelope instanceof Uint8Array &&
-    typeof (value as { record?: unknown }).record === "object"
-  );
+  if (value === null || typeof value !== "object") return false;
+  const entry = value as { record?: unknown; envelope?: unknown };
+  return entry.envelope instanceof Uint8Array && entry.record !== null && typeof entry.record === "object";
 }
 
 function describeRead(read: { outcome: string; reason?: string }): string {

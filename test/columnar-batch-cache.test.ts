@@ -347,6 +347,38 @@ describe("columnar batch cache store", () => {
     expect(await storage.read(key)).toBeUndefined();
   });
 
+  it("treats a null stored entry, a null record, and a null identity member as fail-closed", async () => {
+    // `typeof null === "object"`, so every shape gate has to reject null
+    // explicitly; these three cases prove those branches are reachable rather
+    // than decoration.
+    const storage = createMemoryColumnarBatchCacheStorage();
+    const cache = createColumnarBatchCache(storage, { now: () => NOW });
+    await cache.write(batchFor(identity()));
+    const key = await columnarBatchCacheKey(identity());
+    const stored = (await storage.read(key)) as { record: ColumnarBatchCacheRecordV1; envelope: Uint8Array };
+
+    const nullReading: ColumnarBatchCacheStorage = { ...storage, read: async () => null };
+    expect(await createColumnarBatchCache(nullReading, { now: () => NOW }).read(identity())).toMatchObject({
+      outcome: "miss",
+      reason: "absent",
+    });
+
+    const nullRecord: ColumnarBatchCacheStorage = {
+      ...storage,
+      read: async () => ({ record: null, envelope: stored.envelope }),
+    };
+    expect(await createColumnarBatchCache(nullRecord, { now: () => NOW }).read(identity())).toMatchObject({
+      outcome: "miss",
+      reason: "corrupt-record",
+    });
+
+    const nullFreshness = {
+      ...batchFor(identity()),
+      identity: { ...identity(), freshness: null },
+    } as unknown as ColumnarBatchV1;
+    expect(await cache.write(nullFreshness)).toMatchObject({ outcome: "refused", reason: "invalid-batch" });
+  });
+
   it("discards a record whose envelope can no longer be read", async () => {
     const storage = createMemoryColumnarBatchCacheStorage();
     const cache = createColumnarBatchCache(storage, { now: () => NOW });

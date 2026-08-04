@@ -854,9 +854,23 @@ function orderingIdentity(identity: ColumnarBatchIdentityV1): {
   };
 }
 
+/**
+ * Plain-object gate for every value a caller or backend hands in.
+ *
+ * The null test comes first on purpose. `typeof null === "object"` in
+ * JavaScript, so a `typeof` test alone admits `null`; writing the null test
+ * *after* the `typeof` refinement instead reads — to a reader and to static
+ * analysis alike — as a comparison against a case the refinement already
+ * excluded. Ordering it first keeps every shape gate below fail-closed and
+ * says exactly what it rejects.
+ */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
 function assertIdentity(identity: ColumnarBatchIdentityV1 | undefined): ColumnarBatchIdentityV1 {
   const strings = ["sourceId", "sourceVersion", "schemaVersion", "planId", "authorizationScope"] as const;
-  if (typeof identity !== "object" || identity === null) {
+  if (!isPlainRecord(identity)) {
     throw new HonuaGeoArrowError("invalid-input", "A cacheable batch requires a ColumnarBatchIdentityV1.");
   }
   for (const name of strings) {
@@ -864,10 +878,10 @@ function assertIdentity(identity: ColumnarBatchIdentityV1 | undefined): Columnar
       throw new HonuaGeoArrowError("invalid-input", `Batch identity ${name} must be a non-empty string.`);
     }
   }
-  if (typeof identity.ordering !== "object" || identity.ordering === null || !Array.isArray(identity.ordering.keys)) {
+  if (!isPlainRecord(identity.ordering) || !Array.isArray(identity.ordering.keys)) {
     throw new HonuaGeoArrowError("invalid-input", "Batch identity ordering must declare its keys.");
   }
-  if (typeof identity.freshness !== "object" || identity.freshness === null) {
+  if (!isPlainRecord(identity.freshness)) {
     throw new HonuaGeoArrowError("invalid-input", "Batch identity freshness must be an object.");
   }
   if (
@@ -880,18 +894,13 @@ function assertIdentity(identity: ColumnarBatchIdentityV1 | undefined): Columnar
 }
 
 function isStoredEntry(value: unknown): value is { record: ColumnarBatchCacheRecordV1; envelope: Uint8Array } {
-  if (typeof value !== "object" || value === null) return false;
-  const entry = value as { record?: unknown; envelope?: unknown };
-  return (
-    typeof entry.record === "object" &&
-    entry.record !== null &&
-    (entry.envelope instanceof Uint8Array || ArrayBuffer.isView(entry.envelope as ArrayBufferView))
-  );
+  if (!isPlainRecord(value)) return false;
+  return isPlainRecord(value.record) && ArrayBuffer.isView(value.envelope);
 }
 
 /** Shape gate for anything a backend hands back as a record. */
 export function isCacheRecord(value: unknown): value is ColumnarBatchCacheRecordV1 {
-  if (typeof value !== "object" || value === null) return false;
+  if (!isPlainRecord(value)) return false;
   const record = value as Partial<ColumnarBatchCacheRecordV1>;
   if (record.format !== HONUA_COLUMNAR_BATCH_CACHE_FORMAT) return false;
   for (const name of ["key", "envelopeVersion", "sourceId", "sourceVersion", "schemaVersion", "planId"] as const) {
@@ -905,7 +914,7 @@ export function isCacheRecord(value: unknown): value is ColumnarBatchCacheRecord
   if (!Number.isSafeInteger(record.byteLength) || (record.byteLength as number) < 0) return false;
   if (typeof record.observedAt !== "string" || !Number.isFinite(Date.parse(record.observedAt))) return false;
   const freshness = record.freshness;
-  if (typeof freshness !== "object" || freshness === null) return false;
+  if (!isPlainRecord(freshness)) return false;
   if (typeof freshness.observedAt !== "string") return false;
   for (const name of ["staleAfter", "validator", "generation"] as const) {
     if (freshness[name] !== undefined && typeof freshness[name] !== "string") return false;
