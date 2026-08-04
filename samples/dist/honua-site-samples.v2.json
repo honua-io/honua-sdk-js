@@ -683,7 +683,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-03T03:51:17.535Z"
+          "expiresAt": "2026-09-04T17:55:42.572Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -802,7 +802,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-03T03:49:11.697Z"
+          "expiresAt": "2026-09-04T17:54:04.370Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -915,7 +915,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-03T03:51:40.581Z"
+          "expiresAt": "2026-09-04T17:56:05.406Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -1090,13 +1090,13 @@
     {
       "id": "offline-region-reference",
       "title": "Network-disabled offline region reference",
-      "summary": "Proves that a persisted IndexedDB region and bounded host-owned application shell survive reload after browser networking is disabled.",
+      "summary": "Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, then replays that edit exactly once against a loopback fixture transport on reconnect and reports one composed local-first state.",
       "sourceKind": "docs-example",
       "track": "fixture",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Retain as browser evidence for the disconnected-read acceptance slice of the experimental offline region contract."
+        "reason": "Retain as browser evidence for the disconnected-read, offline edit capture and reconnect replay, and composed local-first state acceptance slices of the experimental offline region contract."
       },
       "validationProfile": "browser-fixture",
       "source": {
@@ -1122,7 +1122,7 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "provenance": "One committed integrity-, length-, and version-pinned fixture served from an isolated loopback origin and persisted through the public IndexedDB offline contract.",
+        "provenance": "One committed integrity-, length-, and version-pinned fixture served from an isolated loopback origin and persisted through the public IndexedDB offline contract; edit replay is bound to a loopback fixture endpoint that mirrors the documented acknowledgement shape and keeps no replica, upload cursor, or conflict store.",
         "attribution": "Honua deterministic incident fixture.",
         "freshness": "Explicit online observation time and stale disconnected diagnostic time.",
         "configurationStatus": "not-required"
@@ -1137,7 +1137,7 @@
           "status": "not-applicable"
         }
       },
-      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss; the fixture does not synthesize an empty success or claim reconnect, edit replay, or server synchronization."
+      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss and a partial/missing-regions local-first state that a queued edit cannot mask, and a conflicted, mismatched, or retryable acknowledgement leaves durable typed queue state instead of a silent drop; the fixture does not synthesize an empty success and its loopback replay endpoint does not claim replica synchronization or end-to-end exactly-once server semantics."
     },
     {
       "id": "overture-geoparquet",
@@ -1555,7 +1555,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-03T03:52:36.293Z"
+          "expiresAt": "2026-09-04T17:56:50.917Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -1731,7 +1731,7 @@
           "targetMode": "public-live",
           "status": "skipped",
           "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
-          "expiresAt": "2026-08-03T08:00:00.000Z"
+          "expiresAt": "2026-11-01T08:34:51.355Z"
         }
       },
       "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on."
