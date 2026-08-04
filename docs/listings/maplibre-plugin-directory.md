@@ -8,7 +8,7 @@ them, and no repo PR may claim an acceptance the ledger below does not record.
 
 ## Submission ledger
 
-Verified against each target repository on 2026-08-02.
+Verified against each target repository on 2026-08-04.
 
 | Target | Submission | State |
 | --- | --- | --- |
@@ -23,6 +23,11 @@ upstream-owned from here — nothing in this repository can advance it.
 Keep this ledger truthful: `npm run verify:discoverability` fails when a target
 row carries no state, so the kit cannot silently drift back into claiming an
 unfiled or unaccepted submission.
+
+A directory entry is a link, not proof anyone can find the package. Where the
+published packages actually rank in npm search for their declared discovery
+terms is measured separately in
+[`npm-search-verification.md`](./npm-search-verification.md).
 
 ## The linkable, CI-green example every listing points at
 

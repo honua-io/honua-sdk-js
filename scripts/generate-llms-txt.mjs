@@ -79,6 +79,11 @@ const SECTIONS = [
         description:
           "Generated comparison page: named category boundaries (headless client vs renderer vs all-in-one SDK), bundle sizes, protocol coverage and operation-level behaviour vs raw MapLibre / arcgis-rest-js / OpenLayers, the scripted time-to-first-map benchmark, and the competitor-evidence contract (primary sources, dated observations, no current claim from historical figures).",
       },
+      {
+        path: "docs/listings/npm-search-verification.md",
+        description:
+          "Generated npm search discoverability page: where each published package actually ranks in npm registry search for its declared discovery terms, including the queries where it does not rank, with scan depth, page size, and a dated record behind every row.",
+      },
     ],
   },
   {

@@ -324,6 +324,13 @@ jobs:
       - name: Verify MCP eval scorecard freshness
         run: npm run docs:mcp-scorecard:check
 
+      # Offline and deterministic on purpose: it re-renders the page from the
+      # committed observations. It never queries npm, so a pull request cannot
+      # fail because the search service was down or a rank moved overnight
+      # (#499). Re-observation is the manual `docs:npm-search:observe` lane.
+      - name: Verify npm search discoverability page freshness
+        run: npm run docs:npm-search:check
+
       - name: Verify documentation version manifest
         run: npm run docs:versions:check
 

@@ -15,6 +15,7 @@ Capability gaps throw `HonuaCapabilityNotSupportedError` rather than returning e
 - [Standalone quickstart moved to First Map](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/standalone-quickstart.md): Server-optional front door: run the SDK against any public GeoServices endpoint with no Honua server, key, or account.
 - [First Map troubleshooting](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/quickstart-troubleshooting.md): Common quickstart failure modes and how to fix them.
 - [How Honua compares](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/comparison.md): Generated comparison page: named category boundaries (headless client vs renderer vs all-in-one SDK), bundle sizes, protocol coverage and operation-level behaviour vs raw MapLibre / arcgis-rest-js / OpenLayers, the scripted time-to-first-map benchmark, and the competitor-evidence contract (primary sources, dated observations, no current claim from historical figures).
+- [npm search discoverability, as measured](https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/listings/npm-search-verification.md): Generated npm search discoverability page: where each published package actually ranks in npm registry search for its declared discovery terms, including the queries where it does not rank, with scan depth, page size, and a dated record behind every row.
 
 ## Core contract and API
 
