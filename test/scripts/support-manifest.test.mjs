@@ -13,9 +13,11 @@ import {
   STATUS_VOCABULARY,
   buildPublicSurface,
   buildSupportProjection,
+  capabilityTierByEnvironment,
   checkOutputs,
   generateOutputs,
   loadSupportManifest,
+  renderCapabilityTierSection,
   renderProtocolSection,
   validateSupportManifest,
 } from "../../scripts/support-manifest.mjs";
@@ -277,6 +279,157 @@ test("the generated public surface preserves package export parity", () => {
   ]) {
     assert.ok(packageJson.files.includes(publishedPath), `package.json must publish ${publishedPath}`);
   }
+});
+
+test("capability tiers partition every environment and cannot be authored per claim", () => {
+  const tiered = capabilityTierByEnvironment(manifest);
+  assert.deepEqual([...tiered.keys()].sort(), [...ENVIRONMENT_VOCABULARY].sort());
+  assert.equal(tiered.get("honua-facade").honuaServerRequired, true);
+  for (const environment of ENVIRONMENT_VOCABULARY.filter((value) => value !== "honua-facade")) {
+    assert.equal(tiered.get(environment).honuaServerRequired, false, environment);
+  }
+
+  const unassigned = clone(manifest);
+  unassigned.capabilityTiers[0].environments = unassigned.capabilityTiers[0].environments.filter(
+    (environment) => environment !== "standalone",
+  );
+  assert.match(
+    validateSupportManifest(unassigned).join("\n"),
+    /environment standalone is not assigned to a capability tier/,
+  );
+
+  const doubleAssigned = clone(manifest);
+  doubleAssigned.capabilityTiers[0].environments.push("honua-facade");
+  assert.match(
+    validateSupportManifest(doubleAssigned).join("\n"),
+    /each environment must belong to exactly one capability tier/,
+  );
+
+  const unknownEnvironment = clone(manifest);
+  unknownEnvironment.capabilityTiers[1].environments = ["honua-facade", "honua-fascade"];
+  assert.match(
+    validateSupportManifest(unknownEnvironment).join("\n"),
+    /references unknown environment honua-fascade/,
+  );
+});
+
+test("every server-attach claim carries a roadmap issue or an inherency statement", () => {
+  const serverAttachTierIds = new Set(
+    manifest.capabilityTiers.filter((tier) => tier.honuaServerRequired).map((tier) => tier.id),
+  );
+  const tiered = capabilityTierByEnvironment(manifest);
+  const serverAttachClaims = manifest.supportClaims.filter((claim) =>
+    serverAttachTierIds.has(tiered.get(claim.environment).id),
+  );
+  assert.ok(serverAttachClaims.length > 0);
+  const facadeRequired = serverAttachClaims.filter((claim) => claim.status === "facade-required");
+  assert.deepEqual(
+    facadeRequired.map((claim) => claim.id).sort(),
+    [
+      "agent-tools-facade",
+      "compatibility-gate-facade",
+      "map-package-facade",
+      "ogc-processes-execution-facade",
+      "realtime-facade",
+    ],
+    "every facade-required claim must stay tiered as server-attach",
+  );
+  for (const claim of serverAttachClaims) {
+    assert.ok(claim.serverAttach, `${claim.id} must declare serverAttach`);
+    assert.ok(["inherent", "roadmap"].includes(claim.serverAttach.disposition), claim.id);
+    assert.ok(claim.serverAttach.rationale.trim().length >= 20, claim.id);
+    if (claim.serverAttach.disposition === "roadmap") {
+      assert.match(claim.serverAttach.issue, /^https:\/\/github\.com\/[^/]+\/[^/]+\/issues\/[0-9]+$/, claim.id);
+    } else {
+      assert.equal(claim.serverAttach.issue, undefined, claim.id);
+    }
+  }
+  for (const claim of manifest.supportClaims.filter((candidate) => !serverAttachClaims.includes(candidate))) {
+    assert.equal(claim.serverAttach, undefined, `${claim.id} is open-endpoint and must not declare serverAttach`);
+  }
+});
+
+test("server-attach metadata fails closed on a missing, unlinked, or over-linked rationale", () => {
+  const missing = clone(manifest);
+  const realtime = missing.supportClaims.find((claim) => claim.id === "realtime-facade");
+  realtime.serverAttach = undefined;
+  assert.match(
+    validateSupportManifest(missing).join("\n"),
+    /realtime-facade is server-attach and must declare serverAttach/,
+  );
+
+  const unlinked = clone(manifest);
+  unlinked.supportClaims.find((claim) => claim.id === "realtime-facade").serverAttach.issue = "issue-393";
+  assert.match(
+    validateSupportManifest(unlinked).join("\n"),
+    /realtime-facade serverAttach roadmap must link a GitHub issue/,
+  );
+
+  const overLinked = clone(manifest);
+  overLinked.supportClaims.find((claim) => claim.id === "map-package-facade").serverAttach.issue =
+    "https://github.com/honua-io/honua-sdk-js/issues/1";
+  assert.match(
+    validateSupportManifest(overLinked).join("\n"),
+    /map-package-facade serverAttach is inherent and must not link a roadmap issue/,
+  );
+
+  const placeholder = clone(manifest);
+  placeholder.supportClaims.find((claim) => claim.id === "map-package-facade").serverAttach.rationale = "because";
+  assert.match(
+    validateSupportManifest(placeholder).join("\n"),
+    /map-package-facade serverAttach must state a reviewable rationale/,
+  );
+
+  const misapplied = clone(manifest);
+  misapplied.supportClaims.find((claim) => claim.id === "wfs-standalone").serverAttach = {
+    disposition: "inherent",
+    rationale: "An open-endpoint claim has no server dependency to justify.",
+  };
+  assert.match(
+    validateSupportManifest(misapplied).join("\n"),
+    /wfs-standalone is not a server-attach claim and must not declare serverAttach/,
+  );
+});
+
+test("the generated tier table projects every server-attach claim and its open-endpoint path", () => {
+  const section = renderCapabilityTierSection(manifest);
+  const tiered = capabilityTierByEnvironment(manifest);
+  assert.match(section, /^## Capability tiers$/m);
+  for (const tier of manifest.capabilityTiers) {
+    assert.ok(section.includes(`| **${tier.label}** (\`${tier.id}\`) |`), tier.id);
+    const claimCount = manifest.supportClaims.filter((claim) => tiered.get(claim.environment).id === tier.id).length;
+    assert.ok(section.includes(`| ${claimCount} | ${tier.summary} |`), `${tier.id} claim count`);
+  }
+  for (const claim of manifest.supportClaims.filter((candidate) => candidate.serverAttach)) {
+    assert.ok(section.includes(`| ${claim.label} | \`${claim.status}\` |`), claim.id);
+    assert.ok(section.includes(claim.serverAttach.rationale), `${claim.id} rationale`);
+    if (claim.serverAttach.disposition === "roadmap") {
+      assert.ok(section.includes(`](${claim.serverAttach.issue})`), `${claim.id} roadmap link`);
+    }
+  }
+});
+
+test("the tiered README and matrix stay bound to the manifest counts", () => {
+  const outputs = generateOutputs({ manifest, packageJson });
+  const tiered = capabilityTierByEnvironment(manifest);
+  const openTier = manifest.capabilityTiers.find((tier) => !tier.honuaServerRequired);
+  const attachTier = manifest.capabilityTiers.find((tier) => tier.honuaServerRequired);
+  const openCount = manifest.supportClaims.filter((claim) => tiered.get(claim.environment).id === openTier.id).length;
+  const attachCount = manifest.supportClaims.length - openCount;
+
+  const readme = outputs.get("README.md");
+  assert.ok(
+    readme.includes(`**Two deployment tiers, named up front.** ${openCount} of the ${manifest.supportClaims.length}`),
+  );
+  assert.match(readme, new RegExp(`${attachCount} are \`${attachTier.id}\``));
+  assert.match(readme, /capability tiers table\]\(\.\/docs\/standalone-capability-matrix\.md#capability-tiers\)/);
+
+  const matrix = outputs.get("docs/standalone-capability-matrix.md");
+  assert.match(matrix, /\| Capability \| Tier \| Status \| Environment \|/);
+  for (const claim of manifest.supportClaims) {
+    assert.ok(matrix.includes(`| ${claim.label} | \`${tiered.get(claim.environment).id}\` |`), claim.id);
+  }
+  assert.match(outputs.get("docs/protocol-capability-matrix.md"), /Deployment tier is separate from status/);
 });
 
 test("the OGC raw/facade line is represented as separate claims", () => {
