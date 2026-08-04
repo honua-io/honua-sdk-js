@@ -1,3 +1,4 @@
+import { type ColumnarTelemetry, beginColumnarSpan } from "./telemetry.js";
 import { createColumnarBatch, inspectColumnarBatch, leaseColumnarBatch } from "./transfer.js";
 import {
   COLUMNAR_BATCH_KIND,
@@ -5,6 +6,7 @@ import {
   type ColumnarBatchLimits,
   type ColumnarBatchMetrics,
   type ColumnarBatchV1,
+  type ColumnarTransferOptions,
   HonuaColumnarTransferError,
 } from "./types.js";
 
@@ -152,6 +154,13 @@ export interface CreateColumnarWorkerSessionOptions {
    * keeps the worker warm; a non-cooperative one is retired at the deadline.
    */
   readonly cancelAcknowledgementMs?: number;
+  /**
+   * Optional observer for this session. Off by default. Every `execute` emits
+   * one `columnar-worker-operation` span spanning enqueue through settlement,
+   * and the ownership handoff it performs emits its own `columnar-transfer`
+   * span, both bound to the input batch's identity.
+   */
+  readonly telemetry?: ColumnarTelemetry;
 }
 
 export interface ColumnarWorkerSession {
@@ -243,16 +252,21 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
   let rawMaxPendingRequests: number | undefined;
   let rawStreamOrdering: ColumnarWorkerStreamOrdering | undefined;
   let rawCancelAcknowledgementMs: number | undefined;
+  let telemetry: ColumnarTelemetry | undefined;
   try {
     createWorker = options.createWorker;
     rawMaxPendingRequests = options.maxPendingRequests;
     rawStreamOrdering = options.streamOrdering;
     rawCancelAcknowledgementMs = options.cancelAcknowledgementMs;
+    telemetry = options.telemetry;
   } catch (cause) {
     throw new HonuaColumnarWorkerError("invalid-request", "Worker session options could not be read", { cause });
   }
   if (typeof createWorker !== "function") {
     throw new HonuaColumnarWorkerError("invalid-request", "createWorker must be a function");
+  }
+  if (telemetry !== undefined && (typeof telemetry !== "object" || telemetry === null)) {
+    throw new HonuaColumnarWorkerError("invalid-request", "telemetry must be an object");
   }
   const maxPendingRequests = positiveInteger(
     rawMaxPendingRequests ?? DEFAULT_MAX_PENDING_REQUESTS,
@@ -484,7 +498,7 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
         });
         currentTransport.postMessage(request, transfer);
         item.posted = true;
-      }, columnarLimits(item.options));
+      }, transferOptions(item.options));
       lease.dispose();
     } catch (cause) {
       if (active === item) {
@@ -500,6 +514,12 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
         );
       }
     }
+  }
+
+  /** Limits for the dispatch handoff, plus this session's observer when it has one. */
+  function transferOptions(execution: ColumnarBatchLimits): ColumnarTransferOptions {
+    const limits = columnarLimits(execution);
+    return telemetry === undefined ? limits : Object.freeze({ ...limits, telemetry });
   }
 
   function cancel(item: PendingExecution): void {
@@ -614,7 +634,17 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
         }
       }
       const requestId = `columnar-${++nextRequest}`;
-      return new Promise<ColumnarWorkerExecutionResult>((resolve, reject) => {
+      // Started here rather than at the top of `execute`: everything above
+      // refuses the request before it becomes work, and only a normalized batch
+      // can bind the span to an identity.
+      const span = telemetry
+        ? beginColumnarSpan(telemetry, "columnar-worker-operation", normalizedBatch.identity, {
+            requestId,
+            operation: normalizedOperation,
+            batchId: normalizedBatch.id,
+          })
+        : undefined;
+      const settlement = new Promise<ColumnarWorkerExecutionResult>((resolve, reject) => {
         const item: PendingExecution = {
           requestId,
           operation: normalizedOperation,
@@ -669,6 +699,17 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
         }
         void dispatch();
       });
+      if (span === undefined) return settlement;
+      return settlement.then(
+        (result) => {
+          span.finish({ inputMetrics: result.inputMetrics, outputMetrics: result.outputMetrics });
+          return result;
+        },
+        (error: unknown) => {
+          span.fail(error, error instanceof HonuaColumnarWorkerError ? { code: error.code } : undefined);
+          throw error;
+        },
+      );
     },
     dispose() {
       if (disposed) return;

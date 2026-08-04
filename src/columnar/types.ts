@@ -1,3 +1,7 @@
+// Type-only, so this adds no runtime edge from the envelope contract to the
+// telemetry seam; the seam is a structural declaration the caller satisfies.
+import type { ColumnarTelemetryOptions } from "./telemetry.js";
+
 /** Version discriminator for the first Honua columnar batch contract. */
 export const COLUMNAR_BATCH_VERSION = "1.0" as const;
 
@@ -202,7 +206,7 @@ export type ColumnarTransferTarget = (
   transfer: readonly ArrayBuffer[],
 ) => void | Promise<void>;
 
-export interface ColumnarTransferOptions extends ColumnarBatchLimits {
+export interface ColumnarTransferOptions extends ColumnarBatchLimits, ColumnarTelemetryOptions {
   /** Cancellation is honored before the SDK performs its ownership handoff. */
   readonly signal?: AbortSignal;
 }

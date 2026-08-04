@@ -71,6 +71,7 @@ import {
   inspectGeoArrowBatchScoped,
   isGeoArrowRowValid,
 } from "./geoarrow.js";
+import { type ColumnarTelemetryOptions, beginColumnarSpan } from "./telemetry.js";
 import type { ColumnarBatchV1 } from "./types.js";
 
 /**
@@ -221,7 +222,7 @@ export interface ColumnarResult<T = Record<string, unknown>> extends Result<T> {
 }
 
 /** Explicit conversion window. There is no unbounded mode. */
-export interface ColumnarBatchToResultOptions {
+export interface ColumnarBatchToResultOptions extends ColumnarTelemetryOptions {
   /**
    * Hard ceiling on converted features. Required: conversion refuses rather
    * than materializing an unbounded number of feature objects.
@@ -242,7 +243,7 @@ export interface ColumnarBatchToResultOptions {
  * million-row batch holds one page at a time, so the retained cost is the page,
  * not the batch. `limit` bounds how much of the batch is walked at all.
  */
-export interface ColumnarBatchToResultPagesOptions {
+export interface ColumnarBatchToResultPagesOptions extends ColumnarTelemetryOptions {
   /**
    * Hard ceiling on the features one page may carry. Required, and `pageSize`
    * may not exceed it.
@@ -810,10 +811,47 @@ export function columnarBatchToResult<T extends Record<string, unknown> = Record
   if (typeof options !== "object" || options === null) {
     fail("invalid-input", "columnarBatchToResult requires an options object carrying the maxFeatures ceiling.");
   }
+  const telemetry = options.telemetry;
+  if (telemetry === undefined) return convertWindow<T>(batch, options, batchRowCount);
+  const span = beginColumnarSpan(telemetry, "columnar-result-conversion", batch.identity, {
+    batchId: batch.id,
+    maxFeatures: options.maxFeatures,
+  });
+  try {
+    const result = convertWindow<T>(batch, options, batchRowCount);
+    span?.finish(conversionSpanDetail(result));
+    return result;
+  } catch (error) {
+    span?.fail(error, error instanceof HonuaGeoArrowError ? { code: error.code } : undefined);
+    throw error;
+  }
+}
+
+function convertWindow<T extends Record<string, unknown>>(
+  batch: ColumnarBatchV1,
+  options: ColumnarBatchToResultOptions,
+  batchRowCount: number,
+): ColumnarResult<T> {
   // Bound first. Nothing below this line runs for an over-ceiling request.
   const window = resolveWindow(batchRowCount, options, "columnarBatchToResult");
   const prepared = prepareConversion(batch, options.limits ?? {});
   return buildResult(prepared, convertRows<T>(prepared, window.offset, window.count, []), window, options.maxFeatures);
+}
+
+/**
+ * The conversion span reports the window the conversion actually produced —
+ * the converted feature count and the offsets the `Result` already carries on
+ * its provenance, not a new measurement.
+ */
+function conversionSpanDetail(result: { readonly columnar: ColumnarResultProvenance }): Record<string, unknown> {
+  const provenance = result.columnar;
+  return {
+    count: provenance.count,
+    offset: provenance.offset,
+    rowOffset: provenance.rowOffset,
+    batchRowCount: provenance.batchRowCount,
+    maxFeatures: provenance.maxFeatures,
+  };
 }
 
 /**
@@ -878,12 +916,29 @@ export async function* columnarBatchToResultPages<T extends Record<string, unkno
   if (range.count === 0) return;
 
   const prepared = prepareConversion(batch, options.limits ?? {});
+  const telemetry = options.telemetry;
   const end = range.offset + range.count;
   for (let offset = range.offset; offset < end; offset += pageSize) {
     throwIfAborted(options.signal);
     const window: ResolvedWindow = { offset, count: Math.min(pageSize, end - offset) };
-    const features = await convertRowsCooperatively<T>(prepared, window.offset, window.count, options.signal);
-    yield buildResult(prepared, features, window, maxFeatures);
+    // One span per page: each page is an independently bounded conversion, so
+    // the observation matches the unit of work rather than the traversal.
+    const span = telemetry
+      ? beginColumnarSpan(telemetry, "columnar-result-conversion", batch.identity, {
+          batchId: batch.id,
+          maxFeatures,
+        })
+      : undefined;
+    let page: ColumnarResult<T>;
+    try {
+      const features = await convertRowsCooperatively<T>(prepared, window.offset, window.count, options.signal);
+      page = buildResult(prepared, features, window, maxFeatures);
+    } catch (error) {
+      span?.fail(error, error instanceof HonuaGeoArrowError ? { code: error.code } : undefined);
+      throw error;
+    }
+    span?.finish(conversionSpanDetail(page));
+    yield page;
     // Between pages, not before the first one: a single-page traversal should
     // not pay a task hop, and after the last page there is nothing to cancel.
     if (offset + pageSize < end) await yieldToHost();

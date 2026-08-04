@@ -91,6 +91,7 @@ import type {
   GeoArrowPosition,
 } from "./geoarrow-types.js";
 import { createGeoArrowBatch, decodeGeoArrowBatch, inspectGeoArrowBatch } from "./geoarrow.js";
+import { type ColumnarTelemetryOptions, beginColumnarSpan } from "./telemetry.js";
 import { createColumnarBatch } from "./transfer.js";
 import type { ColumnarBatchV1, ColumnarBufferV1 } from "./types.js";
 import type { ColumnarWorkerOperation, ColumnarWorkerOperationContext } from "./worker.js";
@@ -360,7 +361,7 @@ export interface ColumnarPatchRebuildOptions {
   readonly reserve?: ColumnarPatchReserveV1;
 }
 
-export interface ApplyColumnarPatchOptions {
+export interface ApplyColumnarPatchOptions extends ColumnarTelemetryOptions {
   readonly thresholds?: ColumnarPatchThresholds;
   readonly limits?: GeoArrowConversionLimits;
   readonly signal?: AbortSignal;
@@ -2200,6 +2201,69 @@ export function applyColumnarPatch(
   batch: ColumnarBatchV1,
   patch: ColumnarPatchV1,
   options: ApplyColumnarPatchOptions = {},
+): ApplyColumnarPatchOutcomeV1 {
+  const telemetry = options.telemetry;
+  if (telemetry === undefined) return applyPatch(batch, patch, options);
+  const span = beginColumnarSpan(telemetry, "columnar-patch-apply", batch?.identity, patchSpanDetail(batch, patch));
+  try {
+    const outcome = applyPatch(batch, patch, options);
+    span?.finish(patchOutcomeDetail(outcome));
+    return outcome;
+  } catch (error) {
+    span?.fail(error, error instanceof HonuaColumnarPatchError ? { code: error.code } : undefined);
+    throw error;
+  }
+}
+
+/**
+ * The patch span reports the realtime cursor and sequence so a live layer's
+ * update rate is observable, plus the operation count the patch declares. Every
+ * read is contained: an observed operation must behave identically to an
+ * unobserved one even when the patch is malformed.
+ */
+function patchSpanDetail(batch: ColumnarBatchV1, patch: ColumnarPatchV1): Record<string, unknown> | undefined {
+  try {
+    const cursor = patch?.cursor as ColumnarPatchCursorV1 | undefined;
+    return {
+      ...(typeof batch?.id === "string" ? { batchId: batch.id } : {}),
+      ...(typeof cursor?.cursor === "string" ? { cursor: cursor.cursor } : {}),
+      ...(typeof cursor?.sequence === "number" ? { sequence: cursor.sequence } : {}),
+      ...(typeof cursor?.observedAt === "string" ? { observedAt: cursor.observedAt } : {}),
+      ...(Array.isArray(patch?.operations) ? { operations: patch.operations.length } : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A rejection is a returned outcome rather than a throw, so it settles the span
+ * as a completed observation carrying its rejection code — the same
+ * discriminant the caller sees.
+ */
+function patchOutcomeDetail(outcome: ApplyColumnarPatchOutcomeV1): Record<string, unknown> {
+  if (outcome.outcome === "rejected") {
+    return { outcome: "rejected", code: outcome.code };
+  }
+  return {
+    outcome: outcome.outcome,
+    bufferIdentityPreserved: outcome.bufferIdentityPreserved,
+    ...(outcome.outcome === "rebuilt" ? { reason: outcome.reason } : {}),
+    appendedRows: outcome.metrics.appendedRows,
+    updatedRows: outcome.metrics.updatedRows,
+    deletedRows: outcome.metrics.deletedRows,
+    rowsTouched: outcome.metrics.rowsTouched,
+    payloadBytesCopied: outcome.metrics.payloadBytesCopied,
+    backingBytesAllocated: outcome.metrics.backingBytesAllocated,
+    tombstones: outcome.metrics.tombstones,
+    liveRows: outcome.metrics.liveRows,
+  };
+}
+
+function applyPatch(
+  batch: ColumnarBatchV1,
+  patch: ColumnarPatchV1,
+  options: ApplyColumnarPatchOptions,
 ): ApplyColumnarPatchOutcomeV1 {
   if (typeof patch !== "object" || patch === null || patch.kind !== COLUMNAR_PATCH_KIND) {
     throw new HonuaColumnarPatchError("invalid-patch-state", `Patch must be a ${COLUMNAR_PATCH_KIND} value.`);
