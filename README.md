@@ -195,6 +195,18 @@ non-goals are explicit rather than implied:
 npm install @honua/sdk-js
 ```
 
+Starting from scratch? Scaffold a working app instead of assembling peers:
+
+```bash
+npm create honua-app@latest my-map
+```
+
+`create-honua-app` writes a Vite + TypeScript (or React) starter that already connects to an
+endpoint and mounts a source, pinned to a published SDK version and rendering a committed
+fixture on the first `npm run dev`. Both starters also open in a browser playground with no
+install at all — see [`docs/playgrounds.md`](./docs/playgrounds.md) and
+[`docs/create-honua-app.md`](./docs/create-honua-app.md).
+
 Everything documented here ships in `@honua/sdk-js` as subpath entrypoints
 (see [`INSTALL.md`](./INSTALL.md)). Focused standalone packages are also
 published from this repository for consumers who only want a subset:
