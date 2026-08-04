@@ -68,6 +68,94 @@ function positiveStatus(status) {
   return ["supported", "beta", "experimental", "facade-required"].includes(status);
 }
 
+/**
+ * Names re-exported by a barrel entrypoint, in declaration order.
+ *
+ * Surface tiers (issue #931) are enumerated symbol by symbol so a tier cannot be
+ * acquired by proximity: a new export in a promoted directory has to be
+ * classified in the manifest before the barrel will validate.
+ */
+export function readBarrelExports(relativePath, projectRoot = PROJECT_ROOT) {
+  const source = fs.readFileSync(path.join(projectRoot, relativePath), "utf8");
+  const withoutComments = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^[^\n]*\/\/[^\n]*$/gm, "");
+  if (/^\s*export\s+\*/m.test(withoutComments)) {
+    throw new Error(`${relativePath} re-exports a whole module; a tiered barrel must name every export`);
+  }
+  const names = [];
+  const blocks = withoutComments.matchAll(/\bexport\s+(?:type\s+)?\{([^}]*)\}\s*from\s*"[^"]+"\s*;/g);
+  for (const block of blocks) {
+    for (const clause of block[1].split(",")) {
+      const name = clause.trim().replace(/^type\s+/, "").split(/\s+as\s+/).pop();
+      if (name) names.push(name);
+    }
+  }
+  return names;
+}
+
+function validateSurfaceTiers(manifest, projectRoot, checkSourceFiles, fail) {
+  const tiers = manifest.packageLifecycle?.surfaceTiers ?? [];
+  if (!unique(tiers.map((tier) => tier.surface))) fail("surface tier names must be unique");
+  const claimIds = new Set((manifest.supportClaims ?? []).map((claim) => claim.id));
+  const entrypointBySubpath = new Map(
+    (manifest.packageLifecycle?.entrypoints ?? []).map((entrypoint) => [entrypoint.subpath, entrypoint]),
+  );
+  for (const tier of tiers) {
+    if (!STATUS_VOCABULARY.includes(tier.status)) {
+      fail(`surface tier ${tier.surface} has invalid status ${tier.status ?? "missing"}`);
+    }
+    if (!claimIds.has(tier.claim)) {
+      fail(`surface tier ${tier.surface} references unknown support claim ${tier.claim}`);
+    } else {
+      const claim = manifest.supportClaims.find((candidate) => candidate.id === tier.claim);
+      if (claim.status !== tier.status) {
+        fail(`surface tier ${tier.surface} is ${tier.status} but its claim ${claim.id} is ${claim.status}`);
+      }
+    }
+    if (tier.sdkForwarder !== undefined) {
+      const entrypoint = entrypointBySubpath.get(tier.sdkForwarder);
+      if (!entrypoint) {
+        fail(`surface tier ${tier.surface} names unknown SDK forwarder ${tier.sdkForwarder}`);
+      } else if (entrypoint.replacement !== tier.surface) {
+        fail(`SDK forwarder ${tier.sdkForwarder} does not replace with ${tier.surface}`);
+      } else if (entrypoint.replacementStatus !== tier.status) {
+        fail(`SDK forwarder ${tier.sdkForwarder} must record replacementStatus ${tier.status}`);
+      }
+    }
+    const classified = [...tier.exports, ...(tier.heldBack ?? []).flatMap((group) => group.exports)];
+    if (!unique(classified)) fail(`surface tier ${tier.surface} classifies an export more than once`);
+    for (const group of tier.heldBack ?? []) {
+      if (!STATUS_VOCABULARY.includes(group.status)) {
+        fail(`surface tier ${tier.surface} holds exports back at invalid status ${group.status ?? "missing"}`);
+      }
+      if (group.status === tier.status) {
+        fail(`surface tier ${tier.surface} cannot hold exports back at its own status ${group.status}`);
+      }
+    }
+    if (!checkSourceFiles) continue;
+    let barrelExports;
+    try {
+      barrelExports = readBarrelExports(tier.barrel, projectRoot);
+    } catch (error) {
+      fail(`surface tier ${tier.surface}: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
+    const classifiedSet = new Set(classified);
+    for (const name of barrelExports) {
+      if (!classifiedSet.has(name)) {
+        fail(`surface tier ${tier.surface} does not classify exported symbol ${name} from ${tier.barrel}`);
+      }
+    }
+    const barrelSet = new Set(barrelExports);
+    for (const name of classified) {
+      if (!barrelSet.has(name)) {
+        fail(`surface tier ${tier.surface} classifies ${name}, which ${tier.barrel} does not export`);
+      }
+    }
+  }
+}
+
 const ROADMAP_ISSUE_PATTERN = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/[0-9]+$/;
 
 /**
@@ -353,7 +441,18 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
     if (entrypoint.status === "deprecated" && (!entrypoint.replacement || !entrypoint.introducedIn || !entrypoint.removeIn)) {
       fail(`${entrypoint.subpath} deprecated lifecycle must name replacement, introducedIn, and removeIn`);
     }
+    if (entrypoint.replacementStatus !== undefined) {
+      usedStatuses.add(entrypoint.replacementStatus);
+      if (!entrypoint.replacement) {
+        fail(`${entrypoint.subpath} records a replacementStatus without naming a replacement`);
+      }
+      if (!STATUS_VOCABULARY.includes(entrypoint.replacementStatus)) {
+        fail(`${entrypoint.subpath} has invalid replacementStatus ${entrypoint.replacementStatus}`);
+      }
+    }
   }
+  for (const tier of manifest.packageLifecycle?.surfaceTiers ?? []) usedStatuses.add(tier.status);
+  validateSurfaceTiers(manifest, projectRoot, checkEvidencePaths, fail);
   const stableCount = entrypoints.filter((entrypoint) => entrypoint.status === "supported").length;
   if (stableCount !== manifest.packageLifecycle?.ceilings?.stableEntrypoints) {
     fail(`supported entrypoint count ${stableCount} disagrees with stableEntrypoints ceiling`);
@@ -455,6 +554,7 @@ export function buildPublicSurface(manifest) {
     schemaVersion: 1,
     ceilings: manifest.packageLifecycle.ceilings,
     downstreamProjection: manifest.packageLifecycle.downstreamProjection,
+    surfaceTiers: manifest.packageLifecycle.surfaceTiers ?? [],
     entrypoints: manifest.packageLifecycle.entrypoints.map(({ subpath, status, ...entrypoint }) => ({
       subpath,
       tier: tierForStatus(status),
@@ -726,6 +826,62 @@ all, so there is nothing to implement against.
 ${attachedRows.join("\n")}`;
 }
 
+/**
+ * Issue #931: a package entrypoint is one lifecycle row, but a barrel can carry
+ * more than one support tier. This section publishes the enumerated split — how
+ * many exports carry the promoted tier, which ones are deliberately held back,
+ * and the evidence behind the promotion — so a reader never has to infer a
+ * symbol's tier from the directory it happens to live in.
+ */
+export function renderSurfaceTierSection(manifest) {
+  const tiers = manifest.packageLifecycle?.surfaceTiers ?? [];
+  if (tiers.length === 0) {
+    return `## Surface tiers
+
+No package surface splits its entrypoint's lifecycle status today.`;
+  }
+  const rows = tiers.map((tier) => {
+    const claim = supportClaim(manifest, tier.claim);
+    const heldBackByStatus = new Map();
+    for (const group of tier.heldBack ?? []) {
+      heldBackByStatus.set(group.status, (heldBackByStatus.get(group.status) ?? 0) + group.exports.length);
+    }
+    const heldBack =
+      heldBackByStatus.size === 0
+        ? "None"
+        : [...heldBackByStatus].map(([status, count]) => `${count} \`${status}\``).join(", ");
+    const forwarder = tier.sdkForwarder ? `\`@honua/sdk-js${tier.sdkForwarder.slice(1)}\`` : "—";
+    return `| \`${tier.surface}\` | \`${tier.status}\` | ${tier.exports.length} | ${heldBack} | ${forwarder} | ${markdownEvidence(manifest, claim.evidence, "../")} |`;
+  });
+  const detail = tiers.flatMap((tier) => [
+    "",
+    `### \`${tier.surface}\``,
+    "",
+    tier.commitment ?? "",
+    ...((tier.mayStillChange ?? []).length === 0
+      ? []
+      : ["", "What may still change inside the tier:", "", ...tier.mayStillChange.map((item) => `- ${item}`)]),
+    ...(tier.heldBack ?? []).flatMap((group) => [
+      "",
+      `Held back at \`${group.status}\` — ${group.reason}`,
+      "",
+      group.exports.map((name) => `\`${name}\``).join(", "),
+    ]),
+  ]);
+  return `## Surface tiers
+
+A subpath is one lifecycle row, but a barrel can mix tiers. Every export below is
+classified explicitly in [\`${MANIFEST_PATH}\`](../${MANIFEST_PATH}) and the
+generated [\`config/public-surface.json\`](../config/public-surface.json)
+projection; an unclassified export fails the support gate rather than inheriting
+a tier from the directory it lives in.
+
+| Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
+| --- | --- | :-: | --- | --- | --- |
+${rows.join("\n")}
+${detail.join("\n")}`;
+}
+
 export function renderStandaloneSection(manifest) {
   const rows = manifest.supportClaims.map(
     (claim) =>
@@ -737,6 +893,8 @@ facade. The source of truth is [\`${MANIFEST_PATH}\`](../${MANIFEST_PATH}).
 See the [standalone quickstart](./standalone-quickstart.md) for the runnable path.
 
 ${renderCapabilityTierSection(manifest)}
+
+${renderSurfaceTierSection(manifest)}
 
 ## Status vocabulary
 
@@ -760,9 +918,11 @@ ${rows.join("\n")}
 ## Current OGC line
 
 Raw OGC API Tiles, Maps, and Records discovery/use is \`beta\` and fixture-proven.
-Raw OGC API Processes discovery is \`experimental\`; typed Processes execution is
-still \`facade-required\`. Those are deliberately separate claims so discovery
-evidence can never be mistaken for execution support.`;
+Raw OGC API Processes discovery and raw Processes execution are both
+\`experimental\` and both \`standalone\`. They stay deliberately separate claims
+so discovery evidence can never be mistaken for execution support: discovery
+carries a scheduled anonymous live lane, while execution is fixture-proven only
+because no public Processes endpoint permits anonymous execution.`;
 }
 
 function lifecycleCounts(manifest) {
@@ -799,7 +959,7 @@ export function renderReadmeStandaloneSection(manifest) {
   const maps = supportClaim(manifest, "ogc-maps-standalone");
   const records = supportClaim(manifest, "ogc-records-standalone");
   const discovery = supportClaim(manifest, "ogc-processes-discovery-standalone");
-  const execution = supportClaim(manifest, "ogc-processes-execution-facade");
+  const execution = supportClaim(manifest, "ogc-processes-execution-standalone");
   const openTier = manifest.capabilityTiers.find((tier) => !tier.honuaServerRequired);
   const attachTier = manifest.capabilityTiers.find((tier) => tier.honuaServerRequired);
   const openClaims = claimsInTier(manifest, openTier);
@@ -817,8 +977,9 @@ server dependency is inherent, in the generated
 Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (\`${tiles.status}\`), Maps (\`${maps.status}\`), and Records
 (\`${records.status}\`) also discover and use raw advertised paths. OGC API Processes
-keeps two honest lanes: raw discovery is \`${discovery.status}\`, while typed execution
-is \`${execution.status}\`.
+keeps two honest lanes against a raw server:
+discovery (\`${discovery.status}\`, \`${discovery.environment}\`) and
+typed execution (\`${execution.status}\`, \`${execution.environment}\`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 \`MapPackage\`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and

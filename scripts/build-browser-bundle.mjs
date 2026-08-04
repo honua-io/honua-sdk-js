@@ -77,6 +77,23 @@ function assertNoDirectCogRetention(result, label) {
   if (retained) throw new Error(`${label} unexpectedly retained the opt-in direct COG graph: ${retained}`);
 }
 
+/**
+ * The declared runtime peers must stay out of the emitted graph (#1004). This
+ * is not only a size guard: MapLibre 6 is ESM-only, so a bundler that inlined
+ * it into the IIFE would be shipping a renderer copy that conflicts with the
+ * host's own — and would pin build-less consumers to whatever major happened to
+ * be installed when the artifact was built.
+ */
+function assertRuntimePeersExternal(result, label) {
+  for (const peer of EXTERNAL) {
+    const prefix = `node_modules/${peer}/`;
+    const inlined = Object.keys(result.metafile.inputs).find((input) =>
+      input.replaceAll("\\", "/").includes(prefix),
+    );
+    if (inlined) throw new Error(`${label} unexpectedly inlined the runtime peer ${peer}: ${inlined}`);
+  }
+}
+
 function formatSize(bytes) {
   return `${(bytes / 1024).toFixed(1)} KiB`;
 }
@@ -101,6 +118,8 @@ async function main() {
   });
   assertNoDirectCogRetention(iifeResult, "Browser IIFE");
   assertNoDirectCogRetention(esmResult, "Browser ESM");
+  assertRuntimePeersExternal(iifeResult, "Browser IIFE");
+  assertRuntimePeersExternal(esmResult, "Browser ESM");
 
   // Smoke check: the IIFE bundle must declare the global the docs promise.
   const iifeSource = fs.readFileSync(iifeOut, "utf8");

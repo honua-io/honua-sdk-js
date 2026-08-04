@@ -52,6 +52,7 @@ import {
   replaceOgcItem,
 } from "./ogc-features.js";
 import { HonuaOgcMaps, getOgcMapImage, getOgcMapsConformance, getOgcMapsLanding } from "./ogc-maps.js";
+import type { HonuaOgcProcessesOptions } from "./ogc-processes.js";
 import {
   HonuaOgcProcesses,
   cancelOgcProcessJob,
@@ -865,13 +866,13 @@ export class HonuaClient {
    *
    * `basePath` pins every describe / execute / job route to a raw third-party
    * service root (as discovered by `discoverOgcProcesses()`); omitting it uses
-   * the Honua facade prefix `/ogc/processes`.
+   * the Honua facade prefix `/ogc/processes`. Pass the discovery result (or a
+   * `/conformance` response) as `conformance` — and optionally
+   * `capabilityPolicy: "strict"` — to gate execution and dismissal against what
+   * the server actually declares.
    */
-  public ogcProcesses(options: { basePath?: string } = {}): HonuaOgcProcesses {
-    return new HonuaOgcProcesses({
-      client: this,
-      ...(options.basePath !== undefined ? { basePath: options.basePath } : {}),
-    });
+  public ogcProcesses(options: Omit<HonuaOgcProcessesOptions, "client"> = {}): HonuaOgcProcesses {
+    return new HonuaOgcProcesses({ ...options, client: this });
   }
 
   public stac(): HonuaStacSearch {
@@ -894,7 +895,7 @@ export class HonuaClient {
     return createHonuaProcessRunner(adapter);
   }
 
-  public ogcProcessRunner(options: { basePath?: string } = {}): HonuaProcessRunner {
+  public ogcProcessRunner(options: Omit<HonuaOgcProcessesOptions, "client"> = {}): HonuaProcessRunner {
     return createHonuaProcessRunner(createOgcProcessesAdapter(this.ogcProcesses(options)));
   }
 

@@ -217,11 +217,13 @@ import {
 } from "@honua/app-platform/app-workspace";
 import {
   CESIUM_SCENE_CAPABILITIES,
+  DEFAULT_SCENE_MOUNT_LAYER_LIMIT,
   addCesium3DTileset,
   addCesiumImageryLayer,
   addCesiumModel,
   createSceneWorkspace,
   diagnoseScenePrimitives,
+  mountScenePrimitivesToCesium,
   sceneWorkspaceIntentFromAdapterEvent,
 } from "@honua/app-platform/scene-workspace";
 import { HonuaMap, mountSourceToMapLibre } from "@honua/sdk/map";
@@ -615,6 +617,8 @@ if (
   ).some((diagnostic) => diagnostic.code !== "scene-primitive-model-credentials-forbidden")
 )
   throw new Error("Cesium model-layer credential diagnostics missing from @honua/app-platform/scene-workspace");
+if (typeof mountScenePrimitivesToCesium !== "function" || DEFAULT_SCENE_MOUNT_LAYER_LIMIT <= 0)
+  throw new Error("Cesium scene mount lifecycle missing from @honua/app-platform/scene-workspace");
 if (
   diagnoseScenePrimitives(
     [

@@ -339,3 +339,319 @@ describe("OGC API Processes execution against a discovered base path", () => {
     ]);
   });
 });
+
+// ── Standalone execution against a raw OGC API Processes server (#1009) ──
+
+const RESULTS_REL = "http://www.opengis.net/def/rel/ogc/1.0/results";
+const CORE_CLASS = "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/core";
+const DISMISS_CLASS = "http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/dismiss";
+
+const conformanceWithDismiss = { conformsTo: [...processesConformance.conformsTo, DISMISS_CLASS] };
+
+interface RawServerOptions {
+  /** Job-control options the `buffer` description advertises. */
+  readonly jobControlOptions?: readonly string[];
+  /** Conformance document served at `/pyg/conformance`. */
+  readonly conformance?: { conformsTo: readonly string[] };
+  /** Where the successful status document advertises its results; `null` advertises none. */
+  readonly resultsLink?: string | null;
+  /** Omit the `Location` header on the async 201. */
+  readonly omitLocation?: boolean;
+  /** Number of `running` polls before the job reports `successful`. */
+  readonly runningPolls?: number;
+  /** Never reach a terminal state (for poll-budget coverage). */
+  readonly neverTerminal?: boolean;
+}
+
+/**
+ * A raw, third-party OGC API Processes deployment mounted at `/pyg`. It speaks
+ * both Core execution shapes — `Prefer: respond-async` gets `201` + `Location`
+ * with a `statusInfo` body, anything else gets `200` with the results document
+ * inline — and publishes its job routes as links rather than assuming the
+ * client will template them. Nothing about it is Honua-shaped.
+ */
+function rawProcessesServer(options: RawServerOptions = {}): { fetchFn: typeof fetch; requests: string[] } {
+  const mount = "/pyg";
+  const jobId = "job-9";
+  const resultsLink = options.resultsLink === undefined ? `${mount}/jobs/${jobId}/results` : options.resultsLink;
+  const requests: string[] = [];
+  let polls = 0;
+  const fetchFn = vi.fn(async (input, init) => {
+    const request = new Request(input, init);
+    const path = new URL(request.url).pathname;
+    requests.push(`${request.method} ${path}`);
+    if (path === mount) return json(processesLanding);
+    if (path === `${mount}/conformance`) return json(options.conformance ?? processesConformance);
+    if (path === `${mount}/processes`) return json(processesList);
+    if (path === `${mount}/processes/buffer`) {
+      return json({ ...bufferDescription, jobControlOptions: options.jobControlOptions ?? ["async-execute"] });
+    }
+    if (path === `${mount}/processes/buffer/execution` && request.method === "POST") {
+      if (request.headers.get("Prefer") === "respond-async") {
+        return new Response(JSON.stringify({ jobID: jobId, processID: "buffer", status: "accepted" }), {
+          status: 201,
+          headers: {
+            "Content-Type": "application/json",
+            ...(options.omitLocation ? {} : { Location: `https://pyg.example${mount}/jobs/${jobId}` }),
+          },
+        });
+      }
+      // Core §7.11: synchronous execution answers 200 with the results document.
+      return json({ result: { type: "Polygon", coordinates: [[[1, 1]]] } });
+    }
+    if (resultsLink !== null && path === resultsLink) {
+      return json({ result: { type: "Polygon", coordinates: [[[2, 2]]] } });
+    }
+    if (path === `${mount}/jobs/${jobId}` && request.method === "DELETE") {
+      return json({ jobID: jobId, processID: "buffer", status: "dismissed" });
+    }
+    if (path === `${mount}/jobs/${jobId}`) {
+      const running = options.neverTerminal === true || polls < (options.runningPolls ?? 1);
+      polls += 1;
+      return json({
+        jobID: jobId,
+        processID: "buffer",
+        status: running ? "running" : "successful",
+        progress: running ? 40 : 100,
+        links: running || resultsLink === null ? [] : [{ rel: RESULTS_REL, href: resultsLink }],
+      });
+    }
+    return new Response("not found", { status: 404 });
+  });
+  return { fetchFn: fetchFn as unknown as typeof fetch, requests };
+}
+
+function rawClient(options: RawServerOptions = {}): { client: HonuaClient; requests: string[] } {
+  const { fetchFn, requests } = rawProcessesServer(options);
+  return { client: new HonuaClient({ baseUrl: "https://pyg.example", fetchFn }), requests };
+}
+
+describe("OGC API Processes execution against a raw third-party server", () => {
+  it("executes synchronously and reads results with no Honua Server and no job polling", async () => {
+    const { client, requests } = rawClient({ jobControlOptions: ["sync-execute", "async-execute"] });
+    const discovery = await discoverOgcProcesses({ endpoint: "https://pyg.example/pyg", client });
+    // The gate is the server's own conformance document, handed straight from
+    // discovery to the execution handle.
+    expect(discovery.conformsTo).toContain(CORE_CLASS);
+
+    const processes = client.ogcProcesses({ basePath: discovery.basePath, conformance: discovery });
+    await processes.describe("buffer");
+    const run = await processes.execute<Record<string, unknown>>({
+      processId: "buffer",
+      inputs: { geometry: { type: "Point", coordinates: [0, 0] } },
+      mode: "sync",
+    });
+
+    // A synchronous execution creates no job resource: the run starts terminal.
+    expect(run.id).toBe("");
+    expect(run.status).toBe("successful");
+    expect((await run.results()).outputs.result).toMatchObject({ coordinates: [[[1, 1]]] });
+    expect((await run.poll()).status).toBe("successful");
+
+    expect(requests).toEqual([
+      "GET /pyg",
+      "GET /pyg/conformance",
+      "GET /pyg/processes",
+      "GET /pyg/processes/buffer",
+      "POST /pyg/processes/buffer/execution",
+    ]);
+    // No job lifecycle was invented for a result the server already returned.
+    expect(requests.some((entry) => entry.includes("/jobs/"))).toBe(false);
+  });
+
+  it("executes asynchronously through the advertised Location and results links", async () => {
+    const { client, requests } = rawClient({ resultsLink: "/pyg/artifacts/job-9.json" });
+    const processes = client.ogcProcesses({ basePath: "/pyg", conformance: processesConformance });
+
+    const run = await processes.execute<Record<string, unknown>>({ processId: "buffer", mode: "async" });
+    expect(run.id).toBe("job-9");
+    expect((await run.results({ pollIntervalMs: 0 })).outputs.result).toMatchObject({ coordinates: [[[2, 2]]] });
+
+    // The results document was read from the advertised link, which is NOT the
+    // Core `/jobs/{id}/results` template — proof the lifecycle follows links.
+    expect(requests).toEqual([
+      "POST /pyg/processes/buffer/execution",
+      "GET /pyg/jobs/job-9",
+      "GET /pyg/jobs/job-9",
+      "GET /pyg/artifacts/job-9.json",
+    ]);
+  });
+
+  it("derives the job from the advertised route when the accepted body carries no jobID", async () => {
+    const requests: string[] = [];
+    const fetchFn = vi.fn(async (input, init) => {
+      const request = new Request(input, init);
+      const path = new URL(request.url).pathname;
+      requests.push(`${request.method} ${path}`);
+      if (path === "/pyg/processes/buffer/execution") {
+        // 201 + Location with an empty body: legal Core, no jobID to read.
+        return new Response(null, { status: 201, headers: { Location: "/pyg/jobs/job%2F42" } });
+      }
+      if (path === "/pyg/jobs/job%2F42") {
+        return json({ jobID: "job/42", processID: "buffer", status: "successful", links: [] });
+      }
+      if (path === "/pyg/jobs/job%2F42/results") return json({ result: 7 });
+      return new Response("not found", { status: 404 });
+    });
+    const client = new HonuaClient({ baseUrl: "https://pyg.example", fetchFn });
+    const run = await client.ogcProcesses({ basePath: "/pyg" }).execute<number>({ processId: "buffer", mode: "async" });
+
+    expect(run.id).toBe("job/42");
+    expect((await run.results({ pollIntervalMs: 0 })).outputs.result).toBe(7);
+    expect(requests).toEqual([
+      "POST /pyg/processes/buffer/execution",
+      "GET /pyg/jobs/job%2F42",
+      "GET /pyg/jobs/job%2F42/results",
+    ]);
+  });
+
+  it("refuses a mode the process does not declare instead of posting it", async () => {
+    const { client, requests } = rawClient({ jobControlOptions: ["async-execute"] });
+    const processes = client.ogcProcesses({ basePath: "/pyg", conformance: processesConformance });
+    // A describe() through the handle is enough to learn jobControlOptions; the
+    // gate costs no extra round trip.
+    await processes.describe("buffer");
+
+    await expect(processes.execute({ processId: "buffer", mode: "sync" })).rejects.toMatchObject({
+      name: "HonuaCapabilityNotSupportedError",
+      capability: "processes.sync-execute",
+      protocol: "ogc-processes",
+      context: { construct: "sync-execute" },
+    });
+    // Nothing was submitted.
+    expect(requests).toEqual(["GET /pyg/processes/buffer"]);
+  });
+
+  it("refuses async execution against a sync-only process", async () => {
+    const { client } = rawClient();
+    const processes = client.ogcProcesses({ basePath: "/pyg" });
+    await expect(
+      processes.execute({ processId: "buffer", mode: "async", jobControlOptions: ["sync-execute"] }),
+    ).rejects.toMatchObject({ name: "HonuaCapabilityNotSupportedError", capability: "processes.async-execute" });
+  });
+
+  it("refuses execution when the server does not declare the Core conformance class", async () => {
+    const { client, requests } = rawClient();
+    const processes = client.ogcProcesses({
+      basePath: "/pyg",
+      conformance: { conformsTo: ["http://www.opengis.net/spec/ogcapi-processes-1/1.0/conf/html"] },
+    });
+    await expect(processes.execute({ processId: "buffer" })).rejects.toMatchObject({
+      name: "HonuaCapabilityNotSupportedError",
+      capability: "processes.execute",
+      context: { missingClass: CORE_CLASS },
+    });
+    expect(requests).toEqual([]);
+  });
+
+  it("refuses to dismiss a job on a server that never declared the Dismiss class", async () => {
+    const { client, requests } = rawClient();
+    const processes = client.ogcProcesses({ basePath: "/pyg", conformance: processesConformance });
+    const run = await processes.execute({ processId: "buffer", mode: "async" });
+
+    await expect(run.cancel()).rejects.toMatchObject({
+      name: "HonuaCapabilityNotSupportedError",
+      capability: "processes.dismiss",
+      context: { missingClass: DISMISS_CLASS },
+    });
+    // No speculative DELETE was issued.
+    expect(requests).toEqual(["POST /pyg/processes/buffer/execution"]);
+  });
+
+  it("dismisses when the server declares the Dismiss conformance class", async () => {
+    const { client, requests } = rawClient({ conformance: conformanceWithDismiss });
+    const processes = client.ogcProcesses({ basePath: "/pyg", conformance: conformanceWithDismiss });
+    const run = await processes.execute({ processId: "buffer", mode: "async" });
+
+    // The DELETE follows the route the `Location` header advertised, the same
+    // one the status polls use — dismissal is not re-templated.
+    expect(await run.cancel()).toBe("dismissed");
+    expect(requests).toEqual(["POST /pyg/processes/buffer/execution", "DELETE /pyg/jobs/job-9"]);
+  });
+
+  it("ignores a cross-origin job link and stays on the configured origin", async () => {
+    const { client, requests } = rawClient({ resultsLink: "https://exfil.example/pyg/jobs/job-9/results" });
+    const processes = client.ogcProcesses({ basePath: "/pyg" });
+    const run = await processes.execute<Record<string, unknown>>({ processId: "buffer", mode: "async" });
+    await expect(run.results({ pollIntervalMs: 0 })).rejects.toBeTruthy();
+
+    expect(requests.some((entry) => entry.includes("exfil.example"))).toBe(false);
+    // Falls back to the Core-mandated template rather than following the link.
+    expect(requests.at(-1)).toBe("GET /pyg/jobs/job-9/results");
+  });
+
+  it("bounds polling under the handle's budget instead of retrying forever", async () => {
+    const { client } = rawClient({ neverTerminal: true });
+    const processes = client.ogcProcesses({
+      basePath: "/pyg",
+      pollBudget: { maxAttempts: 2, pollIntervalMs: 0 },
+    });
+    const run = await processes.execute({ processId: "buffer", mode: "async" });
+
+    await expect(run.results()).rejects.toMatchObject({
+      name: "HonuaJobPollTimeoutError",
+      reason: "max-attempts",
+      lastStatus: "running",
+    });
+  });
+
+  it("aborts an in-flight poll loop through the caller's signal", async () => {
+    const { client } = rawClient({ neverTerminal: true });
+    const controller = new AbortController();
+    const run = await client.ogcProcesses({ basePath: "/pyg" }).execute({ processId: "buffer", mode: "async" });
+
+    const pending = run.results({ pollIntervalMs: 5, signal: controller.signal });
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: "HonuaJobPollTimeoutError", reason: "aborted" });
+  });
+
+  describe("capabilityPolicy: strict", () => {
+    it("resolves conformance and the process description before submitting", async () => {
+      const { client, requests } = rawClient({
+        conformance: conformanceWithDismiss,
+        jobControlOptions: ["async-execute", "dismiss"],
+      });
+      const processes = client.ogcProcesses({ basePath: "/pyg", capabilityPolicy: "strict" });
+      const run = await processes.execute<Record<string, unknown>>({ processId: "buffer", mode: "async" });
+      expect((await run.results({ pollIntervalMs: 0 })).outputs.result).toMatchObject({ coordinates: [[[2, 2]]] });
+
+      expect(requests).toEqual([
+        "GET /pyg/conformance",
+        "GET /pyg/processes/buffer",
+        "POST /pyg/processes/buffer/execution",
+        "GET /pyg/jobs/job-9",
+        "GET /pyg/jobs/job-9",
+        "GET /pyg/jobs/job-9/results",
+      ]);
+    });
+
+    it("refuses to guess a status route the server never advertised", async () => {
+      const { client, requests } = rawClient({ omitLocation: true });
+      const processes = client.ogcProcesses({ basePath: "/pyg", capabilityPolicy: "strict" });
+      const run = await processes.execute({ processId: "buffer", mode: "async" });
+
+      const refusal = {
+        name: "HonuaCapabilityNotSupportedError",
+        capability: "processes.jobStatusLink",
+        context: { linkRelation: "self" },
+      };
+      await expect(run.poll()).rejects.toMatchObject(refusal);
+      // Dismissal targets the same resource, so it refuses on the same grounds
+      // rather than falling back to the Core template.
+      await expect(run.cancel()).rejects.toMatchObject(refusal);
+      expect(requests.some((entry) => entry.startsWith("GET /pyg/jobs") || entry.startsWith("DELETE"))).toBe(false);
+    });
+
+    it("refuses to guess a results route the server never advertised", async () => {
+      const { client } = rawClient({ resultsLink: null });
+      const processes = client.ogcProcesses({ basePath: "/pyg", capabilityPolicy: "strict" });
+      const run = await processes.execute({ processId: "buffer", mode: "async" });
+
+      await expect(run.results({ pollIntervalMs: 0 })).rejects.toMatchObject({
+        name: "HonuaCapabilityNotSupportedError",
+        capability: "processes.jobResultsLink",
+        context: { linkRelation: RESULTS_REL },
+      });
+    });
+  });
+});

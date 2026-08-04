@@ -15,6 +15,29 @@
 export { ColumnarBatchLease, createColumnarBatch, inspectColumnarBatch, leaseColumnarBatch } from "./transfer.js";
 export { fromApacheArrowRecordBatch, loadApacheArrow, toApacheArrowRecordBatch } from "./apache-arrow.js";
 export { createGeoArrowBatch, decodeGeoArrowBatch, inspectGeoArrowBatch } from "./geoarrow.js";
+export {
+  DEFAULT_COLUMNAR_RESULT_MAX_FEATURES,
+  columnarBatchToResult,
+  columnarBatchToResultPages,
+  resultToColumnarBatch,
+} from "./result.js";
+export type {
+  ColumnarBatchToResultOptions,
+  ColumnarBatchToResultPagesOptions,
+  ColumnarGeoJsonGeometry,
+  ColumnarGeoJsonGeometryType,
+  ColumnarResult,
+  ColumnarResultAttributeBinding,
+  ColumnarResultDictionaryBinding,
+  ColumnarResultFeatureIdBinding,
+  ColumnarResultGeometryDescriptor,
+  ColumnarResultProvenance,
+  ColumnarResultTemporalBinding,
+  ResultToColumnarBatchAttributeOptions,
+  ResultToColumnarBatchGeometryOptions,
+  ResultToColumnarBatchOptions,
+  ResultToColumnarBatchResult,
+} from "./result.js";
 export { createGeoArrowReprojectOperation } from "./geoarrow-reproject.js";
 export type { CreateGeoArrowReprojectOperationOptions } from "./geoarrow-reproject.js";
 export {
@@ -133,6 +156,7 @@ export type {
   ColumnarWorkerResultV1,
   ColumnarWorkerSession,
   ColumnarWorkerSessionState,
+  ColumnarWorkerStreamOrdering,
   ColumnarWorkerTransport,
   CreateColumnarWorkerSessionOptions,
   ExecuteColumnarWorkerOperationOptions,

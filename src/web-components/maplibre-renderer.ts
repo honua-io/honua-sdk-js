@@ -135,8 +135,15 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
       ]);
       if (token !== this.#loadToken) return;
 
-      const MapCtor = maplibregl.default?.Map ?? maplibregl.Map;
-      if (!MapCtor) throw new Error("maplibre-gl did not export Map.");
+      // MapLibre 6 is ESM-only and publishes named exports; MapLibre 5 is
+      // reachable through either shape depending on how the host bundles it.
+      // Accept both so one renderer covers the whole `^5 || ^6` peer range.
+      const MapCtor = maplibregl.Map ?? maplibregl.default?.Map;
+      if (!MapCtor) {
+        throw new Error(
+          "maplibre-gl did not export a Map constructor; install maplibre-gl 5.x or 6.x (the SDK peer range is ^5.0.0 || ^6.0.0).",
+        );
+      }
 
       const map = new MapCtor({
         container: this.#options.container,
@@ -146,7 +153,12 @@ export class HonuaMapLibreRenderer<T = Record<string, unknown>> {
         bearing: mapPackage.initialView?.bearing ?? 0,
         pitch: mapPackage.initialView?.pitch ?? 0,
         attributionControl: false,
-        preserveDrawingBuffer: true,
+        // WebGL context attributes moved under `canvasContextAttributes` in
+        // MapLibre 5.0 and stayed there in 6.x. A top-level
+        // `preserveDrawingBuffer` is silently ignored by both majors, which
+        // would leave `<honua-map>` snapshot export (src/web-components/export.ts)
+        // reading an unreadable canvas.
+        canvasContextAttributes: { preserveDrawingBuffer: true },
       });
       this.#map = map;
 

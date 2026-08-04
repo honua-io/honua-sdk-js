@@ -17,8 +17,10 @@ import {
   checkOutputs,
   generateOutputs,
   loadSupportManifest,
+  readBarrelExports,
   renderCapabilityTierSection,
   renderProtocolSection,
+  renderSurfaceTierSection,
   validateSupportManifest,
 } from "../../scripts/support-manifest.mjs";
 
@@ -313,6 +315,101 @@ test("capability tiers partition every environment and cannot be authored per cl
   );
 });
 
+test("the Cesium scene surface is beta with an explicit, exhaustive export list", () => {
+  const tier = manifest.packageLifecycle.surfaceTiers.find(
+    (candidate) => candidate.surface === "@honua/app-platform/scene-workspace",
+  );
+  assert.ok(tier, "the scene workspace surface must declare a support tier");
+  assert.equal(tier.status, "beta");
+
+  const claim = manifest.supportClaims.find((candidate) => candidate.id === tier.claim);
+  assert.equal(claim.status, "beta");
+  assert.ok(claim.evidence.length > 0, "a beta claim must link evidence");
+
+  // The forwarder's deprecation window is untouched by the promotion.
+  const forwarder = manifest.packageLifecycle.entrypoints.find(
+    (entrypoint) => entrypoint.subpath === "./scene-workspace",
+  );
+  assert.equal(forwarder.status, "deprecated");
+  assert.equal(forwarder.replacement, "@honua/app-platform/scene-workspace");
+  assert.equal(forwarder.replacementStatus, "beta");
+  assert.equal(forwarder.removeIn, "0.2.0");
+
+  // Nothing is promoted by proximity: the barrel is partitioned exactly.
+  const barrelExports = readBarrelExports(tier.barrel);
+  const classified = [...tier.exports, ...tier.heldBack.flatMap((group) => group.exports)];
+  assert.deepEqual([...classified].sort(), [...barrelExports].sort());
+  for (const group of tier.heldBack) assert.equal(group.status, "experimental");
+  assert.ok(
+    tier.heldBack.some((group) => group.exports.includes("mountSourceToCesium")),
+    "the bounded Source-to-entity slice must stay experimental",
+  );
+  assert.ok(
+    tier.heldBack.some((group) => group.exports.includes("SceneView")),
+    "the server-attached SceneView container must stay experimental",
+  );
+  assert.ok(tier.exports.includes("createCesiumSceneAdapter"));
+  assert.ok(tier.exports.includes("createSceneWorkspace"));
+});
+
+test("a surface tier fails closed on an unclassified, double-classified, or mistiered export", () => {
+  const unclassified = clone(manifest);
+  unclassified.packageLifecycle.surfaceTiers[0].exports = unclassified.packageLifecycle.surfaceTiers[0].exports.filter(
+    (name) => name !== "createCesiumSceneAdapter",
+  );
+  assert.match(
+    validateSupportManifest(unclassified).join("\n"),
+    /does not classify exported symbol createCesiumSceneAdapter/,
+  );
+
+  const invented = clone(manifest);
+  invented.packageLifecycle.surfaceTiers[0].exports.push("createCesiumSceneAdapterV2");
+  assert.match(
+    validateSupportManifest(invented).join("\n"),
+    /classifies createCesiumSceneAdapterV2, which .* does not export/,
+  );
+
+  const doubleClassified = clone(manifest);
+  doubleClassified.packageLifecycle.surfaceTiers[0].heldBack[0].exports.push("createCesiumSceneAdapter");
+  assert.match(
+    validateSupportManifest(doubleClassified).join("\n"),
+    /classifies an export more than once/,
+  );
+
+  const selfHeld = clone(manifest);
+  selfHeld.packageLifecycle.surfaceTiers[0].heldBack[0].status = "beta";
+  assert.match(
+    validateSupportManifest(selfHeld).join("\n"),
+    /cannot hold exports back at its own status beta/,
+  );
+
+  const claimDisagrees = clone(manifest);
+  claimDisagrees.packageLifecycle.surfaceTiers[0].status = "supported";
+  assert.match(
+    validateSupportManifest(claimDisagrees).join("\n"),
+    /is supported but its claim scene-workspace-cesium is beta/,
+  );
+
+  const forwarderDrift = clone(manifest);
+  for (const entrypoint of forwarderDrift.packageLifecycle.entrypoints) {
+    if (entrypoint.subpath === "./scene-workspace") entrypoint.replacementStatus = undefined;
+  }
+  assert.match(
+    validateSupportManifest(forwarderDrift).join("\n"),
+    /must record replacementStatus beta/,
+  );
+});
+
+test("the generated matrix publishes the surface tier split and its evidence", () => {
+  const section = renderSurfaceTierSection(manifest);
+  assert.match(section, /## Surface tiers/);
+  assert.match(section, /\| `@honua\/app-platform\/scene-workspace` \| `beta` \|/);
+  assert.match(section, /`@honua\/sdk-js\/scene-workspace`/);
+  assert.match(section, /\[fixture: cesium-scene-adapter-fixtures\]/);
+  assert.match(section, /Held back at `experimental`/);
+  assert.match(section, /`mountSourceToCesium`/);
+});
+
 test("every server-attach claim carries a roadmap issue or an inherency statement", () => {
   const serverAttachTierIds = new Set(
     manifest.capabilityTiers.filter((tier) => tier.honuaServerRequired).map((tier) => tier.id),
@@ -325,13 +422,10 @@ test("every server-attach claim carries a roadmap issue or an inherency statemen
   const facadeRequired = serverAttachClaims.filter((claim) => claim.status === "facade-required");
   assert.deepEqual(
     facadeRequired.map((claim) => claim.id).sort(),
-    [
-      "agent-tools-facade",
-      "compatibility-gate-facade",
-      "map-package-facade",
-      "ogc-processes-execution-facade",
-      "realtime-facade",
-    ],
+    // OGC API Processes execution left this list in #1009: standalone execution
+    // resolved its roadmap entry, so it is now an open-endpoint claim and must
+    // NOT carry `serverAttach` (asserted below).
+    ["agent-tools-facade", "compatibility-gate-facade", "map-package-facade", "realtime-facade"],
     "every facade-required claim must stay tiered as server-attach",
   );
   for (const claim of serverAttachClaims) {
@@ -432,7 +526,7 @@ test("the tiered README and matrix stay bound to the manifest counts", () => {
   assert.match(outputs.get("docs/protocol-capability-matrix.md"), /Deployment tier is separate from status/);
 });
 
-test("the OGC raw/facade line is represented as separate claims", () => {
+test("the OGC discovery/execution line is represented as separate claims", () => {
   const claims = new Map(manifest.supportClaims.map((claim) => [claim.id, claim]));
   for (const family of ["tiles", "maps", "records"]) {
     const claim = claims.get(`ogc-${family}-standalone`);
@@ -440,8 +534,22 @@ test("the OGC raw/facade line is represented as separate claims", () => {
     assert.equal(claim.environment, "standalone");
     assert.equal(claim.executionMode, "discovery");
   }
-  assert.equal(claims.get("ogc-processes-discovery-standalone").status, "experimental");
-  assert.equal(claims.get("ogc-processes-execution-facade").status, "facade-required");
+  // Processes keeps two claims even though both are now standalone: discovery
+  // evidence must never be readable as execution support. #1009 moved execution
+  // off the facade, so the split is the only thing keeping the lanes distinct.
+  const discovery = claims.get("ogc-processes-discovery-standalone");
+  const execution = claims.get("ogc-processes-execution-standalone");
+  assert.equal(discovery.status, "experimental");
+  assert.equal(discovery.environment, "standalone");
+  assert.equal(discovery.executionMode, "discovery");
+  assert.equal(execution.status, "experimental");
+  assert.equal(execution.environment, "standalone");
+  assert.equal(execution.executionMode, "native");
+  assert.notDeepEqual(discovery.operations, execution.operations);
+  // Execution is fixture-proven only; no public endpoint permits anonymous
+  // execution, so it must not borrow the discovery lane's live evidence.
+  assert.ok(discovery.evidence.includes("live-conformance"));
+  assert.ok(!execution.evidence.includes("live-conformance"));
 });
 
 test("generated output is deterministic and drift identifies the changed projection", () => {
