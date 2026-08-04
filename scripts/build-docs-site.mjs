@@ -499,6 +499,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,su
 .demo-tags code{white-space:nowrap}
 .demo-none{color:var(--muted)}
 .demo-link{margin:.1rem 0 .75rem;font-weight:600}
+.demo-link--playground{display:inline-block;margin-right:.75rem;font-size:.86rem}
 .demo-card-details{border-top:1px solid var(--border);padding-top:.55rem}
 .demo-card-details .demo-facts{margin:.75rem 0 .2rem}
 .site-footer{border-top:1px solid var(--border);margin-top:2rem;padding:1.5rem;text-align:center;color:var(--muted);font-size:.85rem}

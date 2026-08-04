@@ -201,6 +201,21 @@
         "status": "skipped",
         "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
         "expiresAt": "2026-10-08T18:00:00.000Z"
+      },
+      "playground": {
+        "projectPath": "playgrounds/ai-spatial-app-builder",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder"
+          }
+        ]
       }
     },
     "app-bootstrap-basic": {
@@ -494,6 +509,21 @@
       "lifecycle": {
         "state": "active",
         "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
+      },
+      "playground": {
+        "projectPath": "playgrounds/sketch-editing",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing"
+          }
+        ]
       }
     },
     "spatial-analytics-workbench": {
@@ -514,6 +544,21 @@
       "lifecycle": {
         "state": "active",
         "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
+      },
+      "playground": {
+        "projectPath": "playgrounds/stac-imagery-browser",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          }
+        ]
       }
     },
     "storytelling-25d-map": {
@@ -530,7 +575,22 @@
     },
     "temporal-playback": {
       "track": "recipe",
-      "validationProfile": "browser-recipe"
+      "validationProfile": "browser-recipe",
+      "playground": {
+        "projectPath": "playgrounds/temporal-playback",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback"
+          }
+        ]
+      }
     },
     "terrain-rgb-elevation": {
       "track": "recipe",

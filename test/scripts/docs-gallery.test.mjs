@@ -792,3 +792,58 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
   assert.equal(document.activeElement, search);
   dom.window.close();
 });
+
+test("renders a zero-install playground link per provider for samples that have one", async () => {
+  const value = structuredClone(projection);
+  sampleById(value, "temporal-playback").playground = {
+    projectPath: "playgrounds/temporal-playback",
+    providers: [
+      {
+        id: "stackblitz",
+        title: "StackBlitz",
+        url: "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback",
+      },
+      {
+        id: "codesandbox",
+        title: "CodeSandbox",
+        url: "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback",
+      },
+    ],
+  };
+  const html = renderGallery(await verifiedGallery(value));
+  const card = html.slice(html.indexOf('data-sample-id="temporal-playback"'));
+  const body = card.slice(0, card.indexOf("</article>"));
+
+  assert.match(
+    body,
+    /<a class="demo-link demo-link--playground" href="https:\/\/stackblitz\.com\/github\/honua-io\/honua-sdk-js\/tree\/trunk\/playgrounds\/temporal-playback" rel="noopener noreferrer">Open in StackBlitz →<\/a>/,
+  );
+  assert.match(body, /Open in CodeSandbox →/);
+  // The playground calls to action stay in the card head, above the drawer.
+  assert.ok(body.indexOf("demo-link--playground") < body.indexOf('<details class="demo-card-details">'));
+
+  const untouched = html.slice(html.indexOf('data-sample-id="service-explorer"'));
+  assert.doesNotMatch(untouched.slice(0, untouched.indexOf("</article>")), /demo-link--playground/);
+});
+
+test("refuses a playground link that is not a canonical https URL", async () => {
+  const value = structuredClone(projection);
+  sampleById(value, "temporal-playback").playground = {
+    projectPath: "playgrounds/temporal-playback",
+    providers: [{ id: "stackblitz", title: "StackBlitz", url: "http://stackblitz.com/github/honua-io/honua-sdk-js" }],
+  };
+  // The projection schema pins the shape a card may link to; the renderer's own
+  // safeHttpUrl guard is the second line, not the first.
+  await assert.rejects(verifiedGallery(value), /must match pattern/);
+});
+
+test("refuses a playground link that carries a credential query parameter", async () => {
+  const value = structuredClone(projection);
+  sampleById(value, "temporal-playback").playground = {
+    projectPath: "playgrounds/temporal-playback",
+    providers: [{ id: "stackblitz", title: "StackBlitz", url: "https://stackblitz.com/github/honua-io?token=secret" }],
+  };
+  // The projection's own credential scan runs before the gallery renders, so a
+  // link like this can never reach a card in the first place.
+  await assert.rejects(verifiedGallery(value), /forbidden credential query parameter token/);
+});

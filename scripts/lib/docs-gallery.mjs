@@ -639,6 +639,27 @@ function renderReplacement(replacement) {
   return escapeHtml(label);
 }
 
+/**
+ * Zero-install playground links for the samples that have one (#958). The URLs
+ * are generated path-only by scripts/sample-playgrounds.mjs precisely so
+ * `safeHttpUrl` accepts them; a provider whose link ever grows a query string
+ * or fragment is dropped rather than rendered unverified.
+ */
+function renderPlayground(playground) {
+  if (!playground) return "";
+  const links = playground.providers
+    .map((provider) => ({ title: provider.title, href: safeHttpUrl(provider.url) }))
+    .filter((provider) => provider.href);
+  if (links.length === 0) return "";
+  const anchors = links
+    .map(
+      (provider) =>
+        `<a class="demo-link demo-link--playground" href="${escapeHtml(provider.href)}" rel="noopener noreferrer">Open in ${escapeHtml(provider.title)} →</a>`,
+    )
+    .join("\n  ");
+  return `\n  ${anchors}`;
+}
+
 function renderJourney(journey) {
   if (!journey) return '<span class="demo-none">None</span>';
   return `${escapeHtml(journey.title)} (<code>${escapeHtml(journey.id)}</code>) · <strong>${escapeHtml(
@@ -712,7 +733,7 @@ function renderCard(card, resolveSourceLink) {
   </header>
   <p class="demo-id"><code>${escapeHtml(sample.id)}</code></p>
   <p class="demo-summary">${escapeHtml(sample.summary)}</p>
-  <a class="demo-link" href="${escapeHtml(source.href)}">${sourceLabel} →</a>
+  <a class="demo-link" href="${escapeHtml(source.href)}">${sourceLabel} →</a>${renderPlayground(sample.playground)}
   <dl class="demo-facts demo-facts--essential">
     <dt>SDK</dt><dd><code>${escapeHtml(sample.sdk.package)}</code> <code>${escapeHtml(sample.sdk.version)}</code></dd>
     <dt>Data</dt><dd>${dataSummary.join(" · ")}</dd>

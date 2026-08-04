@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1d26" />
+    <title>Honua × terra-draw — interactive sketch editing</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <p class="eyebrow">Honua JavaScript SDK × terra-draw</p>
+        <h1>Draw, edit, and delete through one edit-sketch workflow.</h1>
+        <p class="hero-lede">
+          terra-draw modes drive the SDK <code>EditSketchWorkflowModel</code>: every finished sketch is an undoable
+          workflow step, snapping resolves against the SDK snap index, and submit lands in the edit-session
+          <code>applyEdits</code> path against a deterministic fixture source.
+        </p>
+      </header>
+
+      <main class="workspace">
+        <section class="map-stage" aria-label="Sketch map">
+          <div class="toolbar" role="toolbar" aria-label="Sketch tools">
+            <button id="tool-point" type="button">Point</button>
+            <button id="tool-line" type="button">Line</button>
+            <button id="tool-polygon" type="button">Polygon</button>
+            <button id="tool-rectangle" type="button">Rectangle</button>
+            <button id="tool-circle" type="button">Circle</button>
+            <button id="tool-freehand" type="button">Freehand</button>
+            <button id="tool-select" type="button">Select / edit</button>
+            <button id="tool-cancel" type="button">Cancel</button>
+          </div>
+          <div id="map" class="map-canvas" role="application" aria-label="Interactive sketch map"></div>
+          <div class="toolbar actions" role="toolbar" aria-label="Workflow actions">
+            <button id="undo" type="button" disabled>Undo</button>
+            <button id="redo" type="button" disabled>Redo</button>
+            <button id="delete-feature" type="button">Delete</button>
+            <button id="submit-edit" type="button">Submit (applyEdits)</button>
+          </div>
+        </section>
+
+        <aside class="status-panel" aria-label="Workflow status">
+          <h2>Edit-sketch workflow</h2>
+          <dl>
+            <div><dt>Status</dt><dd id="sketch-status">idle</dd></div>
+            <div><dt>Tool</dt><dd id="sketch-tool">none</dd></div>
+            <div><dt>Geometry</dt><dd id="geometry-type">none</dd></div>
+            <div><dt>Undo depth</dt><dd id="undo-depth">0</dd></div>
+            <div><dt>Redo depth</dt><dd id="redo-depth">0</dd></div>
+            <div><dt>Draft</dt><dd id="dirty-state">clean</dd></div>
+            <div><dt>Validation</dt><dd id="validation-state">valid</dd></div>
+            <div><dt>Snapping</dt><dd id="snap-status">no snap target</dd></div>
+            <div><dt>Submit</dt><dd id="submit-status">ready</dd></div>
+            <div><dt>Applied envelopes</dt><dd id="applied-count">0</dd></div>
+          </dl>
+          <h2>Operation log</h2>
+          <ul id="operation-log" class="operation-log"></ul>
+        </aside>
+      </main>
+
+      <footer>
+        <p>
+          terra-draw and terra-draw-maplibre-gl-adapter are optional peers of <code>@honua/sdk-js</code>; the SDK works
+          without them and loads them lazily here.
+        </p>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

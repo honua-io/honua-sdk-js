@@ -55,6 +55,16 @@ Set `VITE_HONUA_ENDPOINT` (and optionally `VITE_HONUA_PROTOCOL`) to run the iden
 CORS-enabled GeoServices FeatureServer layer or OGC API Features landing page. Durable credentials never belong in
 Vite environment variables: Vite embeds them in public JavaScript.
 
+## Publication
+
+`create-honua-app` is released by release-please as its own component
+(`packages/create-honua-app` in `release-please-config.json`, tag `create-honua-app-v<version>`) and published by
+`.github/workflows/publish-create-honua-app.yml` through npm trusted publishing — the same OIDC path the SDK and the
+MCP server use, with no `NPM_TOKEN`. Before publishing, that workflow runs the scaffold gates and
+`npm run create-app:verify:package`, which packs the tarball, installs it into a throwaway consumer, and scaffolds
+from the installed copy: a `files` omission or npm's default `.gitignore` exclusion would otherwise ship starters that
+cannot find their own templates while every source-tree gate stayed green.
+
 ## How the starters stay current
 
 - `packages/create-honua-app/templates.manifest.json` is the single source of truth for the template list, the pinned
