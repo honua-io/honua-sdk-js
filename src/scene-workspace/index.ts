@@ -101,6 +101,38 @@ export {
   setTilesetStyle,
 } from "./cesium-adapter.js";
 export {
+  SCENE_REBUILD_BOUNDARIES,
+  applyCesiumClockPlan,
+  applyCesiumSceneTime,
+  bindTemporalPlaybackToCesium,
+  cesiumClockPlanWrites,
+  isCesiumClockRuntime,
+  readCesiumClock,
+  restoreCesiumClock,
+  sceneRebuildBoundaryReport,
+  sceneTimelineToCesiumClockPlan,
+} from "./cesium-time.js";
+export type {
+  BindTemporalPlaybackToCesiumOptions,
+  CesiumClockLike,
+  CesiumClockOwnership,
+  CesiumClockPlan,
+  CesiumClockRuntimeLoader,
+  CesiumClockRuntimeModule,
+  CesiumClockSnapshot,
+  CesiumClockTarget,
+  CesiumSceneTimeApplication,
+  CesiumTemporalPlayback,
+  CesiumTemporalPlaybackBinding,
+  CesiumTemporalPlaybackInstant,
+  CesiumTemporalPlaybackRefusal,
+  CesiumTemporalPlaybackTransport,
+  CesiumTemporalPlaybackWindow,
+  SceneRebuildBoundary,
+  SceneRebuildBoundaryReport,
+  SceneTimeDiagnosticCode,
+} from "./cesium-time.js";
+export {
   DEFAULT_SCENE_MOUNT_LAYER_LIMIT,
   HonuaCesiumSceneMountError,
   mountScenePrimitivesToCesium,
