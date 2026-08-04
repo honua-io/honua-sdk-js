@@ -133,6 +133,7 @@ export type {
   ColumnarWorkerResultV1,
   ColumnarWorkerSession,
   ColumnarWorkerSessionState,
+  ColumnarWorkerStreamOrdering,
   ColumnarWorkerTransport,
   CreateColumnarWorkerSessionOptions,
   ExecuteColumnarWorkerOperationOptions,
