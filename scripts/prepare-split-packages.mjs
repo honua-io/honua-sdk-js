@@ -185,6 +185,10 @@ function createSdkPackage() {
     "source-capability-discovery-endpoint",
     "source-capability-evidence",
     "source-capability-evaluation",
+    // Protocol-default filter constraints that discovery attaches to the
+    // `query` capability. Reached from source-capability-discovery, so the
+    // packed package cannot resolve that entrypoint without it.
+    "source-capability-filter-constraints",
     "source-capability-transport",
   ]) {
     copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
