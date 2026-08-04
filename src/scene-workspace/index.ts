@@ -36,11 +36,50 @@ export {
 export {
   SCENE_STATE_SYNC_KIND,
   SCENE_STATE_SYNC_SLICES,
+  SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK,
   SCENE_STATE_SYNC_VERSION,
   HonuaSceneStateSyncError,
   createSceneStateSynchronizer,
   defaultSceneStateSyncMappings,
 } from "./state-sync.js";
+export {
+  DEFAULT_MAPLIBRE_CAMERA_GEOMETRY,
+  DEFAULT_MAPLIBRE_CAMERA_LIMITS,
+  EARTH_CIRCUMFERENCE_METERS,
+  WEB_MERCATOR_MAX_LATITUDE,
+  mapLibreCameraHeightToZoom,
+  mapLibreGroundResolutionMeters,
+  mapLibreViewToSceneCamera,
+  mapLibreZoomToCameraHeight,
+  sceneCameraToMapLibreView,
+} from "./camera-correspondence.js";
+export type {
+  MapLibreCameraGeometry,
+  MapLibreCameraLimits,
+  MapLibreCameraProjection,
+  MapLibreCameraView,
+  SceneCameraDegradation,
+  SceneCameraDegradationCode,
+} from "./camera-correspondence.js";
+export { sceneAttributionId, sceneAttributionValue } from "./state-sync-port-kit.js";
+export type {
+  SceneStateSyncPortDegradation,
+  SceneStateSyncPortDegradationCode,
+  SceneStateSyncPublishOutcome,
+  SceneStateSyncRendererPort,
+} from "./state-sync-port-kit.js";
+export { createMapLibreStateSyncPort } from "./maplibre-state-sync.js";
+export type { CreateMapLibreStateSyncPortOptions, MapLibreStateSyncTarget } from "./maplibre-state-sync.js";
+export { createCesiumStateSyncPort } from "./cesium-state-sync.js";
+export type {
+  CesiumStateSyncClock,
+  CesiumStateSyncEntity,
+  CesiumStateSyncEntityCollection,
+  CesiumStateSyncEvent,
+  CesiumStateSyncModule,
+  CesiumStateSyncTarget,
+  CreateCesiumStateSyncPortOptions,
+} from "./cesium-state-sync.js";
 export type {
   CreateSceneStateSynchronizerOptions,
   SceneStateSyncAttributionValue,
@@ -68,6 +107,7 @@ export {
   MAPLIBRE_SCENE_CAPABILITIES,
   RENDERER_WGS84_SPATIAL_CAPABILITIES,
   applyMapLibreScenePrimitives,
+  compileMapLibreFilters,
   createMapLibreSceneAdapter,
   createSceneRuntimeAdapter,
   diagnoseScenePrimitive,

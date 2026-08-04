@@ -44,7 +44,7 @@ a tier from the directory it lives in.
 
 | Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
 | --- | --- | :-: | --- | --- | --- |
-| `@honua/app-platform/scene-workspace` | `beta` | 142 | 70 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
+| `@honua/app-platform/scene-workspace` | `beta` | 176 | 70 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
 
 ### `@honua/app-platform/scene-workspace`
 
@@ -55,6 +55,7 @@ What may still change inside the tier:
 - New primitive kinds, diagnostic codes, and renderer capability flags are additive; exhaustive `switch` statements over those unions may need a new arm.
 - Cesium peer range tracking: the adapter follows the `cesium` peer range in `package.json` and may raise its floor within 0.1.x.
 - Server-authored 3D style plumbing (`Honua3DStyleSpec` and friends) tracks the Honua Server styling contract and may gain fields.
+- The shipped renderer state-sync ports (`createMapLibreStateSyncPort` / `createCesiumStateSyncPort`) keep their factory shape, but `SceneStateSyncPortDegradationCode` grows additively and each port narrows its own `mappings` from what the live renderer can actually do, so a capability probe may reclassify a slice within 0.1.x.
 
 Held back at `experimental` — Honua Server scene discovery, the `SceneView` container, and the elevation/analysis widgets execute against a Honua facade, so they sit outside the open-endpoint evidence behind the beta promotion.
 

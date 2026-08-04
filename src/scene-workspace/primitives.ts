@@ -1599,7 +1599,19 @@ function assertSceneModelPrimitiveSerializable(primitive: SceneModelLayerPrimiti
   }
 }
 
-function compileMapLibreFilters(filters: Readonly<Record<string, FilterClause>>, sourceId: string): unknown[] {
+/**
+ * Compile protocol-neutral filter clauses into a legacy-style 2D layer filter
+ * scoped to one source.
+ *
+ * Clauses with an `appliesTo` list that excludes `sourceId` are skipped, and a
+ * clause the 2D filter language cannot express (`like`) is dropped rather than
+ * emitted as something weaker. The result always starts with `"all"`, so an
+ * empty clause set compiles to a filter that keeps everything.
+ *
+ * Exported so the shipped state-sync port applies the same compiler the
+ * extrusion binding uses instead of re-deriving it (issue #1049).
+ */
+export function compileMapLibreFilters(filters: Readonly<Record<string, FilterClause>>, sourceId: string): unknown[] {
   const compiled = Object.values(filters)
     .filter((clause) => !clause.appliesTo || clause.appliesTo.length === 0 || clause.appliesTo.includes(sourceId))
     .map(clauseToMapLibreFilter)

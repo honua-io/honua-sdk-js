@@ -12,7 +12,7 @@
  */
 
 import type { FeatureSelectionTarget, FilterClause } from "../exploration/index.js";
-import type { SceneCameraState, SceneDetailState, SceneTimelineState } from "./types.js";
+import type { SceneCameraState, SceneDetailState, SceneTimelineState, SceneWorkspaceSlice } from "./types.js";
 
 export const SCENE_STATE_SYNC_KIND = "honua.scene-state-sync" as const;
 export const SCENE_STATE_SYNC_VERSION = "1.0" as const;
@@ -28,6 +28,38 @@ export const SCENE_STATE_SYNC_SLICES = [
 ] as const;
 
 export type SceneStateSyncSlice = (typeof SCENE_STATE_SYNC_SLICES)[number];
+
+/**
+ * How the two slice vocabularies relate (issue #1049, REQ-006).
+ *
+ * They are deliberately different sizes because they answer different
+ * questions. `SCENE_STATE_SYNC_SLICES` is a *wire* vocabulary: the seven pieces
+ * of state that two renderers in the same application have to agree on.
+ * `SCENE_WORKSPACE_SLICES` is a *store* vocabulary: the thirteen change
+ * notifications one workspace publishes to its own subscribers.
+ *
+ * The overlap is exactly what crosses renderers, and this table names it. The
+ * workspace-only members are single-application concerns with nothing to
+ * synchronize — `all` is a subscription wildcard, and `scene`, `layers`,
+ * `primitives`, `diagnostics`, `evidence`, and `history` describe what one
+ * renderer was asked to draw and what it reported back, which is per-renderer by
+ * construction. `attribution` maps to `null` in the other direction: it is
+ * derived from what each renderer actually credits rather than stored as
+ * workspace state.
+ *
+ * The only rename across the boundary is `time` (wire) / `timeline` (store).
+ */
+export const SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK: Readonly<
+  Record<SceneStateSyncSlice, SceneWorkspaceSlice | null>
+> = Object.freeze({
+  camera: "camera",
+  selection: "selection",
+  filters: "filters",
+  time: "timeline",
+  detail: "detail",
+  attribution: null,
+  realtime: "realtime",
+});
 export type SceneStateSyncRenderer = "maplibre" | "cesium" | "custom";
 export type SceneStateSyncFidelity = "exact" | "equivalent" | "unsupported";
 
