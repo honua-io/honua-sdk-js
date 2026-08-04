@@ -327,6 +327,30 @@ describe("cesium scene mount lifecycle", () => {
     expect(camera.setView).toHaveBeenCalledTimes(1);
   });
 
+  it("re-reports plan-scoped spatial-fidelity findings for a primitive it did not rebuild", async () => {
+    const scene = createMockCesiumScene();
+    // Web Mercator is `equivalent` on this renderer (#929): it renders, but
+    // through Cesium's own reprojection. The finding belongs to the plan, so it
+    // must survive a revision that reuses the very same tileset.
+    const webMercatorTileset: SceneModelLayerPrimitive = { ...TILESET, crs: "EPSG:3857" };
+    const mount = await mountScenePrimitivesToCesium({ camera: createMockCesiumCamera(), scene }, [webMercatorTileset]);
+
+    expect(mount.status).toBe("degraded");
+    expect(mount.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "scene-primitive-crs-equivalent", fidelity: "equivalent" }),
+    );
+
+    const revision = await mount.apply([webMercatorTileset]);
+
+    expect(revision.reused).toEqual(["city-tiles"]);
+    expect(revision.created).toEqual([]);
+    expect(tilesetFromUrl).toHaveBeenCalledTimes(1);
+    expect(revision.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "scene-primitive-crs-equivalent", fidelity: "equivalent" }),
+    );
+    expect(revision.diagnostics).toContainEqual(expect.objectContaining({ code: "scene-mount-applied" }));
+  });
+
   it("releases every adapter-owned resource exactly once and is idempotent", async () => {
     const camera = createMockCesiumCamera();
     const scene = createMockCesiumScene();
