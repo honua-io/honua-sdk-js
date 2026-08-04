@@ -24,10 +24,18 @@ export {
 export {
   canonicalizeOfflineRegionQuery,
   compareOfflineRegionBounds,
+  isWgs84LonLatCrs,
+  normalizeOfflineRegionTileKey,
+  OFFLINE_REGION_DEFAULT_TILE_MATRIX_SET,
+  OFFLINE_REGION_MAX_TILE_ZOOM,
   OFFLINE_REGION_PROTOCOL,
+  offlineRegionAssetSelector,
   offlineRegionAuthorizationScopeDigest,
+  offlineRegionMetadataSelector,
   offlineRegionQueryFingerprint,
   offlineRegionResourceId,
+  offlineRegionTileEnvelope,
+  offlineRegionTileSelector,
 } from "./selection.js";
 export type {
   OfflineRegionBoundsRelation,
@@ -35,6 +43,7 @@ export type {
   OfflineRegionQueryScopeV1,
   OfflineRegionResourceSelector,
   OfflineRegionSelectionIdentityV1,
+  OfflineRegionTileSelectorOptions,
 } from "./selection.js";
 export {
   createOfflineRegionFeatureBatch,
@@ -60,15 +69,47 @@ export {
   DEFAULT_OFFLINE_REGION_READ_STALE_AFTER_MS,
   HONUA_OFFLINE_REGION_READ_KIND,
   HONUA_OFFLINE_REGION_READ_VERSION,
-  readOfflineRegionQuery,
-} from "./read.js";
+} from "./read-gate.js";
 export type {
-  OfflineRegionQueryReadV1,
   OfflineRegionReadCacheDecisionV1,
   OfflineRegionReadFreshness,
+  OfflineRegionReadGateOptions,
   OfflineRegionReadProvenanceV1,
-  ReadOfflineRegionQueryOptions,
-} from "./read.js";
+  OfflineRegionStoreReadOptions,
+} from "./read-gate.js";
+export { readOfflineRegionQuery } from "./read.js";
+export type { OfflineRegionQueryReadV1, ReadOfflineRegionQueryOptions } from "./read.js";
+export {
+  readOfflineRegionAsset,
+  readOfflineRegionMetadata,
+  readOfflineRegionResource,
+  readOfflineRegionTile,
+  resolveOfflineRegionResourceId,
+} from "./read-resource.js";
+export type {
+  OfflineRegionMetadataReadV1,
+  OfflineRegionResourceReadV1,
+  OfflineRegionTileReadV1,
+  ReadOfflineRegionAssetOptions,
+  ReadOfflineRegionMetadataOptions,
+  ReadOfflineRegionResourceOptions,
+  ReadOfflineRegionTileOptions,
+} from "./read-resource.js";
+export {
+  buildOfflineRegionTileUrlTemplate,
+  createOfflineRegionTileProtocol,
+  OFFLINE_REGION_TILE_SCHEME,
+  parseOfflineRegionTileUrl,
+  registerOfflineRegionTileProtocol,
+} from "./tile-protocol.js";
+export type {
+  CreateOfflineRegionTileProtocolOptions,
+  OfflineRegionProtocolHandler,
+  OfflineRegionProtocolRegistrar,
+  OfflineRegionProtocolRequest,
+  OfflineRegionProtocolResponse,
+  OfflineRegionTileAddressV1,
+} from "./tile-protocol.js";
 export { createMemoryOfflineRegionStore, MemoryOfflineRegionStore } from "./memory-store.js";
 export type { MemoryOfflineRegionStoreOptions } from "./memory-store.js";
 export {

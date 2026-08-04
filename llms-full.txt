@@ -5564,6 +5564,113 @@ the query plan reports it too. A fresh region carries its manifest identity as
 the plan's `fingerprint` validator, which binds the plan's own fingerprint to the
 region that answered it; a stale region deliberately carries no validator.
 
+## Tiles, assets, and metadata (experimental)
+
+A region has always stored `tile`, `asset`, and `metadata` resources; those kinds
+read back under exactly the same gate a feature batch does. Address them with the
+typed selector builders so a snapshot and a later read agree without persisting
+any URL:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  offlineRegionAssetSelector,
+  offlineRegionMetadataSelector,
+  offlineRegionTileSelector,
+  planOfflineRegionSnapshot,
+  readOfflineRegionAsset,
+  readOfflineRegionMetadata,
+  readOfflineRegionTile,
+} from "@honua/sdk-js/offline";
+
+const snapshot = await planOfflineRegionSnapshot({
+  ...selection,
+  contents: [
+    {
+      kind: "tile",
+      bytes: tileBytes,
+      contentType: "application/vnd.mapbox-vector-tile",
+      selector: offlineRegionTileSelector({ z: 12, x: 671, y: 1042 }),
+    },
+    { kind: "asset", bytes: spriteBytes, contentType: "image/png", selector: offlineRegionAssetSelector("sprite-2x") },
+    {
+      kind: "metadata",
+      bytes: landingPageBytes,
+      contentType: "application/json",
+      selector: offlineRegionMetadataSelector("landing-page"),
+    },
+  ],
+});
+
+const tile = await readOfflineRegionTile(snapshot.manifest, {
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  tile: { z: 12, x: 671, y: 1042 },
+});
+render(tile.bytes, tile.contentType, tile.attribution);
+
+const landing = await readOfflineRegionMetadata(snapshot.manifest, {
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  document: "landing-page",
+});
+console.log(landing.document); // parsed, because the stored media type is JSON
+```
+
+What these reads add to the shared discipline:
+
+- **Tile coordinates are canonical, not clamped.** `normalizeOfflineRegionTileKey`
+  reuses the contract's `QueryTileKey` vocabulary and folds a `tms` row onto its
+  XYZ row, so the same geographic tile has one identity. Longitude wrapping is
+  kept because a wrapped column is the same tile; an out-of-range row or zoom is
+  refused, because the renderer's clamping would quietly address a *different*
+  tile's bytes.
+- **Coverage is answered before storage is touched.** A zoom outside the region's
+  `minZoom`/`maxZoom`, or — when the region's CRS is provably WGS84 lon/lat — a
+  tile whose envelope does not meet the region's bounds, is `out-of-region`. An
+  unrecognized CRS makes no geometric claim at all; identity alone gates it and an
+  uncovered tile is an honest `cache-miss`.
+- **Bytes are opaque.** Tiles and assets are returned exactly as stored, with
+  their declared media type. The SDK never re-encodes or transcodes one.
+- **Media types are honoured, not guessed.** A metadata document is parsed only
+  when it declares a JSON media type; bytes that verified against their digest but
+  cannot be that media type are an `integrity-mismatch`, not a document.
+- **Nothing is presented as live.** Each read carries the same `DegradedReason`
+  vocabulary a `Result` does, on a `degraded` field, naming the capability the
+  cached bytes stand in for — `tiles`, `render`, or `query`.
+
+### Binding tiles to the map runtime
+
+Offline tiles reach MapLibre through the protocol seam the runtime already uses
+for other custom schemes, rather than a second tile pipeline. A style names
+`offline-region://` tiles and the handler answers each one from the region:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import maplibregl from "maplibre-gl";
+import {
+  buildOfflineRegionTileUrlTemplate,
+  registerOfflineRegionTileProtocol,
+} from "@honua/sdk-js/offline";
+
+const dispose = registerOfflineRegionTileProtocol(maplibregl, {
+  manifest,
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+});
+
+map.addSource("incidents", { type: "vector", tiles: [buildOfflineRegionTileUrlTemplate()] });
+```
+
+A tile the region does not hold rejects with its typed reason instead of falling
+back to the network or rendering nothing, and the handler declares `no-store` so
+freshness, eviction, and provenance stay answerable from the region alone.
+Registration is application-owned: the runtime does not auto-register this
+protocol or rewrite a style's tile URLs onto it.
+
+The same identities also plug into the existing service-worker seam.
+`resolveOfflineRegionResourceId()` turns a selection into the resource id an
+`OfflineRegionResourceMatcher` hands to `createOfflineRegionFetchHandler()`, so a
+host that already matches its own tile URLs keeps doing exactly that.
+
 `createMemoryOfflineRegionStore()` is a non-durable twin of the IndexedDB store
 for Node, workers, and tests. Both pass one shared suite:
 
