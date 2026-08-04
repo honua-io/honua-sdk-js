@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Honua Cesium scene-adapter fixture</title>
+    <link rel="stylesheet" href="/node_modules/cesium/Build/Cesium/Widgets/widgets.css" />
+    <style>
+      html, body { height: 100%; margin: 0; background: #05080f; color: #e8f1ff; font: 13px/1.5 ui-monospace, monospace; }
+      #scene-hosts { display: block; }
+      .scene-host { width: 480px; height: 320px; }
+      #outcomes { border-collapse: collapse; margin: 12px; }
+      #outcomes th, #outcomes td { border: 1px solid #24384f; padding: 3px 8px; text-align: left; }
+      [data-outcome="supported"] { color: #7ee0a8; }
+      [data-outcome="degraded"] { color: #f0c674; }
+      [data-outcome="unsupported"] { color: #ef8a7a; }
+    </style>
+    <script>
+      // Installed before CesiumJS (or the SDK) is ever imported, so every WebGL
+      // context, worker, and animation frame the runtime creates is attributable.
+      // Teardown budgets are only meaningful if the probe predates the runtime.
+      (() => {
+        // WebGL contexts are tracked through WeakRefs on purpose: a strong
+        // reference here would keep every context (and its canvas) alive and
+        // silently invalidate the very leak budget this probe exists to measure.
+        const contexts = [];
+        const workers = [];
+        const pendingAnimationFrames = new Set();
+        const consoleErrors = [];
+        const pageErrors = [];
+
+        const nativeGetContext = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function (type, ...rest) {
+          const context = nativeGetContext.call(this, type, ...rest);
+          if (context && (type === "webgl" || type === "webgl2" || type === "experimental-webgl")) {
+            contexts.push(new WeakRef(context));
+          }
+          return context;
+        };
+
+        const NativeWorker = globalThis.Worker;
+        class ProbedWorker extends NativeWorker {
+          constructor(...args) {
+            super(...args);
+            workers.push({ worker: this, terminated: false });
+          }
+          terminate(...args) {
+            const record = workers.find((entry) => entry.worker === this);
+            if (record) record.terminated = true;
+            return super.terminate(...args);
+          }
+        }
+        globalThis.Worker = ProbedWorker;
+
+        const nativeRaf = globalThis.requestAnimationFrame.bind(globalThis);
+        const nativeCancelRaf = globalThis.cancelAnimationFrame.bind(globalThis);
+        globalThis.requestAnimationFrame = (callback) => {
+          const handle = nativeRaf((time) => {
+            pendingAnimationFrames.delete(handle);
+            callback(time);
+          });
+          pendingAnimationFrames.add(handle);
+          return handle;
+        };
+        globalThis.cancelAnimationFrame = (handle) => {
+          pendingAnimationFrames.delete(handle);
+          return nativeCancelRaf(handle);
+        };
+
+        // Net DOM listener accounting. `addEventListener`/`removeEventListener`
+        // call counts are the only honest signal available from inside the page
+        // (the browser exposes no registry), so the budget is stated as a
+        // per-cycle delta rather than an absolute.
+        let listenersAdded = 0;
+        let listenersRemoved = 0;
+        const nativeAddEventListener = EventTarget.prototype.addEventListener;
+        const nativeRemoveEventListener = EventTarget.prototype.removeEventListener;
+        EventTarget.prototype.addEventListener = function (...args) {
+          listenersAdded += 1;
+          return nativeAddEventListener.apply(this, args);
+        };
+        EventTarget.prototype.removeEventListener = function (...args) {
+          listenersRemoved += 1;
+          return nativeRemoveEventListener.apply(this, args);
+        };
+
+        const nativeConsoleError = console.error.bind(console);
+        console.error = (...args) => {
+          consoleErrors.push(args.map((value) => String(value)).join(" "));
+          nativeConsoleError(...args);
+        };
+        // Only errors and unhandled rejections fail the lane (NFR-002); warnings
+        // are left untouched.
+        globalThis.addEventListener("error", (event) => pageErrors.push(String(event.message)));
+        globalThis.addEventListener("unhandledrejection", (event) =>
+          pageErrors.push(`unhandledrejection: ${String(event.reason)}`),
+        );
+
+        globalThis.__honuaSceneProbe = {
+          consoleErrors,
+          pageErrors,
+          snapshot() {
+            return {
+              contextsCreated: contexts.length,
+              liveWebglContexts: contexts.filter((reference) => {
+                const context = reference.deref();
+                return context !== undefined && !context.isContextLost();
+              }).length,
+              workersCreated: workers.length,
+              workersTerminated: workers.filter((entry) => entry.terminated).length,
+              liveWorkers: workers.filter((entry) => !entry.terminated).length,
+              pendingAnimationFrames: pendingAnimationFrames.size,
+              listenersAdded,
+              listenersRemoved,
+              netListeners: listenersAdded - listenersRemoved,
+              consoleErrorCount: consoleErrors.length,
+              pageErrorCount: pageErrors.length,
+            };
+          },
+        };
+
+        globalThis.CESIUM_BASE_URL = "/node_modules/cesium/Build/Cesium/";
+      })();
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "cesium": "/node_modules/cesium/Build/Cesium/index.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="scene-hosts"></div>
+    <table id="outcomes">
+      <thead>
+        <tr><th>binding</th><th>kind</th><th>outcome</th><th>rendered</th><th>diagnostics</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <script type="module" src="/test/playwright/cesium-scene-adapter-fixture.mjs"></script>
+  </body>
+</html>

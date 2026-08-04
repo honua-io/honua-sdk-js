@@ -71,14 +71,109 @@ When `HONUA_API_KEY` is configured, use `https://` for non-localhost servers.
 
 All read-only:
 
-- `honua_list_services` — discover services (degrades if the target has no catalog)
-- `honua_describe_layer`
+- `honua_list_sources` — **protocol-neutral discovery.** Returns `<protocol>:<address>` source references plus each source's real capabilities. Every protocol family degrades independently with a reason.
+- `honua_list_services` — GeoServices-specific service catalog (prefer `honua_list_sources`)
+- `honua_describe_layer` — source schema, protocol, and advertised capabilities
 - `honua_query_features`
 - `honua_count_features`
 - `honua_get_extent`
 - `honua_statistics`
 - `honua_explain_capability_gap`
 - `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
+
+### Protocol-neutral tool contract
+
+The tool vocabulary is the SDK's `Dataset` → `Source` → `Query` → `Result` contract,
+not GeoServices with extra fields. **No tool schema requires an Esri-only field.**
+
+**Addressing.** A source is one string, `<protocol>:<address>`, exactly as
+`honua_list_sources` emits it:
+
+| protocol | address | example |
+| --- | --- | --- |
+| `geoservices-feature-service` (alias `geoservices`) | `<serviceId>/<layerId>` | `geoservices-feature-service:Parks/0` |
+| `geoservices-map-service` | `<serviceId>/<layerId>` | `geoservices-map-service:Basemap/2` |
+| `ogc-features` (alias `ogc`) | `<collectionId>` | `ogc-features:hotels` |
+| `ogc-records` | `<collectionId>` | `ogc-records:catalog` |
+| `stac` | `<collectionId>` | `stac:sentinel-2-l2a` |
+| `wfs` | `<typeName>` | `wfs:topp:states` |
+| `odata` | `<entitySet>` | `odata:People` |
+
+An unrecognized protocol token is **refused with the accepted forms** rather than
+guessed at. Pass `layout` (`ogc-api` / `auto` / `stac-api` / `stac-static`) when the
+OGC/STAC source lives at a third-party service root rather than the Honua facade.
+
+**Filtering.** `filter` is the SDK's typed semantic filter, which compiles to
+GeoServices SQL-92, CQL2, FES 2.0, or OData `$filter` depending on the backend —
+one filter, same meaning everywhere:
+
+```jsonc
+{
+  "source": "ogc-features:obs",
+  "filter": {
+    "op": "and",
+    "args": [
+      { "op": "eq", "field": "stn_id", "value": 2147 },
+      { "op": "gt", "field": "value", "value": 95 }
+    ]
+  },
+  "orderBy": [{ "field": "value", "direction": "desc" }],
+  "limit": 10
+}
+```
+
+Nodes: `eq`/`ne`/`lt`/`lte`/`gt`/`gte` (`field`, `value`), `in` (`values`),
+`between` (`lower`, `upper`), `is-null`/`is-not-null`, `like` (`pattern`,
+`caseSensitive`), `and`/`or` (`args`), `not` (`arg`), the spatial predicates
+`intersects`/`contains`/`within`/`crosses`/`touches`/`overlaps`/`bbox-intersects`
+(`geometry` or `bbox`), and the temporal predicates
+`before`/`after`/`during`/`time-intersects` (`field`, `value`).
+
+**Geometry** is GeoJSON (RFC 7946), or a `bbox` as `[minX, minY, maxX, maxY]`.
+An envelope tested with `intersects` travels as the portable spatial constraint
+(the OGC `bbox` parameter / a GeoServices geometry parameter); a richer geometry
+or predicate becomes a typed spatial filter, which compiles where supported and
+fails closed where it is not. **Time** is `temporal` — `{ "instant": … }` or
+`{ "start": …, "end": … }`, with an optional `field`; without a field it targets
+the source's own time dimension (`time=` / `datetime=`).
+
+**Results** carry the neutral source identity, GeoJSON geometry, and — when the
+protocol served the request a weaker way — an explicit `degraded` array (e.g. OGC
+API Features has no server-side aggregation, so `honua_statistics` says it
+aggregated client-side rather than presenting the number as authoritative).
+
+**Capability honesty.** A request the backing protocol cannot express returns an
+`isError` result with a structured envelope, never a silently empty feature list:
+
+```json
+{
+  "code": "capability_not_supported",
+  "error": {
+    "kind": "ExecutionFailed",
+    "message": "Capability \"queryAggregate\" is not supported by protocol \"wmts\"",
+    "capability": "queryAggregate",
+    "protocol": "wmts",
+    "guidance": "…what to do instead…"
+  }
+}
+```
+
+### Deprecated inputs (still accepted)
+
+Nothing was removed. The following remain as **optional** compatibility inputs so
+existing MCP clients keep working, and are marked `[DEPRECATED]` in their schema
+descriptions:
+
+- `serviceId` + `layerId` — the GeoServices pair. Equivalent to
+  `source: "geoservices-feature-service:<serviceId>/<layerId>"`. Passing
+  `serviceId` without `layerId` is refused rather than defaulted to layer 0.
+- `where` — source-native filter text, whose language depends on the backend. Use
+  `filter` for a protocol-neutral one.
+- `geometry` as Esri-JSON, with `geometryType` — converted on the way in.
+
+One behavioural note: a source addressed the **deprecated** way keeps the legacy
+Esri-JSON geometry output; a source addressed with `source` gets GeoJSON. Set
+`geometryFormat` explicitly to override either default.
 
 Hosts that use signed safe-agent plans can import
 `@honua/mcp-server/agent-execution`. Its `createReadOnlyMcpAgentExecutor` binds
@@ -189,6 +284,30 @@ The fixture is recorded by `scripts/record-census-fixtures.mjs` into
 `src/certification/census-data.ts`; the evaluator that replays it is verified for
 parity against the live recordings in `test/certification/census-fixture-client.test.ts`.
 
+### Non-GeoServices certification lane
+
+A `standalone`-shaped lane can prove the surface works against Esri and still say
+nothing about vendor neutrality. So a second target — **`standalone-ogc`**
+(`HONUA_MCP_CERT_TARGET=standalone-ogc`, or `--target standalone-ogc`) — runs the
+**same tool catalog** against an in-process fixture of a plain **OGC API Features**
+endpoint, replaying collections recorded from the public
+[pygeoapi demo](https://demo.pygeoapi.io/master) (the pinned `ogc-features` target
+in `config/live-conformance-endpoints.v1.json`). Nothing Esri exists there: the
+GeoServices entry points all reject, so a tool that still secretly required
+`serviceId`/`layerId` fails loudly instead of passing by accident.
+
+```bash
+npm run certify:standalone-ogc            # non-GeoServices cert (OGC API Features fixture)
+npm run test:certification:standalone-ogc # CI gate variant
+```
+
+The fixture serves the OGC API Features Part 1 parameters (`limit`, `offset`,
+`bbox`, `datetime`, `properties`, `sortby`) plus the Part 3 `filter` +
+`filter-lang=cql2-text` the neutral contract compiles to — including a CQL2
+evaluator that **refuses** a construct it cannot evaluate exactly (`S_*` spatial
+predicates) rather than matching every row. Re-record with
+`node scripts/record-ogc-fixtures.mjs`.
+
 Artifacts are written to the package root as
 `mcp-certification-results.json` and `mcp-certification-results.md` (gitignored;
 uploaded by CI). To certify against a **live** honua-server, set `HONUA_BASE_URL`
@@ -283,6 +402,24 @@ hallucinated place name fails. The grading taxonomy is documented in
 
 ```bash
 npm run eval:standalone       # deterministic control over the census fixture (offline)
+```
+
+### Non-GeoServices semantic corpus (`src/eval/ogc-corpus.ts`)
+
+The **ogc** corpus runs the identical catalog against the plain OGC API Features
+fixture, addressing every source as `ogc-features:<collectionId>` — no `serviceId`,
+no `layerId`, anywhere in the corpus (a test asserts that). Its assertions are
+anchored to the recorded pygeoapi data (5 observations, 31 Utah cities:
+`avg(value)=96.14`, `sum(POP_2000)=354212`, `stn_id=2147 ⇒ 2 rows`, the
+2001–2004 interval ⇒ 3 rows), and it exercises the typed filter, a GeoJSON/bbox
+spatial constraint, and canonical temporal predicates. Three scenarios grade
+*honesty* rather than data: client-side aggregation must be reported as degraded,
+an extent that came from the declared collection extent must say so, and a CQL2
+spatial predicate the endpoint does not publish must come back as a structured
+capability refusal — never as an empty result set.
+
+```bash
+npm run eval:ogc              # deterministic control over the OGC API Features fixture (offline)
 ```
 
 ### Live lane (paid, manual only)

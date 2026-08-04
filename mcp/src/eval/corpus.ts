@@ -1,4 +1,5 @@
 import { NORTHSTAR_CORPUS } from "./northstar-corpus.js";
+import { OGC_CORPUS } from "./ogc-corpus.js";
 import { OPERATOR_CORPUS } from "./operator-corpus.js";
 import { STANDALONE_CORPUS } from "./standalone-corpus.js";
 import type { Scenario } from "./types.js";
@@ -134,6 +135,8 @@ export function resolveCorpus(env: NodeJS.ProcessEnv = process.env): Scenario[] 
       return NORTHSTAR_CORPUS;
     case "standalone":
       return STANDALONE_CORPUS;
+    case "ogc":
+      return OGC_CORPUS;
     case "all":
       // `all` spans the Honua-surface corpora only. The platform-free standalone
       // corpus targets a DIFFERENT surface (a plain FeatureServer fixture) and is
@@ -153,4 +156,14 @@ export function resolveCorpus(env: NodeJS.ProcessEnv = process.env): Scenario[] 
  */
 export function isStandaloneCorpus(env: NodeJS.ProcessEnv = process.env): boolean {
   return (env.HONUA_EVAL_CORPUS ?? "").trim().toLowerCase() === "standalone";
+}
+
+/**
+ * Whether a corpus selection targets the NON-GeoServices surface (issue #1005) —
+ * a plain OGC API Features endpoint replayed from recorded pygeoapi collections.
+ * The offline runner uses this to pick the OGC fixture client, on which every
+ * GeoServices entry point rejects.
+ */
+export function isOgcCorpus(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (env.HONUA_EVAL_CORPUS ?? "").trim().toLowerCase() === "ogc";
 }

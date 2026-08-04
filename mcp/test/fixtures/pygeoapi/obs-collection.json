@@ -1,0 +1,129 @@
+{
+  "id": "obs",
+  "links": [
+    {
+      "type": "text/csv",
+      "rel": "canonical",
+      "title": "data",
+      "href": "https://github.com/mapserver/mapserver/blob/branch-7-0/msautotest/wxs/data/obs.csv",
+      "hreflang": "en-US"
+    },
+    {
+      "type": "text/csv",
+      "rel": "alternate",
+      "title": "data",
+      "href": "https://raw.githubusercontent.com/mapserver/mapserver/branch-7-0/msautotest/wxs/data/obs.csv",
+      "hreflang": "en-US"
+    },
+    {
+      "type": "application/json",
+      "rel": "root",
+      "title": "The landing page of this server as JSON",
+      "href": "https://demo.pygeoapi.io/master?f=json"
+    },
+    {
+      "type": "text/html",
+      "rel": "root",
+      "title": "The landing page of this server as HTML",
+      "href": "https://demo.pygeoapi.io/master?f=html"
+    },
+    {
+      "type": "application/json",
+      "rel": "self",
+      "title": "This document as JSON",
+      "href": "https://demo.pygeoapi.io/master/collections/obs?f=json"
+    },
+    {
+      "type": "application/ld+json",
+      "rel": "alternate",
+      "title": "This document as RDF (JSON-LD)",
+      "href": "https://demo.pygeoapi.io/master/collections/obs?f=jsonld"
+    },
+    {
+      "type": "text/html",
+      "rel": "alternate",
+      "title": "This document as HTML",
+      "href": "https://demo.pygeoapi.io/master/collections/obs?f=html"
+    },
+    {
+      "type": "application/schema+json",
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/schema",
+      "title": "Schema of collection in JSON",
+      "href": "https://demo.pygeoapi.io/master/collections/obs/schema?f=json"
+    },
+    {
+      "type": "text/html",
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/schema",
+      "title": "Schema of collection in HTML",
+      "href": "https://demo.pygeoapi.io/master/collections/obs/schema?f=html"
+    },
+    {
+      "type": "application/schema+json",
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/queryables",
+      "title": "Queryables for this collection as JSON",
+      "href": "https://demo.pygeoapi.io/master/collections/obs/queryables?f=json"
+    },
+    {
+      "type": "text/html",
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/queryables",
+      "title": "Queryables for this collection as HTML",
+      "href": "https://demo.pygeoapi.io/master/collections/obs/queryables?f=html"
+    },
+    {
+      "type": "application/geo+json",
+      "rel": "items",
+      "title": "Items as GeoJSON",
+      "href": "https://demo.pygeoapi.io/master/collections/obs/items?f=json"
+    },
+    {
+      "type": "application/ld+json",
+      "rel": "items",
+      "title": "Items as RDF (GeoJSON-LD)",
+      "href": "https://demo.pygeoapi.io/master/collections/obs/items?f=jsonld"
+    },
+    {
+      "type": "text/html",
+      "rel": "items",
+      "title": "Items as HTML",
+      "href": "https://demo.pygeoapi.io/master/collections/obs/items?f=html"
+    },
+    {
+      "type": "text/csv; charset=utf-8",
+      "rel": "items",
+      "title": "Items as CSV",
+      "href": "https://demo.pygeoapi.io/master/collections/obs/items?f=csv"
+    }
+  ],
+  "title": "Observations",
+  "description": "Observations",
+  "keywords": [
+    "observations",
+    "monitoring"
+  ],
+  "extent": {
+    "spatial": {
+      "bbox": [
+        [
+          -180,
+          -90,
+          180,
+          90
+        ]
+      ],
+      "crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+    },
+    "temporal": {
+      "interval": [
+        [
+          "2000-10-30T18:24:39+00:00",
+          "2007-10-30T08:57:29+00:00"
+        ]
+      ]
+    }
+  },
+  "itemType": "feature",
+  "crs": [
+    "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+  ],
+  "storageCrs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+}
