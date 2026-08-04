@@ -81,8 +81,14 @@ function canonicalGallery() {
   return verifiedGallery(projection, { bytes: projectionBytes, fixture: consumerFixture });
 }
 
-function renderGallery(gallery, resolveSourceLink = repositorySourceResolver) {
-  return renderGalleryContent(gallery, { resolveSourceLink });
+function renderGallery(gallery, resolveSourceLink = repositorySourceResolver, resolvePlayground) {
+  return renderGalleryContent(gallery, { resolveSourceLink, resolvePlayground });
+}
+
+/** Playground index in the shape scripts/sample-playgrounds.mjs publishes. */
+function playgroundResolver(entries) {
+  const index = new Map(entries.map((entry) => [entry.sampleId, entry]));
+  return (sample) => index.get(sample.id);
 }
 
 function sampleById(value, id) {
@@ -791,4 +797,66 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
   assert.ok(groups.every((group) => !group.hidden));
   assert.equal(document.activeElement, search);
   dom.window.close();
+});
+
+test("renders a zero-install playground link per provider for samples that have one", async () => {
+  const resolve = playgroundResolver([
+    {
+      sampleId: "temporal-playback",
+      projectPath: "playgrounds/temporal-playback",
+      providers: [
+        {
+          id: "stackblitz",
+          title: "StackBlitz",
+          url: "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback",
+        },
+        {
+          id: "codesandbox",
+          title: "CodeSandbox",
+          url: "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback",
+        },
+      ],
+    },
+  ]);
+  const html = renderGallery(await canonicalGallery(), repositorySourceResolver, resolve);
+  const card = html.slice(html.indexOf('data-sample-id="temporal-playback"'));
+  const body = card.slice(0, card.indexOf("</article>"));
+
+  assert.match(
+    body,
+    /<a class="demo-link demo-link--playground" href="https:\/\/stackblitz\.com\/github\/honua-io\/honua-sdk-js\/tree\/trunk\/playgrounds\/temporal-playback" rel="noopener noreferrer">Open in StackBlitz →<\/a>/,
+  );
+  assert.match(body, /Open in CodeSandbox →/);
+  // The playground calls to action stay in the card head, above the drawer.
+  assert.ok(body.indexOf("demo-link--playground") < body.indexOf('<details class="demo-card-details">'));
+
+  const untouched = html.slice(html.indexOf('data-sample-id="service-explorer"'));
+  assert.doesNotMatch(untouched.slice(0, untouched.indexOf("</article>")), /demo-link--playground/);
+});
+
+test("drops a playground link that is not a canonical query-free https URL", async () => {
+  // The published artifact's schema pins the URL shape; this is the renderer's
+  // own second line of defence against anything that reaches it unvalidated.
+  const resolve = playgroundResolver([
+    {
+      sampleId: "temporal-playback",
+      projectPath: "playgrounds/temporal-playback",
+      providers: [
+        { id: "stackblitz", title: "StackBlitz", url: "http://stackblitz.com/github/honua-io/honua-sdk-js" },
+        { id: "codesandbox", title: "CodeSandbox", url: "https://codesandbox.io/s/github/honua-io?token=secret" },
+      ],
+    },
+  ]);
+  const html = renderGallery(await canonicalGallery(), repositorySourceResolver, resolve);
+  assert.doesNotMatch(html, /demo-link--playground/);
+  assert.doesNotMatch(html, /token=secret/);
+  assert.doesNotMatch(html, /http:\/\/stackblitz\.com/);
+});
+
+test("rejects a playground resolver that is not callable", async () => {
+  const gallery = await canonicalGallery();
+  assert.throws(
+    () => renderGalleryContent(gallery, { resolveSourceLink: repositorySourceResolver, resolvePlayground: {} }),
+    /playground resolver must be a function/,
+  );
 });

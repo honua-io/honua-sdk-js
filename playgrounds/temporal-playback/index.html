@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua SDK — Temporal playback</title>
+  </head>
+  <body>
+    <main class="app">
+      <aside class="panel">
+        <h1>Temporal playback</h1>
+        <p class="lede">
+          A month of synthetic seismic events (deterministic fixture, no network) styled with a
+          <code>classBreaksRenderer</code> and animated with <code>createTemporalPlayback</code> from
+          <code>@honua/sdk-js/map</code>.
+        </p>
+        <!-- Play/pause, scrub, step, and speed are all the app-platform
+             <honua-time-slider> element (issue #959) bound to the very same
+             createTemporalPlayback controller. The window *length* stays a
+             sample control because it is a controller configuration choice,
+             not part of the slider's transport. -->
+        <honua-time-slider id="time-slider" label="Playback"></honua-time-slider>
+        <section class="controls" aria-label="Window length">
+          <label class="window-label" for="window-select">Window</label>
+          <select id="window-select">
+            <option value="1">1 day</option>
+            <option value="3" selected>3 days</option>
+            <option value="7">7 days</option>
+          </select>
+        </section>
+        <dl class="readout">
+          <dt>Window</dt>
+          <dd id="window-readout">–</dd>
+          <dt>Events in view</dt>
+          <dd id="count-readout">–</dd>
+        </dl>
+        <h2>Legend</h2>
+        <ul id="legend" class="legend"></ul>
+      </aside>
+      <div id="map" role="application" aria-label="Playback map"></div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

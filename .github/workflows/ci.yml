@@ -419,6 +419,21 @@ jobs:
           npm run create-app:templates:typecheck
           npm run playgrounds:check
 
+      - name: create-honua-app packed artifact
+        # The source tree is not what a user installs: this packs the scaffold,
+        # installs the tarball into a throwaway consumer, and scaffolds from it,
+        # so a `files` omission cannot ship a starter without its templates.
+        run: npm run create-app:verify:package
+
+      - name: Gallery sample playgrounds
+        # Generated standalone projects for every qualifying gallery sample
+        # (#958): drift against the committed sample source fails here, and both
+        # copies must still compile against the SDK source.
+        run: |
+          npm run samples:playgrounds:check
+          npm run samples:playgrounds:test
+          npm run samples:playgrounds:typecheck
+
       - name: Acquire pinned Overture extension and prove offline build
         run: |
           npm run demo:overture:prepare

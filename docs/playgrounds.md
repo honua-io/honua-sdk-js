@@ -35,11 +35,28 @@ Vite + React + TypeScript app that mounts the same accepted plan through @honua/
 - StackBlitz: <https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/react-ts>
 - CodeSandbox: <https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/react-ts>
 
+## Gallery samples
+
+A gallery sample cannot be opened from `examples/` directly: those projects build through the repository's Vite
+configs, which alias `@honua/sdk-js` onto this repository's own `src/` tree. `scripts/sample-playgrounds.mjs`
+therefore generates a standalone project — the sample's committed source, a plain Vite config, and a package.json
+pinned to the published packages — under `playgrounds/<id>/` for every sample that qualifies, and derives these
+links from it. Every other catalog sample carries a machine-readable exclusion category instead of a broken link;
+run `npm run samples:playgrounds:check` to see the full decision list.
+
+| Sample | Playground | Source |
+| --- | --- | --- |
+| Safe Agent Workbench (`ai-spatial-app-builder`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder) | `examples/ai-spatial-app-builder` → `playgrounds/ai-spatial-app-builder` |
+| Interactive sketch editing with terra-draw (`sketch-editing`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing) | `examples/sketch-editing` → `playgrounds/sketch-editing` |
+| STAC imagery browser (`stac-imagery-browser`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser) | `examples/stac-imagery-browser` → `playgrounds/stac-imagery-browser` |
+| Temporal playback (`temporal-playback`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback) | `examples/temporal-playback` → `playgrounds/temporal-playback` |
+
 ## How the links stay honest
 
-The table above is generated from `packages/create-honua-app/templates.manifest.json`; CI regenerates it and fails
-on drift (`npm run playgrounds:check`). Each playground boots the project directory it names, installs its pinned
-dependencies, and runs `npm run dev` — the same command a scaffolded project uses locally.
+The starter table is generated from `packages/create-honua-app/templates.manifest.json` and the sample table from
+`samples/catalog.v2.json`; CI regenerates both and fails on drift (`npm run playgrounds:check`,
+`npm run samples:playgrounds:check`). Each playground boots the project directory it names, installs its pinned
+dependencies, and runs `npm run dev` — the same command the project uses locally.
 
-Gallery sample playgrounds are tracked separately: the samples under `examples/` build through the repository's
-shared Vite kit and have no standalone project manifest yet, so they are not linkable playgrounds today.
+A generated sample playground is a copy, not a fork: editing it directly fails the drift check. Change the sample
+under `examples/` and regenerate with `npm run samples:playgrounds:generate`.

@@ -36,6 +36,8 @@ jobs:
           JS_SDK_TAG_NAME: ${{ steps.release.outputs.tag_name || steps.release.outputs['.--tag_name'] }}
           MCP_RELEASE_CREATED: ${{ steps.release.outputs['mcp--release_created'] }}
           MCP_TAG_NAME: ${{ steps.release.outputs['mcp--tag_name'] }}
+          CREATE_APP_RELEASE_CREATED: ${{ steps.release.outputs['packages/create-honua-app--release_created'] }}
+          CREATE_APP_TAG_NAME: ${{ steps.release.outputs['packages/create-honua-app--tag_name'] }}
         run: |
           dispatch_tag_publish() {
             local workflow="$1"
@@ -191,6 +193,9 @@ jobs:
           fi
           if [[ "${MCP_RELEASE_CREATED}" == "true" ]]; then
             dispatch_tag_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
+          fi
+          if [[ "${CREATE_APP_RELEASE_CREATED}" == "true" ]]; then
+            dispatch_tag_publish publish-create-honua-app.yml "${CREATE_APP_TAG_NAME}"
           fi
 
   release-please-ci:

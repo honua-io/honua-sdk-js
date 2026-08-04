@@ -145,5 +145,10 @@ describe("deterministic resilience benchmark", () => {
     });
     expect(evaluation.level).toBe("failure");
     expect(evaluation.items).toContainEqual(expect.objectContaining({ metric: "artifact-safety", level: "failure" }));
-  }, 45_000);
+    // The whole corpus is executed here, and it now carries four million-row
+    // columnar scenarios (data plane, reduction, bounded conversion, and
+    // persistence). The budget is wall-clock room for a contended runner, not a
+    // performance assertion: throughput is gated by the absolute budgets in
+    // `bench/budgets.json`.
+  }, 60_000);
 });

@@ -639,6 +639,34 @@ function renderReplacement(replacement) {
   return escapeHtml(label);
 }
 
+/**
+ * Zero-install playground links for the samples that have one (#958).
+ *
+ * The links arrive through a resolver rather than as a projection member: the
+ * site projection's schema is content-addressed by the committed consumer
+ * handoff, so adding a member to it is a coordinated version bump reserved for
+ * the derived-artifact automation. `samples/dist/sample-playgrounds.v1.json`
+ * carries the same information as its own unpinned artifact instead.
+ *
+ * The URLs are generated path-only precisely so `safeHttpUrl` accepts them; a
+ * provider whose link ever grows a query string or fragment is dropped rather
+ * than rendered unverified.
+ */
+function renderPlayground(playground) {
+  if (!playground || !Array.isArray(playground.providers)) return "";
+  const links = playground.providers
+    .map((provider) => ({ title: provider.title, href: safeHttpUrl(provider.url) }))
+    .filter((provider) => provider.href);
+  if (links.length === 0) return "";
+  const anchors = links
+    .map(
+      (provider) =>
+        `<a class="demo-link demo-link--playground" href="${escapeHtml(provider.href)}" rel="noopener noreferrer">Open in ${escapeHtml(provider.title)} →</a>`,
+    )
+    .join("\n  ");
+  return `\n  ${anchors}`;
+}
+
 function renderJourney(journey) {
   if (!journey) return '<span class="demo-none">None</span>';
   return `${escapeHtml(journey.title)} (<code>${escapeHtml(journey.id)}</code>) · <strong>${escapeHtml(
@@ -681,7 +709,7 @@ function renderGalleryProvenance(gallery) {
 </aside>`;
 }
 
-function renderCard(card, resolveSourceLink) {
+function renderCard(card, resolveSourceLink, resolvePlayground) {
   const { sample } = card;
   const docsPath = validatedSampleSource(sample);
   const source = validatedSourceLink(resolveSourceLink(sample), docsPath);
@@ -712,7 +740,7 @@ function renderCard(card, resolveSourceLink) {
   </header>
   <p class="demo-id"><code>${escapeHtml(sample.id)}</code></p>
   <p class="demo-summary">${escapeHtml(sample.summary)}</p>
-  <a class="demo-link" href="${escapeHtml(source.href)}">${sourceLabel} →</a>
+  <a class="demo-link" href="${escapeHtml(source.href)}">${sourceLabel} →</a>${renderPlayground(resolvePlayground(sample))}
   <dl class="demo-facts demo-facts--essential">
     <dt>SDK</dt><dd><code>${escapeHtml(sample.sdk.package)}</code> <code>${escapeHtml(sample.sdk.version)}</code></dd>
     <dt>Data</dt><dd>${dataSummary.join(" · ")}</dd>
@@ -747,7 +775,7 @@ function renderCard(card, resolveSourceLink) {
 }
 
 /** Render only the gallery's main content; the docs builder owns site chrome. */
-export function renderGalleryContent(gallery, { resolveSourceLink } = {}) {
+export function renderGalleryContent(gallery, { resolveSourceLink, resolvePlayground } = {}) {
   invariant(
     gallery && VERIFIED_GALLERY_MODELS.has(gallery),
     "gallery rendering requires a verified gallery model",
@@ -755,6 +783,10 @@ export function renderGalleryContent(gallery, { resolveSourceLink } = {}) {
   if (typeof resolveSourceLink !== "function") {
     throw new TypeError("renderGalleryContent requires an explicit source-link resolver");
   }
+  if (resolvePlayground !== undefined && typeof resolvePlayground !== "function") {
+    throw new TypeError("renderGalleryContent playground resolver must be a function");
+  }
+  const playgroundFor = resolvePlayground ?? (() => undefined);
   const capabilityOptions = gallery.filters.capabilities.map(renderOption).join("");
   const protocolOptions = gallery.filters.protocols.map(renderOption).join("");
   const groups = gallery.groups
@@ -762,7 +794,7 @@ export function renderGalleryContent(gallery, { resolveSourceLink } = {}) {
       (group) => `<section data-gallery-group aria-labelledby="gallery-${escapeHtml(group.track)}">
   <h2 id="gallery-${escapeHtml(group.track)}">${escapeHtml(group.title)}</h2>
   <div class="demo-grid">
-${group.cards.map((card) => renderCard(card, resolveSourceLink)).join("\n")}
+${group.cards.map((card) => renderCard(card, resolveSourceLink, playgroundFor)).join("\n")}
   </div>
 </section>`,
     )

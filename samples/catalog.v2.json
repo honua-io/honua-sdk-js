@@ -214,6 +214,21 @@
       },
       "sourcePath": "examples/ai-spatial-app-builder",
       "docsPath": "examples/ai-spatial-app-builder/README.md",
+      "playground": {
+        "projectPath": "playgrounds/ai-spatial-app-builder",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder"
+          }
+        ]
+      },
       "capabilities": [
         "agent-approval",
         "agent-planning",
@@ -2204,6 +2219,21 @@
       },
       "sourcePath": "examples/sketch-editing",
       "docsPath": "examples/sketch-editing/README.md",
+      "playground": {
+        "projectPath": "playgrounds/sketch-editing",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing"
+          }
+        ]
+      },
       "capabilities": [
         "editing",
         "sketch",
@@ -2439,6 +2469,21 @@
       },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
+      "playground": {
+        "projectPath": "playgrounds/stac-imagery-browser",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          }
+        ]
+      },
       "capabilities": [
         "cog",
         "imagery",
@@ -2603,6 +2648,21 @@
       },
       "sourcePath": "examples/temporal-playback",
       "docsPath": "examples/temporal-playback/README.md",
+      "playground": {
+        "projectPath": "playgrounds/temporal-playback",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback"
+          }
+        ]
+      },
       "capabilities": [
         "map",
         "realtime",
