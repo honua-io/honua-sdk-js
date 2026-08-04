@@ -228,29 +228,61 @@ What these reads add to the shared discipline:
 
 Offline tiles reach MapLibre through the protocol seam the runtime already uses
 for other custom schemes, rather than a second tile pipeline. A style names
-`offline-region://` tiles and the handler answers each one from the region:
+`offline-region://` tiles and the handler answers each one from the region.
+
+The simplest binding is to hand `loadMapPackage` a handler and the style sources
+that should come from storage. It rewrites those sources' tile templates and
+registers the protocol before `map.setStyle`:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
-import {
-  buildOfflineRegionTileUrlTemplate,
-  registerOfflineRegionTileProtocol,
-} from "@honua/sdk-js/offline";
+import { createOfflineRegionTileProtocol } from "@honua/sdk-js/offline";
+import { loadMapPackage } from "@honua/sdk-js/runtime";
 
-const dispose = registerOfflineRegionTileProtocol(maplibregl, {
-  manifest,
-  store: applicationStore,
-  authorizationScopeFingerprint: currentAclFingerprint,
+const runtime = await loadMapPackage(pkg, map, {
+  client,
+  offlineRegion: {
+    tileHandler: createOfflineRegionTileProtocol({
+      manifest,
+      store: applicationStore,
+      authorizationScopeFingerprint: currentAclFingerprint,
+    }),
+    sourceIds: ["incidents"],
+  },
 });
-
-map.addSource("incidents", { type: "vector", tiles: [buildOfflineRegionTileUrlTemplate()] });
 ```
+
+Registration is driven by evidence, never by import. `@honua/sdk-js/runtime`
+never imports `@honua/sdk-js/offline`: a handler is bound to one manifest, one
+store, and one authorization scope, none of which the runtime can invent, so the
+caller supplies it and the runtime decides only *when* it must be registered.
+`ensureOfflineRegionProtocol()` is idempotent per scheme, exactly like the
+PMTiles registration it shares a registry with, and a style that addresses the
+scheme with no handler supplied **fails the load** — a missing handler would
+render blank tiles rather than an error. The same check guards
+`maplibreRenderer` for an owned map.
+
+`rewriteStyleTilesForOfflineRegion()` is available on its own, and is
+deliberately narrow:
+
+- It rewrites `sources[id].tiles[0]` and nothing else, only for `vector`,
+  `raster`, and `raster-dem` sources. TileJSON `url` members, GeoJSON `data`,
+  sprites, glyphs, and layer paint are never touched.
+- It is reversible: the result carries every replacement, and
+  `revertOfflineRegionStyleRewrite()` restores the original style exactly.
+- It refuses rather than guesses. A source that addresses tiles only through a
+  TileJSON `url` (`tilejson-url-only`), carries both `url` and `tiles`
+  (`ambiguous-tile-source`), declares more than one template
+  (`multiple-tile-templates`), uses a placeholder a region cannot address such as
+  `{quadkey}` or `{ratio}` (`unsupported-tile-template`), is not a tile source at
+  all (`not-a-tile-source`), or has already been rewritten
+  (`already-rewritten`) is reported with a reason and left untouched.
+- `loadMapPackage` treats any refusal for a source the caller *named* as fatal,
+  because leaving one on its network template would render live tiles while the
+  application believed it was reading from storage.
 
 A tile the region does not hold rejects with its typed reason instead of falling
 back to the network or rendering nothing, and the handler declares `no-store` so
 freshness, eviction, and provenance stay answerable from the region alone.
-Registration is application-owned: the runtime does not auto-register this
-protocol or rewrite a style's tile URLs onto it.
 
 The same identities also plug into the existing service-worker seam.
 `resolveOfflineRegionResourceId()` turns a selection into the resource id an
