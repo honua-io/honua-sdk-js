@@ -115,7 +115,7 @@ describe("maplibre-gl peer major compatibility", () => {
       await ensurePmtilesProtocol({ scheme });
       expect(isPmtilesProtocolRegistered(scheme)).toBe(true);
     } finally {
-      resetPmtilesProtocol();
+      resetPmtilesProtocol(scheme);
     }
     expect(isPmtilesProtocolRegistered(scheme)).toBe(false);
   });
