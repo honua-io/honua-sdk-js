@@ -583,6 +583,13 @@ jobs:
         # non-Honua endpoint. Fixture-backed, deterministic, no network.
         run: node dist/src/certification/cli.js --target standalone --out-dir standalone-cert
 
+      - name: MCP non-GeoServices certification (gate)
+        # standalone-ogc target (#1005): the SAME tool catalog against an
+        # in-process fixture of a plain OGC API Features endpoint (recorded
+        # pygeoapi collections). Nothing Esri exists there, so a tool that still
+        # required serviceId/layerId fails here instead of passing by accident.
+        run: node dist/src/certification/cli.js --target standalone-ogc --out-dir standalone-ogc-cert
+
       - name: Cross-model workflow eval (gate, offline)
         run: npm run test:eval
 
@@ -590,6 +597,11 @@ jobs:
         # 50+ semantic scenarios against the plain-FeatureServer census fixture;
         # asserts the deterministic control passes every one (offline, no models).
         run: npm run eval:standalone
+
+      - name: Non-GeoServices semantic eval (gate, offline)
+        # The same catalog over the OGC API Features fixture, addressed
+        # protocol-neutrally end to end (#1005).
+        run: npm run eval:ogc
 
       - name: Cross-model workflow eval artifact
         if: always()
@@ -605,6 +617,8 @@ jobs:
             mcp/mcp-certification-results.md
             mcp/standalone-cert/mcp-certification-results.json
             mcp/standalone-cert/mcp-certification-results.md
+            mcp/standalone-ogc-cert/mcp-certification-results.json
+            mcp/standalone-ogc-cert/mcp-certification-results.md
             mcp/mcp-eval-results.json
             mcp/mcp-eval-results.md
           if-no-files-found: warn

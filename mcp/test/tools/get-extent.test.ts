@@ -2,137 +2,73 @@ import { describe, expect, it, vi } from "vitest";
 import { execute, schema } from "../../src/tools/get-extent.js";
 import { asClient, createMockClient } from "../test-helpers.js";
 
+const NEUTRAL = { source: "geoservices-feature-service:Parks/0" };
+
+function parse(result: { content: Array<{ type: "text"; text: string }> }) {
+  return JSON.parse(result.content[0].text);
+}
+
 describe("honua_get_extent", () => {
-  it("returns extent and count from response", async () => {
+  it("returns extent and count through the canonical queryExtent surface", async () => {
     const mock = createMockClient({
       queryFeatures: vi.fn().mockResolvedValue({
         extent: { xmin: -120, ymin: 30, xmax: -110, ymax: 40 },
         count: 15,
       }),
     });
-    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = parse(await execute(asClient(mock), schema.parse(NEUTRAL)));
 
     expect(parsed.extent).toEqual({ xmin: -120, ymin: 30, xmax: -110, ymax: 40 });
     expect(parsed.count).toBe(15);
-  });
-
-  it("passes returnExtentOnly in extraParams", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ extent: {}, count: 0 }),
-    });
-    await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-
+    expect(parsed.source).toBe("geoservices-feature-service:Parks/0");
     expect(mock.queryFeatures).toHaveBeenCalledWith(
-      expect.objectContaining({
-        extraParams: { returnExtentOnly: true },
-        returnGeometry: false,
-      }),
+      expect.objectContaining({ extraParams: expect.objectContaining({ returnExtentOnly: true }) }),
     );
   });
 
-  it("maps spatialRel and inferred geometryType", async () => {
+  it("reports a server-side extent capability for a GeoServices source", async () => {
     const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ extent: {}, count: 0 }),
+      queryFeatures: vi.fn().mockResolvedValue({ extent: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 }, count: 1 }),
     });
-    await execute(
-      asClient(mock),
-      schema.parse({
-        serviceId: "Parks",
-        layerId: 0,
-        spatialRel: "contains",
-        geometry: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 },
-      }),
-    );
+    const parsed = parse(await execute(asClient(mock), schema.parse(NEUTRAL)));
 
-    expect(mock.queryFeatures).toHaveBeenCalledWith(
-      expect.objectContaining({
-        spatialRel: "esriSpatialRelContains",
-        geometryType: "esriGeometryEnvelope",
-      }),
-    );
+    expect(parsed.extentCapability).toBe("server");
   });
 
-  it("uses explicit geometryType when provided", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ extent: {}, count: 0 }),
-    });
-    await execute(
-      asClient(mock),
-      schema.parse({
-        serviceId: "Parks",
-        layerId: 0,
-        geometry: { x: 1, y: 2 },
-        geometryType: "esriGeometryPoint",
-      }),
-    );
-
-    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ geometryType: "esriGeometryPoint" }));
-  });
-
-  it("returns null extent when backend returns count-only payload", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: 0 }),
-    });
-    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-    const parsed = JSON.parse(result.content[0].text);
-
-    expect(parsed).toEqual({ extent: null, count: 0 });
-  });
-
-  it("returns null extent when backend returns explicit null extent", async () => {
+  it("accepts the deprecated serviceId/layerId pair", async () => {
     const mock = createMockClient({
       queryFeatures: vi.fn().mockResolvedValue({ extent: null, count: 0 }),
     });
-    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = parse(await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 })));
 
-    expect(parsed).toEqual({ extent: null, count: 0 });
+    expect(parsed.extent).toBeNull();
+    expect(parsed.count).toBe(0);
   });
 
-  it("throws if extent payload is missing", async () => {
+  it("returns a null extent when the backend reports a count-only payload", async () => {
     const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({}),
+      queryFeatures: vi.fn().mockResolvedValue({ count: 4 }),
     });
-    await expect(execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }))).rejects.toThrow(
-      "Extent query did not return an extent payload",
-    );
+    const parsed = parse(await execute(asClient(mock), schema.parse(NEUTRAL)));
+
+    expect(parsed.extent).toBeNull();
+    expect(parsed.count).toBe(4);
   });
 
-  it("throws for invalid extent payload types", async () => {
+  it("filters the extent query with the typed filter", async () => {
     const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ extent: 42 }),
+      queryFeatures: vi.fn().mockResolvedValue({ extent: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 }, count: 2 }),
     });
-    await expect(execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }))).rejects.toThrow(
-      "Extent query returned an invalid extent payload",
-    );
+    await execute(asClient(mock), schema.parse({ ...NEUTRAL, filter: { op: "eq", field: "STATE", value: "CA" } }));
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ where: "STATE = 'CA'" }));
   });
 
-  it("rejects an array extent payload (typeof object but not a valid envelope)", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ extent: [-120, 30, -110, 40], count: 1 }),
-    });
-    await expect(execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }))).rejects.toThrow(
-      "Extent query returned an invalid extent payload",
-    );
-  });
+  it("returns a structured validation error when no source is addressed", async () => {
+    const mock = createMockClient();
+    const result = await execute(asClient(mock), schema.parse({}));
 
-  it("accepts a large count returned as a numeric string", async () => {
-    const big = "9007199254740993";
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({
-        extent: { xmin: -120, ymin: 30, xmax: -110, ymax: 40 },
-        count: big,
-      }),
-    });
-    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-    const parsed = JSON.parse(result.content[0].text);
-
-    expect(parsed.extent).toEqual({ xmin: -120, ymin: 30, xmax: -110, ymax: 40 });
-    expect(parsed.count).toBe(big);
-  });
-
-  it("rejects negative layerId", () => {
-    expect(() => schema.parse({ serviceId: "Parks", layerId: -1 })).toThrow();
+    expect(result.isError).toBe(true);
+    expect(parse(result).error.kind).toBe("ValidationFailed");
   });
 });

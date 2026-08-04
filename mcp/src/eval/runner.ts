@@ -2,10 +2,11 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createStandaloneFixtureClient } from "../certification/census-fixture-client.js";
 import { createFixtureClient } from "../certification/fixture-client.js";
+import { createOgcFixtureClient } from "../certification/ogc-fixture-client.js";
 import { createServer } from "../index.js";
 import { type SuiteProvenance, readNegotiatedProtocolVersion, resolveSuiteGitSha } from "../provenance.js";
 import { connectUpstream, resolveProxyOptions } from "../proxy.js";
-import { isStandaloneCorpus, resolveCorpus } from "./corpus.js";
+import { isOgcCorpus, isStandaloneCorpus, resolveCorpus } from "./corpus.js";
 import { resolveDrivers } from "./drivers/index.js";
 import { grade } from "./grade.js";
 import { type AuthMode, type EvalReport, assembleReport } from "./report.js";
@@ -35,6 +36,12 @@ export interface RunEvalOptions {
    * Defaults to true when `HONUA_EVAL_CORPUS=standalone`.
    */
   forceStandaloneSurface?: boolean;
+  /**
+   * Use the NON-GeoServices fixture surface (a plain OGC API Features endpoint,
+   * recorded pygeoapi collections) instead of either Honua/Esri fixture. Implies
+   * offline. Defaults to true when `HONUA_EVAL_CORPUS=ogc` (issue #1005).
+   */
+  forceOgcSurface?: boolean;
 }
 
 interface SurfaceConnection {
@@ -59,9 +66,14 @@ async function connectSurface(
   env: NodeJS.ProcessEnv,
   forceOffline: boolean,
   standalone: boolean,
+  ogc: boolean,
 ): Promise<SurfaceConnection> {
   const live =
-    !forceOffline && !standalone && typeof env.HONUA_MCP_REMOTE_URL === "string" && env.HONUA_MCP_REMOTE_URL.length > 0;
+    !forceOffline &&
+    !standalone &&
+    !ogc &&
+    typeof env.HONUA_MCP_REMOTE_URL === "string" &&
+    env.HONUA_MCP_REMOTE_URL.length > 0;
 
   if (live) {
     const options = resolveProxyOptions(env);
@@ -88,7 +100,11 @@ async function connectSurface(
     };
   }
 
-  const fixtureClient = standalone ? createStandaloneFixtureClient() : createFixtureClient();
+  const fixtureClient = ogc
+    ? createOgcFixtureClient()
+    : standalone
+      ? createStandaloneFixtureClient()
+      : createFixtureClient();
   const server = createServer(fixtureClient);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "honua-mcp-eval", version: "1.0.0" });
@@ -97,7 +113,11 @@ async function connectSurface(
   return {
     client,
     backend: "fixture",
-    mcpTransport: standalone ? "in-memory (standalone FeatureServer fixture)" : "in-memory",
+    mcpTransport: ogc
+      ? "in-memory (standalone OGC API Features fixture)"
+      : standalone
+        ? "in-memory (standalone FeatureServer fixture)"
+        : "in-memory",
     auth: "none",
     close: async () => {
       await client.close().catch(() => {});
@@ -135,9 +155,10 @@ export async function runEval(options: RunEvalOptions = {}): Promise<EvalReport>
   const corpus = options.corpus ?? resolveCorpus(env);
   const drivers = options.drivers ?? resolveDrivers({ env });
   const standalone = options.forceStandaloneSurface ?? isStandaloneCorpus(env);
-  const forceOffline = options.forceOffline ?? standalone;
+  const ogc = options.forceOgcSurface ?? isOgcCorpus(env);
+  const forceOffline = options.forceOffline ?? (standalone || ogc);
 
-  const surface = await connectSurface(env, forceOffline, standalone);
+  const surface = await connectSurface(env, forceOffline, standalone, ogc);
   try {
     const listed = await surface.client.listTools();
     const tools: WorkflowContext["tools"] = listed.tools.map((t) => ({

@@ -19,7 +19,22 @@
     "regressions: a per-feature JavaScript object result for the same fixture costs",
     "300+ bytes/feature and an order of magnitude less throughput, and any payload",
     "copy reintroduced into the transfer or projection path fails the scenario's",
-    "zero-copy invariant outright rather than merely slowing it down."
+    "zero-copy invariant outright rather than merely slowing it down.",
+    "columnar.aggregate.million-row (honua-io/honua-sdk-js#939) reduces 1,000,000",
+    "GeoArrow rows to 1,024 groups with a count-plus-sum metric set. The two",
+    "failure thresholds below are the numbers the issue itself names: 8 retained",
+    "bytes/input row and a 2,000,000 input rows/second floor. Measured on the same",
+    "shared linux host: 0.2246-0.2434 retained bytes/input row and 9,002,553-",
+    "14,196,335 input rows/second across five repetitions, so the ceiling sits 33x",
+    "and the floor 4.5x clear of the worst reading. retainedBytesPerInputRow is a",
+    "peak of live bytes sampled after a forced collection at each scan checkpoint,",
+    "not an allocation-rate delta; the harness fails the scenario outright when no",
+    "collector is exposed. It still catches the regression it exists for: decoding",
+    "rows into objects before reducing them costs hundreds of bytes/input row and",
+    "would hold them live at exactly those checkpoints. outputBackingBytesPerGroup",
+    "is deterministic at 32.25 (a utf8 group key plus two float64 metric columns)",
+    "and states the property the whole issue turns on — the result is sized by the",
+    "group count, not the row count."
   ],
   "schemaVersion": 2,
   "variability": {
@@ -54,6 +69,23 @@
         "direction": "higher-is-better",
         "warning": 2000000,
         "failure": 500000
+      }
+    },
+    "columnar.aggregate.million-row": {
+      "retainedBytesPerInputRow": {
+        "direction": "lower-is-better",
+        "warning": 2,
+        "failure": 8
+      },
+      "inputRowsPerSecond": {
+        "direction": "higher-is-better",
+        "warning": 4000000,
+        "failure": 2000000
+      },
+      "outputBackingBytesPerGroup": {
+        "direction": "lower-is-better",
+        "warning": 40,
+        "failure": 64
       }
     }
   }

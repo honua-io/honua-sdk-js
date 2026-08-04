@@ -1,0 +1,126 @@
+{
+  "id": "utah_city_locations",
+  "links": [
+    {
+      "type": "text/html",
+      "rel": "canonical",
+      "title": "information",
+      "href": "http://download.deegree.org/documentation/3.3.20/html/lightly.html#example-workspace-2-utah-webmapping-services",
+      "hreflang": "en-US"
+    },
+    {
+      "type": "application/json",
+      "rel": "root",
+      "title": "The landing page of this server as JSON",
+      "href": "https://demo.pygeoapi.io/master?f=json"
+    },
+    {
+      "type": "text/html",
+      "rel": "root",
+      "title": "The landing page of this server as HTML",
+      "href": "https://demo.pygeoapi.io/master?f=html"
+    },
+    {
+      "type": "application/json",
+      "rel": "self",
+      "title": "This document as JSON",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations?f=json"
+    },
+    {
+      "type": "application/ld+json",
+      "rel": "alternate",
+      "title": "This document as RDF (JSON-LD)",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations?f=jsonld"
+    },
+    {
+      "type": "text/html",
+      "rel": "alternate",
+      "title": "This document as HTML",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations?f=html"
+    },
+    {
+      "type": "application/schema+json",
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/schema",
+      "title": "Schema of collection in JSON",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations/schema?f=json"
+    },
+    {
+      "type": "text/html",
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/schema",
+      "title": "Schema of collection in HTML",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations/schema?f=html"
+    },
+    {
+      "type": "application/schema+json",
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/queryables",
+      "title": "Queryables for this collection as JSON",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations/queryables?f=json"
+    },
+    {
+      "type": "text/html",
+      "rel": "http://www.opengis.net/def/rel/ogc/1.0/queryables",
+      "title": "Queryables for this collection as HTML",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations/queryables?f=html"
+    },
+    {
+      "type": "application/geo+json",
+      "rel": "items",
+      "title": "Items as GeoJSON",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations/items?f=json"
+    },
+    {
+      "type": "application/ld+json",
+      "rel": "items",
+      "title": "Items as RDF (GeoJSON-LD)",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations/items?f=jsonld"
+    },
+    {
+      "type": "text/html",
+      "rel": "items",
+      "title": "Items as HTML",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations/items?f=html"
+    },
+    {
+      "type": "text/csv; charset=utf-8",
+      "rel": "items",
+      "title": "Items as CSV",
+      "href": "https://demo.pygeoapi.io/master/collections/utah_city_locations/items?f=csv"
+    }
+  ],
+  "title": "Cities in Utah via OGR WFS",
+  "description": "Data from the state of Utah. Standard demo dataset from the deegree WFS server that is used as backend WFS.",
+  "keywords": [
+    "USA",
+    "deegree",
+    "Utah",
+    "Demo data"
+  ],
+  "extent": {
+    "spatial": {
+      "bbox": [
+        [
+          -112.108489,
+          39.854053,
+          -111.028628,
+          40.460098
+        ]
+      ],
+      "crs": "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+    },
+    "temporal": {
+      "interval": [
+        [
+          null,
+          null
+        ]
+      ]
+    }
+  },
+  "itemType": "feature",
+  "crs": [
+    "http://www.opengis.net/def/crs/OGC/1.3/CRS84",
+    "http://www.opengis.net/def/crs/EPSG/0/4326",
+    "http://www.opengis.net/def/crs/EPSG/0/26912"
+  ],
+  "storageCrs": "http://www.opengis.net/def/crs/EPSG/0/26912"
+}

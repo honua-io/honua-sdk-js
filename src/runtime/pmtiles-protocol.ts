@@ -16,17 +16,23 @@
  * PMTiles source to a live map through `runtime.addSource` is synchronous — call
  * {@link ensurePmtilesProtocol} yourself beforehand in that case.
  *
- * The `maplibre-gl` / `pmtiles` slices are injectable so the wiring is
- * unit-testable without either real package.
+ * The registration bookkeeping itself lives in `protocol-registry.ts`, shared
+ * with every other scheme the runtime registers; this module owns only the
+ * PMTiles policy. The `maplibre-gl` / `pmtiles` slices are injectable so the
+ * wiring is unit-testable without either real package.
  *
  * @module
  */
 
-/** The MapLibre `addProtocol` / `removeProtocol` surface this module drives. */
-export interface MaplibreProtocolRegistrar {
-  addProtocol(scheme: string, handler: unknown): void;
-  removeProtocol?(scheme: string): void;
-}
+import {
+  type MaplibreProtocolRegistrar,
+  ensureMaplibreProtocol,
+  isMaplibreProtocolRegistered,
+  resetMaplibreProtocol,
+  styleUsesProtocolScheme,
+} from "./protocol-registry.js";
+
+export type { MaplibreProtocolRegistrar };
 
 /** The `pmtiles.Protocol` surface this module drives. */
 export interface PmtilesProtocolLike {
@@ -51,38 +57,6 @@ export interface EnsurePmtilesProtocolDeps {
 /** The default MapLibre protocol scheme PMTiles archives are addressed under. */
 export const PMTILES_PROTOCOL_SCHEME = "pmtiles";
 
-interface Registration {
-  readonly scheme: string;
-  readonly registrar: MaplibreProtocolRegistrar;
-  readonly protocol: PmtilesProtocolLike;
-}
-
-let registration: Registration | undefined;
-let inFlight: Promise<void> | undefined;
-
-/**
- * Resolve the MapLibre `addProtocol` registrar from the lazily-imported module.
- * MapLibre 6 is ESM-only and exposes it as a named export; MapLibre 5 may also
- * surface it off the default namespace depending on how the host bundles the
- * UMD build. Accept either so this works across the `^5 || ^6` peer range.
- */
-async function loadMaplibreRegistrar(): Promise<MaplibreProtocolRegistrar> {
-  const mod = (await import("maplibre-gl")) as unknown as {
-    addProtocol?: MaplibreProtocolRegistrar["addProtocol"];
-    removeProtocol?: MaplibreProtocolRegistrar["removeProtocol"];
-    default?: MaplibreProtocolRegistrar;
-  };
-  if (typeof mod.addProtocol === "function") {
-    return { addProtocol: mod.addProtocol, removeProtocol: mod.removeProtocol };
-  }
-  if (mod.default && typeof mod.default.addProtocol === "function") {
-    return mod.default;
-  }
-  throw new Error(
-    "maplibre-gl does not expose addProtocol(); install maplibre-gl 5.x or 6.x (the SDK peer range is ^5.0.0 || ^6.0.0).",
-  );
-}
-
 async function loadPmtilesModule(): Promise<PmtilesProtocolModuleLike> {
   return (await import("pmtiles")) as unknown as PmtilesProtocolModuleLike;
 }
@@ -97,29 +71,21 @@ async function loadPmtilesModule(): Promise<PmtilesProtocolModuleLike> {
  */
 export async function ensurePmtilesProtocol(deps: EnsurePmtilesProtocolDeps = {}): Promise<void> {
   const scheme = deps.scheme ?? PMTILES_PROTOCOL_SCHEME;
-  if (registration && registration.scheme === scheme) return;
-  if (inFlight) return inFlight;
-
-  inFlight = (async () => {
-    const registrar = deps.maplibre ?? (await loadMaplibreRegistrar());
-    const pmtilesModule = deps.pmtilesModule ?? (await loadPmtilesModule());
-    // `metadata: true` lets MapLibre auto-populate source attribution and the
-    // inspect surface from the archive header without a second wiring step.
-    const protocol = new pmtilesModule.Protocol({ metadata: true });
-    registrar.addProtocol(scheme, protocol.tile);
-    registration = { scheme, registrar, protocol };
-  })();
-
-  try {
-    await inFlight;
-  } finally {
-    inFlight = undefined;
-  }
+  await ensureMaplibreProtocol({
+    scheme,
+    ...(deps.maplibre ? { maplibre: deps.maplibre } : {}),
+    createHandler: async () => {
+      const pmtilesModule = deps.pmtilesModule ?? (await loadPmtilesModule());
+      // `metadata: true` lets MapLibre auto-populate source attribution and the
+      // inspect surface from the archive header without a second wiring step.
+      return new pmtilesModule.Protocol({ metadata: true }).tile;
+    },
+  });
 }
 
 /** Whether the `pmtiles://` protocol (or `scheme`) is currently registered. */
 export function isPmtilesProtocolRegistered(scheme: string = PMTILES_PROTOCOL_SCHEME): boolean {
-  return registration?.scheme === scheme;
+  return isMaplibreProtocolRegistered(scheme);
 }
 
 /**
@@ -128,24 +94,8 @@ export function isPmtilesProtocolRegistered(scheme: string = PMTILES_PROTOCOL_SC
  * useful if a host wants to fully release the protocol. Best-effort — a
  * registrar without `removeProtocol` just clears the local record.
  */
-export function resetPmtilesProtocol(): void {
-  if (registration) {
-    registration.registrar.removeProtocol?.(registration.scheme);
-    registration = undefined;
-  }
-  inFlight = undefined;
-}
-
-function sourceReferencesPmtiles(source: unknown, scheme: string): boolean {
-  if (!source || typeof source !== "object") return false;
-  const prefix = `${scheme}://`;
-  const url = (source as { url?: unknown }).url;
-  if (typeof url === "string" && url.startsWith(prefix)) return true;
-  const tiles = (source as { tiles?: unknown }).tiles;
-  if (Array.isArray(tiles) && tiles.some((tile) => typeof tile === "string" && tile.startsWith(prefix))) {
-    return true;
-  }
-  return false;
+export function resetPmtilesProtocol(scheme: string = PMTILES_PROTOCOL_SCHEME): void {
+  resetMaplibreProtocol(scheme);
 }
 
 /**
@@ -157,10 +107,5 @@ export function styleUsesPmtiles(
   style: { sources?: Record<string, unknown> } | null | undefined,
   scheme: string = PMTILES_PROTOCOL_SCHEME,
 ): boolean {
-  const sources = style?.sources;
-  if (!sources) return false;
-  for (const source of Object.values(sources)) {
-    if (sourceReferencesPmtiles(source, scheme)) return true;
-  }
-  return false;
+  return styleUsesProtocolScheme(style, scheme);
 }
