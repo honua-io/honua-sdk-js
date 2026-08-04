@@ -4313,4 +4313,131 @@ describe("runEsriCompatCodemod", () => {
       ]),
     );
   });
+  it("rewrites a bare esri/* static import like its @arcgis/core equivalent (#981)", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "app.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import FeatureLayer from 'esri/layers/FeatureLayer';",
+        "const serviceUrl = 'https://example.test/rest/services/default/FeatureServer/0';",
+        "const layer = new FeatureLayer({ url: serviceUrl });",
+        "void layer;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.metrics.autoMigratedCallSites).toBe(1);
+    expect(result.metrics.byKind["feature-layer"]).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
+
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain('import { FeatureLayerCompat } from "@honua/sdk-esri-compat";');
+    expect(nextSource).toContain("new FeatureLayerCompat({ url: serviceUrl })");
+    expect(nextSource).not.toContain("esri/layers/FeatureLayer");
+  });
+
+  it("reports AMD dependency-array constructors as manual TODOs instead of ignoring them (#980)", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "viewer.js");
+    fs.writeFileSync(
+      file,
+      [
+        "define([",
+        "    'esri/geometry/Extent',",
+        "    'esri/dijit/BasemapGallery',",
+        "    'dojo/topic'",
+        "], function (Extent, BasemapGallery, topic) {",
+        "    var extent = new Extent({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });",
+        "    var gallery = new BasemapGallery({});",
+        "    void topic; void extent; void gallery;",
+        "});",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: false,
+      annotateTodos: false,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    // The AMD module body is never rewritten — rewriting the constructor while
+    // the loader call still delivers the ArcGIS module would break the file.
+    expect(result.metrics.autoMigratedCallSites).toBe(0);
+    expect(result.metrics.manualCallSites).toBe(1);
+    expect(result.metrics.byKind["extent-geometry"]).toEqual({ total: 1, autoMigrated: 0, manual: 1 });
+    expect(result.manualTodos).toEqual([
+      expect.objectContaining({
+        kind: "extent-geometry",
+        reason: expect.stringContaining("AMD dependency-array"),
+        difficulty: "complex",
+      }),
+    ]);
+    // `esri/dijit/*` has no @arcgis/core counterpart, so it is not claimed as a
+    // codemod-scoped call site; the scan reports it as an unhandled module.
+    expect(result.manualTodos.some((todo) => todo.reason.includes("BasemapGallery"))).toBe(false);
+  });
+
+  it("annotates AMD constructor call sites when --annotate-todos is set (#980)", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "widget.js");
+    fs.writeFileSync(
+      file,
+      [
+        "define(['esri/layers/FeatureLayer'], function (FeatureLayer) {",
+        "    var layer = new FeatureLayer({ url: 'https://example.test/FeatureServer/0' });",
+        "    void layer;",
+        "});",
+      ].join("\n"),
+      "utf8",
+    );
+
+    runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      annotateTodos: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain("TODO(honua-migrate)[feature-layer]");
+    expect(nextSource).toContain("new FeatureLayer({");
+  });
+
+  it("reports TypeScript import-equals constructors as manual TODOs (#981)", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "main.ts");
+    fs.writeFileSync(
+      file,
+      [
+        'import WebMap = require("esri/WebMap");',
+        "const map = new WebMap({ portalItem: { id: 'abc' } });",
+        "void map;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: false,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.metrics.autoMigratedCallSites).toBe(0);
+    expect(result.metrics.manualCallSites).toBe(1);
+    expect(result.manualTodos).toEqual([
+      expect.objectContaining({
+        kind: "web-map",
+        reason: expect.stringContaining("import-equals"),
+      }),
+    ]);
+    expect(fs.readFileSync(file, "utf8")).toContain('import WebMap = require("esri/WebMap");');
+  });
 });

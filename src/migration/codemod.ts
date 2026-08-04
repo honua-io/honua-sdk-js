@@ -3,6 +3,8 @@ import path from "node:path";
 import ts from "typescript";
 import { type WebMapMapLibreManualGap, webmapJsonToMapLibreStyle } from "../map/webmap-maplibre.js";
 import type { WebMapJson } from "../webmap/types.js";
+import { readAmdDependencies, readImportEqualsBinding } from "./loader-bindings.js";
+import { canonicalArcGisModulePath } from "./module-specifiers.js";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
@@ -15,6 +17,10 @@ const MAPLIBRE_NAMESPACE = "maplibregl";
 const TODO_MARKER = "TODO(honua-migrate)";
 const CJS_REQUIRE_MANUAL_REASON =
   "CommonJS require constructors are not auto-migrated; convert the module to ESM and rerun.";
+const AMD_DEPENDENCY_MANUAL_REASON =
+  "AMD dependency-array module (define/require) constructors are not auto-migrated; convert the module to ESM imports and rerun.";
+const IMPORT_EQUALS_MANUAL_REASON =
+  "TypeScript import-equals module (import X = require(...)) constructors are not auto-migrated; convert it to an ESM import and rerun.";
 const ESRI_LEAFLET_UNSUPPORTED_CONSTRUCTOR_REASON =
   "No deterministic esri-leaflet mapping for this constructor; requires manual migration.";
 const ESRI_LEAFLET_UNSUPPORTED_DYNAMIC_IMPORT_REASON =
@@ -680,14 +686,14 @@ export function isKindSupportedForTarget(kind: CodemodConstructorKind, target: C
 }
 
 export function isSupportedArcGisBarrelModulePath(modulePath: string): boolean {
-  return ARCGIS_BARREL_KIND_BY_PATH[normalizeArcGisModulePath(modulePath)] !== undefined;
+  return ARCGIS_BARREL_KIND_BY_PATH[canonicalArcGisModulePath(modulePath)] !== undefined;
 }
 
 export function resolveArcGisBarrelImportKind(
   modulePath: string,
   importedName: string,
 ): CodemodConstructorKind | undefined {
-  const bySymbol = ARCGIS_BARREL_KIND_BY_PATH[normalizeArcGisModulePath(modulePath)];
+  const bySymbol = ARCGIS_BARREL_KIND_BY_PATH[canonicalArcGisModulePath(modulePath)];
   return bySymbol?.[importedName];
 }
 
@@ -1043,6 +1049,21 @@ function codemodFile(
   manualTodos.push(...geometryEngineImportRewrite.manualTodos);
   todoCommentEdits.push(...geometryEngineImportRewrite.todoCommentEdits);
 
+  // ArcGIS modules bound by an AMD dependency array or a TypeScript
+  // import-equals are real usage the codemod cannot rewrite: rewriting the
+  // constructor without rewriting the loader call would leave the file broken.
+  // They are reported as manual TODOs so an AMD app never scores as if it had
+  // nothing to migrate.
+  flagLoaderBoundConstructors({
+    source,
+    sourceFile,
+    file,
+    annotateTodos,
+    importsByLocalName,
+    manualTodos,
+    todoCommentEdits,
+  });
+
   // Flag call sites of uncovered geometryEngine ops (covered ops resolve to the
   // rewritten geometryEngineCompat import and need no TODO). Only when the
   // import was actually rewritten to the compat shim (honua targets).
@@ -1066,7 +1087,7 @@ function codemodFile(
       }
 
       const modulePath = firstArg.text;
-      const spec = MODULE_TO_SPEC.get(modulePath);
+      const spec = specForModulePath(modulePath);
       if (spec) {
         if (target === "honua-compat") {
           dynamicImportEdits.push({
@@ -1611,6 +1632,107 @@ function pushImportManualTodo(
   }
 }
 
+interface LoaderBoundArcGisBinding {
+  kind: CodemodConstructorKind;
+  reason: string;
+}
+
+/**
+ * Locals an AMD dependency array or a TypeScript import-equals binds to an
+ * ArcGIS module the codemod has a kind for.
+ *
+ * `esri/dijit/*` and other 3.x-only modules resolve to no kind and are absent
+ * here by construction — they are reported by the scanner as unhandled modules
+ * instead of being mapped onto a 4.x construct they are not.
+ */
+function collectLoaderBoundArcGisBindings(sourceFile: ts.SourceFile): Map<string, LoaderBoundArcGisBinding> {
+  const bindings = new Map<string, LoaderBoundArcGisBinding>();
+
+  walk(sourceFile, (node) => {
+    const importEquals = readImportEqualsBinding(node);
+    if (importEquals) {
+      const kind = resolveSupportedArcGisModuleKind(importEquals.modulePath);
+      if (kind && !bindings.has(importEquals.localName)) {
+        bindings.set(importEquals.localName, { kind, reason: IMPORT_EQUALS_MANUAL_REASON });
+      }
+      return;
+    }
+
+    if (!ts.isCallExpression(node)) {
+      return;
+    }
+    const dependencies = readAmdDependencies(node);
+    if (!dependencies) {
+      return;
+    }
+    for (const dependency of dependencies) {
+      if (!dependency.localName) {
+        continue;
+      }
+      const kind = resolveSupportedArcGisModuleKind(dependency.specifier.text);
+      if (kind && !bindings.has(dependency.localName)) {
+        bindings.set(dependency.localName, { kind, reason: AMD_DEPENDENCY_MANUAL_REASON });
+      }
+    }
+  });
+
+  return bindings;
+}
+
+function flagLoaderBoundConstructors(options: {
+  source: string;
+  sourceFile: ts.SourceFile;
+  file: string;
+  annotateTodos: boolean;
+  importsByLocalName: ReadonlyMap<string, ArcGisImportBinding>;
+  manualTodos: MigrationTodo[];
+  todoCommentEdits: TextEdit[];
+}): void {
+  const bindings = collectLoaderBoundArcGisBindings(options.sourceFile);
+  if (bindings.size === 0) {
+    return;
+  }
+
+  walk(options.sourceFile, (node) => {
+    if (!ts.isNewExpression(node) || !ts.isIdentifier(node.expression)) {
+      return;
+    }
+    const localName = node.expression.text;
+    // An ES import binding for the same local name is already counted (and
+    // rewritten) by the main pass.
+    if (options.importsByLocalName.has(localName)) {
+      return;
+    }
+    const binding = bindings.get(localName);
+    if (!binding) {
+      return;
+    }
+
+    const nodeStart = node.getStart(options.sourceFile);
+    const location = options.sourceFile.getLineAndCharacterOfPosition(nodeStart);
+    options.manualTodos.push({
+      kind: binding.kind,
+      file: options.file,
+      line: location.line + 1,
+      column: location.character + 1,
+      reason: binding.reason,
+      difficulty: "complex",
+    });
+
+    if (!options.annotateTodos) {
+      return;
+    }
+    const lineStart = findLineStartOffset(options.source, nodeStart);
+    if (shouldInsertTodoComment(options.source, lineStart, nodeStart)) {
+      options.todoCommentEdits.push({
+        start: lineStart,
+        end: lineStart,
+        text: `// ${TODO_MARKER}[${binding.kind}]: ${binding.reason}\n`,
+      });
+    }
+  });
+}
+
 function rewriteReactiveUtilsImports(options: {
   source: string;
   sourceFile: ts.SourceFile;
@@ -1633,7 +1755,7 @@ function rewriteReactiveUtilsImports(options: {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
       continue;
     }
-    if (MODULE_TO_SPEC.get(statement.moduleSpecifier.text)?.kind !== "reactive-utils") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "reactive-utils") {
       continue;
     }
 
@@ -1720,7 +1842,7 @@ function rewriteGeometryEngineImports(options: {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
       continue;
     }
-    if (MODULE_TO_SPEC.get(statement.moduleSpecifier.text)?.kind !== "geometry-engine") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "geometry-engine") {
       continue;
     }
 
@@ -1835,7 +1957,7 @@ function collectGeometryEngineLocalNames(sourceFile: ts.SourceFile): Set<string>
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
       continue;
     }
-    if (MODULE_TO_SPEC.get(statement.moduleSpecifier.text)?.kind !== "geometry-engine") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "geometry-engine") {
       continue;
     }
     const importClause = statement.importClause;
@@ -1945,7 +2067,7 @@ function rewriteEsriRequestImports(options: {
     if (!statement.importClause) {
       continue;
     }
-    if (MODULE_TO_SPEC.get(statement.moduleSpecifier.text)?.kind !== "esri-request") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "esri-request") {
       continue;
     }
 
@@ -2066,7 +2188,7 @@ function rewriteIdentityManagerImports(options: {
     if (!statement.importClause) {
       continue;
     }
-    if (MODULE_TO_SPEC.get(statement.moduleSpecifier.text)?.kind !== "identity-manager") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "identity-manager") {
       continue;
     }
 
@@ -2187,7 +2309,7 @@ function rewriteEsriConfigImports(options: {
     if (!statement.importClause) {
       continue;
     }
-    if (MODULE_TO_SPEC.get(statement.moduleSpecifier.text)?.kind !== "esri-config") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "esri-config") {
       continue;
     }
 
@@ -2366,7 +2488,7 @@ function buildBarrelKindLookup(
 
   for (const spec of specs) {
     for (const rawModulePath of spec.arcGisModules) {
-      const modulePath = normalizeArcGisModulePath(rawModulePath);
+      const modulePath = canonicalArcGisModulePath(rawModulePath);
       const slashIndex = modulePath.lastIndexOf("/");
       if (slashIndex < "@arcgis/core/".length) {
         continue;
@@ -2395,16 +2517,28 @@ function buildBarrelKindLookup(
   return result;
 }
 
-function normalizeArcGisModulePath(modulePath: string): string {
-  return modulePath.endsWith(".js") ? modulePath.slice(0, -3) : modulePath;
+/**
+ * Rewrite spec for a module specifier in any supported ArcGIS specifier family
+ * (`@arcgis/core/Map`, `@arcgis/core/Map.js`, `esri/Map`, …). Callers must go
+ * through this rather than indexing `MODULE_TO_SPEC` directly, so bare `esri/*`
+ * ids resolve to the same kinds as their `@arcgis/core` equivalents without a
+ * second module table.
+ */
+function specForModulePath(modulePath: string): ConstructorRewriteSpec | undefined {
+  return MODULE_TO_SPEC.get(modulePath) ?? MODULE_TO_SPEC.get(canonicalArcGisModulePath(modulePath));
+}
+
+/** Codemod kind a module specifier maps to, in any supported specifier family. */
+export function resolveSupportedArcGisModuleKind(modulePath: string): CodemodConstructorKind | undefined {
+  return specForModulePath(modulePath)?.kind;
 }
 
 function resolveArcGisImportKindFromModule(
   modulePath: string,
   importedName: string,
 ): CodemodConstructorKind | undefined {
-  const normalizedModulePath = normalizeArcGisModulePath(modulePath);
-  const spec = MODULE_TO_SPEC.get(modulePath) ?? MODULE_TO_SPEC.get(normalizedModulePath);
+  const normalizedModulePath = canonicalArcGisModulePath(modulePath);
+  const spec = specForModulePath(modulePath);
   if (spec) {
     if (importedName === "default") {
       return spec.kind;
@@ -2420,8 +2554,8 @@ function resolveArcGisImportKindFromModule(
 }
 
 function resolveArcGisExportAllKinds(modulePath: string): ReadonlyArray<readonly [string, CodemodConstructorKind]> {
-  const normalizedModulePath = normalizeArcGisModulePath(modulePath);
-  const spec = MODULE_TO_SPEC.get(modulePath) ?? MODULE_TO_SPEC.get(normalizedModulePath);
+  const normalizedModulePath = canonicalArcGisModulePath(modulePath);
+  const spec = specForModulePath(modulePath);
   if (spec) {
     const inferredSymbol = normalizedModulePath.slice(normalizedModulePath.lastIndexOf("/") + 1);
     if (!inferredSymbol) {
@@ -2719,8 +2853,8 @@ function collectSupportedImports(
     }
 
     const modulePath = statement.moduleSpecifier.text;
-    const normalizedModulePath = normalizeArcGisModulePath(modulePath);
-    const spec = MODULE_TO_SPEC.get(modulePath) ?? MODULE_TO_SPEC.get(normalizedModulePath);
+    const normalizedModulePath = canonicalArcGisModulePath(modulePath);
+    const spec = specForModulePath(modulePath);
 
     const importClause = statement.importClause;
     if (!importClause) {
@@ -2818,7 +2952,7 @@ function collectSupportedImports(
         continue;
       }
 
-      const spec = MODULE_TO_SPEC.get(requireBinding.modulePath);
+      const spec = specForModulePath(requireBinding.modulePath);
       if (!spec) {
         continue;
       }
@@ -2894,7 +3028,7 @@ function isArcGisRequireBindingIdentifier(node: ts.Identifier): boolean {
       return false;
     }
     const modulePath = extractModulePathFromRequireInitializer(node.parent.initializer);
-    return modulePath !== undefined && MODULE_TO_SPEC.has(modulePath);
+    return modulePath !== undefined && specForModulePath(modulePath) !== undefined;
   }
 
   if (
@@ -2905,7 +3039,7 @@ function isArcGisRequireBindingIdentifier(node: ts.Identifier): boolean {
     node.parent.parent.parent.initializer
   ) {
     const modulePath = extractModulePathFromRequireInitializer(node.parent.parent.parent.initializer);
-    return modulePath !== undefined && MODULE_TO_SPEC.has(modulePath);
+    return modulePath !== undefined && specForModulePath(modulePath) !== undefined;
   }
 
   return false;
@@ -3743,7 +3877,7 @@ function collectReactiveUtilsLocalNames(sourceFile: ts.SourceFile): {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
       continue;
     }
-    if (MODULE_TO_SPEC.get(statement.moduleSpecifier.text)?.kind !== "reactive-utils") {
+    if (specForModulePath(statement.moduleSpecifier.text)?.kind !== "reactive-utils") {
       continue;
     }
     const importClause = statement.importClause;
@@ -3889,7 +4023,7 @@ function removeUnusedArcGisImports(file: string, source: string): { nextSource: 
       continue;
     }
     const modulePath = statement.moduleSpecifier.text;
-    if (!MODULE_TO_SPEC.has(modulePath) && !isSupportedArcGisBarrelModulePath(modulePath)) {
+    if (specForModulePath(modulePath) === undefined && !isSupportedArcGisBarrelModulePath(modulePath)) {
       continue;
     }
 
@@ -3933,7 +4067,7 @@ function removeUnusedArcGisImports(file: string, source: string): { nextSource: 
       continue;
     }
 
-    if (!MODULE_TO_SPEC.has(requireBinding.modulePath)) {
+    if (specForModulePath(requireBinding.modulePath) === undefined) {
       continue;
     }
 

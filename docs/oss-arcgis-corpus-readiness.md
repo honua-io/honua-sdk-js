@@ -9,7 +9,7 @@ Every other migration number Honua publishes comes from Honua-authored fixtures.
 
 The corpus pins 6 public GitHub repositories at an exact commit with a reviewed permissive license. No third-party source is vendored here — the lane clones into an ignored scratch directory, analyzes the working copy, and keeps only the structured records below.
 
-- Observation generated: `2026-08-03T22:19:37.390Z`
+- Observation generated: `2026-08-04T02:41:27.182Z`
 - Manifest revision: `2026-08-03`
 - Codemod target: `honua-compat`
 - Lane: opt-in only (`HONUA_OSS_ARCGIS_CORPUS_ENABLED=true`), never part of pull-request CI, static analysis only (no live Esri service contact).
@@ -21,38 +21,30 @@ The corpus pins 6 public GitHub repositories at an exact commit with a reviewed 
 | Apps pinned | 6 |
 | Apps observed | 6 |
 | Apps errored | 0 |
-| Readiness `ready` / `assisted` / `blocked` | 3 / 3 / 0 |
-| Codemod-scoped call sites | 64 |
-| Auto-migrated call sites | 54 |
-| Auto-migrated call-site ratio | 84.4% |
-| ArcGIS module hits outside codemod scope | 4 |
-| Apps with no ArcGIS usage detected | 3 |
-
-### Detection gaps
-
-The scanner found **no ArcGIS usage at all** in the apps below, even though each one was reviewed and recorded with evidence paths proving it uses the ArcGIS JS API. Their readiness values are therefore meaningless — a `ready` verdict here means *the scanner saw nothing*, not *there is nothing to do*. This is the honest headline of this page: the corpus reproduces the migration cliff a legacy AMD app walks into.
-
-- **CMV — Configurable Map Viewer** — 136 source files scanned, 0 with a recognized ArcGIS import. Reviewed evidence: `viewer/js/config/viewer.js`, `viewer/js/gis/dijit/Basemaps.js`, `viewer/index.html`.
-- **WSDOT Bridge Vertical Clearance** — 1 source file scanned, 0 with a recognized ArcGIS import. Reviewed evidence: `src/main.ts`, `index.html`, `package.json`.
-- **National Park Visits explorer** — 23 source files scanned, 0 with a recognized ArcGIS import. Reviewed evidence: `app/main.ts`, `app/widgets.ts`, `index.html`.
+| Readiness `ready` / `assisted` / `blocked` | 0 / 6 / 0 |
+| Codemod-scoped call sites | 171 |
+| Auto-migrated call sites | 75 |
+| Auto-migrated call-site ratio | 43.9% |
+| ArcGIS module hits outside codemod scope | 146 |
+| Apps with no ArcGIS usage detected | 0 |
 
 ### Top manual-TODO kinds across the corpus
 
 | Kind | Manual TODOs |
 | --- | --- |
-| `polygon-geometry` | 3 |
-| `graphic` | 2 |
-| `map-view` | 2 |
-| `basemap` | 1 |
-| `feature-layer` | 1 |
+| `label-class` | 18 |
+| `map-view` | 10 |
+| `text-symbol` | 9 |
+| `feature-layer` | 7 |
+| `graphics-layer` | 6 |
 
 ## Per-app readiness
 
 | App | Styles | Readiness | Auto-migrated | Manual TODOs | Unhandled hits | Blocking flags |
 | --- | --- | --- | --- | --- | --- | --- |
-| [CMV — Configurable Map Viewer](#cmv--configurable-map-viewer) | `amd-require`, `widget-heavy` | `ready` (not meaningful) | no usage detected | 0 | 0 | — |
-| [WSDOT Bridge Vertical Clearance](#wsdot-bridge-vertical-clearance) | `amd-require`, `featurelayer-centric`, `widget-heavy` | `ready` (not meaningful) | no usage detected | 0 | 0 | — |
-| [National Park Visits explorer](#national-park-visits-explorer) | `amd-require`, `widget-heavy` | `ready` (not meaningful) | no usage detected | 0 | 0 | — |
+| [CMV — Configurable Map Viewer](#cmv--configurable-map-viewer) | `amd-require`, `widget-heavy` | `assisted` | 0.0% (0/27) | 27 | 69 | — |
+| [WSDOT Bridge Vertical Clearance](#wsdot-bridge-vertical-clearance) | `amd-require`, `featurelayer-centric`, `widget-heavy` | `assisted` | 54.5% (6/11) | 5 | 15 | — |
+| [National Park Visits explorer](#national-park-visits-explorer) | `amd-require`, `widget-heavy` | `assisted` | 21.7% (15/69) | 54 | 58 | — |
 | [Utah statewide parcel viewer](#utah-statewide-parcel-viewer) | `featurelayer-centric` | `assisted` | 85.4% (41/48) | 7 | 2 | — |
 | [Utah Bikeways / WFRC bike map](#utah-bikeways--wfrc-bike-map) | `featurelayer-centric`, `widget-heavy` | `assisted` | 77.8% (7/9) | 2 | 1 | — |
 | [Owls of Bavaria](#owls-of-bavaria) | `featurelayer-centric` | `assisted` | 85.7% (6/7) | 1 | 1 | — |
@@ -67,26 +59,40 @@ A long-running community-maintained configurable ArcGIS JS 3.x viewer built on D
 - Repository: <https://github.com/cmv/cmv-app>
 - Pinned commit: `8b42b2336b1a4b357dda791c8e492b9612a5f51b`
 - License: `MIT` — https://github.com/cmv/cmv-app/blob/8b42b2336b1a4b357dda791c8e492b9612a5f51b/LICENSE
-- Observed: 2026-08-03
+- Observed: 2026-08-04
 - Scan root: `viewer/js`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
-filesScanned=136 filesWithArcGisImports=0 importCount=0 esriLeafletImportCount=0 topSymbols=[] flags=[none]
+filesScanned=136 filesWithArcGisImports=22 importCount=69 esriLeafletImportCount=0 topSymbols=[Draw:16, BasemapLayer:12, GraphicsLayer:11, BasemapGallery:9, Basemap:9, units:8, FeatureLayer:8, Legend:8, SimpleRenderer:7, SimpleLineSymbol:7] flags=[amd-dependency-arrays-detected, arcgis-3x-dijit-detected, auth-or-request-customization-detected, webmap-detected]
 ```
-
-> **Detection gap.** 136 source files were scanned and none produced a recognized ArcGIS import, so no codemod-scoped call site exists to migrate or count. Every metric below is a measurement of the scanner's blind spot, not of this app.
 
 | Metric | Value |
 | --- | --- |
-| Readiness | `ready` (not meaningful — see above) |
+| Readiness | `assisted` |
 | Files scanned | 136 |
-| Files importing ArcGIS modules | 0 |
-| Codemod-scoped call sites | 0 |
+| Files importing ArcGIS modules | 22 |
+| Codemod-scoped call sites | 27 |
 | Auto-migrated call-site ratio | 0.0% |
-| Manual-rewrite ratio | 0.0% |
-| Manual-intervention ratio | 0.0% |
+| Manual-rewrite ratio | 100.0% |
+| Manual-intervention ratio | 100.0% |
 | Widget sites (automated / assisted / manual) | 0 / 0 / 0 |
 | Widget gate (`--gate 0`) | pass at 100.0% automated |
+
+Top manual-TODO kinds:
+
+- `graphics-layer` — 6
+- `simple-renderer` — 4
+- `simple-fill-symbol` — 3
+- `simple-line-symbol` — 3
+- `extent-geometry` — 2
+
+Top ArcGIS modules outside codemod scope:
+
+- `esri/layers/GraphicsLayer` (`amd-dependency`) — 5
+- `esri/graphic` (`amd-dependency`) — 3
+- `esri/renderers/SimpleRenderer` (`amd-dependency`) — 3
+- `esri/config` (`amd-dependency`) — 2
+- `esri/dijit/BasemapGallery` (`amd-dependency`) — 2
 
 ### WSDOT Bridge Vertical Clearance
 
@@ -96,26 +102,38 @@ A production state-DOT lookup tool that lets freight operators find bridge verti
 - Repository: <https://github.com/WSDOT-GIS/bridge-clearance-app>
 - Pinned commit: `f07daaf455ac7c625c2d283c8d9df1e94665e4ea`
 - License: `Unlicense` — https://github.com/WSDOT-GIS/bridge-clearance-app/blob/f07daaf455ac7c625c2d283c8d9df1e94665e4ea/UNLICENSE
-- Observed: 2026-08-03
+- Observed: 2026-08-04
 - Scan root: `src`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
-filesScanned=1 filesWithArcGisImports=0 importCount=0 esriLeafletImportCount=0 topSymbols=[] flags=[none]
+filesScanned=1 filesWithArcGisImports=1 importCount=21 esriLeafletImportCount=0 topSymbols=[Graphic:16, FeatureLayer:12, CartographicLineSymbol:9, Extent:6, Color:3, esriConfig:3, Geocoder:3, domUtils:3, UniqueValueRenderer:3, SimpleMarkerSymbol:3] flags=[arcgis-3x-dijit-detected, auth-or-request-customization-detected]
 ```
-
-> **Detection gap.** 1 source file was scanned and none produced a recognized ArcGIS import, so no codemod-scoped call site exists to migrate or count. Every metric below is a measurement of the scanner's blind spot, not of this app.
 
 | Metric | Value |
 | --- | --- |
-| Readiness | `ready` (not meaningful — see above) |
+| Readiness | `assisted` |
 | Files scanned | 1 |
-| Files importing ArcGIS modules | 0 |
-| Codemod-scoped call sites | 0 |
-| Auto-migrated call-site ratio | 0.0% |
-| Manual-rewrite ratio | 0.0% |
-| Manual-intervention ratio | 0.0% |
+| Files importing ArcGIS modules | 1 |
+| Codemod-scoped call sites | 11 |
+| Auto-migrated call-site ratio | 54.5% |
+| Manual-rewrite ratio | 45.5% |
+| Manual-intervention ratio | 76.9% |
 | Widget sites (automated / assisted / manual) | 0 / 0 / 0 |
 | Widget gate (`--gate 0`) | pass at 100.0% automated |
+
+Top manual-TODO kinds:
+
+- `feature-layer` — 2
+- `unique-value-renderer` — 2
+- `extent-geometry` — 1
+
+Top ArcGIS modules outside codemod scope:
+
+- `esri` (`static-import`) — 1
+- `esri/dijit/BasemapGallery` (`static-import`) — 1
+- `esri/dijit/Geocoder` (`static-import`) — 1
+- `esri/dijit/HomeButton` (`static-import`) — 1
+- `esri/dijit/Popup` (`static-import`) — 1
 
 ### National Park Visits explorer
 
@@ -125,26 +143,40 @@ A time-series visualization of US National Park visitation built on the ArcGIS J
 - Repository: <https://github.com/ekenes/national-park-visits>
 - Pinned commit: `99b17289593454cc093648f7ba85b51f8ff25bad`
 - License: `Apache-2.0` — https://github.com/ekenes/national-park-visits/blob/99b17289593454cc093648f7ba85b51f8ff25bad/LICENSE
-- Observed: 2026-08-03
+- Observed: 2026-08-04
 - Scan root: `app`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
-filesScanned=23 filesWithArcGisImports=0 importCount=0 esriLeafletImportCount=0 topSymbols=[] flags=[none]
+filesScanned=23 filesWithArcGisImports=16 importCount=66 esriLeafletImportCount=0 topSymbols=[SizeStop:33, LabelClass:23, MapView:23, symbols_1:17, ClassBreaksRenderer:13, TextSymbol:9, FeatureLayer:9, SizeVariable:8, StatisticDefinition:8, intl:8] flags=[amd-dependency-arrays-detected, arcgis-barrel-imports-detected, commonjs-detected, typescript-import-equals-detected, webmap-detected]
 ```
-
-> **Detection gap.** 23 source files were scanned and none produced a recognized ArcGIS import, so no codemod-scoped call site exists to migrate or count. Every metric below is a measurement of the scanner's blind spot, not of this app.
 
 | Metric | Value |
 | --- | --- |
-| Readiness | `ready` (not meaningful — see above) |
+| Readiness | `assisted` |
 | Files scanned | 23 |
-| Files importing ArcGIS modules | 0 |
-| Codemod-scoped call sites | 0 |
-| Auto-migrated call-site ratio | 0.0% |
-| Manual-rewrite ratio | 0.0% |
-| Manual-intervention ratio | 0.0% |
-| Widget sites (automated / assisted / manual) | 3 / 0 / 1 |
+| Files importing ArcGIS modules | 16 |
+| Codemod-scoped call sites | 69 |
+| Auto-migrated call-site ratio | 21.7% |
+| Manual-rewrite ratio | 78.3% |
+| Manual-intervention ratio | 88.2% |
+| Widget sites (automated / assisted / manual) | 6 / 0 / 2 |
 | Widget gate (`--gate 0`) | pass at 75.0% automated |
+
+Top manual-TODO kinds:
+
+- `label-class` — 18
+- `text-symbol` — 9
+- `map-view` — 8
+- `expand-widget` — 4
+- `feature-layer` — 4
+
+Top ArcGIS modules outside codemod scope:
+
+- `esri/symbols` (`amd-dependency`) — 4
+- `esri/views/MapView` (`import-equals`) — 4
+- `esri/layers/FeatureLayer` (`import-equals`) — 2
+- `esri/renderers` (`amd-dependency`) — 2
+- `esri/renderers/visualVariables/SizeVariable` (`amd-dependency`) — 2
 
 ### Utah statewide parcel viewer
 
@@ -154,7 +186,7 @@ The public statewide parcel viewer operated by Utah's state geospatial office. R
 - Repository: <https://github.com/agrc/parcels>
 - Pinned commit: `996fd3e6a597db4996d18a607da8ece72a5b5fa0`
 - License: `MIT` — https://github.com/agrc/parcels/blob/996fd3e6a597db4996d18a607da8ece72a5b5fa0/LICENSE
-- Observed: 2026-08-03
+- Observed: 2026-08-04
 - Scan root: `src`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
@@ -192,7 +224,7 @@ A public bikeway finder for the Wasatch Front. `@arcgis/core` `WebMap` + `MapVie
 - Repository: <https://github.com/agrc/wfrc-bike-map>
 - Pinned commit: `680bcf88b094866a096db1576f61c254f9792a39`
 - License: `MIT` — https://github.com/agrc/wfrc-bike-map/blob/680bcf88b094866a096db1576f61c254f9792a39/LICENSE
-- Observed: 2026-08-03
+- Observed: 2026-08-04
 - Scan root: `src`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"
@@ -228,7 +260,7 @@ A citizen-science map of owl sightings in Bavaria sourced from iNaturalist. Smal
 - Repository: <https://github.com/lujoh/owls_of_bavaria>
 - Pinned commit: `284949156925c63b0258aece1f48cd9e4f5ea55d`
 - License: `MIT` — https://github.com/lujoh/owls_of_bavaria/blob/284949156925c63b0258aece1f48cd9e4f5ea55d/LICENSE
-- Observed: 2026-08-03
+- Observed: 2026-08-04
 - Scan root: `src`
 
 ```text doc-test=skip reason="captured honua-migrate scanner output, not a compilable snippet"

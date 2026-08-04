@@ -120,8 +120,14 @@ function createReport(): JsMigrationReport {
       manualCodemodCallSites: 1,
       unhandledUsageHits: 1,
     },
+    usageDetected: true,
     readiness: "blocked",
     gates: [
+      {
+        gate: "arcgis-usage-detected",
+        passed: true,
+        detail: "1 of 1 scanned files import ArcGIS modules",
+      },
       {
         gate: "no-manual-todos",
         passed: false,
@@ -245,6 +251,41 @@ describe("evaluateMigrationGates", () => {
     expect(result.failures[2]).toContain("exceeds max");
     expect(result.failures[3]).toContain("manual intervention ratio");
     expect(result.failures[4]).toContain("readiness is blocked");
+  });
+
+  it("fails --fail-on-no-usage when the scan recognized nothing", () => {
+    const report: JsMigrationReport = {
+      ...createReport(),
+      usageDetected: false,
+      readiness: "no-usage-detected",
+      scanReport: { ...createReport().scanReport, filesScanned: 136, filesWithArcGisImports: 0 },
+    };
+    const result = evaluateMigrationGates(report, {
+      failOnManual: false,
+      failOnUnhandled: false,
+      failOnBlocked: false,
+      failOnNoUsage: true,
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toContain("no ArcGIS usage detected");
+    expect(result.failures[0]).toContain("136 source files scanned");
+  });
+
+  it("leaves --fail-on-no-usage off by default", () => {
+    const report: JsMigrationReport = {
+      ...createReport(),
+      usageDetected: false,
+      readiness: "no-usage-detected",
+    };
+    const result = evaluateMigrationGates(report, {
+      failOnManual: false,
+      failOnUnhandled: false,
+      failOnBlocked: false,
+    });
+
+    expect(result.failed).toBe(false);
   });
 
   it("passes when gates are disabled or thresholds are met", () => {

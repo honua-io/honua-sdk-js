@@ -91,9 +91,13 @@ API (it does **not** use regex). It:
 - Emits `manualTodos` and `manualTodoReasons` on a `byKind` matrix
   for every untouched call site, so app authors can drive cleanup
   against a checklist.
-- Emits a parity report (`src/migration/report.ts`) with three
-  gates (`no-manual-todos`, `no-unhandled-modules`,
-  `no-blocking-flags`) and a readiness verdict.
+- Emits a parity report (`src/migration/report.ts`) with four
+  gates (`arcgis-usage-detected`, `no-manual-todos`,
+  `no-unhandled-modules`, `no-blocking-flags`) and a readiness
+  verdict. A scan that recognized no ArcGIS usage reports
+  `no-usage-detected` rather than letting the other three gates pass
+  vacuously into a `ready`; `--fail-on-no-usage` fails a CI lane on
+  it.
 - Knows the `esri-leaflet` migration target as a separate column,
   with `ESRI_LEAFLET_COMPAT_FALLBACK_KINDS` gating which kinds are
   treated as deterministic vs. assisted.

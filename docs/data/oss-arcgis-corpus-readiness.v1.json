@@ -1,7 +1,7 @@
 {
   "format": "honua.sdk.oss-arcgis-corpus-readiness.v1",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-03T22:19:37.390Z",
+  "generatedAt": "2026-08-04T02:41:27.182Z",
   "manifestRevision": "2026-08-03",
   "codemodTarget": "honua-compat",
   "lane": {
@@ -13,42 +13,38 @@
     "appCount": 6,
     "observed": 6,
     "errored": 0,
-    "ready": 3,
-    "assisted": 3,
+    "ready": 0,
+    "assisted": 6,
     "blocked": 0,
-    "totalCallSites": 64,
-    "autoMigratedCallSites": 54,
-    "manualCallSites": 10,
-    "autoMigratedRatio": 0.8438,
-    "unhandledUsageHits": 4,
+    "totalCallSites": 171,
+    "autoMigratedCallSites": 75,
+    "manualCallSites": 96,
+    "autoMigratedRatio": 0.4386,
+    "unhandledUsageHits": 146,
     "topManualTodoKinds": [
       {
-        "kind": "polygon-geometry",
-        "count": 3
-      },
-      {
-        "kind": "graphic",
-        "count": 2
+        "kind": "label-class",
+        "count": 18
       },
       {
         "kind": "map-view",
-        "count": 2
+        "count": 10
       },
       {
-        "kind": "basemap",
-        "count": 1
+        "kind": "text-symbol",
+        "count": 9
       },
       {
         "kind": "feature-layer",
-        "count": 1
+        "count": 7
+      },
+      {
+        "kind": "graphics-layer",
+        "count": 6
       }
     ],
     "blockedApps": [],
-    "undetectedApps": [
-      "cmv-app",
-      "wsdot-bridge-clearance",
-      "national-park-visits"
-    ],
+    "undetectedApps": [],
     "styleCoverage": {
       "widget-heavy": 4,
       "amd-require": 3,
@@ -67,25 +63,77 @@
         "amd-require",
         "widget-heavy"
       ],
-      "observedAt": "2026-08-03",
+      "observedAt": "2026-08-04",
       "status": "observed",
       "codemodTarget": "honua-compat",
-      "readiness": "ready",
-      "scanSummary": "filesScanned=136 filesWithArcGisImports=0 importCount=0 esriLeafletImportCount=0 topSymbols=[] flags=[none]",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=136 filesWithArcGisImports=22 importCount=69 esriLeafletImportCount=0 topSymbols=[Draw:16, BasemapLayer:12, GraphicsLayer:11, BasemapGallery:9, Basemap:9, units:8, FeatureLayer:8, Legend:8, SimpleRenderer:7, SimpleLineSymbol:7] flags=[amd-dependency-arrays-detected, arcgis-3x-dijit-detected, auth-or-request-customization-detected, webmap-detected]",
       "filesScanned": 136,
-      "filesWithArcGisImports": 0,
-      "usageDetected": false,
-      "totalCallSites": 0,
+      "filesWithArcGisImports": 22,
+      "usageDetected": true,
+      "totalCallSites": 27,
       "autoMigratedCallSites": 0,
-      "manualCallSites": 0,
+      "manualCallSites": 27,
       "autoMigratedRatio": 0,
-      "manualRewriteRatio": 0,
-      "manualInterventionRatio": 0,
-      "unhandledUsageHits": 0,
-      "topManualTodoKinds": [],
-      "topUnhandledModules": [],
+      "manualRewriteRatio": 1,
+      "manualInterventionRatio": 1,
+      "unhandledUsageHits": 69,
+      "topManualTodoKinds": [
+        {
+          "kind": "graphics-layer",
+          "count": 6
+        },
+        {
+          "kind": "simple-renderer",
+          "count": 4
+        },
+        {
+          "kind": "simple-fill-symbol",
+          "count": 3
+        },
+        {
+          "kind": "simple-line-symbol",
+          "count": 3
+        },
+        {
+          "kind": "extent-geometry",
+          "count": 2
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "esri/layers/GraphicsLayer",
+          "usageStyle": "amd-dependency",
+          "count": 5
+        },
+        {
+          "modulePath": "esri/graphic",
+          "usageStyle": "amd-dependency",
+          "count": 3
+        },
+        {
+          "modulePath": "esri/renderers/SimpleRenderer",
+          "usageStyle": "amd-dependency",
+          "count": 3
+        },
+        {
+          "modulePath": "esri/config",
+          "usageStyle": "amd-dependency",
+          "count": 2
+        },
+        {
+          "modulePath": "esri/dijit/BasemapGallery",
+          "usageStyle": "amd-dependency",
+          "count": 2
+        }
+      ],
       "blockingFlags": [],
-      "scanFlags": [],
+      "scanFlags": [
+        "amd-dependency-arrays-detected",
+        "arcgis-3x-dijit-detected",
+        "auth-or-request-customization-detected",
+        "webmap-detected"
+      ],
       "widgets": {
         "totalSites": 0,
         "automatedSites": 0,
@@ -109,25 +157,67 @@
         "featurelayer-centric",
         "widget-heavy"
       ],
-      "observedAt": "2026-08-03",
+      "observedAt": "2026-08-04",
       "status": "observed",
       "codemodTarget": "honua-compat",
-      "readiness": "ready",
-      "scanSummary": "filesScanned=1 filesWithArcGisImports=0 importCount=0 esriLeafletImportCount=0 topSymbols=[] flags=[none]",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=1 filesWithArcGisImports=1 importCount=21 esriLeafletImportCount=0 topSymbols=[Graphic:16, FeatureLayer:12, CartographicLineSymbol:9, Extent:6, Color:3, esriConfig:3, Geocoder:3, domUtils:3, UniqueValueRenderer:3, SimpleMarkerSymbol:3] flags=[arcgis-3x-dijit-detected, auth-or-request-customization-detected]",
       "filesScanned": 1,
-      "filesWithArcGisImports": 0,
-      "usageDetected": false,
-      "totalCallSites": 0,
-      "autoMigratedCallSites": 0,
-      "manualCallSites": 0,
-      "autoMigratedRatio": 0,
-      "manualRewriteRatio": 0,
-      "manualInterventionRatio": 0,
-      "unhandledUsageHits": 0,
-      "topManualTodoKinds": [],
-      "topUnhandledModules": [],
+      "filesWithArcGisImports": 1,
+      "usageDetected": true,
+      "totalCallSites": 11,
+      "autoMigratedCallSites": 6,
+      "manualCallSites": 5,
+      "autoMigratedRatio": 0.5455,
+      "manualRewriteRatio": 0.4545,
+      "manualInterventionRatio": 0.7692,
+      "unhandledUsageHits": 15,
+      "topManualTodoKinds": [
+        {
+          "kind": "feature-layer",
+          "count": 2
+        },
+        {
+          "kind": "unique-value-renderer",
+          "count": 2
+        },
+        {
+          "kind": "extent-geometry",
+          "count": 1
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "esri",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "esri/dijit/BasemapGallery",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "esri/dijit/Geocoder",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "esri/dijit/HomeButton",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "esri/dijit/Popup",
+          "usageStyle": "static-import",
+          "count": 1
+        }
+      ],
       "blockingFlags": [],
-      "scanFlags": [],
+      "scanFlags": [
+        "arcgis-3x-dijit-detected",
+        "auth-or-request-customization-detected"
+      ],
       "widgets": {
         "totalSites": 0,
         "automatedSites": 0,
@@ -150,37 +240,90 @@
         "amd-require",
         "widget-heavy"
       ],
-      "observedAt": "2026-08-03",
+      "observedAt": "2026-08-04",
       "status": "observed",
       "codemodTarget": "honua-compat",
-      "readiness": "ready",
-      "scanSummary": "filesScanned=23 filesWithArcGisImports=0 importCount=0 esriLeafletImportCount=0 topSymbols=[] flags=[none]",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=23 filesWithArcGisImports=16 importCount=66 esriLeafletImportCount=0 topSymbols=[SizeStop:33, LabelClass:23, MapView:23, symbols_1:17, ClassBreaksRenderer:13, TextSymbol:9, FeatureLayer:9, SizeVariable:8, StatisticDefinition:8, intl:8] flags=[amd-dependency-arrays-detected, arcgis-barrel-imports-detected, commonjs-detected, typescript-import-equals-detected, webmap-detected]",
       "filesScanned": 23,
-      "filesWithArcGisImports": 0,
-      "usageDetected": false,
-      "totalCallSites": 0,
-      "autoMigratedCallSites": 0,
-      "manualCallSites": 0,
-      "autoMigratedRatio": 0,
-      "manualRewriteRatio": 0,
-      "manualInterventionRatio": 0,
-      "unhandledUsageHits": 0,
-      "topManualTodoKinds": [],
-      "topUnhandledModules": [],
+      "filesWithArcGisImports": 16,
+      "usageDetected": true,
+      "totalCallSites": 69,
+      "autoMigratedCallSites": 15,
+      "manualCallSites": 54,
+      "autoMigratedRatio": 0.2174,
+      "manualRewriteRatio": 0.7826,
+      "manualInterventionRatio": 0.8819,
+      "unhandledUsageHits": 58,
+      "topManualTodoKinds": [
+        {
+          "kind": "label-class",
+          "count": 18
+        },
+        {
+          "kind": "text-symbol",
+          "count": 9
+        },
+        {
+          "kind": "map-view",
+          "count": 8
+        },
+        {
+          "kind": "expand-widget",
+          "count": 4
+        },
+        {
+          "kind": "feature-layer",
+          "count": 4
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "esri/symbols",
+          "usageStyle": "amd-dependency",
+          "count": 4
+        },
+        {
+          "modulePath": "esri/views/MapView",
+          "usageStyle": "import-equals",
+          "count": 4
+        },
+        {
+          "modulePath": "esri/layers/FeatureLayer",
+          "usageStyle": "import-equals",
+          "count": 2
+        },
+        {
+          "modulePath": "esri/renderers",
+          "usageStyle": "amd-dependency",
+          "count": 2
+        },
+        {
+          "modulePath": "esri/renderers/visualVariables/SizeVariable",
+          "usageStyle": "amd-dependency",
+          "count": 2
+        }
+      ],
       "blockingFlags": [],
-      "scanFlags": [],
+      "scanFlags": [
+        "amd-dependency-arrays-detected",
+        "arcgis-barrel-imports-detected",
+        "commonjs-detected",
+        "typescript-import-equals-detected",
+        "webmap-detected"
+      ],
       "widgets": {
-        "totalSites": 4,
-        "automatedSites": 3,
+        "totalSites": 8,
+        "automatedSites": 6,
         "assistedSites": 0,
-        "manualSites": 1,
+        "manualSites": 2,
         "automatedPct": 75,
         "gatePct": 0,
         "gatePassed": true,
         "topManualWidgets": [
           {
             "kind": "Slider",
-            "count": 1
+            "count": 2
           }
         ]
       }
@@ -195,7 +338,7 @@
       "styles": [
         "featurelayer-centric"
       ],
-      "observedAt": "2026-08-03",
+      "observedAt": "2026-08-04",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
@@ -261,7 +404,7 @@
         "featurelayer-centric",
         "widget-heavy"
       ],
-      "observedAt": "2026-08-03",
+      "observedAt": "2026-08-04",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
@@ -319,7 +462,7 @@
       "styles": [
         "featurelayer-centric"
       ],
-      "observedAt": "2026-08-03",
+      "observedAt": "2026-08-04",
       "status": "observed",
       "codemodTarget": "honua-compat",
       "readiness": "assisted",
