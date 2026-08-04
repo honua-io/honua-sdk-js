@@ -1412,6 +1412,209 @@ test("IndexedDB download resumes from verified staged resources", async ({ page 
   }
 });
 
+test("storage budget probe reads the origin's real quota estimate", async ({ page, context }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const probed = await page.evaluate(async () => {
+      const { probeOfflineStorageBudget } = await import("/dist/src/offline/index.js");
+      const budget = await probeOfflineStorageBudget();
+      // A platform without a StorageManager, described rather than assumed.
+      const withoutEstimate = await probeOfflineStorageBudget({ storage: {} });
+      return { budget, withoutEstimateReason: withoutEstimate.reason, withoutEstimateStatus: withoutEstimate.status };
+    });
+
+    expect(probed.budget.status).toBe("available");
+    expect(probed.budget.quotaBytes).toBeGreaterThan(0);
+    expect(probed.budget.usageBytes).toBeGreaterThanOrEqual(0);
+    expect(probed.budget.remainingBytes).toBe(Math.max(0, probed.budget.quotaBytes - probed.budget.usageBytes));
+    expect(probed.budget.reserveBytes + probed.budget.logicalBudgetBytes).toBe(probed.budget.remainingBytes);
+    expect(probed.budget.logicalBudgetBytes).toBeLessThanOrEqual(probed.budget.remainingBytes);
+    expect(["persisted", "best-effort"]).toContain(probed.budget.persistence);
+    expect(probed.withoutEstimateStatus).toBe("unavailable");
+    expect(probed.withoutEstimateReason).toBe("estimate-unsupported");
+
+    // The derived budget tracks the real platform number, not a constant: an
+    // origin held under the reserve floor is offered nothing.
+    const client = await context.newCDPSession(page);
+    const origin = await page.evaluate(() => location.origin);
+    await client.send("Storage.overrideQuotaForOrigin", { origin, quotaSize: 512 * 1024 });
+    const constrained = await page.evaluate(async () => {
+      const { probeOfflineStorageBudget } = await import("/dist/src/offline/index.js");
+      return probeOfflineStorageBudget();
+    });
+    expect(constrained.status).toBe("available");
+    expect(constrained.quotaBytes).toBeLessThanOrEqual(512 * 1024);
+    expect(constrained.logicalBudgetBytes).toBe(0);
+    await client.send("Storage.overrideQuotaForOrigin", { origin });
+  } finally {
+    await server.close();
+  }
+});
+
+test("real IndexedDB quota pressure is typed as a quota failure with its admission plan", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    // A genuine per-origin quota, enforced by the browser's own storage layer.
+    // Applied before the origin is first visited: the storage layer caches a
+    // bucket's quota when its first connection opens.
+    const client = await context.newCDPSession(page);
+    await client.send("Storage.overrideQuotaForOrigin", { origin: server.url, quotaSize: 512 * 1024 });
+    await page.goto(server.url);
+    const database = await page.evaluate(() => window.__offlineDatabase);
+
+    const result = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore, createOfflineRegionManifest, downloadOfflineRegion } = await import(
+        "/dist/src/offline/index.js"
+      );
+      // Incompressible: IndexedDB charges quota against stored bytes, so a
+      // repeating payload would slip under the override after compression.
+      const payload = new Uint8Array(2 * 1024 * 1024);
+      for (let offset = 0; offset < payload.byteLength; offset += 65536) {
+        crypto.getRandomValues(payload.subarray(offset, offset + 65536));
+      }
+      const hash = await crypto.subtle.digest("SHA-256", payload);
+      const manifest = await createOfflineRegionManifest({
+        name: "quota pressure fixture",
+        sourceId: "fixture",
+        endpoint: "https://example.test/features",
+        authorizationScopeFingerprint: "test-scope",
+        bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, crs: "EPSG:4326" },
+        sourceVersion: "1",
+        schemaVersion: "1",
+        planVersion: "1",
+        observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+        resources: [
+          {
+            id: "oversized",
+            kind: "asset",
+            byteLength: payload.byteLength,
+            integrity: "sha256:" + [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+          },
+        ],
+      });
+      const store = createIndexedDbOfflineRegionStore({ name: `${name}-quota-pressure` });
+      const estimate = await navigator.storage.estimate();
+      try {
+        // Logical admission passes: the refusal must come from the device.
+        await downloadOfflineRegion(manifest, {
+          store,
+          logicalQuotaBytes: 16 * 1024 * 1024,
+          load: async () => payload,
+        });
+        return { outcome: "committed", estimate };
+      } catch (error) {
+        const inventory = await store.inventory();
+        return {
+          outcome: "rejected",
+          estimate,
+          name: error?.name,
+          code: error?.code,
+          sdkCode: error?.sdkCode,
+          category: error?.category,
+          retryable: error?.retryable,
+          admission: error?.admission,
+          causeName: error?.cause?.name,
+          regionCount: inventory.regions.length,
+        };
+      }
+    }, database);
+
+    // The browser really was reporting a constrained origin quota.
+    expect(result.estimate.quota).toBeLessThanOrEqual(512 * 1024);
+    expect(result.outcome).toBe("rejected");
+    expect(result.name).toBe("HonuaOfflineRegionError");
+    expect(result.code).toBe("quota-exceeded");
+    expect(result.sdkCode).toBe("offline.region.quota");
+    expect(result.category).toBe("validation");
+    expect(result.retryable).toBe(false);
+    // The browser's own failure, not a synthetic stand-in.
+    expect(result.causeName).toBe("QuotaExceededError");
+    expect(result.admission).toEqual({
+      logicalQuotaBytes: 16 * 1024 * 1024,
+      logicalBytesBefore: 0,
+      replacementLogicalBytes: 0,
+      requiredLogicalBytes: 2 * 1024 * 1024,
+      evictRegionIds: [],
+      evictedLogicalBytes: 0,
+      logicalBytesAfter: 2 * 1024 * 1024,
+    });
+    // Nothing was committed and nothing outside the plan was evicted.
+    expect(result.regionCount).toBe(0);
+    await client.send("Storage.overrideQuotaForOrigin", { origin: server.url });
+  } finally {
+    await server.close();
+  }
+});
+
+test("persistent storage is requested only when the application asks", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    const result = await page.evaluate(async (name) => {
+      const {
+        createIndexedDbOfflineRegionStore,
+        createOfflineRegionManifest,
+        downloadOfflineRegion,
+        probeOfflineStorageBudget,
+        requestOfflinePersistentStorage,
+      } = await import("/dist/src/offline/index.js");
+      let persistCalls = 0;
+      const platformPersist = navigator.storage.persist.bind(navigator.storage);
+      Object.defineProperty(navigator.storage, "persist", {
+        configurable: true,
+        value: async () => {
+          persistCalls += 1;
+          return platformPersist();
+        },
+      });
+      try {
+        const manifest = await createOfflineRegionManifest({
+          name: "persistence fixture",
+          sourceId: "fixture",
+          endpoint: "https://example.test/features",
+          authorizationScopeFingerprint: "test-scope",
+          bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, crs: "EPSG:4326" },
+          sourceVersion: "1",
+          schemaVersion: "1",
+          planVersion: "1",
+          observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+          resources: [
+            {
+              id: "metadata",
+              kind: "metadata",
+              byteLength: 3,
+              integrity:
+                "sha256:" +
+                [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("one")))]
+                  .map((byte) => byte.toString(16).padStart(2, "0"))
+                  .join(""),
+            },
+          ],
+        });
+        const store = createIndexedDbOfflineRegionStore({ name: `${name}-persistence` });
+        await probeOfflineStorageBudget();
+        await downloadOfflineRegion(manifest, { store, logicalQuotaBytes: 3, load: async () => new TextEncoder().encode("one") });
+        const implicitCalls = persistCalls;
+        const requested = await requestOfflinePersistentStorage();
+        return { implicitCalls, explicitCalls: persistCalls, requested };
+      } finally {
+        Reflect.deleteProperty(navigator.storage, "persist");
+      }
+    }, database);
+
+    // A download and a probe are not consent to prompt for persistent storage.
+    expect(result.implicitCalls).toBe(0);
+    expect(result.explicitCalls).toBe(1);
+    expect(["granted", "denied"]).toContain(result.requested.status);
+    expect(result.requested.persistence).toBe(result.requested.status === "granted" ? "persisted" : "best-effort");
+  } finally {
+    await server.close();
+  }
+});
+
 test("persisted offline region and edit-queue records stay credential-free", async ({ page }) => {
   const server = await startServer();
   try {

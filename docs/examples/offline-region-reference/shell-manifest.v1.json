@@ -1,6 +1,6 @@
 {
   "format": "honua.offline-shell-manifest.v1",
-  "deploymentId": "offline-region-reference-2026-08-04-v1",
+  "deploymentId": "offline-region-reference-2026-08-04-v2",
   "resources": [
     {
       "url": "./",
@@ -88,8 +88,8 @@
     },
     {
       "url": "/dist/src/offline/index.js",
-      "byteLength": 2216,
-      "integrity": "sha256:000ea125de81c2514e9d7374e1066ea25f4a8d7e0d1048090ba618cae67cde89",
+      "byteLength": 2640,
+      "integrity": "sha256:627eb8488a7b868c5b820ee3f8cd708fd149a4caba4d8e8c5e1b7861d5b3bb8a",
       "mediaType": "application/javascript"
     },
     {
@@ -99,21 +99,27 @@
       "mediaType": "application/javascript"
     },
     {
+      "url": "/dist/src/offline/quota.js",
+      "byteLength": 16176,
+      "integrity": "sha256:c46973de9b865cd480f0ebdfd4c8ffa425e6e7ff91783d0d99de716e94500d16",
+      "mediaType": "application/javascript"
+    },
+    {
       "url": "/dist/src/offline/region.js",
-      "byteLength": 46173,
-      "integrity": "sha256:0d850f7bb072c20988773327f5578eb5eab2da81d2030e2911c848b4998654d6",
+      "byteLength": 47807,
+      "integrity": "sha256:f904c31042c82edc9b22acabca18859ab4385e40ea41cdefb0237703709f7d22",
       "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/offline/status.js",
-      "byteLength": 19818,
-      "integrity": "sha256:c830f30492e6f89d753b8af76d0bc521217cd9b1836cccb86584f471432ed961",
+      "byteLength": 19945,
+      "integrity": "sha256:7dee49c1d776c6d9972ea782fb6762c17ec2ac96229a5da5792fc11e0a9db1a8",
       "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/offline/types.js",
-      "byteLength": 2748,
-      "integrity": "sha256:499c392e2312a7deb9562af4e6c10294b46af197d69fb026bad897f946f5a75d",
+      "byteLength": 3146,
+      "integrity": "sha256:da17aec375dc8b0b441f6bc1b49309df2019234ef39bebdf34527a317f6c0cc2",
       "mediaType": "application/javascript"
     }
   ]
