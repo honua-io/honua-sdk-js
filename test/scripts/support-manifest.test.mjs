@@ -325,13 +325,10 @@ test("every server-attach claim carries a roadmap issue or an inherency statemen
   const facadeRequired = serverAttachClaims.filter((claim) => claim.status === "facade-required");
   assert.deepEqual(
     facadeRequired.map((claim) => claim.id).sort(),
-    [
-      "agent-tools-facade",
-      "compatibility-gate-facade",
-      "map-package-facade",
-      "ogc-processes-execution-facade",
-      "realtime-facade",
-    ],
+    // OGC API Processes execution left this list in #1009: standalone execution
+    // resolved its roadmap entry, so it is now an open-endpoint claim and must
+    // NOT carry `serverAttach` (asserted below).
+    ["agent-tools-facade", "compatibility-gate-facade", "map-package-facade", "realtime-facade"],
     "every facade-required claim must stay tiered as server-attach",
   );
   for (const claim of serverAttachClaims) {

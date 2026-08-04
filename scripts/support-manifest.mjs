@@ -819,9 +819,9 @@ server dependency is inherent, in the generated
 Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (\`${tiles.status}\`), Maps (\`${maps.status}\`), and Records
 (\`${records.status}\`) also discover and use raw advertised paths. OGC API Processes
-keeps two honest lanes against a raw server: discovery (\`${discovery.status}\`,
-\`${discovery.environment}\`) and typed execution (\`${execution.status}\`,
-\`${execution.environment}\`).
+keeps two honest lanes against a raw server:
+discovery (\`${discovery.status}\`, \`${discovery.environment}\`) and
+typed execution (\`${execution.status}\`, \`${execution.environment}\`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 \`MapPackage\`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
