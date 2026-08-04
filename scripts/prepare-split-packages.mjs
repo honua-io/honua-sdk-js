@@ -357,6 +357,10 @@ function createCompatPackage() {
   // The geometryEngine compat shim (esri-compat/geometry-engine.js) imports the
   // geometry package, so the compat tarball ships it and pulls turf/proj4.
   copyDirectory(path.join(DIST_SRC_ROOT, "geometry"), path.join(packageRoot, "geometry"));
+  // LocatorCompat (esri-compat/locator.js) rides on the provider-pluggable
+  // geocoding contract, so the compat tarball ships it and the BYO-endpoint
+  // adapters callers configure it with (issue #956).
+  copyDirectory(path.join(DIST_SRC_ROOT, "geocoding"), path.join(packageRoot, "geocoding"));
   copyDirectory(path.join(DIST_SRC_ROOT, "expr"), path.join(packageRoot, "expr"));
   // esri-compat/renderer-objects.js projects compat renderers through the
   // first-class renderer objects (webmap/convert-renderer.js -> style/renderers.js),

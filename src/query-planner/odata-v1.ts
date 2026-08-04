@@ -6,7 +6,9 @@
  * into contract-only bundles.
  */
 import type { ProtocolModuleQueryCompileInput, ProtocolModuleQueryOperation } from "../contract/protocol-module.js";
+import { type QueryFilterContext, compileQueryFilterToOData } from "../contract/query-filter.js";
 import { buildOdataSpatialFilter, rewriteWhereToOdataFilter } from "../core/odata.js";
+import { canonicalFilterParts, refuseCanonicalFilter } from "./canonical-filter.js";
 import type {
   CanonicalQuery,
   OdataCompiledQueryV1,
@@ -42,12 +44,45 @@ export function compileOdataQuery(source: QueryIrSourceIdentity, query: Canonica
     );
   }
 
+  const ctx: QueryFilterContext = {
+    protocol: source.protocol,
+    sourceId: source.id,
+    ...(source.geometryProperty !== undefined ? { geometryProperty: source.geometryProperty } : {}),
+  };
+  const parts = canonicalFilterParts(query, ctx);
+  if (parts.protocolTime) {
+    refuseCanonicalFilter(
+      "Query.temporalFilter without a field",
+      "OData v4",
+      "the protocol has no time parameter; name the temporal field so the predicate stays exact",
+    );
+  }
   const filterParts: string[] = [];
   try {
     if (query.where) {
       assertSupportedWhere(query.where.expression);
       const rewritten = rewriteWhereToOdataFilter(query.where.expression);
       if (rewritten) filterParts.push(rewritten);
+    }
+    if (parts.expression) {
+      filterParts.push(
+        compileQueryFilterToOData(parts.expression, ctx, (node) => {
+          if (!source.geometryProperty) {
+            throw new Error("descriptor schema does not identify the OData geometry column");
+          }
+          if (node.operator !== "intersects" && node.operator !== "bbox-intersects") {
+            throw new Error(`OData v4 has no standard ${node.operator} geo function`);
+          }
+          return buildOdataSpatialFilter(
+            {
+              geometry: node.geometry.geometry,
+              geometryType: node.geometry.geometryType,
+              spatialRel: "esriSpatialRelIntersects",
+            },
+            { geometryColumn: source.geometryProperty },
+          );
+        }),
+      );
     }
     if (query.spatialFilter) {
       if (!source.geometryProperty) {

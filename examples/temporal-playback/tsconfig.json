@@ -13,7 +13,8 @@
     "paths": {
       "@honua/sdk-js": ["../../src/index.ts"],
       "@honua/sdk-js/map": ["../../src/map/index.ts"],
-      "@honua/sdk-js/style": ["../../src/style/index.ts"]
+      "@honua/sdk-js/style": ["../../src/style/index.ts"],
+      "@honua/sdk-js/web-components": ["../../src/web-components/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "vite.config.ts"]

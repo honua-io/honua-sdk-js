@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/npm-search-observations.v1.json",
+  "title": "Honua npm registry search observations (v1)",
+  "description": "Dated, reproducible observations of where this repository's published packages actually rank in npm registry search for the declared discovery terms (honua-io/honua-sdk-js#499, REQ-004). Each observation is immutable: re-observing a query ADDS a record with its own observedAt rather than rewriting an existing one, so an unflattering rank cannot be quietly edited away.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "registry", "trackedPackages", "observations"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "format": { "const": "honua.sdk.npm-search-observations.v1" },
+    "note": { "type": "string" },
+    "registry": {
+      "description": "How the observation was taken. Recorded so a reader can rerun the exact query rather than trusting the number.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endpoint", "resultsPerPage", "scanDepth"],
+      "properties": {
+        "endpoint": {
+          "description": "The npm registry search endpoint queried. Must be the registry itself: a rank read off a third-party mirror is not a primary observation.",
+          "type": "string",
+          "const": "https://registry.npmjs.org/-/v1/search"
+        },
+        "resultsPerPage": {
+          "description": "Results per page on npmjs.com, used to convert a rank into the page a human sees. 'Page one' claims are meaningless without it.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "scanDepth": {
+          "description": "How many ranked results were scanned before a package is reported as not found. A 'not found' claim is only as strong as this number.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "trackedPackages": {
+      "description": "The packages this repository publishes and therefore looks for in every observation. A package absent from this list cannot be reported on the generated page.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "observations": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/observation" }
+    }
+  },
+  "$defs": {
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
+    "observation": {
+      "description": "One measurement. It carries no interpretation: why a query is tracked, and whether it is a declared target, live in scripts/lib/npm-search-observations.mjs so a data file cannot restate its own purpose to suit its result.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "query", "observedAt", "expiresAt", "totalResults", "hits"],
+      "properties": {
+        "id": {
+          "description": "Stable identifier, conventionally <observedAt>-<slugified query>.",
+          "type": "string",
+          "minLength": 1
+        },
+        "query": {
+          "description": "The exact search text sent to the registry. Must be one of the queries declared in code.",
+          "type": "string",
+          "minLength": 1
+        },
+        "observedAt": { "$ref": "#/$defs/date" },
+        "expiresAt": {
+          "description": "When this observation stops standing for the current state of npm search. Rankings drift; an expired observation is reported as stale rather than silently reused.",
+          "$ref": "#/$defs/date"
+        },
+        "totalResults": {
+          "description": "Total matches the registry reported for the query at observation time.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "hits": {
+          "description": "One entry per tracked package, whether or not it was found. Omitting a package that did not rank is exactly the kind of selective reporting this format exists to prevent.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/hit" }
+        }
+      }
+    },
+    "hit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "found", "published"],
+      "properties": {
+        "package": { "type": "string", "minLength": 1 },
+        "found": { "type": "boolean" },
+        "published": {
+          "description": "Whether the package existed on the registry when the observation was taken. An unpublished package cannot rank, so reporting it as merely 'not found' would overstate a discoverability problem that has not been tested yet.",
+          "type": "boolean"
+        },
+        "rank": {
+          "description": "1-based position in the registry's ranked results. Required when found, forbidden when not.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "version": {
+          "description": "The version the registry returned for the ranked package.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

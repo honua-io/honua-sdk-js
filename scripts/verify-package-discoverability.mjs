@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import {
+  PUBLISHED_PACKAGE_RULES,
+  publishedPackageDiscoverabilityErrors,
+} from "./lib/package-discoverability.mjs";
+
 const root = process.cwd();
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const readme = fs.readFileSync(path.join(root, "README.md"), "utf8");
@@ -10,20 +15,40 @@ const listing = fs.readFileSync(
   "utf8",
 );
 
-const requiredKeywords = ["maplibre", "arcgis-migration", "ogc-api", "stac", "geocoding"];
-const missingKeywords = requiredKeywords.filter((keyword) => !packageJson.keywords?.includes(keyword));
-if (missingKeywords.length > 0) {
-  throw new Error(`package.json is missing discoverability keywords: ${missingKeywords.join(", ")}`);
-}
+// Every package published from a committed manifest — the SDK, the MCP server,
+// and the scaffold — not just the root one. A published package with no
+// keywords is invisible in npm search however good its siblings' metadata is
+// (honua-io/honua-sdk-js#499 REQ-004).
+const metadataFailures = [];
+for (const [name, rule] of Object.entries(PUBLISHED_PACKAGE_RULES)) {
+  const manifestPath = path.join(root, rule.manifest);
+  if (!fs.existsSync(manifestPath)) {
+    metadataFailures.push(`${name}: manifest ${rule.manifest} does not exist`);
+    continue;
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const errors = publishedPackageDiscoverabilityErrors(manifest, name);
 
-const requiredPackageFields = ["description", "homepage", "repository", "bugs"];
-const missingPackageFields = requiredPackageFields.filter((field) => !packageJson[field]);
-if (missingPackageFields.length > 0) {
-  throw new Error(`package.json is missing discoverability fields: ${missingPackageFields.join(", ")}`);
+  // Declaring a license is not shipping one: Apache-2.0 asks distributions to
+  // carry the license text. The `files` array is deliberately NOT checked — npm
+  // always packs a LICENSE next to the manifest whether or not it is listed —
+  // so the only thing that matters is that the file exists.
+  const packageDir = path.dirname(manifestPath);
+  if (manifest.license && !fs.existsSync(path.join(packageDir, "LICENSE"))) {
+    errors.push(`declares license ${manifest.license} but ships no LICENSE file`);
+  }
+
+  if (errors.length > 0) {
+    metadataFailures.push(`${rule.manifest} (${name}):\n${errors.map((error) => `  - ${error}`).join("\n")}`);
+  }
+}
+if (metadataFailures.length > 0) {
+  throw new Error(`npm discoverability metadata is incomplete:\n${metadataFailures.join("\n")}`);
 }
 
 const requiredLinks = [
   "docs/listings/maplibre-plugin-directory.md",
+  "docs/listings/npm-search-verification.md",
   "examples/maplibre-quickstart/",
   "docs/comparison.md",
 ];

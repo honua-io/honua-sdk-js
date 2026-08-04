@@ -1,0 +1,195 @@
+{
+  "$schema": "../../schemas/npm-search-observations.v1.json",
+  "format": "honua.sdk.npm-search-observations.v1",
+  "note": "Measured npm registry search rankings for this repository's published packages, projected into docs/listings/npm-search-verification.md (honua-io/honua-sdk-js#499 REQ-004). Records carry measurements only: the tracked query set, the tracked package set, and the reason each query is tracked live in TRACKED_QUERIES / TRACKED_PACKAGES in scripts/lib/npm-search-observations.mjs, so a data file cannot narrow what it looks at or restate its own purpose. Each observation is immutable: re-observing ADDS a record with its own observedAt and the page projects the newest per query, so a rank that got worse stays here as provenance. Re-observe with npm run docs:npm-search:observe.",
+  "registry": {
+    "endpoint": "https://registry.npmjs.org/-/v1/search",
+    "resultsPerPage": 20,
+    "scanDepth": 250
+  },
+  "trackedPackages": [
+    "@honua/sdk-js",
+    "@honua/mcp-server",
+    "create-honua-app"
+  ],
+  "observations": [
+    {
+      "id": "2026-08-04-maplibre-arcgis-migration",
+      "query": "maplibre arcgis migration",
+      "observedAt": "2026-08-04",
+      "expiresAt": "2026-11-04",
+      "totalResults": 19070,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": true,
+          "published": true,
+          "rank": 53,
+          "version": "0.1.2-beta.0"
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "2026-08-04-arcgis-migration",
+      "query": "arcgis migration",
+      "observedAt": "2026-08-04",
+      "expiresAt": "2026-11-04",
+      "totalResults": 18090,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": true,
+          "published": true,
+          "rank": 1,
+          "version": "0.1.2-beta.0"
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "2026-08-04-maplibre-gis-sdk",
+      "query": "maplibre gis sdk",
+      "observedAt": "2026-08-04",
+      "expiresAt": "2026-11-04",
+      "totalResults": 156307,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": true,
+          "published": true,
+          "rank": 101,
+          "version": "0.1.2-beta.0"
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "2026-08-04-ogc-api-features-client",
+      "query": "ogc api features client",
+      "observedAt": "2026-08-04",
+      "expiresAt": "2026-11-04",
+      "totalResults": 984963,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": true,
+          "published": true,
+          "rank": 139,
+          "version": "0.1.2-beta.0"
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "2026-08-04-stac-client-typescript",
+      "query": "stac client typescript",
+      "observedAt": "2026-08-04",
+      "expiresAt": "2026-11-04",
+      "totalResults": 580293,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "2026-08-04-geocoding-maplibre",
+      "query": "geocoding maplibre",
+      "observedAt": "2026-08-04",
+      "expiresAt": "2026-11-04",
+      "totalResults": 2306,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": true,
+          "published": true,
+          "rank": 84,
+          "version": "0.1.2-beta.0"
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": false
+        }
+      ]
+    },
+    {
+      "id": "2026-08-04-mcp-server-geospatial",
+      "query": "mcp server geospatial",
+      "observedAt": "2026-08-04",
+      "expiresAt": "2026-11-04",
+      "totalResults": 368718,
+      "hits": [
+        {
+          "package": "@honua/sdk-js",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "@honua/mcp-server",
+          "found": false,
+          "published": true
+        },
+        {
+          "package": "create-honua-app",
+          "found": false,
+          "published": false
+        }
+      ]
+    }
+  ]
+}

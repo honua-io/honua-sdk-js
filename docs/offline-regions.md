@@ -3,14 +3,17 @@
 `@honua/sdk-js/offline` contains bounded, independently usable slices of issue
 [#396](https://github.com/honua-io/honua-sdk-js/issues/396). It defines a
 versioned manifest, storage-neutral download coordinator, persistent browser
-store, and durable edit queue. It does not make the broader local-first feature
-complete.
+store, durable edit queue, and composed local-first status. It does not make the
+broader local-first feature complete.
 
 The checked-in
 [network-disabled reference workflow](./examples/offline-region-reference/README.md)
-shows the public IndexedDB, diagnostic, and fetch-handler contracts booting
-through a host-owned application-shell worker when networking is disabled
-before reload.
+shows the public IndexedDB, diagnostic, fetch-handler, edit-queue, replay, and
+status contracts booting through a host-owned application-shell worker when
+networking is disabled before reload. It captures a field edit while
+disconnected, keeps it across a reload taken with networking still disabled, and
+replays it once on reconnect against a loopback fixture transport — which proves
+the durable local transitions, not hosted replica synchronization.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -52,6 +55,197 @@ const diagnostic = await createOfflineRegionDiagnostic(
   },
 );
 ```
+
+## Planning a snapshot and reading it back (experimental)
+
+`planOfflineRegionSnapshot()` is the producer between the protocol-neutral
+contract and the region store: it turns a source identity, a canonical `Query`,
+a bounded extent, and the payloads an application already holds into a manifest
+whose resource identities are deterministic functions of that selection. An
+identity is derived from contract inputs — source id, normalized credential-free
+endpoint, authorization-scope digest, source / schema / plan versions, extent,
+canonical query, resource kind and selector — and never from a signed or
+token-bearing request URL.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  createMemoryOfflineRegionStore,
+  createOfflineRegionFeatureBatch,
+  createOfflineRegionSnapshotLoader,
+  downloadOfflineRegion,
+  encodeOfflineRegionFeatureBatch,
+  planOfflineRegionSnapshot,
+  readOfflineRegionQuery,
+} from "@honua/sdk-js/offline";
+
+const query = { outFields: ["id", "status"], returnGeometry: true };
+const batch = createOfflineRegionFeatureBatch(await source.query(query), {
+  pagination: { offset: 0 },
+});
+
+const snapshot = await planOfflineRegionSnapshot({
+  name: "Field area",
+  sourceId: source.descriptor.id,
+  endpoint: source.descriptor.locator.url,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  bounds: { minX: -158.3, minY: 21.4, maxX: -157.6, maxY: 21.8, crs: "EPSG:4326" },
+  sourceVersion: "source-v3",
+  schemaVersion: "schema-v7",
+  planVersion: "plan-v2",
+  observation: { state: "live", observedAt: new Date().toISOString() },
+  attribution: { noaa: "Data: NOAA" },
+  query,
+  contents: [
+    {
+      kind: "features",
+      bytes: encodeOfflineRegionFeatureBatch(batch),
+      contentType: "application/json",
+      attributionIds: ["noaa"],
+    },
+  ],
+});
+
+await downloadOfflineRegion(snapshot.manifest, {
+  store: applicationStore,
+  load: createOfflineRegionSnapshotLoader(snapshot),
+  logicalQuotaBytes: budget.logicalBudgetBytes,
+});
+
+// Later, with no network at all.
+const read = await readOfflineRegionQuery(snapshot.manifest, {
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  query,
+  bounds: snapshot.manifest.bounds,
+});
+render(read.result.features, read.attribution, read.provenance.observation);
+```
+
+The read path answers only what the region actually holds:
+
+- **Scope first.** The caller's current authorization-scope digest must equal the
+  region's, or the read fails with `scope-mismatch`. A scope change can never
+  serve another principal's cached bytes.
+- **Fail closed, never narrow.** A version the region was not captured at, or an
+  extent it does not cover, raises `out-of-region`; a selection it never stored
+  raises `cache-miss`. Both classify as `offline.region.miss`.
+- **Refuse rather than approximate.** A sub-extent of the region, an
+  `aggregation`, or a `Query` member the read path does not understand raises
+  `HonuaCapabilityNotSupportedError` naming the construct and the
+  `offline-region` protocol, because answering any of them would require
+  evaluating a predicate the snapshot never ran.
+- **Pagination is a window, not an identity.** A stored batch records the window
+  it captured, so a later page is sliced from it exactly. A page outside that
+  window is a miss, never a short answer.
+- **Freshness is reported, never repaired.** A stale region answers with an
+  explicit `stale` decision, because revalidation implies a network the caller
+  may not have.
+- **Nothing is presented as live.** Every result carries a `Result.degraded`
+  entry naming the region, its observation time, and its freshness.
+
+`read.cache` reports the persistent-cache decision — region identity, query
+fingerprint, authorization-scope digest, freshness, completeness, and exactly
+which stored resources answered — and `read.planCache` feeds `explainQuery()` so
+the query plan reports it too. A fresh region carries its manifest identity as
+the plan's `fingerprint` validator, which binds the plan's own fingerprint to the
+region that answered it; a stale region deliberately carries no validator.
+
+`createMemoryOfflineRegionStore()` is a non-durable twin of the IndexedDB store
+for Node, workers, and tests. Both pass one shared suite:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { runOfflineRegionStoreConformance } from "@honua/sdk-js/offline";
+
+const report = await runOfflineRegionStoreConformance({
+  createStore: () => createMemoryOfflineRegionStore(),
+  label: "memory",
+});
+console.log(report.failed === 0);
+```
+
+## Storage budget and quota admission
+
+`logicalQuotaBytes` is an honest accounting of declared payload lengths, but on
+its own it has no relationship to the space the browser will grant. Ask the
+platform instead of inventing a constant: `probeOfflineStorageBudget()` reads
+`navigator.storage.estimate()` through an injectable interface and derives a
+conservative logical budget.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  downloadOfflineRegion,
+  probeOfflineStorageBudget,
+  requestOfflinePersistentStorage,
+} from "@honua/sdk-js/offline";
+
+const budget = await probeOfflineStorageBudget();
+if (budget.status === "unavailable") {
+  // No StorageManager, or no estimate. The SDK reports that rather than
+  // fabricating a number; the application decides what to offer.
+  showUnknownCapacity(budget.reason, budget.persistence);
+} else if (budget.logicalBudgetBytes < manifest.totalLogicalBytes) {
+  showTooLarge(budget.remainingBytes, budget.reserveBytes);
+} else {
+  await downloadOfflineRegion(manifest, {
+    store: applicationStore,
+    load: applicationResourceLoader,
+    logicalQuotaBytes: budget.logicalBudgetBytes,
+  });
+}
+
+// Only ever on an explicit user action: this can prompt.
+if (budget.persistence === "best-effort" && userAskedToKeepData) {
+  const persistence = await requestOfflinePersistentStorage();
+  console.log(persistence.status); // "granted" | "denied" | "unavailable"
+}
+```
+
+Derivation is deterministic integer arithmetic over the reported values:
+
+```text
+remaining = max(0, quota - usage)
+reserve   = min(remaining, max(minimumReserveBytes, floor(remaining * headroomRatio)))
+budget    = remaining - reserve
+```
+
+so the derived budget can never exceed the platform-reported remaining quota,
+and an origin with less free space than the reserve floor (16 MiB by default) is
+offered `0` rather than a number that cannot be honoured. The estimate is
+deliberately imprecise and origin-scoped, so the result is **advisory, never a
+guarantee** — which is exactly why a reserve exists and why physical occupancy,
+deduplication, and index overhead stay outside the contract.
+
+A device can still refuse a write the budget admitted. When it does, the
+platform `QuotaExceededError` raised while staging, writing, or committing is
+classified as `quota-exceeded` / `offline.region.quota` rather than the internal
+`store-failed` / `offline.storage.failure` class, and the error carries the
+admission plan that was attempted:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+try {
+  await downloadOfflineRegion(manifest, downloadOptions);
+} catch (error) {
+  if (isHonuaError(error, "offline.region.quota")) {
+    // Required, evicted, and projected logical bytes, without recomputing them.
+    showEvictionPrompt(error.admission);
+  }
+}
+```
+
+A refused plan is a proposal, not a record of what happened: a region refused
+before the download starts evicts nothing, and no region outside
+`admission.evictRegionIds` is ever removed. Pinned regions are never proposed.
+`isStorageQuotaPressureError()` is exported so a host-supplied
+`OfflineRegionStore` can classify the same condition the same way instead of
+hiding a full device inside its own wrapper.
+
+Persisted state changes the eviction risk for every cached region, so it is
+observed rather than inferred: the probe reports
+`persistence: "persisted" | "best-effort" | "unknown"`, and
+`createOfflineRegionDiagnostic()` accepts the probe result and republishes it as
+`diagnostic.storage`. The diagnostic never probes on its own, and
+`navigator.storage.persist()` is reached only through
+`requestOfflinePersistentStorage()` — a download is not consent to prompt.
 
 ## Durable edit queue
 
@@ -97,6 +291,79 @@ console.log(enqueued.status); // "enqueued" or "duplicate"
 console.log(receipt.appliedCount);
 ```
 
+## Composed local-first status
+
+Cache diagnostics answer "what is in the store", and the queue answers "what
+have I not delivered". `createLocalFirstStatus` composes both, plus a
+host-supplied connectivity signal, into one versioned, payload-free snapshot
+that names a single state.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { createLocalFirstStatus } from "@honua/sdk-js/offline";
+
+const partition = {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+};
+
+const status = createLocalFirstStatus({
+  // Reachability is host policy. The SDK never reads navigator.onLine, because
+  // link state is not endpoint reachability.
+  connectivity: endpointReachable ? "online" : "offline",
+  now: new Date(),
+  regions: [diagnostic],
+  // A bounded detail sample for conflicted identities and timing...
+  edits: await queue.list({ ...partition, limit: 100 }),
+  // ...and the authoritative totals, because list() is capped at 100 records
+  // and has no cursor.
+  editCounts: await queue.countByState(partition),
+});
+
+console.log(status.state); // "pending"
+console.log(status.reason); // "undelivered-edits"
+console.log(status.reads.availability, status.reads.freshness);
+console.log(status.writes.coverage); // "complete"
+console.log(status.writes.undeliveredCount, status.writes.conflictedCount);
+```
+
+`OfflineEditQueue.list()` returns at most 100 records in created order and has
+no cursor, so it can never be counted. Pass `editCounts` from
+`countByState()`, which reads the partition/state index without materializing
+any edit payload; the returned totals are authoritative and drive both
+`writes.counts` and the headline state. Without it, `writes.coverage` is
+`sampled` and the counts are only a lower bound, so a partition whose first 100
+records are terminal would read as `idle` while later work is still
+undelivered. A sample that disagrees with its own totals is rejected rather
+than published.
+
+The headline `state` is resolved by a total, deterministic precedence. Data
+problems outrank undelivered work, which outranks mere staleness, which
+outranks being disconnected:
+
+| Precedence | `state` | `reason` | Condition |
+| --- | --- | --- | --- |
+| 1 | `conflicted` | `conflicted-edits` | Any queued edit is in the `conflicted` state. |
+| 2 | `expired` | `expired-regions` | Any stored region is expired. |
+| 3 | `partial` | `partial-regions` / `missing-regions` | Regions were supplied and worst-case completeness is not `complete`. |
+| 4 | `pending` | `undelivered-edits` | Any edit is `pending`, `leased`, or `retryable`. |
+| 5 | `stale` | `stale-regions` | Any stored region is stale. |
+| 6 | `offline` | `disconnected` | Connectivity is `offline` and nothing above applies. |
+| 7 | `online` | `connected` | Connectivity is `online` and nothing above applies. |
+
+Aggregation is worst-case, so one expired or partial region cannot be hidden by
+fresher siblings. Freshness aggregates over *stored* regions only: a cache miss
+has no stored observation to age. `reads.availability` is `live` when the host
+reports connectivity, `cached` when it does not but a region is readable, and
+`unavailable` when it is neither. The status is deeply frozen, JSON
+serializable, deterministic for identical inputs regardless of supplied order,
+and never reads `edit.attributes` or `edit.geometry`.
+
+Cache facets are validated together, not independently. A diagnostic is derived
+from one stored entry, so `state`, `freshness`, `completeness`, `reason`, and
+`readable` cannot vary freely; a tampered or hand-built combination that the
+diagnostic could never have produced is rejected instead of resolving to a
+confidently wrong headline.
+
 ## Contract guarantees
 
 - Manifest identity is deterministic over normalized content. Resource ids,
@@ -104,6 +371,29 @@ console.log(receipt.appliedCount);
 - URL credentials and recognized signed/auth query parameters are removed.
   Only a domain-separated SHA-256 digest of the caller's authorization scope
   fingerprint is persisted.
+- **Persisted identities are non-secret by contract, and the stores enforce it.**
+  `name`, `sourceId`, `resource.id`, `contentType`, attribution ids and text, and
+  the source/schema/plan versions are screened against the same credential
+  denylist that governs endpoint normalization. Machine identities are also
+  refused when they are shaped like a request reference — an absolute URL
+  carrying userinfo, a query, or a fragment, or a relative reference containing
+  `?`, `#`, or `@` — so an ArcGIS `?token=` or S3 `?X-Amz-Signature=` URL cannot
+  become a stored identity by way of an `OfflineRegionResourceMatcher`. Human
+  prose (`name`, attribution text) is held only to the embedded-assignment and
+  absolute-URL rules, so an ordinary label is still persistable. A match fails
+  the whole manifest closed with `invalid-manifest` and a structured `path`;
+  nothing is silently rewritten, because a rewritten identity would change the
+  deterministic region id and the resource primary key, and the rejection names
+  the path without echoing the offending value. Screening is defence in depth: it
+  is not a licence to pass secrets as identities.
+- The enforcement is not a trust assumption about the caller.
+  `createIndexedDbOfflineRegionStore`, `beginWrite`, and `commit` are public
+  exports, so `beginWrite` and `write` re-screen the region and resource ids they
+  key staged rows by, and `commit` re-checks the whole manifest — endpoint
+  included — before it opens its IndexedDB transaction. A caller that bypasses
+  `downloadOfflineRegion` cannot persist a credential-bearing manifest. The
+  durable edit queue applies the same screen to `sourceId` and `idempotencyKey`,
+  which are its persisted partition and identity keys.
 - Every resource has an exact logical byte length and required SHA-256 digest.
   Loader output is copied into coordinator-owned memory before hashing, progress,
   or writing, so later loader mutation cannot alter committed bytes. Each resource also carries
@@ -120,6 +410,13 @@ console.log(receipt.appliedCount);
   bytes, compression, deduplication, or store overhead. Admission is deterministic:
   expired regions, then least-recently-used regions, then code-unit id order.
   Pinned regions are never automatically evicted.
+- The ceiling itself can be derived from the origin's real storage estimate.
+  `probeOfflineStorageBudget()` performs no network I/O, mutates nothing, never
+  requests persistence, returns no credential or request URL, and is
+  deterministic for identical inputs. A platform without a `StorageManager` or
+  an estimate yields an explicit `unavailable` result instead of a fabricated
+  budget. A refusal by the device is typed `quota-exceeded` and carries the
+  attempted admission plan.
 - The injected transaction stages evictions and writes, then publishes them
   atomically with the manifest and receipt. Commit compares the inventory
   revision used for planning and independently enforces logical quota in the
@@ -188,7 +485,9 @@ The storage-backed fetch handler can be installed in a service worker or other
 fetch integration, but the host still owns request matching and network
 reachability policy. This slice does not provide encryption policy, a complete
 application-level query/read cache, a server transport adapter, or an automatic
-connectivity loop. The queue and one-pass coordinator are local durability
+connectivity loop. `createLocalFirstStatus` composes state that already exists;
+it does not probe reachability, trigger reconnect, or revalidate a stale region.
+The queue and one-pass coordinator are local durability
 primitives; they do **not** claim end-to-end exactly-once synchronization.
 Applications must bind the injected transport to established Honua Server
 replica-sync, upload-cursor, and conflict-review contracts exposed through

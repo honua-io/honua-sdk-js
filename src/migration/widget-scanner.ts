@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { readAmdDependencies } from "./loader-bindings.js";
 import {
   ARCGIS_WIDGET_DEPRECATION_RELEASE,
   ARCGIS_WIDGET_REMOVAL_RELEASE,
@@ -18,7 +19,13 @@ import {
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
 
-export type WidgetImportStyle = "esm-import" | "esm-dynamic-import" | "cjs-require" | "amd-require" | "arcgis-import";
+export type WidgetImportStyle =
+  | "esm-import"
+  | "esm-dynamic-import"
+  | "cjs-require"
+  | "amd-require"
+  | "import-equals"
+  | "arcgis-import";
 
 export interface WidgetUsageHit {
   /** Path relative to the scan root, POSIX separators. */
@@ -389,6 +396,14 @@ function findWidgetUsageInSource(source: string, file: string, relativeFile: str
       ts.isStringLiteralLike(node.moduleSpecifier)
     ) {
       record(node.moduleSpecifier, "esm-import");
+    } else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference) &&
+      ts.isStringLiteralLike(node.moduleReference.expression)
+    ) {
+      // `import Legend = require("esri/widgets/Legend")` — the form
+      // @types/arcgis-js-api documents for AMD modules in TypeScript.
+      record(node.moduleReference.expression, "import-equals");
     } else if (ts.isCallExpression(node)) {
       const firstArg = node.arguments.length > 0 ? node.arguments[0] : undefined;
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
@@ -396,10 +411,12 @@ function findWidgetUsageInSource(source: string, file: string, relativeFile: str
           record(firstArg, "esm-dynamic-import");
         }
       } else if (ts.isIdentifier(node.expression)) {
-        const callee = node.expression.text;
-        if ((callee === "require" || callee === "define") && firstArg && ts.isArrayLiteralExpression(firstArg)) {
-          recordArrayElements(firstArg, "amd-require");
-        } else if (callee === "require" && firstArg && ts.isStringLiteralLike(firstArg)) {
+        const amdDependencies = readAmdDependencies(node);
+        if (amdDependencies) {
+          for (const dependency of amdDependencies) {
+            record(dependency.specifier, "amd-require");
+          }
+        } else if (node.expression.text === "require" && firstArg && ts.isStringLiteralLike(firstArg)) {
           record(firstArg, "cjs-require");
         }
       } else if (

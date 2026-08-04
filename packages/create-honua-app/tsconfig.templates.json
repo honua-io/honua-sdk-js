@@ -1,0 +1,23 @@
+{
+  "//": "Repository-local typecheck for the published starters. Consumers use each template's own tsconfig.json against the installed @honua/sdk-js; this overlay points the same sources at the repository's SDK source so CI compiles every template without a registry install.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "types": ["vite/client", "node"],
+    "paths": {
+      "@honua/sdk-js": ["../../src/index.ts"],
+      "@honua/sdk-js/contract": ["../../src/contract/index.ts"],
+      "@honua/sdk-js/react": ["../../src/react/index.ts"],
+      "@honua/sdk-js/runtime": ["../../src/runtime/index.ts"]
+    }
+  },
+  "include": ["templates/*/src/**/*.ts", "templates/*/src/**/*.tsx", "templates/*/vite.config.ts"]
+}

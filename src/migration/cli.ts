@@ -17,7 +17,7 @@ import { parseGeoservicesServiceUrl, runMigrationDemo } from "./demo.js";
 import { evaluateMigrationGates } from "./gating.js";
 import { getJsParityMatrix, summarizeJsParityMatrix } from "./parity-matrix.js";
 import { runLayerReconciliation, summarizeLayerReconciliation } from "./reconcile.js";
-import { buildJsMigrationReport } from "./report.js";
+import { type MigrationReadiness, buildJsMigrationReport } from "./report.js";
 import { getJsRuntimeParityMatrix, summarizeJsRuntimeParity } from "./runtime-matrix.js";
 import { emitEsriSampleCorpusEvidence } from "./sample-corpus-evidence.js";
 import { scanArcGisUsage, summarizeArcGisScan } from "./scanner.js";
@@ -50,6 +50,7 @@ interface ParsedArgs {
   failOnManual: boolean;
   failOnUnhandled: boolean;
   failOnBlocked: boolean;
+  failOnNoUsage: boolean;
   maxManualRatio?: number;
   maxManualInterventionRatio?: number;
   reportPath?: string;
@@ -95,7 +96,8 @@ interface ParsedArgs {
 interface FixtureMetricSnapshot {
   fixture: string;
   rootDir: string;
-  readiness: "ready" | "assisted" | "blocked";
+  readiness: MigrationReadiness;
+  usageDetected: boolean;
   scanSummary: string;
   flags: string[];
   totalCallSites: number;
@@ -120,6 +122,7 @@ interface FixtureMetricsSummary {
   ready: number;
   assisted: number;
   blocked: number;
+  noUsageDetected: number;
   totalCallSites: number;
   autoMigratedCallSites: number;
   manualCallSites: number;
@@ -136,6 +139,7 @@ interface FixtureMetricsGateOptions {
   failOnManual: boolean;
   failOnUnhandled: boolean;
   failOnBlocked: boolean;
+  failOnNoUsage: boolean;
   maxManualRatio?: number;
   maxManualInterventionRatio?: number;
 }
@@ -160,6 +164,7 @@ const DEFAULT_REAL_SAMPLE_FIXTURE_NAMES = [
   "esri-real-sample-ops-center-app",
   "esri-real-sample-editing-app",
   "esri-real-sample-network-app",
+  "esri-real-sample-address-search-app",
 ] as const;
 const DEFAULT_DEMO_FIXTURE_NAME = MIGRATION_DEMO_PRIMARY_TARGET.fixtureName;
 
@@ -637,6 +642,7 @@ function runFixtures(args: ParsedArgs): void {
     failOnManual: args.failOnManual,
     failOnUnhandled: args.failOnUnhandled,
     failOnBlocked: args.failOnBlocked,
+    failOnNoUsage: args.failOnNoUsage,
     maxManualRatio: args.maxManualRatio,
     maxManualInterventionRatio: args.maxManualInterventionRatio,
   });
@@ -647,6 +653,7 @@ function runFixtures(args: ParsedArgs): void {
       `ready=${report.summary.ready}`,
       `assisted=${report.summary.assisted}`,
       `blocked=${report.summary.blocked}`,
+      `noUsageDetected=${report.summary.noUsageDetected}`,
       `autoMigrated=${report.summary.autoMigratedCallSites}`,
       `manual=${report.summary.manualCallSites}`,
       `unhandled=${report.summary.unhandledUsageHits}`,
@@ -723,6 +730,7 @@ function buildFixtureMetricSnapshot(
     fixture: fixtureName,
     rootDir,
     readiness: report.readiness,
+    usageDetected: report.usageDetected,
     scanSummary: report.scanSummary,
     flags: [...report.scanReport.flags],
     totalCallSites: codemodResult.metrics.totalCodemodScopedCallSites,
@@ -747,6 +755,7 @@ function summarizeFixtureMetrics(fixtures: readonly FixtureMetricSnapshot[]): Fi
   const ready = fixtures.filter((fixture) => fixture.readiness === "ready").length;
   const assisted = fixtures.filter((fixture) => fixture.readiness === "assisted").length;
   const blocked = fixtures.filter((fixture) => fixture.readiness === "blocked").length;
+  const noUsageDetected = fixtures.filter((fixture) => !fixture.usageDetected).length;
   const totalCallSites = fixtures.reduce((sum, fixture) => sum + fixture.totalCallSites, 0);
   const autoMigratedCallSites = fixtures.reduce((sum, fixture) => sum + fixture.autoMigratedCallSites, 0);
   const manualCallSites = fixtures.reduce((sum, fixture) => sum + fixture.manualCallSites, 0);
@@ -764,6 +773,7 @@ function summarizeFixtureMetrics(fixtures: readonly FixtureMetricSnapshot[]): Fi
     ready,
     assisted,
     blocked,
+    noUsageDetected,
     totalCallSites,
     autoMigratedCallSites,
     manualCallSites,
@@ -797,6 +807,10 @@ function evaluateFixtureMetricsGates(
   options: FixtureMetricsGateOptions,
 ): FixtureMetricsGateEvaluation {
   const failures: string[] = [];
+  if (options.failOnNoUsage && summary.noUsageDetected > 0) {
+    const blindFixtures = fixtures.filter((fixture) => !fixture.usageDetected).map((fixture) => fixture.fixture);
+    failures.push(`Fixtures with no ArcGIS usage detected (${summary.noUsageDetected}): ${blindFixtures.join(", ")}.`);
+  }
   if (options.failOnManual && summary.manualCallSites > 0) {
     failures.push(`Manual call sites detected (${summary.manualCallSites}).`);
   }
@@ -862,6 +876,18 @@ function runCodemod(args: ParsedArgs): void {
 
   process.stdout.write(`gates=${formatGateResults(report.gates)}\n`);
 
+  if (!report.usageDetected) {
+    const fileWord = scanReport.filesScanned === 1 ? "file" : "files";
+    process.stdout.write(
+      [
+        `note=no-arcgis-usage-detected; scanned ${scanReport.filesScanned} source ${fileWord} under ${scanReport.rootDir}`,
+        "and recognized no ArcGIS module usage, so nothing was migrated and every gate below passed vacuously.",
+        "Check that this is the right directory; if the app does use ArcGIS JS, its module specifiers are a shape",
+        "the scanner does not yet read — please report it.\n",
+      ].join(" "),
+    );
+  }
+
   if (
     (scanReport.imports.length === 0 || scanReport.filesWithArcGisImports === 0) &&
     (scanReport.esriLeafletImportCount ?? 0) > 0
@@ -903,6 +929,7 @@ function runCodemod(args: ParsedArgs): void {
     failOnManual: args.failOnManual,
     failOnUnhandled: args.failOnUnhandled,
     failOnBlocked: args.failOnBlocked,
+    failOnNoUsage: args.failOnNoUsage,
     maxManualRatio: args.maxManualRatio,
     maxManualInterventionRatio: args.maxManualInterventionRatio,
   });
@@ -1143,6 +1170,7 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
       failOnManual: false,
       failOnUnhandled: false,
       failOnBlocked: false,
+      failOnNoUsage: false,
       codemodTarget: "honua-compat",
       skipImport: false,
       skipReconcile: false,
@@ -1192,6 +1220,7 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
   let failOnManual = false;
   let failOnUnhandled = false;
   let failOnBlocked = false;
+  let failOnNoUsage = false;
   let maxManualRatio: number | undefined;
   let maxManualInterventionRatio: number | undefined;
   let compatImportPath: string | undefined;
@@ -1276,6 +1305,10 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
     }
     if (token === "--fail-on-blocked") {
       failOnBlocked = true;
+      continue;
+    }
+    if (token === "--fail-on-no-usage") {
+      failOnNoUsage = true;
       continue;
     }
     if (token === "--max-manual-ratio") {
@@ -1734,6 +1767,7 @@ function parseArgs(argv: string[]): ParsedArgs | undefined {
     failOnManual,
     failOnUnhandled,
     failOnBlocked,
+    failOnNoUsage,
     maxManualRatio,
     maxManualInterventionRatio,
     reportPath,
@@ -1812,10 +1846,10 @@ function printUsage(): void {
       "Usage:",
       "  honua-migrate [scan] <path> [--report <file>]",
       "  honua-migrate widgets <path> [--json | --markdown] [--gate <pct>] [--report <file>]",
-      "  honua-migrate codemod <path> [--target <honua|honua-compat|honua-maplibre|esri-leaflet>] [--write] [--annotate-todos] [--report <file>] [--compat-import-path <pkg>] [--fail-on-manual] [--fail-on-unhandled] [--fail-on-blocked] [--max-manual-ratio <0..1>] [--max-manual-intervention-ratio <0..1>]",
+      "  honua-migrate codemod <path> [--target <honua|honua-compat|honua-maplibre|esri-leaflet>] [--write] [--annotate-todos] [--report <file>] [--compat-import-path <pkg>] [--fail-on-manual] [--fail-on-unhandled] [--fail-on-blocked] [--fail-on-no-usage] [--max-manual-ratio <0..1>] [--max-manual-intervention-ratio <0..1>]",
       "  honua-migrate matrix [--report <file>]",
       "  honua-migrate runtime-matrix [--report <file>]",
-      "  honua-migrate fixtures [<fixtures-root>] [--target <honua|honua-compat|honua-maplibre|esri-leaflet>] [--fixtures <name1,name2,...>] [--report <file>] [--fail-on-manual] [--fail-on-unhandled] [--fail-on-blocked] [--max-manual-ratio <0..1>] [--max-manual-intervention-ratio <0..1>]",
+      "  honua-migrate fixtures [<fixtures-root>] [--target <honua|honua-compat|honua-maplibre|esri-leaflet>] [--fixtures <name1,name2,...>] [--report <file>] [--fail-on-manual] [--fail-on-unhandled] [--fail-on-blocked] [--fail-on-no-usage] [--max-manual-ratio <0..1>] [--max-manual-intervention-ratio <0..1>]",
       "  honua-migrate reconcile --source-base-url <url> --source-service-id <id> --target-base-url <url> --target-service-id <id> --layer-id <n> [--sample-size <n>] [--report <file>]",
       "  honua-migrate demo [<fixture-name>] [--fixtures-root <dir>] [--output-dir <dir>] [--target <honua|honua-compat|honua-maplibre|esri-leaflet>] [--admin-base-url <url>] [--admin-api-key <key>] [--source-service-url <url>] [--layer-id <n>] [--table-name <name>] [--source-base-url <url>] [--source-service-id <id>] [--target-base-url <url>] [--target-service-id <id>] [--sample-size <n>] [--poll-interval-ms <n>] [--timeout-seconds <n>] [--skip-import] [--skip-reconcile] [--report <file>]",
       "  honua-migrate content scan --portal <url> [--token <token>] [--report <file>]",

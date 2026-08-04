@@ -155,6 +155,106 @@ export interface HonuaMeasurementMessages {
   readonly hintActive?: string;
 }
 
+// ── <honua-time-slider> (issue #959) ─────────────────────────────────────
+
+/** A half-open `[start, end)` time window in epoch milliseconds. */
+export interface HonuaTimeSliderWindow {
+  readonly start: number;
+  readonly end: number;
+}
+
+/**
+ * Minimal duck-typed subset of the temporal playback controller required by
+ * `<honua-time-slider>`.
+ *
+ * The controller `createTemporalPlayback()` (`@honua/sdk-js/map`, issue #497)
+ * returns satisfies this interface, and so does any host-owned object with the
+ * same shape — the element never imports the controller module, which keeps
+ * the component kit's bundle free of the map entrypoint's closure (the same
+ * duck-typing posture `HonuaMeasurementMap` uses for `maplibre-gl.Map`).
+ *
+ * The optional members are the ones added alongside this element: a controller
+ * that predates them (or a host-supplied stand-in that omits them) still binds,
+ * and the element degrades by deriving the step from the current window length
+ * and hiding the speed control rather than rendering an affordance that would
+ * do nothing.
+ */
+export interface HonuaTimeSliderPlayback {
+  readonly playing: boolean;
+  /** The window currently applied to the map. */
+  readonly window: HonuaTimeSliderWindow;
+  /** The full playable extent. */
+  readonly extent: HonuaTimeSliderWindow;
+  /** How far one step moves the window. Falls back to the window length. */
+  readonly stepMs?: number;
+  /** Current playback rate multiplier. */
+  readonly speed?: number;
+  play(): void;
+  pause(): void;
+  scrub(time: number): void;
+  /** Move one step forward (`1`) or backward (`-1`). */
+  step?(direction?: 1 | -1): void;
+  /** Change the playback rate multiplier. Absent means the element hides the speed control. */
+  setSpeed?(multiplier: number): void;
+  on(type: "tick", listener: (event: { window: HonuaTimeSliderWindow }) => void): { remove(): void };
+  on(type: "play" | "pause" | "end", listener: () => void): { remove(): void };
+  on(type: "error", listener: (error: unknown) => void): { remove(): void };
+}
+
+/**
+ * Caller-supplied messages for `<honua-time-slider>`.
+ *
+ * Every user-visible string has an English default so the element is usable
+ * without a message source, and every one of them is overridable so an
+ * application can supply a complete locale without replacing the rendering or
+ * the event contract.
+ */
+export interface HonuaTimeSliderMessages {
+  readonly label?: string;
+  readonly play?: string;
+  readonly pause?: string;
+  readonly stepBackward?: string;
+  readonly stepForward?: string;
+  readonly speedLabel?: string;
+  readonly speedOption?: (multiplier: number) => string;
+  readonly sliderLabel?: (label: string) => string;
+  readonly transportGroupLabel?: (label: string) => string;
+  readonly status?: Partial<Readonly<Record<HonuaComponentStatus, string>>>;
+  /** Formats one instant for the window readout and `aria-valuetext`. */
+  readonly instant?: (epochMs: number) => string;
+  /** Formats the `[start, end)` window readout from two formatted instants. */
+  readonly window?: (start: string, end: string) => string;
+  /** Shown in place of the window readout while no playback controller is bound. */
+  readonly noPlayback?: string;
+  /** Shown when the host declares the source has no usable temporal metadata. */
+  readonly unavailable?: (reason: string) => string;
+  /** Keyboard hint rendered under the transport controls. */
+  readonly hint?: string;
+}
+
+/** Detail of the `honua-time-change` event: the window moved. */
+export interface HonuaTimeChangeDetail {
+  readonly window: HonuaTimeSliderWindow;
+  /** Window-start position within the scrubbable range, 0..1. */
+  readonly progress: number;
+  readonly playing: boolean;
+  readonly speed: number;
+  readonly status: HonuaComponentStatus;
+  /** What moved the window. `"tick"` is the controller's own frame timer. */
+  readonly source: "tick" | "scrub" | "step" | "keyboard";
+}
+
+/** Detail of the `honua-time-playback-change` event: transport or rate changed. */
+export interface HonuaTimePlaybackChangeDetail {
+  readonly playing: boolean;
+  readonly speed: number;
+  readonly status: HonuaComponentStatus;
+  /** Present when playback ran past the end of the extent without looping. */
+  readonly ended?: boolean;
+  /** Present when the host declared the source unusable for playback. */
+  readonly reason?: string;
+}
+
 export interface HonuaMapStatusMessages {
   readonly label?: string;
   readonly scaleLabel?: string;

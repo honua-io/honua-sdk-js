@@ -146,6 +146,8 @@ describe("arcgis migration integration", () => {
       "home-widget": 0,
       "basemap-toggle-widget": 0,
       "locate-widget": 0,
+      locator: 0,
+      "locator-search-source": 0,
       "scale-bar-widget": 0,
       "search-widget": 0,
       "basemap-layer-list-widget": 0,
@@ -183,6 +185,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toHaveLength(0);
     expect(report.readiness).toBe("blocked");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -243,6 +248,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
     expect(report.readiness).toBe("ready");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -295,6 +303,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
     expect(report.readiness).toBe("ready");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -354,6 +365,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
     expect(report.readiness).toBe("ready");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -744,6 +758,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
     expect(report.readiness).toBe("ready");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -1577,6 +1594,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
     expect(report.readiness).toBe("ready");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -1623,6 +1643,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
     expect(report.readiness).toBe("ready");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -1671,6 +1694,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
     expect(report.readiness).toBe("ready");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -1719,6 +1745,9 @@ describe("arcgis migration integration", () => {
     expect(report.unhandledArcGisModules).toEqual([]);
     expect(report.readiness).toBe("ready");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,
@@ -1816,6 +1845,9 @@ describe("arcgis migration integration", () => {
     ]);
     expect(report.readiness).toBe("assisted");
     expect(report.gates).toEqual([
+      // Detection gate added by #982; its detail names the scanned root and
+      // file counts, which vary per fixture.
+      expect.objectContaining({ gate: "arcgis-usage-detected", passed: true }),
       {
         gate: "no-manual-todos",
         passed: true,

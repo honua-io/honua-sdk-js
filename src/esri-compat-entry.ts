@@ -358,6 +358,31 @@ export type {
   RouteTaskStopFeatureCompat,
   RouteTaskStopsFeatureSetCompat,
 } from "./esri-compat/route-task.js";
+export {
+  LocatorCompat,
+  LocatorSearchSourceCompat,
+  locatorAddressToLocations,
+  locatorAddressesToLocations,
+  locatorLocationToAddress,
+  locatorSuggestLocations,
+} from "./esri-compat/locator.js";
+export type {
+  AddressToLocationsParamsCompat,
+  AddressesToLocationsParamsCompat,
+  LocationToAddressParamsCompat,
+  LocatorAddressCandidateCompat,
+  LocatorAddressInputCompat,
+  LocatorBatchAddressCompat,
+  LocatorCompatOptions,
+  LocatorExtentCompat,
+  LocatorHandleCompat,
+  LocatorLoadStatusCompat,
+  LocatorPointCompat,
+  LocatorSearchSourceCompatOptions,
+  LocatorSpatialReferenceLike,
+  LocatorSuggestionCompat,
+  SuggestLocationsParamsCompat,
+} from "./esri-compat/locator.js";
 export { DirectionsCompat } from "./esri-compat/directions.js";
 export type {
   DirectionsCompatOptions,

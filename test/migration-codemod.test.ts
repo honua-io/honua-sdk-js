@@ -770,6 +770,172 @@ describe("runEsriCompatCodemod", () => {
     expect(nextSource).not.toContain("@arcgis/core/rest/route/RouteTask");
   });
 
+  it("rewrites safe Locator + LocatorSearchSource constructors and removes ArcGIS imports", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "locator.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import Locator from '@arcgis/core/tasks/Locator';",
+        "import LocatorSearchSource from '@arcgis/core/widgets/Search/LocatorSearchSource';",
+        "const locator = new Locator({ url: geocodeUrl });",
+        "const source = new LocatorSearchSource({ locator, name: 'Addresses' });",
+        "void source;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.filesChanged).toBe(1);
+    expect(result.metrics.autoMigratedCallSites).toBe(2);
+    expect(result.metrics.manualCallSites).toBe(0);
+    expect(result.metrics.byKind.locator).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
+    expect(result.metrics.byKind["locator-search-source"]).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
+
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain("new LocatorCompat({ url: geocodeUrl })");
+    expect(nextSource).toContain("new LocatorSearchSourceCompat({ locator, name: 'Addresses' })");
+    expect(nextSource).toContain("LocatorCompat");
+    expect(nextSource).toContain("LocatorSearchSourceCompat");
+    expect(nextSource).not.toContain("@arcgis/core/tasks/Locator");
+    expect(nextSource).not.toContain("@arcgis/core/widgets/Search/LocatorSearchSource");
+  });
+
+  it("flags Locator constructor options the shim executes per call instead of per instance", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "locator-options.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import Locator from '@arcgis/core/tasks/Locator';",
+        "const locator = new Locator({ url: geocodeUrl, countryCode: 'us', categories: ['POI'] });",
+        "void locator;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      annotateTodos: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.metrics.byKind.locator).toEqual({ total: 1, autoMigrated: 0, manual: 1 });
+    expect(result.manualTodos[0].reason).toContain("countryCode, categories");
+    expect(fs.readFileSync(file, "utf8")).toContain("TODO(honua-migrate)[locator]");
+  });
+
+  it("rewrites rest/locator function imports and flags the URL-to-provider swap", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "rest-locator.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import { addressToLocations, suggestLocations } from '@arcgis/core/rest/locator';",
+        "export const find = (term: string) => addressToLocations(geocodeUrl, { address: { SingleLine: term } });",
+        "export const hint = (term: string) => suggestLocations(geocodeUrl, { text: term });",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      annotateTodos: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain(
+      'import { locatorAddressToLocations as addressToLocations, locatorSuggestLocations as suggestLocations } from "@honua/sdk-esri-compat";',
+    );
+    expect(nextSource).not.toContain("@arcgis/core/rest/locator");
+    // Call sites keep their identifiers; only the first argument still needs work.
+    expect(nextSource).toContain("addressToLocations(geocodeUrl, { address: { SingleLine: term } })");
+    expect(result.manualTodos.map((todo) => todo.kind)).toEqual(["locator"]);
+    expect(result.manualTodos[0].reason).toContain("configured LocatorCompat");
+    expect(nextSource).toContain("TODO(honua-migrate)[locator]");
+  });
+
+  it("rewrites bare esri/* Locator ids through the canonical module path", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "amd-locator.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import Locator from 'esri/tasks/Locator';",
+        "import { addressToLocations } from 'esri/rest/locator';",
+        "const locator = new Locator({ url: geocodeUrl });",
+        "export const find = (term: string) => addressToLocations(locator, { address: term });",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain("new LocatorCompat({ url: geocodeUrl })");
+    expect(nextSource).toContain("locatorAddressToLocations as addressToLocations");
+    expect(nextSource).not.toContain("esri/tasks/Locator");
+    expect(nextSource).not.toContain("esri/rest/locator");
+    expect(result.metrics.byKind.locator.autoMigrated).toBe(2);
+  });
+
+  it("leaves the ArcGIS 3.x esri/tasks/locator id unhandled instead of mapping it onto the 4.x shim", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "amd-locator-3x.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import locator from 'esri/tasks/locator';",
+        "export const find = (term: string) => locator.addressToLocations({ address: term });",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.metrics.byKind.locator).toEqual({ total: 0, autoMigrated: 0, manual: 0 });
+    expect(fs.readFileSync(file, "utf8")).toContain("esri/tasks/locator");
+  });
+
+  it("leaves rest/locator namespace imports for manual migration", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "rest-locator-namespace.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import * as locator from '@arcgis/core/rest/locator';",
+        "export const find = (term: string) => locator.addressToLocations(geocodeUrl, { address: term });",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.manualTodos.map((todo) => todo.kind)).toEqual(["locator"]);
+    expect(result.manualTodos[0].reason).toContain("rest/locator import shape is unsupported");
+    expect(fs.readFileSync(file, "utf8")).toContain("@arcgis/core/rest/locator");
+  });
+
   it("rewrites safe Basemap constructor and removes ArcGIS import", () => {
     const root = makeTempProject();
     const file = path.join(root, "basemap.ts");
@@ -4312,5 +4478,132 @@ describe("runEsriCompatCodemod", () => {
         }),
       ]),
     );
+  });
+  it("rewrites a bare esri/* static import like its @arcgis/core equivalent (#981)", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "app.ts");
+    fs.writeFileSync(
+      file,
+      [
+        "import FeatureLayer from 'esri/layers/FeatureLayer';",
+        "const serviceUrl = 'https://example.test/rest/services/default/FeatureServer/0';",
+        "const layer = new FeatureLayer({ url: serviceUrl });",
+        "void layer;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.metrics.autoMigratedCallSites).toBe(1);
+    expect(result.metrics.byKind["feature-layer"]).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
+
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain('import { FeatureLayerCompat } from "@honua/sdk-esri-compat";');
+    expect(nextSource).toContain("new FeatureLayerCompat({ url: serviceUrl })");
+    expect(nextSource).not.toContain("esri/layers/FeatureLayer");
+  });
+
+  it("reports AMD dependency-array constructors as manual TODOs instead of ignoring them (#980)", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "viewer.js");
+    fs.writeFileSync(
+      file,
+      [
+        "define([",
+        "    'esri/geometry/Extent',",
+        "    'esri/dijit/BasemapGallery',",
+        "    'dojo/topic'",
+        "], function (Extent, BasemapGallery, topic) {",
+        "    var extent = new Extent({ xmin: 0, ymin: 0, xmax: 1, ymax: 1 });",
+        "    var gallery = new BasemapGallery({});",
+        "    void topic; void extent; void gallery;",
+        "});",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: false,
+      annotateTodos: false,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    // The AMD module body is never rewritten — rewriting the constructor while
+    // the loader call still delivers the ArcGIS module would break the file.
+    expect(result.metrics.autoMigratedCallSites).toBe(0);
+    expect(result.metrics.manualCallSites).toBe(1);
+    expect(result.metrics.byKind["extent-geometry"]).toEqual({ total: 1, autoMigrated: 0, manual: 1 });
+    expect(result.manualTodos).toEqual([
+      expect.objectContaining({
+        kind: "extent-geometry",
+        reason: expect.stringContaining("AMD dependency-array"),
+        difficulty: "complex",
+      }),
+    ]);
+    // `esri/dijit/*` has no @arcgis/core counterpart, so it is not claimed as a
+    // codemod-scoped call site; the scan reports it as an unhandled module.
+    expect(result.manualTodos.some((todo) => todo.reason.includes("BasemapGallery"))).toBe(false);
+  });
+
+  it("annotates AMD constructor call sites when --annotate-todos is set (#980)", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "widget.js");
+    fs.writeFileSync(
+      file,
+      [
+        "define(['esri/layers/FeatureLayer'], function (FeatureLayer) {",
+        "    var layer = new FeatureLayer({ url: 'https://example.test/FeatureServer/0' });",
+        "    void layer;",
+        "});",
+      ].join("\n"),
+      "utf8",
+    );
+
+    runEsriCompatCodemod({
+      rootDir: root,
+      write: true,
+      annotateTodos: true,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    const nextSource = fs.readFileSync(file, "utf8");
+    expect(nextSource).toContain("TODO(honua-migrate)[feature-layer]");
+    expect(nextSource).toContain("new FeatureLayer({");
+  });
+
+  it("reports TypeScript import-equals constructors as manual TODOs (#981)", () => {
+    const root = makeTempProject();
+    const file = path.join(root, "main.ts");
+    fs.writeFileSync(
+      file,
+      [
+        'import WebMap = require("esri/WebMap");',
+        "const map = new WebMap({ portalItem: { id: 'abc' } });",
+        "void map;",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const result = runEsriCompatCodemod({
+      rootDir: root,
+      write: false,
+      compatImportPath: "@honua/sdk-esri-compat",
+    });
+
+    expect(result.metrics.autoMigratedCallSites).toBe(0);
+    expect(result.metrics.manualCallSites).toBe(1);
+    expect(result.manualTodos).toEqual([
+      expect.objectContaining({
+        kind: "web-map",
+        reason: expect.stringContaining("import-equals"),
+      }),
+    ]);
+    expect(fs.readFileSync(file, "utf8")).toContain('import WebMap = require("esri/WebMap");');
   });
 });

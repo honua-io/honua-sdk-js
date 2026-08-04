@@ -68,6 +68,7 @@
   "/realtime's gzip ceiling was reset for the snapshot/delta/cursor/resume/plan-identity contract (#556): plan-identity binding, explicit replaying/live/stale/terminal authority derivation, and deterministic/redacted checkpoint serialization measure 48,586 minified / 13,992 gzip bytes. Plan identity reads QueryExecutionPlan['fingerprint'] directly rather than importing hashQueryPlan, so the query planner's protocol-compiler graph stays out of this entrypoint; only the exceeded gzip metric is reset to measured actual plus ~10% headroom.",
   "/realtime was reset for bounded SSE and WebSocket resume transports (#557): the raw WebSocket wire adapter (websocket.ts) plus the reconnect-owning wrapper (resumable-transport.ts — exponential-backoff-and-jitter reconnect, heartbeat timeout, resume-vs-resnapshot selection driven by the delivery gate's own phase, and redacted telemetry) measure 54,897 minified / 15,726 gzip bytes. Both ceilings are measured actual plus ~10% headroom.",
   "/realtime was reset for the OData v4 delta-link pull adapter (#558): createOdataDeltaTransport's bounded @odata.nextLink/@odata.deltaLink paging, scoped-link rejection, @removed/relationship-delta normalization, and explicit expired-link resnapshot recovery measure 62,626 minified / 18,181 gzip bytes. Both ceilings are measured actual plus ~10% headroom.",
+  "/realtime was reset for durable resume-checkpoint persistence (#937): the shipped IndexedDB, in-memory, and bring-your-own-storage RealtimeCheckpointStore implementations (scope-digest keying, credential screening reused from src/connect-url-safety.ts, maximum-age expiry, bounded per-scope records with oldest-first eviction, and corrupt-record recovery) measure 80,243 minified / 23,234 gzip bytes. The credential screen moved to the dependency-free src/connect-url-safety.ts so /realtime does not pull the offline manifest or discovery graph in for it; only the exceeded metrics are reset to measured actual plus ~10% headroom, and root/browser ceilings are unchanged.",
   "/deckgl was reset for direct GeoArrow LineString/Polygon rendering and shared MapLibre-overlay map state (#561): the feature-path/feature-polygon zero-copy PathLayer/SolidPolygonLayer binary bindings (startIndices-addressed, optional PathLayer/SolidPolygonLayer peers), plus the focused renderer-state seam (camera sync, picked-selection-to-exploration linking, and combined disposal) measure 63,572 minified / 16,990 gzip bytes. The entrypoint remains experimental-tier and opt-in; @deck.gl/layers stays an optional peer kept out of the root/browser barrels, and root/non-deck ceilings are unchanged. The ceiling is measured actual plus 10% headroom.",
   "/geoparquet was reset for GeoParquet 1.1 native point/linestring/polygon/multipoint/multilinestring/multipolygon geometry decoding (#581): the entrypoint now reuses src/columnar/geoarrow.ts's bounded encode/decode pipeline (offset/vertex/ring validation, ring-closure, dimension ordering) instead of a second implementation, measuring 128,288 minified / 38,049 gzip bytes. The ceiling is measured actual plus ~10% headroom.",
   "/kepler gained its first dedicated guard with the optional analytics-workspace bridge (#684): the explicit ingestion mappings (direct row/point/columnar paths plus the measured GeoJSON fallback), provenance and CRS decisions, the declared linked-state channel table, bounded delta reconciliation, and export redaction measure 50,221 minified / 15,262 gzip bytes. The ceiling is measured actual plus ~10% headroom. kepler.gl, react, react-dom, and redux stay optional peers reached only through loadKeplerPeers' dynamic import, and the entry's forbiddenInputs guard proves none of them enters the static graph; root, /honua, and browser barrels are unchanged.",
@@ -77,20 +78,24 @@
   "Root gzip, /contract, /runtime, and tree-shake:root-connect were reset for the WFS ProtocolModule migration (#823): the built-in WFS source now shares the authority-bound compiler/executor, bounded XML/GeoJSON response validation, exact namespace/CRS projection, and paging invariants with independently registered modules. Exact measurements are root 174,650 gzip bytes, /contract 328,408 minified / 87,596 gzip, /runtime 569,944 / 152,621, and root-connect 529,869 / 139,082; only exceeded metrics are reset to measured actual plus ~10% headroom. /query-planner, /plugin, browser, and the isolated HonuaClient fixture remain within their reviewed ceilings, so the migration adds no renderer or unrelated plugin runtime.",
   "/web-components gzip was reset after the #823 correctness review added authority-registry WFS axis ordering plus generation-, cancellation-, refresh-, and disposal-safe capability discovery. The measured 272,419 gzip bytes are budgeted at 299,661 bytes (actual plus ~10% headroom); no other ceiling moved.",
   "The exact #823 rebase over bounded direct PMTiles discovery (#820) was remeasured after preserving both protocol graphs. The combined root, /honua, /source-schema, /source-capability-discovery, browser, isolated HonuaClient, and root-createHonua graphs exceeded ceilings derived from either feature in isolation; only those exceeded metrics are reset here to the combined measured values plus 10% headroom.",
-  "/plugin was reset for the behavioral-certification follow-up in #392: the measured gzip size is 20,399 bytes and the ceiling is 22,439 bytes (actual plus ~10% headroom); the existing minified ceiling remains unchanged."
+  "/plugin was reset for the behavioral-certification follow-up in #392: the measured gzip size is 20,399 bytes and the ceiling is 22,439 bytes (actual plus ~10% headroom); the existing minified ceiling remains unchanged.",
+  "Root gzip and 'tree-shake:HonuaClient' minified were reset for accumulated protocol-correctness drift, not for any single change: the WFS per-feature geometry property (#968), STAC POST /search plus token cursors (#969), capabilities-driven WMS GetFeatureInfo (#970), and OGC API Features rel=next paging (#966) each added a few hundred bytes to the shared connect/core graph while docs/bundle-sizes.md still carried a much older baseline. Measured 197,176 gzip on root and 236,429 minified on the tree-shake guard; only the two exceeded metrics were reset to measured actual plus ~10% headroom. Root minified, the tree-shake guard's gzip, and every other ceiling remain unchanged.",
+  "The typed semantic filter and temporal predicates reached the canonical Source.query() surface (#947): the protocol-neutral filter AST, its GeoServices SQL-92 / CQL2 / OData / DuckDB lowerings, and the fail-closed validation are reachable from every adapter, so /contract measures 373,011 minified / 100,789 gzip and /geoparquet 142,517 / 43,072 bytes on the merged tree; only those two entries are reset, to measured actual plus ~10% headroom. The FES 2.0 lowering lives in its own leaf module and the queryFilter builder is @__PURE__-annotated, so a consumer that composes no filter pays for neither. Root gzip measures 203,498 bytes and the isolated HonuaClient guard 236,442 minified, both inside the ceilings the protocol-correctness drift reset above established, so neither moves here.",
+  "/offline was reset for the unified local-first status contract (#932): createLocalFirstStatus composes one honest state across cached region reads and undelivered queued writes, adding bounded region and edit-id projection, freshness and completeness derivation, and connectivity-aware state reasons in a new src/offline/status.ts, plus whole-partition edit counting in the durable queue. Measured 98,752 minified / 27,496 gzip bytes; both exceeded ceilings are reset to measured actual plus ~10% headroom. /offline stays subpath-only, so the root, /honua, and browser barrels are unchanged and every other ceiling holds.",
+  "/offline was reset for protocol-neutral reads served from a persisted region (#935): the snapshot planner that derives deterministic credential-free resource identities from a Source, a canonical Query, and bounds; the read path that answers a Query from storage with scope, version, extent, construct, and pagination-coverage gates plus the persistent-cache decision; the in-memory OfflineRegionStore twin; and the shared store conformance suite both stores pass. Measured 134,861 minified / 36,533 gzip bytes; both exceeded ceilings are reset to measured actual plus ~10% headroom. The query-plan binding is a type-only import of QueryPlanCacheOptions, so the planner's protocol-compiler graph stays out of this entrypoint, /offline remains subpath-only, and every other ceiling holds."
  ],
  "entrypoints": {
   ".": {
    "min": 771970,
-   "gzip": 196018
+   "gzip": 216894
   },
   "/honua": {
    "min": 959741,
    "gzip": 257025
   },
   "/contract": {
-   "min": 361249,
-   "gzip": 96356
+   "min": 410199,
+   "gzip": 110609
   },
   "/source-schema": {
    "min": 947680,
@@ -125,12 +130,12 @@
    "gzip": 167884
   },
   "/realtime": {
-   "min": 77264,
-   "gzip": 22175
+   "min": 88268,
+   "gzip": 25558
   },
  "/offline": {
-   "min": 94087,
-   "gzip": 26114
+   "min": 148348,
+   "gzip": 40187
   },
   "/query-planner": {
    "min": 720180,
@@ -173,8 +178,8 @@
    "gzip": 57500
   },
   "/geoparquet": {
-   "min": 141117,
-   "gzip": 41854
+   "min": 158603,
+   "gzip": 47676
   },
   "/cog": {
    "min": 57455,
@@ -213,7 +218,7 @@
    "gzip": 205783
   },
   "tree-shake:HonuaClient": {
-   "min": 235231,
+   "min": 260072,
    "gzip": 65132
   },
   "tree-shake:root-connect": {

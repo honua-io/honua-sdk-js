@@ -1,0 +1,509 @@
+{
+  "format": "honua.sdk.oss-arcgis-corpus-readiness.v1",
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-04T02:41:27.182Z",
+  "manifestRevision": "2026-08-03",
+  "codemodTarget": "honua-compat",
+  "lane": {
+    "optInEnvVar": "HONUA_OSS_ARCGIS_CORPUS_ENABLED",
+    "excludedFromPrCi": true,
+    "noLiveEsriServiceContact": true
+  },
+  "summary": {
+    "appCount": 6,
+    "observed": 6,
+    "errored": 0,
+    "ready": 0,
+    "assisted": 6,
+    "blocked": 0,
+    "totalCallSites": 171,
+    "autoMigratedCallSites": 75,
+    "manualCallSites": 96,
+    "autoMigratedRatio": 0.4386,
+    "unhandledUsageHits": 146,
+    "topManualTodoKinds": [
+      {
+        "kind": "label-class",
+        "count": 18
+      },
+      {
+        "kind": "map-view",
+        "count": 10
+      },
+      {
+        "kind": "text-symbol",
+        "count": 9
+      },
+      {
+        "kind": "feature-layer",
+        "count": 7
+      },
+      {
+        "kind": "graphics-layer",
+        "count": 6
+      }
+    ],
+    "blockedApps": [],
+    "undetectedApps": [],
+    "styleCoverage": {
+      "widget-heavy": 4,
+      "amd-require": 3,
+      "featurelayer-centric": 4
+    }
+  },
+  "apps": [
+    {
+      "appId": "cmv-app",
+      "title": "CMV — Configurable Map Viewer",
+      "repoUrl": "https://github.com/cmv/cmv-app",
+      "commit": "8b42b2336b1a4b357dda791c8e492b9612a5f51b",
+      "licenseSpdxId": "MIT",
+      "authorKind": "civic-tech",
+      "styles": [
+        "amd-require",
+        "widget-heavy"
+      ],
+      "observedAt": "2026-08-04",
+      "status": "observed",
+      "codemodTarget": "honua-compat",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=136 filesWithArcGisImports=22 importCount=69 esriLeafletImportCount=0 topSymbols=[Draw:16, BasemapLayer:12, GraphicsLayer:11, BasemapGallery:9, Basemap:9, units:8, FeatureLayer:8, Legend:8, SimpleRenderer:7, SimpleLineSymbol:7] flags=[amd-dependency-arrays-detected, arcgis-3x-dijit-detected, auth-or-request-customization-detected, webmap-detected]",
+      "filesScanned": 136,
+      "filesWithArcGisImports": 22,
+      "usageDetected": true,
+      "totalCallSites": 27,
+      "autoMigratedCallSites": 0,
+      "manualCallSites": 27,
+      "autoMigratedRatio": 0,
+      "manualRewriteRatio": 1,
+      "manualInterventionRatio": 1,
+      "unhandledUsageHits": 69,
+      "topManualTodoKinds": [
+        {
+          "kind": "graphics-layer",
+          "count": 6
+        },
+        {
+          "kind": "simple-renderer",
+          "count": 4
+        },
+        {
+          "kind": "simple-fill-symbol",
+          "count": 3
+        },
+        {
+          "kind": "simple-line-symbol",
+          "count": 3
+        },
+        {
+          "kind": "extent-geometry",
+          "count": 2
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "esri/layers/GraphicsLayer",
+          "usageStyle": "amd-dependency",
+          "count": 5
+        },
+        {
+          "modulePath": "esri/graphic",
+          "usageStyle": "amd-dependency",
+          "count": 3
+        },
+        {
+          "modulePath": "esri/renderers/SimpleRenderer",
+          "usageStyle": "amd-dependency",
+          "count": 3
+        },
+        {
+          "modulePath": "esri/config",
+          "usageStyle": "amd-dependency",
+          "count": 2
+        },
+        {
+          "modulePath": "esri/dijit/BasemapGallery",
+          "usageStyle": "amd-dependency",
+          "count": 2
+        }
+      ],
+      "blockingFlags": [],
+      "scanFlags": [
+        "amd-dependency-arrays-detected",
+        "arcgis-3x-dijit-detected",
+        "auth-or-request-customization-detected",
+        "webmap-detected"
+      ],
+      "widgets": {
+        "totalSites": 0,
+        "automatedSites": 0,
+        "assistedSites": 0,
+        "manualSites": 0,
+        "automatedPct": 100,
+        "gatePct": 0,
+        "gatePassed": true,
+        "topManualWidgets": []
+      }
+    },
+    {
+      "appId": "wsdot-bridge-clearance",
+      "title": "WSDOT Bridge Vertical Clearance",
+      "repoUrl": "https://github.com/WSDOT-GIS/bridge-clearance-app",
+      "commit": "f07daaf455ac7c625c2d283c8d9df1e94665e4ea",
+      "licenseSpdxId": "Unlicense",
+      "authorKind": "government",
+      "styles": [
+        "amd-require",
+        "featurelayer-centric",
+        "widget-heavy"
+      ],
+      "observedAt": "2026-08-04",
+      "status": "observed",
+      "codemodTarget": "honua-compat",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=1 filesWithArcGisImports=1 importCount=21 esriLeafletImportCount=0 topSymbols=[Graphic:16, FeatureLayer:12, CartographicLineSymbol:9, Extent:6, Color:3, esriConfig:3, Geocoder:3, domUtils:3, UniqueValueRenderer:3, SimpleMarkerSymbol:3] flags=[arcgis-3x-dijit-detected, auth-or-request-customization-detected]",
+      "filesScanned": 1,
+      "filesWithArcGisImports": 1,
+      "usageDetected": true,
+      "totalCallSites": 11,
+      "autoMigratedCallSites": 6,
+      "manualCallSites": 5,
+      "autoMigratedRatio": 0.5455,
+      "manualRewriteRatio": 0.4545,
+      "manualInterventionRatio": 0.7692,
+      "unhandledUsageHits": 15,
+      "topManualTodoKinds": [
+        {
+          "kind": "feature-layer",
+          "count": 2
+        },
+        {
+          "kind": "unique-value-renderer",
+          "count": 2
+        },
+        {
+          "kind": "extent-geometry",
+          "count": 1
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "esri",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "esri/dijit/BasemapGallery",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "esri/dijit/Geocoder",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "esri/dijit/HomeButton",
+          "usageStyle": "static-import",
+          "count": 1
+        },
+        {
+          "modulePath": "esri/dijit/Popup",
+          "usageStyle": "static-import",
+          "count": 1
+        }
+      ],
+      "blockingFlags": [],
+      "scanFlags": [
+        "arcgis-3x-dijit-detected",
+        "auth-or-request-customization-detected"
+      ],
+      "widgets": {
+        "totalSites": 0,
+        "automatedSites": 0,
+        "assistedSites": 0,
+        "manualSites": 0,
+        "automatedPct": 100,
+        "gatePct": 0,
+        "gatePassed": true,
+        "topManualWidgets": []
+      }
+    },
+    {
+      "appId": "national-park-visits",
+      "title": "National Park Visits explorer",
+      "repoUrl": "https://github.com/ekenes/national-park-visits",
+      "commit": "99b17289593454cc093648f7ba85b51f8ff25bad",
+      "licenseSpdxId": "Apache-2.0",
+      "authorKind": "individual",
+      "styles": [
+        "amd-require",
+        "widget-heavy"
+      ],
+      "observedAt": "2026-08-04",
+      "status": "observed",
+      "codemodTarget": "honua-compat",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=23 filesWithArcGisImports=16 importCount=66 esriLeafletImportCount=0 topSymbols=[SizeStop:33, LabelClass:23, MapView:23, symbols_1:17, ClassBreaksRenderer:13, TextSymbol:9, FeatureLayer:9, SizeVariable:8, StatisticDefinition:8, intl:8] flags=[amd-dependency-arrays-detected, arcgis-barrel-imports-detected, commonjs-detected, typescript-import-equals-detected, webmap-detected]",
+      "filesScanned": 23,
+      "filesWithArcGisImports": 16,
+      "usageDetected": true,
+      "totalCallSites": 69,
+      "autoMigratedCallSites": 15,
+      "manualCallSites": 54,
+      "autoMigratedRatio": 0.2174,
+      "manualRewriteRatio": 0.7826,
+      "manualInterventionRatio": 0.8819,
+      "unhandledUsageHits": 58,
+      "topManualTodoKinds": [
+        {
+          "kind": "label-class",
+          "count": 18
+        },
+        {
+          "kind": "text-symbol",
+          "count": 9
+        },
+        {
+          "kind": "map-view",
+          "count": 8
+        },
+        {
+          "kind": "expand-widget",
+          "count": 4
+        },
+        {
+          "kind": "feature-layer",
+          "count": 4
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "esri/symbols",
+          "usageStyle": "amd-dependency",
+          "count": 4
+        },
+        {
+          "modulePath": "esri/views/MapView",
+          "usageStyle": "import-equals",
+          "count": 4
+        },
+        {
+          "modulePath": "esri/layers/FeatureLayer",
+          "usageStyle": "import-equals",
+          "count": 2
+        },
+        {
+          "modulePath": "esri/renderers",
+          "usageStyle": "amd-dependency",
+          "count": 2
+        },
+        {
+          "modulePath": "esri/renderers/visualVariables/SizeVariable",
+          "usageStyle": "amd-dependency",
+          "count": 2
+        }
+      ],
+      "blockingFlags": [],
+      "scanFlags": [
+        "amd-dependency-arrays-detected",
+        "arcgis-barrel-imports-detected",
+        "commonjs-detected",
+        "typescript-import-equals-detected",
+        "webmap-detected"
+      ],
+      "widgets": {
+        "totalSites": 8,
+        "automatedSites": 6,
+        "assistedSites": 0,
+        "manualSites": 2,
+        "automatedPct": 75,
+        "gatePct": 0,
+        "gatePassed": true,
+        "topManualWidgets": [
+          {
+            "kind": "Slider",
+            "count": 2
+          }
+        ]
+      }
+    },
+    {
+      "appId": "utah-parcels",
+      "title": "Utah statewide parcel viewer",
+      "repoUrl": "https://github.com/agrc/parcels",
+      "commit": "996fd3e6a597db4996d18a607da8ece72a5b5fa0",
+      "licenseSpdxId": "MIT",
+      "authorKind": "government",
+      "styles": [
+        "featurelayer-centric"
+      ],
+      "observedAt": "2026-08-04",
+      "status": "observed",
+      "codemodTarget": "honua-compat",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=11 filesWithArcGisImports=6 importCount=14 esriLeafletImportCount=0 topSymbols=[Extent:30, Graphic:14, Viewpoint:8, MapView:7, Polygon:4, FeatureLayer:2, VectorTileLayer:2, EsriMap:2, Point:2, watch:1] flags=[auth-or-request-customization-detected]",
+      "filesScanned": 11,
+      "filesWithArcGisImports": 6,
+      "usageDetected": true,
+      "totalCallSites": 48,
+      "autoMigratedCallSites": 41,
+      "manualCallSites": 7,
+      "autoMigratedRatio": 0.8542,
+      "manualRewriteRatio": 0.1458,
+      "manualInterventionRatio": 0.18,
+      "unhandledUsageHits": 2,
+      "topManualTodoKinds": [
+        {
+          "kind": "polygon-geometry",
+          "count": 3
+        },
+        {
+          "kind": "graphic",
+          "count": 2
+        },
+        {
+          "kind": "map-view",
+          "count": 1
+        },
+        {
+          "kind": "reactive-utils",
+          "count": 1
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "@arcgis/core/Viewpoint",
+          "usageStyle": "static-import",
+          "count": 2
+        }
+      ],
+      "blockingFlags": [],
+      "scanFlags": [
+        "auth-or-request-customization-detected"
+      ],
+      "widgets": {
+        "totalSites": 0,
+        "automatedSites": 0,
+        "assistedSites": 0,
+        "manualSites": 0,
+        "automatedPct": 100,
+        "gatePct": 0,
+        "gatePassed": true,
+        "topManualWidgets": []
+      }
+    },
+    {
+      "appId": "wfrc-bike-map",
+      "title": "Utah Bikeways / WFRC bike map",
+      "repoUrl": "https://github.com/agrc/wfrc-bike-map",
+      "commit": "680bcf88b094866a096db1576f61c254f9792a39",
+      "licenseSpdxId": "MIT",
+      "authorKind": "government",
+      "styles": [
+        "featurelayer-centric",
+        "widget-heavy"
+      ],
+      "observedAt": "2026-08-04",
+      "status": "observed",
+      "codemodTarget": "honua-compat",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=26 filesWithArcGisImports=4 importCount=10 esriLeafletImportCount=0 topSymbols=[watch:3, MapView:3, WebMap:3, Basemap:2, BasemapToggle:2, Home:2, Track:2, Graphic:2, esriConfig:1, renderPreviewHTML:1] flags=[auth-or-request-customization-detected, webmap-detected]",
+      "filesScanned": 26,
+      "filesWithArcGisImports": 4,
+      "usageDetected": true,
+      "totalCallSites": 9,
+      "autoMigratedCallSites": 7,
+      "manualCallSites": 2,
+      "autoMigratedRatio": 0.7778,
+      "manualRewriteRatio": 0.2222,
+      "manualInterventionRatio": 0.3,
+      "unhandledUsageHits": 1,
+      "topManualTodoKinds": [
+        {
+          "kind": "basemap",
+          "count": 1
+        },
+        {
+          "kind": "map-view",
+          "count": 1
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "@arcgis/core/symbols/support/symbolUtils",
+          "usageStyle": "static-import",
+          "count": 1
+        }
+      ],
+      "blockingFlags": [],
+      "scanFlags": [
+        "auth-or-request-customization-detected",
+        "webmap-detected"
+      ],
+      "widgets": {
+        "totalSites": 3,
+        "automatedSites": 3,
+        "assistedSites": 0,
+        "manualSites": 0,
+        "automatedPct": 100,
+        "gatePct": 0,
+        "gatePassed": true,
+        "topManualWidgets": []
+      }
+    },
+    {
+      "appId": "owls-of-bavaria",
+      "title": "Owls of Bavaria",
+      "repoUrl": "https://github.com/lujoh/owls_of_bavaria",
+      "commit": "284949156925c63b0258aece1f48cd9e4f5ea55d",
+      "licenseSpdxId": "MIT",
+      "authorKind": "individual",
+      "styles": [
+        "featurelayer-centric"
+      ],
+      "observedAt": "2026-08-04",
+      "status": "observed",
+      "codemodTarget": "honua-compat",
+      "readiness": "assisted",
+      "scanSummary": "filesScanned=15 filesWithArcGisImports=3 importCount=8 esriLeafletImportCount=0 topSymbols=[FeatureFilter:2, FeatureEffect:2, Map:2, MapView:2, GeoJSONLayer:2, FeatureLayer:2, Graphic:2, esriConfig:1] flags=[auth-or-request-customization-detected]",
+      "filesScanned": 15,
+      "filesWithArcGisImports": 3,
+      "usageDetected": true,
+      "totalCallSites": 7,
+      "autoMigratedCallSites": 6,
+      "manualCallSites": 1,
+      "autoMigratedRatio": 0.8571,
+      "manualRewriteRatio": 0.1429,
+      "manualInterventionRatio": 0.25,
+      "unhandledUsageHits": 1,
+      "topManualTodoKinds": [
+        {
+          "kind": "feature-layer",
+          "count": 1
+        }
+      ],
+      "topUnhandledModules": [
+        {
+          "modulePath": "@arcgis/core/layers/support/FeatureEffect",
+          "usageStyle": "static-import",
+          "count": 1
+        }
+      ],
+      "blockingFlags": [],
+      "scanFlags": [
+        "auth-or-request-customization-detected"
+      ],
+      "widgets": {
+        "totalSites": 0,
+        "automatedSites": 0,
+        "assistedSites": 0,
+        "manualSites": 0,
+        "automatedPct": 100,
+        "gatePct": 0,
+        "gatePassed": true,
+        "topManualWidgets": []
+      }
+    }
+  ]
+}

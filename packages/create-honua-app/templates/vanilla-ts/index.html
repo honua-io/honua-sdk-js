@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Honua map app</title>
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel" aria-label="Workflow">
+        <p class="eyebrow">Honua JavaScript SDK</p>
+        <h1 class="title">connect → inspect → explain → query → mount</h1>
+        <p id="status" class="status" role="status" aria-live="polite">Starting the workflow…</p>
+        <ol class="stages">
+          <li data-stage="connect"><span class="stage-name">Connect</span><span class="stage-state">waiting</span></li>
+          <li data-stage="inspect"><span class="stage-name">Inspect</span><span class="stage-state">waiting</span></li>
+          <li data-stage="explain"><span class="stage-name">Explain</span><span class="stage-state">waiting</span></li>
+          <li data-stage="query"><span class="stage-name">Query</span><span class="stage-state">waiting</span></li>
+          <li data-stage="mount"><span class="stage-name">Mount</span><span class="stage-state">waiting</span></li>
+        </ol>
+        <dl class="facts">
+          <div><dt>Data lane</dt><dd id="fact-mode">—</dd></div>
+          <div><dt>Endpoint</dt><dd id="fact-endpoint">—</dd></div>
+          <div><dt>Protocol</dt><dd id="fact-protocol">—</dd></div>
+          <div><dt>Source</dt><dd id="fact-source">—</dd></div>
+          <div><dt>Features</dt><dd id="fact-features">—</dd></div>
+        </dl>
+        <p class="hint">
+          Edit <code>src/main.ts</code> to change the query, or set <code>VITE_HONUA_ENDPOINT</code> to run the same
+          workflow against a live public service.
+        </p>
+      </section>
+      <div id="map" class="map" role="application" aria-label="Mounted map"></div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -428,6 +428,12 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Offline resource integrity verification failed",
   ),
+  "offline.region.miss": classification(
+    "offline",
+    "validation",
+    false,
+    "Offline region does not cover the requested read",
+  ),
   "offline.cancelled": classification("offline", "cancellation", false, "Offline operation was cancelled"),
   "offline.transport.failure": classification(
     "offline",

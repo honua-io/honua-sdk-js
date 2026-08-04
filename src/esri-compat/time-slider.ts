@@ -4,6 +4,7 @@ import {
   resolveCompatEventBus,
   safeInvokeCompatListener,
 } from "./event-bus.js";
+import { HonuaWidgetHost } from "./widget-host.js";
 
 export type TimeSliderModeCompat = "instant" | "time-window";
 export type TimeSliderIntervalUnitCompat = "milliseconds" | "seconds" | "minutes" | "hours" | "days";
@@ -41,6 +42,29 @@ export interface TimeSliderCompatOptions {
 
 export type TimeSliderLoadStatusCompat = "not-loaded" | "loading" | "loaded";
 
+/**
+ * Structural slice of the app-platform time-slider element's `playback`
+ * contract (`HonuaTimeSliderPlayback`), restated here rather than imported:
+ * `/esri-compat` is bundle-budgeted and must not reach into the component kit
+ * (see `./widget-host.ts`). Drift is caught by the delegation test, which
+ * mounts a real `<honua-time-slider>` against this adapter.
+ */
+interface TimeSliderPlaybackAdapter {
+  readonly playing: boolean;
+  readonly window: { readonly start: number; readonly end: number };
+  readonly extent: { readonly start: number; readonly end: number };
+  readonly stepMs: number;
+  play(): void;
+  pause(): void;
+  scrub(time: number): void;
+  step(direction?: 1 | -1): void;
+  on(type: string, listener: (payload?: unknown) => void): { remove(): void };
+}
+
+/** Declared on the element when the widget has no full time extent to scrub. */
+const NO_TIME_EXTENT_REASON =
+  "This time slider has no full time extent: the service returned no usable time-info metadata.";
+
 export interface TimeSliderHandleCompat {
   remove(): void;
 }
@@ -61,6 +85,17 @@ export class TimeSliderCompat {
 
   private stopIndex: number;
   private readonly watchListeners: Map<string, Set<(value: unknown) => void>>;
+  /**
+   * When a `container` is supplied and a DOM is present, the shim delegates
+   * its rendering to the app-platform `<honua-time-slider>` component through
+   * {@link HonuaWidgetHost} (issue #959). The element is driven by a
+   * playback-controller-shaped adapter over this shim's own stop list, so the
+   * migrated widget is a real UI rather than the state model plus an empty
+   * container. Headless usage (no container / no DOM / no registered kit)
+   * keeps the pre-delegation state-model-only behavior.
+   */
+  private readonly widgetHost: HonuaWidgetHost | undefined;
+  private playbackAdapterCache: TimeSliderPlaybackAdapter | undefined;
 
   public constructor(options: TimeSliderCompatOptions = {}) {
     this.view = options.view;
@@ -80,6 +115,11 @@ export class TimeSliderCompat {
     this.playing = false;
     this.stopIndex = 0;
     this.watchListeners = new Map();
+    const widgetHost =
+      options.container != null
+        ? new HonuaWidgetHost("honua-time-slider", options.container, this.eventBus)
+        : undefined;
+    this.widgetHost = widgetHost?.available ? widgetHost : undefined;
   }
 
   public async load(): Promise<TimeSliderCompat> {
@@ -95,6 +135,7 @@ export class TimeSliderCompat {
     this.loadStatus = "loaded";
     this.notifyWatchers("loadStatus", this.loadStatus);
     this.eventBus.emit("timeslider.loaded", undefined, this);
+    await this.renderWidgetHost();
     return this;
   }
 
@@ -128,6 +169,7 @@ export class TimeSliderCompat {
     };
     this.notifyWatchers("timeExtent", this.timeExtent);
     this.eventBus.emit("timeslider.updated", { timeExtent: this.timeExtent }, this);
+    void this.renderWidgetHost();
   }
 
   public play(): void {
@@ -227,6 +269,93 @@ export class TimeSliderCompat {
 
   public destroy(): void {
     this.watchListeners.clear();
+    this.widgetHost?.destroy();
+  }
+
+  /**
+   * Mounts (or refreshes) the delegated `<honua-time-slider>`.
+   *
+   * The element is a view over a playback controller, so the shim hands it a
+   * controller-shaped adapter over its own transport rather than a snapshot:
+   * one assignment, then every later shim state change reaches the element
+   * through the adapter's event bridge. A widget with no usable full time
+   * extent — the ArcGIS "the service returned no time-info" case — mounts the
+   * element in its declared degraded state instead of a scrubber that cannot
+   * move, which is the honest half of REQ-002.
+   */
+  private async renderWidgetHost(): Promise<void> {
+    const host = this.widgetHost;
+    if (!host) return;
+    const adapter = this.playbackAdapter();
+    await host.update((element) => {
+      if (!adapter) {
+        element.playback = undefined;
+        element.setAttribute("unavailable-reason", NO_TIME_EXTENT_REASON);
+        return;
+      }
+      element.removeAttribute("unavailable-reason");
+      if (element.playback !== adapter) element.playback = adapter;
+    });
+  }
+
+  /**
+   * A temporal-playback-controller-shaped live view of this shim, or
+   * `undefined` while the widget has no full time extent to scrub over.
+   * Created once so re-assignment through {@link renderWidgetHost} is a no-op.
+   */
+  private playbackAdapter(): TimeSliderPlaybackAdapter | undefined {
+    if (!this.fullTimeExtent || !this.timeExtent) return undefined;
+    if (this.playbackAdapterCache) return this.playbackAdapterCache;
+    const shim = this;
+    const bridge = (types: readonly string[], listener: (payload?: unknown) => void): { remove(): void } => {
+      const subscriptions = types.map((type) => shim.eventBus.on(type, (event) => listener(event.payload)));
+      return {
+        remove: () => {
+          for (const subscription of subscriptions) subscription.remove();
+        },
+      };
+    };
+    const adapter: TimeSliderPlaybackAdapter = {
+      get playing() {
+        return shim.playing;
+      },
+      get window() {
+        const extent = shim.timeExtent ?? shim.fullTimeExtent;
+        return { start: extent?.start.getTime() ?? 0, end: extent?.end.getTime() ?? 0 };
+      },
+      get extent() {
+        return {
+          start: shim.fullTimeExtent?.start.getTime() ?? 0,
+          end: shim.fullTimeExtent?.end.getTime() ?? 0,
+        };
+      },
+      get stepMs() {
+        const interval = shim.stops.interval;
+        if (interval) return intervalToMilliseconds(interval.value, interval.unit);
+        const extent = shim.timeExtent;
+        if (!extent) return 0;
+        return Math.max(1, extent.end.getTime() - extent.start.getTime());
+      },
+      play: () => shim.play(),
+      pause: () => shim.stop(),
+      scrub: (time: number) => {
+        const current = shim.timeExtent;
+        const span = current ? current.end.getTime() - current.start.getTime() : 0;
+        shim.setTimeExtent({ start: new Date(time), end: new Date(time + span) });
+      },
+      step: (direction: 1 | -1 = 1) => {
+        if (direction < 0) shim.previous();
+        else shim.next();
+      },
+      on: (type: string, listener: (payload?: unknown) => void) => {
+        if (type === "tick") return bridge(["timeslider.updated", "timeslider.next", "timeslider.previous"], listener);
+        if (type === "play") return bridge(["timeslider.play"], listener);
+        if (type === "pause") return bridge(["timeslider.stop"], listener);
+        return { remove: () => undefined };
+      },
+    };
+    this.playbackAdapterCache = adapter;
+    return adapter;
   }
 
   private notifyWatchers(propertyName: string, value: unknown): void {
