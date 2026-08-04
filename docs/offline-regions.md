@@ -8,9 +8,12 @@ broader local-first feature complete.
 
 The checked-in
 [network-disabled reference workflow](./examples/offline-region-reference/README.md)
-shows the public IndexedDB, diagnostic, fetch-handler, edit-queue, and status
-contracts booting through a host-owned application-shell worker when networking
-is disabled before reload.
+shows the public IndexedDB, diagnostic, fetch-handler, edit-queue, replay, and
+status contracts booting through a host-owned application-shell worker when
+networking is disabled before reload. It captures a field edit while
+disconnected, keeps it across a reload taken with networking still disabled, and
+replays it once on reconnect against a loopback fixture transport — which proves
+the durable local transitions, not hosted replica synchronization.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
