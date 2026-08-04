@@ -40,9 +40,11 @@
     "two failure thresholds are the numbers the issue itself names: NFR-001's 1 MB",
     "per 1,000 converted features is exactly 1,024 retained bytes/feature, and",
     "NFR-002 sets a 200,000 features/second floor. Measured on the same shared linux",
-    "host across fifteen samples: 219.0-258.6 retained bytes/feature and per-run",
-    "median throughput between 1,239,679 and 1,517,304 features/second, so the",
-    "ceiling sits 4.0x and the floor 6.2x clear of the worst measured median.",
+    "host across twenty samples spanning a quiet host and one running three other",
+    "build agents: 219.0-258.6 retained bytes/feature and per-run median throughput",
+    "between 748,842 and 1,517,304 features/second. The ceiling therefore sits 4.0x",
+    "and the floor 3.7x clear of the worst measured median, and the advisory warning",
+    "sits below the loaded-host median so contention alone cannot raise it.",
     "Throughput is timed over twenty-five consecutive distinct windows rather than",
     "one: a single bounded conversion is milliseconds of work, short enough that one",
     "collection landing inside it swings the reading by tens of percent and trips the",
@@ -120,7 +122,7 @@
       },
       "featuresPerSecond": {
         "direction": "higher-is-better",
-        "warning": 600000,
+        "warning": 400000,
         "failure": 200000
       }
     }

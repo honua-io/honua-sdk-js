@@ -454,13 +454,14 @@ Seven invariants gate every repetition: `collectedBaseline`, `windowExact`
 | Metric | Warning | Failure | Measured |
 | --- | ---: | ---: | --- |
 | `retainedBytesPerFeature` | 512 | 1,024 | 219.0–258.6 |
-| `featuresPerSecond` | 600,000 | 200,000 | 1,239,679–1,517,304 (per-run medians) |
+| `featuresPerSecond` | 400,000 | 200,000 | 748,842–1,517,304 (per-run medians) |
 
 Both failure thresholds are the numbers #942 itself names: NFR-001's 1 MB per
 1,000 converted features is exactly 1,024 retained bytes/feature, and NFR-002
-sets the 200,000 features/second floor. Measured on the same shared linux host
-across fifteen samples, the ceiling sits 4.0x and the floor 6.2x clear of the
-worst measured median.
+sets the 200,000 features/second floor. The measured ranges span a quiet shared
+linux host and the same host running three other build agents, so the ceiling
+sits 4.0x and the floor 3.7x clear of the worst median, and the advisory warning
+sits below the loaded-host median so contention alone cannot raise it.
 
 ## Stream / pagination scenario
 
