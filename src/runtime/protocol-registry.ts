@@ -31,8 +31,9 @@ const inFlight = new Map<string, Promise<void>>();
 
 /**
  * Resolve the MapLibre `addProtocol` registrar from the lazily-imported module.
- * MapLibre exposes it both as a named ESM export and off the default namespace;
- * accept either so this works against any v5 packaging.
+ * MapLibre 6 is ESM-only and exposes it as a named export; MapLibre 5 may also
+ * surface it off the default namespace depending on how the host bundles the
+ * UMD build. Accept either so this works across the `^5 || ^6` peer range.
  */
 export async function loadMaplibreRegistrar(): Promise<MaplibreProtocolRegistrar> {
   const mod = (await import("maplibre-gl")) as unknown as {
@@ -46,7 +47,9 @@ export async function loadMaplibreRegistrar(): Promise<MaplibreProtocolRegistrar
   if (mod.default && typeof mod.default.addProtocol === "function") {
     return mod.default;
   }
-  throw new Error("maplibre-gl does not expose addProtocol(); ensure maplibre-gl >= 2 is installed.");
+  throw new Error(
+    "maplibre-gl does not expose addProtocol(); install maplibre-gl 5.x or 6.x (the SDK peer range is ^5.0.0 || ^6.0.0).",
+  );
 }
 
 /**

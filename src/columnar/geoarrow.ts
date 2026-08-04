@@ -58,6 +58,21 @@ const META = Object.freeze({
   featureIdField: "honua.geoarrow.feature-id.field",
 });
 
+/**
+ * Payload-validation scope for one inspection.
+ *
+ * `"full"` walks every payload byte the batch declares, which is what an
+ * unbounded consumer needs and what {@link inspectGeoArrowBatch} always does.
+ * `"window"` performs the same structural and schema validation but defers the
+ * per-row payload checks (coordinate finiteness, dictionary index range, and
+ * dictionary UTF-8 decoding) to a caller that reads only a bounded row window
+ * and validates exactly the rows it materializes. It exists so a bounded
+ * conversion stays proportional to its window instead of to the batch.
+ *
+ * @internal
+ */
+export type GeoArrowInspectionScope = "full" | "window";
+
 interface ResolvedLimits {
   readonly maxRows: number;
   readonly maxVertices: number;
@@ -1172,6 +1187,7 @@ function inspectGeometry(
   batch: ColumnarBatchV1,
   buffers: ReadonlyMap<string, ColumnarBufferV1>,
   limits: ResolvedLimits,
+  scope: GeoArrowInspectionScope,
 ): GeoArrowGeometryBuffers {
   const metadata = batch.schema.metadata;
   const fieldName = requireMetadata(metadata, META.geometryField);
@@ -1230,10 +1246,12 @@ function inspectGeometry(
       coordinates[name] = view;
     });
   }
-  for (const view of Object.values(coordinates)) {
-    if (!view) continue;
-    for (const coordinate of view)
-      if (!Number.isFinite(coordinate)) fail("invalid-batch", "Coordinate buffers must contain finite values.");
+  if (scope === "full") {
+    for (const view of Object.values(coordinates)) {
+      if (!view) continue;
+      for (const coordinate of view)
+        if (!Number.isFinite(coordinate)) fail("invalid-batch", "Coordinate buffers must contain finite values.");
+    }
   }
   return Object.freeze({
     kind,
@@ -1297,6 +1315,7 @@ function inspectDictionary(
   batch: ColumnarBatchV1,
   buffers: ReadonlyMap<string, ColumnarBufferV1>,
   limits: ResolvedLimits,
+  scope: GeoArrowInspectionScope,
 ): GeoArrowDictionaryBuffers | undefined {
   const field = batch.schema.metadata?.[META.dictionaryField];
   if (field === undefined) {
@@ -1340,18 +1359,20 @@ function inspectDictionary(
   if (schemaField.nullable !== (validity !== undefined)) {
     fail("invalid-batch", `Dictionary field "${field}" nullability must match its validity buffer.`);
   }
-  for (let row = 0; row < batch.rowCount; row += 1) {
-    if (isValid(validity, row) && (indices[row]! < 0 || indices[row]! >= offsets.length - 1)) {
-      fail("invalid-batch", `Dictionary index at row ${row} is outside the dictionary.`);
+  if (scope === "full") {
+    for (let row = 0; row < batch.rowCount; row += 1) {
+      if (isValid(validity, row) && (indices[row]! < 0 || indices[row]! >= offsets.length - 1)) {
+        fail("invalid-batch", `Dictionary index at row ${row} is outside the dictionary.`);
+      }
     }
-  }
-  try {
-    const decoder = new TextDecoder("utf-8", { fatal: true });
-    for (let index = 0; index < offsets.length - 1; index += 1) {
-      decoder.decode(values.subarray(offsets[index], offsets[index + 1]));
+    try {
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      for (let index = 0; index < offsets.length - 1; index += 1) {
+        decoder.decode(values.subarray(offsets[index], offsets[index + 1]));
+      }
+    } catch (cause) {
+      fail("invalid-batch", "Dictionary value bytes are not valid UTF-8.", undefined, cause);
     }
-  } catch (cause) {
-    fail("invalid-batch", "Dictionary value bytes are not valid UTF-8.", undefined, cause);
   }
   return Object.freeze({
     field,
@@ -1441,6 +1462,24 @@ export function inspectGeoArrowBatch(
   batch: ColumnarBatchV1,
   limits: GeoArrowConversionLimits = {},
 ): GeoArrowBatchInspection {
+  return inspectGeoArrowBatchScoped(batch, limits, "full");
+}
+
+/**
+ * {@link inspectGeoArrowBatch} with an explicit payload-validation scope.
+ *
+ * Only bounded conversions inside this module pass `"window"`, and they must
+ * validate coordinate finiteness, dictionary index range, and dictionary UTF-8
+ * for every row they materialize. It is deliberately absent from the package
+ * surface: an external consumer must not be able to skip payload validation.
+ *
+ * @internal
+ */
+export function inspectGeoArrowBatchScoped(
+  batch: ColumnarBatchV1,
+  limits: GeoArrowConversionLimits,
+  scope: GeoArrowInspectionScope,
+): GeoArrowBatchInspection {
   const resolved = resolveLimits(limits);
   let baseMetrics: ReturnType<typeof inspectColumnarBatch>;
   try {
@@ -1466,9 +1505,9 @@ export function inspectGeoArrowBatch(
   if (!batch.identity)
     fail("invalid-batch", "A normative GeoArrow batch must carry cache/auth/order/freshness identity.");
   const buffers = bufferMap(batch);
-  const geometry = inspectGeometry(batch, buffers, resolved);
+  const geometry = inspectGeometry(batch, buffers, resolved, scope);
   const temporal = inspectTemporal(batch, buffers);
-  const dictionary = inspectDictionary(batch, buffers, resolved);
+  const dictionary = inspectDictionary(batch, buffers, resolved, scope);
   const featureIdField = batch.schema.metadata?.[META.featureIdField];
   let featureIds: GeoArrowBatchInspection["featureIds"];
   if (featureIdField !== undefined) {
@@ -1511,6 +1550,15 @@ export function inspectGeoArrowBatch(
 function isValid(validity: Uint8Array | undefined, index: number): boolean {
   return validity === undefined || (validity[index >> 3]! & (1 << (index & 7))) !== 0;
 }
+
+/**
+ * Row-level primitives shared with the bounded object-`Result` conversion.
+ * They are module exports rather than package exports: `columnar/index.ts`
+ * deliberately does not re-export them.
+ *
+ * @internal
+ */
+export { decodeGeometry as decodeGeoArrowGeometryAt, isValid as isGeoArrowRowValid };
 
 function positionAt(geometry: GeoArrowGeometryBuffers, vertex: number): GeoArrowPosition {
   const names = dimensionNames(geometry.dimensions);

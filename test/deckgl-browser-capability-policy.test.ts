@@ -32,10 +32,14 @@ describe("classifyDeckGlCapability", () => {
     expect(decision.reasons).toEqual(["No WebGL context (webgl or webgl2) is available on this device."]);
   });
 
-  it("falls back to MapLibre when only WebGL1 is available", () => {
+  it("reports unsupported when only WebGL1 is available (MapLibre 6 requires WebGL2)", () => {
+    // #1004: MapLibre GL JS 6 removed WebGL1, so the MapLibre fallback is not a
+    // real fallback on a WebGL1-only device — promising one would hand the host
+    // a blank canvas instead of an explicit capability decision.
     const decision = classifyDeckGlCapability(facts({ webgl2: false }));
-    expect(decision.tier).toBe("fallback-maplibre");
-    expect(decision.reasons.join(" ")).toMatch(/WebGL2 is unavailable/);
+    expect(decision.tier).toBe("unsupported");
+    expect(decision.reasons.join(" ")).toMatch(/Only WebGL1 is available/);
+    expect(decision.reasons.join(" ")).toMatch(/require WebGL2/);
   });
 
   it("falls back to MapLibre when MAX_TEXTURE_SIZE is below the reviewed floor", () => {
@@ -54,7 +58,9 @@ describe("classifyDeckGlCapability", () => {
 
   it("is a pure function of its input facts (no shared mutable state across calls)", () => {
     const first = classifyDeckGlCapability(facts());
-    const second = classifyDeckGlCapability(facts({ webgl2: false }));
+    const second = classifyDeckGlCapability(
+      facts({ maxTextureSize: DECK_GL_CAPABILITY_POLICY.minSupportedMaxTextureSize - 1 }),
+    );
     expect(first.tier).toBe("supported");
     expect(second.tier).toBe("fallback-maplibre");
     expect(Object.isFrozen(first)).toBe(true);
