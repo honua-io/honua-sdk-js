@@ -2175,6 +2175,229 @@ test("persisted offline region and edit-queue records stay credential-free", asy
   }
 });
 
+test("offline region read answers a query from IndexedDB with browser networking disabled", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+
+    // Online pass: fetch the answer once, plan a snapshot from the protocol-neutral
+    // selection, and download it into the persistent store.
+    const online = await page.evaluate(async (scope) => {
+      const offline = await import("/dist/src/offline/index.js");
+      window.__honuaOffline = offline;
+      const payload = await fetch("/offline-data.json").then((response) => response.json());
+      const query = { outFields: ["id", "status"], returnGeometry: false };
+      const batch = offline.createOfflineRegionFeatureBatch(
+        {
+          features: payload.features.map((feature) => ({ attributes: feature })),
+          exceededTransferLimit: false,
+          totalCount: payload.features.length,
+        },
+        { pagination: { offset: 0 } },
+      );
+      const snapshot = await offline.planOfflineRegionSnapshot({
+        name: "Field incident area",
+        sourceId: "incidents",
+        endpoint: "https://example.test/ogc/features",
+        authorizationScopeFingerprint: scope,
+        bounds: { minX: -158.3, minY: 21.4, maxX: -157.6, maxY: 21.8, crs: "EPSG:4326" },
+        sourceVersion: "source-v1",
+        schemaVersion: "schema-v1",
+        planVersion: "plan-v1",
+        observation: { state: "cached", observedAt: new Date().toISOString() },
+        attribution: { fixture: "Honua deterministic incident fixture" },
+        query,
+        contents: [
+          {
+            kind: "features",
+            bytes: offline.encodeOfflineRegionFeatureBatch(batch),
+            contentType: "application/json",
+            attributionIds: ["fixture"],
+          },
+        ],
+      });
+      window.__honuaRegion = { manifest: snapshot.manifest, query, database: `${window.__offlineDatabase}-read` };
+      const store = offline.createIndexedDbOfflineRegionStore({ name: window.__honuaRegion.database });
+      const receipt = await offline.downloadOfflineRegion(snapshot.manifest, {
+        store,
+        load: offline.createOfflineRegionSnapshotLoader(snapshot),
+        logicalQuotaBytes: 1024 * 1024,
+      });
+      return {
+        regionId: snapshot.manifest.id,
+        resourceId: snapshot.entries[0].id,
+        integrity: receipt.integrity,
+        resourceCount: receipt.resourceCount,
+      };
+    }, "tenant:a/role:field");
+
+    expect(online.regionId).toMatch(DIGEST_PATTERN);
+    expect(online.resourceId).toMatch(/^features\/[0-9a-f]{64}$/);
+    expect(online.integrity).toBe("verified");
+    expect(online.resourceCount).toBe(1);
+    expect(server.offlineDataRequests).toBe(1);
+
+    await context.setOffline(true);
+
+    // Offline pass: a *fresh* store instance proves the answer came out of
+    // IndexedDB, and the module is already loaded so nothing touches the network.
+    const read = await page.evaluate(async (scope) => {
+      const offline = window.__honuaOffline;
+      const { manifest, query, database } = window.__honuaRegion;
+      const store = offline.createIndexedDbOfflineRegionStore({ name: database });
+      const failure = async (body) => {
+        try {
+          await body();
+          return "resolved";
+        } catch (error) {
+          return error.code ?? error.name;
+        }
+      };
+      const answer = await offline.readOfflineRegionQuery(manifest, {
+        store,
+        authorizationScopeFingerprint: scope,
+        query,
+        bounds: manifest.bounds,
+      });
+      return {
+        features: answer.result.features.map((feature) => feature.attributes),
+        exceededTransferLimit: answer.result.exceededTransferLimit,
+        totalCount: answer.result.totalCount,
+        degraded: (answer.result.degraded ?? []).map((entry) => entry.capability),
+        degradedReason: answer.result.degraded?.[0]?.reason ?? "",
+        regionId: answer.regionId,
+        cache: {
+          action: answer.cache.action,
+          freshness: answer.cache.freshness,
+          completeness: answer.cache.completeness,
+          regionId: answer.cache.regionId,
+          resourceKinds: answer.cache.resources.map((resource) => resource.kind),
+          resourceIds: answer.cache.resources.map((resource) => resource.id),
+        },
+        provenance: {
+          sourceId: answer.provenance.sourceId,
+          endpoint: answer.provenance.endpoint,
+          sourceVersion: answer.provenance.sourceVersion,
+          schemaVersion: answer.provenance.schemaVersion,
+          planVersion: answer.provenance.planVersion,
+          observationState: answer.provenance.observation.state,
+        },
+        attribution: answer.attribution,
+        planCacheValidator: answer.planCache.validator ?? null,
+        scopeMismatch: await failure(() =>
+          offline.readOfflineRegionQuery(manifest, {
+            store,
+            authorizationScopeFingerprint: "tenant:b/role:field",
+            query,
+          }),
+        ),
+        cacheMiss: await failure(() =>
+          offline.readOfflineRegionQuery(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            query: { ...query, where: "status = 'open'" },
+          }),
+        ),
+        outOfRegion: await failure(() =>
+          offline.readOfflineRegionQuery(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            query,
+            bounds: { minX: -160, minY: 20, maxX: -159, maxY: 21, crs: "EPSG:4326" },
+          }),
+        ),
+        aggregation: await failure(() =>
+          offline.readOfflineRegionQuery(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            query: { ...query, aggregation: { metrics: [{ fn: "count", field: "id" }] } },
+          }),
+        ),
+      };
+    }, "tenant:a/role:field");
+
+    // The read is served entirely from storage: no further network requests.
+    expect(server.offlineDataRequests).toBe(1);
+    expect(read.features).toEqual([{ id: "incident-1", status: "open" }]);
+    expect(read.exceededTransferLimit).toBe(false);
+    expect(read.totalCount).toBe(1);
+    expect(read.regionId).toBe(online.regionId);
+    expect(read.cache).toEqual({
+      action: "reuse",
+      freshness: "fresh",
+      completeness: "complete",
+      regionId: online.regionId,
+      resourceKinds: ["features"],
+      resourceIds: [online.resourceId],
+    });
+    expect(read.provenance).toEqual({
+      sourceId: "incidents",
+      endpoint: "https://example.test/ogc/features",
+      sourceVersion: "source-v1",
+      schemaVersion: "schema-v1",
+      planVersion: "plan-v1",
+      observationState: "cached",
+    });
+    expect(read.attribution).toEqual({ fixture: "Honua deterministic incident fixture" });
+    expect(read.planCacheValidator).toEqual({ kind: "fingerprint", fingerprint: online.regionId });
+    // A stored answer is never presented as a live one.
+    expect(read.degraded).toEqual(["query"]);
+    expect(read.degradedReason).toContain("cached snapshot, not a live read");
+    // Everything the region cannot answer fails closed rather than narrowing.
+    expect(read.scopeMismatch).toBe("scope-mismatch");
+    expect(read.cacheMiss).toBe("cache-miss");
+    expect(read.outOfRegion).toBe("out-of-region");
+    expect(read.aggregation).toBe("HonuaCapabilityNotSupportedError");
+  } finally {
+    await context.setOffline(false).catch(() => undefined);
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
+test("IndexedDB and in-memory region stores pass one shared conformance suite", async ({ page }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+    const result = await page.evaluate(async () => {
+      const offline = await import("/dist/src/offline/index.js");
+      let sequence = 0;
+      const indexeddb = await offline.runOfflineRegionStoreConformance({
+        // Every case gets its own origin-scoped database, so one case can never
+        // observe another's committed state.
+        createStore: () =>
+          offline.createIndexedDbOfflineRegionStore({
+            name: `${window.__offlineDatabase}-conformance-${(sequence += 1)}`,
+          }),
+        label: "indexeddb",
+      });
+      const memory = await offline.runOfflineRegionStoreConformance({
+        createStore: () => offline.createMemoryOfflineRegionStore(),
+        label: "memory",
+      });
+      return { indexeddb, memory, cases: [...offline.OFFLINE_REGION_STORE_CONFORMANCE_CASES] };
+    });
+
+    expect(result.indexeddb.cases.filter((entry) => entry.status === "failed")).toEqual([]);
+    expect(result.memory.cases.filter((entry) => entry.status === "failed")).toEqual([]);
+    expect(result.indexeddb.total).toBe(result.cases.length);
+    expect(result.indexeddb.passed).toBe(result.cases.length);
+    // One suite, two implementations, identical case names in identical order.
+    expect(result.indexeddb.cases.map((entry) => entry.name)).toEqual(result.cases);
+    expect(result.memory.cases.map((entry) => entry.name)).toEqual(result.cases);
+  } finally {
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
 /**
  * The loopback stand-in for a server mutation transport. It mirrors the
  * documented acknowledgement shape and nothing else: it keeps no replica, no

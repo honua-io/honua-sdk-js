@@ -4,6 +4,7 @@ import {
   credentialScreenMessage,
   screenPersistedString,
 } from "./credential-screen.js";
+import { canonicalJson, compareCodeUnits, sha256 } from "./digest.js";
 import { captureOfflineStorageBudget, isStorageQuotaPressureError } from "./quota.js";
 import {
   type CreateOfflineRegionDiagnosticOptions,
@@ -214,6 +215,26 @@ export async function createOfflineRegionManifest(
   const canonicalIdentity = canonicalJson(identity);
   const id = await sha256(`honua-offline-region:v1:${canonicalIdentity}`);
   return deepFreeze({ ...identity, id });
+}
+
+/**
+ * Validate an untrusted manifest and prove its identity digest still matches its
+ * normalized contents, returning the normalized value.
+ *
+ * A store hands back whatever was persisted, so any consumer that is about to
+ * trust a stored manifest's provenance — versions, attribution, authorization
+ * scope — verifies it here first rather than reading fields off unvalidated
+ * input.
+ */
+export async function verifyOfflineRegionManifest(
+  inputManifest: OfflineRegionManifestV1,
+): Promise<OfflineRegionManifestV1> {
+  const prepared = captureManifest(inputManifest);
+  const expectedId = await sha256(`honua-offline-region:v1:${prepared.canonicalIdentity}`);
+  if (prepared.manifest.id !== expectedId) {
+    invalid("Offline region identity does not match its normalized contents.", "id");
+  }
+  return prepared.manifest;
 }
 
 /**
@@ -1152,37 +1173,6 @@ function safeAdd(left: number, right: number, path: string): number {
 
 function isExpired(region: OfflineRegionStoredRegion, nowMs: number): boolean {
   return region.expiresAt !== undefined && Date.parse(region.expiresAt) <= nowMs;
-}
-
-function compareCodeUnits(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    const encoded = JSON.stringify(value);
-    if (encoded === undefined) invalid("Offline region identity cannot contain undefined values.", "identity");
-    return encoded;
-  }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  const entries: Array<readonly [string, unknown]> = [];
-  for (const key in value as Record<string, unknown>) {
-    if (Object.hasOwn(value as object, key)) entries.push([key, (value as Record<string, unknown>)[key]]);
-  }
-  entries.sort(([left], [right]) => compareCodeUnits(left, right));
-  return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
-}
-
-async function sha256(value: string | Uint8Array): Promise<`sha256:${string}`> {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) invalid("Offline region identity and integrity require Web Crypto SHA-256.", "crypto");
-  const bytes = typeof value === "string" ? encoder.encode(value) : value;
-  const digestInput: BufferSource =
-    bytes.buffer instanceof ArrayBuffer
-      ? (bytes as unknown as BufferSource)
-      : (Uint8Array.from(bytes) as unknown as BufferSource);
-  const digest = await subtle.digest("SHA-256", digestInput);
-  return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
