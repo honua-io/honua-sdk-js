@@ -2360,6 +2360,173 @@ test("offline region read answers a query from IndexedDB with browser networking
   }
 });
 
+test("offline region serves tiles and metadata from IndexedDB with browser networking disabled", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+
+    const online = await page.evaluate(async (scope) => {
+      const offline = await import("/dist/src/offline/index.js");
+      window.__honuaOffline = offline;
+      const encoder = new TextEncoder();
+      const tileBytes = new Uint8Array([0x1a, 0x2b, 0x3c, 0x4d]);
+      const document = { title: "Incidents", links: [{ rel: "data", href: "/collections" }] };
+      const snapshot = await offline.planOfflineRegionSnapshot({
+        name: "Northwest quadrant",
+        sourceId: "incidents",
+        endpoint: "https://example.test/ogc/tiles",
+        authorizationScopeFingerprint: scope,
+        // Exactly the extent of XYZ tile 1/0/0.
+        bounds: { minX: -180, minY: 0, maxX: 0, maxY: 85, crs: "EPSG:4326" },
+        minZoom: 1,
+        maxZoom: 3,
+        sourceVersion: "source-v1",
+        schemaVersion: "schema-v1",
+        planVersion: "plan-v1",
+        observation: { state: "cached", observedAt: new Date().toISOString() },
+        attribution: { fixture: "Honua deterministic tile fixture" },
+        contents: [
+          {
+            kind: "tile",
+            bytes: tileBytes,
+            contentType: "application/vnd.mapbox-vector-tile",
+            selector: offline.offlineRegionTileSelector({ z: 1, x: 0, y: 0 }),
+            attributionIds: ["fixture"],
+          },
+          {
+            kind: "metadata",
+            bytes: encoder.encode(JSON.stringify(document)),
+            contentType: "application/json",
+            selector: offline.offlineRegionMetadataSelector("landing-page"),
+            attributionIds: ["fixture"],
+          },
+        ],
+      });
+      window.__honuaTileRegion = { manifest: snapshot.manifest, database: `${window.__offlineDatabase}-tiles` };
+      const store = offline.createIndexedDbOfflineRegionStore({ name: window.__honuaTileRegion.database });
+      const receipt = await offline.downloadOfflineRegion(snapshot.manifest, {
+        store,
+        load: offline.createOfflineRegionSnapshotLoader(snapshot),
+        logicalQuotaBytes: 1024 * 1024,
+      });
+      return {
+        regionId: snapshot.manifest.id,
+        integrity: receipt.integrity,
+        resourceCount: receipt.resourceCount,
+        tileUrlTemplate: offline.buildOfflineRegionTileUrlTemplate(),
+      };
+    }, "tenant:a/role:field");
+
+    expect(online.regionId).toMatch(DIGEST_PATTERN);
+    expect(online.integrity).toBe("verified");
+    expect(online.resourceCount).toBe(2);
+    expect(online.tileUrlTemplate).toBe("offline-region://default/{z}/{x}/{y}");
+    const requestsBeforeOffline = server.offlineDataRequests;
+
+    await context.setOffline(true);
+
+    const read = await page.evaluate(async (scope) => {
+      const offline = window.__honuaOffline;
+      const { manifest, database } = window.__honuaTileRegion;
+      // A fresh store instance proves the answers came out of IndexedDB.
+      const store = offline.createIndexedDbOfflineRegionStore({ name: database });
+      const failure = async (body) => {
+        try {
+          await body();
+          return "resolved";
+        } catch (error) {
+          return error.code ?? error.name;
+        }
+      };
+      const tile = await offline.readOfflineRegionTile(manifest, {
+        store,
+        authorizationScopeFingerprint: scope,
+        tile: { z: 1, x: 0, y: 0 },
+      });
+      const metadata = await offline.readOfflineRegionMetadata(manifest, {
+        store,
+        authorizationScopeFingerprint: scope,
+        document: "landing-page",
+      });
+      // The MapLibre protocol seam answers the same tile through a style URL.
+      const protocol = offline.createOfflineRegionTileProtocol({
+        manifest,
+        store,
+        authorizationScopeFingerprint: scope,
+      });
+      const rendered = await protocol({ url: "offline-region://default/1/0/0.pbf" }, new AbortController());
+      return {
+        tileBytes: [...tile.bytes],
+        tileContentType: tile.contentType,
+        tileCoordinate: tile.tile,
+        tileDegraded: tile.degraded.map((entry) => entry.capability),
+        tileRegionId: tile.cache.regionId,
+        tileResourceKinds: tile.cache.resources.map((resource) => resource.kind),
+        attribution: tile.attribution,
+        metadataDocument: metadata.document,
+        metadataDegraded: metadata.degraded.map((entry) => entry.capability),
+        protocolBytes: [...new Uint8Array(rendered.data)],
+        protocolCacheControl: rendered.cacheControl,
+        outOfRegionZoom: await failure(() =>
+          offline.readOfflineRegionTile(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            tile: { z: 0, x: 0, y: 0 },
+          }),
+        ),
+        outOfRegionExtent: await failure(() =>
+          offline.readOfflineRegionTile(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            tile: { z: 1, x: 1, y: 1 },
+          }),
+        ),
+        cacheMiss: await failure(() =>
+          offline.readOfflineRegionTile(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            tile: { z: 2, x: 0, y: 0 },
+          }),
+        ),
+        scopeMismatch: await failure(() =>
+          offline.readOfflineRegionTile(manifest, {
+            store,
+            authorizationScopeFingerprint: "tenant:b/role:field",
+            tile: { z: 1, x: 0, y: 0 },
+          }),
+        ),
+      };
+    }, "tenant:a/role:field");
+
+    // Everything above was answered from storage with networking disabled.
+    expect(server.offlineDataRequests).toBe(requestsBeforeOffline);
+    expect(read.tileBytes).toEqual([0x1a, 0x2b, 0x3c, 0x4d]);
+    expect(read.tileContentType).toBe("application/vnd.mapbox-vector-tile");
+    expect(read.tileCoordinate).toEqual({ z: 1, x: 0, y: 0 });
+    expect(read.tileDegraded).toEqual(["tiles"]);
+    expect(read.tileRegionId).toBe(online.regionId);
+    expect(read.tileResourceKinds).toEqual(["tile"]);
+    expect(read.attribution).toEqual({ fixture: "Honua deterministic tile fixture" });
+    expect(read.metadataDocument).toEqual({ title: "Incidents", links: [{ rel: "data", href: "/collections" }] });
+    expect(read.metadataDegraded).toEqual(["query"]);
+    expect(read.protocolBytes).toEqual([0x1a, 0x2b, 0x3c, 0x4d]);
+    expect(read.protocolCacheControl).toBe("no-store");
+    expect(read.outOfRegionZoom).toBe("out-of-region");
+    expect(read.outOfRegionExtent).toBe("out-of-region");
+    expect(read.cacheMiss).toBe("cache-miss");
+    expect(read.scopeMismatch).toBe("scope-mismatch");
+  } finally {
+    await context.setOffline(false).catch(() => undefined);
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
 test("IndexedDB and in-memory region stores pass one shared conformance suite", async ({ page }) => {
   test.slow();
   const server = await startServer();

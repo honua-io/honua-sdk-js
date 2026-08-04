@@ -550,6 +550,97 @@
         },
         "honua-grpc": { "outcome": "exact" }
       }
+    },
+    {
+      "id": "conjunctive-attribute-temporal-spatial",
+      "covers": ["comparison", "temporal", "spatial", "boundary"],
+      "query": {
+        "kind": "features",
+        "filter": {
+          "kind": "boolean",
+          "operator": "and",
+          "args": [
+            {
+              "kind": "comparison",
+              "operator": "eq",
+              "left": { "kind": "property", "name": "status" },
+              "right": { "kind": "literal", "value": "open" }
+            },
+            {
+              "kind": "temporal",
+              "operator": "after",
+              "operand": { "kind": "property", "name": "observedAt" },
+              "value": { "kind": "temporal-literal", "valueType": "instant", "value": "2026-07-15T00:00:00Z" }
+            },
+            {
+              "kind": "spatial",
+              "operator": "bbox-intersects",
+              "property": { "kind": "property", "name": "shape" },
+              "bbox": {
+                "box": { "layout": "xy", "bounds": [-158, 21, -157.5, 21.5] },
+                "crs": {
+                  "definition": {
+                    "kind": "authority",
+                    "authority": "EPSG",
+                    "code": "4326",
+                    "definitionAxisOrder": {
+                      "state": "known",
+                      "source": "crs-definition",
+                      "axes": [
+                        { "name": "latitude", "direction": "north", "unit": "degree" },
+                        { "name": "longitude", "direction": "east", "unit": "degree" }
+                      ]
+                    }
+                  },
+                  "coordinateOrder": {
+                    "state": "known",
+                    "source": "encoding",
+                    "axes": [
+                      { "name": "longitude", "direction": "east", "unit": "degree" },
+                      { "name": "latitude", "direction": "north", "unit": "degree" }
+                    ]
+                  },
+                  "provenance": { "method": "declared" }
+                }
+              }
+            }
+          ]
+        }
+      },
+      "expected": {
+        "rows": [
+          {
+            "id": 4,
+            "status": "open",
+            "name": "Alpine",
+            "score": 3,
+            "optionalNote": null,
+            "observedAt": "2026-07-15T12:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.6, 21.4] }
+          },
+          {
+            "id": 6,
+            "status": "open",
+            "name": "alpha",
+            "score": 4,
+            "optionalNote": null,
+            "observedAt": "2026-07-17T00:00:00Z",
+            "shape": { "type": "Point", "coordinates": [-157.55, 21.45] }
+          }
+        ]
+      },
+      "projections": {
+        "geoservices": { "outcome": "exact" },
+        "ogc-cql2-json": { "outcome": "exact" },
+        "wfs-fes-2.0": { "outcome": "exact" },
+        "odata-v4": { "outcome": "exact" },
+        "duckdb": { "outcome": "exact" },
+        "honua-grpc": {
+          "outcome": "unsupported",
+          "reason": "QueryFeatures has no envelope geometry message; bbox is not fabricated as a polygon",
+          "diagnostic": { "code": "unsupported-geometry", "path": "$.filter.args[2]" }
+        }
+      }
     }
   ]
 }
