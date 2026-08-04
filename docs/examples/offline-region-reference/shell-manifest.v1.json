@@ -1,23 +1,23 @@
 {
   "format": "honua.offline-shell-manifest.v1",
-  "deploymentId": "offline-region-reference-2026-08-03-v1",
+  "deploymentId": "offline-region-reference-2026-08-03-v2",
   "resources": [
     {
       "url": "./",
-      "byteLength": 1545,
-      "integrity": "sha256:541e92e00157ed0070c47931ea1239da27b88846d7fc338b28e93845c250036a",
+      "byteLength": 1691,
+      "integrity": "sha256:dbfc03455e766318d7740a2754ee5b3265d0e59fd9e4e4ebb156b68ab0c3af52",
       "mediaType": "text/html"
     },
     {
       "url": "./app.mjs",
-      "byteLength": 12561,
-      "integrity": "sha256:a7069d51f164833073421a053a57cdf5d631cbb27faa23685a30473372a0f99e",
+      "byteLength": 14695,
+      "integrity": "sha256:afab11382f7795247173dde0ede131cc71c8186283fb9ff35c20bc06ad1be4d9",
       "mediaType": "application/javascript"
     },
     {
       "url": "./index.html",
-      "byteLength": 1545,
-      "integrity": "sha256:541e92e00157ed0070c47931ea1239da27b88846d7fc338b28e93845c250036a",
+      "byteLength": 1691,
+      "integrity": "sha256:dbfc03455e766318d7740a2754ee5b3265d0e59fd9e4e4ebb156b68ab0c3af52",
       "mediaType": "text/html"
     },
     {
@@ -70,8 +70,8 @@
     },
     {
       "url": "/dist/src/offline/edit-queue.js",
-      "byteLength": 47548,
-      "integrity": "sha256:a03a47bbf0c340fcf980cda5cda41b57bad6f6f521111d7b664f960218c63834",
+      "byteLength": 48780,
+      "integrity": "sha256:60141f597bc90d75183a14524681186ce0d161eb4e39a08130e937e01240ecfc",
       "mediaType": "application/javascript"
     },
     {
@@ -88,8 +88,8 @@
     },
     {
       "url": "/dist/src/offline/index.js",
-      "byteLength": 1857,
-      "integrity": "sha256:504c6929352ccfa980d148b0d1a3aa8f7b651404a236bfc827857d5674ddb7b4",
+      "byteLength": 2216,
+      "integrity": "sha256:000ea125de81c2514e9d7374e1066ea25f4a8d7e0d1048090ba618cae67cde89",
       "mediaType": "application/javascript"
     },
     {
@@ -102,6 +102,12 @@
       "url": "/dist/src/offline/region.js",
       "byteLength": 46173,
       "integrity": "sha256:0d850f7bb072c20988773327f5578eb5eab2da81d2030e2911c848b4998654d6",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/status.js",
+      "byteLength": 19818,
+      "integrity": "sha256:c830f30492e6f89d753b8af76d0bc521217cd9b1836cccb86584f471432ed961",
       "mediaType": "application/javascript"
     },
     {

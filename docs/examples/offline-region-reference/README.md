@@ -9,6 +9,18 @@ reload can therefore boot with networking disabled, read the resource through
 `createOfflineRegionFetchHandler()`, and show its stale state, version
 provenance, and attribution.
 
+A disconnected pass also records one field edit in the durable IndexedDB edit
+queue under a stable idempotency key, so a repeated disconnected launch returns
+the existing edit rather than queueing a second copy. The page then composes the
+region diagnostic, the queued edits, and its own connectivity decision through
+`createLocalFirstStatus()` and renders the single resulting state. Connectivity
+is the host's decision here — derived from the shell's retained-generation
+result and `navigator.onLine` — because the SDK deliberately refuses to infer
+endpoint reachability. The composed state shows the documented precedence in
+practice: with a readable region the disconnected pass reports `pending` rather
+than `stale`, and after the region is removed it reports `partial` /
+`missing-regions`, so a queued edit can never mask a missing cache.
+
 `shell-manifest.v1.json` identifies one deployment and pins every document and
 transitive SDK module by URL, byte length, SHA-256, and media type. The worker
 fetches this manifest fresh and commits nothing unless every response matches,
@@ -63,5 +75,6 @@ replacement task, including non-abortable digest and Cache API work.
 Query-bearing launch URLs are replaced in browser history with the
 credential-free canonical document URL before the shell is declared ready.
 
-This is a disconnected-read reference only. It does not implement reconnect,
-edit replay, replica synchronization, or server acknowledgement semantics.
+This is a disconnected read-and-capture reference only. The queued edit is never
+delivered: it does not implement reconnect, edit replay, replica
+synchronization, or server acknowledgement semantics.
