@@ -219,9 +219,9 @@ function boundarySummary(reports) {
  * The accepted plan the entity lane executes (#1050).
  *
  * Bounded, geometry-bearing, and explicitly WGS84 — the only plan shape the
- * entity slice accepts. The limit is comfortably above the fixture's feature
- * count so the ceiling is exercised deliberately (`entityCeilingFailsClosed`)
- * rather than incidentally.
+ * entity slice accepts. The limit sits comfortably above the fixture's feature
+ * count, so the ceiling is only ever crossed deliberately, by the coexistence
+ * cycle lowering `maxEntities` to {@link ENTITY_CEILING}.
  */
 const ENTITY_QUERY = { pagination: { limit: 50 }, returnGeometry: true, outSr: 4326 };
 
