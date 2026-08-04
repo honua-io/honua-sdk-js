@@ -15,6 +15,7 @@ import {
   type HonuaColumnarWorkerError,
   createColumnarBatch,
   createColumnarWorkerSession,
+  createGeoArrowAggregateOperation,
   createGeoArrowBatch,
   createGeoArrowFilterOperation,
   createGeoArrowProjectionOperation,
@@ -372,6 +373,12 @@ describe("columnar worker progress", () => {
         targetCrs: "EPSG:3857",
         project: ([x, y]) => [x + 1, y + 1],
       }),
+      aggregate: createGeoArrowAggregateOperation({
+        id: "aggregated",
+        schemaId: "points-aggregated-v1",
+        group: { kind: "dictionary" },
+        metrics: [{ name: "features", kind: "count" }],
+      }),
     });
     const session = createColumnarWorkerSession({ createWorker: factory.createWorker });
     const expectedStages: Readonly<Record<string, readonly string[]>> = {
@@ -379,9 +386,10 @@ describe("columnar worker progress", () => {
       projection: ["projection", "projection"],
       transform: ["transform", "transform"],
       reproject: ["decode", "reproject", "complete"],
+      aggregate: ["inspect", "scan", "encode", "complete"],
     };
 
-    for (const operation of ["filter", "projection", "transform", "reproject"]) {
+    for (const operation of ["filter", "projection", "transform", "reproject", "aggregate"]) {
       const events: ColumnarWorkerExecutionProgress[] = [];
       const result = await session.execute(operation, geoBatch(), {
         onProgress: (event) => events.push(event),
