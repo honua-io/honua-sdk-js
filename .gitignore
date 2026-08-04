@@ -1,4 +1,8 @@
 dist/
+# samples/dist is a committed contract projection directory, not build output.
+# The `dist/` rule above matches it at any depth, which silently drops a newly
+# generated artifact from `git add` while the older tracked ones keep working.
+!samples/dist/
 mcp/dist/
 coverage/
 test-results/benchmark-lab*.json
