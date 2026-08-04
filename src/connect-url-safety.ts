@@ -123,6 +123,65 @@ export function hasCredentialShapedMaterial(value: string, strictness: Credentia
   return false;
 }
 
+/**
+ * Why a string a caller wants persisted verbatim must be refused.
+ *
+ * `endpoint-not-normalized` is never produced by {@link screenPersistedString};
+ * it belongs to an endpoint's own normalization contract and is reported by the
+ * caller that owns one.
+ */
+export type CredentialScreenReason = "credential-shaped" | "url-shaped" | "endpoint-not-normalized";
+
+/**
+ * Report why a persisted string must be refused, or `undefined` when it is safe.
+ *
+ * Both strictness levels reject a request URL carrying userinfo, a query, or a
+ * fragment. `identity` additionally refuses a relative request reference — any
+ * embedded `?`, `#`, or `@` — mirroring the persisted-source shape check in
+ * `src/query-planner/planner.ts`, so a matched request URL cannot become a
+ * stored identity by accident.
+ *
+ * This lives beside the denylist rather than in one persistence layer so every
+ * durable store — offline regions, the offline edit queue, and realtime resume
+ * checkpoints — screens with one implementation and one vocabulary, without
+ * importing another layer's error or manifest types.
+ */
+export function screenPersistedString(
+  value: string,
+  strictness: CredentialScreenStrictness,
+): CredentialScreenReason | undefined {
+  if (hasCredentialShapedMaterial(value, strictness)) return "credential-shaped";
+  return isCredentialFreeShape(value, strictness) ? undefined : "url-shaped";
+}
+
+/** Message for `reason` at `path`. Never echoes the offending value. */
+export function credentialScreenMessage(path: string, reason: CredentialScreenReason): string {
+  if (reason === "url-shaped") return `${path} must not be a request URL carrying userinfo, a query, or a fragment.`;
+  if (reason === "endpoint-not-normalized") return `${path} must be a normalized, credential-free absolute URL.`;
+  return `${path} must not contain credential-shaped material.`;
+}
+
+function isCredentialFreeShape(value: string, strictness: CredentialScreenStrictness): boolean {
+  // An absolute URL always carries a scheme separator; the guard keeps the
+  // common non-URL case free of throwing URL construction.
+  if (value.includes(":")) {
+    try {
+      const url = new URL(value);
+      // Prose is only refused for a real request URL, one with an authority.
+      // A label such as `Data: NOAA #1` parses as an opaque `data:` URL and
+      // must not be rejected for a colon followed by a fragment character.
+      if (strictness === "identity" || url.host.length > 0) {
+        return !url.username && !url.password && !url.search && !url.hash;
+      }
+      return true;
+    } catch {
+      // Not an absolute URL; fall through to the literal reference check.
+    }
+  }
+  // A machine identity must not even be a relative request reference.
+  return strictness === "label" || (!value.includes("?") && !value.includes("#") && !value.includes("@"));
+}
+
 /** Index of the first `=` or `:` in `segment`, or `-1`. Linear scan, no regex. */
 function assignmentIndex(segment: string): number {
   for (let index = 0; index < segment.length; index += 1) {

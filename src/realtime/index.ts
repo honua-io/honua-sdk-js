@@ -66,6 +66,30 @@ export type {
   ResumableRealtimeSubscription,
 } from "./resumable.js";
 export {
+  createIndexedDbCheckpointStorage,
+  createIndexedDbRealtimeCheckpointStore,
+  createMemoryCheckpointStorage,
+  createMemoryRealtimeCheckpointStore,
+  createRealtimeCheckpointStore,
+  DEFAULT_REALTIME_CHECKPOINT_MAX_AGE_MS,
+  DEFAULT_REALTIME_CHECKPOINT_MAX_RECORDS,
+  HONUA_REALTIME_CHECKPOINT_STORE_FORMAT,
+  MAX_REALTIME_CHECKPOINT_MAX_AGE_MS,
+  MAX_REALTIME_CHECKPOINT_RECORDS,
+  realtimeAuthorizationScopeDigest,
+  realtimeCheckpointScopeKey,
+} from "./checkpoint-store.js";
+export type {
+  IndexedDbRealtimeCheckpointStoreOptions,
+  RealtimeCheckpointRecordStorage,
+  RealtimeCheckpointRecordV1,
+  RealtimeCheckpointStoreDiagnosticV1,
+  RealtimeCheckpointStoreHandle,
+  RealtimeCheckpointStoreOptions,
+  RealtimeCheckpointStoreReason,
+  RealtimeStoredResumePosition,
+} from "./checkpoint-store.js";
+export {
   assertRealtimePlanIdentity,
   deriveRealtimeContractAuthority,
   realtimePlanFingerprint,
