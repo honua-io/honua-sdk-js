@@ -11,9 +11,20 @@
       main { display: grid; grid-template-rows: auto 1fr; height: 100%; }
       header { padding: 12px 16px; }
       #renderers { display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
-      #maplibre, #cesium { min-height: 360px; }
+      #maplibre, #cesium { height: 480px; }
     </style>
-    <script src="/node_modules/cesium/Build/Cesium/Cesium.js"></script>
+    <script>
+      // The Cesium runtime is reached through the bare `cesium` specifier the
+      // SDK's lazy peer path imports, not through a global <script> tag.
+      globalThis.CESIUM_BASE_URL = "/node_modules/cesium/Build/Cesium/";
+    </script>
+    <script type="importmap">
+      {
+        "imports": {
+          "cesium": "/node_modules/cesium/Build/Cesium/index.js"
+        }
+      }
+    </script>
   </head>
   <body>
     <main>

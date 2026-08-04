@@ -127,10 +127,14 @@ export interface CesiumCameraLike {
   readonly heading: number;
   readonly pitch: number;
   readonly roll: number;
-  setView(options: {
-    destination?: unknown;
-    orientation?: { heading?: number; pitch?: number; roll?: number };
-  }): void;
+  /**
+   * `orientation` is `unknown` rather than a heading/pitch/roll record because
+   * the real `Camera.setView` also accepts a direction/up pair. Narrowing it
+   * here made a live `Camera` fail to satisfy this interface, which is the one
+   * thing it exists to describe (#1049); callers still build the orientation
+   * through the typed {@link CesiumHeadingPitchRollRadians}.
+   */
+  setView(options: { destination?: unknown; orientation?: unknown }): void;
 }
 
 /**
@@ -709,8 +713,15 @@ export async function addCesium3DTileset(
   options.signal?.throwIfAborted();
   const mod = cesium ?? (await loadCesium());
   const pointCloudShading = normalizePointCloudShading(primitive.pointCloudShading);
-  const tileset = await (pointCloudShading
-    ? mod.Cesium3DTileset.fromUrl(primitive.uri, { pointCloudShading })
+  // Attribution reaches every materialized asset, not just imagery (#1049
+  // REQ-005): a tileset drawn without its credit is an attribution gap the user
+  // cannot see, and Cesium's `CreditDisplay` is the only place it can land.
+  const tilesetOptions = {
+    ...(pointCloudShading ? { pointCloudShading } : {}),
+    ...(primitive.attribution ? { credit: primitive.attribution } : {}),
+  };
+  const tileset = await (Object.keys(tilesetOptions).length > 0
+    ? mod.Cesium3DTileset.fromUrl(primitive.uri, tilesetOptions)
     : mod.Cesium3DTileset.fromUrl(primitive.uri));
   // From here on the tileset is adapter-owned. A placement, style-sidecar, or
   // collection failure must not strand it: nothing else holds a reference, so
@@ -758,6 +769,7 @@ export async function addCesiumModel(
   const model = await mod.Model.fromGltfAsync({
     url: primitive.uri,
     modelMatrix: placementToModelMatrix(mod, placement),
+    ...(primitive.attribution ? { credit: primitive.attribution } : {}),
   });
   try {
     options.signal?.throwIfAborted();
@@ -1184,7 +1196,10 @@ async function applyCesiumTerrainInternal(
   }
   if (!url) return undefined;
   const mod = cesium ?? (await loadCesium());
-  const provider = await mod.CesiumTerrainProvider.fromUrl(url);
+  const provider = await mod.CesiumTerrainProvider.fromUrl(
+    url,
+    primitive.attribution ? { credit: primitive.attribution } : {},
+  );
   if (provider && typeof provider === "object") ownedCesiumTerrainProviders.add(provider);
   if (signal?.aborted) {
     // The provider resolved into a scene the host has already abandoned. Release

@@ -168,32 +168,98 @@ Every accepted envelope carries a monotonic revision, canonical timestamps,
 source/schema/plan identity, renderer origin, and an explicit
 `exact`/`equivalent`/`unsupported` mapping result.
 
+The synchronizer is a transport and never touches a renderer. The two bindings
+that do are shipped: `createMapLibreStateSyncPort()` and
+`createCesiumStateSyncPort()`.
+
 ```ts doc-test=skip reason="ports wrap application-owned renderer instances"
 import {
+  createCesiumStateSyncPort,
+  createMapLibreStateSyncPort,
   createSceneStateSynchronizer,
-  defaultSceneStateSyncMappings,
 } from "@honua/app-platform/scene-workspace";
+
+const identity = { sourceId: "live-incidents", planId: "incident-command" };
+
+const mapPort = createMapLibreStateSyncPort(map, {
+  id: "map-2d",
+  identity,
+  // Without a temporal field the port declares `time` outbound-unsupported
+  // rather than accepting shared time it cannot apply.
+  timeField: "observed_at",
+});
+const globePort = createCesiumStateSyncPort(viewer, {
+  id: "globe-3d",
+  identity,
+  entityIdForTarget: (target) => `incident-${target.id}`,
+  targetForEntityId: (entityId) => ({ sourceId: "live-incidents", id: Number(entityId.slice(9)) }),
+});
 
 const sharedState = createSceneStateSynchronizer({
   applicationId: "incident-command",
-  ports: [
-    {
-      id: "map-2d",
-      renderer: "maplibre",
-      mappings: defaultSceneStateSyncMappings("maplibre"),
-      subscribe: (publish, signal) => mapStatePort.subscribe(publish, signal),
-      apply: (delivery, signal) => mapStatePort.apply(delivery, signal),
-    },
-    {
-      id: "globe-3d",
-      renderer: "cesium",
-      mappings: defaultSceneStateSyncMappings("cesium"),
-      subscribe: (publish, signal) => globeStatePort.subscribe(publish, signal),
-      apply: (delivery, signal) => globeStatePort.apply(delivery, signal),
-    },
-  ],
+  ports: [mapPort, globePort],
 });
 ```
+
+Both renderers stay duck-typed: nothing in `src/scene-workspace/` statically
+imports either package, and CesiumJS is reached only through a lazy dynamic
+import performed on the first apply that needs a Cesium constructor.
+
+### What each port actually drives
+
+| Slice | 2D map | Cesium viewer |
+| --- | --- | --- |
+| `camera` | `jumpTo` centre/zoom/bearing/pitch/roll through the documented correspondence | `Camera.setView` destination + orientation |
+| `selection` | `setFeatureState` on the addressed source | `viewer.selectedEntity` (one focused entity) |
+| `filters` | `setFilter`, composed on top of the style's own filter | entity visibility evaluated against entity properties |
+| `time` | an epoch-millisecond window on the configured field | `viewer.clock`, through the same clock plan the scene adapter applies |
+| `detail` | `setFeatureState` under a separate key | refused: the globe's single focus channel belongs to `selection` |
+| `attribution` | shared identifiers for the host to render | shared identifiers; provider credit display is untouched |
+| `realtime` | status only | status only |
+
+Each port computes its own `mappings` from what the live renderer can actually
+do, so a fidelity claim is never just a string table: a map without a
+feature-state API declares `selection` outbound-`unsupported`, a viewer without
+a clock declares `time` outbound-`unsupported`, and the synchronizer reports
+`unsupported-target` instead of pretending the state landed.
+
+The globe's `time` slice goes through `sceneTimelineToCesiumClockPlan()` and
+`applyCesiumClockPlan()` rather than writing the clock itself, so shared time and
+adapter-applied time have exactly one set of semantics: the extent is written
+before the instant, `speed` becomes the clock multiplier, uninterpretable fields
+are named rather than dropped, and a viewer that declares
+`clockOwnership: "host"` is left alone (reported as `time-clock-host-owned`)
+instead of being fought for transport. `port.dispose()` restores the clock it
+displaced.
+
+### The 2D/3D camera correspondence
+
+The renderer-neutral `SceneCameraState` is a globe pose. A 2D map has no camera
+height — it has a zoom, which is a statement about ground resolution:
+
+```text
+groundResolution(zoom, lat) = C · cos(lat) / (tileSize · 2^zoom)   [m/px]
+centreDistance(px)          = 0.5 · viewportHeight / tan(fov / 2)
+cameraHeight(m)             = groundResolution · centreDistance(px) · cos(pitch2D)
+```
+
+`mapLibreZoomToCameraHeight()` / `mapLibreCameraHeightToZoom()` are that
+relationship, and `mapLibreViewToSceneCamera()` / `sceneCameraToMapLibreView()`
+are the whole-pose conversions built on it. The correspondence is neither
+latitude- nor viewport-independent, and the live port reads the viewport from
+the map it is bound to rather than assuming one. Pitch flips convention across
+the boundary (`pitch2D = 0` is nadir, which is `pitch = -90` on the globe);
+bearing and heading share the compass convention.
+
+Poses a Web Mercator plane cannot hold are clamped and reported, never silently
+applied. `sceneCameraToMapLibreView()` returns `degradations` typed by
+`SceneCameraDegradationCode` — `camera-latitude-clamped`,
+`camera-zoom-clamped`, `camera-pitch-clamped`, `camera-roll-dropped` — and
+`fidelity: "exact"` only when nothing was clamped. The live port surfaces the
+same records through `port.degradations` and the `onDegraded` callback, each
+carrying the requested and applied values.
+
+### Loop closure and convergence
 
 An adapter must publish a strictly increasing local `sequence`. When it emits a
 native event caused by applying revision 42, it sets `causeRevision: 42`; the
@@ -203,19 +269,57 @@ frame by default while the final state is retained. Delivery to each port is
 serialized, failed applies produce diagnostics without poisoning later work,
 and detach, abort, and disposal cancel pending work and remove listeners.
 
-MapLibre camera and application time mappings are deliberately `equivalent`:
-its center/zoom/pitch cannot preserve a Cesium globe horizon or roll, and it has
-no native clock. Selection, protocol-neutral filters, source-qualified detail,
-attribution identifiers, and realtime freshness map exactly by default. Apps
-must narrow a port's mappings to `unsupported` when their adapter cannot honor
-a slice; the synchronizer diagnoses that boundary instead of silently dropping
-state.
+The shipped ports close that loop with two rules:
+
+1. **Applied-signature matching.** After applying a delivery the port reads the
+   renderer back and records a quantized signature of what it actually holds
+   (about 1 cm horizontally, nine significant digits of height, 1/10000 of a
+   degree of orientation). The next renderer event whose signature matches is
+   published once with `causeRevision`, which the synchronizer records as
+   `loop-suppressed`. The acknowledgement is published rather than swallowed so
+   loop closure stays observable.
+2. **Lossy sides do not write back.** A renderer that clamped what it was given
+   applies its best effort, records a degradation, and leaves the shared value
+   alone — writing the clamped pose back would drag every other view down to the
+   least capable renderer's limits and is the one shape that can oscillate. Both
+   the read-back and the delivered value count as echoes, so a change converges
+   in one round trip even when the destination renderer applies further
+   constraints of its own.
+
+Disposal is owned: `port.dispose()` releases every renderer listener, clears the
+feature state it wrote, restores the layer filters it composed, and restores the
+entity visibility it changed. The synchronizer's own `dispose()` reaches the
+same release through the `AbortSignal` it passes to `subscribe`.
+
+### Attribution and the two slice vocabularies
+
+`sceneAttributionId()` reduces free-form credit text to the identifier charset
+the `attribution` slice enforces (`"County orthophotography"` →
+`county-orthophotography`), and `sceneAttributionValue()` builds a sorted,
+de-duplicated slice value from live provider credits and primitive attribution.
+Text that cannot be reduced is dropped rather than guessed at; the safe-id rule
+is a boundary to satisfy, not to relax. On the Cesium side, primitive
+`attribution` now reaches terrain providers, tilesets, and models as well as
+imagery.
+
+`SCENE_STATE_SYNC_SLICES` (7) and `SCENE_WORKSPACE_SLICES` (13) are different
+sizes because they answer different questions, and
+`SCENE_STATE_SYNC_SLICE_WORKSPACE_CROSSWALK` names the relationship. The wire
+vocabulary is what two renderers must agree on; the store vocabulary is what one
+workspace notifies its own subscribers about. `time` (wire) is `timeline`
+(store) — the only rename. `attribution` maps to `null`: it is derived from what
+each renderer credits rather than stored as workspace state. The workspace-only
+members (`all`, `scene`, `layers`, `primitives`, `diagnostics`, `evidence`,
+`history`) are single-application concerns with nothing to synchronize.
 
 The runnable [shared renderer state fixture](./examples/shared-renderer-state/)
-uses real MapLibre and Cesium canvases and proves bidirectional camera,
-selection, filter, and time flow plus loop suppression and cleanup. Renderer
-packages remain optional peers: the scene-workspace entrypoint has no static
-MapLibre or Cesium import.
+drives real MapLibre and Cesium canvases through these ports and asserts
+destination-renderer state — `map.getCenter()`, `map.getZoom()`,
+`map.getFilter()`, `map.getFeatureState()`, `viewer.camera.positionCartographic`,
+`viewer.selectedEntity`, `viewer.entities.getById(...).show`, `viewer.clock` —
+rather than a dictionary the fixture kept for itself. Renderer packages remain
+optional peers: the scene-workspace entrypoint has no static MapLibre or Cesium
+import.
 
 ## Scene Primitives
 
