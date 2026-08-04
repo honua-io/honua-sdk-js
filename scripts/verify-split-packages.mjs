@@ -630,7 +630,9 @@ if (
     ],
     CESIUM_SCENE_CAPABILITIES,
   )
-    .map((diagnostic) => `${diagnostic.code}:${diagnostic.fidelity}`)
+    // No template literals here: this whole smoke program is itself embedded in
+    // one, so a nested backtick would terminate it.
+    .map((diagnostic) => diagnostic.code + ":" + diagnostic.fidelity)
     .join("|") !== "scene-primitive-crs-unsupported:unsupported|scene-primitive-vertical-datum-unsupported:unsupported"
 )
   throw new Error("Scene spatial-reference diagnostics missing from @honua/app-platform/scene-workspace");

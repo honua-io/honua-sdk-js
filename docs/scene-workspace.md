@@ -304,6 +304,10 @@ Three properties hold by construction:
   or transformed to make a declaration fit, and no fidelity is inferred from an
   identifier the normalizer could not resolve.
 
+This example imports through the deprecated `@honua/sdk-js/scene-workspace`
+forwarder so it stays compile-checked in this repository; the identical symbols
+are exported from `@honua/app-platform/scene-workspace`.
+
 ```ts doc-test=compile
 import {
   CESIUM_SCENE_CAPABILITIES,
