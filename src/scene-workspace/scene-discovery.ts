@@ -20,8 +20,11 @@
  * {@link sceneCameraPrimitive}, {@link sceneViewpointBookmarks}) are pure (no
  * Cesium, no transport) and unit-testable on their own.
  *
- * @experimental Part of the experimental `scene-workspace` surface; not yet
- *   covered by the SDK's semver contract prior to `1.0.0`.
+ * @experimental Held back from the beta `@honua/app-platform/scene-workspace`
+ *   tier: Honua Server scene discovery is server-attached, so it sits outside
+ *   the open-endpoint evidence behind that promotion and may change in any
+ *   minor release prior to `1.0.0`. The renderer-neutral primitives it maps onto
+ *   are beta.
  * @module
  */
 

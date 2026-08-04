@@ -1,3 +1,17 @@
+/**
+ * Renderer-neutral scene primitive contract: terrain, imagery, 3D Tiles, model
+ * layers, extrusions, ground, camera, and layer metadata, plus the diagnostics
+ * that say — before a viewer exists — whether a renderer can honor each one.
+ *
+ * The MapLibre adapter lives here because it needs no optional peer; the Cesium
+ * adapter implements the same {@link SceneRuntimeAdapter} contract.
+ *
+ * @beta Part of the beta `@honua/app-platform/scene-workspace` surface; primitive
+ *   kinds, diagnostic codes, and renderer capability flags grow additively and
+ *   no export is renamed or removed through 0.1.x.
+ * @module
+ */
+
 import { isCredentialQueryName } from "../connect-url-safety.js";
 import type { FeatureId, SourceId } from "../contract/types.js";
 import type { FilterClause } from "../exploration/index.js";
