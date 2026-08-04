@@ -1,11 +1,13 @@
 /**
  * Real-Cesium browser fixture matrix and teardown budgets for the scene adapter
- * (honua-sdk-js#928).
+ * (honua-sdk-js#928), its temporal binding (#1048), and the accepted-plan
+ * `Source` → entity path (#1050).
  *
  * Every other scene-adapter test in this repository runs in jsdom against a
  * `vi.mock("cesium")` stub. This lane is the opposite: a real Chromium page, the
  * real `cesium` package, a real WebGL context, and the SDK's public
- * `createCesiumSceneAdapter` surface driving a live `Viewer`.
+ * `createCesiumSceneAdapter` / `mountScenePrimitivesToCesium` /
+ * `mountSourceToCesium` surfaces driving a live `Viewer`.
  *
  * Run it on its own with:
  *
@@ -33,6 +35,14 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test } from "@playwright/test";
 
+import {
+  ENTITY_EXPECTATIONS,
+  ENTITY_SOURCE_LAYER_PATH,
+  ENTITY_SOURCE_SNAPSHOTS,
+  ENTITY_SOURCE_SNAPSHOT_PATH,
+  buildEntitySourceLayerMetadata,
+  buildEntitySourceQueryResponse,
+} from "./cesium-entity-source-fixture.mjs";
 import {
   FIXTURE_ORIGIN,
   buildQuantizedMeshTile,
@@ -95,7 +105,7 @@ const TEARDOWN_BUDGET_MS = {
  *    the warmup cycle, asserted separately.
  *  - The final cycle's WebGL canvas: pinned by Chromium, not by the page.
  *  - DOM listeners bound to the widget's own elements: released with the element
- *    rather than through `removeEventListener` → constant per cycle, bounded.
+ *    rather than through `removeEventListener` → bounded as a run total.
  */
 const RETENTION_BUDGET = {
   scenePrimitivesAfterLayerRemoval: 0,
@@ -114,12 +124,49 @@ const RETENTION_BUDGET = {
   retainedCanvases: 1,
   liveWebglContexts: 1,
   /**
-   * Net `addEventListener` minus `removeEventListener` calls per cycle. Measured
-   * at exactly 8, constant across cycles; the ceiling leaves room for a Cesium
-   * upgrade that binds a couple more without hiding an accumulating leak (which
-   * the constant-across-cycles assertion catches independently).
+   * Net `addEventListener` minus `removeEventListener` calls per cycle, asserted
+   * as an average over the run. Measured at 8 per cycle; the ceiling leaves room
+   * for a Cesium upgrade that binds a couple more without hiding an accumulating
+   * leak, which grows the run total.
    */
   netListenersPerCycle: 16,
+};
+
+/**
+ * Mount/teardown cycles for the accepted-plan entity lane (#1050).
+ *
+ * Each cycle opens its own SDK connection, mounts, refreshes against a changed
+ * source, and tears everything down, so three cycles cost noticeably more than
+ * three primitive cycles. Three still gives two post-warmup cycles for the
+ * retention sums below to accumulate against.
+ */
+const ENTITY_CYCLES = 3;
+
+/**
+ * Retention budgets for the entity lane.
+ *
+ * Every budget here is a *total across the whole run*, never a per-cycle
+ * equality: this lane opens and closes an SDK connection per cycle whose
+ * teardown is asynchronous, so per-cycle splits are not stable quantities even
+ * when nothing leaks — that shape is what flaked in honua-sdk-js#1055. Totals
+ * still catch what matters, because a real retention bug scales with cycles
+ * while these ceilings do not.
+ *
+ * Measured over repeated three- and five-cycle runs: after forced GC exactly one
+ * cycle's object graph stays reachable — its canvas, its viewer, and one of its
+ * entities — and it is always the most recent one. Older cycles release
+ * everything. That is the same Chromium floor `RETENTION_BUDGET.retainedCanvases`
+ * documents, now observed to pin the viewer and entity hanging off it too.
+ *
+ * `netListenersTotal` was measured at 24 for a three-cycle run (8 per cycle, all
+ * of them listeners CesiumJS binds to its own widget elements and drops with the
+ * element rather than through `removeEventListener`). The ceiling leaves room
+ * for a Cesium upgrade without hiding a leak.
+ */
+const ENTITY_RETENTION_BUDGET = {
+  retainedViewers: 1,
+  retainedCanvases: 1,
+  netListenersTotal: 64,
 };
 
 function mimeTypeFor(filePath) {
@@ -151,12 +198,17 @@ function mimeTypeFor(filePath) {
   }
 }
 
+const FIXTURE_MODULES = new Set([
+  "/test/playwright/cesium-scene-adapter-fixture.mjs",
+  "/test/playwright/cesium-entity-source-fixture.mjs",
+]);
+
 function resolveStaticPath(requestPath) {
   if (requestPath === "/") return path.join(projectRoot, "test/playwright/cesium-scene-adapter-fixture.html");
   if (
     requestPath.startsWith("/dist/src/") ||
     requestPath.startsWith("/node_modules/cesium/") ||
-    requestPath === "/test/playwright/cesium-scene-adapter-fixture.mjs"
+    FIXTURE_MODULES.has(requestPath)
   ) {
     return path.join(projectRoot, requestPath.slice(1));
   }
@@ -175,15 +227,42 @@ function startFixtureServer() {
   const terrainTile = buildQuantizedMeshTile();
   const imageryTile = buildSolidPng();
   const requestLog = [];
+  // Which feature snapshot the entity fixture layer answers with. `refresh()`
+  // re-executes the accepted plan unchanged, so the source has to be the thing
+  // that changes; the page selects the snapshot explicitly rather than relying
+  // on request ordering.
+  let entitySnapshot = "a";
 
   const server = http.createServer((request, response) => {
-    const requestPath = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+    const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
+    const requestPath = requestUrl.pathname;
     requestLog.push(requestPath);
 
     const send = (body, contentType) => {
       response.writeHead(200, { "content-type": contentType, "cache-control": "no-store" });
       response.end(body);
     };
+    const sendJson = (body) => send(Buffer.from(JSON.stringify(body), "utf8"), "application/json; charset=utf-8");
+
+    if (requestPath === ENTITY_SOURCE_SNAPSHOT_PATH) {
+      const requested = requestUrl.searchParams.get("name");
+      if (!Object.hasOwn(ENTITY_SOURCE_SNAPSHOTS, requested ?? "")) {
+        response.writeHead(400, { "content-type": "text/plain; charset=utf-8" });
+        response.end("Unknown snapshot");
+        return;
+      }
+      entitySnapshot = requested;
+      sendJson({ snapshot: entitySnapshot });
+      return;
+    }
+    if (requestPath === ENTITY_SOURCE_LAYER_PATH) {
+      sendJson(buildEntitySourceLayerMetadata());
+      return;
+    }
+    if (requestPath === `${ENTITY_SOURCE_LAYER_PATH}/query`) {
+      sendJson(buildEntitySourceQueryResponse(entitySnapshot));
+      return;
+    }
 
     if (requestPath === "/fixtures/model.glb" || requestPath === "/fixtures/tileset/content.glb") {
       send(glb, "model/gltf-binary");
@@ -413,20 +492,21 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
       ).toBe(true);
 
       // The "retained listeners" half of NFR-001. Measured, not assumed: each
-      // cycle leaves exactly 8 more `addEventListener` calls than
-      // `removeEventListener` calls, identically on every cycle. Those are
-      // listeners CesiumJS binds to the widget's own elements and drops with the
-      // element rather than through `removeEventListener` — which is legitimate
-      // precisely because the element is proven collectible above. So the budget
-      // is non-growth plus a ceiling, both of which a real listener leak breaks.
+      // cycle leaves around 8 more `addEventListener` calls than
+      // `removeEventListener` calls. Those are listeners CesiumJS binds to the
+      // widget's own elements and drops with the element rather than through
+      // `removeEventListener` — which is legitimate precisely because the element
+      // is proven collectible above.
+      //
+      // Bounded as a run total rather than as a per-cycle equality: which cycle a
+      // listener is attributed to depends on when asynchronous teardown lands, so
+      // the split is not a stable quantity even when nothing leaks (that shape is
+      // honua-sdk-js#1055). A real listener leak grows the sum instead.
       const netListeners = run.cycles.map((cycle) => cycle.resources.netListeners);
       expect(
-        new Set(netListeners).size,
-        `per-cycle DOM listener retention is not constant: ${netListeners.join(", ")}`,
-      ).toBe(1);
-      expect(netListeners[0], "per-cycle DOM listener retention grew").toBeLessThanOrEqual(
-        RETENTION_BUDGET.netListenersPerCycle,
-      );
+        netListeners.reduce((total, value) => total + value, 0),
+        `DOM listener retention across ${CYCLES} cycles: ${netListeners.join(", ")}`,
+      ).toBeLessThanOrEqual(RETENTION_BUDGET.netListenersPerCycle * CYCLES);
 
       // Every destroyed viewer must become unreachable, and with it the GPU
       // resources it owned. Forced collection uses the same CDP mechanism as
@@ -583,6 +663,306 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
       expect(teardown.layerTeardownMs).toBeLessThan(TEARDOWN_BUDGET_MS.layerTeardown);
       expect(teardown.viewerDestroyMs).toBeLessThan(TEARDOWN_BUDGET_MS.viewerDestroy);
       expect(teardown.totalMs).toBeLessThan(TEARDOWN_BUDGET_MS.total);
+
+      expect(run.console, "in-page console.error output").toEqual([]);
+      expect(run.errors, "in-page errors and unhandled rejections").toEqual([]);
+      expect(consoleErrors, "browser console errors").toEqual([]);
+      expect(pageErrors, "page errors").toEqual([]);
+      expect(offOriginRequests, "the fixture must not reach the public internet").toEqual([]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  /**
+   * The accepted-plan `Source` → Cesium entity path against a real `Viewer`
+   * (#1050).
+   *
+   * Before this case the entity slice had no real-Cesium evidence at all: its
+   * only coverage ran in jsdom against a `vi.mock("cesium")` stub. Here the
+   * page connects to a loopback GeoServices layer with `createHonua()`, accepts
+   * a plan with `explainQuery`, and hands both to `mountSourceToCesium` — the
+   * SDK's own entity code path, with no Cesium module injected, so the lazy
+   * optional-peer import is exercised too.
+   *
+   * What only a real runtime can settle, and what is therefore asserted here:
+   *
+   *  1. Every projected feature became a real `Cesium.Entity` whose position is
+   *     a real `Cartesian3` that converts back to the source coordinate,
+   *     including the ellipsoidal height the mount required a vertical datum for.
+   *  2. Cesium — not the SDK — decides availability, and its answer changes with
+   *     the clock the page moves. The point pair is drawn at one instant and not
+   *     at the other, read out of a real GPU pick pass.
+   *  3. The polygon's interior ring reached the GPU: the zone is picked on its
+   *     solid side and not inside its hole.
+   *  4. Refresh discards and rebuilds the whole snapshot. A feature that did not
+   *     change is still replaced, which is the measurement behind this surface's
+   *     tier decision (see `docs/cesium-entity-adapter.md`).
+   *  5. Disposal returns the collection to baseline, and the entities, viewers,
+   *     canvases, and listeners the run creates stop accumulating.
+   */
+  test("mounts entities from a Source onto a live viewer and releases every one on teardown", async ({ page }) => {
+    const { server, consoleErrors, pageErrors, offOriginRequests } = await openFixturePage(page);
+
+    try {
+      const run = await page.evaluate(
+        (cycles) => globalThis.__honuaCesiumSceneFixture.runEntityCycles({ cycles }),
+        ENTITY_CYCLES,
+      );
+
+      if (process.env.HONUA_CESIUM_FIXTURE_REPORT === "1") {
+        process.stdout.write(
+          `${JSON.stringify(
+            run.cycles.map((cycle) => ({
+              index: cycle.index,
+              mountMs: cycle.mountMs,
+              refreshMs: cycle.refresh.ms,
+              teardown: cycle.teardown,
+              resources: cycle.resources,
+              litPixels: cycle.litPixels,
+            })),
+            null,
+            2,
+          )}\n`,
+        );
+      }
+
+      expect(run.cycles).toHaveLength(ENTITY_CYCLES);
+
+      for (const cycle of run.cycles) {
+        expect(cycle.cesiumVersion, "the real cesium package must be loaded").toMatch(/^\d+\.\d+/);
+        expect(cycle.descriptorProtocol, "the plan must come from a real connected source").toBe(
+          "geoservices-feature-service",
+        );
+        expect(cycle.planFingerprint, "the mount re-hashes the plan it was handed").toMatch(/^sha256:[0-9a-f]{64}$/);
+
+        // --- REQ-001 / AC-1: entities materialized through the public path ----
+        expect(cycle.mountedIds, "every projectable feature must mount, in source order").toEqual(cycle.expectedIds);
+        expect(cycle.litPixels, "the globe carrying the entities must actually rasterize").toBeGreaterThan(0);
+
+        for (const expected of ENTITY_EXPECTATIONS.a) {
+          const observed = cycle.described[expected.featureId];
+          expect(observed, `entity ${expected.featureId} must be present`).toMatchObject({
+            present: true,
+            isCesiumEntity: true,
+            kind: expected.kind,
+            availabilityIsTimeIntervalCollection: true,
+            label: expected.label,
+          });
+          if (expected.kind === "point") {
+            expect(observed.positionIsCartesian3).toBe(true);
+            // Round-tripped through real Cesium geodesy, not compared to the
+            // SDK's own copy of the number.
+            expect(observed.cartographic.longitude).toBeCloseTo(expected.position.longitude, 6);
+            expect(observed.cartographic.latitude).toBeCloseTo(expected.position.latitude, 6);
+            expect(observed.cartographic.height, "the declared vertical datum must survive").toBeCloseTo(
+              expected.position.height,
+              1,
+            );
+          }
+          if (expected.kind === "polyline") {
+            expect(observed.polylineVertexCount).toBe(expected.vertexCount);
+            expect(observed.polylinePositionsAreCartesian3).toBe(true);
+          }
+          if (expected.kind === "polygon") {
+            expect(observed.hierarchyIsPolygonHierarchy).toBe(true);
+            expect(observed.holeCount).toBe(expected.holeCount);
+            expect(observed.hierarchyPositionsAreCartesian3).toBe(true);
+          }
+        }
+
+        // --- AC-2: omissions are reported, never quietly substituted ----------
+        expect(cycle.state, "omitted features make the mount honestly degraded").toBe("degraded");
+        for (const code of ENTITY_EXPECTATIONS.omittedDiagnostics) {
+          expect(cycle.diagnostics.some((entry) => entry.startsWith(`${code}:`)), `diagnostic ${code}`).toBe(true);
+        }
+        expect(cycle.diagnostics[0]).toBe("strategy-selected:info:exact");
+
+        // --- AC-3: Cesium decides availability, and it follows the clock ------
+        const inside = cycle.availability.insideWindow;
+        const early = cycle.availability.earlyWindow;
+        for (const expected of ENTITY_EXPECTATIONS.a) {
+          expect(inside.isAvailable[expected.featureId], `${expected.featureId} @ inside`).toBe(
+            expected.availableAt.insideWindow,
+          );
+          expect(early.isAvailable[expected.featureId], `${expected.featureId} @ early`).toBe(
+            expected.availableAt.earlyWindow,
+          );
+        }
+        // Availability is not just bookkeeping: it decides what is drawn.
+        expect(inside.picked, "the day-shift unit renders only inside its window").toEqual({
+          "medic-1": true,
+          "engine-2": false,
+        });
+        expect(early.picked, "the night-shift unit renders only inside its window").toEqual({
+          "medic-1": false,
+          "engine-2": true,
+        });
+
+        // --- the polygon hole is a real hole ----------------------------------
+        expect(cycle.polygonPicks.solid, "the zone must be drawn where it is solid").toBe(true);
+        expect(cycle.polygonPicks.hole, "the zone's interior ring must not be drawn").toBe(false);
+
+        // --- AC-4: refresh, and the rebuild boundary it declares ---------------
+        const refresh = cycle.refresh;
+        expect(refresh.ids, "the refreshed snapshot is what the source now returns").toEqual(refresh.expectedIds);
+        expect(refresh.departedId).toContain("patrol-3");
+        expect(refresh.departedRemovedFromCollection, "a departed feature must leave the collection").toBe(true);
+        expect(refresh.arrivedId).toContain("ladder-9");
+        expect(refresh.arrived).toMatchObject({ present: true, isCesiumEntity: true, kind: "point" });
+        expect(refresh.moved.cartographic.longitude).toBeCloseTo(ENTITY_EXPECTATIONS.b[1].position.longitude, 6);
+        expect(refresh.entityCount, "no orphan may survive the rebuild").toBe(ENTITY_EXPECTATIONS.b.length);
+        expect(refresh.rebuildBoundary).toBe("entity-snapshot");
+        // The tier-decision measurement: `medic-1` was byte-identical across both
+        // snapshots and was still replaced. Promotion would freeze this behaviour,
+        // so it is asserted rather than hoped against.
+        expect(
+          refresh.unchangedEntityPreserved,
+          "refresh is a documented full rebuild; an unchanged feature is not carried forward by identity",
+        ).toBe(false);
+        expect(refresh.unchangedStillPresent, "but its stable id survives the rebuild").toBe(true);
+
+        // --- REQ-002 / NFR-001: teardown -------------------------------------
+        const teardown = cycle.teardown;
+        expect(teardown.afterEntityRemoval.entityCount, "the mount owns every entity it added").toBe(0);
+        expect(teardown.afterEntityRemoval.residualIds).toEqual([]);
+        expect(teardown.afterEntityRemoval.mountState).toBe("disposed");
+        expect(teardown.viewerDestroyed).toBe(true);
+        expect(teardown.canvasesInContainer).toBe(RETENTION_BUDGET.canvasesInContainer);
+        expect(teardown.pendingAnimationFrames).toBe(RETENTION_BUDGET.pendingAnimationFrames);
+        expect(teardown.entityTeardownMs).toBeLessThan(TEARDOWN_BUDGET_MS.layerTeardown);
+        expect(teardown.viewerDestroyMs).toBeLessThan(TEARDOWN_BUDGET_MS.viewerDestroy);
+        expect(teardown.totalMs).toBeLessThan(TEARDOWN_BUDGET_MS.total);
+      }
+
+      // Cesium's global worker pool is warmed by the first cycle and never
+      // terminated on viewer destroy, so the honest budget is non-growth after it.
+      const workersAfterWarmup = run.cycles.slice(1).map((cycle) => cycle.resources.workersCreated);
+      expect(
+        workersAfterWarmup.every((created) => created === 0),
+        `worker pool grew after warmup: ${workersAfterWarmup.join(", ")}`,
+      ).toBe(true);
+
+      // DOM listener retention is bounded in *total* rather than compared cycle
+      // to cycle: this lane runs a full SDK connection per cycle, whose teardown
+      // is asynchronous, so the per-cycle split is not a stable quantity even
+      // when nothing leaks (honua-sdk-js#1055). A real leak still breaks the sum.
+      const netListeners = run.cycles.reduce((total, cycle) => total + cycle.resources.netListeners, 0);
+      expect(netListeners, `DOM listener retention across ${ENTITY_CYCLES} cycles`).toBeLessThanOrEqual(
+        ENTITY_RETENTION_BUDGET.netListenersTotal,
+      );
+
+      // Every Entity the mount ever owned, and every viewer it was mounted on,
+      // must stop accumulating. Forced collection uses the same CDP mechanism as
+      // the matrix case above.
+      const client = await page.context().newCDPSession(page);
+      let live;
+      try {
+        await client.send("HeapProfiler.enable");
+        live = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.liveEntityRetained());
+        for (let attempt = 0; attempt < 8 && (live.viewers > 1 || live.entities > 1 || live.canvases > 1); attempt++) {
+          await client.send("HeapProfiler.collectGarbage");
+          await page.waitForTimeout(100);
+          live = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.liveEntityRetained());
+        }
+      } finally {
+        await client.detach();
+      }
+      const detail = JSON.stringify(live);
+      expect(live.total).toBe(ENTITY_CYCLES);
+      // At most one cycle's worth of entities may still be reachable, and only
+      // because one whole cycle graph is pinned; a mount that failed to release
+      // its entities accumulates them cycle after cycle instead.
+      expect(live.entities, `mounted entities accumulated across cycles: ${detail}`).toBeLessThanOrEqual(
+        ENTITY_EXPECTATIONS.b.length,
+      );
+      expect(live.viewers, `destroyed viewers accumulated across cycles: ${detail}`).toBeLessThanOrEqual(
+        ENTITY_RETENTION_BUDGET.retainedViewers,
+      );
+      expect(live.canvases, `WebGL canvases accumulated across cycles: ${detail}`).toBeLessThanOrEqual(
+        ENTITY_RETENTION_BUDGET.retainedCanvases,
+      );
+
+      expect(run.console, "in-page console.error output").toEqual([]);
+      expect(run.errors, "in-page errors and unhandled rejections").toEqual([]);
+      expect(consoleErrors, "browser console errors").toEqual([]);
+      expect(pageErrors, "page errors").toEqual([]);
+      expect(offOriginRequests, "the fixture must not reach the public internet").toEqual([]);
+      expect(server.requestLog.some((entry) => entry.startsWith("/fixtures/entity-source/"))).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
+  /**
+   * Two mounts, one viewer (#1050 REQ-003 / NFR-002).
+   *
+   * The entity mount and the scene primitive mount are separate lifecycle
+   * owners. This case is the evidence that one application can hold both: they
+   * mount onto the same live `Viewer`, each disposal releases exactly its own
+   * resources, and the survivor's Cesium objects are still the same objects by
+   * identity. The refused over-ceiling mount in the middle proves the fail-closed
+   * path leaves a healthy neighbour untouched too.
+   */
+  test("composes an entity mount with a scene-primitive mount and fails closed on the entity ceiling", async ({
+    page,
+  }) => {
+    const { server, consoleErrors, pageErrors, offOriginRequests } = await openFixturePage(page);
+
+    try {
+      const run = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.runEntityCoexistence());
+      const { coexistence } = run;
+
+      if (process.env.HONUA_CESIUM_FIXTURE_REPORT === "1") {
+        process.stdout.write(`${JSON.stringify(coexistence, null, 2)}\n`);
+      }
+
+      expect(coexistence.cesiumVersion).toMatch(/^\d+\.\d+/);
+
+      // --- both mounts live on one viewer -----------------------------------
+      expect(coexistence.both.entityCount).toBe(ENTITY_EXPECTATIONS.a.length);
+      expect(coexistence.both.imageryLayerCount).toBe(1);
+      expect(coexistence.both.tilesetPresent).toBe(true);
+      expect(coexistence.both.tilesetContentReady).toBeGreaterThan(0);
+      expect(coexistence.both.entityPicked, "an entity renders alongside the primitive plan").toBe(true);
+      expect(coexistence.both.primitiveMountState).toBe("ready");
+      expect(coexistence.both.entityMountState).toBe("degraded");
+
+      // --- NFR-002: the ceiling refuses before Cesium is touched -------------
+      expect(coexistence.ceilingError, "an over-ceiling mount must reject").not.toBeNull();
+      expect(coexistence.ceilingError.name).toBe("HonuaCesiumEntityAdapterError");
+      expect(coexistence.ceilingError.code).toBe("entity-limit-exceeded");
+      expect(coexistence.ceilingError.isAdapterError, "the error is the exported adapter error type").toBe(true);
+      expect(coexistence.afterCeiling, "a refused mount changes nothing").toEqual({
+        entityCount: ENTITY_EXPECTATIONS.a.length,
+        tilesetPresent: true,
+        imageryLayerCount: 1,
+      });
+
+      // --- REQ-003: each owner releases exactly its own ----------------------
+      expect(coexistence.afterEntityDispose.entityCount).toBe(0);
+      expect(coexistence.afterEntityDispose.entityMountState).toBe("disposed");
+      expect(coexistence.afterEntityDispose.imageryLayerCount, "the primitive mount keeps its imagery").toBe(1);
+      expect(
+        coexistence.afterEntityDispose.imageryLayerPreserved,
+        "the surviving imagery layer must be the same object",
+      ).toBe(true);
+      expect(coexistence.afterEntityDispose.tilesetPreserved, "the surviving tileset must not be rebuilt").toBe(true);
+      expect(coexistence.afterEntityDispose.primitiveMountState).toBe("ready");
+
+      expect(coexistence.afterPrimitiveDispose).toEqual({
+        entityCount: 0,
+        tilesetPresent: false,
+        imageryLayerCount: 0,
+        primitiveMountState: "disposed",
+      });
+
+      // --- teardown, on #1026's measured ceilings -----------------------------
+      expect(coexistence.teardown.viewerDestroyed).toBe(true);
+      expect(coexistence.teardown.canvasesInContainer).toBe(RETENTION_BUDGET.canvasesInContainer);
+      expect(coexistence.teardown.layerTeardownMs).toBeLessThan(TEARDOWN_BUDGET_MS.layerTeardown);
+      expect(coexistence.teardown.viewerDestroyMs).toBeLessThan(TEARDOWN_BUDGET_MS.viewerDestroy);
+      expect(coexistence.teardown.totalMs).toBeLessThan(TEARDOWN_BUDGET_MS.total);
 
       expect(run.console, "in-page console.error output").toEqual([]);
       expect(run.errors, "in-page errors and unhandled rejections").toEqual([]);

@@ -33,7 +33,7 @@ What may still change inside beta:
 | --- | --- |
 | Honua Server scene discovery (`listScenes`, `getScene`, `sceneToRuntimePrimitives`, …) | Server-attached; outside the open-endpoint evidence behind beta. |
 | `SceneView` and the elevation/analysis widgets | Execute against Honua Server analysis endpoints. |
-| `mountSourceToCesium` / `projectSourceToCesium` | Bounded entity slice, not the production adapter of `#395` — see [Experimental Cesium entity adapter](./cesium-entity-adapter.md). |
+| `mountSourceToCesium` / `projectSourceToCesium` | Has real-Cesium evidence since `#1050`, and still held back for three named reasons: refresh rebuilds every entity, the entity mount and the primitive mount are two lifecycle owners, and there is no symbology surface — see [Tier decision](./cesium-entity-adapter.md#tier-decision-issue-1050). |
 
 The split is enumerated symbol by symbol under `packageLifecycle.surfaceTiers`
 in [`config/support-manifest.v1.json`](../config/support-manifest.v1.json) and
@@ -664,8 +664,21 @@ rendering nothing.
 The experimental accepted-plan `Source` to Cesium entity lifecycle is
 documented in [Experimental Cesium entity adapter](./cesium-entity-adapter.md).
 It is a bounded feature/entity slice alongside the existing terrain, model,
-and 3D Tiles primitive adapter; it is not yet the production adapter described
-by issue `#395`.
+and 3D Tiles primitive adapter.
+
+It is proven against real Cesium in the same browser lane as the primitive
+adapter (`#1050`): entities materialize from a live `Source` and an accepted
+plan onto a real `Viewer`, Cesium's own availability decides which of them are
+drawn at a given clock instant, polygon interior rings reach the GPU, the entity
+ceiling fails closed, and disposal returns the collection to baseline inside the
+primitive lane's measured teardown ceilings. The entity mount and the primitive
+mount also compose on one viewer, each releasing exactly its own resources.
+
+It stays `experimental` regardless, and the reason is recorded rather than
+implied: refresh rebuilds every entity (an unchanged feature still gets a new
+`Entity`), the two mounts are two lifecycle owners with nothing owning both, and
+there is no symbology surface. See
+[Tier decision](./cesium-entity-adapter.md#tier-decision-issue-1050).
 
 ### Cesium layer disposal
 
@@ -732,11 +745,13 @@ of each cycle is measured against fixed budgets:
   `terrainProvider` is cleared, and `verticalExaggeration` returns to `1`.
 - The viewer reports `isDestroyed()`, its canvas leaves the DOM, and no
   `requestAnimationFrame` callback is left pending.
-- DOM event listener retention is constant per cycle and bounded. CesiumJS binds
-  a fixed handful of listeners to the widget's own elements and drops them with
-  the element rather than through `removeEventListener`, which is legitimate
+- DOM event listener retention is bounded as a total across the run. CesiumJS
+  binds a fixed handful of listeners to the widget's own elements and drops them
+  with the element rather than through `removeEventListener`, which is legitimate
   because those elements are proven collectible; a listener that accumulates
-  across cycles is not.
+  across cycles is not. The bound is a run total rather than a per-cycle equality
+  because asynchronous teardown moves listeners between cycles without leaking
+  any.
 - Wall-clock ceilings guard against a teardown path that starts blocking rather
   than against runner jitter; the spec records the measured actuals next to the
   ceilings it asserts.
@@ -758,6 +773,20 @@ with no rebuild boundary crossed. It then drives one configuration delta and
 asserts that exactly the changed binding was rebuilt, that the change reached the
 renderer (`ImageryLayer.alpha`), and that the unchanged binding was carried
 forward untouched. Its teardown is asserted against the same measured ceilings.
+
+Two further cases in the same lane cover the experimental accepted-plan entity
+path (`#1050`). One connects to a loopback feature service with `createHonua()`,
+accepts a plan with `explainQuery`, mounts it with `mountSourceToCesium`, and
+asserts that every projected feature became a real `Cesium.Entity` whose
+position, polygon hierarchy, availability, and properties are real Cesium
+objects; that Cesium's availability decides what is picked out of a real GPU
+pick pass at two clock instants; that a refresh against a changed source
+rebuilds the whole snapshot; and that disposal returns the collection to
+baseline without accumulating entities, viewers, canvases, or listeners across
+cycles. The other runs an entity mount and a primitive mount on one viewer and
+asserts that each disposal releases exactly its own resources, and that an
+over-ceiling mount fails closed without disturbing either. Their budgets are the
+ones measured here, stated as run totals rather than per-cycle equalities.
 
 Console errors and unhandled rejections fail the lane, matching the sample
 console-teardown gate.
@@ -1012,8 +1041,10 @@ identity, in `test/playwright/cesium-scene-adapter-fixtures.spec.mjs`.
 - **Feature/entity data.** The primitive adapter binds terrain, imagery,
   tilesets, and models. Per-feature deltas remain the experimental entity slice's
   concern, and that slice is still an unconditional remove-then-re-add reported
-  honestly as `rebuildBoundary: "entity-snapshot"` — see
-  [Experimental Cesium entity adapter](./cesium-entity-adapter.md).
+  honestly as `rebuildBoundary: "entity-snapshot"`. That is now measured rather
+  than asserted: the browser lane refreshes a mount against a source where one
+  feature is byte-identical and observes that its `Entity` is replaced anyway —
+  see [Experimental Cesium entity adapter](./cesium-entity-adapter.md).
 - **Sub-primitive updates.** There is no partial mutation of a materialized
   binding: any configuration change rebuilds that binding. Opacity and visibility
   are the exception, because the layer handle owns them directly

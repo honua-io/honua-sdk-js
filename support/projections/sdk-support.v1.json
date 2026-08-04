@@ -2090,7 +2090,7 @@
       "status": "beta",
       "backendNeeded": "None (optional `cesium` peer)",
       "api": "@honua/app-platform/scene-workspace",
-      "notes": "Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — see the surface tiers table.",
+      "notes": "Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence and a recorded tier decision (#1050), not for want of proof — see the surface tiers table.",
       "evidence": [
         "scene-workspace-fixtures",
         "scene-state-sync-fixtures",
@@ -2532,7 +2532,7 @@
           },
           {
             "status": "experimental",
-            "reason": "The accepted-plan `Source` to Cesium entity lifecycle is a bounded slice, not the production adapter of issue #395; see docs/cesium-entity-adapter.md.",
+            "reason": "The accepted-plan `Source` to Cesium entity lifecycle carries real-Cesium browser evidence since issue #1050 — entities materialize onto a live `Viewer` through the public path, Cesium's own availability decides what is drawn, the entity ceiling fails closed, and disposal returns the collection to baseline inside the primitive lane's measured budgets — and stays experimental for the life of 0.1.x for three named reasons: refresh rebuilds every entity (a byte-identical feature is still replaced, measured on a live collection), the entity mount and the primitive mount are two lifecycle owners with nothing owning both, and there is no symbology surface. See docs/cesium-entity-adapter.md#tier-decision-issue-1050.",
             "exports": [
               "CesiumEntityAdapterErrorCode",
               "CesiumEntityCollectionTarget",
