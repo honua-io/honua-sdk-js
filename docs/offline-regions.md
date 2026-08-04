@@ -56,6 +56,113 @@ const diagnostic = await createOfflineRegionDiagnostic(
 );
 ```
 
+## Planning a snapshot and reading it back (experimental)
+
+`planOfflineRegionSnapshot()` is the producer between the protocol-neutral
+contract and the region store: it turns a source identity, a canonical `Query`,
+a bounded extent, and the payloads an application already holds into a manifest
+whose resource identities are deterministic functions of that selection. An
+identity is derived from contract inputs — source id, normalized credential-free
+endpoint, authorization-scope digest, source / schema / plan versions, extent,
+canonical query, resource kind and selector — and never from a signed or
+token-bearing request URL.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  createMemoryOfflineRegionStore,
+  createOfflineRegionFeatureBatch,
+  createOfflineRegionSnapshotLoader,
+  downloadOfflineRegion,
+  encodeOfflineRegionFeatureBatch,
+  planOfflineRegionSnapshot,
+  readOfflineRegionQuery,
+} from "@honua/sdk-js/offline";
+
+const query = { outFields: ["id", "status"], returnGeometry: true };
+const batch = createOfflineRegionFeatureBatch(await source.query(query), {
+  pagination: { offset: 0 },
+});
+
+const snapshot = await planOfflineRegionSnapshot({
+  name: "Field area",
+  sourceId: source.descriptor.id,
+  endpoint: source.descriptor.locator.url,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  bounds: { minX: -158.3, minY: 21.4, maxX: -157.6, maxY: 21.8, crs: "EPSG:4326" },
+  sourceVersion: "source-v3",
+  schemaVersion: "schema-v7",
+  planVersion: "plan-v2",
+  observation: { state: "live", observedAt: new Date().toISOString() },
+  attribution: { noaa: "Data: NOAA" },
+  query,
+  contents: [
+    {
+      kind: "features",
+      bytes: encodeOfflineRegionFeatureBatch(batch),
+      contentType: "application/json",
+      attributionIds: ["noaa"],
+    },
+  ],
+});
+
+await downloadOfflineRegion(snapshot.manifest, {
+  store: applicationStore,
+  load: createOfflineRegionSnapshotLoader(snapshot),
+  logicalQuotaBytes: budget.logicalBudgetBytes,
+});
+
+// Later, with no network at all.
+const read = await readOfflineRegionQuery(snapshot.manifest, {
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  query,
+  bounds: snapshot.manifest.bounds,
+});
+render(read.result.features, read.attribution, read.provenance.observation);
+```
+
+The read path answers only what the region actually holds:
+
+- **Scope first.** The caller's current authorization-scope digest must equal the
+  region's, or the read fails with `scope-mismatch`. A scope change can never
+  serve another principal's cached bytes.
+- **Fail closed, never narrow.** A version the region was not captured at, or an
+  extent it does not cover, raises `out-of-region`; a selection it never stored
+  raises `cache-miss`. Both classify as `offline.region.miss`.
+- **Refuse rather than approximate.** A sub-extent of the region, an
+  `aggregation`, or a `Query` member the read path does not understand raises
+  `HonuaCapabilityNotSupportedError` naming the construct and the
+  `offline-region` protocol, because answering any of them would require
+  evaluating a predicate the snapshot never ran.
+- **Pagination is a window, not an identity.** A stored batch records the window
+  it captured, so a later page is sliced from it exactly. A page outside that
+  window is a miss, never a short answer.
+- **Freshness is reported, never repaired.** A stale region answers with an
+  explicit `stale` decision, because revalidation implies a network the caller
+  may not have.
+- **Nothing is presented as live.** Every result carries a `Result.degraded`
+  entry naming the region, its observation time, and its freshness.
+
+`read.cache` reports the persistent-cache decision — region identity, query
+fingerprint, authorization-scope digest, freshness, completeness, and exactly
+which stored resources answered — and `read.planCache` feeds `explainQuery()` so
+the query plan reports it too. A fresh region carries its manifest identity as
+the plan's `fingerprint` validator, which binds the plan's own fingerprint to the
+region that answered it; a stale region deliberately carries no validator.
+
+`createMemoryOfflineRegionStore()` is a non-durable twin of the IndexedDB store
+for Node, workers, and tests. Both pass one shared suite:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { runOfflineRegionStoreConformance } from "@honua/sdk-js/offline";
+
+const report = await runOfflineRegionStoreConformance({
+  createStore: () => createMemoryOfflineRegionStore(),
+  label: "memory",
+});
+console.log(report.failed === 0);
+```
+
 ## Storage budget and quota admission
 
 `logicalQuotaBytes` is an honest accounting of declared payload lengths, but on

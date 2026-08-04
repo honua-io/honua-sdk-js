@@ -356,7 +356,13 @@ export type OfflineRegionErrorCode =
   | "aborted"
   | "resource-load-failed"
   | "inventory-changed"
-  | "store-failed";
+  | "store-failed"
+  /** No stored resource answers this selection. */
+  | "cache-miss"
+  /** The region belongs to a different authorization scope than the reader. */
+  | "scope-mismatch"
+  /** The requested extent or version is outside what the region captured. */
+  | "out-of-region";
 
 /**
  * Public offline region failure. The detailed legacy reason remains on
@@ -405,6 +411,11 @@ const OFFLINE_REGION_ERROR_CODES = {
   "resource-load-failed": "offline.transport.failure",
   "inventory-changed": "offline.storage.concurrent",
   "store-failed": "offline.storage.failure",
+  // A read the region cannot answer is one recovery class — download a region
+  // for this selection — however it was discovered.
+  "cache-miss": "offline.region.miss",
+  "scope-mismatch": "offline.region.miss",
+  "out-of-region": "offline.region.miss",
 } as const satisfies Record<OfflineRegionErrorCode, HonuaErrorCode>;
 
 function offlineRegionSdkCode(code: unknown, cause: unknown): HonuaErrorCode {

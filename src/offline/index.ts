@@ -19,7 +19,69 @@ export {
   createOfflineRegionManifest,
   downloadOfflineRegion,
   planOfflineRegionAdmission,
+  verifyOfflineRegionManifest,
 } from "./region.js";
+export {
+  canonicalizeOfflineRegionQuery,
+  compareOfflineRegionBounds,
+  OFFLINE_REGION_PROTOCOL,
+  offlineRegionAuthorizationScopeDigest,
+  offlineRegionQueryFingerprint,
+  offlineRegionResourceId,
+} from "./selection.js";
+export type {
+  OfflineRegionBoundsRelation,
+  OfflineRegionCanonicalQueryV1,
+  OfflineRegionQueryScopeV1,
+  OfflineRegionResourceSelector,
+  OfflineRegionSelectionIdentityV1,
+} from "./selection.js";
+export {
+  createOfflineRegionFeatureBatch,
+  createOfflineRegionSnapshotLoader,
+  decodeOfflineRegionFeatureBatch,
+  DEFAULT_OFFLINE_REGION_SNAPSHOT_MAX_CONTENTS,
+  encodeOfflineRegionFeatureBatch,
+  HONUA_OFFLINE_FEATURE_BATCH_KIND,
+  HONUA_OFFLINE_FEATURE_BATCH_VERSION,
+  HONUA_OFFLINE_REGION_SNAPSHOT_KIND,
+  HONUA_OFFLINE_REGION_SNAPSHOT_VERSION,
+  planOfflineRegionSnapshot,
+} from "./snapshot.js";
+export type {
+  OfflineRegionFeatureBatchV1,
+  OfflineRegionSnapshotContentV1,
+  OfflineRegionSnapshotEntryV1,
+  OfflineRegionSnapshotSelectionV1,
+  OfflineRegionSnapshotV1,
+} from "./snapshot.js";
+export {
+  createOfflineRegionQueryPlanCache,
+  DEFAULT_OFFLINE_REGION_READ_STALE_AFTER_MS,
+  HONUA_OFFLINE_REGION_READ_KIND,
+  HONUA_OFFLINE_REGION_READ_VERSION,
+  readOfflineRegionQuery,
+} from "./read.js";
+export type {
+  OfflineRegionQueryReadV1,
+  OfflineRegionReadCacheDecisionV1,
+  OfflineRegionReadFreshness,
+  OfflineRegionReadProvenanceV1,
+  ReadOfflineRegionQueryOptions,
+} from "./read.js";
+export { createMemoryOfflineRegionStore, MemoryOfflineRegionStore } from "./memory-store.js";
+export type { MemoryOfflineRegionStoreOptions } from "./memory-store.js";
+export {
+  HONUA_OFFLINE_REGION_STORE_CONFORMANCE_KIND,
+  HONUA_OFFLINE_REGION_STORE_CONFORMANCE_VERSION,
+  OFFLINE_REGION_STORE_CONFORMANCE_CASES,
+  runOfflineRegionStoreConformance,
+} from "./store-conformance.js";
+export type {
+  OfflineRegionStoreConformanceCaseResultV1,
+  OfflineRegionStoreConformanceOptions,
+  OfflineRegionStoreConformanceReportV1,
+} from "./store-conformance.js";
 export { createIndexedDbOfflineRegionStore, IndexedDbOfflineRegionStore } from "./indexeddb.js";
 export {
   DEFAULT_OFFLINE_STORAGE_HEADROOM_RATIO,
