@@ -280,6 +280,8 @@ export type {
   SceneRuntimePrimitiveKind,
   SceneSpatialCapabilities,
   SceneSpatialFidelity,
+  SceneSpatialPrecision,
+  SceneSpatialPrecisionFloor,
   SceneSpatialReference,
 } from "./primitives.js";
 export type {

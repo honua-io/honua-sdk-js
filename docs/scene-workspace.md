@@ -270,9 +270,11 @@ Scene primitives describe 3D intent without naming a renderer package:
   renderer cannot draw it directly.
 
 Elevation-source, imagery-layer, and model-layer primitives additionally accept
-an optional `crs` and `verticalDatum`. Both are descriptive plan data and both
-round-trip through workspace serialization. See
-[Spatial reference and fidelity](#spatial-reference-and-fidelity).
+an optional `crs`, `verticalDatum`, and `precision`. Every primitive accepts an
+optional `cache` and `sourceVersion`. All of them are descriptive plan data and
+all of them round-trip through workspace serialization. See
+[Spatial reference and fidelity](#spatial-reference-and-fidelity) and
+[Precision, cache, and source version](#precision-cache-and-source-version).
 
 Use MapLibre 2.5D when the experience is a pitched map with raster-dem terrain,
 hillshade, and source-bound building or asset extrusions. Use a Cesium or custom
@@ -391,6 +393,119 @@ for (const diagnostic of diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABI
   // scene-primitive-vertical-datum-unsupported / unsupported:
   // Cesium heights are ellipsoidal, so this binding never reaches the globe.
   console.log(diagnostic.code, diagnostic.fidelity, diagnostic.status);
+}
+```
+
+### Precision, cache, and source version
+
+Placing a binding correctly is not the same as resolving it at the detail the
+author claimed. Elevation-source, imagery-layer, and model-layer primitives can
+declare a `precision` descriptor, and every primitive can declare `cache`
+freshness and a `sourceVersion`. None of it changes what the SDK does to the
+data — nothing is resampled, revalidated, or version-negotiated — but all of it
+now reaches the diagnostic stream instead of sitting inert in the plan.
+
+```ts doc-test=skip reason="field shape excerpt, not a standalone program"
+precision: {
+  horizontalMeters?: number;   // finest horizontal detail the binding resolves
+  verticalMeters?: number;     // finest height detail the binding resolves
+  coordinateFrame?: "geocentric" | "local";
+  coordinateStorage?: "float32" | "float64";
+}
+```
+
+The two magnitudes are **claims**. The other two fields, the declared DEM
+`encoding`, and a renderer's own `SceneSpatialCapabilities.precision` floor are
+**limits**. A claim is compared against the coarsest limit that applies to its
+axis, because a binding resolves no finer than its bluntest instrument.
+
+| Limit | Quantum | Derived from |
+| --- | --- | --- |
+| `dem-encoding` | 0.1 m (`mapbox`), 1/256 m (`terrarium`) | The published decode formulas. Mapbox Terrain-RGB is `-10000 + (R * 65536 + G * 256 + B) * 0.1`, so 0.1 m is the smallest height step it can express; Terrarium is `(R * 256 + G + B / 256) - 32768`. Applies to `terrain-rgb` and `raster-dem` sources that declare one of those encodings. |
+| `geocentric-float32-coordinates` | 0.5 m | A float32 carries a 24-bit significand, so adjacent representable values near the WGS84 semi-major axis are `2 ** (floor(log2 6378137) - 23)` = 0.5 m apart. This is why 3D assets are published in a local frame anchored by a relative-to-centre origin rather than in raw ECEF. |
+| `renderer-floor` | Adapter-declared | `SceneRuntimeCapabilities.spatial.precision`. |
+
+| Code | Status | Fidelity | Raised when |
+| --- | --- | --- | --- |
+| `scene-primitive-precision-exact` | `supported` | `exact` | The claim is at or above the coarsest limit on that axis; the binding is carried as authored. |
+| `scene-primitive-precision-equivalent` | `degraded` | `equivalent` | The claim is finer than the coarsest limit; the binding is carried at that coarser quantum. `context` names the axis, the claim, the limit, and its source. |
+| `scene-primitive-cache-stale` | `degraded` | — | `cache.status` is `stale`. The scene draws material the plan already knew was out of date. |
+| `scene-primitive-cache-bypass` | `supported` | — | `cache.status` is `bypass`. Every request for the material reaches the origin. |
+| `scene-primitive-asset-metadata-invalid` | `degraded` | — | A `precision`, `cache`, or `sourceVersion` value could not be read. `context.invalidFields` names them, dotted from the primitive root. |
+
+Four properties hold by construction, and each is a deliberate choice:
+
+- **Silent on half a comparison.** A claim with no declared limit, a limit with
+  no claim, an encoding whose quantum the plan does not publish (`custom`, or
+  none declared), and a renderer that declares no floor all produce nothing. An
+  undeclared `encoding` is never assumed to be the renderer's default, and an
+  omitted renderer floor is not read as an unbounded one.
+- **No `unsupported` precision fidelity exists.** A binding whose detail exceeds
+  a limit still renders, only coarser than authored — which is exactly what
+  `equivalent` means. Minting an `unsupported` precision finding would name a
+  state that cannot occur, so the vocabulary stops at two, the same way the
+  vertical-datum axis stops at one.
+- **Neither shipped adapter declares a precision floor.** Cesium encodes
+  positions relative to a centre before they reach the GPU, and MapLibre samples
+  whatever the DEM encodes; neither imposes a documented sample-spacing limit
+  above the binding's own encoding. A number invented for the table would be
+  worse than silence, so `RENDERER_WGS84_SPATIAL_CAPABILITIES` omits `precision`
+  and a custom adapter declares its own.
+- **Descriptive metadata degrades; it never fails closed.** Precision, cache
+  state, and source version describe the material behind a binding, and none of
+  them can put it in the wrong place, so an unreadable one reports `degraded`
+  and the scene still renders. Staying silent is not the alternative: a
+  `cache.staus` typo dropped in silence would read as `ready`, so both records
+  are validated as closed records and every unknown own key is named.
+
+`sourceVersion` is opaque — a service version, dataset edition, or content
+digest, spelled however the publisher spells it. It is never parsed or compared;
+it is copied onto the `context` of every diagnostic the primitive raises, so a
+finding can be traced back to the material it was computed from.
+
+Cache metadata is reported, not acted on. The SDK does not own the cache: it
+never revalidates, refetches, or evicts, and `ready` and `unknown` are both
+silent because neither says anything the developer can act on.
+
+**Authorization is deliberately not carried here.** The epic that introduced
+this metadata asked scene assets to carry attribution, cache, source-version,
+and *authorization* metadata. The first three are on `ScenePrimitiveBase`; the
+fourth is refused. A scene primitive that reached workspace serialization
+holding a credential or a signed URL would persist it into every snapshot,
+history entry, and shared plan, so credential-bearing URIs fail closed
+(`scene-primitive-imagery-credentials-forbidden`,
+`scene-primitive-model-credentials-forbidden`) with the same fallback in both
+cases: *resolve authorization at the host boundary*. The host attaches
+credentials to the request — through a fetch interceptor, a signing proxy, or a
+Cesium `Resource` it owns — and the plan stays shareable. This is a standing
+decision, not an unfinished field.
+
+```ts doc-test=compile
+import {
+  CESIUM_SCENE_CAPABILITIES,
+  diagnoseScenePrimitives,
+  type SceneRuntimePrimitive,
+} from "@honua/sdk-js/scene-workspace";
+
+const primitives: SceneRuntimePrimitive[] = [
+  {
+    kind: "elevation-source",
+    id: "site-terrain",
+    sourceId: "site-terrain",
+    protocol: "raster-dem",
+    url: "https://terrain.example.test/tiles",
+    encoding: "mapbox",
+    sourceVersion: "dem-2026.2",
+    cache: { status: "stale", scope: "tiles" },
+    // Survey-grade heights, published through an encoding that quantizes to 0.1 m.
+    precision: { verticalMeters: 0.01 },
+  },
+];
+
+for (const diagnostic of diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES)) {
+  // scene-primitive-precision-equivalent / degraded / equivalent, then
+  // scene-primitive-cache-stale — both carrying context.sourceVersion.
+  console.log(diagnostic.code, diagnostic.fidelity, diagnostic.context?.sourceVersion);
 }
 ```
 

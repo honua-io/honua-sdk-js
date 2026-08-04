@@ -642,6 +642,28 @@ if (
   throw new Error("Scene spatial-reference diagnostics missing from @honua/app-platform/scene-workspace");
 if (
   diagnoseScenePrimitives(
+    [
+      {
+        kind: "elevation-source",
+        id: "terrain",
+        sourceId: "terrain",
+        protocol: "raster-dem",
+        url: "https://example.test/terrain",
+        encoding: "mapbox",
+        sourceVersion: "dem-2026.2",
+        cache: { status: "stale" },
+        precision: { verticalMeters: 0.01 },
+      },
+    ],
+    CESIUM_SCENE_CAPABILITIES,
+  )
+    .map((diagnostic) => diagnostic.code + ":" + (diagnostic.fidelity || "none") + ":" + diagnostic.context.sourceVersion)
+    .join("|") !==
+  "scene-primitive-precision-equivalent:equivalent:dem-2026.2|scene-primitive-cache-stale:none:dem-2026.2"
+)
+  throw new Error("Scene precision and asset-metadata diagnostics missing from @honua/app-platform/scene-workspace");
+if (
+  diagnoseScenePrimitives(
     [{ kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "custom" }],
     CESIUM_SCENE_CAPABILITIES,
   ).some((diagnostic) => diagnostic.code !== "scene-primitive-terrain-source-missing-url")
