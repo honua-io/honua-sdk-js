@@ -48,13 +48,19 @@ jobs:
           registry-url: "https://registry.npmjs.org"
           cache: "npm"
 
-      - name: Upgrade npm for trusted publishing
+      - name: Prepare a hash-pinned npm for trusted publishing
         # Node 20 bundles npm 10; the OIDC credential exchange needs npm >= 11.5.
         # The tarball's sha512 integrity hash (from the registry's own
         # dist.integrity field, recorded when this workflow was authored) is
-        # pinned here and verified before install, so a re-published or
-        # tampered registry artifact for the same version can't install
-        # silently (mirrors SHA-pinning `uses:` actions elsewhere in CI).
+        # pinned here and verified before use, so a re-published or tampered
+        # registry artifact for the same version cannot slip in (mirrors
+        # SHA-pinning `uses:` actions elsewhere in CI).
+        #
+        # The verified tarball is unpacked and run in place rather than handed
+        # to `npm install -g`: npm ships its dependencies bundled, so the CLI
+        # runs straight from the archive, and the publish step below then
+        # executes exactly the bytes this step hashed — no second, unpinned
+        # resolution between verification and use.
         run: |
           set -euo pipefail
           npm_pkg="npm@11.18.0"
@@ -67,9 +73,14 @@ jobs:
             echo "::error::${npm_pkg} tarball sha512 mismatch: expected ${npm_expected_sha512}, got ${npm_actual_sha512}"
             exit 1
           fi
-          npm install -g "$npm_tarball_path"
+          npm_root="${RUNNER_TEMP}/npm-pinned"
+          rm -rf "$npm_root"
+          mkdir -p "$npm_root"
+          tar -xzf "$npm_tarball_path" -C "$npm_root"
           rm -f "$npm_tarball_path"
-          npm --version
+          pinned_npm="${npm_root}/package/bin/npm-cli.js"
+          node "$pinned_npm" --version
+          echo "PINNED_NPM=${pinned_npm}" >> "$GITHUB_ENV"
 
       - name: Install repository dependencies
         # The scaffold has no dependencies of its own; the gates below are
@@ -126,7 +137,7 @@ jobs:
             dist_tag="latest"
           fi
 
-          if [[ "${DRY_RUN}" != "true" ]] && npm view "${package_name}@${package_version}" version >/dev/null 2>&1; then
+          if [[ "${DRY_RUN}" != "true" ]] && node "${PINNED_NPM}" view "${package_name}@${package_version}" version >/dev/null 2>&1; then
             echo "${package_name}@${package_version} is already published; skipping."
             exit 0
           fi
@@ -136,4 +147,6 @@ jobs:
             exit 1
           fi
 
-          npm publish --access public --tag "$dist_tag" $flags
+          # The hash-verified CLI from the step above, not whatever `npm` the
+          # PATH resolves to at this point.
+          node "${PINNED_NPM}" publish --access public --tag "$dist_tag" $flags
