@@ -413,6 +413,66 @@ feature-detect it.
 The application owns the Cesium `Viewer`/`Scene` itself and must dispose that
 target separately.
 
+### Real-Cesium browser evidence and teardown budgets
+
+Everything above is also proven against the real `cesium` package in a real
+Chromium page, not only against the unit suite's `vi.mock("cesium")` seam. The
+lane lives in `test/playwright/cesium-scene-adapter-fixtures.spec.mjs` and runs
+inside the repository's normal browser smoke job:
+
+```bash
+npm run build
+npm run test:playwright:cesium-scene
+```
+
+The fixture mounts one accepted plan through the public
+`createCesiumSceneAdapter` surface onto a live `Viewer` and covers every
+primitive kind the adapter materializes, plus both non-`supported` outcomes:
+
+| Binding | Kind | Expected outcome |
+| --- | --- | --- |
+| `fixture-camera` | `camera` | camera driven to the plan's viewpoint |
+| `fixture-terrain` | `elevation-source` (`quantized-mesh`) | real `CesiumTerrainProvider`, exaggeration applied |
+| `fixture-imagery` | `imagery-layer` (`url-template`) | real `UrlTemplateImageryProvider`, opacity applied |
+| `fixture-imagery-mercator` | `imagery-layer` declaring `EPSG:3857` | renders, and reports `scene-primitive-crs-equivalent` at `equivalent` fidelity |
+| `fixture-tileset` | `model-layer` (`3d-tiles`) | real `Cesium3DTileset` with loaded content, placed by the primitive's `position` |
+| `fixture-model` | `model-layer` (`glb`) | real `Model`, ready, placed and scaled |
+| `fixture-i3s` | `model-layer` (`i3s`) | fails closed with `scene-primitive-model-format-not-materialized`; never reaches a Cesium factory |
+
+Every asset — the glTF/GLB, the 3D-Tiles tileset, the quantized-mesh terrain
+tiles, and the imagery tiles — is generated in-process by
+`test/playwright/cesium-scene-fixture-assets.mjs` and served from loopback. The
+spec aborts and fails on any off-origin request, so the lane has no network
+dependency at all.
+
+The plan is mounted and torn down repeatedly on fresh viewers, and the teardown
+of each cycle is measured against fixed budgets:
+
+- Adapter-owned handles are released **before** the viewer is destroyed: the
+  scene's primitive collection and imagery collection return to their baseline,
+  `terrainProvider` is cleared, and `verticalExaggeration` returns to `1`.
+- The viewer reports `isDestroyed()`, its canvas leaves the DOM, and no
+  `requestAnimationFrame` callback is left pending.
+- DOM event listener retention is constant per cycle and bounded. CesiumJS binds
+  a fixed handful of listeners to the widget's own elements and drops them with
+  the element rather than through `removeEventListener`, which is legitimate
+  because those elements are proven collectible; a listener that accumulates
+  across cycles is not.
+- Wall-clock ceilings guard against a teardown path that starts blocking rather
+  than against runner jitter; the spec records the measured actuals next to the
+  ceilings it asserts.
+- Every destroyed `Viewer` object graph must become collectible under forced GC,
+  and no WebGL canvas may outlive a non-final cycle. Chromium pins the most
+  recently used WebGL canvas regardless of what the page does, so exactly one
+  surviving canvas is the honest floor; a real retention bug accumulates across
+  cycles instead.
+- CesiumJS pools its `TaskProcessor` web workers globally and deliberately does
+  not terminate them on viewer destroy, so the worker budget is non-growth after
+  the first cycle rather than zero.
+
+Console errors and unhandled rejections fail the lane, matching the sample
+console-teardown gate.
+
 ## Demo Fit
 
 The incident operations dashboard can use this workspace when the map expands
