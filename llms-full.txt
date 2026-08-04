@@ -1691,19 +1691,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `b5f6fc73`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `18a3280d`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 738.5 KiB | 198.4 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 231.4 KiB | 59.7 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 747.5 KiB | 200.8 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 238.6 KiB | 61.7 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.8 KiB | 13.4 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 364.3 KiB | 98.3 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 999.8 KiB | 250.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 366.0 KiB | 98.7 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 1020.0 KiB | 255.5 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
-| Routing client | 20.5 KiB | 6.3 KiB |
+| Routing client | 20.6 KiB | 6.3 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.0.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1036.3 KiB minified / **273.8 KiB gzip**.
@@ -1713,8 +1713,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 738.5 KiB ≈ **1.73 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 198.4 KiB ≈ **0.46 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 747.5 KiB ≈ **1.74 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 200.8 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -3595,7 +3595,7 @@ reports `materializedRows`; there is no unbounded conversion mode.
 
 `serializeGeoArrowBatch()` and `deserializeGeoArrowBatch()` provide a bounded,
 dependency-free persistence envelope for the normative GeoArrow mapping. The
-envelope carries a `honua.geoarrow.batch` kind and `1.0` version, deduplicates
+envelope carries a `honua.geoarrow.batch` kind and a `1.1` version, deduplicates
 shared backing buffers, and restores the original batch identity and metadata.
 Deserialization re-runs the GeoArrow layout validator, so malformed or future
 version data fails instead of silently changing layout semantics. This is not
@@ -3632,6 +3632,102 @@ console.log(restored.metrics.serializedBytes);
 There is no unbounded mode: callers should set a persistence ceiling suitable
 for their cache. Unsupported envelope kinds or versions throw
 `HonuaGeoArrowError` rather than silently migrating layout semantics.
+
+### Envelope migration ladder
+
+An envelope written by an older SDK is migrated forward on read through an
+ordered registry of `fromVersion` → `toVersion` steps
+(`GEOARROW_ENVELOPE_MIGRATIONS`), and the applied chain is reported in the
+deserialization metrics. The shipped ladder carries `1.0 → 1.1`, which derives
+each backing's decoded length from its base64 length and stamps the GeoArrow
+layout version that `1.0` left implicit, so backing ceilings are now enforced
+before a single byte is decoded.
+
+Version resolution happens on the envelope header, before any payload is read.
+An unknown version, a version from a future build, and a version the ladder
+cannot carry to the current one all throw `unsupported-serialization` with a
+stable message; nothing is decoded and nothing is guessed. A migration step
+receives only the parsed envelope — never the caller's serialization options —
+so migrating an old entry can never widen a bound the caller set.
+
+```ts doc-test=compile
+import {
+  deserializeGeoArrowBatch,
+  planGeoArrowEnvelopeMigration,
+  readableGeoArrowEnvelopeVersions,
+} from "@honua/sdk-js/query-planner";
+
+// Which persisted layouts this build can still read.
+console.log(readableGeoArrowEnvelopeVersions()); // ["1.0", "1.1"]
+
+const plan = planGeoArrowEnvelopeMigration("1.0");
+if (!plan.applicable) throw new Error(`unreadable envelope: ${plan.reason}`);
+
+declare const persisted: Uint8Array;
+const restored = deserializeGeoArrowBatch(persisted);
+console.log(restored.metrics.envelopeVersion, restored.metrics.migrations); // "1.1" ["1.0->1.1"]
+```
+
+### Persistent batch cache
+
+**The default is no cache.** Nothing in the SDK persists a batch: an application
+opts in by creating a store, choosing a backend, and writing to it. When it
+does, `createColumnarBatchCache()` binds five properties that a hand-rolled
+cache would have to get right on its own.
+
+1. **Identity-bound keys.** `columnarBatchCacheKey(identity)` digests source id,
+   source version, schema version, plan id, the ordering contract, the freshness
+   validators (`validator`, `generation`), and a **digest** of the authorization
+   scope. The raw scope never appears in the key or in a persisted record, and a
+   change to any keyed component addresses a different entry. `observedAt` and
+   `staleAfter` are deliberately not keyed — they describe when a producer
+   looked, not what was asked for — so expiry is enforced on read instead.
+2. **Scope isolation.** A batch written under one authorization scope is never
+   returned to a reader holding another, and a record whose recorded scope digest
+   disagrees with the reader's is deleted rather than served.
+3. **Freshness.** A read past the record's `staleAfter`, or past the store's
+   `maxAgeMs`, returns an explicit `stale` outcome carrying the record, so a
+   caller can revalidate instead of silently receiving expired data.
+4. **Integrity.** Every read recomputes the SHA-256 of the stored envelope and
+   compares it to the digest written with it. A mismatch is a miss *and* a
+   delete; unverified bytes are never served.
+5. **Bounded storage.** An explicit byte quota and record cap are enforced by a
+   deterministic oldest-first eviction plan, applied together with the write in
+   one atomic backend operation.
+
+The store itself holds no IndexedDB, filesystem, or Node reference, so
+`/query-planner` stays SSR- and worker-safe. `createIndexedDbColumnarBatchCacheStorage()`
+is the browser backend; `createMemoryColumnarBatchCacheStorage()` is the
+in-process one with identical semantics, and
+`runColumnarBatchCacheConformance()` is the shared suite both must pass.
+
+```ts doc-test=compile
+import {
+  createColumnarBatchCache,
+  createIndexedDbColumnarBatchCacheStorage,
+} from "@honua/sdk-js/query-planner";
+import type { ColumnarBatchIdentityV1, ColumnarBatchV1 } from "@honua/sdk-js/query-planner";
+
+const cache = createColumnarBatchCache(createIndexedDbColumnarBatchCacheStorage(), {
+  quotaBytes: 32 * 1024 * 1024,
+  maxRecords: 32,
+  maxAgeMs: 15 * 60 * 1000,
+  onDiagnostic: (diagnostic) => console.warn(diagnostic.operation, diagnostic.reason),
+});
+
+declare const identity: ColumnarBatchIdentityV1;
+declare const batch: ColumnarBatchV1;
+
+const read = await cache.read(identity);
+if (read.outcome === "hit") {
+  console.log(read.batch.rowCount, read.metrics.migrations);
+} else if (read.outcome === "stale") {
+  console.log("revalidate", read.record.freshness.validator);
+} else {
+  const written = await cache.write(batch);
+  if (written.outcome === "refused") console.warn(written.reason, written.detail);
+}
+```
 
 ### Optional Apache Arrow adapter
 
@@ -4195,10 +4291,11 @@ throughput budgets for both directions; see
 
 This slice does not claim the full #394 workstream. Arrow IPC decoding,
 multi-batch streaming across more than one in-flight worker, planner
-integration, renderer consumption, batch cache identity, incremental
-re-aggregation over realtime patches, and application-specific CSP worker URL
-policy remain separate work. Converting a batch that is mid-patch also remains
-out of scope: the realtime columnar patch child owns patch-consistent views.
+integration, renderer consumption, incremental re-aggregation over realtime
+patches (which must also invalidate or re-version their cached base batch), and
+application-specific CSP worker URL policy remain separate work. Converting a
+batch that is mid-patch also remains out of scope: the realtime columnar patch
+child owns patch-consistent views.
 
 ---
 
@@ -10631,7 +10728,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `755c38cd`._
+_Generated 2026-08-04 at commit `18a3280d`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -10645,12 +10742,12 @@ _Generated 2026-08-04 at commit `755c38cd`._
 | `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 605.1 KiB | 612.2 KiB | 163.6 KiB | 163.9 KiB |
+| `/runtime` | 605.2 KiB | 612.2 KiB | 163.7 KiB | 163.9 KiB |
 | `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
 | `/offline` | 138.7 KiB | 144.9 KiB | 37.8 KiB | 39.2 KiB |
-| `/query-planner` (worker runtime injected) | 678.0 KiB | 703.3 KiB | 148.6 KiB | 162.6 KiB |
+| `/query-planner` (worker runtime injected) | 707.7 KiB | 778.7 KiB | 157.3 KiB | 162.6 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 125.6 KiB | 138.2 KiB | 38.2 KiB | 42.0 KiB |
-| `/esri-compat` | 1019.3 KiB | 1026.2 KiB | 255.3 KiB | 280.9 KiB |
+| `/esri-compat` | 1020.0 KiB | 1026.2 KiB | 255.5 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
@@ -10658,11 +10755,11 @@ _Generated 2026-08-04 at commit `755c38cd`._
 | `/auth` | 26.0 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
 | `/map` | 181.1 KiB | 198.2 KiB | 51.3 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 139.9 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 140.0 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.0 KiB | 1037.6 KiB | 271.6 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.6 KiB | 1120.1 KiB | 295.0 KiB | 321.9 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 65.3 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.1 KiB | 1037.6 KiB | 271.7 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.8 KiB | 1120.1 KiB | 295.1 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
