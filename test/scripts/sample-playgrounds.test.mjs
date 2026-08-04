@@ -176,6 +176,33 @@ describe("catalog playground links", () => {
   });
 });
 
+describe("published decision artifact", () => {
+  const artifact = readJson("samples/dist/sample-playgrounds.v1.json");
+
+  it("publishes one record per decision, and never inside the pinned site projection", () => {
+    assert.equal(artifact.format, "honua.sdk.sample-playgrounds.v1");
+    assert.equal(artifact.playgrounds.length + artifact.excluded.length, decisions.length);
+    assert.deepEqual(
+      artifact.playgrounds.map((entry) => entry.sampleId).sort(),
+      decisions.filter((decision) => decision.qualified).map((decision) => decision.id).sort(),
+    );
+    for (const entry of artifact.excluded) {
+      assert.ok(PLAYGROUND_EXCLUSION_CATEGORIES.includes(entry.category), entry.sampleId);
+    }
+    // The site projection's schema is content-addressed by the committed
+    // consumer handoff, so playground data must never appear there.
+    const projection = readJson("samples/dist/honua-site-samples.v2.json");
+    for (const sample of projection.samples) assert.equal(sample.playground, undefined, sample.id);
+  });
+
+  it("agrees with the catalog entries it was generated beside", () => {
+    for (const entry of artifact.playgrounds) {
+      const sample = catalog.samples.find((candidate) => candidate.id === entry.sampleId);
+      assert.deepEqual(sample.playground, { projectPath: entry.projectPath, providers: entry.providers });
+    }
+  });
+});
+
 describe("source analysis helpers", () => {
   it("resolves a scoped or deep specifier to its package", () => {
     assert.equal(bareSpecifierPackage("maplibre-gl/dist/maplibre-gl.css"), "maplibre-gl");

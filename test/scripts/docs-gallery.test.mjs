@@ -81,8 +81,14 @@ function canonicalGallery() {
   return verifiedGallery(projection, { bytes: projectionBytes, fixture: consumerFixture });
 }
 
-function renderGallery(gallery, resolveSourceLink = repositorySourceResolver) {
-  return renderGalleryContent(gallery, { resolveSourceLink });
+function renderGallery(gallery, resolveSourceLink = repositorySourceResolver, resolvePlayground) {
+  return renderGalleryContent(gallery, { resolveSourceLink, resolvePlayground });
+}
+
+/** Playground index in the shape scripts/sample-playgrounds.mjs publishes. */
+function playgroundResolver(entries) {
+  const index = new Map(entries.map((entry) => [entry.sampleId, entry]));
+  return (sample) => index.get(sample.id);
 }
 
 function sampleById(value, id) {
@@ -794,23 +800,25 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
 });
 
 test("renders a zero-install playground link per provider for samples that have one", async () => {
-  const value = structuredClone(projection);
-  sampleById(value, "temporal-playback").playground = {
-    projectPath: "playgrounds/temporal-playback",
-    providers: [
-      {
-        id: "stackblitz",
-        title: "StackBlitz",
-        url: "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback",
-      },
-      {
-        id: "codesandbox",
-        title: "CodeSandbox",
-        url: "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback",
-      },
-    ],
-  };
-  const html = renderGallery(await verifiedGallery(value));
+  const resolve = playgroundResolver([
+    {
+      sampleId: "temporal-playback",
+      projectPath: "playgrounds/temporal-playback",
+      providers: [
+        {
+          id: "stackblitz",
+          title: "StackBlitz",
+          url: "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback",
+        },
+        {
+          id: "codesandbox",
+          title: "CodeSandbox",
+          url: "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback",
+        },
+      ],
+    },
+  ]);
+  const html = renderGallery(await canonicalGallery(), repositorySourceResolver, resolve);
   const card = html.slice(html.indexOf('data-sample-id="temporal-playback"'));
   const body = card.slice(0, card.indexOf("</article>"));
 
@@ -826,24 +834,29 @@ test("renders a zero-install playground link per provider for samples that have 
   assert.doesNotMatch(untouched.slice(0, untouched.indexOf("</article>")), /demo-link--playground/);
 });
 
-test("refuses a playground link that is not a canonical https URL", async () => {
-  const value = structuredClone(projection);
-  sampleById(value, "temporal-playback").playground = {
-    projectPath: "playgrounds/temporal-playback",
-    providers: [{ id: "stackblitz", title: "StackBlitz", url: "http://stackblitz.com/github/honua-io/honua-sdk-js" }],
-  };
-  // The projection schema pins the shape a card may link to; the renderer's own
-  // safeHttpUrl guard is the second line, not the first.
-  await assert.rejects(verifiedGallery(value), /must match pattern/);
+test("drops a playground link that is not a canonical query-free https URL", async () => {
+  // The published artifact's schema pins the URL shape; this is the renderer's
+  // own second line of defence against anything that reaches it unvalidated.
+  const resolve = playgroundResolver([
+    {
+      sampleId: "temporal-playback",
+      projectPath: "playgrounds/temporal-playback",
+      providers: [
+        { id: "stackblitz", title: "StackBlitz", url: "http://stackblitz.com/github/honua-io/honua-sdk-js" },
+        { id: "codesandbox", title: "CodeSandbox", url: "https://codesandbox.io/s/github/honua-io?token=secret" },
+      ],
+    },
+  ]);
+  const html = renderGallery(await canonicalGallery(), repositorySourceResolver, resolve);
+  assert.doesNotMatch(html, /demo-link--playground/);
+  assert.doesNotMatch(html, /token=secret/);
+  assert.doesNotMatch(html, /http:\/\/stackblitz\.com/);
 });
 
-test("refuses a playground link that carries a credential query parameter", async () => {
-  const value = structuredClone(projection);
-  sampleById(value, "temporal-playback").playground = {
-    projectPath: "playgrounds/temporal-playback",
-    providers: [{ id: "stackblitz", title: "StackBlitz", url: "https://stackblitz.com/github/honua-io?token=secret" }],
-  };
-  // The projection's own credential scan runs before the gallery renders, so a
-  // link like this can never reach a card in the first place.
-  await assert.rejects(verifiedGallery(value), /forbidden credential query parameter token/);
+test("rejects a playground resolver that is not callable", async () => {
+  const gallery = await canonicalGallery();
+  assert.throws(
+    () => renderGalleryContent(gallery, { resolveSourceLink: repositorySourceResolver, resolvePlayground: {} }),
+    /playground resolver must be a function/,
+  );
 });

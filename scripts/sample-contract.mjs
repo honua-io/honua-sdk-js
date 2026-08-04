@@ -3472,7 +3472,6 @@ function publicSample(sample, sdk) {
       path: sample.sourcePath,
       docsPath: sample.docsPath,
     },
-    ...(sample.playground ? { playground: structuredClone(sample.playground) } : {}),
     sdk: { package: sdk.package, version: sdk.version },
     capabilities: sample.capabilities,
     capabilityKeys: sample.capabilityKeys,

@@ -37,6 +37,10 @@ const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const SITE_PROJECTION = path.join(ROOT, SITE_PROJECTION_PATH);
 const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
 const SITE_CONSUMER_FIXTURE = path.join(ROOT, SITE_CONSUMER_FIXTURE_PATH);
+// Playground links ride their own artifact rather than the site projection,
+// whose schema is content-addressed by the committed consumer handoff (#958).
+const SAMPLE_PLAYGROUNDS_PATH = "samples/dist/sample-playgrounds.v1.json";
+const SAMPLE_PLAYGROUNDS = path.join(ROOT, SAMPLE_PLAYGROUNDS_PATH);
 
 const SITE_TITLE = "@honua/sdk-js";
 const SITE_URL = "https://honua-io.github.io/honua-sdk-js/";
@@ -407,8 +411,22 @@ function galleryEvidenceSection() {
 </section>`;
 }
 
+/** Sample id -> generated playground, read from the standalone decision artifact. */
+function loadPlaygroundIndex() {
+  if (!fs.existsSync(SAMPLE_PLAYGROUNDS)) return new Map();
+  const artifact = parseJsonDocument(fs.readFileSync(SAMPLE_PLAYGROUNDS, "utf8"), SAMPLE_PLAYGROUNDS_PATH);
+  if (artifact.format !== "honua.sdk.sample-playgrounds.v1") {
+    throw new Error(`${SAMPLE_PLAYGROUNDS_PATH} does not declare the expected format`);
+  }
+  return new Map((artifact.playgrounds ?? []).map((entry) => [entry.sampleId, entry]));
+}
+
 function galleryPage(gallery) {
-  const content = renderGalleryContent(gallery, { resolveSourceLink: (sample) => demoSourceUrl(sample.source.docsPath) });
+  const playgrounds = loadPlaygroundIndex();
+  const content = renderGalleryContent(gallery, {
+    resolveSourceLink: (sample) => demoSourceUrl(sample.source.docsPath),
+    resolvePlayground: (sample) => playgrounds.get(sample.id),
+  });
   return page({
     sitePath: "gallery.html",
     title: `Demo gallery · ${SITE_TITLE}`,
