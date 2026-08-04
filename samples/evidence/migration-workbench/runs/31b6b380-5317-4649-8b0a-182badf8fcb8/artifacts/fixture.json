@@ -1,0 +1,29 @@
+{
+  "format": "honua.sdk.sample-fixture-gate.v1",
+  "sampleId": "migration-workbench",
+  "sourceRevision": "f841ac153d1cc74d589c24e4c69f65d21a545cb5",
+  "command": [
+    "npm",
+    "run",
+    "demo:migration-workbench:mock",
+    "--",
+    "--evidence-once"
+  ],
+  "transport": "loopback-http",
+  "networkScope": "loopback-only",
+  "host": "127.0.0.1",
+  "port": 41909,
+  "ready": true,
+  "started": true,
+  "probe": {
+    "method": "GET",
+    "path": "/",
+    "status": 200,
+    "bodyBytes": 10931,
+    "bodySha256": "ad8f1308a22851fe561b3e1b2c62466a007f036a2a085efa3d8502de7356d7bf",
+    "contentType": "text/html; charset=utf-8"
+  },
+  "closed": true,
+  "listeningAfterClose": false,
+  "activeConnectionsAfterClose": 0
+}
