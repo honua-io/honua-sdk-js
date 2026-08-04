@@ -271,6 +271,7 @@ jobs:
         if: steps.decision.outputs.skip == 'false'
         run: |
           npm run docs:comparison
+          npm run docs:mcp-scorecard
           npm run docs:llms
 
       - name: Verify llms.txt freshness before publication
@@ -294,6 +295,7 @@ jobs:
             docs/bundle-sizes.md \
             docs/comparison.md \
             docs/errors.md \
+            docs/generated/mcp-eval-scorecard.md \
             llms.txt \
             llms-full.txt \
             examples/migration-workbench/public/artifacts \

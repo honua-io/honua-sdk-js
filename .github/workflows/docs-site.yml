@@ -32,6 +32,9 @@ on:
       - "scripts/docs-versions.mjs"
       - "scripts/generate-llms-txt.mjs"
       - "scripts/generate-comparison-page.mjs"
+      - "scripts/generate-mcp-eval-scorecard.mjs"
+      - "scripts/lib/mcp-eval-scorecard.mjs"
+      - "mcp/evals/runs/**"
       - "scripts/lib/docs-gallery-client.mjs"
       - "scripts/lib/docs-gallery.mjs"
       - "scripts/sample-contract.mjs"
@@ -88,6 +91,12 @@ jobs:
       # or stale figures.
       - name: Verify comparison page freshness (gate)
         run: npm run docs:comparison:check
+
+      # Issue #960: the published cross-model MCP eval scorecard is a pure
+      # function of the committed run artifacts under mcp/evals/runs/. A new run
+      # that was not republished, or a hand-edited figure, fails here.
+      - name: Verify MCP eval scorecard freshness (gate)
+        run: npm run docs:mcp-scorecard:check
 
       - name: Verify documentation version manifest
         run: npm run docs:versions:check

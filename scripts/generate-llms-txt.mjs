@@ -144,6 +144,11 @@ const SECTIONS = [
           "Natural-language map control: plan-first NL-to-plan compilation, BYO-LLM callback, agent-safety approval envelopes, receipts, and MCP/OpenAI tool publication.",
       },
       {
+        path: "docs/generated/mcp-eval-scorecard.md",
+        description:
+          "Published cross-model MCP eval scorecard: per-model pass rates, the zero-LLM control, the per-scenario matrix, every non-passing run, and protocol-certification failures — generated from dated, committed run artifacts.",
+      },
+      {
         path: "docs/decisions/north-star-sdk-application-kernel.md",
         description:
           "Accepted-for-review application-kernel boundary and API: connect, inspect, explain, query, mount, provenance, and safe agent plans.",
