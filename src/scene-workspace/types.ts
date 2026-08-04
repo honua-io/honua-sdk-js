@@ -75,6 +75,12 @@ export interface SceneTimelineState {
   readonly endTime?: string;
   readonly playing?: boolean;
   readonly progress?: number;
+  /**
+   * Clock rate: simulated seconds advanced per real second. Renderer-neutral,
+   * and bound to Cesium's `Clock.multiplier` by the scene adapter's time
+   * binding. Omit it and the renderer's own rate is left alone.
+   */
+  readonly speed?: number;
 }
 
 export interface SceneEvidenceReference {

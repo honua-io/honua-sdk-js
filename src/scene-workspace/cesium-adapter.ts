@@ -31,6 +31,12 @@
  */
 
 import {
+  type CesiumClockTarget,
+  type CesiumSceneTimeApplication,
+  applyCesiumSceneTime,
+  restoreCesiumClock,
+} from "./cesium-time.js";
+import {
   RENDERER_WGS84_SPATIAL_CAPABILITIES,
   type SceneElevationSourcePrimitive,
   type SceneImageryLayerPrimitive,
@@ -213,8 +219,13 @@ interface CesiumTerrainProviderLike {
  *
  * `scene` is optional so a camera-only target (as shipped in #1196) keeps
  * working unchanged; layer rendering simply no-ops without it.
+ *
+ * `clock` (from {@link CesiumClockTarget}) is the opt-in for application-time
+ * binding: supply `viewer.clock` and the adapter drives it from the workspace
+ * `timeline` slice; omit it and no clock is ever touched. See
+ * `docs/scene-workspace.md` for the ownership contract.
  */
-export interface CesiumSceneRuntimeTarget {
+export interface CesiumSceneRuntimeTarget extends CesiumClockTarget {
   readonly camera: CesiumCameraLike;
   readonly scene?: CesiumSceneLike;
 }
@@ -393,6 +404,14 @@ type CesiumModule = {
   };
   readonly CesiumTerrainProvider: {
     fromUrl(url: string, options?: Record<string, unknown>): Promise<CesiumTerrainProviderLike>;
+  };
+  /**
+   * Optional on purpose: only the clock binding reads it, and a peer without it
+   * degrades to `scene-time-runtime-unavailable` instead of throwing, so a
+   * plan-only application never depends on it.
+   */
+  readonly JulianDate?: {
+    fromIso8601(value: string): unknown;
   };
   readonly UrlTemplateImageryProvider: new (options: Record<string, unknown>) => CesiumImageryProviderLike;
   readonly WebMapServiceImageryProvider: new (options: Record<string, unknown>) => CesiumImageryProviderLike;
@@ -1309,13 +1328,22 @@ export function pickCesiumFeatureAttributes(
  * `pointCloudShading`. I3S is declared-capable but unmaterialized, so it
  * diagnoses `scene-primitive-model-format-not-materialized`; extrusions remain
  * a MapLibre-path concern.
+ *
+ * As of #1048 `state` is load-bearing: its `timeline` slice is bound to the
+ * target's clock when the host opted into one (see
+ * {@link CesiumSceneRuntimeTarget}), and every arm — applied, host-owned,
+ * unbound, uninterpretable — reports itself as a `scene-time-*` diagnostic.
+ * Binding time constructs no renderer resource, so it never displaces a
+ * primitive: the mount's reuse diff is untouched by a moving clock.
  */
 export async function applyCesiumScenePrimitives(
   target: CesiumSceneRuntimeTarget,
   primitives: readonly SceneRuntimePrimitive[],
-  _state?: SceneWorkspaceState,
+  state?: SceneWorkspaceState,
 ): Promise<ScenePrimitiveApplyResult & { readonly layers: ReadonlyMap<string, CesiumLayerHandle> }> {
-  const application = await applyCesiumScenePrimitivesInternal(target, primitives);
+  const application = await applyCesiumScenePrimitivesInternal(target, primitives, {
+    ...(state ? { state } : {}),
+  });
   return {
     status: application.status,
     diagnostics: application.diagnostics,
@@ -1400,6 +1428,13 @@ export interface ApplyCesiumScenePrimitivesInternalOptions {
    * handle carried forward into this application's result.
    */
   readonly reuse?: ReadonlyMap<string, CesiumLayerHandle | undefined>;
+  /**
+   * Workspace state applied alongside the plan. Only the `timeline` slice is
+   * consumed here — it drives the target's clock when the host bound one. Time
+   * is deliberately outside the plan, so it can never displace a mounted
+   * binding.
+   */
+  readonly state?: SceneWorkspaceState;
 }
 
 /**
@@ -1419,6 +1454,8 @@ export interface CesiumScenePrimitiveApplication {
   readonly created: readonly string[];
   /** Ids of primitives whose renderer resource was carried forward untouched. */
   readonly reused: readonly string[];
+  /** What the workspace `timeline` slice did to the bound clock, if anything. */
+  readonly time: CesiumSceneTimeApplication;
 }
 
 /**
@@ -1430,9 +1467,9 @@ export interface CesiumScenePrimitiveApplication {
  *
  * - **Transactional.** Any failure — including an abort — removes every handle
  *   this application created, in reverse construction order, and restores the
- *   terrain provider and vertical exaggeration the scene had on entry. Handles
- *   carried in through `reuse` are never touched, so a failed revision leaves
- *   the previously applied plan intact.
+ *   terrain provider, vertical exaggeration, and clock the scene had on entry.
+ *   Handles carried in through `reuse` are never touched, so a failed revision
+ *   leaves the previously applied plan intact.
  * - **Ownership-complete.** Every renderer resource it constructs is either
  *   returned in `mounted` or destroyed before the call returns. Nothing is
  *   reachable only from a discarded local.
@@ -1444,11 +1481,17 @@ export async function applyCesiumScenePrimitivesInternal(
   primitives: readonly SceneRuntimePrimitive[],
   options: ApplyCesiumScenePrimitivesInternalOptions = {},
 ): Promise<CesiumScenePrimitiveApplication> {
-  const { signal, reuse } = options;
+  const { signal, reuse, state } = options;
   signal?.throwIfAborted();
   const diagnostics = [...diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES)];
   const cesium = await loadCesium();
   signal?.throwIfAborted();
+  // Time first: entity availability, time-dynamic tileset content, and clock-
+  // driven properties are all evaluated against the clock, so a resource that
+  // attaches below should attach under the application's own time rather than
+  // under whatever instant the viewer happened to be showing.
+  const time = applyCesiumSceneTime(target, state?.timeline, cesium);
+  diagnostics.push(...time.diagnostics);
   const toCartesian = (longitude: number, latitude: number, height: number): unknown =>
     cesium.Cartesian3.fromDegrees(longitude, latitude, height);
   const unsupportedPrimitives = new Set(
@@ -1566,6 +1609,13 @@ export async function applyCesiumScenePrimitivesInternal(
         rollbackErrors.push(error);
       }
     }
+    if (target.clock && time.previous) {
+      try {
+        restoreCesiumClock(target.clock, time.previous);
+      } catch (error) {
+        rollbackErrors.push(error);
+      }
+    }
     if (rollbackErrors.length > 0) {
       throw new AggregateError(
         [cause, ...rollbackErrors],
@@ -1583,6 +1633,7 @@ export async function applyCesiumScenePrimitivesInternal(
     mounted,
     created,
     reused,
+    time,
   };
 }
 
@@ -1590,9 +1641,10 @@ export async function applyCesiumScenePrimitivesInternal(
  * Create a {@link SceneRuntimeAdapter} backed by CesiumJS.
  *
  * When `options.target` (a live Cesium `Viewer`/`Scene` surface — a `camera`
- * plus an optional `scene`) is supplied, `apply` drives the live globe: camera
- * sync plus, when a `scene` is attached, terrain and imagery providers,
- * 3D-Tiles tilesets, and glTF/GLB model layers. Without a target the adapter still
+ * plus an optional `scene` and an optional `clock`) is supplied, `apply` drives
+ * the live globe: camera sync plus, when a `scene` is attached, terrain and
+ * imagery providers, 3D-Tiles tilesets, and glTF/GLB model layers, and, when a
+ * `clock` is attached, the workspace `timeline` slice. Without a target the adapter still
  * diagnoses primitives against Cesium's true-3D capabilities — useful for
  * migration analysis before a viewer exists. CesiumJS itself is only imported
  * lazily when `apply` runs.

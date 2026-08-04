@@ -1657,6 +1657,250 @@ test("IndexedDB schema upgrade backfills legacy staging timestamps", async ({ pa
   }
 });
 
+test("IndexedDB edit queue discards corrupt and foreign-version records at open and keeps valid work", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+    const result = await page.evaluate(async () => {
+      const { createIndexedDbOfflineEditQueue } = await import("/dist/src/offline/index.js");
+      const name = `${window.__offlineDatabase}-recovery`;
+      const partition = { authorizationScopeDigest: `sha256:${"c".repeat(64)}`, sourceId: "incidents" };
+      const seed = createIndexedDbOfflineEditQueue({ name, createLeaseToken: () => "lease" });
+      const first = await seed.enqueue({ ...partition, idempotencyKey: "keep-one", edit: { operation: "add", attributes: { status: "open" } } });
+      const second = await seed.enqueue({ ...partition, idempotencyKey: "keep-two", edit: { operation: "add", attributes: { status: "open" } } });
+
+      // Write straight into the database, the way a partially applied write, an
+      // older SDK build, or another tab would.
+      const template = await seed.get(first.edit.id, partition);
+      const foreignId = `sha256:${"1".repeat(64)}`;
+      const corruptId = `sha256:${"2".repeat(64)}`;
+      const orphanId = `sha256:${"3".repeat(64)}`;
+      await new Promise((resolve, reject) => {
+        const open = indexedDB.open(name);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const transaction = db.transaction(["edits", "edit-metadata"], "readwrite");
+          const edits = transaction.objectStore("edits");
+          const metadata = transaction.objectStore("edit-metadata");
+          const foreign = { ...structuredClone(template), id: foreignId, version: "0.9" };
+          edits.put(foreign);
+          metadata.put({ id: foreignId, authorizationScopeDigest: partition.authorizationScopeDigest, sourceId: partition.sourceId, state: "pending", createdAt: template.createdAt, updatedAt: template.updatedAt, dependencyIds: [] });
+          edits.put({ id: corruptId, version: "1.0", state: "pending", audit: "not-an-array" });
+          metadata.put({ id: corruptId, authorizationScopeDigest: partition.authorizationScopeDigest, sourceId: partition.sourceId, state: "pending", createdAt: template.createdAt, updatedAt: template.updatedAt, dependencyIds: [] });
+          // An index row whose edit never existed, and a valid edit whose index
+          // row is gone: the two halves of the reconciliation contract.
+          metadata.put({ id: orphanId, authorizationScopeDigest: partition.authorizationScopeDigest, sourceId: partition.sourceId, state: "pending", createdAt: template.createdAt, updatedAt: template.updatedAt, dependencyIds: [] });
+          metadata.delete(second.edit.id);
+          transaction.oncomplete = () => { db.close(); resolve(undefined); };
+          transaction.onerror = () => reject(transaction.error);
+        };
+      });
+
+      const reports = [];
+      const queue = createIndexedDbOfflineEditQueue({ name, createLeaseToken: () => "lease", onRecovery: (report) => reports.push(report) });
+      const listed = await queue.list(partition);
+      const counts = await queue.countByState(partition);
+      const claimed = await queue.claimReady({ ...partition, workerId: "worker", limit: 10, leaseDurationMs: 60_000 });
+      const foreignRead = await queue.get(foreignId, partition);
+      const report = reports[0];
+      return {
+        listedIds: listed.map((edit) => edit.id).sort(),
+        keptIds: [first.edit.id, second.edit.id].sort(),
+        counts,
+        claimedIds: claimed.map((edit) => edit.id).sort(),
+        foreignRead: foreignRead === undefined,
+        report: report && {
+          kind: report.kind,
+          operation: report.operation,
+          discardedRecords: report.discardedRecords,
+          repairedRecords: report.repairedRecords,
+          discardedByReason: report.discardedByReason,
+          repairedByReason: report.repairedByReason,
+          errorCode: report.error.code,
+          message: report.error.message,
+        },
+      };
+    });
+
+    expect(result.listedIds).toEqual(result.keptIds);
+    expect(result.foreignRead).toBe(true);
+    // Counts are read before the claim: the restored index row makes the
+    // survivor countable again, not just readable.
+    expect(result.counts).toEqual({ pending: 2, leased: 0, retryable: 0, applied: 0, conflicted: 0, cancelled: 0 });
+    // The valid edit whose index row was deleted is claimable again, instead of
+    // throwing "metadata references missing edit" halfway through the pass.
+    expect(result.claimedIds).toEqual(result.keptIds);
+    expect(result.report).toMatchObject({
+      kind: "honua.offline-edit-queue-recovery",
+      operation: "open",
+      discardedRecords: 5,
+      repairedRecords: 1,
+      discardedByReason: { "foreign-version": 1, "corrupt-record": 1, "credential-screened": 0, "orphaned-metadata": 3 },
+      repairedByReason: { "restored-metadata": 1 },
+      errorCode: "record-unreadable",
+    });
+    expect(result.report.message).not.toContain("status");
+  } finally {
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
+test("IndexedDB region store migrates a fixture database forward from an older schema version", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineResult)).toMatchObject({ regionCount: 1 });
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    const result = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      const before = await createIndexedDbOfflineRegionStore({ name }).inventory();
+      // Roll the persisted record-layout version back to the ladder's oldest
+      // recognized value; the database version itself stays where it is.
+      await new Promise((resolve, reject) => {
+        const open = indexedDB.open(name);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const transaction = db.transaction("schema", "readwrite");
+          transaction.objectStore("schema").put({ key: "current", version: 2 });
+          transaction.oncomplete = () => { db.close(); resolve(undefined); };
+          transaction.onerror = () => reject(transaction.error);
+        };
+      });
+      const reports = [];
+      const store = createIndexedDbOfflineRegionStore({ name, onRecovery: (report) => reports.push(report) });
+      const after = await store.inventory();
+      const resource = await store.readResource(after.regions[0]?.id, "metadata");
+      const storedVersion = await new Promise((resolve, reject) => {
+        const open = indexedDB.open(name);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const get = open.result.transaction("schema", "readonly").objectStore("schema").get("current");
+          get.onsuccess = () => resolve(get.result?.version);
+          get.onerror = () => reject(get.error);
+        };
+      });
+      return {
+        beforeId: before.regions[0]?.id,
+        afterId: after.regions[0]?.id,
+        scopeDigest: resource?.manifest.source.authorizationScopeDigest,
+        resourceIds: resource?.manifest.resources.map((entry) => entry.id),
+        payload: resource ? new TextDecoder().decode(resource.bytes) : "missing",
+        storedVersion,
+        report: reports[0] && {
+          outcome: reports[0].outcome,
+          storedSchemaVersion: reports[0].storedSchemaVersion,
+          expectedSchemaVersion: reports[0].expectedSchemaVersion,
+          appliedMigrations: reports[0].appliedMigrations,
+          migratedRegions: reports[0].migratedRegions,
+          discardedCorruptRecords: reports[0].discardedCorruptRecords,
+          unsupportedRegions: reports[0].unsupportedRegions,
+        },
+      };
+    }, database);
+
+    expect(result.afterId).toBe(result.beforeId);
+    expect(result.payload).toBe("one");
+    expect(result.resourceIds).toEqual(["metadata"]);
+    expect(result.scopeDigest).toMatch(DIGEST_PATTERN);
+    expect(result.storedVersion).toBe(3);
+    expect(result.report).toEqual({
+      outcome: "ready",
+      storedSchemaVersion: 2,
+      expectedSchemaVersion: 3,
+      appliedMigrations: ["2->3"],
+      migratedRegions: 1,
+      discardedCorruptRecords: 0,
+      unsupportedRegions: 0,
+    });
+  } finally {
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
+test("IndexedDB region store refuses an unsupported schema version instead of deleting regions", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineResult)).toMatchObject({ regionCount: 1 });
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    const result = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore } = await import("/dist/src/offline/index.js");
+      await createIndexedDbOfflineRegionStore({ name }).inventory();
+      await new Promise((resolve, reject) => {
+        const open = indexedDB.open(name);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const transaction = db.transaction("schema", "readwrite");
+          transaction.objectStore("schema").put({ key: "current", version: 99 });
+          transaction.oncomplete = () => { db.close(); resolve(undefined); };
+          transaction.onerror = () => reject(transaction.error);
+        };
+      });
+      const reports = [];
+      const store = createIndexedDbOfflineRegionStore({ name, onRecovery: (report) => reports.push(report) });
+      let failure;
+      try {
+        await store.inventory();
+      } catch (error) {
+        failure = { name: error.name, code: error.code, sdkCode: error.sdkCode, message: error.message };
+      }
+      const counts = await new Promise((resolve, reject) => {
+        const open = indexedDB.open(name);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const transaction = open.result.transaction(["regions", "resources"], "readonly");
+          const regions = transaction.objectStore("regions").count();
+          const resources = transaction.objectStore("resources").count();
+          let regionCount;
+          let resourceCount;
+          regions.onsuccess = () => { regionCount = regions.result; if (resourceCount !== undefined) resolve({ regionCount, resourceCount }); };
+          resources.onsuccess = () => { resourceCount = resources.result; if (regionCount !== undefined) resolve({ regionCount, resourceCount }); };
+          transaction.onerror = () => reject(transaction.error);
+        };
+      });
+      return {
+        failure,
+        counts,
+        report: reports[0] && {
+          outcome: reports[0].outcome,
+          storedSchemaVersion: reports[0].storedSchemaVersion,
+          expectedSchemaVersion: reports[0].expectedSchemaVersion,
+          appliedMigrations: reports[0].appliedMigrations,
+          migratedRegions: reports[0].migratedRegions,
+          unsupportedRegions: reports[0].unsupportedRegions,
+        },
+      };
+    }, database);
+
+    expect(result.failure).toMatchObject({
+      name: "HonuaOfflineRegionError",
+      code: "store-unreadable",
+      sdkCode: "offline.storage.failure",
+    });
+    expect(result.failure.message).toContain("schema version 99");
+    expect(result.failure.message).toContain("this build reads 3");
+    // The whole point: an unreadable layout is a refusal, not a bulk delete.
+    expect(result.counts).toEqual({ regionCount: 1, resourceCount: 1 });
+    expect(result.report).toEqual({
+      outcome: "unreadable",
+      storedSchemaVersion: 99,
+      expectedSchemaVersion: 3,
+      appliedMigrations: [],
+      migratedRegions: 0,
+      unsupportedRegions: 1,
+    });
+  } finally {
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
 test("IndexedDB store supports atomic pinning, expiry pruning, and removal", async ({ page }) => {
   const server = await startServer();
   try {

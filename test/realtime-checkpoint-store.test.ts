@@ -285,8 +285,6 @@ describe("realtime checkpoint store", () => {
     const corrupt: readonly unknown[] = [
       null,
       "not-a-record",
-      { ...validRecord(), format: "honua.realtime-checkpoint-store/2.0" },
-      { ...validRecord(), format: undefined },
       { ...validRecord(), resume: { sequence: -1 } },
       { ...validRecord(), resume: { sequence: 6, cursor: 7 } },
       { ...validRecord(), resume: undefined },
@@ -311,6 +309,36 @@ describe("realtime checkpoint store", () => {
       expect(gate.state.phase).toBe("awaiting-snapshot");
       expect(seeded.rows.size).toBe(0);
       expect(diagnostics.at(-1)).toMatchObject({ operation: "load", reason: "invalid-checkpoint" });
+      await expect(
+        gate.enqueue({ type: "snapshot", sequence: 1, cursor: "cursor-1", features: [patch(1, "open")] }),
+      ).resolves.toMatchObject({ status: "applied" });
+    }
+  });
+
+  it("reports a foreign store format as a version fact rather than corruption", async () => {
+    // A record written in another store layout is not damage: it is a layout
+    // this build declines to interpret. The cursor is still discarded — cursors
+    // are cheap and resnapshotting is honest — but the reason says which.
+    for (const format of ["honua.realtime-checkpoint-store/2.0", "honua.realtime-checkpoint-store/0.9", undefined, 7]) {
+      const diagnostics: RealtimeCheckpointStoreDiagnosticV1[] = [];
+      const seeded = seededStorage({ ...validRecord(), format });
+      const store = createRealtimeCheckpointStore(seeded.storage, {
+        now: () => NOW,
+        onDiagnostic: collect(diagnostics),
+      });
+      const gate = await createResumableRealtimeSubscription<Feature>({
+        context,
+        now: () => NOW,
+        apply: vi.fn(),
+        checkpointStore: store,
+      });
+      expect(gate.state.phase).toBe("awaiting-snapshot");
+      expect(seeded.rows.size).toBe(0);
+      expect(diagnostics.at(-1)).toMatchObject({ operation: "load", reason: "unsupported-format" });
+      // The offending value is never echoed; a hostile record could put
+      // anything in that field.
+      expect(diagnostics.at(-1)?.error.message).not.toContain(String(format));
+      expect(diagnostics.at(-1)?.error).toMatchObject({ code: "invalid-checkpoint" });
       await expect(
         gate.enqueue({ type: "snapshot", sequence: 1, cursor: "cursor-1", features: [patch(1, "open")] }),
       ).resolves.toMatchObject({ status: "applied" });

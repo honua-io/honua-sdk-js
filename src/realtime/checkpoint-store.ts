@@ -131,12 +131,20 @@ export interface RealtimeCheckpointRecordV1 {
  * Why a checkpoint was not returned or not persisted. The first six values are
  * exactly the incompatible {@link RealtimeCheckpointCompatibilityCode} results,
  * so a discard reason reads in the same vocabulary the delivery gate uses.
+ *
+ * `unsupported-format` is deliberately distinct from `invalid-checkpoint`
+ * (issue #1046): a record written in another store format is not damage, it is
+ * a layout this build declines to interpret, and a host that sees a run of them
+ * is looking at a version rollback rather than a corrupt database. Realtime
+ * cursors are cheap to discard, so the posture stays discard-and-resnapshot;
+ * only the reporting distinguishes the two.
  */
 export type RealtimeCheckpointStoreReason =
   | Exclude<RealtimeCheckpointCompatibilityCode, "compatible">
   | "checkpoint-expired"
   | "credential-screened"
-  | "storage-failed";
+  | "storage-failed"
+  | "unsupported-format";
 
 /**
  * Structured report of a load or save that did not produce a durable resume.
@@ -187,6 +195,7 @@ const DIAGNOSTIC_ERROR_CODES = {
   "checkpoint-expired": "cursor-expired",
   "credential-screened": "checkpoint-save-failed",
   "storage-failed": "checkpoint-load-failed",
+  "unsupported-format": "invalid-checkpoint",
 } as const;
 
 interface NormalizedStoreOptions {
@@ -426,6 +435,16 @@ function projectStoredCheckpoint(
 ):
   | { readonly checkpoint: RealtimeDurableCheckpointV1 }
   | { readonly reason: RealtimeCheckpointStoreReason; readonly detail: string } {
+  // The format stamp is read before anything else, so a record from another
+  // store layout is reported as the version fact it is instead of being
+  // absorbed into the generic corrupt bucket. The offending value is never
+  // echoed: a hostile record could put anything in that field.
+  if (typeof stored === "object" && stored !== null && !isStoreFormat((stored as { format?: unknown }).format)) {
+    return {
+      reason: "unsupported-format",
+      detail: `Stored realtime checkpoint was written in a different store format; this build reads "${HONUA_REALTIME_CHECKPOINT_STORE_FORMAT}".`,
+    };
+  }
   if (!isCheckpointRecord(stored)) {
     return { reason: "invalid-checkpoint", detail: "Stored realtime checkpoint record is corrupt or unreadable." };
   }
@@ -582,10 +601,14 @@ function tightenedPositive(value: number | undefined, fallback: number, ceiling:
 
 const INVALID_SCOPE_KEY = `sha256:${"0".repeat(64)}` as const;
 
+function isStoreFormat(value: unknown): value is typeof HONUA_REALTIME_CHECKPOINT_STORE_FORMAT {
+  return value === HONUA_REALTIME_CHECKPOINT_STORE_FORMAT;
+}
+
 function isCheckpointRecord(value: unknown): value is RealtimeCheckpointRecordV1 {
   if (typeof value !== "object" || value === null) return false;
   const record = value as Partial<RealtimeCheckpointRecordV1>;
-  if (record.format !== HONUA_REALTIME_CHECKPOINT_STORE_FORMAT) return false;
+  if (!isStoreFormat(record.format)) return false;
   for (const name of ["key", "sourceId", "queryFingerprint", "sourceVersion", "schemaVersion"] as const) {
     if (typeof record[name] !== "string" || record[name].length === 0) return false;
   }

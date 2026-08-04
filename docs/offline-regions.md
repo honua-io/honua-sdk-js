@@ -503,6 +503,99 @@ from one stored entry, so `state`, `freshness`, `completeness`, `reason`, and
 diagnostic could never have produced is rejected instead of resolving to a
 confidently wrong headline.
 
+## Schema versions, migration, and an unreadable store
+
+Two versions govern the persistent stores, and they are deliberately separate.
+
+- The **IndexedDB database version** governs object stores and indexes. It moves
+  when a store or index is added, and its `versionchange` upgrade is where
+  structural work such as the legacy staging-timestamp backfill runs.
+- The **persisted record-layout version** governs the shape of the values inside
+  those stores. For the region store it is
+  `HONUA_OFFLINE_REGION_SCHEMA_VERSION` (currently `3`), written into the
+  `schema` store and **read back on every open**; for the edit queue it is
+  `HONUA_OFFLINE_EDIT_QUEUE_VERSION`, stamped on every record and checked before
+  any other field on every read.
+
+### The region store's forward ladder
+
+`OFFLINE_REGION_SCHEMA_MIGRATIONS` is an ordered registry of
+`fromVersion` → `toVersion` steps, each a pure structural rewrite of one stored
+record. On open the store reads the persisted version and resolves a plan before
+touching anything:
+
+- **Current version** — no steps, nothing rewritten.
+- **A recognized older version** — the resolved chain is applied to every region
+  record inside one transaction, then the new version is stamped. The applied
+  chain is reported as `appliedMigrations` (for example `["2->3"]`).
+- **An unknown, future, or unreachable version** — the store fails closed with
+  `HonuaOfflineRegionError` code `store-unreadable`, naming the stored and
+  expected versions. **Nothing is deleted.**
+
+`planOfflineRegionSchemaMigration(version)` answers "can this store still be
+read?" without opening it, and `readableOfflineRegionSchemaVersions()` lists the
+versions this build accepts. The walk is bounded and cycle-safe, so a malformed
+registry refuses rather than spinning.
+
+A migrated record keeps exactly the identity it was stored under. Every step's
+output is checked before the next one runs: a step that rewrote a region id, a
+resource id, or the authorization-scope digest fails the record and aborts the
+whole transaction, leaving the prior database version readable. Re-deriving the
+scope digest would silently repartition another principal's cached bytes, so it
+is treated as a defect rather than a migration.
+
+The shipped `2 → 3` step is deliberately the identity on region records: that
+database-version change altered only staging rows. It exists so the ladder, its
+bounds, its identity invariants, and its refusal are exercised *before* the first
+real layout change, rather than being written under the pressure of one.
+
+### What an application should do when its store is unreadable
+
+`store-unreadable` means the cached bytes are intact but this build declines to
+interpret their layout — most often a version rollback, occasionally a
+hand-modified database. It is not retryable and it is not corruption.
+
+1. Report it. The regions are still on disk and still belong to the user.
+2. Offer an explicit re-download, or a newer build that can read the layout.
+3. Only then reset the store deliberately, with
+   `indexedDB.deleteDatabase(name)`. The SDK will not do that for you, because
+   cached region bytes are expensive to re-acquire — often over a metered or
+   absent network — and a silent bulk delete is the worst available outcome.
+
+Pass `onRecovery` to `createIndexedDbOfflineRegionStore` to observe every open.
+The report separates the two failure modes on purpose:
+`discardedCorruptRecords` counts records this build proved unusable and removed,
+while `unsupportedRegions` counts regions left untouched because their schema
+version has no path forward.
+
+### The edit queue's recovery posture
+
+The queue is the durable source of retry, lease, dependency, conflict, and audit
+state, so a silently accepted malformed record there becomes a *wrong write*
+rather than a lost read. Nothing persisted is trusted on the way back in.
+
+- One bounded startup pass validates every edit, metadata, and tombstone row.
+  Records past the record or byte ceiling fail with a typed
+  `queue-limit-exceeded` instead of being scanned.
+- Every read path revalidates, so a record written between passes — by another
+  tab, or by a partially applied write — cannot be leased unvalidated.
+- A record whose `version` is not `HONUA_OFFLINE_EDIT_QUEUE_VERSION` is
+  discarded, never returned as though it were current.
+- The metadata relationship is repaired in both directions: an index row whose
+  edit is gone is deleted, and an edit whose index row is missing or disagrees
+  has it re-derived from the edit itself. A damaged record no longer stalls a
+  whole claim.
+- Valid tombstones are always preserved — they are what stops a completed
+  identity from being re-enqueued.
+
+`onRecovery` reports counts and stable reason codes (`foreign-version`,
+`corrupt-record`, `credential-screened`, `orphaned-metadata`, and the
+`restored-metadata` repair) through the same offline error envelope every other
+queue failure uses. Validation reads identity, state, and timing fields only; it
+never reads an `edit.attributes` or `edit.geometry` value, and no report echoes
+one. A discarded record is a lost local write, so recovery discards only what it
+can prove is unusable, and it always says how many.
+
 ## Contract guarantees
 
 - Manifest identity is deterministic over normalized content. Resource ids,
@@ -565,11 +658,16 @@ confidently wrong headline.
 - Progress is explicit across planning, download, write, commit, and completion.
   A successful receipt reports `integrity: "verified"` and
   `quotaAccounting: "logical-payload-bytes"`.
-- The IndexedDB adapter uses a versioned schema. Startup upgrades legacy
-  staging records, then performs one bounded atomic recovery pass. Malformed
-  region metadata, orphaned or malformed resources, and invalid staging rows
-  are removed while valid regions remain available; an invalid inventory
-  revision is reset to the empty baseline. Recovery scans at most 100,000
+- The IndexedDB adapter uses a versioned schema, and the persisted version is
+  read rather than only written. Startup resolves the record-layout version
+  against an ordered forward migration ladder, migrates recognized older layouts
+  atomically, and fails closed with `store-unreadable` — deleting nothing — for a
+  layout it cannot reach. It then upgrades legacy staging records and performs
+  one bounded atomic recovery pass. Malformed region metadata, orphaned or
+  malformed resources, and invalid staging rows are removed while valid regions
+  remain available; an invalid inventory revision is reset to the empty
+  baseline. Corrupt-record discards and unsupported-version outcomes are
+  reported as separate counts. Recovery and migration each scan at most 100,000
   records and 64 MiB of persisted payloads, failing closed if those bounds are
   exceeded.
 - IndexedDB staging is resumable by manifest identity. If a download is
@@ -605,6 +703,12 @@ confidently wrong headline.
   re-enqueued after cleanup, and an applied tombstone continues to satisfy
   future dependency IDs. The persisted schema accepts no request headers,
   tokens, URLs, or raw authorization scope.
+- Persisted queue records are validated, not trusted. One bounded startup pass
+  plus per-read validation gate the record version, identity, state, timing,
+  outcome, and audit fields before a record can be leased, transitioned, or
+  replayed, and reconcile the metadata index in both directions. A
+  foreign-version, corrupt, or credential-shaped record is discarded with a
+  stable reason code and a count, never returned as though it were current.
 - `replayOfflineEditPass()` claims immediately before each sequential
   invocation of an application-owned transport, up to one explicit pass bound.
   Transport requests omit authorization

@@ -151,6 +151,61 @@ const FIXTURE_MATRIX = [
 /** The plan handed to the adapter, in declaration order. */
 const PLAN = FIXTURE_MATRIX.map((entry) => entry.primitive);
 
+const PRIMITIVE_BY_ID = new Map(FIXTURE_MATRIX.map((entry) => [entry.id, entry.primitive]));
+
+/**
+ * The temporal cycle's plan (#1048).
+ *
+ * Deliberately smaller than the full matrix: this cycle is about time and the
+ * rebuild diff, not about coverage, and the three rows it keeps are exactly the
+ * ones needed to prove the property — a camera (no handle), an imagery layer
+ * (the binding a delta revises), and a tileset (the binding that must survive
+ * that delta untouched).
+ */
+const TEMPORAL_PLAN = ["fixture-camera", "fixture-imagery", "fixture-tileset"].map((id) => PRIMITIVE_BY_ID.get(id));
+
+/**
+ * The temporal fixture's clock stops.
+ *
+ * `AVAILABLE_FROM`..`AVAILABLE_UNTIL` is the availability window of a probe
+ * entity added straight to `viewer.entities`. `BEFORE_WINDOW` sits outside it and
+ * `INSIDE_WINDOW` inside it, so Cesium's own availability predicate — evaluated
+ * against whatever instant the SDK wrote to `viewer.clock` — has to change
+ * answer when application time advances. That is the AC's "temporal-entity
+ * availability honours the bound time", asserted through Cesium's semantics
+ * rather than through the SDK's own bookkeeping.
+ */
+const TEMPORAL_TIMES = {
+  extentStart: "2026-03-01T00:00:00Z",
+  extentEnd: "2026-03-02T00:00:00Z",
+  beforeWindow: "2026-03-01T00:00:00Z",
+  availableFrom: "2026-03-01T06:00:00Z",
+  insideWindow: "2026-03-01T12:00:00Z",
+  availableUntil: "2026-03-01T18:00:00Z",
+};
+
+function temporalState(adapter, currentTime, realtime) {
+  const base = adapter.emptySceneWorkspaceState();
+  return {
+    ...base,
+    timeline: {
+      currentTime,
+      startTime: TEMPORAL_TIMES.extentStart,
+      endTime: TEMPORAL_TIMES.extentEnd,
+      playing: false,
+    },
+    ...(realtime ? { realtime } : {}),
+  };
+}
+
+function clockIso(Cesium, clock) {
+  return clock.currentTime ? Cesium.JulianDate.toIso8601(clock.currentTime) : null;
+}
+
+function boundarySummary(reports) {
+  return reports.map((report) => `${report.id}:${report.boundary}:${report.incremental ? "in-place" : "rebuilt"}`).sort();
+}
+
 let adapterModule;
 let cesiumModule;
 
@@ -411,6 +466,169 @@ async function runCycle(index, options) {
   };
 }
 
+/**
+ * One temporal cycle (#1048): bind application time, advance it, drive a
+ * realtime-shaped delta, and report what each step did to the live scene.
+ *
+ * Everything here goes through the public scene-workspace surface —
+ * `mountScenePrimitivesToCesium` with the workspace state the adapter now
+ * consumes — against a real `Viewer`. The only direct Cesium use is the probe
+ * entity and reading `viewer.clock` back, which is the point: the assertions are
+ * about Cesium's state, not the SDK's own report of it.
+ */
+async function runTemporalCycle(options) {
+  const { adapter, Cesium } = await loadModules();
+  const container = document.createElement("div");
+  container.className = "scene-host";
+  document.getElementById("scene-hosts").append(container);
+
+  const viewer = createViewer(Cesium, container);
+  // Opting in: the clock is handed to the adapter explicitly. A target without
+  // one is never given a clock, which is the other half of the ownership
+  // contract and is covered by the vitest suite.
+  const target = { camera: viewer.camera, scene: viewer.scene, clock: viewer.clock };
+
+  const clockBeforeMount = clockIso(Cesium, viewer.clock);
+
+  // A plain Cesium entity whose availability brackets part of the extent. The
+  // SDK never touches it; Cesium alone decides whether it is available, using
+  // the clock the SDK wrote. It is added — and its visualizers realized — before
+  // the baseline primitive count is taken, so the count measures only what the
+  // adapter owns.
+  const probeEntity = viewer.entities.add({
+    id: "temporal-availability-probe",
+    availability: new Cesium.TimeIntervalCollection([
+      new Cesium.TimeInterval({
+        start: Cesium.JulianDate.fromIso8601(TEMPORAL_TIMES.availableFrom),
+        stop: Cesium.JulianDate.fromIso8601(TEMPORAL_TIMES.availableUntil),
+      }),
+    ]),
+    position: Cesium.Cartesian3.fromDegrees(ORIGIN.longitude, ORIGIN.latitude, 120),
+    point: { pixelSize: 12, color: Cesium.Color.CYAN },
+  });
+  const displayEntities = () => viewer.dataSourceDisplay.update(viewer.clock.currentTime);
+  displayEntities();
+  const baselinePrimitiveCount = viewer.scene.primitives.length;
+
+  const mount = await adapter.mountScenePrimitivesToCesium(target, TEMPORAL_PLAN, {
+    state: temporalState(adapter, TEMPORAL_TIMES.beforeWindow),
+  });
+  displayEntities();
+
+  const tilesetPrimitive = findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset");
+  await renderUntil(
+    viewer,
+    () => (tilesetPrimitive ? tilesetPrimitive.statistics.numberOfTilesWithContentReady > 0 : true),
+    options.readyTimeoutMs,
+  );
+
+  const mountedHandles = new Map(mount.layers);
+  const initial = {
+    revision: mount.revision,
+    clock: clockIso(Cesium, viewer.clock),
+    entityAvailable: probeEntity.isAvailable(viewer.clock.currentTime),
+    imageryAlpha: Number(viewer.scene.imageryLayers.get(0).alpha.toFixed(3)),
+    rebuildBoundaries: boundarySummary(mount.rebuildBoundaries),
+    timeCodes: mount.diagnostics.filter((entry) => entry.code.startsWith("scene-time-")).map((entry) => entry.code),
+  };
+
+  // --- step 1: advance application time only -------------------------------
+  const advanced = await mount.apply(TEMPORAL_PLAN, {
+    state: temporalState(adapter, TEMPORAL_TIMES.insideWindow),
+  });
+  displayEntities();
+  const advancedEvidence = {
+    revision: advanced.revision,
+    created: [...advanced.created],
+    reused: [...advanced.reused],
+    disposed: [...advanced.disposed],
+    clock: clockIso(Cesium, viewer.clock),
+    entityAvailable: probeEntity.isAvailable(viewer.clock.currentTime),
+    rebuildBoundaries: boundarySummary(advanced.rebuildBoundaries),
+    // Handle *identity*, compared in the page: a rebuilt binding would be a
+    // different object even though the id is the same.
+    handlesReusedByIdentity: [...mountedHandles].every(([id, handle]) => mount.layers.get(id) === handle),
+    // The live Cesium object behind the tileset must be the same instance too,
+    // not merely a handle wrapping a fresh one.
+    tilesetPrimitiveReused: findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset") === tilesetPrimitive,
+    scenePrimitiveCount: viewer.scene.primitives.length - baselinePrimitiveCount,
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+    rebuildBoundaryDiagnostics: advanced.diagnostics.filter((entry) => entry.code === "scene-mount-rebuild-boundary")
+      .length,
+    timeCodes: advanced.diagnostics.filter((entry) => entry.code.startsWith("scene-time-")).map((entry) => entry.code),
+  };
+
+  // --- step 2: a realtime-shaped data delta --------------------------------
+  // One binding's configuration changes; the rest of the plan is byte-identical.
+  const deltaPlan = TEMPORAL_PLAN.map((primitive) =>
+    primitive.id === "fixture-imagery" ? { ...primitive, opacity: 0.4 } : primitive,
+  );
+  const delta = await mount.apply(deltaPlan, {
+    state: temporalState(adapter, TEMPORAL_TIMES.insideWindow, {
+      status: "live",
+      cursor: "fixture-seq-2",
+    }),
+  });
+  for (let frame = 0; frame < 4; frame += 1) {
+    viewer.scene.render();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  }
+  const deltaEvidence = {
+    revision: delta.revision,
+    created: [...delta.created],
+    reused: [...delta.reused],
+    disposed: [...delta.disposed],
+    rebuildBoundaries: boundarySummary(delta.rebuildBoundaries),
+    tilesetHandleReused: mount.layers.get("fixture-tileset") === mountedHandles.get("fixture-tileset"),
+    tilesetPrimitiveReused: findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset") === tilesetPrimitive,
+    imageryHandleRebuilt: mount.layers.get("fixture-imagery") !== mountedHandles.get("fixture-imagery"),
+    // The rebuild reached the renderer: the live layer carries the new opacity.
+    imageryAlpha: Number(viewer.scene.imageryLayers.get(0).alpha.toFixed(3)),
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+    scenePrimitiveCount: viewer.scene.primitives.length - baselinePrimitiveCount,
+    boundaryDiagnostics: delta.diagnostics
+      .filter((entry) => entry.code === "scene-mount-rebuild-boundary")
+      .map((entry) => `${entry.primitiveId}:${entry.context.rebuildBoundary}`),
+    appliedContext: delta.diagnostics.find((entry) => entry.code === "scene-mount-applied")?.context.realtime ?? null,
+  };
+
+  // --- teardown ------------------------------------------------------------
+  // Same measured ceilings as the matrix cycle (#1026): this lane adds coverage,
+  // not a second budget vocabulary.
+  const disposeStartedAt = performance.now();
+  mount.dispose();
+  mount.dispose(); // idempotence
+  const layerTeardownMs = performance.now() - disposeStartedAt;
+  const afterLayerRemoval = {
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+    scenePrimitiveCount: viewer.scene.primitives.length - baselinePrimitiveCount,
+    mountState: mount.state,
+  };
+
+  const viewerDestroyStartedAt = performance.now();
+  viewer.destroy();
+  const viewerDestroyMs = performance.now() - viewerDestroyStartedAt;
+  container.remove();
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+  return {
+    cesiumVersion: Cesium.VERSION,
+    clockBeforeMount,
+    times: TEMPORAL_TIMES,
+    initial,
+    advanced: advancedEvidence,
+    delta: deltaEvidence,
+    teardown: {
+      layerTeardownMs: Number(layerTeardownMs.toFixed(2)),
+      viewerDestroyMs: Number(viewerDestroyMs.toFixed(2)),
+      totalMs: Number((layerTeardownMs + viewerDestroyMs).toFixed(2)),
+      afterLayerRemoval,
+      viewerDestroyed: viewer.isDestroyed(),
+      canvasesInContainer: container.querySelectorAll("canvas").length,
+    },
+  };
+}
+
 globalThis.__honuaCesiumSceneFixture = {
   matrix: FIXTURE_MATRIX.map(({ id, expect, materializes, expectedDiagnostics }) => ({
     id,
@@ -437,6 +655,14 @@ globalThis.__honuaCesiumSceneFixture = {
       reports.push(report);
     }
     return { cycles: reports, probe: probe.snapshot(), console: probe.consoleErrors, errors: probe.pageErrors };
+  },
+  /**
+   * Run one temporal cycle: bind time, advance it, then drive one realtime-shaped
+   * delta, reporting what the live Cesium scene did at each step.
+   */
+  async runTemporal(options = {}) {
+    const report = await runTemporalCycle({ readyTimeoutMs: options.readyTimeoutMs ?? 25_000 });
+    return { temporal: report, probe: probe.snapshot(), console: probe.consoleErrors, errors: probe.pageErrors };
   },
   /** How many of the retained per-cycle canvases / viewers are still reachable. */
   liveRetained() {
