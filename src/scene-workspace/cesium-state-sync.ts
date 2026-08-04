@@ -59,7 +59,6 @@ export interface CesiumStateSyncClock {
   startTime?: unknown;
   stopTime?: unknown;
   shouldAnimate?: boolean;
-  clockRange?: unknown;
 }
 
 /** The subset of a live Cesium `Viewer` this port drives. */

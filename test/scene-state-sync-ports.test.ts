@@ -171,10 +171,11 @@ function fakeViewer(): FakeViewer {
           latitude: destination.latitude * DEG2RAD,
           height: destination.height,
         };
+        const requested = (next.orientation ?? {}) as { heading?: number; pitch?: number; roll?: number };
         orientation = {
-          heading: next.orientation?.heading ?? 0,
-          pitch: next.orientation?.pitch ?? -Math.PI / 2,
-          roll: next.orientation?.roll ?? 0,
+          heading: requested.heading ?? 0,
+          pitch: requested.pitch ?? -Math.PI / 2,
+          roll: requested.roll ?? 0,
         };
         // Deliberately synchronous: a renderer that notifies inside `setView` is
         // the worst case for echo suppression, so that is what the fake does.
@@ -304,6 +305,23 @@ describe("attribution derivation", () => {
     );
     expect(sceneAttributionId("   ")).toBeUndefined();
     expect(sceneAttributionId(42)).toBeUndefined();
+    expect(sceneAttributionId("...")).toBeUndefined();
+    // `.`, `_`, and `:` stay inside an identifier but never lead or trail it.
+    expect(sceneAttributionId("  .USGS 3DEP.v2.  ")).toBe("usgs-3dep.v2");
+    expect(sceneAttributionId("well--known   source")).toBe("well-known-source");
+  });
+
+  it("refuses credit text carrying a credential-bearing URL", () => {
+    expect(sceneAttributionId("Imagery via https://operator:s3cret@tiles.example.test/wmts")).toBeUndefined();
+    // The same host without userinfo is reducible.
+    expect(sceneAttributionId("Imagery via https://tiles.example.test/wmts")).toBe(
+      "imagery-via-https:-tiles.example.test-wmts",
+    );
+  });
+
+  it("reduces markup without a backtracking pattern", () => {
+    expect(sceneAttributionId("<<<<<<<<<<".repeat(64))).toBeUndefined();
+    expect(sceneAttributionId("<b>USGS</b><i>3DEP</i>")).toBe("usgs-3dep");
   });
 
   it("builds a sorted, de-duplicated attribution value the envelope accepts", () => {

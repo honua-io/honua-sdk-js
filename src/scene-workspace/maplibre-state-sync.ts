@@ -59,22 +59,24 @@ export interface MapLibreStateSyncTarget {
   getBearing(): number;
   getPitch(): number;
   getRoll?(): number;
-  jumpTo(options: {
-    center?: readonly [number, number];
-    zoom?: number;
-    bearing?: number;
-    pitch?: number;
-    roll?: number;
-  }): void;
-  on(type: string, listener: (...args: never[]) => void): unknown;
-  off(type: string, listener: (...args: never[]) => void): unknown;
+  // `center` is a mutable tuple on purpose: the renderer's own camera options
+  // type accepts `[number, number]`, and a `readonly` tuple here would make a
+  // live map fail to satisfy this target in a consumer's build.
+  jumpTo(options: { center?: [number, number]; zoom?: number; bearing?: number; pitch?: number; roll?: number }): void;
+  // Narrowed to the camera events this port binds. The renderer's own `on`
+  // is keyed by its event vocabulary, so a plain `string` here would stop a
+  // live map from satisfying this target.
+  on(type: "moveend" | "rotateend" | "pitchend", listener: () => void): unknown;
+  off(type: "moveend" | "rotateend" | "pitchend", listener: () => void): unknown;
   getMinZoom?(): number;
   getMaxZoom?(): number;
   getMaxPitch?(): number;
   getCanvas?(): { readonly clientHeight?: number } | null | undefined;
   getContainer?(): { readonly clientHeight?: number } | null | undefined;
-  getStyle?(): { readonly layers?: readonly Record<string, unknown>[] } | null | undefined;
-  getLayer?(id: string): unknown;
+  getStyle?():
+    | { readonly layers?: readonly { readonly id?: unknown; readonly type?: unknown; readonly source?: unknown }[] }
+    | null
+    | undefined;
   getFilter?(id: string): unknown;
   setFilter?(id: string, filter: unknown): void;
   getSource?(id: string): unknown;
@@ -109,8 +111,6 @@ export interface CreateMapLibreStateSyncPortOptions {
    * it the port declares `time` outbound-unsupported rather than pretending.
    */
   readonly timeField?: string;
-  /** Extra credit strings this map contributes to the `attribution` slice. */
-  readonly attribution?: readonly string[];
   readonly onDegraded?: (degradation: SceneStateSyncPortDegradation) => void;
 }
 
@@ -169,7 +169,7 @@ export function createMapLibreStateSyncPort(
         }
         core.publish("camera", readCamera());
       };
-      const events = ["moveend", "rotateend", "pitchend"];
+      const events = ["moveend", "rotateend", "pitchend"] as const;
       for (const event of events) map.on(event, handler);
       return () => {
         for (const event of events) map.off(event, handler);

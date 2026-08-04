@@ -123,30 +123,87 @@ export interface SceneStateSyncRendererPort extends SceneStateSyncPort {
 export type SceneStateSyncPublishOutcome = "published" | "acknowledged" | "duplicate" | "disposed";
 
 const MAX_DEGRADATIONS = 256;
-const SAFE_ATTRIBUTION_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
 const MAX_ATTRIBUTION_ID_LENGTH = 256;
+const MAX_ATTRIBUTION_SOURCE_LENGTH = 4_096;
 
 /**
  * Reduce free-form attribution text to the credential-free identifier charset
  * the `attribution` slice accepts.
  *
  * The slice carries identifiers, not markup: `"County orthophotography"` becomes
- * `county-orthophotography`. Anything with no identifier characters at all — or
- * anything that looks like a URL with credentials — yields `undefined` rather
- * than a lossy guess, and the caller reports it as a degradation. The safe-id
- * rule is a boundary to satisfy, not to relax.
+ * `county-orthophotography`, and `<a href="...">OpenStreetMap</a> contributors`
+ * becomes `openstreetmap-contributors`. Anything with no identifier characters
+ * at all — or anything carrying a URL with credentials — yields `undefined`
+ * rather than a lossy guess, and the caller reports it as a degradation. The
+ * safe-id rule is a boundary to satisfy, not to relax.
+ *
+ * Reduction is a single bounded character pass rather than a chain of regular
+ * expressions: attribution text is attacker-influenceable (it arrives from a
+ * style document or a provider), and markup stripping with a pattern is a
+ * polynomial-backtracking shape.
  */
 export function sceneAttributionId(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const stripped = value
-    .replace(/<[^>]*>/g, " ")
-    .replace(/[^A-Za-z0-9._:-]+/g, "-")
-    .replace(/-{2,}/g, "-")
-    .replace(/^[^A-Za-z0-9]+/, "")
-    .replace(/[^A-Za-z0-9]+$/, "")
-    .toLowerCase();
-  if (stripped.length === 0 || stripped.length > MAX_ATTRIBUTION_ID_LENGTH) return undefined;
-  return SAFE_ATTRIBUTION_ID.test(stripped) ? stripped : undefined;
+  if (typeof value !== "string" || value.length > MAX_ATTRIBUTION_SOURCE_LENGTH) return undefined;
+  if (containsCredentialBearingUrl(value)) return undefined;
+  let slug = "";
+  let inTag = false;
+  let separatorPending = false;
+  for (const character of value) {
+    if (character === "<") {
+      inTag = true;
+      separatorPending = true;
+      continue;
+    }
+    if (character === ">") {
+      inTag = false;
+      separatorPending = true;
+      continue;
+    }
+    if (inTag) continue;
+    const lowered = character.toLowerCase();
+    if (!isAttributionCharacter(lowered)) {
+      separatorPending = true;
+      continue;
+    }
+    // The charset allows `.`, `_`, and `:` inside an identifier but not as its
+    // first character, so a leading run of them is dropped rather than emitted.
+    if (slug.length === 0 && !isAlphanumeric(lowered)) continue;
+    if (separatorPending && slug.length > 0) slug += "-";
+    separatorPending = false;
+    slug += lowered;
+    if (slug.length > MAX_ATTRIBUTION_ID_LENGTH) return undefined;
+  }
+  while (slug.length > 0 && !isAlphanumeric(slug.charAt(slug.length - 1))) slug = slug.slice(0, -1);
+  return slug.length === 0 ? undefined : slug;
+}
+
+function isAlphanumeric(character: string): boolean {
+  return (character >= "a" && character <= "z") || (character >= "0" && character <= "9");
+}
+
+/** The identifier charset minus `-`, which the pass emits as a separator. */
+function isAttributionCharacter(character: string): boolean {
+  return isAlphanumeric(character) || character === "." || character === "_" || character === ":";
+}
+
+/**
+ * Whether the text carries a URL with userinfo (`scheme://user:secret@host`).
+ *
+ * The slug reduction below keeps `:` and `.`, so a credential pair would
+ * survive it as a readable token. Scanned character by character rather than
+ * with a regular expression so a hostile string cannot drive backtracking.
+ */
+function containsCredentialBearingUrl(value: string): boolean {
+  const AUTHORITY_TERMINATORS = "/?# \t\n";
+  let index = value.indexOf("://");
+  while (index !== -1) {
+    const authorityStart = index + 3;
+    let end = authorityStart;
+    while (end < value.length && !AUTHORITY_TERMINATORS.includes(value[end] as string)) end += 1;
+    if (value.slice(authorityStart, end).includes("@")) return true;
+    index = value.indexOf("://", authorityStart);
+  }
+  return false;
 }
 
 /**

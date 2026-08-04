@@ -121,10 +121,14 @@ export interface CesiumCameraLike {
   readonly heading: number;
   readonly pitch: number;
   readonly roll: number;
-  setView(options: {
-    destination?: unknown;
-    orientation?: { heading?: number; pitch?: number; roll?: number };
-  }): void;
+  /**
+   * `orientation` is `unknown` rather than a heading/pitch/roll record because
+   * the real `Camera.setView` also accepts a direction/up pair. Narrowing it
+   * here made a live `Camera` fail to satisfy this interface, which is the one
+   * thing it exists to describe (#1049); callers still build the orientation
+   * through the typed {@link CesiumHeadingPitchRollRadians}.
+   */
+  setView(options: { destination?: unknown; orientation?: unknown }): void;
 }
 
 /**
