@@ -1606,19 +1606,36 @@ export interface HonuaOgcProcessJobStatus {
 }
 
 /**
- * Process-execution request envelope. honua-server advertises
- * `jobControlOptions: ['async-execute', 'dismiss']` and rejects any
- * `response` other than `document` with HTTP 501 — the SDK type mirrors
- * that supported surface (no `sync` mode, no `raw` response). `mode: "auto"`
- * omits the `Prefer` header so the server applies its default; `"async"`
- * sends `Prefer: respond-async` explicitly.
+ * Process-execution request envelope for `POST /processes/{id}/execution`
+ * (OGC API — Processes Part 1: Core §7.11).
+ *
+ * `mode` selects the RFC 7240 preference the SDK sends:
+ *
+ * - `"async"` → `Prefer: respond-async`. A conformant server answers `201` with
+ *   a `Location` header and a `statusInfo` body.
+ * - `"sync"` → no `Prefer` header, and the caller asserts the process declares
+ *   `sync-execute`. A conformant server answers `200` with the results document.
+ * - `"auto"` (default) → no `Prefer` header; whichever shape the server returns
+ *   is adapted onto the same `IJobRun` surface.
+ *
+ * Core defines no header that *forces* synchronous execution, so `"sync"` is a
+ * preference plus a capability assertion, never a guarantee: a server that
+ * answers a `"sync"` request with a job still yields a pollable `IJobRun`.
  */
 export interface OgcProcessExecuteRequest {
   processId: string;
   inputs?: OgcProcessInputs;
   outputs?: Record<string, { transmissionMode?: "value" | "reference"; format?: { mediaType?: string } }>;
-  /** `async-execute` returns a job; `auto` lets the server pick (always async on Honua). */
-  mode?: "async" | "auto";
+  /** Execution preference; see the interface docs. Defaults to `"auto"`. */
+  mode?: "sync" | "async" | "auto";
+  /**
+   * The process's advertised `jobControlOptions` (from `describe()` or a
+   * discovery snapshot). Supplied — or already memoized from a `describe()` on
+   * the same handle — it lets `mode` be gated against what the process actually
+   * declares, so an undeclared `sync-execute` / `async-execute` fails closed with
+   * `HonuaCapabilityNotSupportedError` instead of being posted blindly.
+   */
+  jobControlOptions?: readonly string[];
   headers?: HeadersInit;
   signal?: AbortSignal;
   /**
@@ -1642,16 +1659,45 @@ export interface OgcProcessJobRequest {
   extraParams?: Record<string, string | number | boolean>;
   /** Raw endpoint path prefix (defaults to the Honua facade `/ogc/processes`). */
   basePath?: string;
+  /**
+   * Server-advertised route for this job resource, already reduced to a
+   * same-origin request path. When present it replaces the Core-templated
+   * `{basePath}/jobs/{jobId}[/results]` route so the lifecycle follows the
+   * server's own `Location` header and `links[]` rather than a guessed path.
+   */
+  routePath?: string;
 }
 
-/** Job descriptor returned when the server accepted an async execution. */
+/**
+ * Outcome of `POST /processes/{id}/execution`.
+ *
+ * The same envelope carries both Core response shapes so one typed surface
+ * covers a raw third-party server and the Honua facade:
+ *
+ * - asynchronous — `jobID` names the created job and `synchronous` is `false`.
+ * - synchronous — the server answered `200` with the results document inline.
+ *   `jobID` is `""` (Core assigns no job identifier to a synchronous
+ *   execution), `status` is `"successful"`, `synchronous` is `true`, and
+ *   `results` holds the document.
+ */
 export interface HonuaOgcProcessJobAccepted {
+  /** Server-assigned job id; `""` for a synchronous execution (no job exists). */
   jobID: string;
   status: OgcProcessStatus;
   processID?: string;
   links?: HonuaOgcLink[];
   /** Initial (often `accepted` or `running`) status payload, when reported. */
   statusInfo?: HonuaOgcProcessJobStatus;
+  /**
+   * Same-origin request path derived from the async `Location` header (or the
+   * accepted document's `self` link). Polling follows it instead of templating
+   * `{basePath}/jobs/{jobId}`.
+   */
+  statusPath?: string;
+  /** Results document, populated only when `synchronous` is `true`. */
+  results?: HonuaOgcProcessJobResults;
+  /** `true` when the server answered inline with the results document. */
+  synchronous?: boolean;
 }
 
 /**

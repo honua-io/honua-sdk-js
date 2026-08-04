@@ -422,13 +422,10 @@ test("every server-attach claim carries a roadmap issue or an inherency statemen
   const facadeRequired = serverAttachClaims.filter((claim) => claim.status === "facade-required");
   assert.deepEqual(
     facadeRequired.map((claim) => claim.id).sort(),
-    [
-      "agent-tools-facade",
-      "compatibility-gate-facade",
-      "map-package-facade",
-      "ogc-processes-execution-facade",
-      "realtime-facade",
-    ],
+    // OGC API Processes execution left this list in #1009: standalone execution
+    // resolved its roadmap entry, so it is now an open-endpoint claim and must
+    // NOT carry `serverAttach` (asserted below).
+    ["agent-tools-facade", "compatibility-gate-facade", "map-package-facade", "realtime-facade"],
     "every facade-required claim must stay tiered as server-attach",
   );
   for (const claim of serverAttachClaims) {
@@ -529,7 +526,7 @@ test("the tiered README and matrix stay bound to the manifest counts", () => {
   assert.match(outputs.get("docs/protocol-capability-matrix.md"), /Deployment tier is separate from status/);
 });
 
-test("the OGC raw/facade line is represented as separate claims", () => {
+test("the OGC discovery/execution line is represented as separate claims", () => {
   const claims = new Map(manifest.supportClaims.map((claim) => [claim.id, claim]));
   for (const family of ["tiles", "maps", "records"]) {
     const claim = claims.get(`ogc-${family}-standalone`);
@@ -537,8 +534,22 @@ test("the OGC raw/facade line is represented as separate claims", () => {
     assert.equal(claim.environment, "standalone");
     assert.equal(claim.executionMode, "discovery");
   }
-  assert.equal(claims.get("ogc-processes-discovery-standalone").status, "experimental");
-  assert.equal(claims.get("ogc-processes-execution-facade").status, "facade-required");
+  // Processes keeps two claims even though both are now standalone: discovery
+  // evidence must never be readable as execution support. #1009 moved execution
+  // off the facade, so the split is the only thing keeping the lanes distinct.
+  const discovery = claims.get("ogc-processes-discovery-standalone");
+  const execution = claims.get("ogc-processes-execution-standalone");
+  assert.equal(discovery.status, "experimental");
+  assert.equal(discovery.environment, "standalone");
+  assert.equal(discovery.executionMode, "discovery");
+  assert.equal(execution.status, "experimental");
+  assert.equal(execution.environment, "standalone");
+  assert.equal(execution.executionMode, "native");
+  assert.notDeepEqual(discovery.operations, execution.operations);
+  // Execution is fixture-proven only; no public endpoint permits anonymous
+  // execution, so it must not borrow the discovery lane's live evidence.
+  assert.ok(discovery.evidence.includes("live-conformance"));
+  assert.ok(!execution.evidence.includes("live-conformance"));
 });
 
 test("generated output is deterministic and drift identifies the changed projection", () => {

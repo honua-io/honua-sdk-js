@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 172,
-      "signatureSha256": "bbdcc85e231dc65642bdaff70eca0a197808cbbfb8bd28cb2314d65cadea82ab",
+      "signatureSha256": "02cc5df6761887cbc7e0c61a46411719a445e5b69e046c635ef0243e3a873ab8",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -185,7 +185,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 172,
-      "signatureSha256": "bbdcc85e231dc65642bdaff70eca0a197808cbbfb8bd28cb2314d65cadea82ab",
+      "signatureSha256": "02cc5df6761887cbc7e0c61a46411719a445e5b69e046c635ef0243e3a873ab8",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -364,8 +364,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1181,
-      "signatureSha256": "38911672c580a6a3a70cb6245029fc195f6e166517151c82760c2911ec8523df",
+      "exportCount": 1182,
+      "signatureSha256": "f4e9e0611edc0b9b4cad840f774c3bde60813aa5f7d600d0d438bbf51dd85447",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -832,6 +832,7 @@
         "HonuaOgcProcessJobStatus — interface",
         "HonuaOgcProcessSummary — interface",
         "HonuaOgcProcesses — class",
+        "HonuaOgcProcessesConformanceInput — interface",
         "HonuaOgcProcessesOptions — interface",
         "HonuaOgcProcessesResponse — interface",
         "HonuaOgcQueryableProperty — interface",
