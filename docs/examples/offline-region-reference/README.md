@@ -11,7 +11,8 @@ provenance, and attribution.
 
 A disconnected pass also records one field edit in the durable IndexedDB edit
 queue under a stable idempotency key, so a repeated disconnected launch returns
-the existing edit rather than queueing a second copy. The page then composes the
+the existing edit rather than queueing a second copy. A connected launch runs
+one bounded `replayOfflineEditPass()` over that same partition. The page then composes the
 region diagnostic, the queued edits, and its own connectivity decision through
 `createLocalFirstStatus()` and renders the single resulting state. Connectivity
 is the host's decision here — derived from the shell's retained-generation
@@ -20,6 +21,23 @@ endpoint reachability. The composed state shows the documented precedence in
 practice: with a readable region the disconnected pass reports `pending` rather
 than `stale`, and after the region is removed it reports `partial` /
 `missing-regions`, so a queued edit can never mask a missing cache.
+
+The replay transport stays application-owned. This host binds it to
+`/offline-edit-replay`, a **loopback fixture endpoint** that mirrors the
+documented acknowledgement shape and keeps no replica, upload cursor, or
+conflict store. That boundary is enough to prove the local transitions and
+nothing more: an applied acknowledgement retires the edit once, so a second
+pass claims nothing and the endpoint is never invoked again; a conflicted
+acknowledgement leaves a durable typed conflict that is terminal rather than
+retried; an acknowledgement naming a different operation identity records an
+`unacknowledged` / `identity-mismatch` outcome and leaves the lease recoverable
+once it expires; and a retryable acknowledgement schedules a durable backoff
+instead of re-invoking the endpoint on the next launch. The request carries the
+edit, its operation identity, and its source id — never the authorization
+scope, lease, or audit state — and the fixture records only identities. **This
+is not evidence of hosted replica synchronization.** End-to-end exactly-once
+delivery is a server property; the fixture neither implements it nor stands in
+for it.
 
 `shell-manifest.v1.json` identifies one deployment and pins every document and
 transitive SDK module by URL, byte length, SHA-256, and media type. The worker
@@ -60,7 +78,11 @@ queueing and retry the current pointer if cleanup already owns one, so a stalled
 refresh cannot block an offline read of the prior committed shell.
 
 The Playwright coverage in `test/playwright/offline-indexeddb.spec.mjs` serves
-these files from an isolated loopback origin. It also removes the downloaded
+these files from an isolated loopback origin. It captures the edit with browser
+networking disabled, reloads with networking still disabled, and observes the
+same durable record — identity, payload, and audit history — before restoring
+networking and observing one bounded pass apply it exactly once. It also
+removes the downloaded
 region through the public cache-admin contract before a disconnected reload,
 proving that a cache miss is visibly unavailable rather than an empty
 successful result. It also covers an unreachable origin while
@@ -75,6 +97,8 @@ replacement task, including non-abortable digest and Cache API work.
 Query-bearing launch URLs are replaced in browser history with the
 credential-free canonical document URL before the shell is declared ready.
 
-This is a disconnected read-and-capture reference only. The queued edit is never
-delivered: it does not implement reconnect, edit replay, replica
-synchronization, or server acknowledgement semantics.
+This remains a bounded reference. "Reconnect" here means only that the loopback
+fixture endpoint became reachable again: the workflow does not resume a
+realtime cursor, reconcile a snapshot, implement replica synchronization, or
+review conflict content, and its fixture acknowledgements are not server
+semantics.

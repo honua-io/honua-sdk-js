@@ -13,6 +13,11 @@ const SHELL_CACHE_NAMESPACE = `honua-offline-region-reference-shell-${encodeURIC
 const SHELL_CONTROL_CACHE = `${SHELL_CACHE_NAMESPACE}control-v1`;
 const SHELL_GENERATION_PREFIX = `${SHELL_CACHE_NAMESPACE}generation-v1-`;
 const SHELL_LEGACY_CACHE = `${SHELL_CACHE_NAMESPACE}v1`;
+const EDIT_IDEMPOTENCY_KEY = "offline-reference-incident-1-close";
+const EDIT_QUEUE_DATABASE = "honua-offline-region-reference-edits-v1";
+const REGION_DATABASE = "honua-offline-region-reference-v1";
+const REPLAY_RETRY_AT = "2030-01-01T00:00:00.000Z";
+const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
 test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
   test.slow();
@@ -770,6 +775,347 @@ test("offline reference keeps one undelivered edit across repeated disconnected 
     expect(queued[0]).toMatchObject({ state: "pending", idempotencyKey: "offline-reference-incident-1-close" });
     expect(queued[0].audit).toBe(1);
     expect(server.offlineDataRequests).toBe(1);
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference replays a captured edit exactly once after reconnect", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await referenceState(page, {
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      localFirst: { state: "online", reason: "connected", undeliveredCount: 0 },
+      replay: { claimedCount: 0, invokedCount: 0, appliedCount: 0, outcomes: [] },
+    });
+    // An empty partition claims nothing, so a connected launch never reaches
+    // the transport at all.
+    expect(server.replayRequests).toEqual([]);
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    const captured = await referenceState(page, {
+      mode: "offline",
+      availability: "ready",
+      localFirst: { state: "pending", reason: "undelivered-edits", undeliveredCount: 1, conflictedCount: 0 },
+      edit: {
+        idempotencyKey: EDIT_IDEMPOTENCY_KEY,
+        state: "pending",
+        attemptCount: 0,
+        leased: false,
+        audit: ["enqueued"],
+      },
+    });
+    expect(captured.edit.id).toMatch(DIGEST_PATTERN);
+    expect(captured.edit.requestFingerprint).toMatch(DIGEST_PATTERN);
+    expect(captured.replay).toBeUndefined();
+
+    // A reload taken with networking still disabled: the same durable record,
+    // the same idempotency identity, the same audit history. Nothing was
+    // re-enqueued and nothing was delivered.
+    await page.reload({ waitUntil: "load" });
+    const reloaded = await referenceState(page, {
+      mode: "offline",
+      localFirst: { state: "pending", undeliveredCount: 1 },
+    });
+    expect(reloaded.edit).toEqual(captured.edit);
+    expect(server.offlineDataRequests).toBe(1);
+    expect(server.replayRequests).toEqual([]);
+
+    const offlineQueue = await readReferenceQueue(page);
+    expect(offlineQueue.counts).toEqual({
+      pending: 1,
+      leased: 0,
+      retryable: 0,
+      applied: 0,
+      conflicted: 0,
+      cancelled: 0,
+    });
+    expect(offlineQueue.edits).toHaveLength(1);
+    // The payload itself survived the disconnected reload, not just its identity.
+    expect(offlineQueue.edits[0]).toMatchObject({
+      id: captured.edit.id,
+      requestFingerprint: captured.edit.requestFingerprint,
+      idempotencyKey: EDIT_IDEMPOTENCY_KEY,
+      sourceId: "incidents",
+      state: "pending",
+      edit: { operation: "update", featureId: "incident-1", attributes: { status: "closed" } },
+    });
+
+    await context.setOffline(false);
+    await page.reload({ waitUntil: "load" });
+    const applied = await referenceState(page, {
+      mode: "online",
+      localFirst: {
+        state: "online",
+        reason: "connected",
+        undeliveredCount: 0,
+        conflictedCount: 0,
+        counts: { pending: 0, leased: 0, retryable: 0, applied: 1, conflicted: 0, cancelled: 0 },
+      },
+      replay: {
+        claimedCount: 1,
+        invokedCount: 1,
+        appliedCount: 1,
+        retryableCount: 0,
+        conflictedCount: 0,
+        unacknowledgedCount: 0,
+        outcomes: [{ editId: captured.edit.id, outcome: "applied" }],
+      },
+      edit: {
+        id: captured.edit.id,
+        createdAt: captured.edit.createdAt,
+        state: "applied",
+        attemptCount: 1,
+        leased: false,
+        audit: ["enqueued", "claimed", "applied"],
+        applied: { serverOperationId: "fixture-operation-1" },
+      },
+    });
+    // The transport received the identity the queue leased and nothing else:
+    // no authorization scope, lease, or audit state crossed the boundary.
+    expect(server.replayRequests).toEqual([
+      {
+        version: "1.0",
+        editId: captured.edit.id,
+        requestFingerprint: captured.edit.requestFingerprint,
+        idempotencyKey: EDIT_IDEMPOTENCY_KEY,
+        sourceId: "incidents",
+        operation: "update",
+        requestKeys: ["edit", "editId", "idempotencyKey", "requestFingerprint", "sourceId", "version"],
+        authorization: null,
+        cookie: null,
+      },
+    ]);
+
+    // A second bounded pass over the same durable partition applies nothing
+    // further, because the queue — not the page — decides what is still ready.
+    await page.reload({ waitUntil: "load" });
+    const second = await referenceState(page, {
+      mode: "online",
+      replay: { claimedCount: 0, invokedCount: 0, appliedCount: 0, outcomes: [] },
+      localFirst: { state: "online", undeliveredCount: 0, counts: { applied: 1 } },
+    });
+    expect(second.edit).toEqual(applied.edit);
+    expect(server.replayRequests).toHaveLength(1);
+    expect(server.offlineDataRequests).toBe(1);
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference retains a typed conflict from one reconnect pass and stops retrying it", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await referenceState(page, { ready: true, shellReady: true, mode: "online" });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    const captured = await referenceState(page, {
+      mode: "offline",
+      edit: { state: "pending", audit: ["enqueued"] },
+    });
+
+    server.setReplayAcknowledgement("conflicted");
+    await context.setOffline(false);
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      localFirst: {
+        state: "conflicted",
+        reason: "conflicted-edits",
+        undeliveredCount: 0,
+        conflictedCount: 1,
+        conflictedEditIds: [captured.edit.id],
+        counts: { pending: 0, leased: 0, retryable: 0, applied: 0, conflicted: 1, cancelled: 0 },
+      },
+      replay: {
+        claimedCount: 1,
+        invokedCount: 1,
+        appliedCount: 0,
+        retryableCount: 0,
+        conflictedCount: 1,
+        unacknowledgedCount: 0,
+        outcomes: [{ editId: captured.edit.id, outcome: "conflicted" }],
+      },
+      edit: {
+        state: "conflicted",
+        attemptCount: 1,
+        leased: false,
+        audit: ["enqueued", "claimed", "conflicted"],
+        conflict: { conflictId: "fixture-conflict-1" },
+      },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    // Conflicted is terminal: the next pass claims nothing, so the fixture is
+    // never asked again and the edit is neither retried nor dropped.
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      replay: { claimedCount: 0, invokedCount: 0, outcomes: [] },
+      localFirst: { state: "conflicted", reason: "conflicted-edits", conflictedCount: 1 },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    const stored = await readReferenceQueue(page);
+    expect(stored.counts).toEqual({ pending: 0, leased: 0, retryable: 0, applied: 0, conflicted: 1, cancelled: 0 });
+    expect(stored.edits).toHaveLength(1);
+    expect(stored.edits[0]).toMatchObject({
+      id: captured.edit.id,
+      state: "conflicted",
+      attemptCount: 1,
+      conflict: { conflictId: "fixture-conflict-1", serverGeneration: "fixture-generation-2" },
+      edit: { operation: "update", featureId: "incident-1", attributes: { status: "closed" } },
+    });
+    expect(Date.parse(stored.edits[0].conflict.detectedAt)).toBeGreaterThan(0);
+    expect(stored.edits[0].lease).toBeUndefined();
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference records an unacknowledged mismatch and leaves the lease recoverable", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await referenceState(page, { ready: true, shellReady: true, mode: "online" });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    const captured = await referenceState(page, {
+      mode: "offline",
+      edit: { state: "pending", audit: ["enqueued"] },
+    });
+
+    server.setReplayAcknowledgement("identity-mismatch");
+    await context.setOffline(false);
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      localFirst: {
+        state: "pending",
+        reason: "undelivered-edits",
+        undeliveredCount: 1,
+        conflictedCount: 0,
+        counts: { pending: 0, leased: 1, retryable: 0, applied: 0, conflicted: 0, cancelled: 0 },
+      },
+      replay: {
+        claimedCount: 1,
+        invokedCount: 1,
+        appliedCount: 0,
+        retryableCount: 0,
+        conflictedCount: 0,
+        unacknowledgedCount: 1,
+        outcomes: [{ editId: captured.edit.id, outcome: "unacknowledged", reasonCode: "identity-mismatch" }],
+      },
+      // No terminal outcome was invented from an acknowledgement that named a
+      // different operation identity.
+      edit: { state: "leased", leased: true, attemptCount: 1, audit: ["enqueued", "claimed"] },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    // The lease is real: a competing worker cannot take the edit while it holds.
+    const held = await readReferenceQueue(page, { claim: true });
+    expect(held.claimed).toEqual([]);
+    expect(held.counts.leased).toBe(1);
+
+    // It becomes claimable again once the lease expires, so a mismatched
+    // acknowledgement cannot strand the edit.
+    const recovered = await readReferenceQueue(page, {
+      nowIso: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      claim: true,
+    });
+    expect(recovered.claimed).toEqual([
+      { id: captured.edit.id, state: "leased", attemptCount: 2, workerId: "browser-recovery-worker" },
+    ]);
+    expect(recovered.edits[0].audit.map((event) => event.kind)).toEqual(["enqueued", "claimed", "lease-reclaimed"]);
+    expect(recovered.edits[0].applied).toBeUndefined();
+    expect(server.replayRequests).toHaveLength(1);
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference honours a retryable acknowledgement instead of hammering the endpoint", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await referenceState(page, { ready: true, shellReady: true, mode: "online" });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    const captured = await referenceState(page, {
+      mode: "offline",
+      edit: { state: "pending", audit: ["enqueued"] },
+    });
+
+    server.setReplayAcknowledgement("retryable");
+    await context.setOffline(false);
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      localFirst: {
+        state: "pending",
+        reason: "undelivered-edits",
+        undeliveredCount: 1,
+        counts: { pending: 0, leased: 0, retryable: 1, applied: 0, conflicted: 0, cancelled: 0 },
+      },
+      replay: {
+        claimedCount: 1,
+        invokedCount: 1,
+        appliedCount: 0,
+        retryableCount: 1,
+        conflictedCount: 0,
+        unacknowledgedCount: 0,
+        outcomes: [{ editId: captured.edit.id, outcome: "retryable" }],
+      },
+      edit: {
+        state: "retryable",
+        leased: false,
+        attemptCount: 1,
+        audit: ["enqueued", "claimed", "retry-scheduled"],
+        retry: { retryAt: REPLAY_RETRY_AT, reasonCode: "fixture-backpressure" },
+      },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    // The scheduled retry is durable, so the next bounded pass respects the
+    // backoff rather than re-invoking the endpoint immediately.
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      replay: { claimedCount: 0, invokedCount: 0, outcomes: [] },
+      localFirst: { state: "pending", reason: "undelivered-edits", undeliveredCount: 1 },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    // The work is still there, and claimable, when its retry time arrives.
+    const due = await readReferenceQueue(page, { nowIso: "2030-01-01T00:00:01.000Z", claim: true });
+    expect(due.claimed).toEqual([
+      { id: captured.edit.id, state: "leased", attemptCount: 2, workerId: "browser-recovery-worker" },
+    ]);
   } finally {
     await cleanupOfflineReference(page, context);
     await server.close();
@@ -1829,8 +2175,51 @@ test("persisted offline region and edit-queue records stay credential-free", asy
   }
 });
 
+/**
+ * The loopback stand-in for a server mutation transport. It mirrors the
+ * documented acknowledgement shape and nothing else: it keeps no replica, no
+ * upload cursor, and no conflict store, so the evidence it supports is the
+ * local queue transition, never end-to-end exactly-once delivery.
+ */
+function replayAcknowledgement(request, mode, sequence) {
+  const identity = {
+    editId: request.editId,
+    requestFingerprint: request.requestFingerprint,
+    idempotencyKey: request.idempotencyKey,
+  };
+  if (mode === "conflicted") {
+    return {
+      kind: "conflicted",
+      ...identity,
+      conflictId: `fixture-conflict-${sequence}`,
+      serverGeneration: "fixture-generation-2",
+    };
+  }
+  if (mode === "retryable") {
+    return { kind: "retryable", ...identity, retryAt: REPLAY_RETRY_AT, reasonCode: "fixture-backpressure" };
+  }
+  if (mode === "identity-mismatch") {
+    // Well formed, and applied — but for a different operation identity than
+    // the one this pass leased.
+    return {
+      kind: "applied",
+      ...identity,
+      idempotencyKey: "offline-reference-unrelated-edit",
+      serverOperationId: `fixture-operation-${sequence}`,
+    };
+  }
+  return {
+    kind: "applied",
+    ...identity,
+    serverOperationId: `fixture-operation-${sequence}`,
+    serverGeneration: "fixture-generation-1",
+  };
+}
+
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+  const replayRequests = [];
+  let replayAcknowledgementMode = "applied";
   let offlineDataRequests = 0;
   let offlineDataOversized = false;
   let offlineDataCompressed = false;
@@ -1855,6 +2244,56 @@ async function startServer() {
       } else {
         response.end(payload);
       }
+      return;
+    }
+    if (url.pathname === "/offline-edit-replay") {
+      if (request.method !== "POST") {
+        response.statusCode = 405;
+        response.end("method not allowed");
+        return;
+      }
+      const chunks = [];
+      let bodyByteLength = 0;
+      for await (const chunk of request) {
+        bodyByteLength += chunk.byteLength;
+        if (bodyByteLength > 16 * 1024) {
+          response.statusCode = 413;
+          response.end("replay request exceeds its budget");
+          return;
+        }
+        chunks.push(chunk);
+      }
+      let replayRequest;
+      try {
+        replayRequest = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        response.statusCode = 400;
+        response.end("replay request is not JSON");
+        return;
+      }
+      // Identity and headers only. The fixture deliberately never records the
+      // edit payload it was handed.
+      replayRequests.push({
+        version: replayRequest.version,
+        editId: replayRequest.editId,
+        requestFingerprint: replayRequest.requestFingerprint,
+        idempotencyKey: replayRequest.idempotencyKey,
+        sourceId: replayRequest.sourceId,
+        operation: replayRequest.edit?.operation,
+        requestKeys: Object.keys(replayRequest).sort(),
+        authorization: request.headers.authorization ?? null,
+        cookie: request.headers.cookie ?? null,
+      });
+      if (replayAcknowledgementMode === "unavailable") {
+        response.statusCode = 503;
+        response.end("replay fixture unavailable");
+        return;
+      }
+      response.setHeader("cache-control", "no-store");
+      response.setHeader("content-type", "application/json; charset=utf-8");
+      response.end(
+        JSON.stringify(replayAcknowledgement(replayRequest, replayAcknowledgementMode, replayRequests.length)),
+      );
       return;
     }
     if (shellHanging && (url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/"))) return;
@@ -2058,6 +2497,12 @@ async function startServer() {
     get offlineDataRequests() {
       return offlineDataRequests;
     },
+    get replayRequests() {
+      return replayRequests.map((entry) => ({ ...entry }));
+    },
+    setReplayAcknowledgement(mode) {
+      replayAcknowledgementMode = mode;
+    },
     setOfflineDataOversized(value) {
       offlineDataOversized = value;
     },
@@ -2194,6 +2639,66 @@ async function readShellState(page) {
       };
     },
     "honua-offline-region-reference-shell-",
+  );
+}
+
+/** Wait for the reference workflow to publish a matching state, then return it. */
+async function referenceState(page, expected) {
+  await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject(expected);
+  return page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__);
+}
+
+/**
+ * Reads the reference workflow's durable queue partition directly, optionally
+ * at a shifted clock so lease expiry and retry backoff can be observed without
+ * waiting out wall-clock time. The partition is derived from the persisted
+ * region manifest, so this reads exactly the records the page wrote.
+ */
+async function readReferenceQueue(page, options = {}) {
+  return page.evaluate(
+    async ({ nowIso, claim, databases }) => {
+      const { createIndexedDbOfflineEditQueue, createIndexedDbOfflineRegionStore } = await import(
+        "/dist/src/offline/index.js"
+      );
+      const store = createIndexedDbOfflineRegionStore({ name: databases.region });
+      const inventory = await store.inventory();
+      const region = inventory.regions[0];
+      if (!region) return { partition: undefined, counts: undefined, claimed: [], edits: [] };
+      const read = await store.readResource(region.id, "incidents");
+      const partition = {
+        authorizationScopeDigest: read.manifest.source.authorizationScopeDigest,
+        sourceId: read.manifest.source.id,
+      };
+      const at = nowIso === undefined ? undefined : new Date(nowIso);
+      const queue = createIndexedDbOfflineEditQueue({
+        name: databases.edits,
+        ...(at === undefined ? {} : { now: () => at }),
+      });
+      const claimed = claim
+        ? await queue.claimReady({
+            ...partition,
+            workerId: "browser-recovery-worker",
+            limit: 10,
+            leaseDurationMs: 60_000,
+          })
+        : [];
+      return {
+        partition,
+        counts: await queue.countByState(partition),
+        claimed: claimed.map((edit) => ({
+          id: edit.id,
+          state: edit.state,
+          attemptCount: edit.attemptCount,
+          workerId: edit.lease?.workerId,
+        })),
+        edits: await queue.list({ ...partition, limit: 100 }),
+      };
+    },
+    {
+      nowIso: options.nowIso,
+      claim: options.claim === true,
+      databases: { region: REGION_DATABASE, edits: EDIT_QUEUE_DATABASE },
+    },
   );
 }
 
