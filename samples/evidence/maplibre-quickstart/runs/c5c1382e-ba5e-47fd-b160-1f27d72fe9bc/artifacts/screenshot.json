@@ -1,0 +1,81 @@
+{
+  "format": "honua.sdk.sample-screenshot-gate.v3",
+  "sampleId": "maplibre-quickstart",
+  "sourceRevision": "137fc98c1f6363073619b5c8bfaf14a37e867446",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:quickstart",
+    "--",
+    "--reporter=json"
+  ],
+  "reproducibilityPolicy": {
+    "captureCount": 2,
+    "comparison": "byte-identical",
+    "scope": "same-page-session",
+    "animations": "disabled",
+    "stabilization": [
+      "map-idle",
+      "css-animation-freeze",
+      "fonts-ready",
+      "scroll-origin",
+      "double-animation-frame"
+    ],
+    "runtimeBinding": [
+      "playwright-version",
+      "project-name",
+      "browser-name",
+      "browser-version",
+      "platform",
+      "architecture"
+    ]
+  },
+  "runtime": {
+    "playwrightVersion": "1.58.2",
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "browserVersion": "145.0.7632.6",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "screenshots": [
+    {
+      "variant": "desktop",
+      "projectName": "chromium",
+      "browserName": "chromium",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "path": "samples/evidence/maplibre-quickstart/runs/c5c1382e-ba5e-47fd-b160-1f27d72fe9bc/artifacts/screenshot-desktop.png",
+      "bytes": 174153,
+      "sha256": "390fae85031e8055afe0755a741d919b45db96eabe3516ad22639cd263f60039",
+      "reproducibility": {
+        "captureCount": 2,
+        "comparison": "byte-identical",
+        "repeatPath": "samples/evidence/maplibre-quickstart/runs/c5c1382e-ba5e-47fd-b160-1f27d72fe9bc/artifacts/screenshot-desktop-repeat.png",
+        "repeatBytes": 174153,
+        "repeatSha256": "390fae85031e8055afe0755a741d919b45db96eabe3516ad22639cd263f60039"
+      }
+    },
+    {
+      "variant": "mobile",
+      "projectName": "chromium",
+      "browserName": "chromium",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "samples/evidence/maplibre-quickstart/runs/c5c1382e-ba5e-47fd-b160-1f27d72fe9bc/artifacts/screenshot-mobile.png",
+      "bytes": 60294,
+      "sha256": "6b345d65ea3fbc713ee97e34fbbd3c252ab0f0ac38682998204a3bd01ae357ea",
+      "reproducibility": {
+        "captureCount": 2,
+        "comparison": "byte-identical",
+        "repeatPath": "samples/evidence/maplibre-quickstart/runs/c5c1382e-ba5e-47fd-b160-1f27d72fe9bc/artifacts/screenshot-mobile-repeat.png",
+        "repeatBytes": 60294,
+        "repeatSha256": "6b345d65ea3fbc713ee97e34fbbd3c252ab0f0ac38682998204a3bd01ae357ea"
+      }
+    }
+  ]
+}
