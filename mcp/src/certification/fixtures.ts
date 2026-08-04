@@ -13,6 +13,14 @@ export interface RoundTripEnv {
   layerId: number;
   address: string;
   styleId: string | undefined;
+  /**
+   * Protocol-neutral source reference the source-addressed tools round-trip
+   * against (#1005). Defaults to the GeoServices pair so existing targets are
+   * unchanged; the non-GeoServices lane overrides it with an OGC collection.
+   */
+  sourceRef?: string;
+  /** Numeric field on `sourceRef` usable for an aggregate round trip. */
+  statisticField?: string;
 }
 
 /** Resolve round-trip identifiers from the environment, with safe fallbacks. */
@@ -23,7 +31,16 @@ export function resolveRoundTripEnv(env: NodeJS.ProcessEnv = process.env): Round
   const layerId = Number.isFinite(parsedLayer) && parsedLayer >= 0 ? parsedLayer : 0;
   const address = env.HONUA_MCP_ADDRESS ?? "1600 Pennsylvania Ave NW, Washington DC";
   const styleId = env.HONUA_MCP_STYLE_ID ?? env.HONUA_STYLE_ID;
-  return { serviceId, layerId, address, styleId };
+  const sourceRef = env.HONUA_MCP_SOURCE;
+  const statisticField = env.HONUA_MCP_STATISTIC_FIELD;
+  return {
+    serviceId,
+    layerId,
+    address,
+    styleId,
+    ...(sourceRef ? { sourceRef } : {}),
+    ...(statisticField ? { statisticField } : {}),
+  };
 }
 
 /**
@@ -34,23 +51,30 @@ export function resolveRoundTripEnv(env: NodeJS.ProcessEnv = process.env): Round
  */
 export function buildRoundTripInputs(env: RoundTripEnv): Record<string, Record<string, unknown>> {
   const { serviceId, layerId, address } = env;
+  // Source-addressed tools round-trip through the protocol-neutral reference
+  // when the target provides one (#1005), and otherwise through the deprecated
+  // GeoServices pair — so both addressing modes stay certified.
+  const target: Record<string, unknown> = env.sourceRef ? { source: env.sourceRef } : { serviceId, layerId };
+  const statisticField = env.statisticField ?? "OBJECTID";
   return {
-    // ── Platform-free standalone surface tools (issue #369). Round-tripped by the
-    // `standalone` cert target against a plain public FeatureServer fixture. The
-    // Honua-only style tools resolve to a structured "not available on this
-    // target" result (non-error) — certifying graceful degradation, not a crash.
+    // ── Platform-free standalone surface tools (issues #369, #1005). Round-tripped
+    // by the `standalone` (Esri FeatureServer) and `standalone-ogc` (OGC API
+    // Features) cert targets. The Honua-only style tools resolve to a structured
+    // "not available on this target" result (non-error) — certifying graceful
+    // degradation, not a crash.
+    honua_list_sources: {},
     honua_list_services: {},
-    honua_describe_layer: { serviceId, layerId },
-    honua_count_features: { serviceId, layerId },
-    honua_get_extent: { serviceId, layerId },
-    honua_statistics: { serviceId, layerId, statisticType: "count", onField: "OBJECTID" },
+    honua_describe_layer: { ...target },
+    honua_count_features: { ...target },
+    honua_get_extent: { ...target },
+    honua_statistics: { ...target, statisticType: "count", onField: statisticField },
     honua_explain_capability_gap: { capability: "query", protocol: "wmts" },
     honua_get_style: {},
     honua_apply_style_preset: { styleId: "topographic" },
     // ── Honua-enhanced operator catalog tools (offline/remote/stdio-proxy targets).
     honua_list_layers: {},
     honua_list_capabilities: {},
-    honua_query_features: { serviceId, layerId, limit: 1 },
+    honua_query_features: { ...target, limit: 1 },
     honua_render_map: { layers: [{ serviceId, layerId }], bbox: [-77.1, 38.8, -76.9, 39.0] },
     honua_geocode_address: { address },
     honua_solve_route: {

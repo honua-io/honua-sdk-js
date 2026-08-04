@@ -52,7 +52,9 @@ function parseArgs(argv: string[]): CliOptions {
     } else if (arg === "--target") {
       const value = argv[++i];
       if (!value) {
-        throw new Error("--target requires a target mode (offline | remote | stdio-proxy | standalone)");
+        throw new Error(
+          "--target requires a target mode (offline | remote | stdio-proxy | standalone | standalone-ogc)",
+        );
       }
       target = value;
     }

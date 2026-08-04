@@ -2527,6 +2527,160 @@ test("offline region serves tiles and metadata from IndexedDB with browser netwo
   }
 });
 
+test("runtime protocol registration renders region tiles with browser networking disabled", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+
+    const online = await page.evaluate(async (scope) => {
+      const offline = await import("/dist/src/offline/index.js");
+      // The runtime's registration and rewriting seams are leaf modules: they
+      // never import the offline entrypoint, and never import maplibre-gl when a
+      // registrar is injected, so both load in the page as-is.
+      const protocol = await import("/dist/src/runtime/offline-region-protocol.js");
+      const styleRewrite = await import("/dist/src/runtime/offline-region-style.js");
+      window.__honuaRuntimeSeam = { offline, protocol, styleRewrite };
+
+      const snapshot = await offline.planOfflineRegionSnapshot({
+        name: "Northwest quadrant",
+        sourceId: "incidents",
+        endpoint: "https://example.test/ogc/tiles",
+        authorizationScopeFingerprint: scope,
+        bounds: { minX: -180, minY: 0, maxX: 0, maxY: 85, crs: "EPSG:4326" },
+        minZoom: 1,
+        maxZoom: 3,
+        sourceVersion: "source-v1",
+        schemaVersion: "schema-v1",
+        planVersion: "plan-v1",
+        observation: { state: "cached", observedAt: new Date().toISOString() },
+        contents: [
+          {
+            kind: "tile",
+            bytes: new Uint8Array([0x1a, 0x2b, 0x3c, 0x4d]),
+            contentType: "application/vnd.mapbox-vector-tile",
+            selector: offline.offlineRegionTileSelector({ z: 1, x: 0, y: 0 }),
+          },
+        ],
+      });
+      window.__honuaRuntimeRegion = {
+        manifest: snapshot.manifest,
+        database: `${window.__offlineDatabase}-runtime`,
+      };
+      const store = offline.createIndexedDbOfflineRegionStore({ name: window.__honuaRuntimeRegion.database });
+      await offline.downloadOfflineRegion(snapshot.manifest, {
+        store,
+        load: offline.createOfflineRegionSnapshotLoader(snapshot),
+        logicalQuotaBytes: 1024 * 1024,
+      });
+      return { regionId: snapshot.manifest.id };
+    }, "tenant:a/role:field");
+
+    expect(online.regionId).toMatch(DIGEST_PATTERN);
+    const requestsBeforeOffline = server.offlineDataRequests;
+
+    await context.setOffline(true);
+
+    const wired = await page.evaluate(async (scope) => {
+      const { offline, protocol, styleRewrite } = window.__honuaRuntimeSeam;
+      const { manifest, database } = window.__honuaRuntimeRegion;
+      const store = offline.createIndexedDbOfflineRegionStore({ name: database });
+
+      const authored = {
+        version: 8,
+        sources: {
+          incidents: { type: "vector", tiles: ["https://tiles.example.test/{z}/{x}/{y}.pbf"], maxzoom: 3 },
+          places: { type: "geojson", data: "https://example.test/places.geojson" },
+        },
+        layers: [],
+        glyphs: "https://example.test/{fontstack}/{range}.pbf",
+      };
+      const rewrite = styleRewrite.rewriteStyleTilesForOfflineRegion(authored, { sourceIds: ["incidents"] });
+      const reverted = styleRewrite.revertOfflineRegionStyleRewrite(rewrite.style, rewrite);
+
+      // Register exactly the way `loadMapPackage` does, on the evidence of the
+      // rewritten style, through an injected registrar.
+      const registered = [];
+      const registrar = {
+        addProtocol: (scheme, handler) => registered.push({ scheme, handler }),
+        removeProtocol: () => {},
+      };
+      protocol.resetOfflineRegionProtocol();
+      const usesRegion = protocol.styleUsesOfflineRegion(rewrite.style);
+      if (usesRegion) {
+        await protocol.ensureOfflineRegionProtocol({
+          tileHandler: offline.createOfflineRegionTileProtocol({
+            manifest,
+            store,
+            authorizationScopeFingerprint: scope,
+          }),
+          maplibre: registrar,
+        });
+        // Idempotent: a second map loading the same style registers nothing new.
+        await protocol.ensureOfflineRegionProtocol({
+          tileHandler: offline.createOfflineRegionTileProtocol({
+            manifest,
+            store,
+            authorizationScopeFingerprint: scope,
+          }),
+          maplibre: registrar,
+        });
+      }
+
+      // Drive the registered handler exactly as MapLibre would for one tile.
+      const handler = registered[0]?.handler;
+      const tileUrl = rewrite.style.sources.incidents.tiles[0]
+        .replace("{z}", "1")
+        .replace("{x}", "0")
+        .replace("{y}", "0");
+      const response = await handler({ url: tileUrl }, new AbortController());
+      let missReason = "resolved";
+      try {
+        await handler({ url: "offline-region://default/2/0/0" });
+      } catch (error) {
+        missReason = error.code ?? error.name;
+      }
+      return {
+        usesRegion,
+        registeredSchemes: registered.map((entry) => entry.scheme),
+        rewrittenTiles: rewrite.style.sources.incidents.tiles,
+        untouchedGeojson: rewrite.style.sources.places.data,
+        untouchedGlyphs: rewrite.style.glyphs,
+        refusals: rewrite.refusals,
+        revertedTiles: reverted.sources.incidents.tiles,
+        tileUrl,
+        tileBytes: [...new Uint8Array(response.data)],
+        cacheControl: response.cacheControl,
+        missReason,
+      };
+    }, "tenant:a/role:field");
+
+    // Everything above was answered from storage with networking disabled.
+    expect(server.offlineDataRequests).toBe(requestsBeforeOffline);
+    expect(wired.usesRegion).toBe(true);
+    // Registered once even though two maps asked for it.
+    expect(wired.registeredSchemes).toEqual(["offline-region"]);
+    expect(wired.rewrittenTiles).toEqual(["offline-region://default/{z}/{x}/{y}"]);
+    expect(wired.refusals).toEqual([]);
+    // The rewrite touched only the tile template, and undoes exactly.
+    expect(wired.untouchedGeojson).toBe("https://example.test/places.geojson");
+    expect(wired.untouchedGlyphs).toBe("https://example.test/{fontstack}/{range}.pbf");
+    expect(wired.revertedTiles).toEqual(["https://tiles.example.test/{z}/{x}/{y}.pbf"]);
+    expect(wired.tileUrl).toBe("offline-region://default/1/0/0");
+    expect(wired.tileBytes).toEqual([0x1a, 0x2b, 0x3c, 0x4d]);
+    expect(wired.cacheControl).toBe("no-store");
+    expect(wired.missReason).toBe("cache-miss");
+  } finally {
+    await context.setOffline(false).catch(() => undefined);
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
 test("IndexedDB and in-memory region stores pass one shared conformance suite", async ({ page }) => {
   test.slow();
   const server = await startServer();

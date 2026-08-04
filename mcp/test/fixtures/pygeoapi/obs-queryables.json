@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "title": "Observations",
+  "properties": {
+    "geometry": {
+      "format": "geometry-any",
+      "x-ogc-role": "primary-geometry"
+    },
+    "id": {
+      "title": "id",
+      "type": "string",
+      "x-ogc-role": "id"
+    },
+    "stn_id": {
+      "title": "stn_id",
+      "type": "integer"
+    },
+    "datetime": {
+      "title": "datetime",
+      "type": "string"
+    },
+    "value": {
+      "title": "value",
+      "type": "number"
+    }
+  },
+  "$schema": "http://json-schema.org/draft/2019-09/schema",
+  "$id": "https://demo.pygeoapi.io/master/collections/obs/queryables?f=json"
+}

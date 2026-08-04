@@ -129,6 +129,81 @@ The regression gate compares a fresh run against the published observation and
 fails when an app's auto-migrated ratio drops or when usage that was previously
 visible stops being detected.
 
+## Post-codemod build validation (deep mode)
+
+The readiness page counts call sites. It cannot tell you whether the migrated
+app still builds — and a codemod that rewrites 86% of call sites into something
+that does not compile has not helped anyone. Deep mode answers that, and it is
+the only part of the corpus that installs third-party dependencies.
+
+It is therefore a **separate runner** (`scripts/oss-arcgis-corpus-deep.mjs`)
+behind a **second switch** and an explicit per-app allowlist
+(`deepValidation.apps`). The standard lane is unchanged and still never
+installs anything.
+
+### The measurement is paired
+
+Running a build over a stranger's app and reporting the failures proves nothing
+about the codemod: third-party apps carry their own pre-existing type errors and
+pinned toolchains. So every deep run measures the same app **twice, at the same
+commit, with the same installed dependency tree**:
+
+| Phase | What runs |
+| --- | --- |
+| `baseline` | clone the pin → `npm ci --ignore-scripts` → typecheck probe → the app's build script |
+| `migrated` | `codemod --write` → install the packed Honua packages → the same typecheck probe → the same build script |
+
+The app's own diagnostics appear in both phases and cancel. What remains —
+`introducedDiagnostics` and a build that passed before and fails after — is the
+migration's, and nothing else is claimed.
+
+The typecheck probe is a generated config (`allowJs`, `checkJs`, `strict:
+false`, `skipLibCheck`) rather than the app's own, because not every corpus app
+ships one. That means the baseline can carry diagnostics the app's author never
+saw. This is fine precisely because only the delta is reported — but it is why
+the raw diagnostic counts on the published page are not a judgment of the app.
+
+### Supply-chain posture
+
+Recorded in `deepValidation.supplyChain` as booleans the guardrail check
+enforces, not as prose:
+
+- **Lifecycle scripts never run.** Every install passes `--ignore-scripts`.
+- **Committed lockfile required, used verbatim.** Only apps with a lockfile are
+  eligible; `npm ci` resolves it exactly. A repository that commits its own
+  `node_modules` has it deleted first, so the measured tree is always the one
+  the lockfile describes.
+- **The app's manifest is never rewritten.** Honua packages are added with
+  `--no-save`; `package.json` and the lockfile stay pristine.
+- **Honua packages are packed locally.** `npm pack` from `dist/packages/*`, so
+  the bytes under test are the bytes a consumer would install — never a
+  registry fetch.
+- **Everything is ephemeral.** The checkout, including `node_modules`, is
+  deleted when the run ends.
+
+In CI the deep job is dispatch-only, defaults to off, and never runs on the
+schedule.
+
+```bash
+# Requires BOTH switches
+HONUA_OSS_ARCGIS_CORPUS_ENABLED=true HONUA_OSS_ARCGIS_CORPUS_DEEP=true \
+  npm run corpus:oss-arcgis:deep
+
+# Refresh the published observation and regenerate the page
+HONUA_OSS_ARCGIS_CORPUS_ENABLED=true HONUA_OSS_ARCGIS_CORPUS_DEEP=true \
+  npm run corpus:oss-arcgis:deep:publish
+npm run docs:oss-arcgis-corpus-deep
+```
+
+Results: [post-codemod build validation](./oss-arcgis-corpus-post-codemod-build.md).
+
+### Adding an app to the allowlist
+
+An app is eligible when it has a committed lockfile at the pinned commit and a
+plain npm build script. `buildScript` is validated as an npm script *name*, so a
+manifest edit can never turn it into a shell command. Prefer the smallest app
+that still exercises the compat entry; deep runs are minutes, not seconds.
+
 ## Gaps the corpus has already found
 
 The first sweep (2026-08-03) is why this corpus exists. Three of the six pinned
@@ -156,6 +231,23 @@ correspond. A report whose scan recognized nothing now says
 `readiness: "no-usage-detected"` instead of `ready`, and `--fail-on-no-usage`
 turns that into a CI failure. The three formerly dark apps are measured on the
 page above; the "Detection gaps" section disappears when no app is dark.
+
+The first deep run (2026-08-04) then found the next layer down. `owls-of-bavaria`
+**builds post-codemod** against `@honua/sdk-esri-compat` — baseline build passed,
+migrated build passed — but it picked up three type diagnostics it did not have
+before, and one of them is structural:
+
+| Issue | Gap | Exposed by |
+| --- | --- | --- |
+| [#1012](https://github.com/honua-io/honua-sdk-js/issues/1012) | The codemod migrates a construct whose only consumer is out of scope, producing a compat-to-ArcGIS value handoff that cannot typecheck — and still counts the call site as auto-migrated | `lujoh/owls_of_bavaria` — `src/features/map/filterOwlLayer.jsx`: `FeatureFilter` → `FeatureFilterCompat` handed to an un-migrated `@arcgis/core/layers/support/FeatureEffect` |
+| [#1013](https://github.com/honua-io/honua-sdk-js/issues/1013) | `FeatureFilterCompat.objectIds` is `ReadonlyArray<number \| string>` where ArcGIS declares a mutable `number[]` — an undocumented divergence from the surface being emulated | the same call site |
+
+The other two introduced diagnostics are restatements rather than new problems:
+both are pre-existing errors in the app's untyped Redux wiring whose *message*
+changed because the value is now named `MapViewCompat` instead of `any`. They
+are listed verbatim on the published page anyway — the generated evidence stays
+mechanical, and the argument about what each one means lives here, where it can
+be reviewed.
 
 What the corpus measures now is the *next* cliff, and it is the honest one: the
 codemod rewrites nothing inside an AMD module body (`cmv-app`: 0 of 27
