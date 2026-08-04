@@ -164,6 +164,7 @@ const DEFAULT_REAL_SAMPLE_FIXTURE_NAMES = [
   "esri-real-sample-ops-center-app",
   "esri-real-sample-editing-app",
   "esri-real-sample-network-app",
+  "esri-real-sample-address-search-app",
 ] as const;
 const DEFAULT_DEMO_FIXTURE_NAME = MIGRATION_DEMO_PRIMARY_TARGET.fixtureName;
 
