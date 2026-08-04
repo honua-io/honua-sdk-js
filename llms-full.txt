@@ -1059,7 +1059,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
 | <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
-| <a id="offline-region-reference"></a>[`offline-region-reference`](../../docs/examples/offline-region-reference/README.md) | fixture | - | experimental | active | browser-fixture | fixture | not-required | Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, and reports one composed local-first state. |
+| <a id="offline-region-reference"></a>[`offline-region-reference`](../../docs/examples/offline-region-reference/README.md) | fixture | - | experimental | active | browser-fixture | fixture | not-required | Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, then replays that edit exactly once against a loopback fixture transport on reconnect and reports one composed local-first state. |
 | <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
 | <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | active | browser-lab | fixture | not-required | Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services. |
 | <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
@@ -3848,13 +3848,114 @@ accepted by that gate.
 Without a `checkpointStore`, accepted checkpoints remain available in memory
 but `checkpointPersisted` stays false. Callers may persist them as part of their
 own atomic application transaction; the SDK does not claim durability it did
-not observe.
+not observe. See
+[Durable checkpoint persistence](#durable-checkpoint-persistence-937) for the
+shipped stores.
 
 Checkpoint persistence occurs after successful consumer application. This is
 an at-least-once boundary, not a transaction spanning an arbitrary application
 store and checkpoint database. Applications that require atomic exactly-once
 effects must persist their materialized state and checkpoint transactionally,
 or use event ids/versions to make replay idempotent.
+
+## Durable checkpoint persistence (#937)
+
+`RealtimeCheckpointStore` used to be an interface with no shipped
+implementation, so a tab reload always resnapshotted even when a valid cursor
+had been accepted a second earlier. `src/realtime/checkpoint-store.ts` closes
+that gap without changing any cursor semantics:
+
+- `createIndexedDbRealtimeCheckpointStore(...)` persists checkpoints in the
+  browser (default database `honua-realtime-checkpoints`);
+- `createMemoryRealtimeCheckpointStore(...)` runs the identical normalization,
+  screening, expiry, and eviction logic without IndexedDB, for tests and
+  non-persistent hosts;
+- `createRealtimeCheckpointStore(storage, ...)` binds that same logic to any
+  `RealtimeCheckpointRecordStorage`, for a host this SDK ships no adapter for.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  createIndexedDbRealtimeCheckpointStore,
+  createResumableRealtimeTransport,
+} from "@honua/sdk-js/realtime";
+
+const checkpointStore = createIndexedDbRealtimeCheckpointStore({
+  // Tighten, never raise, the shipped ceilings.
+  maxAgeMs: 5 * 60 * 1000,
+  onDiagnostic: (diagnostic) => {
+    // Every discard, refusal, and storage failure, as a HonuaRealtimeResumeError.
+    reportToTelemetry(diagnostic.reason, diagnostic.error);
+  },
+});
+
+const transport = createResumableRealtimeTransport(rawTransport, {
+  context: resumeContext,
+  checkpointStore,
+});
+```
+
+### What a record contains
+
+One record per resume scope, stamped with the versioned format string
+`honua.realtime-checkpoint-store/1.0`:
+
+- the resume position — `sequence` plus any `cursor`, `watermark`, `timestamp`,
+  and `deltaToken`;
+- the scope identity — `sourceId`, `queryFingerprint`, `sourceVersion`,
+  `schemaVersion`, and a SHA-256 **digest** of the authorization-scope
+  fingerprint;
+- two observation times — `savedAt` (the checkpoint's own, which drives expiry)
+  and `observedAt` (when the record was written, which drives eviction order).
+
+Nothing else. No features, no snapshot bytes, no request URLs, no headers, no
+credentials, and no recent-event-id history: that window is bounded delivery
+state, not resume state, so a restored checkpoint starts with an empty id
+window while its ordering guarantees are unchanged. Snapshot bytes remain the
+offline region store's responsibility.
+
+Every remaining persisted string is screened with the shared persisted-string
+screen in `src/connect-url-safety.ts` — the same denylist and shape rules the
+offline region store applies through `assertCredentialFreeManifest`. A resume
+position that is a full request link (an OData delta link, for example) or that
+carries credential-shaped material is **refused**, not rewritten: the record is
+not written, a `credential-screened` diagnostic is reported, and the next load
+resnapshots.
+
+### Keying, revalidation, and expiry
+
+The record key is a digest over the authorization-scope digest, source
+identity, and query identity — exactly the identities checkpoint scope
+validation is defined against — so a different tenant, source, or accepted
+query cannot even address another scope's cursor. Source and schema versions
+are deliberately outside the key so a version bump replaces the record in place
+and is discarded explicitly rather than orphaned.
+
+Load is fail-closed. It revalidates the stored record through the same
+`evaluateRealtimeCheckpoint` the gate uses and discards it — deleting the row
+and reporting a diagnostic — when the source, query, source version, schema
+version, or authorization scope changed, when the record is corrupt or carries
+a different format string, or when the checkpoint is older than `maxAgeMs`
+(default 15 minutes, ceiling 24 hours). Age matters independently of scope: a
+server may retire a cursor window, and an honest resnapshot beats a silent gap.
+A record stamped in the future is treated as corrupt time, not a fresh cursor.
+
+### Bounds and failure posture
+
+Each scope holds exactly one record (last write wins) and a store holds at most
+`maxRecords` scope records (default 64, ceiling 512), evicting the least
+recently written first. The IndexedDB write and its eviction sweep share one
+readwrite transaction, so a write is atomic and bounded.
+
+A store never throws into a subscription. A rejected storage call, a refused
+value, or a corrupt record resolves and reports a
+`RealtimeCheckpointStoreDiagnosticV1` carrying a `HonuaRealtimeResumeError`, so
+the subscription degrades to a resnapshot instead of entering the gate's
+terminal `error` phase. `onDiagnostic` is therefore the honest signal that a
+durable record does not exist; `state.checkpointPersisted` only reports that
+`save()` completed.
+
+Persistence stays opt-in. A subscription without a `checkpointStore` behaves
+exactly as it did before this slice.
 
 ## Bounded, reconnecting transports (#557)
 
@@ -5176,9 +5277,12 @@ broader local-first feature complete.
 
 The checked-in
 [network-disabled reference workflow](./examples/offline-region-reference/README.md)
-shows the public IndexedDB, diagnostic, fetch-handler, edit-queue, and status
-contracts booting through a host-owned application-shell worker when networking
-is disabled before reload.
+shows the public IndexedDB, diagnostic, fetch-handler, edit-queue, replay, and
+status contracts booting through a host-owned application-shell worker when
+networking is disabled before reload. It captures a field edit while
+disconnected, keeps it across a reload taken with networking still disabled, and
+replays it once on reconnect against a loopback fixture transport — which proves
+the durable local transitions, not hosted replica synchronization.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -5220,6 +5324,90 @@ const diagnostic = await createOfflineRegionDiagnostic(
   },
 );
 ```
+
+## Storage budget and quota admission
+
+`logicalQuotaBytes` is an honest accounting of declared payload lengths, but on
+its own it has no relationship to the space the browser will grant. Ask the
+platform instead of inventing a constant: `probeOfflineStorageBudget()` reads
+`navigator.storage.estimate()` through an injectable interface and derives a
+conservative logical budget.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  downloadOfflineRegion,
+  probeOfflineStorageBudget,
+  requestOfflinePersistentStorage,
+} from "@honua/sdk-js/offline";
+
+const budget = await probeOfflineStorageBudget();
+if (budget.status === "unavailable") {
+  // No StorageManager, or no estimate. The SDK reports that rather than
+  // fabricating a number; the application decides what to offer.
+  showUnknownCapacity(budget.reason, budget.persistence);
+} else if (budget.logicalBudgetBytes < manifest.totalLogicalBytes) {
+  showTooLarge(budget.remainingBytes, budget.reserveBytes);
+} else {
+  await downloadOfflineRegion(manifest, {
+    store: applicationStore,
+    load: applicationResourceLoader,
+    logicalQuotaBytes: budget.logicalBudgetBytes,
+  });
+}
+
+// Only ever on an explicit user action: this can prompt.
+if (budget.persistence === "best-effort" && userAskedToKeepData) {
+  const persistence = await requestOfflinePersistentStorage();
+  console.log(persistence.status); // "granted" | "denied" | "unavailable"
+}
+```
+
+Derivation is deterministic integer arithmetic over the reported values:
+
+```text
+remaining = max(0, quota - usage)
+reserve   = min(remaining, max(minimumReserveBytes, floor(remaining * headroomRatio)))
+budget    = remaining - reserve
+```
+
+so the derived budget can never exceed the platform-reported remaining quota,
+and an origin with less free space than the reserve floor (16 MiB by default) is
+offered `0` rather than a number that cannot be honoured. The estimate is
+deliberately imprecise and origin-scoped, so the result is **advisory, never a
+guarantee** — which is exactly why a reserve exists and why physical occupancy,
+deduplication, and index overhead stay outside the contract.
+
+A device can still refuse a write the budget admitted. When it does, the
+platform `QuotaExceededError` raised while staging, writing, or committing is
+classified as `quota-exceeded` / `offline.region.quota` rather than the internal
+`store-failed` / `offline.storage.failure` class, and the error carries the
+admission plan that was attempted:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+try {
+  await downloadOfflineRegion(manifest, downloadOptions);
+} catch (error) {
+  if (isHonuaError(error, "offline.region.quota")) {
+    // Required, evicted, and projected logical bytes, without recomputing them.
+    showEvictionPrompt(error.admission);
+  }
+}
+```
+
+A refused plan is a proposal, not a record of what happened: a region refused
+before the download starts evicts nothing, and no region outside
+`admission.evictRegionIds` is ever removed. Pinned regions are never proposed.
+`isStorageQuotaPressureError()` is exported so a host-supplied
+`OfflineRegionStore` can classify the same condition the same way instead of
+hiding a full device inside its own wrapper.
+
+Persisted state changes the eviction risk for every cached region, so it is
+observed rather than inferred: the probe reports
+`persistence: "persisted" | "best-effort" | "unknown"`, and
+`createOfflineRegionDiagnostic()` accepts the probe result and republishes it as
+`diagnostic.storage`. The diagnostic never probes on its own, and
+`navigator.storage.persist()` is reached only through
+`requestOfflinePersistentStorage()` — a download is not consent to prompt.
 
 ## Durable edit queue
 
@@ -5384,6 +5572,13 @@ confidently wrong headline.
   bytes, compression, deduplication, or store overhead. Admission is deterministic:
   expired regions, then least-recently-used regions, then code-unit id order.
   Pinned regions are never automatically evicted.
+- The ceiling itself can be derived from the origin's real storage estimate.
+  `probeOfflineStorageBudget()` performs no network I/O, mutates nothing, never
+  requests persistence, returns no credential or request URL, and is
+  deterministic for identical inputs. A platform without a `StorageManager` or
+  an estimate yields an explicit `unavailable` result instead of a fabricated
+  budget. A refusal by the device is typed `quota-exceeded` and carries the
+  attempted admission plan.
 - The injected transaction stages evictions and writes, then publishes them
   atomically with the manifest and receipt. Commit compares the inventory
   revision used for planning and independently enforces logical quota in the
@@ -9400,7 +9595,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `78b6dd4b`._
+_Generated 2026-08-04 at commit `b5f6fc73`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -9414,8 +9609,8 @@ _Generated 2026-08-04 at commit `78b6dd4b`._
 | `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 598.6 KiB | 612.2 KiB | 161.6 KiB | 163.9 KiB |
-| `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
+| `/runtime` | 599.3 KiB | 612.2 KiB | 162.0 KiB | 163.9 KiB |
+| `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
 | `/offline` | 96.4 KiB | 106.1 KiB | 26.9 KiB | 29.5 KiB |
 | `/query-planner` (worker runtime injected) | 659.6 KiB | 703.3 KiB | 142.5 KiB | 143.2 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.6 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
@@ -9430,12 +9625,12 @@ _Generated 2026-08-04 at commit `78b6dd4b`._
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 139.2 KiB | 154.9 KiB | 42.0 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 977.4 KiB | 1037.6 KiB | 262.9 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1053.8 KiB | 1120.1 KiB | 286.1 KiB | 292.6 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 978.0 KiB | 1037.6 KiB | 263.3 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1054.5 KiB | 1120.1 KiB | 286.5 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 535.7 KiB | 562.6 KiB | 143.9 KiB | 150.2 KiB |
+| `/react` (react/react-dom external) | 536.4 KiB | 562.6 KiB | 144.3 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 739.1 KiB | 754.5 KiB | 198.7 KiB | 201.3 KiB |
 | browser ESM (`./browser`) | 737.8 KiB | 753.1 KiB | 198.4 KiB | 201.0 KiB |
@@ -14127,9 +14322,13 @@ API (it does **not** use regex). It:
 - Emits `manualTodos` and `manualTodoReasons` on a `byKind` matrix
   for every untouched call site, so app authors can drive cleanup
   against a checklist.
-- Emits a parity report (`src/migration/report.ts`) with three
-  gates (`no-manual-todos`, `no-unhandled-modules`,
-  `no-blocking-flags`) and a readiness verdict.
+- Emits a parity report (`src/migration/report.ts`) with four
+  gates (`arcgis-usage-detected`, `no-manual-todos`,
+  `no-unhandled-modules`, `no-blocking-flags`) and a readiness
+  verdict. A scan that recognized no ArcGIS usage reports
+  `no-usage-detected` rather than letting the other three gates pass
+  vacuously into a `ready`; `--fail-on-no-usage` fails a CI lane on
+  it.
 - Knows the `esri-leaflet` migration target as a separate column,
   with `ESRI_LEAFLET_COMPAT_FALLBACK_KINDS` gating which kinds are
   treated as deterministic vs. assisted.
