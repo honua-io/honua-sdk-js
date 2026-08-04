@@ -849,7 +849,7 @@ Node-only or REST-only consumer never pays the install cost:
 
 | Integration | Peer to install |
 |-------------|-----------------|
-| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
+| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` — supported majors: **5 and 6** (`^5.0.0 \|\| ^6.0.0`; the 6.x half of that range ships with the next release, the current published beta still declares `^5.0.0`). MapLibre 6 is ESM-only and requires WebGL2; see [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
@@ -5458,6 +5458,113 @@ const diagnostic = await createOfflineRegionDiagnostic(
 );
 ```
 
+## Planning a snapshot and reading it back (experimental)
+
+`planOfflineRegionSnapshot()` is the producer between the protocol-neutral
+contract and the region store: it turns a source identity, a canonical `Query`,
+a bounded extent, and the payloads an application already holds into a manifest
+whose resource identities are deterministic functions of that selection. An
+identity is derived from contract inputs — source id, normalized credential-free
+endpoint, authorization-scope digest, source / schema / plan versions, extent,
+canonical query, resource kind and selector — and never from a signed or
+token-bearing request URL.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  createMemoryOfflineRegionStore,
+  createOfflineRegionFeatureBatch,
+  createOfflineRegionSnapshotLoader,
+  downloadOfflineRegion,
+  encodeOfflineRegionFeatureBatch,
+  planOfflineRegionSnapshot,
+  readOfflineRegionQuery,
+} from "@honua/sdk-js/offline";
+
+const query = { outFields: ["id", "status"], returnGeometry: true };
+const batch = createOfflineRegionFeatureBatch(await source.query(query), {
+  pagination: { offset: 0 },
+});
+
+const snapshot = await planOfflineRegionSnapshot({
+  name: "Field area",
+  sourceId: source.descriptor.id,
+  endpoint: source.descriptor.locator.url,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  bounds: { minX: -158.3, minY: 21.4, maxX: -157.6, maxY: 21.8, crs: "EPSG:4326" },
+  sourceVersion: "source-v3",
+  schemaVersion: "schema-v7",
+  planVersion: "plan-v2",
+  observation: { state: "live", observedAt: new Date().toISOString() },
+  attribution: { noaa: "Data: NOAA" },
+  query,
+  contents: [
+    {
+      kind: "features",
+      bytes: encodeOfflineRegionFeatureBatch(batch),
+      contentType: "application/json",
+      attributionIds: ["noaa"],
+    },
+  ],
+});
+
+await downloadOfflineRegion(snapshot.manifest, {
+  store: applicationStore,
+  load: createOfflineRegionSnapshotLoader(snapshot),
+  logicalQuotaBytes: budget.logicalBudgetBytes,
+});
+
+// Later, with no network at all.
+const read = await readOfflineRegionQuery(snapshot.manifest, {
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  query,
+  bounds: snapshot.manifest.bounds,
+});
+render(read.result.features, read.attribution, read.provenance.observation);
+```
+
+The read path answers only what the region actually holds:
+
+- **Scope first.** The caller's current authorization-scope digest must equal the
+  region's, or the read fails with `scope-mismatch`. A scope change can never
+  serve another principal's cached bytes.
+- **Fail closed, never narrow.** A version the region was not captured at, or an
+  extent it does not cover, raises `out-of-region`; a selection it never stored
+  raises `cache-miss`. Both classify as `offline.region.miss`.
+- **Refuse rather than approximate.** A sub-extent of the region, an
+  `aggregation`, or a `Query` member the read path does not understand raises
+  `HonuaCapabilityNotSupportedError` naming the construct and the
+  `offline-region` protocol, because answering any of them would require
+  evaluating a predicate the snapshot never ran.
+- **Pagination is a window, not an identity.** A stored batch records the window
+  it captured, so a later page is sliced from it exactly. A page outside that
+  window is a miss, never a short answer.
+- **Freshness is reported, never repaired.** A stale region answers with an
+  explicit `stale` decision, because revalidation implies a network the caller
+  may not have.
+- **Nothing is presented as live.** Every result carries a `Result.degraded`
+  entry naming the region, its observation time, and its freshness.
+
+`read.cache` reports the persistent-cache decision — region identity, query
+fingerprint, authorization-scope digest, freshness, completeness, and exactly
+which stored resources answered — and `read.planCache` feeds `explainQuery()` so
+the query plan reports it too. A fresh region carries its manifest identity as
+the plan's `fingerprint` validator, which binds the plan's own fingerprint to the
+region that answered it; a stale region deliberately carries no validator.
+
+`createMemoryOfflineRegionStore()` is a non-durable twin of the IndexedDB store
+for Node, workers, and tests. Both pass one shared suite:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { runOfflineRegionStoreConformance } from "@honua/sdk-js/offline";
+
+const report = await runOfflineRegionStoreConformance({
+  createStore: () => createMemoryOfflineRegionStore(),
+  label: "memory",
+});
+console.log(report.failed === 0);
+```
+
 ## Storage budget and quota admission
 
 `logicalQuotaBytes` is an honest accounting of declared payload lengths, but on
@@ -7551,9 +7658,9 @@ policy in the manifest.
 | `odata` | `query`, `queryObjectIds`, `stream`, `applyEdits` | `supported` | `protocol-adapter` | `native` | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts) |
 | `pmtiles` | `tiles` | `supported` | `client-only` | `native` | [fixture: pmtiles-fixtures](../test/pmtiles-contract.test.ts) |
 | `geoparquet` | `query`, `queryAggregate`, `stream` | `experimental` | `client-only` | `native` | [fixture: geoparquet-fixtures](../test/geoparquet-source.test.ts) |
-| `maplibre-vector` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
+| `maplibre-vector` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs)<br>[fixture: maplibre-peer-major-matrix](../test/maplibre-peer-major-compat.test.ts)<br>[integration: maplibre-peer-major-browser](../test/playwright/migration-browser-maplibre.spec.mjs) |
 | `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
-| `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
+| `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs)<br>[fixture: maplibre-peer-major-matrix](../test/maplibre-peer-major-compat.test.ts)<br>[integration: maplibre-peer-major-browser](../test/playwright/migration-browser-maplibre.spec.mjs) |
 | `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
 
 ### Generated discovery disposition inventory
@@ -8834,7 +8941,7 @@ try {
 | `QueryTileServerResponseError` | `@honua/sdk-js/runtime` | Query-tile HTTP response is unsuccessful. | Inspect `.status`; transient HTTP statuses are classified retryable without changing request policy. |
 | `HonuaRealtimeResumeError` | `@honua/sdk-js/realtime` | Realtime initialization, decoding, checkpoint, ordering, transport, or terminal delivery fails. | Branch on the existing reason `.code`; reconnect or request a replacement snapshot only when the stream contract already permits it. Envelope retryability is metadata and does not initiate reconnects. |
 | `HonuaRealtimeReconciliationError` | `@honua/sdk-js/realtime`, `@honua/sdk-js/map` | Delta reconciliation (`reconciliation.ts`) or its MapLibre adapter (`realtime-reconciliation-adapter.ts`) receives an invalid option, or a reconciler/cache/adapter already disposed receives another patch. | Branch on `.code` (`"disposed"` / `"invalid-option"`). Recreate the reconciler/cache/adapter instead of reusing a disposed one; correct the option that failed validation. Not retryable. |
-| `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, or atomic store work fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
+| `HonuaOfflineRegionError` | `@honua/sdk-js/offline` | Offline manifest validation, quota admission, resource loading, integrity verification, cancellation, atomic store work, or an offline read the persisted region cannot answer fails. | Branch on the existing detailed `.code`. Rebuild invalid manifests, free quota, and treat abort as terminal. Treat `cache-miss` / `scope-mismatch` / `out-of-region` (`offline.region.miss`) as "download a region for this selection", never as an empty answer. Retry through the application's loader/store policy only when `.sdkCode` is `offline.transport.transient`; generic loader failures remain conservative. Raw resource identifiers and storage paths remain local-only. |
 | `HonuaReplicaSyncError` | `@honua/app-platform/replica-sync` (the deprecated `@honua/sdk-js/replica-sync` shim remains through 0.1.x) | Disconnected replica capability, conflict review/resolution, permission, validation, or transport work fails. | Branch on the existing detailed `.code` and preserve the current sync/conflict workflow. Only failures carrying a tagged retryable network/timeout cause receive retryable metadata; the envelope does not retry or resolve conflicts. |
 | `HonuaPluginRegistryError` | `@honua/sdk-js/plugin` | Plugin registry validation, compatibility, policy, capability, activation, execution validation, cancellation, or cleanup fails. | Branch on the existing `PLUGIN_*` `.code` or its grouped `.sdkCode`. Correct declarations or host policy/capability, treat cancellation as terminal, and inspect `.cause` / `.cleanupErrors` locally for activation or cleanup failures. No plugin classification is automatically retryable. |
 | `HonuaAgentToolError` | `@honua/sdk-js/agent-tools` | An agent tool call names an unknown tool, the tool kit is created without a usable runtime, a selection target is not source-qualified, or the adapted runtime does not implement the requested tool method. | Branch on `.code` or `.sdkCode`; correct the tool name, provide a runtime/controller/generated-app runtime, or qualify the selection. Not retryable. |
@@ -8882,7 +8989,7 @@ and this class/family documentation.
 | `QueryTileServerResponseError` | `runtime.query-tiles.transient`, `runtime.query-tiles.rejected` |
 | `HonuaRealtimeResumeError` | `realtime.cancelled`, `realtime.transport.reconnectable`, `realtime.checkpoint.invalid`, `realtime.sequence.gap`, `realtime.protocol.terminal` |
 | `HonuaRealtimeReconciliationError` | `realtime.reconciliation.disposed`, `realtime.reconciliation.invalid-option` |
-| `HonuaOfflineRegionError` | `offline.region.validation`, `offline.region.quota`, `offline.region.integrity`, `offline.cancelled`, `offline.transport.failure`, `offline.transport.transient`, `offline.storage.*` |
+| `HonuaOfflineRegionError` | `offline.region.validation`, `offline.region.quota`, `offline.region.integrity`, `offline.region.miss`, `offline.cancelled`, `offline.transport.failure`, `offline.transport.transient`, `offline.storage.*` |
 | `HonuaReplicaSyncError` | `offline.replica-sync.capability`, `offline.replica-sync.validation`, `offline.replica-sync.permission-denied`, `offline.transport.failure`, `offline.transport.transient` |
 | `HonuaPluginRegistryError` | `plugin.registry.validation`, `plugin.compatibility`, `plugin.execution.policy-denied`, `plugin.capability-unavailable`, `plugin.lifecycle.activation`, `plugin.execution.validation`, `plugin.lifecycle.cleanup`, `plugin.cancelled`, `plugin.internal` |
 | `HonuaAgentToolError` | `agent.tool.unknown-tool`, `agent.tool.missing-runtime`, `agent.tool.unqualified-selection`, `agent.tool.missing-runtime-method`, `agent.tool.internal` |
@@ -9037,6 +9144,7 @@ classification is conservatively non-retryable.
 | `offline.region.validation` | `offline` | `validation` | no | Offline region input or lifecycle state is invalid |
 | `offline.region.quota` | `offline` | `validation` | no | Offline region exceeds a logical storage quota |
 | `offline.region.integrity` | `offline` | `protocol` | no | Offline resource integrity verification failed |
+| `offline.region.miss` | `offline` | `validation` | no | Offline region does not cover the requested read |
 | `offline.cancelled` | `offline` | `cancellation` | no | Offline operation was cancelled |
 | `offline.transport.failure` | `offline` | `network` | no | Offline resource or replica transport failed without a transient classification |
 | `offline.transport.transient` | `offline` | `network` | yes | Offline resource or replica transport failed transiently |
@@ -9968,52 +10076,52 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `b5f6fc73`._
+_Generated 2026-08-04 at commit `73745066`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 738.5 KiB | 753.9 KiB | 198.4 KiB | 211.8 KiB |
-| `/honua` | 901.3 KiB | 937.2 KiB | 242.8 KiB | 251.0 KiB |
+| `.` (root) | 738.7 KiB | 753.9 KiB | 198.4 KiB | 211.8 KiB |
+| `/honua` | 901.4 KiB | 937.2 KiB | 242.8 KiB | 251.0 KiB |
 | `/contract` | 364.3 KiB | 400.6 KiB | 98.3 KiB | 108.0 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 878.3 KiB | 925.5 KiB | 197.7 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
 | `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 911.6 KiB | 961.8 KiB | 207.0 KiB | 215.6 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 65.3 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
-| `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
-| `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 65.4 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
+| `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
+| `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 599.3 KiB | 612.2 KiB | 162.0 KiB | 163.9 KiB |
+| `/runtime` | 598.7 KiB | 612.2 KiB | 161.6 KiB | 163.9 KiB |
 | `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
-| `/offline` | 96.4 KiB | 106.1 KiB | 26.9 KiB | 29.5 KiB |
-| `/query-planner` (worker runtime injected) | 659.6 KiB | 703.3 KiB | 142.5 KiB | 143.2 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.6 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
-| `/esri-compat` | 999.8 KiB | 1026.2 KiB | 250.1 KiB | 253.6 KiB |
+| `/offline` | 131.7 KiB | 144.9 KiB | 35.7 KiB | 39.2 KiB |
+| `/query-planner` (worker runtime injected) | 659.7 KiB | 703.3 KiB | 142.5 KiB | 143.2 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.7 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
+| `/esri-compat` | 1010.4 KiB | 1026.2 KiB | 252.8 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
-| `/routing` | 20.5 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
-| `/auth` | 25.9 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
+| `/routing` | 20.6 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
+| `/auth` | 26.0 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
-| `/map` | 180.7 KiB | 198.2 KiB | 51.2 KiB | 56.2 KiB |
+| `/map` | 180.8 KiB | 198.2 KiB | 51.2 KiB | 56.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 139.2 KiB | 154.9 KiB | 42.0 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 978.0 KiB | 1037.6 KiB | 263.3 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1054.5 KiB | 1120.1 KiB | 286.5 KiB | 292.6 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 977.4 KiB | 1037.6 KiB | 262.9 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1053.9 KiB | 1120.1 KiB | 286.2 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 536.4 KiB | 562.6 KiB | 144.3 KiB | 150.2 KiB |
+| `/react` (react/react-dom external) | 535.7 KiB | 562.6 KiB | 143.9 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 739.1 KiB | 754.5 KiB | 198.7 KiB | 201.3 KiB |
-| browser ESM (`./browser`) | 737.8 KiB | 753.1 KiB | 198.4 KiB | 201.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 231.4 KiB | 254.0 KiB | 59.7 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 604.0 KiB | 627.9 KiB | 161.1 KiB | 166.9 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 739.3 KiB | 754.5 KiB | 198.7 KiB | 201.3 KiB |
+| browser ESM (`./browser`) | 738.0 KiB | 753.1 KiB | 198.4 KiB | 201.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 231.5 KiB | 254.0 KiB | 59.7 KiB | 63.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 604.1 KiB | 627.9 KiB | 161.1 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.4 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
-| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.8 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 703.3 KiB | 717.1 KiB | 189.1 KiB | 191.3 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 246.0 KiB | 267.0 KiB | 63.0 KiB | 68.1 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.5 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.9 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 703.4 KiB | 717.1 KiB | 189.1 KiB | 191.3 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 246.1 KiB | 267.0 KiB | 63.0 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.8 KiB | 44.7 KiB | 13.4 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
@@ -12710,16 +12818,62 @@ through the contract's `Source` handles.
 
 ## MapLibre 5 and 6 compatibility
 
-The optional `maplibre-gl` peer range is `^5.0.0 || ^6.0.0`. The compatibility
-gate renders the same Honua-generated style through the latest 5.x release and
-6.x; the development dependency and runnable examples target 6.x.
+**Supported MapLibre majors: 5 and 6.** The optional `maplibre-gl` peer range is
+`^5.0.0 || ^6.0.0`, and 6.x is the recommended major for new apps — it is what
+the development dependency and every runnable example in this repository
+install. MapLibre 5 stays supported for apps that have not migrated yet; it is
+not deprecated in this release, and any future narrowing will be a dated
+decision recorded here rather than a silent break.
+
+> **Registry status (2026-08-03).** The widened range is in the source tree and
+> ships with the next release. The newest published package
+> (`@honua/sdk-js@0.1.2-beta.0`) still declares `maplibre-gl@^5.0.0`, so an app
+> that installs the SDK from npm today and asks for MapLibre 6 gets an
+> `ERESOLVE` peer conflict. That is why the `create-honua-app` starters still
+> pin 5.24.0 (`docs/create-honua-app.md`); they move to 6.x in the first release
+> whose published `peerDependencies` carry both majors.
+
+That claim is gated, not asserted. CI runs a `MapLibre peer-major matrix
+(5.x + 6.x)` step (`npm run test:maplibre-compat`) that:
+
+- typechecks the whole tree against MapLibre 5's typings
+  (`npm run typecheck:maplibre-v5`, `tsconfig.maplibre-v5.json`), while the
+  ordinary `npm run typecheck` covers 6.x;
+- imports the real peer module on both majors and asserts every symbol the SDK
+  reaches for, including live `pmtiles://` protocol registration
+  (`test/maplibre-peer-major-compat.test.ts`, re-run under
+  `vitest.maplibre-v5.config.ts` with the `maplibre-gl-v5` alias);
+- exercises both module packagings the `<honua-map>` renderer must accept
+  (`test/web-components-maplibre-module-compat.test.ts`);
+- renders the same Honua-generated style in a real browser under 5.x and 6.x
+  (`test/playwright/migration-browser-maplibre.spec.mjs`).
 
 MapLibre 6 is ESM-only, targets ES2022, and requires WebGL2. Use namespace or
 named imports (`import * as maplibregl from "maplibre-gl"`) rather than the v5
 default import or removed UMD bundle. Vite hosts must also configure the module
-worker; the examples share `examples/shared/maplibre-vite-worker.ts`, which uses
-Vite's `?worker&url` pipeline before creating a map. See MapLibre's official
+worker; the examples share `examples/shared/maplibre-vite-worker.ts` and the
+starters ship `src/maplibre-worker.ts`, both of which use Vite's `?worker&url`
+pipeline before creating a map. See MapLibre's official
 [v5-to-v6 migration guide](https://github.com/maplibre/maplibre-gl-js/blob/v6.0.0/docs/guides/v5-to-v6-migration-guide.md).
+
+WebGL context attributes belong under `canvasContextAttributes` on both
+supported majors — MapLibre 5.0 moved `preserveDrawingBuffer`, `antialias`, and
+`failIfMajorPerformanceCaveat` there, and 6.x kept them. A top-level
+`preserveDrawingBuffer` is silently ignored, which is why the snapshot export in
+`@honua/sdk-js/web-components` requires the nested form:
+
+```ts doc-test=skip reason="requires a live MapLibre map"
+const map = new maplibregl.Map({
+  container,
+  style,
+  canvasContextAttributes: { preserveDrawingBuffer: true },
+});
+```
+
+Because MapLibre 6 dropped WebGL1, a WebGL1-only device has no supported
+renderer at all. The reviewed deck.gl capability policy
+(`bench/browser/capability-policy.mjs`) classifies such a device `unsupported`
+rather than routing it to a MapLibre fallback that cannot draw.
 
 The SDK keeps its direct style validator on style-spec 24.x so headless users
 are not coupled to MapLibre 6's style-spec 26 dependency. Renderer mounting,
@@ -12730,10 +12884,9 @@ validation for now.
 MapLibre 6 itself declares Node `>=16.14.0`, and the compatibility checks pass
 under this repository's Node 20.19.0 baseline. The SDK pins
 `@mapbox/jsonlint-lines-primitives` 2.0.2 so its direct style-spec 24.x validator
-continues to honor that Node baseline. MapLibre 6's separate style-spec
-dependency currently carries transitive engine metadata that names Node 22, so
-an `engine-strict=true` install may reject v6 even though the exercised APIs run
-on Node 20; use v5 until that upstream metadata is corrected.
+continues to honor that Node baseline. MapLibre 6's style-spec 26.x dependency
+declares no engine constraint as of 26.2.1 (observed 2026-08-03), so an
+`engine-strict=true` install no longer rejects v6 on Node 20.
 
 ## Standalone data-to-map bridge
 
