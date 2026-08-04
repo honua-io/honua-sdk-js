@@ -2,10 +2,10 @@ import {
   type CodemodConstructorKind,
   type EsriCompatCodemodResult,
   type MigrationTodo,
-  SUPPORTED_ARCGIS_MODULE_KIND_BY_PATH,
   isKindSupportedForTarget,
   isSupportedArcGisBarrelModulePath,
   resolveArcGisBarrelImportKind,
+  resolveSupportedArcGisModuleKind,
 } from "./codemod.js";
 import { type ArcGisScanReport, scanArcGisUsage, summarizeArcGisScan } from "./scanner.js";
 
@@ -33,6 +33,15 @@ export interface JsMigrationReport {
   codemodResult: EsriCompatCodemodResult;
   manualRewriteMetric: ManualRewriteMetric;
   manualInterventionMetric: ManualInterventionMetric;
+  /**
+   * False when the scan found no ArcGIS (or `esri-leaflet`) module usage at all.
+   *
+   * Every other number in this report is then a measurement of nothing: the
+   * gates pass vacuously because there was nothing to fail on. Consumers must
+   * read this before reading `readiness` — "no usage found" is not the same
+   * claim as "usage found and fully handled".
+   */
+  usageDetected: boolean;
   readiness: MigrationReadiness;
   gates: MigrationGateResult[];
   manualTodosByKind: Record<CodemodConstructorKind, number>;
@@ -53,12 +62,24 @@ export interface ArcGisModuleSummary {
   count: number;
 }
 
-export type ArcGisUsageStyle = "static-import" | "dynamic-import" | "require";
+export type ArcGisUsageStyle =
+  | "static-import"
+  | "dynamic-import"
+  | "require"
+  /** `define([...], factory)` / `require([...], callback)` AMD dependency-array entry. */
+  | "amd-dependency"
+  /** TypeScript `import X = require("esri/...")`. */
+  | "import-equals";
 
-export type MigrationReadiness = "ready" | "assisted" | "blocked";
+/**
+ * `no-usage-detected` is not a degree of readiness — it says the scan produced
+ * no evidence at all, so no readiness verdict was earned. It is deliberately
+ * distinct from `ready`, which claims that usage was found and fully handled.
+ */
+export type MigrationReadiness = "ready" | "assisted" | "blocked" | "no-usage-detected";
 
 export interface MigrationGateResult {
-  gate: "no-manual-todos" | "no-unhandled-modules" | "no-blocking-flags";
+  gate: "arcgis-usage-detected" | "no-manual-todos" | "no-unhandled-modules" | "no-blocking-flags";
   passed: boolean;
   detail: string;
 }
@@ -83,7 +104,8 @@ export function buildJsMigrationReport(
   const interventionNumerator = numerator + unhandledUsageHits;
   const interventionDenominator = denominator + unhandledUsageHits;
   const interventionRatio = interventionDenominator === 0 ? 0 : interventionNumerator / interventionDenominator;
-  const gates = buildMigrationGates(codemodResult, resolvedScan, unhandledArcGisModules);
+  const usageDetected = hasDetectedUsage(resolvedScan);
+  const gates = buildMigrationGates(codemodResult, resolvedScan, unhandledArcGisModules, usageDetected);
   const readiness = determineReadiness(gates);
 
   return {
@@ -107,6 +129,7 @@ export function buildJsMigrationReport(
       manualCodemodCallSites: numerator,
       unhandledUsageHits,
     },
+    usageDetected,
     readiness,
     gates,
     manualTodosByKind,
@@ -240,9 +263,10 @@ function summarizeUnhandledModules(
     const moduleSupportedForTarget =
       !isSideEffectImport &&
       !isReExport &&
+      !isLoaderStyleOutsideCodemodScope(usageStyle) &&
       hasSupportedKind &&
       supportedKinds.every((kind) => isKindSupportedForTarget(kind, codemodResult.target));
-    const directSupportedKind = SUPPORTED_ARCGIS_MODULE_KIND_BY_PATH[hit.modulePath];
+    const directSupportedKind = resolveSupportedArcGisModuleKind(hit.modulePath);
     const requireCoveredByCodemod =
       usageStyle === "require" &&
       moduleSupportedForTarget &&
@@ -277,8 +301,18 @@ function summarizeUnhandledModules(
     });
 }
 
+/**
+ * AMD dependency arrays and TypeScript import-equals bind ArcGIS modules in
+ * shapes the codemod does not rewrite, so their modules stay in the unhandled
+ * inventory even when the module itself maps to a supported kind. The codemod
+ * reports the affected call sites as manual TODOs instead.
+ */
+function isLoaderStyleOutsideCodemodScope(usageStyle: ArcGisUsageStyle): boolean {
+  return usageStyle === "amd-dependency" || usageStyle === "import-equals";
+}
+
 function resolveSupportedKindsForImportHit(hit: ArcGisScanReport["imports"][number]): CodemodConstructorKind[] {
-  const directSupportedKind = SUPPORTED_ARCGIS_MODULE_KIND_BY_PATH[hit.modulePath];
+  const directSupportedKind = resolveSupportedArcGisModuleKind(hit.modulePath);
   if (directSupportedKind !== undefined) {
     return [directSupportedKind];
   }
@@ -356,6 +390,8 @@ function extractImportedNamesFromClause(importClause: string): string[] {
   return names;
 }
 
+// The `importClause` sentinels these map are produced by `scanner.ts`; the two
+// files must agree on the exact strings.
 function classifyUsageStyle(importClause: string): ArcGisUsageStyle {
   if (importClause === "import(...)") {
     return "dynamic-import";
@@ -363,18 +399,45 @@ function classifyUsageStyle(importClause: string): ArcGisUsageStyle {
   if (importClause === "require(...)") {
     return "require";
   }
+  if (importClause === "amd-dependency-array") {
+    return "amd-dependency";
+  }
+  if (importClause === "import-equals-require(...)") {
+    return "import-equals";
+  }
   return "static-import";
+}
+
+/**
+ * Did the scan see any Esri module usage at all?
+ *
+ * `esri-leaflet` counts: the scan saw a real Esri stack, and the codemod's
+ * `esri-leaflet` note explains the rest. What must never count as "detected"
+ * is a scan that walked source files and recognized nothing in them.
+ */
+function hasDetectedUsage(scanReport: ArcGisScanReport): boolean {
+  return scanReport.filesWithArcGisImports > 0 || (scanReport.esriLeafletImportCount ?? 0) > 0;
 }
 
 function buildMigrationGates(
   codemodResult: EsriCompatCodemodResult,
   scanReport: ArcGisScanReport,
   unhandledModules: readonly ArcGisModuleSummary[],
+  usageDetected: boolean,
 ): MigrationGateResult[] {
   const hasManualTodos = codemodResult.metrics.manualCallSites > 0;
   const blockingFlags = scanReport.flags.filter((flag) => BLOCKING_FLAGS.has(flag)).sort();
 
   return [
+    {
+      gate: "arcgis-usage-detected",
+      passed: usageDetected,
+      detail: usageDetected
+        ? `${scanReport.filesWithArcGisImports} of ${scanReport.filesScanned} scanned files import ArcGIS modules`
+        : `no ArcGIS module usage found in ${scanReport.filesScanned} scanned ${
+            scanReport.filesScanned === 1 ? "file" : "files"
+          } under ${scanReport.rootDir}; every other gate below passes vacuously`,
+    },
     {
       gate: "no-manual-todos",
       passed: !hasManualTodos,
@@ -402,6 +465,14 @@ function buildMigrationGates(
 }
 
 function determineReadiness(gates: readonly MigrationGateResult[]): MigrationReadiness {
+  // Checked before everything else: when the scan recognized nothing, the other
+  // gates are measurements of an empty set and must not be reported as a
+  // verdict on the app.
+  const usageGate = gates.find((gate) => gate.gate === "arcgis-usage-detected");
+  if (usageGate && !usageGate.passed) {
+    return "no-usage-detected";
+  }
+
   const blockingGate = gates.find((gate) => gate.gate === "no-blocking-flags");
   if (blockingGate && !blockingGate.passed) {
     return "blocked";

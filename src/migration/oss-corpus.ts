@@ -180,11 +180,13 @@ export interface OssArcGisAppReadiness {
   filesScanned: number;
   filesWithArcGisImports: number;
   /**
-   * False when the scanner walked source files but found no ArcGIS module
-   * usage at all. For a corpus app — every one of which was reviewed and
-   * recorded with evidence paths proving it uses the ArcGIS JS API — this is
-   * a *detection gap*, not a clean bill of health, and the readiness value
-   * next to it must not be read as "nothing to migrate".
+   * Mirrors `JsMigrationReport.usageDetected`: false when the scanner walked
+   * source files but found no ArcGIS module usage at all. For a corpus app —
+   * every one of which was reviewed and recorded with evidence paths proving
+   * it uses the ArcGIS JS API — this is a *detection gap*, not a clean bill of
+   * health, and the readiness value next to it must not be read as "nothing to
+   * migrate". The report now says so itself (`readiness: "no-usage-detected"`);
+   * this field stays so the published observation keeps a stable shape.
    */
   usageDetected: boolean;
   totalCallSites: number;
@@ -418,7 +420,10 @@ export function buildOssArcGisAppReadiness(options: BuildOssArcGisAppReadinessOp
     scanSummary: report?.scanSummary ?? "",
     filesScanned: report?.codemodResult.filesScanned ?? 0,
     filesWithArcGisImports: report?.scanReport.filesWithArcGisImports ?? 0,
-    usageDetected: (report?.scanReport.filesWithArcGisImports ?? 0) > 0,
+    // The report carries this signal itself (#982); the lane no longer derives
+    // it. A report from an older CLI that predates the field reads as a
+    // detection gap, which is the safe direction to fail.
+    usageDetected: report?.usageDetected === true,
     totalCallSites: report?.codemodResult.metrics.totalCodemodScopedCallSites ?? 0,
     autoMigratedCallSites: report?.codemodResult.metrics.autoMigratedCallSites ?? 0,
     manualCallSites: report?.codemodResult.metrics.manualCallSites ?? 0,
@@ -642,10 +647,9 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
     lines.push("");
     lines.push(
       "The scanner found **no ArcGIS usage at all** in the apps below, even though each one was reviewed and " +
-        "recorded with evidence paths proving it uses the ArcGIS JS API. Their readiness values are therefore " +
-        "meaningless — a `ready` verdict here means *the scanner saw nothing*, not *there is nothing to do*. " +
-        "This is the honest headline of this page: the corpus reproduces the migration cliff a legacy AMD app " +
-        "walks into.",
+        "recorded with evidence paths proving it uses the ArcGIS JS API. Nothing about these apps was measured: " +
+        'the report says so with `readiness: "no-usage-detected"`, and every metric next to it is a measurement ' +
+        "of the scanner's blind spot, not of the app.",
     );
     lines.push("");
     for (const appId of run.summary.undetectedApps) {
@@ -689,8 +693,10 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
         : !app.usageDetected
           ? "no usage detected"
           : `${formatRatio(app.autoMigratedRatio)} (${app.autoMigratedCallSites}/${app.totalCallSites})`;
+    // `no-usage-detected` already says it; only an older-shaped verdict needs
+    // the qualifier spelled out next to it.
     const readiness =
-      app.status === "observed" && !app.usageDetected
+      app.status === "observed" && !app.usageDetected && app.readiness !== "no-usage-detected"
         ? `\`${app.readiness}\` (not meaningful)`
         : `\`${app.readiness}\``;
     lines.push(
@@ -742,7 +748,9 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
 
     lines.push("| Metric | Value |");
     lines.push("| --- | --- |");
-    lines.push(`| Readiness | \`${app.readiness}\`${app.usageDetected ? "" : " (not meaningful — see above)"} |`);
+    const readinessNote =
+      app.usageDetected || app.readiness === "no-usage-detected" ? "" : " (not meaningful — see above)";
+    lines.push(`| Readiness | \`${app.readiness}\`${readinessNote} |`);
     lines.push(`| Files scanned | ${app.filesScanned} |`);
     lines.push(`| Files importing ArcGIS modules | ${app.filesWithArcGisImports} |`);
     lines.push(`| Codemod-scoped call sites | ${app.totalCallSites} |`);

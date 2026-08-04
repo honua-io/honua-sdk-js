@@ -276,8 +276,14 @@ describe("buildJsMigrationReport", () => {
       },
     ]);
     expect(report.unhandledArcGisModules).toHaveLength(0);
+    expect(report.usageDetected).toBe(true);
     expect(report.readiness).toBe("blocked");
     expect(report.gates).toEqual([
+      {
+        gate: "arcgis-usage-detected",
+        passed: true,
+        detail: "2 of 2 scanned files import ArcGIS modules",
+      },
       {
         gate: "no-manual-todos",
         passed: false,
@@ -447,6 +453,140 @@ describe("buildJsMigrationReport", () => {
         count: 1,
       },
     ]);
+  });
+
+  describe("zero-detection scans (#982)", () => {
+    function createEmptyCodemodResult(): EsriCompatCodemodResult {
+      const base = createCodemodResult();
+      const byKind = Object.fromEntries(
+        Object.keys(base.metrics.byKind).map((kind) => [kind, { total: 0, autoMigrated: 0, manual: 0 }]),
+      ) as EsriCompatCodemodResult["metrics"]["byKind"];
+      return {
+        ...base,
+        filesScanned: 136,
+        filesChanged: 0,
+        metrics: { totalCodemodScopedCallSites: 0, autoMigratedCallSites: 0, manualCallSites: 0, byKind },
+        fileResults: [],
+        manualTodos: [],
+      };
+    }
+
+    function createBlindScanReport(): ArcGisScanReport {
+      return {
+        rootDir: "/tmp/amd-app",
+        filesScanned: 136,
+        filesWithArcGisImports: 0,
+        imports: [],
+        symbolUsageCounts: {},
+        flags: [],
+      };
+    }
+
+    it("never reports readiness=ready when nothing was detected, however many gates pass vacuously", () => {
+      const report = buildJsMigrationReport("/tmp/amd-app", createEmptyCodemodResult(), createBlindScanReport());
+
+      expect(report.usageDetected).toBe(false);
+      expect(report.readiness).not.toBe("ready");
+      expect(report.readiness).toBe("no-usage-detected");
+      // The point of the regression: every other gate does pass, because there
+      // was nothing to fail on.
+      expect(report.gates.filter((gate) => gate.gate !== "arcgis-usage-detected").every((gate) => gate.passed)).toBe(
+        true,
+      );
+    });
+
+    it("names the scanned root in the usage gate so the report says what happened", () => {
+      const report = buildJsMigrationReport("/tmp/amd-app", createEmptyCodemodResult(), createBlindScanReport());
+      const usageGate = report.gates.find((gate) => gate.gate === "arcgis-usage-detected");
+
+      expect(usageGate?.passed).toBe(false);
+      expect(usageGate?.detail).toContain("/tmp/amd-app");
+      expect(usageGate?.detail).toContain("136 scanned files");
+    });
+
+    it("counts esri-leaflet-only input as detected usage rather than a blind scan", () => {
+      const scanReport: ArcGisScanReport = {
+        ...createBlindScanReport(),
+        filesScanned: 1,
+        esriLeafletImportCount: 1,
+        filesWithEsriLeafletImports: 1,
+        esriLeafletImports: [
+          {
+            file: "/tmp/amd-app/src/main.ts",
+            modulePath: "esri-leaflet",
+            importClause: "* as L",
+            symbols: [],
+          },
+        ],
+        flags: ["esri-leaflet-imports-detected"],
+      };
+
+      const report = buildJsMigrationReport("/tmp/amd-app", createEmptyCodemodResult(), scanReport);
+      expect(report.usageDetected).toBe(true);
+      expect(report.readiness).toBe("ready");
+    });
+
+    it("reports assisted (not ready) once the scanner sees AMD usage the codemod cannot rewrite", () => {
+      const scanReport: ArcGisScanReport = {
+        ...createBlindScanReport(),
+        filesWithArcGisImports: 1,
+        imports: [
+          {
+            file: "/tmp/amd-app/viewer/js/config/viewer.js",
+            modulePath: "esri/geometry/Extent",
+            importClause: "amd-dependency-array",
+            symbols: ["Extent"],
+          },
+          {
+            file: "/tmp/amd-app/app/main.ts",
+            modulePath: "esri/WebMap",
+            importClause: "import-equals-require(...)",
+            symbols: ["WebMap"],
+          },
+        ],
+      };
+
+      const report = buildJsMigrationReport("/tmp/amd-app", createEmptyCodemodResult(), scanReport);
+
+      expect(report.usageDetected).toBe(true);
+      expect(report.readiness).toBe("assisted");
+      // Both modules map to a codemod kind, but neither loader shape is
+      // rewritable, so they stay in the unhandled inventory.
+      expect(report.unhandledArcGisModules).toEqual([
+        { modulePath: "esri/geometry/Extent", usageStyle: "amd-dependency", count: 1 },
+        { modulePath: "esri/WebMap", usageStyle: "import-equals", count: 1 },
+      ]);
+    });
+
+    it("resolves a bare esri/* static import to the same kind as its @arcgis/core equivalent", () => {
+      const scanReport: ArcGisScanReport = {
+        ...createBlindScanReport(),
+        filesWithArcGisImports: 1,
+        imports: [
+          {
+            file: "/tmp/amd-app/src/main.ts",
+            modulePath: "esri/layers/FeatureLayer",
+            importClause: "FeatureLayer",
+            symbols: ["FeatureLayer"],
+          },
+          {
+            file: "/tmp/amd-app/src/main.ts",
+            modulePath: "esri/dijit/BasemapGallery",
+            importClause: "BasemapGallery",
+            symbols: ["BasemapGallery"],
+          },
+        ],
+      };
+
+      const report = buildJsMigrationReport("/tmp/amd-app", createEmptyCodemodResult(), scanReport);
+
+      // `esri/layers/FeatureLayer` corresponds to `@arcgis/core/layers/FeatureLayer`
+      // and is in codemod scope; the 3.x-only `esri/dijit/*` namespace does not
+      // correspond to anything and stays reported as unhandled.
+      expect(report.unhandledArcGisModules).toEqual([
+        { modulePath: "esri/dijit/BasemapGallery", usageStyle: "static-import", count: 1 },
+      ]);
+    });
   });
 
   describe("ReDoS resistance (js/polynomial-redos regression coverage)", () => {

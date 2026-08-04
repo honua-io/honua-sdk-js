@@ -4,6 +4,12 @@ export interface MigrationGateOptions {
   failOnManual: boolean;
   failOnUnhandled: boolean;
   failOnBlocked: boolean;
+  /**
+   * Fail when the scan recognized no ArcGIS usage at all. A CI lane pointed at
+   * an app it cannot parse — or at the wrong directory — otherwise passes every
+   * other gate vacuously.
+   */
+  failOnNoUsage?: boolean;
   maxManualRatio?: number;
   maxManualInterventionRatio?: number;
 }
@@ -18,6 +24,12 @@ export function evaluateMigrationGates(
   options: MigrationGateOptions,
 ): MigrationGateEvaluation {
   const failures: string[] = [];
+
+  if (options.failOnNoUsage && !report.usageDetected) {
+    failures.push(
+      `no ArcGIS usage detected under ${report.scanReport.rootDir} (${report.scanReport.filesScanned} source files scanned)`,
+    );
+  }
 
   if (options.failOnManual && report.manualRewriteMetric.numerator > 0) {
     failures.push(

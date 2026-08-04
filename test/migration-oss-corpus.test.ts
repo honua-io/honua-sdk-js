@@ -67,6 +67,7 @@ function createReport(overrides: Partial<JsMigrationReport> = {}): JsMigrationRe
       manualCodemodCallSites: 2,
       unhandledUsageHits: 1,
     },
+    usageDetected: true,
     readiness: "assisted",
     gates: [],
     manualTodosByKind: { "feature-layer": 2, "map-view": 1, graphic: 0 },
@@ -341,7 +342,8 @@ describe("buildOssArcGisAppReadiness", () => {
       observedAt: "2026-08-03",
       codemodTarget: "honua-compat",
       report: createReport({
-        readiness: "ready",
+        usageDetected: false,
+        readiness: "no-usage-detected",
         scanReport: {
           rootDir: "/tmp/app",
           filesScanned: 136,
@@ -353,7 +355,8 @@ describe("buildOssArcGisAppReadiness", () => {
       }),
     });
 
-    expect(record.readiness).toBe("ready");
+    // The lane reads the report's own signal rather than re-deriving it (#982).
+    expect(record.readiness).toBe("no-usage-detected");
     expect(record.usageDetected).toBe(false);
   });
 
@@ -386,7 +389,8 @@ describe("buildOssArcGisCorpusRun", () => {
       observedAt: "2026-08-03",
       codemodTarget: "honua-compat",
       report: createReport({
-        readiness: "ready",
+        usageDetected: false,
+        readiness: "no-usage-detected",
         scanReport: {
           rootDir: "/tmp/app",
           filesScanned: 12,
@@ -492,7 +496,8 @@ describe("formatOssArcGisCorpusMarkdown", () => {
       observedAt: "2026-08-03",
       codemodTarget: "honua-compat",
       report: createReport({
-        readiness: "ready",
+        usageDetected: false,
+        readiness: "no-usage-detected",
         scanReport: {
           rootDir: "/tmp/app",
           filesScanned: 136,
@@ -511,7 +516,7 @@ describe("formatOssArcGisCorpusMarkdown", () => {
 
     const markdown = formatOssArcGisCorpusMarkdown(manifest, run);
     expect(markdown).toContain("### Detection gaps");
-    expect(markdown).toContain("(not meaningful)");
+    expect(markdown).toContain("`no-usage-detected`");
     expect(markdown).toContain("**Detection gap.**");
   });
 
