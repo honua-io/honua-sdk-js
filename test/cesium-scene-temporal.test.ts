@@ -401,6 +401,13 @@ describe("cesium scene mount — rebuild boundaries", () => {
     expect(revision.rebuildBoundaries.every((entry) => entry.incremental)).toBe(true);
     expect(revision.diagnostics.some((entry) => entry.code === "scene-mount-rebuild-boundary")).toBe(false);
     expect(mount.rebuildBoundaries).toEqual(revision.rebuildBoundaries);
+    // A revision that rebuilt nothing still says what it did do.
+    expect(revision.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "scene-mount-applied",
+        context: expect.objectContaining({ revision: 2, timeApplied: true }),
+      }),
+    );
 
     mount.dispose();
   });

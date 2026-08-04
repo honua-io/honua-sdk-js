@@ -357,6 +357,7 @@ export async function mountScenePrimitivesToCesium(
         layerLimit,
         entries.size,
         applyOptions.state?.realtime,
+        application.time.applied,
       ),
       ...crossed.map((report) => rebuildBoundaryDiagnostic(revision, report)),
       ...(disposalFailures.length > 0 ? [disposalIncompleteDiagnostic(disposalFailures)] : []),
@@ -529,6 +530,7 @@ function appliedDiagnostic(
   layerLimit: number,
   mountedPrimitiveCount: number,
   realtime: SceneRealtimeState | undefined,
+  timeApplied: boolean,
 ): ScenePrimitiveDiagnostic {
   return {
     code: "scene-mount-applied",
@@ -543,6 +545,10 @@ function appliedDiagnostic(
       disposed: [...disposed],
       layerLimit,
       mountedPrimitiveCount,
+      // Whether this revision also moved application time, so a time-only
+      // revision is legible as one rather than as an application that did
+      // nothing.
+      timeApplied,
       // Provenance for a revision driven by a live feed: which feed state the
       // delta arrived under, so a rebuild can be read against a reconnect or a
       // stale window rather than in isolation.
