@@ -592,6 +592,7 @@ export type { SnappingFeatureSourceCompat, SnappingOptionsCompat } from "./esri-
 export { FeatureFilterCompat } from "./esri-compat/feature-filter.js";
 export type {
   FeatureFilterCompatOptions,
+  FeatureFilterEsriProperties,
   FeatureFilterGeometryCompat,
   FeatureFilterHandleCompat,
   FeatureFilterLoadStatusCompat,

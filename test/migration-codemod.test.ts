@@ -4606,4 +4606,167 @@ describe("runEsriCompatCodemod", () => {
     ]);
     expect(fs.readFileSync(file, "utf8")).toContain('import WebMap = require("esri/WebMap");');
   });
+
+  // #1012 — the codemod used to rewrite an in-scope producer whose only
+  // consumer was out of scope, leaving a compat value in an un-migrated
+  // ArcGIS constructor's hands and still scoring the call site as
+  // auto-migrated. The construct below is the one the OSS-corpus deep-build
+  // lane hit in lujoh/owls_of_bavaria @ 2849491
+  // (src/features/map/filterOwlLayer.jsx).
+  describe("compat → ArcGIS seams", () => {
+    it("holds back a FeatureFilter rewrite whose only consumer is an out-of-scope FeatureEffect", () => {
+      const root = makeTempProject();
+      const file = path.join(root, "filterOwlLayer.jsx");
+      const source = [
+        "import FeatureEffect from '@arcgis/core/layers/support/FeatureEffect';",
+        "import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';",
+        "",
+        "const setFilter = (filters) => new FeatureFilter({ where: buildWhere(filters) });",
+        "",
+        "export function applyFilter(owlFeatureLayer, filters) {",
+        "  var filterEffect = new FeatureEffect({",
+        "    filter: setFilter(filters),",
+        "    includedEffect: 'bloom(0.9 0.6pt 0)',",
+        "    excludedEffect: 'grayscale(100%) opacity(30%)',",
+        "  });",
+        "  owlFeatureLayer.featureEffect = filterEffect;",
+        "}",
+      ].join("\n");
+      fs.writeFileSync(file, source, "utf8");
+
+      const result = runEsriCompatCodemod({
+        rootDir: root,
+        write: true,
+        annotateTodos: true,
+        compatImportPath: "@honua/sdk-esri-compat",
+      });
+
+      expect(result.metrics.totalCodemodScopedCallSites).toBe(1);
+      expect(result.metrics.autoMigratedCallSites).toBe(0);
+      expect(result.metrics.manualCallSites).toBe(1);
+      expect(result.metrics.seamCallSites).toBe(1);
+      expect(result.metrics.byKind["feature-filter"]).toEqual({ total: 1, autoMigrated: 0, manual: 1 });
+
+      // The TODO names both sides of the seam: the compat symbol that would
+      // have been produced and the ArcGIS module that stays un-migrated.
+      expect(result.manualTodos).toEqual([
+        expect.objectContaining({
+          kind: "feature-filter",
+          file,
+          reason: expect.stringContaining("FeatureFilterCompat"),
+        }),
+      ]);
+      expect(result.manualTodos[0].reason).toContain("@arcgis/core/layers/support/FeatureEffect");
+      expect(result.manualTodos[0].reason).toContain("FeatureEffect");
+
+      const nextSource = fs.readFileSync(file, "utf8");
+      expect(nextSource).toContain("TODO(honua-migrate)[feature-filter]");
+      expect(nextSource).toContain("new FeatureFilter({ where: buildWhere(filters) })");
+      expect(nextSource).not.toContain("new FeatureFilterCompat(");
+      expect(nextSource).not.toContain("@honua/sdk-esri-compat");
+      expect(nextSource).toContain("import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';");
+    });
+
+    it("holds back a rewrite handed straight to an out-of-scope ArcGIS constructor", () => {
+      const root = makeTempProject();
+      const file = path.join(root, "direct.ts");
+      fs.writeFileSync(
+        file,
+        [
+          "import FeatureEffect from '@arcgis/core/layers/support/FeatureEffect';",
+          "import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';",
+          "const effect = new FeatureEffect({ filter: new FeatureFilter({ where: '1=1' }) });",
+          "void effect;",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const result = runEsriCompatCodemod({
+        rootDir: root,
+        write: false,
+        compatImportPath: "@honua/sdk-esri-compat",
+      });
+
+      expect(result.metrics.autoMigratedCallSites).toBe(0);
+      expect(result.metrics.seamCallSites).toBe(1);
+    });
+
+    it("holds back a rewrite assigned onto an out-of-scope ArcGIS instance", () => {
+      const root = makeTempProject();
+      const file = path.join(root, "assigned.ts");
+      fs.writeFileSync(
+        file,
+        [
+          "import FeatureEffect from '@arcgis/core/layers/support/FeatureEffect';",
+          "import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';",
+          "const effect = new FeatureEffect({});",
+          "const filter = new FeatureFilter({ where: '1=1' });",
+          "effect.filter = filter;",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const result = runEsriCompatCodemod({
+        rootDir: root,
+        write: false,
+        compatImportPath: "@honua/sdk-esri-compat",
+      });
+
+      expect(result.metrics.autoMigratedCallSites).toBe(0);
+      expect(result.metrics.seamCallSites).toBe(1);
+      expect(result.manualTodos[0].reason).toContain("effect.filter");
+    });
+
+    it("still rewrites a construct whose consumer is also in codemod scope", () => {
+      const root = makeTempProject();
+      const file = path.join(root, "in-scope-consumer.ts");
+      fs.writeFileSync(
+        file,
+        [
+          "import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';",
+          "import MapView from '@arcgis/core/views/MapView';",
+          "const view = new MapView({ container: 'viewDiv' });",
+          "const filter = new FeatureFilter({ where: '1=1' });",
+          "void view;",
+          "void filter;",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const result = runEsriCompatCodemod({
+        rootDir: root,
+        write: false,
+        compatImportPath: "@honua/sdk-esri-compat",
+      });
+
+      expect(result.metrics.autoMigratedCallSites).toBe(2);
+      expect(result.metrics.seamCallSites).toBe(0);
+      expect(result.manualTodos).toEqual([]);
+    });
+
+    it("does not treat an out-of-scope ArcGIS type-only import as a consumer", () => {
+      const root = makeTempProject();
+      const file = path.join(root, "type-only.ts");
+      fs.writeFileSync(
+        file,
+        [
+          "import type FeatureEffect from '@arcgis/core/layers/support/FeatureEffect';",
+          "import FeatureFilter from '@arcgis/core/layers/support/FeatureFilter';",
+          "const filter = new FeatureFilter({ where: '1=1' });",
+          "export type Effect = FeatureEffect;",
+          "void filter;",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const result = runEsriCompatCodemod({
+        rootDir: root,
+        write: false,
+        compatImportPath: "@honua/sdk-esri-compat",
+      });
+
+      expect(result.metrics.autoMigratedCallSites).toBe(1);
+      expect(result.metrics.seamCallSites).toBe(0);
+    });
+  });
 });
