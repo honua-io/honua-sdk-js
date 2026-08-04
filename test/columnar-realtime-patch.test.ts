@@ -870,6 +870,42 @@ describe("columnar realtime patches", () => {
     expect(compacted.map((row) => row.dictionaryValue)).toEqual(["closed", null, null]);
   });
 
+  it("keeps a tombstoned row visible to layout-unaware readers until a rebuild removes it", () => {
+    const created = createPatchableGeoArrowBatch(pointInput(8), { reserve: { rows: 8 } });
+    const patched = applyColumnarPatch(created.batch, patch([{ op: "delete", featureId: 3 }], { sequence: 1 }));
+    expect(patched.outcome).toBe("patched-in-place");
+    if (patched.outcome !== "patched-in-place") return;
+    expect(patched.state.tombstoneCount).toBe(1);
+
+    // The overlay-aware reader is the one that honors the tombstone.
+    expect(decodePatchedGeoArrowBatch(patched.batch).rows.map((row) => row.featureId)).toEqual([0, 1, 2, 4, 5, 6, 7]);
+
+    // The plain GeoArrow decoder does not read the overlay, so it still returns
+    // the deleted row. That is the documented price of not moving a million
+    // rows per delete, and the tombstone thresholds are what bound the window.
+    const undecorated = decodeGeoArrowBatch(patched.batch);
+    expect(undecorated.rows).toHaveLength(8);
+    expect(undecorated.rows.map((row) => row.featureId)).toContain(3);
+    expect(undecorated.metrics.materializedRows).toBe(8);
+
+    // A rebuild is what physically removes it: both readers agree afterwards.
+    const rebuilt = applyColumnarPatch(
+      patched.batch,
+      patch(
+        [
+          { op: "delete", featureId: 5 },
+          { op: "delete", featureId: 6 },
+        ],
+        { sequence: 2 },
+      ),
+    );
+    expect(rebuilt.outcome).toBe("rebuilt");
+    if (rebuilt.outcome !== "rebuilt") return;
+    expect(rebuilt.reason).toBe("tombstone-ratio");
+    expect(decodeGeoArrowBatch(rebuilt.batch).rows.map((row) => row.featureId)).toEqual([0, 1, 2, 4, 7]);
+    expect(decodePatchedGeoArrowBatch(rebuilt.batch).rows.map((row) => row.featureId)).toEqual([0, 1, 2, 4, 7]);
+  });
+
   it("keeps a deck.gl binding valid across an in-place patch and invalidates it on rebuild", () => {
     const created = createPatchableGeoArrowBatch(renderableInput(4), { reserve: { rows: 4 } });
     const binding = bindGeoArrowPointBatchToDeckGl({ layerId: "live", batch: created.batch });
