@@ -38,6 +38,7 @@ import { HonuaDiscoveryError } from "./core/errors.js";
 import { sourceCapabilityEndpointIdentity } from "./source-capability-discovery-endpoint.js";
 import { evaluateCapabilityProfile, snapshotCapabilityEvaluationContext } from "./source-capability-evaluation.js";
 import { createCapabilityEvidenceProfile } from "./source-capability-evidence.js";
+import { protocolQueryFilterConstraints } from "./source-capability-filter-constraints.js";
 import {
   assertPlainCapabilityObject,
   isCapabilityIsoInstant,
@@ -239,11 +240,16 @@ function discoveryEvidenceEntry(
       sourceFingerprint,
     });
   }
+  // Attach the protocol's reviewed filter grammar as protocol-default evidence
+  // so the canonical filter gate can refuse a construct this adapter cannot
+  // lower, per source, without a second discovery round trip.
+  const constraints = decision.capability === "query" ? protocolQueryFilterConstraints(protocol) : undefined;
   return {
     id: decision.capability,
     claimed,
     observed,
     evidence,
+    ...(constraints ? { constraints } : {}),
   };
 }
 

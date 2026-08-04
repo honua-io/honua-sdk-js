@@ -7,6 +7,12 @@ import path from "node:path";
 import process from "node:process";
 
 import {
+  type ColumnarAggregateBenchmarkOptions,
+  type ColumnarAggregateBenchmarkResult,
+  type ColumnarAggregateSample,
+  runColumnarAggregateBenchmark,
+} from "./columnar-aggregate-bench.js";
+import {
   type ColumnarDataPlaneBenchmarkOptions,
   type ColumnarDataPlaneBenchmarkResult,
   type ColumnarDataPlaneSample,
@@ -68,6 +74,11 @@ interface ColumnarDataPlaneCorpusScenario extends ColumnarDataPlaneBenchmarkOpti
   kind: "columnar-data-plane";
 }
 
+interface ColumnarAggregateCorpusScenario extends ColumnarAggregateBenchmarkOptions {
+  id: string;
+  kind: "columnar-aggregate";
+}
+
 interface ColumnarResultConversionCorpusScenario extends ColumnarResultConversionBenchmarkOptions {
   id: string;
   kind: "columnar-result-conversion";
@@ -79,6 +90,7 @@ type CorpusScenario =
   | RealtimeReconnectCorpusScenario
   | QueryResourceHandleCorpusScenario
   | ColumnarDataPlaneCorpusScenario
+  | ColumnarAggregateCorpusScenario
   | ColumnarResultConversionCorpusScenario;
 
 interface Corpus {
@@ -148,6 +160,7 @@ interface ScenarioResult {
     | SampleMetrics
     | { totalDurationMs: number; operationsPerSecond: number }
     | ColumnarDataPlaneSample
+    | ColumnarAggregateSample
     | ColumnarResultConversionSample
   >;
   summary: {
@@ -162,6 +175,9 @@ interface ScenarioResult {
     renderDurationMs?: MetricSummary;
     backingBytesPerFeature?: MetricSummary;
     peakRetainedBytesPerFeature?: MetricSummary;
+    inputRowsPerSecond?: MetricSummary;
+    retainedBytesPerInputRow?: MetricSummary;
+    outputBackingBytesPerGroup?: MetricSummary;
     retainedBytesPerFeature?: MetricSummary;
   };
   invariants: {
@@ -336,6 +352,11 @@ function validateCorpus(value: unknown): Corpus {
     } else if (scenario.kind === "columnar-data-plane") {
       allowedKeys = new Set([...commonKeys, "featureCount"]);
       if (!positive(scenario.featureCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+    } else if (scenario.kind === "columnar-aggregate") {
+      allowedKeys = new Set([...commonKeys, "inputRowCount", "groupCount"]);
+      if (!positive(scenario.inputRowCount) || !positive(scenario.groupCount)) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
     } else if (scenario.kind === "columnar-result-conversion") {
       allowedKeys = new Set([...commonKeys, "batchRowCount", "windowSize"]);
       if (!positive(scenario.batchRowCount) || !positive(scenario.windowSize)) {
@@ -529,6 +550,38 @@ function columnarDataPlaneResult(
   };
 }
 
+function columnarAggregateResult(
+  scenario: ColumnarAggregateCorpusScenario,
+  result: ColumnarAggregateBenchmarkResult,
+): ScenarioResult {
+  const metrics: Array<keyof ColumnarAggregateSample> = [
+    "totalDurationMs",
+    "inputRowsPerSecond",
+    "retainedBytesPerInputRow",
+    "outputBackingBytesPerGroup",
+  ];
+  const summary = Object.fromEntries(
+    metrics.map((metric) => [metric, summarizeSamples(result.samples.map((sample) => sample[metric]))]),
+  ) as ScenarioResult["summary"];
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      inputRowCount: scenario.inputRowCount,
+      groupCount: scenario.groupCount,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary,
+    invariants: {
+      expectedTotalFeatures: scenario.inputRowCount,
+      checks: result.invariants.checks,
+      passed: result.invariants.passed,
+    },
+  };
+}
+
 function columnarResultConversionResult(
   scenario: ColumnarResultConversionCorpusScenario,
   result: ColumnarResultConversionBenchmarkResult,
@@ -571,6 +624,9 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   }
   if (scenario.kind === "columnar-data-plane") {
     return columnarDataPlaneResult(scenario, await runColumnarDataPlaneBenchmark(scenario));
+  }
+  if (scenario.kind === "columnar-aggregate") {
+    return columnarAggregateResult(scenario, await runColumnarAggregateBenchmark(scenario));
   }
   if (scenario.kind === "columnar-result-conversion") {
     return columnarResultConversionResult(scenario, await runColumnarResultConversionBenchmark(scenario));
@@ -893,7 +949,9 @@ async function main(): Promise<void> {
   for (const scenario of report.scenarios) {
     const throughput = scenario.summary.featuresPerSecond
       ? `${Math.round(scenario.summary.featuresPerSecond.median).toLocaleString()} features/s`
-      : `${Math.round(scenario.summary.operationsPerSecond?.median ?? 0).toLocaleString()} operations/s`;
+      : scenario.summary.inputRowsPerSecond
+        ? `${Math.round(scenario.summary.inputRowsPerSecond.median).toLocaleString()} input rows/s`
+        : `${Math.round(scenario.summary.operationsPerSecond?.median ?? 0).toLocaleString()} operations/s`;
     process.stdout.write(
       `  ${scenario.id}: ${scenario.summary.totalDurationMs.median.toFixed(2)}ms median, ${throughput}\n`,
     );

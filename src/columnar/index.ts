@@ -41,6 +41,30 @@ export type {
 export { createGeoArrowReprojectOperation } from "./geoarrow-reproject.js";
 export type { CreateGeoArrowReprojectOperationOptions } from "./geoarrow-reproject.js";
 export {
+  DEFAULT_GEOARROW_AGGREGATE_MAX_GROUPS,
+  DEFAULT_GEOARROW_AGGREGATE_YIELD_ROWS,
+  GEOARROW_AGGREGATE_ABORT_CHECK_ROWS,
+  GEOARROW_AGGREGATE_MAX_GRID_CELL_INDEX,
+  HONUA_GEOARROW_AGGREGATE_LAYOUT_VERSION,
+  createGeoArrowAggregateOperation,
+  readGeoArrowAggregateBatch,
+} from "./geoarrow-aggregate.js";
+export type {
+  CreateGeoArrowAggregateOperationOptions,
+  GeoArrowAggregateDictionaryGroupSpec,
+  GeoArrowAggregateGridGroupSpec,
+  GeoArrowAggregateGroupSpec,
+  GeoArrowAggregateMetricKind,
+  GeoArrowAggregateMetricSpec,
+  GeoArrowAggregateNullKeyPolicy,
+  GeoArrowAggregateNumericColumn,
+  GeoArrowAggregateResult,
+  GeoArrowAggregateRow,
+  GeoArrowAggregateSource,
+  GeoArrowAggregateTemporalGroupSpec,
+  GeoArrowAggregateTruncationUnit,
+} from "./geoarrow-aggregate.js";
+export {
   createGeoArrowFilterOperation,
   createGeoArrowProjectionOperation,
   createGeoArrowTransformOperation,
