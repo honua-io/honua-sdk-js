@@ -20,9 +20,17 @@
     "300+ bytes/feature and an order of magnitude less throughput, and any payload",
     "copy reintroduced into the transfer or projection path fails the scenario's",
     "zero-copy invariant outright rather than merely slowing it down.",
-    "columnar.batch-cache.million-row-round-trip covers the persistence path issue",
-    "#940 states its NFRs against: serialize plus deserialize of a 1,000,000-row",
-    "packed fixture (16,000,000 backing bytes). MEASURED_PLACEHOLDER"
+    "columnar.batch-cache.million-row-round-trip carries the persistence NFRs of",
+    "honua-io/honua-sdk-js#940: serialize plus deserialize of a 1,000,000-row packed",
+    "GeoArrow fixture (16,000,000 backing bytes). Measured on the same shared linux",
+    "host, with other build agents active: 1.3334 envelope bytes per backing byte",
+    "(deterministic \u2014 base64 is 1.3333 and the envelope's own JSON adds 0.0001),",
+    "53.35-53.39 live retained bytes/row, and 689,528-714,447 rows/second.",
+    "The ceilings below are the issue's own limits rather than measured-plus-margin,",
+    "because two of the three are deterministic: the envelope ratio has zero",
+    "variance and retained bytes vary by 0.03%, so a 1.5x-clear ceiling would gate",
+    "nothing. The rows/second floor is 2.7x under the worst observed run, which is",
+    "the only metric contention can move."
   ],
   "schemaVersion": 2,
   "variability": {
@@ -67,13 +75,13 @@
       },
       "rowsPerSecond": {
         "direction": "higher-is-better",
-        "warning": 750000,
+        "warning": 500000,
         "failure": 250000
       },
       "peakRetainedBytesPerRow": {
         "direction": "lower-is-better",
-        "warning": 80,
-        "failure": 160
+        "warning": 64,
+        "failure": 80
       }
     }
   }

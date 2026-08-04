@@ -144,7 +144,12 @@ interface ScenarioResult {
   id: string;
   kind: CorpusScenario["kind"];
   parameters: Record<string, number | boolean>;
-  samples: Array<SampleMetrics | { totalDurationMs: number; operationsPerSecond: number } | ColumnarDataPlaneSample>;
+  samples: Array<
+    | SampleMetrics
+    | { totalDurationMs: number; operationsPerSecond: number }
+    | ColumnarDataPlaneSample
+    | ColumnarBatchPersistenceSample
+  >;
   summary: {
     totalDurationMs: MetricSummary;
     timeToFirstPageMs?: MetricSummary;
@@ -157,6 +162,12 @@ interface ScenarioResult {
     renderDurationMs?: MetricSummary;
     backingBytesPerFeature?: MetricSummary;
     peakRetainedBytesPerFeature?: MetricSummary;
+    serializeDurationMs?: MetricSummary;
+    deserializeDurationMs?: MetricSummary;
+    rowsPerSecond?: MetricSummary;
+    envelopeBytesPerBackingByte?: MetricSummary;
+    serializedBytesPerRow?: MetricSummary;
+    peakRetainedBytesPerRow?: MetricSummary;
   };
   invariants: {
     expectedTotalFeatures?: number;

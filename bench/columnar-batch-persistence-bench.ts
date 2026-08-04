@@ -57,9 +57,16 @@ export interface ColumnarBatchPersistenceSample {
   envelopeBytesPerBackingByte: number;
   serializedBytesPerRow: number;
   /**
-   * Peak `heapUsed + arrayBuffers` at any stage boundary, minus a **collected**
-   * pre-run reading, divided by row count. Proves the persistence path never
-   * materializes a per-row object: one would cost hundreds of bytes per row.
+   * Peak **live** `heapUsed + arrayBuffers` at any stage boundary, minus a
+   * collected pre-run reading, divided by row count.
+   *
+   * Every reading — the baseline and each boundary — is taken immediately after
+   * a forced collection, and always outside a timed region, so the number is
+   * bytes still reachable rather than bytes not yet swept. That is what
+   * "retained" means, and it is the reading that proves the persistence path
+   * hands back buffers rather than rows: a decoded batch materialized as
+   * per-row objects stays reachable in the result and would cost hundreds of
+   * bytes per row here, where transient encoder scratch does not.
    */
   peakRetainedBytesPerRow: number;
 }
@@ -163,7 +170,7 @@ function legacyEnvelope(batch: ColumnarBatchV1): Uint8Array {
 }
 
 function runOnce(rowCount: number): PersistenceRun {
-  const collectedBaseline = collectGarbage();
+  let collectedBaseline = collectGarbage();
   const retainedBefore = retainedBytes();
 
   const batch = packedPointBatch(rowCount);
@@ -172,6 +179,7 @@ function runOnce(rowCount: number): PersistenceRun {
     0,
   );
   const firstCoordinate = new Float64Array(batch.buffers[0]!.data)[0]!;
+  collectedBaseline = collectGarbage() && collectedBaseline;
   let retainedPeak = retainedBytes();
 
   // A ceiling a cache would really set: base64 is 1.333x, so 1.5x plus the
@@ -180,11 +188,14 @@ function runOnce(rowCount: number): PersistenceRun {
   const serializeStarted = performance.now();
   const envelope = serializeGeoArrowBatch(batch, { maxSerializedBytes });
   const serializeDurationMs = performance.now() - serializeStarted;
+  // Collections happen after the timer stops, so they never inflate a duration.
+  collectedBaseline = collectGarbage() && collectedBaseline;
   retainedPeak = Math.max(retainedPeak, retainedBytes());
 
   const deserializeStarted = performance.now();
   const restored = deserializeGeoArrowBatch(envelope, { maxSerializedBytes });
   const deserializeDurationMs = performance.now() - deserializeStarted;
+  collectedBaseline = collectGarbage() && collectedBaseline;
   retainedPeak = Math.max(retainedPeak, retainedBytes());
 
   const restoredCoordinates = new Float64Array(restored.batch.buffers[0]!.data);
