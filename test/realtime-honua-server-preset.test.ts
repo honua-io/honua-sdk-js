@@ -360,6 +360,32 @@ describe("honua-server realtime preset", () => {
     });
   });
 
+  it("renders the batched baseline frame's numeric event-store cursor as the checkpointed string", () => {
+    // honua-server's `mode=snapshot-then-delta` baseline carries `cursor` as a
+    // JSON number (the global event-store position), while the SDK's resume
+    // gate checkpoints the string form. Without this normalization a batched
+    // baseline fails closed as a checkpoint conflict instead of resuming.
+    const event = decodeHonuaServerRealtimeEvent({
+      type: "snapshot",
+      snapshotId: "9f2",
+      subscriptionId: "alpha",
+      sequence: 0,
+      cursor: 4821,
+      reason: "initial",
+      replace: true,
+      layerIds: [0],
+      featureCount: 0,
+      complete: true,
+      features: [],
+    });
+    expect(event).toMatchObject({ type: "snapshot", sequence: 0, cursor: "4821" });
+  });
+
+  it("leaves a malformed numeric cursor for the resume gate to report", () => {
+    const event = decodeHonuaServerRealtimeEvent({ type: "snapshot", sequence: 0, cursor: -1, features: [] });
+    expect(event).toMatchObject({ cursor: -1 });
+  });
+
   it("passes through status envelopes unchanged", () => {
     const event = decodeHonuaServerRealtimeEvent({
       type: "status",

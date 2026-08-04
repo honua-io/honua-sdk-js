@@ -86,6 +86,7 @@
         "failed": { "type": "integer", "minimum": 0 }
       }
     },
+    "conformance": { "$ref": "#/$defs/conformanceRun" },
     "transports": {
       "type": "array",
       "minItems": 3,
@@ -121,6 +122,71 @@
   ],
   "$defs": {
     "status": { "enum": ["executed", "unsupported", "degraded", "failed"] },
+    "conformanceRun": {
+      "description": "Outcome of the controlled-conformance run the live lane drove against honua-server's dedicated conformance source (honua-server#3038). Present on live documents only. Never carries the per-run ownership token.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "reason",
+        "runId",
+        "serviceId",
+        "layerId",
+        "deploymentRevision",
+        "mutations",
+        "baseline"
+      ],
+      "properties": {
+        "status": { "enum": ["executed", "skipped", "degraded", "failed"] },
+        "reason": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+            "message": { "type": "string", "minLength": 1 }
+          }
+        },
+        "runId": {
+          "type": ["string", "null"],
+          "pattern": "^(?:[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+        },
+        "serviceId": { "type": ["string", "null"], "minLength": 1 },
+        "layerId": { "type": ["integer", "null"], "minimum": 0 },
+        "deploymentRevision": { "type": ["string", "null"], "minLength": 1 },
+        "mutations": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["insert", "touch"],
+          "properties": {
+            "insert": { "type": "integer", "minimum": 0, "maximum": 1 },
+            "touch": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "baseline": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": [
+            "runId",
+            "deletedRecords",
+            "leaseDigest",
+            "cleanupDigest",
+            "baselineRecordCount",
+            "baselineRestored",
+            "digestVerified"
+          ],
+          "properties": {
+            "runId": { "type": "string", "minLength": 1 },
+            "deletedRecords": { "type": "integer", "minimum": 0 },
+            "leaseDigest": { "type": "string", "pattern": "^(?:sha256:)?[a-f0-9]{64}$" },
+            "cleanupDigest": { "type": "string", "pattern": "^(?:sha256:)?[a-f0-9]{64}$" },
+            "baselineRecordCount": { "type": "integer", "minimum": 0 },
+            "baselineRestored": { "type": "boolean" },
+            "digestVerified": { "type": "boolean" }
+          }
+        }
+      }
+    },
     "diagnostic": {
       "type": "object",
       "additionalProperties": false,

@@ -6,6 +6,15 @@
  * `@honua/sdk-js/realtime` entrypoint. Live mode first probes honua-server's
  * advertised transports, then executes only those transports and records
  * `unsupported`, `degraded`, and `failed` separately from `executed`.
+ *
+ * Live mode does not observe passively. A deployment that nobody happens to be
+ * editing produces no mutation, so the lane drives one itself through
+ * honua-server's controlled-conformance surface (honua-server#3038): lease a
+ * run, insert exactly one owned record *before* any transport opens, `touch`
+ * that record once per transport, and release in a `finally` block. The single
+ * shared insert is what makes cross-transport reconciliation possible at all —
+ * transports can only be opened sequentially, and an insert per transport would
+ * give each one a different object id and diverge by construction.
  */
 
 import { execFileSync } from "node:child_process";
@@ -15,6 +24,13 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import {
+  ConformanceRunRefusal,
+  createConformanceRunClient,
+  isConformanceAvailabilityRefusal,
+  readConformanceCapability,
+} from "./realtime-conformance-run-client.mjs";
 
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CORPUS_PATH = "test/fixtures/realtime/cross-transport-conformance.v1.json";
@@ -30,6 +46,15 @@ const validateEvidenceSchema = evidenceAjv.compile(
 export const REALTIME_CONFORMANCE_EVIDENCE_FORMAT = "honua.sdk.realtime-conformance-evidence.v1";
 export const REALTIME_CONFORMANCE_EVIDENCE_SCHEMA = "schemas/realtime-conformance-evidence.v1.json";
 export const REALTIME_LIVE_ENABLE_ENV = "HONUA_REALTIME_LIVE_CONFORMANCE_ENABLED";
+/**
+ * Second, separate opt-in. Observing a deployment is read-only; driving a
+ * controlled mutation writes to it. Enabling the live lane must never imply
+ * consent to write, so the two switches stay independent.
+ */
+export const REALTIME_CONFORMANCE_MUTATE_ENV = "HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE";
+export const REALTIME_CONFORMANCE_LABEL_ENV = "HONUA_REALTIME_LIVE_CONFORMANCE_LABEL";
+export const REALTIME_CONFORMANCE_TTL_ENV = "HONUA_REALTIME_LIVE_CONFORMANCE_TTL_SECONDS";
+export const REALTIME_CONFORMANCE_DEFAULT_LABEL = "honua-sdk-js-realtime-conformance";
 export const REALTIME_TRANSPORTS = Object.freeze(["sse", "websocket", "odata"]);
 export const REALTIME_CAPABILITY_DOCUMENT_MAX_BYTES = 1_048_576;
 export const REALTIME_SSE_EVENT_MAX_BYTES = 262_144;
@@ -101,6 +126,14 @@ export function realtimeSourceRevision(env = process.env, projectRoot = PROJECT_
 
 export function isRealtimeLiveEnabled(env = process.env) {
   return /^(?:1|true)$/iu.test(env[REALTIME_LIVE_ENABLE_ENV] ?? "");
+}
+
+/**
+ * Whether the operator has consented to this lane writing to the reviewed
+ * deployment through its dedicated controlled-conformance source.
+ */
+export function isRealtimeConformanceMutationEnabled(env = process.env) {
+  return /^(?:1|true)$/iu.test(env[REALTIME_CONFORMANCE_MUTATE_ENV] ?? "");
 }
 
 export async function collectFixtureRealtimeConformanceEvidence(options = {}) {
@@ -193,6 +226,7 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
         scenarioCount: 0,
         executionCount: 0,
         transports,
+        conformance: conformanceNotAttempted("live-lane-disabled", `${REALTIME_LIVE_ENABLE_ENV} is not true.`),
       }),
     );
   }
@@ -228,6 +262,7 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
         scenarioCount: 0,
         executionCount: 0,
         transports,
+        conformance: conformanceNotAttempted(unavailable.code, unavailable.message),
       }),
     );
   }
@@ -259,6 +294,10 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
         scenarioCount: 0,
         executionCount: 0,
         transports,
+        conformance: conformanceNotAttempted(
+          "capability-contract-invalid",
+          "Realtime capability response failed contract validation.",
+        ),
       }),
     );
   }
@@ -310,6 +349,10 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
         scenarioCount: 0,
         executionCount: 0,
         transports,
+        conformance: conformanceNotAttempted(
+          "server-revision-mismatch",
+          "Advertised realtime transport belongs to a different immutable server revision.",
+        ),
       }),
     );
   }
@@ -344,17 +387,36 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
         scenarioCount: 0,
         executionCount: 0,
         transports,
+        conformance: conformanceNotAttempted(
+          "server-revision-missing",
+          "Advertised realtime transport cannot be certified without an exact server revision.",
+        ),
       }),
     );
   }
   const sdk = options.sdk ?? (await import("@honua/sdk-js/realtime"));
-  const context = liveResumeContext(options.sourceId ?? env.HONUA_REALTIME_LIVE_SOURCE_ID ?? "maui-parcels");
+  // The controlled run owns the source it mutates. When one is leased its
+  // dedicated service/layer replaces the configured observation target: an
+  // insert into the conformance source is only observable on a subscription
+  // scoped to that source.
+  const run = await leaseConformanceRun({
+    baseUrl,
+    fetchFn,
+    headers,
+    timeoutMs,
+    env,
+    mutateEnabled: options.mutateEnabled,
+    capabilityBody: capabilityResponse.body,
+    serverRevision,
+  });
+  const context = liveResumeContext(
+    run.lease?.serviceId ?? options.sourceId ?? env.HONUA_REALTIME_LIVE_SOURCE_ID ?? "maui-parcels",
+  );
   const request = {
     sourceId: context.sourceId,
-    layerId: nonNegativeInteger(
-      options.layerId ?? Number(env.HONUA_REALTIME_LIVE_LAYER_ID ?? "1"),
-      "live layer id",
-    ),
+    layerId:
+      run.lease?.layerId ??
+      nonNegativeInteger(options.layerId ?? Number(env.HONUA_REALTIME_LIVE_LAYER_ID ?? "1"), "live layer id"),
     mode: "snapshot-then-delta",
   };
   const executionOptions = {
@@ -366,37 +428,60 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
     request,
     eventSourceFactory: options.eventSourceFactory,
     webSocketFactory: options.webSocketFactory,
+    conformanceRecord: run.record,
   };
   const executions = [];
-  for (const id of REALTIME_TRANSPORTS) {
-    const descriptor = descriptors[id];
-    if (!descriptor.advertised) {
-      executions.push({
-        transport: nonExecutedTransport(
-          id,
-          false,
-          "unsupported",
-          "transport-not-advertised",
-          `honua-server did not advertise ${id}.`,
-        ),
-      });
-      continue;
+  try {
+    for (const id of REALTIME_TRANSPORTS) {
+      const descriptor = descriptors[id];
+      if (!descriptor.advertised) {
+        executions.push({
+          transport: nonExecutedTransport(
+            id,
+            false,
+            "unsupported",
+            "transport-not-advertised",
+            `honua-server did not advertise ${id}.`,
+          ),
+        });
+        continue;
+      }
+      if (!descriptor.url) {
+        executions.push({
+          transport: nonExecutedTransport(
+            id,
+            true,
+            "failed",
+            "advertised-transport-missing-endpoint",
+            `honua-server advertised ${id} without a usable endpoint.`,
+          ),
+        });
+        continue;
+      }
+      executions.push(
+        await executeAdvertisedTransport(id, descriptor, {
+          ...executionOptions,
+          // One `touch` per transport, driven only once that transport's own
+          // baseline has landed. `touch` republishes the record without
+          // changing it, so every transport reduces to the same final state.
+          driveMutation: run.touch,
+        }),
+      );
     }
-    if (!descriptor.url) {
-      executions.push({
-        transport: nonExecutedTransport(
-          id,
-          true,
-          "failed",
-          "advertised-transport-missing-endpoint",
-          `honua-server advertised ${id} without a usable endpoint.`,
-        ),
-      });
-      continue;
-    }
-    executions.push(await executeAdvertisedTransport(id, descriptor, executionOptions));
+  } finally {
+    await run.release();
   }
-  const transports = reconcileExecutedTransportStates(executions);
+  const conformance = run.outcome();
+  // A driven mutation that cannot be trusted is not evidence, so a failed run
+  // takes every otherwise-executed transport down with it.
+  const transports =
+    conformance.status === "failed"
+      ? failExecutedTransports(
+          reconcileExecutedTransportStates(executions),
+          conformance.reason.code,
+          conformance.reason.message,
+        )
+      : reconcileExecutedTransportStates(executions);
   const attemptedScenarios = transports.flatMap((transport) => transport.scenarios);
   const executionCount = attemptedScenarios.length;
   const scenarioCount = new Set(attemptedScenarios.map((scenario) => scenario.id)).size;
@@ -414,7 +499,212 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
       scenarioCount,
       executionCount,
       transports,
+      conformance,
     }),
+  );
+}
+
+/**
+ * Lease a controlled-conformance run and insert the single record every
+ * transport will observe, or explain in named terms why no run was driven.
+ *
+ * The returned handle is always usable: when no run could be leased, `touch`
+ * and `release` are no-ops and the lane observes exactly as it did before this
+ * surface existed, reporting `skipped` or `degraded` rather than a fake pass.
+ */
+async function leaseConformanceRun(settings) {
+  const { env, serverRevision } = settings;
+  const label = textOrNull(env[REALTIME_CONFORMANCE_LABEL_ENV]) ?? REALTIME_CONFORMANCE_DEFAULT_LABEL;
+  const ttlSeconds = conformanceTtlSeconds(env);
+  const inert = (outcome) => ({
+    lease: undefined,
+    record: undefined,
+    touch: undefined,
+    release: () => Promise.resolve(),
+    outcome: () => outcome,
+  });
+  if (!(settings.mutateEnabled ?? isRealtimeConformanceMutationEnabled(env))) {
+    return inert(
+      conformanceNotAttempted(
+        "controlled-mutation-not-opted-in",
+        `${REALTIME_CONFORMANCE_MUTATE_ENV} is not true, so this lane observed without driving a mutation.`,
+      ),
+    );
+  }
+
+  let capability;
+  try {
+    capability = readConformanceCapability(settings.capabilityBody);
+  } catch (error) {
+    return inert(conformanceOutcome("failed", refusalCode(error), refusalReason(error)));
+  }
+  if (!capability.present) {
+    return inert(
+      conformanceNotAttempted(
+        "conformance-not-advertised",
+        "The reviewed deployment publishes no controlled-conformance contract.",
+      ),
+    );
+  }
+  if (!capability.enabled) {
+    return inert(
+      conformanceNotAttempted(
+        "conformance-disabled",
+        "The reviewed deployment provisions no controlled-conformance source.",
+      ),
+    );
+  }
+
+  const client = createConformanceRunClient({
+    baseUrl: settings.baseUrl,
+    fetchFn: settings.fetchFn,
+    headers: settings.headers,
+    timeoutMs: settings.timeoutMs,
+  });
+  let lease;
+  let inserted;
+  try {
+    lease = await client.open({
+      clientLabel: label,
+      // Binding the lease to the revision this lane already certified makes it
+      // impossible for a redeploy mid-run to yield evidence about an image the
+      // observation never saw.
+      ...(serverRevision === null ? {} : { expectedDeploymentRevision: serverRevision }),
+      ...(capability.serviceId === null ? {} : { expectedServiceId: capability.serviceId }),
+      ...(ttlSeconds === null ? {} : { ttlSeconds }),
+    });
+    if (serverRevision !== null && immutableServerRevisionOrNull(lease.deploymentRevision) !== serverRevision) {
+      throw new ConformanceRunRefusal(
+        "conformance-revision-unbound",
+        "The controlled-conformance lease is bound to a different immutable deployment revision than the observed transports.",
+      );
+    }
+    // Exactly one insert, before any transport opens, so every transport's
+    // baseline already contains the record and its later `touch` is the only
+    // mutation any of them observes.
+    inserted = await client.mutate({ operation: "insert", label });
+  } catch (error) {
+    const outcome = conformanceOutcome(
+      isConformanceAvailabilityRefusal(error) ? "degraded" : "failed",
+      refusalCode(error),
+      refusalReason(error),
+      { lease },
+    );
+    if (!lease) return inert(outcome);
+    // A lease was taken before the failure, so it still has to be released.
+    const cleanup = await releaseQuietly(client);
+    return inert({ ...outcome, baseline: cleanup ?? null });
+  }
+
+  const mutations = { insert: 1, touch: 0 };
+  let cleanup;
+  let failure;
+  return {
+    lease,
+    record: {
+      runMarker: lease.runMarker,
+      runIdField: lease.runIdField,
+      objectId: inserted.objectId,
+    },
+    touch: async () => {
+      await client.mutate({ operation: "touch", objectId: inserted.objectId });
+      mutations.touch += 1;
+    },
+    release: async () => {
+      cleanup = await releaseQuietly(client);
+      if (cleanup === undefined) {
+        failure = {
+          code: "conformance-cleanup-failed",
+          message: "The controlled-conformance run could not be released, so its records may still be present.",
+        };
+      } else if (!cleanup.digestVerified) {
+        failure = {
+          code: "conformance-baseline-not-restored",
+          message:
+            "The controlled-conformance source's baseline digest did not reverse to the value observed at lease time.",
+        };
+      } else if (mutations.touch === 0) {
+        // The run leased and inserted cleanly but never got to publish an
+        // observable mutation. Each transport already carries the precise
+        // reason it refused; the run only records that it drove none.
+        failure = {
+          code: "conformance-mutation-not-driven",
+          message:
+            "No advertised transport accepted the controlled-conformance baseline, so the run published no observable mutation.",
+        };
+      }
+    },
+    outcome: () => ({
+      ...(failure
+        ? conformanceOutcome("failed", failure.code, failure.message, { lease })
+        : conformanceOutcome("executed", null, null, { lease })),
+      mutations: { ...mutations },
+      baseline: cleanup ?? null,
+    }),
+  };
+}
+
+/**
+ * Release a run without letting the release itself throw. Cleanup runs in a
+ * `finally` block: a refusal there must be recorded, never allowed to replace
+ * the observation's own result.
+ */
+async function releaseQuietly(client) {
+  try {
+    return await client.release();
+  } catch {
+    return undefined;
+  }
+}
+
+function conformanceTtlSeconds(env) {
+  const raw = Number(env[REALTIME_CONFORMANCE_TTL_ENV] ?? "");
+  return Number.isSafeInteger(raw) && raw > 0 ? raw : null;
+}
+
+function refusalCode(error) {
+  return error instanceof ConformanceRunRefusal ? error.code : "conformance-client-failed";
+}
+
+function refusalReason(error) {
+  return error instanceof ConformanceRunRefusal
+    ? error.reason
+    : "The controlled-conformance client failed before it could reach a conclusion.";
+}
+
+function conformanceOutcome(status, code, message, detail = {}) {
+  return {
+    status,
+    reason: status === "executed" ? null : { code, message },
+    runId: detail.lease?.runId ?? null,
+    serviceId: detail.lease?.serviceId ?? null,
+    layerId: detail.lease?.layerId ?? null,
+    deploymentRevision: detail.lease?.deploymentRevision ?? null,
+    mutations: { insert: 0, touch: 0 },
+    baseline: null,
+  };
+}
+
+function conformanceNotAttempted(code, message) {
+  return conformanceOutcome("skipped", code, message);
+}
+
+/**
+ * Downgrade every executed transport when a run-scoped fact invalidates the
+ * whole observation — the same shape `reconcileExecutedTransportStates` uses
+ * for divergence, applied to failures that are only knowable after cleanup.
+ */
+function failExecutedTransports(transports, code, message) {
+  return transports.map((transport) =>
+    transport.status === "executed"
+      ? {
+          ...transport,
+          status: "failed",
+          scenarioCounts: { total: 1, passed: 0, failed: 1 },
+          scenarios: [{ id: "snapshot-delta-contract", result: "failed" }],
+          diagnostics: [{ code, message, scenario: "snapshot-delta-contract" }],
+        }
+      : transport,
   );
 }
 
@@ -588,6 +878,19 @@ async function cancelReader(reader) {
 }
 
 function classifyLiveTransportFailure(error) {
+  if (error instanceof ConformanceRunRefusal) {
+    return isConformanceAvailabilityRefusal(error)
+      ? {
+          status: "degraded",
+          code: error.code,
+          message: "The controlled-conformance mutation surface was unavailable during observation.",
+        }
+      : {
+          status: "failed",
+          code: error.code,
+          message: "The controlled-conformance mutation this transport depends on was refused.",
+        };
+  }
   const externalCode =
     typeof error?.code === "string" &&
     ["cursor-expired", "delivery-failed", "resume-unsupported", "transport-gap"].includes(error.code)
@@ -922,6 +1225,17 @@ async function observeLiveTransport(buildTransport, options) {
       dataReady.resolve();
     }
   };
+  // The mutation is driven from the observation itself rather than after a
+  // sleep: a baseline in hand is proof the subscription is registered, so the
+  // event it publishes cannot be missed and cannot land inside the baseline.
+  let mutationDriven = false;
+  const driveMutationOnce = () => {
+    if (mutationDriven || !options.driveMutation) return;
+    mutationDriven = true;
+    void Promise.resolve()
+      .then(() => options.driveMutation())
+      .catch((error) => dataReady.reject(error));
+  };
   const transport = await buildTransport({
     checkpointStore: checkpointStore.store,
     onTelemetry: (event) => {
@@ -932,6 +1246,18 @@ async function observeLiveTransport(buildTransport, options) {
   const observer = {
     next(event) {
       if (isDataEvent(event)) accepted.push(event);
+      if (event?.type === "snapshot") {
+        // Check the baseline before spending a mutation on it: a record with no
+        // geometry cannot survive the delta envelope, and the named reason is
+        // only recoverable while the baseline is still the failure in hand.
+        try {
+          assertConformanceRecordGeometry(event, options.conformanceRecord);
+        } catch (error) {
+          dataReady.reject(error);
+          return;
+        }
+        driveMutationOnce();
+      }
       checkDataReady();
     },
     error(error) {
@@ -998,6 +1324,39 @@ async function observeLiveTransport(buildTransport, options) {
     acceptedEventCount: accepted.length,
     ...normalizedHistory,
   };
+}
+
+/**
+ * Prove the controlled record this run inserted is present in the transport's
+ * baseline and carries a geometry.
+ *
+ * This is a load-bearing precondition, not a nicety. honua-server's batched
+ * baseline always writes `geometry`, even when null, but its delta envelope
+ * drops a null one — and the SDK's honua-server decoder rejects an
+ * insert/update whose after-image has no geometry member. A conformance source
+ * provisioned without geometry therefore fails every transport with an opaque
+ * `invalid-event`. Naming the cause here turns an unexplained protocol failure
+ * into a deployment fix.
+ */
+function assertConformanceRecordGeometry(snapshot, record) {
+  if (!record) return;
+  const features = Array.isArray(snapshot.features) ? snapshot.features : [];
+  for (const patch of features) {
+    const feature = isRecord(patch) ? patch.feature : undefined;
+    const properties = isRecord(feature) ? feature.properties : undefined;
+    if (!isRecord(properties) || properties[record.runIdField] !== record.runMarker) continue;
+    if (feature.geometry === null || feature.geometry === undefined) {
+      throw new LiveSemanticError(
+        "conformance-record-geometry-missing",
+        "The controlled-conformance record carries no geometry, so honua-server omits the member from its delta envelope and the SDK rejects the mutation after-image.",
+      );
+    }
+    return;
+  }
+  throw new LiveSemanticError(
+    "conformance-record-not-observed",
+    "The advertised transport's baseline did not carry the controlled-conformance record this run inserted before the subscription opened.",
+  );
 }
 
 function assertCheckpointTelemetryRedacted(checkpoints, checkpointSamples) {
@@ -1314,6 +1673,7 @@ function assembleEvidence(options) {
       executionCount: options.executionCount,
       ...counts,
     },
+    ...(options.conformance === undefined ? {} : { conformance: options.conformance }),
     transports: options.transports,
   };
 }
@@ -1432,6 +1792,7 @@ export function validateRealtimeConformanceEvidence(evidence) {
       "Executed realtime transports accepted divergent histories or final states.",
     );
   }
+  validateConformanceRun(evidence);
   const scenarioIds = new Set(evidence.transports.flatMap((transport) => transport.scenarios.map((scenario) => scenario.id)));
   const executionCount = evidence.transports.reduce(
     (total, transport) => total + transport.scenarioCounts.total,
@@ -1445,13 +1806,88 @@ export function validateRealtimeConformanceEvidence(evidence) {
     !/"(?:cursor|watermark|deltaToken)"\s*:/u.test(serialized),
     "Realtime evidence retained a raw resume-position field.",
   );
+  // The per-run ownership token is a credential. It is issued once, is held
+  // only in the run client's closure, and must never reach a retained
+  // document — screened here as well as structurally, because a screening that
+  // depends solely on nobody making a mistake is not a screening.
+  invariant(
+    !/"runToken"\s*:/u.test(serialized) && !/x-honua-conformance-run-token/iu.test(serialized),
+    "Realtime evidence retained a controlled-conformance run token.",
+  );
   return evidence;
+}
+
+/**
+ * Enforce the controlled-conformance block's own truthfulness: an executed run
+ * must name the run it drove, must have applied the shared insert and at least
+ * one per-transport `touch`, and must have reversed the source's baseline
+ * digest. Anything else must carry a named refusal reason.
+ */
+function validateConformanceRun(evidence) {
+  const conformance = evidence.conformance;
+  if (evidence.lane === "fixture") {
+    invariant(conformance === undefined, "Fixture realtime evidence invented a controlled-conformance run.");
+    return;
+  }
+  invariant(isRecord(conformance), "Live realtime evidence must report a controlled-conformance outcome.");
+  invariant(
+    ["executed", "skipped", "degraded", "failed"].includes(conformance.status),
+    "Controlled-conformance status is invalid.",
+  );
+  if (conformance.status === "executed") {
+    invariant(conformance.reason === null, "An executed controlled-conformance run cannot carry a refusal reason.");
+    invariant(
+      typeof conformance.runId === "string" && conformance.runId.length > 0,
+      "An executed controlled-conformance run must name its run id.",
+    );
+    invariant(
+      immutableServerRevisionOrNull(conformance.deploymentRevision) !== null,
+      "An executed controlled-conformance run must be bound to an immutable deployment revision.",
+    );
+    invariant(
+      conformance.mutations?.insert === 1 && conformance.mutations.touch >= 1,
+      "An executed controlled-conformance run must apply one shared insert and at least one per-transport touch.",
+    );
+    invariant(
+      isRecord(conformance.baseline) &&
+        conformance.baseline.digestVerified === true &&
+        conformance.baseline.leaseDigest === conformance.baseline.cleanupDigest,
+      "An executed controlled-conformance run must reverse the source's baseline digest.",
+    );
+    return;
+  }
+  invariant(
+    isRecord(conformance.reason) &&
+      typeof conformance.reason.code === "string" &&
+      conformance.reason.code.length > 0 &&
+      typeof conformance.reason.message === "string" &&
+      conformance.reason.message.length > 0,
+    `A ${conformance.status} controlled-conformance run must record why it did not execute.`,
+  );
+  invariant(
+    conformance.mutations?.insert === 0 || conformance.status === "failed",
+    "A skipped or degraded controlled-conformance run cannot report applied mutations.",
+  );
 }
 
 export function summarizeRealtimeConformanceEvidence(evidence) {
   validateRealtimeConformanceEvidence(evidence);
+  const conformance = evidence.conformance;
   return [
     `lane=${evidence.lane} status=${evidence.summary.status} revision=${evidence.sdk.revision}`,
+    ...(conformance
+      ? [
+          `controlled-run: ${conformance.status}${
+            conformance.reason ? ` (${conformance.reason.code}: ${conformance.reason.message})` : ""
+          }${
+            conformance.status === "executed"
+              ? ` runId=${conformance.runId} insert=${String(conformance.mutations.insert)} touch=${String(
+                  conformance.mutations.touch,
+                )} baseline-restored=${String(conformance.baseline.digestVerified)}`
+              : ""
+          }`,
+        ]
+      : []),
     ...evidence.transports.map(
       (transport) =>
         `${transport.id}: ${transport.status} (${String(transport.scenarioCounts.passed)}/${String(
