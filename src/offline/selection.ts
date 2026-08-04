@@ -1,3 +1,4 @@
+import type { QueryTileKey, QueryTileKeyInput, QueryTileScheme } from "../contract/tiles.js";
 import type { PaginationSpec, Query } from "../contract/types.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import { screenPersistedString } from "./credential-screen.js";
@@ -181,6 +182,108 @@ export function offlineRegionAuthorizationScopeDigest(fingerprint: string): Prom
   return sha256(`honua-offline-scope:v1:${fingerprint.trim()}`);
 }
 
+/** Highest tile zoom an offline region can address, matching the manifest's own ceiling. */
+export const OFFLINE_REGION_MAX_TILE_ZOOM = 30;
+
+/** Default tile-matrix-set discriminator for a region that names none. */
+export const OFFLINE_REGION_DEFAULT_TILE_MATRIX_SET = "default";
+
+export interface OfflineRegionTileSelectorOptions {
+  /** `tms` rows are folded onto their canonical XYZ row before addressing. */
+  readonly scheme?: QueryTileScheme;
+  /** Separates pyramids that share coordinates but not a grid (for example an OGC tile-matrix set). */
+  readonly tileMatrixSetId?: string;
+}
+
+/**
+ * Fold a tile coordinate onto the canonical XYZ identity an offline region stores.
+ *
+ * This reuses the contract's {@link QueryTileKey} vocabulary but deliberately not
+ * `normalizeQueryTileKey()`, whose clamping is right for a renderer and wrong for
+ * a content-addressed cache: clamping an out-of-range row would quietly address a
+ * *different* tile's bytes. Longitude wrapping is kept, because a wrapped column
+ * is the same geographic tile; an out-of-range row or zoom is refused instead.
+ */
+export function normalizeOfflineRegionTileKey(
+  input: QueryTileKeyInput,
+  options: OfflineRegionTileSelectorOptions = {},
+): QueryTileKey {
+  const scheme = options.scheme ?? "xyz";
+  if (scheme !== "xyz" && scheme !== "tms") throw invalid("tile scheme must be xyz or tms.", "tile.scheme");
+  const z = tileInteger(input.z ?? input.tileMatrix, "tile.z");
+  const x = tileInteger(input.x ?? input.tileCol, "tile.x");
+  const y = tileInteger(input.y ?? input.tileRow, "tile.y");
+  if (z < 0 || z > OFFLINE_REGION_MAX_TILE_ZOOM) {
+    throw new HonuaOfflineRegionError(
+      "out-of-region",
+      `tile.z must be between 0 and ${OFFLINE_REGION_MAX_TILE_ZOOM}.`,
+      { path: "tile.z" },
+    );
+  }
+  const tileCount = 2 ** z;
+  if (y < 0 || y >= tileCount) {
+    throw new HonuaOfflineRegionError("out-of-region", `tile.y is outside the zoom-${z} tile pyramid.`, {
+      path: "tile.y",
+    });
+  }
+  return { z, x: ((x % tileCount) + tileCount) % tileCount, y: scheme === "tms" ? tileCount - 1 - y : y };
+}
+
+/** Deterministic selector addressing one tile inside a selection. */
+export function offlineRegionTileSelector(
+  tile: QueryTileKeyInput,
+  options: OfflineRegionTileSelectorOptions = {},
+): OfflineRegionResourceSelector {
+  const key = normalizeOfflineRegionTileKey(tile, options);
+  const set = options.tileMatrixSetId ?? OFFLINE_REGION_DEFAULT_TILE_MATRIX_SET;
+  return ["tile", boundedIdentity(set, "tileMatrixSetId"), key.z, key.x, key.y];
+}
+
+/** Deterministic selector addressing one opaque asset (style, glyph, sprite, attachment). */
+export function offlineRegionAssetSelector(key: string): OfflineRegionResourceSelector {
+  return ["asset", boundedIdentity(key, "asset")];
+}
+
+/** Deterministic selector addressing one metadata document (descriptor, discovery response). */
+export function offlineRegionMetadataSelector(document: string): OfflineRegionResourceSelector {
+  return ["metadata", boundedIdentity(document, "document")];
+}
+
+/** WGS84 lon/lat envelope of a canonical XYZ tile, in the Web Mercator pyramid. */
+export function offlineRegionTileEnvelope(tile: QueryTileKey): OfflineRegionBounds {
+  const tileCount = 2 ** tile.z;
+  return {
+    minX: (tile.x / tileCount) * 360 - 180,
+    minY: mercatorLatitude((tile.y + 1) / tileCount),
+    maxX: ((tile.x + 1) / tileCount) * 360 - 180,
+    maxY: mercatorLatitude(tile.y / tileCount),
+    crs: "EPSG:4326",
+  };
+}
+
+const WGS84_LON_LAT_CRS = new Set([
+  "epsg:4326",
+  "crs:84",
+  "crs84",
+  "ogc:crs84",
+  "urn:ogc:def:crs:ogc:1.3:crs84",
+  "urn:ogc:def:crs:ogc::crs84",
+  "urn:ogc:def:crs:epsg::4326",
+  "http://www.opengis.net/def/crs/ogc/1.3/crs84",
+  "http://www.opengis.net/def/crs/epsg/0/4326",
+]);
+
+/**
+ * Whether a declared CRS is provably WGS84 longitude/latitude.
+ *
+ * Only a recognized identifier returns `true`. An unrecognized CRS makes no
+ * claim either way, so callers must not treat `false` as "not WGS84" — they must
+ * treat it as "cannot compare geometrically", and fall back to identity alone.
+ */
+export function isWgs84LonLatCrs(crs: string): boolean {
+  return typeof crs === "string" && WGS84_LON_LAT_CRS.has(crs.trim().toLowerCase());
+}
+
 /** How a requested extent relates to a stored region's extent. */
 export type OfflineRegionBoundsRelation = "equal" | "contained" | "outside";
 
@@ -204,6 +307,29 @@ export function compareOfflineRegionBounds(
     requested.maxX <= region.maxX &&
     requested.maxY <= region.maxY;
   return contained ? "contained" : "outside";
+}
+
+/** Latitude of a Web Mercator row fraction, in degrees. */
+function mercatorLatitude(fraction: number): number {
+  return (Math.atan(Math.sinh(Math.PI * (1 - 2 * fraction))) * 180) / Math.PI;
+}
+
+function tileInteger(value: unknown, path: string): number {
+  const parsed = typeof value === "string" ? Number(value) : value;
+  if (typeof parsed !== "number" || !Number.isSafeInteger(parsed)) {
+    throw invalid(`${path} must be an integer.`, path);
+  }
+  return parsed;
+}
+
+function boundedIdentity(value: unknown, path: string): string {
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_SELECTOR_TEXT_LENGTH) {
+    throw invalid(`${path} must be a bounded non-empty string.`, path);
+  }
+  if (screenPersistedString(value, "identity")) {
+    throw invalid(`${path} must not carry credential or request-URL shape.`, path);
+  }
+  return value;
 }
 
 function normalizeSelector(value: OfflineRegionResourceSelector | undefined): readonly (string | number)[] | null {
