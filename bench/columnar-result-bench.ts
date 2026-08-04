@@ -123,9 +123,19 @@ export interface ColumnarResultConversionBenchmarkResult {
 
 type Checks = ColumnarResultConversionBenchmarkResult["invariants"]["checks"];
 
+/**
+ * Per-repetition checks. `inputBatchUnmutated` is deliberately absent: it is a
+ * property of the whole benchmark rather than of one repetition, and digesting
+ * a 24 MB batch on both sides of every repetition would spend more time hashing
+ * than converting — in a corpus that other tests regenerate inside their own
+ * time budgets. One digest before the first run and one after the last proves
+ * the same thing.
+ */
+type RunChecks = Omit<Checks, "inputBatchUnmutated">;
+
 interface ConversionRun {
   sample: ColumnarResultConversionSample;
-  checks: Checks;
+  checks: RunChecks;
 }
 
 const IDENTITY: ColumnarBatchIdentityV1 = Object.freeze({
@@ -152,10 +162,22 @@ function mix(index: number, salt: number): number {
   return (hash ^ (hash >>> 16)) >>> 0;
 }
 
+/**
+ * The fixture's distinct category labels, built once.
+ *
+ * The column is dictionary-encoded, so it only ever holds `CATEGORY_COUNT`
+ * distinct values. Interning them means building a million-row fixture
+ * allocates 64 strings rather than 1,000,000, which matters because the whole
+ * corpus is regenerated inside other tests' time budgets.
+ */
+const CATEGORIES: readonly string[] = Object.freeze(
+  Array.from({ length: CATEGORY_COUNT }, (_, index) => `category-${String(index).padStart(4, "0")}`),
+);
+
 /** Category label for a row. Every fourth row is null, so nulls are exercised. */
 function categoryAt(row: number): string | null {
   if (row % 4 === 3) return null;
-  return `category-${String(mix(row, 0xc2b2ae35) % CATEGORY_COUNT).padStart(4, "0")}`;
+  return CATEGORIES[mix(row, 0xc2b2ae35) % CATEGORY_COUNT]!;
 }
 
 /** Longitude/latitude for a row, in lattice steps. */
@@ -286,7 +308,6 @@ function referenceKey(row: number): string {
 async function runOnce(fixture: ColumnarResultConversionFixture): Promise<ConversionRun> {
   const { batch, windowOffset, windowSize } = fixture;
   const window = { offset: windowOffset, limit: windowSize, maxFeatures: windowSize } as const;
-  const inputBefore = batchDigest(batch);
 
   // The reference conversion. Untimed and unretained, so the two measured
   // regions below stay free of correctness bookkeeping.
@@ -370,7 +391,6 @@ async function runOnce(fixture: ColumnarResultConversionFixture): Promise<Conver
       collectedBaseline,
       windowExact,
       orderingExact,
-      inputBatchUnmutated: batchDigest(batch) === inputBefore,
       repeatable: retainedKeys.join("\n") === referenceKeys.join("\n"),
       pagingMatchesWindow: paged.join("\n") === referenceKeys.join("\n"),
       cancellable: cancelled && deliveredPages < TRAVERSAL_PAGES,
@@ -389,15 +409,20 @@ export async function runColumnarResultConversionBenchmark(
   assertOptions(options);
   const fixture = buildColumnarResultConversionFixture(options.batchRowCount, options.windowSize);
 
+  // Bracket every run, warm-up included: conversion must never write to the
+  // batch it reads, and one comparison across the whole benchmark says that as
+  // strongly as one per repetition would.
+  const inputBefore = batchDigest(fixture.batch);
   for (let run = 0; run < options.warmupRuns; run += 1) await runOnce(fixture);
   const measured: ConversionRun[] = [];
   for (let run = 0; run < options.measurementRuns; run += 1) measured.push(await runOnce(fixture));
+  const inputBatchUnmutated = batchDigest(fixture.batch) === inputBefore;
 
   const checks: Checks = {
     collectedBaseline: measured.every((run) => run.checks.collectedBaseline),
     windowExact: measured.every((run) => run.checks.windowExact),
     orderingExact: measured.every((run) => run.checks.orderingExact),
-    inputBatchUnmutated: measured.every((run) => run.checks.inputBatchUnmutated),
+    inputBatchUnmutated,
     repeatable: measured.every((run) => run.checks.repeatable),
     pagingMatchesWindow: measured.every((run) => run.checks.pagingMatchesWindow),
     cancellable: measured.every((run) => run.checks.cancellable),
