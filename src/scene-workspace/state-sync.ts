@@ -1,3 +1,16 @@
+/**
+ * Versioned envelope that keeps two renderers — typically a Cesium scene and a
+ * MapLibre map — on the same camera, selection, filter, time, and detail state.
+ *
+ * The synchronizer is transport-neutral: it maps slices onto a caller-supplied
+ * port and reports per-slice fidelity instead of silently degrading.
+ *
+ * @beta Part of the beta `@honua/app-platform/scene-workspace` surface; the
+ *   envelope kind, version, and slice vocabulary are stable through 0.1.x, and
+ *   diagnostic codes grow additively.
+ * @module
+ */
+
 import type { FeatureSelectionTarget, FilterClause } from "../exploration/index.js";
 import type { SceneCameraState, SceneDetailState, SceneTimelineState } from "./types.js";
 

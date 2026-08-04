@@ -89,7 +89,10 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 These temporary `@honua/sdk-js` shims were introduced in `0.1.0-beta.0` when
 the application platform moved. They remain available throughout `0.1.x` and
-are removed in `0.2.0`; new code must import the replacement directly.
+are removed in `0.2.0`; new code must import the replacement directly. A
+replacement's own support status is independent of the shim: promoting
+`@honua/app-platform/scene-workspace` to `beta` did not move the
+`@honua/sdk-js/scene-workspace` removal window.
 
 | Deprecated subpath | Replacement | Remove in |
 |--------------------|-------------|-----------|
@@ -124,7 +127,7 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 | `@honua/app-platform/app` | App bootstrap helper for browser shells |
 | `@honua/app-platform/app-controller` | `HonuaController` — renderer-neutral app controller |
 | `@honua/app-platform/app-workspace` | Framework-neutral workspace state orchestration |
-| `@honua/app-platform/scene-workspace` | 3D scene workspace + MapLibre/Cesium adapters (optional `cesium` peer) |
+| `@honua/app-platform/scene-workspace` | 3D scene workspace + MapLibre/Cesium adapters (optional `cesium` peer) — **`beta`**; see the [surface tiers table](./docs/standalone-capability-matrix.md#surface-tiers) for the exports it covers and the ones still experimental |
 | `@honua/app-platform/collaboration` | Saved-map collaboration client |
 | `@honua/app-platform/control-plane` | Hosted-product / admin client |
 | `@honua/app-platform/replica-sync` | Offline-replica sync client |

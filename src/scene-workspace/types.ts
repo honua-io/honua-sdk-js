@@ -4,6 +4,8 @@
  * These types intentionally describe state and adapter events without
  * importing Cesium, MapLibre, or any rendering package.
  *
+ * @beta Part of the beta `@honua/app-platform/scene-workspace` surface; these
+ *   state shapes are not renamed or removed through 0.1.x and grow additively.
  * @module
  */
 

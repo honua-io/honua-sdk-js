@@ -1,3 +1,15 @@
+/**
+ * Renderer-neutral scene workspace store: intents in, typed slices out.
+ *
+ * The reducer, the selectors, and the adapter-event mapping never import a
+ * renderer, so the same workspace drives Cesium, MapLibre, a table, or a test.
+ *
+ * @beta Part of the beta `@honua/app-platform/scene-workspace` surface; these
+ *   exports are not renamed or removed through 0.1.x, and intents, slices, and
+ *   diagnostics grow additively.
+ * @module
+ */
+
 import { featureSelectionKey } from "../exploration/index.js";
 import {
   type ScenePrimitiveDiagnostic,

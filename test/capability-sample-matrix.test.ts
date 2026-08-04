@@ -158,9 +158,10 @@ describe("capability-to-sample matrix contract", () => {
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
-    // 27 = 25 pre-existing support claims + the gRPC and direct-PMTiles
-    // connect() discovery claims registered in issues #554 and #820.
-    expect(matrix.supportClaims).toHaveLength(27);
+    // 28 = 25 pre-existing support claims + the gRPC and direct-PMTiles
+    // connect() discovery claims registered in issues #554 and #820
+    // + the Cesium 3D scene workspace claim promoted to beta in issue #931.
+    expect(matrix.supportClaims).toHaveLength(28);
     // 56 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
     // manifest-advertised PMTiles plugin entrypoint published in issue #671)
     // + "./analytics" and "./analytics/uplot" (the linked-analytics contract

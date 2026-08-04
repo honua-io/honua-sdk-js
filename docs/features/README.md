@@ -26,4 +26,4 @@ This repository owns the JavaScript/TypeScript SDK, browser runtime helpers, mig
 
 ## 3D Status
 
-The SDK has `SceneViewCompat`, 2.5D MapLibre examples, WebMap conversion warnings for unsupported 3D properties, a Cesium route-playback spike, and a renderer-neutral scene workspace contract for Cesium/map/table/detail/timeline/evidence interop. See `docs/scene-workspace.md` for the sample adapter pattern. Renderer-specific production adapters and richer hosted samples remain follow-on backlog.
+The SDK has `SceneViewCompat`, 2.5D MapLibre examples, WebMap conversion warnings for unsupported 3D properties, a Cesium route-playback spike, and a renderer-neutral scene workspace contract for Cesium/map/table/detail/timeline/evidence interop. That workspace state, the scene primitive contract, and the Cesium primitive adapter ship as `beta` on `@honua/app-platform/scene-workspace`; Honua Server scene discovery, `SceneView`, the analysis widgets, and the bounded `Source`-to-entity slice stay experimental. See `docs/scene-workspace.md` for the support status and the sample adapter pattern. Richer hosted samples remain follow-on backlog.

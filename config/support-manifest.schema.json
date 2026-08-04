@@ -315,6 +315,10 @@
       "properties": {
         "ceilings": { "type": "object" },
         "downstreamProjection": { "type": "object" },
+        "surfaceTiers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/surfaceTier" }
+        },
         "entrypoints": {
           "type": "array",
           "items": {
@@ -325,8 +329,51 @@
               "status": { "enum": ["supported", "experimental", "deprecated"] },
               "apiEquivalent": { "type": "string" },
               "replacement": { "type": "string" },
+              "replacementStatus": { "$ref": "#/$defs/status" },
               "introducedIn": { "type": "string" },
               "removeIn": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "surfaceTier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["surface", "status", "barrel", "claim", "exports", "heldBack"],
+      "properties": {
+        "surface": { "type": "string", "minLength": 1 },
+        "status": { "$ref": "#/$defs/status" },
+        "barrel": { "type": "string", "minLength": 1 },
+        "sdkForwarder": { "type": "string", "minLength": 1 },
+        "claim": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "commitment": { "type": "string", "minLength": 1 },
+        "mayStillChange": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "exports": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "heldBack": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["status", "reason", "exports"],
+            "properties": {
+              "status": { "$ref": "#/$defs/status" },
+              "reason": { "type": "string", "minLength": 1 },
+              "exports": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "minItems": 1,
+                "uniqueItems": true
+              }
             }
           }
         }
