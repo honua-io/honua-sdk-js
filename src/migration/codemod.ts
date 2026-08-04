@@ -4,7 +4,7 @@ import ts from "typescript";
 import { type WebMapMapLibreManualGap, webmapJsonToMapLibreStyle } from "../map/webmap-maplibre.js";
 import type { WebMapJson } from "../webmap/types.js";
 import { readAmdDependencies, readImportEqualsBinding } from "./loader-bindings.js";
-import { canonicalArcGisModulePath } from "./module-specifiers.js";
+import { canonicalArcGisModulePath, isArcGisModuleSpecifier } from "./module-specifiers.js";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const SKIP_DIRS = new Set(["node_modules", "dist", ".git"]);
@@ -83,6 +83,23 @@ const FEATURE_LAYER_POPUP_FIELD_INFO_FORMAT_REASON =
   "FeatureLayer popupTemplate.content fieldInfos format callback requires manual migration";
 const REACTIVE_UTILS_WATCH_ACCESSOR_REASON =
   "reactiveUtils.watch accessor function is too complex to rewrite automatically; requires manual migration.";
+
+/**
+ * How far the seam analysis follows a value inside a consumer argument before
+ * it stops looking (`{ effect: { filter: makeFilter() } }` is depth 2).
+ *
+ * The analysis is deliberately syntactic and bounded — it never builds a
+ * TypeScript program and never leaves the file it is reading (#1012 NFR-001).
+ */
+const SEAM_VALUE_DEPTH_LIMIT = 4;
+
+function compatToArcGisSeamReason(compatSymbol: string, seam: CompatToArcGisSeam): string {
+  const verb = seam.flow === "argument" ? "is passed to" : "is assigned into";
+  const handoff = `${seam.consumerLocalName} from ${seam.consumerModulePath}`;
+  const scope = "which stays on @arcgis/core because it is outside codemod scope";
+  const consequence = `Rewriting only this side would hand a ${compatSymbol} to an un-migrated ArcGIS consumer`;
+  return `Rewrite held back: this value ${verb} ${handoff}, ${scope}. ${consequence}. Migrate or replace the consumer, then re-run the codemod.`;
+}
 
 const ARCGIS_TO_COMPAT_EVENT_REMAP: Readonly<Record<string, string>> = Object.freeze({
   "layerview-create": "layer-view-created",
@@ -780,6 +797,16 @@ export interface CodemodMetrics {
   totalCodemodScopedCallSites: number;
   autoMigratedCallSites: number;
   manualCallSites: number;
+  /**
+   * Call sites the codemod declined because rewriting them would have handed a
+   * compat value to an ArcGIS consumer it does not migrate (#1012).
+   *
+   * These are a strict subset of `manualCallSites`: a seam is reported as a
+   * `MigrationTodo` naming both sides, never as an auto-migration. The counter
+   * is broken out so a lane can gate on "the codemod met a seam" separately
+   * from "the codemod met an option shape it could not prove safe".
+   */
+  seamCallSites: number;
   byKind: CodemodMetricsByKind;
 }
 
@@ -792,6 +819,8 @@ export interface CodemodFileResult {
   addedCompatImport: boolean;
   removedArcGisImports: number;
   annotatedTodoComments: number;
+  /** Call sites in this file held back by compat → ArcGIS seam detection (#1012). */
+  seamCallSites: number;
   manualTodos: MigrationTodo[];
 }
 
@@ -833,6 +862,7 @@ export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCom
     totalCodemodScopedCallSites: 0,
     autoMigratedCallSites: 0,
     manualCallSites: 0,
+    seamCallSites: 0,
     byKind: createEmptyByKindMetrics(),
   };
   const fileResults: CodemodFileResult[] = [];
@@ -884,6 +914,7 @@ export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCom
       metrics.manualCallSites += 1;
       metrics.totalCodemodScopedCallSites += 1;
     }
+    metrics.seamCallSites += fileResult.seamCallSites;
     manualTodos.push(...fileResult.manualTodos);
 
     const hasChanges =
@@ -916,6 +947,7 @@ export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCom
         addedCompatImport: fileResult.addedCompatImport,
         removedArcGisImports: fileResult.removedArcGisImports,
         annotatedTodoComments: fileResult.annotatedTodoComments,
+        seamCallSites: fileResult.seamCallSites,
         manualTodos: fileResult.manualTodos,
       });
     } else if (fileResult.manualTodos.length > 0) {
@@ -928,6 +960,7 @@ export function runEsriCompatCodemod(options: EsriCompatCodemodOptions): EsriCom
         addedCompatImport: false,
         removedArcGisImports: 0,
         annotatedTodoComments: 0,
+        seamCallSites: fileResult.seamCallSites,
         manualTodos: fileResult.manualTodos,
       });
     }
@@ -992,6 +1025,7 @@ function codemodFile(
   addedCompatImport: boolean;
   removedArcGisImports: number;
   annotatedTodoComments: number;
+  seamCallSites: number;
   manualTodos: MigrationTodo[];
 } {
   assertParsableSource(file, source);
@@ -1005,6 +1039,12 @@ function codemodFile(
     }
   }
   const shadowedImportLocalNames = collectShadowedImportLocalNames(sourceFile, new Set(importsByLocalName.keys()));
+  const compatToArcGisSeams = detectCompatToArcGisSeams({
+    sourceFile,
+    importsByLocalName,
+    shadowedImportLocalNames,
+    unmigratedConsumers: collectUnmigratedArcGisConsumerBindings(sourceFile),
+  });
   const identifierMemberUsage = buildIdentifierMemberUsageIndex(sourceFile);
   const trackedReceiverKeys = collectTrackedCompatReceiverKeys(sourceFile, importsByLocalName);
   const reactiveUtilsLocals = collectReactiveUtilsLocalNames(sourceFile);
@@ -1016,6 +1056,7 @@ function codemodFile(
   const rewrittenKinds: CodemodConstructorKind[] = [];
   const manualTodos: MigrationTodo[] = [];
   const todoCommentEdits: TextEdit[] = [];
+  const seamCallSites = { value: 0 };
   const requiredCompatSymbols = new Set<string>();
   const requiredHonuaMapLibreSymbols = new Set<string>();
   const requiresEsriLeafletImport = { value: false };
@@ -1329,6 +1370,38 @@ function codemodFile(
       return;
     }
 
+    // The construct is in scope, but its value flows into an ArcGIS module the
+    // codemod does not migrate. Rewriting only the producer would leave a
+    // compat value in an un-migrated ArcGIS consumer's hands — a seam that
+    // does not typecheck and that the readiness report would have scored as a
+    // clean auto-migration. Hold the rewrite back and name both sides (#1012).
+    const seam = compatToArcGisSeams.get(node.getStart(sourceFile));
+    if (seam) {
+      const nodeStart = node.getStart(sourceFile);
+      const location = sourceFile.getLineAndCharacterOfPosition(nodeStart);
+      const reason = compatToArcGisSeamReason(specForKind(importBinding.kind).compatSymbol, seam);
+      manualTodos.push({
+        kind: importBinding.kind,
+        file,
+        line: location.line + 1,
+        column: location.character + 1,
+        reason,
+        difficulty: "moderate",
+      });
+      seamCallSites.value += 1;
+      if (annotateTodos) {
+        const lineStart = findLineStartOffset(source, nodeStart);
+        if (shouldInsertTodoComment(source, lineStart, nodeStart)) {
+          todoCommentEdits.push({
+            start: lineStart,
+            end: lineStart,
+            text: `// ${TODO_MARKER}[${importBinding.kind}]: ${reason}\n`,
+          });
+        }
+      }
+      return;
+    }
+
     if (isCommonJsModule && importBinding.sourceKind === "require") {
       if (target !== "honua-compat") {
         const nodeStart = node.getStart(sourceFile);
@@ -1590,6 +1663,7 @@ function codemodFile(
       addedCompatImport: false,
       removedArcGisImports: 0,
       annotatedTodoComments: todoCommentEdits.length,
+      seamCallSites: seamCallSites.value,
       manualTodos: manualTodos.sort(compareTodos),
     };
   }
@@ -1645,6 +1719,7 @@ function codemodFile(
     addedCompatImport,
     removedArcGisImports: removedArcGisImports.removedCount,
     annotatedTodoComments: todoCommentEdits.length,
+    seamCallSites: seamCallSites.value,
     manualTodos: manualTodos.sort(compareTodos),
   };
 }
@@ -3207,6 +3282,429 @@ function isArcGisRequireBindingIdentifier(node: ts.Identifier): boolean {
   }
 
   return false;
+}
+
+/**
+ * A value handoff from a construct the codemod migrates into an ArcGIS module
+ * it does not (#1012).
+ */
+export interface CompatToArcGisSeam {
+  /** Local name (or `namespace.member`) of the un-migrated ArcGIS consumer. */
+  consumerLocalName: string;
+  /** Module specifier of that consumer, exactly as the file wrote it. */
+  consumerModulePath: string;
+  /** How the migrated value reaches the consumer. */
+  flow: "argument" | "property-assignment";
+}
+
+interface UnmigratedArcGisConsumer {
+  localName: string;
+  modulePath: string;
+}
+
+/**
+ * Locals this file binds to ArcGIS modules the codemod has no rewrite for.
+ *
+ * These are the far side of a potential seam: every one of them stays on
+ * `@arcgis/core` after the codemod runs, so any compat value handed to one is
+ * a handoff the migrated app has to reconcile by hand. Modules that *do* map
+ * to a `CodemodConstructorKind` are excluded — those get migrated too, so
+ * there is no seam.
+ */
+function collectUnmigratedArcGisConsumerBindings(sourceFile: ts.SourceFile): Map<string, string> {
+  const bindings = new Map<string, string>();
+  const register = (localName: string, modulePath: string): void => {
+    if (!bindings.has(localName)) {
+      bindings.set(localName, modulePath);
+    }
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+      const modulePath = statement.moduleSpecifier.text;
+      if (!isArcGisModuleSpecifier(modulePath)) {
+        continue;
+      }
+      const importClause = statement.importClause;
+      if (!importClause || importClause.isTypeOnly) {
+        continue;
+      }
+      const spec = specForModulePath(modulePath);
+      if (spec) {
+        // The module itself is in codemod scope: its default/namespace binding
+        // is migrated, and its other named exports are left alone rather than
+        // guessed at.
+        continue;
+      }
+
+      if (importClause.name) {
+        register(importClause.name.text, modulePath);
+      }
+      const namedBindings = importClause.namedBindings;
+      if (!namedBindings) {
+        continue;
+      }
+      if (ts.isNamespaceImport(namedBindings)) {
+        register(namedBindings.name.text, modulePath);
+        continue;
+      }
+      const normalizedModulePath = canonicalArcGisModulePath(modulePath);
+      for (const element of namedBindings.elements) {
+        if (element.isTypeOnly) {
+          continue;
+        }
+        const importedName = element.propertyName?.text ?? element.name.text;
+        if (resolveArcGisBarrelImportKind(normalizedModulePath, importedName)) {
+          continue;
+        }
+        register(element.name.text, modulePath);
+      }
+      continue;
+    }
+
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+    for (const declaration of statement.declarationList.declarations) {
+      const requireBinding = extractRequireBindingFromDeclaration(declaration);
+      if (!requireBinding || !isArcGisModuleSpecifier(requireBinding.modulePath)) {
+        continue;
+      }
+      if (specForModulePath(requireBinding.modulePath)) {
+        continue;
+      }
+      register(requireBinding.localName, requireBinding.modulePath);
+    }
+  }
+
+  return bindings;
+}
+
+interface SeamResolutionContext {
+  sourceFile: ts.SourceFile;
+  producerStarts: ReadonlySet<number>;
+  producerStartsByVariable: Map<string, Set<number>>;
+  producerStartsByFunction: Map<string, Set<number>>;
+}
+
+/** Strips the wrappers that do not change which value an expression produces. */
+function unwrapSeamValueExpression(expression: ts.Expression): ts.Expression {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isNonNullExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+/**
+ * Which in-scope constructor call sites (by node start offset) an expression
+ * can evaluate to, following only same-file bindings and only to
+ * `SEAM_VALUE_DEPTH_LIMIT`.
+ */
+function resolveSeamValueProducers(
+  expression: ts.Expression,
+  context: SeamResolutionContext,
+  depth: number,
+  found: Set<number>,
+): void {
+  if (depth > SEAM_VALUE_DEPTH_LIMIT) {
+    return;
+  }
+  const value = unwrapSeamValueExpression(expression);
+
+  if (ts.isNewExpression(value)) {
+    const start = value.getStart(context.sourceFile);
+    if (context.producerStarts.has(start)) {
+      found.add(start);
+    }
+    return;
+  }
+  if (ts.isIdentifier(value)) {
+    for (const start of context.producerStartsByVariable.get(value.text) ?? []) {
+      found.add(start);
+    }
+    return;
+  }
+  if (ts.isCallExpression(value) && ts.isIdentifier(value.expression)) {
+    for (const start of context.producerStartsByFunction.get(value.expression.text) ?? []) {
+      found.add(start);
+    }
+    return;
+  }
+  if (ts.isObjectLiteralExpression(value)) {
+    for (const property of value.properties) {
+      if (ts.isPropertyAssignment(property)) {
+        resolveSeamValueProducers(property.initializer, context, depth + 1, found);
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        resolveSeamValueProducers(property.name, context, depth + 1, found);
+      } else if (ts.isSpreadAssignment(property)) {
+        resolveSeamValueProducers(property.expression, context, depth + 1, found);
+      }
+    }
+    return;
+  }
+  if (ts.isArrayLiteralExpression(value)) {
+    for (const element of value.elements) {
+      resolveSeamValueProducers(element, context, depth + 1, found);
+    }
+    return;
+  }
+  if (ts.isSpreadElement(value)) {
+    resolveSeamValueProducers(value.expression, context, depth + 1, found);
+    return;
+  }
+  if (ts.isConditionalExpression(value)) {
+    resolveSeamValueProducers(value.whenTrue, context, depth + 1, found);
+    resolveSeamValueProducers(value.whenFalse, context, depth + 1, found);
+    return;
+  }
+  if (
+    ts.isBinaryExpression(value) &&
+    (value.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      value.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      value.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken)
+  ) {
+    resolveSeamValueProducers(value.left, context, depth + 1, found);
+    resolveSeamValueProducers(value.right, context, depth + 1, found);
+  }
+}
+
+/** The function-like expression a variable is bound to, if it is one. */
+function asSeamFunctionLikeExpression(expression: ts.Expression): ts.ArrowFunction | ts.FunctionExpression | undefined {
+  const value = unwrapSeamValueExpression(expression);
+  if (ts.isArrowFunction(value) || ts.isFunctionExpression(value)) {
+    return value;
+  }
+  return undefined;
+}
+
+/**
+ * Expressions a function body returns directly. Nested functions are not
+ * descended into: their returns belong to the nested function, not this one.
+ */
+function collectSeamReturnExpressions(
+  fn: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration,
+): ts.Expression[] {
+  const body = fn.body;
+  if (!body) {
+    return [];
+  }
+  if (!ts.isBlock(body)) {
+    return [body];
+  }
+
+  const expressions: ts.Expression[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isFunctionDeclaration(node) ||
+      ts.isFunctionExpression(node) ||
+      ts.isArrowFunction(node) ||
+      ts.isClassDeclaration(node) ||
+      ts.isClassExpression(node)
+    ) {
+      return;
+    }
+    if (ts.isReturnStatement(node)) {
+      if (node.expression) {
+        expressions.push(node.expression);
+      }
+      return;
+    }
+    node.forEachChild(visit);
+  };
+  body.forEachChild(visit);
+  return expressions;
+}
+
+/** The un-migrated ArcGIS consumer a callee expression addresses, if any. */
+function resolveUnmigratedArcGisConsumer(
+  expression: ts.Expression,
+  unmigratedConsumers: ReadonlyMap<string, string>,
+): UnmigratedArcGisConsumer | undefined {
+  if (ts.isIdentifier(expression)) {
+    const modulePath = unmigratedConsumers.get(expression.text);
+    return modulePath ? { localName: expression.text, modulePath } : undefined;
+  }
+  if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression)) {
+    const modulePath = unmigratedConsumers.get(expression.expression.text);
+    if (!modulePath) {
+      return undefined;
+    }
+    return { localName: `${expression.expression.text}.${expression.name.text}`, modulePath };
+  }
+  return undefined;
+}
+
+/**
+ * Constructor call sites whose value the codemod would hand to an ArcGIS
+ * module it leaves alone (#1012).
+ *
+ * The analysis is purely syntactic and file-local. It follows three bounded
+ * hops — `new X()` directly in a consumer argument, a local bound to one, and
+ * a local function that returns one — and stops there. It never resolves
+ * types, never opens another file, and never builds a `ts.Program`, so it
+ * behaves identically for `.js` and `.ts` inputs (NFR-001).
+ *
+ * Its bias is precision: a value it cannot follow is not a seam, so a missed
+ * seam degrades to today's behavior rather than to a spurious manual TODO.
+ */
+function detectCompatToArcGisSeams(options: {
+  sourceFile: ts.SourceFile;
+  importsByLocalName: ReadonlyMap<string, ArcGisImportBinding>;
+  shadowedImportLocalNames: ReadonlySet<string>;
+  unmigratedConsumers: ReadonlyMap<string, string>;
+}): Map<number, CompatToArcGisSeam> {
+  const { sourceFile, importsByLocalName, shadowedImportLocalNames, unmigratedConsumers } = options;
+  const seams = new Map<number, CompatToArcGisSeam>();
+  if (unmigratedConsumers.size === 0 || importsByLocalName.size === 0) {
+    return seams;
+  }
+
+  const producerStarts = new Set<number>();
+  const variableInitializers: Array<{ name: string; expression: ts.Expression }> = [];
+  const returnExpressionsByFunction = new Map<string, ts.Expression[]>();
+  const consumerInstances = new Map<string, UnmigratedArcGisConsumer>();
+
+  walk(sourceFile, (node) => {
+    if (ts.isNewExpression(node)) {
+      const rewriteTarget = resolveConstructorRewriteTarget(node.expression, sourceFile, importsByLocalName);
+      if (rewriteTarget && !shadowedImportLocalNames.has(rewriteTarget.binding.localName)) {
+        producerStarts.add(node.getStart(sourceFile));
+      }
+    }
+
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      const returns = collectSeamReturnExpressions(node);
+      if (returns.length > 0) {
+        returnExpressionsByFunction.set(node.name.text, returns);
+      }
+      return;
+    }
+
+    if (!ts.isVariableDeclaration(node) || !node.initializer || !ts.isIdentifier(node.name)) {
+      return;
+    }
+    const name = node.name.text;
+    const initializer = unwrapSeamValueExpression(node.initializer);
+    if (ts.isNewExpression(initializer)) {
+      const consumer = resolveUnmigratedArcGisConsumer(initializer.expression, unmigratedConsumers);
+      if (consumer) {
+        // Name the instance, not the class: `effect.filter = ...` is what the
+        // reader has to go fix, and the module path already identifies the class.
+        consumerInstances.set(name, { localName: name, modulePath: consumer.modulePath });
+      }
+    }
+    const fn = asSeamFunctionLikeExpression(node.initializer);
+    if (fn) {
+      const returns = collectSeamReturnExpressions(fn);
+      if (returns.length > 0) {
+        returnExpressionsByFunction.set(name, returns);
+      }
+      return;
+    }
+    variableInitializers.push({ name, expression: node.initializer });
+  });
+
+  if (producerStarts.size === 0) {
+    return seams;
+  }
+
+  const context: SeamResolutionContext = {
+    sourceFile,
+    producerStarts,
+    producerStartsByVariable: new Map<string, Set<number>>(),
+    producerStartsByFunction: new Map<string, Set<number>>(),
+  };
+  const record = (target: Map<string, Set<number>>, name: string, found: ReadonlySet<number>): void => {
+    if (found.size === 0) {
+      return;
+    }
+    let bucket = target.get(name);
+    if (!bucket) {
+      bucket = new Set<number>();
+      target.set(name, bucket);
+    }
+    for (const start of found) {
+      bucket.add(start);
+    }
+  };
+
+  // Hop 1: locals bound directly to a producer (`const f = new FeatureFilter()`).
+  for (const entry of variableInitializers) {
+    const found = new Set<number>();
+    resolveSeamValueProducers(entry.expression, context, 0, found);
+    record(context.producerStartsByVariable, entry.name, found);
+  }
+  // Hop 2: local functions that return one (`const make = () => new FeatureFilter()`).
+  for (const [name, expressions] of returnExpressionsByFunction) {
+    const found = new Set<number>();
+    for (const expression of expressions) {
+      resolveSeamValueProducers(expression, context, 0, found);
+    }
+    record(context.producerStartsByFunction, name, found);
+  }
+  // Hop 3: locals bound to the result of such a function (`const f = make()`).
+  for (const entry of variableInitializers) {
+    const found = new Set<number>();
+    resolveSeamValueProducers(entry.expression, context, 0, found);
+    record(context.producerStartsByVariable, entry.name, found);
+  }
+
+  const recordSeam = (expression: ts.Expression, seam: CompatToArcGisSeam): void => {
+    const found = new Set<number>();
+    resolveSeamValueProducers(expression, context, 0, found);
+    for (const start of found) {
+      if (!seams.has(start)) {
+        seams.set(start, seam);
+      }
+    }
+  };
+
+  walk(sourceFile, (node) => {
+    if (ts.isNewExpression(node) || ts.isCallExpression(node)) {
+      const callee = node.expression;
+      let consumer = resolveUnmigratedArcGisConsumer(callee, unmigratedConsumers);
+      if (!consumer && ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)) {
+        const instance = consumerInstances.get(callee.expression.text);
+        if (instance) {
+          consumer = { localName: `${instance.localName}.${callee.name.text}`, modulePath: instance.modulePath };
+        }
+      }
+      if (consumer) {
+        for (const argument of node.arguments ?? []) {
+          recordSeam(argument, {
+            consumerLocalName: consumer.localName,
+            consumerModulePath: consumer.modulePath,
+            flow: "argument",
+          });
+        }
+      }
+      return;
+    }
+
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isPropertyAccessExpression(node.left) &&
+      ts.isIdentifier(node.left.expression)
+    ) {
+      const consumer = consumerInstances.get(node.left.expression.text);
+      if (consumer) {
+        recordSeam(node.right, {
+          consumerLocalName: `${consumer.localName}.${node.left.name.text}`,
+          consumerModulePath: consumer.modulePath,
+          flow: "property-assignment",
+        });
+      }
+    }
+  });
+
+  return seams;
 }
 
 function resolveConstructorRewriteTarget(

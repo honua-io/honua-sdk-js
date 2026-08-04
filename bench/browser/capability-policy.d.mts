@@ -16,7 +16,7 @@ export interface DeckGlCapabilityDecision {
 }
 
 export const DECK_GL_CAPABILITY_POLICY: {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: string;
   description: string;
   minSupportedMaxTextureSize: number;

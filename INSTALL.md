@@ -164,7 +164,7 @@ Node-only or REST-only consumer never pays the install cost:
 
 | Integration | Peer to install |
 |-------------|-----------------|
-| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
+| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` — supported majors: **5 and 6** (`^5.0.0 \|\| ^6.0.0`; the 6.x half of that range ships with the next release, the current published beta still declares `^5.0.0`). MapLibre 6 is ESM-only and requires WebGL2; see [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |

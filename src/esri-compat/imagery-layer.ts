@@ -59,7 +59,8 @@ export class ImageryLayerCompat {
   public listMode: string;
   public format: string;
   public pixelType: string | undefined;
-  public bandIds: ReadonlyArray<number> | undefined;
+  /** Mutable to match the ArcGIS declaration (`number[]`); see #1013. */
+  public bandIds: number[] | undefined;
   public renderingRule: Record<string, unknown> | undefined;
   public mosaicRule: Record<string, unknown> | undefined;
   public loaded: boolean;
@@ -84,7 +85,7 @@ export class ImageryLayerCompat {
     this.listMode = options.listMode ?? "show";
     this.format = options.format ?? "png";
     this.pixelType = options.pixelType;
-    this.bandIds = options.bandIds;
+    this.bandIds = options.bandIds === undefined ? undefined : [...options.bandIds];
     this.renderingRule = options.renderingRule;
     this.mosaicRule = options.mosaicRule;
     this.loaded = false;

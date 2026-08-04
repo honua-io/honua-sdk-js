@@ -180,7 +180,9 @@ journey to consume:
   unit-tested policy in
   [`browser/capability-policy.mjs`](./browser/capability-policy.mjs) into one
   of three tiers — `supported`, `fallback-maplibre`, or `unsupported` — and
-  only attempt a deck.gl mount when `supported`. The fallback scenario
+  only attempt a deck.gl mount when `supported`. WebGL2 is the floor for both
+  renderers: MapLibre GL JS 6 removed WebGL1, so a device without WebGL2 is
+  `unsupported` rather than routed to the MapLibre fallback (#1004). The fallback scenario
   deterministically simulates a no-WebGL device by overriding
   `HTMLCanvasElement.getContext` before any page script runs (portable across
   Chromium/Firefox/WebKit, not a Chromium-only launch flag). The report's

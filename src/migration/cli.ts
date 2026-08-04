@@ -103,6 +103,8 @@ interface FixtureMetricSnapshot {
   totalCallSites: number;
   autoMigratedCallSites: number;
   manualCallSites: number;
+  /** Call sites held back by compat → ArcGIS seam detection (#1012). */
+  seamCallSites: number;
   manualRewrite: {
     numerator: number;
     denominator: number;
@@ -126,6 +128,8 @@ interface FixtureMetricsSummary {
   totalCallSites: number;
   autoMigratedCallSites: number;
   manualCallSites: number;
+  /** Call sites held back by compat → ArcGIS seam detection (#1012). */
+  seamCallSites: number;
   unhandledUsageHits: number;
   manualRewriteNumerator: number;
   manualRewriteDenominator: number;
@@ -656,6 +660,7 @@ function runFixtures(args: ParsedArgs): void {
       `noUsageDetected=${report.summary.noUsageDetected}`,
       `autoMigrated=${report.summary.autoMigratedCallSites}`,
       `manual=${report.summary.manualCallSites}`,
+      `seams=${report.summary.seamCallSites}`,
       `unhandled=${report.summary.unhandledUsageHits}`,
       `manualRewrite=${report.summary.manualRewriteNumerator}/${report.summary.manualRewriteDenominator}`,
       `manualIntervention=${report.summary.manualInterventionNumerator}/${report.summary.manualInterventionDenominator}`,
@@ -736,6 +741,7 @@ function buildFixtureMetricSnapshot(
     totalCallSites: codemodResult.metrics.totalCodemodScopedCallSites,
     autoMigratedCallSites: codemodResult.metrics.autoMigratedCallSites,
     manualCallSites: codemodResult.metrics.manualCallSites,
+    seamCallSites: report.seamCallSites,
     manualRewrite: {
       numerator: report.manualRewriteMetric.numerator,
       denominator: report.manualRewriteMetric.denominator,
@@ -759,6 +765,7 @@ function summarizeFixtureMetrics(fixtures: readonly FixtureMetricSnapshot[]): Fi
   const totalCallSites = fixtures.reduce((sum, fixture) => sum + fixture.totalCallSites, 0);
   const autoMigratedCallSites = fixtures.reduce((sum, fixture) => sum + fixture.autoMigratedCallSites, 0);
   const manualCallSites = fixtures.reduce((sum, fixture) => sum + fixture.manualCallSites, 0);
+  const seamCallSites = fixtures.reduce((sum, fixture) => sum + fixture.seamCallSites, 0);
   const manualRewriteNumerator = fixtures.reduce((sum, fixture) => sum + fixture.manualRewrite.numerator, 0);
   const manualRewriteDenominator = fixtures.reduce((sum, fixture) => sum + fixture.manualRewrite.denominator, 0);
   const manualInterventionNumerator = fixtures.reduce((sum, fixture) => sum + fixture.manualIntervention.numerator, 0);
@@ -777,6 +784,7 @@ function summarizeFixtureMetrics(fixtures: readonly FixtureMetricSnapshot[]): Fi
     totalCallSites,
     autoMigratedCallSites,
     manualCallSites,
+    seamCallSites,
     unhandledUsageHits,
     manualRewriteNumerator,
     manualRewriteDenominator,
@@ -863,6 +871,7 @@ function runCodemod(args: ParsedArgs): void {
       `filesChanged=${codemodResult.filesChanged}`,
       `autoMigrated=${codemodResult.metrics.autoMigratedCallSites}`,
       `manual=${formatManualDifficultyBreakdown(report.manualTodos)}`,
+      `seams=${report.seamCallSites}`,
       `manualRewrite=${report.manualRewriteMetric.numerator}/${report.manualRewriteMetric.denominator}`,
       `manualIntervention=${report.manualInterventionMetric.numerator}/${report.manualInterventionMetric.denominator}`,
       `writeMode=${args.write ? "enabled" : "dry-run"}`,

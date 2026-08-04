@@ -458,6 +458,16 @@ jobs:
       - name: Migration e2e harness
         run: npx vitest run test/migration-e2e.test.ts
 
+      - name: MapLibre peer-major matrix (5.x + 6.x)
+        # The optional `maplibre-gl` peer range is `^5.0.0 || ^6.0.0` (#1004).
+        # This is the attributable leg for that claim: typecheck against the 5.x
+        # typings, run the peer-facing specs against the real module on both
+        # majors (the 6.x devDependency and the `maplibre-gl-v5` alias), then
+        # render the same Honua-generated style in a browser under each major.
+        # Everything else in this job resolves 6.x, so a 6-only break still
+        # fails the ordinary gates; this step is what keeps 5.x honest.
+        run: npm run test:maplibre-compat:prepared
+
       - name: Browser smoke suite
         run: npm run test:playwright:prepared
 
