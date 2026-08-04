@@ -50,6 +50,7 @@ export interface OssArcGisCorpusManifest {
   guardrails: OssArcGisCorpusGuardrails;
   licensePolicy: OssArcGisLicensePolicy;
   lane: OssArcGisLaneSettings;
+  deepValidation: OssArcGisDeepValidationSettings;
   apps: OssArcGisCorpusApp[];
 }
 
@@ -86,6 +87,67 @@ export interface OssArcGisLaneSettings {
   codemodTarget: CodemodTarget;
   /** Minimum automated widget-disposition share passed to `widgets --gate`. */
   widgetGatePct: number;
+}
+
+/**
+ * Deep (post-codemod build) validation settings — issue #955's "at least one
+ * full app builds and typechecks post-codemod against the compat entry".
+ *
+ * The standard lane is static analysis only and never installs a cloned app's
+ * dependencies. Deep validation *does* install them, so it is a separate,
+ * separately-gated mode over an explicit allowlist rather than something the
+ * standard lane can drift into.
+ */
+export interface OssArcGisDeepValidationSettings {
+  /**
+   * Second switch, on top of the corpus-wide opt-in, that must equal "true"
+   * before any third-party dependency is installed.
+   */
+  optInEnvVar: string;
+  /** Ignored scratch directory deep checkouts are written to. */
+  checkoutRoot: string;
+  /** Directory the deep runner writes per-app reports into. */
+  reportRoot: string;
+  /** Committed observation the published post-codemod build page is generated from. */
+  publishedObservationPath: string;
+  /** `dist/packages/*` directories packed and installed into the migrated app. */
+  honuaPackageDirs: string[];
+  supplyChain: OssArcGisDeepSupplyChain;
+  apps: OssArcGisDeepApp[];
+}
+
+/**
+ * The posture every deep run is held to. These are booleans rather than prose
+ * so `summarizeOssArcGisCorpus` can fail the run when one is switched off.
+ */
+export interface OssArcGisDeepSupplyChain {
+  /** Installs pass `--ignore-scripts`; no third-party lifecycle script executes. */
+  installScriptsDisabled: boolean;
+  /** Only apps with a committed lockfile are eligible, and it is used verbatim. */
+  requiresCommittedLockfile: boolean;
+  /** The installed tree is deleted when the run ends. */
+  installsAreEphemeral: boolean;
+  /** Honua packages are added with `--no-save`; the app's manifest/lockfile are never rewritten. */
+  appManifestNeverRewritten: boolean;
+  /** Honua packages come from locally packed `dist/packages/*`, never a registry. */
+  honuaPackagesArePackedLocally: boolean;
+  notes: string[];
+}
+
+export interface OssArcGisDeepApp {
+  /** Must name an app in the corpus `apps` list. */
+  id: string;
+  /** Checkout-relative directory holding the app's package.json. */
+  packageDir: string;
+  /** Checkout-relative lockfile that must exist at the pinned commit. */
+  lockfile: string;
+  /** npm script run for the build phase (for example "build"). */
+  buildScript: string;
+  /** Globs the generated typecheck probe includes, relative to `packageDir`. */
+  typecheckInclude: string[];
+  /** `jsx` compiler option the probe uses, or "none" for a non-JSX app. */
+  typecheckJsx: string;
+  notes: string;
 }
 
 export interface OssArcGisCorpusApp {
@@ -306,7 +368,65 @@ export function parseOssArcGisCorpusManifest(value: unknown, sourceName = "manif
       codemodTarget: expectString(laneRecord.codemodTarget, `${sourceName}.lane.codemodTarget`) as CodemodTarget,
       widgetGatePct: expectNumber(laneRecord.widgetGatePct, `${sourceName}.lane.widgetGatePct`),
     },
+    deepValidation: parseDeepValidation(record.deepValidation, `${sourceName}.deepValidation`),
     apps,
+  };
+}
+
+function parseDeepValidation(value: unknown, sourceName: string): OssArcGisDeepValidationSettings {
+  const record = expectRecord(value, sourceName);
+  const supplyChainRecord = expectRecord(record.supplyChain, `${sourceName}.supplyChain`);
+
+  return {
+    optInEnvVar: expectString(record.optInEnvVar, `${sourceName}.optInEnvVar`),
+    checkoutRoot: expectRelativePath(record.checkoutRoot, `${sourceName}.checkoutRoot`),
+    reportRoot: expectRelativePath(record.reportRoot, `${sourceName}.reportRoot`),
+    publishedObservationPath: expectRelativePath(
+      record.publishedObservationPath,
+      `${sourceName}.publishedObservationPath`,
+    ),
+    honuaPackageDirs: expectStringArray(record.honuaPackageDirs, `${sourceName}.honuaPackageDirs`).map((entry, index) =>
+      expectRelativePath(entry, `${sourceName}.honuaPackageDirs[${index}]`),
+    ),
+    supplyChain: {
+      installScriptsDisabled: expectBoolean(
+        supplyChainRecord.installScriptsDisabled,
+        `${sourceName}.supplyChain.installScriptsDisabled`,
+      ),
+      requiresCommittedLockfile: expectBoolean(
+        supplyChainRecord.requiresCommittedLockfile,
+        `${sourceName}.supplyChain.requiresCommittedLockfile`,
+      ),
+      installsAreEphemeral: expectBoolean(
+        supplyChainRecord.installsAreEphemeral,
+        `${sourceName}.supplyChain.installsAreEphemeral`,
+      ),
+      appManifestNeverRewritten: expectBoolean(
+        supplyChainRecord.appManifestNeverRewritten,
+        `${sourceName}.supplyChain.appManifestNeverRewritten`,
+      ),
+      honuaPackagesArePackedLocally: expectBoolean(
+        supplyChainRecord.honuaPackagesArePackedLocally,
+        `${sourceName}.supplyChain.honuaPackagesArePackedLocally`,
+      ),
+      notes: expectStringArray(supplyChainRecord.notes, `${sourceName}.supplyChain.notes`),
+    },
+    apps: expectArray(record.apps, `${sourceName}.apps`).map((app, index) =>
+      parseDeepApp(app, `${sourceName}.apps[${index}]`),
+    ),
+  };
+}
+
+function parseDeepApp(value: unknown, sourceName: string): OssArcGisDeepApp {
+  const record = expectRecord(value, sourceName);
+  return {
+    id: expectString(record.id, `${sourceName}.id`),
+    packageDir: expectRelativePath(record.packageDir, `${sourceName}.packageDir`),
+    lockfile: expectRelativePath(record.lockfile, `${sourceName}.lockfile`),
+    buildScript: expectNpmScriptName(record.buildScript, `${sourceName}.buildScript`),
+    typecheckInclude: expectStringArray(record.typecheckInclude, `${sourceName}.typecheckInclude`),
+    typecheckJsx: expectString(record.typecheckJsx, `${sourceName}.typecheckJsx`),
+    notes: expectString(record.notes, `${sourceName}.notes`),
   };
 }
 
@@ -332,6 +452,43 @@ export function summarizeOssArcGisCorpus(manifest: OssArcGisCorpusManifest): Oss
   }
   if (!manifest.guardrails.noThirdPartyDependencyInstall) {
     guardrailFailures.push("guardrails.noThirdPartyDependencyInstall must remain true");
+  }
+
+  const deep = manifest.deepValidation;
+  if (deep.optInEnvVar === manifest.lane.optInEnvVar) {
+    guardrailFailures.push("deepValidation.optInEnvVar must differ from lane.optInEnvVar (it is a second switch)");
+  }
+  if (!deep.supplyChain.installScriptsDisabled) {
+    guardrailFailures.push("deepValidation.supplyChain.installScriptsDisabled must remain true");
+  }
+  if (!deep.supplyChain.requiresCommittedLockfile) {
+    guardrailFailures.push("deepValidation.supplyChain.requiresCommittedLockfile must remain true");
+  }
+  if (!deep.supplyChain.installsAreEphemeral) {
+    guardrailFailures.push("deepValidation.supplyChain.installsAreEphemeral must remain true");
+  }
+  if (!deep.supplyChain.appManifestNeverRewritten) {
+    guardrailFailures.push("deepValidation.supplyChain.appManifestNeverRewritten must remain true");
+  }
+  if (!deep.supplyChain.honuaPackagesArePackedLocally) {
+    guardrailFailures.push("deepValidation.supplyChain.honuaPackagesArePackedLocally must remain true");
+  }
+  if (deep.honuaPackageDirs.length === 0) {
+    guardrailFailures.push("deepValidation.honuaPackageDirs must name at least one packed Honua package");
+  }
+  if (deep.apps.length === 0) {
+    guardrailFailures.push("deepValidation.apps must allowlist at least one app");
+  }
+  const corpusAppIds = new Set(manifest.apps.map((app) => app.id));
+  const seenDeepIds = new Set<string>();
+  for (const deepApp of deep.apps) {
+    if (!corpusAppIds.has(deepApp.id)) {
+      guardrailFailures.push(`deepValidation.apps: ${deepApp.id} is not a pinned corpus app`);
+    }
+    if (seenDeepIds.has(deepApp.id)) {
+      guardrailFailures.push(`deepValidation.apps: duplicate entry for ${deepApp.id}`);
+    }
+    seenDeepIds.add(deepApp.id);
   }
 
   if (manifest.apps.length < OSS_ARCGIS_CORPUS_MIN_APPS) {
@@ -791,6 +948,17 @@ export function formatOssArcGisCorpusMarkdown(manifest: OssArcGisCorpusManifest,
     }
   }
 
+  lines.push("## Does the result still build?");
+  lines.push("");
+  lines.push(
+    [
+      "Call-site ratios do not answer that. A separate, separately-gated lane installs a pinned app's real",
+      "dependency tree, runs the codemod over it, installs the packed compat packages, and builds the result —",
+      "measuring the same commit twice so only the delta is attributed to the migration. See",
+      "[post-codemod build validation](./oss-arcgis-corpus-post-codemod-build.md).",
+    ].join(" "),
+  );
+  lines.push("");
   lines.push("## Reproducing this page");
   lines.push("");
   lines.push('```bash doc-test=skip reason="shell commands for the opt-in lane, not a compilable snippet"');
@@ -979,6 +1147,20 @@ function expectIsoDate(value: unknown, sourceName: string): string {
   const text = expectString(value, sourceName);
   if (text.length !== ISO_DATE_LENGTH || Number.isNaN(Date.parse(text))) {
     throw new Error(`${sourceName} must be an ISO date (YYYY-MM-DD).`);
+  }
+  return text;
+}
+
+/**
+ * Deep validation runs npm scripts declared by a third-party app. Restricting
+ * the manifest to well-formed npm script names keeps that a `npm run <name>`
+ * invocation and never a shell string a manifest edit could turn into
+ * arbitrary command execution.
+ */
+function expectNpmScriptName(value: unknown, sourceName: string): string {
+  const text = expectString(value, sourceName);
+  if (!/^[a-z0-9][a-z0-9-]*(?::[a-z0-9][a-z0-9-]*)*$/.test(text)) {
+    throw new Error(`${sourceName} must be a plain npm script name (lowercase alphanumerics, hyphens, colons).`);
   }
   return text;
 }
