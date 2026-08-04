@@ -67,6 +67,71 @@ An explicit `transports` array is authoritative. In particular,
 `enabled: true` implies the legacy SSE endpoint only when `transports` is
 absent.
 
+### Driving the mutation (controlled conformance)
+
+A snapshot-plus-delta contract cannot be proved by watching a deployment and
+hoping somebody edits a feature. The lane causes the mutation itself through
+honua-server's controlled-conformance surface
+([`honua-server#3038`](https://github.com/honua-io/honua-server/issues/3038)),
+which is off by default and fails closed:
+
+1. `POST /api/v1/streaming/conformance/runs` leases an isolated run and returns
+   a run id, a one-time run token, an ownership marker, the dedicated
+   service/layer, the bound immutable `deploymentRevision`, and a
+   `baselineDigest` over every record no run owns.
+2. Exactly **one** `insert` is applied **before any transport opens**, so every
+   transport's baseline already contains the record.
+3. Each transport then gets **one `touch`** of that same record, driven the
+   moment its own baseline lands. `touch` rewrites a record with the values it
+   already has: the state does not change but the write path still publishes an
+   event. That is what lets transports the lane can only open sequentially
+   reduce to one identical accepted history and one identical normalized final
+   state. An `insert` per transport cannot converge, because the object ids
+   differ.
+4. `DELETE /api/v1/streaming/conformance/runs/{runId}` runs in the lane's
+   `finally` block. The cleanup digest must equal the lease digest; equal
+   digests are the proof that the run left the source exactly as it found it,
+   and the comparison is retained in the evidence.
+
+Every mutating request carries the per-run token in
+`X-Honua-Conformance-Run-Token`. The token is held only in the run client's
+closure, is never a property of any returned object, and never reaches a
+retained document — evidence records the run id and the digests, and validation
+rejects any document containing the token or its header name.
+
+The controlled record must carry a geometry. honua-server's batched baseline
+always writes `geometry` (even when null) while its delta envelope drops a null
+one, and the SDK's honua-server decoder rejects an insert/update whose
+after-image has no geometry member. The lane therefore checks the baseline
+before spending a mutation on it and fails with the named
+`conformance-record-geometry-missing` rather than an unexplained
+`invalid-event`.
+
+Deployment prerequisites for an executed controlled run — none of which this
+repository can satisfy:
+
+| Requirement | Why |
+| --- | --- |
+| `FeatureStreaming__Conformance__Enabled=true` | The surface is off by default; while off, no caller reaches it however authorized. Lease answers `403`. |
+| `FeatureStreaming__Conformance__ServiceId` / `LayerId` pointing at a **dedicated** source | Every write targets the configured source and no request parameter can redirect it. It is deliberately not auto-created. |
+| That source's schema carries `RunIdField` (default `conformance_run_id`) **and a geometry column** | Ownership is re-read from the stored marker on every mutation; a geometry-less record cannot survive the delta envelope. |
+| `Deployment__ImageDigest` (preferred) or `Deployment__Revision` | Evidence is bound to an immutable revision. Without one, leasing fails closed with `503`. |
+| WebSocket reachable over `wss:` off loopback | Advertised WebSocket URLs must use WSS unless the reviewed origin is loopback. |
+
+The controlled run reports its own status, separate from the transports:
+
+| Status | Meaning |
+| --- | --- |
+| `executed` | A run was leased, one insert and at least one per-transport `touch` were applied, and the baseline digest reversed. |
+| `skipped` | Not attempted, and why: the write opt-in is off, the deployment publishes no `conformance` block, or it publishes `{"enabled": false}`. |
+| `degraded` | The mutation surface was unavailable (`503`, timeout, network). No semantic conclusion is drawn. |
+| `failed` | A run was driven but the contract was violated — a refused mutation, a lease bound to another revision, a baseline that did not reverse, or a source whose records no transport could accept. |
+
+A `failed` run downgrades every otherwise-executed transport, because an
+observation whose driven mutation cannot be trusted is not evidence. A
+`skipped` or `degraded` run leaves the transports to their existing passive
+classification; nothing is ever recorded as a pass that was not observed.
+
 Each transport receives one explicit status:
 
 | Status | Meaning |
@@ -147,15 +212,39 @@ HONUA_REALTIME_LIVE_SERVER_REVISION=<full-server-commit-sha-or-sha256-image-dige
 npm run evidence:realtime:live
 ```
 
+Driving the controlled mutation is a second, separate opt-in — enabling the
+live lane is consent to observe a deployment, never consent to write to it:
+
+```sh
+HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE=true \
+HONUA_REALTIME_LIVE_CONFORMANCE_LABEL=nightly \
+HONUA_REALTIME_LIVE_CONFORMANCE_TTL_SECONDS=300 \
+... npm run evidence:realtime:live
+```
+
+`HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE` is off unless explicitly true. When a
+run is leased, its dedicated `serviceId`/`layerId` replace
+`HONUA_REALTIME_LIVE_SOURCE_ID`/`HONUA_REALTIME_LIVE_LAYER_ID` as the
+observation target — an insert into the conformance source is only observable
+on a subscription scoped to that source. `HONUA_REALTIME_LIVE_CONFORMANCE_LABEL`
+is recorded on the lease and on controlled records;
+`HONUA_REALTIME_LIVE_CONFORMANCE_TTL_SECONDS` requests a lease TTL that the
+server clamps to its configured bounds.
+
+The scheduled workflow exposes the same switch as the `drive_controlled_mutation`
+dispatch input (default `false`) and the
+`HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE` repository variable.
+
 `HONUA_REALTIME_LIVE_SERVER_REVISION` is an expected-identity constraint. The
 lane compares it with a revision observed from server metadata; it never
 substitutes the configured value when the deployment publishes no immutable
 revision.
 `HONUA_REALTIME_LIVE_SERVER_VERSION` may record a release label when the server
 does not publish one. It does not satisfy the immutable revision requirement.
-The dedicated snapshot/sequence/controlled-mutation server contract needed for
-an executed scheduled lane is tracked in
-[`honua-server#3038`](https://github.com/honua-io/honua-server/issues/3038).
+The server contract this lane drives landed in
+[`honua-server#3038`](https://github.com/honua-io/honua-server/issues/3038); an
+executed scheduled lane additionally needs a demo/staging deployment that
+provisions the dedicated conformance source described above.
 
 Strict exit codes are `0` for executed/explicitly unsupported capability, `1`
 for semantic failure, and `2` for degraded availability. `--allow-degraded`
