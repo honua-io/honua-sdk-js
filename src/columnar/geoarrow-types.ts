@@ -93,16 +93,55 @@ export interface GeoArrowConversionLimits extends ColumnarBatchLimits {
   readonly maxCopiedBytes?: number;
 }
 
+/**
+ * One ordered step of the persisted-envelope migration ladder.
+ *
+ * A step is a pure structural rewrite of one parsed envelope. It never receives
+ * the caller's {@link GeoArrowSerializationOptions}, so a migration cannot widen
+ * a bound; every ceiling is enforced against the migrated envelope.
+ */
+export interface GeoArrowEnvelopeMigrationV1 {
+  readonly fromVersion: string;
+  readonly toVersion: string;
+  readonly migrate: (envelope: Readonly<Record<string, unknown>>) => Record<string, unknown>;
+}
+
+/** Why an envelope version cannot be carried forward to the current layout. */
+export type GeoArrowEnvelopeMigrationRefusal = "unknown-version" | "future-version" | "unreachable-version";
+
+/** Resolved migration chain for one stored envelope version, or the refusal. */
+export type GeoArrowEnvelopeMigrationPlanV1 =
+  | {
+      readonly applicable: true;
+      /** Applied steps in order, as `from->to`; empty when already current. */
+      readonly steps: readonly string[];
+      readonly migrations: readonly GeoArrowEnvelopeMigrationV1[];
+    }
+  | {
+      readonly applicable: false;
+      readonly reason: GeoArrowEnvelopeMigrationRefusal;
+      readonly detail: string;
+    };
+
 /** Bounds and migration policy for dependency-free persisted GeoArrow batches. */
 export interface GeoArrowSerializationOptions extends GeoArrowConversionLimits {
   /** Maximum UTF-8 envelope size accepted or produced. */
   readonly maxSerializedBytes?: number;
+  /**
+   * Replaces the shipped ladder for this read. Steps still receive only the
+   * parsed envelope, so an injected ladder cannot widen the bounds above.
+   */
+  readonly migrations?: readonly GeoArrowEnvelopeMigrationV1[];
 }
 
 export interface GeoArrowSerializationMetrics {
   readonly serializedBytes: number;
   readonly backingBytes: number;
   readonly backingBuffers: number;
+  /** Envelope layout version the batch was materialized at, after migration. */
+  readonly envelopeVersion: string;
+  /** Applied migration chain in order, as `from->to`; empty when none ran. */
+  readonly migrations: readonly string[];
 }
 
 export interface GeoArrowBatchSerializationResult {

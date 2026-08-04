@@ -13,6 +13,12 @@ import {
   runColumnarAggregateBenchmark,
 } from "./columnar-aggregate-bench.js";
 import {
+  type ColumnarBatchPersistenceBenchmarkOptions,
+  type ColumnarBatchPersistenceBenchmarkResult,
+  type ColumnarBatchPersistenceSample,
+  runColumnarBatchPersistenceBenchmark,
+} from "./columnar-batch-persistence-bench.js";
+import {
   type ColumnarDataPlaneBenchmarkOptions,
   type ColumnarDataPlaneBenchmarkResult,
   type ColumnarDataPlaneSample,
@@ -84,6 +90,11 @@ interface ColumnarResultConversionCorpusScenario extends ColumnarResultConversio
   kind: "columnar-result-conversion";
 }
 
+interface ColumnarBatchPersistenceCorpusScenario extends ColumnarBatchPersistenceBenchmarkOptions {
+  id: string;
+  kind: "columnar-batch-persistence";
+}
+
 type CorpusScenario =
   | StreamCorpusScenario
   | OfflineReloadCorpusScenario
@@ -91,7 +102,8 @@ type CorpusScenario =
   | QueryResourceHandleCorpusScenario
   | ColumnarDataPlaneCorpusScenario
   | ColumnarAggregateCorpusScenario
-  | ColumnarResultConversionCorpusScenario;
+  | ColumnarResultConversionCorpusScenario
+  | ColumnarBatchPersistenceCorpusScenario;
 
 interface Corpus {
   schemaVersion: 2;
@@ -162,6 +174,7 @@ interface ScenarioResult {
     | ColumnarDataPlaneSample
     | ColumnarAggregateSample
     | ColumnarResultConversionSample
+    | ColumnarBatchPersistenceSample
   >;
   summary: {
     totalDurationMs: MetricSummary;
@@ -179,6 +192,12 @@ interface ScenarioResult {
     retainedBytesPerInputRow?: MetricSummary;
     outputBackingBytesPerGroup?: MetricSummary;
     retainedBytesPerFeature?: MetricSummary;
+    serializeDurationMs?: MetricSummary;
+    deserializeDurationMs?: MetricSummary;
+    rowsPerSecond?: MetricSummary;
+    envelopeBytesPerBackingByte?: MetricSummary;
+    serializedBytesPerRow?: MetricSummary;
+    peakRetainedBytesPerRow?: MetricSummary;
   };
   invariants: {
     expectedTotalFeatures?: number;
@@ -367,6 +386,9 @@ function validateCorpus(value: unknown): Corpus {
       if (scenario.windowSize > scenario.batchRowCount) {
         throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
       }
+    } else if (scenario.kind === "columnar-batch-persistence") {
+      allowedKeys = new Set([...commonKeys, "rowCount"]);
+      if (!positive(scenario.rowCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
     } else {
       throw new Error(`Invalid benchmark scenario kind: ${String((scenario as { kind?: unknown }).kind)}`);
     }
@@ -616,6 +638,40 @@ function columnarResultConversionResult(
   };
 }
 
+function columnarBatchPersistenceResult(
+  scenario: ColumnarBatchPersistenceCorpusScenario,
+  result: ColumnarBatchPersistenceBenchmarkResult,
+): ScenarioResult {
+  const metrics: Array<keyof ColumnarBatchPersistenceSample> = [
+    "totalDurationMs",
+    "serializeDurationMs",
+    "deserializeDurationMs",
+    "rowsPerSecond",
+    "envelopeBytesPerBackingByte",
+    "serializedBytesPerRow",
+    "peakRetainedBytesPerRow",
+  ];
+  const summary = Object.fromEntries(
+    metrics.map((metric) => [metric, summarizeSamples(result.samples.map((sample) => sample[metric]))]),
+  ) as ScenarioResult["summary"];
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      rowCount: scenario.rowCount,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary,
+    invariants: {
+      expectedTotalFeatures: scenario.rowCount,
+      checks: result.invariants.checks,
+      passed: result.invariants.passed,
+    },
+  };
+}
+
 async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
   if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
@@ -630,6 +686,9 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   }
   if (scenario.kind === "columnar-result-conversion") {
     return columnarResultConversionResult(scenario, await runColumnarResultConversionBenchmark(scenario));
+  }
+  if (scenario.kind === "columnar-batch-persistence") {
+    return columnarBatchPersistenceResult(scenario, await runColumnarBatchPersistenceBenchmark(scenario));
   }
   return queryResourceResult(scenario, await runQueryResourceHandleBenchmark(scenario));
 }

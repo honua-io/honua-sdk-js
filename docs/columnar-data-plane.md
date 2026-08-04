@@ -75,7 +75,7 @@ reports `materializedRows`; there is no unbounded conversion mode.
 
 `serializeGeoArrowBatch()` and `deserializeGeoArrowBatch()` provide a bounded,
 dependency-free persistence envelope for the normative GeoArrow mapping. The
-envelope carries a `honua.geoarrow.batch` kind and `1.0` version, deduplicates
+envelope carries a `honua.geoarrow.batch` kind and a `1.1` version, deduplicates
 shared backing buffers, and restores the original batch identity and metadata.
 Deserialization re-runs the GeoArrow layout validator, so malformed or future
 version data fails instead of silently changing layout semantics. This is not
@@ -112,6 +112,102 @@ console.log(restored.metrics.serializedBytes);
 There is no unbounded mode: callers should set a persistence ceiling suitable
 for their cache. Unsupported envelope kinds or versions throw
 `HonuaGeoArrowError` rather than silently migrating layout semantics.
+
+### Envelope migration ladder
+
+An envelope written by an older SDK is migrated forward on read through an
+ordered registry of `fromVersion` → `toVersion` steps
+(`GEOARROW_ENVELOPE_MIGRATIONS`), and the applied chain is reported in the
+deserialization metrics. The shipped ladder carries `1.0 → 1.1`, which derives
+each backing's decoded length from its base64 length and stamps the GeoArrow
+layout version that `1.0` left implicit, so backing ceilings are now enforced
+before a single byte is decoded.
+
+Version resolution happens on the envelope header, before any payload is read.
+An unknown version, a version from a future build, and a version the ladder
+cannot carry to the current one all throw `unsupported-serialization` with a
+stable message; nothing is decoded and nothing is guessed. A migration step
+receives only the parsed envelope — never the caller's serialization options —
+so migrating an old entry can never widen a bound the caller set.
+
+```ts doc-test=compile
+import {
+  deserializeGeoArrowBatch,
+  planGeoArrowEnvelopeMigration,
+  readableGeoArrowEnvelopeVersions,
+} from "@honua/sdk-js/query-planner";
+
+// Which persisted layouts this build can still read.
+console.log(readableGeoArrowEnvelopeVersions()); // ["1.0", "1.1"]
+
+const plan = planGeoArrowEnvelopeMigration("1.0");
+if (!plan.applicable) throw new Error(`unreadable envelope: ${plan.reason}`);
+
+declare const persisted: Uint8Array;
+const restored = deserializeGeoArrowBatch(persisted);
+console.log(restored.metrics.envelopeVersion, restored.metrics.migrations); // "1.1" ["1.0->1.1"]
+```
+
+### Persistent batch cache
+
+**The default is no cache.** Nothing in the SDK persists a batch: an application
+opts in by creating a store, choosing a backend, and writing to it. When it
+does, `createColumnarBatchCache()` binds five properties that a hand-rolled
+cache would have to get right on its own.
+
+1. **Identity-bound keys.** `columnarBatchCacheKey(identity)` digests source id,
+   source version, schema version, plan id, the ordering contract, the freshness
+   validators (`validator`, `generation`), and a **digest** of the authorization
+   scope. The raw scope never appears in the key or in a persisted record, and a
+   change to any keyed component addresses a different entry. `observedAt` and
+   `staleAfter` are deliberately not keyed — they describe when a producer
+   looked, not what was asked for — so expiry is enforced on read instead.
+2. **Scope isolation.** A batch written under one authorization scope is never
+   returned to a reader holding another, and a record whose recorded scope digest
+   disagrees with the reader's is deleted rather than served.
+3. **Freshness.** A read past the record's `staleAfter`, or past the store's
+   `maxAgeMs`, returns an explicit `stale` outcome carrying the record, so a
+   caller can revalidate instead of silently receiving expired data.
+4. **Integrity.** Every read recomputes the SHA-256 of the stored envelope and
+   compares it to the digest written with it. A mismatch is a miss *and* a
+   delete; unverified bytes are never served.
+5. **Bounded storage.** An explicit byte quota and record cap are enforced by a
+   deterministic oldest-first eviction plan, applied together with the write in
+   one atomic backend operation.
+
+The store itself holds no IndexedDB, filesystem, or Node reference, so
+`/query-planner` stays SSR- and worker-safe. `createIndexedDbColumnarBatchCacheStorage()`
+is the browser backend; `createMemoryColumnarBatchCacheStorage()` is the
+in-process one with identical semantics, and
+`runColumnarBatchCacheConformance()` is the shared suite both must pass.
+
+```ts doc-test=compile
+import {
+  createColumnarBatchCache,
+  createIndexedDbColumnarBatchCacheStorage,
+} from "@honua/sdk-js/query-planner";
+import type { ColumnarBatchIdentityV1, ColumnarBatchV1 } from "@honua/sdk-js/query-planner";
+
+const cache = createColumnarBatchCache(createIndexedDbColumnarBatchCacheStorage(), {
+  quotaBytes: 32 * 1024 * 1024,
+  maxRecords: 32,
+  maxAgeMs: 15 * 60 * 1000,
+  onDiagnostic: (diagnostic) => console.warn(diagnostic.operation, diagnostic.reason),
+});
+
+declare const identity: ColumnarBatchIdentityV1;
+declare const batch: ColumnarBatchV1;
+
+const read = await cache.read(identity);
+if (read.outcome === "hit") {
+  console.log(read.batch.rowCount, read.metrics.migrations);
+} else if (read.outcome === "stale") {
+  console.log("revalidate", read.record.freshness.validator);
+} else {
+  const written = await cache.write(batch);
+  if (written.outcome === "refused") console.warn(written.reason, written.detail);
+}
+```
 
 ### Optional Apache Arrow adapter
 
@@ -675,7 +771,8 @@ throughput budgets for both directions; see
 
 This slice does not claim the full #394 workstream. Arrow IPC decoding,
 multi-batch streaming across more than one in-flight worker, planner
-integration, renderer consumption, batch cache identity, incremental
-re-aggregation over realtime patches, and application-specific CSP worker URL
-policy remain separate work. Converting a batch that is mid-patch also remains
-out of scope: the realtime columnar patch child owns patch-consistent views.
+integration, renderer consumption, incremental re-aggregation over realtime
+patches (which must also invalidate or re-version their cached base batch), and
+application-specific CSP worker URL policy remain separate work. Converting a
+batch that is mid-patch also remains out of scope: the realtime columnar patch
+child owns patch-consistent views.
