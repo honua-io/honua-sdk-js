@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `755c38cd`._
+_Generated 2026-08-04 at commit `d4418b71`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -22,12 +22,12 @@ _Generated 2026-08-04 at commit `755c38cd`._
 | `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 605.1 KiB | 612.2 KiB | 163.6 KiB | 163.9 KiB |
+| `/runtime` | 605.2 KiB | 612.2 KiB | 163.7 KiB | 163.9 KiB |
 | `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
 | `/offline` | 138.7 KiB | 144.9 KiB | 37.8 KiB | 39.2 KiB |
-| `/query-planner` (worker runtime injected) | 678.0 KiB | 703.3 KiB | 148.6 KiB | 162.6 KiB |
+| `/query-planner` (worker runtime injected) | 678.1 KiB | 703.3 KiB | 148.6 KiB | 162.6 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 125.6 KiB | 138.2 KiB | 38.2 KiB | 42.0 KiB |
-| `/esri-compat` | 1019.3 KiB | 1026.2 KiB | 255.3 KiB | 280.9 KiB |
+| `/esri-compat` | 1020.0 KiB | 1026.2 KiB | 255.5 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
@@ -35,11 +35,11 @@ _Generated 2026-08-04 at commit `755c38cd`._
 | `/auth` | 26.0 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
 | `/map` | 181.1 KiB | 198.2 KiB | 51.3 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 139.9 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 140.0 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.0 KiB | 1037.6 KiB | 271.6 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.6 KiB | 1120.1 KiB | 295.0 KiB | 321.9 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 65.3 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.1 KiB | 1037.6 KiB | 271.7 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.8 KiB | 1120.1 KiB | 295.1 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
