@@ -7,6 +7,12 @@ import path from "node:path";
 import process from "node:process";
 
 import {
+  type ColumnarAggregateBenchmarkOptions,
+  type ColumnarAggregateBenchmarkResult,
+  type ColumnarAggregateSample,
+  runColumnarAggregateBenchmark,
+} from "./columnar-aggregate-bench.js";
+import {
   type ColumnarDataPlaneBenchmarkOptions,
   type ColumnarDataPlaneBenchmarkResult,
   type ColumnarDataPlaneSample,
@@ -62,12 +68,18 @@ interface ColumnarDataPlaneCorpusScenario extends ColumnarDataPlaneBenchmarkOpti
   kind: "columnar-data-plane";
 }
 
+interface ColumnarAggregateCorpusScenario extends ColumnarAggregateBenchmarkOptions {
+  id: string;
+  kind: "columnar-aggregate";
+}
+
 type CorpusScenario =
   | StreamCorpusScenario
   | OfflineReloadCorpusScenario
   | RealtimeReconnectCorpusScenario
   | QueryResourceHandleCorpusScenario
-  | ColumnarDataPlaneCorpusScenario;
+  | ColumnarDataPlaneCorpusScenario
+  | ColumnarAggregateCorpusScenario;
 
 interface Corpus {
   schemaVersion: 2;
@@ -132,7 +144,12 @@ interface ScenarioResult {
   id: string;
   kind: CorpusScenario["kind"];
   parameters: Record<string, number | boolean>;
-  samples: Array<SampleMetrics | { totalDurationMs: number; operationsPerSecond: number } | ColumnarDataPlaneSample>;
+  samples: Array<
+    | SampleMetrics
+    | { totalDurationMs: number; operationsPerSecond: number }
+    | ColumnarDataPlaneSample
+    | ColumnarAggregateSample
+  >;
   summary: {
     totalDurationMs: MetricSummary;
     timeToFirstPageMs?: MetricSummary;
@@ -145,6 +162,9 @@ interface ScenarioResult {
     renderDurationMs?: MetricSummary;
     backingBytesPerFeature?: MetricSummary;
     peakRetainedBytesPerFeature?: MetricSummary;
+    inputRowsPerSecond?: MetricSummary;
+    retainedBytesPerInputRow?: MetricSummary;
+    outputBackingBytesPerGroup?: MetricSummary;
   };
   invariants: {
     expectedTotalFeatures?: number;
@@ -318,6 +338,11 @@ function validateCorpus(value: unknown): Corpus {
     } else if (scenario.kind === "columnar-data-plane") {
       allowedKeys = new Set([...commonKeys, "featureCount"]);
       if (!positive(scenario.featureCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+    } else if (scenario.kind === "columnar-aggregate") {
+      allowedKeys = new Set([...commonKeys, "inputRowCount", "groupCount"]);
+      if (!positive(scenario.inputRowCount) || !positive(scenario.groupCount)) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
     } else {
       throw new Error(`Invalid benchmark scenario kind: ${String((scenario as { kind?: unknown }).kind)}`);
     }
@@ -501,6 +526,38 @@ function columnarDataPlaneResult(
   };
 }
 
+function columnarAggregateResult(
+  scenario: ColumnarAggregateCorpusScenario,
+  result: ColumnarAggregateBenchmarkResult,
+): ScenarioResult {
+  const metrics: Array<keyof ColumnarAggregateSample> = [
+    "totalDurationMs",
+    "inputRowsPerSecond",
+    "retainedBytesPerInputRow",
+    "outputBackingBytesPerGroup",
+  ];
+  const summary = Object.fromEntries(
+    metrics.map((metric) => [metric, summarizeSamples(result.samples.map((sample) => sample[metric]))]),
+  ) as ScenarioResult["summary"];
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      inputRowCount: scenario.inputRowCount,
+      groupCount: scenario.groupCount,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary,
+    invariants: {
+      expectedTotalFeatures: scenario.inputRowCount,
+      checks: result.invariants.checks,
+      passed: result.invariants.passed,
+    },
+  };
+}
+
 async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
   if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
@@ -509,6 +566,9 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   }
   if (scenario.kind === "columnar-data-plane") {
     return columnarDataPlaneResult(scenario, await runColumnarDataPlaneBenchmark(scenario));
+  }
+  if (scenario.kind === "columnar-aggregate") {
+    return columnarAggregateResult(scenario, await runColumnarAggregateBenchmark(scenario));
   }
   return queryResourceResult(scenario, await runQueryResourceHandleBenchmark(scenario));
 }
@@ -828,7 +888,9 @@ async function main(): Promise<void> {
   for (const scenario of report.scenarios) {
     const throughput = scenario.summary.featuresPerSecond
       ? `${Math.round(scenario.summary.featuresPerSecond.median).toLocaleString()} features/s`
-      : `${Math.round(scenario.summary.operationsPerSecond?.median ?? 0).toLocaleString()} operations/s`;
+      : scenario.summary.inputRowsPerSecond
+        ? `${Math.round(scenario.summary.inputRowsPerSecond.median).toLocaleString()} input rows/s`
+        : `${Math.round(scenario.summary.operationsPerSecond?.median ?? 0).toLocaleString()} operations/s`;
     process.stdout.write(
       `  ${scenario.id}: ${scenario.summary.totalDurationMs.median.toFixed(2)}ms median, ${throughput}\n`,
     );

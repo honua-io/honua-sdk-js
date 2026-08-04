@@ -2,7 +2,7 @@
   "$schema": "./oss-arcgis-corpus.schema.json",
   "format": "honua.sdk.oss-arcgis-corpus.v1",
   "schemaVersion": 1,
-  "revision": "2026-08-03",
+  "revision": "2026-08-04",
   "guardrails": {
     "noVendoredThirdPartyCode": true,
     "excludedFromPrCi": true,
@@ -13,7 +13,7 @@
       "Every entry is a pointer: repository URL plus the exact commit the lane checks out. No third-party source is committed to this repository.",
       "The lane clones into an ignored scratch directory, runs the scanner and codemod over the working copy, and deletes the checkout.",
       "The lane is static analysis only. It reads source files; it never issues a request to an ArcGIS service, a portal, or a basemap.",
-      "The lane never runs `npm install` inside a cloned app, so no third-party dependency tree is ever resolved or executed.",
+      "The lane never runs `npm install` inside a cloned app, so no third-party dependency tree is ever resolved or executed. Post-codemod build validation, which does install, is a separate runner behind a second opt-in switch — see deepValidation.",
       "Licenses are re-reviewed whenever a pin is moved. Only the SPDX ids in licensePolicy.allowedSpdxIds are accepted."
     ]
   },
@@ -28,6 +28,39 @@
     "publishedObservationPath": "docs/data/oss-arcgis-corpus-readiness.v1.json",
     "codemodTarget": "honua-compat",
     "widgetGatePct": 0
+  },
+  "deepValidation": {
+    "optInEnvVar": "HONUA_OSS_ARCGIS_CORPUS_DEEP",
+    "checkoutRoot": ".tmp/oss-arcgis-corpus-deep",
+    "reportRoot": "test-results/oss-arcgis-corpus-deep",
+    "publishedObservationPath": "docs/data/oss-arcgis-corpus-deep-build.v1.json",
+    "honuaPackageDirs": ["dist/packages/honua-sdk", "dist/packages/honua-sdk-esri-compat"],
+    "supplyChain": {
+      "installScriptsDisabled": true,
+      "requiresCommittedLockfile": true,
+      "installsAreEphemeral": true,
+      "appManifestNeverRewritten": true,
+      "honuaPackagesArePackedLocally": true,
+      "notes": [
+        "Deep validation is the only part of the corpus that installs third-party dependencies, and it needs both the corpus opt-in and its own second switch before it does.",
+        "Every install passes `--ignore-scripts`, so no third-party preinstall/install/postinstall script ever executes on the runner.",
+        "Only apps with a committed lockfile are eligible. `npm ci` consumes that lockfile verbatim; the app's package.json and lockfile are never rewritten.",
+        "A repository that commits its own `node_modules` has it deleted before install, so the measured tree is always the one the lockfile resolves.",
+        "Honua packages are `npm pack`ed from `dist/packages/*` and installed with `--no-save`, so the bytes under test are the bytes a consumer would get and the app's manifest stays pristine.",
+        "The checkout, including `node_modules`, is deleted when the run ends unless `--keep-clones` is passed for local inspection."
+      ]
+    },
+    "apps": [
+      {
+        "id": "owls-of-bavaria",
+        "packageDir": ".",
+        "lockfile": "package-lock.json",
+        "buildScript": "build",
+        "typecheckInclude": ["src/**/*"],
+        "typecheckJsx": "react-jsx",
+        "notes": "The app ships no TypeScript, so the probe type-checks its JavaScript with `allowJs`/`checkJs` rather than running a config the author maintained. That is why the baseline carries diagnostics the author never saw — and why only the paired delta is reported as the migration's."
+      }
+    ]
   },
   "apps": [
     {

@@ -36,7 +36,7 @@ no dependencies, so CI and a dev box produce byte-identical output.
 
 ## Corpus design + grading taxonomy
 
-Four corpora feed the eval, selected by `HONUA_EVAL_CORPUS` / `--corpus`:
+Five corpora feed the eval, selected by `HONUA_EVAL_CORPUS` / `--corpus`:
 
 | Corpus | Source | Surface | Grading |
 | --- | --- | --- | --- |
@@ -44,6 +44,7 @@ Four corpora feed the eval, selected by `HONUA_EVAL_CORPUS` / `--corpus`:
 | `operator` | `src/eval/operator-corpus.ts` | live operator `/mcp` | structural |
 | `northstar` | `src/eval/northstar-corpus.ts` | live P1 `/mcp` | structural (gate) |
 | `standalone` | `src/eval/standalone-corpus.ts` | **plain public FeatureServer fixture** | **semantic** |
+| `ogc` | `src/eval/ogc-corpus.ts` | **plain OGC API Features fixture** | **semantic** |
 
 The **standalone** corpus (50+ scenarios, issue #369) is the platform-free proof:
 it runs against a recorded public census FeatureServer (`services.arcgis.com`, no
@@ -65,9 +66,28 @@ trajectory. Its grading taxonomy:
 - **Capability degradation** — Honua-only tools (styling) must return a structured
   "not available on this target" result on a plain FeatureServer.
 
-The deterministic offline control must pass every standalone scenario; the
-evaluator that backs the fixture is parity-checked against the live recordings
-(`test/certification/census-fixture-client.test.ts`).
+The **ogc** corpus (25 scenarios, issue #1005) is the *non-GeoServices* half of
+that proof. Passing every census scenario says the surface works against Esri; it
+says nothing about vendor neutrality, because a GeoServices-shaped contract would
+pass them all. So the identical catalog runs against a recorded public **OGC API
+Features** endpoint (`demo.pygeoapi.io`, the pinned `ogc-features` conformance
+target) where no `serviceId`/`layerId` exists at all — sources are addressed as
+`ogc-features:<collectionId>`, filters are the typed semantic filter compiled to
+CQL2, geometry is GeoJSON/bbox, and time is the canonical temporal predicate. A
+test asserts no scenario in that corpus uses Esri addressing.
+
+Its per-protocol honesty scenarios are the interesting ones: OGC API Features has
+no server-side aggregation and no server-side extent operation, so those answers
+must arrive carrying an explicit degradation reason, and a CQL2 spatial predicate
+the endpoint does not publish must return a structured capability refusal rather
+than an empty feature list. Anchors: 5 observations and 31 Utah cities,
+`avg(value)=96.14`, `sum(POP_2000)=354212`, `stn_id=2147 ⇒ 2 rows`, the
+2001–2004 interval ⇒ 3 rows.
+
+The deterministic offline control must pass every standalone AND every ogc
+scenario; the evaluators that back both fixtures are asserted against the live
+recordings (`test/certification/census-fixture-client.test.ts`,
+`test/certification/ogc-fixture-client.test.ts`).
 
 ## What makes a run trustworthy
 

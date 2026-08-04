@@ -13,6 +13,7 @@ import * as explainCapabilityGap from "../src/tools/explain-capability-gap.js";
 import * as getExtent from "../src/tools/get-extent.js";
 import * as getStyle from "../src/tools/get-style.js";
 import * as listServices from "../src/tools/list-services.js";
+import * as listSources from "../src/tools/list-sources.js";
 import * as queryFeatures from "../src/tools/query-features.js";
 import * as statistics from "../src/tools/statistics.js";
 import { asClient, createMockClient } from "./test-helpers.js";
@@ -42,6 +43,9 @@ describe("MCP server setup", () => {
     const resourceSpy = vi.spyOn(McpServer.prototype, "resource");
 
     const listSpy = vi.spyOn(listServices, "execute").mockResolvedValue({ content: [{ type: "text", text: "[]" }] });
+    const listSourcesSpy = vi
+      .spyOn(listSources, "execute")
+      .mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
     const describeSpy = vi
       .spyOn(describeLayer, "execute")
       .mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
@@ -65,6 +69,7 @@ describe("MCP server setup", () => {
     createServer(client);
 
     expect(toolSpy.mock.calls.map((call) => call[0])).toEqual([
+      "honua_list_sources",
       "honua_list_services",
       "honua_describe_layer",
       "honua_query_features",
@@ -83,6 +88,7 @@ describe("MCP server setup", () => {
     ]);
 
     const toolInputs: Record<string, Record<string, unknown>> = {
+      honua_list_sources: {},
       honua_list_services: {},
       honua_describe_layer: { serviceId: "Parks", layerId: 0 },
       honua_query_features: { serviceId: "Parks", layerId: 0 },
@@ -101,16 +107,20 @@ describe("MCP server setup", () => {
     }
 
     expect(listSpy).toHaveBeenCalledWith(client, { includeDetails: false });
+    expect(listSourcesSpy).toHaveBeenCalledWith(client, { protocol: "auto", maxServices: 25 });
     expect(describeSpy).toHaveBeenCalledWith(client, { serviceId: "Parks", layerId: 0 });
     expect(querySpy).toHaveBeenCalledWith(client, expect.objectContaining({ serviceId: "Parks", layerId: 0 }));
     expect(countSpy).toHaveBeenCalledWith(client, { serviceId: "Parks", layerId: 0 });
     expect(extentSpy).toHaveBeenCalledWith(client, { serviceId: "Parks", layerId: 0 });
-    expect(statsSpy).toHaveBeenCalledWith(client, {
-      serviceId: "Parks",
-      layerId: 0,
-      statisticType: "count",
-      onField: "OBJECTID",
-    });
+    expect(statsSpy).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({
+        serviceId: "Parks",
+        layerId: 0,
+        statisticType: "count",
+        onField: "OBJECTID",
+      }),
+    );
     expect(explainSpy).toHaveBeenCalledWith(client, { protocol: "wmts", capability: "query" });
     expect(getStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });
     expect(applyStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });
