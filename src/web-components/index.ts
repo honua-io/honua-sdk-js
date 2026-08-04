@@ -103,6 +103,9 @@ export type { HonuaFeatureTableConflictDetail } from "./elements.js";
 
 export { HonuaMeasurementElement, defineHonuaMeasurement } from "./measurement.js";
 
+// ── time slider over the temporal playback controller (issue #959) ───────
+export { HonuaTimeSliderElement, defineHonuaTimeSlider } from "./time-slider.js";
+
 // ── secure export contract (issue #683) ──────────────────────────────────
 export {
   HONUA_EXPORT_KINDS,
@@ -381,6 +384,11 @@ export type {
   HonuaSketchMode,
   HonuaSketchProvider,
   HonuaSketchResult,
+  HonuaTimeChangeDetail,
+  HonuaTimePlaybackChangeDetail,
+  HonuaTimeSliderMessages,
+  HonuaTimeSliderPlayback,
+  HonuaTimeSliderWindow,
   HonuaViewportChangeDetail,
   HonuaViewportState,
   HonuaWebComponentController,

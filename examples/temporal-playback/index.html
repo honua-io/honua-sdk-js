@@ -14,9 +14,13 @@
           <code>classBreaksRenderer</code> and animated with <code>createTemporalPlayback</code> from
           <code>@honua/sdk-js/map</code>.
         </p>
-        <section class="controls" aria-label="Playback controls">
-          <button id="play" type="button">Play</button>
-          <button id="pause" type="button" disabled>Pause</button>
+        <!-- Play/pause, scrub, step, and speed are all the app-platform
+             <honua-time-slider> element (issue #959) bound to the very same
+             createTemporalPlayback controller. The window *length* stays a
+             sample control because it is a controller configuration choice,
+             not part of the slider's transport. -->
+        <honua-time-slider id="time-slider" label="Playback"></honua-time-slider>
+        <section class="controls" aria-label="Window length">
           <label class="window-label" for="window-select">Window</label>
           <select id="window-select">
             <option value="1">1 day</option>
@@ -24,8 +28,6 @@
             <option value="7">7 days</option>
           </select>
         </section>
-        <label for="scrub" class="scrub-label">Scrub</label>
-        <input id="scrub" type="range" min="0" max="1000" value="0" step="1" />
         <dl class="readout">
           <dt>Window</dt>
           <dd id="window-readout">–</dd>

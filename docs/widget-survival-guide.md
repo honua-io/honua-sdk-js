@@ -8,7 +8,7 @@ Every classic ArcGIS JS SDK widget (`esri/widgets/*` / `@arcgis/core/widgets/*`)
 
 This guide answers, for each deprecated widget, what happens if you migrate to Honua/MapLibre instead of rewriting onto Esri's web components. Dispositions are deliberately honest — including "no equivalent" — in the spirit of [docs/migration-punch-list.md](./migration-punch-list.md).
 
-This document is generated from the versioned disposition data in [`src/migration/widget-dispositions.ts`](../src/migration/widget-dispositions.ts) (v1.1.0); the `honua-migrate` widget scanner consumes the same data, so the scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS release against https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets.html (5.0 deprecation list) and updated manually.
+This document is generated from the versioned disposition data in [`src/migration/widget-dispositions.ts`](../src/migration/widget-dispositions.ts) (v1.2.0); the `honua-migrate` widget scanner consumes the same data, so the scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS release against https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets.html (5.0 deprecation list) and updated manually.
 
 ## Scan your app first
 
@@ -82,7 +82,7 @@ A compat-backed row may also list a direct `@honua/app-platform` component. That
 | [Slice](#slice) | `@arcgis/core/widgets/Slice` | `esri/widgets/Slice` | `no-equivalent` | None. Requires 3D scene slicing. |
 | [Swipe](#swipe) | `@arcgis/core/widgets/Swipe` | `esri/widgets/Swipe` | `automated` | SwipeCompat from @honua/sdk-esri-compat |
 | [TableList](#tablelist) | `@arcgis/core/widgets/TableList` | `esri/widgets/TableList` | `automated` | TableListCompat from @honua/sdk-esri-compat |
-| [TimeSlider](#timeslider) | `@arcgis/core/widgets/TimeSlider` | `esri/widgets/TimeSlider` | `compat-shim` | TimeSliderCompat from @honua/sdk-esri-compat |
+| [TimeSlider](#timeslider) | `@arcgis/core/widgets/TimeSlider` | `esri/widgets/TimeSlider` | `compat-shim` | TimeSliderCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-time-slider>`](../src/web-components/time-slider.ts) from `@honua/app-platform/web-components` |
 | [Track](#track) | `@arcgis/core/widgets/Track` | `esri/widgets/Track` | `automated` | TrackCompat from @honua/sdk-esri-compat |
 | [Weather](#weather) | `@arcgis/core/widgets/Weather` | `esri/widgets/Weather` | `no-equivalent` | None. Requires a 3D scene atmosphere/weather renderer. |
 | [Zoom](#zoom) | `@arcgis/core/widgets/Zoom` | `esri/widgets/Zoom` | `automated` | ZoomCompat from @honua/sdk-esri-compat (MapLibre NavigationControl underneath) |
@@ -410,7 +410,20 @@ import "@honua/app-platform/web-components";
 - Modules: `@arcgis/core/widgets/TimeSlider`, `esri/widgets/TimeSlider`
 - Target: TimeSliderCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/time-slider.ts`](../src/esri-compat/time-slider.ts)
-- Notes: The honua-migrate codemod rewrites the import and safe constructor call sites, but the shim covers the core workflow rather than the full ArcGIS surface — plan hands-on verification of app-specific behavior after migration. Rendering is not byte-identical to ArcGIS. Time-aware layer filtering works; stops derived from server time-info metadata should be verified per service.
+- Direct app-platform component: [`<honua-time-slider>`](../src/web-components/time-slider.ts) from `@honua/app-platform/web-components`
+- Notes: The honua-migrate codemod rewrites the import and safe constructor call sites, but the shim covers the core workflow rather than the full ArcGIS surface — plan hands-on verification of app-specific behavior after migration. Rendering is not byte-identical to ArcGIS. Time-aware layer filtering works; stops derived from server time-info metadata should be verified per service. With a container and a registered widget kit the shim now renders through <honua-time-slider>; without the kit it stays state-model-only, and the element's own transport drives the app-platform temporal playback controller rather than the shim's stop list.
+
+App-platform usage (the module import auto-registers the element):
+
+```ts doc-test=skip reason="requires the separately published app-platform package"
+import "@honua/app-platform/web-components";
+```
+
+```html
+<honua-map id="map"></honua-map>
+<honua-time-slider id="time" label="Time"></honua-time-slider>
+<!-- element.playback = createTemporalPlayback({ ... }) from @honua/sdk-js/map -->
+```
 
 ### Track
 

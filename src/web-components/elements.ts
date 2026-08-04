@@ -34,6 +34,7 @@ import {
 } from "./feature-table-view.js";
 import { HonuaMapLibreRenderer } from "./maplibre-renderer.js";
 import { HonuaMeasurementElement } from "./measurement.js";
+import { HonuaTimeSliderElement } from "./time-slider.js";
 import type {
   CreateHonuaWebComponentControllerOptions,
   HonuaActionDetail,
@@ -86,6 +87,8 @@ import type {
   HonuaSketchChangeDetail,
   HonuaSketchControlMessages,
   HonuaSketchMode,
+  HonuaTimeChangeDetail,
+  HonuaTimePlaybackChangeDetail,
   HonuaViewportChangeDetail,
   HonuaViewportState,
   HonuaWebComponentController,
@@ -2629,6 +2632,7 @@ const WEB_COMPONENT_ELEMENTS: ReadonlyMap<string, CustomElementConstructor> = ne
     ["honua-locate-control", HonuaLocateControlElement],
     ["honua-measure-control", HonuaMeasureControlElement],
     ["honua-measurement", HonuaMeasurementElement],
+    ["honua-time-slider", HonuaTimeSliderElement],
     ["honua-sketch-control", HonuaSketchControlElement],
     ["honua-print-export", HonuaPrintExportElement],
     ["honua-map-status", HonuaMapStatusElement],
@@ -3538,6 +3542,7 @@ declare global {
     "honua-locate-control": HonuaLocateControlElement;
     "honua-measure-control": HonuaMeasureControlElement;
     "honua-measurement": HonuaMeasurementElement;
+    "honua-time-slider": HonuaTimeSliderElement;
     "honua-sketch-control": HonuaSketchControlElement;
     "honua-print-export": HonuaPrintExportElement;
     "honua-map-status": HonuaMapStatusElement;
@@ -3565,6 +3570,8 @@ declare global {
     "honua-bookmark-change": CustomEvent<HonuaBookmarkChangeDetail>;
     "honua-locate-change": CustomEvent<HonuaLocateChangeDetail>;
     "honua-measure-change": CustomEvent<HonuaMeasureChangeDetail>;
+    "honua-time-change": CustomEvent<HonuaTimeChangeDetail>;
+    "honua-time-playback-change": CustomEvent<HonuaTimePlaybackChangeDetail>;
     "honua-sketch-change": CustomEvent<HonuaSketchChangeDetail>;
     "honua-export": CustomEvent<HonuaExportDetail>;
     "honua-fullscreen-change": CustomEvent<HonuaFullscreenChangeDetail>;

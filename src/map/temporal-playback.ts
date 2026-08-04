@@ -74,6 +74,14 @@ export interface TemporalPlaybackOptions {
   /** Restart from the extent start after the last window. @default false */
   readonly loop?: boolean;
   /**
+   * Playback rate multiplier. Frames land every `frameIntervalMs / speed`
+   * milliseconds, so `2` is twice as fast and `0.5` is half speed. The window
+   * length and `stepMs` are unaffected — only the wall-clock cadence changes.
+   *
+   * @default 1
+   */
+  readonly speed?: number;
+  /**
    * Bridge binding: a `MountedSource` (or anything with a Query-shaped
    * `setFilter`). Each window becomes a `where` clause on `timeField`.
    */
@@ -105,13 +113,30 @@ export interface TemporalPlayback {
   readonly window: TemporalWindow;
   /** The normalized extent (epoch ms). */
   readonly extent: TemporalWindow;
+  /** How far the window advances per frame, in milliseconds. */
+  readonly stepMs: number;
+  /** Current playback rate multiplier. See {@link TemporalPlaybackOptions.speed}. */
+  readonly speed: number;
   /** Start advancing one window per frame. Applies the current window immediately. */
   play(): void;
   pause(): void;
   /** Jump the window start to a time (clamped to the extent) and apply it. */
   scrub(time: TemporalInstant): void;
+  /**
+   * Move the window one `stepMs` forward (`1`, the default) or backward
+   * (`-1`) and apply it, without starting or stopping the frame timer. The
+   * result is clamped to the extent exactly like {@link TemporalPlayback.scrub},
+   * so stepping past either edge parks the window on that edge.
+   */
+  step(direction?: 1 | -1): void;
   /** Change the window length, keeping the current start, and apply it. */
   setWindow(windowMs: number): void;
+  /**
+   * Change the playback rate multiplier. While playing, the frame timer is
+   * restarted at the new cadence without re-emitting `"play"` or re-applying
+   * the current window; while paused, the next `play()` uses the new rate.
+   */
+  setSpeed(multiplier: number): void;
   on(type: "tick", listener: (event: TemporalPlaybackTick) => void): TemporalPlaybackSubscription;
   on(type: "play" | "pause" | "end", listener: () => void): TemporalPlaybackSubscription;
   on(type: "error", listener: (error: unknown) => void): TemporalPlaybackSubscription;
@@ -156,6 +181,7 @@ export function createTemporalPlayback(options: TemporalPlaybackOptions): Tempor
   let windowMs = requirePositive(options.windowMs, "windowMs");
   const frameIntervalMs = requirePositive(options.frameIntervalMs ?? 500, "frameIntervalMs");
   const stepMs = requirePositive(options.stepMs ?? options.windowMs, "stepMs");
+  let speed = requirePositive(options.speed ?? 1, "speed");
   if ((options.handle || options.layer) && !options.timeField) {
     throw new HonuaTemporalPlaybackError("timeField is required with the handle/layer bindings.");
   }
@@ -236,10 +262,12 @@ export function createTemporalPlayback(options: TemporalPlaybackOptions): Tempor
     applyWindow(currentWindow());
   };
 
+  const frameDelay = (): number => Math.max(1, frameIntervalMs / speed);
+
   const play = (): void => {
     if (disposed || timer !== undefined) return;
     if (windowStart >= lastStart() && !options.loop) windowStart = extent.start;
-    timer = setInterval(advance, frameIntervalMs);
+    timer = setInterval(advance, frameDelay());
     emit("play");
     applyWindow(currentWindow());
   };
@@ -259,6 +287,10 @@ export function createTemporalPlayback(options: TemporalPlaybackOptions): Tempor
       return currentWindow();
     },
     extent,
+    stepMs,
+    get speed() {
+      return speed;
+    },
     play,
     pause,
     scrub(time: TemporalInstant): void {
@@ -266,11 +298,30 @@ export function createTemporalPlayback(options: TemporalPlaybackOptions): Tempor
       windowStart = Math.min(Math.max(toEpochMs(time, "scrub time"), extent.start), lastStart());
       applyWindow(currentWindow());
     },
+    step(direction: 1 | -1 = 1): void {
+      if (disposed) return;
+      const delta = direction < 0 ? -stepMs : stepMs;
+      windowStart = Math.min(Math.max(windowStart + delta, extent.start), lastStart());
+      applyWindow(currentWindow());
+    },
     setWindow(nextWindowMs: number): void {
       if (disposed) return;
       windowMs = requirePositive(nextWindowMs, "windowMs");
       windowStart = Math.min(windowStart, lastStart());
       applyWindow(currentWindow());
+    },
+    setSpeed(multiplier: number): void {
+      if (disposed) return;
+      const next = requirePositive(multiplier, "speed");
+      if (next === speed) return;
+      speed = next;
+      // Re-arm the frame timer at the new cadence. Deliberately silent: this
+      // is a rate change, not a transport change, so no play/pause event is
+      // emitted and the current window is not re-applied.
+      if (timer !== undefined) {
+        clearInterval(timer);
+        timer = setInterval(advance, frameDelay());
+      }
     },
     on(type: TemporalPlaybackEventType, listener: unknown): TemporalPlaybackSubscription {
       const set = listeners.get(type) ?? new Set();

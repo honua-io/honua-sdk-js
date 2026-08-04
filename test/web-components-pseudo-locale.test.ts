@@ -36,6 +36,7 @@ const factories: Readonly<Record<string, ElementFactory>> = {
   "web-components.locate-control": () => document.createElement("honua-locate-control"),
   "web-components.measure-control": () => document.createElement("honua-measure-control"),
   "web-components.measurement": () => new HonuaMeasurementElement(),
+  "web-components.time-slider": () => document.createElement("honua-time-slider"),
   "web-components.sketch-control": () => document.createElement("honua-sketch-control"),
   "web-components.print-export": () => document.createElement("honua-print-export"),
   "web-components.map-status": () => document.createElement("honua-map-status"),

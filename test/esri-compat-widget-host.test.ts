@@ -4,6 +4,7 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { LayerListCompat } from "../src/esri-compat/layer-list.js";
 import { LegendCompat } from "../src/esri-compat/legend.js";
+import { TimeSliderCompat } from "../src/esri-compat/time-slider.js";
 import { HonuaWidgetHost, registerHonuaWidgetKit } from "../src/esri-compat/widget-host.js";
 
 /**
@@ -164,5 +165,59 @@ describe("LayerListCompat delegation", () => {
 
     layerList.destroy();
     expect(container.querySelector("honua-layer-list")).toBeNull();
+  });
+});
+
+describe("TimeSliderCompat delegation", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("renders the shim transport through <honua-time-slider> and routes gestures back to the shim", async () => {
+    const container = makeContainer();
+    const slider = new TimeSliderCompat({
+      container,
+      fullTimeExtent: { start: "2026-06-01T00:00:00.000Z", end: "2026-06-15T00:00:00.000Z" },
+      timeExtent: { start: "2026-06-01T00:00:00.000Z", end: "2026-06-03T00:00:00.000Z" },
+      stops: { interval: { value: 1, unit: "days" } },
+    });
+    await slider.load();
+    await until(() => container.querySelector("honua-time-slider")?.shadowRoot != null);
+
+    const element = container.querySelector("honua-time-slider");
+    const scrubber = element?.shadowRoot?.querySelector("[data-time-slider]");
+    // The adapter satisfies the element's playback contract: bounds come from
+    // the shim's own full time extent, not from a snapshot the shim pushed.
+    expect(scrubber?.getAttribute("role")).toBe("slider");
+    expect(scrubber?.getAttribute("aria-valuemin")).toBe(String(Date.parse("2026-06-01T00:00:00.000Z")));
+    expect(scrubber?.getAttribute("aria-valuemax")).toBe(String(Date.parse("2026-06-13T00:00:00.000Z")));
+    expect(scrubber?.getAttribute("aria-valuenow")).toBe(String(Date.parse("2026-06-01T00:00:00.000Z")));
+    // The shim's playRate is construction-only, so the element hides the speed
+    // control rather than offering a rate change it cannot honour.
+    expect(element?.shadowRoot?.querySelector("[data-time-speed]")).toBeNull();
+
+    // A real key event on the element moves the shim's own timeExtent.
+    scrubber?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+    expect(slider.timeExtent?.start.toISOString()).toBe("2026-06-02T00:00:00.000Z");
+
+    element?.shadowRoot?.querySelector<HTMLButtonElement>("[data-time-toggle]")?.click();
+    expect(slider.playing).toBe(true);
+    expect(element?.shadowRoot?.querySelector("[data-time-toggle]")?.getAttribute("aria-pressed")).toBe("true");
+
+    slider.destroy();
+    expect(container.querySelector("honua-time-slider")).toBeNull();
+  });
+
+  it("mounts the declared degraded state when the widget has no full time extent", async () => {
+    const container = makeContainer();
+    const slider = new TimeSliderCompat({ container });
+    await slider.load();
+    await until(() => container.querySelector("honua-time-slider")?.shadowRoot != null);
+
+    const element = container.querySelector("honua-time-slider");
+    expect(element?.getAttribute("unavailable-reason")).toContain("no usable time-info metadata");
+    expect(element?.shadowRoot?.querySelector("[data-time-slider]")?.getAttribute("aria-disabled")).toBe("true");
+    expect(element?.shadowRoot?.querySelector<HTMLButtonElement>("[data-time-toggle]")?.disabled).toBe(true);
+    slider.destroy();
   });
 });

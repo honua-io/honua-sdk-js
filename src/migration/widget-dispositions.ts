@@ -18,7 +18,7 @@
  */
 
 /** Version of this disposition dataset. Bump when rows or taxonomy change. */
-export const WIDGET_DISPOSITION_DATA_VERSION = "1.1.0";
+export const WIDGET_DISPOSITION_DATA_VERSION = "1.2.0";
 
 /** ArcGIS JS release that deprecated every classic widget. */
 export const ARCGIS_WIDGET_DEPRECATION_RELEASE = "5.0";
@@ -419,9 +419,16 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
     [
       COMPAT_SHIM_NOTE,
       "Time-aware layer filtering works; stops derived from server time-info metadata should be",
-      "verified per service.",
+      "verified per service. With a container and a registered widget kit the shim now renders through",
+      "<honua-time-slider>; without the kit it stays state-model-only, and the element's own transport",
+      "drives the app-platform temporal playback controller rather than the shim's stop list.",
     ].join(" "),
     "src/esri-compat/time-slider.ts",
+    appPlatformComponent(
+      "honua-time-slider",
+      "src/web-components/time-slider.ts",
+      '<honua-map id="map"></honua-map>\n<honua-time-slider id="time" label="Time"></honua-time-slider>\n<!-- element.playback = createTemporalPlayback({ ... }) from @honua/sdk-js/map -->',
+    ),
   ),
   // --- manual-workaround ---
   widgetEntry(
