@@ -100,6 +100,19 @@ export {
   resolvePickedFeatureAttributes,
   setTilesetStyle,
 } from "./cesium-adapter.js";
+export {
+  DEFAULT_SCENE_MOUNT_LAYER_LIMIT,
+  HonuaCesiumSceneMountError,
+  mountScenePrimitivesToCesium,
+} from "./cesium-mount.js";
+export type {
+  ApplyMountedScenePrimitivesOptions,
+  CesiumSceneMountErrorCode,
+  CesiumSceneMountState,
+  MountedCesiumScenePrimitives,
+  MountedScenePrimitiveApplyResult,
+  MountScenePrimitivesToCesiumOptions,
+} from "./cesium-mount.js";
 export type {
   AddCesium3DTilesetOptions,
   CesiumCameraLike,
@@ -113,6 +126,7 @@ export type {
   CesiumModelPlacement,
   CesiumPrimitiveCollectionLike,
   CesiumSceneLike,
+  CesiumSceneMaterializationOptions,
   CesiumSceneRuntimeTarget,
   CesiumTilesetLike,
   Honua3DStyleConditions,

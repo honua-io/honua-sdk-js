@@ -887,7 +887,7 @@ Node-only or REST-only consumer never pays the install cost:
 
 | Integration | Peer to install |
 |-------------|-----------------|
-| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
+| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` — supported majors: **5 and 6** (`^5.0.0 \|\| ^6.0.0`; the 6.x half of that range ships with the next release, the current published beta still declares `^5.0.0`). MapLibre 6 is ESM-only and requires WebGL2; see [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |
@@ -4036,6 +4036,133 @@ the request instead of losing it. A closed host transport can prevent a response
 from being delivered, but that delivery failure is contained and the host still
 releases its active-request slot without an unhandled rejection.
 
+## Bounded conversion to object `Result`s
+
+`columnarBatchToResult` converts a bounded, contiguous row window of a batch
+into the protocol-neutral `Result` the rest of the SDK speaks, and
+`resultToColumnarBatch` converts one back. They exist so the columnar plane is
+opt-in rather than all-or-nothing: a popup, a table page, an export, or a
+`Result`-shaped assertion no longer forces an application to abandon the
+columnar path and re-execute its query on the object path.
+
+Both directions require an explicit `maxFeatures` ceiling. The ceiling is the
+point of the API, not a guard rail on it: feature objects cost roughly two
+orders of magnitude more memory per row than the packed columns they are read
+from, so an unbounded conversion is exactly the silent materialization the
+columnar plane exists to avoid. There is no sentinel, no `Infinity`, and no
+options object that disables it — `maxFeatures` must be a positive safe
+integer, and a window larger than it throws `HonuaGeoArrowError` with code
+`row-limit-exceeded` naming both the ceiling and the requested count. The
+ceiling is checked against plain counts before the batch is inspected, so a
+refused conversion allocates no feature object and reads no payload.
+
+`DEFAULT_COLUMNAR_RESULT_MAX_FEATURES` (100,000) is exported as a documented
+conservative starting point. It is deliberately **not** applied implicitly:
+`maxFeatures` is always written at the call site so the cost of materialization
+stays visible in the calling code.
+
+`offset` and `limit` select the window; they default to the whole batch, which
+the ceiling then bounds. Conversion cost is proportional to the window rather
+than to the batch, so a thousand-row page off a million-row batch does not pay
+for the batch: the per-row payload validation that the unbounded
+`inspectGeoArrowBatch` performs over every coordinate, dictionary index, and
+dictionary value is performed here only for the rows actually materialized.
+
+Geometry becomes GeoJSON, preserving point, linestring, and polygon kinds,
+null geometry, empty geometry, coordinate order, and `xy`/`xyz` dimensions.
+`xym` and `xyzm` batches are refused with `unsupported-layout` rather than
+silently stripped, because GeoJSON has no representation for an M coordinate.
+The batch's declared CRS is surfaced on the returned `Result` as `crs`, as
+either a serialized CRS string or a PROJJSON object; when the batch declares
+none, `crs` is undefined and consumers must not assume EPSG:4326.
+
+Feature-id, timestamp, and dictionary columns become attributes under their
+declared column names. A timestamp attribute is the Arrow value as a `bigint`
+in the column's declared unit — never a `Date` and never epoch milliseconds —
+so microsecond and nanosecond batches round-trip exactly. A dictionary
+attribute carries the decoded string. A null timestamp or dictionary value
+becomes an explicit `null` attribute, never an omitted key and never a zero. A
+feature-id column is not nullable. The returned `Result.fields` declares the
+attribute schema.
+
+The returned `Result` also carries a `columnar` provenance block holding the
+source batch's id, schema, sequence, window bounds, geometry layout, attribute
+bindings, and its full `ColumnarBatchIdentityV1`. The identity is copied and
+never re-observed, so a bounded object view can never look fresher, differently
+ordered, or differently scoped than the batch it was cut from.
+`resultToColumnarBatch` defaults every layout and identity option from that
+block, so a round trip needs only a ceiling. A plain object-path `Result` must
+instead supply `id`, `schemaId`, `identity`, and any attribute binding it wants
+lifted into a typed column.
+
+```ts doc-test=skip reason="the source batch is produced by an application's own query execution"
+const page = columnarBatchToResult(batch, { offset: 0, limit: 100, maxFeatures: 500 });
+page.features[0].geometry; // { type: "Point", coordinates: [-157.8, 21.3] }
+page.crs; // "EPSG:3857" | PROJJSON | undefined
+page.columnar.identity.freshness; // the batch's own freshness, not a new observation
+
+const roundTripped = resultToColumnarBatch(page, { maxFeatures: 500 });
+```
+
+### Nothing is dropped quietly
+
+The forward direction is complete by construction: a normative GeoArrow batch
+carries exactly a geometry column plus optional temporal, dictionary, and
+feature-id columns, and every one of them lands on the converted feature. There
+is no loss to report because there is no loss.
+
+The inverse direction is where an object `Result` can carry more than a columnar
+batch can hold, so `resultToColumnarBatch` **fails closed** with
+`unsupported-layout` on any attribute no column binding covers, naming the
+attribute and the feature index. `unmappedAttributes: "drop"` is the only way
+past it, and even then every dropped name comes back sorted on
+`droppedAttributes`, so the loss is stated rather than assumed. A conversion
+that never sets the option can treat its result as lossless without checking.
+
+The same discipline governs the rest of the inverse direction: `xym`/`xyzm`
+geometry is refused rather than stripped of its M coordinate, a geometry type
+outside point/linestring/polygon is refused rather than approximated, a window
+mixing geometry kinds is refused rather than split, and an Esri geometry
+envelope is refused rather than guessed at.
+
+### Streaming a whole batch
+
+`columnarBatchToResultPages` walks a batch as a sequence of bounded pages. It is
+how a caller converts more of a batch than one window without raising the
+ceiling: each page is a complete, independently valid `Result` bounded by
+`maxFeatures`, and only the page a consumer is holding is live, so streaming a
+million-row batch to a file retains one page rather than a million features.
+
+```ts doc-test=skip reason="the source batch and the row sink are application-owned"
+for await (const page of columnarBatchToResultPages(batch, {
+  pageSize: 1_000,
+  maxFeatures: 1_000,
+  signal: controller.signal,
+})) {
+  await writeRows(page.features);
+}
+```
+
+Pages are emitted in ascending row order, contiguous and non-overlapping, so
+concatenating every page's `features` reproduces exactly the sequence a single
+window over the same range would have produced. An empty range yields no pages
+rather than one empty page.
+
+Cancellation is cooperative and real rather than decorative. `signal` is checked
+before each page and every 1,024 rows inside one, and — because a synchronous
+loop in a single-threaded runtime can never observe an abort no matter how often
+it polls — the traversal hands control back to the host task queue every 16,384
+rows and between pages. That is what gives the poll something to find when the
+abort is raised by a task: a worker message, a timer, or a user gesture. An
+aborted traversal rejects with an `AbortError` `DOMException` and never
+materializes the remaining pages. An already-aborted signal is refused before
+the batch is inspected at all.
+
+Conversion is derived and is not cached. The
+`columnar.result.bounded-window` benchmark-lab scenario carries the memory and
+throughput budgets for both directions; see
+[`bench/README.md`](../bench/README.md).
+
 ## Typed errors
 
 `HonuaColumnarTransferError.code` is one of:
@@ -4069,8 +4196,9 @@ releases its active-request slot without an unhandled rejection.
 This slice does not claim the full #394 workstream. Arrow IPC decoding,
 multi-batch streaming across more than one in-flight worker, planner
 integration, renderer consumption, batch cache identity, incremental
-re-aggregation over realtime patches, application-specific CSP worker URL
-policy, and bounded conversion back to feature objects remain separate work.
+re-aggregation over realtime patches, and application-specific CSP worker URL
+policy remain separate work. Converting a batch that is mid-patch also remains
+out of scope: the realtime columnar patch child owns patch-consistent views.
 
 ---
 
@@ -8016,9 +8144,9 @@ policy in the manifest.
 | `odata` | `query`, `queryObjectIds`, `stream`, `applyEdits` | `supported` | `protocol-adapter` | `native` | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts) |
 | `pmtiles` | `tiles` | `supported` | `client-only` | `native` | [fixture: pmtiles-fixtures](../test/pmtiles-contract.test.ts) |
 | `geoparquet` | `query`, `queryAggregate`, `stream` | `experimental` | `client-only` | `native` | [fixture: geoparquet-fixtures](../test/geoparquet-source.test.ts) |
-| `maplibre-vector` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
+| `maplibre-vector` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs)<br>[fixture: maplibre-peer-major-matrix](../test/maplibre-peer-major-compat.test.ts)<br>[integration: maplibre-peer-major-browser](../test/playwright/migration-browser-maplibre.spec.mjs) |
 | `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
-| `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs) |
+| `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs)<br>[fixture: maplibre-peer-major-matrix](../test/maplibre-peer-major-compat.test.ts)<br>[integration: maplibre-peer-major-browser](../test/playwright/migration-browser-maplibre.spec.mjs) |
 | `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
 
 ### Generated discovery disposition inventory
@@ -8927,7 +9055,7 @@ a tier from the directory it lives in.
 
 | Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
 | --- | --- | :-: | --- | --- | --- |
-| `@honua/app-platform/scene-workspace` | `beta` | 132 | 70 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
+| `@honua/app-platform/scene-workspace` | `beta` | 142 | 70 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
 
 ### `@honua/app-platform/scene-workspace`
 
@@ -8984,7 +9112,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | OGC API Tiles | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
 | OGC API Maps | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
 | OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
-| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — see the surface tiers table. |
+| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — see the surface tiers table. |
 | OGC API Processes discovery | `open-endpoint` | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
 | OGC API Processes execution | `open-endpoint` | `experimental` | `standalone` | `native` | Any conformant OGC API Processes Part 1 (Core) server | client.ogcProcesses({ basePath, conformance }).execute() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Executes at the discovered service root in both Core response shapes (synchronous 200 results and Prefer: respond-async 201 + Location), then follows the advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture-proven; no public endpoint permits anonymous execution, so there is no live lane. |
 | Server compatibility gate | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
@@ -10503,7 +10631,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `a5bb1e44`._
+_Generated 2026-08-04 at commit `755c38cd`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -10517,11 +10645,11 @@ _Generated 2026-08-04 at commit `a5bb1e44`._
 | `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 600.4 KiB | 612.2 KiB | 162.0 KiB | 163.9 KiB |
+| `/runtime` | 605.1 KiB | 612.2 KiB | 163.6 KiB | 163.9 KiB |
 | `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
 | `/offline` | 138.7 KiB | 144.9 KiB | 37.8 KiB | 39.2 KiB |
-| `/query-planner` (worker runtime injected) | 676.5 KiB | 703.3 KiB | 148.0 KiB | 162.6 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 120.5 KiB | 122.9 KiB | 36.7 KiB | 37.7 KiB |
+| `/query-planner` (worker runtime injected) | 678.0 KiB | 703.3 KiB | 148.6 KiB | 162.6 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 125.6 KiB | 138.2 KiB | 38.2 KiB | 42.0 KiB |
 | `/esri-compat` | 1019.3 KiB | 1026.2 KiB | 255.3 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
@@ -10533,12 +10661,12 @@ _Generated 2026-08-04 at commit `a5bb1e44`._
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 139.9 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1006.1 KiB | 1037.6 KiB | 269.9 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1082.7 KiB | 1120.1 KiB | 293.3 KiB | 321.9 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.0 KiB | 1037.6 KiB | 271.6 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.6 KiB | 1120.1 KiB | 295.0 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 537.5 KiB | 562.6 KiB | 144.4 KiB | 150.2 KiB |
+| `/react` (react/react-dom external) | 541.1 KiB | 562.6 KiB | 145.6 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 748.1 KiB | 754.5 KiB | 201.1 KiB | 201.3 KiB |
 | browser ESM (`./browser`) | 746.8 KiB | 753.1 KiB | 200.7 KiB | 201.0 KiB |
@@ -13299,16 +13427,62 @@ through the contract's `Source` handles.
 
 ## MapLibre 5 and 6 compatibility
 
-The optional `maplibre-gl` peer range is `^5.0.0 || ^6.0.0`. The compatibility
-gate renders the same Honua-generated style through the latest 5.x release and
-6.x; the development dependency and runnable examples target 6.x.
+**Supported MapLibre majors: 5 and 6.** The optional `maplibre-gl` peer range is
+`^5.0.0 || ^6.0.0`, and 6.x is the recommended major for new apps — it is what
+the development dependency and every runnable example in this repository
+install. MapLibre 5 stays supported for apps that have not migrated yet; it is
+not deprecated in this release, and any future narrowing will be a dated
+decision recorded here rather than a silent break.
+
+> **Registry status (2026-08-03).** The widened range is in the source tree and
+> ships with the next release. The newest published package
+> (`@honua/sdk-js@0.1.2-beta.0`) still declares `maplibre-gl@^5.0.0`, so an app
+> that installs the SDK from npm today and asks for MapLibre 6 gets an
+> `ERESOLVE` peer conflict. That is why the `create-honua-app` starters still
+> pin 5.24.0 (`docs/create-honua-app.md`); they move to 6.x in the first release
+> whose published `peerDependencies` carry both majors.
+
+That claim is gated, not asserted. CI runs a `MapLibre peer-major matrix
+(5.x + 6.x)` step (`npm run test:maplibre-compat`) that:
+
+- typechecks the whole tree against MapLibre 5's typings
+  (`npm run typecheck:maplibre-v5`, `tsconfig.maplibre-v5.json`), while the
+  ordinary `npm run typecheck` covers 6.x;
+- imports the real peer module on both majors and asserts every symbol the SDK
+  reaches for, including live `pmtiles://` protocol registration
+  (`test/maplibre-peer-major-compat.test.ts`, re-run under
+  `vitest.maplibre-v5.config.ts` with the `maplibre-gl-v5` alias);
+- exercises both module packagings the `<honua-map>` renderer must accept
+  (`test/web-components-maplibre-module-compat.test.ts`);
+- renders the same Honua-generated style in a real browser under 5.x and 6.x
+  (`test/playwright/migration-browser-maplibre.spec.mjs`).
 
 MapLibre 6 is ESM-only, targets ES2022, and requires WebGL2. Use namespace or
 named imports (`import * as maplibregl from "maplibre-gl"`) rather than the v5
 default import or removed UMD bundle. Vite hosts must also configure the module
-worker; the examples share `examples/shared/maplibre-vite-worker.ts`, which uses
-Vite's `?worker&url` pipeline before creating a map. See MapLibre's official
+worker; the examples share `examples/shared/maplibre-vite-worker.ts` and the
+starters ship `src/maplibre-worker.ts`, both of which use Vite's `?worker&url`
+pipeline before creating a map. See MapLibre's official
 [v5-to-v6 migration guide](https://github.com/maplibre/maplibre-gl-js/blob/v6.0.0/docs/guides/v5-to-v6-migration-guide.md).
+
+WebGL context attributes belong under `canvasContextAttributes` on both
+supported majors — MapLibre 5.0 moved `preserveDrawingBuffer`, `antialias`, and
+`failIfMajorPerformanceCaveat` there, and 6.x kept them. A top-level
+`preserveDrawingBuffer` is silently ignored, which is why the snapshot export in
+`@honua/sdk-js/web-components` requires the nested form:
+
+```ts doc-test=skip reason="requires a live MapLibre map"
+const map = new maplibregl.Map({
+  container,
+  style,
+  canvasContextAttributes: { preserveDrawingBuffer: true },
+});
+```
+
+Because MapLibre 6 dropped WebGL1, a WebGL1-only device has no supported
+renderer at all. The reviewed deck.gl capability policy
+(`bench/browser/capability-policy.mjs`) classifies such a device `unsupported`
+rather than routing it to a MapLibre fallback that cannot draw.
 
 The SDK keeps its direct style validator on style-spec 24.x so headless users
 are not coupled to MapLibre 6's style-spec 26 dependency. Renderer mounting,
@@ -13319,10 +13493,9 @@ validation for now.
 MapLibre 6 itself declares Node `>=16.14.0`, and the compatibility checks pass
 under this repository's Node 20.19.0 baseline. The SDK pins
 `@mapbox/jsonlint-lines-primitives` 2.0.2 so its direct style-spec 24.x validator
-continues to honor that Node baseline. MapLibre 6's separate style-spec
-dependency currently carries transitive engine metadata that names Node 22, so
-an `engine-strict=true` install may reject v6 even though the exercised APIs run
-on Node 20; use v5 until that upstream metadata is corrected.
+continues to honor that Node baseline. MapLibre 6's style-spec 26.x dependency
+declares no engine constraint as of 26.2.1 (observed 2026-08-03), so an
+`engine-strict=true` install no longer rejects v6 on Node 20.
 
 ## Standalone data-to-map bridge
 
@@ -15382,7 +15555,39 @@ hold the surface stable).
    `calcite-action--`-prefixed selectors will need style work. Every
    other container-bearing shim is state-model-only and needs the
    application to render it.
-7. **`reactiveUtils.watch` semantics (partial).** Compat `watch` is
+7. **Typed-surface divergences from the emulated ArcGIS shape.**
+   The shims are structurally compatible with the ArcGIS surface
+   they emulate except where this list says otherwise. The audit
+   of array-valued properties (#1013) settled as follows.
+
+   *Array mutability — fixed, no divergence.* ArcGIS declares
+   these as mutable arrays and the shims now do too:
+   `FeatureFilterCompat.objectIds`, `GeoJSONLayerCompat.outFields`,
+   `GeoJSONLayerCompat.fields`, `ImageryLayerCompat.bandIds`,
+   `WFSLayerCompat.outFields`. Each is copied out of the caller's
+   input on construct/update, so `layer.outFields.push("TYPE")` is
+   honored (the shim reads the array it stored) without aliasing
+   the array the caller passed in. The corresponding `*Options`
+   input properties stay `ReadonlyArray` on purpose: an input that
+   accepts a readonly array is strictly *more* permissive than
+   ArcGIS's, so it is not a divergence.
+
+   *`FeatureFilterCompat.objectIds` element type — deliberate,
+   kept.* ArcGIS declares `number[]`; the shim declares
+   `Array<number | string>`. Honua's non-Esri sources (OGC API
+   Features, GeoJSON, STAC) carry string feature ids, and
+   narrowing the property to `number` would make the shim unable
+   to hold ids it has to round-trip through `queryFeatures` /
+   `queryObjectIds`. Because `(number | string)[]` is not
+   assignable to `number[]`, handing a compat filter straight to
+   an un-migrated ArcGIS construct still does not typecheck — so
+   the shim exposes `FeatureFilterCompat.toEsriProperties()`,
+   which projects onto the exact ArcGIS `FeatureFilterProperties`
+   shape and **throws** on an id ArcGIS cannot represent rather
+   than silently dropping it and returning a filter that selects a
+   different feature set. The codemod does not create that handoff
+   on its own any more; see codemod gap 7.
+8. **`reactiveUtils.watch` semantics (partial).** Compat `watch` is
    property-name-based and synchronous. ArcGIS `watch` accepts an
    accessor function and returns a `WatchHandle` with `pause()` /
    `resume()`. Single-property accessors —
@@ -15493,7 +15698,29 @@ known constructors" into "automated app conversion":
    cannot synthesize from JSON alone. Each emitted gap is a `//
    TODO` anchor for an app author, not a promise of automated
    migration.
-6. **End-to-end demo conversion.** Shipped at
+6. **Compat → ArcGIS seams (detected, not bridged).** *Shipped as
+   detection (#1012).* A file can hold an in-scope producer whose
+   only consumer is out of scope — the shape the OSS-corpus deep
+   lane hit in `lujoh/owls_of_bavaria`, where a `FeatureFilter`
+   feeds an `@arcgis/core/layers/support/FeatureEffect` the
+   codemod does not migrate. Rewriting only the producer leaves a
+   compat value in an un-migrated ArcGIS constructor's hands: a
+   seam that does not typecheck, previously scored as a clean
+   auto-migration. The codemod now detects the handoff
+   syntactically — `new X()` directly in an out-of-scope ArcGIS
+   consumer's argument, a local bound to one, or a local function
+   that returns one, plus assignment onto an out-of-scope
+   instance's property — **holds the rewrite back**, and emits a
+   manual TODO naming both sides. Seam call sites are counted in
+   `manualCallSites` and broken out as
+   `metrics.seamCallSites` / `JsMigrationReport.seamCallSites`;
+   they are never counted as auto-migrated. What is *not* done:
+   the codemod does not bridge the seam (no inserted
+   `toEsriProperties()` call, no consumer rewrite), and the
+   analysis is file-local and bounded by design — a value that
+   crosses a module boundary or moves through a data structure it
+   cannot follow is not reported.
+7. **End-to-end demo conversion.** Shipped at
    `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`.
    The sample is a hand-written parcel viewer exercising
    `FeatureLayer` (with `outFields` + `popupTemplate`), `Map`,

@@ -891,6 +891,18 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "maplibre-peer-major-matrix",
+      "kind": "fixture",
+      "path": "test/maplibre-peer-major-compat.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "maplibre-peer-major-browser",
+      "kind": "integration",
+      "path": "test/playwright/migration-browser-maplibre.spec.mjs",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "scene-workspace-fixtures",
       "kind": "fixture",
       "path": "test/scene-workspace.test.ts",
@@ -912,6 +924,12 @@
       "id": "cesium-scene-adapter-fixtures",
       "kind": "fixture",
       "path": "test/cesium-scene-adapter.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "cesium-scene-mount-fixtures",
+      "kind": "fixture",
+      "path": "test/cesium-scene-mount.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -1577,7 +1595,9 @@
           "status": "supported",
           "evidence": [
             "maplibre-automatic-source-fixtures",
-            "maplibre-automatic-browser"
+            "maplibre-automatic-browser",
+            "maplibre-peer-major-matrix",
+            "maplibre-peer-major-browser"
           ]
         },
         {
@@ -1613,7 +1633,9 @@
           "status": "supported",
           "evidence": [
             "maplibre-raster-source-fixtures",
-            "maplibre-automatic-browser"
+            "maplibre-automatic-browser",
+            "maplibre-peer-major-matrix",
+            "maplibre-peer-major-browser"
           ]
         },
         {
@@ -2068,12 +2090,13 @@
       "status": "beta",
       "backendNeeded": "None (optional `cesium` peer)",
       "api": "@honua/app-platform/scene-workspace",
-      "notes": "Renderer-neutral scene state plus the Cesium primitive adapter for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — see the surface tiers table.",
+      "notes": "Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — see the surface tiers table.",
       "evidence": [
         "scene-workspace-fixtures",
         "scene-state-sync-fixtures",
         "scene-primitive-diagnostics-fixtures",
         "cesium-scene-adapter-fixtures",
+        "cesium-scene-mount-fixtures",
         "cesium-scene-adapter-browser",
         "scene-bundle-isolation"
       ]
@@ -2244,6 +2267,7 @@
         ],
         "exports": [
           "AddCesium3DTilesetOptions",
+          "ApplyMountedScenePrimitivesOptions",
           "CESIUM_SCENE_CAPABILITIES",
           "CesiumCameraLike",
           "CesiumCameraView",
@@ -2256,12 +2280,17 @@
           "CesiumModelPlacement",
           "CesiumPrimitiveCollectionLike",
           "CesiumSceneLike",
+          "CesiumSceneMaterializationOptions",
+          "CesiumSceneMountErrorCode",
+          "CesiumSceneMountState",
           "CesiumSceneRuntimeTarget",
           "CesiumTilesetLike",
           "CreateSceneStateSynchronizerOptions",
+          "DEFAULT_SCENE_MOUNT_LAYER_LIMIT",
           "Honua3DStyleConditions",
           "Honua3DStyleDescriptor",
           "Honua3DStyleSpec",
+          "HonuaCesiumSceneMountError",
           "HonuaSceneStateSyncError",
           "MAPLIBRE_SCENE_CAPABILITIES",
           "MapLibreExtrusionLayerSpecification",
@@ -2269,6 +2298,9 @@
           "MapLibreTerrainOptions",
           "MapLibreTerrainPatch",
           "MapLibreTerrainSourceSpecification",
+          "MountScenePrimitivesToCesiumOptions",
+          "MountedCesiumScenePrimitives",
+          "MountedScenePrimitiveApplyResult",
           "RENDERER_WGS84_SPATIAL_CAPABILITIES",
           "SCENE_STATE_SYNC_KIND",
           "SCENE_STATE_SYNC_SLICES",
@@ -2360,6 +2392,7 @@
           "honua3DStyleToCesiumStyleOptions",
           "loadHonua3DStyle",
           "modelLayerToCesiumPlacement",
+          "mountScenePrimitivesToCesium",
           "pickCesiumFeatureAttributes",
           "readHonua3DStyleDescriptor",
           "reduceSceneWorkspaceState",

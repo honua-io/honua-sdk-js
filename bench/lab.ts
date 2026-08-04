@@ -18,6 +18,12 @@ import {
   type ColumnarDataPlaneSample,
   runColumnarDataPlaneBenchmark,
 } from "./columnar-data-plane-bench.js";
+import {
+  type ColumnarResultConversionBenchmarkOptions,
+  type ColumnarResultConversionBenchmarkResult,
+  type ColumnarResultConversionSample,
+  runColumnarResultConversionBenchmark,
+} from "./columnar-result-bench.js";
 import { validateCrossSdkReferenceFiles } from "./cross-sdk/validate.js";
 
 import {
@@ -73,13 +79,19 @@ interface ColumnarAggregateCorpusScenario extends ColumnarAggregateBenchmarkOpti
   kind: "columnar-aggregate";
 }
 
+interface ColumnarResultConversionCorpusScenario extends ColumnarResultConversionBenchmarkOptions {
+  id: string;
+  kind: "columnar-result-conversion";
+}
+
 type CorpusScenario =
   | StreamCorpusScenario
   | OfflineReloadCorpusScenario
   | RealtimeReconnectCorpusScenario
   | QueryResourceHandleCorpusScenario
   | ColumnarDataPlaneCorpusScenario
-  | ColumnarAggregateCorpusScenario;
+  | ColumnarAggregateCorpusScenario
+  | ColumnarResultConversionCorpusScenario;
 
 interface Corpus {
   schemaVersion: 2;
@@ -149,6 +161,7 @@ interface ScenarioResult {
     | { totalDurationMs: number; operationsPerSecond: number }
     | ColumnarDataPlaneSample
     | ColumnarAggregateSample
+    | ColumnarResultConversionSample
   >;
   summary: {
     totalDurationMs: MetricSummary;
@@ -165,6 +178,7 @@ interface ScenarioResult {
     inputRowsPerSecond?: MetricSummary;
     retainedBytesPerInputRow?: MetricSummary;
     outputBackingBytesPerGroup?: MetricSummary;
+    retainedBytesPerFeature?: MetricSummary;
   };
   invariants: {
     expectedTotalFeatures?: number;
@@ -341,6 +355,16 @@ function validateCorpus(value: unknown): Corpus {
     } else if (scenario.kind === "columnar-aggregate") {
       allowedKeys = new Set([...commonKeys, "inputRowCount", "groupCount"]);
       if (!positive(scenario.inputRowCount) || !positive(scenario.groupCount)) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+    } else if (scenario.kind === "columnar-result-conversion") {
+      allowedKeys = new Set([...commonKeys, "batchRowCount", "windowSize"]);
+      if (!positive(scenario.batchRowCount) || !positive(scenario.windowSize)) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+      // The window must fit inside the batch, or the scenario is not measuring
+      // a bounded window of a larger batch at all.
+      if (scenario.windowSize > scenario.batchRowCount) {
         throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
       }
     } else {
@@ -558,6 +582,40 @@ function columnarAggregateResult(
   };
 }
 
+function columnarResultConversionResult(
+  scenario: ColumnarResultConversionCorpusScenario,
+  result: ColumnarResultConversionBenchmarkResult,
+): ScenarioResult {
+  const metrics: Array<keyof ColumnarResultConversionSample> = [
+    "totalDurationMs",
+    "featuresPerSecond",
+    "retainedBytesPerFeature",
+  ];
+  const summary = Object.fromEntries(
+    metrics.map((metric) => [metric, summarizeSamples(result.samples.map((sample) => sample[metric]))]),
+  ) as ScenarioResult["summary"];
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      batchRowCount: scenario.batchRowCount,
+      windowSize: scenario.windowSize,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary,
+    invariants: {
+      // The converted window, not the batch: this scenario's whole point is
+      // that those two numbers are allowed to differ by three orders of
+      // magnitude.
+      expectedTotalFeatures: scenario.windowSize,
+      checks: result.invariants.checks,
+      passed: result.invariants.passed,
+    },
+  };
+}
+
 async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
   if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
@@ -569,6 +627,9 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   }
   if (scenario.kind === "columnar-aggregate") {
     return columnarAggregateResult(scenario, await runColumnarAggregateBenchmark(scenario));
+  }
+  if (scenario.kind === "columnar-result-conversion") {
+    return columnarResultConversionResult(scenario, await runColumnarResultConversionBenchmark(scenario));
   }
   return queryResourceResult(scenario, await runQueryResourceHandleBenchmark(scenario));
 }

@@ -153,8 +153,11 @@ void createHonuaApp({
       center: pkg.initialView?.center ? [...pkg.initialView.center] : [-157.86, 21.3],
       zoom: pkg.initialView?.zoom ?? 10,
       attributionControl: false,
-      preserveDrawingBuffer: true,
-    } as maplibregl.MapOptions & { preserveDrawingBuffer: boolean }),
+      // MapLibre 5 and 6 take WebGL context attributes here; a top-level
+      // `preserveDrawingBuffer` is silently ignored, which would make the
+      // web-component snapshot export read a blank canvas.
+      canvasContextAttributes: { preserveDrawingBuffer: true },
+    }),
   load: { skipCompatibilityCheck: true },
   webComponents: {
     featuresBySource: {

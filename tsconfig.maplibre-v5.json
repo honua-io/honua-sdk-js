@@ -1,0 +1,11 @@
+{
+  "//": "MapLibre 5 leg of the peer-major matrix (issue #1004). The default typecheck compiles against the 6.x devDependency's typings; this overlay points the `maplibre-gl` specifier at the `maplibre-gl-v5` alias (npm:maplibre-gl@^5.24.0) so the structural map interfaces the SDK duck-types (MapLibreRendererMap, StacCogAssetToMapLibreMap, and the expectTypeOf gates in test/) are proven against both majors in the declared `^5.0.0 || ^6.0.0` peer range. Run it with `npm run typecheck:maplibre-v5`.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "maplibre-gl": ["./node_modules/maplibre-gl-v5/dist/maplibre-gl.d.ts"]
+    }
+  }
+}

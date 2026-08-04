@@ -47,9 +47,42 @@ export interface FeatureFilterHandleCompat {
   remove(): void;
 }
 
+/**
+ * ArcGIS-shaped `FeatureFilter` properties, for handing a compat filter to an
+ * ArcGIS construct that has not been migrated.
+ *
+ * `objectIds` is narrowed to ArcGIS's `number[]` here, which is exactly the
+ * narrowing {@link FeatureFilterCompat.toEsriProperties} has to prove.
+ */
+export interface FeatureFilterEsriProperties {
+  where?: string;
+  objectIds?: number[];
+  geometry?: FeatureFilterGeometryCompat;
+  spatialRelationship: FeatureFilterSpatialRelationshipCompat;
+  distance?: number;
+  units?: string;
+  timeExtent?: { start?: Date | number | null; end?: Date | number | null };
+}
+
+/**
+ * ArcGIS `FeatureFilter` shim.
+ *
+ * **Documented divergence — `objectIds` element type (#1013).** ArcGIS
+ * declares `objectIds: number[]`. This shim declares
+ * `Array<number | string>`: Honua's non-Esri sources (OGC API Features,
+ * GeoJSON, STAC) carry string feature ids, and narrowing the property to
+ * `number` would make the shim unable to hold ids it has to round-trip
+ * through `queryFeatures` / `queryObjectIds`. The array itself is mutable, as
+ * ArcGIS declares it — `filter.objectIds.push(id)` is honored, because the
+ * array the shim stores is the array it evaluates.
+ *
+ * Use {@link FeatureFilterCompat.toEsriProperties} to project the filter onto
+ * the exact ArcGIS shape; it fails loudly rather than silently dropping an id
+ * ArcGIS cannot represent. See `docs/migration-punch-list.md`.
+ */
 export class FeatureFilterCompat {
   public where: string | null;
-  public objectIds: ReadonlyArray<number | string> | null;
+  public objectIds: Array<number | string> | null;
   public geometry: FeatureFilterGeometryCompat | null;
   public spatialRelationship: FeatureFilterSpatialRelationshipCompat;
   public distance: number | undefined;
@@ -132,6 +165,39 @@ export class FeatureFilterCompat {
     }
     this.eventBus.emit("feature-filter.updated", { filter: this.toJSON() }, this);
     return this;
+  }
+
+  /**
+   * Project this filter onto the ArcGIS `FeatureFilterProperties` shape so a
+   * partially migrated app can hand it to an un-migrated `@arcgis/core`
+   * construct (#1013 REQ-003).
+   *
+   * Throws when `objectIds` holds an id ArcGIS cannot represent: ArcGIS object
+   * ids are numbers, and quietly dropping or coercing a string id would hand
+   * back a filter that selects a different set of features than this one.
+   */
+  public toEsriProperties(): FeatureFilterEsriProperties {
+    const properties: FeatureFilterEsriProperties = {
+      spatialRelationship: this.spatialRelationship,
+    };
+    if (this.where != null) properties.where = this.where;
+    if (this.objectIds != null) {
+      const unrepresentable = this.objectIds.filter(
+        (objectId) => typeof objectId !== "number" || !Number.isFinite(objectId),
+      );
+      if (unrepresentable.length > 0) {
+        const rendered = unrepresentable.map((objectId) => JSON.stringify(objectId)).join(", ");
+        throw new Error(
+          `FeatureFilterCompat.toEsriProperties cannot represent non-numeric object ids as ArcGIS number[]: ${rendered}.`,
+        );
+      }
+      properties.objectIds = this.objectIds as number[];
+    }
+    if (this.geometry != null) properties.geometry = this.geometry;
+    if (this.distance !== undefined) properties.distance = this.distance;
+    if (this.units !== undefined) properties.units = this.units;
+    if (this.timeExtent != null) properties.timeExtent = this.timeExtent;
+    return properties;
   }
 
   public toJSON(): Record<string, unknown> {

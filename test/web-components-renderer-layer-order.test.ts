@@ -76,7 +76,10 @@ vi.mock("maplibre-gl", () => {
     remove(): void {}
     resize(): void {}
   }
-  return { default: { Map: FakeMap } };
+  // MapLibre 6's ESM-only packaging: named exports, no default. The
+  // default-namespace (MapLibre 5 interop) shape is covered by
+  // test/web-components-maplibre-module-compat.test.ts.
+  return { Map: FakeMap, default: undefined };
 });
 
 function makeMapPackage(): HonuaMapPackage {

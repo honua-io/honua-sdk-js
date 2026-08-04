@@ -12,7 +12,8 @@
  *
  * - A **renderer** it is allowed to read pixels from. `canvas.toDataURL()` on a
  *   WebGL map silently returns a blank image unless the map was created with
- *   `preserveDrawingBuffer: true`, and it throws on a canvas tainted by
+ *   `canvasContextAttributes: { preserveDrawingBuffer: true }` (MapLibre 5 and
+ *   6; earlier majors took a top-level `preserveDrawingBuffer`), and it throws on a canvas tainted by
  *   cross-origin tiles. Only the application that constructed the map knows
  *   which of those is true, and only it can decide whether reading those
  *   pixels is authorized.
@@ -1002,8 +1003,8 @@ export interface HonuaSnapshotSource {
    * snapshot fail closed instead of emitting a blank image.
    *
    * The application is asserting, by supplying this, that the canvas was
-   * created with `preserveDrawingBuffer: true` (or is otherwise readable) and
-   * that reading it is authorized.
+   * created with `canvasContextAttributes: { preserveDrawingBuffer: true }`
+   * (or is otherwise readable) and that reading it is authorized.
    */
   getCanvas(): HonuaSnapshotCanvasLike | undefined;
   /** Preferred media type, default `image/png`. */
@@ -1060,7 +1061,8 @@ function decodeDataUrl(dataUrl: string): { mediaType: string; bytes: Uint8Array 
  * ```ts doc-test=skip reason="requires a live MapLibre map instance"
  * const adapter = createHonuaExportAdapter({
  *   id: "my-app",
- *   snapshot: { getCanvas: () => map.getCanvas() },  // map created with preserveDrawingBuffer
+ *   // map created with canvasContextAttributes: { preserveDrawingBuffer: true }
+ *   snapshot: { getCanvas: () => map.getCanvas() },
  *   state: true,
  * });
  * printExportElement.exportAdapter = adapter;
@@ -1096,7 +1098,7 @@ export function createHonuaExportAdapter(options: CreateHonuaExportAdapterOption
       if (!canvas) {
         throw new HonuaExportError(
           "error",
-          "The renderer canvas is not currently readable, so no snapshot was produced. A map must be created with preserveDrawingBuffer: true for its pixels to be readable.",
+          "The renderer canvas is not currently readable, so no snapshot was produced. A map must be created with canvasContextAttributes: { preserveDrawingBuffer: true } for its pixels to be readable.",
         );
       }
       const mediaType = context.mediaType ?? source.mediaType ?? "image/png";

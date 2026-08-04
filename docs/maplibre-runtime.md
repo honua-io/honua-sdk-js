@@ -20,16 +20,62 @@ through the contract's `Source` handles.
 
 ## MapLibre 5 and 6 compatibility
 
-The optional `maplibre-gl` peer range is `^5.0.0 || ^6.0.0`. The compatibility
-gate renders the same Honua-generated style through the latest 5.x release and
-6.x; the development dependency and runnable examples target 6.x.
+**Supported MapLibre majors: 5 and 6.** The optional `maplibre-gl` peer range is
+`^5.0.0 || ^6.0.0`, and 6.x is the recommended major for new apps — it is what
+the development dependency and every runnable example in this repository
+install. MapLibre 5 stays supported for apps that have not migrated yet; it is
+not deprecated in this release, and any future narrowing will be a dated
+decision recorded here rather than a silent break.
+
+> **Registry status (2026-08-03).** The widened range is in the source tree and
+> ships with the next release. The newest published package
+> (`@honua/sdk-js@0.1.2-beta.0`) still declares `maplibre-gl@^5.0.0`, so an app
+> that installs the SDK from npm today and asks for MapLibre 6 gets an
+> `ERESOLVE` peer conflict. That is why the `create-honua-app` starters still
+> pin 5.24.0 (`docs/create-honua-app.md`); they move to 6.x in the first release
+> whose published `peerDependencies` carry both majors.
+
+That claim is gated, not asserted. CI runs a `MapLibre peer-major matrix
+(5.x + 6.x)` step (`npm run test:maplibre-compat`) that:
+
+- typechecks the whole tree against MapLibre 5's typings
+  (`npm run typecheck:maplibre-v5`, `tsconfig.maplibre-v5.json`), while the
+  ordinary `npm run typecheck` covers 6.x;
+- imports the real peer module on both majors and asserts every symbol the SDK
+  reaches for, including live `pmtiles://` protocol registration
+  (`test/maplibre-peer-major-compat.test.ts`, re-run under
+  `vitest.maplibre-v5.config.ts` with the `maplibre-gl-v5` alias);
+- exercises both module packagings the `<honua-map>` renderer must accept
+  (`test/web-components-maplibre-module-compat.test.ts`);
+- renders the same Honua-generated style in a real browser under 5.x and 6.x
+  (`test/playwright/migration-browser-maplibre.spec.mjs`).
 
 MapLibre 6 is ESM-only, targets ES2022, and requires WebGL2. Use namespace or
 named imports (`import * as maplibregl from "maplibre-gl"`) rather than the v5
 default import or removed UMD bundle. Vite hosts must also configure the module
-worker; the examples share `examples/shared/maplibre-vite-worker.ts`, which uses
-Vite's `?worker&url` pipeline before creating a map. See MapLibre's official
+worker; the examples share `examples/shared/maplibre-vite-worker.ts` and the
+starters ship `src/maplibre-worker.ts`, both of which use Vite's `?worker&url`
+pipeline before creating a map. See MapLibre's official
 [v5-to-v6 migration guide](https://github.com/maplibre/maplibre-gl-js/blob/v6.0.0/docs/guides/v5-to-v6-migration-guide.md).
+
+WebGL context attributes belong under `canvasContextAttributes` on both
+supported majors — MapLibre 5.0 moved `preserveDrawingBuffer`, `antialias`, and
+`failIfMajorPerformanceCaveat` there, and 6.x kept them. A top-level
+`preserveDrawingBuffer` is silently ignored, which is why the snapshot export in
+`@honua/sdk-js/web-components` requires the nested form:
+
+```ts doc-test=skip reason="requires a live MapLibre map"
+const map = new maplibregl.Map({
+  container,
+  style,
+  canvasContextAttributes: { preserveDrawingBuffer: true },
+});
+```
+
+Because MapLibre 6 dropped WebGL1, a WebGL1-only device has no supported
+renderer at all. The reviewed deck.gl capability policy
+(`bench/browser/capability-policy.mjs`) classifies such a device `unsupported`
+rather than routing it to a MapLibre fallback that cannot draw.
 
 The SDK keeps its direct style validator on style-spec 24.x so headless users
 are not coupled to MapLibre 6's style-spec 26 dependency. Renderer mounting,
@@ -40,10 +86,9 @@ validation for now.
 MapLibre 6 itself declares Node `>=16.14.0`, and the compatibility checks pass
 under this repository's Node 20.19.0 baseline. The SDK pins
 `@mapbox/jsonlint-lines-primitives` 2.0.2 so its direct style-spec 24.x validator
-continues to honor that Node baseline. MapLibre 6's separate style-spec
-dependency currently carries transitive engine metadata that names Node 22, so
-an `engine-strict=true` install may reject v6 even though the exercised APIs run
-on Node 20; use v5 until that upstream metadata is corrected.
+continues to honor that Node baseline. MapLibre 6's style-spec 26.x dependency
+declares no engine constraint as of 26.2.1 (observed 2026-08-03), so an
+`engine-strict=true` install no longer rejects v6 on Node 20.
 
 ## Standalone data-to-map bridge
 

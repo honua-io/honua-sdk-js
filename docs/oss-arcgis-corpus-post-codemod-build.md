@@ -9,7 +9,7 @@ The [readiness page](./oss-arcgis-corpus-readiness.md) counts call sites. It can
 
 Every app is measured **twice at the same commit with the same dependency tree** — once pristine (`baseline`) and once after `codemod --write` (`migrated`). Third-party apps carry their own pre-existing type errors, so only the *delta* is attributable to the migration. Diagnostics that were already there are reported as the app's, not as ours.
 
-- Observation generated: `2026-08-04T08:58:52.826Z`
+- Observation generated: `2026-08-04T10:05:23.167Z`
 - Manifest revision: `2026-08-04`
 - Honua packages under test: `0.1.2-beta.0` (packed from `dist/packages`, never a registry)
 - Typecheck probe: TypeScript `5.9.3`, resolved from this repository so both phases run the identical compiler
@@ -38,7 +38,7 @@ Deep validation is the one place the corpus installs third-party dependencies, s
 
 | App | Outcome | Baseline build | Migrated build | New diagnostics | Resolved |
 | --- | --- | --- | --- | --- | --- |
-| [Owls of Bavaria](#owls-of-bavaria) | builds, new diagnostics | pass | pass | 3 | 4 |
+| [Owls of Bavaria](#owls-of-bavaria) | builds, new diagnostics | pass | pass | 2 | 4 |
 
 1 of 1 allowlisted app built post-codemod against `@honua/sdk-esri-compat`.
 
@@ -52,11 +52,13 @@ Deep validation is the one place the corpus installs third-party dependencies, s
 - Lockfile: `package-lock.json`
 - Codemod scan root: `src`
 
-The codemod rewrote 6 of 7 in-scope call sites across 3 files to `@honua/sdk-esri-compat`, leaving 1 annotated manual TODO. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
+The codemod rewrote 5 of 7 in-scope call sites across 3 files to `@honua/sdk-esri-compat`, leaving 2 annotated manual TODOs. The un-migrated call sites keep importing `@arcgis/core`, so the build below exercises a genuinely half-migrated module graph.
+
+1 of those TODOs is a held-back rewrite: the construct is in codemod scope, but its value flows into an ArcGIS module the codemod does not migrate, so rewriting it would have left a compat value in an un-migrated ArcGIS consumer's hands (#1012). Held-back call sites are counted as manual, never as auto-migrated.
 
 | Step | Baseline | Migrated |
 | --- | --- | --- |
-| Typecheck | **fail** (27 diagnostics) | **fail** (26 diagnostics) |
+| Typecheck | **fail** (27 diagnostics) | **fail** (25 diagnostics) |
 | Build | pass | pass |
 
 ### Diagnostics the migration introduced
@@ -65,7 +67,6 @@ These are present after the codemod and absent before it, at the same commit wit
 
 ```text doc-test=skip reason="captured tsc output, not a compilable snippet"
 src/components/MapWindow.jsx: error TS2345: Argument of type 'AsyncThunkAction<MapViewCompat, void, AsyncThunkConfig>' is not assignable to parameter of type 'AnyAction'.
-src/features/map/filterOwlLayer.jsx: error TS2322: Type 'FeatureFilterCompat' is not assignable to type 'FeatureFilterProperties'.
 src/features/map/mapSlice.jsx: error TS2322: Type 'void' is not assignable to type 'string | HTMLElement'.
 ```
 

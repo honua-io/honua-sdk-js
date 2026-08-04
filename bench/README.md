@@ -180,7 +180,9 @@ journey to consume:
   unit-tested policy in
   [`browser/capability-policy.mjs`](./browser/capability-policy.mjs) into one
   of three tiers — `supported`, `fallback-maplibre`, or `unsupported` — and
-  only attempt a deck.gl mount when `supported`. The fallback scenario
+  only attempt a deck.gl mount when `supported`. WebGL2 is the floor for both
+  renderers: MapLibre GL JS 6 removed WebGL1, so a device without WebGL2 is
+  `unsupported` rather than routed to the MapLibre fallback (#1004). The fallback scenario
   deterministically simulates a no-WebGL device by overriding
   `HTMLCanvasElement.getContext` before any page script runs (portable across
   Chromium/Firefox/WebKit, not a Chromium-only launch flag). The report's
@@ -393,6 +395,75 @@ them costs hundreds of bytes per input row and would hold those objects live at
 exactly the checkpoints the retention run samples. `outputBackingBytesPerGroup`
 is fully deterministic and states the property the issue turns on — the result
 is sized by the group count, never by the input row count.
+
+## Bounded columnar-to-`Result` conversion scenario
+
+[`columnar-result-bench.ts`](./columnar-result-bench.ts) is the benchmark-lab
+scenario (`columnar.result.bounded-window`) for the one columnar operation that
+materializes rows on purpose. The data-plane scenario above walks a batch to the
+renderer without ever building a feature, and the reduction scenario shrinks one
+without building a feature either; `columnarBatchToResult` cuts a 1,000-row
+window out of a 1,000,000-row batch and builds real objects from it, which is
+what issue #942 exists to make affordable.
+
+The claim under test is that this cost is proportional to the **window** and not
+to the batch. The window is one thousandth of the batch, so an implementation
+that reverted to scanning or validating every row per conversion would still
+return the correct thousand features and would still hold the memory ceiling —
+it would simply miss the throughput floor by orders of magnitude. That is why
+the floor is the load-bearing gate here rather than a nice-to-have.
+
+The fixture carries all four columns a normative GeoArrow batch can hold — point
+geometry, a timestamp, a dictionary-encoded category, and feature ids — so the
+floor covers a whole realistic row rather than only the point geometry NFR-002
+names. Every third row has a null timestamp and every fourth a null category, so
+explicit-null attribute handling is on the measured path. The window is cut from
+the **middle** of the batch: a conversion that quietly started reading at the
+beginning of a buffer would pass a window anchored at row zero and fail this one.
+The fixture is built once outside every measured region — the floor is on
+conversion throughput, not on GeoArrow encoding throughput.
+
+Each repetition runs two measured regions:
+
+1. **timed** — twenty-five consecutive distinct windows, with no memory
+   instrumentation inside the region. Two choices here are deliberate. It is
+   *not* preceded by a forced collection, because a bounded conversion is
+   milliseconds of work and a full collection immediately before it would
+   measure the allocator warming back up rather than steady-state conversion.
+   And it times a run of windows rather than one, because a single conversion is
+   short enough that one collection landing inside it swings the reading by tens
+   of percent and trips the lab's repeated-run variability check on noise.
+   Timing *consecutive distinct* windows costs no honesty — that is the paging
+   workload an application performs — whereas converting one window repeatedly
+   would have flattered the number out of warm cache.
+2. **retention** — exactly one window, untimed, collected before the baseline
+   and again with the converted window still held live. The batch's own backings
+   are already live at the baseline, so the difference is what the window retains
+   *beyond* the batch it was cut from, which is the quantity NFR-001 bounds.
+
+A third untimed pass walks the same range through `columnarBatchToResultPages`
+and requires the concatenation to equal the single-window conversion exactly,
+and a fourth aborts a traversal after its first page. Paging is the only
+scheduling knob the conversion exposes, so an output that survives being cut
+into pages and yielded across task boundaries cannot be moved by a consumer's
+pacing either.
+
+Seven invariants gate every repetition: `collectedBaseline`, `windowExact`
+(every converted feature matches the exactly computed reference for its row),
+`orderingExact`, `inputBatchUnmutated`, `repeatable`, `pagingMatchesWindow`, and
+`cancellable`.
+
+| Metric | Warning | Failure | Measured |
+| --- | ---: | ---: | --- |
+| `retainedBytesPerFeature` | 512 | 1,024 | 219.0–258.6 |
+| `featuresPerSecond` | 400,000 | 200,000 | 748,842–1,517,304 (per-run medians) |
+
+Both failure thresholds are the numbers #942 itself names: NFR-001's 1 MB per
+1,000 converted features is exactly 1,024 retained bytes/feature, and NFR-002
+sets the 200,000 features/second floor. The measured ranges span a quiet shared
+linux host and the same host running three other build agents, so the ceiling
+sits 4.0x and the floor 3.7x clear of the worst median, and the advisory warning
+sits below the loaded-host median so contention alone cannot raise it.
 
 ## Stream / pagination scenario
 

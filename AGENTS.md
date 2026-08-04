@@ -22,7 +22,7 @@ This repo also contains a separate MCP server package (`@honua/mcp-server`) unde
 - **Lint/format:** Biome 1.9.4 (`biome.json`).
 - **Examples/demos:** Vite 7.
 - **Protobuf/RPC:** `@bufbuild/*` + `@connectrpc/*` (buf codegen; generated code in `src/gen`).
-- **Runtime peers (not bundled):** `maplibre-gl` ^5, `cesium` ^1.139, `@bufbuild/protobuf`, `@connectrpc/connect`, `@connectrpc/connect-web`. Sole runtime dependency: `@maplibre/maplibre-gl-style-spec`.
+- **Runtime peers (not bundled):** `maplibre-gl` ^5 || ^6 (dual-major; see `docs/maplibre-runtime.md`), `cesium` ^1.139, `@bufbuild/protobuf`, `@connectrpc/connect`, `@connectrpc/connect-web`. Sole runtime dependency: `@maplibre/maplibre-gl-style-spec`.
 
 ## Setup
 
