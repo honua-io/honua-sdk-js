@@ -1,4 +1,5 @@
 import type { ProtocolModuleQueryOperation } from "../contract/protocol-module.js";
+import type { QueryFilterExpression, QueryTemporalFilter } from "../contract/query-filter.js";
 import type {
   AggregationSpec,
   Capability,
@@ -42,6 +43,14 @@ export interface CanonicalSpatialFilter {
 export interface CanonicalQuery {
   /** The current contract carries a source-native string escape hatch. */
   readonly where?: { readonly kind: "source-native"; readonly expression: string };
+  /**
+   * Typed semantic filter carried verbatim into the IR so it participates in
+   * `hashQueryIr` / `hashQueryPlan` exactly as every other query member does.
+   * A compiler that cannot express it refuses; it is never dropped in planning.
+   */
+  readonly filter?: QueryFilterExpression;
+  /** Canonical temporal constraint (instant or interval, optionally field bound). */
+  readonly temporalFilter?: QueryTemporalFilter;
   readonly spatialFilter?: CanonicalSpatialFilter;
   readonly outFields?: readonly string[];
   readonly orderBy?: readonly { readonly field: string; readonly direction: "asc" | "desc" }[];
@@ -372,6 +381,8 @@ export interface GeoServicesCompiledQueryV1 {
   readonly geometry?: { readonly [key: string]: JsonValue };
   readonly geometryType?: EsriGeometryType;
   readonly spatialRel?: EsriSpatialRel;
+  /** GeoServices `time=` value compiled from a source-dimension temporal filter. */
+  readonly time?: string;
   readonly resultOffset?: number;
   readonly resultRecordCount?: number;
   readonly outStatistics?: readonly {
@@ -388,6 +399,8 @@ export interface OgcApiFeaturesCompiledQueryV1 {
   readonly collectionId: string | number;
   readonly filter?: string;
   readonly filterLang?: "cql2-text";
+  /** OGC `datetime=` value compiled from a source-dimension temporal filter. */
+  readonly datetime?: string;
   readonly properties?: readonly string[];
   readonly sortby?: string;
   readonly bbox?: string;

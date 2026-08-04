@@ -13,6 +13,7 @@
  * @module
  */
 
+import { type QueryFilterContext, compileQueryFilterToSql92 } from "../contract/query-filter.js";
 import { validateExecutableCrsBinding } from "../contract/schema.js";
 import type {
   CanonicalGeometry,
@@ -26,6 +27,7 @@ import type {
 } from "../contract/schema.js";
 import type { AggregationFn, AggregationSpec } from "../contract/types.js";
 import type { EsriSpatialRel } from "../core/types.js";
+import { canonicalFilterParts, refuseCanonicalFilter } from "./canonical-filter.js";
 import { hashSemanticQuery } from "./semantic-canonical.js";
 import {
   type RuntimeSemanticQuery,
@@ -171,13 +173,44 @@ export function compileGrpcQuery(source: QueryIrSourceIdentity, query: Canonical
   // and GeoServices contract by forcing returnGeometry=false for statistics.
   const returnGeometry = aggregation ? false : query.returnGeometry;
 
+  // The gRPC FeatureService speaks the same SQL-92 `where` vocabulary as the
+  // REST FeatureServer, so the typed filter lowers through the same compiler.
+  // It has no `time` parameter, so a source-dimension temporal filter refuses.
+  const ctx: QueryFilterContext = { protocol: "grpc", sourceId: source.id };
+  const parts = canonicalFilterParts(query, ctx);
+  if (parts.protocolTime) {
+    refuseCanonicalFilter(
+      "Query.temporalFilter without a field",
+      "honua gRPC FeatureService",
+      "QueryFeatures has no time parameter; name the temporal field so the predicate stays exact",
+    );
+  }
+  const typed = parts.expression ? compileQueryFilterToSql92(parts.expression, ctx) : {};
+  if (query.spatialFilter && typed.spatialFilter) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "A gRPC QueryFeatures request carries one geometry; Query.spatialFilter and a spatial filter node cannot both be sent",
+    );
+  }
+  const spatialFilter = query.spatialFilter ?? typed.spatialFilter;
+  const whereParts = [
+    ...(query.where ? [query.where.expression] : []),
+    ...(typed.where !== undefined ? [typed.where] : []),
+  ];
+  const where =
+    whereParts.length === 0
+      ? undefined
+      : whereParts.length === 1
+        ? whereParts[0]
+        : whereParts.map((part) => `(${part})`).join(" AND ");
+
   return {
     compiler: "honua-grpc-query-features-v1",
     service: "honua.v1.FeatureService",
     method: "QueryFeatures",
     serviceId: source.serviceId,
     layerId: source.layerId,
-    ...(query.where ? { where: query.where.expression } : {}),
+    ...(where !== undefined ? { where } : {}),
     ...(query.outFields && query.outFields.length > 0 ? { outFields: query.outFields } : {}),
     ...(returnGeometry !== undefined ? { returnGeometry } : {}),
     ...(query.outSr !== undefined ? { outSr: query.outSr } : {}),
@@ -186,12 +219,12 @@ export function compileGrpcQuery(source: QueryIrSourceIdentity, query: Canonical
           orderBy: query.orderBy.map((sort) => `${sort.field}${sort.direction === "desc" ? " DESC" : ""}`).join(","),
         }
       : {}),
-    ...(query.spatialFilter
+    ...(spatialFilter
       ? {
           spatialFilter: {
-            geometry: query.spatialFilter.geometry,
-            geometryType: query.spatialFilter.geometryType,
-            spatialRelationship: spatialRelationship(query.spatialFilter.spatialRel),
+            geometry: spatialFilter.geometry as { readonly [key: string]: JsonValue },
+            geometryType: spatialFilter.geometryType,
+            spatialRelationship: spatialRelationship(spatialFilter.spatialRel),
           },
         }
       : {}),

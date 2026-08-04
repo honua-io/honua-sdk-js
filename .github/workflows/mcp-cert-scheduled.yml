@@ -141,12 +141,18 @@ jobs:
       - name: Regenerate leaderboard
         run: node mcp/scripts/render-leaderboard.mjs
 
+      # The published docs-site scorecard is a pure function of the artifacts
+      # this job just committed, and its freshness is a trunk gate (#960), so it
+      # is regenerated in the same commit. Dependency-free, like the leaderboard.
+      - name: Regenerate published scorecard
+        run: node scripts/generate-mcp-eval-scorecard.mjs write
+
       - name: Commit report + leaderboard
         run: |
           set -euo pipefail
           git config user.name "honua-ci[bot]"
           git config user.email "ci@honua.io"
-          git add mcp/evals
+          git add mcp/evals docs/generated/mcp-eval-scorecard.md
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0

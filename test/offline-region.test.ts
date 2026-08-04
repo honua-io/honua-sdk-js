@@ -479,7 +479,22 @@ describe("offline region diagnostics", () => {
       staleAfterMs: 60 * 60 * 1000,
     });
 
-    expect(diagnostic.admission).toEqual({ status: "rejected", reason: "quota-exceeded", logicalQuotaBytes: 8 });
+    // The rejection explains the plan that was attempted: the pinned region is
+    // never proposed for eviction, so the projection still exceeds quota.
+    expect(diagnostic.admission).toEqual({
+      status: "rejected",
+      reason: "quota-exceeded",
+      logicalQuotaBytes: 8,
+      attempted: {
+        logicalQuotaBytes: 8,
+        logicalBytesBefore: 5,
+        replacementLogicalBytes: 0,
+        requiredLogicalBytes: 6,
+        evictRegionIds: [],
+        evictedLogicalBytes: 0,
+        logicalBytesAfter: 11,
+      },
+    });
     expect(JSON.stringify(inventory)).toBe(before);
   });
 

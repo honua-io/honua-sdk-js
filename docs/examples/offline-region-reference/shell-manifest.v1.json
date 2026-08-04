@@ -1,24 +1,30 @@
 {
   "format": "honua.offline-shell-manifest.v1",
-  "deploymentId": "offline-region-reference-2026-08-01-v1",
+  "deploymentId": "offline-region-reference-2026-08-06-v2",
   "resources": [
     {
       "url": "./",
-      "byteLength": 1545,
-      "integrity": "sha256:541e92e00157ed0070c47931ea1239da27b88846d7fc338b28e93845c250036a",
+      "byteLength": 1818,
+      "integrity": "sha256:72c260e7419de5c320e0ce734024ed924d12b14e166b95e690573d3c0296d152",
       "mediaType": "text/html"
     },
     {
       "url": "./app.mjs",
-      "byteLength": 12561,
-      "integrity": "sha256:a7069d51f164833073421a053a57cdf5d631cbb27faa23685a30473372a0f99e",
+      "byteLength": 18958,
+      "integrity": "sha256:d74f8d65d87e15ba8a7adf71064e126db70e1b26ed6c126eb6a5202918dea79e",
       "mediaType": "application/javascript"
     },
     {
       "url": "./index.html",
-      "byteLength": 1545,
-      "integrity": "sha256:541e92e00157ed0070c47931ea1239da27b88846d7fc338b28e93845c250036a",
+      "byteLength": 1818,
+      "integrity": "sha256:72c260e7419de5c320e0ce734024ed924d12b14e166b95e690573d3c0296d152",
       "mediaType": "text/html"
+    },
+    {
+      "url": "/dist/src/connect-url-safety.js",
+      "byteLength": 7447,
+      "integrity": "sha256:5364b477bd0750fa533807b0192db454944739a6da41a5ce8f9ec5ebada7b906",
+      "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/contract/discovery.js",
@@ -40,8 +46,8 @@
     },
     {
       "url": "/dist/src/core/error-classifications.js",
-      "byteLength": 12510,
-      "integrity": "sha256:1d80b3ca9f34a2a73bd0b1b039316b5c5f3c99dfb80f5553008cd16df2371966",
+      "byteLength": 12592,
+      "integrity": "sha256:a7a53a5f0266e96bdb823cae54dbc97db1bfc3debf6510789f3973f435627599",
       "mediaType": "application/javascript"
     },
     {
@@ -57,9 +63,21 @@
       "mediaType": "application/javascript"
     },
     {
+      "url": "/dist/src/offline/credential-screen.js",
+      "byteLength": 3310,
+      "integrity": "sha256:9fee2f47edb407543dc3003098f237ffa2cd9564a2c10124369f2c478d3ac55a",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/digest.js",
+      "byteLength": 2640,
+      "integrity": "sha256:dfad0e60c49dd36cdfdb9185369c2e733505bd67070aef3247d70961a3cea5c5",
+      "mediaType": "application/javascript"
+    },
+    {
       "url": "/dist/src/offline/edit-queue.js",
-      "byteLength": 46911,
-      "integrity": "sha256:385aa3e2f7d79381cfc2538c5b81eb0340e3aea06a14c8bf4835516491463618",
+      "byteLength": 48780,
+      "integrity": "sha256:60141f597bc90d75183a14524681186ce0d161eb4e39a08130e937e01240ecfc",
       "mediaType": "application/javascript"
     },
     {
@@ -76,26 +94,86 @@
     },
     {
       "url": "/dist/src/offline/index.js",
-      "byteLength": 1857,
-      "integrity": "sha256:504c6929352ccfa980d148b0d1a3aa8f7b651404a236bfc827857d5674ddb7b4",
+      "byteLength": 4403,
+      "integrity": "sha256:292009b98681e9c5346893481e68c3877e8a60d178923a134d9109f12a40c80f",
       "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/offline/indexeddb.js",
-      "byteLength": 27963,
-      "integrity": "sha256:1750919978477c3f2004966ebde7a71da1f8a6e58706457059fd34db754d16f1",
+      "byteLength": 29523,
+      "integrity": "sha256:c98c22364bbec523109bfcac9b075936bf48a7356c07efde37001e0ec685772d",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/memory-store.js",
+      "byteLength": 8351,
+      "integrity": "sha256:e073d2ba5821d06b08cc6016b85798af3558ea05cc8f5192684f6f41eb1fb04a",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/quota.js",
+      "byteLength": 16176,
+      "integrity": "sha256:c46973de9b865cd480f0ebdfd4c8ffa425e6e7ff91783d0d99de716e94500d16",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/read-gate.js",
+      "byteLength": 12205,
+      "integrity": "sha256:a8bbdfa03d3dedce5dbc82fa4deb10f9b6c034678b2f3a70601e9d53a7fb1523",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/read-resource.js",
+      "byteLength": 8250,
+      "integrity": "sha256:b5c22fea883c61ace9ca668aa107c3aaec61d6cca1f883a15e8d1c62b65628a3",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/read.js",
+      "byteLength": 3713,
+      "integrity": "sha256:b4afee8c6ca2bfb6f4978f42f5cd818f8f4b078fee45c0e0637db6d5a37d1ee3",
       "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/offline/region.js",
-      "byteLength": 44961,
-      "integrity": "sha256:1666b8c44d3cf66d14f725a4aa72316a03eac3dc430ad2da9e68cef756f83645",
+      "byteLength": 47306,
+      "integrity": "sha256:f9ef64e9dc03a07a4a82b55848a62b12f96a4159fed4dbe032bbb3750579d38e",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/selection.js",
+      "byteLength": 16932,
+      "integrity": "sha256:cd612c2cbda04315fc7f5180cd49fb30acdfef9cccb3c3583c5b725885d53e8a",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/snapshot.js",
+      "byteLength": 15065,
+      "integrity": "sha256:7f920643d64f7210f46e1a2a0c4ba1eb517b0b2a2aec1ca1cfade01b5fc99b9d",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/status.js",
+      "byteLength": 19945,
+      "integrity": "sha256:7dee49c1d776c6d9972ea782fb6762c17ec2ac96229a5da5792fc11e0a9db1a8",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/store-conformance.js",
+      "byteLength": 11436,
+      "integrity": "sha256:d86b09b9bbdb2831d832362127e529b648d6f1f706ea9c7d596e99af05a9d3aa",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/tile-protocol.js",
+      "byteLength": 5624,
+      "integrity": "sha256:6a2fc6c2c1d5f8b6bb53844639d23e8798e9932261786bd80022b28e49150098",
       "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/offline/types.js",
-      "byteLength": 2748,
-      "integrity": "sha256:499c392e2312a7deb9562af4e6c10294b46af197d69fb026bad897f946f5a75d",
+      "byteLength": 3416,
+      "integrity": "sha256:d707c1812ebd951e0e462df97a9f378db293d0350d0b1458a4a6d035a1960805",
       "mediaType": "application/javascript"
     }
   ]

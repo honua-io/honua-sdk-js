@@ -72,7 +72,7 @@ describe("HONUA_COMPONENT_CATALOG", () => {
     expect(getComponentCatalogEntry("web-components.map")?.tag).toBe("honua-map");
     expect(getComponentCatalogEntry("not-a-real-id")).toBeUndefined();
     expect(listComponentCatalogEntries("controls")).toHaveLength(4);
-    expect(listComponentCatalogEntries("web-components")).toHaveLength(17);
+    expect(listComponentCatalogEntries("web-components")).toHaveLength(18);
     expect(listComponentCatalogEntries()).toHaveLength(HONUA_COMPONENT_CATALOG.length);
     expect(getCanonicalComponentCatalogEntry("honua-basemap-switcher")?.id).toBe("controls.basemap-switcher");
     expect(getCanonicalComponentCatalogEntry("honua-does-not-exist")).toBeUndefined();

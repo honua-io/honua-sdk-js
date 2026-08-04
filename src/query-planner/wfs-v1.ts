@@ -6,6 +6,13 @@
  * contract-only bundles.
  */
 import type { ProtocolModuleQueryCompileInput, ProtocolModuleQueryOperation } from "../contract/protocol-module.js";
+import { compileQueryFilterToFes } from "../contract/query-filter-fes.js";
+import {
+  type QueryFilterContext,
+  type QueryFilterExpression,
+  andQueryFilters,
+  temporalFilterToExpression,
+} from "../contract/query-filter.js";
 import type { SpatialFilter } from "../core/spatial-filter.js";
 import {
   type FesNode,
@@ -233,7 +240,11 @@ function wfsBboxShortcutEnvelope(
   query: CanonicalQuery,
 ): { xmin: number; ymin: number; xmax: number; ymax: number } | undefined {
   const filter = query.spatialFilter;
-  if (!filter || query.where !== undefined || filter.geometryType !== "esriGeometryEnvelope") return undefined;
+  // The `bbox=` KVP is mutually exclusive with `FILTER=`, so any other
+  // constraint that has to be expressed as FES (source-native `where`, the
+  // typed filter, a temporal predicate) disables the shortcut.
+  if (query.where !== undefined || query.filter !== undefined || query.temporalFilter !== undefined) return undefined;
+  if (!filter || filter.geometryType !== "esriGeometryEnvelope") return undefined;
   if (
     filter.spatialRel !== undefined &&
     filter.spatialRel !== "esriSpatialRelIntersects" &&
@@ -262,7 +273,16 @@ function wfsBboxShortcutEnvelope(
  * actually depends on it.
  */
 export function wfsSpatialFilterNeedsGeometryProperty(query: CanonicalQuery): boolean {
+  if (query.filter !== undefined && queryFilterContainsSpatial(query.filter)) return true;
   return query.spatialFilter !== undefined && wfsBboxShortcutEnvelope(query) === undefined;
+}
+
+/** True when the typed filter references the feature type's geometry property. */
+function queryFilterContainsSpatial(filter: QueryFilterExpression): boolean {
+  if (filter.kind === "spatial") return filter.property === undefined;
+  if (filter.kind === "boolean") return filter.args.some(queryFilterContainsSpatial);
+  if (filter.kind === "not") return queryFilterContainsSpatial(filter.arg);
+  return false;
 }
 
 /** Geometry property the compiled request references by name. */
@@ -363,6 +383,8 @@ function compileWfsFes(
   srsName?: string,
 ): string | undefined {
   const filters: FesNode[] = [];
+  const typed = compileWfsTypedFilter(query, geometryProperty);
+  if (typed) filters.push(typed);
   if (query.where) {
     const where = compileWhere(query.where.expression);
     if (where === UNSUPPORTED_FES) {
@@ -388,6 +410,25 @@ function compileWfsFes(
     filters.push(spatial);
   }
   return filters.length > 0 ? serializeFes(filters, { typeName }) : undefined;
+}
+
+/**
+ * Compile the canonical typed filter (and a field-bound temporal filter) into
+ * FES 2.0. WFS has no protocol-level time parameter, so a temporal filter
+ * without a field is refused instead of being applied to a guessed column.
+ */
+function compileWfsTypedFilter(query: CanonicalQuery, geometryProperty: string): FesNode | undefined {
+  const ctx: QueryFilterContext = { protocol: "wfs", geometryProperty };
+  const temporalExpression = query.temporalFilter ? temporalFilterToExpression(query.temporalFilter, ctx) : undefined;
+  if (query.temporalFilter && temporalExpression === undefined) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "WFS has no protocol-level time parameter; Query.temporalFilter must name the temporal field",
+    );
+  }
+  const expression = andQueryFilters(query.filter, temporalExpression);
+  if (!expression) return undefined;
+  return compileQueryFilterToFes(expression, ctx);
 }
 
 function compileWfsPropertyNames(query: CanonicalQuery, geometryProperty: string): readonly string[] | undefined {

@@ -205,6 +205,18 @@ non-goals are explicit rather than implied:
 npm install @honua/sdk-js
 ```
 
+Starting from scratch? Scaffold a working app instead of assembling peers:
+
+```bash
+npm create honua-app@latest my-map
+```
+
+`create-honua-app` writes a Vite + TypeScript (or React) starter that already connects to an
+endpoint and mounts a source, pinned to a published SDK version and rendering a committed
+fixture on the first `npm run dev`. Both starters also open in a browser playground with no
+install at all — see [`docs/playgrounds.md`](./docs/playgrounds.md) and
+[`docs/create-honua-app.md`](./docs/create-honua-app.md).
+
 Everything documented here ships in `@honua/sdk-js` as subpath entrypoints
 (see [`INSTALL.md`](./INSTALL.md)). Focused standalone packages are also
 published from this repository for consumers who only want a subset:
@@ -320,15 +332,34 @@ const result = await states.queryAll({
 console.log(`Loaded ${result.features.length} states`);
 ```
 
-The starter deliberately omits an attribute filter. The protocol-neutral
-`Query.where` member remains operational only as deprecated, source-native v1
-compatibility; its grammar changes with the adapter. A stable semantic-filter
-builder is not yet wired into `Source.query()`. New code that can accept
-pre-1.0 API changes can use the typed semantic AST from the experimental
-[`@honua/sdk-js/query-planner`](./docs/query-planner.md), whose examples are
-compile-checked.
+Filtering uses the same typed, protocol-neutral `Query.filter`. One expression
+compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`, or DuckDB SQL,
+and `Query.temporalFilter` compiles to the protocol's own time parameter
+(`time=`, `datetime=`) or an exact predicate on a named field. A construct the
+target cannot express throws `HonuaCapabilityNotSupportedError` naming the
+construct and the protocol — it is never silently dropped or widened:
 
-The same unfiltered query envelope works against any GeoServices, OGC API
+```ts doc-test=compile
+import { envelope, queryFilter, type Query } from "@honua/sdk-js";
+
+const filtered: Query = {
+  filter: queryFilter.and(
+    queryFilter.gt("Total_Pop_2020", 1_000_000),
+    queryFilter.spatial("intersects", envelope(-125, 24, -66, 50)),
+  ),
+  temporalFilter: { kind: "interval", start: "2026-01-01T00:00:00Z", end: null },
+  outFields: ["NAME", "Total_Pop_2020"],
+  pagination: { limit: 100 },
+};
+```
+
+The deprecated `Query.where` member remains operational only as source-native
+v1 migration compatibility; its grammar changes with the adapter, so new code
+should use `Query.filter`. The experimental
+[`@honua/sdk-js/query-planner`](./docs/query-planner.md) adds a schema-verified
+builder and explain plans over the same filter shape.
+
+The same query envelope works against any GeoServices, OGC API
 Features, WFS, OData, or STAC endpoint. Migrating from `esri-leaflet`? The raw
 GeoServices API remains available, but its `where` member below is explicitly
 GeoServices SQL rather than the deprecated protocol-neutral `Query.where`:
@@ -429,6 +460,11 @@ release smoke green across Chromium, Firefox, and WebKit. Reusable directory ent
 ledger of which ecosystem submissions were filed and accepted — live in
 [`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
+Whether any of that actually makes the packages findable is measured, not assumed:
+[`docs/listings/npm-search-verification.md`](./docs/listings/npm-search-verification.md) records
+where every published `@honua/*` package ranks in npm registry search for its declared discovery
+terms, including the queries where it does not rank at all.
+
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 
 Every Honua SDK — JavaScript, Python, .NET — speaks the same canonical
@@ -501,6 +537,13 @@ correctly use this SDK:
   a Honua-only surface degrade gracefully with a structured "not available on this
   target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
   via `honua-mcp-proxy`.
+- **Cross-model MCP eval scorecard** — how well *different client models* actually
+  drive that MCP surface, published rather than asserted:
+  [`docs/generated/mcp-eval-scorecard.md`](./docs/generated/mcp-eval-scorecard.md).
+  Every figure is generated from the committed, dated run artifacts under
+  [`mcp/evals/runs/`](./mcp/evals) — with the zero-LLM deterministic control row,
+  every non-passing run, and the protocol-certification failures included, because
+  a wins-only scoreboard is marketing.
 - **NL map control** — [`@honua/sdk-js/nl-map-control`](./docs/nl-map-control.md)
   compiles natural-language instructions into serializable, inspectable plans
   (query-planner IR plus agent-tool invocations) through a **caller-provided LLM
@@ -658,8 +701,8 @@ evidence are listed in the generated
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 
-The reviewed package-root ceilings are 45 runtime
-exports and 165 declaration exports. The exact inventory
+The reviewed package-root ceilings are 46 runtime
+exports and 172 declaration exports. The exact inventory
 and generated migration table come from
 [`config/root-surface.json`](./config/root-surface.json). This guide tracks the
 current development branch; its package baseline can match the latest release
@@ -1040,7 +1083,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
 | <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
-| <a id="offline-region-reference"></a>[`offline-region-reference`](../../docs/examples/offline-region-reference/README.md) | fixture | - | experimental | active | browser-fixture | fixture | not-required | Proves that a persisted IndexedDB region and bounded host-owned application shell survive reload after browser networking is disabled. |
+| <a id="offline-region-reference"></a>[`offline-region-reference`](../../docs/examples/offline-region-reference/README.md) | fixture | - | experimental | active | browser-fixture | fixture | not-required | Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, then replays that edit exactly once against a loopback fixture transport on reconnect and reports one composed local-first state. |
 | <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
 | <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | active | browser-lab | fixture | not-required | Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services. |
 | <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
@@ -1610,17 +1653,17 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-03 at commit `122b3650`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `b5f6fc73`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 697.2 KiB | 186.3 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 225.4 KiB | 57.8 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.6 KiB | 13.3 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 326.0 KiB | 86.8 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 992.9 KiB | 247.8 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 738.5 KiB | 198.4 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 231.4 KiB | 59.7 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.8 KiB | 13.4 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 364.3 KiB | 98.3 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 999.8 KiB | 250.1 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
 | Routing client | 20.5 KiB | 6.3 KiB |
 
@@ -1632,8 +1675,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 697.2 KiB ≈ **1.69 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 186.3 KiB ≈ **0.45 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 738.5 KiB ≈ **1.73 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 198.4 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -1833,6 +1876,115 @@ breaking generation. That is what makes the immutability rule usable rather than
 
 ---
 
+# File: docs/listings/npm-search-verification.md
+
+<!-- GENERATED FILE — do not edit by hand. -->
+<!-- Regenerate with: npm run docs:npm-search -->
+<!-- Inputs: docs/data/npm-search-observations.v1.json. -->
+<!-- Re-observe against the live registry with: npm run docs:npm-search:observe -->
+<!-- Freshness and drift are enforced by npm run docs:npm-search:check. -->
+
+# npm search discoverability, as measured
+
+Declaring keywords is not discoverability. This page records where the packages this
+repository publishes **actually rank** in npm registry search for the discovery terms the
+package metadata claims — including the queries where they do not rank at all, which is the
+half a keyword list can never tell you.
+
+Every row below is projected from a dated record in [`docs/data/npm-search-observations.v1.json`](../data/npm-search-observations.v1.json),
+validated against
+[`schemas/npm-search-observations.v1.json`](../../schemas/npm-search-observations.v1.json).
+Each observation must report **every** tracked package, found or not, so a query where Honua
+does not appear cannot be dropped from the page. Records are immutable per observation:
+re-observing a query adds a record and the page projects the newest one, so a rank that got
+worse stays in the file as provenance.
+
+## How the numbers were taken
+
+- **Endpoint:** `https://registry.npmjs.org/-/v1/search` — the registry itself, not a mirror or a third-party rank tracker.
+- **Page size:** 20 results, matching npmjs.com's own paging. "Page 1" below means the first 20 ranked results.
+- **Scan depth:** 250 ranked results per query. A package reported as "not in the top 250" is exactly that claim and no stronger.
+- **Reproduce:**
+
+```bash
+npm run docs:npm-search:observe   # re-query the live registry and rewrite the records
+npm run docs:npm-search           # regenerate this page from the committed records
+```
+
+Search ranking is a moving, unowned target: it depends on npm's own scoring, on download
+counts, and on what else was published that week. Treat every row as an observation with a
+date on it, not as a property of the package.
+
+One consequence worth stating plainly: these ranks reflect the metadata **as published**, not
+the metadata in the working tree. Improving a package's keywords cannot move its rank until
+the next release carries them to the registry, so a row here can lag a merged fix by a whole
+release cycle.
+
+## Tracked packages
+
+- `@honua/sdk-js`
+- `@honua/mcp-server`
+- `create-honua-app` — not published to npm at the latest observation, so it cannot rank yet
+
+## Observed rankings
+
+| Query | Package | Result | Observed | Registry matches |
+| --- | --- | --- | --- | ---: |
+| `maplibre arcgis migration` | `@honua/sdk-js` | page 3 (rank 53) | 2026-08-04 | 19,070 |
+|  | `@honua/mcp-server` | not in the top 250 |  |  |
+|  | `create-honua-app` | not published at observation time |  |  |
+| `arcgis migration` | `@honua/sdk-js` | **page 1** (rank 1) | 2026-08-04 | 18,090 |
+|  | `@honua/mcp-server` | not in the top 250 |  |  |
+|  | `create-honua-app` | not published at observation time |  |  |
+| `maplibre gis sdk` | `@honua/sdk-js` | page 6 (rank 101) | 2026-08-04 | 156,307 |
+|  | `@honua/mcp-server` | not in the top 250 |  |  |
+|  | `create-honua-app` | not published at observation time |  |  |
+| `ogc api features client` | `@honua/mcp-server` | page 7 (rank 139) | 2026-08-04 | 984,963 |
+|  | `@honua/sdk-js` | not in the top 250 |  |  |
+|  | `create-honua-app` | not published at observation time |  |  |
+| `stac client typescript` | `@honua/sdk-js` | not in the top 250 | 2026-08-04 | 580,293 |
+|  | `@honua/mcp-server` | not in the top 250 |  |  |
+|  | `create-honua-app` | not published at observation time |  |  |
+| `geocoding maplibre` | `@honua/sdk-js` | page 5 (rank 84) | 2026-08-04 | 2,306 |
+|  | `@honua/mcp-server` | not in the top 250 |  |  |
+|  | `create-honua-app` | not published at observation time |  |  |
+| `mcp server geospatial` | `@honua/sdk-js` | not in the top 250 | 2026-08-04 | 368,718 |
+|  | `@honua/mcp-server` | not in the top 250 |  |  |
+|  | `create-honua-app` | not published at observation time |  |  |
+
+## What each query is for
+
+- `maplibre arcgis migration` **(tracked target)** — the exact success-metric query declared on #499 ("npm search for 'maplibre arcgis migration' surfaces @honua/sdk-js on page one"). Re-observe by 2026-11-04.
+- `arcgis migration` — the `arcgis-migration` keyword's primary discovery term (REQ-004). Re-observe by 2026-11-04.
+- `maplibre gis sdk` — the `maplibre` discovery term as a MapLibre developer shopping for a data client would type it (REQ-004). Re-observe by 2026-11-04.
+- `ogc api features client` — the `ogc-api` discovery term (REQ-004). Re-observe by 2026-11-04.
+- `stac client typescript` — the `stac` discovery term (REQ-004). Re-observe by 2026-11-04.
+- `geocoding maplibre` — the `geocoding` discovery term (REQ-004). Re-observe by 2026-11-04.
+- `mcp server geospatial` — the discovery path to `@honua/mcp-server` for an agent developer. Re-observe by 2026-11-04.
+
+## Tracked targets
+
+- `maplibre arcgis migration` → `@honua/sdk-js` on page 1: **not met** — page 3 (rank 53) as observed 2026-08-04.
+
+A target that is not met is reported here rather than removed. These are tracked,
+non-gating metrics on [#499](https://github.com/honua-io/honua-sdk-js/issues/499): CI fails
+when this page drifts from its records, never because a rank is disappointing — the SDK does
+not own npm's ranking function.
+
+## What this page does not claim
+
+- **Not a download count.** Rank is not adoption; the download baseline is tracked separately on #499.
+- **Not a competitor comparison.** Which packages outrank Honua for a term is not a product claim; that comparison lives in [`docs/comparison.md`](../comparison.md) under its own evidence contract.
+- **Not stable.** Nothing here is a guarantee about the next query you run; rerun the observe command.
+
+The declared keywords and descriptions these queries test are gated separately by
+`npm run verify:discoverability`, which covers every package this repository publishes.
+
+Ecosystem directory entries and the external submission ledger live in
+[`maplibre-plugin-directory.md`](./maplibre-plugin-directory.md).
+
+---
+
 # File: docs/shared-client-contract.md
 
 # Shared Client Contract
@@ -1867,9 +2019,11 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   `ogcMapsSource`, `stacSearchSource`, `wmsSource`, `wmtsSource`,
   `wfsSource`, `odataSource`).
 - **Non-goal:** replacing the v1 `Query` envelope while protocol compilers
-  migrate. `Query.where` is a deprecated, source-native compatibility string;
-  the experimental typed semantic AST in `@honua/sdk-js/query-planner` follows
-  separate compiler/execution workflows and is not accepted by `Source.query()`.
+  migrate. `Query.filter` (typed, protocol-neutral) and `Query.temporalFilter`
+  are the stable filtering members; `Query.where` remains only as a deprecated,
+  source-native compatibility string. The experimental schema-verified semantic
+  AST in `@honua/sdk-js/query-planner` follows separate compiler/execution
+  workflows over the same filter shape.
 
 ## Module layout
 
@@ -3015,8 +3169,10 @@ aggregate runs only after the materialization ceilings pass.
 WFS plans compile the supported SQL-92 subset and spatial predicates to FES
 2.0 XML, and expose `propertyName`, `sortBy`, `startIndex`, `count`, and
 `srsName`. XML literals and identifiers go through the same escaping compiler
-used by the WFS adapter; the portable compiler deliberately retains that
-adapter's reviewed `the_geom` default. OData plans translate the canonical predicate to
+used by the WFS adapter. The geometry property comes from the source identity
+(`locator.geometryName`, which the live adapter fills from
+`DescribeFeatureType`, or a descriptor geometry field); metadata-free plans
+compiled without either fall back to the reviewed `the_geom` default. OData plans translate the canonical predicate to
 `$filter`, including supported `geo.intersects` geometry, and expose
 `$select`/`$expand`, `$orderby`, `$skip`, and `$top`. Both compilers fail
 closed when exact translation is impossible. In particular, metadata-free
@@ -3825,13 +3981,114 @@ accepted by that gate.
 Without a `checkpointStore`, accepted checkpoints remain available in memory
 but `checkpointPersisted` stays false. Callers may persist them as part of their
 own atomic application transaction; the SDK does not claim durability it did
-not observe.
+not observe. See
+[Durable checkpoint persistence](#durable-checkpoint-persistence-937) for the
+shipped stores.
 
 Checkpoint persistence occurs after successful consumer application. This is
 an at-least-once boundary, not a transaction spanning an arbitrary application
 store and checkpoint database. Applications that require atomic exactly-once
 effects must persist their materialized state and checkpoint transactionally,
 or use event ids/versions to make replay idempotent.
+
+## Durable checkpoint persistence (#937)
+
+`RealtimeCheckpointStore` used to be an interface with no shipped
+implementation, so a tab reload always resnapshotted even when a valid cursor
+had been accepted a second earlier. `src/realtime/checkpoint-store.ts` closes
+that gap without changing any cursor semantics:
+
+- `createIndexedDbRealtimeCheckpointStore(...)` persists checkpoints in the
+  browser (default database `honua-realtime-checkpoints`);
+- `createMemoryRealtimeCheckpointStore(...)` runs the identical normalization,
+  screening, expiry, and eviction logic without IndexedDB, for tests and
+  non-persistent hosts;
+- `createRealtimeCheckpointStore(storage, ...)` binds that same logic to any
+  `RealtimeCheckpointRecordStorage`, for a host this SDK ships no adapter for.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  createIndexedDbRealtimeCheckpointStore,
+  createResumableRealtimeTransport,
+} from "@honua/sdk-js/realtime";
+
+const checkpointStore = createIndexedDbRealtimeCheckpointStore({
+  // Tighten, never raise, the shipped ceilings.
+  maxAgeMs: 5 * 60 * 1000,
+  onDiagnostic: (diagnostic) => {
+    // Every discard, refusal, and storage failure, as a HonuaRealtimeResumeError.
+    reportToTelemetry(diagnostic.reason, diagnostic.error);
+  },
+});
+
+const transport = createResumableRealtimeTransport(rawTransport, {
+  context: resumeContext,
+  checkpointStore,
+});
+```
+
+### What a record contains
+
+One record per resume scope, stamped with the versioned format string
+`honua.realtime-checkpoint-store/1.0`:
+
+- the resume position — `sequence` plus any `cursor`, `watermark`, `timestamp`,
+  and `deltaToken`;
+- the scope identity — `sourceId`, `queryFingerprint`, `sourceVersion`,
+  `schemaVersion`, and a SHA-256 **digest** of the authorization-scope
+  fingerprint;
+- two observation times — `savedAt` (the checkpoint's own, which drives expiry)
+  and `observedAt` (when the record was written, which drives eviction order).
+
+Nothing else. No features, no snapshot bytes, no request URLs, no headers, no
+credentials, and no recent-event-id history: that window is bounded delivery
+state, not resume state, so a restored checkpoint starts with an empty id
+window while its ordering guarantees are unchanged. Snapshot bytes remain the
+offline region store's responsibility.
+
+Every remaining persisted string is screened with the shared persisted-string
+screen in `src/connect-url-safety.ts` — the same denylist and shape rules the
+offline region store applies through `assertCredentialFreeManifest`. A resume
+position that is a full request link (an OData delta link, for example) or that
+carries credential-shaped material is **refused**, not rewritten: the record is
+not written, a `credential-screened` diagnostic is reported, and the next load
+resnapshots.
+
+### Keying, revalidation, and expiry
+
+The record key is a digest over the authorization-scope digest, source
+identity, and query identity — exactly the identities checkpoint scope
+validation is defined against — so a different tenant, source, or accepted
+query cannot even address another scope's cursor. Source and schema versions
+are deliberately outside the key so a version bump replaces the record in place
+and is discarded explicitly rather than orphaned.
+
+Load is fail-closed. It revalidates the stored record through the same
+`evaluateRealtimeCheckpoint` the gate uses and discards it — deleting the row
+and reporting a diagnostic — when the source, query, source version, schema
+version, or authorization scope changed, when the record is corrupt or carries
+a different format string, or when the checkpoint is older than `maxAgeMs`
+(default 15 minutes, ceiling 24 hours). Age matters independently of scope: a
+server may retire a cursor window, and an honest resnapshot beats a silent gap.
+A record stamped in the future is treated as corrupt time, not a fresh cursor.
+
+### Bounds and failure posture
+
+Each scope holds exactly one record (last write wins) and a store holds at most
+`maxRecords` scope records (default 64, ceiling 512), evicting the least
+recently written first. The IndexedDB write and its eviction sweep share one
+readwrite transaction, so a write is atomic and bounded.
+
+A store never throws into a subscription. A rejected storage call, a refused
+value, or a corrupt record resolves and reports a
+`RealtimeCheckpointStoreDiagnosticV1` carrying a `HonuaRealtimeResumeError`, so
+the subscription degrades to a resnapshot instead of entering the gate's
+terminal `error` phase. `onDiagnostic` is therefore the honest signal that a
+durable record does not exist; `state.checkpointPersisted` only reports that
+`save()` completed.
+
+Persistence stays opt-in. A subscription without a `checkpointStore` behaves
+exactly as it did before this slice.
 
 ## Bounded, reconnecting transports (#557)
 
@@ -5148,14 +5405,17 @@ property or sampled-position delta application.
 `@honua/sdk-js/offline` contains bounded, independently usable slices of issue
 [#396](https://github.com/honua-io/honua-sdk-js/issues/396). It defines a
 versioned manifest, storage-neutral download coordinator, persistent browser
-store, and durable edit queue. It does not make the broader local-first feature
-complete.
+store, durable edit queue, and composed local-first status. It does not make the
+broader local-first feature complete.
 
 The checked-in
 [network-disabled reference workflow](./examples/offline-region-reference/README.md)
-shows the public IndexedDB, diagnostic, and fetch-handler contracts booting
-through a host-owned application-shell worker when networking is disabled
-before reload.
+shows the public IndexedDB, diagnostic, fetch-handler, edit-queue, replay, and
+status contracts booting through a host-owned application-shell worker when
+networking is disabled before reload. It captures a field edit while
+disconnected, keeps it across a reload taken with networking still disabled, and
+replays it once on reconnect against a loopback fixture transport — which proves
+the durable local transitions, not hosted replica synchronization.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -5197,6 +5457,90 @@ const diagnostic = await createOfflineRegionDiagnostic(
   },
 );
 ```
+
+## Storage budget and quota admission
+
+`logicalQuotaBytes` is an honest accounting of declared payload lengths, but on
+its own it has no relationship to the space the browser will grant. Ask the
+platform instead of inventing a constant: `probeOfflineStorageBudget()` reads
+`navigator.storage.estimate()` through an injectable interface and derives a
+conservative logical budget.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  downloadOfflineRegion,
+  probeOfflineStorageBudget,
+  requestOfflinePersistentStorage,
+} from "@honua/sdk-js/offline";
+
+const budget = await probeOfflineStorageBudget();
+if (budget.status === "unavailable") {
+  // No StorageManager, or no estimate. The SDK reports that rather than
+  // fabricating a number; the application decides what to offer.
+  showUnknownCapacity(budget.reason, budget.persistence);
+} else if (budget.logicalBudgetBytes < manifest.totalLogicalBytes) {
+  showTooLarge(budget.remainingBytes, budget.reserveBytes);
+} else {
+  await downloadOfflineRegion(manifest, {
+    store: applicationStore,
+    load: applicationResourceLoader,
+    logicalQuotaBytes: budget.logicalBudgetBytes,
+  });
+}
+
+// Only ever on an explicit user action: this can prompt.
+if (budget.persistence === "best-effort" && userAskedToKeepData) {
+  const persistence = await requestOfflinePersistentStorage();
+  console.log(persistence.status); // "granted" | "denied" | "unavailable"
+}
+```
+
+Derivation is deterministic integer arithmetic over the reported values:
+
+```text
+remaining = max(0, quota - usage)
+reserve   = min(remaining, max(minimumReserveBytes, floor(remaining * headroomRatio)))
+budget    = remaining - reserve
+```
+
+so the derived budget can never exceed the platform-reported remaining quota,
+and an origin with less free space than the reserve floor (16 MiB by default) is
+offered `0` rather than a number that cannot be honoured. The estimate is
+deliberately imprecise and origin-scoped, so the result is **advisory, never a
+guarantee** — which is exactly why a reserve exists and why physical occupancy,
+deduplication, and index overhead stay outside the contract.
+
+A device can still refuse a write the budget admitted. When it does, the
+platform `QuotaExceededError` raised while staging, writing, or committing is
+classified as `quota-exceeded` / `offline.region.quota` rather than the internal
+`store-failed` / `offline.storage.failure` class, and the error carries the
+admission plan that was attempted:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+try {
+  await downloadOfflineRegion(manifest, downloadOptions);
+} catch (error) {
+  if (isHonuaError(error, "offline.region.quota")) {
+    // Required, evicted, and projected logical bytes, without recomputing them.
+    showEvictionPrompt(error.admission);
+  }
+}
+```
+
+A refused plan is a proposal, not a record of what happened: a region refused
+before the download starts evicts nothing, and no region outside
+`admission.evictRegionIds` is ever removed. Pinned regions are never proposed.
+`isStorageQuotaPressureError()` is exported so a host-supplied
+`OfflineRegionStore` can classify the same condition the same way instead of
+hiding a full device inside its own wrapper.
+
+Persisted state changes the eviction risk for every cached region, so it is
+observed rather than inferred: the probe reports
+`persistence: "persisted" | "best-effort" | "unknown"`, and
+`createOfflineRegionDiagnostic()` accepts the probe result and republishes it as
+`diagnostic.storage`. The diagnostic never probes on its own, and
+`navigator.storage.persist()` is reached only through
+`requestOfflinePersistentStorage()` — a download is not consent to prompt.
 
 ## Durable edit queue
 
@@ -5242,6 +5586,79 @@ console.log(enqueued.status); // "enqueued" or "duplicate"
 console.log(receipt.appliedCount);
 ```
 
+## Composed local-first status
+
+Cache diagnostics answer "what is in the store", and the queue answers "what
+have I not delivered". `createLocalFirstStatus` composes both, plus a
+host-supplied connectivity signal, into one versioned, payload-free snapshot
+that names a single state.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { createLocalFirstStatus } from "@honua/sdk-js/offline";
+
+const partition = {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+};
+
+const status = createLocalFirstStatus({
+  // Reachability is host policy. The SDK never reads navigator.onLine, because
+  // link state is not endpoint reachability.
+  connectivity: endpointReachable ? "online" : "offline",
+  now: new Date(),
+  regions: [diagnostic],
+  // A bounded detail sample for conflicted identities and timing...
+  edits: await queue.list({ ...partition, limit: 100 }),
+  // ...and the authoritative totals, because list() is capped at 100 records
+  // and has no cursor.
+  editCounts: await queue.countByState(partition),
+});
+
+console.log(status.state); // "pending"
+console.log(status.reason); // "undelivered-edits"
+console.log(status.reads.availability, status.reads.freshness);
+console.log(status.writes.coverage); // "complete"
+console.log(status.writes.undeliveredCount, status.writes.conflictedCount);
+```
+
+`OfflineEditQueue.list()` returns at most 100 records in created order and has
+no cursor, so it can never be counted. Pass `editCounts` from
+`countByState()`, which reads the partition/state index without materializing
+any edit payload; the returned totals are authoritative and drive both
+`writes.counts` and the headline state. Without it, `writes.coverage` is
+`sampled` and the counts are only a lower bound, so a partition whose first 100
+records are terminal would read as `idle` while later work is still
+undelivered. A sample that disagrees with its own totals is rejected rather
+than published.
+
+The headline `state` is resolved by a total, deterministic precedence. Data
+problems outrank undelivered work, which outranks mere staleness, which
+outranks being disconnected:
+
+| Precedence | `state` | `reason` | Condition |
+| --- | --- | --- | --- |
+| 1 | `conflicted` | `conflicted-edits` | Any queued edit is in the `conflicted` state. |
+| 2 | `expired` | `expired-regions` | Any stored region is expired. |
+| 3 | `partial` | `partial-regions` / `missing-regions` | Regions were supplied and worst-case completeness is not `complete`. |
+| 4 | `pending` | `undelivered-edits` | Any edit is `pending`, `leased`, or `retryable`. |
+| 5 | `stale` | `stale-regions` | Any stored region is stale. |
+| 6 | `offline` | `disconnected` | Connectivity is `offline` and nothing above applies. |
+| 7 | `online` | `connected` | Connectivity is `online` and nothing above applies. |
+
+Aggregation is worst-case, so one expired or partial region cannot be hidden by
+fresher siblings. Freshness aggregates over *stored* regions only: a cache miss
+has no stored observation to age. `reads.availability` is `live` when the host
+reports connectivity, `cached` when it does not but a region is readable, and
+`unavailable` when it is neither. The status is deeply frozen, JSON
+serializable, deterministic for identical inputs regardless of supplied order,
+and never reads `edit.attributes` or `edit.geometry`.
+
+Cache facets are validated together, not independently. A diagnostic is derived
+from one stored entry, so `state`, `freshness`, `completeness`, `reason`, and
+`readable` cannot vary freely; a tampered or hand-built combination that the
+diagnostic could never have produced is rejected instead of resolving to a
+confidently wrong headline.
+
 ## Contract guarantees
 
 - Manifest identity is deterministic over normalized content. Resource ids,
@@ -5249,6 +5666,29 @@ console.log(receipt.appliedCount);
 - URL credentials and recognized signed/auth query parameters are removed.
   Only a domain-separated SHA-256 digest of the caller's authorization scope
   fingerprint is persisted.
+- **Persisted identities are non-secret by contract, and the stores enforce it.**
+  `name`, `sourceId`, `resource.id`, `contentType`, attribution ids and text, and
+  the source/schema/plan versions are screened against the same credential
+  denylist that governs endpoint normalization. Machine identities are also
+  refused when they are shaped like a request reference — an absolute URL
+  carrying userinfo, a query, or a fragment, or a relative reference containing
+  `?`, `#`, or `@` — so an ArcGIS `?token=` or S3 `?X-Amz-Signature=` URL cannot
+  become a stored identity by way of an `OfflineRegionResourceMatcher`. Human
+  prose (`name`, attribution text) is held only to the embedded-assignment and
+  absolute-URL rules, so an ordinary label is still persistable. A match fails
+  the whole manifest closed with `invalid-manifest` and a structured `path`;
+  nothing is silently rewritten, because a rewritten identity would change the
+  deterministic region id and the resource primary key, and the rejection names
+  the path without echoing the offending value. Screening is defence in depth: it
+  is not a licence to pass secrets as identities.
+- The enforcement is not a trust assumption about the caller.
+  `createIndexedDbOfflineRegionStore`, `beginWrite`, and `commit` are public
+  exports, so `beginWrite` and `write` re-screen the region and resource ids they
+  key staged rows by, and `commit` re-checks the whole manifest — endpoint
+  included — before it opens its IndexedDB transaction. A caller that bypasses
+  `downloadOfflineRegion` cannot persist a credential-bearing manifest. The
+  durable edit queue applies the same screen to `sourceId` and `idempotencyKey`,
+  which are its persisted partition and identity keys.
 - Every resource has an exact logical byte length and required SHA-256 digest.
   Loader output is copied into coordinator-owned memory before hashing, progress,
   or writing, so later loader mutation cannot alter committed bytes. Each resource also carries
@@ -5265,6 +5705,13 @@ console.log(receipt.appliedCount);
   bytes, compression, deduplication, or store overhead. Admission is deterministic:
   expired regions, then least-recently-used regions, then code-unit id order.
   Pinned regions are never automatically evicted.
+- The ceiling itself can be derived from the origin's real storage estimate.
+  `probeOfflineStorageBudget()` performs no network I/O, mutates nothing, never
+  requests persistence, returns no credential or request URL, and is
+  deterministic for identical inputs. A platform without a `StorageManager` or
+  an estimate yields an explicit `unavailable` result instead of a fabricated
+  budget. A refusal by the device is typed `quota-exceeded` and carries the
+  attempted admission plan.
 - The injected transaction stages evictions and writes, then publishes them
   atomically with the manifest and receipt. Commit compares the inventory
   revision used for planning and independently enforces logical quota in the
@@ -5333,7 +5780,9 @@ The storage-backed fetch handler can be installed in a service worker or other
 fetch integration, but the host still owns request matching and network
 reachability policy. This slice does not provide encryption policy, a complete
 application-level query/read cache, a server transport adapter, or an automatic
-connectivity loop. The queue and one-pass coordinator are local durability
+connectivity loop. `createLocalFirstStatus` composes state that already exists;
+it does not probe reachability, trigger reconnect, or revalidate a stale region.
+The queue and one-pass coordinator are local durability
 primitives; they do **not** claim end-to-end exactly-once synchronization.
 Applications must bind the injected transport to established Honua Server
 replica-sync, upload-cursor, and conflict-review contracts exposed through
@@ -5960,6 +6409,246 @@ the plan's effects).
   button.
 - [North-star ADR](./decisions/north-star-sdk-application-kernel.md) — why NL
   must compile to the same plan human code uses.
+
+---
+
+# File: docs/generated/mcp-eval-scorecard.md
+
+<!-- GENERATED FILE — do not edit by hand. -->
+<!-- Regenerate with: npm run docs:mcp-scorecard -->
+<!-- Inputs: mcp/evals/runs/**/*.json (committed run artifacts), mcp/src/eval/corpus.ts, mcp/src/eval/operator-corpus.ts, mcp/src/eval/northstar-corpus.ts, mcp/src/eval/standalone-corpus.ts. -->
+<!-- Freshness is enforced by npm run docs:mcp-scorecard:check. -->
+
+# Cross-model MCP eval scorecard
+
+How well do different client models actually drive Honua's MCP surface? This page is the
+answer, published rather than asserted. Every figure below is rendered from a committed run
+artifact under [`mcp/evals/runs/`](https://github.com/honua-io/honua-sdk-js/tree/trunk/mcp/evals/runs) — the same JSON the eval harness wrote,
+carrying the surface it ran against, how it authenticated, and (where the artifact is new
+enough to record it) the negotiated MCP protocol version and the git SHA of the suite that
+produced it. Nothing here is hand-typed, and the generator recomputes every rate from the
+per-scenario rows before publishing it, so a summary that disagreed with its own graded
+evidence would fail the build instead of reaching this page.
+
+**Observation window:** 2026-07-05 → 2026-07-07
+(3 distinct observation dates,
+3 cross-model eval artifacts,
+3 certification artifacts).
+
+> This is a small, honest corpus, not a benchmark leaderboard. Read
+> [What this does and does not measure](#what-this-does-and-does-not-measure) before citing a
+> number from it.
+
+## Cross-model leaderboard
+
+One row per model per distinct observed result. The deterministic control is listed first: it
+makes **no model calls**, runs the identical corpus through the identical catalog, and is the
+CI gate — it is the ceiling the models are measured against, not a competitor.
+
+| Model | Runtime | Corpus | Surface | Scenarios | Passed | Clarified | Errored | Pass rate | Tool-error scenarios | Observed | Runs | Suite SHA |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |
+| `deterministic` _(control)_ | deterministic | operator | https://demo.honua.io/mcp | 8 | 8 | 0 | 0 | 100% | 1/8 | 2026-07-05, 2026-07-07 | 3 | `a09735af8725` · 2 not recorded |
+| `us.anthropic.claude-opus-4-6-v1` | bedrock | operator | https://demo.honua.io/mcp | 8 | 8 | 0 | 0 | 100% | 1/8 | 2026-07-05 | 1 | not recorded |
+| `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | bedrock | operator | https://demo.honua.io/mcp | 8 | 8 | 0 | 0 | 100% | 1/8 | 2026-07-07 | 1 | `a09735af8725` |
+| `us.amazon.nova-2-lite-v1:0` | bedrock | operator | https://demo.honua.io/mcp | 8 | 5 | 2 | 1 | 62.5% | 2/8 | 2026-07-05 | 1 | not recorded |
+
+Column definitions, because these words are used loosely elsewhere:
+
+- **Runtime** — how the model was invoked. `bedrock` means the run went through AWS Bedrock;
+  `deterministic` is the scripted zero-LLM control.
+- **Passed** — the graded workflow met every criterion: required tools called, expected tool
+  order respected, forbidden (mutating) tools avoided, and any asserted answer content present.
+- **Clarified** — the driver ended the run by asking a clarifying question instead of
+  completing the graded workflow; the grader records the violation
+  `driver requested clarification`. Tracked separately from a failure, and not counted as a
+  pass. The corpus deliberately contains a scenario that *requires* a clarification round-trip
+  and passes when the model completes it, so asking is a non-pass only where the workflow was
+  meant to continue.
+- **Errored** — the run did not finish; for example, a driver that exceeded its tool-use
+  iteration budget. Also not a pass.
+- **Tool-error scenarios** — scenarios in which at least one `tools/call` returned an error,
+  whether or not the workflow ultimately passed. In the raw artifacts this ratio is stored
+  under the historical field name `editRate`; it counts erroring tool calls, not edits.
+- **Runs** — how many committed artifacts recorded this identical result. A model whose result
+  changed between runs appears as more than one row.
+- **Suite SHA** — the commit of the eval suite that produced the artifact, so a row can be
+  re-run. `not recorded` means the artifact predates the provenance block (see
+  [Provenance](#provenance-and-reproducibility)).
+
+## Per-scenario matrix
+
+Legend: ✅ pass · ❌ fail · ❓ clarified · ⚠️ error · · not run
+
+### operator corpus
+
+Surface: `https://demo.honua.io/mcp` · observed 2026-07-05, 2026-07-07
+
+| Scenario | Category | deterministic | us.amazon.nova-2-lite-v1:0 | us.anthropic.claude-opus-4-6-v1 | us.anthropic.claude-sonnet-4-5-20250929-v1:0 |
+| --- | --- | :--: | :--: | :--: | :--: |
+| `operator-clarify-loop`<br />Ground then answer the clarification to refine intent | multi-step | ✅ | ✅ | ✅ | ✅ |
+| `operator-discover-then-query`<br />Discover a layer, then query features from it | query | ✅ | ✅ | ✅ | ✅ |
+| `operator-dry-run`<br />Estimate a plan with a dry run before executing | analysis | ✅ | ❓ | ✅ | ✅ |
+| `operator-geocode-gap`<br />Route an address task to geocoding (entitlement-gated) | capability-gap | ✅ | ✅ | ✅ | ✅ |
+| `operator-ground-intent`<br />Ground an ambiguous analysis goal to a workflow | grounding | ✅ | ❓ | ✅ | ✅ |
+| `operator-list-layers`<br />Discover the published layers on the operator surface | discovery | ✅ | ✅ | ✅ | ✅ |
+| `operator-plan-validate`<br />End-to-end read-only planning: ground → plan → validate | multi-step | ✅ | ⚠️ | ✅ | ✅ |
+| `operator-validate-package`<br />Validate a query package against the governance contract | governance | ✅ | ✅ | ✅ | ✅ |
+
+## Every non-passing run
+
+A wins-only scoreboard is marketing. Every non-passing graded run in the committed corpus is
+listed here, with the grader's own violation text.
+
+| Observed | Model | Scenario | Outcome | Why it did not pass | Tool calls | Erroring calls |
+| --- | --- | --- | --- | --- | ---: | ---: |
+| 2026-07-05 | `us.amazon.nova-2-lite-v1:0` | `operator-dry-run`<br />Estimate a plan with a dry run before executing | ❓ clarified | driver requested clarification | 4 | 0 |
+| 2026-07-05 | `us.amazon.nova-2-lite-v1:0` | `operator-ground-intent`<br />Ground an ambiguous analysis goal to a workflow | ❓ clarified | driver requested clarification | 6 | 1 |
+| 2026-07-05 | `us.amazon.nova-2-lite-v1:0` | `operator-plan-validate`<br />End-to-end read-only planning: ground → plan → validate | ⚠️ error | exceeded 8 tool-use iterations without finishing | 8 | 0 |
+
+Read these as capability signals, not bugs in the surface: the eval grades whether a client
+*composed the right workflow*, so a smaller model that asked for clarification it did not need,
+or looped past its iteration budget, is exactly what the corpus is designed to expose.
+
+## Protocol certification (zero-LLM control)
+
+Separate from the model eval, a deterministic certifier checks the same live surface against
+the vendor-neutral geospatial-MCP standard: tool schemas, structured output, error shape,
+pagination, and the standard tool families. It makes no model calls, so it is free to run on a
+schedule and it fails loudly.
+
+| Observed | Surface | Mode | Tools | Schema-conformant | Contracts passed | Failed | Skipped | Known gaps | Result | Suite SHA |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | :---: | --- |
+| 2026-07-05 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 15 | 15/15 | 2/3 | 1 | 0 | 12 | ❌ fail | not recorded |
+| 2026-07-06 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 20 | 20/20 | 11/13 | 2 | 5 | 7 | ❌ fail | `60dc44091089` |
+| 2026-07-07 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 20 | 20/20 | 11/13 | 2 | 5 | 10 | ❌ fail | `a09735af8725` |
+
+### Certification failures and skips — 2026-07-07
+
+From [`mcp/evals/runs/2026-07-07/cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json). Failures are real conformance defects in the
+certified surface, published unedited; skips name the reason they could not be checked.
+
+| Contract | Target | Status | Detail |
+| --- | --- | --- | --- |
+| `list-pagination` | `tools` | skipped | tools list is a single page (no nextCursor advertised) |
+| `list-pagination` | `resources` | skipped | resources list is a single page (no nextCursor advertised) |
+| `error-shape` | `honua_query_features` | failed | invalid arguments raised a protocol error instead of a structured tool error: MCP error -32602: Structured content does not match the tool's output schema: data must have required property 'serviceId', data must have required property 'layerId', data must have required property 'returnedCount', data must have required property 'limit', data must have required property 'exceededTransferLimit', data must have required property 'geojson' |
+| `mutating-round-trip` | `honua_edit_features` | skipped | honua_edit_features/honua_query_features not advertised by this surface (pre-P1 or read-only) |
+| `mutating-permission-denied` | `honua_edit_features` | skipped | honua_edit_features not advertised by this surface (pre-P1) |
+| `async-job-lifecycle` | `honua_execute_plan` | skipped | job lifecycle disabled for this target — set HONUA_MCP_CERT_ALLOW_MUTATION=1 to certify execution against a scratch target |
+| `query-pagination` | `honua_query_features` | failed | query pagination raised: MCP error -32602: Structured content does not match the tool's output schema: data must have required property 'serviceId', data must have required property 'layerId', data must have required property 'returnedCount', data must have required property 'limit', data must have required property 'exceededTransferLimit', data must have required property 'geojson' |
+
+The same run recorded **10 known standard gaps** — tool families in the
+geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), App composition, Feature editing, Map composition, Map composition (reference shape), Publishing, Style inspection).
+They are enumerated in [`mcp/evals/runs/2026-07-07/cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json) under `knownGaps`.
+
+## What this does and does not measure
+
+**It measures** whether a client model, given a plain-language GIS goal and nothing but the
+MCP catalog the surface advertises, composes the right workflow: discovers layers before
+querying them, grounds an ambiguous goal before planning it, validates a plan before a dry run,
+and — critically — stays read-only when the task is read-only. Mutating lifecycle tools are
+*forbidden* by the grader on the read-only scenarios, so "did the agent stay inside its
+authority?" is a scored criterion rather than a hope.
+
+**It does not measure** general model quality, latency, cost, or output prose. It is not a
+head-to-head model benchmark: the rows above were observed on different dates against a live surface that changed underneath them (the advertised tool count across these artifacts ranges from 15 to 20).
+Treat a one-scenario difference as noise; the deterministic control is the only row whose
+meaning is stable across dates.
+
+Other honest limits:
+
+- **Corpus size.** The published corpus is 8 operator scenarios. That is enough to surface gross
+  workflow failures and nowhere near enough for a confidence interval. No statistical claim is
+  made or implied.
+- **Single run per (model, date).** Rates are not averaged over repeated sampling, so a rate
+  describes the recorded runs and is not an expectation.
+- **Surfaces covered.** Every published row targets `https://demo.honua.io/mcp`.
+  The platform-free standalone corpus (a plain public FeatureServer, semantically graded) has no
+  committed cross-model artifact yet, so it is absent from this page rather than summarised from
+  memory.
+- **Paid lane.** Live cross-model runs bill real model usage, so they are dispatched manually
+  rather than on every commit. That is why observation dates are sparse.
+
+## Provenance and reproducibility
+
+Every artifact behind this page, with the surface it targeted and the suite that produced it.
+
+| Artifact | Observed | Kind | Surface | Transport | Protocol | Tools advertised | Auth | Suite SHA |
+| --- | --- | --- | --- | --- | --- | ---: | --- | --- |
+| [`eval-operator-nova-2-lite.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-05/eval-operator-nova-2-lite.json) | 2026-07-05 | cross-model eval | https://demo.honua.io/mcp | `streamable-http` | not recorded | 15 | `api-key` | not recorded |
+| [`eval-operator-opus-4-6.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-05/eval-operator-opus-4-6.json) | 2026-07-05 | cross-model eval | https://demo.honua.io/mcp | `streamable-http` | not recorded | 15 | `api-key` | not recorded |
+| [`eval-operator-sonnet-4-5.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/eval-operator-sonnet-4-5.json) | 2026-07-07 | cross-model eval | https://demo.honua.io/mcp | `streamable-http` | `2025-06-18` | 20 | `api-key` | `a09735af8725` |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-05/cert-demo.json) | 2026-07-05 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | not recorded | 15 | `unknown` | not recorded |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-06/cert-demo.json) | 2026-07-06 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 20 | `api-key` | `60dc44091089` |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json) | 2026-07-07 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 20 | `api-key` | `a09735af8725` |
+
+3 of the artifacts above predate the self-proving provenance
+block and therefore carry no suite SHA or negotiated protocol version. They are published
+as-is, labelled `not recorded`, rather than back-filled — a provenance field that was never
+observed is not a field this repo will invent.
+
+An unresolved required tool would mean a scenario failed because the surface never advertised
+the tool, not because the model chose wrongly. The eval records that separately, per artifact,
+as `catalog.unresolvedRequiredTools`.
+
+Across every published artifact that list is empty, so every non-pass above is a genuine
+workflow-composition result rather than a missing tool.
+
+## How to reproduce, and how this page stays honest
+
+Run the deterministic control locally — free, offline, no credentials, no model calls:
+
+```bash
+npm ci && npm run build            # build the SDK the MCP package consumes
+npm ci --prefix mcp
+npm run --prefix mcp eval:offline  # deterministic control over the fixture surface
+```
+
+Be precise about what that reproduces: it grades the control against the **offline fixture**
+surface, not the live operator surface the rows above targeted. The published control rows ran
+against the live `/mcp` — still with zero model calls — so reproducing one needs the live lane
+below with `--driver` left at the control.
+
+Re-run a live cross-model row (billable; needs credentials and a reachable `/mcp`):
+
+```bash
+HONUA_MCP_REMOTE_URL="https://demo.honua.io/mcp" \
+HONUA_API_KEY="$HONUA_DEMO_API_KEY" \
+HONUA_EVAL_REQUIRE_AUTH=1 \
+HONUA_EVAL_BEDROCK=1 AWS_REGION=us-west-2 \
+HONUA_EVAL_BEDROCK_MODEL="us.anthropic.claude-sonnet-4-5-20250929-v1:0" \
+  npm run --prefix mcp eval:live -- --driver bedrock
+```
+
+Then commit the artifact under `mcp/evals/runs/<YYYY-MM-DD>/` and regenerate:
+
+```bash
+npm run docs:mcp-scorecard         # rewrite this page from the committed artifacts
+npm run docs:mcp-scorecard:check   # the CI gate: fails if the page drifts from them
+```
+
+The `check` mode runs in the docs-site pipeline next to `npm run verify:llms` and
+`npm run docs:comparison:check`, and mirrors their derived-artifact policy: strict on trunk,
+relaxed on pull requests (where it still proves the page is *producible* from the committed
+evidence). The workflows that commit a new run artifact — the scheduled certification and the
+manual live cross-model lane — regenerate this page in the same commit, so trunk stays fresh
+without wedging open PRs. Because the renderer reads no clock and no network, the strict check
+has exactly one failure mode worth having: the committed artifacts and the published page
+disagree. Adding a run without republishing, or editing a figure on this page by hand, both
+fail it.
+
+The relaxed mode is not a hole. It still loads and validates every artifact and re-renders the
+page, so an artifact whose model summary contradicts its own graded rows, whose schema version
+is unsupported, or that grades a scenario absent from its declared corpus, fails CI everywhere,
+on every branch. Only the *committed-freshness* comparison is deferred.
+
+## Related evidence
+
+- [`mcp/evals/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/README.md) — the evidence corpus, grading taxonomy, and how runs land in the repo.
+- [`mcp/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/README.md) — the MCP server itself, the eval CLI, and the live-lane environment contract.
+- [`mcp/src/eval/operator-corpus.ts`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/src/eval/operator-corpus.ts) — every scenario prompt and grading criterion in the operator corpus.
+- [Coding-agent evaluation scorecard](./coding-agent-scorecard.md) — the sibling measurement: can a coding agent write correct SDK code on the first try?
+- [How Honua compares](../comparison.md) — the same generated-evidence discipline applied to bundle size, protocol coverage, and time-to-first-map.
 
 ---
 
@@ -6922,6 +7611,49 @@ field-statistics `queryAggregate` path. No protocol receives it by default. A
 source may advertise it only after backend metadata confirms an indexed
 aggregation implementation for that source.
 
+## Typed filter and temporal support
+
+<!-- support-manifest:filter-matrix:start -->
+Status: generated from [`config/support-manifest.v1.json`](../config/support-manifest.v1.json); do not edit this section by hand.
+
+`Query.filter` is the typed, protocol-neutral semantic filter and
+`Query.temporalFilter` is the canonical time constraint. A construct the target
+cannot express exactly throws `HonuaCapabilityNotSupportedError` naming the
+construct and the protocol; a documented widening (the GeoParquet bbox
+reduction) is reported through `Result.degraded`.
+
+- `✓` full attribute, spatial, and temporal predicate compilation
+- `◐` attribute and temporal predicates only (a spatial node is refused)
+- `—` no filterable query surface
+- `source-dimension` — a temporal filter without a field uses the protocol's own
+  time parameter (`time=`, `datetime=`)
+- `field-predicate` — a temporal filter that names its field compiles to an
+  exact predicate on that field
+
+| Protocol | Typed filter | Dialect | Temporal forms | Notes |
+| --- | :-: | --- | --- | --- |
+| `grpc` | ✓ | `honua-grpc (SQL-92 where)` | `field-predicate` | QueryFeatures has no time parameter, so a temporal filter must name its field. |
+| `geoservices-feature-service` | ✓ | `geoservices-sql92` | `source-dimension`, `field-predicate` | One geometry per request: a spatial node must be conjunctive and unique, otherwise the compile refuses. |
+| `geoservices-map-service` | ✓ | `geoservices-sql92` | `source-dimension`, `field-predicate` | Same request vocabulary as FeatureServer through the MapServer layer query endpoint. |
+| `geoservices-image-service` | ◐ | `geoservices-sql92` | `source-dimension`, `field-predicate` | The raster catalog endpoint accepts no geometry parameters; a spatial filter node is refused. |
+| `geoservices-geometry-service` | — | — | — | No feature query surface. |
+| `geoservices-gp-service` | — | — | — | No feature query surface. |
+| `ogc-features` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | Spatial and attribute predicates emit CQL2 (Part 3); a bare temporal window uses `datetime=`. |
+| `ogc-tiles` | — | — | — | Render-only adapter. |
+| `ogc-maps` | — | — | — | Render-only adapter. |
+| `ogc-records` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | Records `filter=` carries CQL2 text; `datetime=` carries a bare temporal window. |
+| `stac` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | STAC API only. Static catalog traversal has no CQL2 evaluator and refuses attribute filters. |
+| `wfs` | ✓ | `fes-2.0` | `field-predicate` | FES 2.0 Before/After/During/AnyInteracts; WFS has no time parameter, so a temporal filter names its field. |
+| `wms` | — | — | — | GetFeatureInfo has no attribute filter; time is a map dimension on the typed WMS envelope. |
+| `wmts` | — | — | — | Render-only adapter. |
+| `odata` | ✓ | `odata-4.0` | `field-predicate` | `geo.intersects` is the only standard topological function; other predicates and interior LIKE wildcards refuse. |
+| `pmtiles` | — | — | — | Render-only archive adapter. |
+| `geoparquet` | ✓ | `duckdb-sql` | `field-predicate` | Spatial predicates reduce to the bbox pushdown; a non-envelope geometry is reported through `Result.degraded`. |
+| `maplibre-vector` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
+| `maplibre-raster` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
+| `maplibre-geojson` | — | — | — | Reserved identifier with no query path. |
+<!-- support-manifest:filter-matrix:end -->
+
 ## Notes by protocol
 
 ### gRPC FeatureService
@@ -7193,7 +7925,8 @@ WFS `propertyName=` drops every property the caller does not list,
 including the geometry column, so `Query.outFields` and
 `Query.returnGeometry` are resolved together: an `outFields` list with
 `returnGeometry !== false` appends the geometry property
-(`the_geom` by default) before the projection lands on the wire so
+(`locator.geometryName` / descriptor geometry field, else the reviewed
+`the_geom` default) before the projection lands on the wire so
 geometry survives; `returnGeometry === false` paired with an
 `outFields` list emits exactly the requested fields (no geometry); a
 `returnGeometry === false` request without an `outFields` list throws
@@ -7295,6 +8028,31 @@ must stamp the spatial filter geometry's `spatialReference` with the
 desired CRS (the wire CRS is derived from there) or reproject the
 result client-side. `Query.pagination.limit` is honored — it maps to
 `FEATURE_COUNT` on the wire.
+
+The same canonical `query()` works against a third-party WMS 1.3
+endpoint discovered by `connect()`, with no Honua service id involved.
+Discovery reviews the advertised `GetFeatureInfo` operation and pins it
+on `locator.featureInfo` (`{ kind: "wms-kvp", url, format, crs }`) only
+when the layer is `queryable`, the operation advertises a safe
+same-origin GET URL, an advertised `INFO_FORMAT` can be projected into
+canonical features, and at least one advertised CRS has a provable WMS
+1.3 axis order. Format preference is GeoJSON/JSON first, then GML
+(`application/vnd.ogc.gml`, `application/gml+xml`, `text/xml;
+subtype=gml/*`) decoded from `gml:featureMember` / `gml:featureMembers`
+containers or MapServer's `msGMLOutput` wrapper — leaf property elements
+become attributes, complex properties and `gml:boundedBy` are skipped,
+and `geometry` is `null`. Unstructured `text/plain` and `text/html` are
+never selected because their bodies are template-defined per deployment,
+so an endpoint advertising only those keeps `query` disabled. The wire
+CRS is resolved against the reviewed list (`CRS:84` and `EPSG:4326` are
+interchangeable inputs for the same canonical `(lon, lat)` point); a CRS
+the layer never advertised throws
+`HonuaCapabilityNotSupportedError("query", "wms", id)` rather than being
+sent. A response body that does not decode into features (an OGC
+exception report, malformed JSON, or an unrecognized GML container)
+raises the same capability error instead of degrading into an empty
+result. The raw `Source.protocol("wms")` handles stay unavailable on
+third-party sources — they are Honua-service-id bound.
 
 `Source.protocol("wms-layer")` is registered only when
 `locator.typeName` parses to a single non-empty layer token because
@@ -7686,7 +8444,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | Geometry operations | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
 | OGC API Features | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
 | WFS 2.0 | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | connect(), Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
-| WMS 1.3 discovery and raster rendering | `supported` | `standalone` | `discovery` | Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding; canonical query remains disabled unless a Honua service id binds the existing FeatureInfo adapter. |
+| WMS 1.3 discovery, raster rendering, and GetFeatureInfo | `supported` | `standalone` | `discovery` | Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding; canonical query additionally needs a queryable layer advertising a GeoJSON, JSON, or GML GetFeatureInfo format | connect(), Source descriptor, Source.query(), @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding and answer canonical point query() through the capabilities-advertised GetFeatureInfo URL, preferring GeoJSON/JSON and falling back to GML. Query stays disabled when the layer is not queryable, no same-origin GetFeatureInfo GET URL is advertised, the only advertised info formats are unstructured (text/plain, text/html), or no advertised CRS has a provable WMS 1.3 axis order. |
 | WMTS 1.0 discovery and raster tiles | `supported` | `standalone` | `discovery` | Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms. |
 | STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
 | OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
@@ -9210,54 +9968,54 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-03 at commit `122b3650`._
+_Generated 2026-08-04 at commit `b5f6fc73`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 697.2 KiB | 753.9 KiB | 186.3 KiB | 191.4 KiB |
-| `/honua` | 863.9 KiB | 937.2 KiB | 231.8 KiB | 251.0 KiB |
-| `/contract` | 326.0 KiB | 352.8 KiB | 86.8 KiB | 94.1 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 844.7 KiB | 925.5 KiB | 187.7 KiB | 206.0 KiB |
+| `.` (root) | 738.5 KiB | 753.9 KiB | 198.4 KiB | 211.8 KiB |
+| `/honua` | 901.3 KiB | 937.2 KiB | 242.8 KiB | 251.0 KiB |
+| `/contract` | 364.3 KiB | 400.6 KiB | 98.3 KiB | 108.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 878.3 KiB | 925.5 KiB | 197.7 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 878.0 KiB | 961.8 KiB | 197.1 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 911.6 KiB | 961.8 KiB | 207.0 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 65.3 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
 | `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
-| `/nl-map-control` | 76.7 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 562.1 KiB | 612.2 KiB | 150.4 KiB | 163.9 KiB |
-| `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
-| `/offline` | 83.6 KiB | 91.9 KiB | 23.2 KiB | 25.5 KiB |
-| `/query-planner` (worker runtime injected) | 639.4 KiB | 703.3 KiB | 136.4 KiB | 143.2 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 112.2 KiB | 122.9 KiB | 34.5 KiB | 37.7 KiB |
-| `/esri-compat` | 992.9 KiB | 1026.2 KiB | 247.8 KiB | 253.6 KiB |
+| `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
+| `/runtime` | 599.3 KiB | 612.2 KiB | 162.0 KiB | 163.9 KiB |
+| `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
+| `/offline` | 96.4 KiB | 106.1 KiB | 26.9 KiB | 29.5 KiB |
+| `/query-planner` (worker runtime injected) | 659.6 KiB | 703.3 KiB | 142.5 KiB | 143.2 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.6 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
+| `/esri-compat` | 999.8 KiB | 1026.2 KiB | 250.1 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
 | `/routing` | 20.5 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
 | `/auth` | 25.9 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
-| `/style` | 61.4 KiB | 69.0 KiB | 15.3 KiB | 17.2 KiB |
-| `/map` | 179.2 KiB | 182.2 KiB | 50.6 KiB | 50.7 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 129.3 KiB | 137.8 KiB | 38.9 KiB | 40.9 KiB |
+| `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
+| `/map` | 180.7 KiB | 198.2 KiB | 51.2 KiB | 56.2 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 139.2 KiB | 154.9 KiB | 42.0 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 945.3 KiB | 1037.6 KiB | 253.3 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1021.7 KiB | 1120.1 KiB | 276.8 KiB | 292.6 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 978.0 KiB | 1037.6 KiB | 263.3 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1054.5 KiB | 1120.1 KiB | 286.5 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 499.3 KiB | 506.7 KiB | 132.7 KiB | 134.6 KiB |
+| `/react` (react/react-dom external) | 536.4 KiB | 562.6 KiB | 144.3 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 697.8 KiB | 754.5 KiB | 186.6 KiB | 201.3 KiB |
-| browser ESM (`./browser`) | 696.5 KiB | 753.1 KiB | 186.3 KiB | 201.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 225.4 KiB | 229.7 KiB | 57.8 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 570.4 KiB | 627.9 KiB | 151.7 KiB | 166.9 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 739.1 KiB | 754.5 KiB | 198.7 KiB | 201.3 KiB |
+| browser ESM (`./browser`) | 737.8 KiB | 753.1 KiB | 198.4 KiB | 201.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 231.4 KiB | 254.0 KiB | 59.7 KiB | 63.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 604.0 KiB | 627.9 KiB | 161.1 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.4 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.8 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 663.8 KiB | 717.1 KiB | 177.5 KiB | 191.3 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 240.0 KiB | 245.9 KiB | 61.1 KiB | 61.4 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 703.3 KiB | 717.1 KiB | 189.1 KiB | 191.3 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 246.0 KiB | 267.0 KiB | 63.0 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.6 KiB | 44.7 KiB | 13.3 KiB | 14.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.8 KiB | 44.7 KiB | 13.4 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
 
@@ -11020,9 +11778,28 @@ honors the relation rather than silently widening to bbox semantics.
 Geometry serialization is GML 3.2 simple (point / line / polygon);
 curves and surfaces throw and require the escape hatch.
 
-The geometry property name defaults to `the_geom`. Servers using a
-different name (`geometry`, `shape`, …) can supply a per-source filter
-through the protocol escape hatch.
+### Geometry property resolution
+
+The geometry property is named per feature type, not per protocol:
+PostGIS via GeoServer serves `the_geom`, MapServer serves `msGeometry`,
+and app-schema / deegree deployments use whatever the schema declares.
+A spatial predicate that references the wrong property matches nothing,
+so the adapter resolves the real name instead of assuming one:
+
+1. `locator.geometryName`, when set, wins and costs no round-trip.
+2. Otherwise the adapter issues `DescribeFeatureType` once per feature
+   type, caches the result alongside the capabilities snapshot, and uses
+   the first geometry property the schema declares.
+3. If neither names it, the request fails closed with
+   `HonuaWfsProtocolError("unresolved-geometry-property")` — the adapter
+   never falls back to a vendor default.
+
+Resolution is lazy: it happens only when the request names the property
+on the wire (an FES spatial predicate, or `<wfs:Insert>` / `<wfs:Update>`
+geometry). The `bbox=` KVP shortcut addresses the default geometry
+positionally, so envelope-intersects queries need no schema round-trip.
+Feature types that declare several geometries resolve to the first one;
+pin a different one with `locator.geometryName`.
 
 ## Field projection (`outFields` and `returnGeometry`)
 
@@ -11455,7 +12232,7 @@ values.
 | `Query` field | DuckDB SQL |
 | --- | --- |
 | `outFields` | quoted identifier projection; geometry projected as `ST_AsGeoJSON(...)` |
-| `where` | passed through verbatim, wrapped in `( … )` (caller-authored SQL, like GeoServices `where`) |
+| `where` | validated as a single boolean expression, then wrapped in `( … )` (see [SQL-injection safety](#sql-injection-safety)) |
 | `spatialFilter` (envelope) | `ST_Intersects(<geom>, ST_MakeEnvelope(xmin, ymin, xmax, ymax))`, or a GeoParquet 1.1 `bbox` covering-column comparison (row-group prune) |
 | `spatialFilter` (point/polyline/polygon) | reduced to its bounding box; reported in `Result.degraded` as an approximation |
 | `orderBy` | `ORDER BY "field" ASC|DESC` |
@@ -11473,10 +12250,45 @@ Every value the compiler interpolates is escaped:
   doubled; NUL rejected.
 - **Numeric literals** (bbox, limit, offset): validated finite / non-negative.
 
-The one deliberate exception is `Query.where`, which — exactly like the
-GeoServices and OGC adapters — is caller-authored filter SQL passed through
-verbatim. The trust boundary on `where` is the caller's, identical to a
-GeoServices `where` clause. The compiler is covered by snapshot tests in
+`Query.where` is the one raw-text lane: it is caller-authored filter SQL, so it
+cannot be escaped like a value. It is instead **contained** by
+`validateWhereExpression` before it is embedded, and a rejected expression
+throws a typed `GeoParquetWhereClauseError` carrying a fixed
+`GEOPARQUET_WHERE_*` code (the message never echoes the offending text). The
+planner surfaces the same rejection as `HonuaQueryPlanningError`
+(`code: "invalid-query"`).
+
+Rejected: statement separators (`;`) and multi-statement input; SQL line and
+block comments (including the trailing `--` that would otherwise swallow the
+compiler's own `AND (<spatial predicate>)`); unterminated string or
+quoted-identifier literals (`x' OR 1=1`); `E'…'` escape strings, whose
+backslash escaping would make every literal boundary after them mis-parse
+(plain literals with doubled quotes carry the same data); unbalanced
+parentheses, so the wrapping `( … )` cannot be closed early to re-associate or
+append clauses; `SELECT` / `UNION` and other statement or set-operation
+keywords plus a table-context `FROM`, so a filter cannot become a subquery or
+UNION probe against other tables and files registered in the same DuckDB
+session; parameter markers (`?`, `$1`, `$name`), which this lane never binds;
+and control characters other than tab / newline / carriage return.
+
+Accepted unchanged: ordinary comparisons, `AND`/`OR`/`NOT`, `IN` value lists,
+`BETWEEN`, `LIKE`, `CASE … END`, scalar function calls, struct/field paths,
+the expression forms of `FROM` (`EXTRACT(YEAR FROM ts)`,
+`TRIM(BOTH ' ' FROM name)`, `SUBSTRING(name FROM 2 FOR 3)`, `OVERLAY(…)`, and
+`POSITION(a IN b)`), and string literals containing any of the above
+characters as data (`note = 'a ; b -- c'`). A column whose name collides with
+a rejected keyword stays addressable by quoting it (`"union" = 1`), because
+quoted identifiers are skipped by the validator.
+
+This is containment, not a semantic parser. Accepted text is still executed by
+DuckDB: it can reference any column in the scanned files, call any scalar
+function the session exposes, and cost arbitrary CPU. Applications that forward
+end-user input (a filter box, a URL parameter) should build the expression from
+typed inputs and treat the validator as a backstop; the typed, parameterized
+semantic compiler (`compileSemanticDuckDbQuery`) removes the raw-text lane
+entirely. `source.protocol("geoparquet").sql(...)` remains an explicit, opt-in
+raw-SQL escape hatch and is deliberately not covered by this validation. The
+compiler is covered by snapshot and rejection tests in
 `test/geoparquet-sql.test.ts`.
 
 ## Both metadata styles
@@ -13838,9 +14650,9 @@ than being throwaway no-ops. Specifically:
   `Fullscreen`, `Zoom`, `Attribution`, `ScaleBar`, `Locate`,
   `Bookmarks`, `Print`, `Sketch`, `Editor`, `Expand`, `TimeSlider`,
   `Directions`, `CoordinateConversion`, `Measurement`
-- Tasks & support: `RouteTask`, `Query`, `OAuthInfo`,
-  `IdentityManager`, `esriRequest`, `esriConfig`, `reactiveUtils`,
-  `FeatureFilter`
+- Tasks & support: `RouteTask`, `Locator`, `LocatorSearchSource`,
+  `Query`, `OAuthInfo`, `IdentityManager`, `esriRequest`,
+  `esriConfig`, `reactiveUtils`, `FeatureFilter`
 
 The `MapViewLayerViewCompat` returned from `view.whenLayerView()`
 now carries `filter` / `effect` / `visible` state and forwards
@@ -13883,9 +14695,13 @@ API (it does **not** use regex). It:
 - Emits `manualTodos` and `manualTodoReasons` on a `byKind` matrix
   for every untouched call site, so app authors can drive cleanup
   against a checklist.
-- Emits a parity report (`src/migration/report.ts`) with three
-  gates (`no-manual-todos`, `no-unhandled-modules`,
-  `no-blocking-flags`) and a readiness verdict.
+- Emits a parity report (`src/migration/report.ts`) with four
+  gates (`arcgis-usage-detected`, `no-manual-todos`,
+  `no-unhandled-modules`, `no-blocking-flags`) and a readiness
+  verdict. A scan that recognized no ArcGIS usage reports
+  `no-usage-detected` rather than letting the other three gates pass
+  vacuously into a `ready`; `--fail-on-no-usage` fails a CI lane on
+  it.
 - Knows the `esri-leaflet` migration target as a separate column,
   with `ESRI_LEAFLET_COMPAT_FALLBACK_KINDS` gating which kinds are
   treated as deterministic vs. assisted.
@@ -13922,12 +14738,25 @@ hold the surface stable).
    `IntegratedMeshLayer`, `PointCloudLayer`, `MeshLayer`,
    `ElevationLayer`, `VoxelLayer` have no shims. These all need
    server-side glTF/I3S support (`honua-server` ticket).
-3. **`Locator` / `Geoprocessor` / `NetworkAnalyst` (beyond
-   RouteTask).** Today only `RouteTask` is shimmed against
-   `HonuaRouteService`. The remaining task surfaces (geocoding,
-   service-area, OD-cost-matrix, closest-facility,
-   non-network geoprocessing) need their own surfaces under
-   `src/core/` and matching compat classes.
+3. **`Geoprocessor` / `NetworkAnalyst` (beyond RouteTask).**
+   `Locator` is no longer in this bucket: `LocatorCompat` shims
+   `addressToLocations`, `addressesToLocations`,
+   `locationToAddress`, and `suggestLocations` onto the
+   provider-pluggable geocoding contract in `src/geocoding/`, and
+   `LocatorSearchSourceCompat` is the `Search` widget's address
+   backend — client-side, with no `honua-server` surface. The
+   caller supplies the endpoint (Nominatim / Photon / Pelias / a
+   Honua GeocodeServer), so the codemod rewrites the constructor
+   but cannot choose the provider; that one wiring step stays
+   assisted, and `@arcgis/core/rest/locator` function imports are
+   rewritten with a TODO for the URL-to-`LocatorCompat` swap.
+   Provider capability misses (no `suggest` on Nominatim) throw
+   `HonuaCapabilityNotSupportedError` instead of degrading to a
+   forward geocode. Batch geocoding is client-side — one provider
+   request per address, not a server batch endpoint. Still
+   unshimmed: service-area, OD-cost-matrix, closest-facility, and
+   non-network geoprocessing, which do need their own surfaces
+   under `src/core/` and matching compat classes.
 4. **`Query` argument depth.** *Shipped (Task E).* The codemod now
    deep-transforms `new Query({...})` argument literals into the
    Honua `QueryFeaturesRequest` shape: renames `start` →
@@ -14103,18 +14932,20 @@ In rough effort order:
 | Codemod event-name remap (Task D) | 1–2 days | Pure JS-side work; needs an event-name dictionary plus AST pass. |
 | Codemod dynamic-import + CJS (Task F) | 1–2 days | Mirror the static-ESM path; care needed for awaited dynamic imports' destructuring. |
 | ~~Query argument deep-transform (Task E)~~ | ~~3–5 days~~ | Shipped: codemod renames `start`/`num`/`outSpatialReference`/`spatialRelationship`, splits `geometry` into `geometry`+`geometryType`, normalizes `outStatistics[i].statisticType` against `STATISTIC_TYPE_MAP`, and emits precise manual TODOs for `timeExtent`, `quantizationParameters`, `relationParam`, dynamic statisticType, and geometry without a literal `type`. `QueryCompat` accepts both ArcGIS and Honua property spellings. |
-| Locator + Geoprocessor compat (Task C) | 1–2 weeks | Requires `HonuaGeocodeService`, `HonuaGeoprocessService` surfaces (server work). |
+| ~~Locator compat (Task C, geocoding half)~~ | ~~1 week~~ | Shipped: `LocatorCompat` + `LocatorSearchSourceCompat` ride the provider-pluggable geocoding contract, so no `HonuaGeocodeService` was needed. The provider endpoint is caller-configured, which keeps the wiring step assisted. |
+| Geoprocessor compat (Task C, remainder) | 1–2 weeks | Requires a `HonuaGeoprocessService` surface (server work); service-area / OD-cost-matrix / closest-facility likewise. |
 | Scene-layer compat (Task A-rest) | 4–8 weeks | Requires I3S/glTF pipeline on `honua-server`; not pure-JS work. |
 | ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
 
-With the first three rows (Tasks D/F/E) now shipped, "automated app
-conversion" reaches deterministic constructor rewrite + event-name
-remap + dynamic/CJS imports + Query argument deep-transform, plus a
-manual-TODO report for everything else. The remaining rows
-(Locator/Geoprocessor and Scene-layer compat) still gate the
-unqualified "parity with ArcGIS JS SDK" claim — that should remain
-qualified as "deterministic 2D parity; scene/3D and advanced tasks
-remain assisted migration" until they land.
+With Tasks D/F/E and the geocoding half of Task C now shipped,
+"automated app conversion" reaches deterministic constructor rewrite +
+event-name remap + dynamic/CJS imports + Query argument deep-transform +
+`Locator`/`Search` address backends, plus a manual-TODO report for
+everything else. The remaining rows (Geoprocessor/NetworkAnalyst and
+Scene-layer compat) still gate the unqualified "parity with ArcGIS JS
+SDK" claim — that should remain qualified as "deterministic 2D parity;
+scene/3D and advanced tasks remain assisted migration" until they
+land.
 
 ---
 
@@ -14263,6 +15094,11 @@ bound to their own platform; this one is bound to none.
 
 **Release status: beta.** Tool contracts are certified against live and fixture
 targets on every release; remaining pre-1.0 work is hardening, not surface change.
+
+**Scores are published, not claimed.** How well different client models actually
+drive this surface — and where they fail — is in the
+[cross-model MCP eval scorecard](../docs/generated/mcp-eval-scorecard.md),
+generated from the dated run artifacts committed under [`evals/`](evals/README.md).
 
 Two modes:
 
@@ -14480,6 +15316,13 @@ the downstream client sees is byte-identical to the upstream surface, that
 notifications are forwarded.
 
 ## Cross-model workflow eval (provability)
+
+**Published results:
+[Cross-model MCP eval scorecard](../docs/generated/mcp-eval-scorecard.md)** —
+generated from the committed run artifacts in [`evals/runs/`](evals/runs), with
+the deterministic control row, every non-passing run, and the protocol
+certification failures. It ships on the docs site; its freshness is a CI gate
+(`npm run docs:mcp-scorecard:check` from the repo root).
 
 The package ships a **cross-model workflow eval** that proves the "any client →
 any workflow" claim: a held-out corpus of GIS workflows (`src/eval/corpus.ts`)

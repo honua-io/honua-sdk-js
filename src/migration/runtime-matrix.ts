@@ -295,7 +295,16 @@ const BASE_RUNTIME_MATRIX: readonly BaseRuntimeParityEntry[] = Object.freeze([
     honuaCompat: "compat",
     esriLeaflet: "compat",
     notes:
-      "Search is deterministic in esri-leaflet target via compat fallback wrappers; MapLibre target is blocked on a Locator-equivalent (HonuaGeocodeService) per migration punch list Task C.",
+      "Search is deterministic in esri-leaflet target via compat fallback wrappers; the MapLibre target wires address search through LocatorCompat.toSearchSource() and needs a caller-configured geocoding provider (no server dependency).",
+  },
+  {
+    surface: "widget",
+    capability: "geocoding-locator",
+    arcGisJsApi: "Locator.addressToLocations/locationToAddress/suggestLocations",
+    honuaCompat: "compat",
+    esriLeaflet: "compat",
+    notes:
+      "LocatorCompat executes ArcGIS-shaped locator calls against the provider-pluggable geocoding contract (Nominatim/Photon/Pelias/Honua). Provider capability misses surface through the capability policy instead of being faked; batch geocoding is client-side, one request per address.",
   },
   {
     surface: "widget",
@@ -390,15 +399,6 @@ function inferHonuaMapLibreRuntimeStatus(entry: BaseRuntimeParityEntry): JsRunti
   }
   if (entry.surface === "map-view" && entry.capability === "navigation-go-to") {
     return "native";
-  }
-  // Search depends on a Locator-equivalent backend (HonuaGeocodeService) that is
-  // not yet shimmed; see docs/migration-punch-list.md "Locator + Geoprocessor
-  // compat (Task C)".
-  if (entry.surface === "widget" && entry.capability === "search-widget") {
-    return "unsupported";
-  }
-  if (entry.surface === "widget" && entry.capability === "search-expanded-options") {
-    return "unsupported";
   }
   return "assisted";
 }

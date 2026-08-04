@@ -1,4 +1,5 @@
 import { type HonuaErrorCode, HonuaSdkError } from "../core/error-envelope.js";
+import { credentialScreenMessage, screenPersistedString } from "./credential-screen.js";
 
 export const HONUA_OFFLINE_EDIT_QUEUE_VERSION = "1.0" as const;
 export const DEFAULT_OFFLINE_EDIT_QUEUE_MAX_EDITS = 10_000;
@@ -37,6 +38,19 @@ export type OfflineEditJsonValue =
 
 export type OfflineEditOperation = "add" | "update" | "delete";
 export type OfflineQueuedEditState = "pending" | "leased" | "retryable" | "applied" | "conflicted" | "cancelled";
+
+const QUEUE_STATES = [
+  "pending",
+  "leased",
+  "retryable",
+  "applied",
+  "conflicted",
+  "cancelled",
+] as const satisfies readonly OfflineQueuedEditState[];
+
+function emptyStateCounts(): Record<OfflineQueuedEditState, number> {
+  return { pending: 0, leased: 0, retryable: 0, applied: 0, conflicted: 0, cancelled: 0 };
+}
 
 export interface OfflineFeatureEdit {
   readonly operation: OfflineEditOperation;
@@ -136,6 +150,9 @@ export interface OfflineEditQueuePartition {
   readonly sourceId: string;
 }
 
+/** Complete, unbounded partition totals for every queue state. */
+export type OfflineEditQueueStateCounts = Readonly<Record<OfflineQueuedEditState, number>>;
+
 export interface ClaimOfflineEditsOptions extends OfflineEditQueuePartition {
   readonly workerId: string;
   readonly limit: number;
@@ -177,6 +194,12 @@ export interface OfflineEditQueue {
   enqueue(input: EnqueueOfflineEditInput): Promise<OfflineEditEnqueueResult>;
   get(editId: string, partition: OfflineEditQueuePartition): Promise<OfflineQueuedEdit | undefined>;
   list(options: ListOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]>;
+  /**
+   * Exact partition totals for every state. `list` is bounded to 100 records
+   * and has no cursor, so it cannot be counted; anything that must be truthful
+   * about how much work exists has to read these totals instead.
+   */
+  countByState(partition: OfflineEditQueuePartition): Promise<OfflineEditQueueStateCounts>;
   claimReady(options: ClaimOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]>;
   markApplied(editId: string, leaseToken: string, outcome?: MarkOfflineEditAppliedInput): Promise<OfflineQueuedEdit>;
   markRetry(editId: string, leaseToken: string, outcome: MarkOfflineEditRetryInput): Promise<OfflineQueuedEdit>;
@@ -347,6 +370,15 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
     );
   }
 
+  public async countByState(partition: OfflineEditQueuePartition): Promise<OfflineEditQueueStateCounts> {
+    const normalized = capturePartition(partition, "partition");
+    const counts = emptyStateCounts();
+    for (const record of this.#records.values()) {
+      if (matchesPartition(record, normalized)) counts[record.state] += 1;
+    }
+    return Object.freeze(counts);
+  }
+
   public async claimReady(options: ClaimOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]> {
     const result = claimRecords([...this.#records.values()], this.#tombstones, options, this.#options);
     for (const record of result.changed) this.#records.set(record.id, record);
@@ -481,6 +513,20 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
       const ids = await scanPartitionIds(metadata, partition, limit);
       const records = await Promise.all(ids.map((id) => request<OfflineQueuedEdit | undefined>(edits.get(id))));
       return copy(records.filter((record): record is OfflineQueuedEdit => record !== undefined));
+    });
+  }
+
+  public async countByState(partition: OfflineEditQueuePartition): Promise<OfflineEditQueueStateCounts> {
+    const normalized = capturePartition(partition, "partition");
+    return this.#run("readonly", async ({ metadata }) => {
+      const index = metadata.index(PARTITION_STATE_ORDER_INDEX);
+      const counts = emptyStateCounts();
+      // The compound partition/state index counts without materializing or
+      // reading any edit payload.
+      for (const state of QUEUE_STATES) {
+        counts[state] = await request<number>(index.count(partitionStateRange(normalized, state)));
+      }
+      return Object.freeze(counts);
     });
   }
 
@@ -628,8 +674,8 @@ async function prepareEdit(input: EnqueueOfflineEditInput, options: NormalizedQu
   const record = plainRecord(input, "input");
   allowedKeys(record, ENQUEUE_KEYS, "input");
   const authorizationScopeDigest = requiredDigest(record.authorizationScopeDigest, "authorizationScopeDigest");
-  const sourceId = requiredString(record.sourceId, "sourceId");
-  const idempotencyKey = requiredString(record.idempotencyKey, "idempotencyKey");
+  const sourceId = requiredPersistedIdentity(record.sourceId, "sourceId");
+  const idempotencyKey = requiredPersistedIdentity(record.idempotencyKey, "idempotencyKey");
   const edit = captureFeatureEdit(record.edit, options.maxPayloadBytes);
   const dependencyIds = captureDependencies(record.dependencyIds, options.maxDependencies);
   const identity = { authorizationScopeDigest, sourceId, idempotencyKey };
@@ -1029,7 +1075,7 @@ function capturePartition(value: OfflineEditQueuePartition, path: string): Offli
 function partitionFromRecord(record: Record<string, unknown>, path: string): OfflineEditQueuePartition {
   return {
     authorizationScopeDigest: requiredDigest(record.authorizationScopeDigest, `${path}.authorizationScopeDigest`),
-    sourceId: requiredString(record.sourceId, `${path}.sourceId`),
+    sourceId: requiredPersistedIdentity(record.sourceId, `${path}.sourceId`),
   };
 }
 
@@ -1447,6 +1493,18 @@ function requiredString(value: unknown, path: string): string {
     fail("invalid-edit", `${path} must be a normalized non-empty string of at most 1024 UTF-8 bytes.`, { path });
   }
   return value;
+}
+
+/**
+ * A durable partition key that is persisted verbatim and used as an index key.
+ * Screened with the same denylist that governs endpoint normalization; the
+ * message names the path and never echoes the rejected value.
+ */
+function requiredPersistedIdentity(value: unknown, path: string): string {
+  const normalized = requiredString(value, path);
+  const reason = screenPersistedString(normalized, "identity");
+  if (reason) fail("invalid-edit", credentialScreenMessage(path, reason), { path });
+  return normalized;
 }
 
 function requiredDigest(value: unknown, path: string): `sha256:${string}` {

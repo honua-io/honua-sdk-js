@@ -110,6 +110,7 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
   "offline.region.validation": runtimeClassification("offline", "validation", false),
   "offline.region.quota": runtimeClassification("offline", "validation", false),
   "offline.region.integrity": runtimeClassification("offline", "protocol", false),
+  "offline.region.miss": runtimeClassification("offline", "validation", false),
   "offline.cancelled": runtimeClassification("offline", "cancellation", false),
   "offline.transport.failure": runtimeClassification("offline", "network", false),
   "offline.transport.transient": runtimeClassification("offline", "network", true),

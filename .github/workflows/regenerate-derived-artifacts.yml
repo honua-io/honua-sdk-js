@@ -23,7 +23,11 @@ name: Regenerate derived artifacts
 #
 # The read-only job's commit chain can carry up to four commits, not two:
 # (1) regenerated non-evidence inputs, (2) the NON-EXECUTED (skip-attestation)
-# lanes' catalog live-evidence expiry refresh, (3) the golden samples' catalog
+# lanes' re-observed attestations plus their catalog live-evidence expiry
+# refresh (honua-io/honua-sdk-js#972 -- the renewed
+# examples/<sample>/evidence/live-skipped.v1.json files ride this commit with
+# the expiry literal derived from them, since both are inside the
+# evidence-neutral digest and must precede pass one), (3) the golden samples' catalog
 # live-evidence expiry refresh (honua-io/honua-sdk-js#788 -- projected from
 # samples/contract/v2/migrations/catalog.v1-to-v2.json into
 # samples/catalog.v2.json, both themselves inside the evidence-neutral
@@ -58,7 +62,9 @@ name: Regenerate derived artifacts
 # does so for every release -- then moves the js-sdk-* tag onto the resealed
 # commit this workflow merged, because a reseal is always a NEW commit and can
 # never freshen a tree an existing tag already names (#768). The loop guard below
-# makes a dispatch a fast no-op when trunk's tip is already a regeneration merge.
+# makes a dispatch a fast no-op when trunk's tip is already a regeneration merge --
+# except when a skip attestation is due for renewal (#972), which is a wall-clock
+# obligation the guard must not be able to defer indefinitely on a quiet trunk.
 #
 # Digest-narrowed push trigger (#746 REQ-003): the `paths:` filter below
 # mirrors EVIDENCE_NEUTRAL_INCLUDED_ROOTS / EVIDENCE_NEUTRAL_EXCLUDED_ROOTS in
@@ -168,11 +174,32 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      # Skip-attestation renewal window probe (honua-io/honua-sdk-js#972).
+      #
+      # Deliberately depends on nothing but Node builtins so it can run before
+      # `npm ci`. Its only job here is to answer "is any skip attestation close
+      # enough to its 90-day horizon that it must be re-observed now", and to
+      # emit the 14-day early warning either way.
+      #
+      # It runs before the loop guard because the guard is itself part of the
+      # lapse mechanism: it skips the entire job whenever trunk's tip is already
+      # a clean regeneration merge, which on a quiet trunk is EVERY scheduled
+      # run. A renewal that only happened inside the guarded body would
+      # therefore stop happening exactly when nothing else is moving -- and an
+      # attestation ages on wall-clock time, not on merge activity. The decision
+      # step below lets a due renewal veto the skip so the one thing that must
+      # happen on a calendar still does.
+      - name: Check skip-attestation renewal window
+        id: renewal
+        shell: bash
+        run: node scripts/renew-skip-attestations.mjs --dry-run
+
       # Loop guard: only a clean merge
       # of this workflow's own one- to four-commit PR chain (source regen; the
-      # skip-attestation catalog live-expiry refresh and the golden-lane one,
-      # each when it produced a change; resealed evidence + dist), needs no
-      # further work. A one-parent marker commit is not sufficient: a squash
+      # skip-attestation re-observation plus catalog live-expiry refresh and the
+      # golden-lane one, each when it produced a change; resealed evidence +
+      # dist), needs no further work. A one-parent marker commit is not
+      # sufficient: a squash
       # merge destroys the generated ancestry that receipts bind to. If trunk
       # advanced after that chain was cut, the merge commit's
       # first parent differs from the chain base and regeneration runs again
@@ -184,50 +211,71 @@ jobs:
           RELEASE_MATRIX_RECEIPT_RUN_ID: ${{ inputs.release_matrix_receipt_run_id }}
         run: node scripts/check-derived-artifact-tip.mjs
 
+      # Single source of truth for "does this run do work", so the loop guard and
+      # the renewal veto cannot disagree across the ~20 steps that consume it.
+      - name: Resolve regeneration decision
+        id: decision
+        shell: bash
+        env:
+          GUARD_SKIP: ${{ steps.guard.outputs.skip }}
+          RENEWAL_DUE: ${{ steps.renewal.outputs.renewal_due }}
+        run: |
+          set -euo pipefail
+          if [[ "$GUARD_SKIP" == "true" && "$RENEWAL_DUE" != "true" ]]; then
+            echo "Tip is a regeneration commit and no skip attestation is due for renewal."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            if [[ "$GUARD_SKIP" == "true" ]]; then
+              echo "Tip is a regeneration commit, but a skip attestation is due for renewal; proceeding."
+            fi
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm ci
 
       - name: Install Playwright browser
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npx playwright install --with-deps chromium
 
       - name: Build SDK
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm run build
 
       # Regenerate source-derived artifacts. All of these paths are excluded
       # from the evidence-neutral source digest, so producing them here does not
       # perturb the reseal below. Order mirrors the historical manual recipe.
       - name: Regenerate public API report and error codes
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: |
           npm run report:api
           npm run docs:error-codes
 
       - name: Regenerate cross-SDK benchmark corpus source-tree pin
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm run bench:references:source-tree:write
 
       - name: Regenerate bundle-size report
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm run report:bundle-sizes
 
       - name: Regenerate migration-workbench artifacts
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm run demo:migration-workbench:artifacts:write
 
       # The migration generator updates allowlisted example source consumed by
       # llms-full.txt. The comparison page is also embedded in llms-full.txt, so
       # generate every input before producing the final documentation projection.
       - name: Regenerate llms.txt and comparison page
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: |
           npm run docs:comparison
+          npm run docs:mcp-scorecard
           npm run docs:llms
 
       - name: Verify llms.txt freshness before publication
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm run verify:llms
 
       # Create the non-evidence commit locally in this read-only job. The
@@ -235,7 +283,7 @@ jobs:
       # real ancestor of the evidence commit rather than being squashed later.
       - name: Stage and commit regenerated inputs locally
         id: derived
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         shell: bash
         run: |
           set -euo pipefail
@@ -247,6 +295,7 @@ jobs:
             docs/bundle-sizes.md \
             docs/comparison.md \
             docs/errors.md \
+            docs/generated/mcp-eval-scorecard.md \
             llms.txt \
             llms-full.txt \
             examples/migration-workbench/public/artifacts \
@@ -269,6 +318,37 @@ jobs:
           fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
           git commit -m "$REGEN_MARKER for $(git rev-parse --short HEAD)"
+
+      # Re-observe skip attestations that are approaching their policy horizon
+      # (honua-io/honua-sdk-js#972), before the expiry refresh below reads them.
+      #
+      # The refresh step that follows can only reproject an expiry literal from
+      # an observation already on disk; it cannot renew the observation itself,
+      # and it correctly refuses once that observation has outlived its 90-day
+      # window. Until now nothing ever renewed one, so every skip-attested lane
+      # lapsed on a ~90-day cycle and took every open PR's "Verify sample
+      # publication contract" down with it (#810, #971). This step closes that
+      # loop: it runs the lane's own reviewed producer with no live
+      # configuration -- the mode the committed attestation already describes,
+      # which needs no build and touches no network -- and installs the fresh
+      # dated attestation at the lane's evidencePath. The refresh, migrate, and
+      # reseal steps below then carry it through the existing protected
+      # automation-PR path exactly as they carry any other evidence change.
+      #
+      # Idempotent by design: a lane is only re-observed inside the renewal
+      # window (30 days out of 90), so routine regenerations write no bytes and
+      # produce no diff. The producer's classification is checked against the
+      # committed one before anything is installed -- same sample, lane, status,
+      # degradation state, and journey -- so this can re-date a reviewed
+      # attestation but can never change what it claims.
+      #
+      # The lane set is discovered from the overlay's own skipped lanes rather
+      # than hardcoded, so a newly skip-attested sample is renewed automatically
+      # instead of being silently left behind (which is how the incident
+      # dashboard was left out of the #810 fix).
+      - name: Renew skip attestations approaching their policy expiry
+        if: steps.decision.outputs.skip == 'false'
+        run: npm run samples:renew-skip-attestations
 
       # Refresh the NON-EXECUTED (skip-attestation) live lanes first, before any
       # reseal pass runs (honua-io/honua-sdk-js#810).
@@ -299,7 +379,7 @@ jobs:
       # and the producer to re-run -- the honest outcome, since only a real
       # re-observation can renew an observation that old.
       - name: Refresh catalog live-evidence expiry for skip-attested lanes
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: |
           npm run samples:refresh-live-expiry -- --sample ai-spatial-app-builder,realtime-incident-dashboard,spatial-analytics-workbench
           npm run samples:migrate:v1 -- --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
@@ -310,14 +390,23 @@ jobs:
       # the evidence-neutral digest, and every reseal pass requires a clean
       # checkout of those roots, so an uncommitted refresh would fail the pass
       # it is supposed to unblock.
+      #
+      # The renewed attestations themselves (examples/<sample>/evidence/) ride
+      # this same commit. They are inside the evidence-neutral digest too --
+      # examples/ is an included root -- so they must land before pass one for
+      # the same reason, and they must land WITH the refreshed literal that was
+      # derived from them, so the two can never be committed out of step.
       - name: Stage and commit refreshed skip-attestation catalog locally
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         shell: bash
         run: |
           set -euo pipefail
           git add -A -- \
             samples/catalog.v2.json \
-            samples/contract/v2/migrations/catalog.v1-to-v2.json
+            samples/contract/v2/migrations/catalog.v1-to-v2.json \
+            examples/ai-spatial-app-builder/evidence \
+            examples/realtime-incident-dashboard/evidence \
+            examples/spatial-analytics-workbench/evidence
           git add -f -A -- samples/dist/sample-ci-selection.v2.json
           if ! git diff --quiet; then
             echo "Skip-attestation live-expiry refresh modified unexpected tracked content:"
@@ -349,7 +438,7 @@ jobs:
       # evidence commit and its establishment record rides the existing
       # golden-lane catalog commit, so the chain ceiling below stays at four.
       - name: Install the sealed release-matrix receipt
-        if: steps.guard.outputs.skip == 'false' && inputs.release_matrix_receipt_run_id != ''
+        if: steps.decision.outputs.skip == 'false' && inputs.release_matrix_receipt_run_id != ''
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -426,7 +515,7 @@ jobs:
       # in sequence against the same tree (honua-io/honua-sdk-js#735, PR #738;
       # extended to a third golden sample by #548, a fourth by #549).
       - name: Reseal sample evidence (pass one, to observe a fresh live timestamp)
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: |
           npm run samples:run -- evidence --sample maplibre-quickstart --qualification-bootstrap-also imagery-cog-quickstart,migration-workbench,service-explorer --allow-live
           npm run samples:run -- evidence --sample imagery-cog-quickstart --qualification-bootstrap-also maplibre-quickstart,migration-workbench,service-explorer --allow-live
@@ -439,7 +528,7 @@ jobs:
       # observedAt does not move and refreshing them late is what allowed a
       # lapse to wedge pass one (#810).
       - name: Refresh catalog live-evidence expiry for resealed golden lanes
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: |
           npm run samples:refresh-live-expiry -- --sample imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
           npm run samples:migrate:v1 -- --qualification-bootstrap imagery-cog-quickstart,maplibre-quickstart,migration-workbench,service-explorer
@@ -454,7 +543,7 @@ jobs:
       # routine regenerations produce no diff. Once written, deleting the sealed
       # sidecar can no longer relax the lane back to "not established".
       - name: Record established release-matrix lanes
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm run samples:release-matrix:record -- --sample maplibre-quickstart
 
       # Commit the refreshed catalog before pass two below so that pass two's
@@ -472,7 +561,7 @@ jobs:
       # evidence-neutral digest entirely, so it cannot perturb this commit's
       # binding either.
       - name: Stage and commit refreshed catalog locally
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         shell: bash
         run: |
           set -euo pipefail
@@ -511,7 +600,7 @@ jobs:
       # HONUA_DERIVED_ARTIFACTS_RELAX): captureGateSourceSnapshot verifies the
       # evidence-neutral checkout, so a binding that cannot hold fails the job.
       - name: Reseal sample evidence (pass two, bound to the refreshed catalog)
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: |
           npm run samples:run -- evidence --sample maplibre-quickstart --qualification-bootstrap-also imagery-cog-quickstart,migration-workbench,service-explorer --allow-live
           npm run samples:run -- evidence --sample imagery-cog-quickstart --qualification-bootstrap-also maplibre-quickstart,migration-workbench,service-explorer --allow-live
@@ -519,7 +608,7 @@ jobs:
           npm run samples:run -- evidence --sample service-explorer --qualification-bootstrap-also imagery-cog-quickstart,maplibre-quickstart,migration-workbench --allow-live
 
       - name: Regenerate sample dist projections
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm run samples:generate
 
       # Commit resealed evidence locally as a separate child commit. Its
@@ -527,7 +616,7 @@ jobs:
       # original trunk commit when no generated input changed), so preserving
       # this chain avoids a dangling evidence revision.
       - name: Stage and commit resealed evidence locally
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         shell: bash
         run: |
           set -euo pipefail
@@ -563,12 +652,12 @@ jobs:
           fi
 
       - name: Verify regenerated artifacts strictly
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         run: npm run samples:verify
 
       - name: Bundle local regeneration commits
         id: bundle
-        if: steps.guard.outputs.skip == 'false'
+        if: steps.decision.outputs.skip == 'false'
         shell: bash
         run: |
           set -euo pipefail
@@ -643,6 +732,9 @@ jobs:
               llms.txt | llms-full.txt | \
               examples/migration-workbench/public/artifacts/* | \
               examples/migration-workbench/src/generated/* | \
+              examples/ai-spatial-app-builder/evidence/* | \
+              examples/realtime-incident-dashboard/evidence/* | \
+              examples/spatial-analytics-workbench/evidence/* | \
               samples/catalog.v2.json | \
               samples/contract/v2/migrations/catalog.v1-to-v2.json | \
               samples/contract/v2/release-matrix-lanes.v1.json | \

@@ -115,12 +115,12 @@ describe("JS runtime parity matrix", () => {
     expect(search).toMatchObject({
       arcGisJsApi: "Search",
       honuaCompat: "compat",
-      honuaMapLibre: "unsupported",
+      honuaMapLibre: "assisted",
       esriLeaflet: "compat",
     });
     expect(searchOptions).toMatchObject({
       honuaCompat: "compat",
-      honuaMapLibre: "unsupported",
+      honuaMapLibre: "assisted",
       esriLeaflet: "compat",
     });
     expect(featureTableOptions).toMatchObject({
@@ -159,7 +159,9 @@ describe("JS runtime parity matrix", () => {
     expect(summary.honuaCompat.compat).toBeGreaterThan(0);
     expect(summary.honuaMapLibre.native).toBeGreaterThan(0);
     expect(summary.honuaMapLibre.assisted).toBeGreaterThan(0);
-    expect(summary.honuaMapLibre.unsupported).toBeGreaterThanOrEqual(1);
+    // The two Search rows were the only "unsupported" MapLibre runtime verdicts
+    // and LocatorCompat unblocked them (issue #956).
+    expect(summary.honuaMapLibre.unsupported).toBe(0);
     expect(summary.esriLeaflet.assisted).toBe(0);
   });
 });

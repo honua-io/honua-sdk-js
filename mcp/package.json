@@ -1,7 +1,25 @@
 {
   "name": "@honua/mcp-server",
   "version": "0.1.2-beta.0",
-  "description": "MCP server for Honua geospatial feature services",
+  "description": "Platform-free MCP server for geospatial services: expose discovery, query, and analysis over any public ArcGIS/Esri FeatureServer or OGC API endpoint to any MCP client, with no platform lock-in",
+  "license": "Apache-2.0",
+  "author": "Honua",
+  "homepage": "https://honua-io.github.io/honua-sdk-js/",
+  "bugs": {
+    "url": "https://github.com/honua-io/honua-sdk-js/issues"
+  },
+  "keywords": [
+    "gis",
+    "geospatial",
+    "maplibre",
+    "typescript",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "arcgis",
+    "ogc-api",
+    "feature-service"
+  ],
   "type": "module",
   "bin": {
     "honua-mcp": "dist/src/index.js",
@@ -75,7 +93,8 @@
   "files": [
     "dist/src",
     "certification/geospatial-mcp-schemas",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20.0.0"

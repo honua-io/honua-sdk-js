@@ -890,7 +890,15 @@
             "grpc-conformance"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "honua-grpc (SQL-92 where)",
+        "filter": "native",
+        "temporal": [
+          "field-predicate"
+        ],
+        "notes": "QueryFeatures has no time parameter, so a temporal filter must name its field."
+      }
     },
     {
       "id": "geoservices-feature-service",
@@ -969,7 +977,16 @@
             "query-tiles-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "geoservices-sql92",
+        "filter": "native",
+        "temporal": [
+          "source-dimension",
+          "field-predicate"
+        ],
+        "notes": "One geometry per request: a spatial node must be conjunctive and unique, otherwise the compile refuses."
+      }
     },
     {
       "id": "geoservices-map-service",
@@ -1049,7 +1066,16 @@
             "honua-surface-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "geoservices-sql92",
+        "filter": "native",
+        "temporal": [
+          "source-dimension",
+          "field-predicate"
+        ],
+        "notes": "Same request vocabulary as FeatureServer through the MapServer layer query endpoint."
+      }
     },
     {
       "id": "geoservices-image-service",
@@ -1092,7 +1118,16 @@
             "geoservices-conformance"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "geoservices-sql92",
+        "filter": "attributes-only",
+        "temporal": [
+          "source-dimension",
+          "field-predicate"
+        ],
+        "notes": "The raster catalog endpoint accepts no geometry parameters; a spatial filter node is refused."
+      }
     },
     {
       "id": "geoservices-geometry-service",
@@ -1110,7 +1145,13 @@
             "geoservices-conformance"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "No feature query surface."
+      }
     },
     {
       "id": "geoservices-gp-service",
@@ -1130,7 +1171,13 @@
             "process-runner-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "No feature query surface."
+      }
     },
     {
       "id": "ogc-features",
@@ -1163,7 +1210,16 @@
             "contract-conformance"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "cql2-text",
+        "filter": "native",
+        "temporal": [
+          "source-dimension",
+          "field-predicate"
+        ],
+        "notes": "Spatial and attribute predicates emit CQL2 (Part 3); a bare temporal window uses `datetime=`."
+      }
     },
     {
       "id": "ogc-tiles",
@@ -1183,7 +1239,13 @@
             "live-conformance"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "Render-only adapter."
+      }
     },
     {
       "id": "ogc-maps",
@@ -1202,7 +1264,13 @@
             "live-conformance"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "Render-only adapter."
+      }
     },
     {
       "id": "ogc-records",
@@ -1233,7 +1301,16 @@
             "ogc-records-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "cql2-text",
+        "filter": "native",
+        "temporal": [
+          "source-dimension",
+          "field-predicate"
+        ],
+        "notes": "Records `filter=` carries CQL2 text; `datetime=` carries a bare temporal window."
+      }
     },
     {
       "id": "stac",
@@ -1253,7 +1330,16 @@
             "stac-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "cql2-text",
+        "filter": "native",
+        "temporal": [
+          "source-dimension",
+          "field-predicate"
+        ],
+        "notes": "STAC API only. Static catalog traversal has no CQL2 evaluator and refuses attribute filters."
+      }
     },
     {
       "id": "wfs",
@@ -1275,7 +1361,15 @@
             "wfs-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "fes-2.0",
+        "filter": "native",
+        "temporal": [
+          "field-predicate"
+        ],
+        "notes": "FES 2.0 Before/After/During/AnyInteracts; WFS has no time parameter, so a temporal filter names its field."
+      }
     },
     {
       "id": "wms",
@@ -1295,7 +1389,13 @@
             "wms-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "GetFeatureInfo has no attribute filter; time is a map dimension on the typed WMS envelope."
+      }
     },
     {
       "id": "wmts",
@@ -1314,7 +1414,13 @@
             "wmts-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "Render-only adapter."
+      }
     },
     {
       "id": "odata",
@@ -1335,7 +1441,15 @@
             "odata-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "odata-4.0",
+        "filter": "native",
+        "temporal": [
+          "field-predicate"
+        ],
+        "notes": "`geo.intersects` is the only standard topological function; other predicates and interior LIKE wildcards refuse."
+      }
     },
     {
       "id": "pmtiles",
@@ -1353,7 +1467,13 @@
             "pmtiles-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "Render-only archive adapter."
+      }
     },
     {
       "id": "geoparquet",
@@ -1373,7 +1493,15 @@
             "geoparquet-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "duckdb-sql",
+        "filter": "native",
+        "temporal": [
+          "field-predicate"
+        ],
+        "notes": "Spatial predicates reduce to the bbox pushdown; a non-envelope geometry is reported through `Result.degraded`."
+      }
     },
     {
       "id": "maplibre-vector",
@@ -1403,7 +1531,13 @@
             "maplibre-automatic-source-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "Renderer-side descriptor strategy; no Source.query path."
+      }
     },
     {
       "id": "maplibre-raster",
@@ -1433,13 +1567,25 @@
             "maplibre-raster-source-fixtures"
           ]
         }
-      ]
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "Renderer-side descriptor strategy; no Source.query path."
+      }
     },
     {
       "id": "maplibre-geojson",
       "label": "MapLibre GeoJSON",
       "defaultOperationStatus": "unsupported",
-      "operationClaims": []
+      "operationClaims": [],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [],
+        "notes": "Reserved identifier with no query path."
+      }
     }
   ],
   "supportClaims": [
@@ -1966,9 +2112,9 @@
   "packageLifecycle": {
     "ceilings": {
       "stableEntrypoints": 22,
-      "rootRuntimeExports": 45,
-      "rootTypeExports": 165,
-      "rootGzipBytes": 196018
+      "rootRuntimeExports": 46,
+      "rootTypeExports": 172,
+      "rootGzipBytes": 216894
     },
     "downstreamProjection": {
       "catalogOwner": "honua-io/honua-site",

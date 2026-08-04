@@ -60,7 +60,11 @@
       "examples/**/*.json",
       "samples/**/*.mjs",
       "samples/**/*.mts",
-      "samples/**/*.json"
+      "samples/**/*.json",
+      "packages/**/*.ts",
+      "packages/**/*.tsx",
+      "packages/**/*.mjs",
+      "packages/**/*.json"
     ],
     "ignore": [
       "dist",

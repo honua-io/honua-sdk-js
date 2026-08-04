@@ -62,6 +62,12 @@
              Escape (or Cancel) to discard; distance/area come from the
              @honua/geometry geodesic ops. -->
         <honua-measurement for="ops-map" label="Measure (built-in)"></honua-measurement>
+        <!-- Time slider over the temporal playback controller (issue #959):
+             main.ts creates a createTemporalPlayback() controller over the
+             incident fixture's time field and assigns it to the element's
+             `playback` property. Play/pause, step, scrub, and speed all go
+             through that one controller; the element keeps no window state. -->
+        <honua-time-slider id="incident-time" label="Incident time"></honua-time-slider>
         <honua-sketch-control for="ops-map"></honua-sketch-control>
         <honua-print-export for="ops-map" title="Response map"></honua-print-export>
         <honua-map-status for="ops-map" attribution="Honua demo data"></honua-map-status>

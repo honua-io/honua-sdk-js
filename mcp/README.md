@@ -9,6 +9,11 @@ bound to their own platform; this one is bound to none.
 **Release status: beta.** Tool contracts are certified against live and fixture
 targets on every release; remaining pre-1.0 work is hardening, not surface change.
 
+**Scores are published, not claimed.** How well different client models actually
+drive this surface — and where they fail — is in the
+[cross-model MCP eval scorecard](../docs/generated/mcp-eval-scorecard.md),
+generated from the dated run artifacts committed under [`evals/`](evals/README.md).
+
 Two modes:
 
 - **Standalone (platform-free) — the front door.** The `honua-mcp` bin runs the
@@ -225,6 +230,13 @@ the downstream client sees is byte-identical to the upstream surface, that
 notifications are forwarded.
 
 ## Cross-model workflow eval (provability)
+
+**Published results:
+[Cross-model MCP eval scorecard](../docs/generated/mcp-eval-scorecard.md)** —
+generated from the committed run artifacts in [`evals/runs/`](evals/runs), with
+the deterministic control row, every non-passing run, and the protocol
+certification failures. It ships on the docs site; its freshness is a CI gate
+(`npm run docs:mcp-scorecard:check` from the repo root).
 
 The package ships a **cross-model workflow eval** that proves the "any client →
 any workflow" claim: a held-out corpus of GIS workflows (`src/eval/corpus.ts`)

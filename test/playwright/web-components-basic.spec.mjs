@@ -34,6 +34,70 @@ test("native controls-kit layer list toggles from real keyboard input", async ({
   }
 });
 
+test("time slider scrubber is keyboard-operable and drives the temporal playback controller", async ({ page }) => {
+  const server = await startWebComponentsFixtureServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.ready === true)).toBe(true);
+
+    // The scrubber lives inside an open shadow root; Playwright's CSS engine
+    // pierces it, so this is the same node a keyboard user reaches.
+    const scrubber = page.locator("honua-time-slider#incident-time [data-time-slider]");
+    await expect(scrubber).toHaveAttribute("role", "slider");
+    await expect(scrubber).toHaveAttribute("aria-orientation", "horizontal");
+    await expect(scrubber).toHaveAttribute("tabindex", "0");
+
+    const bounds = await scrubber.evaluate((element) => ({
+      min: Number(element.getAttribute("aria-valuemin")),
+      max: Number(element.getAttribute("aria-valuemax")),
+      now: Number(element.getAttribute("aria-valuenow")),
+    }));
+    expect(bounds.max).toBeGreaterThan(bounds.min);
+    expect(bounds.now).toBe(bounds.min);
+    const step = (bounds.max - bounds.min) / 12; // 14-day extent, 2-day window, 1-day step
+
+    await scrubber.focus();
+    // Real key events, not synthetic clicks: this is the gate's whole point.
+    await scrubber.press("ArrowRight");
+    await expect(scrubber).toHaveAttribute("aria-valuenow", String(bounds.min + step));
+    await scrubber.press("PageUp");
+    await expect(scrubber).toHaveAttribute("aria-valuenow", String(bounds.min + 11 * step));
+    await scrubber.press("End");
+    await expect(scrubber).toHaveAttribute("aria-valuenow", String(bounds.max));
+    await scrubber.press("Home");
+    await expect(scrubber).toHaveAttribute("aria-valuenow", String(bounds.min));
+
+    // The keyboard reached the controller, not just the element's own state.
+    const applied = await page.evaluate(() => window.__HONUA_WEB_COMPONENTS_DEMO__?.temporalWindows ?? []);
+    expect(applied.length).toBeGreaterThanOrEqual(4);
+    expect(applied.at(-1)).toBe(bounds.min);
+    // The keyboard gesture is reported as its own source; the controller's own
+    // asynchronous frame lands right behind it as a `tick`, so assert against
+    // the whole log rather than the last line.
+    const timeEvents = await page.evaluate(() =>
+      (window.__HONUA_WEB_COMPONENTS_DEMO__?.events ?? []).filter((entry) => entry.startsWith("time:")),
+    );
+    expect(timeEvents.some((entry) => entry.startsWith("time:keyboard:"))).toBe(true);
+    await expect(page.locator("#event-log")).toHaveText(/^time:/);
+
+    // The state updates the keyboard caused did not move focus off the slider.
+    const focused = await page.evaluate(() => {
+      const host = document.querySelector("honua-time-slider#incident-time");
+      return host?.shadowRoot?.activeElement?.getAttribute("role") ?? null;
+    });
+    expect(focused).toBe("slider");
+
+    const toggle = page.locator("honua-time-slider#incident-time [data-time-toggle]");
+    await toggle.focus();
+    await toggle.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await toggle.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  } finally {
+    await server.close();
+  }
+});
+
 test("controller-driven layer list responds to focused Space and Enter activation", async ({ page }) => {
   const server = await startWebComponentsFixtureServer();
   try {
