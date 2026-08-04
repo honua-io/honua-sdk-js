@@ -94,19 +94,36 @@ describe("template manifest", () => {
       const links = playgroundLinks(manifest, template);
       assert.equal(links.length, manifest.playgroundProviders.length);
       for (const link of links) {
+        const provider = manifest.playgroundProviders.find((entry) => entry.id === link.providerId);
         const url = new URL(link.url);
+        // Compare parsed origins instead of matching a URL prefix as a
+        // substring, which any host containing the expected one would satisfy.
+        assert.equal(url.origin, new URL(provider.urlTemplate).origin);
         assert.equal(url.protocol, "https:");
         assert.equal(url.search, "");
         assert.equal(url.hash, "");
-        assert.ok(link.url.endsWith(template.path));
+        assert.ok(url.pathname.endsWith(`/${template.path}`));
       }
     }
   });
 
+  it("addresses the repository directory on the StackBlitz origin", () => {
+    const [first] = manifest.templates;
+    const link = playgroundLinks(manifest, first).find((entry) => entry.providerId === "stackblitz");
+    const url = new URL(link.url);
+    assert.equal(url.origin, "https://stackblitz.com");
+    assert.equal(url.pathname, `/github/honua-io/honua-sdk-js/tree/trunk/${first.path}`);
+  });
+
   it("lists every template and its playground links", () => {
     const listing = templateListing(manifest);
-    for (const template of manifest.templates) assert.ok(listing.includes(template.id));
-    assert.ok(listing.includes("https://stackblitz.com/github/honua-io/honua-sdk-js/"));
+    const lines = listing.split("\n").map((line) => line.trim());
+    for (const template of manifest.templates) {
+      assert.ok(lines.includes(`${template.id}${template.default ? " (default)" : ""} — ${template.title}`));
+      for (const link of playgroundLinks(manifest, template)) {
+        assert.ok(lines.includes(`${link.title}: ${link.url}`));
+      }
+    }
   });
 });
 

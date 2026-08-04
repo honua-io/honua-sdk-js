@@ -121,7 +121,16 @@ async function probeFirstMap(url) {
     page.on("pageerror", (error) => consoleErrors.push(error.message));
     // `blob:` and `data:` requests are created by the page itself (MapLibre's
     // worker), so only a real off-origin fetch counts against the fixture lane.
-    const sameOrigin = (url) => url.startsWith(origin) || url.startsWith(`blob:${origin}`) || url.startsWith("data:");
+    // Origins are parsed and compared, never prefix-matched: a prefix test
+    // would accept a look-alike host that merely starts with the same text.
+    const sameOrigin = (value) => {
+      if (value.startsWith("data:")) return true;
+      try {
+        return new URL(value).origin === origin;
+      } catch {
+        return false;
+      }
+    };
     page.on("request", (request) => {
       if (!sameOrigin(request.url())) externalRequests.push(request.url());
     });

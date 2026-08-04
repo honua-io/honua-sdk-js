@@ -53,6 +53,23 @@ function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
+function parseUrl(value) {
+  try {
+    return new URL(value);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Split a repository URL into host/owner/name so it can be compared exactly. */
+function parseGitHubRepository(value) {
+  const url = parseUrl(value.replace(/^git\+/, ""));
+  if (!url) return undefined;
+  const [owner, name, ...rest] = url.pathname.replace(/^\//, "").replace(/\.git$/, "").split("/");
+  if (!owner || !name || rest.length > 0) return undefined;
+  return { host: url.host, owner, name };
+}
+
 function verifyPackageManifest() {
   const manifest = readJson(path.join(PACKAGE_ROOT, "package.json"));
   if (manifest.name !== "create-honua-app") report("packages/create-honua-app/package.json name must be create-honua-app");
@@ -123,15 +140,36 @@ function verifyTemplate(manifest, template) {
   }
 
   for (const link of playgroundLinks(manifest, template)) {
-    if (!link.url.includes(template.path)) report(`${label}: ${link.providerId} playground link does not address the template`);
+    const provider = manifest.playgroundProviders.find((entry) => entry.id === link.providerId);
+    const expectedOrigin = new URL(provider.urlTemplate).origin;
+    const url = parseUrl(link.url);
+    // Origin equality, not a substring test: this gates the host the published
+    // playground page sends readers to.
+    if (!url || url.protocol !== "https:" || url.origin !== expectedOrigin) {
+      report(`${label}: ${link.providerId} playground link must be an https URL on ${expectedOrigin}`);
+      continue;
+    }
+    if (url.search !== "" || url.hash !== "") {
+      report(`${label}: ${link.providerId} playground link must not carry a query or fragment`);
+    }
+    if (!url.pathname.endsWith(`/${template.path}`)) {
+      report(`${label}: ${link.providerId} playground link does not address the template directory`);
+    }
   }
 }
 
 const packageManifest = verifyPackageManifest();
 const manifest = loadTemplateManifest(PACKAGE_ROOT);
-const repository = readJson(path.join(ROOT, "package.json")).repository?.url ?? "";
-if (!repository.includes(`${manifest.repository.owner}/${manifest.repository.name}`)) {
-  report(`templates.manifest.json repository must match the root package repository (${repository})`);
+const repository = parseGitHubRepository(readJson(path.join(ROOT, "package.json")).repository?.url ?? "");
+if (
+  !repository ||
+  repository.host !== "github.com" ||
+  repository.owner !== manifest.repository.owner ||
+  repository.name !== manifest.repository.name
+) {
+  report(
+    `templates.manifest.json repository must match the root package repository (${manifest.repository.owner}/${manifest.repository.name} on github.com)`,
+  );
 }
 for (const template of manifest.templates) verifyTemplate(manifest, template);
 

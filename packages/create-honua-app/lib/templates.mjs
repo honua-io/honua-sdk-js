@@ -100,16 +100,27 @@ export function templateRoot(manifest, id, packageRoot = PACKAGE_ROOT) {
  * documentation surfaces that reject query strings and fragments.
  */
 export function playgroundUrl(provider, { owner, repository, branch, path: projectPath }) {
+  // Every token lives in the path, so the template's own origin is the only
+  // host a rendered link may address. Origins are compared, never matched as
+  // substrings: a substring test would accept any host that merely contains
+  // the expected one.
+  const expected = new URL(provider.urlTemplate);
+  if (expected.protocol !== "https:") {
+    throw new Error(`playground provider ${provider.id} must declare an https template: ${provider.urlTemplate}`);
+  }
   const url = provider.urlTemplate
     .replaceAll("{owner}", owner)
     .replaceAll("{repository}", repository)
     .replaceAll("{branch}", branch)
     .replaceAll("{path}", projectPath);
   const parsed = new URL(url);
-  if (parsed.protocol !== "https:") throw new Error(`playground URL must be https: ${url}`);
+  if (parsed.origin !== expected.origin) throw new Error(`playground URL must stay on ${expected.origin}: ${url}`);
   if (parsed.search !== "" || parsed.hash !== "")
     throw new Error(`playground URL must not carry a query or fragment: ${url}`);
-  return url;
+  if (!parsed.pathname.endsWith(`/${projectPath}`)) {
+    throw new Error(`playground URL must address ${projectPath}: ${url}`);
+  }
+  return parsed.toString();
 }
 
 /** Every provider link for one template, derived from the manifest. */
