@@ -314,6 +314,24 @@ const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const QUALIFIED_IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*(?:[.:][A-Za-z_][A-Za-z0-9_]*)*$/;
 const RFC3339_PATTERN = /^\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:[Zz]|[+-]\d{2}:\d{2})?)?$/;
 
+/**
+ * Boolean, comparison, and set operators a filter can name. Mirrors the
+ * `filterOperators` vocabulary of `CapabilityConstraints` so a capability
+ * profile's allow list can gate the canonical AST without translation.
+ */
+export type QueryFilterOperatorId =
+  | QueryFilterComparisonOperator
+  | "in"
+  | "between"
+  | "is-null"
+  | "is-not-null"
+  | "like"
+  | "and"
+  | "or"
+  | "not"
+  | QueryFilterSpatialPredicate
+  | QueryFilterTemporalPredicate;
+
 /** Compilation identity used to name a refusal. */
 export interface QueryFilterContext {
   /** Wire protocol the filter is being compiled for. */
@@ -322,10 +340,23 @@ export interface QueryFilterContext {
   readonly sourceId?: string;
   /** Geometry property name, when the dialect must reference it explicitly. */
   readonly geometryProperty?: string;
+  /**
+   * Operator allow list evaluated for this source. When present, an operator
+   * outside it is refused even if the protocol could express it — the source's
+   * own capability evidence is narrower than its protocol's grammar.
+   */
+  readonly supportedFilterOperators?: readonly QueryFilterOperatorId[];
   /** Optional per-source predicate allow list from the capability profile. */
   readonly supportedSpatialPredicates?: readonly QueryFilterSpatialPredicate[];
   /** Optional per-source temporal predicate allow list from the capability profile. */
   readonly supportedTemporalPredicates?: readonly QueryFilterTemporalPredicate[];
+  /**
+   * Where the allow lists came from. `capability-profile` marks a refusal as
+   * source-evidence-driven rather than protocol-driven, which the error context
+   * carries so callers can tell "this server cannot" from "this protocol
+   * cannot".
+   */
+  readonly constraintSource?: "capability-profile" | "protocol-default";
 }
 
 /** Fail closed, naming the construct and the protocol that cannot express it. */
@@ -333,6 +364,106 @@ export function refuseQueryFilterConstruct(construct: string, ctx: QueryFilterCo
   throw new HonuaCapabilityNotSupportedError(construct, ctx.protocol, ctx.sourceId, {
     context: { construct, filter: true },
   });
+}
+
+/**
+ * Fail closed because this source's evaluated capability evidence excludes the
+ * operator, even though its protocol can express it. The refusal names the same
+ * construct as a protocol refusal so callers branch on one vocabulary, and
+ * stamps `constraint: "capability-profile"` so the two causes stay
+ * distinguishable without parsing messages.
+ */
+function refuseUnsupportedOperator(construct: string, ctx: QueryFilterContext): never {
+  throw new HonuaCapabilityNotSupportedError(construct, ctx.protocol, ctx.sourceId, {
+    context: { construct, filter: true, constraint: ctx.constraintSource ?? "capability-profile" },
+  });
+}
+
+/** Gate one operator against the source's evaluated allow list. */
+function assertOperatorAllowed(operator: QueryFilterOperatorId, construct: string, ctx: QueryFilterContext): void {
+  if (ctx.supportedFilterOperators && !ctx.supportedFilterOperators.includes(operator)) {
+    refuseUnsupportedOperator(construct, ctx);
+  }
+}
+
+const QUERY_FILTER_OPERATORS: ReadonlySet<string> = new Set<QueryFilterOperatorId>([
+  "eq",
+  "ne",
+  "lt",
+  "lte",
+  "gt",
+  "gte",
+  "in",
+  "between",
+  "is-null",
+  "is-not-null",
+  "like",
+  "and",
+  "or",
+  "not",
+  "intersects",
+  "contains",
+  "within",
+  "crosses",
+  "touches",
+  "overlaps",
+  "bbox-intersects",
+  "before",
+  "after",
+  "during",
+  "time-intersects",
+]);
+
+const QUERY_FILTER_SPATIAL_PREDICATES: ReadonlySet<string> = new Set<QueryFilterSpatialPredicate>([
+  "intersects",
+  "contains",
+  "within",
+  "crosses",
+  "touches",
+  "overlaps",
+  "bbox-intersects",
+]);
+
+const QUERY_FILTER_TEMPORAL_PREDICATES: ReadonlySet<string> = new Set<QueryFilterTemporalPredicate>([
+  "before",
+  "after",
+  "during",
+  "time-intersects",
+]);
+
+/**
+ * Narrow the evaluated `CapabilityConstraints` of one capability into the
+ * allow lists this compiler understands.
+ *
+ * Vocabularies that the canonical AST cannot name (distance predicates,
+ * extension identifiers) are dropped rather than translated, which fails closed
+ * by construction: a profile that advertises only constructs outside the AST
+ * yields an empty allow list, and every node of that kind is refused. Omitted
+ * constraint arrays stay `undefined` — "the evidence says nothing", not "the
+ * source supports nothing".
+ */
+export function queryFilterConstraints(constraints: {
+  readonly filterOperators?: readonly string[];
+  readonly spatialPredicates?: readonly string[];
+  readonly temporalPredicates?: readonly string[];
+}): Pick<
+  QueryFilterContext,
+  "supportedFilterOperators" | "supportedSpatialPredicates" | "supportedTemporalPredicates"
+> {
+  const operators = constraints.filterOperators?.filter((value): value is QueryFilterOperatorId =>
+    QUERY_FILTER_OPERATORS.has(value),
+  );
+  const spatial = constraints.spatialPredicates?.filter((value): value is QueryFilterSpatialPredicate =>
+    QUERY_FILTER_SPATIAL_PREDICATES.has(value),
+  );
+  const temporal = constraints.temporalPredicates?.filter((value): value is QueryFilterTemporalPredicate =>
+    QUERY_FILTER_TEMPORAL_PREDICATES.has(value),
+  );
+  return {
+    ...(operators ? { supportedFilterOperators: operators } : {}),
+    ...(spatial ? { supportedSpatialPredicates: spatial } : {}),
+    ...(temporal ? { supportedTemporalPredicates: temporal } : {}),
+  };
 }
 
 /**
@@ -351,26 +482,31 @@ export function assertQueryFilter(filter: QueryFilterExpression, ctx: QueryFilte
       case "comparison":
         assertFieldName(node.left?.name, ctx);
         assertScalar(node.right, ctx);
+        assertOperatorAllowed(node.operator, `filter.comparison.${node.operator}`, ctx);
         return;
       case "list":
         assertFieldName(node.operand?.name, ctx);
         if (!Array.isArray(node.values) || node.values.length === 0)
           refuseQueryFilterConstruct("filter.list.values", ctx);
         for (const value of node.values) assertScalar(value, ctx);
+        assertOperatorAllowed("in", "filter.list.in", ctx);
         return;
       case "range":
         assertFieldName(node.operand?.name, ctx);
         assertScalar(node.lower, ctx);
         assertScalar(node.upper, ctx);
+        assertOperatorAllowed("between", "filter.range.between", ctx);
         return;
       case "null":
         assertFieldName(node.operand?.name, ctx);
+        assertOperatorAllowed(node.operator, `filter.null.${node.operator}`, ctx);
         return;
       case "pattern":
         assertFieldName(node.operand?.name, ctx);
         if (typeof node.pattern !== "string" || node.pattern.length === 0)
           refuseQueryFilterConstruct("filter.pattern.value", ctx);
         assertPrintable(node.pattern, "filter.pattern.value", ctx);
+        assertOperatorAllowed("like", "filter.pattern.like", ctx);
         return;
       case "spatial":
         if (node.property !== undefined) assertFieldName(node.property, ctx, true);
@@ -378,21 +514,25 @@ export function assertQueryFilter(filter: QueryFilterExpression, ctx: QueryFilte
           refuseQueryFilterConstruct("filter.spatial.geometry", ctx);
         }
         if (ctx.supportedSpatialPredicates && !ctx.supportedSpatialPredicates.includes(node.operator)) {
-          refuseQueryFilterConstruct(`filter.spatial.${node.operator}`, ctx);
+          refuseUnsupportedOperator(`filter.spatial.${node.operator}`, ctx);
         }
+        assertOperatorAllowed(node.operator, `filter.spatial.${node.operator}`, ctx);
         return;
       case "temporal":
         assertFieldName(node.operand?.name, ctx, true);
         assertTemporalLiteral(node.value, ctx);
         if (ctx.supportedTemporalPredicates && !ctx.supportedTemporalPredicates.includes(node.operator)) {
-          refuseQueryFilterConstruct(`filter.temporal.${node.operator}`, ctx);
+          refuseUnsupportedOperator(`filter.temporal.${node.operator}`, ctx);
         }
+        assertOperatorAllowed(node.operator, `filter.temporal.${node.operator}`, ctx);
         return;
       case "boolean":
         if (!Array.isArray(node.args) || node.args.length === 0) refuseQueryFilterConstruct("filter.boolean.args", ctx);
+        assertOperatorAllowed(node.operator, `filter.boolean.${node.operator}`, ctx);
         for (const arg of node.args) visit(arg, depth + 1);
         return;
       case "not":
+        assertOperatorAllowed("not", "filter.not", ctx);
         visit(node.arg, depth + 1);
         return;
       default:
@@ -485,7 +625,7 @@ export function assertTemporalFilter(temporal: QueryTemporalFilter, ctx: QueryFi
 export function temporalFilterToExpression(
   temporal: QueryTemporalFilter,
   ctx: QueryFilterContext,
-): QueryFilterTemporalNode | QueryFilterBooleanNode | undefined {
+): QueryFilterExpression | undefined {
   assertTemporalFilter(temporal, ctx);
   if (temporal.field === undefined) return undefined;
   const field = temporal.field;
@@ -505,20 +645,23 @@ export function temporalFilterToExpression(
       value: { kind: "temporal-literal", valueType: "interval", value: [temporal.start, temporal.end] },
     };
   }
+  // A half-open canonical interval keeps its closed bound INCLUSIVE, so it
+  // lowers to an ordered comparison rather than the strict `after` / `before`
+  // temporal predicates. `[start, ..)` means "at or after start".
   if (temporal.start !== null) {
     return {
-      kind: "temporal",
-      operator: "after",
-      operand: { kind: "property", name: field },
-      value: { kind: "temporal-literal", valueType: "instant", value: temporal.start },
+      kind: "comparison",
+      operator: "gte",
+      left: { kind: "property", name: field },
+      right: { kind: "literal", value: temporal.start },
     };
   }
   if (temporal.end !== null) {
     return {
-      kind: "temporal",
-      operator: "before",
-      operand: { kind: "property", name: field },
-      value: { kind: "temporal-literal", valueType: "instant", value: temporal.end },
+      kind: "comparison",
+      operator: "lte",
+      left: { kind: "property", name: field },
+      right: { kind: "literal", value: temporal.end },
     };
   }
   return refuseQueryFilterConstruct("temporalFilter.interval", ctx);
@@ -575,20 +718,39 @@ const ODATA_COMPARISON: Record<QueryFilterComparisonOperator, string> = {
   gte: "ge",
 };
 
+/** One side of a compiled temporal window, with the strictness the predicate implies. */
+interface TemporalBound {
+  readonly value: string;
+  readonly inclusive: boolean;
+}
+
+/**
+ * Resolve a temporal node into bounds plus their strictness.
+ *
+ * `before` and `after` are *strict*: that is what CQL2 `T_BEFORE` / `T_AFTER`,
+ * FES `Before` / `After`, and the schema-verified planner compilers all mean, so
+ * the canonical lowering agrees with them rather than quietly widening the
+ * window by one instant. `during` and `time-intersects` keep both bounds
+ * inclusive, which is the closed-interval reading the reference evaluator and
+ * the conformance corpus use.
+ */
 function temporalBounds(
   node: QueryFilterTemporalNode,
   ctx: QueryFilterContext,
-): { readonly start?: string; readonly end?: string; readonly instant?: string } {
+): { readonly start?: TemporalBound; readonly end?: TemporalBound; readonly instant?: string } {
   const value = node.value;
   if (value.valueType === "instant") {
-    if (node.operator === "before") return { end: value.value };
-    if (node.operator === "after") return { start: value.value };
+    if (node.operator === "before") return { end: { value: value.value, inclusive: false } };
+    if (node.operator === "after") return { start: { value: value.value, inclusive: false } };
     return { instant: value.value };
   }
-  if (node.operator === "before") return { end: value.value[0] };
-  if (node.operator === "after") return { start: value.value[1] };
+  if (node.operator === "before") return { end: { value: value.value[0], inclusive: false } };
+  if (node.operator === "after") return { start: { value: value.value[1], inclusive: false } };
   if (node.operator === "during" || node.operator === "time-intersects") {
-    return { start: value.value[0], end: value.value[1] };
+    return {
+      start: { value: value.value[0], inclusive: true },
+      end: { value: value.value[1], inclusive: true },
+    };
   }
   return refuseQueryFilterConstruct(`filter.temporal.${node.operator}`, ctx);
 }
@@ -609,7 +771,11 @@ export const GEOSERVICES_SPATIAL_REL: Record<QueryFilterSpatialPredicate, EsriSp
   crosses: "esriSpatialRelCrosses",
   touches: "esriSpatialRelTouches",
   overlaps: "esriSpatialRelOverlaps",
-  "bbox-intersects": "esriSpatialRelEnvelopeIntersects",
+  // `bbox-intersects` means "the feature intersects this envelope", which is an
+  // ordinary intersects test against an envelope operand — the same lowering the
+  // schema-verified planner compiler uses. `esriSpatialRelEnvelopeIntersects`
+  // would instead compare the *feature's* envelope and return a superset.
+  "bbox-intersects": "esriSpatialRelIntersects",
 };
 
 /**
@@ -731,8 +897,12 @@ function emitSql(filter: QueryFilterExpression, ctx: QueryFilterContext, dialect
       const operand = field(filter.operand.name);
       if (bounds.instant !== undefined) return `${operand} = ${sqlTimestamp(bounds.instant)}`;
       const parts: string[] = [];
-      if (bounds.start !== undefined) parts.push(`${operand} >= ${sqlTimestamp(bounds.start)}`);
-      if (bounds.end !== undefined) parts.push(`${operand} <= ${sqlTimestamp(bounds.end)}`);
+      if (bounds.start !== undefined) {
+        parts.push(`${operand} ${bounds.start.inclusive ? ">=" : ">"} ${sqlTimestamp(bounds.start.value)}`);
+      }
+      if (bounds.end !== undefined) {
+        parts.push(`${operand} ${bounds.end.inclusive ? "<=" : "<"} ${sqlTimestamp(bounds.end.value)}`);
+      }
       return parts.length === 1 ? parts[0] : `(${parts.join(" AND ")})`;
     }
     case "boolean":
@@ -911,8 +1081,12 @@ export function compileQueryFilterToOData(
         const field = node.operand.name;
         if (bounds.instant !== undefined) return `${field} eq ${bounds.instant}`;
         const parts: string[] = [];
-        if (bounds.start !== undefined) parts.push(`${field} ge ${bounds.start}`);
-        if (bounds.end !== undefined) parts.push(`${field} le ${bounds.end}`);
+        if (bounds.start !== undefined) {
+          parts.push(`${field} ${bounds.start.inclusive ? "ge" : "gt"} ${bounds.start.value}`);
+        }
+        if (bounds.end !== undefined) {
+          parts.push(`${field} ${bounds.end.inclusive ? "le" : "lt"} ${bounds.end.value}`);
+        }
         return parts.length === 1 ? parts[0] : `(${parts.join(" and ")})`;
       }
       case "boolean":

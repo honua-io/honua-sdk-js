@@ -26,6 +26,7 @@
   "/offline is a subpath-only experimental contract (#396), keeping the root/browser bundle unchanged while its dedicated budget guards deterministic region and edit-replay growth. The budget was reset for acknowledged one-pass replay (#914): strict edit/request/idempotency binding, bounded transport invocation, cancellation, credential-free receipts, and all queue primitives measure 85,533 minified / 23,740 gzip bytes. Both ceilings are measured actual plus 10% headroom, and root/browser barrels remain unchanged.",
   "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
   "/query-planner was reset for the DuckDB SQL and gRPC query compilers plus spatial-aggregation pushdown (#389): the DuckDB compiler reuses the dependency-free geoparquet-sql builder so planner and adapter emit identical SQL. Measured 75,024 minified / 22,254 gzip; the ceiling is actual plus ~10% headroom.",
+  "/query-planner gzip was reset for deterministic columnar worker aggregation (#939): the first reducing columnar operation adds dictionary/temporal/spatial-grid grouping, count/sum/min/max/mean accumulation over packed buffers, compensated summation, and the honua.aggregate result layout and reader. Measured 151,363 gzip bytes; the ceiling is actual plus ~10% headroom. No new dependency enters the entrypoint's static graph — #939 NFR-004 keeps Arrow, DuckDB, and projection peers out — and the minified ceiling stayed below its existing value, so only the exceeded gzip ceiling was reset.",
   "/agent-safety was reset again for binding safety authorization to accepted-plan and discovery evidence (#468): derived accepted-evidence gating over the approved execution/audit boundary (#456) measures 51,401 minified / 14,693 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
   "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
   "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
@@ -140,7 +141,7 @@
   },
   "/query-planner": {
    "min": 720180,
-   "gzip": 146665
+   "gzip": 166499
   },
   "/scene-workspace": {
    "min": 125847,

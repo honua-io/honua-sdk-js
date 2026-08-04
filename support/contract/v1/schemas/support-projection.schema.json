@@ -13,6 +13,7 @@
     "statusVocabulary",
     "environmentVocabulary",
     "executionModeVocabulary",
+    "capabilityTiers",
     "connectProtocols",
     "discoveryInventory",
     "protocolOperations",
@@ -137,6 +138,13 @@
       "minItems": 6,
       "maxItems": 6,
       "uniqueItems": true
+    },
+    "capabilityTiers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capabilityTier"
+      },
+      "minItems": 1
     },
     "connectProtocols": {
       "type": "array",
@@ -381,6 +389,92 @@
         "native",
         "static",
         "transport"
+      ]
+    },
+    "capabilityTier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "honuaServerRequired",
+        "environments",
+        "summary"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "honuaServerRequired": {
+          "type": "boolean"
+        },
+        "environments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/environment"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "serverAttach": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disposition",
+        "rationale"
+      ],
+      "properties": {
+        "disposition": {
+          "enum": [
+            "inherent",
+            "roadmap"
+          ]
+        },
+        "issue": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+/issues/[0-9]+$"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "disposition": {
+                "const": "roadmap"
+              }
+            },
+            "required": [
+              "disposition"
+            ]
+          },
+          "then": {
+            "required": [
+              "issue"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "issue"
+              ]
+            }
+          }
+        }
       ]
     },
     "consumerProtocol": {
@@ -776,6 +870,9 @@
         },
         "backendNeeded": {
           "type": "string"
+        },
+        "serverAttach": {
+          "$ref": "#/$defs/serverAttach"
         },
         "api": {
           "type": "string"
