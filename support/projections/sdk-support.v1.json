@@ -915,6 +915,12 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "cesium-scene-adapter-browser",
+      "kind": "integration",
+      "path": "test/playwright/cesium-scene-adapter-fixtures.spec.mjs",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "scene-bundle-isolation",
       "kind": "fixture",
       "path": "scripts/verify-split-packages.mjs",
@@ -2062,12 +2068,13 @@
       "status": "beta",
       "backendNeeded": "None (optional `cesium` peer)",
       "api": "@honua/app-platform/scene-workspace",
-      "notes": "Renderer-neutral scene state plus the Cesium primitive adapter for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — see the surface tiers table.",
+      "notes": "Renderer-neutral scene state plus the Cesium primitive adapter for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — see the surface tiers table.",
       "evidence": [
         "scene-workspace-fixtures",
         "scene-state-sync-fixtures",
         "scene-primitive-diagnostics-fixtures",
         "cesium-scene-adapter-fixtures",
+        "cesium-scene-adapter-browser",
         "scene-bundle-isolation"
       ]
     },

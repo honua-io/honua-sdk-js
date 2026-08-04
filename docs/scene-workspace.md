@@ -50,6 +50,9 @@ Evidence backing the promotion — all release-gated, listed in the generated
   behavior: [`test/cesium-scene-adapter.test.ts`](../test/cesium-scene-adapter.test.ts).
 - CRS, vertical-datum, and fidelity diagnostics:
   [`test/scene-primitive-spatial-diagnostics.test.ts`](../test/scene-primitive-spatial-diagnostics.test.ts).
+- Real-Cesium browser matrix and bounded teardown budgets, described in
+  [Real-Cesium browser evidence and teardown budgets](#real-cesium-browser-evidence-and-teardown-budgets):
+  [`test/playwright/cesium-scene-adapter-fixtures.spec.mjs`](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs).
 - Bundle isolation — core and 2D consumers never load Cesium, and the
   `@honua/app-platform` split re-exports the scene surface:
   [`scripts/verify-split-packages.mjs`](../scripts/verify-split-packages.mjs),
@@ -57,6 +60,13 @@ Evidence backing the promotion — all release-gated, listed in the generated
 
 Promotion adds no required dependency: `cesium` stays an optional peer that the
 adapter imports lazily, and no core or 2D bundle ceiling moved.
+
+**Caveat carried into beta.** The browser matrix is the S1 slice of `#928`: it
+crosses camera, quantized-mesh terrain, url-template imagery, a 3D-Tiles
+tileset, and a glTF/GLB model against real Cesium objects. WMS/WMTS/ArcGIS
+imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC
+floor are still tracked there, and those specific bindings carry unit-level
+evidence only.
 
 ## Sample Pattern
 
