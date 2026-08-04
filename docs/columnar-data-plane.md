@@ -739,7 +739,110 @@ Conversion is derived and is not cached. The
 throughput budgets for both directions; see
 [`bench/README.md`](../bench/README.md).
 
+## Realtime patches and rebuild thresholds
+
+A live layer cannot rebuild a million-row batch per event: the re-encode and
+re-transfer cost defeat the columnar path, and they invalidate the
+`ArrayBuffer`s a renderer has already bound. `applyColumnarPatch()` applies an
+append/update/delete stream to a normative GeoArrow batch and returns exactly
+one of three outcomes — `patched-in-place`, `rebuilt`, or `rejected` — with the
+bytes copied and the rows touched.
+
+Reserved capacity is explicit. `createPatchableGeoArrowBatch()` allocates the
+declared spare rows (and vertices/rings for line and polygon geometry) behind
+the batch's own buffer descriptors; a batch created through
+`createGeoArrowBatch()` has none and rebuilds on its first append. Remaining
+capacity is derived from the batch's allocations rather than from a metadata
+claim, so it survives a worker transfer.
+
+```ts doc-test=skip reason="live cursor, batch identity, and renderer binding are application-owned"
+const live = createPatchableGeoArrowBatch(snapshotInput, { reserve: { rows: 10_000 } });
+
+const outcome = applyColumnarPatch(
+  live.batch,
+  createColumnarPatch({
+    schemaId: "incidents@7",
+    geometryKind: "point",
+    cursor: { cursor: resumeCursor, sequence: 42, observedAt: "2026-07-15T12:00:05Z" },
+    operations: [
+      { op: "append", featureId: 9001, geometry: [-157.86, 21.31], timestamp: 1n, dictionaryValue: "open" },
+      { op: "update", featureId: 8123, dictionaryValue: "closed" },
+      { op: "delete", featureId: 7044 },
+    ],
+  }),
+);
+
+if (outcome.outcome === "rebuilt") rebindRenderer(outcome.batch); // new batch identity
+```
+
+Fixed semantics, all of them explicit:
+
+- Updates and deletes are keyed by the batch's feature-id column. A batch
+  without one is rejected rather than patched by row position, because row
+  position is not stable across a rebuild.
+- At most one operation per feature id per patch. Two operations on one feature
+  would need a conflict-resolution rule the realtime contract does not define.
+- A patch carries a cursor, a monotonic sequence, and an `observedAt`. A
+  replayed sequence is rejected as `duplicate-sequence` and an older one as
+  `stale-sequence`, so at-least-once delivery is observable rather than silently
+  reapplied. Both the in-place and rebuild outcomes advance the batch identity's
+  `freshness.observedAt` and `generation`, so a cache keyed on the previous
+  identity cannot serve patched data.
+- A delete is tombstoned, never compacted in place. `decodePatchedGeoArrowBatch()`
+  and `columnarPatchLiveMask()` honor the overlay, so a deleted row never
+  resurfaces and an updated value is the value that is read. Layout-unaware
+  readers — `decodeGeoArrowBatch()`, filters, aggregation — still see tombstoned
+  rows, which is what the tombstone threshold exists to bound.
+- An in-place patch writes into the batch's existing backings, so the returned
+  batch supersedes the input: the input is not a snapshot of the pre-patch data.
+  A **rejected** patch is different — it leaves the input byte-identical.
+
+Rebuild rules are declared numbers with documented defaults, evaluated in one
+fixed order so a patch that crosses two rules always names the same one:
+
+| Reason | Option | Default | Fires when |
+| --- | --- | --- | --- |
+| `tombstone-ratio` | `maxTombstoneRatio` | `0.25` | tombstones / rowCount crosses the ceiling |
+| `tombstone-overlay` | `maxTombstoneOverlayBytes` | `4096` | the encoded tombstone overlay outgrows its budget |
+| `capacity` | `maxCapacityUtilization` | `0.9` | the append does not fit, or consumes more of the declared reserve than the ceiling |
+| `vertex-growth` | `maxVertexGrowthRatio` | `1.5` | vertices relative to the last rebuild cross the ceiling |
+| `layout` | — | — | the patch cannot be expressed in the current layout at all |
+
+`layout` covers the structural cases: an update that changes a row's vertex or
+ring count, a value that needs a dictionary entry the batch does not carry, a
+null in a column with no validity buffer, and re-creating a tombstoned feature
+id. A rebuild copies packed buffer slices — it never materializes a source row
+as an object — and produces a compacted batch with a new batch id, the declared
+reserve restored, and no tombstones. Passing `allowRebuild: false` turns every
+rebuild condition into a `rebuild-required` rejection instead, so a renderer
+that cannot rebind stays in control of when identity changes.
+
+`createColumnarPatchOperation()` registers patch application with
+`startColumnarWorkerHost()`. It reports `inspect`, `plan`, `apply`/`rebuild`,
+and `complete` progress and checks the request signal cooperatively. Buffer
+identity is preserved inside the worker, but a worker round trip transfers
+ownership in both directions, so apply patches on the thread that owns the
+renderer binding when preserving that binding is the point.
+
 ## Typed errors
+
+`HonuaColumnarPatchError.code`, which is also the `rejected` outcome's `code`,
+is one of:
+
+- `duplicate-sequence`
+- `stale-sequence`
+- `schema-drift`
+- `geometry-kind-drift`
+- `invalid-geometry`
+- `incomplete-append`
+- `unknown-feature-id`
+- `deleted-feature-id`
+- `duplicate-feature-id`
+- `missing-feature-id-column`
+- `ordering-conflict`
+- `patch-limit-exceeded`
+- `rebuild-required`
+- `invalid-patch-state`
 
 `HonuaColumnarTransferError.code` is one of:
 
@@ -774,5 +877,12 @@ multi-batch streaming across more than one in-flight worker, planner
 integration, renderer consumption, incremental re-aggregation over realtime
 patches (which must also invalidate or re-version their cached base batch), and
 application-specific CSP worker URL policy remain separate work. Converting a
-batch that is mid-patch also remains out of scope: the realtime columnar patch
-child owns patch-consistent views.
+batch that is mid-patch also remains out of scope: `columnarBatchToResult` does
+not read the patch overlay, so a tombstoned row would appear in its window —
+read a patched batch through `decodePatchedGeoArrowBatch()` instead.
+
+Within realtime patching specifically, in-place dictionary growth, more than one
+operation per feature id in one patch, an incremental transport that ships only
+the appended byte range, and a benchmarked patch-latency budget are deliberately
+not claimed: a patch needing a new dictionary value or a second operation on one
+feature rebuilds or is rejected rather than guessing.

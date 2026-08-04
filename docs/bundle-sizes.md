@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `75146686`._
+_Generated 2026-08-04 at commit `4a715902`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -25,7 +25,7 @@ _Generated 2026-08-04 at commit `75146686`._
 | `/runtime` | 605.2 KiB | 612.2 KiB | 163.7 KiB | 163.9 KiB |
 | `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
 | `/offline` | 138.7 KiB | 144.9 KiB | 37.8 KiB | 39.2 KiB |
-| `/query-planner` (worker runtime injected) | 707.9 KiB | 778.7 KiB | 157.3 KiB | 162.6 KiB |
+| `/query-planner` (worker runtime injected) | 740.5 KiB | 778.7 KiB | 166.3 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 125.6 KiB | 138.2 KiB | 38.2 KiB | 42.0 KiB |
 | `/esri-compat` | 1020.0 KiB | 1026.2 KiB | 255.5 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
@@ -35,7 +35,7 @@ _Generated 2026-08-04 at commit `75146686`._
 | `/auth` | 26.0 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
 | `/map` | 181.1 KiB | 198.2 KiB | 51.3 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 140.0 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 140.0 KiB | 154.9 KiB | 42.3 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.3 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.1 KiB | 1037.6 KiB | 271.7 KiB | 277.9 KiB |
