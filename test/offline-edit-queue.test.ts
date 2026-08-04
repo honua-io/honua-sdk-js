@@ -42,6 +42,34 @@ async function expectQueueError(
 }
 
 describe("offline edit queue", () => {
+  it("counts every partition record by state beyond the bounded list window", async () => {
+    const queue = createMemoryOfflineEditQueue({ createLeaseToken: () => "lease" });
+    for (let index = 0; index < 120; index += 1) {
+      const enqueued = await queue.enqueue(input(`applied-${index}`));
+      const [claimed] = await queue.claimReady({ ...PARTITION, workerId: "w", limit: 1, leaseDurationMs: 60_000 });
+      expect(claimed?.id).toBe(enqueued.edit.id);
+      await queue.markApplied(enqueued.edit.id, "lease", { serverOperationId: `op-${index}` });
+    }
+    const pending = await queue.enqueue(input("still-pending"));
+
+    // list is capped at 100 oldest records, so the pending edit is invisible.
+    const listed = await queue.list(PARTITION);
+    expect(listed).toHaveLength(100);
+    expect(listed.some((edit) => edit.id === pending.edit.id)).toBe(false);
+
+    expect(await queue.countByState(PARTITION)).toEqual({
+      pending: 1,
+      leased: 0,
+      retryable: 0,
+      applied: 120,
+      conflicted: 0,
+      cancelled: 0,
+    });
+    expect(
+      await queue.countByState({ authorizationScopeDigest: AUTHORIZATION_SCOPE, sourceId: "other-source" }),
+    ).toEqual({ pending: 0, leased: 0, retryable: 0, applied: 0, conflicted: 0, cancelled: 0 });
+  });
+
   it("deduplicates the same scoped request and rejects divergent idempotency-key reuse", async () => {
     const queue = createMemoryOfflineEditQueue();
     const first = await queue.enqueue(input("create-17"));

@@ -3,14 +3,14 @@
 `@honua/sdk-js/offline` contains bounded, independently usable slices of issue
 [#396](https://github.com/honua-io/honua-sdk-js/issues/396). It defines a
 versioned manifest, storage-neutral download coordinator, persistent browser
-store, and durable edit queue. It does not make the broader local-first feature
-complete.
+store, durable edit queue, and composed local-first status. It does not make the
+broader local-first feature complete.
 
 The checked-in
 [network-disabled reference workflow](./examples/offline-region-reference/README.md)
-shows the public IndexedDB, diagnostic, and fetch-handler contracts booting
-through a host-owned application-shell worker when networking is disabled
-before reload.
+shows the public IndexedDB, diagnostic, fetch-handler, edit-queue, and status
+contracts booting through a host-owned application-shell worker when networking
+is disabled before reload.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -96,6 +96,79 @@ const receipt = await replayOfflineEditPass(queue, async (request, { signal }) =
 console.log(enqueued.status); // "enqueued" or "duplicate"
 console.log(receipt.appliedCount);
 ```
+
+## Composed local-first status
+
+Cache diagnostics answer "what is in the store", and the queue answers "what
+have I not delivered". `createLocalFirstStatus` composes both, plus a
+host-supplied connectivity signal, into one versioned, payload-free snapshot
+that names a single state.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { createLocalFirstStatus } from "@honua/sdk-js/offline";
+
+const partition = {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+};
+
+const status = createLocalFirstStatus({
+  // Reachability is host policy. The SDK never reads navigator.onLine, because
+  // link state is not endpoint reachability.
+  connectivity: endpointReachable ? "online" : "offline",
+  now: new Date(),
+  regions: [diagnostic],
+  // A bounded detail sample for conflicted identities and timing...
+  edits: await queue.list({ ...partition, limit: 100 }),
+  // ...and the authoritative totals, because list() is capped at 100 records
+  // and has no cursor.
+  editCounts: await queue.countByState(partition),
+});
+
+console.log(status.state); // "pending"
+console.log(status.reason); // "undelivered-edits"
+console.log(status.reads.availability, status.reads.freshness);
+console.log(status.writes.coverage); // "complete"
+console.log(status.writes.undeliveredCount, status.writes.conflictedCount);
+```
+
+`OfflineEditQueue.list()` returns at most 100 records in created order and has
+no cursor, so it can never be counted. Pass `editCounts` from
+`countByState()`, which reads the partition/state index without materializing
+any edit payload; the returned totals are authoritative and drive both
+`writes.counts` and the headline state. Without it, `writes.coverage` is
+`sampled` and the counts are only a lower bound, so a partition whose first 100
+records are terminal would read as `idle` while later work is still
+undelivered. A sample that disagrees with its own totals is rejected rather
+than published.
+
+The headline `state` is resolved by a total, deterministic precedence. Data
+problems outrank undelivered work, which outranks mere staleness, which
+outranks being disconnected:
+
+| Precedence | `state` | `reason` | Condition |
+| --- | --- | --- | --- |
+| 1 | `conflicted` | `conflicted-edits` | Any queued edit is in the `conflicted` state. |
+| 2 | `expired` | `expired-regions` | Any stored region is expired. |
+| 3 | `partial` | `partial-regions` / `missing-regions` | Regions were supplied and worst-case completeness is not `complete`. |
+| 4 | `pending` | `undelivered-edits` | Any edit is `pending`, `leased`, or `retryable`. |
+| 5 | `stale` | `stale-regions` | Any stored region is stale. |
+| 6 | `offline` | `disconnected` | Connectivity is `offline` and nothing above applies. |
+| 7 | `online` | `connected` | Connectivity is `online` and nothing above applies. |
+
+Aggregation is worst-case, so one expired or partial region cannot be hidden by
+fresher siblings. Freshness aggregates over *stored* regions only: a cache miss
+has no stored observation to age. `reads.availability` is `live` when the host
+reports connectivity, `cached` when it does not but a region is readable, and
+`unavailable` when it is neither. The status is deeply frozen, JSON
+serializable, deterministic for identical inputs regardless of supplied order,
+and never reads `edit.attributes` or `edit.geometry`.
+
+Cache facets are validated together, not independently. A diagnostic is derived
+from one stored entry, so `state`, `freshness`, `completeness`, `reason`, and
+`readable` cannot vary freely; a tampered or hand-built combination that the
+diagnostic could never have produced is rejected instead of resolving to a
+confidently wrong headline.
 
 ## Contract guarantees
 
@@ -211,7 +284,9 @@ The storage-backed fetch handler can be installed in a service worker or other
 fetch integration, but the host still owns request matching and network
 reachability policy. This slice does not provide encryption policy, a complete
 application-level query/read cache, a server transport adapter, or an automatic
-connectivity loop. The queue and one-pass coordinator are local durability
+connectivity loop. `createLocalFirstStatus` composes state that already exists;
+it does not probe reachability, trigger reconnect, or revalidate a stale region.
+The queue and one-pass coordinator are local durability
 primitives; they do **not** claim end-to-end exactly-once synchronization.
 Applications must bind the injected transport to established Honua Server
 replica-sync, upload-cursor, and conflict-review contracts exposed through

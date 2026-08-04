@@ -677,8 +677,8 @@ evidence are listed in the generated
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 
-The reviewed package-root ceilings are 45 runtime
-exports and 165 declaration exports. The exact inventory
+The reviewed package-root ceilings are 46 runtime
+exports and 172 declaration exports. The exact inventory
 and generated migration table come from
 [`config/root-surface.json`](./config/root-surface.json). This guide tracks the
 current development branch; its package baseline can match the latest release
@@ -1059,7 +1059,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="nl-map-control"></a>[`nl-map-control`](../../examples/nl-map-control/README.md) | lab | - | experimental | active | browser-lab | fixture | not-required | A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects. |
 | <a id="node-backend-quickstart"></a>[`node-backend-quickstart`](../../examples/node-backend-quickstart/README.md) | recipe | - | supported | active | headless-recipe | hybrid | approved | Uses the protocol-neutral client from a Node service without browser dependencies. |
 | <a id="oauth-signin"></a>[`oauth-signin`](../../examples/oauth-signin/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Demonstrates browser authentication and session lifecycle without embedding credentials. |
-| <a id="offline-region-reference"></a>[`offline-region-reference`](../../docs/examples/offline-region-reference/README.md) | fixture | - | experimental | active | browser-fixture | fixture | not-required | Proves that a persisted IndexedDB region and bounded host-owned application shell survive reload after browser networking is disabled. |
+| <a id="offline-region-reference"></a>[`offline-region-reference`](../../docs/examples/offline-region-reference/README.md) | fixture | - | experimental | active | browser-fixture | fixture | not-required | Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, and reports one composed local-first state. |
 | <a id="overture-geoparquet"></a>[`overture-geoparquet`](../../examples/overture-geoparquet/README.md) | lab | - | experimental | active | browser-lab | hybrid | not-required | Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence. |
 | <a id="planning-permitting-workbench"></a>[`planning-permitting-workbench`](../../examples/planning-permitting-workbench/README.md) | lab | planning-permitting | supported | active | browser-lab | fixture | not-required | Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services. |
 | <a id="pmtiles-static"></a>[`pmtiles-static`](../../examples/pmtiles-static/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Loads a static PMTiles archive without a Honua server. |
@@ -1629,7 +1629,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `451c09aa`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `78b6dd4b`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -5171,14 +5171,14 @@ property or sampled-position delta application.
 `@honua/sdk-js/offline` contains bounded, independently usable slices of issue
 [#396](https://github.com/honua-io/honua-sdk-js/issues/396). It defines a
 versioned manifest, storage-neutral download coordinator, persistent browser
-store, and durable edit queue. It does not make the broader local-first feature
-complete.
+store, durable edit queue, and composed local-first status. It does not make the
+broader local-first feature complete.
 
 The checked-in
 [network-disabled reference workflow](./examples/offline-region-reference/README.md)
-shows the public IndexedDB, diagnostic, and fetch-handler contracts booting
-through a host-owned application-shell worker when networking is disabled
-before reload.
+shows the public IndexedDB, diagnostic, fetch-handler, edit-queue, and status
+contracts booting through a host-owned application-shell worker when networking
+is disabled before reload.
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import {
@@ -5264,6 +5264,79 @@ const receipt = await replayOfflineEditPass(queue, async (request, { signal }) =
 console.log(enqueued.status); // "enqueued" or "duplicate"
 console.log(receipt.appliedCount);
 ```
+
+## Composed local-first status
+
+Cache diagnostics answer "what is in the store", and the queue answers "what
+have I not delivered". `createLocalFirstStatus` composes both, plus a
+host-supplied connectivity signal, into one versioned, payload-free snapshot
+that names a single state.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import { createLocalFirstStatus } from "@honua/sdk-js/offline";
+
+const partition = {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+};
+
+const status = createLocalFirstStatus({
+  // Reachability is host policy. The SDK never reads navigator.onLine, because
+  // link state is not endpoint reachability.
+  connectivity: endpointReachable ? "online" : "offline",
+  now: new Date(),
+  regions: [diagnostic],
+  // A bounded detail sample for conflicted identities and timing...
+  edits: await queue.list({ ...partition, limit: 100 }),
+  // ...and the authoritative totals, because list() is capped at 100 records
+  // and has no cursor.
+  editCounts: await queue.countByState(partition),
+});
+
+console.log(status.state); // "pending"
+console.log(status.reason); // "undelivered-edits"
+console.log(status.reads.availability, status.reads.freshness);
+console.log(status.writes.coverage); // "complete"
+console.log(status.writes.undeliveredCount, status.writes.conflictedCount);
+```
+
+`OfflineEditQueue.list()` returns at most 100 records in created order and has
+no cursor, so it can never be counted. Pass `editCounts` from
+`countByState()`, which reads the partition/state index without materializing
+any edit payload; the returned totals are authoritative and drive both
+`writes.counts` and the headline state. Without it, `writes.coverage` is
+`sampled` and the counts are only a lower bound, so a partition whose first 100
+records are terminal would read as `idle` while later work is still
+undelivered. A sample that disagrees with its own totals is rejected rather
+than published.
+
+The headline `state` is resolved by a total, deterministic precedence. Data
+problems outrank undelivered work, which outranks mere staleness, which
+outranks being disconnected:
+
+| Precedence | `state` | `reason` | Condition |
+| --- | --- | --- | --- |
+| 1 | `conflicted` | `conflicted-edits` | Any queued edit is in the `conflicted` state. |
+| 2 | `expired` | `expired-regions` | Any stored region is expired. |
+| 3 | `partial` | `partial-regions` / `missing-regions` | Regions were supplied and worst-case completeness is not `complete`. |
+| 4 | `pending` | `undelivered-edits` | Any edit is `pending`, `leased`, or `retryable`. |
+| 5 | `stale` | `stale-regions` | Any stored region is stale. |
+| 6 | `offline` | `disconnected` | Connectivity is `offline` and nothing above applies. |
+| 7 | `online` | `connected` | Connectivity is `online` and nothing above applies. |
+
+Aggregation is worst-case, so one expired or partial region cannot be hidden by
+fresher siblings. Freshness aggregates over *stored* regions only: a cache miss
+has no stored observation to age. `reads.availability` is `live` when the host
+reports connectivity, `cached` when it does not but a region is readable, and
+`unavailable` when it is neither. The status is deeply frozen, JSON
+serializable, deterministic for identical inputs regardless of supplied order,
+and never reads `edit.attributes` or `edit.geometry`.
+
+Cache facets are validated together, not independently. A diagnostic is derived
+from one stored entry, so `state`, `freshness`, `completeness`, `reason`, and
+`readable` cannot vary freely; a tampered or hand-built combination that the
+diagnostic could never have produced is rejected instead of resolving to a
+confidently wrong headline.
 
 ## Contract guarantees
 
@@ -5379,7 +5452,9 @@ The storage-backed fetch handler can be installed in a service worker or other
 fetch integration, but the host still owns request matching and network
 reachability policy. This slice does not provide encryption policy, a complete
 application-level query/read cache, a server transport adapter, or an automatic
-connectivity loop. The queue and one-pass coordinator are local durability
+connectivity loop. `createLocalFirstStatus` composes state that already exists;
+it does not probe reachability, trigger reconnect, or revalidate a stale region.
+The queue and one-pass coordinator are local durability
 primitives; they do **not** claim end-to-end exactly-once synchronization.
 Applications must bind the injected transport to established Honua Server
 replica-sync, upload-cursor, and conflict-review contracts exposed through
@@ -9325,7 +9400,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `451c09aa`._
+_Generated 2026-08-04 at commit `78b6dd4b`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -9341,7 +9416,7 @@ _Generated 2026-08-04 at commit `451c09aa`._
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
 | `/runtime` | 598.6 KiB | 612.2 KiB | 161.6 KiB | 163.9 KiB |
 | `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
-| `/offline` | 87.0 KiB | 91.9 KiB | 24.3 KiB | 25.5 KiB |
+| `/offline` | 96.4 KiB | 106.1 KiB | 26.9 KiB | 29.5 KiB |
 | `/query-planner` (worker runtime injected) | 659.6 KiB | 703.3 KiB | 142.5 KiB | 143.2 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.6 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
 | `/esri-compat` | 999.8 KiB | 1026.2 KiB | 250.1 KiB | 253.6 KiB |
