@@ -1,58 +1,39 @@
 import type { HonuaClient } from "@honua/sdk-js";
 import { z } from "zod";
-import { GEOMETRY_TYPES, coerceCount, jsonText, mapSpatialRel, resolveGeometryType } from "../helpers.js";
+import { jsonText } from "../helpers.js";
+import { withCapabilityHonesty } from "../neutral/errors.js";
+import { queryFilterFields, toQuery } from "../neutral/query.js";
+import { resolveSource, sourceRefFields } from "../neutral/source-ref.js";
 
+/**
+ * `honua_get_extent` — protocol-neutral bounding box (#1005).
+ *
+ * Runs the canonical `Source.queryExtent()`. Protocols with no server-side
+ * extent operation (OGC API Features, STAC, OData) answer from the collection's
+ * declared extent under the degraded capability policy, and say so; protocols
+ * that cannot answer at all refuse with a structured capability error.
+ */
 export const schema = z.object({
-  serviceId: z.string().describe("The feature service ID"),
-  layerId: z.number().int().nonnegative().describe("The layer ID within the service"),
-  where: z.string().optional().describe("SQL WHERE clause"),
-  geometry: z.record(z.unknown()).optional().describe("Esri JSON geometry for spatial filter"),
-  geometryType: z
-    .enum(GEOMETRY_TYPES)
-    .optional()
-    .describe("Esri geometry type. If omitted, inferred from geometry when possible."),
-  spatialRel: z
-    .enum(["intersects", "contains", "within"])
-    .optional()
-    .describe("Spatial relationship (default: intersects)"),
+  ...sourceRefFields,
+  ...queryFilterFields,
 });
 
 export type Input = z.infer<typeof schema>;
 
 export async function execute(client: HonuaClient, input: Input) {
-  const response = (await client.queryFeatures({
-    serviceId: input.serviceId,
-    layerId: input.layerId,
-    where: input.where,
-    geometry: input.geometry,
-    geometryType: resolveGeometryType(input.geometry, input.geometryType),
-    spatialRel: mapSpatialRel(input.spatialRel),
-    returnGeometry: false,
-    extraParams: { returnExtentOnly: true },
-  })) as Record<string, unknown>;
+  return withCapabilityHonesty(async () => {
+    const resolved = resolveSource(client, input);
+    const query = toQuery(input, { protocol: resolved.descriptor.protocol, paginate: false });
+    const { extent, count } = await resolved.source.queryExtent(query);
 
-  // Accept large counts returned as strings by the grpc-web transport (chosen
-  // to preserve precision beyond Number.MAX_SAFE_INTEGER) as well as numbers.
-  const count = coerceCount(response.count);
-
-  const hasExtent = Object.prototype.hasOwnProperty.call(response, "extent");
-  if (!hasExtent) {
-    // Some backends can return count-only payloads for empty extent queries.
-    if (count !== undefined) {
-      return jsonText({ extent: null, count });
-    }
-    throw new Error("Extent query did not return an extent payload.");
-  }
-
-  let extent: Record<string, unknown> | null;
-  if (response.extent === null) {
-    extent = null;
-  } else if (typeof response.extent === "object" && !Array.isArray(response.extent)) {
-    // A JSON array is `typeof "object"` but is not a valid extent envelope.
-    extent = response.extent as Record<string, unknown>;
-  } else {
-    throw new Error("Extent query returned an invalid extent payload.");
-  }
-
-  return jsonText({ extent, count });
+    return jsonText({
+      source: resolved.ref.ref,
+      protocol: resolved.descriptor.protocol,
+      extent: extent ?? null,
+      count: count ?? null,
+      // An extent that did not come from a server-side extent operation is an
+      // honest, but weaker, answer; name the capability so the caller can tell.
+      extentCapability: resolved.source.capabilities.has("queryExtent") ? "server" : "declared-extent",
+    });
+  });
 }

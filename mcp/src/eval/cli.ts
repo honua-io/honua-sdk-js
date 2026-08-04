@@ -23,10 +23,12 @@ import { runEval } from "./runner.js";
  *                    explicit request yields an honest driverError, not a silent
  *                    skip. Without --driver, drivers are auto-resolved from env.
  *   --corpus <name>  Select the corpus explicitly: analyst | operator | northstar |
- *                    all. This overrides HONUA_EVAL_CORPUS and is how the `eval:live`
+ *                    standalone | ogc | all. This overrides HONUA_EVAL_CORPUS and is how the `eval:live`
  *                    script targets the operator surface without relying on shell env
  *                    (cross-platform). `northstar` targets the three P1-gate
- *                    workflows. Defaults to the env-driven selection.
+ *                    workflows; `standalone` and `ogc` target the two platform-free
+ *                    fixture surfaces (a plain Esri FeatureServer and a plain OGC API
+ *                    Features endpoint). Defaults to the env-driven selection.
  *
  * Corpus selection is env-driven (see `resolveCorpus`): default is the analyst
  * corpus (in-process SDK fixture surface, the CI control); `HONUA_EVAL_CORPUS=operator`
@@ -39,7 +41,7 @@ import { runEval } from "./runner.js";
  * never hardcoded — they come from the environment.
  */
 
-const CORPUS_NAMES = ["analyst", "operator", "northstar", "standalone", "all"] as const;
+const CORPUS_NAMES = ["analyst", "operator", "northstar", "standalone", "ogc", "all"] as const;
 type CorpusName = (typeof CORPUS_NAMES)[number];
 
 interface CliOptions {
@@ -103,6 +105,7 @@ async function main(): Promise<void> {
     ...(drivers.length > 0 ? { drivers: selectDrivers(drivers) } : {}),
     ...(corpus ? { corpus: corpusForName(corpus) } : {}),
     ...(corpus === "standalone" ? { forceStandaloneSurface: true } : {}),
+    ...(corpus === "ogc" ? { forceOgcSurface: true } : {}),
   });
 
   mkdirSync(outDir, { recursive: true });

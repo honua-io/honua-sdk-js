@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "title": "Cities in Utah via OGR WFS",
+  "properties": {
+    "geometry": {
+      "format": "geometry-any",
+      "x-ogc-role": "primary-geometry"
+    },
+    "gml_id": {
+      "title": "gml_id",
+      "type": "string"
+    },
+    "NAME": {
+      "title": "NAME",
+      "type": "string",
+      "x-ogc-role": "id"
+    },
+    "CO_SEAT": {
+      "title": "CO_SEAT",
+      "type": "string"
+    },
+    "POP_1999": {
+      "title": "POP_1999",
+      "type": "number"
+    },
+    "POP_SYM_99": {
+      "title": "POP_SYM_99",
+      "type": "number"
+    },
+    "POP_2000": {
+      "title": "POP_2000",
+      "type": "number"
+    },
+    "POP_SYM_00": {
+      "title": "POP_SYM_00",
+      "type": "number"
+    },
+    "STATE": {
+      "title": "STATE",
+      "type": "string"
+    }
+  },
+  "$schema": "http://json-schema.org/draft/2019-09/schema",
+  "$id": "https://demo.pygeoapi.io/master/collections/utah_city_locations/queryables?f=json"
+}

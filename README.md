@@ -131,6 +131,10 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 - **No provider lock-in for the extras.** Geocoding and routing are provider-pluggable
   interfaces with open-source adapters, not a facade for one vendor's API
   ([`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md)).
+  That candor is applied to Honua itself: every capability carries a generated
+  `open-endpoint` or `server-attach` tier, and each server-attach capability names a
+  roadmap issue for an open-endpoint path or why the dependency is inherent
+  ([capability tiers](./docs/standalone-capability-matrix.md#capability-tiers)).
 
 The honest comparisons are the service-client libraries, not the renderers:
 
@@ -153,6 +157,14 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
+**Two deployment tiers, named up front.** 20 of the 27 generated support
+claims are `open-endpoint`: they run against standards-speaking endpoints you already
+have, or entirely in the client and build — no Honua account, no Honua Server.
+7 are `server-attach` and execute only after attaching to a Honua Server facade;
+3 of those link a roadmap issue for an open-endpoint path and the rest state why the
+server dependency is inherent, in the generated
+[capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
+
 **Honua Server is optional for standards clients.** Supported GeoServices, OGC API
 Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (`beta`), Maps (`beta`), and Records
@@ -164,7 +176,7 @@ A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 `MapPackage`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
 the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
-claim, execution mode, and evidence link.
+claim's tier, execution mode, and evidence link.
 <!-- support-manifest:standalone:end -->
 
 ## What Honua does not do
@@ -523,10 +535,16 @@ correctly use this SDK:
 - **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**
   geospatial MCP server: point `honua-mcp` at **any** public ArcGIS FeatureServer
   or OGC API endpoint (no Honua server required) and it exposes discovery, query,
-  and analysis tools to assistants over the Model Context Protocol. Tools that need
-  a Honua-only surface degrade gracefully with a structured "not available on this
-  target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
-  via `honua-mcp-proxy`.
+  and analysis tools to assistants over the Model Context Protocol. Its tool
+  contract is the SDK's own protocol-neutral one — sources are addressed as
+  `<protocol>:<address>` (`ogc-features:hotels`, `stac:sentinel-2-l2a`,
+  `wfs:topp:states`, `odata:People`, `geoservices-feature-service:Parks/0`),
+  filters are the typed semantic filter, and geometry is GeoJSON, so **no tool
+  schema requires an Esri-only field**. Tools that need a Honua-only surface
+  degrade gracefully with a structured "not available on this target" result, and
+  a request the backing protocol cannot express returns a structured capability
+  error rather than an empty result. A Honua deployment's richer `/mcp` catalog is
+  the upgrade path via `honua-mcp-proxy`.
 - **Cross-model MCP eval scorecard** — how well *different client models* actually
   drive that MCP surface, published rather than asserted:
   [`docs/generated/mcp-eval-scorecard.md`](./docs/generated/mcp-eval-scorecard.md).

@@ -92,15 +92,27 @@ If `honua-mcp` is not on `PATH`, use `"command": "node"` with
 
 Tools (all read-only):
 
-- `honua_list_services` — discover services (degrades if the target has no catalog)
-- `honua_describe_layer` — fields, geometry type, extent, relationships
-- `honua_query_features` — attribute/spatial filters, field selection, paging
+- `honua_list_sources` — protocol-neutral discovery; returns the
+  `<protocol>:<address>` source references every other tool accepts
+- `honua_list_services` — GeoServices-only service catalog (prefer `honua_list_sources`)
+- `honua_describe_layer` — protocol, capabilities, fields, geometry type, extent
+- `honua_query_features` — typed filter, GeoJSON/bbox geometry, temporal, paging
 - `honua_count_features` — cardinality without pulling rows
 - `honua_get_extent` — bounding box of a filter
-- `honua_statistics` — count/sum/avg/min/max/stddev aggregates
+- `honua_statistics` — count/sum/avg/min/max/stddev/var aggregates
 - `honua_explain_capability_gap` — protocol/capability guidance
 - `honua_get_style`, `honua_apply_style_preset` — server-side styling; on a plain
   FeatureServer these return a structured "not available on this target" result
+
+Address a source with one string, `<protocol>:<address>` — e.g.
+`ogc-features:hotels`, `stac:sentinel-2-l2a`, `wfs:topp:states`, `odata:People`,
+`geoservices-feature-service:Parks/0`. Call `honua_list_sources` first and pass its
+`source` values verbatim. Filters use the typed protocol-neutral `filter`
+(`{"op":"eq","field":"STATUS","value":"open"}`, composed with `and`/`or`/`not`),
+geometry is GeoJSON or a `bbox`, and time is `temporal`. The GeoServices
+`serviceId`/`layerId` pair still works but is deprecated. A request the backing
+protocol cannot express returns a structured capability error — treat it as a
+capability gap, never as "no features matched".
 
 Resources:
 

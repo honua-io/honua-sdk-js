@@ -31,6 +31,9 @@ import { performance } from "node:perf_hooks";
 
 import { createGeoArrowBatch, deserializeGeoArrowBatch, serializeGeoArrowBatch } from "../src/columnar/index.js";
 import type { ColumnarBatchIdentityV1, ColumnarBatchV1 } from "../src/columnar/index.js";
+// Shared with the aggregate harness so both per-row memory ceilings in
+// bench/budgets.json mean the same thing.
+import { collectGarbage, retainedBytes } from "./retained-memory.js";
 
 const IDENTITY: ColumnarBatchIdentityV1 = {
   sourceId: "columnar-batch-persistence",
@@ -99,19 +102,6 @@ export interface ColumnarBatchPersistenceBenchmarkResult {
 interface PersistenceRun {
   sample: ColumnarBatchPersistenceSample;
   checks: ColumnarBatchPersistenceBenchmarkResult["invariants"]["checks"];
-}
-
-/** Live JavaScript heap plus live `ArrayBuffer` bytes. */
-function retainedBytes(): number {
-  const usage = process.memoryUsage();
-  return usage.heapUsed + usage.arrayBuffers;
-}
-
-function collectGarbage(): boolean {
-  const collect = (globalThis as { gc?: () => void }).gc;
-  if (typeof collect !== "function") return false;
-  collect();
-  return true;
 }
 
 /**
