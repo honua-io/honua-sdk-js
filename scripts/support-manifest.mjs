@@ -575,9 +575,11 @@ ${rows.join("\n")}
 ## Current OGC line
 
 Raw OGC API Tiles, Maps, and Records discovery/use is \`beta\` and fixture-proven.
-Raw OGC API Processes discovery is \`experimental\`; typed Processes execution is
-still \`facade-required\`. Those are deliberately separate claims so discovery
-evidence can never be mistaken for execution support.`;
+Raw OGC API Processes discovery and raw Processes execution are both
+\`experimental\` and both \`standalone\`. They stay deliberately separate claims
+so discovery evidence can never be mistaken for execution support: discovery
+carries a scheduled anonymous live lane, while execution is fixture-proven only
+because no public Processes endpoint permits anonymous execution.`;
 }
 
 function lifecycleCounts(manifest) {
@@ -614,13 +616,14 @@ export function renderReadmeStandaloneSection(manifest) {
   const maps = supportClaim(manifest, "ogc-maps-standalone");
   const records = supportClaim(manifest, "ogc-records-standalone");
   const discovery = supportClaim(manifest, "ogc-processes-discovery-standalone");
-  const execution = supportClaim(manifest, "ogc-processes-execution-facade");
+  const execution = supportClaim(manifest, "ogc-processes-execution-standalone");
   return `**Honua Server is optional for standards clients.** Supported GeoServices, OGC API
 Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (\`${tiles.status}\`), Maps (\`${maps.status}\`), and Records
 (\`${records.status}\`) also discover and use raw advertised paths. OGC API Processes
-keeps two honest lanes: raw discovery is \`${discovery.status}\`, while typed execution
-is \`${execution.status}\`.
+keeps two honest lanes against a raw server: discovery (\`${discovery.status}\`,
+\`${discovery.environment}\`) and typed execution (\`${execution.status}\`,
+\`${execution.environment}\`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 \`MapPackage\`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
