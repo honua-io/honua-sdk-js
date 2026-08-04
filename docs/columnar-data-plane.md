@@ -459,8 +459,9 @@ reports a terminal outcome for the cancelled request:
   inside the window. The transport is not retired, the session returns to
   `idle`, and the next request reuses the warm worker.
 - A worker that does not report within `cancelAcknowledgementMs` (50 by
-  default) is retired, and queued work resumes on a newly created worker. This
-  keeps cancellation bounded even when an operator ignores its `AbortSignal`.
+  default, validated as a non-negative safe integer) is retired, and queued work
+  resumes on a newly created worker. This keeps cancellation bounded even when
+  an operator ignores its `AbortSignal`.
 - A result that raced the cancellation is discarded together with the buffers
   it transferred. It can never settle the aborted caller, and it can never be
   mistaken for the next request's result.
@@ -500,6 +501,8 @@ request with `disposed`, and afterwards `execute()` rejects with `disposed`
 rather than queueing. Disposal does not restore ownership of the active
 request's backing buffers, which were already detached by the transfer; queued
 callers' buffers were never transferred and remain attached.
+
+### Fail-closed behaviour
 
 The main session and worker host both fail closed on protocol-version drift,
 unknown operations, batch/metric disagreement, invalid or decreasing progress,
