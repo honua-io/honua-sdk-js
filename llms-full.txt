@@ -545,10 +545,16 @@ correctly use this SDK:
 - **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**
   geospatial MCP server: point `honua-mcp` at **any** public ArcGIS FeatureServer
   or OGC API endpoint (no Honua server required) and it exposes discovery, query,
-  and analysis tools to assistants over the Model Context Protocol. Tools that need
-  a Honua-only surface degrade gracefully with a structured "not available on this
-  target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
-  via `honua-mcp-proxy`.
+  and analysis tools to assistants over the Model Context Protocol. Its tool
+  contract is the SDK's own protocol-neutral one — sources are addressed as
+  `<protocol>:<address>` (`ogc-features:hotels`, `stac:sentinel-2-l2a`,
+  `wfs:topp:states`, `odata:People`, `geoservices-feature-service:Parks/0`),
+  filters are the typed semantic filter, and geometry is GeoJSON, so **no tool
+  schema requires an Esri-only field**. Tools that need a Honua-only surface
+  degrade gracefully with a structured "not available on this target" result, and
+  a request the backing protocol cannot express returns a structured capability
+  error rather than an empty result. A Honua deployment's richer `/mcp` catalog is
+  the upgrade path via `honua-mcp-proxy`.
 - **Cross-model MCP eval scorecard** — how well *different client models* actually
   drive that MCP surface, published rather than asserted:
   [`docs/generated/mcp-eval-scorecard.md`](./docs/generated/mcp-eval-scorecard.md).
@@ -1665,19 +1671,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `b5f6fc73`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `d6e4bb4f`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 738.5 KiB | 198.4 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 231.4 KiB | 59.7 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 740.4 KiB | 198.9 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 231.5 KiB | 59.7 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.8 KiB | 13.4 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 364.3 KiB | 98.3 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 999.8 KiB | 250.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 366.0 KiB | 98.7 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 1012.1 KiB | 253.4 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
-| Routing client | 20.5 KiB | 6.3 KiB |
+| Routing client | 20.6 KiB | 6.3 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.0.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1036.3 KiB minified / **273.8 KiB gzip**.
@@ -1687,8 +1693,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 738.5 KiB ≈ **1.73 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 198.4 KiB ≈ **0.46 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 740.4 KiB ≈ **1.74 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 198.9 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -2535,12 +2541,33 @@ The complete subpath is experimental while the remaining compiler and columnar
 slices land. The stable root promotes only the reviewed plan/execution subset
 used by the managed connection and MapLibre source workflows.
 
-The managed example below deliberately omits attribute filtering. The stable
-`Source.query()` surface does not yet accept the semantic AST, while
-`Query.where` is deprecated source-native compatibility. Typed semantic filters
-are available only from this experimental subpath until that integration lands.
-Examples later in this guide that use `Query.where` document the v1 compatibility
-compiler; they are not the new-code filtering idiom.
+The stable `Source.query()` surface accepts a typed filter directly:
+`Query.filter` and `Query.temporalFilter` are lowered onto every protocol by the
+canonical compiler in `src/contract/query-filter.ts` (issue #947). `Query.where`
+remains deprecated source-native compatibility, and examples later in this guide
+that use it document the v1 compatibility compiler rather than the new-code
+filtering idiom.
+
+The compilers in this subpath are a **second, deliberately different lane**, not
+a duplicate of that one:
+
+| | canonical (`Source.query()`) | this subpath |
+| --- | --- | --- |
+| Schema | none at query time; literals typed by the value written | verifies a `SourceSchemaV2`, maps logical fields to physical paths |
+| Evidence | per-source capability profile narrows the operator/predicate allow list | layer/conformance/FilterCapabilities evidence gates every node |
+| CRS | geometry passed through as the canonical spatial value | executable CRS binding with axis-order verification |
+| Failure | throws `HonuaCapabilityNotSupportedError` naming the construct | returns a structured `unsupported` result with a stable code and path |
+| Identity | participates in `hashQueryPlan` through the canonical query | additionally fingerprints the query, request, schema, and capability evidence |
+
+Unifying them would mean giving up either the schema verification and structured
+fidelity reporting on this side, or the schema-free stability on the other. They
+are instead kept honest by an equivalence ledger,
+`test/query-filter-lane-equivalence.test.ts`, which compiles the same filter
+through both lanes and pins every row as identical or as a documented difference
+with its reason. The known differences today are identifier quoting, timestamp
+literal formatting for schema-typed date columns, case-insensitive `LIKE` (the
+canonical lane emits the portable `UPPER()` rewrite; this lane declines to assume
+collation), and the OGC `during` topology predicate on an instant-valued column.
 
 ## Managed connection workflow
 
@@ -3479,8 +3506,9 @@ transfer primitive, a normative GeoArrow 0.2 mapping, and a lazy bounded
 worker-session protocol. The GeoArrow mapping is independently interpretable
 without loading an Arrow implementation; the optional Apache Arrow adapter is
 loaded only when explicitly requested.
-It does not decode Arrow or ship built-in filter/reprojection/aggregation
-operators. Applications register those operations in their worker module.
+It does not decode Arrow. It ships bounded reprojection and aggregation
+operations that applications register in their own worker module; every other
+operation stays application-owned.
 
 The entrypoint is experimental while the broader planner, streaming, renderer,
 and realtime work in issue #394 is completed.
@@ -3757,6 +3785,92 @@ the output CRS or semantics change. The operation remains bounded by the
 normal GeoArrow conversion ceilings and reports `decode`, `reproject`, and
 `complete` progress stages.
 
+### Bounded aggregation
+
+`createGeoArrowAggregateOperation()` is the one reducing operation. It scans the
+batch's packed buffer views only — it never calls `decodeGeoArrowBatch()` and
+never allocates a per-input-row object — so a million-row batch can become a
+chart, a legend, a histogram, or a binned overlay without materializing a
+million JavaScript features. Peak retained memory is bounded by the group count
+rather than the row count.
+
+Rows are grouped by the dictionary column, by the temporal column truncated to
+`second`, `minute`, `hour`, or `day`, or by a regular spatial grid cell derived
+from the geometry column. Metrics are `count`, `sum`, `min`, `max`, and `mean`
+over `featureId`, `temporal`, or a point geometry ordinate (`x`, `y`, `z`, `m`).
+
+```ts doc-test=skip reason="worker-host registration and batch identity are application-owned"
+const byClass = createGeoArrowAggregateOperation({
+  id: "incidents:by-class",
+  schemaId: "incidents@7:class-count-v1",
+  group: { kind: "dictionary" },
+  metrics: [
+    { name: "features", kind: "count" },
+    { name: "meanLongitude", kind: "mean", column: "x" },
+  ],
+  maxGroups: 4_096,
+});
+
+startColumnarWorkerHost({ transport, operations: { byClass } });
+```
+
+The result is a small Honua columnar batch in the `honua.aggregate` layout whose
+row count is the group count. `readGeoArrowAggregateBatch()` decodes it into
+group keys and metric values; that materialization is bounded by the group
+ceiling the operation already enforced.
+
+Fixed semantics, all of them explicit:
+
+- Output rows are ordered ascending by group key, with the declared null group
+  last, and that ordering is recorded in the result batch identity.
+- A null dictionary value, a null timestamp, and a null or empty geometry form
+  the declared null group, or are dropped entirely when `nullKeys: "skip"`.
+- A group with no non-null input yields a **null** `sum`, `min`, `max`, or
+  `mean` — never zero. A `count` is always a number, including zero.
+- A non-finite metric value fails closed with `HonuaGeoArrowError` rather than
+  poisoning a sum. Batch payload validation already refuses a non-finite
+  coordinate with `invalid-batch` before the scan starts, so the reduction's own
+  `invalid-input` guard is the backstop behind that contract.
+- Exceeding `maxGroups` (default 65,536, including the null group) fails closed
+  with `HonuaGeoArrowError` (`group-limit-exceeded`) before the output batch is
+  allocated. The input batch is never mutated.
+- The result identity records the source identity, the group specification, and
+  the metric specification, so two different aggregations of one source cannot
+  collide in a downstream cache.
+- The scan checks `signal` at least every 8,192 rows and yields to the host task
+  queue every 16,384 rows, so a cancelled million-row aggregation settles
+  promptly and the worker host stays reusable. Progress is reported as
+  `inspect`, `scan`, `encode`, and `complete`.
+
+#### Determinism
+
+A reduction that is not deterministic is not cacheable, and this is the first
+columnar operation whose output is small enough to be worth caching. Three
+things could otherwise make one input produce two different results.
+
+- **Worker scheduling.** The scan yields so a cancel can land, but the
+  arithmetic never observes the scheduler: accumulation is one sequential pass
+  and a yield only suspends it. `yieldIntervalRows` is therefore a pure
+  performance knob — changing it cannot change one output byte, and the
+  benchmark scenario asserts exactly that on every repetition.
+- **Group ordering.** Groups are emitted ascending by key, never in first-seen
+  or hash-iteration order, so two batches holding the same rows in a different
+  layout produce the same output order. Two dictionary entries encoding the same
+  string collapse into one group rather than into whichever index appeared
+  first, so an encoder's dictionary layout cannot leak into the result.
+- **Floating-point associativity.** `count`, `min`, and `max` are
+  order-independent by construction. `sum` and `mean` are not: a naive running
+  total makes the reported value depend on the order rows were visited in, and
+  `[1e16, 1, 1, -1e16]` accumulates left to right to `0` when the exact answer
+  is `2`. Both use Kahan–Babuška–Neumaier compensation instead, carrying each
+  addition's discarded low-order bits in a second group-indexed accumulator and
+  folding them in once at the end. That is a bound on the error rather than a
+  proof of bit-identity under every conceivable permutation, but it removes the
+  cancellation family that makes naive accumulation order-dependent in practice.
+
+The `columnar.aggregate.million-row` benchmark-lab scenario carries the memory
+and throughput budgets for this operation; see [`bench/README.md`](../bench/README.md).
+
 `createColumnarWorkerSession()` supplies the lifecycle missing from a raw
 `postMessage` call: lazy worker creation, a bounded serial queue, exact request
 correlation, monotonic progress, cross-thread cancellation, returned-batch
@@ -3867,12 +3981,11 @@ releases its active-request slot without an unhandled rejection.
 
 ## Deliberate remaining scope
 
-This slice does not claim the full #394 workstream. Arrow IPC decoding, built-in
-filter/projection/reprojection/aggregation operators, multi-batch streaming
-across more than one in-flight worker, planner integration, renderer
-consumption, batch cache identity, realtime patches, application-specific CSP
-worker URL policy, and bounded conversion back to feature objects remain
-separate work.
+This slice does not claim the full #394 workstream. Arrow IPC decoding,
+multi-batch streaming across more than one in-flight worker, planner
+integration, renderer consumption, batch cache identity, incremental
+re-aggregation over realtime patches, application-specific CSP worker URL
+policy, and bounded conversion back to feature objects remain separate work.
 
 ---
 
@@ -5642,29 +5755,61 @@ What these reads add to the shared discipline:
 
 Offline tiles reach MapLibre through the protocol seam the runtime already uses
 for other custom schemes, rather than a second tile pipeline. A style names
-`offline-region://` tiles and the handler answers each one from the region:
+`offline-region://` tiles and the handler answers each one from the region.
+
+The simplest binding is to hand `loadMapPackage` a handler and the style sources
+that should come from storage. It rewrites those sources' tile templates and
+registers the protocol before `map.setStyle`:
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
-import maplibregl from "maplibre-gl";
-import {
-  buildOfflineRegionTileUrlTemplate,
-  registerOfflineRegionTileProtocol,
-} from "@honua/sdk-js/offline";
+import { createOfflineRegionTileProtocol } from "@honua/sdk-js/offline";
+import { loadMapPackage } from "@honua/sdk-js/runtime";
 
-const dispose = registerOfflineRegionTileProtocol(maplibregl, {
-  manifest,
-  store: applicationStore,
-  authorizationScopeFingerprint: currentAclFingerprint,
+const runtime = await loadMapPackage(pkg, map, {
+  client,
+  offlineRegion: {
+    tileHandler: createOfflineRegionTileProtocol({
+      manifest,
+      store: applicationStore,
+      authorizationScopeFingerprint: currentAclFingerprint,
+    }),
+    sourceIds: ["incidents"],
+  },
 });
-
-map.addSource("incidents", { type: "vector", tiles: [buildOfflineRegionTileUrlTemplate()] });
 ```
+
+Registration is driven by evidence, never by import. `@honua/sdk-js/runtime`
+never imports `@honua/sdk-js/offline`: a handler is bound to one manifest, one
+store, and one authorization scope, none of which the runtime can invent, so the
+caller supplies it and the runtime decides only *when* it must be registered.
+`ensureOfflineRegionProtocol()` is idempotent per scheme, exactly like the
+PMTiles registration it shares a registry with, and a style that addresses the
+scheme with no handler supplied **fails the load** — a missing handler would
+render blank tiles rather than an error. The same check guards
+`maplibreRenderer` for an owned map.
+
+`rewriteStyleTilesForOfflineRegion()` is available on its own, and is
+deliberately narrow:
+
+- It rewrites `sources[id].tiles[0]` and nothing else, only for `vector`,
+  `raster`, and `raster-dem` sources. TileJSON `url` members, GeoJSON `data`,
+  sprites, glyphs, and layer paint are never touched.
+- It is reversible: the result carries every replacement, and
+  `revertOfflineRegionStyleRewrite()` restores the original style exactly.
+- It refuses rather than guesses. A source that addresses tiles only through a
+  TileJSON `url` (`tilejson-url-only`), carries both `url` and `tiles`
+  (`ambiguous-tile-source`), declares more than one template
+  (`multiple-tile-templates`), uses a placeholder a region cannot address such as
+  `{quadkey}` or `{ratio}` (`unsupported-tile-template`), is not a tile source at
+  all (`not-a-tile-source`), or has already been rewritten
+  (`already-rewritten`) is reported with a reason and left untouched.
+- `loadMapPackage` treats any refusal for a source the caller *named* as fatal,
+  because leaving one on its network template would render live tiles while the
+  application believed it was reading from storage.
 
 A tile the region does not hold rejects with its typed reason instead of falling
 back to the network or rendering nothing, and the handler declares `no-store` so
 freshness, eviction, and provenance stay answerable from the region alone.
-Registration is application-owned: the runtime does not auto-register this
-protocol or rewrite a style's tile URLs onto it.
 
 The same identities also plug into the existing service-worker seam.
 `resolveOfflineRegionResourceId()` turns a selection into the resource id an
@@ -7852,6 +7997,14 @@ Status: generated from [`config/support-manifest.v1.json`](../config/support-man
 cannot express exactly throws `HonuaCapabilityNotSupportedError` naming the
 construct and the protocol; a documented widening (the GeoParquet bbox
 reduction) is reported through `Result.degraded`.
+
+This table is the **protocol default**: what each adapter can lower without
+widening the result. A source's evaluated capability profile narrows it further —
+the `query` capability's `filterOperators`, `spatialPredicates`, and
+`temporalPredicates` constraints are bound into the same gate, so an endpoint
+whose evidence omits a construct refuses it by name even where the protocol
+column below says `✓`. Discovery attaches these defaults as `protocol-default`
+evidence; observed evidence only ever narrows them.
 
 - `✓` full attribute, spatial, and temporal predicate compilation
 - `◐` attribute and temporal predicates only (a spatial node is refused)
@@ -10229,51 +10382,51 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `73745066`._
+_Generated 2026-08-04 at commit `d6e4bb4f`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 738.7 KiB | 753.9 KiB | 198.4 KiB | 211.8 KiB |
-| `/honua` | 901.4 KiB | 937.2 KiB | 242.8 KiB | 251.0 KiB |
-| `/contract` | 364.3 KiB | 400.6 KiB | 98.3 KiB | 108.0 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 878.3 KiB | 925.5 KiB | 197.7 KiB | 206.0 KiB |
+| `.` (root) | 740.4 KiB | 753.9 KiB | 198.9 KiB | 211.8 KiB |
+| `/honua` | 903.1 KiB | 937.2 KiB | 243.3 KiB | 251.0 KiB |
+| `/contract` | 366.0 KiB | 400.6 KiB | 98.7 KiB | 108.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 880.0 KiB | 925.5 KiB | 198.1 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 911.6 KiB | 961.8 KiB | 207.0 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 914.0 KiB | 961.8 KiB | 207.7 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 65.4 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
 | `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 598.7 KiB | 612.2 KiB | 161.6 KiB | 163.9 KiB |
+| `/runtime` | 605.1 KiB | 612.2 KiB | 163.6 KiB | 163.9 KiB |
 | `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
-| `/offline` | 131.7 KiB | 144.9 KiB | 35.7 KiB | 39.2 KiB |
-| `/query-planner` (worker runtime injected) | 659.7 KiB | 703.3 KiB | 142.5 KiB | 143.2 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.7 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
-| `/esri-compat` | 1010.4 KiB | 1026.2 KiB | 252.8 KiB | 253.6 KiB |
+| `/offline` | 138.7 KiB | 144.9 KiB | 37.8 KiB | 39.2 KiB |
+| `/query-planner` (worker runtime injected) | 676.5 KiB | 703.3 KiB | 148.0 KiB | 162.6 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 120.5 KiB | 122.9 KiB | 36.7 KiB | 37.7 KiB |
+| `/esri-compat` | 1012.1 KiB | 1026.2 KiB | 253.4 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
 | `/routing` | 20.6 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
 | `/auth` | 26.0 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
-| `/map` | 180.8 KiB | 198.2 KiB | 51.2 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 139.2 KiB | 154.9 KiB | 42.0 KiB | 46.6 KiB |
+| `/map` | 181.1 KiB | 198.2 KiB | 51.3 KiB | 56.2 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 139.9 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 977.4 KiB | 1037.6 KiB | 262.9 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1053.9 KiB | 1120.1 KiB | 286.2 KiB | 292.6 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1003.8 KiB | 1037.6 KiB | 269.7 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1080.4 KiB | 1120.1 KiB | 293.0 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 535.7 KiB | 562.6 KiB | 143.9 KiB | 150.2 KiB |
+| `/react` (react/react-dom external) | 541.1 KiB | 562.6 KiB | 145.6 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 739.3 KiB | 754.5 KiB | 198.7 KiB | 201.3 KiB |
-| browser ESM (`./browser`) | 738.0 KiB | 753.1 KiB | 198.4 KiB | 201.0 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 741.0 KiB | 754.5 KiB | 199.2 KiB | 201.3 KiB |
+| browser ESM (`./browser`) | 739.7 KiB | 753.1 KiB | 198.8 KiB | 201.0 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 231.5 KiB | 254.0 KiB | 59.7 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 604.1 KiB | 627.9 KiB | 161.1 KiB | 166.9 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 605.8 KiB | 627.9 KiB | 161.6 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.5 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.9 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 703.4 KiB | 717.1 KiB | 189.1 KiB | 191.3 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 705.1 KiB | 717.1 KiB | 189.6 KiB | 191.3 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 246.1 KiB | 267.0 KiB | 63.0 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.8 KiB | 44.7 KiB | 13.4 KiB | 14.0 KiB |
@@ -15418,14 +15571,109 @@ When `HONUA_API_KEY` is configured, use `https://` for non-localhost servers.
 
 All read-only:
 
-- `honua_list_services` — discover services (degrades if the target has no catalog)
-- `honua_describe_layer`
+- `honua_list_sources` — **protocol-neutral discovery.** Returns `<protocol>:<address>` source references plus each source's real capabilities. Every protocol family degrades independently with a reason.
+- `honua_list_services` — GeoServices-specific service catalog (prefer `honua_list_sources`)
+- `honua_describe_layer` — source schema, protocol, and advertised capabilities
 - `honua_query_features`
 - `honua_count_features`
 - `honua_get_extent`
 - `honua_statistics`
 - `honua_explain_capability_gap`
 - `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
+
+### Protocol-neutral tool contract
+
+The tool vocabulary is the SDK's `Dataset` → `Source` → `Query` → `Result` contract,
+not GeoServices with extra fields. **No tool schema requires an Esri-only field.**
+
+**Addressing.** A source is one string, `<protocol>:<address>`, exactly as
+`honua_list_sources` emits it:
+
+| protocol | address | example |
+| --- | --- | --- |
+| `geoservices-feature-service` (alias `geoservices`) | `<serviceId>/<layerId>` | `geoservices-feature-service:Parks/0` |
+| `geoservices-map-service` | `<serviceId>/<layerId>` | `geoservices-map-service:Basemap/2` |
+| `ogc-features` (alias `ogc`) | `<collectionId>` | `ogc-features:hotels` |
+| `ogc-records` | `<collectionId>` | `ogc-records:catalog` |
+| `stac` | `<collectionId>` | `stac:sentinel-2-l2a` |
+| `wfs` | `<typeName>` | `wfs:topp:states` |
+| `odata` | `<entitySet>` | `odata:People` |
+
+An unrecognized protocol token is **refused with the accepted forms** rather than
+guessed at. Pass `layout` (`ogc-api` / `auto` / `stac-api` / `stac-static`) when the
+OGC/STAC source lives at a third-party service root rather than the Honua facade.
+
+**Filtering.** `filter` is the SDK's typed semantic filter, which compiles to
+GeoServices SQL-92, CQL2, FES 2.0, or OData `$filter` depending on the backend —
+one filter, same meaning everywhere:
+
+```jsonc
+{
+  "source": "ogc-features:obs",
+  "filter": {
+    "op": "and",
+    "args": [
+      { "op": "eq", "field": "stn_id", "value": 2147 },
+      { "op": "gt", "field": "value", "value": 95 }
+    ]
+  },
+  "orderBy": [{ "field": "value", "direction": "desc" }],
+  "limit": 10
+}
+```
+
+Nodes: `eq`/`ne`/`lt`/`lte`/`gt`/`gte` (`field`, `value`), `in` (`values`),
+`between` (`lower`, `upper`), `is-null`/`is-not-null`, `like` (`pattern`,
+`caseSensitive`), `and`/`or` (`args`), `not` (`arg`), the spatial predicates
+`intersects`/`contains`/`within`/`crosses`/`touches`/`overlaps`/`bbox-intersects`
+(`geometry` or `bbox`), and the temporal predicates
+`before`/`after`/`during`/`time-intersects` (`field`, `value`).
+
+**Geometry** is GeoJSON (RFC 7946), or a `bbox` as `[minX, minY, maxX, maxY]`.
+An envelope tested with `intersects` travels as the portable spatial constraint
+(the OGC `bbox` parameter / a GeoServices geometry parameter); a richer geometry
+or predicate becomes a typed spatial filter, which compiles where supported and
+fails closed where it is not. **Time** is `temporal` — `{ "instant": … }` or
+`{ "start": …, "end": … }`, with an optional `field`; without a field it targets
+the source's own time dimension (`time=` / `datetime=`).
+
+**Results** carry the neutral source identity, GeoJSON geometry, and — when the
+protocol served the request a weaker way — an explicit `degraded` array (e.g. OGC
+API Features has no server-side aggregation, so `honua_statistics` says it
+aggregated client-side rather than presenting the number as authoritative).
+
+**Capability honesty.** A request the backing protocol cannot express returns an
+`isError` result with a structured envelope, never a silently empty feature list:
+
+```json
+{
+  "code": "capability_not_supported",
+  "error": {
+    "kind": "ExecutionFailed",
+    "message": "Capability \"queryAggregate\" is not supported by protocol \"wmts\"",
+    "capability": "queryAggregate",
+    "protocol": "wmts",
+    "guidance": "…what to do instead…"
+  }
+}
+```
+
+### Deprecated inputs (still accepted)
+
+Nothing was removed. The following remain as **optional** compatibility inputs so
+existing MCP clients keep working, and are marked `[DEPRECATED]` in their schema
+descriptions:
+
+- `serviceId` + `layerId` — the GeoServices pair. Equivalent to
+  `source: "geoservices-feature-service:<serviceId>/<layerId>"`. Passing
+  `serviceId` without `layerId` is refused rather than defaulted to layer 0.
+- `where` — source-native filter text, whose language depends on the backend. Use
+  `filter` for a protocol-neutral one.
+- `geometry` as Esri-JSON, with `geometryType` — converted on the way in.
+
+One behavioural note: a source addressed the **deprecated** way keeps the legacy
+Esri-JSON geometry output; a source addressed with `source` gets GeoJSON. Set
+`geometryFormat` explicitly to override either default.
 
 Hosts that use signed safe-agent plans can import
 `@honua/mcp-server/agent-execution`. Its `createReadOnlyMcpAgentExecutor` binds
@@ -15536,6 +15784,30 @@ The fixture is recorded by `scripts/record-census-fixtures.mjs` into
 `src/certification/census-data.ts`; the evaluator that replays it is verified for
 parity against the live recordings in `test/certification/census-fixture-client.test.ts`.
 
+### Non-GeoServices certification lane
+
+A `standalone`-shaped lane can prove the surface works against Esri and still say
+nothing about vendor neutrality. So a second target — **`standalone-ogc`**
+(`HONUA_MCP_CERT_TARGET=standalone-ogc`, or `--target standalone-ogc`) — runs the
+**same tool catalog** against an in-process fixture of a plain **OGC API Features**
+endpoint, replaying collections recorded from the public
+[pygeoapi demo](https://demo.pygeoapi.io/master) (the pinned `ogc-features` target
+in `config/live-conformance-endpoints.v1.json`). Nothing Esri exists there: the
+GeoServices entry points all reject, so a tool that still secretly required
+`serviceId`/`layerId` fails loudly instead of passing by accident.
+
+```bash
+npm run certify:standalone-ogc            # non-GeoServices cert (OGC API Features fixture)
+npm run test:certification:standalone-ogc # CI gate variant
+```
+
+The fixture serves the OGC API Features Part 1 parameters (`limit`, `offset`,
+`bbox`, `datetime`, `properties`, `sortby`) plus the Part 3 `filter` +
+`filter-lang=cql2-text` the neutral contract compiles to — including a CQL2
+evaluator that **refuses** a construct it cannot evaluate exactly (`S_*` spatial
+predicates) rather than matching every row. Re-record with
+`node scripts/record-ogc-fixtures.mjs`.
+
 Artifacts are written to the package root as
 `mcp-certification-results.json` and `mcp-certification-results.md` (gitignored;
 uploaded by CI). To certify against a **live** honua-server, set `HONUA_BASE_URL`
@@ -15630,6 +15902,24 @@ hallucinated place name fails. The grading taxonomy is documented in
 
 ```bash
 npm run eval:standalone       # deterministic control over the census fixture (offline)
+```
+
+### Non-GeoServices semantic corpus (`src/eval/ogc-corpus.ts`)
+
+The **ogc** corpus runs the identical catalog against the plain OGC API Features
+fixture, addressing every source as `ogc-features:<collectionId>` — no `serviceId`,
+no `layerId`, anywhere in the corpus (a test asserts that). Its assertions are
+anchored to the recorded pygeoapi data (5 observations, 31 Utah cities:
+`avg(value)=96.14`, `sum(POP_2000)=354212`, `stn_id=2147 ⇒ 2 rows`, the
+2001–2004 interval ⇒ 3 rows), and it exercises the typed filter, a GeoJSON/bbox
+spatial constraint, and canonical temporal predicates. Three scenarios grade
+*honesty* rather than data: client-side aggregation must be reported as degraded,
+an extent that came from the declared collection extent must say so, and a CQL2
+spatial predicate the endpoint does not publish must come back as a structured
+capability refusal — never as an empty result set.
+
+```bash
+npm run eval:ogc              # deterministic control over the OGC API Features fixture (offline)
 ```
 
 ### Live lane (paid, manual only)
