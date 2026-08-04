@@ -30,7 +30,7 @@ are satisfied without emitting extension parameters. See
 | OGC API Features | `client.ogcFeatures()` | `ogc-features` | landing → collections → items, CQL2 filtering, transactions where the server advertises them |
 | OGC API Tiles | `client.ogcTiles()` | `ogc-tiles` | tileset discovery, vector + raster tiles on the canonical `/collections/{id}/tiles/{tms}/…` route (styled tiles deferred — see below) |
 | OGC API Maps | `client.ogcMaps()` | `ogc-maps` | dataset / collection map renders, styled access |
-| OGC API Processes | `client.ogcProcesses()` | (none — job runner) | discovery, async execution, `IJobRun<T>` surface |
+| OGC API Processes | `client.ogcProcesses()` | (none — job runner) | discovery, synchronous + asynchronous execution against a raw Part 1 (Core) server, `IJobRun<T>` surface |
 | OGC API Records | `client.ogcRecords()` | `ogc-records` | metadata/catalog discovery, record search, record detail, raw response access |
 | STAC API | `client.stac()` | `stac` | landing, collections, items, cross-collection search |
 
@@ -160,6 +160,60 @@ Terminal-failure snapshots populate `JobError` from `statusInfo.exception`
 when the server provides it, and fall back to `statusInfo.message`
 otherwise (honua-server's `StatusInfo` DTO only emits `message`). The
 resulting `HonuaJobFailedError.message` carries the server's reason text.
+
+#### Executing against a raw Processes server
+
+No Honua Server is required. `discoverOgcProcesses()` returns the
+service-root `basePath` and the verbatim `conformsTo` list; handing both
+to `client.ogcProcesses()` binds every describe / execute / job route to
+the discovered root and gates the calls on what that server declares.
+
+```ts doc-test=skip reason="partial excerpt requires a live third-party Processes endpoint"
+const discovery = await discoverOgcProcesses({ endpoint: "https://demo.pygeoapi.io/master" });
+
+const processes = client.ogcProcesses({
+  basePath: discovery.basePath,
+  conformance: discovery, // the server's own /conformance list
+  pollBudget: { deadlineMs: 60_000 },
+});
+
+// describe() teaches the handle this process's jobControlOptions, so the
+// mode gate below costs no extra round trip.
+await processes.describe("hello-world");
+
+const run = await processes.execute<{ echo: string }>({
+  processId: "hello-world",
+  inputs: { name: "honua" },
+  mode: "sync", // refused up front unless the process declares sync-execute
+});
+
+const { outputs } = await run.results();
+```
+
+Four properties hold whichever server is on the other end:
+
+- **Both Core response shapes.** `mode: "async"` sends
+  `Prefer: respond-async` and expects `201` + `Location`; `mode: "sync"`
+  omits the header and expects `200` with the results document;
+  `mode: "auto"` (the default) accepts either. A synchronous execution
+  still returns an `IJobRun` — an already-terminal one with `id === ""`,
+  since Core assigns no job identifier — so caller code is identical.
+- **Links over templates.** The job lifecycle follows the `Location`
+  header and the `self` / `http://www.opengis.net/def/rel/ogc/1.0/results`
+  link relations the server publishes, falling back to the Core
+  `/jobs/{jobId}[/results]` template only when it publishes none. A link
+  that leaves the client's configured origin is never followed.
+- **Fail-closed capability gating.** An undeclared `sync-execute`,
+  `async-execute`, or `dismiss` raises `HonuaCapabilityNotSupportedError`
+  before any request is issued. The refusal's `context` carries
+  `missingClass` (the conformance-class URI) or `construct`, so callers
+  can branch without parsing messages. `capabilityPolicy: "strict"`
+  additionally resolves conformance and the process description first and
+  refuses a job whose status or results route was never advertised.
+- **Bounded, cancellable polling.** `results()` runs under the caller's
+  `JobResultsOptions`, then the handle's `pollBudget`, then a default
+  10-minute deadline — never an unbounded loop — and stops immediately
+  when the supplied `AbortSignal` fires.
 
 ### STAC API
 

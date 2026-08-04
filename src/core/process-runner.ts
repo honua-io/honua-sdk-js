@@ -30,8 +30,15 @@ export interface HonuaProcessExecuteRequest {
   readonly context?: unknown;
   /** Result ids to fetch when targeting GeoServices GPServer result routes. */
   readonly resultNames?: readonly string[];
-  readonly mode?: "async" | "auto";
+  /**
+   * Execution preference. `"sync"` is meaningful only for OGC API Processes
+   * (the other adapters are job-oriented by construction); every mode still
+   * yields an `IJobRun`.
+   */
+  readonly mode?: "sync" | "async" | "auto";
   readonly signal?: AbortSignal;
+  /** OGC process `jobControlOptions`, when known, for fail-closed mode gating. */
+  readonly jobControlOptions?: readonly string[];
 }
 
 export interface HonuaProcessJobOptions {
@@ -96,6 +103,7 @@ export function createOgcProcessesAdapter(processes: HonuaOgcProcesses): HonuaPr
         outputs: request.outputs,
         mode: request.mode ?? "async",
         signal: request.signal,
+        ...(request.jobControlOptions !== undefined ? { jobControlOptions: request.jobControlOptions } : {}),
       });
     },
     job<T = unknown>(jobId: string, options: HonuaProcessJobOptions = {}) {
