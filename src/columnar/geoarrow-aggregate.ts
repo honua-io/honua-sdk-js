@@ -14,6 +14,34 @@
  * geometry column plus optional temporal, dictionary, and feature-id columns
  * and therefore has nowhere to carry metric columns.
  *
+ * ## Determinism
+ *
+ * A reduction that is not deterministic is not cacheable, and this one is the
+ * first columnar operation whose output is small enough to be worth caching.
+ * Three things could otherwise make the same input produce different output.
+ *
+ * 1. **Worker scheduling.** The scan yields to the host task queue so a cancel
+ *    can land, but the arithmetic never observes the scheduler: accumulation is
+ *    one sequential pass over the packed buffers, and a yield only suspends it.
+ *    The yield cadence is therefore a pure performance knob — varying
+ *    `yieldIntervalRows` cannot change a single output byte.
+ * 2. **Group ordering.** Groups are emitted ascending by key with the declared
+ *    null group last, never in first-seen or hash-iteration order, so two
+ *    batches holding the same rows in a different layout produce the same
+ *    output row order. Duplicate dictionary entries encoding the same string
+ *    are canonicalized to one group rather than to whichever index appeared
+ *    first.
+ * 3. **Floating-point associativity.** `count`, `min`, and `max` are
+ *    order-independent by construction. `sum` and `mean` are not, and a naive
+ *    running total makes the reported value depend on the order the rows were
+ *    visited in: `[1e16, 1, 1, -1e16]` accumulates left to right to `0` when
+ *    the exact answer is `2`. Both use Kahan–Babuška–Neumaier compensation
+ *    instead, carrying every addition's discarded low-order bits in a second
+ *    group-indexed accumulator and folding them in once at the end. That is a
+ *    bound on the error rather than a proof of bit-identity under every
+ *    conceivable permutation, but it removes the cancellation family that makes
+ *    naive accumulation order-dependent in practice.
+ *
  * @experimental
  */
 import {
@@ -441,8 +469,28 @@ interface MetricAccumulator {
   readonly kind: number;
   /** Index into the scratch column arrays, or -1 for a plain row count. */
   readonly column: number;
+  /** Running count, running extremum, or the high-order term of a running sum. */
   readonly values: number[];
+  /**
+   * Kahan–Babuška–Neumaier compensation: the low-order bits every addition to
+   * {@link values} discarded. Folded in once at the end. Only `sum` and `mean`
+   * use it; for the other kinds it stays exactly zero.
+   */
+  readonly compensation: number[];
   readonly nonNull: number[];
+}
+
+/**
+ * One compensated addition. Returns the discarded low-order bits, which the
+ * caller accumulates alongside the running total.
+ *
+ * A naive `total += value` makes a reduction order-dependent: summing
+ * `[1e16, 1, 1, -1e16]` left to right yields `0` because each `1` falls off the
+ * bottom of `1e16`, and permuting the same four values yields yet other
+ * answers. Carrying the lost bits recovers the exact `2` from either order.
+ */
+function neumaierResidual(running: number, value: number, total: number): number {
+  return Math.abs(running) >= Math.abs(value) ? running - total + value : value - total + running;
 }
 
 interface GroupColumns {
@@ -623,6 +671,7 @@ export function createGeoArrowAggregateOperation(
                 : KIND_MEAN,
       column: metric.column === undefined ? -1 : columnNames.indexOf(metric.column),
       values: [],
+      compensation: [],
       nonNull: [],
     }));
     const accumulatorCount = accumulators.length;
@@ -633,9 +682,9 @@ export function createGeoArrowAggregateOperation(
     // Group-mode preparation. Every allocation here is bounded by the
     // dictionary cardinality or by a constant, never by the row count.
     let dictionaryValues: readonly string[] = [];
-    let canonicalOfIndex = new Int32Array(0);
-    let groupOfCanonical = new Int32Array(0);
-    let dictionaryIndices = new Int32Array(0);
+    let canonicalOfIndex: Int32Array = new Int32Array(0);
+    let groupOfCanonical: Int32Array = new Int32Array(0);
+    let dictionaryIndices: Int32Array = new Int32Array(0);
     let dictionaryValidity: Uint8Array | undefined;
     let temporalReader: ColumnReader | undefined;
     let temporalStep = 1;
@@ -645,8 +694,8 @@ export function createGeoArrowAggregateOperation(
     let gridOriginY = 0;
     let interleaved = false;
     let coordinateStride = 2;
-    let coordinateX = new Float64Array(0);
-    let coordinateY = new Float64Array(0);
+    let coordinateX: Float64Array = new Float64Array(0);
+    let coordinateY: Float64Array = new Float64Array(0);
     const numericGroups = new Map<number, number>();
     const groupKeys: number[] = [];
 
@@ -727,6 +776,7 @@ export function createGeoArrowAggregateOperation(
               ? Number.NEGATIVE_INFINITY
               : 0,
         );
+        accumulator.compensation.push(0);
         accumulator.nonNull.push(0);
       }
       return ordinal;
@@ -858,6 +908,11 @@ export function createGeoArrowAggregateOperation(
           continue;
         }
         const value = readColumn(reader, row);
+        // Backstop. `inspectGeoArrowBatch` already refuses a batch whose
+        // coordinate buffers hold a non-finite value, and the feature-id and
+        // temporal columns are integral, so a metric column that reaches here
+        // is finite under today's contract. Keep the guard anyway: it is the
+        // one thing standing between a widened column set and a poisoned sum.
         if (!Number.isFinite(value)) {
           fail("invalid-input", "A non-finite metric value cannot be aggregated deterministically.", {
             row,
@@ -880,7 +935,10 @@ export function createGeoArrowAggregateOperation(
         accumulator.nonNull[ordinal]! += 1;
         if (accumulator.kind === KIND_COUNT) accumulator.values[ordinal]! += 1;
         else if (accumulator.kind === KIND_SUM || accumulator.kind === KIND_MEAN) {
-          accumulator.values[ordinal]! += value;
+          const running = accumulator.values[ordinal]!;
+          const total = running + value;
+          accumulator.compensation[ordinal]! += neumaierResidual(running, value, total);
+          accumulator.values[ordinal] = total;
         } else if (accumulator.kind === KIND_MIN) {
           if (value < accumulator.values[ordinal]!) accumulator.values[ordinal] = value;
         } else if (value > accumulator.values[ordinal]!) accumulator.values[ordinal] = value;
@@ -941,8 +999,10 @@ export function createGeoArrowAggregateOperation(
         }
         const nonNull = accumulator.nonNull[ordinal]!;
         if (nonNull === 0) continue;
-        values[slot] =
-          accumulator.kind === KIND_MEAN ? accumulator.values[ordinal]! / nonNull : accumulator.values[ordinal]!;
+        // Fold the carried low-order bits back in exactly once, so `sum` and
+        // `mean` report the compensated total rather than the drifted one.
+        const total = accumulator.values[ordinal]! + accumulator.compensation[ordinal]!;
+        values[slot] = accumulator.kind === KIND_MEAN ? total / nonNull : total;
         validity![slot >> 3]! |= 1 << (slot & 7);
       }
       fields.push(Object.freeze({ name, type: Object.freeze({ name: "float64" }), nullable }));

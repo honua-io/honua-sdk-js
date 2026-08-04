@@ -342,6 +342,58 @@ Running `node dist/bench/lab.js` directly without `--expose-gc` will fail this
 scenario by design. `vitest.config.ts` passes the same flag so
 `test/columnar-data-plane-bench.test.ts` exercises the enforced path.
 
+## Million-row columnar reduction scenario
+
+[`columnar-aggregate-bench.ts`](./columnar-aggregate-bench.ts) is the
+benchmark-lab scenario (`columnar.aggregate.million-row`) for the one columnar
+operation that *shrinks* a batch. `createGeoArrowAggregateOperation` scans
+1,000,000 packed GeoArrow rows and emits a group-keyed result batch of 1,024
+rows carrying a count and a sum, and issue #939 requires that to happen without
+materializing a single input row. The fixture is built once outside every
+measured region: the floor below is on reduction throughput, not on GeoArrow
+encoding throughput.
+
+Each repetition runs the same reduction three times, and the split is the point:
+
+1. **timed** — no memory instrumentation inside the window at all. Reading
+   process memory during the run would price the meter into the measurement.
+2. **retention** — untimed, forcing a collection at each of four scan
+   checkpoints plus completion. A raw `heapUsed` peak measures the *allocation
+   rate* of everything the operation touches — on this scenario the transient
+   young-generation garbage from batch payload validation alone runs to 12–16
+   bytes per input row while the reduction's own live footprint is under a
+   quarter of a byte. Collecting at each checkpoint is what turns the reading
+   into retention, and it is also what makes the clock meaningless, hence the
+   separate run.
+3. **cadence twin** — the same reduction with a different `yieldIntervalRows`,
+   whose result batch must be byte-identical to the timed run's.
+
+Seven invariants gate every repetition: `collectedBaseline`,
+`monotonicProgress`, `groupsExact` (the emitted groups are the fixture's, in
+ascending key order), `metricsExact`, `inputBatchUnmutated`, `repeatable`, and
+`yieldCadenceIndependent`. The last two are the determinism gate — the yield
+cadence is the only scheduling knob the operation exposes, so an output that
+survives changing it cannot be moved by a worker scheduling decision either.
+
+`metricsExact` is bit-exact rather than approximate. Every fixture longitude is
+a multiple of `1/8` and every per-group total stays below 2^28, so each group's
+exact sum is representable in a double; the harness accumulates the reference as
+integers and the reduction must reproduce it exactly.
+
+| Metric | Warning | Failure | Measured |
+| --- | ---: | ---: | --- |
+| `retainedBytesPerInputRow` | 2 | 8 | 0.2246–0.2434 |
+| `inputRowsPerSecond` | 4,000,000 | 2,000,000 | 9,002,553–14,196,335 |
+| `outputBackingBytesPerGroup` | 40 | 64 | exactly 32.25 (a utf8 key plus two float64 metric columns) |
+
+The two failure thresholds are the numbers #939 itself names, and they sit 33x
+and 4.5x clear of the worst reading, so contention cannot flake them. They still
+catch the regression they exist for: decoding rows into objects before reducing
+them costs hundreds of bytes per input row and would hold those objects live at
+exactly the checkpoints the retention run samples. `outputBackingBytesPerGroup`
+is fully deterministic and states the property the issue turns on — the result
+is sized by the group count, never by the input row count.
+
 ## Stream / pagination scenario
 
 A deterministic, server-free harness that measures throughput and latency of

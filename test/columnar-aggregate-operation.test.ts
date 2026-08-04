@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildColumnarAggregateFixture } from "../bench/columnar-aggregate-bench.js";
 import {
   COLUMNAR_WORKER_CANCEL_KIND,
   COLUMNAR_WORKER_ERROR_KIND,
@@ -22,7 +23,6 @@ import {
   readGeoArrowAggregateBatch,
   startColumnarWorkerHost,
 } from "../src/columnar/index.js";
-import { buildGeoArrowAggregateFixture, runColumnarAggregateBench } from "../bench/columnar-aggregate-bench.js";
 
 class LoopbackTransport implements ColumnarWorkerTransport {
   readonly messages = new Set<(event: ColumnarWorkerMessageEvent) => void>();
@@ -157,14 +157,7 @@ function snapshotBuffers(batch: ColumnarBatchV1): readonly string[] {
 describe("GeoArrow aggregation: dictionary grouping", () => {
   const batch = () =>
     pointBatch({
-      points: [
-        [1, 1],
-        [2, 2],
-        [3, 3],
-        [4, 4],
-        [5, 5],
-        null,
-      ],
+      points: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], null],
       classes: ["b", "a", "b", null, "a", "b"],
       timestamps: [10n, 20n, null, 40n, 50n, 60n],
       ids: [1, 2, 3, 4, 5, 6],
@@ -249,14 +242,30 @@ describe("GeoArrow aggregation: dictionary grouping", () => {
 
   it("handles the single-group and all-distinct extremes", async () => {
     const single = await aggregate(
-      pointBatch({ points: [[1, 1], [2, 2], [3, 3]], classes: ["only", "only", "only"], ids: [1, 2, 3] }),
+      pointBatch({
+        points: [
+          [1, 1],
+          [2, 2],
+          [3, 3],
+        ],
+        classes: ["only", "only", "only"],
+        ids: [1, 2, 3],
+      }),
       { group: { kind: "dictionary" }, metrics: [{ name: "features", kind: "count" }] },
     );
     expect(single.rows).toHaveLength(1);
     expect(single.rows[0]).toEqual({ key: "only", metrics: { features: 3 } });
 
     const distinct = await aggregate(
-      pointBatch({ points: [[1, 1], [2, 2], [3, 3]], classes: ["c", "a", "b"], ids: [1, 2, 3] }),
+      pointBatch({
+        points: [
+          [1, 1],
+          [2, 2],
+          [3, 3],
+        ],
+        classes: ["c", "a", "b"],
+        ids: [1, 2, 3],
+      }),
       { group: { kind: "dictionary" }, metrics: [{ name: "features", kind: "count" }] },
     );
     expect(distinct.rows.map((row) => row.key)).toEqual(["a", "b", "c"]);
@@ -328,13 +337,7 @@ describe("GeoArrow aggregation: spatial grid grouping", () => {
   it("bins points into a regular grid ordered by cell x then y", async () => {
     const result = await aggregate(
       pointBatch({
-        points: [
-          [0, 0],
-          [9.9, 9.9],
-          [10, 10],
-          [-1, -1],
-          null,
-        ],
+        points: [[0, 0], [9.9, 9.9], [10, 10], [-1, -1], null],
         ids: [1, 2, 3, 4, 5],
       }),
       {
@@ -353,13 +356,23 @@ describe("GeoArrow aggregation: spatial grid grouping", () => {
 
   it("honours a rectangular cell size and a shifted origin", async () => {
     const result = await aggregate(
-      pointBatch({ points: [[0, 0], [4, 9], [6, 11]], ids: [1, 2, 3] }),
+      pointBatch({
+        points: [
+          [0, 0],
+          [4, 9],
+          [6, 11],
+        ],
+        ids: [1, 2, 3],
+      }),
       {
         group: { kind: "grid", cellSize: [5, 10], origin: [-5, -10] },
         metrics: [{ name: "features", kind: "count" }],
       },
     );
-    expect(result.rows.map((row) => row.key)).toEqual([[1, 1], [2, 2]]);
+    expect(result.rows.map((row) => row.key)).toEqual([
+      [1, 1],
+      [2, 2],
+    ]);
     expect(result.rows.map((row) => row.metrics.features)).toEqual([2, 1]);
   });
 
@@ -412,14 +425,21 @@ describe("GeoArrow aggregation: spatial grid grouping", () => {
       metrics: [{ name: "features", kind: "count" }],
     });
     expect(interleaved.rows).toEqual(separated.rows);
-    expect(separated.rows.map((row) => row.key)).toEqual([[0, 0], [1, 1]]);
+    expect(separated.rows.map((row) => row.key)).toEqual([
+      [0, 0],
+      [1, 1],
+    ]);
   });
 });
 
 describe("GeoArrow aggregation: bounds and hostile input", () => {
   it("fails closed on the group ceiling before allocating an output batch, leaving the input intact", async () => {
     const batch = pointBatch({
-      points: [[1, 1], [2, 2], [3, 3]],
+      points: [
+        [1, 1],
+        [2, 2],
+        [3, 3],
+      ],
       classes: ["a", "b", "c"],
       ids: [1, 2, 3],
     });
@@ -450,12 +470,29 @@ describe("GeoArrow aggregation: bounds and hostile input", () => {
       metrics: [{ name: "features", kind: "count" }],
     });
     await expect(
-      operation(pointBatch({ points: [[1, 1], [2, 2]], classes: ["a", null], ids: [1, 2] }), context()),
+      operation(
+        pointBatch({
+          points: [
+            [1, 1],
+            [2, 2],
+          ],
+          classes: ["a", null],
+          ids: [1, 2],
+        }),
+        context(),
+      ),
     ).rejects.toMatchObject({ code: "group-limit-exceeded" });
   });
 
   it("rejects a non-finite metric value instead of poisoning a sum", async () => {
-    const batch = pointBatch({ points: [[1, 1], [2, 2]], classes: ["a", "a"], ids: [1, 2] });
+    const batch = pointBatch({
+      points: [
+        [1, 1],
+        [2, 2],
+      ],
+      classes: ["a", "a"],
+      ids: [1, 2],
+    });
     const xBuffer = batch.buffers.find((buffer) => buffer.id === "geometry.x");
     expect(xBuffer).toBeDefined();
     new Float64Array(xBuffer!.data, xBuffer!.byteOffset, 2)[1] = Number.NaN;
@@ -466,10 +503,29 @@ describe("GeoArrow aggregation: bounds and hostile input", () => {
       group: { kind: "dictionary" },
       metrics: [{ name: "sumX", kind: "sum", column: "x" }],
     });
+    // The reduction refuses to start rather than summing a NaN: batch payload
+    // validation owns coordinate finiteness, so the typed failure is
+    // `invalid-batch` and it lands before the first row is scanned. The
+    // reducer's own non-finite guard is the backstop behind that contract.
     await expect(operation(batch, context())).rejects.toMatchObject({
       name: "HonuaGeoArrowError",
-      code: "invalid-input",
+      code: "invalid-batch",
     });
+  });
+
+  it("rejects a temporal value too large to aggregate without losing precision", async () => {
+    const batch = pointBatch({
+      points: [[1, 1]],
+      classes: ["a"],
+      timestamps: [2n ** 60n],
+      ids: [1],
+    });
+    await expect(
+      aggregate(batch, {
+        group: { kind: "dictionary" },
+        metrics: [{ name: "observedSum", kind: "sum", column: "temporal" }],
+      }),
+    ).rejects.toMatchObject({ name: "HonuaGeoArrowError", code: "invalid-input" });
   });
 
   it("rejects unsupported and missing columns with typed errors", async () => {
@@ -505,20 +561,32 @@ describe("GeoArrow aggregation: bounds and hostile input", () => {
       sequence: 1,
       schemaId: "points-v1",
       identity,
-      geometry: { kind: "linestring", field: "geometry", values: [[[0, 0], [1, 1]]] },
+      geometry: {
+        kind: "linestring",
+        field: "geometry",
+        values: [
+          [
+            [0, 0],
+            [1, 1],
+          ],
+        ],
+      },
       featureIds: { field: "id", values: [1] },
     }).batch;
     await expect(
-      aggregate(lines, { group: { kind: "grid", cellSize: 10 }, metrics: [{ name: "sumX", kind: "sum", column: "x" }] }),
+      aggregate(lines, {
+        group: { kind: "grid", cellSize: 10 },
+        metrics: [{ name: "sumX", kind: "sum", column: "x" }],
+      }),
     ).rejects.toMatchObject({ code: "unsupported-layout" });
   });
 
   it("rejects malformed operation options up front", () => {
     const base = { id: "a", schemaId: "s", group: { kind: "dictionary" } } as const;
     expect(() => createGeoArrowAggregateOperation({ ...base, metrics: [] })).toThrow(TypeError);
-    expect(() =>
-      createGeoArrowAggregateOperation({ ...base, metrics: [{ name: "sum", kind: "sum" }] }),
-    ).toThrow(TypeError);
+    expect(() => createGeoArrowAggregateOperation({ ...base, metrics: [{ name: "sum", kind: "sum" }] })).toThrow(
+      TypeError,
+    );
     expect(() =>
       createGeoArrowAggregateOperation({
         ...base,
@@ -528,9 +596,9 @@ describe("GeoArrow aggregation: bounds and hostile input", () => {
         ],
       }),
     ).toThrow(TypeError);
-    expect(() =>
-      createGeoArrowAggregateOperation({ ...base, metrics: [{ name: "group", kind: "count" }] }),
-    ).toThrow(TypeError);
+    expect(() => createGeoArrowAggregateOperation({ ...base, metrics: [{ name: "group", kind: "count" }] })).toThrow(
+      TypeError,
+    );
     expect(() =>
       createGeoArrowAggregateOperation({ ...base, maxGroups: 0, metrics: [{ name: "a", kind: "count" }] }),
     ).toThrow(TypeError);
@@ -641,7 +709,11 @@ describe("GeoArrow aggregation: worker host", () => {
     const result = await session.execute(
       "aggregate",
       pointBatch({
-        points: [[1, 1], [2, 2], [3, 3]],
+        points: [
+          [1, 1],
+          [2, 2],
+          [3, 3],
+        ],
         classes: ["b", "a", "b"],
         ids: [1, 2, 3],
       }),
@@ -674,7 +746,7 @@ describe("GeoArrow aggregation: worker host", () => {
 });
 
 describe("GeoArrow aggregation: cancellation", () => {
-  const million = () => buildGeoArrowAggregateFixture(1_000_000, 1_024);
+  const million = () => buildColumnarAggregateFixture(1_000_000, 1_024).batch;
 
   it("settles a cancelled million-row aggregation quickly without retiring the transport", async () => {
     const [client, worker] = pair();
@@ -692,7 +764,7 @@ describe("GeoArrow aggregation: cancellation", () => {
 
     const received: Record<string, unknown>[] = [];
     const waiters: { predicate: (message: Record<string, unknown>) => boolean; resolve: () => void }[] = [];
-    client.addEventListener("message", (event) => {
+    client.addEventListener("message", (event: ColumnarWorkerMessageEvent) => {
       const message = event.data as Record<string, unknown>;
       received.push(message);
       for (let index = waiters.length - 1; index >= 0; index -= 1) {
@@ -719,7 +791,10 @@ describe("GeoArrow aggregation: cancellation", () => {
       [],
     );
 
-    await waitFor((message) => message.kind === COLUMNAR_WORKER_PROGRESS_KIND);
+    // Wait for a *scan* progress event, not merely the first one. The operation
+    // reports `inspect` before it validates the batch's packed payload, and
+    // NFR-003 is a budget on cancelling a run that is already scanning.
+    await waitFor((message) => message.kind === COLUMNAR_WORKER_PROGRESS_KIND && message.stage === "scan");
     const requestedAt = performance.now();
     client.postMessage(
       { kind: COLUMNAR_WORKER_CANCEL_KIND, version: COLUMNAR_WORKER_PROTOCOL_VERSION, requestId: "cancel-me" },
@@ -772,7 +847,7 @@ describe("GeoArrow aggregation: cancellation", () => {
 
     const controller = new AbortController();
     const started = performance.now();
-    const cancelled = session.execute("aggregate", buildGeoArrowAggregateFixture(200_000, 64), {
+    const cancelled = session.execute("aggregate", buildColumnarAggregateFixture(200_000, 64).batch, {
       signal: controller.signal,
       onProgress: () => controller.abort(),
     });
@@ -787,20 +862,125 @@ describe("GeoArrow aggregation: cancellation", () => {
   }, 120_000);
 });
 
-describe("GeoArrow aggregation: million-row data-plane budgets", () => {
-  it("stays bounded by group count and above the reduction throughput floor", async () => {
-    const result = await runColumnarAggregateBench({ inputRows: 1_000_000, groups: 1_024 });
+describe("GeoArrow aggregation: determinism", () => {
+  it("emits a byte-identical result whatever the yield cadence", async () => {
+    const source = () =>
+      pointBatch({
+        points: Array.from({ length: 5_000 }, (_, index) => [index % 97, index % 89] as const),
+        classes: Array.from({ length: 5_000 }, (_, index) => `class-${index % 32}`),
+        ids: Array.from({ length: 5_000 }, (_, index) => index),
+      });
+    const reduce = async (yieldIntervalRows: number): Promise<readonly string[]> => {
+      const operation = createGeoArrowAggregateOperation({
+        id: "aggregate-batch",
+        schemaId: "aggregate-v1",
+        group: { kind: "dictionary" },
+        metrics: [
+          { name: "features", kind: "count" },
+          { name: "sumX", kind: "sum", column: "x" },
+          { name: "meanX", kind: "mean", column: "x" },
+          { name: "minX", kind: "min", column: "x" },
+        ],
+        yieldIntervalRows,
+      });
+      return snapshotBuffers(await operation(source(), context()));
+    };
 
-    expect(result.groups).toBeGreaterThan(0);
-    expect(result.groups).toBeLessThanOrEqual(1_024);
-    // NFR-001: retained memory scales with groups, not rows.
-    expect(result.retainedBytesPerInputRow).toBeLessThanOrEqual(8);
-    expect(result.evaluation.memoryWithinBudget).toBe(true);
-    // The measured heap delta must also stay inside the same per-row envelope.
-    expect(result.median.heapUsedDeltaBytes).toBeLessThanOrEqual(8 * result.inputRows);
-    // NFR-002: median scan throughput floor.
-    expect(result.median.inputRowsPerSecond).toBeGreaterThanOrEqual(2_000_000);
-    expect(result.evaluation.throughputWithinBudget).toBe(true);
-    expect(result.evaluation.passed).toBe(true);
-  }, 180_000);
+    // The yield cadence is the only scheduling knob the operation exposes. If
+    // the output survives changing it, no worker scheduling decision moves it.
+    const baseline = await reduce(64);
+    expect(await reduce(1)).toEqual(baseline);
+    expect(await reduce(4_999)).toEqual(baseline);
+    expect(await reduce(1_000_000)).toEqual(baseline);
+  });
+
+  it("reduces a permuted batch to the same sums a naive running total would lose", async () => {
+    // Every permutation holds the same multiset, and the exact sum is 2. A
+    // naive running total returns 0 for the first order because each 1 falls
+    // off the bottom of 1e16; compensation recovers the exact answer.
+    const orders: readonly (readonly number[])[] = [
+      [1e16, 1, 1, -1e16],
+      [1, -1e16, 1e16, 1],
+      [-1e16, 1, 1e16, 1],
+      [1, 1, 1e16, -1e16],
+    ];
+    const naive = orders[0]!.reduce((total, value) => total + value, 0);
+    expect(naive).toBe(0);
+
+    for (const order of orders) {
+      const result = await aggregate(
+        pointBatch({
+          points: order.map((value) => [value, 0] as const),
+          classes: order.map(() => "a"),
+          ids: order.map((_, index) => index),
+        }),
+        {
+          group: { kind: "dictionary" },
+          metrics: [
+            { name: "sumX", kind: "sum", column: "x" },
+            { name: "meanX", kind: "mean", column: "x" },
+          ],
+        },
+      );
+      expect(result.rows[0]!.metrics.sumX).toBe(2);
+      expect(result.rows[0]!.metrics.meanX).toBe(0.5);
+    }
+  });
+
+  it("orders groups by key rather than by the order they were first seen", async () => {
+    const ascending = await aggregate(
+      pointBatch({
+        points: [
+          [1, 1],
+          [2, 2],
+          [3, 3],
+        ],
+        classes: ["a", "b", "c"],
+        ids: [1, 2, 3],
+      }),
+      { group: { kind: "dictionary" }, metrics: [{ name: "features", kind: "count" }] },
+    );
+    const shuffled = await aggregate(
+      pointBatch({
+        points: [
+          [3, 3],
+          [1, 1],
+          [2, 2],
+        ],
+        classes: ["c", "a", "b"],
+        ids: [3, 1, 2],
+      }),
+      { group: { kind: "dictionary" }, metrics: [{ name: "features", kind: "count" }] },
+    );
+    expect(shuffled.rows.map((row) => row.key)).toEqual(["a", "b", "c"]);
+    expect(shuffled.rows).toEqual(ascending.rows);
+  });
+
+  it("collapses duplicate dictionary entries encoding the same value into one group", async () => {
+    // Two dictionary indices, one string. A first-seen-index grouping would
+    // emit two rows and make the result depend on the encoder's dictionary.
+    const batch = pointBatch({
+      points: [
+        [1, 1],
+        [2, 2],
+        [3, 3],
+      ],
+      classes: ["a", "b", "a"],
+      ids: [1, 2, 3],
+    });
+    const offsets = batch.buffers.find((buffer) => buffer.id === "class.offsets");
+    const values = batch.buffers.find((buffer) => buffer.id === "class.values");
+    const indices = batch.buffers.find((buffer) => buffer.id === "class.indices");
+    expect(offsets && values && indices).toBeTruthy();
+    // Rewrite the dictionary as ["a", "a"] and point row 1 at the second entry.
+    new Uint8Array(values!.data, values!.byteOffset, values!.byteLength).set([0x61, 0x61]);
+    new Int32Array(indices!.data, indices!.byteOffset, 3).set([0, 1, 0]);
+
+    const result = await aggregate(batch, {
+      group: { kind: "dictionary" },
+      metrics: [{ name: "features", kind: "count" }],
+    });
+    expect(result.rows.map((row) => row.key)).toEqual(["a"]);
+    expect(result.rows[0]!.metrics.features).toBe(3);
+  });
 });
