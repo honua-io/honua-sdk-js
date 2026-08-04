@@ -21,6 +21,7 @@ import { compileGrpcQuery } from "./grpc.js";
 import { createGeoParquetQueryIr, createQueryIr, deepFreeze, queryFromCanonical } from "./ir.js";
 import { compileOdataQuery, odataProtocolQueryCompiler } from "./odata-v1.js";
 import { compileOgcApiFeaturesQuery } from "./ogc-features.js";
+import { createQueryPlanRepresentationDecision, normalizeRepresentationRequest } from "./representation.js";
 import { type GeoParquetResourceHandleV1, parseGeoParquetResourceHandle } from "./resource.js";
 import {
   type CanonicalQuery,
@@ -62,6 +63,13 @@ export function explainQuery<T>(
   const fallback = normalizeFallback(options.fallback);
   const estimates = normalizeEstimates(options.estimates);
   const executionMode = normalizeExecutionMode(options.executionMode);
+  // Representation is chosen before any step is compiled so an unsatisfiable
+  // explicit pin fails closed before the plan takes shape.
+  const representation = createQueryPlanRepresentationDecision(
+    ir,
+    estimates,
+    normalizeRepresentationRequest(options.representation),
+  );
   let baseSteps: readonly VersionedQueryPlanStepBase[];
   let pushdown: QueryExecutionPlan["pushdown"];
 
@@ -149,8 +157,15 @@ export function explainQuery<T>(
   const { fidelity, losses } = summarizeFidelity(steps);
   const bounds = summarizePlanBounds(steps);
   const cache = createCacheDecision(options.cache);
-  const validity = createPlanValidity(ir, provenance, capabilityPolicy, fallback, executionMode);
-  const warnings = createPlanWarnings(baseSteps, ir.source);
+  const validity = createPlanValidity(
+    ir,
+    provenance,
+    capabilityPolicy,
+    fallback,
+    executionMode,
+    representation.selected,
+  );
+  const warnings = createPlanWarnings(baseSteps, ir.source, representation);
 
   const unsigned = {
     kind: QUERY_PLAN_KIND,
@@ -166,6 +181,7 @@ export function explainQuery<T>(
     cache,
     provenance,
     validity,
+    representation,
     estimates,
     steps,
     warnings,
@@ -347,6 +363,7 @@ export function migrateGeoParquetQueryPlanV1(
     ...(parsed.ir.source.sourceVersion !== undefined ? { sourceVersion: parsed.ir.source.sourceVersion } : {}),
     authorizationScope: parsed.ir.source.authorizationScope,
     estimates: parsed.estimates,
+    representation: normalizeRepresentationRequest(persistedRepresentationRequest(parsed)),
   });
 }
 
@@ -417,6 +434,14 @@ function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
   const fallback = normalizeFallback(plan.fallback);
   const estimates = normalizeEstimates(plan.estimates);
   const executionMode = normalizeExecutionMode(plan.validity.executionMode);
+  // Re-derive the representation decision from the persisted request plus the
+  // persisted IR/estimates, so a tampered `selected`, `available`, or `reason`
+  // cannot survive the canonical comparison below.
+  const representation = createQueryPlanRepresentationDecision(
+    plan.ir,
+    estimates,
+    normalizeRepresentationRequest(persistedRepresentationRequest(plan)),
+  );
   if (!sameCanonicalValue(plan.fallback, fallback) || !sameCanonicalValue(plan.estimates, estimates)) {
     throw invalidPersistedPlan();
   }
@@ -454,8 +479,16 @@ function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
     bounds: summarizePlanBounds(expectedSteps),
     cache: createCacheDecision(persistedCacheOptions(plan.cache)),
     provenance: expectedProvenance,
-    validity: createPlanValidity(plan.ir, expectedProvenance, plan.capabilityPolicy, fallback, executionMode),
-    warnings: createPlanWarnings(plan.steps, plan.ir.source),
+    validity: createPlanValidity(
+      plan.ir,
+      expectedProvenance,
+      plan.capabilityPolicy,
+      fallback,
+      executionMode,
+      representation.selected,
+    ),
+    representation,
+    warnings: createPlanWarnings(plan.steps, plan.ir.source, representation),
   };
   const actual = {
     diagnosticsVersion: plan.diagnosticsVersion,
@@ -466,9 +499,17 @@ function assertStructuredDiagnostics(plan: QueryExecutionPlan): void {
     cache: plan.cache,
     provenance: plan.provenance,
     validity: plan.validity,
+    representation: plan.representation,
     warnings: plan.warnings,
   };
   if (!sameCanonicalValue(actual, expected)) throw invalidPersistedPlan();
+}
+
+/** Read the persisted representation request without trusting any other member of the decision. */
+function persistedRepresentationRequest(plan: QueryExecutionPlan): unknown {
+  const decision: unknown = plan.representation;
+  if (decision === null || typeof decision !== "object" || Array.isArray(decision)) throw invalidPersistedPlan();
+  return (decision as { readonly requested?: unknown }).requested;
 }
 
 function persistedStepPushdown(step: QueryExecutionPlan["steps"][number]): "full" | "partial" | "none" {
@@ -585,6 +626,7 @@ function rebuildQueryPlanV1(
     cache: persistedCacheOptions(plan.cache),
     discovery: persistedDiscoveryContext(plan.provenance.discovery),
     executionMode: plan.validity.executionMode,
+    representation: normalizeRepresentationRequest(persistedRepresentationRequest(plan)),
   });
 }
 
@@ -658,7 +700,7 @@ function rebuildLegacyProtocolQueryPlanV1(
   });
   const { fidelity, losses } = summarizeFidelity(steps);
   const bounds = summarizePlanBounds(steps);
-  const warnings = createPlanWarnings(baseSteps, modern.ir.source);
+  const warnings = createPlanWarnings(baseSteps, modern.ir.source, modern.representation);
   const {
     id: _id,
     fingerprint: _fingerprint,
@@ -791,6 +833,7 @@ function rebuildGeoParquetQueryPlanV2(plan: QueryExecutionPlanV2): QueryExecutio
     cache: persistedCacheOptions(plan.cache),
     discovery: persistedDiscoveryContext(plan.provenance.discovery),
     executionMode: plan.validity.executionMode,
+    representation: normalizeRepresentationRequest(persistedRepresentationRequest(plan)),
   });
 }
 

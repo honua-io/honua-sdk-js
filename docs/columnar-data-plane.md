@@ -29,6 +29,15 @@ survives structured-clone ownership transfer, and prevents a cache or renderer
 from treating results produced under different source/auth/order contracts as
 equivalent.
 
+The identity in the example below is hand-written because the example builds a
+batch by hand. A batch produced by a source does not invent one: the query
+planner selects columnar execution, and
+`columnarBatchIdentityFromPlan(plan, { observedAt })` derives every field except
+freshness from the accepted plan — `planId` is the plan's own
+`validity.fingerprint`. See [Plan-derived batch
+identity](./query-planner.md#plan-derived-batch-identity) and
+[Producing a batch from a GeoParquet source](#producing-a-batch-from-a-geoparquet-source).
+
 ```ts doc-test=compile
 import { createGeoArrowBatch, decodeGeoArrowBatch } from "@honua/sdk-js/query-planner";
 
@@ -300,6 +309,48 @@ and frozen, while batch creation retains each caller-provided `ArrayBuffer`.
 Multiple views over one buffer produce one transfer-list entry. Zero-byte
 backing buffers are valid; detached buffers are rejected using an attachment
 check that distinguishes the two cases.
+
+## Producing a batch from a GeoParquet source
+
+`GeoparquetSourceHandle.queryColumnar()` is the first executable source path
+that returns a `ColumnarBatchV1` instead of feature objects. It runs the same
+compiled DuckDB `SELECT` the object path runs, then encodes the GeoParquet 1.1
+native geometry column straight into GeoArrow buffers — no feature object is
+materialized on the way out, and the lossless-JSON row transport is bypassed
+because nothing on this path becomes a JSON row value.
+
+```ts doc-test=skip reason="partial excerpt requires a live GeoParquet runtime"
+import { geoparquetSource } from "@honua/sdk-js/geoparquet";
+import { columnarBatchIdentityFromPlan, explainQuery } from "@honua/sdk-js/query-planner";
+
+const plan = explainQuery({ descriptor, estimates: { rows: 250_000 }, authorizationScope: ["data:read"] });
+if (plan.representation.selected !== "columnar") throw new Error(plan.representation.reason);
+
+const source = geoparquetSource(descriptor, { runtime });
+const { batch } = await source.protocol("geoparquet").queryColumnar({
+  identity: columnarBatchIdentityFromPlan(plan, { observedAt: new Date().toISOString() }),
+  batchId: "parcels:0",
+  sequence: 0,
+  featureIdColumn: "id",
+});
+
+console.log(batch.identity?.planId === plan.validity.fingerprint); // true
+```
+
+The batch carries the geometry column plus an optional uint32 feature-id
+column; other attribute columns are neither scanned nor materialized in this
+first slice. The path refuses with `HonuaCapabilityNotSupportedError` — never a
+silent object fallback — when the declared geometry encoding is not one of the
+1:1 `geoarrow-point` / `geoarrow-linestring` / `geoarrow-polygon` encodings,
+when the query suppresses geometry, or when the query is an aggregate. An
+ordering key in the plan's identity that the batch does not carry is refused
+with `GEOPARQUET_COLUMNAR_ORDERING_FIELD_UNAVAILABLE` rather than dropped, so a
+batch never claims an ordering its rows do not have.
+
+Because the identity is plan-derived, the batch is admissible to
+`createColumnarBatchCache()` with no caller-supplied identity fields, and a
+change to the plan's source, schema, scope, query, policy, execution mode, or
+representation changes `columnarBatchCacheKey`.
 
 ## Memory ceilings
 
@@ -872,9 +923,13 @@ is one of:
 
 ## Deliberate remaining scope
 
-This slice does not claim the full #394 workstream. Arrow IPC decoding,
-multi-batch streaming across more than one in-flight worker, planner
-integration, renderer consumption, incremental re-aggregation over realtime
+This slice does not claim the full #394 workstream. Planner selection and one
+executable GeoParquet producer now exist (above), but the producer carries only
+geometry plus an optional feature-id column, and no other protocol has a
+columnar path: GeoServices, OGC API Features, WFS, OData, and gRPC all plan
+`object` and say so. Arrow IPC decoding,
+multi-batch streaming across more than one in-flight worker, renderer
+consumption, incremental re-aggregation over realtime
 patches (which must also invalidate or re-version their cached base batch), and
 application-specific CSP worker URL policy remain separate work. Converting a
 batch that is mid-patch also remains out of scope: `columnarBatchToResult` does

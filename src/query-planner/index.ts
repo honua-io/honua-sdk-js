@@ -12,6 +12,15 @@
  */
 
 export { canonicalStringify, sha256, toJsonValue } from "./canonical.js";
+export { columnarBatchIdentityFromPlan } from "./columnar-plan.js";
+export type { ColumnarBatchIdentityFromPlanOptions } from "./columnar-plan.js";
+export {
+  COLUMNAR_REPRESENTATION_ENCODINGS,
+  COLUMNAR_REPRESENTATION_MIN_BYTES,
+  COLUMNAR_REPRESENTATION_MIN_ROWS,
+  createQueryPlanRepresentationDecision,
+  isColumnarRepresentationEncoding,
+} from "./representation.js";
 export { compileDuckDbQuery, compileDuckDbQueryV2, compileSemanticDuckDbQuery } from "./duckdb.js";
 export { executeQueryPlan } from "./executor.js";
 export { compileGeoServicesQuery, compileSemanticGeoServicesQuery } from "./geoservices.js";
@@ -503,6 +512,11 @@ export type {
   QueryPlanFidelityLoss,
   QueryPlanProvenanceV1,
   QueryPlanQuantityBound,
+  QueryPlanRepresentation,
+  QueryPlanRepresentationDecisionV1,
+  QueryPlanRepresentationInputsV1,
+  QueryPlanRepresentationReason,
+  QueryPlanRepresentationRequest,
   QueryPlanStepProvenanceV1,
   QueryPlanValidatorInput,
   QueryPlanValidatorKind,

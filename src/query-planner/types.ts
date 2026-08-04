@@ -303,11 +303,85 @@ export interface QueryPlanStepProvenanceV1 {
 
 export type QueryPlanExecutionMode = "snapshot" | "delta";
 
+/**
+ * Result-representation axis of a plan: the shape execution hands back.
+ *
+ * This is orthogonal to {@link QueryPlanExecutionMode}, which is a realtime
+ * axis. `object` returns the protocol-neutral `Result` feature objects every
+ * adapter already produces. `columnar` returns a `ColumnarBatchV1` whose
+ * identity is derived from this plan (see `columnarBatchIdentityFromPlan`),
+ * so nothing per-row is materialized on the way out.
+ *
+ * The union is deliberately open to extension (`tile`, `stream`) but only
+ * names representations the SDK can actually produce today; a representation
+ * with no executable producer would be a promise the planner cannot keep.
+ */
+export type QueryPlanRepresentation = "object" | "columnar";
+
+/** Caller intent for {@link QueryPlanRepresentation}; `auto` lets the planner select. */
+export type QueryPlanRepresentationRequest = QueryPlanRepresentation | "auto";
+
+/**
+ * Why the planner selected the representation it did. Every value is a
+ * deterministic function of declared source metadata plus
+ * {@link QueryPlanningEstimates} — never of result data.
+ */
+export type QueryPlanRepresentationReason =
+  /** The caller pinned the representation explicitly and the source can serve it. */
+  | "explicit-pin"
+  /** Columnar is available and the caller's estimate reaches the columnar threshold. */
+  | "workload-above-threshold"
+  /** Columnar is available but the estimated workload does not justify it. */
+  | "workload-below-threshold"
+  /** Columnar is available but the caller supplied no estimate to justify it. */
+  | "estimate-unavailable"
+  /** No columnar producer exists for this protocol. */
+  | "protocol-not-columnar"
+  /** The declared geometry encoding has no columnar producer. */
+  | "encoding-not-columnar"
+  /** Aggregate results are grouped rows, not a feature batch. */
+  | "aggregation-not-columnar"
+  /** A columnar batch is a geometry batch; the query suppressed geometry. */
+  | "geometry-not-requested";
+
+/**
+ * The metadata-only decision inputs recorded beside a representation choice so
+ * the selection is reproducible by inspection. Missing estimates are absent,
+ * never zero.
+ */
+export interface QueryPlanRepresentationInputsV1 {
+  /** Declared physical geometry encoding, when the source identity carries one. */
+  readonly geometryEncoding?: DuckDbGeometryEncoding;
+  /** Estimated rows at or above which `auto` selects columnar. */
+  readonly rowThreshold: number;
+  /** Estimated bytes at or above which `auto` selects columnar. */
+  readonly byteThreshold: number;
+  readonly estimatedRows?: number;
+  readonly estimatedBytes?: number;
+}
+
+/**
+ * Deterministic, explainable result-representation decision carried by every
+ * plan. `available` lists exactly what this source and query can serve, so a
+ * consumer can tell "columnar was not offered" from "columnar was declined".
+ */
+export interface QueryPlanRepresentationDecisionV1 {
+  readonly version: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
+  readonly requested: QueryPlanRepresentationRequest;
+  readonly selected: QueryPlanRepresentation;
+  /** Representations this source and query can serve, in stable order. */
+  readonly available: readonly QueryPlanRepresentation[];
+  readonly reason: QueryPlanRepresentationReason;
+  readonly inputs: QueryPlanRepresentationInputsV1;
+}
+
 export interface QueryPlanValidityV1 {
   readonly version: typeof QUERY_PLAN_DIAGNOSTICS_VERSION;
   readonly plannerVersion: typeof QUERY_PLANNER_VERSION;
   readonly contractVersion: string;
   readonly executionMode: QueryPlanExecutionMode;
+  /** Selected result representation; a batch produced under a different one is a different plan. */
+  readonly representation: QueryPlanRepresentation;
   readonly sourceFingerprint: `sha256:${string}`;
   readonly schemaFingerprint: `sha256:${string}`;
   readonly discoveryFingerprint: `sha256:${string}`;
@@ -321,7 +395,8 @@ export interface QueryPlanValidityV1 {
 export type QueryPlanWarningCode =
   | "bounded-local-fallback"
   | "geometry-transfer-required"
-  | "approximate-spatial-filter";
+  | "approximate-spatial-filter"
+  | "columnar-representation-declined";
 
 export interface QueryPlanWarning {
   readonly code: QueryPlanWarningCode;
@@ -355,6 +430,13 @@ export interface ExplainQueryOptions<T = Record<string, unknown>> {
   readonly discovery?: QueryPlanDiscoveryContext;
   /** Realtime delta plans carry mode only; live cursor bytes remain transport state. */
   readonly executionMode?: QueryPlanExecutionMode;
+  /**
+   * Result-representation intent. Defaults to `auto`, which selects from
+   * declared source capabilities plus {@link ExplainQueryOptions.estimates}.
+   * Pinning a representation the source cannot serve throws
+   * `HonuaCapabilityNotSupportedError` rather than degrading silently.
+   */
+  readonly representation?: QueryPlanRepresentationRequest;
 }
 
 /** Opt-in GeoParquet v2 planning options. */
@@ -632,6 +714,7 @@ export interface QueryExecutionPlanV1 {
   readonly cache: QueryPlanCacheDecisionV1;
   readonly provenance: QueryPlanProvenanceV1;
   readonly validity: QueryPlanValidityV1;
+  readonly representation: QueryPlanRepresentationDecisionV1;
   readonly estimates: QueryPlanningEstimates;
   readonly steps: readonly QueryPlanStep[];
   readonly warnings: readonly QueryPlanWarning[];
@@ -653,6 +736,7 @@ export interface QueryExecutionPlanV2 {
   readonly cache: QueryPlanCacheDecisionV1;
   readonly provenance: QueryPlanProvenanceV1;
   readonly validity: QueryPlanValidityV1;
+  readonly representation: QueryPlanRepresentationDecisionV1;
   readonly estimates: QueryPlanningEstimates;
   readonly steps: readonly QueryPlanStepV2[];
   readonly warnings: readonly QueryPlanWarning[];
