@@ -577,7 +577,7 @@
     "test:playwright:cesium-scene": "playwright test test/playwright/cesium-scene-adapter-fixtures.spec.mjs",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:conformance": "vitest run --config vitest.conformance.config.ts",
-    "test:realtime:conformance": "vitest run test/realtime-cross-transport-conformance.test.ts test/realtime-conformance-evidence.test.ts",
+    "test:realtime:conformance": "vitest run test/realtime-cross-transport-conformance.test.ts test/realtime-conformance-evidence.test.ts test/realtime-conformance-run-client.test.ts test/realtime-honua-server-preset.test.ts",
     "pretest:migration:cli": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk --silent",
     "test:migration:cli": "vitest run test/migration-cli",
     "pretest:migration:cli:prepared": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk:already --silent",

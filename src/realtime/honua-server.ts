@@ -147,17 +147,23 @@ export function decodeHonuaServerRealtimeEvent<TFeature = unknown>(payload: unkn
   // error and bypass the stricter operation/after-image validation below.
   const currentServerChange = envelope.operation !== undefined;
 
-  // Status / heartbeat / error envelopes already use the SDK vocabulary.
+  // Snapshot / status / heartbeat / error envelopes already use the SDK
+  // vocabulary. Their `cursor`, however, is honua-server's global event-store
+  // position: a JSON number on the batched `snapshot` baseline frame, where the
+  // SDK's resume gate requires the string form it checkpoints. Normalizing it
+  // here — the one place that already owns honua-server's wire dialect — keeps
+  // a batched baseline from failing closed as a checkpoint conflict.
   if (
     !currentServerChange &&
     typeof envelope.type === "string" &&
     envelope.type !== "change" &&
     envelope.type !== "feature-change"
   ) {
+    const framed = withNormalizedNumericCursor(payload);
     if (envelope.type === "status" && (payload.status === "connected" || payload.status === "subscribed")) {
-      return decodeRealtimeServerSentEvent<TFeature>({ ...payload, status: "live" });
+      return decodeRealtimeServerSentEvent<TFeature>({ ...framed, status: "live" });
     }
-    return decodeRealtimeServerSentEvent<TFeature>(payload);
+    return decodeRealtimeServerSentEvent<TFeature>(framed);
   }
 
   const serviceId = optionalNonEmptyText(envelope.serviceId, "serviceId");
@@ -342,6 +348,19 @@ function projectCurrentServerFeature<TFeature>(
     geometry: envelope.geometry,
     properties: envelope.attributes,
   } as TFeature;
+}
+
+/**
+ * Render a numeric `cursor` in its string form, leaving every other payload
+ * untouched. A malformed numeric cursor is deliberately left as-is so the
+ * resume gate still reports it, rather than being converted into a decode
+ * failure that would hide which contract was actually violated.
+ */
+function withNormalizedNumericCursor(payload: Record<string, unknown>): Record<string, unknown> {
+  const cursor = payload.cursor;
+  if (typeof cursor !== "number") return payload;
+  if (!Number.isSafeInteger(cursor) || cursor < 0) return payload;
+  return { ...payload, cursor: String(cursor) };
 }
 
 function normalizeCursor(cursor: unknown): string | undefined {
