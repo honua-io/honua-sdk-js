@@ -667,7 +667,8 @@
         "id",
         "label",
         "defaultOperationStatus",
-        "operationClaims"
+        "operationClaims",
+        "queryFilter"
       ],
       "properties": {
         "id": {
@@ -686,6 +687,46 @@
           "items": {
             "$ref": "#/$defs/operationClaim"
           }
+        },
+        "queryFilter": {
+          "$ref": "#/$defs/queryFilterSupport"
+        }
+      }
+    },
+    "queryFilterSupport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dialect",
+        "filter",
+        "temporal",
+        "notes"
+      ],
+      "properties": {
+        "dialect": {
+          "type": "string",
+          "minLength": 1
+        },
+        "filter": {
+          "enum": [
+            "native",
+            "attributes-only",
+            "unsupported"
+          ]
+        },
+        "temporal": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "source-dimension",
+              "field-predicate"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "notes": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },

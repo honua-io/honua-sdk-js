@@ -1,3 +1,8 @@
+import {
+  type QueryFilterContext,
+  compileQueryFilterToSql92,
+  compileTemporalFilterToGeoServicesTime,
+} from "../contract/query-filter.js";
 import { validateExecutableCrsBinding } from "../contract/schema.js";
 import type {
   CanonicalGeometry,
@@ -11,6 +16,7 @@ import type {
   SourceSchemaV2,
 } from "../contract/schema.js";
 import type { AggregationFn, AggregationSpec } from "../contract/types.js";
+import { canonicalFilterParts } from "./canonical-filter.js";
 import { hashSemanticQuery } from "./semantic-canonical.js";
 import {
   type RuntimeSemanticQuery,
@@ -65,11 +71,32 @@ export function compileGeoServicesQuery(
       "The first GeoServices planner slice supports metrics and groupBy; histogram/timeSeries compilers remain follow-on work",
     );
   }
+  const ctx: QueryFilterContext = { protocol: source.protocol, sourceId: source.id };
+  const parts = canonicalFilterParts(query, ctx);
+  const typed = parts.expression ? compileQueryFilterToSql92(parts.expression, ctx) : {};
+  if (query.spatialFilter && typed.spatialFilter) {
+    throw new HonuaQueryPlanningError(
+      "unsupported-query",
+      "A GeoServices query request carries one geometry; Query.spatialFilter and a spatial filter node cannot both be sent",
+    );
+  }
+  const spatialFilter = query.spatialFilter ?? typed.spatialFilter;
+  const whereParts = [
+    ...(query.where ? [query.where.expression] : []),
+    ...(typed.where !== undefined ? [typed.where] : []),
+  ];
+  const where =
+    whereParts.length === 0
+      ? undefined
+      : whereParts.length === 1
+        ? whereParts[0]
+        : whereParts.map((part) => `(${part})`).join(" AND ");
   return {
     compiler: "geoservices-rest-query-v1",
     serviceId: source.serviceId,
     layerId: source.layerId,
-    ...(query.where ? { where: query.where.expression } : {}),
+    ...(where !== undefined ? { where } : {}),
+    ...(parts.protocolTime ? { time: compileTemporalFilterToGeoServicesTime(parts.protocolTime, ctx) } : {}),
     ...(query.outFields && query.outFields.length > 0 ? { outFields: query.outFields } : {}),
     ...(query.returnGeometry !== undefined ? { returnGeometry: query.returnGeometry } : {}),
     ...(query.outSr !== undefined ? { outSr: query.outSr } : {}),
@@ -80,11 +107,11 @@ export function compileGeoServicesQuery(
             .join(","),
         }
       : {}),
-    ...(query.spatialFilter
+    ...(spatialFilter
       ? {
-          geometry: query.spatialFilter.geometry,
-          geometryType: query.spatialFilter.geometryType,
-          ...(query.spatialFilter.spatialRel ? { spatialRel: query.spatialFilter.spatialRel } : {}),
+          geometry: spatialFilter.geometry as GeoServicesCompiledQueryV1["geometry"],
+          geometryType: spatialFilter.geometryType,
+          ...(spatialFilter.spatialRel ? { spatialRel: spatialFilter.spatialRel } : {}),
         }
       : {}),
     ...(query.pagination?.offset !== undefined ? { resultOffset: query.pagination.offset } : {}),

@@ -320,15 +320,34 @@ const result = await states.queryAll({
 console.log(`Loaded ${result.features.length} states`);
 ```
 
-The starter deliberately omits an attribute filter. The protocol-neutral
-`Query.where` member remains operational only as deprecated, source-native v1
-compatibility; its grammar changes with the adapter. A stable semantic-filter
-builder is not yet wired into `Source.query()`. New code that can accept
-pre-1.0 API changes can use the typed semantic AST from the experimental
-[`@honua/sdk-js/query-planner`](./docs/query-planner.md), whose examples are
-compile-checked.
+Filtering uses the same typed, protocol-neutral `Query.filter`. One expression
+compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`, or DuckDB SQL,
+and `Query.temporalFilter` compiles to the protocol's own time parameter
+(`time=`, `datetime=`) or an exact predicate on a named field. A construct the
+target cannot express throws `HonuaCapabilityNotSupportedError` naming the
+construct and the protocol — it is never silently dropped or widened:
 
-The same unfiltered query envelope works against any GeoServices, OGC API
+```ts doc-test=compile
+import { envelope, queryFilter, type Query } from "@honua/sdk-js";
+
+const filtered: Query = {
+  filter: queryFilter.and(
+    queryFilter.gt("Total_Pop_2020", 1_000_000),
+    queryFilter.spatial("intersects", envelope(-125, 24, -66, 50)),
+  ),
+  temporalFilter: { kind: "interval", start: "2026-01-01T00:00:00Z", end: null },
+  outFields: ["NAME", "Total_Pop_2020"],
+  pagination: { limit: 100 },
+};
+```
+
+The deprecated `Query.where` member remains operational only as source-native
+v1 migration compatibility; its grammar changes with the adapter, so new code
+should use `Query.filter`. The experimental
+[`@honua/sdk-js/query-planner`](./docs/query-planner.md) adds a schema-verified
+builder and explain plans over the same filter shape.
+
+The same query envelope works against any GeoServices, OGC API
 Features, WFS, OData, or STAC endpoint. Migrating from `esri-leaflet`? The raw
 GeoServices API remains available, but its `where` member below is explicitly
 GeoServices SQL rather than the deprecated protocol-neutral `Query.where`:
@@ -658,8 +677,8 @@ evidence are listed in the generated
 [support projection](./support/projections/sdk-support.v1.json) carries explicit contracts
 for both honua.io and the canonical `samples/catalog.v2.json` inventory.
 
-The reviewed package-root ceilings are 45 runtime
-exports and 165 declaration exports. The exact inventory
+The reviewed package-root ceilings are 46 runtime
+exports and 172 declaration exports. The exact inventory
 and generated migration table come from
 [`config/root-surface.json`](./config/root-surface.json). This guide tracks the
 current development branch; its package baseline can match the latest release
@@ -1610,17 +1629,17 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `3897bff4`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `78b6dd4b`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 716.2 KiB | 192.6 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 230.9 KiB | 59.6 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.6 KiB | 13.3 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 344.9 KiB | 92.9 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 999.2 KiB | 250.0 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 738.5 KiB | 198.4 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 231.4 KiB | 59.7 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.8 KiB | 13.4 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 364.3 KiB | 98.3 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 999.8 KiB | 250.1 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
 | Routing client | 20.5 KiB | 6.3 KiB |
 
@@ -1632,8 +1651,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 716.2 KiB ≈ **1.71 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 192.6 KiB ≈ **0.46 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 738.5 KiB ≈ **1.73 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 198.4 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -1867,9 +1886,11 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   `ogcMapsSource`, `stacSearchSource`, `wmsSource`, `wmtsSource`,
   `wfsSource`, `odataSource`).
 - **Non-goal:** replacing the v1 `Query` envelope while protocol compilers
-  migrate. `Query.where` is a deprecated, source-native compatibility string;
-  the experimental typed semantic AST in `@honua/sdk-js/query-planner` follows
-  separate compiler/execution workflows and is not accepted by `Source.query()`.
+  migrate. `Query.filter` (typed, protocol-neutral) and `Query.temporalFilter`
+  are the stable filtering members; `Query.where` remains only as a deprecated,
+  source-native compatibility string. The experimental schema-verified semantic
+  AST in `@honua/sdk-js/query-planner` follows separate compiler/execution
+  workflows over the same filter shape.
 
 ## Module layout
 
@@ -7022,6 +7043,49 @@ field-statistics `queryAggregate` path. No protocol receives it by default. A
 source may advertise it only after backend metadata confirms an indexed
 aggregation implementation for that source.
 
+## Typed filter and temporal support
+
+<!-- support-manifest:filter-matrix:start -->
+Status: generated from [`config/support-manifest.v1.json`](../config/support-manifest.v1.json); do not edit this section by hand.
+
+`Query.filter` is the typed, protocol-neutral semantic filter and
+`Query.temporalFilter` is the canonical time constraint. A construct the target
+cannot express exactly throws `HonuaCapabilityNotSupportedError` naming the
+construct and the protocol; a documented widening (the GeoParquet bbox
+reduction) is reported through `Result.degraded`.
+
+- `✓` full attribute, spatial, and temporal predicate compilation
+- `◐` attribute and temporal predicates only (a spatial node is refused)
+- `—` no filterable query surface
+- `source-dimension` — a temporal filter without a field uses the protocol's own
+  time parameter (`time=`, `datetime=`)
+- `field-predicate` — a temporal filter that names its field compiles to an
+  exact predicate on that field
+
+| Protocol | Typed filter | Dialect | Temporal forms | Notes |
+| --- | :-: | --- | --- | --- |
+| `grpc` | ✓ | `honua-grpc (SQL-92 where)` | `field-predicate` | QueryFeatures has no time parameter, so a temporal filter must name its field. |
+| `geoservices-feature-service` | ✓ | `geoservices-sql92` | `source-dimension`, `field-predicate` | One geometry per request: a spatial node must be conjunctive and unique, otherwise the compile refuses. |
+| `geoservices-map-service` | ✓ | `geoservices-sql92` | `source-dimension`, `field-predicate` | Same request vocabulary as FeatureServer through the MapServer layer query endpoint. |
+| `geoservices-image-service` | ◐ | `geoservices-sql92` | `source-dimension`, `field-predicate` | The raster catalog endpoint accepts no geometry parameters; a spatial filter node is refused. |
+| `geoservices-geometry-service` | — | — | — | No feature query surface. |
+| `geoservices-gp-service` | — | — | — | No feature query surface. |
+| `ogc-features` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | Spatial and attribute predicates emit CQL2 (Part 3); a bare temporal window uses `datetime=`. |
+| `ogc-tiles` | — | — | — | Render-only adapter. |
+| `ogc-maps` | — | — | — | Render-only adapter. |
+| `ogc-records` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | Records `filter=` carries CQL2 text; `datetime=` carries a bare temporal window. |
+| `stac` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | STAC API only. Static catalog traversal has no CQL2 evaluator and refuses attribute filters. |
+| `wfs` | ✓ | `fes-2.0` | `field-predicate` | FES 2.0 Before/After/During/AnyInteracts; WFS has no time parameter, so a temporal filter names its field. |
+| `wms` | — | — | — | GetFeatureInfo has no attribute filter; time is a map dimension on the typed WMS envelope. |
+| `wmts` | — | — | — | Render-only adapter. |
+| `odata` | ✓ | `odata-4.0` | `field-predicate` | `geo.intersects` is the only standard topological function; other predicates and interior LIKE wildcards refuse. |
+| `pmtiles` | — | — | — | Render-only archive adapter. |
+| `geoparquet` | ✓ | `duckdb-sql` | `field-predicate` | Spatial predicates reduce to the bbox pushdown; a non-envelope geometry is reported through `Result.degraded`. |
+| `maplibre-vector` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
+| `maplibre-raster` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
+| `maplibre-geojson` | — | — | — | Reserved identifier with no query path. |
+<!-- support-manifest:filter-matrix:end -->
+
 ## Notes by protocol
 
 ### gRPC FeatureService
@@ -9336,54 +9400,54 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `3897bff4`._
+_Generated 2026-08-04 at commit `78b6dd4b`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 716.2 KiB | 753.9 KiB | 192.6 KiB | 211.8 KiB |
-| `/honua` | 880.7 KiB | 937.2 KiB | 237.3 KiB | 251.0 KiB |
-| `/contract` | 344.9 KiB | 352.8 KiB | 92.9 KiB | 94.1 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 860.2 KiB | 925.5 KiB | 192.8 KiB | 206.0 KiB |
+| `.` (root) | 738.5 KiB | 753.9 KiB | 198.4 KiB | 211.8 KiB |
+| `/honua` | 901.3 KiB | 937.2 KiB | 242.8 KiB | 251.0 KiB |
+| `/contract` | 364.3 KiB | 400.6 KiB | 98.3 KiB | 108.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 878.3 KiB | 925.5 KiB | 197.7 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 893.4 KiB | 961.8 KiB | 202.3 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 911.6 KiB | 961.8 KiB | 207.0 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 65.3 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
 | `/agent-tools` | 35.0 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.8 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
-| `/nl-map-control` | 76.7 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 580.9 KiB | 612.2 KiB | 156.6 KiB | 163.9 KiB |
+| `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
+| `/runtime` | 598.6 KiB | 612.2 KiB | 161.6 KiB | 163.9 KiB |
 | `/realtime` | 68.7 KiB | 75.5 KiB | 19.7 KiB | 21.7 KiB |
 | `/offline` | 96.4 KiB | 106.1 KiB | 26.9 KiB | 29.5 KiB |
-| `/query-planner` (worker runtime injected) | 643.1 KiB | 703.3 KiB | 137.8 KiB | 143.2 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.5 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
-| `/esri-compat` | 999.2 KiB | 1026.2 KiB | 250.0 KiB | 253.6 KiB |
+| `/query-planner` (worker runtime injected) | 659.6 KiB | 703.3 KiB | 142.5 KiB | 143.2 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 116.6 KiB | 122.9 KiB | 35.6 KiB | 37.7 KiB |
+| `/esri-compat` | 999.8 KiB | 1026.2 KiB | 250.1 KiB | 253.6 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
 | `/routing` | 20.5 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
 | `/auth` | 25.9 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
-| `/map` | 180.6 KiB | 198.2 KiB | 51.2 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 132.7 KiB | 137.8 KiB | 40.1 KiB | 40.9 KiB |
+| `/map` | 180.7 KiB | 198.2 KiB | 51.2 KiB | 56.2 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 139.2 KiB | 154.9 KiB | 42.0 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 959.0 KiB | 1037.6 KiB | 257.7 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1035.4 KiB | 1120.1 KiB | 281.0 KiB | 292.6 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 977.4 KiB | 1037.6 KiB | 262.9 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1053.8 KiB | 1120.1 KiB | 286.1 KiB | 292.6 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 518.1 KiB | 562.6 KiB | 138.9 KiB | 150.2 KiB |
+| `/react` (react/react-dom external) | 535.7 KiB | 562.6 KiB | 143.9 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 716.8 KiB | 754.5 KiB | 192.8 KiB | 201.3 KiB |
-| browser ESM (`./browser`) | 715.5 KiB | 753.1 KiB | 192.5 KiB | 201.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 230.9 KiB | 254.0 KiB | 59.6 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 585.9 KiB | 627.9 KiB | 156.4 KiB | 166.9 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 739.1 KiB | 754.5 KiB | 198.7 KiB | 201.3 KiB |
+| browser ESM (`./browser`) | 737.8 KiB | 753.1 KiB | 198.4 KiB | 201.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 231.4 KiB | 254.0 KiB | 59.7 KiB | 63.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 604.0 KiB | 627.9 KiB | 161.1 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.4 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.8 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 682.8 KiB | 717.1 KiB | 183.7 KiB | 191.3 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 245.5 KiB | 267.0 KiB | 62.9 KiB | 68.1 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 703.3 KiB | 717.1 KiB | 189.1 KiB | 191.3 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 246.0 KiB | 267.0 KiB | 63.0 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.6 KiB | 44.7 KiB | 13.3 KiB | 14.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.8 KiB | 44.7 KiB | 13.4 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
 

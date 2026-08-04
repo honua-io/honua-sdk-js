@@ -43,11 +43,22 @@ export type FesNode =
   | { kind: "like"; property: string; pattern: string }
   | { kind: "isNull"; property: string }
   | { kind: "spatial"; op: FesSpatialOp; property: string; gml: string }
+  | { kind: "temporal"; op: FesTemporalOp; property: string; time: FesTimeOperand }
   | {
       kind: "bbox";
       property: string;
       envelope: { xmin: number; ymin: number; xmax: number; ymax: number; srsName?: string };
     };
+
+/**
+ * FES 2.0 temporal operators the canonical filter compiles to. `AnyInteracts`
+ * is the FES spelling of "the value and the requested period overlap"; the
+ * remaining three map one-to-one onto the canonical predicates.
+ */
+export type FesTemporalOp = "Before" | "After" | "During" | "AnyInteracts";
+
+/** GML time primitive operand: an instant, or a (closed) period. */
+export type FesTimeOperand = { readonly instant: string } | { readonly start: string; readonly end: string };
 
 export type FesCompareOp = "=" | "<>" | "<" | "<=" | ">" | ">=";
 export type FesSpatialOp =
@@ -228,6 +239,8 @@ function serializeNode(node: FesNode): string {
       return `<fes:PropertyIsNull><fes:ValueReference>${escapeXml(node.property)}</fes:ValueReference></fes:PropertyIsNull>`;
     case "spatial":
       return `<fes:${node.op}><fes:ValueReference>${escapeXml(node.property)}</fes:ValueReference>${node.gml}</fes:${node.op}>`;
+    case "temporal":
+      return `<fes:${node.op}><fes:ValueReference>${escapeXml(node.property)}</fes:ValueReference>${timeGml(node.time)}</fes:${node.op}>`;
     case "bbox":
       return `<fes:BBOX><fes:ValueReference>${escapeXml(node.property)}</fes:ValueReference>${envelopeGml(node.envelope)}</fes:BBOX>`;
   }
@@ -265,6 +278,29 @@ function escapeXml(input: string): string {
 
 function attr(value: string): string {
   return `"${value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;")}"`;
+}
+
+/**
+ * GML 3.2 time primitive for a FES temporal predicate. FES temporal operators
+ * take a `gml:TimeInstant` or `gml:TimePeriod` as their second operand; the
+ * `gml:id` is required by the GML schema and is derived from the position so
+ * the same filter always serializes to the same bytes.
+ */
+function timeGml(time: FesTimeOperand): string {
+  if ("instant" in time) {
+    return `<gml:TimeInstant gml:id=${attr(timeGmlId(time.instant))}><gml:timePosition>${escapeXml(time.instant)}</gml:timePosition></gml:TimeInstant>`;
+  }
+  return `<gml:TimePeriod gml:id=${attr(timeGmlId(`${time.start}_${time.end}`))}><gml:beginPosition>${escapeXml(time.start)}</gml:beginPosition><gml:endPosition>${escapeXml(time.end)}</gml:endPosition></gml:TimePeriod>`;
+}
+
+/** Deterministic NCName for a GML time primitive. */
+function timeGmlId(seed: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `honua-t${hash.toString(16)}`;
 }
 
 function envelopeGml(env: { xmin: number; ymin: number; xmax: number; ymax: number; srsName?: string }): string {

@@ -332,7 +332,7 @@
     "protocol": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "label", "defaultOperationStatus", "operationClaims"],
+      "required": ["id", "label", "defaultOperationStatus", "operationClaims", "queryFilter"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "label": { "type": "string", "minLength": 1 },
@@ -340,7 +340,23 @@
         "operationClaims": {
           "type": "array",
           "items": { "$ref": "#/$defs/operationClaim" }
-        }
+        },
+        "queryFilter": { "$ref": "#/$defs/queryFilterSupport" }
+      }
+    },
+    "queryFilterSupport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dialect", "filter", "temporal", "notes"],
+      "properties": {
+        "dialect": { "type": "string", "minLength": 1 },
+        "filter": { "enum": ["native", "attributes-only", "unsupported"] },
+        "temporal": {
+          "type": "array",
+          "items": { "enum": ["source-dimension", "field-predicate"] },
+          "uniqueItems": true
+        },
+        "notes": { "type": "string", "minLength": 1 }
       }
     },
     "supportClaim": {
