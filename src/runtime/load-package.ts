@@ -14,8 +14,15 @@ import { HonuaMap } from "../map/honua-map.js";
 import type { HonuaLayerSpecification, HonuaStyleSpecification } from "../style/specification.js";
 import { HonuaMapPackageError } from "./errors.js";
 import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage } from "./map-package.js";
+import {
+  OFFLINE_REGION_PROTOCOL_SCHEME,
+  type OfflineRegionTileHandler,
+  ensureOfflineRegionProtocol,
+  styleUsesOfflineRegion,
+} from "./offline-region-protocol.js";
+import { rewriteStyleTilesForOfflineRegion } from "./offline-region-style.js";
 import { createOgcStyleRefResolver } from "./ogc-styles.js";
-import { ensurePmtilesProtocol, styleUsesPmtiles } from "./pmtiles-protocol.js";
+import { type MaplibreProtocolRegistrar, ensurePmtilesProtocol, styleUsesPmtiles } from "./pmtiles-protocol.js";
 import type { PopupFactory, PopupRenderer } from "./popups.js";
 import {
   HonuaMapRuntime,
@@ -120,6 +127,56 @@ export interface LoadMapPackageOptions {
    * style-spec checks and let the renderer report invalid style values.
    */
   styleSpecValidationMode?: RuntimeStyleSpecValidationMode;
+  /**
+   * Serve the named style sources from a persisted offline region.
+   *
+   * The handler comes from `@honua/sdk-js/offline` because it is bound to one
+   * region manifest, one store, and one authorization scope — none of which the
+   * runtime can invent. When `sourceIds` are given the composed style's tile
+   * templates are rewritten onto `offline-region://` before `map.setStyle`, and
+   * a source that cannot be rewritten exactly fails the load rather than
+   * quietly continuing to render live tiles.
+   */
+  offlineRegion?: LoadMapPackageOfflineRegion;
+}
+
+/** Binding between a composed style and one persisted offline region. */
+export interface LoadMapPackageOfflineRegion {
+  /** Handler from `createOfflineRegionTileProtocol()` in `@honua/sdk-js/offline`. */
+  readonly tileHandler: OfflineRegionTileHandler;
+  /** Style source ids to rewrite onto the region. Omit to bind an already-rewritten style. */
+  readonly sourceIds?: readonly string[];
+  /** Tile-matrix-set segment of the rewritten URLs. Defaults to `"default"`. */
+  readonly tileMatrixSetId?: string;
+  /** Injected MapLibre registrar; defaults to the lazily imported peer. */
+  readonly maplibre?: MaplibreProtocolRegistrar;
+}
+
+/**
+ * Point the named sources at the region, or fail the load.
+ *
+ * A refusal is fatal here on purpose: the caller named these sources precisely
+ * because they must come from storage, so leaving one on its network template
+ * would render live tiles while the application believed it was offline-backed.
+ */
+function bindOfflineRegionStyle(
+  style: HonuaStyleSpecification,
+  packageId: string | undefined,
+  region: LoadMapPackageOfflineRegion | undefined,
+): HonuaStyleSpecification {
+  if (!region?.sourceIds || region.sourceIds.length === 0) return style;
+  const rewrite = rewriteStyleTilesForOfflineRegion(style, {
+    sourceIds: region.sourceIds,
+    ...(region.tileMatrixSetId !== undefined ? { tileMatrixSetId: region.tileMatrixSetId } : {}),
+  });
+  if (rewrite.refusals.length > 0) {
+    throw new HonuaMapPackageError("offline-region style binding refused a source it cannot rewrite exactly", {
+      ...(packageId === undefined ? {} : { packageId }),
+      stage: "style-compose",
+      detail: { refusals: rewrite.refusals },
+    });
+  }
+  return rewrite.style;
 }
 
 /**
@@ -248,16 +305,38 @@ export async function loadMapPackage(
       if (!honuaMap.hasLayer(layer.id)) honuaMap.addLayer(layer);
     }
 
-    const composed = await composeStyle(target, preComposed, {
+    const styled = await composeStyle(target, preComposed, {
       resolveStyleRef: styleRefResolver,
       resolveTheme: options.resolveTheme,
     });
+    const composed = bindOfflineRegionStyle(styled, target.mapPackageId, options.offlineRegion);
     // Auto-register the MapLibre `pmtiles://` protocol before the caller (or
     // `runtime.reload`) hands this style to `map.setStyle`, so PMTiles-backed
     // sources render with no manual `addProtocol` wiring. Idempotent across
     // maps and no-ops (zero import cost) when no source uses PMTiles.
     if (styleUsesPmtiles(composed)) {
       await ensurePmtilesProtocol();
+    }
+    // Same contract for a persisted offline region: register on the evidence of
+    // the composed style, and refuse to hand MapLibre a style that addresses a
+    // region without the handler that can answer it — a missing handler renders
+    // blank tiles instead of failing.
+    if (styleUsesOfflineRegion(composed)) {
+      const region = options.offlineRegion;
+      if (!region) {
+        throw new HonuaMapPackageError(
+          "the composed style addresses an offline region but no offlineRegion tile handler was supplied",
+          {
+            packageId: target.mapPackageId,
+            stage: "style-compose",
+            detail: { scheme: OFFLINE_REGION_PROTOCOL_SCHEME },
+          },
+        );
+      }
+      await ensureOfflineRegionProtocol({
+        tileHandler: region.tileHandler,
+        ...(region.maplibre ? { maplibre: region.maplibre } : {}),
+      });
     }
     return { composed, dataset, honuaMap, failedSources };
   };

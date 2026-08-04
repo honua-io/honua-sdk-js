@@ -17,6 +17,7 @@ import * as explainCapabilityGap from "./tools/explain-capability-gap.js";
 import * as getExtent from "./tools/get-extent.js";
 import * as getStyle from "./tools/get-style.js";
 import * as listServices from "./tools/list-services.js";
+import * as listSources from "./tools/list-sources.js";
 import * as queryFeatures from "./tools/query-features.js";
 import * as statistics from "./tools/statistics.js";
 
@@ -173,13 +174,20 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
 /**
  * The PLATFORM-FREE standalone MCP surface (issue #369).
  *
- * This is the direct-SDK operator surface: nine read-only geospatial tools wired
- * straight onto `@honua/sdk-js`, which speaks plain Esri GeoServices / OGC API
- * over standard REST paths (`/rest/services`, `/FeatureServer/{id}/query`, …).
- * Point it at ANY public FeatureServer / OGC endpoint (e.g. a `services.arcgis.com`
- * FeatureServer) with ZERO Honua-server assumptions — no admin API, no `/healthz`,
- * no `/mcp` catalog. This is what the `honua-mcp` bin runs (see {@link runStandalone}),
- * and what the platform-free certification lane + eval corpus exercise.
+ * This is the direct-SDK operator surface: ten read-only geospatial tools wired
+ * straight onto `@honua/sdk-js`. Point it at ANY public FeatureServer / OGC API /
+ * STAC / WFS / OData endpoint with ZERO Honua-server assumptions — no admin API,
+ * no `/healthz`, no `/mcp` catalog. This is what the `honua-mcp` bin runs (see
+ * {@link runStandalone}), and what the platform-free certification lanes + eval
+ * corpora exercise.
+ *
+ * The tool contract is PROTOCOL-NEUTRAL (issue #1005): sources are addressed by
+ * a `<protocol>:<address>` reference (`honua_list_sources` emits them), filters
+ * are the SDK's typed semantic filter, geometry is GeoJSON, and execution goes
+ * through the canonical `Dataset`/`Source`/`Query`/`Result` contract so one call
+ * means the same thing on every protocol. The GeoServices `serviceId`/`layerId`
+ * pair is still accepted as a deprecated compatibility input; no tool schema
+ * requires an Esri-only field.
  *
  * Tools that need a Honua-only surface (server-side styling via OGC API – Styles,
  * a `/rest/services` catalog) degrade gracefully on a plain target: they return a
@@ -200,8 +208,15 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
   // ── Tools ──────────────────────────────────────────────────────
 
   server.tool(
+    "honua_list_sources",
+    'Discover queryable sources on this endpoint, across protocols. Returns protocol-neutral `<protocol>:<address>` source references (e.g. "ogc-features:hotels", "geoservices-feature-service:Parks/0") to pass verbatim to the query tools, plus each source\'s capabilities. Each protocol family degrades independently with a reason.',
+    listSources.schema.shape,
+    async (args) => listSources.execute(client, listSources.schema.parse(args)),
+  );
+
+  server.tool(
     "honua_list_services",
-    "Discover all available feature services on any FeatureServer folder. Set includeDetails=true for descriptions, layer counts, and spatial references. Degrades gracefully when the target has no service catalog.",
+    "[GeoServices-specific; prefer honua_list_sources] Discover feature services on a FeatureServer folder. Set includeDetails=true for descriptions, layer counts, and spatial references. Degrades gracefully when the target has no service catalog.",
     listServices.schema.shape,
     async (args) => listServices.execute(client, listServices.schema.parse(args)),
   );
@@ -212,14 +227,14 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
 
   server.tool(
     "honua_describe_layer",
-    "Get full schema for a layer — fields, geometry type, extent, relationships.",
+    "Describe a source: its protocol, the capabilities it actually supports, field schema, geometry type, and extent. Address it with `source` (from honua_list_sources); the serviceId/layerId pair is deprecated but still accepted.",
     describeLayer.schema.shape,
     async (args) => describeLayer.execute(client, describeLayer.schema.parse(args)),
   );
 
   server.tool(
     "honua_query_features",
-    "Query features with attribute filters, spatial filters, field selection, and pagination. returnGeometry defaults to false to save tokens.",
+    "Query features from any supported protocol. Address the source with `source`; filter with the typed protocol-neutral `filter`, a GeoJSON `geometry` or `bbox` plus `spatialRel`, and `temporal`. returnGeometry defaults to false to save tokens. A construct the backing protocol cannot express returns a structured capability error, never a silently empty result.",
     queryFeatures.schema.shape,
     async (args) => queryFeatures.execute(client, queryFeatures.schema.parse(args)),
   );
@@ -240,7 +255,7 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
 
   server.tool(
     "honua_statistics",
-    "Compute aggregate statistics (count, sum, avg, min, max, stddev) on a field, optionally grouped.",
+    "Compute aggregate statistics (count, sum, avg, min, max, stddev, var) on a field, optionally grouped. Protocols without server-side aggregation answer client-side and report the degradation.",
     statistics.schema.shape,
     async (args) => statistics.execute(client, statistics.schema.parse(args)),
   );

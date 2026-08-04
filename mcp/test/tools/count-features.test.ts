@@ -2,131 +2,80 @@ import { describe, expect, it, vi } from "vitest";
 import { execute, schema } from "../../src/tools/count-features.js";
 import { asClient, createMockClient } from "../test-helpers.js";
 
+const NEUTRAL = { source: "geoservices-feature-service:Parks/0" };
+
+function parse(result: { content: Array<{ type: "text"; text: string }> }) {
+  return JSON.parse(result.content[0].text);
+}
+
+/** A GeoServices layer answers an extent-only query with an exact count. */
+function countingClient(count: unknown) {
+  return createMockClient({
+    queryFeatures: vi.fn().mockResolvedValue({ count, extent: { xmin: 0, ymin: 0, xmax: 1, ymax: 1 } }),
+  });
+}
+
 describe("honua_count_features", () => {
-  it("returns count from response", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: 42 }),
-    });
-    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-    const parsed = JSON.parse(result.content[0].text);
+  it("counts through the canonical queryExtent path on a GeoServices source", async () => {
+    const mock = countingClient(42);
+    const parsed = parse(await execute(asClient(mock), schema.parse(NEUTRAL)));
 
     expect(parsed.count).toBe(42);
-  });
-
-  it("passes returnCountOnly in extraParams", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: 10 }),
-    });
-    await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-
+    expect(parsed.countStrategy).toBe("queryExtent");
+    expect(parsed.source).toBe("geoservices-feature-service:Parks/0");
     expect(mock.queryFeatures).toHaveBeenCalledWith(
-      expect.objectContaining({
-        extraParams: { returnCountOnly: true },
-        returnGeometry: false,
-      }),
+      expect.objectContaining({ extraParams: expect.objectContaining({ returnExtentOnly: true }) }),
     );
   });
 
-  it("maps spatialRel for count queries", async () => {
+  it("accepts the deprecated serviceId/layerId pair", async () => {
+    const mock = countingClient(7);
+    const parsed = parse(await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 })));
+
+    expect(parsed.count).toBe(7);
+  });
+
+  it("compiles the typed filter into the counted request", async () => {
+    const mock = countingClient(3);
+    await execute(asClient(mock), schema.parse({ ...NEUTRAL, filter: { op: "gte", field: "Seats", value: 20 } }));
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ where: "Seats >= 20" }));
+  });
+
+  it("still accepts the deprecated source-native where clause", async () => {
+    const mock = countingClient(3);
+    await execute(asClient(mock), schema.parse({ ...NEUTRAL, where: "Seats >= 20" }));
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ where: "Seats >= 20" }));
+  });
+
+  it("refuses with a structured capability error when no path yields a count", async () => {
     const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: 5 }),
+      queryFeatures: vi.fn().mockResolvedValue({ features: [] }),
     });
-    await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0, spatialRel: "within" }));
+    const result = await execute(asClient(mock), schema.parse(NEUTRAL));
 
-    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ spatialRel: "esriSpatialRelWithin" }));
+    expect(result.isError).toBe(true);
+    const parsed = parse(result);
+    expect(parsed.code).toBe("capability_not_supported");
+    expect(parsed.error.capability).toBe("count");
+    // The honest outcome is a refusal, never a fabricated zero.
+    expect(parsed.count).toBeUndefined();
   });
 
-  it("includes inferred geometryType in query", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: 5 }),
-    });
-    await execute(
-      asClient(mock),
-      schema.parse({
-        serviceId: "Parks",
-        layerId: 0,
-        geometry: {
-          rings: [
-            [
-              [0, 0],
-              [1, 0],
-              [1, 1],
-              [0, 0],
-            ],
-          ],
-        },
-      }),
-    );
+  it("ignores a non-finite count and refuses rather than reporting it", async () => {
+    const mock = countingClient(Number.NaN);
+    const result = await execute(asClient(mock), schema.parse(NEUTRAL));
 
-    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ geometryType: "esriGeometryPolygon" }));
+    expect(result.isError).toBe(true);
+    expect(parse(result).code).toBe("capability_not_supported");
   });
 
-  it("uses explicit geometryType when provided", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: 5 }),
-    });
-    await execute(
-      asClient(mock),
-      schema.parse({
-        serviceId: "Parks",
-        layerId: 0,
-        geometry: { x: 1, y: 2 },
-        geometryType: "esriGeometryEnvelope",
-      }),
-    );
+  it("returns a structured validation error for an unknown protocol token", async () => {
+    const mock = countingClient(1);
+    const result = await execute(asClient(mock), schema.parse({ source: "nope:thing" }));
 
-    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ geometryType: "esriGeometryEnvelope" }));
-  });
-
-  it("throws if response does not include numeric count", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({}),
-    });
-    await expect(execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }))).rejects.toThrow(
-      "Count query did not return a numeric count",
-    );
-  });
-
-  it("throws for non-finite or non-numeric count values", async () => {
-    const badCountMock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: Number.POSITIVE_INFINITY }),
-    });
-    await expect(execute(asClient(badCountMock), schema.parse({ serviceId: "Parks", layerId: 0 }))).rejects.toThrow(
-      "Count query did not return a numeric count",
-    );
-
-    const nonNumericStringMock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: "not-a-number" }),
-    });
-    await expect(
-      execute(asClient(nonNumericStringMock), schema.parse({ serviceId: "Parks", layerId: 0 })),
-    ).rejects.toThrow("Count query did not return a numeric count");
-  });
-
-  it("accepts a numeric string count (large counts past Number.MAX_SAFE_INTEGER)", async () => {
-    // The grpc-web transport returns counts beyond Number.MAX_SAFE_INTEGER as
-    // strings to preserve precision; the tool must surface them, not throw.
-    const big = "9007199254740993"; // 2^53 + 1
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: big }),
-    });
-    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-    const parsed = JSON.parse(result.content[0].text);
-
-    expect(parsed.count).toBe(big);
-  });
-
-  it("accepts a small numeric string count", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({ count: "42" }),
-    });
-    const result = await execute(asClient(mock), schema.parse({ serviceId: "Parks", layerId: 0 }));
-    const parsed = JSON.parse(result.content[0].text);
-
-    expect(parsed.count).toBe("42");
-  });
-
-  it("rejects negative layerId", () => {
-    expect(() => schema.parse({ serviceId: "Parks", layerId: -1 })).toThrow();
+    expect(result.isError).toBe(true);
+    expect(parse(result).error.kind).toBe("ValidationFailed");
   });
 });

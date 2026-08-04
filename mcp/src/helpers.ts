@@ -1,9 +1,16 @@
-import type { EsriGeometryType, EsriSpatialRel } from "@honua/sdk-js/honua";
+import type { EsriGeometryType } from "@honua/sdk-js/honua";
 
 const MAX_LIMIT = 2000;
 const DEFAULT_LIMIT = 100;
 const METADATA_ERROR_MESSAGE = "Failed to fetch service metadata.";
 
+/**
+ * Esri geometry-type tags.
+ *
+ * These are the SDK's canonical geometry-operand tags, not part of the tool
+ * contract: the tool surface takes GeoJSON (see `neutral/filter.ts`) and only
+ * accepts these to disambiguate Esri-JSON geometry sent by legacy clients.
+ */
 export const GEOMETRY_TYPES = [
   "esriGeometryPoint",
   "esriGeometryPolyline",
@@ -11,19 +18,6 @@ export const GEOMETRY_TYPES = [
   "esriGeometryEnvelope",
   "esriGeometryMultipoint",
 ] as const;
-
-const SPATIAL_REL_MAP: Record<string, EsriSpatialRel> = {
-  intersects: "esriSpatialRelIntersects",
-  contains: "esriSpatialRelContains",
-  within: "esriSpatialRelWithin",
-};
-
-export function mapSpatialRel(rel: string | undefined): EsriSpatialRel | undefined {
-  if (!rel) return undefined;
-  const mapped = SPATIAL_REL_MAP[rel];
-  if (!mapped) throw new Error(`Unknown spatialRel "${rel}". Expected: intersects, contains, within`);
-  return mapped;
-}
 
 export function clampLimit(limit: number | undefined): number {
   const n = limit ?? DEFAULT_LIMIT;
@@ -71,29 +65,6 @@ export function jsonText(result: unknown): { content: Array<{ type: "text"; text
 
 export function metadataErrorText(): string {
   return METADATA_ERROR_MESSAGE;
-}
-
-/**
- * Coerce a feature `count` from a query response into a usable value.
- *
- * The default `grpc-web` transport returns counts via `toSafeNumberOrString`,
- * which yields a **string** when the proto count exceeds
- * `Number.MAX_SAFE_INTEGER` (chosen specifically to avoid precision loss). Both
- * a finite `number` and a numeric `string` are valid counts; anything else
- * (non-finite numbers, non-numeric strings, missing values) returns
- * `undefined`.
- */
-export function coerceCount(value: unknown): number | string | undefined {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : undefined;
-  }
-  if (typeof value === "string") {
-    // Accept canonical base-10 integer strings (optionally signed). These are
-    // the large-count representation the grpc adapter emits to preserve
-    // precision beyond Number.MAX_SAFE_INTEGER.
-    return /^-?\d+$/.test(value.trim()) ? value.trim() : undefined;
-  }
-  return undefined;
 }
 
 export function encodeServiceId(serviceId: string): string {
