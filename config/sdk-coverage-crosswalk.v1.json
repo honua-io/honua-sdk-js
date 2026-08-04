@@ -71,7 +71,7 @@
     "collaboration-deprecated": { "capabilityKeys": ["collaboration.map-sessions"], "extraEvidence": ["test/collaboration.test.ts"] },
     "agent-tools-facade": { "capabilityKeys": ["ai.mcp-discovery", "ai.agent-operations"] },
     "ogc-processes-discovery-standalone": { "capabilityKeys": ["process.ogc-api-processes"] },
-    "ogc-processes-execution-facade": { "capabilityKeys": ["process.ogc-api-processes"] }
+    "ogc-processes-execution-standalone": { "capabilityKeys": ["process.ogc-api-processes"] }
   },
   "extras": {
     "geocoding.forward": {

@@ -485,6 +485,7 @@ export {
 } from "./core/ogc-processes.js";
 export type {
   HonuaOgcProcessJobOptions,
+  HonuaOgcProcessesConformanceInput,
   HonuaOgcProcessesOptions,
 } from "./core/ogc-processes.js";
 export {

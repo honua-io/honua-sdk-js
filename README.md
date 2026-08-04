@@ -157,11 +157,11 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 20 of the 27 generated support
+**Two deployment tiers, named up front.** 21 of the 27 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
-7 are `server-attach` and execute only after attaching to a Honua Server facade;
-3 of those link a roadmap issue for an open-endpoint path and the rest state why the
+6 are `server-attach` and execute only after attaching to a Honua Server facade;
+2 of those link a roadmap issue for an open-endpoint path and the rest state why the
 server dependency is inherent, in the generated
 [capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
 
@@ -169,8 +169,9 @@ server dependency is inherent, in the generated
 Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (`beta`), Maps (`beta`), and Records
 (`beta`) also discover and use raw advertised paths. OGC API Processes
-keeps two honest lanes: raw discovery is `experimental`, while typed execution
-is `facade-required`.
+keeps two honest lanes against a raw server:
+discovery (`experimental`, `standalone`) and
+typed execution (`experimental`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 `MapPackage`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
