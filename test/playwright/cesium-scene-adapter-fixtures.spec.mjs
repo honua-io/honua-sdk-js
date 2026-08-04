@@ -228,6 +228,43 @@ function startFixtureServer() {
   });
 }
 
+/**
+ * Wire one page against a freshly bound fixture server: loopback-only routing,
+ * console/pageerror capture, and the harness readiness gate. Shared by both
+ * tests so the "no network, no console errors" evidence is identical in each.
+ */
+async function openFixturePage(page) {
+  const server = await startFixtureServer();
+  const consoleErrors = [];
+  const pageErrors = [];
+  const offOriginRequests = [];
+
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  // Hard evidence for "no network access": anything that is not the loopback
+  // fixture origin is aborted and recorded, so an accidental Ion/asset fetch
+  // fails the spec instead of quietly succeeding on a networked runner.
+  await page.route("**/*", async (route) => {
+    const target = new URL(route.request().url());
+    if (target.hostname === "127.0.0.1") {
+      await route.continue();
+      return;
+    }
+    offOriginRequests.push(target.href);
+    await route.abort();
+  });
+
+  await page.goto(server.url);
+  await expect
+    .poll(() => page.evaluate(() => globalThis.__honuaCesiumSceneFixtureReady === true), { timeout: 30_000 })
+    .toBe(true);
+
+  return { server, consoleErrors, pageErrors, offOriginRequests };
+}
+
 test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
   // SwiftShader software rasterization plus four full mount/teardown cycles of a
   // real globe is comfortably slower than the repository's 30s default. The
@@ -236,35 +273,9 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
   test.setTimeout(240_000);
 
   test("mounts every primitive kind on a live viewer and releases everything on teardown", async ({ page }) => {
-    const server = await startFixtureServer();
-    const consoleErrors = [];
-    const pageErrors = [];
-    const offOriginRequests = [];
-
-    page.on("console", (message) => {
-      if (message.type() === "error") consoleErrors.push(message.text());
-    });
-    page.on("pageerror", (error) => pageErrors.push(error.message));
-
-    // Hard evidence for "no network access": anything that is not the loopback
-    // fixture origin is aborted and recorded, so an accidental Ion/asset fetch
-    // fails the spec instead of quietly succeeding on a networked runner.
-    await page.route("**/*", async (route) => {
-      const target = new URL(route.request().url());
-      if (target.hostname === "127.0.0.1") {
-        await route.continue();
-        return;
-      }
-      offOriginRequests.push(target.href);
-      await route.abort();
-    });
+    const { server, consoleErrors, pageErrors, offOriginRequests } = await openFixturePage(page);
 
     try {
-      await page.goto(server.url);
-      await expect
-        .poll(() => page.evaluate(() => globalThis.__honuaCesiumSceneFixtureReady === true), { timeout: 30_000 })
-        .toBe(true);
-
       const run = await page.evaluate(
         (cycles) => globalThis.__honuaCesiumSceneFixture.runCycles({ cycles }),
         CYCLES,
@@ -469,6 +480,115 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
       // --- AC-5: no network egress -----------------------------------------
       expect(offOriginRequests, "the fixture must not reach the public internet").toEqual([]);
       expect(server.requestLog.some((entry) => entry.startsWith("/fixtures/"))).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
+  /**
+   * Application time and realtime deltas against a real `Viewer` (#1048).
+   *
+   * The two properties this proves are the ones the epic's REQ-004 asks for and
+   * that no jsdom seam can settle on its own:
+   *
+   *  1. Advancing application time moves the live `viewer.clock`, Cesium's own
+   *     availability predicate changes answer because of it, and *nothing* is
+   *     rebuilt — proven by object identity of the layer handles and of the live
+   *     `Cesium3DTileset` across the update.
+   *  2. A realtime-shaped delta rebuilds exactly the binding whose configuration
+   *     changed, leaves the rest attached by identity, reaches the renderer (the
+   *     live `ImageryLayer.alpha` moves), and names the boundary it crossed.
+   */
+  test("binds application time and applies a realtime delta without rebuilding the scene", async ({ page }) => {
+    const { server, consoleErrors, pageErrors, offOriginRequests } = await openFixturePage(page);
+
+    try {
+      const run = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.runTemporal());
+      const { temporal } = run;
+
+      if (process.env.HONUA_CESIUM_FIXTURE_REPORT === "1") {
+        process.stdout.write(`${JSON.stringify(temporal, null, 2)}\n`);
+      }
+
+      expect(temporal.cesiumVersion, "the real cesium package must be loaded").toMatch(/^\d+\.\d+/);
+
+      // --- the clock is bound, and only because the target opted in ---------
+      expect(temporal.initial.timeCodes, "the mount must report how time was bound").toEqual(["scene-time-applied"]);
+      expect(Date.parse(temporal.initial.clock)).toBe(Date.parse(temporal.times.beforeWindow));
+      expect(temporal.initial.clock).not.toBe(temporal.clockBeforeMount);
+      expect(temporal.initial.rebuildBoundaries, "the initial application crosses no boundary").toEqual([]);
+      expect(temporal.initial.entityAvailable, "the probe entity must start outside its availability window").toBe(
+        false,
+      );
+
+      // --- advancing time rebuilds nothing ----------------------------------
+      const advanced = temporal.advanced;
+      expect(advanced.revision).toBe(2);
+      expect(Date.parse(advanced.clock)).toBe(Date.parse(temporal.times.insideWindow));
+      expect(advanced.timeCodes).toEqual(["scene-time-applied"]);
+      expect(advanced.entityAvailable, "Cesium availability must follow the bound application time").toBe(true);
+
+      expect(advanced.created, "an in-place time update must construct nothing").toEqual([]);
+      expect(advanced.disposed, "an in-place time update must release nothing").toEqual([]);
+      expect(advanced.reused.sort()).toEqual(["fixture-imagery", "fixture-tileset"]);
+      expect(advanced.handlesReusedByIdentity, "every layer handle must survive the time update by identity").toBe(
+        true,
+      );
+      expect(advanced.tilesetPrimitiveReused, "the live Cesium3DTileset instance must survive the time update").toBe(
+        true,
+      );
+      expect(advanced.scenePrimitiveCount, "the adapter still owns exactly the tileset").toBe(1);
+      expect(advanced.imageryLayerCount).toBe(1);
+      // Every plan binding is accounted for, including the handle-less camera:
+      // an unchanged viewpoint is not re-driven under a moving clock.
+      expect(advanced.rebuildBoundaries).toEqual([
+        "fixture-camera:none:in-place",
+        "fixture-imagery:none:in-place",
+        "fixture-tileset:none:in-place",
+      ]);
+      expect(advanced.rebuildBoundaryDiagnostics, "no boundary was crossed, so none may be reported").toBe(0);
+
+      // --- a data delta rebuilds only what changed --------------------------
+      const delta = temporal.delta;
+      expect(delta.revision).toBe(3);
+      expect(delta.created).toEqual(["fixture-imagery"]);
+      expect(delta.disposed).toEqual(["fixture-imagery"]);
+      expect(delta.reused).toEqual(["fixture-tileset"]);
+      expect(delta.tilesetHandleReused, "the unchanged binding's handle must be carried forward").toBe(true);
+      expect(delta.tilesetPrimitiveReused, "the unchanged binding's Cesium object must not be reconstructed").toBe(
+        true,
+      );
+      expect(delta.imageryHandleRebuilt, "the changed binding must get a new handle").toBe(true);
+      expect(delta.imageryAlpha, "the rebuild must reach the renderer").toBeCloseTo(0.4, 3);
+      expect(delta.imageryLayerCount, "the displaced imagery layer must not linger").toBe(1);
+      expect(delta.scenePrimitiveCount, "the delta added no scene primitive").toBe(1);
+      expect(delta.rebuildBoundaries).toEqual([
+        "fixture-camera:none:in-place",
+        "fixture-imagery:primitive-configuration:rebuilt",
+        "fixture-tileset:none:in-place",
+      ]);
+      expect(delta.boundaryDiagnostics).toEqual(["fixture-imagery:primitive-configuration"]);
+      expect(delta.appliedContext, "the delta's realtime provenance travels with the application").toEqual({
+        status: "live",
+        cursor: "fixture-seq-2",
+      });
+
+      // --- teardown, on #1026's measured ceilings ---------------------------
+      const teardown = temporal.teardown;
+      expect(teardown.afterLayerRemoval.imageryLayerCount).toBe(RETENTION_BUDGET.imageryLayersAfterLayerRemoval);
+      expect(teardown.afterLayerRemoval.scenePrimitiveCount).toBe(RETENTION_BUDGET.scenePrimitivesAfterLayerRemoval);
+      expect(teardown.afterLayerRemoval.mountState).toBe("disposed");
+      expect(teardown.viewerDestroyed).toBe(true);
+      expect(teardown.canvasesInContainer).toBe(RETENTION_BUDGET.canvasesInContainer);
+      expect(teardown.layerTeardownMs).toBeLessThan(TEARDOWN_BUDGET_MS.layerTeardown);
+      expect(teardown.viewerDestroyMs).toBeLessThan(TEARDOWN_BUDGET_MS.viewerDestroy);
+      expect(teardown.totalMs).toBeLessThan(TEARDOWN_BUDGET_MS.total);
+
+      expect(run.console, "in-page console.error output").toEqual([]);
+      expect(run.errors, "in-page errors and unhandled rejections").toEqual([]);
+      expect(consoleErrors, "browser console errors").toEqual([]);
+      expect(pageErrors, "page errors").toEqual([]);
+      expect(offOriginRequests, "the fixture must not reach the public internet").toEqual([]);
     } finally {
       await server.close();
     }

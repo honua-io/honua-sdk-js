@@ -212,7 +212,7 @@ import performed on the first apply that needs a Cesium constructor.
 | `camera` | `jumpTo` centre/zoom/bearing/pitch/roll through the documented correspondence | `Camera.setView` destination + orientation |
 | `selection` | `setFeatureState` on the addressed source | `viewer.selectedEntity` (one focused entity) |
 | `filters` | `setFilter`, composed on top of the style's own filter | entity visibility evaluated against entity properties |
-| `time` | an epoch-millisecond window on the configured field | `viewer.clock` current/start/stop/`shouldAnimate` |
+| `time` | an epoch-millisecond window on the configured field | `viewer.clock`, through the same clock plan the scene adapter applies |
 | `detail` | `setFeatureState` under a separate key | refused: the globe's single focus channel belongs to `selection` |
 | `attribution` | shared identifiers for the host to render | shared identifiers; provider credit display is untouched |
 | `realtime` | status only | status only |
@@ -222,6 +222,15 @@ do, so a fidelity claim is never just a string table: a map without a
 feature-state API declares `selection` outbound-`unsupported`, a viewer without
 a clock declares `time` outbound-`unsupported`, and the synchronizer reports
 `unsupported-target` instead of pretending the state landed.
+
+The globe's `time` slice goes through `sceneTimelineToCesiumClockPlan()` and
+`applyCesiumClockPlan()` rather than writing the clock itself, so shared time and
+adapter-applied time have exactly one set of semantics: the extent is written
+before the instant, `speed` becomes the clock multiplier, uninterpretable fields
+are named rather than dropped, and a viewer that declares
+`clockOwnership: "host"` is left alone (reported as `time-clock-host-owned`)
+instead of being fought for transport. `port.dispose()` restores the clock it
+displaced.
 
 ### The 2D/3D camera correspondence
 
@@ -625,6 +634,16 @@ of each cycle is measured against fixed budgets:
   not terminate them on viewer destroy, so the worker budget is non-growth after
   the first cycle rather than zero.
 
+A second case in the same lane covers application time and realtime deltas
+against a live `Viewer`: it mounts a plan with the clock bound, advances
+application time, and asserts that `viewer.clock` moved, that a probe entity's
+Cesium availability changed answer because of it, and that every layer handle —
+and the live `Cesium3DTileset` behind one of them — survived by object identity
+with no rebuild boundary crossed. It then drives one configuration delta and
+asserts that exactly the changed binding was rebuilt, that the change reached the
+renderer (`ImageryLayer.alpha`), and that the unchanged binding was carried
+forward untouched. Its teardown is asserted against the same measured ceilings.
+
 Console errors and unhandled rejections fail the lane, matching the sample
 console-teardown gate.
 
@@ -722,6 +741,170 @@ what the renderer currently owns.
 `applyCesiumScenePrimitives()` keeps working unchanged for callers that do not
 need a lifecycle; it is the same engine with no diff, no ceiling, and no
 ownership.
+
+## Application time, realtime deltas, and rebuild boundaries
+
+The workspace `timeline` slice is canonical application time, and the Cesium
+adapter binds it to a live `Clock`. The `realtime` slice travels with the
+application that carried it, so a revision driven by a live feed can be read
+against the feed state it arrived under.
+
+### Who owns the clock
+
+Time binding is **opt-in on the target**. A `CesiumSceneRuntimeTarget` gains two
+optional fields:
+
+```ts doc-test=compile
+import {
+  type CesiumSceneRuntimeTarget,
+  type SceneRuntimePrimitive,
+  type SceneWorkspaceState,
+  mountScenePrimitivesToCesium,
+} from "@honua/sdk-js/scene-workspace";
+
+declare const viewer: {
+  camera: CesiumSceneRuntimeTarget["camera"];
+  scene: CesiumSceneRuntimeTarget["scene"];
+  clock: CesiumSceneRuntimeTarget["clock"];
+};
+declare const plan: readonly SceneRuntimePrimitive[];
+declare const state: SceneWorkspaceState;
+
+// Opting in: the adapter drives `viewer.clock` from `state.timeline`.
+const target: CesiumSceneRuntimeTarget = {
+  camera: viewer.camera,
+  scene: viewer.scene,
+  clock: viewer.clock,
+};
+const mount = await mountScenePrimitivesToCesium(target, plan, { state });
+
+// Advancing time is a revision with the same plan and a moved timeline.
+const advanced = await mount.apply(plan, {
+  state: { ...state, timeline: { ...state.timeline, currentTime: "2026-03-01T12:00:00Z" } },
+});
+console.log(advanced.created, advanced.rebuildBoundaries);
+```
+
+Three rules define ownership, and each one reports itself:
+
+- **No `clock` on the target** — the adapter never reads or writes a clock.
+  A timeline that declares a time is reported as `scene-time-clock-unbound`
+  (`degraded`), never silently dropped.
+- **`clock` present** (the default `clockOwnership: "adapter"`) — the adapter
+  writes `Clock.currentTime` from `timeline.currentTime`, `Clock.startTime` /
+  `Clock.stopTime` from `timeline.startTime` / `timeline.endTime` when both
+  parse and are ordered, `Clock.shouldAnimate` from `timeline.playing`, and
+  `Clock.multiplier` from `timeline.speed`. Only declared fields are written.
+- **`clockOwnership: "host"`** — the adapter stands down and writes nothing.
+  Declare this when Cesium's own Animation/Timeline widgets or a host simulation
+  loop own the clock. The refusal is reported as `scene-time-host-owned`
+  (`supported`), so standing down is distinguishable from a missing binding.
+
+Time participates in the adapter's transactional rollback: a failed application
+restores the clock alongside the terrain provider and vertical exaggeration.
+
+`defaultSceneStateSyncMappings("cesium").time` already advertised this binding as
+`exact` under the code `cesium-clock`; it is now backed by a writer.
+
+### Driving a globe from the temporal playback controller
+
+`createTemporalPlayback()` (`@honua/sdk-js/map`) is the renderer-neutral
+play/pause/scrub controller behind `<honua-time-slider>`. It now has a Cesium
+sink, so one controller instance can hold a MapLibre filter binding, a
+data-to-map bridge `where` clause, a slider view, and a globe at once:
+
+```ts doc-test=compile
+import { createTemporalPlayback } from "@honua/sdk-js/map";
+import { type CesiumSceneRuntimeTarget, bindTemporalPlaybackToCesium } from "@honua/sdk-js/scene-workspace";
+
+declare const target: CesiumSceneRuntimeTarget;
+
+const playback = createTemporalPlayback({
+  extent: ["2026-03-01T00:00:00Z", "2026-03-02T00:00:00Z"],
+  windowMs: 60 * 60 * 1000,
+  apply: () => undefined,
+});
+
+const binding = await bindTemporalPlaybackToCesium(target, playback);
+playback.play();
+// ...
+binding.dispose(); // restores the clock exactly as it was at bind time
+playback.dispose();
+```
+
+`scene-workspace` never imports `/map`: it declares the structural slice it needs
+(`CesiumTemporalPlayback`), the same posture `<honua-time-slider>` takes, so
+neither entrypoint gains the other's closure.
+
+Two mappings are worth stating plainly:
+
+- A playback **window** is an interval and a Cesium clock is an **instant**, so
+  the mapping is `equivalent`, not exact. The binding writes the window's start
+  by default — matching the slider's `aria-valuenow`, `scrub()`, and `progress`
+  semantics — and `instant: "window-end"` binds the leading edge instead.
+- By default the binding sets `shouldAnimate = false` for as long as it is live:
+  the controller is the transport and the SDK is the only writer of
+  `currentTime`. `transport: "mirror"` instead follows `playback.playing` and
+  scales `Clock.multiplier` by `playback.speed`, so Cesium interpolates between
+  the controller's frames and the controller re-anchors it on every tick.
+
+Entity availability needs no extra wiring: Cesium evaluates
+`TimeIntervalCollection` availability against `Clock.currentTime`, so a temporal
+entity honours the bound application time as soon as the clock does.
+
+### Rebuild boundaries
+
+Every revision through a mount reports what it had to cross. `apply()` returns
+`rebuildBoundaries`, one entry per binding, and the mount exposes the most recent
+list as `mount.rebuildBoundaries`:
+
+| Boundary | Meaning |
+| --- | --- |
+| `none` | Applied in place; the renderer resource was reused untouched. |
+| `primitive-identity` | The binding was not previously mounted; its resource was constructed. |
+| `primitive-configuration` | The configuration fingerprint changed; the resource was rebuilt. |
+| `plan-membership` | The binding left the plan; its resource was released. |
+| `unfingerprintable` | The primitive could not be fingerprinted deterministically, so it was rebuilt conservatively. |
+
+Each crossing that is **not** `none` also emits a `scene-mount-rebuild-boundary`
+diagnostic naming the primitive, its kind, and the boundary in
+`context.rebuildBoundary`. The initial application reports no boundaries — with
+no previously mounted plan there is nothing to have crossed, and
+`scene-mount-applied` already lists what was created.
+
+The load-bearing consequence: **advancing application time crosses no boundary.**
+Time lives in the workspace state, never in the plan, so it is outside the
+fingerprint the diff runs on. Re-applying the same plan with a moved timeline
+reuses every handle by identity and mutates only the clock. A realtime *data*
+delta is the other case — it revises a binding's configuration, so exactly that
+binding is rebuilt (`primitive-configuration`) while the rest are carried
+forward. Both properties are asserted against a real `Viewer`, by object
+identity, in `test/playwright/cesium-scene-adapter-fixtures.spec.mjs`.
+
+### Time and delta diagnostic codes
+
+| Code | Severity / status | Meaning |
+| --- | --- | --- |
+| `scene-time-applied` | info / supported | Application time was written to the bound clock. `context.rebuildBoundary` is `none`. |
+| `scene-time-host-owned` | info / supported | The target declares `clockOwnership: "host"`; the adapter reported the time without writing it. |
+| `scene-time-clock-unbound` | warning / degraded | The timeline declares a time but no clock is bound to the target. |
+| `scene-time-invalid` | warning / degraded | Declared timeline fields could not be interpreted; `context.rejected` names them. |
+| `scene-time-runtime-unavailable` | warning / degraded | The loaded `cesium` peer exposes no usable `JulianDate`. |
+| `scene-mount-rebuild-boundary` | info / supported | A revision could not update a binding in place; `context.rebuildBoundary` names the crossing. |
+
+### What stays snapshot-only
+
+- **Feature/entity data.** The primitive adapter binds terrain, imagery,
+  tilesets, and models. Per-feature deltas remain the experimental entity slice's
+  concern, and that slice is still an unconditional remove-then-re-add reported
+  honestly as `rebuildBoundary: "entity-snapshot"` — see
+  [Experimental Cesium entity adapter](./cesium-entity-adapter.md).
+- **Sub-primitive updates.** There is no partial mutation of a materialized
+  binding: any configuration change rebuilds that binding. Opacity and visibility
+  are the exception, because the layer handle owns them directly
+  (`setVisible` / `setOpacity`) and neither goes through the plan.
+- **Playback history.** The controller keeps only the current window by
+  construction; the SDK caches no past windows and pre-fetches nothing.
 
 ## Demo Fit
 

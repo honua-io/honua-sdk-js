@@ -61,6 +61,8 @@ export type SceneStateSyncPortDegradationCode =
   | "filters-layer-rejected"
   | "time-field-unconfigured"
   | "time-clock-unavailable"
+  | "time-clock-host-owned"
+  | "time-plan-rejected"
   | "detail-target-unresolved"
   | "attribution-id-rejected";
 

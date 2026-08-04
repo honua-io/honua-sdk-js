@@ -260,6 +260,7 @@ const MAX_SYNCHRONOUS_SUBSCRIBE_EVENTS = 32;
 const MAX_SELECTION = 2_048;
 const MAX_FILTERS = 128;
 const MAX_ATTRIBUTIONS = 128;
+const MAX_TIME_SPEED = 1_000_000;
 const MAX_JSON_NODES = 4_096;
 const MAX_JSON_DEPTH = 24;
 const MAX_JSON_PROPERTIES = 256;
@@ -1004,6 +1005,9 @@ function normalizeTime(foreign: unknown): SceneTimelineState {
   };
   const playing = optionalDataProperty(foreign, "playing");
   const progress = optionalDataProperty(foreign, "progress");
+  // Clock rate is signed (a globe can run time backwards) and bounded, so a
+  // renderer cannot put an unusable multiplier on the wire.
+  const speed = optionalDataProperty(foreign, "speed");
   if (playing !== undefined && typeof playing !== "boolean")
     throw new HonuaSceneStateSyncError("invalid-input", "time.playing is invalid");
   if (
@@ -1011,6 +1015,8 @@ function normalizeTime(foreign: unknown): SceneTimelineState {
     (typeof progress !== "number" || !Number.isFinite(progress) || progress < 0 || progress > 1)
   )
     throw new HonuaSceneStateSyncError("invalid-input", "time.progress is invalid");
+  if (speed !== undefined && (typeof speed !== "number" || !Number.isFinite(speed) || Math.abs(speed) > MAX_TIME_SPEED))
+    throw new HonuaSceneStateSyncError("invalid-input", "time.speed is invalid");
   const currentTime = iso("currentTime");
   const startTime = iso("startTime");
   const endTime = iso("endTime");
@@ -1020,6 +1026,7 @@ function normalizeTime(foreign: unknown): SceneTimelineState {
     ...(endTime === undefined ? {} : { endTime }),
     ...(playing === undefined ? {} : { playing }),
     ...(progress === undefined ? {} : { progress }),
+    ...(speed === undefined ? {} : { speed: Object.is(speed, -0) ? 0 : speed }),
   });
 }
 

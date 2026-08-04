@@ -28,6 +28,15 @@ export async function executeQueryPlan<T>(
 ): Promise<QueryPlanExecution<T>> {
   const acceptedPlan = validateQueryPlanSnapshot(plan);
   assertPlanContext(acceptedPlan, source, options);
+  // This executor is the object-representation executor. Silently answering a
+  // columnar-selected plan with feature objects would misreport the
+  // representation the plan (and any batch identity derived from it) declares.
+  if (acceptedPlan.validity.representation !== "object") {
+    throw new HonuaQueryPlanExecutionError(
+      "invalid-plan",
+      `executeQueryPlan returns object results, but this plan selected "${acceptedPlan.validity.representation}" execution; execute it through the plan's columnar producer or explain with representation: "object"`,
+    );
+  }
   throwIfExecutionAborted(options.signal);
   const remote = acceptedPlan.steps[0];
   if (!remote || remote.engine !== "remote") {
@@ -59,6 +68,7 @@ function assertPlanContext<T>(plan: QueryExecutionPlan, source: Source<T>, optio
     plan.capabilityPolicy,
     plan.fallback,
     executionMode,
+    plan.validity.representation,
   );
   if (currentValidity.fingerprint === plan.validity.fingerprint) return;
 

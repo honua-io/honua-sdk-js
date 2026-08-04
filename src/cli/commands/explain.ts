@@ -138,6 +138,9 @@ export async function explainCommand(parsed: ParsedArgs, ctx: CommandContext): P
 
   printLine(`Plan ${plan.id}  (${plan.pushdown} pushdown, fidelity ${plan.fidelity}, cache ${plan.cache.action})`);
   printLine(`Source: ${descriptor.id} [${protocol}]`);
+  printLine(
+    `Representation: ${plan.representation.selected} (${plan.representation.reason}; available ${plan.representation.available.join(", ")})`,
+  );
   for (const step of plan.steps) {
     const op = "operation" in step ? step.operation : "aggregate";
     printLine(`\n  ${step.id}  ${step.engine}/${op}  pushdown=${step.pushdown}  fidelity=${step.fidelity}`);

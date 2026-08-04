@@ -28,6 +28,14 @@
  * disposed. Plan findings say whether a binding *can* render correctly; mount
  * findings say what the renderer currently owns.
  *
+ * Revisions additionally name what they had to cross. Every binding in a
+ * revision gets a {@link SceneRebuildBoundaryReport}, and each crossing that was
+ * *not* incremental also emits a `scene-mount-rebuild-boundary` diagnostic. A
+ * realtime data delta therefore reads as "this binding was rebuilt, for this
+ * reason, while these were reused", and a pure time advance reads as a revision
+ * with no crossings at all — application time lives in the workspace state, not
+ * in the plan, so it is outside the fingerprint the diff runs on.
+ *
  * @beta Part of the beta `@honua/app-platform/scene-workspace` surface: the
  *   mount handle's shape, its idempotent `dispose()`, and the layer ceiling's
  *   fail-closed admission behavior hold through 0.1.x, and mount diagnostic
@@ -45,13 +53,18 @@ import {
   scenePrimitiveMountKey,
 } from "./cesium-adapter.js";
 import {
+  type SceneRebuildBoundary,
+  type SceneRebuildBoundaryReport,
+  sceneRebuildBoundaryReport,
+} from "./cesium-time.js";
+import {
   type ScenePrimitiveApplyResult,
   type ScenePrimitiveDiagnostic,
   type SceneRuntimePrimitive,
   type SceneRuntimePrimitiveKind,
   summarizeDiagnosticStatus,
 } from "./primitives.js";
-import type { SceneWorkspaceState } from "./types.js";
+import type { SceneRealtimeState, SceneWorkspaceState } from "./types.js";
 
 /**
  * Default ceiling on the number of live layer handles one mount may own.
@@ -112,7 +125,11 @@ export interface MountScenePrimitivesToCesiumOptions {
    * {@link DEFAULT_SCENE_MOUNT_LAYER_LIMIT}. Must be a positive integer.
    */
   readonly maxLayers?: number;
-  /** Workspace state carried alongside the plan, mirroring the adapter's `apply`. */
+  /**
+   * Workspace state carried alongside the plan, mirroring the adapter's `apply`.
+   * Its `timeline` slice drives the target's clock (when the host bound one) and
+   * its `realtime` slice is recorded as the application's provenance.
+   */
   readonly state?: SceneWorkspaceState;
 }
 
@@ -120,7 +137,11 @@ export interface MountScenePrimitivesToCesiumOptions {
 export interface ApplyMountedScenePrimitivesOptions {
   /** Cancels this application only; the mount itself stays usable. */
   readonly signal?: AbortSignal;
-  /** Workspace state carried alongside the plan, mirroring the adapter's `apply`. */
+  /**
+   * Workspace state carried alongside the plan, mirroring the adapter's `apply`.
+   * Its `timeline` slice drives the target's clock (when the host bound one) and
+   * its `realtime` slice is recorded as the application's provenance.
+   */
   readonly state?: SceneWorkspaceState;
 }
 
@@ -139,6 +160,17 @@ export interface MountedScenePrimitiveApplyResult extends ScenePrimitiveApplyRes
   readonly reused: readonly string[];
   /** Ids whose renderer resource was released because the primitive left or changed. */
   readonly disposed: readonly string[];
+  /**
+   * One entry per binding involved in this update, naming the rebuild boundary
+   * it crossed — `"none"` for the bindings applied in place. This is the single
+   * list that answers "which parts of this update were incremental, and which
+   * forced a rebuild".
+   *
+   * Empty on the initial application: with no previously mounted plan to
+   * compare against, every binding is a construction rather than a crossing,
+   * and `created` already reports that.
+   */
+  readonly rebuildBoundaries: readonly SceneRebuildBoundaryReport[];
 }
 
 /**
@@ -159,6 +191,8 @@ export interface MountedCesiumScenePrimitives {
   readonly diagnostics: readonly ScenePrimitiveDiagnostic[];
   /** Live layer handles keyed by primitive id. Empty once disposed. */
   readonly layers: ReadonlyMap<string, CesiumLayerHandle>;
+  /** Rebuild boundaries crossed by the most recent application. */
+  readonly rebuildBoundaries: readonly SceneRebuildBoundaryReport[];
   /** The ceiling this mount was created with. */
   readonly layerLimit: number;
   /** 1 after the initial application, incremented for every revision. */
@@ -171,6 +205,10 @@ export interface MountedCesiumScenePrimitives {
    *
    * Applications are serialized: a second call queues behind the first rather
    * than interleaving scene mutations.
+   *
+   * Re-applying the *same* plan with a moved `options.state.timeline` is the
+   * incremental time path: nothing is rebuilt, every handle is carried forward
+   * by identity, and only the bound clock changes.
    */
   apply(
     primitives: readonly SceneRuntimePrimitive[],
@@ -217,6 +255,7 @@ export async function mountScenePrimitivesToCesium(
   let entries = new Map<string, MountEntry>();
   let orphans: CesiumLayerHandle[] = [];
   let diagnostics: readonly ScenePrimitiveDiagnostic[] = [];
+  let rebuildBoundaries: readonly SceneRebuildBoundaryReport[] = Object.freeze([]);
   let status: ScenePrimitiveApplyResult["status"] = "supported";
   let state: CesiumSceneMountState = "ready";
   let revision = 0;
@@ -236,6 +275,13 @@ export async function mountScenePrimitivesToCesium(
 
     // Identity + configuration diff against what is already mounted. A primitive
     // with no fingerprint is treated as changed, never as unchanged.
+    //
+    // The same walk names the rebuild boundary each binding crosses, so the
+    // reuse decision and the diagnostic that explains it can never disagree.
+    // Boundaries are only meaningful against a previously mounted plan, so the
+    // initial application reports none.
+    const isRevision = revision > 0;
+    const boundaries: SceneRebuildBoundaryReport[] = [];
     const reuse = new Map<string, CesiumLayerHandle | undefined>();
     const planEntries: MountEntry[] = [];
     for (const primitive of plan) {
@@ -244,13 +290,20 @@ export async function mountScenePrimitivesToCesium(
       const previous = entries.get(key);
       const unchanged = previous !== undefined && fingerprint !== undefined && previous.fingerprint === fingerprint;
       if (unchanged) reuse.set(key, previous.handle);
+      if (isRevision) {
+        boundaries.push(sceneRebuildBoundaryReport(primitive.id, primitive.kind, boundaryFor(previous, fingerprint)));
+      }
       planEntries.push({ key, id: primitive.id, kind: primitive.kind, fingerprint, handle: undefined });
     }
 
     state = "applying";
     let application: Awaited<ReturnType<typeof applyCesiumScenePrimitivesInternal>>;
     try {
-      application = await applyCesiumScenePrimitivesInternal(target, plan, { signal, reuse });
+      application = await applyCesiumScenePrimitivesInternal(target, plan, {
+        signal,
+        reuse,
+        ...(applyOptions.state ? { state: applyOptions.state } : {}),
+      });
     } finally {
       if (state === "applying") state = "ready";
     }
@@ -282,11 +335,31 @@ export async function mountScenePrimitivesToCesium(
         orphans.push(entry.handle);
       }
     }
+    // A binding that left the plan entirely crosses its own boundary; it is not
+    // in `plan`, so the diff walk above could not have reported it.
+    if (isRevision) {
+      for (const entry of entries.values()) {
+        if (nextEntries.has(entry.key)) continue;
+        boundaries.push(sceneRebuildBoundaryReport(entry.id, entry.kind, "plan-membership"));
+      }
+    }
     entries = nextEntries;
     revision += 1;
+    rebuildBoundaries = Object.freeze([...boundaries]);
 
+    const crossed = rebuildBoundaries.filter((report) => !report.incremental);
     const lifecycleDiagnostics = [
-      appliedDiagnostic(revision, application.created, application.reused, disposed, layerLimit, entries.size),
+      appliedDiagnostic(
+        revision,
+        application.created,
+        application.reused,
+        disposed,
+        layerLimit,
+        entries.size,
+        applyOptions.state?.realtime,
+        application.time.applied,
+      ),
+      ...crossed.map((report) => rebuildBoundaryDiagnostic(revision, report)),
       ...(disposalFailures.length > 0 ? [disposalIncompleteDiagnostic(disposalFailures)] : []),
     ];
     diagnostics = Object.freeze([...application.diagnostics, ...lifecycleDiagnostics]);
@@ -299,6 +372,7 @@ export async function mountScenePrimitivesToCesium(
       created: Object.freeze([...application.created]),
       reused: Object.freeze([...application.reused]),
       disposed: Object.freeze(disposed),
+      rebuildBoundaries,
     };
   };
 
@@ -329,6 +403,9 @@ export async function mountScenePrimitivesToCesium(
     },
     get diagnostics() {
       return diagnostics;
+    },
+    get rebuildBoundaries() {
+      return rebuildBoundaries;
     },
     get layers() {
       const live = new Map<string, CesiumLayerHandle>();
@@ -431,6 +508,20 @@ function resolveLayerLimit(maxLayers: number | undefined): number {
   return maxLayers;
 }
 
+/**
+ * Classify one plan binding against what this mount already owns.
+ *
+ * The order matters: a binding the mount has never seen is an identity
+ * crossing regardless of whether it can be fingerprinted, and an
+ * unfingerprintable revision is called out as such rather than being reported as
+ * a configuration change nobody made.
+ */
+function boundaryFor(previous: MountEntry | undefined, fingerprint: string | undefined): SceneRebuildBoundary {
+  if (previous === undefined) return "primitive-identity";
+  if (fingerprint === undefined) return "unfingerprintable";
+  return previous.fingerprint === fingerprint ? "none" : "primitive-configuration";
+}
+
 function appliedDiagnostic(
   revision: number,
   created: readonly string[],
@@ -438,6 +529,8 @@ function appliedDiagnostic(
   disposed: readonly string[],
   layerLimit: number,
   mountedPrimitiveCount: number,
+  realtime: SceneRealtimeState | undefined,
+  timeApplied: boolean,
 ): ScenePrimitiveDiagnostic {
   return {
     code: "scene-mount-applied",
@@ -452,7 +545,36 @@ function appliedDiagnostic(
       disposed: [...disposed],
       layerLimit,
       mountedPrimitiveCount,
+      // Whether this revision also moved application time, so a time-only
+      // revision is legible as one rather than as an application that did
+      // nothing.
+      timeApplied,
+      // Provenance for a revision driven by a live feed: which feed state the
+      // delta arrived under, so a rebuild can be read against a reconnect or a
+      // stale window rather than in isolation.
+      ...(realtime
+        ? {
+            realtime: {
+              status: realtime.status,
+              ...(realtime.cursor === undefined ? {} : { cursor: realtime.cursor }),
+              ...(realtime.staleSince === undefined ? {} : { staleSince: realtime.staleSince }),
+            },
+          }
+        : {}),
     },
+  };
+}
+
+function rebuildBoundaryDiagnostic(revision: number, report: SceneRebuildBoundaryReport): ScenePrimitiveDiagnostic {
+  return {
+    code: "scene-mount-rebuild-boundary",
+    severity: "info",
+    status: "supported",
+    primitiveId: report.id,
+    primitiveKind: report.kind,
+    renderer: CESIUM_SCENE_CAPABILITIES.renderer,
+    message: `Revision ${revision} could not update ${report.id} in place: ${report.reason}`,
+    context: { revision, rebuildBoundary: report.boundary, incremental: report.incremental },
   };
 }
 

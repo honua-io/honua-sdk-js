@@ -188,7 +188,13 @@ function fakeViewer(): FakeViewer {
       values: entities,
       getById: (id) => entities.find((entity) => entity.id === id),
     },
-    clock: { currentTime: undefined, startTime: undefined, stopTime: undefined, shouldAnimate: false },
+    clock: {
+      currentTime: undefined,
+      startTime: undefined,
+      stopTime: undefined,
+      multiplier: undefined,
+      shouldAnimate: false,
+    },
     selectedEntity: undefined,
     selectedEntityChanged: selectedEntityChanged.event,
     scene: { requestRender: () => undefined },
@@ -207,7 +213,7 @@ function fakeCesiumModule(): CesiumStateSyncModule {
     Cartesian3: { fromDegrees: (longitude, latitude, height) => ({ longitude, latitude, height: height ?? 0 }) },
     JulianDate: {
       fromIso8601: (iso) => ({ iso }),
-      toIso8601: (date) => (date as { iso: string } | undefined)?.iso ?? "",
+      toIso8601: (date) => (date as { iso?: string } | undefined)?.iso ?? "",
     },
   };
 }
@@ -525,6 +531,45 @@ describe("Cesium state-sync port", () => {
     expect(port.readFromRenderer("time")).toBe("duplicate");
 
     port.dispose();
+    synchronizer.dispose();
+  });
+
+  it("stands down from a host-owned clock instead of fighting it", async () => {
+    const viewer = { ...fakeViewer(), clockOwnership: "host" as const };
+    const port = createCesiumStateSyncPort(viewer, { identity: IDENTITY, cesium: fakeCesiumModule() });
+    expect(port.mappings.time).toMatchObject({ outbound: "unsupported", code: "cesium-clock-unbound" });
+    // The declaration is what the synchronizer acts on, so a delivery never
+    // reaches `applyTime`; call it directly to prove the guard is real code and
+    // not only a mapping string.
+    const synchronizer = createSceneStateSynchronizer({
+      applicationId: "app",
+      ports: [{ ...port, mappings: { ...port.mappings, time: { ...port.mappings.time, outbound: "exact" } } }],
+      coalesceMs: 0,
+    });
+    const peer = attachProbePort(synchronizer);
+    peer.emit("time", { currentTime: "2026-07-11T12:00:02.000Z" });
+    await synchronizer.flush();
+    expect(viewer.clock?.currentTime).toBeUndefined();
+    expect(port.degradations.map((entry) => entry.code)).toEqual(["time-clock-host-owned"]);
+    port.dispose();
+    synchronizer.dispose();
+  });
+
+  it("restores the clock it displaced on dispose", async () => {
+    const viewer = fakeViewer();
+    const baseline = { iso: "2026-01-01T00:00:00.000Z" };
+    if (viewer.clock) viewer.clock.currentTime = baseline;
+    const port = createCesiumStateSyncPort(viewer, { identity: IDENTITY, cesium: fakeCesiumModule() });
+    const synchronizer = createSceneStateSynchronizer({ applicationId: "app", ports: [port], coalesceMs: 0 });
+    const peer = attachProbePort(synchronizer);
+
+    peer.emit("time", { currentTime: "2026-07-11T12:00:02.000Z", playing: true });
+    await synchronizer.flush();
+    expect(viewer.clock?.currentTime).toEqual({ iso: "2026-07-11T12:00:02.000Z" });
+
+    port.dispose();
+    expect(viewer.clock?.currentTime).toBe(baseline);
+    expect(viewer.clock?.shouldAnimate).toBe(false);
     synchronizer.dispose();
   });
 

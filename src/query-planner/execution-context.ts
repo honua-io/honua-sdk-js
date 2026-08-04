@@ -19,12 +19,15 @@ export function assertQueryPlanExecutionContextV1<T>(
   const executionMode = options.executionMode ?? plan.validity.executionMode;
   const currentIr = { ...plan.ir, source: current };
   const currentProvenance = createQueryPlanProvenance(source.descriptor, current, options);
+  // Representation is plan-bound, not source-bound: it is re-asserted here so
+  // the validity fingerprint recomputes identically, never re-decided.
   const currentValidity = createPlanValidity(
     currentIr,
     currentProvenance,
     plan.capabilityPolicy,
     plan.fallback,
     executionMode,
+    plan.validity.representation,
   );
   if (currentValidity.fingerprint === plan.validity.fingerprint) return;
 

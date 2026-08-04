@@ -21,6 +21,16 @@
 import type { FeatureSelectionTarget, FilterClause } from "../exploration/index.js";
 import { type CesiumCameraLike, applyCameraStateToCesiumCamera, cesiumCameraToSceneState } from "./cesium-adapter.js";
 import {
+  type CesiumClockLike,
+  type CesiumClockSnapshot,
+  type CesiumClockTarget,
+  applyCesiumClockPlan,
+  cesiumClockPlanWrites,
+  readCesiumClock,
+  restoreCesiumClock,
+  sceneTimelineToCesiumClockPlan,
+} from "./cesium-time.js";
+import {
   type SceneStateSyncPortDegradation,
   type SceneStateSyncRendererPort,
   createPortCore,
@@ -53,22 +63,20 @@ export interface CesiumStateSyncEntityCollection {
   getById?(id: string): CesiumStateSyncEntity | undefined;
 }
 
-/** The bits of a Cesium `Clock` this port writes. */
-export interface CesiumStateSyncClock {
-  currentTime?: unknown;
-  startTime?: unknown;
-  stopTime?: unknown;
-  shouldAnimate?: boolean;
-}
-
-/** The subset of a live Cesium `Viewer` this port drives. */
-export interface CesiumStateSyncTarget {
+/**
+ * The subset of a live Cesium `Viewer` this port drives.
+ *
+ * The clock half is {@link CesiumClockTarget}, so the shared `time` slice writes
+ * a globe through exactly the binding the scene adapter uses — including its
+ * `clockOwnership` declaration, which this port honours by standing down rather
+ * than fighting a host-owned transport.
+ */
+export interface CesiumStateSyncTarget extends CesiumClockTarget {
   readonly camera: CesiumCameraLike & {
     readonly changed?: CesiumStateSyncEvent;
     readonly moveEnd?: CesiumStateSyncEvent;
   };
   readonly entities?: CesiumStateSyncEntityCollection;
-  readonly clock?: CesiumStateSyncClock;
   selectedEntity?: unknown;
   readonly selectedEntityChanged?: CesiumStateSyncEvent;
   readonly scene?: { requestRender?(): void };
@@ -130,8 +138,9 @@ export function createCesiumStateSyncPort(
   const sourceId = options.sourceId ?? options.identity.sourceId;
   const entitiesCapable = viewer.entities !== undefined && Array.isArray(viewer.entities.values);
   const selectionCapable = entitiesCapable && "selectedEntity" in viewer;
-  const clockCapable = viewer.clock !== undefined && viewer.clock !== null;
+  const clockOwned = viewer.clock !== undefined && viewer.clock !== null && viewer.clockOwnership !== "host";
   const baselineShow = new Map<string, boolean | undefined>();
+  let displacedClock: CesiumClockSnapshot | undefined;
   let module: CesiumStateSyncModule | undefined = typeof options.cesium === "object" ? options.cesium : undefined;
   // Renderer events raised *during* an apply are echoes by construction. They
   // are deferred rather than dropped so the acknowledgement still reaches the
@@ -208,14 +217,16 @@ export function createCesiumStateSyncPort(
 
   function readTime(): SceneTimelineState {
     if (!module || !viewer.clock) return Object.freeze({});
-    const currentTime = isoFromJulian(module, viewer.clock.currentTime);
-    const startTime = isoFromJulian(module, viewer.clock.startTime);
-    const endTime = isoFromJulian(module, viewer.clock.stopTime);
+    const clock = readCesiumClock(viewer.clock);
+    const currentTime = isoFromJulian(module, clock.currentTime);
+    const startTime = isoFromJulian(module, clock.startTime);
+    const endTime = isoFromJulian(module, clock.stopTime);
     return Object.freeze({
       ...(currentTime === undefined ? {} : { currentTime }),
       ...(startTime === undefined ? {} : { startTime }),
       ...(endTime === undefined ? {} : { endTime }),
-      ...(typeof viewer.clock.shouldAnimate === "boolean" ? { playing: viewer.clock.shouldAnimate } : {}),
+      ...(typeof clock.shouldAnimate === "boolean" ? { playing: clock.shouldAnimate } : {}),
+      ...(typeof clock.multiplier === "number" && Number.isFinite(clock.multiplier) ? { speed: clock.multiplier } : {}),
     });
   }
 
@@ -240,20 +251,48 @@ export function createCesiumStateSyncPort(
   }
 
   async function applyTime(time: SceneTimelineState, revision: number): Promise<void> {
-    if (!viewer.clock) {
+    const clock: CesiumClockLike | undefined = viewer.clock;
+    if (!clock) {
       core.degrade(
         "time",
         "time-clock-unavailable",
         "This viewer exposes no clock, so shared time cannot advance it.",
+        {
+          revision,
+        },
+      );
+      return;
+    }
+    if (viewer.clockOwnership === "host") {
+      core.degrade(
+        "time",
+        "time-clock-host-owned",
+        "This viewer declares host-owned transport, so the port stood down instead of writing the clock.",
         { revision },
       );
       return;
     }
+    // Reuse the scene adapter's clock plan rather than re-deriving the writes:
+    // it names what a timeline cannot express, and it orders the extent before
+    // the instant so a range-clamped clock accepts the new current time.
+    const plan = sceneTimelineToCesiumClockPlan(time);
+    if (plan && plan.rejected.length > 0) {
+      core.degrade(
+        "time",
+        "time-plan-rejected",
+        `Shared time fields were not interpretable: ${plan.rejected.join(", ")}.`,
+        {
+          revision,
+        },
+      );
+    }
+    if (!cesiumClockPlanWrites(plan) || !plan) {
+      core.markApplied("time", revision, readTime(), time);
+      return;
+    }
     const mod = await cesium();
-    if (time.currentTime !== undefined) viewer.clock.currentTime = mod.JulianDate.fromIso8601(time.currentTime);
-    if (time.startTime !== undefined) viewer.clock.startTime = mod.JulianDate.fromIso8601(time.startTime);
-    if (time.endTime !== undefined) viewer.clock.stopTime = mod.JulianDate.fromIso8601(time.endTime);
-    if (time.playing !== undefined) viewer.clock.shouldAnimate = time.playing;
+    const previous = applyCesiumClockPlan(clock, plan, mod);
+    displacedClock ??= previous;
     viewer.scene?.requestRender?.();
     core.markApplied("time", revision, readTime(), time);
   }
@@ -375,7 +414,7 @@ export function createCesiumStateSyncPort(
   const port: SceneStateSyncRendererPort = {
     id,
     renderer: "cesium",
-    mappings: buildMappings({ selectionCapable, entitiesCapable, clockCapable }),
+    mappings: buildMappings({ selectionCapable, entitiesCapable, clockOwned }),
     subscribe(listener, signal) {
       return core.subscribe(listener, signal);
     },
@@ -388,7 +427,7 @@ export function createCesiumStateSyncPort(
     readFromRenderer(slice) {
       if (slice === "camera") return core.publish("camera", readCamera());
       if (slice === "selection" && selectionCapable) return core.publish("selection", readSelection());
-      if (slice === "time" && clockCapable && module) return core.publish("time", readTime());
+      if (slice === "time" && viewer.clock !== undefined && module) return core.publish("time", readTime());
       return "unsupported";
     },
     get degradations() {
@@ -399,6 +438,10 @@ export function createCesiumStateSyncPort(
     },
     dispose() {
       if (core.disposed) return;
+      if (displacedClock && viewer.clock) {
+        restoreCesiumClock(viewer.clock, displacedClock);
+        displacedClock = undefined;
+      }
       if (viewer.entities) {
         for (const entity of viewer.entities.values) {
           if (baselineShow.has(entity.id)) entity.show = baselineShow.get(entity.id) ?? true;
@@ -414,7 +457,7 @@ export function createCesiumStateSyncPort(
 function buildMappings(capabilities: {
   readonly selectionCapable: boolean;
   readonly entitiesCapable: boolean;
-  readonly clockCapable: boolean;
+  readonly clockOwned: boolean;
 }): SceneStateSyncMappings {
   const mapping = (
     inbound: SceneStateSyncMapping["inbound"],
@@ -455,18 +498,18 @@ function buildMappings(capabilities: {
           "cesium-entities-unavailable",
           "This viewer exposes no entity collection, so shared filters have nothing to hide.",
         ),
-    time: capabilities.clockCapable
+    time: capabilities.clockOwned
       ? mapping(
           "exact",
           "exact",
           "cesium-clock",
-          "Shared application time maps to the viewer clock's current, start, stop, and animation state.",
+          "Shared application time maps to the viewer clock's extent, current instant, rate, and transport, through the same clock plan the scene adapter applies.",
         )
       : mapping(
           "exact",
           "unsupported",
-          "cesium-clock-unavailable",
-          "This viewer exposes no clock, so shared time cannot advance the scene.",
+          "cesium-clock-unbound",
+          "This viewer exposes no clock, or declares host-owned transport, so shared time does not advance the scene.",
         ),
     detail: mapping(
       "exact",
