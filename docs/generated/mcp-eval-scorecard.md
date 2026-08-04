@@ -179,13 +179,18 @@ workflow-composition result rather than a missing tool.
 
 ## How to reproduce, and how this page stays honest
 
-Re-run the deterministic control — free, offline, no credentials:
+Run the deterministic control locally — free, offline, no credentials, no model calls:
 
 ```bash
 npm ci && npm run build            # build the SDK the MCP package consumes
 npm ci --prefix mcp
 npm run --prefix mcp eval:offline  # deterministic control over the fixture surface
 ```
+
+Be precise about what that reproduces: it grades the control against the **offline fixture**
+surface, not the live operator surface the rows above targeted. The published control rows ran
+against the live `/mcp` — still with zero model calls — so reproducing one needs the live lane
+below with `--driver` left at the control.
 
 Re-run a live cross-model row (billable; needs credentials and a reachable `/mcp`):
 
@@ -214,6 +219,11 @@ without wedging open PRs. Because the renderer reads no clock and no network, th
 has exactly one failure mode worth having: the committed artifacts and the published page
 disagree. Adding a run without republishing, or editing a figure on this page by hand, both
 fail it.
+
+The relaxed mode is not a hole. It still loads and validates every artifact and re-renders the
+page, so an artifact whose model summary contradicts its own graded rows, whose schema version
+is unsupported, or that grades a scenario absent from its declared corpus, fails CI everywhere,
+on every branch. Only the *committed-freshness* comparison is deferred.
 
 ## Related evidence
 
