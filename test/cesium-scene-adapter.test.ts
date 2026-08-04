@@ -556,7 +556,13 @@ describe("cesium scene adapter", () => {
       expect(callerProvider.destroy).not.toHaveBeenCalled();
     });
 
-    it("sets exaggeration but skips the provider when terrain url is absent", async () => {
+    // Before #929, endpoint validation ran for `terrain-rgb` only, so a
+    // urlless `quantized-mesh` source still reached the scene far enough to
+    // move `verticalExaggeration`. Exaggeration of a terrain that was never
+    // loaded is a lie about the globe, so every protocol now fails closed on a
+    // missing endpoint the way `terrain-rgb` always did — including leaving the
+    // live scene's exaggeration alone.
+    it("leaves the scene untouched when terrain url is absent", async () => {
       const camera = createMockCesiumCamera();
       const scene = createMockCesiumScene();
       const result = await applyCesiumScenePrimitives({ camera, scene }, [
@@ -571,8 +577,12 @@ describe("cesium scene adapter", () => {
 
       expect(terrainFromUrl).not.toHaveBeenCalled();
       expect(scene.terrainProvider).toBeUndefined();
-      expect(scene.verticalExaggeration).toBe(1.5);
+      expect(scene.verticalExaggeration).toBe(1);
       expect(result.layers.has("terrain-no-url")).toBe(false);
+      expect(result.status).toBe("unsupported");
+      expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+        "scene-primitive-terrain-source-missing-url",
+      );
     });
 
     it("materializes every supported imagery protocol with explicit provider configuration", async () => {

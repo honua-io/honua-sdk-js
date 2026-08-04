@@ -280,15 +280,29 @@ compatible.
 | `scene-primitive-crs-unsupported` | `unsupported` | `unsupported` | The declared `crs` is unresolvable or outside the renderer's record. |
 | `scene-primitive-vertical-datum-unsupported` | `unsupported` | `unsupported` | The declared `verticalDatum` is not one the renderer can interpret as scene heights. |
 
-A honored vertical datum is silent; only an unhonorable one is reported, which
-is why the code vocabulary matches the entity path's
-`vertical-datum-unsupported` rather than inventing a second spelling.
+A vertical datum has only two honest states against a renderer that performs no
+height transform, so the code vocabulary reuses the entity path's
+`vertical-datum-unsupported` spelling rather than inventing a second one: a
+datum the renderer can interpret is silent, and one it cannot fails closed.
+The horizontal axis reports all three fidelities because `equivalent` is a real
+state there — the renderer genuinely does reproject Web Mercator itself.
 
-Two properties hold by construction. Classification is pure — it loads no
-renderer peer, so a migration analysis can run before a viewer exists. And a
-primitive that declares neither field diagnoses exactly as it did before this
-contract existed: an undeclared spatial reference is not a finding, and neither
-is a renderer that declares no `spatial` record.
+Only `EPSG:4979` and its `ellipsoidal-wgs84` spelling name the WGS84 ellipsoid
+as a *vertical* reference. `EPSG:4326` and `OGC:CRS84` are two-dimensional, so
+they classify as an unhonorable vertical datum even though they are exact
+horizontal ones; write `EPSG:4979` when the heights really are ellipsoidal.
+
+Three properties hold by construction:
+
+- **Pure.** Classification loads no renderer peer, so a migration analysis can
+  run before a viewer exists.
+- **Silent when nothing is known.** A primitive that declares neither field
+  diagnoses exactly as it did before this contract existed, and so does any
+  primitive measured against a renderer that declares no `spatial` record.
+  Absence of metadata is never read as agreement.
+- **Fail-closed when something is known but unhonorable.** Nothing is reprojected
+  or transformed to make a declaration fit, and no fidelity is inferred from an
+  identifier the normalizer could not resolve.
 
 ```ts doc-test=compile
 import {

@@ -223,6 +223,18 @@ describe("scene primitive spatial-reference diagnostics (#929)", () => {
       });
     });
 
+    it("rejects a two-dimensional CRS used as a vertical datum", () => {
+      // EPSG:4326 and OGC:CRS84 are exact *horizontal* references but carry no
+      // height component, so accepting either as a vertical datum would infer
+      // an ellipsoidal height the author never declared. EPSG:4979 is the
+      // three-dimensional spelling and is the one that passes.
+      for (const verticalDatum of ["EPSG:4326", "OGC:CRS84"]) {
+        expect(codes(diagnoseScenePrimitive(terrain({ verticalDatum }), CESIUM_SCENE_CAPABILITIES))).toEqual([
+          "scene-primitive-vertical-datum-unsupported",
+        ]);
+      }
+    });
+
     it("aligns its code vocabulary with the entity path's vertical-datum-unsupported", () => {
       const diagnostics = diagnoseScenePrimitive(model({ verticalDatum: "EPSG:3855" }), CESIUM_SCENE_CAPABILITIES);
 
