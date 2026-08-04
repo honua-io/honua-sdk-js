@@ -22,7 +22,7 @@
  */
 
 export { loadMapPackage } from "./load-package.js";
-export type { LoadMapPackageOptions, SourceErrorPolicy } from "./load-package.js";
+export type { LoadMapPackageOfflineRegion, LoadMapPackageOptions, SourceErrorPolicy } from "./load-package.js";
 
 export { maplibreRenderer } from "./maplibre-renderer.js";
 export type {
@@ -169,6 +169,23 @@ export type {
   PmtilesProtocolLike,
   PmtilesProtocolModuleLike,
 } from "./pmtiles-protocol.js";
+
+export {
+  ensureOfflineRegionProtocol,
+  isOfflineRegionProtocolRegistered,
+  OFFLINE_REGION_PROTOCOL_SCHEME,
+  resetOfflineRegionProtocol,
+  styleUsesOfflineRegion,
+} from "./offline-region-protocol.js";
+export type { EnsureOfflineRegionProtocolDeps, OfflineRegionTileHandler } from "./offline-region-protocol.js";
+export { revertOfflineRegionStyleRewrite, rewriteStyleTilesForOfflineRegion } from "./offline-region-style.js";
+export type {
+  OfflineRegionStyleRefusalReason,
+  OfflineRegionStyleRefusalV1,
+  OfflineRegionStyleRewriteEntryV1,
+  OfflineRegionStyleRewriteV1,
+  RewriteStyleTilesForOfflineRegionOptions,
+} from "./offline-region-style.js";
 
 export {
   DEFAULT_OGC_STYLES_PATH_PREFIX,

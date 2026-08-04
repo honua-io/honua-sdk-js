@@ -14,7 +14,12 @@ import {
   explainAutomaticSourceToMapLibre,
   mountAutomaticSourceToMapLibre,
 } from "../map/index.js";
-import type { PmtilesProtocolModuleLike } from "./pmtiles-protocol.js";
+import {
+  type OfflineRegionTileHandler,
+  ensureOfflineRegionProtocol,
+  styleUsesOfflineRegion,
+} from "./offline-region-protocol.js";
+import type { MaplibreProtocolRegistrar, PmtilesProtocolModuleLike } from "./pmtiles-protocol.js";
 import { ensurePmtilesProtocol } from "./pmtiles-protocol.js";
 
 /** MapLibre module slice consumed from the caller-injected optional peer. */
@@ -55,6 +60,14 @@ export interface MapLibreRendererOptions extends Omit<ExplainAutomaticMapLibreOp
   readonly mapOptions?: Readonly<Record<string, unknown>>;
   /** Defaults to `render`, the first frame that can contain the mounted layer. */
   readonly firstFrameEvent?: "render" | "idle";
+  /**
+   * Tile handler for a style that addresses a persisted offline region.
+   *
+   * Registered before an owned map is constructed, but only when the style
+   * actually references the `offline-region://` scheme. A style that references
+   * it without a handler fails construction instead of rendering blank tiles.
+   */
+  readonly offlineRegion?: { readonly tileHandler: OfflineRegionTileHandler };
 }
 
 const EMPTY_STYLE = Object.freeze({
@@ -87,6 +100,22 @@ export function maplibreRenderer(
       request: RendererMountRequest<T, MapLibreRendererOptions>,
     ): Promise<RendererSession<MapLibreRendererMap>> {
       const rendererOptions = request.rendererOptions ?? {};
+      // A style that addresses a persisted region needs its protocol before the
+      // map is constructed with it; registration is driven by the style's own
+      // evidence, and a style that names the scheme without a handler fails here
+      // rather than rendering blank tiles.
+      if (styleUsesOfflineRegion(request.style as { sources?: Record<string, unknown> } | undefined)) {
+        const registrar = protocolRegistrar(maplibre);
+        if (rendererOptions.offlineRegion === undefined || registrar === undefined) {
+          throw new TypeError(
+            "Rendering an offline-region style requires caller-injected MapLibre and a rendererOptions.offlineRegion tile handler.",
+          );
+        }
+        await ensureOfflineRegionProtocol({
+          tileHandler: rendererOptions.offlineRegion.tileHandler,
+          maplibre: registrar,
+        });
+      }
       const host = resolveMapHost(maplibre, target, request, rendererOptions);
       const map = host.map;
       try {
@@ -121,18 +150,13 @@ export function maplibreRenderer(
           });
         }
         if (plan.selected?.strategy.startsWith("pmtiles")) {
-          if (pmtiles === undefined || typeof maplibre.addProtocol !== "function") {
+          const registrar = protocolRegistrar(maplibre);
+          if (pmtiles === undefined || registrar === undefined) {
             throw new HonuaAutomaticMapLibreStrategyError(
               "no-eligible-strategy",
               "PMTiles mounting requires caller-injected MapLibre and PMTiles protocol peers.",
             );
           }
-          const registrar = {
-            addProtocol: (scheme: string, handler: unknown) => maplibre.addProtocol!(scheme, handler),
-            ...(typeof maplibre.removeProtocol === "function"
-              ? { removeProtocol: (scheme: string) => maplibre.removeProtocol!(scheme) }
-              : {}),
-          };
           await ensurePmtilesProtocol({ maplibre: registrar, pmtilesModule: pmtiles });
         }
         const mounted = await mountAutomaticSourceToMapLibre(map, request.source, plan, {
@@ -204,6 +228,21 @@ function maplibrePeer(value: MapLibreRendererPeer): ResolvedMapLibreRendererPeer
       ? { removeProtocol: removeProtocol as ResolvedMapLibreRendererPeer["removeProtocol"] }
       : {}),
   });
+}
+
+/**
+ * Adapt the injected peer to the shared protocol registrar, or report that it
+ * cannot register protocols. This adapter never imports `maplibre-gl` itself, so
+ * an absent `addProtocol` is a caller-visible failure rather than a lazy import.
+ */
+function protocolRegistrar(peer: ResolvedMapLibreRendererPeer): MaplibreProtocolRegistrar | undefined {
+  const addProtocol = peer.addProtocol;
+  if (typeof addProtocol !== "function") return undefined;
+  const removeProtocol = peer.removeProtocol;
+  return {
+    addProtocol: (scheme: string, handler: unknown) => addProtocol(scheme, handler),
+    ...(typeof removeProtocol === "function" ? { removeProtocol: (scheme: string) => removeProtocol(scheme) } : {}),
+  };
 }
 
 function resolveMapHost<T>(
