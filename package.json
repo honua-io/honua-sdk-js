@@ -608,7 +608,7 @@
     "validate:pr-fast": "node scripts/run-pr-fast.mjs",
     "bench:ttfm": "node scripts/benchmark-time-to-first-map.mjs",
     "bench:stream": "npm run build --silent && node dist/bench/run.js",
-    "bench:lab": "npm run build --silent && node dist/bench/lab.js --check --output test-results/benchmark-lab.json",
+    "bench:lab": "npm run build --silent && node --expose-gc dist/bench/lab.js --check --output test-results/benchmark-lab.json",
     "bench:references": "npm run build --silent && node dist/bench/cross-sdk/validate.js bench/cross-sdk/corpus.json test-results/cross-sdk-reference-corpus.json",
     "bench:references:refresh-terms": "npm run build --silent && node dist/bench/cross-sdk/validate.js bench/cross-sdk/corpus.json test-results/cross-sdk-terms-refresh.json --refresh-terms",
     "bench:references:source-tree": "npm run build --silent && node dist/bench/cross-sdk/validate.js --print-source-tree",

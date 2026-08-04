@@ -183,6 +183,12 @@ export default defineConfig({
         statements: 75,
       },
     },
+    // `--expose-gc` lets memory-sensitive harnesses take a collected baseline
+    // instead of one polluted by earlier garbage. The columnar data-plane
+    // benchmark fails closed without it rather than publishing a reading a
+    // mid-run collection may have deflated. Exposing the collector does not by
+    // itself change when V8 collects.
+    execArgv: ["--expose-gc"],
     // Migration CLI tests execute one prepared dist tree and serialize their
     // child processes through the shared CLI lock. Keep file execution
     // serialized so the run-scoped SDK artifact remains immutable.
