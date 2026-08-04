@@ -191,6 +191,11 @@ function projectAttributes(row: CensusRow, outFields: string | string[] | undefi
     return { ...row };
   }
   const requested = Array.isArray(outFields) ? outFields : outFields.split(",").map((f) => f.trim());
+  // A FeatureServer serializes `outFields` as a comma list, so `["*"]` reaches
+  // the wire as `outFields=*` and selects every field. Mirror that here.
+  if (requested.some((field) => field.trim() === "*")) {
+    return { ...row };
+  }
   const attributes: Record<string, unknown> = {};
   for (const field of requested) {
     const value = fieldValue(row, field);

@@ -523,10 +523,16 @@ correctly use this SDK:
 - **MCP server** — [`@honua/mcp-server`](./mcp/README.md) is the **platform-free**
   geospatial MCP server: point `honua-mcp` at **any** public ArcGIS FeatureServer
   or OGC API endpoint (no Honua server required) and it exposes discovery, query,
-  and analysis tools to assistants over the Model Context Protocol. Tools that need
-  a Honua-only surface degrade gracefully with a structured "not available on this
-  target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
-  via `honua-mcp-proxy`.
+  and analysis tools to assistants over the Model Context Protocol. Its tool
+  contract is the SDK's own protocol-neutral one — sources are addressed as
+  `<protocol>:<address>` (`ogc-features:hotels`, `stac:sentinel-2-l2a`,
+  `wfs:topp:states`, `odata:People`, `geoservices-feature-service:Parks/0`),
+  filters are the typed semantic filter, and geometry is GeoJSON, so **no tool
+  schema requires an Esri-only field**. Tools that need a Honua-only surface
+  degrade gracefully with a structured "not available on this target" result, and
+  a request the backing protocol cannot express returns a structured capability
+  error rather than an empty result. A Honua deployment's richer `/mcp` catalog is
+  the upgrade path via `honua-mcp-proxy`.
 - **Cross-model MCP eval scorecard** — how well *different client models* actually
   drive that MCP surface, published rather than asserted:
   [`docs/generated/mcp-eval-scorecard.md`](./docs/generated/mcp-eval-scorecard.md).
