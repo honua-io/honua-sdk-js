@@ -49,9 +49,11 @@ export class GeoJSONLayerCompat {
   public listMode: string;
   public renderer: unknown;
   public popupTemplate: unknown;
-  public outFields: ReadonlyArray<string> | undefined;
+  /** Mutable to match the ArcGIS declaration (`string[]`); see #1013. */
+  public outFields: string[] | undefined;
   public objectIdField: string;
-  public fields: ReadonlyArray<{ name: string; alias?: string; type?: string }>;
+  /** Mutable to match the ArcGIS declaration (`Field[]`); see #1013. */
+  public fields: Array<{ name: string; alias?: string; type?: string }>;
   public geometryType: string | undefined;
   public spatialReference: { wkid?: number; latestWkid?: number };
   public loaded: boolean;
@@ -73,9 +75,9 @@ export class GeoJSONLayerCompat {
     this.listMode = options.listMode ?? "show";
     this.renderer = options.renderer;
     this.popupTemplate = options.popupTemplate;
-    this.outFields = options.outFields;
+    this.outFields = options.outFields === undefined ? undefined : [...options.outFields];
     this.objectIdField = options.objectIdField ?? "OBJECTID";
-    this.fields = options.fields ?? [];
+    this.fields = options.fields === undefined ? [] : [...options.fields];
     this.geometryType = options.geometryType;
     this.spatialReference = options.spatialReference ?? { wkid: 4326 };
     this.loaded = false;

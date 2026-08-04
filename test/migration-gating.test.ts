@@ -25,6 +25,7 @@ function createReport(): JsMigrationReport {
         totalCodemodScopedCallSites: 5,
         autoMigratedCallSites: 4,
         manualCallSites: 1,
+        seamCallSites: 0,
         byKind: {
           "feature-layer": { total: 2, autoMigrated: 1, manual: 1 },
           graphic: { total: 0, autoMigrated: 0, manual: 0 },
@@ -123,6 +124,7 @@ function createReport(): JsMigrationReport {
       unhandledUsageHits: 1,
     },
     usageDetected: true,
+    seamCallSites: 0,
     readiness: "blocked",
     gates: [
       {

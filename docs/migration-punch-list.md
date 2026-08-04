@@ -189,7 +189,39 @@ hold the surface stable).
    `calcite-action--`-prefixed selectors will need style work. Every
    other container-bearing shim is state-model-only and needs the
    application to render it.
-7. **`reactiveUtils.watch` semantics (partial).** Compat `watch` is
+7. **Typed-surface divergences from the emulated ArcGIS shape.**
+   The shims are structurally compatible with the ArcGIS surface
+   they emulate except where this list says otherwise. The audit
+   of array-valued properties (#1013) settled as follows.
+
+   *Array mutability — fixed, no divergence.* ArcGIS declares
+   these as mutable arrays and the shims now do too:
+   `FeatureFilterCompat.objectIds`, `GeoJSONLayerCompat.outFields`,
+   `GeoJSONLayerCompat.fields`, `ImageryLayerCompat.bandIds`,
+   `WFSLayerCompat.outFields`. Each is copied out of the caller's
+   input on construct/update, so `layer.outFields.push("TYPE")` is
+   honored (the shim reads the array it stored) without aliasing
+   the array the caller passed in. The corresponding `*Options`
+   input properties stay `ReadonlyArray` on purpose: an input that
+   accepts a readonly array is strictly *more* permissive than
+   ArcGIS's, so it is not a divergence.
+
+   *`FeatureFilterCompat.objectIds` element type — deliberate,
+   kept.* ArcGIS declares `number[]`; the shim declares
+   `Array<number | string>`. Honua's non-Esri sources (OGC API
+   Features, GeoJSON, STAC) carry string feature ids, and
+   narrowing the property to `number` would make the shim unable
+   to hold ids it has to round-trip through `queryFeatures` /
+   `queryObjectIds`. Because `(number | string)[]` is not
+   assignable to `number[]`, handing a compat filter straight to
+   an un-migrated ArcGIS construct still does not typecheck — so
+   the shim exposes `FeatureFilterCompat.toEsriProperties()`,
+   which projects onto the exact ArcGIS `FeatureFilterProperties`
+   shape and **throws** on an id ArcGIS cannot represent rather
+   than silently dropping it and returning a filter that selects a
+   different feature set. The codemod does not create that handoff
+   on its own any more; see codemod gap 7.
+8. **`reactiveUtils.watch` semantics (partial).** Compat `watch` is
    property-name-based and synchronous. ArcGIS `watch` accepts an
    accessor function and returns a `WatchHandle` with `pause()` /
    `resume()`. Single-property accessors —
@@ -300,7 +332,29 @@ known constructors" into "automated app conversion":
    cannot synthesize from JSON alone. Each emitted gap is a `//
    TODO` anchor for an app author, not a promise of automated
    migration.
-6. **End-to-end demo conversion.** Shipped at
+6. **Compat → ArcGIS seams (detected, not bridged).** *Shipped as
+   detection (#1012).* A file can hold an in-scope producer whose
+   only consumer is out of scope — the shape the OSS-corpus deep
+   lane hit in `lujoh/owls_of_bavaria`, where a `FeatureFilter`
+   feeds an `@arcgis/core/layers/support/FeatureEffect` the
+   codemod does not migrate. Rewriting only the producer leaves a
+   compat value in an un-migrated ArcGIS constructor's hands: a
+   seam that does not typecheck, previously scored as a clean
+   auto-migration. The codemod now detects the handoff
+   syntactically — `new X()` directly in an out-of-scope ArcGIS
+   consumer's argument, a local bound to one, or a local function
+   that returns one, plus assignment onto an out-of-scope
+   instance's property — **holds the rewrite back**, and emits a
+   manual TODO naming both sides. Seam call sites are counted in
+   `manualCallSites` and broken out as
+   `metrics.seamCallSites` / `JsMigrationReport.seamCallSites`;
+   they are never counted as auto-migrated. What is *not* done:
+   the codemod does not bridge the seam (no inserted
+   `toEsriProperties()` call, no consumer rewrite), and the
+   analysis is file-local and bounded by design — a value that
+   crosses a module boundary or moves through a data structure it
+   cannot follow is not reported.
+7. **End-to-end demo conversion.** Shipped at
    `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`.
    The sample is a hand-written parcel viewer exercising
    `FeatureLayer` (with `outFields` + `popupTemplate`), `Map`,
