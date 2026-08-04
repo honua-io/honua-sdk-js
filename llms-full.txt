@@ -5221,6 +5221,90 @@ const diagnostic = await createOfflineRegionDiagnostic(
 );
 ```
 
+## Storage budget and quota admission
+
+`logicalQuotaBytes` is an honest accounting of declared payload lengths, but on
+its own it has no relationship to the space the browser will grant. Ask the
+platform instead of inventing a constant: `probeOfflineStorageBudget()` reads
+`navigator.storage.estimate()` through an injectable interface and derives a
+conservative logical budget.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  downloadOfflineRegion,
+  probeOfflineStorageBudget,
+  requestOfflinePersistentStorage,
+} from "@honua/sdk-js/offline";
+
+const budget = await probeOfflineStorageBudget();
+if (budget.status === "unavailable") {
+  // No StorageManager, or no estimate. The SDK reports that rather than
+  // fabricating a number; the application decides what to offer.
+  showUnknownCapacity(budget.reason, budget.persistence);
+} else if (budget.logicalBudgetBytes < manifest.totalLogicalBytes) {
+  showTooLarge(budget.remainingBytes, budget.reserveBytes);
+} else {
+  await downloadOfflineRegion(manifest, {
+    store: applicationStore,
+    load: applicationResourceLoader,
+    logicalQuotaBytes: budget.logicalBudgetBytes,
+  });
+}
+
+// Only ever on an explicit user action: this can prompt.
+if (budget.persistence === "best-effort" && userAskedToKeepData) {
+  const persistence = await requestOfflinePersistentStorage();
+  console.log(persistence.status); // "granted" | "denied" | "unavailable"
+}
+```
+
+Derivation is deterministic integer arithmetic over the reported values:
+
+```text
+remaining = max(0, quota - usage)
+reserve   = min(remaining, max(minimumReserveBytes, floor(remaining * headroomRatio)))
+budget    = remaining - reserve
+```
+
+so the derived budget can never exceed the platform-reported remaining quota,
+and an origin with less free space than the reserve floor (16 MiB by default) is
+offered `0` rather than a number that cannot be honoured. The estimate is
+deliberately imprecise and origin-scoped, so the result is **advisory, never a
+guarantee** — which is exactly why a reserve exists and why physical occupancy,
+deduplication, and index overhead stay outside the contract.
+
+A device can still refuse a write the budget admitted. When it does, the
+platform `QuotaExceededError` raised while staging, writing, or committing is
+classified as `quota-exceeded` / `offline.region.quota` rather than the internal
+`store-failed` / `offline.storage.failure` class, and the error carries the
+admission plan that was attempted:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+try {
+  await downloadOfflineRegion(manifest, downloadOptions);
+} catch (error) {
+  if (isHonuaError(error, "offline.region.quota")) {
+    // Required, evicted, and projected logical bytes, without recomputing them.
+    showEvictionPrompt(error.admission);
+  }
+}
+```
+
+A refused plan is a proposal, not a record of what happened: a region refused
+before the download starts evicts nothing, and no region outside
+`admission.evictRegionIds` is ever removed. Pinned regions are never proposed.
+`isStorageQuotaPressureError()` is exported so a host-supplied
+`OfflineRegionStore` can classify the same condition the same way instead of
+hiding a full device inside its own wrapper.
+
+Persisted state changes the eviction risk for every cached region, so it is
+observed rather than inferred: the probe reports
+`persistence: "persisted" | "best-effort" | "unknown"`, and
+`createOfflineRegionDiagnostic()` accepts the probe result and republishes it as
+`diagnostic.storage`. The diagnostic never probes on its own, and
+`navigator.storage.persist()` is reached only through
+`requestOfflinePersistentStorage()` — a download is not consent to prompt.
+
 ## Durable edit queue
 
 The same subpath exposes a storage-neutral queue contract, a deterministic
@@ -5384,6 +5468,13 @@ confidently wrong headline.
   bytes, compression, deduplication, or store overhead. Admission is deterministic:
   expired regions, then least-recently-used regions, then code-unit id order.
   Pinned regions are never automatically evicted.
+- The ceiling itself can be derived from the origin's real storage estimate.
+  `probeOfflineStorageBudget()` performs no network I/O, mutates nothing, never
+  requests persistence, returns no credential or request URL, and is
+  deterministic for identical inputs. A platform without a `StorageManager` or
+  an estimate yields an explicit `unavailable` result instead of a fabricated
+  budget. A refusal by the device is typed `quota-exceeded` and carries the
+  attempted admission plan.
 - The injected transaction stages evictions and writes, then publishes them
   atomically with the manifest and receipt. Commit compares the inventory
   revision used for planning and independently enforces logical quota in the
@@ -14082,9 +14173,9 @@ than being throwaway no-ops. Specifically:
   `Fullscreen`, `Zoom`, `Attribution`, `ScaleBar`, `Locate`,
   `Bookmarks`, `Print`, `Sketch`, `Editor`, `Expand`, `TimeSlider`,
   `Directions`, `CoordinateConversion`, `Measurement`
-- Tasks & support: `RouteTask`, `Query`, `OAuthInfo`,
-  `IdentityManager`, `esriRequest`, `esriConfig`, `reactiveUtils`,
-  `FeatureFilter`
+- Tasks & support: `RouteTask`, `Locator`, `LocatorSearchSource`,
+  `Query`, `OAuthInfo`, `IdentityManager`, `esriRequest`,
+  `esriConfig`, `reactiveUtils`, `FeatureFilter`
 
 The `MapViewLayerViewCompat` returned from `view.whenLayerView()`
 now carries `filter` / `effect` / `visible` state and forwards
@@ -14127,9 +14218,13 @@ API (it does **not** use regex). It:
 - Emits `manualTodos` and `manualTodoReasons` on a `byKind` matrix
   for every untouched call site, so app authors can drive cleanup
   against a checklist.
-- Emits a parity report (`src/migration/report.ts`) with three
-  gates (`no-manual-todos`, `no-unhandled-modules`,
-  `no-blocking-flags`) and a readiness verdict.
+- Emits a parity report (`src/migration/report.ts`) with four
+  gates (`arcgis-usage-detected`, `no-manual-todos`,
+  `no-unhandled-modules`, `no-blocking-flags`) and a readiness
+  verdict. A scan that recognized no ArcGIS usage reports
+  `no-usage-detected` rather than letting the other three gates pass
+  vacuously into a `ready`; `--fail-on-no-usage` fails a CI lane on
+  it.
 - Knows the `esri-leaflet` migration target as a separate column,
   with `ESRI_LEAFLET_COMPAT_FALLBACK_KINDS` gating which kinds are
   treated as deterministic vs. assisted.
@@ -14166,12 +14261,25 @@ hold the surface stable).
    `IntegratedMeshLayer`, `PointCloudLayer`, `MeshLayer`,
    `ElevationLayer`, `VoxelLayer` have no shims. These all need
    server-side glTF/I3S support (`honua-server` ticket).
-3. **`Locator` / `Geoprocessor` / `NetworkAnalyst` (beyond
-   RouteTask).** Today only `RouteTask` is shimmed against
-   `HonuaRouteService`. The remaining task surfaces (geocoding,
-   service-area, OD-cost-matrix, closest-facility,
-   non-network geoprocessing) need their own surfaces under
-   `src/core/` and matching compat classes.
+3. **`Geoprocessor` / `NetworkAnalyst` (beyond RouteTask).**
+   `Locator` is no longer in this bucket: `LocatorCompat` shims
+   `addressToLocations`, `addressesToLocations`,
+   `locationToAddress`, and `suggestLocations` onto the
+   provider-pluggable geocoding contract in `src/geocoding/`, and
+   `LocatorSearchSourceCompat` is the `Search` widget's address
+   backend — client-side, with no `honua-server` surface. The
+   caller supplies the endpoint (Nominatim / Photon / Pelias / a
+   Honua GeocodeServer), so the codemod rewrites the constructor
+   but cannot choose the provider; that one wiring step stays
+   assisted, and `@arcgis/core/rest/locator` function imports are
+   rewritten with a TODO for the URL-to-`LocatorCompat` swap.
+   Provider capability misses (no `suggest` on Nominatim) throw
+   `HonuaCapabilityNotSupportedError` instead of degrading to a
+   forward geocode. Batch geocoding is client-side — one provider
+   request per address, not a server batch endpoint. Still
+   unshimmed: service-area, OD-cost-matrix, closest-facility, and
+   non-network geoprocessing, which do need their own surfaces
+   under `src/core/` and matching compat classes.
 4. **`Query` argument depth.** *Shipped (Task E).* The codemod now
    deep-transforms `new Query({...})` argument literals into the
    Honua `QueryFeaturesRequest` shape: renames `start` →
@@ -14347,18 +14455,20 @@ In rough effort order:
 | Codemod event-name remap (Task D) | 1–2 days | Pure JS-side work; needs an event-name dictionary plus AST pass. |
 | Codemod dynamic-import + CJS (Task F) | 1–2 days | Mirror the static-ESM path; care needed for awaited dynamic imports' destructuring. |
 | ~~Query argument deep-transform (Task E)~~ | ~~3–5 days~~ | Shipped: codemod renames `start`/`num`/`outSpatialReference`/`spatialRelationship`, splits `geometry` into `geometry`+`geometryType`, normalizes `outStatistics[i].statisticType` against `STATISTIC_TYPE_MAP`, and emits precise manual TODOs for `timeExtent`, `quantizationParameters`, `relationParam`, dynamic statisticType, and geometry without a literal `type`. `QueryCompat` accepts both ArcGIS and Honua property spellings. |
-| Locator + Geoprocessor compat (Task C) | 1–2 weeks | Requires `HonuaGeocodeService`, `HonuaGeoprocessService` surfaces (server work). |
+| ~~Locator compat (Task C, geocoding half)~~ | ~~1 week~~ | Shipped: `LocatorCompat` + `LocatorSearchSourceCompat` ride the provider-pluggable geocoding contract, so no `HonuaGeocodeService` was needed. The provider endpoint is caller-configured, which keeps the wiring step assisted. |
+| Geoprocessor compat (Task C, remainder) | 1–2 weeks | Requires a `HonuaGeoprocessService` surface (server work); service-area / OD-cost-matrix / closest-facility likewise. |
 | Scene-layer compat (Task A-rest) | 4–8 weeks | Requires I3S/glTF pipeline on `honua-server`; not pure-JS work. |
 | ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
 
-With the first three rows (Tasks D/F/E) now shipped, "automated app
-conversion" reaches deterministic constructor rewrite + event-name
-remap + dynamic/CJS imports + Query argument deep-transform, plus a
-manual-TODO report for everything else. The remaining rows
-(Locator/Geoprocessor and Scene-layer compat) still gate the
-unqualified "parity with ArcGIS JS SDK" claim — that should remain
-qualified as "deterministic 2D parity; scene/3D and advanced tasks
-remain assisted migration" until they land.
+With Tasks D/F/E and the geocoding half of Task C now shipped,
+"automated app conversion" reaches deterministic constructor rewrite +
+event-name remap + dynamic/CJS imports + Query argument deep-transform +
+`Locator`/`Search` address backends, plus a manual-TODO report for
+everything else. The remaining rows (Geoprocessor/NetworkAnalyst and
+Scene-layer compat) still gate the unqualified "parity with ArcGIS JS
+SDK" claim — that should remain qualified as "deterministic 2D parity;
+scene/3D and advanced tasks remain assisted migration" until they
+land.
 
 ---
 

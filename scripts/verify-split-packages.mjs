@@ -302,6 +302,8 @@ import {
   LayerListCompat,
   LegendCompat,
   LocateCompat,
+  LocatorCompat,
+  LocatorSearchSourceCompat,
   MeasurementCompat,
   AreaMeasurement2DCompat,
   DistanceMeasurement2DCompat,
@@ -908,6 +910,28 @@ if (typeof geometryEngineCompat !== "object" || typeof geometryEngineCompat.buff
   const point = { x: 0, y: 0, spatialReference: { wkid: 3857 } };
   const disk = geometryEngineCompat.buffer(point, 100, "meters");
   if (!disk || !Array.isArray(disk.rings)) throw new Error("geometryEngineCompat.buffer did not return an Esri polygon");
+}
+{
+  // LocatorCompat rides the geocoding provider contract, so the compat tarball
+  // must resolve @honua/sdk-esri-compat/geocoding/* at runtime (issue #956).
+  const locator = new LocatorCompat({
+    provider: {
+      id: "smoke",
+      capabilities: ["geocode"],
+      attribution: "smoke",
+      geocode: async () => [
+        { address: "Somewhere", latitude: 1, longitude: 2, score: 1, attributes: {}, provenance: { provider: "smoke", attribution: "smoke" } },
+      ],
+      reverse: async () => null,
+      suggest: async () => [],
+    },
+  });
+  const candidates = await locator.addressToLocations({ address: "Somewhere" });
+  if (candidates.length !== 1 || candidates[0].location.x !== 2)
+    throw new Error("LocatorCompat.addressToLocations did not project the provider match");
+  const source = new LocatorSearchSourceCompat({ locator });
+  if (typeof source.search !== "function" || typeof source.suggest === "function")
+    throw new Error("LocatorSearchSourceCompat did not honor the provider suggest capability declaration");
 }
 
 console.log("splitPackageSmoke=ok");
