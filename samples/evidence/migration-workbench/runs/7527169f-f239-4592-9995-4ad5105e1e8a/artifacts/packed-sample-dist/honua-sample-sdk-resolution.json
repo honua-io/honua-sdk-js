@@ -1,0 +1,145 @@
+{
+  "format": "honua.sdk.sample-resolution.v1",
+  "schemaVersion": 1,
+  "mode": "packed",
+  "package": {
+    "name": "@honua/sdk-js",
+    "version": "0.1.2-beta.0"
+  },
+  "entrypoints": [
+    {
+      "specifier": "@honua/sdk-js/esri-compat",
+      "exportTarget": "./dist/src/esri-compat-entry.js",
+      "hashSubject": "packed-published-entrypoint-file",
+      "sha256": "4302148fdc9d7fa3afb711898bb9ea550cdd0004ea5d9cf545602c168bd8795e"
+    }
+  ],
+  "bundle": [
+    {
+      "fileName": "assets/index-DVjtM3nn.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 33290,
+      "sha256": "af8adf9341535c83ff6e1fb9e3d18c307d6674b7294b40ea98dddbe88a150ae7"
+    },
+    {
+      "fileName": "assets/errors-bOxXP5YW.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 29690,
+      "sha256": "eba616af0cd7357df519f851df850ede0192bccbe951815dc00b61d6ea879e8f"
+    },
+    {
+      "fileName": "assets/esm-43ltykJI.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 691,
+      "sha256": "526a0efff54fa5abec8d9fc57f0fd257db2c59bb7925ba0eaef4aa03011f550f"
+    },
+    {
+      "fileName": "assets/esm-BfJANlUL.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 18857,
+      "sha256": "5fbf66bd2c89216528362fad7b102ee3514b594c80a52ab0abf5c65bc0687a5e"
+    },
+    {
+      "fileName": "assets/esm-DWXyzSch.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 170994,
+      "sha256": "dfcb9c1b2d749d980f3ce6716431e2b429512c1aec2fc87f62c3a999d580d8d0"
+    },
+    {
+      "fileName": "assets/feature_service_pb-BkcYIWyQ.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 20398,
+      "sha256": "07f6884d0e2dbcc01fed2ba70fbfc286e662351fee537e292684de8a4214833a"
+    },
+    {
+      "fileName": "assets/feature_service_pb-Ca4m7WXT.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 1540,
+      "sha256": "b59148f7887436e9a96ce2b934de751818921e45a5bc94ada9a830d1cf34d43a"
+    },
+    {
+      "fileName": "assets/file-Cyyt2sFU.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 150068,
+      "sha256": "20a4040613661e9bd578911d334708c68c5c71d6ebc1763f9495cf54b080f224"
+    },
+    {
+      "fileName": "assets/grpc-adapter-BXipXg_d.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 21228,
+      "sha256": "af873c328e8e67f523fffcbd6a035c553c3fe0314da1e6192ffeef4d8872b110"
+    },
+    {
+      "fileName": "assets/migrated-main-CNWO3BQ4.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 536337,
+      "sha256": "40d9fdf706f6d4e3676764e298fd457de4c85f995660d0374a88cf9c58b1f9b6"
+    },
+    {
+      "fileName": "assets/preload-helper-hQ-dqvUN.js",
+      "kind": "chunk",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 2113,
+      "sha256": "d61318d1ae4d64c385ddef8810ab22a48cd9d66c2db2efb67ad40fd5949c8b49"
+    },
+    {
+      "fileName": "artifacts/v1/migrated-main.js",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 5159,
+      "sha256": "ea75ce5a0c267391b846f8825ad54e941a5b6ec31c9fa8cf05f3469712a636a4"
+    },
+    {
+      "fileName": "assets/index-DuH7ryFn.css",
+      "kind": "asset",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 56424,
+      "sha256": "4a2b8d710a4bcb07f1894093d876e485c2f8596da53c12a2a9a9c72190919f5a"
+    },
+    {
+      "fileName": "artifacts/v1/manifest.v1.json",
+      "kind": "public",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 6129,
+      "sha256": "4bf8e79291e2273100b53162371324070bbf42224b0680fe4f0513cd4725a248"
+    },
+    {
+      "fileName": "artifacts/v1/maplibre-assessment.v1.json",
+      "kind": "public",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 50274,
+      "sha256": "84e1f8a56c621cb0fbdd2d11857ebd2e8eeb613bcbdc9b8a81a3fc8b18b7a179"
+    },
+    {
+      "fileName": "artifacts/v1/migration-report.v1.json",
+      "kind": "public",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 61201,
+      "sha256": "5cb25c9d2db06976f1ad882023f95b27c0d19b66b09422058c0c5333201174b6"
+    },
+    {
+      "fileName": "artifacts/v1/migration.v1.patch",
+      "kind": "public",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 3864,
+      "sha256": "5af0f80709512a3bd9f600716a14ab4b9194dc103369294c3db0c944c04e3a9b"
+    },
+    {
+      "fileName": "artifacts/v1/widget-readiness.v1.json",
+      "kind": "public",
+      "hashSubject": "final-written-bundle-file",
+      "bytes": 5610,
+      "sha256": "93398a8e73ef72e6bfb95e3990e5aeea0ea842b44ba3e0c82424b0e9783ca506"
+    }
+  ]
+}
