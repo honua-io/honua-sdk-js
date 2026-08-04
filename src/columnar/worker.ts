@@ -16,9 +16,15 @@ export const COLUMNAR_WORKER_RESULT_KIND = "honua.columnar-worker.result" as con
 export const COLUMNAR_WORKER_ERROR_KIND = "honua.columnar-worker.error" as const;
 
 const DEFAULT_MAX_PENDING_REQUESTS = 16;
+const DEFAULT_CANCEL_ACKNOWLEDGEMENT_MS = 50;
 const MAX_IDENTIFIER_LENGTH = 256;
 
 export type ColumnarWorkerSessionState = "idle" | "running" | "disposed";
+/**
+ * Cross-request ordering contract for one session. `none` treats every request
+ * as independent; `strict` requires one ordered batch stream.
+ */
+export type ColumnarWorkerStreamOrdering = "none" | "strict";
 export type ColumnarWorkerErrorCode =
   | "invalid-request"
   | "invalid-response"
@@ -132,6 +138,20 @@ export interface CreateColumnarWorkerSessionOptions {
   readonly createWorker: ColumnarWorkerFactory;
   /** Includes the active request. Defaults to 16; there is no unbounded mode. */
   readonly maxPendingRequests?: number;
+  /**
+   * Cross-request ordering contract. Defaults to `none`, which accepts every
+   * request independently. `strict` declares that this session carries one
+   * ordered batch stream and rejects a non-increasing `sequence` or a
+   * non-contiguous `rowOffset` before the batch is transferred.
+   */
+  readonly streamOrdering?: ColumnarWorkerStreamOrdering;
+  /**
+   * Milliseconds a cancelled in-flight request may take to be acknowledged by
+   * the worker before the transport is retired. Defaults to 50. A cooperative
+   * operation that observes its signal acknowledges well inside the window and
+   * keeps the worker warm; a non-cooperative one is retired at the deadline.
+   */
+  readonly cancelAcknowledgementMs?: number;
 }
 
 export interface ColumnarWorkerSession {
@@ -181,6 +201,21 @@ interface PendingExecution {
   inputMetrics?: ColumnarBatchMetrics;
   lastProgress: number;
   settled: boolean;
+  /** True once the request message has been handed to the transport. */
+  posted: boolean;
+}
+
+/** A cancelled request whose worker acknowledgement is still outstanding. */
+interface PendingCancellation {
+  readonly requestId: string;
+  readonly timer: ReturnType<typeof setTimeout>;
+}
+
+/** The last batch accepted into a `strict` ordered stream. */
+interface StreamCursor {
+  readonly sequence: number;
+  readonly rowOffset: number | undefined;
+  readonly rowCount: number;
 }
 
 interface NormalizedAbortSignal {
@@ -196,7 +231,9 @@ interface NormalizedExecutionOptions extends ColumnarBatchLimits {
 /**
  * Create a lazy, serial worker session. Only one transferred request is active;
  * queued batches stay caller-owned until dispatch. Cancelling active work
- * retires the transport so a non-cooperative operation cannot escape bounds.
+ * settles the caller immediately and gives the worker a bounded window to
+ * acknowledge the cancellation; a worker that misses the window is retired so a
+ * non-cooperative operation cannot escape bounds.
  */
 export function createColumnarWorkerSession(options: CreateColumnarWorkerSessionOptions): ColumnarWorkerSession {
   if (typeof options !== "object" || options === null) {
@@ -204,9 +241,13 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
   }
   let createWorker: ColumnarWorkerFactory;
   let rawMaxPendingRequests: number | undefined;
+  let rawStreamOrdering: ColumnarWorkerStreamOrdering | undefined;
+  let rawCancelAcknowledgementMs: number | undefined;
   try {
     createWorker = options.createWorker;
     rawMaxPendingRequests = options.maxPendingRequests;
+    rawStreamOrdering = options.streamOrdering;
+    rawCancelAcknowledgementMs = options.cancelAcknowledgementMs;
   } catch (cause) {
     throw new HonuaColumnarWorkerError("invalid-request", "Worker session options could not be read", { cause });
   }
@@ -217,8 +258,15 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
     rawMaxPendingRequests ?? DEFAULT_MAX_PENDING_REQUESTS,
     "maxPendingRequests",
   );
+  const streamOrdering = normalizeStreamOrdering(rawStreamOrdering);
+  const cancelAcknowledgementMs = nonNegativeInteger(
+    rawCancelAcknowledgementMs ?? DEFAULT_CANCEL_ACKNOWLEDGEMENT_MS,
+    "cancelAcknowledgementMs",
+  );
   const queue: PendingExecution[] = [];
   let active: PendingExecution | undefined;
+  let pendingCancel: PendingCancellation | undefined;
+  let streamCursor: StreamCursor | undefined;
   let transport: ColumnarWorkerTransport | undefined;
   let workerPromise: Promise<ColumnarWorkerTransport> | undefined;
   let workerGeneration = 0;
@@ -226,6 +274,10 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
   let nextRequest = 0;
 
   const onMessage = (event: ColumnarWorkerMessageEvent): void => {
+    if (pendingCancel && !active) {
+      acknowledgeCancellation(event);
+      return;
+    }
     if (!active || active.settled) return;
     let message: ColumnarWorkerProgressV1 | ColumnarWorkerResultV1 | ColumnarWorkerErrorV1;
     try {
@@ -282,7 +334,10 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
 
   const onError = (event: ColumnarWorkerFaultEvent): void => {
     if (!active) {
+      // A fault during the cancellation window ends the quarantine, so queued
+      // work must resume on a replacement transport.
       retireTransport();
+      void dispatch();
       return;
     }
     let message = "Columnar worker failed";
@@ -296,7 +351,38 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
     failActive(failure("worker-failed", message, active, cause), true);
   };
 
+  function clearPendingCancel(): void {
+    if (!pendingCancel) return;
+    clearTimeout(pendingCancel.timer);
+    pendingCancel = undefined;
+  }
+
+  /**
+   * A cancelled request keeps the transport quarantined until the worker
+   * reports a terminal outcome for it. Any terminal message proves the worker
+   * is back under session control, so the warm transport is reused. A result
+   * that raced the cancellation is discarded together with the buffers it
+   * transferred: the caller has already been settled with `aborted`.
+   */
+  function acknowledgeCancellation(event: ColumnarWorkerMessageEvent): void {
+    const expected = pendingCancel;
+    if (!expected) return;
+    let message: ColumnarWorkerProgressV1 | ColumnarWorkerResultV1 | ColumnarWorkerErrorV1;
+    try {
+      message = normalizeWorkerResponse(event.data, expected.requestId);
+    } catch {
+      retireTransport();
+      void dispatch();
+      return;
+    }
+    if (message.requestId !== expected.requestId) return;
+    if (message.kind === COLUMNAR_WORKER_PROGRESS_KIND) return;
+    clearPendingCancel();
+    void dispatch();
+  }
+
   function retireTransport(): void {
+    clearPendingCancel();
     workerGeneration += 1;
     const current = transport;
     transport = undefined;
@@ -367,7 +453,7 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
   }
 
   async function dispatch(): Promise<void> {
-    if (disposed || active || queue.length === 0) return;
+    if (disposed || active || pendingCancel || queue.length === 0) return;
     const item = queue.shift();
     if (!item || item.settled) return void dispatch();
     try {
@@ -397,6 +483,7 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
           metrics: transferMessage.metrics,
         });
         currentTransport.postMessage(request, transfer);
+        item.posted = true;
       }, columnarLimits(item.options));
       lease.dispose();
     } catch (cause) {
@@ -425,8 +512,18 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
       return;
     }
     if (active !== item) return;
+    const currentTransport = transport;
+    settle(item);
+    active = undefined;
+    item.reject(failure("aborted", "Columnar worker request was aborted", item));
+    if (!currentTransport || !item.posted) {
+      // The worker never received this request, so its transport is unaffected
+      // and the in-flight dispatch cannot post a cancelled request.
+      void dispatch();
+      return;
+    }
     try {
-      transport?.postMessage(
+      currentTransport.postMessage(
         Object.freeze({
           kind: COLUMNAR_WORKER_CANCEL_KIND,
           version: COLUMNAR_WORKER_PROTOCOL_VERSION,
@@ -435,9 +532,19 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
         [],
       );
     } catch {
-      // Retirement below is the authoritative cancellation boundary.
+      // A transport that cannot carry the cancel message cannot be trusted to
+      // stop the operation, so retirement remains the cancellation boundary.
+      retireTransport();
+      void dispatch();
+      return;
     }
-    failActive(failure("aborted", "Columnar worker request was aborted", item), true);
+    const timer = setTimeout(() => {
+      pendingCancel = undefined;
+      retireTransport();
+      void dispatch();
+    }, cancelAcknowledgementMs);
+    (timer as { unref?: () => void }).unref?.();
+    pendingCancel = Object.freeze({ requestId: item.requestId, timer });
   }
 
   return {
@@ -498,6 +605,14 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
           }),
         );
       }
+      if (streamOrdering === "strict") {
+        const drift = streamDrift(streamCursor, normalizedBatch);
+        if (drift !== undefined) {
+          return Promise.reject(
+            new HonuaColumnarWorkerError("invalid-request", drift, { operation: normalizedOperation }),
+          );
+        }
+      }
       const requestId = `columnar-${++nextRequest}`;
       return new Promise<ColumnarWorkerExecutionResult>((resolve, reject) => {
         const item: PendingExecution = {
@@ -509,6 +624,7 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
           reject,
           lastProgress: 0,
           settled: false,
+          posted: false,
         };
         if (normalizedOptions.signal) {
           let ready = false;
@@ -531,6 +647,15 @@ export function createColumnarWorkerSession(options: CreateColumnarWorkerSession
             return;
           }
           ready = true;
+        }
+        // The stream cursor advances on acceptance, not completion, because a
+        // queue holds several batches before any of them settle.
+        if (streamOrdering === "strict") {
+          streamCursor = Object.freeze({
+            sequence: normalizedBatch.sequence,
+            rowOffset: normalizedBatch.rowOffset,
+            rowCount: normalizedBatch.rowCount,
+          });
         }
         queue.push(item);
         try {
@@ -1091,6 +1216,40 @@ function positiveInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value <= 0)
     throw new HonuaColumnarWorkerError("invalid-request", `${label} must be a positive safe integer`);
   return value;
+}
+
+function nonNegativeInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value < 0)
+    throw new HonuaColumnarWorkerError("invalid-request", `${label} must be a non-negative safe integer`);
+  return value;
+}
+
+function normalizeStreamOrdering(value: ColumnarWorkerStreamOrdering | undefined): ColumnarWorkerStreamOrdering {
+  if (value === undefined) return "none";
+  if (value !== "none" && value !== "strict")
+    throw new HonuaColumnarWorkerError("invalid-request", "streamOrdering must be none or strict");
+  return value;
+}
+
+/**
+ * Describe how a batch drifts from a `strict` ordered stream, or `undefined`
+ * when it continues the stream. Drift is a caller contract violation, so it is
+ * reported before the batch is transferred and the caller keeps its buffers.
+ */
+function streamDrift(cursor: StreamCursor | undefined, batch: ColumnarBatchV1): string | undefined {
+  if (!cursor) return undefined;
+  if (batch.sequence <= cursor.sequence) {
+    return `Columnar stream sequence must increase; received ${batch.sequence} after ${cursor.sequence}`;
+  }
+  const previous = cursor.rowOffset;
+  const next = batch.rowOffset;
+  if ((previous === undefined) !== (next === undefined)) {
+    return "Columnar stream rowOffset must be declared by every batch or by none";
+  }
+  if (previous !== undefined && next !== undefined && next !== previous + cursor.rowCount) {
+    return `Columnar stream rowOffset must be contiguous; expected ${previous + cursor.rowCount} but received ${next}`;
+  }
+  return undefined;
 }
 
 function progressFraction(value: unknown): number {
