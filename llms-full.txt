@@ -520,6 +520,13 @@ correctly use this SDK:
   a Honua-only surface degrade gracefully with a structured "not available on this
   target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
   via `honua-mcp-proxy`.
+- **Cross-model MCP eval scorecard** — how well *different client models* actually
+  drive that MCP surface, published rather than asserted:
+  [`docs/generated/mcp-eval-scorecard.md`](./docs/generated/mcp-eval-scorecard.md).
+  Every figure is generated from the committed, dated run artifacts under
+  [`mcp/evals/runs/`](./mcp/evals) — with the zero-LLM deterministic control row,
+  every non-passing run, and the protocol-certification failures included, because
+  a wins-only scoreboard is marketing.
 - **NL map control** — [`@honua/sdk-js/nl-map-control`](./docs/nl-map-control.md)
   compiles natural-language instructions into serializable, inspectable plans
   (query-planner IR plus agent-tool invocations) through a **caller-provided LLM
@@ -5221,6 +5228,90 @@ const diagnostic = await createOfflineRegionDiagnostic(
 );
 ```
 
+## Storage budget and quota admission
+
+`logicalQuotaBytes` is an honest accounting of declared payload lengths, but on
+its own it has no relationship to the space the browser will grant. Ask the
+platform instead of inventing a constant: `probeOfflineStorageBudget()` reads
+`navigator.storage.estimate()` through an injectable interface and derives a
+conservative logical budget.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  downloadOfflineRegion,
+  probeOfflineStorageBudget,
+  requestOfflinePersistentStorage,
+} from "@honua/sdk-js/offline";
+
+const budget = await probeOfflineStorageBudget();
+if (budget.status === "unavailable") {
+  // No StorageManager, or no estimate. The SDK reports that rather than
+  // fabricating a number; the application decides what to offer.
+  showUnknownCapacity(budget.reason, budget.persistence);
+} else if (budget.logicalBudgetBytes < manifest.totalLogicalBytes) {
+  showTooLarge(budget.remainingBytes, budget.reserveBytes);
+} else {
+  await downloadOfflineRegion(manifest, {
+    store: applicationStore,
+    load: applicationResourceLoader,
+    logicalQuotaBytes: budget.logicalBudgetBytes,
+  });
+}
+
+// Only ever on an explicit user action: this can prompt.
+if (budget.persistence === "best-effort" && userAskedToKeepData) {
+  const persistence = await requestOfflinePersistentStorage();
+  console.log(persistence.status); // "granted" | "denied" | "unavailable"
+}
+```
+
+Derivation is deterministic integer arithmetic over the reported values:
+
+```text
+remaining = max(0, quota - usage)
+reserve   = min(remaining, max(minimumReserveBytes, floor(remaining * headroomRatio)))
+budget    = remaining - reserve
+```
+
+so the derived budget can never exceed the platform-reported remaining quota,
+and an origin with less free space than the reserve floor (16 MiB by default) is
+offered `0` rather than a number that cannot be honoured. The estimate is
+deliberately imprecise and origin-scoped, so the result is **advisory, never a
+guarantee** — which is exactly why a reserve exists and why physical occupancy,
+deduplication, and index overhead stay outside the contract.
+
+A device can still refuse a write the budget admitted. When it does, the
+platform `QuotaExceededError` raised while staging, writing, or committing is
+classified as `quota-exceeded` / `offline.region.quota` rather than the internal
+`store-failed` / `offline.storage.failure` class, and the error carries the
+admission plan that was attempted:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+try {
+  await downloadOfflineRegion(manifest, downloadOptions);
+} catch (error) {
+  if (isHonuaError(error, "offline.region.quota")) {
+    // Required, evicted, and projected logical bytes, without recomputing them.
+    showEvictionPrompt(error.admission);
+  }
+}
+```
+
+A refused plan is a proposal, not a record of what happened: a region refused
+before the download starts evicts nothing, and no region outside
+`admission.evictRegionIds` is ever removed. Pinned regions are never proposed.
+`isStorageQuotaPressureError()` is exported so a host-supplied
+`OfflineRegionStore` can classify the same condition the same way instead of
+hiding a full device inside its own wrapper.
+
+Persisted state changes the eviction risk for every cached region, so it is
+observed rather than inferred: the probe reports
+`persistence: "persisted" | "best-effort" | "unknown"`, and
+`createOfflineRegionDiagnostic()` accepts the probe result and republishes it as
+`diagnostic.storage`. The diagnostic never probes on its own, and
+`navigator.storage.persist()` is reached only through
+`requestOfflinePersistentStorage()` — a download is not consent to prompt.
+
 ## Durable edit queue
 
 The same subpath exposes a storage-neutral queue contract, a deterministic
@@ -5384,6 +5475,13 @@ confidently wrong headline.
   bytes, compression, deduplication, or store overhead. Admission is deterministic:
   expired regions, then least-recently-used regions, then code-unit id order.
   Pinned regions are never automatically evicted.
+- The ceiling itself can be derived from the origin's real storage estimate.
+  `probeOfflineStorageBudget()` performs no network I/O, mutates nothing, never
+  requests persistence, returns no credential or request URL, and is
+  deterministic for identical inputs. A platform without a `StorageManager` or
+  an estimate yields an explicit `unavailable` result instead of a fabricated
+  budget. A refusal by the device is typed `quota-exceeded` and carries the
+  attempted admission plan.
 - The injected transaction stages evictions and writes, then publishes them
   atomically with the manifest and receipt. Commit compares the inventory
   revision used for planning and independently enforces logical quota in the
@@ -6081,6 +6179,231 @@ the plan's effects).
   button.
 - [North-star ADR](./decisions/north-star-sdk-application-kernel.md) — why NL
   must compile to the same plan human code uses.
+
+---
+
+# File: docs/generated/mcp-eval-scorecard.md
+
+<!-- GENERATED FILE — do not edit by hand. -->
+<!-- Regenerate with: npm run docs:mcp-scorecard -->
+<!-- Inputs: mcp/evals/runs/**/*.json (committed run artifacts), mcp/src/eval/corpus.ts, mcp/src/eval/operator-corpus.ts, mcp/src/eval/northstar-corpus.ts, mcp/src/eval/standalone-corpus.ts. -->
+<!-- Freshness is enforced by npm run docs:mcp-scorecard:check. -->
+
+# Cross-model MCP eval scorecard
+
+How well do different client models actually drive Honua's MCP surface? This page is the
+answer, published rather than asserted. Every figure below is rendered from a committed run
+artifact under [`mcp/evals/runs/`](https://github.com/honua-io/honua-sdk-js/tree/trunk/mcp/evals/runs) — the same JSON the eval harness wrote,
+carrying the surface it ran against, how it authenticated, and (where the artifact is new
+enough to record it) the negotiated MCP protocol version and the git SHA of the suite that
+produced it. Nothing here is hand-typed, and the generator recomputes every rate from the
+per-scenario rows before publishing it, so a summary that disagreed with its own graded
+evidence would fail the build instead of reaching this page.
+
+**Observation window:** 2026-07-05 → 2026-07-07
+(3 distinct observation dates,
+3 cross-model eval artifacts,
+3 certification artifacts).
+
+> This is a small, honest corpus, not a benchmark leaderboard. Read
+> [What this does and does not measure](#what-this-does-and-does-not-measure) before citing a
+> number from it.
+
+## Cross-model leaderboard
+
+One row per model per distinct observed result. The deterministic control is listed first: it
+makes **no model calls**, runs the identical corpus through the identical catalog, and is the
+CI gate — it is the ceiling the models are measured against, not a competitor.
+
+| Model | Runtime | Corpus | Surface | Scenarios | Passed | Clarified | Errored | Pass rate | Tool-error scenarios | Observed | Runs | Suite SHA |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- |
+| `deterministic` _(control)_ | deterministic | operator | https://demo.honua.io/mcp | 8 | 8 | 0 | 0 | 100% | 1/8 | 2026-07-05, 2026-07-07 | 3 | `a09735af8725` · 2 not recorded |
+| `us.anthropic.claude-opus-4-6-v1` | bedrock | operator | https://demo.honua.io/mcp | 8 | 8 | 0 | 0 | 100% | 1/8 | 2026-07-05 | 1 | not recorded |
+| `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | bedrock | operator | https://demo.honua.io/mcp | 8 | 8 | 0 | 0 | 100% | 1/8 | 2026-07-07 | 1 | `a09735af8725` |
+| `us.amazon.nova-2-lite-v1:0` | bedrock | operator | https://demo.honua.io/mcp | 8 | 5 | 2 | 1 | 62.5% | 2/8 | 2026-07-05 | 1 | not recorded |
+
+Column definitions, because these words are used loosely elsewhere:
+
+- **Runtime** — how the model was invoked. `bedrock` means the run went through AWS Bedrock;
+  `deterministic` is the scripted zero-LLM control.
+- **Passed** — the graded workflow met every criterion: required tools called, expected tool
+  order respected, forbidden (mutating) tools avoided, and any asserted answer content present.
+- **Clarified** — the driver ended the run by asking a clarifying question instead of
+  completing the graded workflow (the grader records the violation `driver requested
+  clarification`). Tracked separately from a failure, and not counted as a pass. The corpus
+  deliberately contains a scenario that *requires* a clarification round-trip and passes when
+  the model completes it, so asking is a non-pass only where the workflow was meant to continue.
+- **Errored** — the run did not finish; for example, a driver that exceeded its tool-use
+  iteration budget. Also not a pass.
+- **Tool-error scenarios** — scenarios in which at least one `tools/call` returned an error,
+  whether or not the workflow ultimately passed. In the raw artifacts this ratio is stored
+  under the historical field name `editRate`; it counts erroring tool calls, not edits.
+- **Runs** — how many committed artifacts recorded this identical result. A model whose result
+  changed between runs appears as more than one row.
+- **Suite SHA** — the commit of the eval suite that produced the artifact, so a row can be
+  re-run. `not recorded` means the artifact predates the provenance block (see
+  [Provenance](#provenance-and-reproducibility)).
+
+## Per-scenario matrix
+
+Legend: ✅ pass · ❌ fail · ❓ clarified · ⚠️ error · · not run
+
+### operator corpus
+
+Surface: `https://demo.honua.io/mcp` · observed 2026-07-05, 2026-07-07
+
+| Scenario | Category | deterministic | us.amazon.nova-2-lite-v1:0 | us.anthropic.claude-opus-4-6-v1 | us.anthropic.claude-sonnet-4-5-20250929-v1:0 |
+| --- | --- | :--: | :--: | :--: | :--: |
+| `operator-clarify-loop`<br />Ground then answer the clarification to refine intent | multi-step | ✅ | ✅ | ✅ | ✅ |
+| `operator-discover-then-query`<br />Discover a layer, then query features from it | query | ✅ | ✅ | ✅ | ✅ |
+| `operator-dry-run`<br />Estimate a plan with a dry run before executing | analysis | ✅ | ❓ | ✅ | ✅ |
+| `operator-geocode-gap`<br />Route an address task to geocoding (entitlement-gated) | capability-gap | ✅ | ✅ | ✅ | ✅ |
+| `operator-ground-intent`<br />Ground an ambiguous analysis goal to a workflow | grounding | ✅ | ❓ | ✅ | ✅ |
+| `operator-list-layers`<br />Discover the published layers on the operator surface | discovery | ✅ | ✅ | ✅ | ✅ |
+| `operator-plan-validate`<br />End-to-end read-only planning: ground → plan → validate | multi-step | ✅ | ⚠️ | ✅ | ✅ |
+| `operator-validate-package`<br />Validate a query package against the governance contract | governance | ✅ | ✅ | ✅ | ✅ |
+
+## Every non-passing run
+
+A wins-only scoreboard is marketing. Every non-passing graded run in the committed corpus is
+listed here, with the grader's own violation text.
+
+| Observed | Model | Scenario | Outcome | Why it did not pass | Tool calls | Erroring calls |
+| --- | --- | --- | --- | --- | ---: | ---: |
+| 2026-07-05 | `us.amazon.nova-2-lite-v1:0` | `operator-dry-run`<br />Estimate a plan with a dry run before executing | ❓ clarified | driver requested clarification | 4 | 0 |
+| 2026-07-05 | `us.amazon.nova-2-lite-v1:0` | `operator-ground-intent`<br />Ground an ambiguous analysis goal to a workflow | ❓ clarified | driver requested clarification | 6 | 1 |
+| 2026-07-05 | `us.amazon.nova-2-lite-v1:0` | `operator-plan-validate`<br />End-to-end read-only planning: ground → plan → validate | ⚠️ error | exceeded 8 tool-use iterations without finishing | 8 | 0 |
+
+Read these as capability signals, not bugs in the surface: the eval grades whether a client
+*composed the right workflow*, so a smaller model that asked for clarification it did not need,
+or looped past its iteration budget, is exactly what the corpus is designed to expose.
+
+## Protocol certification (zero-LLM control)
+
+Separate from the model eval, a deterministic certifier checks the same live surface against
+the vendor-neutral geospatial-MCP standard: tool schemas, structured output, error shape,
+pagination, and the standard tool families. It makes no model calls, so it is free to run on a
+schedule and it fails loudly.
+
+| Observed | Surface | Mode | Tools | Schema-conformant | Contracts passed | Failed | Skipped | Known gaps | Result | Suite SHA |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | :---: | --- |
+| 2026-07-05 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 15 | 15/15 | 2/3 | 1 | 0 | 12 | ❌ fail | not recorded |
+| 2026-07-06 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 20 | 20/20 | 11/13 | 2 | 5 | 7 | ❌ fail | `60dc44091089` |
+| 2026-07-07 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 20 | 20/20 | 11/13 | 2 | 5 | 10 | ❌ fail | `a09735af8725` |
+
+### Certification failures and skips — 2026-07-07
+
+From [`mcp/evals/runs/2026-07-07/cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json). Failures are real conformance defects in the
+certified surface, published unedited; skips name the reason they could not be checked.
+
+| Contract | Target | Status | Detail |
+| --- | --- | --- | --- |
+| `list-pagination` | `tools` | skipped | tools list is a single page (no nextCursor advertised) |
+| `list-pagination` | `resources` | skipped | resources list is a single page (no nextCursor advertised) |
+| `error-shape` | `honua_query_features` | failed | invalid arguments raised a protocol error instead of a structured tool error: MCP error -32602: Structured content does not match the tool's output schema: data must have required property 'serviceId', data must have required property 'layerId', data must have required property 'returnedCount', data must have required property 'limit', data must have required property 'exceededTransferLimit', data must have required property 'geojson' |
+| `mutating-round-trip` | `honua_edit_features` | skipped | honua_edit_features/honua_query_features not advertised by this surface (pre-P1 or read-only) |
+| `mutating-permission-denied` | `honua_edit_features` | skipped | honua_edit_features not advertised by this surface (pre-P1) |
+| `async-job-lifecycle` | `honua_execute_plan` | skipped | job lifecycle disabled for this target — set HONUA_MCP_CERT_ALLOW_MUTATION=1 to certify execution against a scratch target |
+| `query-pagination` | `honua_query_features` | failed | query pagination raised: MCP error -32602: Structured content does not match the tool's output schema: data must have required property 'serviceId', data must have required property 'layerId', data must have required property 'returnedCount', data must have required property 'limit', data must have required property 'exceededTransferLimit', data must have required property 'geojson' |
+
+The same run recorded **10 known standard gaps** — tool families in the
+geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), App composition, Feature editing, Map composition, Map composition (reference shape), Publishing, Style inspection).
+They are enumerated in [`mcp/evals/runs/2026-07-07/cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json) under `knownGaps`.
+
+## What this does and does not measure
+
+**It measures** whether a client model, given a plain-language GIS goal and nothing but the
+MCP catalog the surface advertises, composes the right workflow: discovers layers before
+querying them, grounds an ambiguous goal before planning it, validates a plan before a dry run,
+and — critically — stays read-only when the task is read-only. Mutating lifecycle tools are
+*forbidden* by the grader on the read-only scenarios, so "did the agent stay inside its
+authority?" is a scored criterion rather than a hope.
+
+**It does not measure** general model quality, latency, cost, or output prose. It is not a
+head-to-head model benchmark: the rows above were observed on different dates against a live surface that changed underneath them (the advertised tool count across these artifacts ranges from 15 to 20).
+Treat a one-scenario difference as noise; the deterministic control is the only row whose
+meaning is stable across dates.
+
+Other honest limits:
+
+- **Corpus size.** The published corpus is 8 operator scenarios. That is enough to surface gross
+  workflow failures and nowhere near enough for a confidence interval. No statistical claim is
+  made or implied.
+- **Single run per (model, date).** Rates are not averaged over repeated sampling, so a rate
+  describes the recorded runs and is not an expectation.
+- **Surfaces covered.** Every published row targets `https://demo.honua.io/mcp`.
+  The platform-free standalone corpus (a plain public FeatureServer, semantically graded) has no
+  committed cross-model artifact yet, so it is absent from this page rather than summarised from
+  memory.
+- **Paid lane.** Live cross-model runs bill real model usage, so they are dispatched manually
+  rather than on every commit. That is why observation dates are sparse.
+
+## Provenance and reproducibility
+
+Every artifact behind this page, with the surface it targeted and the suite that produced it.
+
+| Artifact | Observed | Kind | Surface | Transport | Protocol | Tools advertised | Auth | Suite SHA |
+| --- | --- | --- | --- | --- | --- | ---: | --- | --- |
+| [`eval-operator-nova-2-lite.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-05/eval-operator-nova-2-lite.json) | 2026-07-05 | cross-model eval | https://demo.honua.io/mcp | `streamable-http` | not recorded | 15 | `api-key` | not recorded |
+| [`eval-operator-opus-4-6.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-05/eval-operator-opus-4-6.json) | 2026-07-05 | cross-model eval | https://demo.honua.io/mcp | `streamable-http` | not recorded | 15 | `api-key` | not recorded |
+| [`eval-operator-sonnet-4-5.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/eval-operator-sonnet-4-5.json) | 2026-07-07 | cross-model eval | https://demo.honua.io/mcp | `streamable-http` | `2025-06-18` | 20 | `api-key` | `a09735af8725` |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-05/cert-demo.json) | 2026-07-05 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | not recorded | 15 | `unknown` | not recorded |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-06/cert-demo.json) | 2026-07-06 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 20 | `api-key` | `60dc44091089` |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json) | 2026-07-07 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 20 | `api-key` | `a09735af8725` |
+
+3 of the artifacts above predate the self-proving provenance
+block and therefore carry no suite SHA or negotiated protocol version. They are published
+as-is, labelled `not recorded`, rather than back-filled — a provenance field that was never
+observed is not a field this repo will invent.
+
+An unresolved required tool would mean a scenario failed because the surface never advertised
+the tool, not because the model chose wrongly. The eval records that separately, per artifact,
+as `catalog.unresolvedRequiredTools`.
+
+Across every published artifact that list is empty, so every non-pass above is a genuine
+workflow-composition result rather than a missing tool.
+
+## How to reproduce, and how this page stays honest
+
+Re-run the deterministic control — free, offline, no credentials:
+
+```bash
+npm ci && npm run build            # build the SDK the MCP package consumes
+npm ci --prefix mcp
+npm run --prefix mcp eval:offline  # deterministic control over the fixture surface
+```
+
+Re-run a live cross-model row (billable; needs credentials and a reachable `/mcp`):
+
+```bash
+HONUA_MCP_REMOTE_URL="https://demo.honua.io/mcp" \
+HONUA_API_KEY="$HONUA_DEMO_API_KEY" \
+HONUA_EVAL_REQUIRE_AUTH=1 \
+HONUA_EVAL_BEDROCK=1 AWS_REGION=us-west-2 \
+HONUA_EVAL_BEDROCK_MODEL="us.anthropic.claude-sonnet-4-5-20250929-v1:0" \
+  npm run --prefix mcp eval:live -- --driver bedrock
+```
+
+Then commit the artifact under `mcp/evals/runs/<YYYY-MM-DD>/` and regenerate:
+
+```bash
+npm run docs:mcp-scorecard         # rewrite this page from the committed artifacts
+npm run docs:mcp-scorecard:check   # the CI gate: fails if the page drifts from them
+```
+
+The `check` mode runs in the docs-site pipeline next to `npm run verify:llms` and
+`npm run docs:comparison:check`. Because the renderer reads no clock and no network, the check
+has exactly one failure mode worth having: the committed artifacts and the published page
+disagree. Adding a run without republishing, or editing a figure on this page by hand, both
+fail the build.
+
+## Related evidence
+
+- [`mcp/evals/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/README.md) — the evidence corpus, grading taxonomy, and how runs land in the repo.
+- [`mcp/README.md`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/README.md) — the MCP server itself, the eval CLI, and the live-lane environment contract.
+- [`mcp/src/eval/operator-corpus.ts`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/src/eval/operator-corpus.ts) — every scenario prompt and grading criterion in the operator corpus.
+- [Coding-agent evaluation scorecard](./coding-agent-scorecard.md) — the sibling measurement: can a coding agent write correct SDK code on the first try?
+- [How Honua compares](../comparison.md) — the same generated-evidence discipline applied to bundle size, protocol coverage, and time-to-first-map.
 
 ---
 
@@ -14127,9 +14450,13 @@ API (it does **not** use regex). It:
 - Emits `manualTodos` and `manualTodoReasons` on a `byKind` matrix
   for every untouched call site, so app authors can drive cleanup
   against a checklist.
-- Emits a parity report (`src/migration/report.ts`) with three
-  gates (`no-manual-todos`, `no-unhandled-modules`,
-  `no-blocking-flags`) and a readiness verdict.
+- Emits a parity report (`src/migration/report.ts`) with four
+  gates (`arcgis-usage-detected`, `no-manual-todos`,
+  `no-unhandled-modules`, `no-blocking-flags`) and a readiness
+  verdict. A scan that recognized no ArcGIS usage reports
+  `no-usage-detected` rather than letting the other three gates pass
+  vacuously into a `ready`; `--fail-on-no-usage` fails a CI lane on
+  it.
 - Knows the `esri-leaflet` migration target as a separate column,
   with `ESRI_LEAFLET_COMPAT_FALLBACK_KINDS` gating which kinds are
   treated as deterministic vs. assisted.
@@ -14508,6 +14835,11 @@ bound to their own platform; this one is bound to none.
 **Release status: beta.** Tool contracts are certified against live and fixture
 targets on every release; remaining pre-1.0 work is hardening, not surface change.
 
+**Scores are published, not claimed.** How well different client models actually
+drive this surface — and where they fail — is in the
+[cross-model MCP eval scorecard](../docs/generated/mcp-eval-scorecard.md),
+generated from the dated run artifacts committed under [`evals/`](evals/README.md).
+
 Two modes:
 
 - **Standalone (platform-free) — the front door.** The `honua-mcp` bin runs the
@@ -14724,6 +15056,13 @@ the downstream client sees is byte-identical to the upstream surface, that
 notifications are forwarded.
 
 ## Cross-model workflow eval (provability)
+
+**Published results:
+[Cross-model MCP eval scorecard](../docs/generated/mcp-eval-scorecard.md)** —
+generated from the committed run artifacts in [`evals/runs/`](evals/runs), with
+the deterministic control row, every non-passing run, and the protocol
+certification failures. It ships on the docs site; its freshness is a CI gate
+(`npm run docs:mcp-scorecard:check` from the repo root).
 
 The package ships a **cross-model workflow eval** that proves the "any client →
 any workflow" claim: a held-out corpus of GIS workflows (`src/eval/corpus.ts`)

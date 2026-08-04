@@ -510,6 +510,13 @@ correctly use this SDK:
   a Honua-only surface degrade gracefully with a structured "not available on this
   target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
   via `honua-mcp-proxy`.
+- **Cross-model MCP eval scorecard** — how well *different client models* actually
+  drive that MCP surface, published rather than asserted:
+  [`docs/generated/mcp-eval-scorecard.md`](./docs/generated/mcp-eval-scorecard.md).
+  Every figure is generated from the committed, dated run artifacts under
+  [`mcp/evals/runs/`](./mcp/evals) — with the zero-LLM deterministic control row,
+  every non-passing run, and the protocol-certification failures included, because
+  a wins-only scoreboard is marketing.
 - **NL map control** — [`@honua/sdk-js/nl-map-control`](./docs/nl-map-control.md)
   compiles natural-language instructions into serializable, inspectable plans
   (query-planner IR plus agent-tool invocations) through a **caller-provided LLM

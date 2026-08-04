@@ -319,6 +319,8 @@
     "docs:oss-arcgis-corpus:verify": "npm run build --silent && npm run docs:oss-arcgis-corpus:check",
     "docs:comparison": "node scripts/generate-comparison-page.mjs write",
     "docs:comparison:check": "node --test test/scripts/comparison-page.test.mjs test/scripts/competitor-evidence.test.mjs test/scripts/benchmark-time-to-first-map.test.mjs && node scripts/generate-comparison-page.mjs check",
+    "docs:mcp-scorecard": "node scripts/generate-mcp-eval-scorecard.mjs write",
+    "docs:mcp-scorecard:check": "node --test test/scripts/mcp-eval-scorecard.test.mjs && node scripts/generate-mcp-eval-scorecard.mjs check",
     "verify:discoverability": "node scripts/verify-package-discoverability.mjs",
     "docs:llms": "node scripts/generate-llms-txt.mjs",
     "docs:site": "node scripts/build-docs-site.mjs",

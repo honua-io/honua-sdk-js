@@ -249,6 +249,15 @@ const NAV_GROUPS = [
     ],
   },
   {
+    title: "AI agents & MCP",
+    docs: [
+      "docs/coding-agent-evals.md",
+      "docs/generated/coding-agent-scorecard.md",
+      "docs/generated/mcp-eval-scorecard.md",
+      "docs/nl-map-control.md",
+    ],
+  },
+  {
     title: "ArcGIS migration",
     docs: [
       "docs/migration-honua-maplibre.md",
@@ -381,12 +390,30 @@ function demoSourceUrl(docsPath) {
   return { href: `${BLOB_BASE}/${target}`, kind: "source" };
 }
 
+// The gallery is where an evaluating team lands first, so it also points at the
+// repo's published, regenerable evidence pages (issue #960). The gallery library
+// owns cards only; site-relative links belong here, with the rest of the chrome.
+function galleryEvidenceSection() {
+  const to = (repoPath) => relativeUrl("gallery.html", repoPathToSitePath(repoPath));
+  return `<section class="gallery-evidence">
+  <h2 id="published-evidence">Published evidence</h2>
+  <p>The same generated-from-committed-artifacts discipline these cards use, applied to the
+  claims that are easiest to fake:</p>
+  <ul>
+    <li><a href="${to("docs/generated/mcp-eval-scorecard.md")}">Cross-model MCP eval scorecard</a> — how different client models score driving Honua's MCP surface, including the zero-LLM control row and every non-passing run.</li>
+    <li><a href="${to("docs/generated/coding-agent-scorecard.md")}">Coding-agent evaluation scorecard</a> — whether coding agents write correct SDK code on the first try.</li>
+    <li><a href="${to("docs/comparison.md")}">How Honua compares</a> — bundle size, protocol coverage, and time-to-first-map, every external figure carrying a dated evidence record.</li>
+  </ul>
+</section>`;
+}
+
 function galleryPage(gallery) {
+  const content = renderGalleryContent(gallery, { resolveSourceLink: (sample) => demoSourceUrl(sample.source.docsPath) });
   return page({
     sitePath: "gallery.html",
     title: `Demo gallery · ${SITE_TITLE}`,
     bodyClass: "page-gallery",
-    main: renderGalleryContent(gallery, { resolveSourceLink: (sample) => demoSourceUrl(sample.source.docsPath) }),
+    main: `${content}\n${galleryEvidenceSection()}`,
     moduleScripts: ["assets/gallery.js"],
   });
 }

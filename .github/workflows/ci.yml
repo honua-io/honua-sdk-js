@@ -321,6 +321,9 @@ jobs:
       - name: Verify comparison page freshness
         run: npm run docs:comparison:check
 
+      - name: Verify MCP eval scorecard freshness
+        run: npm run docs:mcp-scorecard:check
+
       - name: Verify documentation version manifest
         run: npm run docs:versions:check
 
