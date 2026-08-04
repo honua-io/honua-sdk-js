@@ -35,6 +35,32 @@
     "is deterministic at 32.25 (a utf8 group key plus two float64 metric columns)",
     "and states the property the whole issue turns on — the result is sized by the",
     "group count, not the row count.",
+    "columnar.result.bounded-window (honua-io/honua-sdk-js#942) converts a 1,000-row",
+    "window out of a 1,000,000-row GeoArrow batch into object-shaped features. The",
+    "two failure thresholds are the numbers the issue itself names: NFR-001's 1 MB",
+    "per 1,000 converted features is exactly 1,024 retained bytes/feature, and",
+    "NFR-002 sets a 200,000 features/second floor. Measured on the same shared linux",
+    "host across twenty samples spanning a quiet host and one running three other",
+    "build agents: 219.0-258.6 retained bytes/feature and per-run median throughput",
+    "between 748,842 and 1,517,304 features/second. The ceiling therefore sits 4.0x",
+    "and the floor 3.7x clear of the worst measured median, and the advisory warning",
+    "sits below the loaded-host median so contention alone cannot raise it.",
+    "Throughput is timed over twenty-five consecutive distinct windows rather than",
+    "one: a single bounded conversion is milliseconds of work, short enough that one",
+    "collection landing inside it swings the reading by tens of percent and trips the",
+    "lab's repeated-run variability check on noise. Consecutive distinct windows are",
+    "the paging workload an application actually performs, so this costs no honesty;",
+    "converting one window repeatedly would instead have flattered the number out of",
+    "warm cache. retainedBytesPerFeature still measures exactly one window, which is",
+    "the quantity NFR-001 bounds.",
+    "retainedBytesPerFeature is a live-bytes reading taken after a forced collection",
+    "with the converted window still held, not an allocation-rate delta, so it",
+    "measures what the window actually retains beyond the batch backings it was cut",
+    "from; the harness fails the scenario outright when no collector is exposed. The",
+    "throughput floor is what catches the regression that matters here: the window",
+    "is one thousandth of the batch, so any implementation that reverted to scanning",
+    "or validating the whole batch per conversion would miss the floor by orders of",
+    "magnitude while still returning the correct thousand features.",
     "columnar.batch-cache.million-row-round-trip carries the persistence NFRs of",
     "honua-io/honua-sdk-js#940: serialize plus deserialize of a 1,000,000-row packed",
     "GeoArrow fixture (16,000,000 backing bytes). Measured on the same shared linux",
@@ -97,6 +123,18 @@
         "direction": "lower-is-better",
         "warning": 40,
         "failure": 64
+      }
+    },
+    "columnar.result.bounded-window": {
+      "retainedBytesPerFeature": {
+        "direction": "lower-is-better",
+        "warning": 512,
+        "failure": 1024
+      },
+      "featuresPerSecond": {
+        "direction": "higher-is-better",
+        "warning": 400000,
+        "failure": 200000
       }
     },
     "columnar.batch-cache.million-row-round-trip": {
