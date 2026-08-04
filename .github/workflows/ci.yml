@@ -398,6 +398,17 @@ jobs:
       - name: Example typechecks
         run: npm run demo:examples:typecheck
 
+      - name: create-honua-app scaffold and playground links
+        # The published starters carry the same discipline as a documentation
+        # snippet (#958): the manifest, the pinned versions, and the committed
+        # fixture are verified, both templates compile against SDK source, and
+        # the generated playground page must match the manifest.
+        run: |
+          npm run create-app:verify
+          npm run create-app:test
+          npm run create-app:templates:typecheck
+          npm run playgrounds:check
+
       - name: Acquire pinned Overture extension and prove offline build
         run: |
           npm run demo:overture:prepare

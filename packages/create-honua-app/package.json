@@ -1,0 +1,32 @@
+{
+  "name": "create-honua-app",
+  "version": "0.1.0",
+  "description": "Scaffold a Honua JavaScript SDK map application: Vite + TypeScript starters that connect and mount a source without hand-assembling peers",
+  "license": "Apache-2.0",
+  "author": "Honua",
+  "homepage": "https://honua-io.github.io/honua-sdk-js/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/honua-io/honua-sdk-js.git",
+    "directory": "packages/create-honua-app"
+  },
+  "bugs": {
+    "url": "https://github.com/honua-io/honua-sdk-js/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "keywords": ["gis", "geospatial", "maplibre", "typescript", "honua", "scaffold", "starter", "create-app"],
+  "type": "module",
+  "bin": {
+    "create-honua-app": "bin/create-honua-app.mjs"
+  },
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": ["bin", "lib", "templates", "templates.manifest.json", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}
