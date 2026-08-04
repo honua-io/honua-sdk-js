@@ -425,3 +425,481 @@ describe("terrain endpoint validation across protocols (#929)", () => {
     expect(codes(diagnostics)).toEqual(["scene-primitive-unsupported"]);
   });
 });
+
+/** A renderer that does declare a floor, isolating the renderer-floor limit. */
+const COARSE_FLOOR_CAPABILITIES: SceneRuntimeCapabilities = {
+  ...CESIUM_SCENE_CAPABILITIES,
+  spatial: { ...CESIUM_SCENE_CAPABILITIES.spatial, precision: { horizontalMeters: 2, verticalMeters: 5 } },
+};
+
+describe("scene primitive precision diagnostics (#1051)", () => {
+  describe("DEM encoding height quantum", () => {
+    it("reports exact fidelity when the claimed height detail survives the encoding", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        terrain({ protocol: "raster-dem", encoding: "mapbox", precision: { verticalMeters: 0.5 } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-precision-exact"]);
+      expect(diagnostics[0]).toMatchObject({
+        severity: "info",
+        status: "supported",
+        fidelity: "exact",
+        primitiveId: "terrain",
+        primitiveKind: "elevation-source",
+        renderer: "cesium",
+        context: { axis: "vertical", claimedMeters: 0.5, limitMeters: 0.1, limitSource: "dem-encoding" },
+      });
+      expect(summarizeDiagnosticStatus(diagnostics)).toBe("supported");
+    });
+
+    it("reports equivalent fidelity when the claim is finer than Terrain-RGB can encode", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        terrain({ protocol: "terrain-rgb", encoding: "mapbox", precision: { verticalMeters: 0.01 } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-precision-equivalent"]);
+      expect(diagnostics[0]).toMatchObject({
+        severity: "warning",
+        status: "degraded",
+        fidelity: "equivalent",
+        context: {
+          axis: "vertical",
+          claimedMeters: 0.01,
+          limitMeters: 0.1,
+          limitSource: "dem-encoding",
+          limitDetail: "mapbox",
+        },
+      });
+      expect(diagnostics[0]?.fallback).toContain("encoding");
+      expect(summarizeDiagnosticStatus(diagnostics)).toBe("degraded");
+    });
+
+    it("uses the terrarium quantum for a terrarium-encoded source", () => {
+      const equivalent = diagnoseScenePrimitive(
+        terrain({ protocol: "raster-dem", encoding: "terrarium", precision: { verticalMeters: 0.002 } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+      const exact = diagnoseScenePrimitive(
+        terrain({ protocol: "raster-dem", encoding: "terrarium", precision: { verticalMeters: 0.01 } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(equivalent)).toEqual(["scene-primitive-precision-equivalent"]);
+      expect(equivalent[0]?.context).toMatchObject({ limitMeters: 1 / 256, limitDetail: "terrarium" });
+      expect(codes(exact)).toEqual(["scene-primitive-precision-exact"]);
+    });
+
+    it("stays silent for an encoding whose quantum the plan does not publish", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        terrain({ protocol: "raster-dem", encoding: "custom", precision: { verticalMeters: 0.001 } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported"]);
+    });
+
+    it("never assumes an encoding that was not declared", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        terrain({ protocol: "raster-dem", precision: { verticalMeters: 0.001 } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported"]);
+    });
+
+    it("does not apply an RGB DEM quantum to a protocol that does not decode one", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        terrain({ protocol: "quantized-mesh", encoding: "mapbox", precision: { verticalMeters: 0.001 } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported"]);
+    });
+  });
+
+  describe("geocentric float32 coordinate spacing", () => {
+    it("reports the 0.5 m float32 spacing at the ellipsoid for an ECEF-stored asset", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        model({
+          precision: { horizontalMeters: 0.05, coordinateFrame: "geocentric", coordinateStorage: "float32" },
+        }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-precision-equivalent"]);
+      expect(diagnostics[0]).toMatchObject({
+        fidelity: "equivalent",
+        status: "degraded",
+        context: {
+          axis: "horizontal",
+          claimedMeters: 0.05,
+          limitMeters: 0.5,
+          limitSource: "geocentric-float32-coordinates",
+        },
+      });
+      expect(diagnostics[0]?.fallback).toContain("local frame");
+    });
+
+    it("classifies both axes when the asset claims detail on both", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        model({
+          precision: {
+            horizontalMeters: 1,
+            verticalMeters: 0.02,
+            coordinateFrame: "geocentric",
+            coordinateStorage: "float32",
+          },
+        }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-precision-exact", "scene-primitive-precision-equivalent"]);
+      expect(diagnostics[0]?.context).toMatchObject({ axis: "horizontal" });
+      expect(diagnostics[1]?.context).toMatchObject({ axis: "vertical", limitMeters: 0.5 });
+    });
+
+    it("stays silent for a locally anchored or float64 asset", () => {
+      const local = diagnoseScenePrimitive(
+        model({
+          position: [-157.86, 21.31, 12],
+          precision: { horizontalMeters: 0.001, coordinateFrame: "local", coordinateStorage: "float32" },
+        }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+      const wide = diagnoseScenePrimitive(
+        model({ precision: { horizontalMeters: 0.001, coordinateFrame: "geocentric", coordinateStorage: "float64" } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(local)).toEqual(["scene-primitive-supported"]);
+      expect(codes(wide)).toEqual(["scene-primitive-supported"]);
+    });
+  });
+
+  describe("renderer precision floor", () => {
+    it("classifies a claim against a floor the renderer declares", () => {
+      const equivalent = diagnoseScenePrimitive(
+        imagery({ precision: { horizontalMeters: 0.5 } }),
+        COARSE_FLOOR_CAPABILITIES,
+      );
+      const exact = diagnoseScenePrimitive(imagery({ precision: { horizontalMeters: 4 } }), COARSE_FLOOR_CAPABILITIES);
+
+      expect(codes(equivalent)).toEqual(["scene-primitive-precision-equivalent"]);
+      expect(equivalent[0]?.context).toMatchObject({ limitMeters: 2, limitSource: "renderer-floor" });
+      expect(equivalent[0]?.context).not.toHaveProperty("limitDetail");
+      expect(codes(exact)).toEqual(["scene-primitive-precision-exact"]);
+    });
+
+    it("keeps the coarsest limit when several apply", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        terrain({
+          protocol: "raster-dem",
+          encoding: "mapbox",
+          precision: { verticalMeters: 0.01, coordinateFrame: "geocentric", coordinateStorage: "float32" },
+        }),
+        COARSE_FLOOR_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-precision-equivalent"]);
+      expect(diagnostics[0]?.context).toMatchObject({ limitMeters: 5, limitSource: "renderer-floor" });
+    });
+
+    it("declares no precision floor on either shipped adapter", () => {
+      expect(CESIUM_SCENE_CAPABILITIES.spatial?.precision).toBeUndefined();
+      expect(MAPLIBRE_SCENE_CAPABILITIES.spatial?.precision).toBeUndefined();
+    });
+  });
+
+  describe("honest unknowns", () => {
+    it("stays silent for a claim with no declared limit", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        imagery({ precision: { horizontalMeters: 0.05, verticalMeters: 0.05 } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported"]);
+    });
+
+    it("stays silent for a limit with no claim", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        terrain({
+          protocol: "raster-dem",
+          encoding: "mapbox",
+          precision: { coordinateFrame: "geocentric", coordinateStorage: "float32" },
+        }),
+        COARSE_FLOOR_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported"]);
+    });
+
+    it("never mints an unsupported precision fidelity, however coarse the limit", () => {
+      const diagnostics = [
+        ...diagnoseScenePrimitive(
+          terrain({ protocol: "raster-dem", encoding: "mapbox", precision: { verticalMeters: 1e-9 } }),
+          COARSE_FLOOR_CAPABILITIES,
+        ),
+        ...diagnoseScenePrimitive(
+          model({
+            precision: { horizontalMeters: 1e-9, coordinateFrame: "geocentric", coordinateStorage: "float32" },
+          }),
+          COARSE_FLOOR_CAPABILITIES,
+        ),
+      ];
+
+      expect(diagnostics.every((entry) => entry.fidelity !== "unsupported")).toBe(true);
+      expect(diagnostics.every((entry) => entry.status !== "unsupported")).toBe(true);
+    });
+
+    it("replaces the generic supported summary but keeps a renderability finding", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        model({
+          format: "i3s",
+          precision: { horizontalMeters: 0.05, coordinateFrame: "geocentric", coordinateStorage: "float32" },
+        }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual([
+        "scene-primitive-precision-equivalent",
+        "scene-primitive-model-format-not-materialized",
+      ]);
+    });
+  });
+});
+
+describe("scene primitive cache and source-version metadata (#1051)", () => {
+  describe("cache status", () => {
+    it("reports a stale cache as degraded without blocking the binding", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        imagery({
+          cache: { status: "stale", scope: "tiles", updatedAt: "2026-08-01T00:00:00.000Z", ttlMs: 600_000 },
+        }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported", "scene-primitive-cache-stale"]);
+      expect(diagnostics[1]).toMatchObject({
+        severity: "warning",
+        status: "degraded",
+        primitiveId: "imagery",
+        context: {
+          cacheStatus: "stale",
+          cacheScope: "tiles",
+          cacheUpdatedAt: "2026-08-01T00:00:00.000Z",
+          cacheTtlMs: 600_000,
+        },
+      });
+      expect(diagnostics[1]?.message).toContain("tiles");
+      expect(summarizeDiagnosticStatus(diagnostics)).toBe("degraded");
+    });
+
+    it("reports a bypassed cache as an informational, supported statement", () => {
+      const diagnostics = diagnoseScenePrimitive(terrain({ cache: { status: "bypass" } }), CESIUM_SCENE_CAPABILITIES);
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported", "scene-primitive-cache-bypass"]);
+      expect(diagnostics[1]).toMatchObject({
+        severity: "info",
+        status: "supported",
+        context: { cacheStatus: "bypass" },
+      });
+      expect(summarizeDiagnosticStatus(diagnostics)).toBe("supported");
+    });
+
+    it("stays silent for a ready or unknown cache", () => {
+      const baseline = diagnoseScenePrimitive(terrain(), CESIUM_SCENE_CAPABILITIES);
+
+      for (const status of ["ready", "unknown"] as const) {
+        expect(diagnoseScenePrimitive(terrain({ cache: { status } }), CESIUM_SCENE_CAPABILITIES)).toEqual(baseline);
+      }
+    });
+
+    it("keeps a fail-closed binding fail-closed", () => {
+      const target = createMapLibreTarget();
+
+      const result = applyMapLibreScenePrimitives(target, [
+        terrain({ protocol: "raster-dem", url: "ftp://terrain.example.test/tiles", cache: { status: "stale" } }),
+      ]);
+
+      expect(result.status).toBe("unsupported");
+      expect(codes(result.diagnostics)).toEqual([
+        "scene-primitive-terrain-source-url-invalid",
+        "scene-primitive-cache-stale",
+      ]);
+      expect(target.sources.size).toBe(0);
+    });
+  });
+
+  describe("source version", () => {
+    it("carries the declared version on every finding the primitive raises", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        imagery({ sourceVersion: "2026-07-14.3", crs: "EPSG:3857", cache: { status: "stale" } }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-crs-equivalent", "scene-primitive-cache-stale"]);
+      for (const entry of diagnostics) {
+        expect(entry.context).toMatchObject({ sourceVersion: "2026-07-14.3" });
+      }
+    });
+
+    it("carries it onto a plain supported summary too", () => {
+      const diagnostics = diagnoseScenePrimitive(terrain({ sourceVersion: "v9" }), CESIUM_SCENE_CAPABILITIES);
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]).toMatchObject({
+        code: "scene-primitive-supported",
+        context: { sourceVersion: "v9" },
+      });
+    });
+
+    it("round-trips through workspace serialization with precision and cache", () => {
+      const workspace = createSceneWorkspace();
+      const primitives: SceneRuntimePrimitive[] = [
+        terrain({
+          protocol: "raster-dem",
+          encoding: "mapbox",
+          sourceVersion: "dem-2026.2",
+          cache: { status: "stale", scope: "tiles" },
+          precision: { verticalMeters: 0.01 },
+        }),
+        model({
+          sourceVersion: "tileset-17",
+          precision: { horizontalMeters: 0.05, coordinateFrame: "geocentric", coordinateStorage: "float32" },
+        }),
+      ];
+
+      workspace.dispatch({ kind: "set-primitives", primitives });
+      const restored = JSON.parse(JSON.stringify(workspace.snapshot().state)) as {
+        primitives: Record<string, SceneRuntimePrimitive>;
+      };
+
+      expect(restored.primitives.terrain).toMatchObject({
+        sourceVersion: "dem-2026.2",
+        cache: { status: "stale", scope: "tiles" },
+        precision: { verticalMeters: 0.01 },
+      });
+      expect(restored.primitives.model).toMatchObject({
+        sourceVersion: "tileset-17",
+        precision: { horizontalMeters: 0.05, coordinateFrame: "geocentric", coordinateStorage: "float32" },
+      });
+      expect(diagnoseScenePrimitives(Object.values(restored.primitives), CESIUM_SCENE_CAPABILITIES)).toEqual(
+        diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES),
+      );
+    });
+  });
+
+  describe("metadata that cannot be read", () => {
+    it("names an unknown precision key and classifies nothing from the record", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        terrain({
+          protocol: "raster-dem",
+          encoding: "mapbox",
+          precision: { verticalMeters: 0.01, verticalMetres: 0.01 } as never,
+        }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported", "scene-primitive-asset-metadata-invalid"]);
+      expect(diagnostics[1]).toMatchObject({
+        severity: "warning",
+        status: "degraded",
+        context: { invalidFields: ["precision.verticalMetres"] },
+      });
+    });
+
+    it("names non-positive magnitudes and unknown coordinate tokens", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        model({
+          precision: {
+            horizontalMeters: -1,
+            verticalMeters: Number.POSITIVE_INFINITY,
+            coordinateFrame: "ecef" as never,
+            coordinateStorage: "float16" as never,
+          },
+        }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(diagnostics[1]?.context).toMatchObject({
+        invalidFields: [
+          "precision.horizontalMeters",
+          "precision.verticalMeters",
+          "precision.coordinateFrame",
+          "precision.coordinateStorage",
+        ],
+      });
+    });
+
+    it("names a precision record that is not plain data, and a stray one on a kind that cannot carry it", () => {
+      const nonRecord = diagnoseScenePrimitive(imagery({ precision: [0.5] as never }), CESIUM_SCENE_CAPABILITIES);
+      const stray = diagnoseScenePrimitive(
+        { kind: "ground", id: "ground", precision: { horizontalMeters: 0.5 } } as never,
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(nonRecord[1]?.context).toMatchObject({ invalidFields: ["precision"] });
+      expect(stray.map((entry) => entry.code)).toContain("scene-primitive-asset-metadata-invalid");
+      expect(stray.at(-1)?.context).toMatchObject({ invalidFields: ["precision"] });
+    });
+
+    it("names unreadable cache fields and suppresses the cache finding", () => {
+      const diagnostics = diagnoseScenePrimitive(
+        imagery({
+          cache: { status: "stalé", ttlMs: -1, updatedAt: "yesterday", validator: " " } as never,
+        }),
+        CESIUM_SCENE_CAPABILITIES,
+      );
+
+      expect(codes(diagnostics)).toEqual(["scene-primitive-supported", "scene-primitive-asset-metadata-invalid"]);
+      expect(diagnostics[1]?.context).toMatchObject({
+        invalidFields: ["cache.status", "cache.updatedAt", "cache.ttlMs", "cache.validator"],
+      });
+    });
+
+    it("names a blank source version and never propagates it", () => {
+      const diagnostics = diagnoseScenePrimitive(terrain({ sourceVersion: "   " }), CESIUM_SCENE_CAPABILITIES);
+
+      expect(diagnostics[1]?.context).toMatchObject({ invalidFields: ["sourceVersion"] });
+      for (const entry of diagnostics) {
+        expect(entry.context ?? {}).not.toHaveProperty("sourceVersion");
+      }
+    });
+
+    it("degrades the plan's claims rather than refusing a renderable binding", () => {
+      const target = createMapLibreTarget();
+
+      const result = applyMapLibreScenePrimitives(target, [
+        terrain({ protocol: "raster-dem", precision: { horizontalMeters: 0 } }),
+      ]);
+
+      expect(result.status).toBe("degraded");
+      expect(target.sources.has("terrain")).toBe(true);
+      expect(target.terrains).toHaveLength(1);
+    });
+  });
+
+  describe("backward compatibility", () => {
+    it("diagnoses a primitive with no descriptive metadata exactly as before", () => {
+      const primitives: SceneRuntimePrimitive[] = [
+        terrain(),
+        imagery(),
+        model(),
+        { kind: "camera", id: "camera", camera: { longitude: 0, latitude: 0, height: 1000 } },
+      ];
+
+      const diagnostics = diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES);
+
+      expect(codes(diagnostics)).toEqual([
+        "scene-primitive-supported",
+        "scene-primitive-supported",
+        "scene-primitive-supported",
+        "scene-primitive-supported",
+      ]);
+      expect(diagnostics.every((entry) => entry.context === undefined)).toBe(true);
+      expect(diagnostics.every((entry) => entry.fidelity === undefined)).toBe(true);
+    });
+  });
+});
