@@ -1,6 +1,6 @@
 {
   "format": "honua.offline-shell-manifest.v1",
-  "deploymentId": "offline-region-reference-2026-08-06-v1",
+  "deploymentId": "offline-region-reference-2026-08-06-v2",
   "resources": [
     {
       "url": "./",
@@ -94,8 +94,8 @@
     },
     {
       "url": "/dist/src/offline/index.js",
-      "byteLength": 3771,
-      "integrity": "sha256:671f70f214ba0293018d98642449b655749ce6e39fc9a0c793be9598053791d8",
+      "byteLength": 4403,
+      "integrity": "sha256:292009b98681e9c5346893481e68c3877e8a60d178923a134d9109f12a40c80f",
       "mediaType": "application/javascript"
     },
     {
@@ -117,9 +117,21 @@
       "mediaType": "application/javascript"
     },
     {
+      "url": "/dist/src/offline/read-gate.js",
+      "byteLength": 12205,
+      "integrity": "sha256:a8bbdfa03d3dedce5dbc82fa4deb10f9b6c034678b2f3a70601e9d53a7fb1523",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/read-resource.js",
+      "byteLength": 8250,
+      "integrity": "sha256:b5c22fea883c61ace9ca668aa107c3aaec61d6cca1f883a15e8d1c62b65628a3",
+      "mediaType": "application/javascript"
+    },
+    {
       "url": "/dist/src/offline/read.js",
-      "byteLength": 12880,
-      "integrity": "sha256:34ee3868af9278d7fac956f1bbad4059c9e7352becb5fe6b79423c6305466a99",
+      "byteLength": 3713,
+      "integrity": "sha256:b4afee8c6ca2bfb6f4978f42f5cd818f8f4b078fee45c0e0637db6d5a37d1ee3",
       "mediaType": "application/javascript"
     },
     {
@@ -130,8 +142,8 @@
     },
     {
       "url": "/dist/src/offline/selection.js",
-      "byteLength": 12384,
-      "integrity": "sha256:3ee4e6b54783cdb1bfeb21dfa658822b3bd75add86f695dde96408d3495b5252",
+      "byteLength": 16932,
+      "integrity": "sha256:cd612c2cbda04315fc7f5180cd49fb30acdfef9cccb3c3583c5b725885d53e8a",
       "mediaType": "application/javascript"
     },
     {
@@ -150,6 +162,12 @@
       "url": "/dist/src/offline/store-conformance.js",
       "byteLength": 11436,
       "integrity": "sha256:d86b09b9bbdb2831d832362127e529b648d6f1f706ea9c7d596e99af05a9d3aa",
+      "mediaType": "application/javascript"
+    },
+    {
+      "url": "/dist/src/offline/tile-protocol.js",
+      "byteLength": 5624,
+      "integrity": "sha256:6a2fc6c2c1d5f8b6bb53844639d23e8798e9932261786bd80022b28e49150098",
       "mediaType": "application/javascript"
     },
     {
