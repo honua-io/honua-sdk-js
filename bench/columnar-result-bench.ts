@@ -249,14 +249,23 @@ function batchDigest(batch: ColumnarBatchV1): string {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
+/**
+ * Sentinel standing in for an explicit null attribute inside a comparison key.
+ *
+ * It must be a value no real attribute can produce, or a null category would
+ * compare equal to a category that happened to be spelled the same way. Written
+ * as an escape rather than a literal so this file stays plain text.
+ */
+const NULL_KEY = "\u0000";
+
 /** Stable structural key for one converted feature, used for equality checks. */
 function featureKey(feature: ColumnarResult["features"][number]): string {
   const attributes = feature.attributes as Record<string, unknown>;
   const geometry = feature.geometry as { coordinates?: readonly number[] } | null | undefined;
   return [
     attributes.fid,
-    attributes.category === null ? " " : attributes.category,
-    attributes.observedAt === null ? " " : String(attributes.observedAt),
+    attributes.category === null ? NULL_KEY : attributes.category,
+    attributes.observedAt === null ? NULL_KEY : String(attributes.observedAt),
     geometry?.coordinates?.join(","),
   ].join("|");
 }
@@ -268,8 +277,8 @@ function referenceKey(row: number): string {
   const timestamp = row % 3 === 2 ? null : BigInt(row) * 1_000n;
   return [
     row,
-    category === null ? " " : category,
-    timestamp === null ? " " : String(timestamp),
+    category === null ? NULL_KEY : category,
+    timestamp === null ? NULL_KEY : String(timestamp),
     `${longitudeSteps / COORDINATE_STEPS_PER_UNIT},${latitudeSteps / COORDINATE_STEPS_PER_UNIT}`,
   ].join("|");
 }
