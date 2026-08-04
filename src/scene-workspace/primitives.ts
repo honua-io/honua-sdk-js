@@ -34,11 +34,12 @@ export type SceneSpatialFidelity = SceneStateSyncFidelity;
 /**
  * Declared spatial reference for a scene binding.
  *
- * Both fields are descriptive plan data: the SDK performs no reprojection and
- * no vertical-datum transform. They exist so the adapter can say, before a
- * viewer is created, whether the renderer will place the binding's footprints
- * and heights where the author meant them. Identifiers are accepted in the
- * common spellings (`EPSG:3857`, `3857`, `urn:ogc:def:crs:EPSG::3857`,
+ * Every field is descriptive plan data: the SDK performs no reprojection, no
+ * vertical-datum transform, and no resampling. They exist so the adapter can
+ * say, before a viewer is created, whether the renderer will place the
+ * binding's footprints and heights where the author meant them, and at the
+ * detail the author claimed. Identifiers are accepted in the common spellings
+ * (`EPSG:3857`, `3857`, `urn:ogc:def:crs:EPSG::3857`,
  * `http://www.opengis.net/def/crs/EPSG/0/3857`, `OGC:CRS84`) and normalized
  * before classification.
  */
@@ -51,6 +52,57 @@ export interface SceneSpatialReference {
    * identifiers such as `EPSG:4979` (ellipsoidal) or `EPSG:5703` (NAVD88).
    */
   readonly verticalDatum?: string;
+  /** Detail the binding resolves, and how its coordinates are stored. */
+  readonly precision?: SceneSpatialPrecision;
+}
+
+/**
+ * Declared precision of a scene binding: the finest detail it actually
+ * resolves, plus the coordinate storage that bounds it.
+ *
+ * The two magnitudes are *claims* — what the author says the binding resolves.
+ * `coordinateFrame` and `coordinateStorage` are *limits* — what the binding's
+ * own encoding can carry. A claim is classified against every limit the plan
+ * (or the renderer, through {@link SceneSpatialPrecisionFloor}) declares, and
+ * the coarsest limit decides the fidelity.
+ *
+ * A claim with no declared limit, and a limit with no claim, are both silent:
+ * half a comparison supports no honest classification, and this SDK never
+ * resamples, re-encodes, or re-anchors a binding to make a claim fit.
+ */
+export interface SceneSpatialPrecision {
+  /**
+   * Finest horizontal detail the binding resolves, in metres — ground sample
+   * distance for a raster or DEM source, vertex spacing for a mesh or model.
+   * Must be finite and greater than zero.
+   */
+  readonly horizontalMeters?: number;
+  /** Finest height detail the binding resolves, in metres. Must be finite and greater than zero. */
+  readonly verticalMeters?: number;
+  /**
+   * Frame the binding's own coordinates are stored in. `geocentric` means
+   * earth-centred, earth-fixed values, whose magnitudes sit near the
+   * ellipsoid's semi-major axis; `local` means values relative to the binding's
+   * own origin — for a model layer, the `position` that anchors it.
+   */
+  readonly coordinateFrame?: "geocentric" | "local";
+  /** Numeric width the binding's coordinates are stored at. */
+  readonly coordinateStorage?: "float32" | "float64";
+}
+
+/**
+ * A precision floor a renderer imposes on every binding it draws, independent
+ * of what the binding itself encodes.
+ *
+ * Omit it — as both shipped adapters do — when the renderer imposes no
+ * documented floor above the binding's own encoding. Silence here means "not
+ * declared", never "unbounded", and no floor is ever inferred.
+ */
+export interface SceneSpatialPrecisionFloor {
+  /** Finest horizontal detail the renderer resolves, in metres. */
+  readonly horizontalMeters?: number;
+  /** Finest height detail the renderer resolves, in metres. */
+  readonly verticalMeters?: number;
 }
 
 /**
@@ -67,8 +119,21 @@ export interface SceneSpatialCapabilities {
   readonly equivalentHorizontalCrs?: readonly string[];
   /** Vertical datums the renderer can interpret as scene heights. */
   readonly verticalDatums?: readonly string[];
+  /**
+   * Precision floor the renderer imposes on every binding. Omit it when the
+   * renderer resolves whatever the binding encodes; an omitted floor is not
+   * read as an unbounded one.
+   */
+  readonly precision?: SceneSpatialPrecisionFloor;
 }
 
+/**
+ * Freshness of the material behind a binding, as the plan's author observed it.
+ *
+ * Descriptive only. The adapter reports a `stale` or `bypass` status as a
+ * diagnostic and never acts on it: nothing here revalidates, refetches, or
+ * evicts, because the plan is not the cache's owner.
+ */
 export interface SceneCacheMetadata {
   readonly status: "ready" | "stale" | "bypass" | "unknown";
   readonly scope?: "metadata" | "tiles" | "asset" | "interaction";
@@ -82,6 +147,14 @@ export interface ScenePrimitiveBase {
   readonly title?: string;
   readonly attribution?: string;
   readonly cache?: SceneCacheMetadata;
+  /**
+   * Version of the upstream asset this binding was authored against — a
+   * service version, dataset edition, or content digest, spelled however the
+   * publisher spells it. Opaque to the SDK: it is carried on every diagnostic
+   * this primitive raises so a finding can be traced back to the material it
+   * was computed from, and it is never parsed, compared, or negotiated.
+   */
+  readonly sourceVersion?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
@@ -415,24 +488,37 @@ export function diagnoseScenePrimitives(
 /**
  * Diagnose one primitive against a renderer capability record.
  *
- * Two independent questions are answered: whether the renderer can *materialize*
- * the binding at all (structure), and whether it can place it where the author
- * meant (spatial reference). Both are pure — nothing here loads a renderer peer,
- * so a migration analysis can run before a viewer exists.
+ * Three independent questions are answered: whether the renderer can
+ * *materialize* the binding at all (structure), whether it can place it where
+ * the author meant and resolve it at the detail the author claimed (spatial
+ * reference and precision), and what the plan says about the material behind it
+ * (cache freshness, source version). All are pure — nothing here loads a
+ * renderer peer, so a migration analysis can run before a viewer exists.
  *
- * A spatial finding replaces the generic `scene-primitive-supported` summary,
- * mirroring how a renderability finding already does: the caller should read the
- * fidelity, not a bare "supported". A primitive that declares no CRS or vertical
- * datum diagnoses exactly as it did before this contract existed.
+ * A spatial finding — CRS, vertical datum, or precision — replaces the generic
+ * `scene-primitive-supported` summary, mirroring how a renderability finding
+ * already does: the caller should read the fidelity, not a bare "supported".
+ * Descriptive asset findings (cache freshness, unreadable metadata) are additive
+ * instead, because they say nothing about whether the renderer can draw the
+ * binding. A primitive that declares no CRS, vertical datum, precision, cache,
+ * or source version diagnoses exactly as it did before those contracts existed.
  */
 export function diagnoseScenePrimitive(
   primitive: SceneRuntimePrimitive,
   capabilities: SceneRuntimeCapabilities,
 ): ScenePrimitiveDiagnostic[] {
-  const spatial = diagnoseSceneSpatialReference(primitive, capabilities);
+  const unreadableFields = unreadableAssetMetadataFields(primitive);
+  const spatial = [
+    ...diagnoseSceneSpatialReference(primitive, capabilities),
+    ...diagnoseScenePrecision(primitive, capabilities, unreadableFields),
+  ];
   const structural = diagnoseScenePrimitiveStructure(primitive, capabilities);
-  if (spatial.length === 0) return structural;
-  return [...spatial, ...structural.filter((entry) => entry.code !== "scene-primitive-supported")];
+  const asset = diagnoseSceneAssetMetadata(primitive, capabilities, unreadableFields);
+  const findings =
+    spatial.length === 0
+      ? [...structural, ...asset]
+      : [...spatial, ...structural.filter((entry) => entry.code !== "scene-primitive-supported"), ...asset];
+  return withSourceVersionContext(primitive, findings);
 }
 
 function diagnoseScenePrimitiveStructure(
@@ -1272,6 +1358,377 @@ function primitiveDeclaresSpatialReference(
   return (
     primitive.kind === "elevation-source" || primitive.kind === "imagery-layer" || primitive.kind === "model-layer"
   );
+}
+
+/**
+ * Height quantum, in metres, of the RGB DEM encodings both shipped renderers
+ * decode. Each is an exact consequence of the published decode formula, not an
+ * estimate: Mapbox Terrain-RGB is `-10000 + (R * 65536 + G * 256 + B) * 0.1`, so
+ * the smallest height step it can express is 0.1 m; Terrarium is
+ * `(R * 256 + G + B / 256) - 32768`, so its step is 1/256 m. An encoding whose
+ * quantum is not knowable from the plan — `custom`, or none declared — appears
+ * nowhere here and contributes no limit.
+ */
+const DEM_ENCODING_HEIGHT_QUANTUM_METERS: ReadonlyMap<string, number> = new Map([
+  ["mapbox", 0.1],
+  ["terrarium", 1 / 256],
+]);
+
+/** WGS84 semi-major axis, in metres: the magnitude a surface-level ECEF coordinate carries. */
+const WGS84_SEMI_MAJOR_AXIS_METERS = 6_378_137;
+
+/**
+ * Spacing between adjacent float32 values at the ellipsoid's surface, in metres.
+ *
+ * A float32 carries a 24-bit significand, so consecutive representable values
+ * near a magnitude `x` are `2 ** (floor(log2 x) - 23)` apart — 0.5 m at the
+ * semi-major axis. That is the precision floor of any binding that stores
+ * earth-centred coordinates at float32 width, whatever the renderer does with
+ * them afterwards, and it is the reason 3D assets are published in a local frame
+ * anchored by a relative-to-centre origin rather than in raw ECEF.
+ */
+const GEOCENTRIC_FLOAT32_QUANTUM_METERS = 2 ** (Math.floor(Math.log2(WGS84_SEMI_MAJOR_AXIS_METERS)) - 23);
+
+type ScenePrecisionAxis = "horizontal" | "vertical";
+
+/** Where a precision limit came from. Reported verbatim as `context.limitSource`. */
+type ScenePrecisionLimitSource = "dem-encoding" | "geocentric-float32-coordinates" | "renderer-floor";
+
+interface ScenePrecisionLimit {
+  readonly source: ScenePrecisionLimitSource;
+  readonly quantumMeters: number;
+  readonly detail?: string;
+}
+
+const SCENE_PRECISION_AXES: readonly ScenePrecisionAxis[] = ["horizontal", "vertical"];
+
+const SCENE_PRECISION_LIMIT_FALLBACKS: Readonly<Record<ScenePrecisionLimitSource, string>> = {
+  "dem-encoding":
+    "Publish the DEM in an encoding whose height quantum carries the declared precision, or declare the precision the encoding actually resolves.",
+  "geocentric-float32-coordinates":
+    "Republish the asset in a local frame anchored by its own origin, or store coordinates at float64 width.",
+  "renderer-floor":
+    "Accept the renderer's sampling, or route the binding to an adapter whose declared precision floor carries it.",
+};
+
+/**
+ * Classify a binding's declared precision against the limits the plan and the
+ * renderer declare.
+ *
+ * Pure and peer-free, and silent wherever a comparison would be invented: a
+ * claim with no limit, a limit with no claim, an encoding whose quantum is not
+ * published, and a renderer that declares no floor all produce nothing.
+ *
+ * Only two fidelities are honest here. A binding whose detail exceeds a limit
+ * still renders — coarser than authored, which is exactly `equivalent` — so no
+ * precision finding is ever minted at `unsupported`. Precision that cannot be
+ * *read* is a validity failure and is reported separately as
+ * `scene-primitive-asset-metadata-invalid`.
+ */
+function diagnoseScenePrecision(
+  primitive: SceneRuntimePrimitive,
+  capabilities: SceneRuntimeCapabilities,
+  unreadableFields: readonly string[],
+): ScenePrimitiveDiagnostic[] {
+  if (!primitiveDeclaresSpatialReference(primitive)) return [];
+  const precision = primitive.precision;
+  if (precision === undefined) return [];
+  // A record we could not read is never classified: a dropped or misspelled key
+  // would otherwise read as agreement with whatever survived.
+  if (unreadableFields.some((field) => field === "precision" || field.startsWith("precision."))) return [];
+
+  const diagnostics: ScenePrimitiveDiagnostic[] = [];
+  for (const axis of SCENE_PRECISION_AXES) {
+    const claimedMeters = axis === "horizontal" ? precision.horizontalMeters : precision.verticalMeters;
+    if (claimedMeters === undefined) continue;
+    const limit = coarsestScenePrecisionLimit(primitive, capabilities, axis);
+    if (limit === undefined) continue;
+    const context = {
+      axis,
+      claimedMeters,
+      limitMeters: limit.quantumMeters,
+      limitSource: limit.source,
+      ...(limit.detail !== undefined ? { limitDetail: limit.detail } : {}),
+    };
+    if (claimedMeters >= limit.quantumMeters) {
+      diagnostics.push({
+        ...diagnostic(
+          "scene-primitive-precision-exact",
+          "info",
+          "supported",
+          primitive,
+          capabilities,
+          `Declared ${axis} precision of ${claimedMeters} m is carried as authored; the coarsest declared limit is ${limit.quantumMeters} m.`,
+        ),
+        fidelity: "exact",
+        context,
+      });
+      continue;
+    }
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-precision-equivalent",
+        "warning",
+        "degraded",
+        primitive,
+        capabilities,
+        `Declared ${axis} precision of ${claimedMeters} m is finer than the ${limit.source} limit of ${limit.quantumMeters} m; ${capabilities.renderer} carries this binding at the coarser quantum, not as authored.`,
+        SCENE_PRECISION_LIMIT_FALLBACKS[limit.source],
+      ),
+      fidelity: "equivalent",
+      context,
+    });
+  }
+  return diagnostics;
+}
+
+/**
+ * The limit that actually decides an axis: the coarsest one declared, because a
+ * binding resolves no finer than its bluntest instrument. Ties keep the
+ * first-collected limit so the finding is deterministic.
+ */
+function coarsestScenePrecisionLimit(
+  primitive: SceneElevationSourcePrimitive | SceneImageryLayerPrimitive | SceneModelLayerPrimitive,
+  capabilities: SceneRuntimeCapabilities,
+  axis: ScenePrecisionAxis,
+): ScenePrecisionLimit | undefined {
+  const limits: ScenePrecisionLimit[] = [];
+  if (
+    axis === "vertical" &&
+    primitive.kind === "elevation-source" &&
+    (primitive.protocol === "terrain-rgb" || primitive.protocol === "raster-dem") &&
+    primitive.encoding !== undefined
+  ) {
+    const quantumMeters = DEM_ENCODING_HEIGHT_QUANTUM_METERS.get(primitive.encoding);
+    if (quantumMeters !== undefined) {
+      limits.push({ source: "dem-encoding", quantumMeters, detail: primitive.encoding });
+    }
+  }
+  if (primitive.precision?.coordinateFrame === "geocentric" && primitive.precision.coordinateStorage === "float32") {
+    limits.push({
+      source: "geocentric-float32-coordinates",
+      quantumMeters: GEOCENTRIC_FLOAT32_QUANTUM_METERS,
+    });
+  }
+  const floor = capabilities.spatial?.precision;
+  const floorMeters = axis === "horizontal" ? floor?.horizontalMeters : floor?.verticalMeters;
+  if (floorMeters !== undefined && isPositiveFiniteNumber(floorMeters)) {
+    limits.push({ source: "renderer-floor", quantumMeters: floorMeters });
+  }
+  let coarsest: ScenePrecisionLimit | undefined;
+  for (const limit of limits) {
+    if (coarsest === undefined || limit.quantumMeters > coarsest.quantumMeters) coarsest = limit;
+  }
+  return coarsest;
+}
+
+/**
+ * Report the descriptive asset metadata a binding carries: cache freshness the
+ * plan observed, and any metadata that could not be read.
+ *
+ * Neither finding is fail-closed. Precision, cache state, and source version
+ * describe the material behind a binding; none of them can make the renderer
+ * draw it in the wrong place, so a malformed one degrades the plan's claims
+ * rather than refusing a scene that is otherwise renderable. Staying silent is
+ * not an option either — a dropped `cache.staus` typo would read as `ready`.
+ */
+function diagnoseSceneAssetMetadata(
+  primitive: SceneRuntimePrimitive,
+  capabilities: SceneRuntimeCapabilities,
+  unreadableFields: readonly string[],
+): ScenePrimitiveDiagnostic[] {
+  const diagnostics: ScenePrimitiveDiagnostic[] = [];
+  if (unreadableFields.length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-asset-metadata-invalid",
+        "warning",
+        "degraded",
+        primitive,
+        capabilities,
+        "Descriptive asset metadata could not be read, so it is not classified.",
+        "Correct the named fields or omit them; the binding still renders, but its precision, cache, and source-version claims are ignored.",
+      ),
+      context: { invalidFields: [...unreadableFields] },
+    });
+  }
+  diagnostics.push(...diagnoseSceneCacheStatus(primitive, capabilities, unreadableFields));
+  return diagnostics;
+}
+
+/**
+ * Surface a declared cache status that the developer would otherwise never see.
+ *
+ * `stale` degrades the plan — the scene draws material the author already knew
+ * was out of date — while `bypass` is a supported, informational statement that
+ * every request reaches the origin. `ready` and `unknown` say nothing worth
+ * repeating, and `unknown` is genuinely the unknown state, so both are silent.
+ * Nothing here revalidates or refetches: the SDK reports the plan's cache
+ * metadata, it does not own the cache.
+ */
+function diagnoseSceneCacheStatus(
+  primitive: SceneRuntimePrimitive,
+  capabilities: SceneRuntimeCapabilities,
+  unreadableFields: readonly string[],
+): ScenePrimitiveDiagnostic[] {
+  const cache = primitive.cache;
+  if (cache === undefined) return [];
+  if (unreadableFields.some((field) => field === "cache" || field.startsWith("cache."))) return [];
+  const scope = cache.scope ?? "asset";
+  const context = {
+    cacheStatus: cache.status,
+    ...(cache.scope !== undefined ? { cacheScope: cache.scope } : {}),
+    ...(cache.updatedAt !== undefined ? { cacheUpdatedAt: cache.updatedAt } : {}),
+    ...(cache.ttlMs !== undefined ? { cacheTtlMs: cache.ttlMs } : {}),
+    ...(cache.validator !== undefined ? { cacheValidator: cache.validator } : {}),
+  };
+  if (cache.status === "stale") {
+    return [
+      {
+        ...diagnostic(
+          "scene-primitive-cache-stale",
+          "warning",
+          "degraded",
+          primitive,
+          capabilities,
+          `Binding declares a stale ${scope} cache; the scene draws the cached material and the SDK never revalidates it.`,
+          "Refresh the cached material at the host boundary before applying the plan, or update the binding's cache metadata.",
+        ),
+        context,
+      },
+    ];
+  }
+  if (cache.status === "bypass") {
+    return [
+      {
+        ...diagnostic(
+          "scene-primitive-cache-bypass",
+          "info",
+          "supported",
+          primitive,
+          capabilities,
+          `Binding declares that its ${scope} cache is bypassed; every request for this material reaches the origin.`,
+        ),
+        context,
+      },
+    ];
+  }
+  return [];
+}
+
+const SCENE_PRECISION_KEYS: ReadonlySet<string> = new Set([
+  "horizontalMeters",
+  "verticalMeters",
+  "coordinateFrame",
+  "coordinateStorage",
+]);
+const SCENE_PRECISION_MAGNITUDE_KEYS = ["horizontalMeters", "verticalMeters"] as const;
+const SCENE_PRECISION_COORDINATE_FRAMES: ReadonlySet<string> = new Set(["geocentric", "local"]);
+const SCENE_PRECISION_COORDINATE_STORAGE: ReadonlySet<string> = new Set(["float32", "float64"]);
+const SCENE_CACHE_KEYS: ReadonlySet<string> = new Set(["status", "scope", "updatedAt", "ttlMs", "validator"]);
+const SCENE_CACHE_STATUSES: ReadonlySet<string> = new Set(["ready", "stale", "bypass", "unknown"]);
+const SCENE_CACHE_SCOPES: ReadonlySet<string> = new Set(["metadata", "tiles", "asset", "interaction"]);
+
+/**
+ * Name the descriptive asset metadata that cannot be trusted, dotted from the
+ * primitive root (`precision.horizontalMeters`, `cache.status`,
+ * `sourceVersion`).
+ *
+ * Both records are validated as closed records, for the reason
+ * `pointCloudShading` is: an unknown own key is itself a failure, because
+ * dropping it silently would leave the developer believing a claim was checked.
+ * The `typeof` guards are load-bearing at runtime even where the declared type
+ * narrows them — deserialized plan JSON is not type-checked.
+ */
+function unreadableAssetMetadataFields(primitive: SceneRuntimePrimitive): string[] {
+  const invalidFields: string[] = [];
+  if (primitive.sourceVersion !== undefined && !isNonEmptyString(primitive.sourceVersion)) {
+    invalidFields.push("sourceVersion");
+  }
+  invalidFields.push(...unreadablePrecisionFields(primitive));
+  invalidFields.push(...unreadableCacheFields(primitive));
+  return invalidFields;
+}
+
+function unreadablePrecisionFields(primitive: SceneRuntimePrimitive): string[] {
+  if (!primitiveDeclaresSpatialReference(primitive)) {
+    // `precision` lives on the spatial-reference mixin, so a kind that cannot
+    // carry it has nothing to classify. A stray value on deserialized plan JSON
+    // is named rather than silently ignored.
+    const stray = (primitive as { readonly precision?: unknown }).precision;
+    return stray === undefined ? [] : ["precision"];
+  }
+  const precision = primitive.precision;
+  if (precision === undefined) return [];
+  if (!isPlainRecord(precision)) return ["precision"];
+  const invalidFields: string[] = [];
+  for (const key of Object.keys(precision)) {
+    if (!SCENE_PRECISION_KEYS.has(key)) invalidFields.push(`precision.${key}`);
+  }
+  for (const key of SCENE_PRECISION_MAGNITUDE_KEYS) {
+    const value = precision[key];
+    if (value !== undefined && (typeof value !== "number" || !isPositiveFiniteNumber(value))) {
+      invalidFields.push(`precision.${key}`);
+    }
+  }
+  const coordinateFrame: unknown = precision.coordinateFrame;
+  if (
+    coordinateFrame !== undefined &&
+    (typeof coordinateFrame !== "string" || !SCENE_PRECISION_COORDINATE_FRAMES.has(coordinateFrame))
+  ) {
+    invalidFields.push("precision.coordinateFrame");
+  }
+  const coordinateStorage: unknown = precision.coordinateStorage;
+  if (
+    coordinateStorage !== undefined &&
+    (typeof coordinateStorage !== "string" || !SCENE_PRECISION_COORDINATE_STORAGE.has(coordinateStorage))
+  ) {
+    invalidFields.push("precision.coordinateStorage");
+  }
+  return invalidFields;
+}
+
+function unreadableCacheFields(primitive: SceneRuntimePrimitive): string[] {
+  const cache = primitive.cache;
+  if (cache === undefined) return [];
+  if (!isPlainRecord(cache)) return ["cache"];
+  const invalidFields: string[] = [];
+  for (const key of Object.keys(cache)) {
+    if (!SCENE_CACHE_KEYS.has(key)) invalidFields.push(`cache.${key}`);
+  }
+  if (typeof cache.status !== "string" || !SCENE_CACHE_STATUSES.has(cache.status)) invalidFields.push("cache.status");
+  if (cache.scope !== undefined && (typeof cache.scope !== "string" || !SCENE_CACHE_SCOPES.has(cache.scope))) {
+    invalidFields.push("cache.scope");
+  }
+  if (
+    cache.updatedAt !== undefined &&
+    (!isNonEmptyString(cache.updatedAt) || Number.isNaN(Date.parse(cache.updatedAt)))
+  ) {
+    invalidFields.push("cache.updatedAt");
+  }
+  if (
+    cache.ttlMs !== undefined &&
+    (typeof cache.ttlMs !== "number" || !Number.isFinite(cache.ttlMs) || cache.ttlMs < 0)
+  ) {
+    invalidFields.push("cache.ttlMs");
+  }
+  if (cache.validator !== undefined && !isNonEmptyString(cache.validator)) invalidFields.push("cache.validator");
+  return invalidFields;
+}
+
+/**
+ * Carry the version the plan was authored against onto every finding the
+ * primitive raises, so a diagnostic can be traced back to the material it was
+ * computed from. A blank or non-string version is reported by
+ * {@link unreadableAssetMetadataFields} instead of being propagated.
+ */
+function withSourceVersionContext(
+  primitive: SceneRuntimePrimitive,
+  diagnostics: readonly ScenePrimitiveDiagnostic[],
+): ScenePrimitiveDiagnostic[] {
+  if (!isNonEmptyString(primitive.sourceVersion)) return [...diagnostics];
+  const sourceVersion = primitive.sourceVersion.trim();
+  return diagnostics.map((entry) => ({ ...entry, context: { ...entry.context, sourceVersion } }));
 }
 
 function containsNormalizedCrs(candidates: readonly string[], normalized: string): boolean {
