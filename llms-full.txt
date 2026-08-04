@@ -167,11 +167,11 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 20 of the 27 generated support
+**Two deployment tiers, named up front.** 21 of the 27 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
-7 are `server-attach` and execute only after attaching to a Honua Server facade;
-3 of those link a roadmap issue for an open-endpoint path and the rest state why the
+6 are `server-attach` and execute only after attaching to a Honua Server facade;
+2 of those link a roadmap issue for an open-endpoint path and the rest state why the
 server dependency is inherent, in the generated
 [capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
 
@@ -179,8 +179,9 @@ server dependency is inherent, in the generated
 Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (`beta`), Maps (`beta`), and Records
 (`beta`) also discover and use raw advertised paths. OGC API Processes
-keeps two honest lanes: raw discovery is `experimental`, while typed execution
-is `facade-required`.
+keeps two honest lanes against a raw server:
+discovery (`experimental`, `standalone`) and
+typed execution (`experimental`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 `MapPackage`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
@@ -1671,19 +1672,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `b5f6fc73`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `00b2dda8`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 738.5 KiB | 198.4 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 231.4 KiB | 59.7 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 747.5 KiB | 200.8 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 238.6 KiB | 61.7 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.8 KiB | 13.4 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 364.3 KiB | 98.3 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 999.8 KiB | 250.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 366.0 KiB | 98.7 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 1019.3 KiB | 255.3 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
-| Routing client | 20.5 KiB | 6.3 KiB |
+| Routing client | 20.6 KiB | 6.3 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.0.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1036.3 KiB minified / **273.8 KiB gzip**.
@@ -1693,8 +1694,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 738.5 KiB ≈ **1.73 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 198.4 KiB ≈ **0.46 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 747.5 KiB ≈ **1.74 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 200.8 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -4016,6 +4017,133 @@ the request instead of losing it. A closed host transport can prevent a response
 from being delivered, but that delivery failure is contained and the host still
 releases its active-request slot without an unhandled rejection.
 
+## Bounded conversion to object `Result`s
+
+`columnarBatchToResult` converts a bounded, contiguous row window of a batch
+into the protocol-neutral `Result` the rest of the SDK speaks, and
+`resultToColumnarBatch` converts one back. They exist so the columnar plane is
+opt-in rather than all-or-nothing: a popup, a table page, an export, or a
+`Result`-shaped assertion no longer forces an application to abandon the
+columnar path and re-execute its query on the object path.
+
+Both directions require an explicit `maxFeatures` ceiling. The ceiling is the
+point of the API, not a guard rail on it: feature objects cost roughly two
+orders of magnitude more memory per row than the packed columns they are read
+from, so an unbounded conversion is exactly the silent materialization the
+columnar plane exists to avoid. There is no sentinel, no `Infinity`, and no
+options object that disables it — `maxFeatures` must be a positive safe
+integer, and a window larger than it throws `HonuaGeoArrowError` with code
+`row-limit-exceeded` naming both the ceiling and the requested count. The
+ceiling is checked against plain counts before the batch is inspected, so a
+refused conversion allocates no feature object and reads no payload.
+
+`DEFAULT_COLUMNAR_RESULT_MAX_FEATURES` (100,000) is exported as a documented
+conservative starting point. It is deliberately **not** applied implicitly:
+`maxFeatures` is always written at the call site so the cost of materialization
+stays visible in the calling code.
+
+`offset` and `limit` select the window; they default to the whole batch, which
+the ceiling then bounds. Conversion cost is proportional to the window rather
+than to the batch, so a thousand-row page off a million-row batch does not pay
+for the batch: the per-row payload validation that the unbounded
+`inspectGeoArrowBatch` performs over every coordinate, dictionary index, and
+dictionary value is performed here only for the rows actually materialized.
+
+Geometry becomes GeoJSON, preserving point, linestring, and polygon kinds,
+null geometry, empty geometry, coordinate order, and `xy`/`xyz` dimensions.
+`xym` and `xyzm` batches are refused with `unsupported-layout` rather than
+silently stripped, because GeoJSON has no representation for an M coordinate.
+The batch's declared CRS is surfaced on the returned `Result` as `crs`, as
+either a serialized CRS string or a PROJJSON object; when the batch declares
+none, `crs` is undefined and consumers must not assume EPSG:4326.
+
+Feature-id, timestamp, and dictionary columns become attributes under their
+declared column names. A timestamp attribute is the Arrow value as a `bigint`
+in the column's declared unit — never a `Date` and never epoch milliseconds —
+so microsecond and nanosecond batches round-trip exactly. A dictionary
+attribute carries the decoded string. A null timestamp or dictionary value
+becomes an explicit `null` attribute, never an omitted key and never a zero. A
+feature-id column is not nullable. The returned `Result.fields` declares the
+attribute schema.
+
+The returned `Result` also carries a `columnar` provenance block holding the
+source batch's id, schema, sequence, window bounds, geometry layout, attribute
+bindings, and its full `ColumnarBatchIdentityV1`. The identity is copied and
+never re-observed, so a bounded object view can never look fresher, differently
+ordered, or differently scoped than the batch it was cut from.
+`resultToColumnarBatch` defaults every layout and identity option from that
+block, so a round trip needs only a ceiling. A plain object-path `Result` must
+instead supply `id`, `schemaId`, `identity`, and any attribute binding it wants
+lifted into a typed column.
+
+```ts doc-test=skip reason="the source batch is produced by an application's own query execution"
+const page = columnarBatchToResult(batch, { offset: 0, limit: 100, maxFeatures: 500 });
+page.features[0].geometry; // { type: "Point", coordinates: [-157.8, 21.3] }
+page.crs; // "EPSG:3857" | PROJJSON | undefined
+page.columnar.identity.freshness; // the batch's own freshness, not a new observation
+
+const roundTripped = resultToColumnarBatch(page, { maxFeatures: 500 });
+```
+
+### Nothing is dropped quietly
+
+The forward direction is complete by construction: a normative GeoArrow batch
+carries exactly a geometry column plus optional temporal, dictionary, and
+feature-id columns, and every one of them lands on the converted feature. There
+is no loss to report because there is no loss.
+
+The inverse direction is where an object `Result` can carry more than a columnar
+batch can hold, so `resultToColumnarBatch` **fails closed** with
+`unsupported-layout` on any attribute no column binding covers, naming the
+attribute and the feature index. `unmappedAttributes: "drop"` is the only way
+past it, and even then every dropped name comes back sorted on
+`droppedAttributes`, so the loss is stated rather than assumed. A conversion
+that never sets the option can treat its result as lossless without checking.
+
+The same discipline governs the rest of the inverse direction: `xym`/`xyzm`
+geometry is refused rather than stripped of its M coordinate, a geometry type
+outside point/linestring/polygon is refused rather than approximated, a window
+mixing geometry kinds is refused rather than split, and an Esri geometry
+envelope is refused rather than guessed at.
+
+### Streaming a whole batch
+
+`columnarBatchToResultPages` walks a batch as a sequence of bounded pages. It is
+how a caller converts more of a batch than one window without raising the
+ceiling: each page is a complete, independently valid `Result` bounded by
+`maxFeatures`, and only the page a consumer is holding is live, so streaming a
+million-row batch to a file retains one page rather than a million features.
+
+```ts doc-test=skip reason="the source batch and the row sink are application-owned"
+for await (const page of columnarBatchToResultPages(batch, {
+  pageSize: 1_000,
+  maxFeatures: 1_000,
+  signal: controller.signal,
+})) {
+  await writeRows(page.features);
+}
+```
+
+Pages are emitted in ascending row order, contiguous and non-overlapping, so
+concatenating every page's `features` reproduces exactly the sequence a single
+window over the same range would have produced. An empty range yields no pages
+rather than one empty page.
+
+Cancellation is cooperative and real rather than decorative. `signal` is checked
+before each page and every 1,024 rows inside one, and — because a synchronous
+loop in a single-threaded runtime can never observe an abort no matter how often
+it polls — the traversal hands control back to the host task queue every 16,384
+rows and between pages. That is what gives the poll something to find when the
+abort is raised by a task: a worker message, a timer, or a user gesture. An
+aborted traversal rejects with an `AbortError` `DOMException` and never
+materializes the remaining pages. An already-aborted signal is refused before
+the batch is inspected at all.
+
+Conversion is derived and is not cached. The
+`columnar.result.bounded-window` benchmark-lab scenario carries the memory and
+throughput budgets for both directions; see
+[`bench/README.md`](../bench/README.md).
+
 ## Typed errors
 
 `HonuaColumnarTransferError.code` is one of:
@@ -4049,8 +4177,9 @@ releases its active-request slot without an unhandled rejection.
 This slice does not claim the full #394 workstream. Arrow IPC decoding,
 multi-batch streaming across more than one in-flight worker, planner
 integration, renderer consumption, batch cache identity, incremental
-re-aggregation over realtime patches, application-specific CSP worker URL
-policy, and bounded conversion back to feature objects remain separate work.
+re-aggregation over realtime patches, and application-specific CSP worker URL
+policy remain separate work. Converting a batch that is mid-patch also remains
+out of scope: the realtime columnar patch child owns patch-consistent views.
 
 ---
 
@@ -8874,8 +9003,8 @@ environment cannot enter the vocabulary untiered.
 
 | Tier | Honua Server | Environments | Claims | What it means |
 | --- | :-: | --- | :-: | --- |
-| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 20 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
-| **Server attach** (`server-attach`) | required | `honua-facade` | 7 | Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent. |
+| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 21 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
+| **Server attach** (`server-attach`) | required | `honua-facade` | 6 | Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent. |
 
 ### Server-attach capabilities and their open-endpoint path
 
@@ -8887,7 +9016,6 @@ all, so there is nothing to implement against.
 | Capability | Status | Open-endpoint path | Why it attaches to a server |
 | --- | --- | --- | --- |
 | Honua gRPC FeatureServer discovery | `supported` | Inherent — none possible | The Honua gRPC FeatureService is Honua Server's own wire protocol, so there is no third-party endpoint to speak it to. The open-endpoint path to the same reads is the GeoServices, OGC API Features, WFS, STAC, and OData discovery claims, which return the identical Dataset/Source/Query/Result contract. |
-| OGC API Processes execution | `facade-required` | Roadmap: [#1009](https://github.com/honua-io/honua-sdk-js/issues/1009) | Execution is a standard third-party surface (OGC API — Processes Part 1 execution plus the job lifecycle); only the typed implementation is missing, so this is scheduled work rather than an inherent server dependency. Raw discovery already works open-endpoint. |
 | Server compatibility gate | `facade-required` | Inherent — none possible | The gate reads Honua Server's own administrative capabilities contract; a third-party endpoint publishes nothing equivalent to check. Open-endpoint reads skip the gate entirely rather than degrade. |
 | Authored MapPackage runtime | `facade-required` | Inherent — none possible | A MapPackage is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no MapPackage. |
 | Realtime subscriptions | `facade-required` | Roadmap: [#393](https://github.com/honua-io/honua-sdk-js/issues/393) | Subscriptions bind to the transports Honua Server advertises today, but OData delta and other standards feeds are open-endpoint transports; the unified snapshot-plus-delta epic owns adapting them to the same cursor contract. |
@@ -8932,7 +9060,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | OGC API Maps | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
 | OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
 | OGC API Processes discovery | `open-endpoint` | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
-| OGC API Processes execution | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient OGC Processes methods | [integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Typed execution uses the Honua facade today; raw third-party execution is not claimed. |
+| OGC API Processes execution | `open-endpoint` | `experimental` | `standalone` | `native` | Any conformant OGC API Processes Part 1 (Core) server | client.ogcProcesses({ basePath, conformance }).execute() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Executes at the discovered service root in both Core response shapes (synchronous 200 results and Prefer: respond-async 201 + Location), then follows the advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture-proven; no public endpoint permits anonymous execution, so there is no live lane. |
 | Server compatibility gate | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
 | Authored MapPackage runtime | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | @honua/sdk-js/runtime | [fixture: map-package-fixtures](../test/runtime/map-package-fetch.test.ts) | Loads server-authored styles, layer order, and metadata. |
 | Realtime subscriptions | `server-attach` | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [fixture: realtime-cross-transport-fixtures](../test/realtime-cross-transport-conformance.test.ts)<br>[integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts)<br>[live: realtime-live-conformance](../scripts/realtime-conformance-evidence.mjs) | SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately. |
@@ -8942,9 +9070,11 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 ## Current OGC line
 
 Raw OGC API Tiles, Maps, and Records discovery/use is `beta` and fixture-proven.
-Raw OGC API Processes discovery is `experimental`; typed Processes execution is
-still `facade-required`. Those are deliberately separate claims so discovery
-evidence can never be mistaken for execution support.
+Raw OGC API Processes discovery and raw Processes execution are both
+`experimental` and both `standalone`. They stay deliberately separate claims
+so discovery evidence can never be mistaken for execution support: discovery
+carries a scheduled anonymous live lane, while execution is fixture-proven only
+because no public Processes endpoint permits anonymous execution.
 <!-- support-manifest:standalone-matrix:end -->
 
 ---
@@ -10447,26 +10577,26 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `770bcaa5`._
+_Generated 2026-08-04 at commit `00b2dda8`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 740.4 KiB | 753.9 KiB | 198.9 KiB | 211.8 KiB |
-| `/honua` | 903.1 KiB | 937.2 KiB | 243.3 KiB | 251.0 KiB |
+| `.` (root) | 747.5 KiB | 753.9 KiB | 200.8 KiB | 211.8 KiB |
+| `/honua` | 910.2 KiB | 937.2 KiB | 245.1 KiB | 251.0 KiB |
 | `/contract` | 366.0 KiB | 400.6 KiB | 98.7 KiB | 108.0 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 880.0 KiB | 925.5 KiB | 198.1 KiB | 206.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 887.2 KiB | 925.5 KiB | 200.0 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 914.0 KiB | 961.8 KiB | 207.7 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 921.2 KiB | 961.8 KiB | 209.6 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 65.4 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
 | `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 605.1 KiB | 612.2 KiB | 163.6 KiB | 163.9 KiB |
+| `/runtime` | 605.2 KiB | 612.2 KiB | 163.7 KiB | 163.9 KiB |
 | `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
 | `/offline` | 138.7 KiB | 144.9 KiB | 37.8 KiB | 39.2 KiB |
-| `/query-planner` (worker runtime injected) | 676.5 KiB | 703.3 KiB | 148.0 KiB | 162.6 KiB |
+| `/query-planner` (worker runtime injected) | 678.1 KiB | 703.3 KiB | 148.6 KiB | 162.6 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 120.5 KiB | 122.9 KiB | 36.7 KiB | 37.7 KiB |
-| `/esri-compat` | 1012.1 KiB | 1026.2 KiB | 253.4 KiB | 253.6 KiB |
+| `/esri-compat` | 1019.3 KiB | 1026.2 KiB | 255.3 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
@@ -10474,25 +10604,25 @@ _Generated 2026-08-04 at commit `770bcaa5`._
 | `/auth` | 26.0 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
 | `/map` | 181.1 KiB | 198.2 KiB | 51.3 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 139.9 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 140.0 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1003.8 KiB | 1037.6 KiB | 269.7 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1080.4 KiB | 1120.1 KiB | 293.0 KiB | 321.9 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 65.3 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.1 KiB | 1037.6 KiB | 271.7 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.8 KiB | 1120.1 KiB | 295.1 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 541.1 KiB | 562.6 KiB | 145.6 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 741.0 KiB | 754.5 KiB | 199.2 KiB | 201.3 KiB |
-| browser ESM (`./browser`) | 739.7 KiB | 753.1 KiB | 198.8 KiB | 201.0 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 231.5 KiB | 254.0 KiB | 59.7 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 605.8 KiB | 627.9 KiB | 161.6 KiB | 166.9 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 748.1 KiB | 754.5 KiB | 201.1 KiB | 201.3 KiB |
+| browser ESM (`./browser`) | 746.8 KiB | 753.1 KiB | 200.7 KiB | 201.0 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 238.6 KiB | 254.0 KiB | 61.7 KiB | 63.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 612.9 KiB | 627.9 KiB | 163.4 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.5 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.9 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 705.1 KiB | 717.1 KiB | 189.6 KiB | 191.3 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 246.1 KiB | 267.0 KiB | 63.0 KiB | 68.1 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 712.2 KiB | 717.1 KiB | 191.5 KiB | 210.6 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 253.2 KiB | 267.0 KiB | 64.9 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.8 KiB | 44.7 KiB | 13.4 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
@@ -11785,7 +11915,7 @@ are satisfied without emitting extension parameters. See
 | OGC API Features | `client.ogcFeatures()` | `ogc-features` | landing → collections → items, CQL2 filtering, transactions where the server advertises them |
 | OGC API Tiles | `client.ogcTiles()` | `ogc-tiles` | tileset discovery, vector + raster tiles on the canonical `/collections/{id}/tiles/{tms}/…` route (styled tiles deferred — see below) |
 | OGC API Maps | `client.ogcMaps()` | `ogc-maps` | dataset / collection map renders, styled access |
-| OGC API Processes | `client.ogcProcesses()` | (none — job runner) | discovery, async execution, `IJobRun<T>` surface |
+| OGC API Processes | `client.ogcProcesses()` | (none — job runner) | discovery, synchronous + asynchronous execution against a raw Part 1 (Core) server, `IJobRun<T>` surface |
 | OGC API Records | `client.ogcRecords()` | `ogc-records` | metadata/catalog discovery, record search, record detail, raw response access |
 | STAC API | `client.stac()` | `stac` | landing, collections, items, cross-collection search |
 
@@ -11915,6 +12045,60 @@ Terminal-failure snapshots populate `JobError` from `statusInfo.exception`
 when the server provides it, and fall back to `statusInfo.message`
 otherwise (honua-server's `StatusInfo` DTO only emits `message`). The
 resulting `HonuaJobFailedError.message` carries the server's reason text.
+
+#### Executing against a raw Processes server
+
+No Honua Server is required. `discoverOgcProcesses()` returns the
+service-root `basePath` and the verbatim `conformsTo` list; handing both
+to `client.ogcProcesses()` binds every describe / execute / job route to
+the discovered root and gates the calls on what that server declares.
+
+```ts doc-test=skip reason="partial excerpt requires a live third-party Processes endpoint"
+const discovery = await discoverOgcProcesses({ endpoint: "https://demo.pygeoapi.io/master" });
+
+const processes = client.ogcProcesses({
+  basePath: discovery.basePath,
+  conformance: discovery, // the server's own /conformance list
+  pollBudget: { deadlineMs: 60_000 },
+});
+
+// describe() teaches the handle this process's jobControlOptions, so the
+// mode gate below costs no extra round trip.
+await processes.describe("hello-world");
+
+const run = await processes.execute<{ echo: string }>({
+  processId: "hello-world",
+  inputs: { name: "honua" },
+  mode: "sync", // refused up front unless the process declares sync-execute
+});
+
+const { outputs } = await run.results();
+```
+
+Four properties hold whichever server is on the other end:
+
+- **Both Core response shapes.** `mode: "async"` sends
+  `Prefer: respond-async` and expects `201` + `Location`; `mode: "sync"`
+  omits the header and expects `200` with the results document;
+  `mode: "auto"` (the default) accepts either. A synchronous execution
+  still returns an `IJobRun` — an already-terminal one with `id === ""`,
+  since Core assigns no job identifier — so caller code is identical.
+- **Links over templates.** The job lifecycle follows the `Location`
+  header and the `self` / `http://www.opengis.net/def/rel/ogc/1.0/results`
+  link relations the server publishes, falling back to the Core
+  `/jobs/{jobId}[/results]` template only when it publishes none. A link
+  that leaves the client's configured origin is never followed.
+- **Fail-closed capability gating.** An undeclared `sync-execute`,
+  `async-execute`, or `dismiss` raises `HonuaCapabilityNotSupportedError`
+  before any request is issued. The refusal's `context` carries
+  `missingClass` (the conformance-class URI) or `construct`, so callers
+  can branch without parsing messages. `capabilityPolicy: "strict"`
+  additionally resolves conformance and the process description first and
+  refuses a job whose status or results route was never advertised.
+- **Bounded, cancellable polling.** `results()` runs under the caller's
+  `JobResultsOptions`, then the handle's `pollBudget`, then a default
+  10-minute deadline — never an unbounded loop — and stops immediately
+  when the supplied `AbortSignal` fires.
 
 ### STAC API
 
