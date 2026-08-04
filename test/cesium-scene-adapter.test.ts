@@ -123,6 +123,7 @@ import {
   type CesiumCameraLike,
   type CesiumSceneLike,
   type SceneCameraState,
+  type SceneElevationSourcePrimitive,
   type SceneModelLayerPrimitive,
   type SceneRuntimePrimitive,
   addCesium3DTileset,
@@ -555,7 +556,13 @@ describe("cesium scene adapter", () => {
       expect(callerProvider.destroy).not.toHaveBeenCalled();
     });
 
-    it("sets exaggeration but skips the provider when terrain url is absent", async () => {
+    // Before #929, endpoint validation ran for `terrain-rgb` only, so a
+    // urlless `quantized-mesh` source still reached the scene far enough to
+    // move `verticalExaggeration`. Exaggeration of a terrain that was never
+    // loaded is a lie about the globe, so every protocol now fails closed on a
+    // missing endpoint the way `terrain-rgb` always did — including leaving the
+    // live scene's exaggeration alone.
+    it("leaves the scene untouched when terrain url is absent", async () => {
       const camera = createMockCesiumCamera();
       const scene = createMockCesiumScene();
       const result = await applyCesiumScenePrimitives({ camera, scene }, [
@@ -570,8 +577,12 @@ describe("cesium scene adapter", () => {
 
       expect(terrainFromUrl).not.toHaveBeenCalled();
       expect(scene.terrainProvider).toBeUndefined();
-      expect(scene.verticalExaggeration).toBe(1.5);
+      expect(scene.verticalExaggeration).toBe(1);
       expect(result.layers.has("terrain-no-url")).toBe(false);
+      expect(result.status).toBe("unsupported");
+      expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+        "scene-primitive-terrain-source-missing-url",
+      );
     });
 
     it("materializes every supported imagery protocol with explicit provider configuration", async () => {
@@ -2102,6 +2113,85 @@ describe("cesium scene adapter", () => {
 
       expect(dispatchPrimitive(modelPrimitive({ id: "ok", format: "3d-tiles" }))).not.toThrow();
       expect(Object.keys(workspace.state.primitives)).toEqual(["ok"]);
+    });
+  });
+
+  describe("spatial reference and terrain endpoint contract (#929)", () => {
+    beforeEach(() => {
+      terrainFromUrl.mockClear();
+    });
+
+    const elevation = (overrides: Partial<SceneElevationSourcePrimitive> = {}): SceneElevationSourcePrimitive => ({
+      kind: "elevation-source",
+      id: "terrain",
+      sourceId: "terrain",
+      protocol: "quantized-mesh",
+      url: "https://example.test/terrain",
+      ...overrides,
+    });
+
+    const failClosedCases: Array<[string, Partial<SceneElevationSourcePrimitive>, string]> = [
+      ["missing endpoint", { url: undefined }, "scene-primitive-terrain-source-missing-url"],
+      ["invalid endpoint", { url: "ftp://example.test/terrain" }, "scene-primitive-terrain-source-url-invalid"],
+      ["unhonorable CRS", { crs: "EPSG:27700" }, "scene-primitive-crs-unsupported"],
+      ["unhonorable vertical datum", { verticalDatum: "EPSG:5703" }, "scene-primitive-vertical-datum-unsupported"],
+    ];
+
+    it.each(failClosedCases)(
+      "rejects an elevation source with an %s before touching the scene",
+      async (_label, overrides, code) => {
+        const scene = createMockCesiumScene();
+        const cesium = (await import("cesium")) as never;
+        const primitive = elevation({ ...overrides, exaggeration: 4 });
+
+        await expect(applyCesiumTerrain(scene, primitive, cesium)).rejects.toThrow(code);
+        // Fail-closed means fail *early*: no provider was constructed and the live
+        // scene's terrain and exaggeration are untouched.
+        expect(terrainFromUrl).not.toHaveBeenCalled();
+        expect(scene.terrainProvider).toBeUndefined();
+        expect(scene.verticalExaggeration).toBe(1);
+      },
+    );
+
+    it("skips an unhonorable elevation source in a mixed plan without failing the batch", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        elevation({ id: "bad-datum", sourceId: "bad-datum", verticalDatum: "EPSG:5703" }),
+        elevation({ id: "good", sourceId: "good", crs: "EPSG:4326", verticalDatum: "ellipsoidal-wgs84" }),
+      ]);
+
+      expect(result.status).toBe("unsupported");
+      expect(result.diagnostics.map((diagnostic) => diagnostic.code)).toContain(
+        "scene-primitive-vertical-datum-unsupported",
+      );
+      expect(result.layers.has("bad-datum")).toBe(false);
+      expect(result.layers.has("good")).toBe(true);
+      expect(terrainFromUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it("reports Web Mercator imagery as an equivalent-fidelity approximation and still renders it", async () => {
+      const camera = createMockCesiumCamera();
+      const scene = createMockCesiumScene();
+
+      const result = await applyCesiumScenePrimitives({ camera, scene }, [
+        {
+          kind: "imagery-layer",
+          id: "basemap",
+          sourceId: "basemap",
+          protocol: "url-template",
+          url: "https://tiles.example.test/{z}/{x}/{y}.png",
+          crs: "EPSG:3857",
+        },
+      ]);
+
+      expect(result.status).toBe("degraded");
+      expect(result.diagnostics[0]).toMatchObject({
+        code: "scene-primitive-crs-equivalent",
+        fidelity: "equivalent",
+      });
+      expect(result.layers.has("basemap")).toBe(true);
     });
   });
 

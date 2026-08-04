@@ -1,11 +1,59 @@
 import { isCredentialQueryName } from "../connect-url-safety.js";
 import type { FeatureId, SourceId } from "../contract/types.js";
 import type { FilterClause } from "../exploration/index.js";
+import type { SceneStateSyncFidelity } from "./state-sync.js";
 import type { SceneCameraState, SceneLayerState, SceneWorkspaceState } from "./types.js";
 
 export type SceneRendererKind = "maplibre" | "cesium" | "three" | "custom";
 export type ScenePrimitiveStatus = "supported" | "degraded" | "unsupported";
 export type ScenePrimitiveDiagnosticSeverity = "info" | "warning" | "error";
+
+/**
+ * Spatial fidelity of a primitive against a renderer, using the same vocabulary
+ * the scene state synchronizer already applies to slice mappings: `exact` when
+ * the renderer honors the declaration as authored, `equivalent` when it honors
+ * it through its own documented reprojection/resampling, and `unsupported` when
+ * it cannot honor it at all.
+ */
+export type SceneSpatialFidelity = SceneStateSyncFidelity;
+
+/**
+ * Declared spatial reference for a scene binding.
+ *
+ * Both fields are descriptive plan data: the SDK performs no reprojection and
+ * no vertical-datum transform. They exist so the adapter can say, before a
+ * viewer is created, whether the renderer will place the binding's footprints
+ * and heights where the author meant them. Identifiers are accepted in the
+ * common spellings (`EPSG:3857`, `3857`, `urn:ogc:def:crs:EPSG::3857`,
+ * `http://www.opengis.net/def/crs/EPSG/0/3857`, `OGC:CRS84`) and normalized
+ * before classification.
+ */
+export interface SceneSpatialReference {
+  /** Horizontal CRS the binding's coordinates are authored in. */
+  readonly crs?: string;
+  /**
+   * Vertical datum the binding's heights are referenced to. Accepts the same
+   * `ellipsoidal-wgs84` token the Cesium entity path uses, alongside EPSG
+   * identifiers such as `EPSG:4979` (ellipsoidal) or `EPSG:5703` (NAVD88).
+   */
+  readonly verticalDatum?: string;
+}
+
+/**
+ * The horizontal CRS and vertical datums a renderer adapter can honor.
+ *
+ * Omit the record entirely to keep the pre-#929 behavior: without a declared
+ * renderer capability there is nothing to classify against, so declared
+ * primitive metadata is reported as unclassified rather than guessed at.
+ */
+export interface SceneSpatialCapabilities {
+  /** CRS identifiers the renderer addresses natively, with no resampling. */
+  readonly exactHorizontalCrs?: readonly string[];
+  /** CRS identifiers the renderer honors through its own reprojection/tiling. */
+  readonly equivalentHorizontalCrs?: readonly string[];
+  /** Vertical datums the renderer can interpret as scene heights. */
+  readonly verticalDatums?: readonly string[];
+}
 
 export interface SceneCacheMetadata {
   readonly status: "ready" | "stale" | "bypass" | "unknown";
@@ -44,7 +92,7 @@ export type SceneElevationSourceProtocol =
   | "i3s"
   | "custom";
 
-export interface SceneElevationSourcePrimitive extends ScenePrimitiveBase {
+export interface SceneElevationSourcePrimitive extends ScenePrimitiveBase, SceneSpatialReference {
   readonly kind: "elevation-source";
   readonly sourceId: SourceId;
   readonly protocol: SceneElevationSourceProtocol;
@@ -91,7 +139,7 @@ const WMTS_RESERVED_DIMENSION_KEYS = new Set([
  * requires `style` and `tileMatrixSetId`. Authorization remains the host's
  * responsibility and must not be serialized into this primitive.
  */
-export interface SceneImageryLayerPrimitive extends ScenePrimitiveBase {
+export interface SceneImageryLayerPrimitive extends ScenePrimitiveBase, SceneSpatialReference {
   readonly kind: "imagery-layer";
   readonly sourceId: SourceId;
   readonly protocol: SceneImagerySourceProtocol;
@@ -159,7 +207,7 @@ export interface ScenePointCloudShading {
   readonly eyeDomeLightingRadius?: number;
 }
 
-export interface SceneModelLayerPrimitive extends ScenePrimitiveBase {
+export interface SceneModelLayerPrimitive extends ScenePrimitiveBase, SceneSpatialReference {
   readonly kind: "model-layer";
   readonly sourceId?: SourceId;
   readonly uri: string;
@@ -201,6 +249,11 @@ export interface ScenePrimitiveDiagnostic {
   readonly renderer?: SceneRendererKind | string;
   readonly message: string;
   readonly fallback?: string;
+  /**
+   * Spatial fidelity this finding reports. Present on spatial-reference
+   * diagnostics; omitted where fidelity is not the subject of the finding.
+   */
+  readonly fidelity?: SceneSpatialFidelity;
   readonly context?: Readonly<Record<string, unknown>>;
 }
 
@@ -229,6 +282,8 @@ export interface SceneRuntimeCapabilities {
     readonly materializedFormats?: readonly SceneModelFormat[];
   };
   readonly sceneLayerMetadata?: boolean;
+  /** Horizontal CRS and vertical datums this renderer can honor. */
+  readonly spatial?: SceneSpatialCapabilities;
 }
 
 export interface ScenePrimitiveApplyResult {
@@ -290,6 +345,19 @@ export interface MapLibreTerrainPatch {
   readonly terrain: MapLibreTerrainOptions;
 }
 
+/**
+ * Both shipped adapters address the world in geographic WGS84 and consume the
+ * Web Mercator family through their own tiling/reprojection, so they share one
+ * spatial capability record. Nothing else is honorable here: this slice
+ * performs no reprojection, so a projected or local CRS would render in the
+ * wrong place, and a non-ellipsoidal datum would render at the wrong height.
+ */
+export const RENDERER_WGS84_SPATIAL_CAPABILITIES: SceneSpatialCapabilities = {
+  exactHorizontalCrs: ["EPSG:4326", "OGC:CRS84"],
+  equivalentHorizontalCrs: ["EPSG:3857"],
+  verticalDatums: ["EPSG:4979"],
+};
+
 export const MAPLIBRE_SCENE_CAPABILITIES: SceneRuntimeCapabilities = {
   renderer: "maplibre",
   camera: true,
@@ -298,6 +366,7 @@ export const MAPLIBRE_SCENE_CAPABILITIES: SceneRuntimeCapabilities = {
   extrusion: true,
   modelLayer: { formats: [] },
   sceneLayerMetadata: true,
+  spatial: RENDERER_WGS84_SPATIAL_CAPABILITIES,
 };
 
 export function createSceneRuntimeAdapter(options: {
@@ -329,7 +398,30 @@ export function diagnoseScenePrimitives(
   return primitives.flatMap((primitive) => diagnoseScenePrimitive(primitive, capabilities));
 }
 
+/**
+ * Diagnose one primitive against a renderer capability record.
+ *
+ * Two independent questions are answered: whether the renderer can *materialize*
+ * the binding at all (structure), and whether it can place it where the author
+ * meant (spatial reference). Both are pure — nothing here loads a renderer peer,
+ * so a migration analysis can run before a viewer exists.
+ *
+ * A spatial finding replaces the generic `scene-primitive-supported` summary,
+ * mirroring how a renderability finding already does: the caller should read the
+ * fidelity, not a bare "supported". A primitive that declares no CRS or vertical
+ * datum diagnoses exactly as it did before this contract existed.
+ */
 export function diagnoseScenePrimitive(
+  primitive: SceneRuntimePrimitive,
+  capabilities: SceneRuntimeCapabilities,
+): ScenePrimitiveDiagnostic[] {
+  const spatial = diagnoseSceneSpatialReference(primitive, capabilities);
+  const structural = diagnoseScenePrimitiveStructure(primitive, capabilities);
+  if (spatial.length === 0) return structural;
+  return [...spatial, ...structural.filter((entry) => entry.code !== "scene-primitive-supported")];
+}
+
+function diagnoseScenePrimitiveStructure(
   primitive: SceneRuntimePrimitive,
   capabilities: SceneRuntimeCapabilities,
 ): ScenePrimitiveDiagnostic[] {
@@ -387,10 +479,8 @@ export function diagnoseScenePrimitive(
           ),
         ];
       }
-      if (primitive.protocol === "terrain-rgb") {
-        const terrainDiagnostics = diagnoseRenderableTerrainRgb(primitive, capabilities);
-        if (terrainDiagnostics.length > 0) return terrainDiagnostics;
-      }
+      const terrainDiagnostics = diagnoseRenderableTerrain(primitive, capabilities);
+      if (terrainDiagnostics.length > 0) return terrainDiagnostics;
       return [supported(primitive, capabilities, "Elevation source can be applied as terrain.")];
     }
     case "imagery-layer": {
@@ -533,8 +623,14 @@ export function applyMapLibreScenePrimitives(
   const diagnostics = diagnoseScenePrimitives(primitives, MAPLIBRE_SCENE_CAPABILITIES);
   for (const primitive of primitives) {
     if (primitive.kind === "elevation-source") {
-      const terrainDiagnostic = diagnostics.find((diagnostic) => diagnostic.primitiveId === primitive.id);
-      if (terrainDiagnostic?.status === "unsupported") continue;
+      // A primitive can carry several findings (spatial reference *and*
+      // renderability). Any one of them being fail-closed must skip the apply,
+      // so this asks whether *any* is unsupported rather than reading whichever
+      // diagnostic happens to come first.
+      const blocked = diagnostics.some(
+        (diagnostic) => diagnostic.primitiveId === primitive.id && diagnostic.status === "unsupported",
+      );
+      if (blocked) continue;
       const patch = toMapLibreTerrainPatch(primitive);
       if (!target.getSource(patch.sourceId)) target.addSource(patch.sourceId, patch.source);
       target.setTerrain(patch.terrain);
@@ -611,7 +707,17 @@ function diagnostic(
   };
 }
 
-function diagnoseRenderableTerrainRgb(
+/**
+ * Endpoint and range validation for an elevation source, applied to every
+ * terrain protocol rather than `terrain-rgb` alone.
+ *
+ * `quantized-mesh`, `raster-dem`, `image-service`, `i3s`, and `custom` all reach
+ * a renderer through the same door — `CesiumTerrainProvider.fromUrl(url)` or a
+ * MapLibre `raster-dem` source — and every one of them fails opaquely on an
+ * absent or malformed endpoint. Failing closed here keeps that failure legible
+ * and keeps it off the live scene.
+ */
+function diagnoseRenderableTerrain(
   primitive: SceneElevationSourcePrimitive,
   capabilities: SceneRuntimeCapabilities,
 ): ScenePrimitiveDiagnostic[] {
@@ -624,10 +730,26 @@ function diagnoseRenderableTerrainRgb(
         "unsupported",
         primitive,
         capabilities,
-        "terrain-rgb elevation source requires a renderable url or tile template.",
+        `${primitive.protocol} elevation source requires a renderable url or tile template.`,
         "Provide a non-empty url or at least one non-empty tiles entry before applying terrain.",
       ),
     );
+  }
+
+  const invalidEndpointFields = invalidTerrainEndpointFields(primitive);
+  if (invalidEndpointFields.length > 0) {
+    diagnostics.push({
+      ...diagnostic(
+        "scene-primitive-terrain-source-url-invalid",
+        "error",
+        "unsupported",
+        primitive,
+        capabilities,
+        `${primitive.protocol} elevation source endpoint is invalid.`,
+        "Use a relative, HTTP, or HTTPS endpoint for the url and every tiles entry.",
+      ),
+      context: { invalidFields: invalidEndpointFields },
+    });
   }
 
   const invalidRanges: Record<string, unknown> = {};
@@ -657,7 +779,7 @@ function diagnoseRenderableTerrainRgb(
         "unsupported",
         primitive,
         capabilities,
-        "terrain-rgb elevation source has invalid numeric rendering ranges.",
+        `${primitive.protocol} elevation source has invalid numeric rendering ranges.`,
         "Use finite positive tileSize/exaggeration values and ordered zoom values between 0 and 24.",
       ),
       context: invalidRanges,
@@ -1015,6 +1137,225 @@ function invalidPointCloudShadingFields(primitive: SceneModelLayerPrimitive): st
 function hasRenderableTerrainUrl(primitive: SceneElevationSourcePrimitive): boolean {
   if (typeof primitive.url === "string" && primitive.url.trim() !== "") return true;
   return primitive.tiles?.some((tile) => typeof tile === "string" && tile.trim() !== "") === true;
+}
+
+/**
+ * Name the declared terrain endpoints that cannot be resolved. A blank or absent
+ * value is the *missing*-endpoint case and is reported separately, so only
+ * present, non-blank material is judged here.
+ */
+function invalidTerrainEndpointFields(primitive: SceneElevationSourcePrimitive): string[] {
+  const invalidFields: string[] = [];
+  if (isNonEmptyString(primitive.url) && sceneAssetUrlProblem(primitive.url) === "invalid") invalidFields.push("url");
+  if (primitive.tiles !== undefined) {
+    if (!Array.isArray(primitive.tiles)) invalidFields.push("tiles");
+    else {
+      primitive.tiles.forEach((tile, index) => {
+        if (isNonEmptyString(tile) && sceneAssetUrlProblem(tile) === "invalid") invalidFields.push(`tiles[${index}]`);
+      });
+    }
+  }
+  return invalidFields;
+}
+
+/**
+ * Classify a primitive's declared spatial reference against the renderer.
+ *
+ * Pure and peer-free (NFR-001), and silent for a primitive that declares
+ * nothing or a renderer that declares no spatial capability (NFR-002) — there is
+ * no honest classification to make in either case, and inventing one would turn
+ * an unannotated plan into a wall of warnings.
+ */
+function diagnoseSceneSpatialReference(
+  primitive: SceneRuntimePrimitive,
+  capabilities: SceneRuntimeCapabilities,
+): ScenePrimitiveDiagnostic[] {
+  if (!primitiveDeclaresSpatialReference(primitive)) return [];
+  const { crs, verticalDatum } = primitive;
+  if (crs === undefined && verticalDatum === undefined) return [];
+  const spatial = capabilities.spatial;
+  if (!spatial) return [];
+
+  const diagnostics: ScenePrimitiveDiagnostic[] = [];
+  if (crs !== undefined) {
+    const exact = spatial.exactHorizontalCrs ?? [];
+    const equivalent = spatial.equivalentHorizontalCrs ?? [];
+    const normalized = normalizeSceneCrs(crs);
+    const context = { crs, ...(normalized !== undefined ? { normalizedCrs: normalized } : {}) };
+    if (normalized !== undefined && containsNormalizedCrs(exact, normalized)) {
+      diagnostics.push({
+        ...diagnostic(
+          "scene-primitive-crs-exact",
+          "info",
+          "supported",
+          primitive,
+          capabilities,
+          `Horizontal CRS '${crs}' is addressed natively by ${capabilities.renderer}.`,
+        ),
+        fidelity: "exact",
+        context,
+      });
+    } else if (normalized !== undefined && containsNormalizedCrs(equivalent, normalized)) {
+      diagnostics.push({
+        ...diagnostic(
+          "scene-primitive-crs-equivalent",
+          "warning",
+          "degraded",
+          primitive,
+          capabilities,
+          `Horizontal CRS '${crs}' is honored by ${capabilities.renderer} through its own reprojection, not as authored.`,
+          "Accept the renderer's resampling, or republish the binding in WGS84 to keep exact fidelity.",
+        ),
+        fidelity: "equivalent",
+        context: { ...context, exactHorizontalCrs: [...exact] },
+      });
+    } else {
+      diagnostics.push({
+        ...diagnostic(
+          "scene-primitive-crs-unsupported",
+          "error",
+          "unsupported",
+          primitive,
+          capabilities,
+          `Horizontal CRS '${crs}' cannot be honored by ${capabilities.renderer}; coordinates are never reinterpreted.`,
+          "Republish the binding in a supported CRS, or reproject it before it reaches the scene.",
+        ),
+        fidelity: "unsupported",
+        context: { ...context, exactHorizontalCrs: [...exact], equivalentHorizontalCrs: [...equivalent] },
+      });
+    }
+  }
+
+  if (verticalDatum !== undefined) {
+    const supportedDatums = spatial.verticalDatums ?? [];
+    const normalized = normalizeSceneCrs(verticalDatum);
+    if (normalized === undefined || !containsNormalizedCrs(supportedDatums, normalized)) {
+      diagnostics.push({
+        ...diagnostic(
+          "scene-primitive-vertical-datum-unsupported",
+          "error",
+          "unsupported",
+          primitive,
+          capabilities,
+          `Vertical datum '${verticalDatum}' cannot be honored by ${capabilities.renderer}; heights are never transformed.`,
+          "Republish heights against an ellipsoidal WGS84 datum, or drop the height component.",
+        ),
+        fidelity: "unsupported",
+        context: {
+          verticalDatum,
+          ...(normalized !== undefined ? { normalizedVerticalDatum: normalized } : {}),
+          supportedVerticalDatums: [...supportedDatums],
+        },
+      });
+    }
+  }
+  return diagnostics;
+}
+
+function primitiveDeclaresSpatialReference(
+  primitive: SceneRuntimePrimitive,
+): primitive is SceneElevationSourcePrimitive | SceneImageryLayerPrimitive | SceneModelLayerPrimitive {
+  return (
+    primitive.kind === "elevation-source" || primitive.kind === "imagery-layer" || primitive.kind === "model-layer"
+  );
+}
+
+function containsNormalizedCrs(candidates: readonly string[], normalized: string): boolean {
+  return candidates.some((candidate) => normalizeSceneCrs(candidate) === normalized);
+}
+
+/**
+ * Aliases that cannot be derived from an authority/code pair. Keys are compared
+ * lowercase against the trimmed identifier.
+ */
+const SCENE_CRS_ALIASES: ReadonlyMap<string, string> = new Map([
+  ["crs84", "OGC:CRS84"],
+  ["ogc:crs84", "OGC:CRS84"],
+  ["wgs84", "EPSG:4326"],
+  ["wgs 84", "EPSG:4326"],
+  ["wgs-84", "EPSG:4326"],
+  ["ellipsoidal-wgs84", "EPSG:4979"],
+  ["wgs84-ellipsoidal", "EPSG:4979"],
+  ["web mercator", "EPSG:3857"],
+  ["web-mercator", "EPSG:3857"],
+  ["esri:102100", "EPSG:3857"],
+  ["esri:102113", "EPSG:3857"],
+  ["epsg:102100", "EPSG:3857"],
+  ["epsg:102113", "EPSG:3857"],
+  ["epsg:900913", "EPSG:3857"],
+  ["epsg:3785", "EPSG:3857"],
+]);
+
+const SCENE_CRS_AUTHORITIES: ReadonlySet<string> = new Set(["epsg", "esri", "ogc"]);
+
+/**
+ * Normalize a CRS or vertical-datum identifier to a canonical `AUTHORITY:CODE`
+ * token, or `undefined` when it cannot be identified at all.
+ *
+ * Splitting is done with a single linear scan rather than a pattern so an
+ * attacker-supplied plan value cannot drive backtracking.
+ */
+function normalizeSceneCrs(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (trimmed === "") return undefined;
+  const lower = trimmed.toLowerCase();
+  const alias = SCENE_CRS_ALIASES.get(lower);
+  if (alias) return alias;
+
+  const segments = splitSceneCrsSegments(lower);
+  const code = segments[segments.length - 1];
+  if (code === undefined) return undefined;
+  if (code === "crs84") return "OGC:CRS84";
+  if (!isDigitString(code)) return undefined;
+
+  let authority: string | undefined;
+  for (let index = segments.length - 2; index >= 0; index -= 1) {
+    const segment = segments[index];
+    if (segment !== undefined && SCENE_CRS_AUTHORITIES.has(segment)) {
+      authority = segment;
+      break;
+    }
+  }
+  // A bare numeric identifier is an EPSG code by convention; an OGC authority
+  // does not mint numeric CRS codes, so that pairing stays unidentified.
+  if (authority === undefined) return segments.length === 1 ? resolveSceneCrsToken("epsg", code) : undefined;
+  if (authority === "ogc") return undefined;
+  return resolveSceneCrsToken(authority, code);
+}
+
+function resolveSceneCrsToken(authority: string, code: string): string {
+  const canonical = `${authority.toUpperCase()}:${stripLeadingZeros(code)}`;
+  return SCENE_CRS_ALIASES.get(canonical.toLowerCase()) ?? canonical;
+}
+
+function splitSceneCrsSegments(value: string): string[] {
+  const segments: string[] = [];
+  let current = "";
+  for (const character of value) {
+    if (character !== ":" && character !== "/") {
+      current += character;
+      continue;
+    }
+    if (current !== "") segments.push(current);
+    current = "";
+  }
+  if (current !== "") segments.push(current);
+  return segments;
+}
+
+function isDigitString(value: string): boolean {
+  if (value === "") return false;
+  for (const character of value) {
+    if (character < "0" || character > "9") return false;
+  }
+  return true;
+}
+
+function stripLeadingZeros(value: string): string {
+  let index = 0;
+  while (index < value.length - 1 && value[index] === "0") index += 1;
+  return value.slice(index);
 }
 
 function isPositiveFiniteNumber(value: number): boolean {
