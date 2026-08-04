@@ -2067,8 +2067,8 @@
     {
       "subpath": "@honua/sdk-js/esri-compat",
       "types": "dist/src/esri-compat-entry.d.ts",
-      "exportCount": 521,
-      "signatureSha256": "018d353cb2d597141565b230bd095c336e24d3c32ce1547283919a83061eb974",
+      "exportCount": 522,
+      "signatureSha256": "2ccbca34b01672f538abd3456cdad13290ac74a4923d805b294e785954949ef4",
       "exports": [
         "AddressToLocationsParamsCompat — interface",
         "AddressesToLocationsParamsCompat — interface",
@@ -2165,6 +2165,7 @@
         "FeatureCompatOptions — interface",
         "FeatureFilterCompat — class",
         "FeatureFilterCompatOptions — interface",
+        "FeatureFilterEsriProperties — interface",
         "FeatureFilterGeometryCompat — interface",
         "FeatureFilterHandleCompat — interface",
         "FeatureFilterLoadStatusCompat — type",
@@ -3654,7 +3655,7 @@
       "subpath": "@honua/sdk-js/realtime",
       "types": "dist/src/realtime/index.d.ts",
       "exportCount": 153,
-      "signatureSha256": "17f7579186eb20481d0bd6e2862d12a145f989b7890777630dfc016716cf0802",
+      "signatureSha256": "f834e4b3cacfb4047f28d4afbabf37b6c1fb656b04327c41b337a91fbc035420",
       "exports": [
         "CreateHonuaServerRealtimeSubscriptionOptions — interface",
         "CreateResumableRealtimeSubscriptionOptions — interface",

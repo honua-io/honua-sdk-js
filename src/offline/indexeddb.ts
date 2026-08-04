@@ -13,9 +13,22 @@ import {
 } from "./types.js";
 
 const DATABASE_VERSION = 3;
-const CURRENT_SCHEMA_VERSION = 3;
+
+/**
+ * Persisted record-layout version written into {@link SCHEMA_STORE} and, since
+ * issue #1046, read back on every open.
+ *
+ * It is not the IndexedDB database version. The database version governs object
+ * stores and indexes; this one governs the shape of the values inside them, and
+ * it is the input to the forward migration ladder below.
+ */
+export const HONUA_OFFLINE_REGION_SCHEMA_VERSION = 3 as const;
+
+const CURRENT_SCHEMA_VERSION = HONUA_OFFLINE_REGION_SCHEMA_VERSION;
 const MAX_RECOVERY_RECORDS = 100_000;
 const MAX_RECOVERY_BYTES = 64 * 1024 * 1024;
+/** Bound on ladder walks so a malformed or cyclic registry cannot spin. */
+const MAX_SCHEMA_MIGRATION_STEPS = 16;
 const INVENTORY_KEY = "current";
 const SCHEMA_STORE = "schema";
 const INVENTORY_STORE = "inventory";
@@ -34,8 +47,85 @@ interface InventoryRecord {
 
 interface SchemaRecord {
   readonly key: typeof INVENTORY_KEY;
-  readonly version: typeof CURRENT_SCHEMA_VERSION;
+  readonly version: number;
 }
+
+/**
+ * One ordered step of the persisted region-record ladder.
+ *
+ * A step is a pure structural rewrite of one stored record. It receives only
+ * the record — never a caller's options, never the store — so a migration can
+ * neither widen a bound nor reach the network, and it must return a record
+ * carrying `toVersion`'s layout.
+ */
+export interface OfflineRegionSchemaMigrationV1 {
+  readonly fromVersion: number;
+  readonly toVersion: number;
+  readonly migrate: (record: Readonly<Record<string, unknown>>) => Record<string, unknown>;
+}
+
+/** Why a stored schema version cannot be carried to this build's layout. */
+export type OfflineRegionSchemaMigrationRefusal = "unknown-version" | "future-version" | "unreachable-version";
+
+export type OfflineRegionSchemaMigrationPlanV1 =
+  | {
+      readonly applicable: true;
+      /** `from->to` labels, oldest first; empty when the store is already current. */
+      readonly steps: readonly string[];
+      readonly migrations: readonly OfflineRegionSchemaMigrationV1[];
+    }
+  | {
+      readonly applicable: false;
+      readonly reason: OfflineRegionSchemaMigrationRefusal;
+      readonly detail: string;
+    };
+
+/** Stable discriminator and version for region-store recovery reports. */
+export const HONUA_OFFLINE_REGION_STORE_RECOVERY_KIND = "honua.offline-region-store-recovery" as const;
+export const HONUA_OFFLINE_REGION_STORE_RECOVERY_VERSION = 1 as const;
+
+/**
+ * Payload-free account of one store open.
+ *
+ * Corrupt-record discards and schema-version refusals are separate counts on
+ * purpose: the first is damage this build can prove and repair, the second is a
+ * layout it declines to guess at. Conflating them is how an application learns
+ * its expensive cached bytes are gone only by noticing they are missing.
+ */
+export interface OfflineRegionStoreRecoveryV1 {
+  readonly kind: typeof HONUA_OFFLINE_REGION_STORE_RECOVERY_KIND;
+  readonly version: typeof HONUA_OFFLINE_REGION_STORE_RECOVERY_VERSION;
+  readonly outcome: "ready" | "unreadable";
+  readonly storedSchemaVersion: number;
+  readonly expectedSchemaVersion: number;
+  readonly appliedMigrations: readonly string[];
+  readonly migratedRegions: number;
+  /** Records this build proved unusable and removed. */
+  readonly discardedCorruptRecords: number;
+  /** Regions left untouched because their schema version has no migration path. */
+  readonly unsupportedRegions: number;
+  /** Present only when `outcome` is `unreadable`. */
+  readonly error?: HonuaOfflineRegionError;
+}
+
+/**
+ * Ordered forward migration ladder for persisted region records, oldest first.
+ *
+ * Schema 2 and schema 3 describe the same `RegionRecord` layout — database
+ * version 3 changed only the staging rows, which
+ * {@link migrateLegacyStaging} already backfills — so this step is deliberately
+ * the identity on region records. It exists because the machinery has to be
+ * real and exercised before the first layout change, not written under the
+ * pressure of one: the ladder, its bounds, its identity invariants, and its
+ * fail-closed refusal are all proven by a step that provably changes nothing.
+ */
+export const OFFLINE_REGION_SCHEMA_MIGRATIONS: readonly OfflineRegionSchemaMigrationV1[] = Object.freeze([
+  Object.freeze({
+    fromVersion: 2,
+    toVersion: 3,
+    migrate: (record: Readonly<Record<string, unknown>>): Record<string, unknown> => ({ ...record }),
+  }),
+]) as readonly OfflineRegionSchemaMigrationV1[];
 
 interface RegionRecord {
   readonly id: string;
@@ -70,6 +160,10 @@ export interface IndexedDbOfflineRegionStoreOptions {
   readonly indexedDB?: IDBFactory;
   /** Maximum age of abandoned staged resources before a new store reclaims them. */
   readonly stagingMaxAgeMs?: number;
+  /** Ladder applied to persisted region records on open. Defaults to {@link OFFLINE_REGION_SCHEMA_MIGRATIONS}. */
+  readonly migrations?: readonly OfflineRegionSchemaMigrationV1[];
+  /** Receives the schema and recovery outcome of every open. Must not throw. */
+  readonly onRecovery?: (report: OfflineRegionStoreRecoveryV1) => void;
 }
 
 /**
@@ -101,11 +195,34 @@ export class IndexedDbOfflineRegionStore implements OfflineRegionStore, OfflineR
     if (!Number.isFinite(stagingMaxAgeMs) || stagingMaxAgeMs < 0)
       throw new Error("stagingMaxAgeMs must be a non-negative finite number.");
     this.#stagingMaxAgeMs = stagingMaxAgeMs;
-    this.#database = openDatabase(factory, name).then(async (database) => {
-      await recoverDatabase(database);
+    const migrations = options.migrations ?? OFFLINE_REGION_SCHEMA_MIGRATIONS;
+    const onRecovery = options.onRecovery;
+    const opened = openDatabase(factory, name).then(async (database) => {
+      // Version resolution precedes every mutating pass. A layout this build
+      // cannot carry forward refuses here, before `recoverDatabase` could
+      // mistake an unrecognized record shape for corruption and delete it.
+      const schema = await migrateRegionSchema(database, migrations);
+      if (schema.outcome === "unreadable") {
+        onRecovery?.(schema.report);
+        throw (
+          schema.report.error ?? new HonuaOfflineRegionError("store-unreadable", "Offline region store is unreadable.")
+        );
+      }
+      const discarded = await recoverDatabase(database);
       await cleanupAbandonedStaging(database, stagingMaxAgeMs);
+      onRecovery?.(
+        Object.freeze({
+          ...schema.report,
+          discardedCorruptRecords: discarded,
+        }) satisfies OfflineRegionStoreRecoveryV1,
+      );
       return database;
     });
+    // A store that refuses to open reports through every method that awaits it.
+    // Swallowing the copy here keeps a refusal from also surfacing as an
+    // unhandled rejection in a host that has not called anything yet.
+    opened.catch(() => undefined);
+    this.#database = opened;
   }
 
   public async inventory(): Promise<OfflineRegionCacheInventory> {
@@ -442,12 +559,245 @@ function migrateLegacyStaging(transaction: IDBTransaction | null, oldVersion: nu
   };
 }
 
-function recoverDatabase(database: IDBDatabase): Promise<void> {
+// --- Persisted schema version and forward migration (issue #1046) ------------
+//
+// `CURRENT_SCHEMA_VERSION` used to be written and never read, which left exactly
+// one response to a record shape this build did not recognize: `isValidRegion`
+// returning false and the cursor deleting it. A layout change would therefore
+// have destroyed every cached region on the next open — bytes that are
+// expensive to re-acquire, often over a metered or absent network — with no
+// migration step, no typed outcome, and no count reported to the application
+// that just lost its offline data.
+//
+// The ladder below closes that, following the shape #940 established for the
+// `honua.geoarrow.batch` envelope: ordered `fromVersion` → `toVersion` steps
+// resolved before any record is touched, applied inside one transaction that
+// either completes or leaves the prior version intact, and a fail-closed
+// refusal — never a silent bulk delete — when no path exists.
+
+/**
+ * Resolve the ordered steps that carry `version` forward to `targetVersion`.
+ *
+ * Exported because a host needs to answer "can this store still be read?"
+ * without opening it, and because the unreachable case — a ladder whose chain
+ * dead-ends before the target — has to be provable rather than assumed. The
+ * walk is bounded and cycle-safe: at most {@link MAX_SCHEMA_MIGRATION_STEPS}
+ * steps, and no version is visited twice.
+ */
+export function planOfflineRegionSchemaMigration(
+  version: unknown,
+  migrations: readonly OfflineRegionSchemaMigrationV1[] = OFFLINE_REGION_SCHEMA_MIGRATIONS,
+  targetVersion: number = CURRENT_SCHEMA_VERSION,
+): OfflineRegionSchemaMigrationPlanV1 {
+  if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 0) {
+    return { applicable: false, reason: "unknown-version", detail: `"${String(version)}" is not a schema version.` };
+  }
+  if (version === targetVersion) return { applicable: true, steps: Object.freeze([]), migrations: Object.freeze([]) };
+  const steps: string[] = [];
+  const applied: OfflineRegionSchemaMigrationV1[] = [];
+  const visited = new Set<number>([version]);
+  let cursor = version;
+  while (steps.length < MAX_SCHEMA_MIGRATION_STEPS) {
+    const step = migrations.find((candidate) => candidate.fromVersion === cursor);
+    if (!step) break;
+    if (visited.has(step.toVersion)) break;
+    visited.add(step.toVersion);
+    steps.push(`${step.fromVersion}->${step.toVersion}`);
+    applied.push(step);
+    cursor = step.toVersion;
+    if (cursor === targetVersion) {
+      return { applicable: true, steps: Object.freeze(steps), migrations: Object.freeze(applied) };
+    }
+  }
+  // The walk stalled. A version the ladder has never heard of is unknown (or
+  // ahead of this build); one it knows but cannot carry home is an unreachable
+  // path. Both refuse rather than guess at a layout.
+  const known = migrations.some((step) => step.fromVersion === version || step.toVersion === version);
+  if (steps.length > 0 || known) {
+    return {
+      applicable: false,
+      reason: "unreachable-version",
+      detail: `No migration path carries offline region schema version ${version} to ${targetVersion}.`,
+    };
+  }
+  return {
+    applicable: false,
+    reason: version > targetVersion ? "future-version" : "unknown-version",
+    detail: `Offline region schema version ${version} has no migration to ${targetVersion}.`,
+  };
+}
+
+/** Report which persisted schema versions this build can still read. */
+export function readableOfflineRegionSchemaVersions(
+  migrations: readonly OfflineRegionSchemaMigrationV1[] = OFFLINE_REGION_SCHEMA_MIGRATIONS,
+): readonly number[] {
+  const versions = new Set<number>([CURRENT_SCHEMA_VERSION]);
+  for (const step of migrations) {
+    if (planOfflineRegionSchemaMigration(step.fromVersion, migrations).applicable) versions.add(step.fromVersion);
+  }
+  return Object.freeze([...versions].sort((left, right) => left - right));
+}
+
+/**
+ * Read the persisted schema version and, when the ladder can reach this build's
+ * layout, migrate every region record forward inside one transaction.
+ */
+function migrateRegionSchema(
+  database: IDBDatabase,
+  migrations: readonly OfflineRegionSchemaMigrationV1[],
+): Promise<{ readonly outcome: "ready" | "unreadable"; readonly report: OfflineRegionStoreRecoveryV1 }> {
   return runTransaction(database, "readwrite", async (transaction) => {
+    const schemaStore = transaction.objectStore(SCHEMA_STORE);
+    const regionStore = transaction.objectStore(REGION_STORE);
+    const stored = await request<unknown>(schemaStore.get(INVENTORY_KEY));
+    // Every database whose stores exist went through an upgrade that stamped
+    // this row, so an absent one carries no evidence of an older layout. It is
+    // restored to the current version rather than guessed at.
+    const storedVersion =
+      isRecord(stored) && typeof stored.version === "number" ? stored.version : CURRENT_SCHEMA_VERSION;
+    const plan = planOfflineRegionSchemaMigration(storedVersion, migrations);
+    if (!plan.applicable) {
+      const unsupportedRegions = await request<number>(regionStore.count());
+      return {
+        outcome: "unreadable" as const,
+        report: Object.freeze({
+          kind: HONUA_OFFLINE_REGION_STORE_RECOVERY_KIND,
+          version: HONUA_OFFLINE_REGION_STORE_RECOVERY_VERSION,
+          outcome: "unreadable" as const,
+          storedSchemaVersion: storedVersion,
+          expectedSchemaVersion: CURRENT_SCHEMA_VERSION,
+          appliedMigrations: Object.freeze([]),
+          migratedRegions: 0,
+          discardedCorruptRecords: 0,
+          unsupportedRegions,
+          error: new HonuaOfflineRegionError(
+            "store-unreadable",
+            `Offline region store is at schema version ${storedVersion}; this build reads ${CURRENT_SCHEMA_VERSION}. ${plan.detail} ${unsupportedRegions} region(s) were left intact.`,
+          ),
+        }),
+      };
+    }
+    const migratedRegions = plan.steps.length === 0 ? 0 : await migrateRegionRecords(regionStore, plan.migrations);
+    schemaStore.put({ key: INVENTORY_KEY, version: CURRENT_SCHEMA_VERSION } satisfies SchemaRecord);
+    return {
+      outcome: "ready" as const,
+      report: Object.freeze({
+        kind: HONUA_OFFLINE_REGION_STORE_RECOVERY_KIND,
+        version: HONUA_OFFLINE_REGION_STORE_RECOVERY_VERSION,
+        outcome: "ready" as const,
+        storedSchemaVersion: storedVersion,
+        expectedSchemaVersion: CURRENT_SCHEMA_VERSION,
+        appliedMigrations: plan.steps,
+        migratedRegions,
+        discardedCorruptRecords: 0,
+        unsupportedRegions: 0,
+      }),
+    };
+  });
+}
+
+/**
+ * Apply the resolved steps to every region record under the existing recovery
+ * ceilings. A step that rewrites an identity aborts the whole transaction, so
+ * the prior database version stays readable.
+ */
+function migrateRegionRecords(
+  store: IDBObjectStore,
+  steps: readonly OfflineRegionSchemaMigrationV1[],
+): Promise<number> {
+  let inspected = 0;
+  let bytes = 0;
+  let migrated = 0;
+  return iterateCursor(store, (cursor) => {
+    inspected += 1;
+    if (inspected > MAX_RECOVERY_RECORDS) {
+      throw new HonuaOfflineRegionError("store-failed", "IndexedDB migration record limit exceeded.");
+    }
+    const before = cursor.value as Record<string, unknown>;
+    bytes += typeof before.logicalByteLength === "number" ? before.logicalByteLength : 0;
+    if (bytes > MAX_RECOVERY_BYTES) {
+      throw new HonuaOfflineRegionError("store-failed", "IndexedDB migration byte limit exceeded.");
+    }
+    cursor.update(applyOfflineRegionSchemaMigration(before, steps));
+    migrated += 1;
+    cursor.continue();
+  }).then(() => migrated);
+}
+
+/**
+ * Carry one persisted region record through an ordered chain of steps.
+ *
+ * Each step sees only a frozen copy of the record — never the store, never a
+ * caller's options — and its output is checked before the next step runs, so a
+ * migration that rewrites an identity fails the record instead of quietly
+ * repartitioning it. Exported so a host can rehearse a ladder against a record
+ * without an IndexedDB transaction.
+ */
+export function applyOfflineRegionSchemaMigration(
+  record: Readonly<Record<string, unknown>>,
+  steps: readonly OfflineRegionSchemaMigrationV1[],
+): Record<string, unknown> {
+  let migrated: Record<string, unknown> = { ...record };
+  for (const step of steps) {
+    const next = step.migrate(Object.freeze({ ...migrated }));
+    if (!isRecord(next)) {
+      throw new HonuaOfflineRegionError(
+        "store-failed",
+        `Offline region migration ${step.fromVersion}->${step.toVersion} did not produce a record.`,
+      );
+    }
+    assertStableRegionIdentity(record, next, step);
+    migrated = next;
+  }
+  return migrated;
+}
+
+/**
+ * A migrated record keeps exactly the identity it was stored under. The
+ * authorization-scope digest partitions every stored key, so re-deriving it
+ * would silently repartition another principal's cached bytes.
+ */
+function assertStableRegionIdentity(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+  step: OfflineRegionSchemaMigrationV1,
+): void {
+  const label = `${step.fromVersion}->${step.toVersion}`;
+  if (after.id !== before.id) {
+    throw new HonuaOfflineRegionError("store-failed", `Offline region migration ${label} rewrote a region id.`);
+  }
+  if (regionScopeDigest(before) !== regionScopeDigest(after)) {
+    throw new HonuaOfflineRegionError(
+      "store-failed",
+      `Offline region migration ${label} rewrote an authorization-scope digest.`,
+    );
+  }
+  if (!sameIds(regionResourceIds(before), regionResourceIds(after))) {
+    throw new HonuaOfflineRegionError("store-failed", `Offline region migration ${label} rewrote a resource id.`);
+  }
+}
+
+function regionScopeDigest(record: Record<string, unknown>): string | undefined {
+  const manifest = isRecord(record.manifest) ? record.manifest : undefined;
+  const source = manifest && isRecord(manifest.source) ? manifest.source : undefined;
+  return typeof source?.authorizationScopeDigest === "string" ? source.authorizationScopeDigest : undefined;
+}
+
+function regionResourceIds(record: Record<string, unknown>): readonly string[] {
+  const manifest = isRecord(record.manifest) ? record.manifest : undefined;
+  const resources = manifest && Array.isArray(manifest.resources) ? manifest.resources : [];
+  return resources.map((resource) => (isRecord(resource) && typeof resource.id === "string" ? resource.id : ""));
+}
+
+/** One bounded pass that discards records this build can prove are unusable. */
+function recoverDatabase(database: IDBDatabase): Promise<number> {
+  return runTransaction(database, "readwrite", async (transaction) => {
+    let discarded = 0;
     const inventoryStore = transaction.objectStore(INVENTORY_STORE);
     const inventory = await request<InventoryRecord | undefined>(inventoryStore.get(INVENTORY_KEY));
     if (inventory !== undefined && !isValidInventory(inventory)) {
       inventoryStore.put({ key: INVENTORY_KEY, revision: "0" } satisfies InventoryRecord);
+      discarded += 1;
     }
 
     const regionStore = transaction.objectStore(REGION_STORE);
@@ -461,12 +811,14 @@ function recoverDatabase(database: IDBDatabase): Promise<void> {
       const region = cursor.value as Partial<RegionRecord>;
       if (!isValidRegion(region)) {
         cursor.delete();
+        discarded += 1;
         cursor.continue();
         return;
       }
       const expected = new Map(region.manifest.resources.map((resource) => [resource.id, resource.byteLength]));
       if (expected.size !== region.manifest.resources.length) {
         cursor.delete();
+        discarded += 1;
         cursor.continue();
         return;
       }
@@ -491,6 +843,7 @@ function recoverDatabase(database: IDBDatabase): Promise<void> {
         resource.bytes.byteLength !== expectedByteLength
       ) {
         cursor.delete();
+        discarded += 1;
         cursor.continue();
         return;
       }
@@ -502,6 +855,7 @@ function recoverDatabase(database: IDBDatabase): Promise<void> {
       if (region.seen.size !== region.expected.size) {
         regionStore.delete(regionId);
         await deleteResourcesByRegion(transaction, regionId);
+        discarded += 1;
       }
     }
 
@@ -512,9 +866,11 @@ function recoverDatabase(database: IDBDatabase): Promise<void> {
       const staged = cursor.value as Partial<StagedResourceRecord>;
       if (!isValidStagedResource(staged)) {
         cursor.delete();
+        discarded += 1;
       }
       cursor.continue();
     });
+    return discarded;
   });
 }
 

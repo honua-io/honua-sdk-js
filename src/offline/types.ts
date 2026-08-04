@@ -357,6 +357,12 @@ export type OfflineRegionErrorCode =
   | "resource-load-failed"
   | "inventory-changed"
   | "store-failed"
+  /**
+   * The persisted store is at a schema version this build has no migration path
+   * to. Nothing is deleted: an application re-downloads deliberately instead of
+   * discovering its cached bytes were silently dropped.
+   */
+  | "store-unreadable"
   /** No stored resource answers this selection. */
   | "cache-miss"
   /** The region belongs to a different authorization scope than the reader. */
@@ -411,6 +417,9 @@ const OFFLINE_REGION_ERROR_CODES = {
   "resource-load-failed": "offline.transport.failure",
   "inventory-changed": "offline.storage.concurrent",
   "store-failed": "offline.storage.failure",
+  // The store is intact but unreadable at this build's schema version. The
+  // recovery class is the same — the caller must act on storage, not retry.
+  "store-unreadable": "offline.storage.failure",
   // A read the region cannot answer is one recovery class — download a region
   // for this selection — however it was discovered.
   "cache-miss": "offline.region.miss",
