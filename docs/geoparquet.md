@@ -228,6 +228,27 @@ const description = await handle.describe();
 const rows = await handle.sql("SELECT count(*) FROM read_parquet('...')"); // raw escape hatch
 ```
 
+## Columnar execution
+
+When the query planner selects `representation: "columnar"` for this source,
+the same escape hatch produces a `ColumnarBatchV1` instead of feature objects:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+const handle = places.protocol("geoparquet")!;
+const { batch, rowCount } = await handle.queryColumnar({
+  identity: columnarBatchIdentityFromPlan(plan, { observedAt: new Date().toISOString() }),
+  batchId: "places:0",
+  sequence: 0,
+  featureIdColumn: "id",
+});
+```
+
+Requires a GeoParquet 1.1 native `geoarrow-point` / `geoarrow-linestring` /
+`geoarrow-polygon` geometry column and a plan-derived identity; it refuses with
+`HonuaCapabilityNotSupportedError` rather than falling back to objects. See
+[columnar-data-plane.md](./columnar-data-plane.md#producing-a-batch-from-a-geoparquet-source)
+and [query-planner.md](./query-planner.md#result-representation).
+
 ## Aggregation
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"

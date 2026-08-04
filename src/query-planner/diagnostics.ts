@@ -17,6 +17,8 @@ import type {
   QueryPlanFidelityLoss,
   QueryPlanProvenanceV1,
   QueryPlanQuantityBound,
+  QueryPlanRepresentation,
+  QueryPlanRepresentationDecisionV1,
   QueryPlanStepProvenanceV1,
   QueryPlanValidatorInput,
   QueryPlanValidityV1,
@@ -174,8 +176,22 @@ export function summarizeFidelity(
 export function createPlanWarnings(
   steps: readonly DiagnosticStep[],
   source: SourceIdentity,
+  representation: QueryPlanRepresentationDecisionV1,
 ): readonly QueryPlanWarning[] {
   const warnings: QueryPlanWarning[] = [];
+  // Only surfaced when columnar was genuinely on offer. A source that cannot
+  // serve columnar states that in `representation.reason`; warning about it on
+  // every object plan would be noise, not information.
+  if (representation.selected === "object" && representation.available.includes("columnar")) {
+    warnings.push({
+      code: "columnar-representation-declined",
+      severity: "warning",
+      path: "$.representation",
+      message: `This source can serve columnar execution; object execution was selected (${representation.reason}).`,
+      remediation:
+        'Supply estimates that reach the plan\'s columnar thresholds, or pin representation: "columnar" to require it.',
+    });
+  }
   if (steps.some((step) => step.engine === "client")) {
     warnings.push({
       code: "bounded-local-fallback",
@@ -216,12 +232,14 @@ export function createPlanValidity(
   capabilityPolicy: CapabilityPolicy,
   fallback: QueryFallbackPolicy,
   executionMode: "snapshot" | "delta",
+  representation: QueryPlanRepresentation,
 ): QueryPlanValidityV1 {
   const unsigned = {
     version: QUERY_PLAN_DIAGNOSTICS_VERSION,
     plannerVersion: QUERY_PLANNER_VERSION,
     contractVersion: `${ir.kind}@${ir.version}`,
     executionMode,
+    representation,
     sourceFingerprint: provenance.source.descriptorFingerprint,
     schemaFingerprint: digest("schema-identity", provenance.schema),
     discoveryFingerprint: provenance.discovery.fingerprint,

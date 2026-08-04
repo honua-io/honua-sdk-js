@@ -35,6 +35,7 @@
  * @module
  */
 
+import type { ColumnarBatchIdentityV1, ColumnarBatchV1, GeoArrowConversionMetrics } from "../columnar/index.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "../contract/source-capability-support.js";
 import type {
   AdapterKind,
@@ -79,6 +80,8 @@ import { type DescribeRow, type SourceProfile, type SourceProfileField, buildSou
 import {
   type GeoParquetNativeGeoJsonGeometry,
   type GeoParquetNativeGeometryKind,
+  type GeoParquetNativeGeometryLimits,
+  createGeoParquetNativeGeometryBatch,
   decodeGeoParquetNativeGeometryColumn,
 } from "./native-geometry.js";
 export * from "./driver.js";
@@ -838,6 +841,51 @@ export interface GeoparquetSourceHandle {
    * never enter the runtime profile cache.
    */
   executeResolvedQuery<T = Record<string, unknown>>(input: GeoparquetResolvedQueryInput<T>): Promise<Result<T>>;
+  /**
+   * Execute a query and return a `ColumnarBatchV1` instead of feature objects.
+   *
+   * This is the executable producer behind the query planner's
+   * `representation: "columnar"` selection: the geometry column is encoded
+   * straight into GeoArrow buffers, so no per-row feature object is
+   * materialized on the way out. The identity must come from the accepted
+   * plan (`columnarBatchIdentityFromPlan`), which is what makes the batch
+   * admissible to the persistent batch cache without a hand-written identity.
+   *
+   * Refuses with `HonuaCapabilityNotSupportedError` — never a silent object
+   * fallback — when the source's declared geometry encoding is not a 1:1
+   * `geoarrow-*` native encoding, when the query suppresses geometry, or when
+   * the query is an aggregate.
+   */
+  queryColumnar<T = Record<string, unknown>>(
+    input: GeoparquetColumnarQueryInput<T>,
+  ): Promise<GeoparquetColumnarQueryResult>;
+}
+
+/** Request for {@link GeoparquetSourceHandle.queryColumnar}. */
+export interface GeoparquetColumnarQueryInput<T = Record<string, unknown>> {
+  readonly query?: Query<T>;
+  /**
+   * Plan-derived batch identity. Produce it with `columnarBatchIdentityFromPlan`
+   * from `@honua/sdk-js/query-planner`; this path has no placeholder identity.
+   */
+  readonly identity: ColumnarBatchIdentityV1;
+  readonly batchId: string;
+  readonly sequence: number;
+  readonly rowOffset?: number;
+  /**
+   * Optional integer column projected as the batch's uint32 feature ids. It is
+   * the only attribute this first columnar slice carries beside the geometry.
+   */
+  readonly featureIdColumn?: string;
+  readonly limits?: GeoParquetNativeGeometryLimits;
+}
+
+/** Result of {@link GeoparquetSourceHandle.queryColumnar}. */
+export interface GeoparquetColumnarQueryResult {
+  readonly batch: ColumnarBatchV1;
+  readonly metrics: GeoArrowConversionMetrics;
+  readonly rowCount: number;
+  readonly degraded?: readonly DegradedReason[];
 }
 
 export interface GeoparquetResolvedQueryInput<T = Record<string, unknown>> {
@@ -895,6 +943,17 @@ function ensureCapability(descriptor: SourceDescriptor, caps: Capabilities, capa
   if (!caps.has(capability)) {
     throw new HonuaCapabilityNotSupportedError(capability, descriptor.protocol, descriptor.id);
   }
+}
+
+/**
+ * Refuse columnar production explicitly. The object path stays available to a
+ * caller who asks for it; what must never happen is this path quietly
+ * answering with objects while the plan says `columnar`.
+ */
+function columnarUnsupported(descriptor: SourceDescriptor, reason: string): HonuaCapabilityNotSupportedError {
+  return new HonuaCapabilityNotSupportedError("columnar-execution", descriptor.protocol, descriptor.id, {
+    context: { reason },
+  });
 }
 
 /**
@@ -1091,6 +1150,63 @@ export function geoparquetSource<T = Record<string, unknown>>(
       return {
         features,
         exceededTransferLimit: typeof limit === "number" && features.length >= limit,
+        ...(degraded ? { degraded } : {}),
+      };
+    },
+    async queryColumnar<TColumnar = Record<string, unknown>>(input: GeoparquetColumnarQueryInput<TColumnar>) {
+      ensureCapability(descriptor, caps, "query");
+      const request = input.query ?? {};
+      throwIfQueryAborted(request.signal);
+      if (request.aggregation) {
+        throw columnarUnsupported(descriptor, "an aggregate query produces grouped rows, not a geometry batch");
+      }
+      if (request.returnGeometry === false) {
+        throw columnarUnsupported(descriptor, "a columnar batch is a geometry batch, but returnGeometry is false");
+      }
+      const { profile, opts } = await compileOptions(request.signal);
+      const geometry = opts.geometry;
+      if (!geometry || !isGeoArrowNativeEncoding(geometry.encoding)) {
+        throw columnarUnsupported(
+          descriptor,
+          `geometry encoding ${geometry ? geometry.encoding : "(none)"} has no columnar producer`,
+        );
+      }
+      const featureIdColumn = input.featureIdColumn;
+      // Project only what the batch carries. Attribute columns the batch does
+      // not materialize are never scanned, and the lossless-JSON transport is
+      // deliberately bypassed: nothing on this path becomes a JSON row value.
+      const outFields = featureIdColumn === undefined ? [geometry.column] : [featureIdColumn, geometry.column];
+      const compiled = compileQuery({ ...request, outFields } as Query, opts);
+      const rows = await queryRows(compiled.sql, request.signal);
+      throwIfQueryAborted(request.signal);
+      const created = createGeoParquetNativeGeometryBatch(
+        {
+          kind: nativeGeometryKind(geometry.encoding),
+          dimensions: geometry.nativeDimensions ?? "xy",
+          values: rows.map((row) => row[GEOPARQUET_ALIAS]),
+          identity: input.identity,
+          batchId: input.batchId,
+          sequence: input.sequence,
+          ...(input.rowOffset === undefined ? {} : { rowOffset: input.rowOffset }),
+          geometryField: geometry.column,
+          ...(profile.crs ? { crs: profile.crs } : {}),
+          ...(featureIdColumn === undefined
+            ? {}
+            : {
+                featureIds: {
+                  field: featureIdColumn,
+                  values: rows.map((row) => Number(normalizeScalar(row[featureIdColumn]))),
+                },
+              }),
+        },
+        input.limits ?? {},
+      );
+      throwIfQueryAborted(request.signal);
+      const degraded = degradedFor(compiled.bboxApproximated);
+      return {
+        batch: created.batch,
+        metrics: created.metrics,
+        rowCount: created.batch.rowCount,
         ...(degraded ? { degraded } : {}),
       };
     },

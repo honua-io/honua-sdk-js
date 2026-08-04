@@ -31,9 +31,13 @@
 
 import {
   type ColumnarBatchIdentityV1,
+  type ColumnarOrderingV1,
   type CreateGeoArrowBatchInput,
+  type CreatedGeoArrowBatch,
   type DecodedGeoArrowRow,
   type GeoArrowConversionLimits,
+  type GeoArrowCrs,
+  type GeoArrowFeatureIdColumnInput,
   type GeoArrowGeometryColumnInput,
   type GeoArrowLineString,
   type GeoArrowPoint,
@@ -62,7 +66,11 @@ export type GeoParquetNativeGeometryErrorCode =
   | "GEOPARQUET_NATIVE_ROW_LIMIT_EXCEEDED"
   | "GEOPARQUET_NATIVE_VERTEX_LIMIT_EXCEEDED"
   | "GEOPARQUET_NATIVE_RING_LIMIT_EXCEEDED"
-  | "GEOPARQUET_NATIVE_PART_LIMIT_EXCEEDED";
+  | "GEOPARQUET_NATIVE_PART_LIMIT_EXCEEDED"
+  /** A multi-part encoding was asked to produce a batch; GeoArrow has no multi-part kind here. */
+  | "GEOPARQUET_COLUMNAR_UNSUPPORTED_ENCODING"
+  /** The plan's ordering contract names a field the batch does not carry. */
+  | "GEOPARQUET_COLUMNAR_ORDERING_FIELD_UNAVAILABLE";
 
 /** A redacted, fixed-code failure decoding a GeoParquet 1.1 native geometry column. */
 export class GeoParquetNativeGeometryError extends Error {
@@ -209,9 +217,14 @@ const SYNTHETIC_SCHEMA_ID = "geoparquet-native-geometry-v1";
  * `createGeoArrowBatch` is built for cross-thread, cache-worthy transfer and
  * therefore requires a full `ColumnarBatchIdentityV1` (see #394). This
  * decode-only usage never caches or transfers the resulting batch — it is
- * discarded after `decodeGeoArrowBatch` runs — so every field is a fixed,
- * internal placeholder. `schemaVersion` must equal the `schemaId` passed
- * alongside it (`createColumnarBatch`'s identity/schema binding check).
+ * discarded after `decodeGeoArrowBatch` runs and cannot escape
+ * {@link runGeoArrow} — so every field is a fixed, internal placeholder.
+ * `schemaVersion` must equal the `schemaId` passed alongside it
+ * (`createColumnarBatch`'s identity/schema binding check).
+ *
+ * No batch this module *hands back* uses it:
+ * {@link createGeoParquetNativeGeometryBatch} requires a plan-derived identity
+ * from its caller (`columnarBatchIdentityFromPlan`) and has no placeholder path.
  */
 function syntheticIdentity(): ColumnarBatchIdentityV1 {
   return Object.freeze({
@@ -461,6 +474,159 @@ function decodeMultiPolygonColumn(
       coordinates: Object.freeze(parts.map((part) => polygonToCoordinates((part as GeoArrowPolygon | null) ?? []))),
     }),
   );
+}
+
+/** The `geoarrow-*` encodings that map 1:1 onto a Honua GeoArrow geometry kind. */
+export type GeoParquetColumnarGeometryKind = Extract<GeoParquetNativeGeometryKind, "point" | "linestring" | "polygon">;
+
+/**
+ * A columnar production request: the raw geometry column plus the plan-derived
+ * identity the batch will carry.
+ */
+export interface CreateGeoParquetNativeGeometryBatchInput {
+  /** Must be a 1:1 GeoArrow kind; the multi-part encodings are refused. */
+  readonly kind: GeoParquetNativeGeometryKind;
+  readonly dimensions: GeoParquetNativeDimensions;
+  /** DuckDB-materialized geometry column values, one entry per result row. */
+  readonly values: readonly unknown[];
+  /**
+   * Identity derived from the accepted query plan
+   * (`columnarBatchIdentityFromPlan`). `schemaVersion` becomes the batch's
+   * schema id, which is how the columnar envelope binds identity to layout.
+   */
+  readonly identity: ColumnarBatchIdentityV1;
+  readonly batchId: string;
+  readonly sequence: number;
+  readonly rowOffset?: number;
+  /** Geometry field name recorded in the batch schema (defaults to `geometry`). */
+  readonly geometryField?: string;
+  /** CRS metadata for the geometry column, preferably PROJJSON. */
+  readonly crs?: GeoArrowCrs;
+  /** Optional uint32 feature-id column materialized beside the geometry. */
+  readonly featureIds?: GeoArrowFeatureIdColumnInput;
+}
+
+/**
+ * Refuse before any buffer is allocated when the plan's ordering contract
+ * names a field this batch will not carry. `createColumnarBatch` would reject
+ * it too, but this failure names the missing field with a GeoParquet code, and
+ * the alternative — quietly dropping the ordering key — would let a batch
+ * claim an ordering the rows do not have.
+ */
+function assertOrderingFieldsAvailable(
+  identity: ColumnarBatchIdentityV1,
+  geometryField: string,
+  featureIdField: string | undefined,
+): void {
+  const ordering: ColumnarOrderingV1 | undefined = identity.ordering;
+  const keys = ordering === undefined ? undefined : ordering.keys;
+  if (!Array.isArray(keys) || keys.length === 0) return;
+  const available = new Set<string>([geometryField]);
+  if (featureIdField !== undefined) available.add(featureIdField);
+  for (const key of keys) {
+    if (!available.has(key.field)) {
+      fail("GEOPARQUET_COLUMNAR_ORDERING_FIELD_UNAVAILABLE", "$.identity.ordering.keys", {
+        field: key.field,
+        available: [...available].sort(),
+      });
+    }
+  }
+}
+
+function columnarGeometryColumn(
+  kind: GeoParquetColumnarGeometryKind,
+  dimensions: GeoParquetNativeDimensions,
+  values: readonly unknown[],
+  field: string,
+  crs: GeoArrowCrs | undefined,
+): GeoArrowGeometryColumnInput {
+  const base = {
+    field,
+    dimensions,
+    coordinateLayout: "separated",
+    ...(crs === undefined ? {} : { crs }),
+  } as const;
+  if (kind === "point") {
+    return {
+      ...base,
+      kind: "point",
+      values: values.map((value, index) => readPoint(value, dimensions, `$[${index}]`)),
+    };
+  }
+  if (kind === "linestring") {
+    return {
+      ...base,
+      kind: "linestring",
+      values: values.map((value, index) => readPositionList(value, dimensions, `$[${index}]`)),
+    };
+  }
+  return {
+    ...base,
+    kind: "polygon",
+    values: values.map((value, index) => readRingList(value, dimensions, `$[${index}]`)),
+  };
+}
+
+/**
+ * Encode one GeoParquet 1.1 native geometry column into a `ColumnarBatchV1`
+ * and **hand the batch back**.
+ *
+ * This is the inverse of {@link decodeGeoParquetNativeGeometryColumn}: the same
+ * reviewed `src/columnar/geoarrow.ts` validation runs (every position, vertex,
+ * ring, closure, finiteness, and dimension rule), but no row object is
+ * materialized on the way out — the result is packed typed arrays the caller
+ * can transfer, cache, or render directly.
+ *
+ * Only the encodings with a 1:1 GeoArrow kind are accepted. `multipoint`,
+ * `multilinestring`, and `multipolygon` are refused with
+ * `GEOPARQUET_COLUMNAR_UNSUPPORTED_ENCODING` rather than being re-labelled as a
+ * single-part column, which would misreport the geometry type; the object
+ * decoder still serves them by flattening and regrouping.
+ *
+ * The identity is supplied by the caller and is expected to come from
+ * `columnarBatchIdentityFromPlan` in `@honua/sdk-js/query-planner`. There is no
+ * placeholder identity on this path.
+ */
+export function createGeoParquetNativeGeometryBatch(
+  input: CreateGeoParquetNativeGeometryBatchInput,
+  limits: GeoParquetNativeGeometryLimits = {},
+): CreatedGeoArrowBatch {
+  if (typeof input !== "object" || input === null) {
+    fail("GEOPARQUET_NATIVE_INVALID_VALUE", "$", { reason: "expected a batch input object" });
+  }
+  const { dimensions, identity, kind, values } = input;
+  if (dimensions !== "xy" && dimensions !== "xyz") {
+    fail("GEOPARQUET_NATIVE_UNSUPPORTED_DIMENSIONS", "$.dimensions", { dimensions });
+  }
+  if (!Array.isArray(values)) {
+    fail("GEOPARQUET_NATIVE_INVALID_VALUE", "$.values", { reason: "expected an array of rows" });
+  }
+  if (typeof identity !== "object" || identity === null) {
+    fail("GEOPARQUET_NATIVE_INVALID_VALUE", "$.identity", { reason: "expected a plan-derived batch identity" });
+  }
+  if (kind !== "point" && kind !== "linestring" && kind !== "polygon") {
+    fail("GEOPARQUET_COLUMNAR_UNSUPPORTED_ENCODING", "$.kind", { kind });
+  }
+  const geometryField = input.geometryField ?? "geometry";
+  assertOrderingFieldsAvailable(identity, geometryField, input.featureIds?.field);
+  const conversionLimits: GeoArrowConversionLimits = {
+    ...(limits.maxVertices !== undefined ? { maxVertices: limits.maxVertices } : {}),
+    ...(limits.maxRings !== undefined ? { maxRings: limits.maxRings } : {}),
+  };
+  const batchInput: CreateGeoArrowBatchInput = {
+    id: input.batchId,
+    sequence: input.sequence,
+    ...(input.rowOffset === undefined ? {} : { rowOffset: input.rowOffset }),
+    schemaId: identity.schemaVersion,
+    identity,
+    geometry: columnarGeometryColumn(kind, dimensions, values, geometryField, input.crs),
+    ...(input.featureIds === undefined ? {} : { featureIds: input.featureIds }),
+  };
+  try {
+    return createGeoArrowBatch(batchInput, conversionLimits);
+  } catch (cause) {
+    remapGeoArrowError(cause, "GEOPARQUET_NATIVE_ROW_LIMIT_EXCEEDED");
+  }
 }
 
 /**

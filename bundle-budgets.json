@@ -89,8 +89,8 @@
   "Standalone OGC API Processes execution (#1009) grows every graph that carries HonuaClient, because the client owns the Processes handle: both OGC Part 1 (Core) response shapes (synchronous 200 results and Prefer: respond-async 201 + Location) are now decoded from status and headers, the job lifecycle follows advertised Location / self / results links behind a same-origin guard instead of a path template, execution and dismissal fail closed on undeclared conformance classes and jobControlOptions, and results() carries a default poll deadline. Measured on the tree merged with #935's runtime offline-tile registration: 261,451 gzip on /esri-compat and 196,081 gzip on 'tree-shake:root-createHonua'. Only those two exceeded gzip metrics are reset, to measured actual plus ~10% headroom. /web-components is deliberately NOT reset here: it measures 300,296 gzip on the merged tree, which already fits under the 329,668 ceiling the #935 entry above established, so the pre-merge reset this branch carried was redundant and was reverted to #935's value. Every minified ceiling holds, and root, /honua, /contract, and the browser bundle stay inside their existing ceilings.",
   "/scene-workspace was reset for the bounded Cesium scene-primitive mount lifecycle (#930): mountScenePrimitivesToCesium adds a mount handle that owns the adapter's layer handles, an identity + configuration diff that reuses unchanged primitives and disposes exactly what left the plan, a layer ceiling enforced before the peer loads, AbortSignal cancellation threaded through every materialization, and an idempotent dispose(). Measured 128,619 minified / 39,112 gzip bytes on the merged tree; both exceeded ceilings are reset to measured actual plus ~10% headroom. CesiumJS stays an external, dynamically imported peer, and the root and browser barrels do not reach this entrypoint, so every other ceiling holds.",
   "/query-planner's minified ceiling was reset for the persistent columnar batch cache (#940): the identity-bound key model, the versioned envelope migration ladder, the bounded store with deterministic eviction and read-time integrity verification, the IndexedDB backend, and the shared backend-conformance suite both backends pass measure 724,881 minified / 161,051 gzip bytes alongside #1009's Processes handle and #942's bounded Result conversion. Only the exceeded minified metric is reset, to measured actual plus ~10% headroom; the gzip ceiling #1009 established still fits the measurement and is left untouched. The store core holds no IndexedDB, filesystem, or Node reference, so the entrypoint stays SSR- and worker-safe, and the root, /honua, and browser barrels are unchanged because nothing here is reachable from them.",
-  "/offline was reset for offline-store trust (#1045, #1046). The edit queue gained a bounded startup recovery pass, a persisted-record version gate, and per-read validation on every path that can lease or transition a record; the region store gained a read-the-version-then-migrate-forward schema ladder, identity-preservation checks on every migrated record, and a fail-closed unreadable-store outcome that refuses instead of bulk-deleting cached regions. Measured 154,248 minified / 42,090 gzip; both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the graph — validation reuses the existing credential screen and the ladder is dependency-free — and the entrypoint stays subpath-only, so root, /honua, and browser barrels are unchanged.",
-  "/runtime's gzip ceiling was reset in the same change, for drift that predates it. /runtime measures 167,988 gzip on trunk against a 167,884 ceiling, and its bundle contains no src/offline or src/realtime input at all (the offline tile handler is injected, per the #935 entry above), so nothing in #1045 or #1046 can have moved it: the ceiling was set from a pre-merge measurement in #1031 and trunk has since moved past it. Reset to measured actual plus ~10% headroom rather than left failing every PR."
+  "The browser IIFE and ESM gzip ceilings were reset for planner-selected columnar execution (#1042): every plan now carries a result-representation decision (object vs columnar) selected from declared source capabilities plus caller estimates, bound into QueryPlanValidityV1, and explained through the existing warning vocabulary, alongside columnarBatchIdentityFromPlan, which derives a ColumnarBatchIdentityV1 from an accepted plan. The browser barrels reach it because explainQuery is a reviewed root export. Measured 206,731 gzip (browser-iife) and 206,391 gzip (browser-esm); only those two exceeded metrics are reset, to measured actual plus ~10% headroom. Both minified ceilings still fit the measurement and are left untouched, and /query-planner and /geoparquet are unchanged: the new planner modules import only types from src/columnar, so no columnar or GeoParquet decode enters an entrypoint that did not already carry it.",
+  "/offline was reset for offline-store trust (#1045, #1046). The edit queue gained a bounded startup recovery pass, a persisted-record version gate, and per-read validation on every path that can lease or transition a record; the region store gained a read-the-version-then-migrate-forward schema ladder, identity-preservation checks on every migrated record, and a fail-closed unreadable-store outcome that refuses instead of bulk-deleting cached regions. Measured on the tree merged with #1052's planner-selected columnar execution: 150,145 minified / 40,948 gzip. Both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the graph — validation reuses the existing credential screen and the ladder is dependency-free — and the entrypoint stays subpath-only, so root, /honua, and browser barrels are unchanged. /runtime is deliberately NOT reset here: it measures 167,174 gzip on the merged tree, inside the 167,884 ceiling trunk already carries, so the pre-merge reset this branch held was reverted to trunk's value."
  ],
  "entrypoints": {
   ".": {
@@ -135,15 +135,15 @@
   },
   "/runtime": {
    "min": 626939,
-   "gzip": 184787
+   "gzip": 167884
   },
   "/realtime": {
    "min": 88268,
    "gzip": 25558
   },
  "/offline": {
-   "min": 169673,
-   "gzip": 46299
+   "min": 165160,
+   "gzip": 45043
   },
   "/query-planner": {
    "min": 797370,
@@ -219,11 +219,11 @@
   },
   "browser-iife": {
    "min": 772626,
-   "gzip": 206143
+   "gzip": 227405
   },
   "browser-esm": {
    "min": 771157,
-   "gzip": 205783
+   "gzip": 227031
   },
   "tree-shake:HonuaClient": {
    "min": 260072,
