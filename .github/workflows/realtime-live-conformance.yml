@@ -88,7 +88,14 @@ jobs:
           HONUA_REALTIME_LIVE_SERVER_REVISION: ${{ inputs.server_revision || vars.HONUA_REALTIME_LIVE_SERVER_REVISION }}
           HONUA_REALTIME_LIVE_SERVER_VERSION: ${{ inputs.server_version || vars.HONUA_REALTIME_LIVE_SERVER_VERSION }}
           HONUA_REALTIME_LIVE_API_KEY: ${{ secrets.HONUA_REALTIME_LIVE_API_KEY }}
-          HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE: ${{ inputs.drive_controlled_mutation || vars.HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE }}
+          # A write opt-in must honour an explicit "off". `inputs.x || vars.x`
+          # would let the repository variable override an unchecked box, so a
+          # dispatch answers only for itself and the variable is consulted only
+          # on the unattended scheduled run.
+          HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE: >-
+            ${{ github.event_name == 'workflow_dispatch' && inputs.drive_controlled_mutation
+            || github.event_name == 'schedule' && vars.HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE
+            || '' }}
           HONUA_REALTIME_LIVE_CONFORMANCE_LABEL: ${{ vars.HONUA_REALTIME_LIVE_CONFORMANCE_LABEL }}
           HONUA_REALTIME_LIVE_CONFORMANCE_TTL_SECONDS: ${{ vars.HONUA_REALTIME_LIVE_CONFORMANCE_TTL_SECONDS }}
         run: >-
