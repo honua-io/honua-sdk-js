@@ -56,6 +56,7 @@ import {
 } from "./geoarrow-serialization.js";
 import type { GeoArrowSerializationMetrics, GeoArrowSerializationOptions } from "./geoarrow-types.js";
 import { HonuaGeoArrowError } from "./geoarrow-types.js";
+import { type ColumnarTelemetry, beginColumnarSpan, columnarAuthorizationScopeDigest } from "./telemetry.js";
 import type { ColumnarBatchIdentityV1, ColumnarBatchV1, ColumnarFreshnessV1 } from "./types.js";
 
 /**
@@ -257,6 +258,14 @@ export interface ColumnarBatchCacheOptions {
   readonly serialization?: GeoArrowSerializationOptions;
   /** Receives every miss, stale read, refusal, and storage failure. Must not throw. */
   readonly onDiagnostic?: (diagnostic: ColumnarBatchCacheDiagnosticV1) => void;
+  /**
+   * Optional observer for this store. Off by default, and independent of
+   * {@link ColumnarBatchCacheOptions.onDiagnostic}: a caller already using the
+   * callback keeps it, and a caller wiring the SDK's telemetry seam sees the
+   * same operation and reason discriminants on identity-bound `columnar-cache-read`
+   * and `columnar-cache-write` spans.
+   */
+  readonly telemetry?: ColumnarTelemetry;
 }
 
 export interface ColumnarBatchCacheReadOptions {
@@ -301,17 +310,7 @@ interface NormalizedCacheOptions {
   readonly now: () => number;
   readonly serialization: GeoArrowSerializationOptions;
   readonly onDiagnostic?: (diagnostic: ColumnarBatchCacheDiagnosticV1) => void;
-}
-
-/**
- * Opaque digest of an authorization scope.
- *
- * The scope is documented as a non-secret opaque fingerprint; persisting only
- * its digest keeps that promise enforceable rather than assumed, and keeps the
- * raw value out of the cache key.
- */
-export async function columnarAuthorizationScopeDigest(scope: string): Promise<`sha256:${string}`> {
-  return sha256(`honua-columnar-batch-cache-scope:v1:${scope}`);
+  readonly telemetry?: ColumnarTelemetry;
 }
 
 /**
@@ -431,14 +430,44 @@ export function createColumnarBatchCache(
   const handle: ColumnarBatchCacheHandle = {
     key: (identity) => columnarBatchCacheKey(identity),
     read: async (identity, readOptions = {}) => {
-      if (disposed) return miss(normalized, INVALID_KEY, "disposed", "This columnar batch cache was disposed.");
-      return readEntry(storage, normalized, identity, readOptions.signal);
+      const telemetry = normalized.telemetry;
+      if (telemetry === undefined) {
+        if (disposed) return miss(normalized, INVALID_KEY, "disposed", "This columnar batch cache was disposed.");
+        return readEntry(storage, normalized, identity, readOptions.signal);
+      }
+      const span = beginColumnarSpan(telemetry, "columnar-cache-read", identity);
+      try {
+        const outcome = disposed
+          ? miss(normalized, INVALID_KEY, "disposed", "This columnar batch cache was disposed.")
+          : await readEntry(storage, normalized, identity, readOptions.signal);
+        span?.finish(cacheReadDetail(outcome));
+        return outcome;
+      } catch (error) {
+        span?.fail(error);
+        throw error;
+      }
     },
     write: async (batch, writeOptions = {}) => {
-      if (disposed) {
-        return refuse(normalized, INVALID_KEY, "disposed", "This columnar batch cache was disposed.");
+      const telemetry = normalized.telemetry;
+      if (telemetry === undefined) {
+        if (disposed) {
+          return refuse(normalized, INVALID_KEY, "disposed", "This columnar batch cache was disposed.");
+        }
+        return writeEntry(storage, normalized, batch, writeOptions.signal);
       }
-      return writeEntry(storage, normalized, batch, writeOptions.signal);
+      const span = beginColumnarSpan(telemetry, "columnar-cache-write", batchIdentity(batch), {
+        batchId: readableBatchId(batch),
+      });
+      try {
+        const outcome = disposed
+          ? refuse(normalized, INVALID_KEY, "disposed", "This columnar batch cache was disposed.")
+          : await writeEntry(storage, normalized, batch, writeOptions.signal);
+        span?.finish(cacheWriteDetail(outcome));
+        return outcome;
+      } catch (error) {
+        span?.fail(error);
+        throw error;
+      }
     },
     delete: async (identity) => {
       if (disposed) return;
@@ -745,6 +774,63 @@ function refuse(
   return { outcome: "refused", key, reason, detail };
 }
 
+/**
+ * Cache spans report the discriminants the operation already decided —
+ * `hit`/`stale`/`miss` and their reason, the key digest, and for a hit the
+ * quantities the read returned. The key is a digest, so it carries no identity
+ * value, and the raw authorization scope never appears in either.
+ */
+function cacheReadDetail(outcome: ColumnarBatchCacheReadV1): Record<string, unknown> {
+  if (outcome.outcome === "hit") {
+    return {
+      key: outcome.key,
+      outcome: "hit",
+      rowCount: outcome.record.rowCount,
+      byteLength: outcome.record.byteLength,
+      envelopeVersion: outcome.record.envelopeVersion,
+    };
+  }
+  if (outcome.outcome === "stale") {
+    return { key: outcome.key, outcome: "stale", reason: outcome.reason, rowCount: outcome.record.rowCount };
+  }
+  return { key: outcome.key, outcome: "miss", reason: outcome.reason };
+}
+
+/** Write spans additionally report the eviction the admission plan performed. */
+function cacheWriteDetail(outcome: ColumnarBatchCacheWriteV1): Record<string, unknown> {
+  if (outcome.outcome === "refused") {
+    return { key: outcome.key, outcome: "refused", reason: outcome.reason };
+  }
+  return {
+    key: outcome.key,
+    outcome: "stored",
+    byteLength: outcome.record.byteLength,
+    rowCount: outcome.record.rowCount,
+    evictedRecords: outcome.admission.evictKeys.length,
+    evictedBytes: outcome.admission.evictedBytes,
+    bytesAfter: outcome.admission.bytesAfter,
+    recordsAfter: outcome.admission.recordsAfter,
+  };
+}
+
+/** Read a write candidate's identity and id without letting a malformed batch throw. */
+function batchIdentity(batch: ColumnarBatchV1): ColumnarBatchIdentityV1 | undefined {
+  try {
+    return batch?.identity;
+  } catch {
+    return undefined;
+  }
+}
+
+function readableBatchId(batch: ColumnarBatchV1): string | undefined {
+  try {
+    const id = batch?.id;
+    return typeof id === "string" ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function report(
   options: NormalizedCacheOptions,
   operation: ColumnarBatchCacheDiagnosticV1["operation"],
@@ -972,6 +1058,7 @@ function normalizeOptions(options: ColumnarBatchCacheOptions): NormalizedCacheOp
     now: options.now ?? Date.now,
     serialization: options.serialization ?? {},
     ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}),
+    ...(options.telemetry ? { telemetry: options.telemetry } : {}),
   };
 }
 

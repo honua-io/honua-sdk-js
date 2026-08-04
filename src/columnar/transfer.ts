@@ -1,3 +1,4 @@
+import { beginColumnarSpan } from "./telemetry.js";
 import {
   COLUMNAR_BATCH_KIND,
   COLUMNAR_BATCH_VERSION,
@@ -716,56 +717,69 @@ export class ColumnarBatchLease {
     options: ColumnarTransferOptions = {},
   ): Promise<ColumnarTransferReceipt> {
     const batch = this.batch;
-    assertNotAborted(options.signal);
-    const effectiveLimits: ColumnarBatchLimits = {
-      maxRows: options.maxRows ?? this.#limits.maxRows,
-      maxBackingBytes: options.maxBackingBytes ?? this.#limits.maxBackingBytes,
-      maxSchemaNodes: options.maxSchemaNodes ?? this.#limits.maxSchemaNodes,
-      maxMetadataEntries: options.maxMetadataEntries ?? this.#limits.maxMetadataEntries,
-      maxBufferViews: options.maxBufferViews ?? this.#limits.maxBufferViews,
-      maxStringBytes: options.maxStringBytes ?? this.#limits.maxStringBytes,
-    };
-    const { metrics, transfer } = inspect(batch, effectiveLimits);
-    const message: ColumnarTransferMessageV1 = Object.freeze({
-      kind: COLUMNAR_TRANSFER_KIND,
-      version: COLUMNAR_BATCH_VERSION,
-      batch,
-      metrics,
-    });
-
-    this.#state = "transferring";
-    let ownedMessage: ColumnarTransferMessageV1;
+    // Observation is woven through this method rather than wrapped around it:
+    // an extra promise hop would change when the consumer's acknowledgement
+    // settles relative to the worker host's own request bookkeeping.
+    const telemetry = options.telemetry;
+    const span = telemetry
+      ? beginColumnarSpan(telemetry, "columnar-transfer", batch.identity, { batchId: batch.id })
+      : undefined;
     try {
-      ownedMessage = structuredClone(message, { transfer: [...transfer] });
-    } catch (cause) {
-      this.#state = "owned";
-      throw new HonuaColumnarTransferError("transport-failed", "Columnar ownership transfer failed", {
-        cause,
+      assertNotAborted(options.signal);
+      const effectiveLimits: ColumnarBatchLimits = {
+        maxRows: options.maxRows ?? this.#limits.maxRows,
+        maxBackingBytes: options.maxBackingBytes ?? this.#limits.maxBackingBytes,
+        maxSchemaNodes: options.maxSchemaNodes ?? this.#limits.maxSchemaNodes,
+        maxMetadataEntries: options.maxMetadataEntries ?? this.#limits.maxMetadataEntries,
+        maxBufferViews: options.maxBufferViews ?? this.#limits.maxBufferViews,
+        maxStringBytes: options.maxStringBytes ?? this.#limits.maxStringBytes,
+      };
+      const { metrics, transfer } = inspect(batch, effectiveLimits);
+      const message: ColumnarTransferMessageV1 = Object.freeze({
+        kind: COLUMNAR_TRANSFER_KIND,
+        version: COLUMNAR_BATCH_VERSION,
+        batch,
+        metrics,
       });
-    }
-    this.#state = "transferred";
-    this.#batch = undefined;
-    this.releaseReservations();
 
-    const ownedTransfer = inspect(ownedMessage.batch, effectiveLimits).transfer;
-    let acknowledgement: void | Promise<void>;
-    try {
-      acknowledgement = target(ownedMessage, ownedTransfer);
-    } catch (cause) {
-      throw new HonuaColumnarTransferError("transport-failed", "Columnar consumer rejected the transferred batch", {
-        cause,
-      });
+      this.#state = "transferring";
+      let ownedMessage: ColumnarTransferMessageV1;
+      try {
+        ownedMessage = structuredClone(message, { transfer: [...transfer] });
+      } catch (cause) {
+        this.#state = "owned";
+        throw new HonuaColumnarTransferError("transport-failed", "Columnar ownership transfer failed", {
+          cause,
+        });
+      }
+      this.#state = "transferred";
+      this.#batch = undefined;
+      this.releaseReservations();
+
+      const ownedTransfer = inspect(ownedMessage.batch, effectiveLimits).transfer;
+      let acknowledgement: void | Promise<void>;
+      try {
+        acknowledgement = target(ownedMessage, ownedTransfer);
+      } catch (cause) {
+        throw new HonuaColumnarTransferError("transport-failed", "Columnar consumer rejected the transferred batch", {
+          cause,
+        });
+      }
+      try {
+        await acknowledgement;
+      } catch (cause) {
+        throw new HonuaColumnarTransferError(
+          "transport-failed",
+          "Columnar transfer was handed off but the consumer acknowledgement failed",
+          { cause },
+        );
+      }
+      span?.finish(transferSpanDetail(metrics));
+      return Object.freeze({ batchId: batch.id, metrics, acknowledged: true as const });
+    } catch (error) {
+      span?.fail(error, error instanceof HonuaColumnarTransferError ? { code: error.code } : undefined);
+      throw error;
     }
-    try {
-      await acknowledgement;
-    } catch (cause) {
-      throw new HonuaColumnarTransferError(
-        "transport-failed",
-        "Columnar transfer was handed off but the consumer acknowledgement failed",
-        { cause },
-      );
-    }
-    return Object.freeze({ batchId: batch.id, metrics, acknowledged: true as const });
   }
 
   /** Release this lease's owned references. Idempotent after disposal. */
@@ -789,4 +803,20 @@ export class ColumnarBatchLease {
 /** Validate and wrap a batch in a one-owner transfer lease. */
 export function leaseColumnarBatch(batch: ColumnarBatchV1, limits: ColumnarBatchLimits = {}): ColumnarBatchLease {
   return new ColumnarBatchLease(batch, limits);
+}
+
+/**
+ * The transfer span reports the accounting the transfer already produced —
+ * nothing here measures anything the receipt did not already carry.
+ */
+function transferSpanDetail(metrics: ColumnarBatchMetrics): Record<string, unknown> {
+  return {
+    rows: metrics.rows,
+    logicalBytes: metrics.logicalBytes,
+    backingBytes: metrics.backingBytes,
+    transferBytes: metrics.transferBytes,
+    copiedBytes: metrics.copiedBytes,
+    bufferViews: metrics.bufferViews,
+    backingBuffers: metrics.backingBuffers,
+  };
 }

@@ -133,7 +133,6 @@ export {
   MAX_COLUMNAR_BATCH_CACHE_MAX_AGE_MS,
   MAX_COLUMNAR_BATCH_CACHE_MAX_RECORDS,
   MAX_COLUMNAR_BATCH_CACHE_QUOTA_BYTES,
-  columnarAuthorizationScopeDigest,
   columnarBatchCacheKey,
   columnarBatchCacheOrderingDigest,
   createColumnarBatchCache,
@@ -157,6 +156,15 @@ export type {
   ColumnarBatchCacheWriteOptions,
   ColumnarBatchCacheWriteV1,
 } from "./batch-cache.js";
+export { columnarAuthorizationScopeDigest } from "./telemetry.js";
+export type {
+  ColumnarTelemetry,
+  ColumnarTelemetryIdentityV1,
+  ColumnarTelemetryKind,
+  ColumnarTelemetryOptions,
+  ColumnarTelemetrySpan,
+  ColumnarTelemetrySpanResult,
+} from "./telemetry.js";
 export { createIndexedDbColumnarBatchCacheStorage } from "./batch-cache-indexeddb.js";
 export type { IndexedDbColumnarBatchCacheStorageOptions } from "./batch-cache-indexeddb.js";
 export {

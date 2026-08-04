@@ -875,6 +875,91 @@ identity is preserved inside the worker, but a worker round trip transfers
 ownership in both directions, so apply patches on the thread that owns the
 renderer binding when preserving that binding is the point.
 
+## Observing columnar execution
+
+Columnar execution is observable through the SDK's own telemetry shape.
+`ColumnarTelemetry` is the same before/after/error collector as
+`HonuaRuntimeTelemetry`, so one observer object can be wired to the map runtime
+and to the columnar plane without inventing a second pipeline.
+
+**Six operations emit spans**, one span per unit of measurable work:
+
+| `kind` | Emitted by | What the span's `detail` carries |
+| --- | --- | --- |
+| `columnar-transfer` | `ColumnarBatchLease.transfer()`, including the handoff a worker session performs | `batchId` plus every `ColumnarBatchMetrics` field (`rows`, `logicalBytes`, `backingBytes`, `transferBytes`, `copiedBytes`, `bufferViews`, `backingBuffers`) |
+| `columnar-worker-operation` | `session.execute()`, spanning enqueue through settlement | `requestId`, `operation`, `batchId`, and on success `inputMetrics` / `outputMetrics` |
+| `columnar-cache-read` | `cache.read()` | `key`, `outcome` (`hit`/`stale`/`miss`), the miss or stale `reason`, and a hit's `rowCount`, `byteLength`, `envelopeVersion` |
+| `columnar-cache-write` | `cache.write()` | `key`, `outcome` (`stored`/`refused`), the refusal `reason`, and a stored write's `evictedRecords`, `evictedBytes`, `bytesAfter`, `recordsAfter` |
+| `columnar-patch-apply` | `applyColumnarPatch()` | the patch `cursor`, `sequence`, `observedAt` and operation count, then the outcome discriminant with `bufferIdentityPreserved`, the rebuild `reason` or rejection `code`, and the patch metrics |
+| `columnar-result-conversion` | `columnarBatchToResult()`, and one span per page of `columnarBatchToResultPages()` | `batchId`, `maxFeatures`, and the converted `count`, `offset`, `rowOffset`, `batchRowCount` |
+
+Every span reports quantities the operation already produced. Nothing here
+measures anything new, so observing an operation cannot change what it costs
+beyond the observation itself.
+
+**Every span is bound to one batch identity.** `span.identity` carries
+`sourceId`, `sourceVersion`, `schemaVersion`, `planId`, and
+`authorizationScopeDigest`, so a cache read, a worker operation, a patch, and a
+conversion over the same batch are correlatable in one sink. The digest is
+produced by `columnarAuthorizationScopeDigest()` — the same rule that keeps the
+raw scope out of the cache key. **A span never contains a raw authorization
+scope or any credential material**, and when a batch declares no identity, or
+its identity cannot be read, `span.identity` is `undefined` rather than
+partially invented. Spans are derived observations: nothing persists or caches
+them.
+
+**Opt-in, off by default, and contained.** No columnar surface constructs a
+sink; with none configured the columnar path costs exactly what it costs
+without this feature — no clock read, no digest, no allocation. A sink that
+throws, blocks, or misbehaves cannot fail, stall, or alter the operation it
+observes, and is never awaited on a data path. Because binding a span digests
+the authorization scope, and Web Crypto only offers that asynchronously, the
+*first* span for a previously unseen scope is delivered once its digest
+resolves; every later span for that scope is delivered synchronously, and a
+span's `before` event always precedes its own terminal event.
+
+The batch cache's `onDiagnostic` callback is unchanged and keeps firing with its
+current shape. Telemetry folds the same operation and reason discriminants into
+the SDK's seam; wire either, or both.
+
+```ts doc-test=compile
+import {
+  applyColumnarPatch,
+  columnarBatchToResult,
+  createColumnarBatchCache,
+  createColumnarWorkerSession,
+  createMemoryColumnarBatchCacheStorage,
+} from "@honua/sdk-js/query-planner";
+import type {
+  ColumnarBatchIdentityV1,
+  ColumnarBatchV1,
+  ColumnarPatchV1,
+  ColumnarTelemetry,
+  ColumnarWorkerFactory,
+} from "@honua/sdk-js/query-planner";
+
+const telemetry: ColumnarTelemetry = {
+  after: (span) => {
+    // Identity, never a raw authorization scope.
+    console.log(span.kind, span.durationMs, span.identity?.planId, span.identity?.authorizationScopeDigest);
+  },
+  error: (span) => console.warn(span.kind, span.error),
+};
+
+declare const batch: ColumnarBatchV1;
+declare const identity: ColumnarBatchIdentityV1;
+declare const patch: ColumnarPatchV1;
+declare const createWorker: ColumnarWorkerFactory;
+
+const cache = createColumnarBatchCache(createMemoryColumnarBatchCacheStorage(), { telemetry });
+const session = createColumnarWorkerSession({ createWorker, telemetry });
+
+await cache.read(identity);
+await session.execute("reproject", batch);
+applyColumnarPatch(batch, patch, { telemetry });
+columnarBatchToResult(batch, { maxFeatures: 1_000, telemetry });
+```
+
 ## Typed errors
 
 `HonuaColumnarPatchError.code`, which is also the `rejected` outcome's `code`,
