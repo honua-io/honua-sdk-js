@@ -36,6 +36,19 @@ const IDENTITY_MANAGER_IMPORT_UNSUPPORTED_REASON =
 const ESRI_REQUEST_IMPORT_UNSUPPORTED_REASON = "esriRequest import shape is unsupported for automatic migration.";
 const GEOMETRY_ENGINE_IMPORT_UNSUPPORTED_REASON =
   "geometryEngine import shape is unsupported for automatic migration (expected a default or namespace import).";
+// `@arcgis/core/rest/locator` module (function) form, rewritten import-first to
+// the LocatorCompat module helpers (issue #956).
+const ARCGIS_REST_LOCATOR_MODULE = "@arcgis/core/rest/locator";
+const LOCATOR_REST_COMPAT_SYMBOLS: Readonly<Record<string, string>> = Object.freeze({
+  addressToLocations: "locatorAddressToLocations",
+  addressesToLocations: "locatorAddressesToLocations",
+  locationToAddress: "locatorLocationToAddress",
+  suggestLocations: "locatorSuggestLocations",
+});
+const LOCATOR_REST_IMPORT_UNSUPPORTED_REASON =
+  "rest/locator import shape is unsupported for automatic migration (expected named imports of addressToLocations, addressesToLocations, locationToAddress, or suggestLocations).";
+const LOCATOR_REST_PROVIDER_REASON =
+  "rest/locator helpers now take a configured LocatorCompat instead of a GeocodeServer URL; replace the URL argument with `new LocatorCompat({ provider })` from @honua/sdk-js/geocoding.";
 // Esri geometryEngine operations backed by the geometryEngineCompat shim
 // (@honua/geometry). Call sites of these ops migrate cleanly; anything else
 // (geodesic densify, offset, cut, generalize, relate, …) keeps a manual TODO.
@@ -118,6 +131,8 @@ const ESRI_LEAFLET_COMPAT_FALLBACK_KINDS = new Set<CodemodConstructorKind>([
   "group-layer",
   "route-layer",
   "route-task",
+  "locator",
+  "locator-search-source",
   "basemap",
   "map",
   "map-view",
@@ -198,6 +213,8 @@ export type CodemodConstructorKind =
   | "tile-layer"
   | "route-layer"
   | "route-task"
+  | "locator"
+  | "locator-search-source"
   | "basemap"
   | "map"
   | "map-view"
@@ -378,6 +395,27 @@ const REWRITE_SPECS: readonly ConstructorRewriteSpec[] = [
     kind: "route-task",
     compatSymbol: "RouteTaskCompat",
     arcGisModules: new Set(["@arcgis/core/rest/route/RouteTask", "@arcgis/core/rest/route/RouteTask.js"]),
+  },
+  {
+    // `@arcgis/core/tasks/Locator` is the class form; `@arcgis/core/rest/locator`
+    // is the 4.22+ function module and is rewritten import-first by
+    // `rewriteLocatorRestImports` (issue #956).
+    kind: "locator",
+    compatSymbol: "LocatorCompat",
+    arcGisModules: new Set([
+      "@arcgis/core/tasks/Locator",
+      "@arcgis/core/tasks/Locator.js",
+      "@arcgis/core/rest/locator",
+      "@arcgis/core/rest/locator.js",
+    ]),
+  },
+  {
+    kind: "locator-search-source",
+    compatSymbol: "LocatorSearchSourceCompat",
+    arcGisModules: new Set([
+      "@arcgis/core/widgets/Search/LocatorSearchSource",
+      "@arcgis/core/widgets/Search/LocatorSearchSource.js",
+    ]),
   },
   {
     kind: "basemap",
@@ -1042,6 +1080,19 @@ function codemodFile(
   rewrittenKinds.push(...geometryEngineImportRewrite.rewrittenKinds);
   manualTodos.push(...geometryEngineImportRewrite.manualTodos);
   todoCommentEdits.push(...geometryEngineImportRewrite.todoCommentEdits);
+
+  const locatorRestImportRewrite = rewriteLocatorRestImports({
+    source,
+    sourceFile,
+    file,
+    compatImportPath,
+    annotateTodos,
+    target,
+  });
+  importEdits.push(...locatorRestImportRewrite.edits);
+  rewrittenKinds.push(...locatorRestImportRewrite.rewrittenKinds);
+  manualTodos.push(...locatorRestImportRewrite.manualTodos);
+  todoCommentEdits.push(...locatorRestImportRewrite.todoCommentEdits);
 
   // Flag call sites of uncovered geometryEngine ops (covered ops resolve to the
   // rewritten geometryEngineCompat import and need no TODO). Only when the
@@ -1783,6 +1834,113 @@ function rewriteGeometryEngineImports(options: {
     manualTodos,
     todoCommentEdits,
   };
+}
+
+/**
+ * `@arcgis/core/rest/locator` is a module of functions (like `geometryEngine`),
+ * so it is rewritten import-first: each supported function is aliased to its
+ * `locator*` counterpart on the compat package, keeping call sites byte-identical.
+ *
+ * The rewrite is deliberately paired with a manual TODO: the compat functions
+ * take a configured `LocatorCompat` (carrying a geocoding provider) where ArcGIS
+ * took a GeocodeServer URL, and choosing the provider is a human decision the
+ * codemod must not invent (issue #956).
+ */
+function rewriteLocatorRestImports(options: {
+  source: string;
+  sourceFile: ts.SourceFile;
+  file: string;
+  compatImportPath: string;
+  annotateTodos: boolean;
+  target: CodemodTarget;
+}): {
+  edits: TextEdit[];
+  rewrittenKinds: CodemodConstructorKind[];
+  manualTodos: MigrationTodo[];
+  todoCommentEdits: TextEdit[];
+} {
+  const edits: TextEdit[] = [];
+  const rewrittenKinds: CodemodConstructorKind[] = [];
+  const manualTodos: MigrationTodo[] = [];
+  const todoCommentEdits: TextEdit[] = [];
+
+  for (const statement of options.sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) {
+      continue;
+    }
+    if (normalizeArcGisModulePath(statement.moduleSpecifier.text) !== ARCGIS_REST_LOCATOR_MODULE) {
+      continue;
+    }
+
+    if (options.target === "honua-maplibre") {
+      pushImportManualTodo(
+        options,
+        statement,
+        "locator",
+        HONUA_MAPLIBRE_UNSUPPORTED_IMPORT_REASON,
+        manualTodos,
+        todoCommentEdits,
+      );
+      continue;
+    }
+
+    const replacement = buildLocatorRestCompatImport(statement, options.compatImportPath);
+    if (!replacement) {
+      pushImportManualTodo(
+        options,
+        statement,
+        "locator",
+        LOCATOR_REST_IMPORT_UNSUPPORTED_REASON,
+        manualTodos,
+        todoCommentEdits,
+      );
+      continue;
+    }
+
+    edits.push({
+      start: statement.getStart(options.sourceFile),
+      end: statement.getEnd(),
+      text: replacement,
+    });
+    rewrittenKinds.push("locator");
+    pushImportManualTodo(options, statement, "locator", LOCATOR_REST_PROVIDER_REASON, manualTodos, todoCommentEdits);
+  }
+
+  return {
+    edits,
+    rewrittenKinds,
+    manualTodos,
+    todoCommentEdits,
+  };
+}
+
+function buildLocatorRestCompatImport(statement: ts.ImportDeclaration, compatImportPath: string): string | undefined {
+  const importClause = statement.importClause;
+  if (!importClause || importClause.name) {
+    return undefined;
+  }
+
+  const namedBindings = importClause.namedBindings;
+  if (!namedBindings || !ts.isNamedImports(namedBindings)) {
+    return undefined;
+  }
+
+  const specifiers: string[] = [];
+  for (const element of namedBindings.elements) {
+    const importedName = element.propertyName?.text ?? element.name.text;
+    const compatSymbol = LOCATOR_REST_COMPAT_SYMBOLS[importedName];
+    if (!compatSymbol) {
+      return undefined;
+    }
+    specifiers.push(renderImportSpecifier(compatSymbol, element.name.text));
+  }
+
+  const uniqueSpecifiers = Array.from(new Set(specifiers));
+  if (uniqueSpecifiers.length === 0) {
+    return undefined;
+  }
+
+  return `import { ${uniqueSpecifiers.join(", ")} } from "${compatImportPath}";`;
 }
 
 function buildGeometryEngineCompatImport(
@@ -2650,6 +2808,8 @@ function createEmptyByKindMetrics(): CodemodMetricsByKind {
     "tile-layer": { total: 0, autoMigrated: 0, manual: 0 },
     "route-layer": { total: 0, autoMigrated: 0, manual: 0 },
     "route-task": { total: 0, autoMigrated: 0, manual: 0 },
+    locator: { total: 0, autoMigrated: 0, manual: 0 },
+    "locator-search-source": { total: 0, autoMigrated: 0, manual: 0 },
     basemap: { total: 0, autoMigrated: 0, manual: 0 },
     map: { total: 0, autoMigrated: 0, manual: 0 },
     "map-view": { total: 0, autoMigrated: 0, manual: 0 },
@@ -4384,6 +4544,10 @@ function isSafeConstructorCall(
         ok: false,
         reason: "geometryEngine is not a constructor and requires import-based migration.",
       };
+    case "locator":
+      return isSafeAllowedPropertiesCall(node, "Locator", LOCATOR_ALLOWED_PROPS);
+    case "locator-search-source":
+      return isSafeAllowedPropertiesCall(node, "LocatorSearchSource", LOCATOR_SEARCH_SOURCE_ALLOWED_PROPS);
     case "feature-filter":
       return isSafeAllowedPropertiesCall(node, "FeatureFilter", FEATURE_FILTER_ALLOWED_PROPS);
     case "vector-tile-layer":
@@ -4401,6 +4565,23 @@ function isSafeConstructorCall(
   }
 }
 
+// LocatorCompat carries `url`/`apiKey`/`requestOptions` for constructor parity
+// (diagnostics only) and executes through a caller-supplied geocoding provider.
+// ArcGIS locator options that bias or filter results server-side (`categories`,
+// `countryCode`, `searchExtent`, `outFields`) are deliberately absent: they are
+// per-call parameters on the shim, so a constructor-level use must stay manual.
+const LOCATOR_ALLOWED_PROPS = new Set(["url", "apiKey", "requestOptions", "provider", "capabilityPolicy"]);
+const LOCATOR_SEARCH_SOURCE_ALLOWED_PROPS = new Set([
+  "url",
+  "locator",
+  "provider",
+  "name",
+  "placeholder",
+  "maxResults",
+  "maxSuggestions",
+  "countryCode",
+  "outFields",
+]);
 const FEATURE_FILTER_ALLOWED_PROPS = new Set([
   "where",
   "objectIds",

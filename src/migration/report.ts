@@ -141,6 +141,8 @@ function summarizeManualTodosByKind(todos: readonly MigrationTodo[]): Record<Cod
     "tile-layer": 0,
     "route-layer": 0,
     "route-task": 0,
+    locator: 0,
+    "locator-search-source": 0,
     basemap: 0,
     map: 0,
     "map-view": 0,
