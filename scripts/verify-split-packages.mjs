@@ -613,6 +613,32 @@ if (
   ).some((diagnostic) => diagnostic.code !== "scene-primitive-model-credentials-forbidden")
 )
   throw new Error("Cesium model-layer credential diagnostics missing from @honua/app-platform/scene-workspace");
+if (
+  diagnoseScenePrimitives(
+    [
+      {
+        kind: "elevation-source",
+        id: "terrain",
+        sourceId: "terrain",
+        protocol: "quantized-mesh",
+        url: "https://example.test/terrain",
+        crs: "EPSG:27700",
+        verticalDatum: "EPSG:5703",
+      },
+    ],
+    CESIUM_SCENE_CAPABILITIES,
+  )
+    .map((diagnostic) => `${diagnostic.code}:${diagnostic.fidelity}`)
+    .join("|") !== "scene-primitive-crs-unsupported:unsupported|scene-primitive-vertical-datum-unsupported:unsupported"
+)
+  throw new Error("Scene spatial-reference diagnostics missing from @honua/app-platform/scene-workspace");
+if (
+  diagnoseScenePrimitives(
+    [{ kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "custom" }],
+    CESIUM_SCENE_CAPABILITIES,
+  ).some((diagnostic) => diagnostic.code !== "scene-primitive-terrain-source-missing-url")
+)
+  throw new Error("Per-protocol terrain endpoint validation missing from @honua/app-platform/scene-workspace");
 if (typeof HonuaMap !== "function")
   throw new Error("HonuaMap export missing from @honua/sdk/map");
 if (typeof validateHonuaStyle !== "function")
@@ -919,7 +945,11 @@ import type { SourceDescriptor as EsriCompatSourceDescriptor } from "./node_modu
 import type { SourceDescriptor as ReactSourceDescriptor } from "./node_modules/@honua/react/contract/index.js";
 import type { SourceDescriptor as GeometrySourceDescriptor } from "./node_modules/@honua/geometry/contract/index.js";
 import type { SourceDescriptor as AppPlatformSourceDescriptor } from "./node_modules/@honua/app-platform/contract/index.js";
-import type { SceneImageryLayerPrimitive } from "./node_modules/@honua/app-platform/scene-workspace/index.js";
+import type {
+  SceneImageryLayerPrimitive,
+  SceneSpatialCapabilities,
+  SceneSpatialFidelity,
+} from "./node_modules/@honua/app-platform/scene-workspace/index.js";
 
 type CompanionSourceDescriptor =
   | EsriCompatSourceDescriptor
@@ -929,6 +959,11 @@ type CompanionSourceDescriptor =
 
 export const acceptsCompanionSourceDescriptor = (descriptor: CompanionSourceDescriptor): string => descriptor.id;
 export const acceptsSceneImageryPrimitive = (primitive: SceneImageryLayerPrimitive): string => primitive.protocol;
+export const acceptsSceneSpatialReference = (
+  primitive: SceneImageryLayerPrimitive,
+  capabilities: SceneSpatialCapabilities,
+  fidelity: SceneSpatialFidelity,
+): string => \`\${primitive.crs ?? ""}:\${primitive.verticalDatum ?? ""}:\${capabilities.exactHorizontalCrs?.[0] ?? ""}:\${fidelity}\`;
 `.trimStart();
   fs.writeFileSync(path.join(tempRoot, "smoke-types.ts"), declarationSmoke, "utf8");
   fs.writeFileSync(

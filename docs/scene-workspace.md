@@ -163,7 +163,11 @@ Scene primitives describe 3D intent without naming a renderer package:
 
 - `camera`: serializable view state separate from source data state.
 - `ground` and `elevation-source`: terrain/ground metadata, cache policy,
-  attribution, and tile protocol.
+  attribution, and tile protocol. Every terrain protocol — `terrain-rgb`,
+  `raster-dem`, `quantized-mesh`, `image-service`, `i3s`, and `custom` — requires
+  a renderable endpoint and in-range tile/zoom/exaggeration values; a missing or
+  malformed endpoint fails closed rather than reaching a provider factory. See
+  [Terrain diagnostics](#terrain-diagnostics).
 - `imagery-layer`: URL-template, WMS, WMTS, single-tile, or ArcGIS imagery with
   explicit service configuration, opacity, attribution, and cache metadata.
   ArcGIS MapServer endpoints use Cesium's native MapServer provider; ImageServer
@@ -205,6 +209,11 @@ Scene primitives describe 3D intent without naming a renderer package:
 - `scene-layer-metadata`: SceneServer/mesh/point-cloud metadata preserved when a
   renderer cannot draw it directly.
 
+Elevation-source, imagery-layer, and model-layer primitives additionally accept
+an optional `crs` and `verticalDatum`. Both are descriptive plan data and both
+round-trip through workspace serialization. See
+[Spatial reference and fidelity](#spatial-reference-and-fidelity).
+
 Use MapLibre 2.5D when the experience is a pitched map with raster-dem terrain,
 hillshade, and source-bound building or asset extrusions. Use a Cesium or custom
 3D adapter when the workflow needs globe navigation, glTF/3D Tiles/I3S model
@@ -230,6 +239,97 @@ means the app can continue with an explicit fallback, such as rendering a
 SceneServer layer as metadata while the MapLibre map keeps terrain and
 extrusions active. Unsupported means the primitive should be routed to another
 adapter or retained in migration diagnostics rather than silently dropped.
+
+### Spatial reference and fidelity
+
+A primitive that renders is not automatically a primitive that renders *in the
+right place*. Elevation-source, imagery-layer, and model-layer primitives can
+declare the horizontal CRS and vertical datum they were authored against, and
+the adapter classifies that declaration against the renderer before a viewer
+exists:
+
+| Fidelity | Meaning |
+| --- | --- |
+| `exact` | The renderer addresses the world in this CRS. Nothing is resampled. |
+| `equivalent` | The renderer honors the binding through its own documented reprojection or tiling scheme. Footprints land correctly; samples are resampled. |
+| `unsupported` | The renderer cannot honor it. This SDK never reinterprets coordinates or transforms heights, so the binding fails closed. |
+
+This is the same `exact` / `equivalent` / `unsupported` vocabulary the
+[shared state synchronizer](#shared-maplibre-and-cesium-state) applies to slice
+mappings, and it appears on the diagnostic as an explicit `fidelity` field.
+
+Both shipped adapters declare `RENDERER_WGS84_SPATIAL_CAPABILITIES`: geographic
+WGS84 (`EPSG:4326`, `OGC:CRS84`) is exact, the Web Mercator family
+(`EPSG:3857` and its `EPSG:900913` / `ESRI:102100` aliases) is equivalent
+because both engines reproject it onto a WGS84 globe themselves, and heights are
+only honored against the ellipsoidal datum (`EPSG:4979`, spelled
+`ellipsoidal-wgs84` on the [Cesium entity path](./cesium-entity-adapter.md)).
+A custom adapter declares its own `SceneRuntimeCapabilities.spatial` record;
+classification always follows the record, never a hard-coded globe.
+
+Identifiers are normalized before comparison, so `EPSG:3857`, `epsg:3857`,
+`3857`, `urn:ogc:def:crs:EPSG::3857`, and
+`http://www.opengis.net/def/crs/EPSG/0/3857` are one CRS. An identifier that
+cannot be resolved at all is treated as unsupported rather than assumed
+compatible.
+
+| Code | Status | Fidelity | Raised when |
+| --- | --- | --- | --- |
+| `scene-primitive-crs-exact` | `supported` | `exact` | The declared `crs` is one the renderer addresses natively. |
+| `scene-primitive-crs-equivalent` | `degraded` | `equivalent` | The renderer reprojects the declared `crs` itself. |
+| `scene-primitive-crs-unsupported` | `unsupported` | `unsupported` | The declared `crs` is unresolvable or outside the renderer's record. |
+| `scene-primitive-vertical-datum-unsupported` | `unsupported` | `unsupported` | The declared `verticalDatum` is not one the renderer can interpret as scene heights. |
+
+A honored vertical datum is silent; only an unhonorable one is reported, which
+is why the code vocabulary matches the entity path's
+`vertical-datum-unsupported` rather than inventing a second spelling.
+
+Two properties hold by construction. Classification is pure — it loads no
+renderer peer, so a migration analysis can run before a viewer exists. And a
+primitive that declares neither field diagnoses exactly as it did before this
+contract existed: an undeclared spatial reference is not a finding, and neither
+is a renderer that declares no `spatial` record.
+
+```ts doc-test=compile
+import {
+  CESIUM_SCENE_CAPABILITIES,
+  diagnoseScenePrimitives,
+  type SceneRuntimePrimitive,
+} from "@honua/sdk-js/scene-workspace";
+
+const primitives: SceneRuntimePrimitive[] = [
+  {
+    kind: "elevation-source",
+    id: "site-terrain",
+    sourceId: "site-terrain",
+    protocol: "quantized-mesh",
+    url: "https://terrain.example.test/tiles",
+    crs: "EPSG:4326",
+    verticalDatum: "EPSG:5703", // NAVD88 orthometric heights
+  },
+];
+
+for (const diagnostic of diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES)) {
+  // scene-primitive-vertical-datum-unsupported / unsupported:
+  // Cesium heights are ellipsoidal, so this binding never reaches the globe.
+  console.log(diagnostic.code, diagnostic.fidelity, diagnostic.status);
+}
+```
+
+### Terrain diagnostics
+
+Endpoint and range validation runs for every terrain protocol, not just
+`terrain-rgb`. `CesiumTerrainProvider.fromUrl` and MapLibre's `raster-dem`
+source both fail opaquely on an absent or malformed endpoint, so the check
+happens before either is constructed — `applyCesiumTerrain()` throws and
+`applyMapLibreScenePrimitives()` skips the primitive, in both cases without
+mutating the live scene's terrain provider or vertical exaggeration.
+
+| Code | Raised when |
+| --- | --- |
+| `scene-primitive-terrain-source-missing-url` | Neither `url` nor a non-blank `tiles` entry is present. |
+| `scene-primitive-terrain-source-url-invalid` | A declared `url` or `tiles` entry is malformed or uses a scheme other than relative/HTTP/HTTPS. `context.invalidFields` names the offenders. |
+| `scene-primitive-terrain-range-invalid` | `tileSize`, `exaggeration`, or the zoom range is non-finite, non-positive, out of `0..24`, or inverted. |
 
 ### Model-layer diagnostics
 
