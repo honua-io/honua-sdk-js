@@ -339,9 +339,14 @@ for (const diagnostic of diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABI
 Endpoint and range validation runs for every terrain protocol, not just
 `terrain-rgb`. `CesiumTerrainProvider.fromUrl` and MapLibre's `raster-dem`
 source both fail opaquely on an absent or malformed endpoint, so the check
-happens before either is constructed — `applyCesiumTerrain()` throws and
-`applyMapLibreScenePrimitives()` skips the primitive, in both cases without
-mutating the live scene's terrain provider or vertical exaggeration.
+happens before either is constructed. Applying one primitive directly with
+`applyCesiumTerrain()` throws, because the caller asked for exactly that
+binding; a batch apply through `applyCesiumScenePrimitives()` or
+`applyMapLibreScenePrimitives()` skips the offending primitive and keeps its
+diagnostic so the rest of the plan still lands. In every case the live scene's
+terrain provider and vertical exaggeration are left as they were — an
+unsupported elevation source no longer moves the exaggeration of a terrain it
+never loaded.
 
 | Code | Raised when |
 | --- | --- |
