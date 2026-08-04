@@ -205,6 +205,10 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   lines.push("## Related reading");
   lines.push("");
   lines.push("- [Migration punch list](./migration-punch-list.md) — the honest parity/codemod accounting.");
+  lines.push(
+    "- [Third-party OSS ArcGIS app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod " +
+      "actually do to real, pinned, third-party open-source ArcGIS apps (including the ones they cannot see at all).",
+  );
   lines.push("- [Honua ⇄ MapLibre migration notes](./migration-honua-maplibre.md) — the `honua-maplibre` codemod target.");
   lines.push("- [SDK guide: Migration CLI](./guide.md#migration-cli) — every `honua-migrate` subcommand.");
   return `${lines.join("\n").replace(/\s+$/, "")}\n`;

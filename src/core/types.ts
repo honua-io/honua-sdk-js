@@ -1621,6 +1621,27 @@ export interface OgcProcessExecuteRequest {
   mode?: "async" | "auto";
   headers?: HeadersInit;
   signal?: AbortSignal;
+  /**
+   * Raw endpoint path prefix (defaults to the Honua facade `/ogc/processes`). A
+   * raw third-party Processes service root discovered by `discoverOgcProcesses()`
+   * threads its service-root path here so the execution route resolves against
+   * the advertised layout instead of the facade.
+   */
+  basePath?: string;
+}
+
+/**
+ * Request envelope for the OGC API Processes job routes (status, results,
+ * dismiss). Carries the same `basePath` seam as the metadata requests so a job
+ * created against a raw service root keeps polling that root.
+ */
+export interface OgcProcessJobRequest {
+  jobId: string;
+  signal?: AbortSignal;
+  responseFormat?: string;
+  extraParams?: Record<string, string | number | boolean>;
+  /** Raw endpoint path prefix (defaults to the Honua facade `/ogc/processes`). */
+  basePath?: string;
 }
 
 /** Job descriptor returned when the server accepted an async execution. */

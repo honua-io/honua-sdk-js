@@ -1,0 +1,200 @@
+{
+  "$schema": "./oss-arcgis-corpus.schema.json",
+  "format": "honua.sdk.oss-arcgis-corpus.v1",
+  "schemaVersion": 1,
+  "revision": "2026-08-03",
+  "guardrails": {
+    "noVendoredThirdPartyCode": true,
+    "excludedFromPrCi": true,
+    "requiresOptIn": true,
+    "noLiveEsriServiceContact": true,
+    "noThirdPartyDependencyInstall": true,
+    "notes": [
+      "Every entry is a pointer: repository URL plus the exact commit the lane checks out. No third-party source is committed to this repository.",
+      "The lane clones into an ignored scratch directory, runs the scanner and codemod over the working copy, and deletes the checkout.",
+      "The lane is static analysis only. It reads source files; it never issues a request to an ArcGIS service, a portal, or a basemap.",
+      "The lane never runs `npm install` inside a cloned app, so no third-party dependency tree is ever resolved or executed.",
+      "Licenses are re-reviewed whenever a pin is moved. Only the SPDX ids in licensePolicy.allowedSpdxIds are accepted."
+    ]
+  },
+  "licensePolicy": {
+    "allowedSpdxIds": ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unlicense", "CC0-1.0"],
+    "review": "Each pin records the SPDX id GitHub's license endpoint reports for the repository, a permalink to the license file, and the copyright holder named in that file. Repositories with no license, NOASSERTION, or a copyleft license are not eligible."
+  },
+  "lane": {
+    "optInEnvVar": "HONUA_OSS_ARCGIS_CORPUS_ENABLED",
+    "checkoutRoot": ".tmp/oss-arcgis-corpus",
+    "reportRoot": "test-results/oss-arcgis-corpus",
+    "publishedObservationPath": "docs/data/oss-arcgis-corpus-readiness.v1.json",
+    "codemodTarget": "honua-compat",
+    "widgetGatePct": 0
+  },
+  "apps": [
+    {
+      "id": "cmv-app",
+      "title": "CMV — Configurable Map Viewer",
+      "repo": {
+        "host": "github",
+        "owner": "cmv",
+        "name": "cmv-app",
+        "url": "https://github.com/cmv/cmv-app",
+        "defaultBranch": "develop",
+        "commit": "8b42b2336b1a4b357dda791c8e492b9612a5f51b",
+        "observedAt": "2026-08-03"
+      },
+      "license": {
+        "spdxId": "MIT",
+        "url": "https://github.com/cmv/cmv-app/blob/8b42b2336b1a4b357dda791c8e492b9612a5f51b/LICENSE",
+        "holder": "David Spriggs and the CMV contributors"
+      },
+      "provenance": {
+        "authorKind": "civic-tech",
+        "author": "The Configurable Map Viewer community project",
+        "description": "A long-running community-maintained configurable ArcGIS JS 3.x viewer built on Dojo `dijit` widgets. Local governments deploy it as-is with a JSON config; it is the single most representative example of the legacy AMD viewer a migrating team actually owns."
+      },
+      "styles": ["amd-require", "widget-heavy"],
+      "scanRoot": "viewer/js",
+      "evidencePaths": ["viewer/js/config/viewer.js", "viewer/js/gis/dijit/Basemaps.js", "viewer/index.html"],
+      "notes": "ArcGIS JS 3.37 loaded from js.arcgis.com; ~40 Dojo dijit widgets under viewer/js/gis/dijit. `viewer/js` excludes the vendored Dojo build output at the repository root."
+    },
+    {
+      "id": "wsdot-bridge-clearance",
+      "title": "WSDOT Bridge Vertical Clearance",
+      "repo": {
+        "host": "github",
+        "owner": "WSDOT-GIS",
+        "name": "bridge-clearance-app",
+        "url": "https://github.com/WSDOT-GIS/bridge-clearance-app",
+        "defaultBranch": "master",
+        "commit": "f07daaf455ac7c625c2d283c8d9df1e94665e4ea",
+        "observedAt": "2026-08-03"
+      },
+      "license": {
+        "spdxId": "Unlicense",
+        "url": "https://github.com/WSDOT-GIS/bridge-clearance-app/blob/f07daaf455ac7c625c2d283c8d9df1e94665e4ea/UNLICENSE",
+        "holder": "Washington State Department of Transportation (public-domain dedication)"
+      },
+      "provenance": {
+        "authorKind": "government",
+        "author": "Washington State Department of Transportation, GIS Office",
+        "description": "A production state-DOT lookup tool that lets freight operators find bridge vertical clearances along a route. Classic ArcGIS JS 3.25 with `esri/map`, `esri/layers/FeatureLayer`, `esri/tasks/query`, and `esri/dijit` widgets, written in TypeScript against `@types/arcgis-js-api`."
+      },
+      "styles": ["amd-require", "featurelayer-centric", "widget-heavy"],
+      "scanRoot": "src",
+      "evidencePaths": ["src/main.ts", "index.html", "package.json"],
+      "notes": "Repository is archived, so the pin is stable. Bare `esri/*` module specifiers resolved by the Dojo AMD loader — the hardest input shape for an ES-module-oriented codemod."
+    },
+    {
+      "id": "national-park-visits",
+      "title": "National Park Visits explorer",
+      "repo": {
+        "host": "github",
+        "owner": "ekenes",
+        "name": "national-park-visits",
+        "url": "https://github.com/ekenes/national-park-visits",
+        "defaultBranch": "main",
+        "commit": "99b17289593454cc093648f7ba85b51f8ff25bad",
+        "observedAt": "2026-08-03"
+      },
+      "license": {
+        "spdxId": "Apache-2.0",
+        "url": "https://github.com/ekenes/national-park-visits/blob/99b17289593454cc093648f7ba85b51f8ff25bad/LICENSE",
+        "holder": "Kristian Ekenes (repository owner; unmodified Apache-2.0 text)"
+      },
+      "provenance": {
+        "authorKind": "individual",
+        "author": "Kristian Ekenes",
+        "description": "A time-series visualization of US National Park visitation built on the ArcGIS JS 4.23 AMD build. Uses the TypeScript `import X = require(\"esri/...\")` form plus Legend, Slider, Feature, and Expand widgets — the transitional 4.x-on-AMD shape many teams are still stuck in."
+      },
+      "styles": ["amd-require", "widget-heavy"],
+      "scanRoot": "app",
+      "evidencePaths": ["app/main.ts", "app/widgets.ts", "index.html"],
+      "notes": "The repository commits compiled `.js` alongside its `.ts` sources, so call-site counts include both the source and its build output. Ratios are unaffected — each construct is classified identically in both copies."
+    },
+    {
+      "id": "utah-parcels",
+      "title": "Utah statewide parcel viewer",
+      "repo": {
+        "host": "github",
+        "owner": "agrc",
+        "name": "parcels",
+        "url": "https://github.com/agrc/parcels",
+        "defaultBranch": "main",
+        "commit": "996fd3e6a597db4996d18a607da8ece72a5b5fa0",
+        "observedAt": "2026-08-03"
+      },
+      "license": {
+        "spdxId": "MIT",
+        "url": "https://github.com/agrc/parcels/blob/996fd3e6a597db4996d18a607da8ece72a5b5fa0/LICENSE",
+        "holder": "State of Utah"
+      },
+      "provenance": {
+        "authorKind": "government",
+        "author": "Utah Geospatial Resource Center (UGRC)",
+        "description": "The public statewide parcel viewer operated by Utah's state geospatial office. React + TypeScript over `@arcgis/core` with the imperative `new EsriMap()` / `new MapView({ container })` pattern and a `FeatureLayer` per county dataset."
+      },
+      "styles": ["featurelayer-centric"],
+      "scanRoot": "src",
+      "evidencePaths": ["src/MapContainer.tsx", "src/App.tsx", "package.json"],
+      "notes": "Actively developed — the pin will drift from `main`. The purest ES-module FeatureLayer target in the corpus."
+    },
+    {
+      "id": "wfrc-bike-map",
+      "title": "Utah Bikeways / WFRC bike map",
+      "repo": {
+        "host": "github",
+        "owner": "agrc",
+        "name": "wfrc-bike-map",
+        "url": "https://github.com/agrc/wfrc-bike-map",
+        "defaultBranch": "main",
+        "commit": "680bcf88b094866a096db1576f61c254f9792a39",
+        "observedAt": "2026-08-03"
+      },
+      "license": {
+        "spdxId": "MIT",
+        "url": "https://github.com/agrc/wfrc-bike-map/blob/680bcf88b094866a096db1576f61c254f9792a39/LICENSE",
+        "holder": "State of Utah"
+      },
+      "provenance": {
+        "authorKind": "government",
+        "author": "Utah Geospatial Resource Center (UGRC) with the Wasatch Front Regional Council",
+        "description": "A public bikeway finder for the Wasatch Front. `@arcgis/core` `WebMap` + `MapView` with BasemapToggle, Home, and Track widgets, plus `@arcgis/map-components` custom elements — the modern Esri stack a 2026 migration actually meets."
+      },
+      "styles": ["featurelayer-centric", "widget-heavy"],
+      "scanRoot": "src",
+      "evidencePaths": ["src/hooks/useMapSetup.ts", "src/components/mapUtils.ts", "package.json"],
+      "notes": "Mixes classic `@arcgis/core/widgets/*` imports with `@arcgis/map-components` web components; the web-component half is deliberately outside codemod scope and shows up as unhandled module hits."
+    },
+    {
+      "id": "owls-of-bavaria",
+      "title": "Owls of Bavaria",
+      "repo": {
+        "host": "github",
+        "owner": "lujoh",
+        "name": "owls_of_bavaria",
+        "url": "https://github.com/lujoh/owls_of_bavaria",
+        "defaultBranch": "main",
+        "commit": "284949156925c63b0258aece1f48cd9e4f5ea55d",
+        "observedAt": "2026-08-03"
+      },
+      "license": {
+        "spdxId": "MIT",
+        "url": "https://github.com/lujoh/owls_of_bavaria/blob/284949156925c63b0258aece1f48cd9e4f5ea55d/LICENSE",
+        "holder": "Lucia Johnson"
+      },
+      "provenance": {
+        "authorKind": "individual",
+        "author": "Lucia Johnson",
+        "description": "A citizen-science map of owl sightings in Bavaria sourced from iNaturalist. Small React + Redux + Vite app over `@arcgis/core` using `Map`, `MapView`, `FeatureLayer`, `GeoJSONLayer`, `Graphic`, and client-side `FeatureFilter` / `FeatureEffect`."
+      },
+      "styles": ["featurelayer-centric"],
+      "scanRoot": "src",
+      "evidencePaths": [
+        "src/features/map/loadMap.jsx",
+        "src/features/map/filterOwlLayer.jsx",
+        "src/features/map/loadOwlFeatureLayer.jsx"
+      ],
+      "notes": "The smallest app in the corpus and the fastest end-to-end smoke target; exercises the layer-support modules (`layers/support/FeatureFilter`, `FeatureEffect`) that sit next to codemod scope."
+    }
+  ]
+}

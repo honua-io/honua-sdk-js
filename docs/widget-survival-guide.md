@@ -446,5 +446,6 @@ These surfaces are intentionally **not** covered by the dispositions above:
 ## Related reading
 
 - [Migration punch list](./migration-punch-list.md) — the honest parity/codemod accounting.
+- [Third-party OSS ArcGIS app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod actually do to real, pinned, third-party open-source ArcGIS apps (including the ones they cannot see at all).
 - [Honua ⇄ MapLibre migration notes](./migration-honua-maplibre.md) — the `honua-maplibre` codemod target.
 - [SDK guide: Migration CLI](./guide.md#migration-cli) — every `honua-migrate` subcommand.

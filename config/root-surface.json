@@ -71,6 +71,7 @@
       "QUERY_IR_VERSION",
       "QUERY_PLAN_KIND",
       "QUERY_PLAN_VERSION",
+      "queryFilter",
       "sanitizeHonuaErrorContext",
       "serializeHonuaError",
       "spatialContains",
@@ -203,6 +204,12 @@
       "QUERY_PLAN_VERSION",
       "QueryExecutionPlanV1",
       "QueryFallbackPolicy",
+      "queryFilter",
+      "QueryFilterExpression",
+      "QueryFilterSpatialNode",
+      "QueryFilterSpatialPredicate",
+      "QueryFilterTemporalNode",
+      "QueryFilterTemporalPredicate",
       "QueryIrSourceIdentity",
       "QueryIrV1",
       "QueryOptions",
@@ -212,6 +219,7 @@
       "QueryPlanningErrorCode",
       "QueryPlanningEstimates",
       "QueryPlanStep",
+      "QueryTemporalFilter",
       "RemoteCompiledQueryV1",
       "RemoteQueryPlanStep",
       "RendererAdapter",
@@ -584,6 +592,34 @@
     },
     {
       "symbol": "SerializedHonuaErrorCause",
+      "kind": "type"
+    },
+    {
+      "symbol": "queryFilter",
+      "kind": "runtime"
+    },
+    {
+      "symbol": "QueryFilterExpression",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryFilterSpatialNode",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryFilterSpatialPredicate",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryFilterTemporalNode",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryFilterTemporalPredicate",
+      "kind": "type"
+    },
+    {
+      "symbol": "QueryTemporalFilter",
       "kind": "type"
     }
   ],

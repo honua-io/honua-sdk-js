@@ -395,6 +395,13 @@ export interface OgcProcessDiscoverySummary {
 /** Result of raw OGC API Processes capability/metadata discovery. */
 export interface OgcProcessesDiscoveryResult {
   readonly endpoint: string;
+  /**
+   * Service-root path prefix the endpoint is mounted under (`""` for an
+   * origin-rooted service). Pass it to `client.ogcProcesses({ basePath })` so
+   * describe / execute / job routes resolve against the discovered root rather
+   * than the Honua facade prefix.
+   */
+  readonly basePath: string;
   readonly retrievedAt: string;
   /** Effective capabilities intersected from advertised conformance (`processes` or empty). */
   readonly capabilities: readonly Capability[];
@@ -477,6 +484,7 @@ export async function discoverOgcProcessesMetadata(
       : Object.freeze([]);
   return Object.freeze({
     endpoint,
+    basePath,
     retrievedAt,
     capabilities: Object.freeze([...capabilities]),
     processes: Object.freeze(summaries),
