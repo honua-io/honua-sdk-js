@@ -889,6 +889,18 @@
       "kind": "integration",
       "path": "test/playwright/automatic-source-workflow.spec.mjs",
       "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "maplibre-peer-major-matrix",
+      "kind": "fixture",
+      "path": "test/maplibre-peer-major-compat.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "maplibre-peer-major-browser",
+      "kind": "integration",
+      "path": "test/playwright/migration-browser-maplibre.spec.mjs",
+      "freshnessPolicy": "release-gated"
     }
   ],
   "protocols": [
@@ -1541,7 +1553,9 @@
           "status": "supported",
           "evidence": [
             "maplibre-automatic-source-fixtures",
-            "maplibre-automatic-browser"
+            "maplibre-automatic-browser",
+            "maplibre-peer-major-matrix",
+            "maplibre-peer-major-browser"
           ]
         },
         {
@@ -1577,7 +1591,9 @@
           "status": "supported",
           "evidence": [
             "maplibre-raster-source-fixtures",
-            "maplibre-automatic-browser"
+            "maplibre-automatic-browser",
+            "maplibre-peer-major-matrix",
+            "maplibre-peer-major-browser"
           ]
         },
         {

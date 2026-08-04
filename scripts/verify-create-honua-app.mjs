@@ -11,7 +11,10 @@
 //   3. the committed fixture each template serves is byte-identical to the
 //      reviewed sample fixture pack, so the offline lane cannot rot;
 //   4. the zero-install playground links the manifest derives are plain,
-//      query-free https URLs that address a real project directory.
+//      query-free https URLs that address a real project directory;
+//   5. the `maplibre-gl` pin names a major the SDK's optional-peer range
+//      actually supports (#1004), so a starter can never scaffold an app onto a
+//      renderer major the SDK does not claim.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -39,10 +42,30 @@ const REQUIRED_TEMPLATE_SCRIPTS = ["dev", "build", "preview", "typecheck"];
 const EXACT_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const FORBIDDEN_TEMPLATE_ENTRIES = new Set(["node_modules", "package-lock.json", "dist", ".gitignore"]);
 
+/**
+ * Peers whose template pin must stay inside the SDK's declared peer range
+ * rather than drift on its own (#1004).
+ *
+ * A scaffolded app installs the SDK **from the registry**, so its `maplibre-gl`
+ * pin must satisfy the peer range of the *published* SDK version the template
+ * pins — not just the range in this working tree. The templates therefore stay
+ * on MapLibre 5 until a release carrying `^5.0.0 || ^6.0.0` is published;
+ * pinning 6.x today makes `npm install` fail with ERESOLVE against
+ * `@honua/sdk-js@0.1.2-beta.0`, whose published range is `^5.0.0`. What this
+ * gate can enforce offline is the invariant that matters either way: the pinned
+ * major is one the SDK supports at all.
+ */
+const PEER_TRACKED_TEMPLATE_DEPENDENCIES = ["maplibre-gl"];
+
 const errors = [];
 
 function report(message) {
   errors.push(message);
+}
+
+/** Majors named by a simple `^X.Y.Z || ^A.B.C` peer range, ascending. */
+function peerRangeMajors(range) {
+  return [...String(range).matchAll(/\^(\d+)\./g)].map((match) => Number(match[1])).sort((left, right) => left - right);
 }
 
 function digest(file) {
@@ -128,6 +151,23 @@ function verifyTemplate(manifest, template) {
   const sdkPin = projectManifest.dependencies?.[manifest.sdk.package];
   if (sdkPin !== manifest.sdk.version) {
     report(`${label}: ${manifest.sdk.package} must be pinned to ${manifest.sdk.version}, found ${sdkPin ?? "nothing"}`);
+  }
+
+  for (const peer of PEER_TRACKED_TEMPLATE_DEPENDENCIES) {
+    const pin = projectManifest.dependencies?.[peer];
+    if (typeof pin !== "string") continue;
+    const declaredRange = readJson(path.join(ROOT, "package.json")).peerDependencies?.[peer];
+    const majors = declaredRange ? peerRangeMajors(declaredRange) : [];
+    if (majors.length === 0) {
+      report(`${label}: the SDK declares no parseable ${peer} peer range, so the template pin cannot be checked`);
+      continue;
+    }
+    const pinnedMajor = Number(pin.split(".")[0]);
+    if (!majors.includes(pinnedMajor)) {
+      report(
+        `${label}: ${peer} is pinned to ${pin}, which is outside the SDK peer range ${declaredRange} (supported majors: ${majors.join(", ")})`,
+      );
+    }
   }
 
   for (const fixture of FIXTURE_FILES) {
