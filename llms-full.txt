@@ -6330,10 +6330,11 @@ Column definitions, because these words are used loosely elsewhere:
 - **Passed** — the graded workflow met every criterion: required tools called, expected tool
   order respected, forbidden (mutating) tools avoided, and any asserted answer content present.
 - **Clarified** — the driver ended the run by asking a clarifying question instead of
-  completing the graded workflow (the grader records the violation `driver requested
-  clarification`). Tracked separately from a failure, and not counted as a pass. The corpus
-  deliberately contains a scenario that *requires* a clarification round-trip and passes when
-  the model completes it, so asking is a non-pass only where the workflow was meant to continue.
+  completing the graded workflow; the grader records the violation
+  `driver requested clarification`. Tracked separately from a failure, and not counted as a
+  pass. The corpus deliberately contains a scenario that *requires* a clarification round-trip
+  and passes when the model completes it, so asking is a non-pass only where the workflow was
+  meant to continue.
 - **Errored** — the run did not finish; for example, a driver that exceeded its tool-use
   iteration budget. Also not a pass.
 - **Tool-error scenarios** — scenarios in which at least one `tools/call` returned an error,

@@ -30,14 +30,60 @@ function committedArtifacts() {
   return out;
 }
 
-function withTempRuns(artifacts) {
+function withTempRuns(artifacts, names) {
   const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-scorecard-"));
   const runs = path.join(projectRoot, RUNS_DIR, "2026-01-01");
   fs.mkdirSync(runs, { recursive: true });
   artifacts.forEach((artifact, index) => {
-    fs.writeFileSync(path.join(runs, `artifact-${index}.json`), JSON.stringify(artifact), "utf8");
+    const name = names?.[index] ?? `artifact-${index}.json`;
+    fs.writeFileSync(path.join(runs, name), JSON.stringify(artifact), "utf8");
   });
   return projectRoot;
+}
+
+/**
+ * Split a markdown table row into cells the way a markdown parser does: a
+ * backslash escapes the following character, so only an UNescaped pipe ends a
+ * cell. Escaping that fails to handle backslashes shows up here as a row with
+ * the wrong number of columns.
+ */
+function splitRow(row) {
+  const cells = [];
+  let current = "";
+  for (let index = 0; index < row.length; index += 1) {
+    const character = row[index];
+    if (character === "\\") {
+      current += row[index + 1] ?? "";
+      index += 1;
+      continue;
+    }
+    if (character === "|") {
+      cells.push(current);
+      current = "";
+      continue;
+    }
+    current += character;
+  }
+  cells.push(current);
+  return cells;
+}
+
+/** Every table in the markdown, as arrays of rows already split into cells. */
+function tables(markdown) {
+  const found = [];
+  let current = null;
+  for (const line of markdown.split("\n")) {
+    const isRow = line.startsWith("|") && line.endsWith("|");
+    if (!isRow) {
+      if (current) found.push(current);
+      current = null;
+      continue;
+    }
+    current ??= [];
+    current.push(splitRow(line));
+  }
+  if (current) found.push(current);
+  return found;
 }
 
 /** A minimal but valid cross-model eval artifact (schemaVersion 4). */
@@ -195,6 +241,127 @@ test("scenario titles resolve from the committed corpus definitions", () => {
     category: "discovery",
     source: "mcp/src/eval/operator-corpus.ts",
   });
+});
+
+// Grader violations, certification details, and surface URLs are rendered
+// verbatim into markdown tables. Escaping them has to survive backslashes —
+// the character that defeats a naive "escape the pipe" pass.
+const HOSTILE = "broke | the\ntable \\| badly `tick` [link](x) \\\\ end";
+
+function hostileArtifacts() {
+  const evalReport = evalArtifact();
+  evalReport.surface.remoteUrl = "https://evil.example/mcp?a=1|2\\3 (paren) [bracket]";
+  evalReport.models.push({
+    id: "vendor\\|model`v1`",
+    vendor: "bed|rock\\",
+    available: true,
+    scenarios: 2,
+    pass: 1,
+    fail: 1,
+    clarified: 0,
+    error: 0,
+    successRate: 0.5,
+    clarificationRate: 0,
+    editRate: 0.5,
+    totalToolErrors: 1,
+  });
+  evalReport.results.push(
+    {
+      scenarioId: "operator-list-layers",
+      modelId: "vendor\\|model`v1`",
+      outcome: "pass",
+      violations: [],
+      toolsCalled: [],
+      errorCount: 0,
+      missingTools: [],
+    },
+    {
+      scenarioId: "operator-dry-run",
+      modelId: "vendor\\|model`v1`",
+      outcome: "fail",
+      violations: [HOSTILE],
+      toolsCalled: ["a\\|b"],
+      errorCount: 2,
+      driverError: HOSTILE,
+      missingTools: [],
+    },
+  );
+
+  const certReport = {
+    schemaVersion: 2,
+    generatedAt: "2026-01-01T00:00:00.000Z",
+    provenance: { suiteGitSha: "0123456789abcdef0123456789abcdef01234567", protocolVersion: "2025-06-18", authMode: "api-key" },
+    protocol: { surface: "live | \\ surface", targetMode: "re|mote\\" },
+    summary: {
+      pass: false,
+      toolsDiscovered: 1,
+      toolsConformant: 1,
+      toolsConformanceChecked: 1,
+      contractsChecked: 1,
+      contractsPassed: 0,
+      contractsFailed: 1,
+      contractsSkipped: 0,
+      knownGaps: 1,
+    },
+    tools: [{ name: "honua_query_features" }],
+    contracts: [{ contract: "error\\|shape", target: "honua_query_features", status: "failed", detail: HOSTILE }],
+    knownGaps: [{ kind: "standard-tool", name: "edit_features", family: "Feature | editing\\", detail: HOSTILE }],
+  };
+
+  return { evalReport, certReport };
+}
+
+test("hostile artifact text cannot break a markdown table row", () => {
+  const { evalReport, certReport } = hostileArtifacts();
+  const projectRoot = withTempRuns([evalReport, certReport], ["eval (hostile)|1.json", "cert (hostile).json"]);
+  const { evals, certifications } = loadMcpEvalRuns(projectRoot);
+  const markdown = renderScorecardMarkdown(
+    buildScorecardModel({ evals, certifications, scenarioIndex: loadScenarioIndex(root) }),
+  );
+
+  const rendered = tables(markdown);
+  assert.ok(rendered.length >= 4, "expected the leaderboard, matrix, failure, certification and provenance tables");
+  for (const table of rendered) {
+    const width = table[0].length;
+    for (const row of table) {
+      assert.equal(row.length, width, `table row has ${row.length} cells, expected ${width}: ${JSON.stringify(row)}`);
+    }
+  }
+
+  // The hostile text is published (not silently dropped) and stays on one line.
+  const failureSection = markdown.slice(markdown.indexOf("## Every non-passing run"));
+  assert.ok(failureSection.includes("broke \\| the table \\\\\\| badly"), "violation text should be escaped, not dropped");
+  for (const line of markdown.split("\n")) {
+    if (line.startsWith("|")) assert.ok(!/[\r\t]/.test(line), "table rows must not carry raw control characters");
+  }
+});
+
+test("hostile artifact text cannot escape a code span or a link destination", () => {
+  const { evalReport, certReport } = hostileArtifacts();
+  const projectRoot = withTempRuns([evalReport, certReport], ["eval (hostile)|1.json", "cert (hostile).json"]);
+  const { evals, certifications } = loadMcpEvalRuns(projectRoot);
+  const markdown = renderScorecardMarkdown(
+    buildScorecardModel({ evals, certifications, scenarioIndex: loadScenarioIndex(root) }),
+  );
+
+  // A value carrying a backtick or backslash must NOT be wrapped in a code span
+  // (backslash escapes do not apply inside one, and the backtick would end it).
+  assert.ok(!markdown.includes("`vendor\\|model`v1``"), "a backtick-bearing value must not be emitted as a code span");
+  // Every code span opens and closes on the same line (fenced blocks excluded).
+  let fenced = false;
+  for (const line of markdown.split("\n")) {
+    if (line.startsWith("```")) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
+    assert.equal((line.match(/`/g) ?? []).length % 2, 0, `unbalanced code-span backticks: ${line}`);
+  }
+  // Parentheses in a link destination are percent-encoded so they cannot end it.
+  for (const [, destination] of markdown.matchAll(/\]\(([^)\s]*)\)/g)) {
+    assert.ok(!destination.includes("("), `link destination must not contain a raw parenthesis: ${destination}`);
+  }
+  assert.ok(markdown.includes("%28hostile%29"), "a parenthesised artifact name should be percent-encoded");
 });
 
 test("the committed page matches the generator output", () => {

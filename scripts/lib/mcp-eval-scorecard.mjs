@@ -31,6 +31,7 @@ export const CORPUS_SOURCES = [
 ];
 
 const BLOB_BASE = "https://github.com/honua-io/honua-sdk-js/blob/trunk";
+const TREE_BASE = "https://github.com/honua-io/honua-sdk-js/tree/trunk";
 
 const OUTCOME_ICON = { pass: "✅", fail: "❌", clarified: "❓", error: "⚠️" };
 
@@ -445,20 +446,82 @@ export function buildScorecardModel({ evals, certifications, scenarioIndex }) {
 // Rendering
 // ---------------------------------------------------------------------------
 
+// Table cells carry verbatim text from the run artifacts (grader violation
+// strings, certification failure details, surface URLs), so escaping has to be
+// total rather than best-effort.
+//
+// One linear pass over a lookup map — deliberately NOT a chain of .replace()
+// calls. A chain that escapes "|" as "\|" after (or without) escaping "\" is
+// self-defeating: the input `\|` would emit `\\|`, whose backslash-escaped
+// backslash leaves a bare "|" that still ends the cell. A single pass maps each
+// source character to its final form exactly once, so no substitution can be
+// re-consumed by a later one.
+const CELL_ESCAPES = new Map([
+  ["\\", "\\\\"],
+  ["|", "\\|"],
+  ["\n", " "],
+  ["\r", " "],
+  ["\t", " "],
+]);
+
 function cell(value) {
-  return String(value).replace(/\|/g, "\\|");
+  return String(value).replace(/[\\|\n\r\t]/g, (character) => CELL_ESCAPES.get(character) ?? character);
 }
 
+/**
+ * A code span inside a GFM table cell. Backslash escapes do NOT apply inside a
+ * code span, so a value containing a backtick (which would close the span) or a
+ * backslash (which would render doubled) cannot be represented as one: fall back
+ * to an escaped plain cell instead of emitting broken markdown.
+ */
 function code(value) {
-  return `\`${cell(value)}\``;
+  const text = String(value);
+  if (text.includes("`") || text.includes("\\")) return cell(text);
+  // GFM still requires "\|" for a pipe inside a code span in a table.
+  return `\`${cell(text)}\``;
 }
 
-function link(text, repoPath) {
-  return `[${text}](${BLOB_BASE}/${repoPath})`;
+// Link text sits between brackets, so "[" / "]" end it early; the destination
+// sits between parentheses and must be URL-encoded. Both are single linear
+// passes over their own maps.
+const LINK_TEXT_ESCAPES = new Map([
+  ["[", "\\["],
+  ["]", "\\]"],
+]);
+
+function linkText(value) {
+  return cell(value).replace(/[[\]]/g, (character) => LINK_TEXT_ESCAPES.get(character) ?? character);
 }
 
-function treeLink(text, repoPath) {
-  return `[${text}](${BLOB_BASE.replace("/blob/", "/tree/")}/${repoPath})`;
+const URL_ESCAPES = new Map([
+  ["(", "%28"],
+  [")", "%29"],
+]);
+
+function linkTarget(base, repoPath) {
+  // encodeURI leaves parentheses (and only parentheses, among the characters
+  // that terminate a markdown destination) intact, so map those afterwards.
+  const encoded = encodeURI(`${base}/${repoPath}`);
+  return encoded.replace(/[()]/g, (character) => URL_ESCAPES.get(character) ?? character);
+}
+
+/**
+ * A code-span link label, or an escaped plain label when the value contains a
+ * character a code span inside link text cannot carry (backtick, backslash, or
+ * a bracket that would close the label early).
+ */
+function codeLabel(value) {
+  const text = String(value);
+  if (/[`\\[\]]/.test(text)) return linkText(text);
+  return `\`${cell(text)}\``;
+}
+
+function link(label, repoPath) {
+  return `[${codeLabel(label)}](${linkTarget(BLOB_BASE, repoPath)})`;
+}
+
+function treeLink(label, repoPath) {
+  return `[${codeLabel(label)}](${linkTarget(TREE_BASE, repoPath)})`;
 }
 
 function joinDates(dates) {
@@ -493,7 +556,7 @@ export function renderScorecardMarkdown(model) {
   push(
     "How well do different client models actually drive Honua's MCP surface? This page is the",
     "answer, published rather than asserted. Every figure below is rendered from a committed run",
-    `artifact under ${treeLink(`\`${RUNS_DIR}/\``, RUNS_DIR)} — the same JSON the eval harness wrote,`,
+    `artifact under ${treeLink(`${RUNS_DIR}/`, RUNS_DIR)} — the same JSON the eval harness wrote,`,
     "carrying the surface it ran against, how it authenticated, and (where the artifact is new",
     "enough to record it) the negotiated MCP protocol version and the git SHA of the suite that",
     "produced it. Nothing here is hand-typed, and the generator recomputes every rate from the",
@@ -540,10 +603,11 @@ export function renderScorecardMarkdown(model) {
     "- **Passed** — the graded workflow met every criterion: required tools called, expected tool",
     "  order respected, forbidden (mutating) tools avoided, and any asserted answer content present.",
     "- **Clarified** — the driver ended the run by asking a clarifying question instead of",
-    "  completing the graded workflow (the grader records the violation `driver requested",
-    "  clarification`). Tracked separately from a failure, and not counted as a pass. The corpus",
-    "  deliberately contains a scenario that *requires* a clarification round-trip and passes when",
-    "  the model completes it, so asking is a non-pass only where the workflow was meant to continue.",
+    "  completing the graded workflow; the grader records the violation",
+    "  `driver requested clarification`. Tracked separately from a failure, and not counted as a",
+    "  pass. The corpus deliberately contains a scenario that *requires* a clarification round-trip",
+    "  and passes when the model completes it, so asking is a non-pass only where the workflow was",
+    "  meant to continue.",
     "- **Errored** — the run did not finish; for example, a driver that exceeded its tool-use",
     "  iteration budget. Also not a pass.",
     "- **Tool-error scenarios** — scenarios in which at least one `tools/call` returned an error,",
@@ -647,7 +711,7 @@ export function renderScorecardMarkdown(model) {
       push(
         `### Certification failures and skips — ${latest.date}`,
         "",
-        `From ${link(`\`${latest.location}\``, latest.location)}. Failures are real conformance defects in the`,
+        `From ${link(latest.location, latest.location)}. Failures are real conformance defects in the`,
         "certified surface, published unedited; skips name the reason they could not be checked.",
         "",
         "| Contract | Target | Status | Detail |",
@@ -666,7 +730,7 @@ export function renderScorecardMarkdown(model) {
       push(
         `The same run recorded **${latest.knownGaps.length} known standard gaps** — tool families in the`,
         `geospatial-MCP standard the certified surface does not yet advertise (${families.map((f) => cell(f)).join(", ")}).`,
-        `They are enumerated in ${link(`\`${latest.location}\``, latest.location)} under \`knownGaps\`.`,
+        `They are enumerated in ${link(latest.location, latest.location)} under \`knownGaps\`.`,
         "",
       );
     }
@@ -722,14 +786,14 @@ export function renderScorecardMarkdown(model) {
   );
   for (const artifact of model.evals) {
     push(
-      `| ${link(`\`${path.posix.basename(artifact.location)}\``, artifact.location)} | ${artifact.date} | cross-model eval | ` +
+      `| ${link(path.posix.basename(artifact.location), artifact.location)} | ${artifact.date} | cross-model eval | ` +
         `${cell(artifact.surface)} | ${code(artifact.transport)} | ${artifact.protocolVersion ? code(artifact.protocolVersion) : "not recorded"} | ` +
         `${artifact.advertisedToolCount ?? "—"} | ${code(artifact.auth)} | ${shaCell(artifact.suiteSha ? [artifact.suiteSha] : [])} |`,
     );
   }
   for (const artifact of model.certifications) {
     push(
-      `| ${link(`\`${path.posix.basename(artifact.location)}\``, artifact.location)} | ${artifact.date} | certification | ` +
+      `| ${link(path.posix.basename(artifact.location), artifact.location)} | ${artifact.date} | certification | ` +
         `${cell(artifact.surface)} | — | ${artifact.protocolVersion ? code(artifact.protocolVersion) : "not recorded"} | ` +
         `${artifact.summary.toolsDiscovered} | ${code(artifact.auth)} | ${shaCell(artifact.suiteSha ? [artifact.suiteSha] : [])} |`,
     );
@@ -759,7 +823,7 @@ export function renderScorecardMarkdown(model) {
   } else {
     push("It is **not** empty here, so the affected scenarios are confounded by catalog gaps:", "");
     for (const entry of model.unresolvedRequiredTools) {
-      push(`- ${link(`\`${entry.location}\``, entry.location)} — ${entry.tools.map((tool) => code(tool)).join(", ")}`);
+      push(`- ${link(entry.location, entry.location)} — ${entry.tools.map((tool) => code(tool)).join(", ")}`);
     }
     push("");
   }
@@ -816,9 +880,9 @@ export function renderScorecardMarkdown(model) {
     "",
     "## Related evidence",
     "",
-    `- ${link("`mcp/evals/README.md`", "mcp/evals/README.md")} — the evidence corpus, grading taxonomy, and how runs land in the repo.`,
-    `- ${link("`mcp/README.md`", "mcp/README.md")} — the MCP server itself, the eval CLI, and the live-lane environment contract.`,
-    `- ${link("`mcp/src/eval/operator-corpus.ts`", "mcp/src/eval/operator-corpus.ts")} — every scenario prompt and grading criterion in the operator corpus.`,
+    `- ${link("mcp/evals/README.md", "mcp/evals/README.md")} — the evidence corpus, grading taxonomy, and how runs land in the repo.`,
+    `- ${link("mcp/README.md", "mcp/README.md")} — the MCP server itself, the eval CLI, and the live-lane environment contract.`,
+    `- ${link("mcp/src/eval/operator-corpus.ts", "mcp/src/eval/operator-corpus.ts")} — every scenario prompt and grading criterion in the operator corpus.`,
     "- [Coding-agent evaluation scorecard](./coding-agent-scorecard.md) — the sibling measurement: can a coding agent write correct SDK code on the first try?",
     "- [How Honua compares](../comparison.md) — the same generated-evidence discipline applied to bundle size, protocol coverage, and time-to-first-map.",
   );
