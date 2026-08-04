@@ -78,7 +78,8 @@
   "/web-components gzip was reset after the #823 correctness review added authority-registry WFS axis ordering plus generation-, cancellation-, refresh-, and disposal-safe capability discovery. The measured 272,419 gzip bytes are budgeted at 299,661 bytes (actual plus ~10% headroom); no other ceiling moved.",
   "The exact #823 rebase over bounded direct PMTiles discovery (#820) was remeasured after preserving both protocol graphs. The combined root, /honua, /source-schema, /source-capability-discovery, browser, isolated HonuaClient, and root-createHonua graphs exceeded ceilings derived from either feature in isolation; only those exceeded metrics are reset here to the combined measured values plus 10% headroom.",
   "/plugin was reset for the behavioral-certification follow-up in #392: the measured gzip size is 20,399 bytes and the ceiling is 22,439 bytes (actual plus ~10% headroom); the existing minified ceiling remains unchanged.",
-  "Root gzip and 'tree-shake:HonuaClient' minified were reset for accumulated protocol-correctness drift, not for any single change: the WFS per-feature geometry property (#968), STAC POST /search plus token cursors (#969), capabilities-driven WMS GetFeatureInfo (#970), and OGC API Features rel=next paging (#966) each added a few hundred bytes to the shared connect/core graph while docs/bundle-sizes.md still carried a much older baseline. Measured 197,176 gzip on root and 236,429 minified on the tree-shake guard; only the two exceeded metrics were reset to measured actual plus ~10% headroom. Root minified, the tree-shake guard's gzip, and every other ceiling remain unchanged."
+  "Root gzip and 'tree-shake:HonuaClient' minified were reset for accumulated protocol-correctness drift, not for any single change: the WFS per-feature geometry property (#968), STAC POST /search plus token cursors (#969), capabilities-driven WMS GetFeatureInfo (#970), and OGC API Features rel=next paging (#966) each added a few hundred bytes to the shared connect/core graph while docs/bundle-sizes.md still carried a much older baseline. Measured 197,176 gzip on root and 236,429 minified on the tree-shake guard; only the two exceeded metrics were reset to measured actual plus ~10% headroom. Root minified, the tree-shake guard's gzip, and every other ceiling remain unchanged.",
+  "/offline was reset for the unified local-first status contract (#932): createLocalFirstStatus composes one honest state across cached region reads and undelivered queued writes, adding bounded region and edit-id projection, freshness and completeness derivation, and connectivity-aware state reasons in a new src/offline/status.ts, plus whole-partition edit counting in the durable queue. Measured 98,752 minified / 27,496 gzip bytes; both exceeded ceilings are reset to measured actual plus ~10% headroom. /offline stays subpath-only, so the root, /honua, and browser barrels are unchanged and every other ceiling holds."
  ],
  "entrypoints": {
   ".": {
@@ -130,8 +131,8 @@
    "gzip": 22175
   },
  "/offline": {
-   "min": 94087,
-   "gzip": 26114
+   "min": 108628,
+   "gzip": 30246
   },
   "/query-planner": {
    "min": 720180,
