@@ -1,0 +1,29 @@
+{
+  "format": "honua.sdk.sample-fixture-gate.v1",
+  "sampleId": "imagery-cog-quickstart",
+  "sourceRevision": "184caa95757c990621482324d62b5f7d06d02eab",
+  "command": [
+    "npm",
+    "run",
+    "demo:imagery-cog:mock",
+    "--",
+    "--evidence-once"
+  ],
+  "transport": "loopback-http",
+  "networkScope": "loopback-only",
+  "host": "127.0.0.1",
+  "port": 39921,
+  "ready": true,
+  "started": true,
+  "probe": {
+    "method": "GET",
+    "path": "/",
+    "status": 200,
+    "bodyBytes": 12199,
+    "bodySha256": "251ad5984f9539def350cd8df41808c8f0ffa87cac05103db658efc724386cca",
+    "contentType": "text/html; charset=utf-8"
+  },
+  "closed": true,
+  "listeningAfterClose": false,
+  "activeConnectionsAfterClose": 0
+}
