@@ -17,6 +17,11 @@ rather than returning empty data.
 - `F` facade-required
 - `—` unsupported
 
+Deployment tier is separate from status: `grpc` is the only protocol that needs
+a Honua Server attach; every other protocol below answers against an endpoint you
+already run. The per-capability line lives in the generated
+[capability tiers](./standalone-capability-matrix.md#capability-tiers) table.
+
 | Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — |
