@@ -450,6 +450,11 @@ release smoke green across Chromium, Firefox, and WebKit. Reusable directory ent
 ledger of which ecosystem submissions were filed and accepted — live in
 [`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
+Whether any of that actually makes the packages findable is measured, not assumed:
+[`docs/listings/npm-search-verification.md`](./docs/listings/npm-search-verification.md) records
+where every published `@honua/*` package ranks in npm registry search for its declared discovery
+terms, including the queries where it does not rank at all.
+
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 
 Every Honua SDK — JavaScript, Python, .NET — speaks the same canonical
