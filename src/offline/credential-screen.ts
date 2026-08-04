@@ -1,4 +1,9 @@
-import { type CredentialScreenStrictness, hasCredentialShapedMaterial } from "../connect-url-safety.js";
+import {
+  type CredentialScreenReason,
+  type CredentialScreenStrictness,
+  credentialScreenMessage,
+  screenPersistedString,
+} from "../connect-url-safety.js";
 import { normalizeDiscoveryEndpoint } from "../contract/discovery.js";
 import { HonuaOfflineRegionError, type OfflineRegionManifestV1 } from "./types.js";
 
@@ -11,38 +16,15 @@ import { HonuaOfflineRegionError, type OfflineRegionManifestV1 } from "./types.j
  * silently rewriting an identity would change the deterministic region id and the
  * resource primary key.
  *
- * The denylist itself lives in `src/connect-url-safety.ts` so endpoint
- * normalization, plan persistence, and offline persistence share one vocabulary.
+ * The denylist and the per-string screen itself live in
+ * `src/connect-url-safety.ts` so endpoint normalization, plan persistence,
+ * offline persistence, and realtime resume checkpoints share one vocabulary and
+ * one implementation. This module keeps only the offline-manifest walk, which
+ * is the part that knows about `OfflineRegionManifestV1`.
  */
 
-export type { CredentialScreenStrictness };
-
-export type CredentialScreenReason = "credential-shaped" | "url-shaped" | "endpoint-not-normalized";
-
-/**
- * Report why a persisted string must be refused, or `undefined` when it is safe.
- *
- * Both strictness levels reject a request URL carrying userinfo, a query, or a
- * fragment. `identity` additionally refuses a relative request reference — any
- * embedded `?`, `#`, or `@` — mirroring the persisted-source shape check in
- * `src/query-planner/planner.ts`, so a matched request URL cannot become a stored
- * identity by accident. Never returns `endpoint-not-normalized`, which only
- * applies to the endpoint's own normalization contract.
- */
-export function screenPersistedString(
-  value: string,
-  strictness: CredentialScreenStrictness,
-): CredentialScreenReason | undefined {
-  if (hasCredentialShapedMaterial(value, strictness)) return "credential-shaped";
-  return isCredentialFreeShape(value, strictness) ? undefined : "url-shaped";
-}
-
-/** Message for `reason` at `path`. Never echoes the offending value (NFR-002). */
-export function credentialScreenMessage(path: string, reason: CredentialScreenReason): string {
-  if (reason === "url-shaped") return `${path} must not be a request URL carrying userinfo, a query, or a fragment.`;
-  if (reason === "endpoint-not-normalized") return `${path} must be a normalized, credential-free absolute URL.`;
-  return `${path} must not contain credential-shaped material.`;
-}
+export type { CredentialScreenReason, CredentialScreenStrictness };
+export { credentialScreenMessage, screenPersistedString };
 
 /**
  * Locate the first persisted manifest string that must not reach storage.
@@ -120,25 +102,4 @@ function isNormalizedCredentialFreeEndpoint(endpoint: string): boolean {
   } catch {
     return false;
   }
-}
-
-function isCredentialFreeShape(value: string, strictness: CredentialScreenStrictness): boolean {
-  // An absolute URL always carries a scheme separator; the guard keeps the
-  // common non-URL case free of throwing URL construction.
-  if (value.includes(":")) {
-    try {
-      const url = new URL(value);
-      // Prose is only refused for a real request URL, one with an authority.
-      // A label such as `Data: NOAA #1` parses as an opaque `data:` URL and
-      // must not be rejected for a colon followed by a fragment character.
-      if (strictness === "identity" || url.host.length > 0) {
-        return !url.username && !url.password && !url.search && !url.hash;
-      }
-      return true;
-    } catch {
-      // Not an absolute URL; fall through to the literal reference check.
-    }
-  }
-  // A machine identity must not even be a relative request reference.
-  return strictness === "label" || (!value.includes("?") && !value.includes("#") && !value.includes("@"));
 }

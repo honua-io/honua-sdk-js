@@ -113,13 +113,114 @@ accepted by that gate.
 Without a `checkpointStore`, accepted checkpoints remain available in memory
 but `checkpointPersisted` stays false. Callers may persist them as part of their
 own atomic application transaction; the SDK does not claim durability it did
-not observe.
+not observe. See
+[Durable checkpoint persistence](#durable-checkpoint-persistence-937) for the
+shipped stores.
 
 Checkpoint persistence occurs after successful consumer application. This is
 an at-least-once boundary, not a transaction spanning an arbitrary application
 store and checkpoint database. Applications that require atomic exactly-once
 effects must persist their materialized state and checkpoint transactionally,
 or use event ids/versions to make replay idempotent.
+
+## Durable checkpoint persistence (#937)
+
+`RealtimeCheckpointStore` used to be an interface with no shipped
+implementation, so a tab reload always resnapshotted even when a valid cursor
+had been accepted a second earlier. `src/realtime/checkpoint-store.ts` closes
+that gap without changing any cursor semantics:
+
+- `createIndexedDbRealtimeCheckpointStore(...)` persists checkpoints in the
+  browser (default database `honua-realtime-checkpoints`);
+- `createMemoryRealtimeCheckpointStore(...)` runs the identical normalization,
+  screening, expiry, and eviction logic without IndexedDB, for tests and
+  non-persistent hosts;
+- `createRealtimeCheckpointStore(storage, ...)` binds that same logic to any
+  `RealtimeCheckpointRecordStorage`, for a host this SDK ships no adapter for.
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  createIndexedDbRealtimeCheckpointStore,
+  createResumableRealtimeTransport,
+} from "@honua/sdk-js/realtime";
+
+const checkpointStore = createIndexedDbRealtimeCheckpointStore({
+  // Tighten, never raise, the shipped ceilings.
+  maxAgeMs: 5 * 60 * 1000,
+  onDiagnostic: (diagnostic) => {
+    // Every discard, refusal, and storage failure, as a HonuaRealtimeResumeError.
+    reportToTelemetry(diagnostic.reason, diagnostic.error);
+  },
+});
+
+const transport = createResumableRealtimeTransport(rawTransport, {
+  context: resumeContext,
+  checkpointStore,
+});
+```
+
+### What a record contains
+
+One record per resume scope, stamped with the versioned format string
+`honua.realtime-checkpoint-store/1.0`:
+
+- the resume position — `sequence` plus any `cursor`, `watermark`, `timestamp`,
+  and `deltaToken`;
+- the scope identity — `sourceId`, `queryFingerprint`, `sourceVersion`,
+  `schemaVersion`, and a SHA-256 **digest** of the authorization-scope
+  fingerprint;
+- two observation times — `savedAt` (the checkpoint's own, which drives expiry)
+  and `observedAt` (when the record was written, which drives eviction order).
+
+Nothing else. No features, no snapshot bytes, no request URLs, no headers, no
+credentials, and no recent-event-id history: that window is bounded delivery
+state, not resume state, so a restored checkpoint starts with an empty id
+window while its ordering guarantees are unchanged. Snapshot bytes remain the
+offline region store's responsibility.
+
+Every remaining persisted string is screened with the shared persisted-string
+screen in `src/connect-url-safety.ts` — the same denylist and shape rules the
+offline region store applies through `assertCredentialFreeManifest`. A resume
+position that is a full request link (an OData delta link, for example) or that
+carries credential-shaped material is **refused**, not rewritten: the record is
+not written, a `credential-screened` diagnostic is reported, and the next load
+resnapshots.
+
+### Keying, revalidation, and expiry
+
+The record key is a digest over the authorization-scope digest, source
+identity, and query identity — exactly the identities checkpoint scope
+validation is defined against — so a different tenant, source, or accepted
+query cannot even address another scope's cursor. Source and schema versions
+are deliberately outside the key so a version bump replaces the record in place
+and is discarded explicitly rather than orphaned.
+
+Load is fail-closed. It revalidates the stored record through the same
+`evaluateRealtimeCheckpoint` the gate uses and discards it — deleting the row
+and reporting a diagnostic — when the source, query, source version, schema
+version, or authorization scope changed, when the record is corrupt or carries
+a different format string, or when the checkpoint is older than `maxAgeMs`
+(default 15 minutes, ceiling 24 hours). Age matters independently of scope: a
+server may retire a cursor window, and an honest resnapshot beats a silent gap.
+A record stamped in the future is treated as corrupt time, not a fresh cursor.
+
+### Bounds and failure posture
+
+Each scope holds exactly one record (last write wins) and a store holds at most
+`maxRecords` scope records (default 64, ceiling 512), evicting the least
+recently written first. The IndexedDB write and its eviction sweep share one
+readwrite transaction, so a write is atomic and bounded.
+
+A store never throws into a subscription. A rejected storage call, a refused
+value, or a corrupt record resolves and reports a
+`RealtimeCheckpointStoreDiagnosticV1` carrying a `HonuaRealtimeResumeError`, so
+the subscription degrades to a resnapshot instead of entering the gate's
+terminal `error` phase. `onDiagnostic` is therefore the honest signal that a
+durable record does not exist; `state.checkpointPersisted` only reports that
+`save()` completed.
+
+Persistence stays opt-in. A subscription without a `checkpointStore` behaves
+exactly as it did before this slice.
 
 ## Bounded, reconnecting transports (#557)
 
