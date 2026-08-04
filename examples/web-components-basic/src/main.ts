@@ -16,6 +16,7 @@ import type {
   HonuaBasemapSwitcherElement,
 } from "@honua/sdk-js/controls";
 import { HonuaLayerListElement, HonuaLegendElement } from "@honua/sdk-js/controls";
+import { createTemporalPlayback } from "@honua/sdk-js/map";
 import {
   type HonuaChartModel,
   type HonuaFeatureRecord,
@@ -23,6 +24,7 @@ import {
   type HonuaSearchGeocodeCandidate,
   type HonuaSearchGeocodeSuggestion,
   type HonuaSearchGeocoderLike,
+  type HonuaTimeSliderElement,
   createHonuaWebComponentController,
 } from "@honua/sdk-js/web-components";
 
@@ -261,6 +263,8 @@ const runtime = {
   ready: false,
   events: eventLog,
   selectedFeatureId: undefined as string | number | undefined,
+  /** Window starts the temporal playback controller has applied (issue #959). */
+  temporalWindows: [] as number[],
   layerVisible(layerId: string): boolean {
     return controller.getState().layers.find((layer) => layer.id === layerId)?.visible ?? false;
   },
@@ -508,6 +512,12 @@ document.addEventListener("honua-sketch-change", (event) => {
   writeEventLog();
 });
 
+document.addEventListener("honua-time-change", (event) => {
+  const detail = (event as CustomEvent<{ source: string; window: { start: number } }>).detail;
+  eventLog.push(`time:${detail.source}:${new Date(detail.window.start).toISOString().slice(0, 10)}`);
+  writeEventLog();
+});
+
 document.addEventListener("honua-export", (event) => {
   const detail = (event as CustomEvent<{ format: string; status: string }>).detail;
   eventLog.push(`export:${detail.format}:${detail.status}`);
@@ -598,6 +608,28 @@ if (!placeSearch) throw new Error("Missing #place-search");
 placeSearch.geocoder = demoGeocoder;
 
 map.controller = controller;
+
+// ── Time slider over the temporal playback controller (issue #959) ──────────
+// The element is a view over `createTemporalPlayback`: it owns no window state
+// and no timer of its own. Here the sink is a plain callback that records the
+// applied window for the browser smoke lane; in a real app it would be a
+// mounted source (`handle`) or MapLibre layer filters (`layer`).
+const INCIDENT_TIME_START = Date.parse("2026-06-01T00:00:00Z");
+const INCIDENT_TIME_DAY = 24 * 60 * 60 * 1000;
+const appliedTemporalWindows: number[] = [];
+const incidentPlayback = createTemporalPlayback({
+  extent: [INCIDENT_TIME_START, INCIDENT_TIME_START + 14 * INCIDENT_TIME_DAY],
+  windowMs: 2 * INCIDENT_TIME_DAY,
+  stepMs: INCIDENT_TIME_DAY,
+  frameIntervalMs: 400,
+  loop: true,
+  apply: (appliedWindow) => {
+    appliedTemporalWindows.push(appliedWindow.start);
+  },
+});
+const timeSlider = document.querySelector<HonuaTimeSliderElement>("#incident-time");
+if (timeSlider) timeSlider.playback = incidentPlayback;
+runtime.temporalWindows = appliedTemporalWindows;
 
 function writeEventLog(): void {
   const target = document.querySelector("#event-log");

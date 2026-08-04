@@ -4,6 +4,10 @@ import "../../shared/maplibre-vite-worker.js";
 import { createTemporalPlayback } from "@honua/sdk-js/map";
 import type { TemporalPlayback, TemporalPlaybackTick } from "@honua/sdk-js/map";
 import { classBreaksRenderer } from "@honua/sdk-js/style";
+// Side-effect import registers <honua-time-slider> (issue #959) along with the
+// rest of the component kit.
+import "@honua/sdk-js/web-components";
+import type { HonuaTimeSliderElement } from "@honua/sdk-js/web-components";
 import * as maplibregl from "maplibre-gl";
 
 import "./styles.css";
@@ -130,32 +134,24 @@ function formatDay(ms: number): string {
 }
 
 function wireControls(playback: TemporalPlayback, map: maplibregl.Map): void {
-  const playButton = document.getElementById("play") as HTMLButtonElement | null;
-  const pauseButton = document.getElementById("pause") as HTMLButtonElement | null;
+  // Transport (play/pause, scrub, step, speed) is the element's job; it is a
+  // view over this same controller and keeps no window state of its own.
+  const timeSlider = document.getElementById("time-slider") as HonuaTimeSliderElement | null;
+  if (timeSlider) timeSlider.playback = playback;
+
   const windowSelect = document.getElementById("window-select") as HTMLSelectElement | null;
-  const scrub = document.getElementById("scrub") as HTMLInputElement | null;
   const windowReadout = document.getElementById("window-readout");
   const countReadout = document.getElementById("count-readout");
   let ticks = 0;
 
-  playButton?.addEventListener("click", () => playback.play());
-  pauseButton?.addEventListener("click", () => playback.pause());
   windowSelect?.addEventListener("change", () => {
     playback.setWindow(Number(windowSelect.value) * DAY);
   });
-  scrub?.addEventListener("input", () => {
-    const fraction = Number(scrub.value) / Number(scrub.max);
-    playback.scrub(playback.extent.start + fraction * (playback.extent.end - playback.extent.start));
-  });
 
   playback.on("play", () => {
-    if (playButton) playButton.disabled = true;
-    if (pauseButton) pauseButton.disabled = false;
     patchState({ playing: true });
   });
   playback.on("pause", () => {
-    if (playButton) playButton.disabled = false;
-    if (pauseButton) pauseButton.disabled = true;
     patchState({ playing: false });
   });
   playback.on("tick", (tick: TemporalPlaybackTick) => {
@@ -163,7 +159,6 @@ function wireControls(playback: TemporalPlayback, map: maplibregl.Map): void {
     if (windowReadout) {
       windowReadout.textContent = `${formatDay(tick.window.start)} → ${formatDay(tick.window.end)}`;
     }
-    if (scrub) scrub.value = String(Math.round(tick.progress * Number(scrub.max)));
     // querySourceFeatures returns per-tile duplicates; dedupe by feature id.
     const visibleIds = new Set<number>();
     for (const feature of map.querySourceFeatures(SOURCE_ID)) {

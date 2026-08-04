@@ -90,6 +90,26 @@ describe("web-component caller messages (German rendering)", () => {
     expect(shadow(measurement).querySelector("h2")?.textContent).toBe("Messen");
     expect(shadow(measurement).querySelector(".value")?.textContent).toBe("Messung deaktiviert");
 
+    const timeSlider = document.createElement("honua-time-slider") as HonuaElementWithMessages;
+    timeSlider.messages = {
+      label: "Zeitachse",
+      play: "Abspielen",
+      stepBackward: "Ein Fenster zurück",
+      stepForward: "Ein Fenster vor",
+      speedLabel: "Geschwindigkeit",
+      speedOption: (multiplier: number) => `${multiplier}-fach`,
+      transportGroupLabel: (label: string) => `${label} Wiedergabe`,
+      noPlayback: "Keine Zeitsteuerung verbunden",
+      hint: "Pfeiltasten verschieben das Zeitfenster.",
+    };
+    document.body.append(timeSlider);
+    expect(shadow(timeSlider).querySelector("h2")?.textContent).toBe("Zeitachse");
+    expect(shadow(timeSlider).querySelector(".window")?.textContent).toBe("Keine Zeitsteuerung verbunden");
+    expect(shadow(timeSlider).querySelector("[data-time-toggle]")?.textContent).toBe("Abspielen");
+    expect(shadow(timeSlider).querySelector("[data-time-step='-1']")?.textContent).toBe("Ein Fenster zurück");
+    expect(shadow(timeSlider).querySelector("[role='group']")?.getAttribute("aria-label")).toBe("Zeitachse Wiedergabe");
+    expect(shadow(timeSlider).querySelector(".hint")?.textContent).toBe("Pfeiltasten verschieben das Zeitfenster.");
+
     const status = document.createElement("honua-map-status") as HonuaElementWithMessages;
     status.messages = {
       label: "Kartenstatus",

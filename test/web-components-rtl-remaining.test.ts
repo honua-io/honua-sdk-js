@@ -13,6 +13,7 @@ import type {
   HonuaPrintExportElement,
   HonuaSearchElement,
   HonuaSketchControlElement,
+  HonuaTimeSliderElement,
 } from "../src/web-components/index.js";
 import { defineHonuaMeasurement, defineHonuaWebComponents } from "../src/web-components/index.js";
 
@@ -27,6 +28,7 @@ const ARABIC = {
   printExport: "الطباعة والتصدير",
   search: "بحث",
   sketch: "الرسم",
+  timeSlider: "شريط الزمن",
 };
 
 function stylesheet(element: Element): string {
@@ -143,6 +145,41 @@ describe("remaining web-component RTL rendering", () => {
     );
     expectRtlDirection(element);
     expect(stylesheet(element)).toContain("padding-inline: 10px;");
+  });
+
+  it("renders an Arabic time slider with logical thumb offsets and mirrored arrow stepping", () => {
+    const element = document.createElement("honua-time-slider") as HonuaTimeSliderElement;
+    element.dir = "rtl";
+    element.setAttribute("label", ARABIC.timeSlider);
+    document.body.append(element);
+
+    expect(element.shadowRoot?.querySelector("section")?.getAttribute("aria-label")).toBe(ARABIC.timeSlider);
+    expect(element.shadowRoot?.querySelector("[role='group']")?.getAttribute("aria-label")).toBe(
+      `${ARABIC.timeSlider} playback`,
+    );
+    expectRtlDirection(element);
+    expect(stylesheet(element)).toContain("padding-inline: 10px;");
+    expect(stylesheet(element)).toContain("text-align: start;");
+    expect(stylesheet(element)).toContain("inset-inline-start: 0%;");
+    expect(stylesheet(element)).toContain(':host([dir="rtl"]) .thumb { transform: translateX(50%); }');
+
+    // The inline axis mirrors: ArrowRight must move the window *back* in RTL.
+    const start = Date.parse("2026-06-01T00:00:00Z");
+    const day = 86_400_000;
+    const scrubbed: number[] = [];
+    element.playback = {
+      playing: false,
+      window: { start: start + 5 * day, end: start + 6 * day },
+      extent: { start, end: start + 30 * day },
+      stepMs: day,
+      play: () => undefined,
+      pause: () => undefined,
+      scrub: (time: number) => scrubbed.push(time),
+      on: () => ({ remove: () => undefined }),
+    };
+    const slider = element.shadowRoot?.querySelector("[data-time-slider]");
+    slider?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+    expect(scrubbed).toEqual([start + 4 * day]);
   });
 
   it("renders an Arabic sketch-control group with logical control padding", () => {

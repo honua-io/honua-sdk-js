@@ -20,6 +20,7 @@ const SURVIVAL_TIER_COMPONENTS = [
   { widget: "Legend", tagName: "honua-legend", source: "src/web-components/elements.ts" },
   { widget: "Measurement", tagName: "honua-measurement", source: "src/web-components/measurement.ts" },
   { widget: "Search", tagName: "honua-search", source: "src/web-components/elements.ts" },
+  { widget: "TimeSlider", tagName: "honua-time-slider", source: "src/web-components/time-slider.ts" },
 ] as const;
 describe("widget disposition data", () => {
   it("has unique widget names and module paths", () => {
@@ -65,7 +66,7 @@ describe("widget disposition data", () => {
     }
   });
 
-  it("records the four survival-tier app-platform components in the shared disposition data", () => {
+  it("records the survival-tier app-platform components in the shared disposition data", () => {
     const componentRows = WIDGET_DISPOSITION_DOCUMENTATION.filter((entry) => entry.appPlatformComponent);
     expect(componentRows.map((entry) => entry.widget).sort()).toEqual(
       SURVIVAL_TIER_COMPONENTS.map((entry) => entry.widget).sort(),
