@@ -1,5 +1,30 @@
 export type RealtimeConformanceStatus = "executed" | "unsupported" | "degraded" | "failed";
 export type RealtimeConformanceTransportId = "sse" | "websocket" | "odata";
+export type RealtimeConformanceRunStatus = "executed" | "skipped" | "degraded" | "failed";
+
+/**
+ * Outcome of the controlled-conformance run the live lane drove against
+ * honua-server's dedicated conformance source. Never carries the per-run
+ * ownership token.
+ */
+export interface RealtimeConformanceRun {
+  readonly status: RealtimeConformanceRunStatus;
+  readonly reason: { readonly code: string; readonly message: string } | null;
+  readonly runId: string | null;
+  readonly serviceId: string | null;
+  readonly layerId: number | null;
+  readonly deploymentRevision: string | null;
+  readonly mutations: { readonly insert: number; readonly touch: number };
+  readonly baseline: {
+    readonly runId: string;
+    readonly deletedRecords: number;
+    readonly leaseDigest: string;
+    readonly cleanupDigest: string;
+    readonly baselineRecordCount: number;
+    readonly baselineRestored: boolean;
+    readonly digestVerified: boolean;
+  } | null;
+}
 
 export interface RealtimeConformanceEvidence {
   readonly format: "honua.sdk.realtime-conformance-evidence.v1";
@@ -31,6 +56,8 @@ export interface RealtimeConformanceEvidence {
     readonly degraded: number;
     readonly failed: number;
   };
+  /** Present on live documents only. */
+  readonly conformance?: RealtimeConformanceRun;
   readonly transports: ReadonlyArray<{
     readonly id: RealtimeConformanceTransportId;
     readonly freshness: "push" | "poll";
@@ -54,6 +81,10 @@ export interface RealtimeConformanceEvidence {
 export const REALTIME_CONFORMANCE_EVIDENCE_FORMAT: "honua.sdk.realtime-conformance-evidence.v1";
 export const REALTIME_CONFORMANCE_EVIDENCE_SCHEMA: "schemas/realtime-conformance-evidence.v1.json";
 export const REALTIME_LIVE_ENABLE_ENV: "HONUA_REALTIME_LIVE_CONFORMANCE_ENABLED";
+export const REALTIME_CONFORMANCE_MUTATE_ENV: "HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE";
+export const REALTIME_CONFORMANCE_LABEL_ENV: "HONUA_REALTIME_LIVE_CONFORMANCE_LABEL";
+export const REALTIME_CONFORMANCE_TTL_ENV: "HONUA_REALTIME_LIVE_CONFORMANCE_TTL_SECONDS";
+export const REALTIME_CONFORMANCE_DEFAULT_LABEL: "honua-sdk-js-realtime-conformance";
 export const REALTIME_TRANSPORTS: readonly ["sse", "websocket", "odata"];
 export const REALTIME_CAPABILITY_DOCUMENT_MAX_BYTES: 1048576;
 export const REALTIME_SSE_EVENT_MAX_BYTES: 262144;
@@ -73,6 +104,7 @@ export const REALTIME_LIVE_SEMANTIC_LIMITS: Readonly<{
 
 export function realtimeSourceRevision(env?: NodeJS.ProcessEnv, projectRoot?: string): string;
 export function isRealtimeLiveEnabled(env?: NodeJS.ProcessEnv): boolean;
+export function isRealtimeConformanceMutationEnabled(env?: NodeJS.ProcessEnv): boolean;
 export function normalizeLiveCapabilities(payload: unknown, baseUrl: string): {
   readonly serverVersion: string | null;
   readonly serverRevision: string | null;
