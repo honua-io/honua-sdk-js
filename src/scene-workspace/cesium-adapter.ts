@@ -21,8 +21,12 @@
  * adapter touches is read off the lazily-imported module, so the wiring is
  * exercised against a `vi.mock("cesium")` stub without a live WebGL `Viewer`.
  *
- * @experimental Part of the experimental `scene-workspace` surface; not yet
- *   covered by the SDK's semver contract prior to `1.0.0`.
+ * @beta Part of the beta `@honua/app-platform/scene-workspace` surface: the
+ *   adapter's exports are not renamed or removed through 0.1.x, and diagnostic
+ *   codes and renderer capability flags grow additively. The `cesium` peer floor
+ *   may rise within 0.1.x, and the server-authored 3D style types track the
+ *   Honua Server styling contract. See the surface tiers table in
+ *   `docs/standalone-capability-matrix.md`.
  * @module
  */
 

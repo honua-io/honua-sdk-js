@@ -14,8 +14,8 @@
 protocols your data already speaks (Esri GeoServices, OGC API Features / Tiles / Maps /
 Processes, STAC, WMS, WMTS, WFS 2.0, OData v4), a one-call data→map bridge and MapLibre
 runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatibility
-layer with a codemod. MapLibre is the stable renderer path; optional Cesium and Kepler.gl
-integration remains pre-1.0.
+layer with a codemod. MapLibre is the stable renderer path; the optional Cesium scene
+surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimental.
 
 **Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and is
 removed at 6.0 — planned for **Q1 2027**. If your app constructs one, that code stops
@@ -121,8 +121,11 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 - **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
   styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
   server-authored `MapPackage`s. This is the stable renderer path. OGC web-map support
-  follows the generated capability matrix; Cesium integration lives on the pre-1.0
-  `@honua/app-platform/scene-workspace` path, and `@honua/sdk-js/kepler` is experimental.
+  follows the generated capability matrix; Cesium integration lives on the `beta`
+  `@honua/app-platform/scene-workspace` path — see the
+  [surface tiers table](./docs/standalone-capability-matrix.md#surface-tiers) for the
+  exports it covers and the ones still experimental — and `@honua/sdk-js/kepler` is
+  experimental.
 - **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public
   symbol, declaration maps, and JSDoc on the public client surface.
 - **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
@@ -157,7 +160,7 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 21 of the 27 generated support
+**Two deployment tiers, named up front.** 22 of the 28 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
 6 are `server-attach` and execute only after attaching to a Honua Server facade;
@@ -186,8 +189,8 @@ In the spirit of the [migration punch list](./docs/migration-punch-list.md), the
 non-goals are explicit rather than implied:
 
 - **It is not a rendering engine, on purpose.** The stable 2D runtime rides
-  [MapLibre GL JS](https://maplibre.org/); optional pre-1.0 3D integration rides
-  [CesiumJS](https://cesium.com/platform/cesiumjs/).
+  [MapLibre GL JS](https://maplibre.org/); the optional `beta` 3D scene surface rides
+  [CesiumJS](https://cesium.com/platform/cesiumjs/) as a lazily imported peer.
   Honua does not fork, wrap-and-hide, or compete with either. If you need renderer
   features (custom shaders, globe projections, visual effects), take them from the
   renderer directly — Honua stays out of the way.
@@ -610,6 +613,13 @@ correctly use this SDK:
     `/operator/*`) have **moved to the separate `@honua/app-platform` package**; the old
     18 deprecated compatibility subpaths remain through `0.1.x` and are removed in
     `0.2.0`. The `/console` entrypoint was removed outright (no shim).
+    `@honua/app-platform/scene-workspace` is the first of those replacements promoted to
+    **`beta`**: the renderer-neutral workspace state, the scene primitive contract, and
+    the Cesium primitive adapter carry a shape commitment through `0.1.x`, while Honua
+    Server scene discovery, `SceneView`, the analysis widgets, and the bounded
+    `Source`-to-Cesium-entity slice stay experimental. The split is enumerated export by
+    export in the generated
+    [surface tiers table](./docs/standalone-capability-matrix.md#surface-tiers).
 
 ## Support and lifecycle
 
@@ -622,6 +632,11 @@ We publish a lifecycle because a library you build on should tell you what it pr
   (`npm run verify:api-report`): no symbol leaves or changes shape by accident. While we are
   on `0.x` a minor _may_ still change a stable symbol, but only as a reviewed, called-out
   change — never silently. Symbols marked `@experimental` in JSDoc may change in any minor.
+  Symbols marked `@beta` sit between the two: they carry a named shape commitment for the
+  stated range and grow additively, and breaking one is a called-out change. A barrel that
+  mixes tiers enumerates every export in the generated
+  [surface tiers table](./docs/standalone-capability-matrix.md#surface-tiers), so no symbol
+  inherits a tier from its neighbours.
 - **At 1.0.** The stable tier freezes under [Semantic Versioning](https://semver.org/):
   breaking or removing a stable symbol requires a major version; minors are additive. Major
   versions are coordinated across the Honua SDK family (JavaScript, Python, .NET) so one semver
@@ -630,7 +645,8 @@ We publish a lifecycle because a library you build on should tell you what it pr
   entrypoints are being extracted to a separate `@honua/app-platform` package that versions at
   its own pre-1.0 cadence, so the client SDK can reach a frozen 1.0 without waiting on them.
   Their old `@honua/sdk-js/*` subpaths remain as `@deprecated` re-export shims through
-  `0.1.x` and are removed in `0.2.0`. See
+  `0.1.x` and are removed in `0.2.0` — promoting a replacement (the Cesium scene surface is
+  now `beta`) does not extend or shorten a forwarder's removal window. See
   [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split-and-1.0.md).
 - **What we don't promise.** No security-backport window or LTS branch pre-1.0; fixes land on
   the current line. We will publish that policy when we cut 1.0.

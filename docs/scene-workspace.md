@@ -10,6 +10,66 @@ The former `@honua/sdk-js/scene-workspace` subpath is a deprecated 0.1.x
 forwarder. New applications should install `@honua/app-platform` plus only the
 optional renderer peers they use.
 
+## Support status: beta
+
+**Beta** (issue [#931](https://github.com/honua-io/honua-sdk-js/issues/931)).
+The renderer-neutral workspace state, the scene primitive contract, and the
+Cesium primitive adapter keep their shape through `@honua/app-platform` 0.1.x:
+no export is renamed or removed, and primitive kinds, diagnostic codes, and
+renderer capability flags grow additively only. Breaking one of those is a
+called-out change in a minor release, never a silent edit.
+
+What may still change inside beta:
+
+- Additive union members — a new primitive kind or diagnostic code can require a
+  new arm in an exhaustive `switch`.
+- The `cesium` optional-peer floor may rise within 0.1.x.
+- Server-authored 3D style types (`Honua3DStyleSpec` and friends) track the
+  Honua Server styling contract and may gain fields.
+
+**Still experimental, and deliberately not promoted by proximity:**
+
+| Surface | Why it is held back |
+| --- | --- |
+| Honua Server scene discovery (`listScenes`, `getScene`, `sceneToRuntimePrimitives`, …) | Server-attached; outside the open-endpoint evidence behind beta. |
+| `SceneView` and the elevation/analysis widgets | Execute against Honua Server analysis endpoints. |
+| `mountSourceToCesium` / `projectSourceToCesium` | Bounded entity slice, not the production adapter of `#395` — see [Experimental Cesium entity adapter](./cesium-entity-adapter.md). |
+
+The split is enumerated symbol by symbol under `packageLifecycle.surfaceTiers`
+in [`config/support-manifest.v1.json`](../config/support-manifest.v1.json) and
+projected into [`config/public-surface.json`](../config/public-surface.json). An
+export that no tier classifies fails `npm run support:check`, so a new symbol
+cannot inherit beta from the directory it lands in.
+
+Evidence backing the promotion — all release-gated, listed in the generated
+[surface tiers table](./standalone-capability-matrix.md#surface-tiers):
+
+- Workspace and state-sync fixtures: [`test/scene-workspace.test.ts`](../test/scene-workspace.test.ts),
+  [`test/scene-state-sync.test.ts`](../test/scene-state-sync.test.ts).
+- Cesium adapter fixtures, including the hardened model-layer contract:
+  [`test/cesium-scene-adapter.test.ts`](../test/cesium-scene-adapter.test.ts).
+- Bounded mount lifecycle — transactional apply, idempotent release, and
+  fail-closed limits: [`test/cesium-scene-mount.test.ts`](../test/cesium-scene-mount.test.ts).
+- CRS, vertical-datum, and fidelity diagnostics:
+  [`test/scene-primitive-spatial-diagnostics.test.ts`](../test/scene-primitive-spatial-diagnostics.test.ts).
+- Real-Cesium browser matrix and bounded teardown budgets, described in
+  [Real-Cesium browser evidence and teardown budgets](#real-cesium-browser-evidence-and-teardown-budgets):
+  [`test/playwright/cesium-scene-adapter-fixtures.spec.mjs`](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs).
+- Bundle isolation — core and 2D consumers never load Cesium, and the
+  `@honua/app-platform` split re-exports the scene surface:
+  [`scripts/verify-split-packages.mjs`](../scripts/verify-split-packages.mjs),
+  budgeted in [`bundle-budgets.json`](../bundle-budgets.json).
+
+Promotion adds no required dependency: `cesium` stays an optional peer that the
+adapter imports lazily, and no core or 2D bundle ceiling moved.
+
+**Caveat carried into beta.** The browser matrix is the S1 slice of `#928`: it
+crosses camera, quantized-mesh terrain, url-template imagery, a 3D-Tiles
+tileset, and a glTF/GLB model against real Cesium objects. WMS/WMTS/ArcGIS
+imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC
+floor are still tracked there, and those specific bindings carry unit-level
+evidence only.
+
 ## Sample Pattern
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
