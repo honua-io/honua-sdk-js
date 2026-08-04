@@ -250,7 +250,13 @@ const NAV_GROUPS = [
   },
   {
     title: "ArcGIS migration",
-    docs: ["docs/migration-honua-maplibre.md", "docs/migration-punch-list.md", "docs/esri-sample-corpus.md"],
+    docs: [
+      "docs/migration-honua-maplibre.md",
+      "docs/migration-punch-list.md",
+      "docs/esri-sample-corpus.md",
+      "docs/oss-arcgis-corpus.md",
+      "docs/oss-arcgis-corpus-readiness.md",
+    ],
   },
 ];
 

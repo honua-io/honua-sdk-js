@@ -1,0 +1,68 @@
+name: OSS ArcGIS Corpus Readiness
+
+# Opt-in migration readiness sweep over pinned third-party open-source ArcGIS
+# JS apps (issue #955). This lane is deliberately NOT part of PR CI: it never
+# runs on push or pull_request. It clones each pinned repository at its pinned
+# commit, runs the honua-migrate scanner and codemod over the checkout, and
+# uploads the readiness reports.
+#
+# The lane is static analysis only. It reads source files; it never contacts an
+# ArcGIS service, a portal, or a basemap, and it never installs a cloned app's
+# dependencies.
+on:
+  schedule:
+    - cron: "40 6 1 * *" # 06:40 UTC on the 1st of each month
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: "Comma-separated corpus app ids (blank = whole corpus)"
+        required: false
+        type: string
+      fail_on_regression:
+        description: "Fail when an app regresses against the published observation"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+  HONUA_OSS_ARCGIS_CORPUS_ENABLED: "true"
+
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Build the SDK
+        run: npm run build
+      - name: Run the corpus readiness lane
+        run: |
+          args=""
+          if [ -n "${{ inputs.apps }}" ]; then
+            args="$args --apps ${{ inputs.apps }}"
+          fi
+          if [ "${{ inputs.fail_on_regression }}" != "false" ]; then
+            args="$args --fail-on-regression"
+          fi
+          node scripts/oss-arcgis-corpus.mjs $args
+      - name: Verify the published summary page is in sync
+        if: ${{ inputs.apps == '' }}
+        run: npm run docs:oss-arcgis-corpus:check
+      - name: Publish readiness reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: oss-arcgis-corpus-readiness
+          path: test-results/oss-arcgis-corpus/
+          if-no-files-found: warn
+          retention-days: 30
