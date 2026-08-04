@@ -28,8 +28,11 @@
  * disposed. Plan findings say whether a binding *can* render correctly; mount
  * findings say what the renderer currently owns.
  *
- * @experimental Part of the experimental `scene-workspace` surface; not yet
- *   covered by the SDK's semver contract prior to `1.0.0`.
+ * @beta Part of the beta `@honua/app-platform/scene-workspace` surface: the
+ *   mount handle's shape, its idempotent `dispose()`, and the layer ceiling's
+ *   fail-closed admission behavior hold through 0.1.x, and mount diagnostic
+ *   codes grow additively. See the surface tiers table in
+ *   `docs/standalone-capability-matrix.md`.
  * @module
  */
 

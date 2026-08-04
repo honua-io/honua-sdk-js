@@ -17,8 +17,10 @@
  * `HonuaClient` — so the widgets reuse the SDK's auth / retry / timeout /
  * interceptor pipeline instead of issuing ad-hoc `fetch` calls.
  *
- * @experimental Part of the experimental `scene-workspace` surface; not yet
- *   covered by the SDK's semver contract prior to `1.0.0`.
+ * @experimental Held back from the beta `@honua/app-platform/scene-workspace`
+ *   tier: line-of-sight, viewshed, and elevation profile execute against Honua
+ *   Server analysis endpoints, so they sit outside the open-endpoint evidence
+ *   behind that promotion and may change in any minor release prior to `1.0.0`.
  * @module
  */
 

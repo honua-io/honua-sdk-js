@@ -31,8 +31,11 @@
  * });
  * ```
  *
- * @experimental Part of the experimental `scene-workspace` surface; not yet
- *   covered by the SDK's semver contract prior to `1.0.0`.
+ * @experimental Held back from the beta `@honua/app-platform/scene-workspace`
+ *   tier: `SceneView` composes Honua Server scene discovery with the analysis
+ *   widgets, both server-attached, so it sits outside the open-endpoint evidence
+ *   behind that promotion and may change in any minor release prior to `1.0.0`.
+ *   The Cesium adapter it drives is beta.
  * @module
  */
 

@@ -5,7 +5,10 @@
  * only while mounting, either through an injected module/loader or a lazy
  * optional-peer import.
  *
- * @experimental Not covered by the pre-1.0 semver contract.
+ * @experimental Held back from the beta `@honua/app-platform/scene-workspace`
+ *   tier: this is a bounded feature/entity slice, not the production adapter of
+ *   issue #395 (see `docs/cesium-entity-adapter.md`). Not covered by the pre-1.0
+ *   semver contract. The scene primitive adapter alongside it is beta.
  */
 
 import type { Result, Source } from "../contract/types.js";
