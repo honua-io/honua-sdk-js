@@ -57,7 +57,7 @@ jobs:
         # SHA-pinning `uses:` actions elsewhere in CI).
         #
         # The verified tarball is unpacked and run in place rather than handed
-        # to `npm install -g`: npm ships its dependencies bundled, so the CLI
+        # to a global installer: npm ships its dependencies bundled, so the CLI
         # runs straight from the archive, and the publish step below then
         # executes exactly the bytes this step hashed — no second, unpinned
         # resolution between verification and use.
