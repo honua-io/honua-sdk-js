@@ -27,6 +27,7 @@
   "/query-planner gained its first dedicated guard with the bounded columnar worker session (#453); browser/Node worker implementations and heavy analytics peers remain injected, while the full planner plus worker protocol is measured with 10% headroom.",
   "/query-planner was reset for the DuckDB SQL and gRPC query compilers plus spatial-aggregation pushdown (#389): the DuckDB compiler reuses the dependency-free geoparquet-sql builder so planner and adapter emit identical SQL. Measured 75,024 minified / 22,254 gzip; the ceiling is actual plus ~10% headroom.",
   "/query-planner gzip was reset for deterministic columnar worker aggregation (#939): the first reducing columnar operation adds dictionary/temporal/spatial-grid grouping, count/sum/min/max/mean accumulation over packed buffers, compensated summation, and the honua.aggregate result layout and reader. Measured 151,363 gzip bytes; the ceiling is actual plus ~10% headroom. No new dependency enters the entrypoint's static graph — #939 NFR-004 keeps Arrow, DuckDB, and projection peers out — and the minified ceiling stayed below its existing value, so only the exceeded gzip ceiling was reset.",
+  "/query-planner's minified ceiling was reset for realtime columnar patch semantics (#941): applyColumnarPatch adds the versioned append/update/delete patch contract, feature-id identity resolution, reserved-capacity in-place writes, the bounded tombstone overlay, the four declared rebuild thresholds, and the compacting buffer-level rebuild. The entrypoint measures 726,227 minified bytes (709.2 KiB) with the module wired in and 676.5 KiB with the same tree minus its two export blocks, so the module itself costs about 32.7 KiB minified and about 9.0 KiB gzip (157.0 KiB against 148.0 KiB). Only the exceeded minified ceiling is reset, to measured actual plus ~10% headroom; gzip stayed under its existing 166,499-byte ceiling. No new dependency enters the entrypoint's static graph — the patch path reuses the same dependency-free GeoArrow encode/inspect primitives — and root, /honua, and browser barrels are unchanged because the columnar surface remains subpath-only.",
   "/agent-safety was reset again for binding safety authorization to accepted-plan and discovery evidence (#468): derived accepted-evidence gating over the approved execution/audit boundary (#456) measures 51,401 minified / 14,693 gzip bytes; each ceiling is actual plus 10% headroom and the code remains out of root barrels.",
   "Root, /honua, and browser gzip ceilings were reset for WFS connect discovery (#441): one-request capability projection, DCP safety validation, and namespace-gated edits add about 1 KiB gzip to the beginner barrels; each affected gzip ceiling is measured actual plus 10% headroom.",
   "Root, /honua, and browser minified ceilings were reset for raw STAC API connect discovery (#454): strict conformance/link validation, normalized immutable extents, and cache validation add about 4.8 KiB minified / 1.1 KiB gzip to the beginner barrels. Gzip remained below its existing ceiling; only the exceeded minified ceilings were reset to measured actual plus 10% headroom.",
@@ -139,7 +140,7 @@
    "gzip": 40187
   },
   "/query-planner": {
-   "min": 720180,
+   "min": 798849,
    "gzip": 166499
   },
   "/scene-workspace": {
