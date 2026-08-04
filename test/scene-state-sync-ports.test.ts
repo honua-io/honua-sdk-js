@@ -534,6 +534,24 @@ describe("Cesium state-sync port", () => {
     synchronizer.dispose();
   });
 
+  it("carries the clock rate across the wire and onto the live clock", async () => {
+    const viewer = fakeViewer();
+    const port = createCesiumStateSyncPort(viewer, { identity: IDENTITY, cesium: fakeCesiumModule() });
+    const synchronizer = createSceneStateSynchronizer({ applicationId: "app", ports: [port], coalesceMs: 0 });
+    const peer = attachProbePort(synchronizer);
+
+    peer.emit("time", { currentTime: "2026-07-11T12:00:02.000Z", speed: -4 });
+    await synchronizer.flush();
+
+    // `speed` is part of the timeline contract, so the envelope has to carry it
+    // rather than silently dropping it on the way to the renderer.
+    expect(synchronizer.snapshot.values.time?.value).toMatchObject({ speed: -4 });
+    expect(viewer.clock?.multiplier).toBe(-4);
+
+    port.dispose();
+    synchronizer.dispose();
+  });
+
   it("stands down from a host-owned clock instead of fighting it", async () => {
     const viewer = { ...fakeViewer(), clockOwnership: "host" as const };
     const port = createCesiumStateSyncPort(viewer, { identity: IDENTITY, cesium: fakeCesiumModule() });
