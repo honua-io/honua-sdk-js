@@ -1,4 +1,5 @@
 import { type HonuaErrorCode, HonuaSdkError, isRetryableNetworkOrTimeoutHonuaError } from "../core/error-envelope.js";
+import type { OfflineStorageBudgetV1 } from "./quota.js";
 
 /** First version of the downloadable-region manifest contract. */
 export const HONUA_OFFLINE_REGION_VERSION = "1.0" as const;
@@ -195,6 +196,12 @@ export interface CreateOfflineRegionDiagnosticOptions {
   readonly now: Date;
   /** Age at which the snapshot observation becomes stale. */
   readonly staleAfterMs: number;
+  /**
+   * Optional storage-budget observation from `probeOfflineStorageBudget()`.
+   * Persisted state changes the eviction risk of every cached region, so it is
+   * reported here rather than inferred. The diagnostic never probes on its own.
+   */
+  readonly storage?: OfflineStorageBudgetV1;
 }
 
 export type OfflineRegionDiagnosticAdmission =
@@ -203,6 +210,8 @@ export type OfflineRegionDiagnosticAdmission =
       readonly status: "rejected";
       readonly reason: "expired" | "quota-exceeded";
       readonly logicalQuotaBytes: number;
+      /** The plan that was attempted, when quota refused it. Nothing was evicted. */
+      readonly attempted?: OfflineRegionAdmissionPlan;
     };
 
 /** Secret-safe, payload-free explanation of one persistent offline region. */
@@ -247,6 +256,8 @@ export interface OfflineRegionDiagnosticV1 {
     readonly attributionIds: readonly string[];
   };
   readonly admission: OfflineRegionDiagnosticAdmission;
+  /** Present only when the caller supplied a storage-budget observation. */
+  readonly storage?: OfflineStorageBudgetV1;
 }
 
 export interface OfflineRegionCommitGuard {
@@ -355,7 +366,12 @@ export class HonuaOfflineRegionError extends HonuaSdkError {
   public constructor(
     public readonly code: OfflineRegionErrorCode,
     message: string,
-    options: { readonly cause?: unknown; readonly resourceId?: string; readonly path?: string } = {},
+    options: {
+      readonly cause?: unknown;
+      readonly resourceId?: string;
+      readonly path?: string;
+      readonly admission?: OfflineRegionAdmissionPlan;
+    } = {},
   ) {
     const cause = options.cause;
     super(offlineRegionSdkCode(code, cause), message, {
@@ -365,10 +381,18 @@ export class HonuaOfflineRegionError extends HonuaSdkError {
     this.name = "HonuaOfflineRegionError";
     this.resourceId = options.resourceId;
     this.path = options.path;
+    this.admission = options.admission;
   }
 
   public readonly resourceId?: string;
   public readonly path?: string;
+  /**
+   * The admission plan that was attempted when a `quota-exceeded` failure was
+   * raised: required, evicted, and projected logical bytes. A refused plan is
+   * what was attempted, not what happened — nothing outside it is ever evicted,
+   * and a plan refused before the download starts evicts nothing at all.
+   */
+  public readonly admission?: OfflineRegionAdmissionPlan;
 }
 
 const OFFLINE_REGION_ERROR_CODES = {

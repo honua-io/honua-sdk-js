@@ -4,6 +4,7 @@ import {
   credentialScreenMessage,
   screenPersistedString,
 } from "./credential-screen.js";
+import { captureOfflineStorageBudget, isStorageQuotaPressureError } from "./quota.js";
 import {
   type CreateOfflineRegionDiagnosticOptions,
   type CreateOfflineRegionManifestInput,
@@ -255,6 +256,8 @@ export async function createOfflineRegionDiagnostic(
   ]);
   if (manifest.id !== expectedId) invalid("Offline region identity does not match its normalized contents.", "id");
 
+  const storage = options.storage === undefined ? undefined : captureOfflineStorageBudget(options.storage, "storage");
+
   let admission: OfflineRegionDiagnosticAdmission;
   try {
     admission = {
@@ -263,7 +266,12 @@ export async function createOfflineRegionDiagnostic(
     };
   } catch (error) {
     if (error instanceof HonuaOfflineRegionError && (error.code === "expired" || error.code === "quota-exceeded")) {
-      admission = { status: "rejected", reason: error.code, logicalQuotaBytes };
+      admission = {
+        status: "rejected",
+        reason: error.code,
+        logicalQuotaBytes,
+        ...(error.admission ? { attempted: error.admission } : {}),
+      };
     } else {
       throw error;
     }
@@ -344,6 +352,7 @@ export async function createOfflineRegionDiagnostic(
       attributionIds: ownKeys(manifest.attribution),
     },
     admission,
+    ...(storage ? { storage } : {}),
   });
 }
 
@@ -386,16 +395,9 @@ function planPreparedAdmission(
     evictions.push(candidate);
     projected -= candidate.logicalByteLength;
   }
-  if (projected > logicalQuotaBytes) {
-    const pinned = normalized.regions
-      .filter((region) => region.id !== manifest.id && region.pinned === true)
-      .reduce((total, region) => safeAdd(total, region.logicalByteLength, "inventory.regions"), 0);
-    throw new HonuaOfflineRegionError(
-      "quota-exceeded",
-      `Offline region requires ${requiredLogicalBytes} logical bytes but only ${Math.max(0, logicalQuotaBytes - pinned)} remain after preserving pinned data.`,
-    );
-  }
-  return deepFreeze({
+  // Built before the verdict so a refusal can report exactly what was attempted
+  // (REQ-004). A refused plan is a proposal: nothing in it has been evicted.
+  const plan = deepFreeze({
     logicalQuotaBytes,
     logicalBytesBefore,
     replacementLogicalBytes,
@@ -407,6 +409,17 @@ function planPreparedAdmission(
     ),
     logicalBytesAfter: projected,
   });
+  if (projected > logicalQuotaBytes) {
+    const pinned = normalized.regions
+      .filter((region) => region.id !== manifest.id && region.pinned === true)
+      .reduce((total, region) => safeAdd(total, region.logicalByteLength, "inventory.regions"), 0);
+    throw new HonuaOfflineRegionError(
+      "quota-exceeded",
+      `Offline region requires ${requiredLogicalBytes} logical bytes but only ${Math.max(0, logicalQuotaBytes - pinned)} remain after preserving pinned data.`,
+      { admission: plan },
+    );
+  }
+  return plan;
 }
 
 /** Download and atomically commit a manifest through caller-injected adapters. */
@@ -426,7 +439,7 @@ export async function downloadOfflineRegion(
   try {
     inventory = await options.store.inventory();
   } catch (cause) {
-    throw new HonuaOfflineRegionError("store-failed", "Failed to inspect the offline region store.", { cause });
+    throw storeFailure("Failed to inspect the offline region store.", cause);
   }
   throwIfAborted(options.signal);
   const normalizedInventory = normalizeInventory(inventory);
@@ -447,7 +460,7 @@ export async function downloadOfflineRegion(
   try {
     transaction = await options.store.beginWrite(manifest.id);
   } catch (cause) {
-    throw new HonuaOfflineRegionError("store-failed", "Failed to begin an offline region transaction.", { cause });
+    throw storeFailure("Failed to begin an offline region transaction.", cause, plan);
   }
   let settled = false;
   try {
@@ -550,14 +563,40 @@ export async function downloadOfflineRegion(
       try {
         await transaction.rollback({ preserveStaged: true });
       } catch (rollbackCause) {
-        throw new HonuaOfflineRegionError("store-failed", "Offline region rollback failed.", {
-          cause: new AggregateError([cause, rollbackCause]),
-        });
+        throw storeFailure("Offline region rollback failed.", new AggregateError([cause, rollbackCause]), plan);
       }
     }
-    if (cause instanceof HonuaOfflineRegionError) throw cause;
-    throw new HonuaOfflineRegionError("store-failed", "Offline region transaction failed.", { cause });
+    if (cause instanceof HonuaOfflineRegionError) {
+      // A store adapter that wrapped a full device in its own untyped failure
+      // must not defeat the quota class the caller recovers from.
+      if (cause.code !== "store-failed" || !isStorageQuotaPressureError(cause)) throw cause;
+      throw quotaPressure(cause, plan, cause.resourceId);
+    }
+    throw storeFailure("Offline region transaction failed.", cause, plan);
   }
+}
+
+/**
+ * Classify one adapter failure. A platform storage-pressure failure raised while
+ * staging, writing, or committing is a `quota-exceeded` / `offline.region.quota`
+ * failure carrying the attempted plan (REQ-003, REQ-004) — a full device is an
+ * actionable caller condition, not the internal `store-failed` class.
+ */
+function storeFailure(message: string, cause: unknown, plan?: OfflineRegionAdmissionPlan): HonuaOfflineRegionError {
+  if (isStorageQuotaPressureError(cause)) return quotaPressure(cause, plan);
+  return new HonuaOfflineRegionError("store-failed", message, { cause });
+}
+
+function quotaPressure(
+  cause: unknown,
+  plan: OfflineRegionAdmissionPlan | undefined,
+  resourceId?: string,
+): HonuaOfflineRegionError {
+  return new HonuaOfflineRegionError(
+    "quota-exceeded",
+    "Browser storage refused the offline region write; the device is out of space. Evict or unpin a region, or request persistent storage, then retry.",
+    { cause, ...(plan ? { admission: plan } : {}), ...(resourceId ? { resourceId } : {}) },
+  );
 }
 
 function captureCreationInput(input: CreateOfflineRegionManifestInput): CreationSnapshot {

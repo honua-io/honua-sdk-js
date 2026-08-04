@@ -149,6 +149,7 @@ const DIAGNOSTIC_KEYS = new Set([
   "provenance",
   "contents",
   "admission",
+  "storage",
 ]);
 const DIAGNOSTIC_CACHE_KEYS = new Set([
   "state",
@@ -327,9 +328,10 @@ function captureRegionSummary(value: unknown, path: string): LocalFirstRegionSum
     invalid(`${path}.version is unsupported.`, `${path}.version`);
   }
   // Present but never descended into: this projection reads no payload,
-  // admission arithmetic, or attribution text.
+  // admission arithmetic, storage estimate, or attribution text.
   plainRecord(record.contents, `${path}.contents`);
   plainRecord(record.admission, `${path}.admission`);
+  if (record.storage !== undefined) plainRecord(record.storage, `${path}.storage`);
 
   const cache = plainRecord(record.cache, `${path}.cache`);
   allowedKeys(cache, DIAGNOSTIC_CACHE_KEYS, `${path}.cache`);

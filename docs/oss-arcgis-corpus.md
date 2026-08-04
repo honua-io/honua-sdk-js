@@ -120,8 +120,10 @@ most, and they must be read together:
   how many did it rewrite without leaving a manual TODO.
 - **Apps with no ArcGIS usage detected** — apps where the scanner found
   *nothing*, despite reviewed evidence that they are ArcGIS apps. For those
-  apps the readiness verdict is not a result. A `ready` next to
-  "no usage detected" means the scanner was blind, not that the app is done.
+  apps there is no readiness verdict to read: the report says
+  `readiness: "no-usage-detected"` and every number beside it measures the
+  scanner's blind spot, not the app. This count is `0` in the current
+  observation and any return to a non-zero value is a detection regression.
 
 The regression gate compares a fresh run against the published observation and
 fails when an app's auto-migrated ratio drops or when usage that was previously
@@ -131,20 +133,37 @@ visible stops being detected.
 
 The first sweep (2026-08-03) is why this corpus exists. Three of the six pinned
 apps produced `filesWithArcGisImports=0` — the scanner saw nothing at all —
-because `findArcGisImports` in `src/migration/scanner.ts` matches only
-`@arcgis/core/*` specifiers. Each gap is filed with the app and the construct
+because `findArcGisImports` in `src/migration/scanner.ts` matched only
+`@arcgis/core/*` specifiers. Each gap was filed with the app and the construct
 that exposed it:
 
-| Issue | Gap | Exposed by |
-| --- | --- | --- |
-| [#980](https://github.com/honua-io/honua-sdk-js/issues/980) | AMD `define([...])` / `require([...])` dependency arrays with bare `esri/*` specifiers are invisible | `cmv/cmv-app` — `viewer/js/config/viewer.js`, `viewer/js/gis/dijit/Basemaps.js` |
-| [#981](https://github.com/honua-io/honua-sdk-js/issues/981) | Bare `esri/*` ES-module specifiers, including TypeScript `import X = require("esri/...")`, are invisible | `WSDOT-GIS/bridge-clearance-app` — `src/main.ts`; `ekenes/national-park-visits` — `app/main.ts`, `app/widgets.ts` |
-| [#982](https://github.com/honua-io/honua-sdk-js/issues/982) | A scan that detects nothing reports `readiness: "ready"` with all three gates passing vacuously | All three apps above |
+| Issue | Gap | Exposed by | Status |
+| --- | --- | --- | --- |
+| [#980](https://github.com/honua-io/honua-sdk-js/issues/980) | AMD `define([...])` / `require([...])` dependency arrays with bare `esri/*` specifiers are invisible | `cmv/cmv-app` — `viewer/js/config/viewer.js`, `viewer/js/gis/dijit/Basemaps.js` | fixed |
+| [#981](https://github.com/honua-io/honua-sdk-js/issues/981) | Bare `esri/*` ES-module specifiers, including TypeScript `import X = require("esri/...")`, are invisible | `WSDOT-GIS/bridge-clearance-app` — `src/main.ts`; `ekenes/national-park-visits` — `app/main.ts`, `app/widgets.ts` | fixed |
+| [#982](https://github.com/honua-io/honua-sdk-js/issues/982) | A scan that detects nothing reports `readiness: "ready"` with all three gates passing vacuously | All three apps above | fixed |
 
-#981 also records a concrete internal inconsistency: on
+#981 also recorded a concrete internal inconsistency: on
 `ekenes/national-park-visits` the **widget** scanner reported four widget usage
 sites in the same files the ArcGIS scanner reported zero imports in, so the two
-scanners disagree about the same source.
+scanners disagreed about the same source.
+
+The scanner now reads module specifiers off the TypeScript AST and recognizes
+AMD dependency arrays, bare `esri/*` ids, and TypeScript import-equals in
+addition to the `@arcgis/core/*` shapes it already handled; a bare `esri/<path>`
+resolves to the same codemod kind as `@arcgis/core/<path>` wherever the paths
+correspond. A report whose scan recognized nothing now says
+`readiness: "no-usage-detected"` instead of `ready`, and `--fail-on-no-usage`
+turns that into a CI failure. The three formerly dark apps are measured on the
+page above; the "Detection gaps" section disappears when no app is dark.
+
+What the corpus measures now is the *next* cliff, and it is the honest one: the
+codemod rewrites nothing inside an AMD module body (`cmv-app`: 0 of 27
+codemod-scoped call sites auto-migrated), because rewriting a constructor while
+the Dojo loader still delivers the ArcGIS module would leave the file broken.
+Those call sites are reported as manual TODOs, and the `esri/dijit/*` widget
+namespace — which has no `@arcgis/core` counterpart at all — is reported as
+unhandled modules rather than being mapped onto a 4.x construct it is not.
 
 ## Adding an app
 

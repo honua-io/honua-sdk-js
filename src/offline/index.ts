@@ -5,11 +5,11 @@
  * persistence and a storage-backed fetch handler for service-worker or fetch
  * integrations. Applications inject request matching, resource loading, and
  * network policy; the SDK owns deterministic manifest identity, credential
- * projection, cache diagnostics, quota admission, integrity checks,
- * cancellation, progress semantics, durable edit-queue state, and the composed
- * local-first status that names one honest state across cached reads and
- * undelivered writes. Applications still own connectivity policy and edit
- * replay transport binding.
+ * projection, cache diagnostics, quota admission against the origin's real
+ * storage estimate, integrity checks, cancellation, progress semantics, durable
+ * edit-queue state, and the composed local-first status that names one honest
+ * state across cached reads and undelivered writes. Applications still own
+ * connectivity policy, persistence requests, and edit replay transport binding.
  *
  * @experimental
  */
@@ -21,6 +21,30 @@ export {
   planOfflineRegionAdmission,
 } from "./region.js";
 export { createIndexedDbOfflineRegionStore, IndexedDbOfflineRegionStore } from "./indexeddb.js";
+export {
+  DEFAULT_OFFLINE_STORAGE_HEADROOM_RATIO,
+  DEFAULT_OFFLINE_STORAGE_MIN_RESERVE_BYTES,
+  HONUA_OFFLINE_STORAGE_BUDGET_KIND,
+  HONUA_OFFLINE_STORAGE_BUDGET_VERSION,
+  HONUA_OFFLINE_STORAGE_PERSISTENCE_KIND,
+  HONUA_OFFLINE_STORAGE_PERSISTENCE_VERSION,
+  isStorageQuotaPressureError,
+  probeOfflineStorageBudget,
+  requestOfflinePersistentStorage,
+} from "./quota.js";
+export type {
+  OfflineStorageBudgetAvailableV1,
+  OfflineStorageBudgetUnavailableReason,
+  OfflineStorageBudgetUnavailableV1,
+  OfflineStorageBudgetV1,
+  OfflineStorageManagerLike,
+  OfflineStoragePersistence,
+  OfflineStoragePersistenceRequestStatus,
+  OfflineStoragePersistenceRequestV1,
+  OfflineStoragePersistenceUnavailableReason,
+  ProbeOfflineStorageBudgetOptions,
+  RequestOfflinePersistentStorageOptions,
+} from "./quota.js";
 export { createOfflineRegionFetchHandler } from "./fetch-handler.js";
 export {
   createIndexedDbOfflineEditQueue,
