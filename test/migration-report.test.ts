@@ -14,6 +14,7 @@ function createCodemodResult(): EsriCompatCodemodResult {
       totalCodemodScopedCallSites: 4,
       autoMigratedCallSites: 3,
       manualCallSites: 1,
+      seamCallSites: 0,
       byKind: {
         "feature-layer": { total: 2, autoMigrated: 1, manual: 1 },
         graphic: { total: 0, autoMigrated: 0, manual: 0 },
@@ -102,6 +103,7 @@ function createCodemodResult(): EsriCompatCodemodResult {
         rewrittenDynamicImports: 0,
         rewrittenEventNames: 0,
         addedCompatImport: true,
+        seamCallSites: 0,
         removedArcGisImports: 2,
         annotatedTodoComments: 1,
         manualTodos: [
@@ -469,7 +471,13 @@ describe("buildJsMigrationReport", () => {
         ...base,
         filesScanned: 136,
         filesChanged: 0,
-        metrics: { totalCodemodScopedCallSites: 0, autoMigratedCallSites: 0, manualCallSites: 0, byKind },
+        metrics: {
+          totalCodemodScopedCallSites: 0,
+          autoMigratedCallSites: 0,
+          manualCallSites: 0,
+          seamCallSites: 0,
+          byKind,
+        },
         fileResults: [],
         manualTodos: [],
       };

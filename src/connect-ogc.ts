@@ -403,6 +403,12 @@ export interface OgcProcessesDiscoveryResult {
    */
   readonly basePath: string;
   readonly retrievedAt: string;
+  /**
+   * Conformance classes the service advertised, verbatim. Hand the whole
+   * discovery result to `client.ogcProcesses({ basePath, conformance })` so
+   * execution and dismissal are gated on the server's own declaration.
+   */
+  readonly conformsTo: readonly string[];
   /** Effective capabilities intersected from advertised conformance (`processes` or empty). */
   readonly capabilities: readonly Capability[];
   readonly processes: readonly OgcProcessDiscoverySummary[];
@@ -486,6 +492,9 @@ export async function discoverOgcProcessesMetadata(
     endpoint,
     basePath,
     retrievedAt,
+    conformsTo: Object.freeze(
+      Array.isArray(conformance?.conformsTo) ? conformance.conformsTo.filter((uri) => typeof uri === "string") : [],
+    ),
     capabilities: Object.freeze([...capabilities]),
     processes: Object.freeze(summaries),
     evidence,

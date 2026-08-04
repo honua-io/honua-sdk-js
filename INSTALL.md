@@ -89,7 +89,10 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 
 These temporary `@honua/sdk-js` shims were introduced in `0.1.0-beta.0` when
 the application platform moved. They remain available throughout `0.1.x` and
-are removed in `0.2.0`; new code must import the replacement directly.
+are removed in `0.2.0`; new code must import the replacement directly. A
+replacement's own support status is independent of the shim: promoting
+`@honua/app-platform/scene-workspace` to `beta` did not move the
+`@honua/sdk-js/scene-workspace` removal window.
 
 | Deprecated subpath | Replacement | Remove in |
 |--------------------|-------------|-----------|
@@ -124,7 +127,7 @@ them (see [`docs/decisions/scope-split-and-1.0.md`](./docs/decisions/scope-split
 | `@honua/app-platform/app` | App bootstrap helper for browser shells |
 | `@honua/app-platform/app-controller` | `HonuaController` — renderer-neutral app controller |
 | `@honua/app-platform/app-workspace` | Framework-neutral workspace state orchestration |
-| `@honua/app-platform/scene-workspace` | 3D scene workspace + MapLibre/Cesium adapters (optional `cesium` peer) |
+| `@honua/app-platform/scene-workspace` | 3D scene workspace + MapLibre/Cesium adapters (optional `cesium` peer) — **`beta`**; see the [surface tiers table](./docs/standalone-capability-matrix.md#surface-tiers) for the exports it covers and the ones still experimental |
 | `@honua/app-platform/collaboration` | Saved-map collaboration client |
 | `@honua/app-platform/control-plane` | Hosted-product / admin client |
 | `@honua/app-platform/replica-sync` | Offline-replica sync client |
@@ -164,7 +167,7 @@ Node-only or REST-only consumer never pays the install cost:
 
 | Integration | Peer to install |
 |-------------|-----------------|
-| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` |
+| MapLibre `MapPackage` runtime (`@honua/sdk-js/runtime`) | `npm install maplibre-gl` — supported majors: **5 and 6** (`^5.0.0 \|\| ^6.0.0`; the 6.x half of that range ships with the next release, the current published beta still declares `^5.0.0`). MapLibre 6 is ESM-only and requires WebGL2; see [`docs/maplibre-runtime.md`](./docs/maplibre-runtime.md) |
 | deck.gl binary projection (`@honua/sdk-js/deckgl`) | `npm install @deck.gl/layers` |
 | Kepler.gl workspace bridge (`@honua/sdk-js/kepler`) | `npm install @kepler.gl/actions` (plus the Kepler UI packages your app renders) |
 | Cesium 3D adapters (`@honua/app-platform/scene-workspace`) | `npm install cesium` |

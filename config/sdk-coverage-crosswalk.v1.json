@@ -67,11 +67,12 @@
     "geometry-client-only": { "internalOnly": true, "reason": "Client-side geometry math (buffer/area/simplify/measure/reprojection); the published vocabulary has no client-geometry-library category, and this is distinct from serve.geoservices-geometry-service (ArcGIS GeometryServer discovery)." },
     "compatibility-gate-facade": { "capabilityKeys": ["discovery.capability-manifest"] },
     "map-package-facade": { "internalOnly": true, "reason": "Composite server-authored-content facade (styles + layer order + metadata); no single discrete canonical key covers this composite concept." },
+    "scene-workspace-cesium": { "internalOnly": true, "reason": "Client-side 3D scene state and the Cesium renderer adapter; a rendering-pipeline surface like the other renderer adapters, not a platform capability. serve.3d-tiles-scene stays a serving capability of Honua Server, which this surface consumes rather than provides." },
     "realtime-facade": { "capabilityKeys": ["streaming.feature-subscriptions"] },
     "collaboration-deprecated": { "capabilityKeys": ["collaboration.map-sessions"], "extraEvidence": ["test/collaboration.test.ts"] },
     "agent-tools-facade": { "capabilityKeys": ["ai.mcp-discovery", "ai.agent-operations"] },
     "ogc-processes-discovery-standalone": { "capabilityKeys": ["process.ogc-api-processes"] },
-    "ogc-processes-execution-facade": { "capabilityKeys": ["process.ogc-api-processes"] }
+    "ogc-processes-execution-standalone": { "capabilityKeys": ["process.ogc-api-processes"] }
   },
   "extras": {
     "geocoding.forward": {

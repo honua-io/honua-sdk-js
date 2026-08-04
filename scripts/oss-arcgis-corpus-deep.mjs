@@ -341,6 +341,7 @@ async function main() {
         totalCallSites: codemodReport.codemodResult.metrics.totalCodemodScopedCallSites,
         autoMigratedCallSites: codemodReport.codemodResult.metrics.autoMigratedCallSites,
         manualCallSites: codemodReport.codemodResult.metrics.manualCallSites,
+        ...(typeof codemodReport.seamCallSites === "number" ? { seamCallSites: codemodReport.seamCallSites } : {}),
         filesChanged: codemodReport.codemodResult.filesChanged,
         compatImportPath: "@honua/sdk-esri-compat",
       };

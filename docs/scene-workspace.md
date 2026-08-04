@@ -10,6 +10,66 @@ The former `@honua/sdk-js/scene-workspace` subpath is a deprecated 0.1.x
 forwarder. New applications should install `@honua/app-platform` plus only the
 optional renderer peers they use.
 
+## Support status: beta
+
+**Beta** (issue [#931](https://github.com/honua-io/honua-sdk-js/issues/931)).
+The renderer-neutral workspace state, the scene primitive contract, and the
+Cesium primitive adapter keep their shape through `@honua/app-platform` 0.1.x:
+no export is renamed or removed, and primitive kinds, diagnostic codes, and
+renderer capability flags grow additively only. Breaking one of those is a
+called-out change in a minor release, never a silent edit.
+
+What may still change inside beta:
+
+- Additive union members — a new primitive kind or diagnostic code can require a
+  new arm in an exhaustive `switch`.
+- The `cesium` optional-peer floor may rise within 0.1.x.
+- Server-authored 3D style types (`Honua3DStyleSpec` and friends) track the
+  Honua Server styling contract and may gain fields.
+
+**Still experimental, and deliberately not promoted by proximity:**
+
+| Surface | Why it is held back |
+| --- | --- |
+| Honua Server scene discovery (`listScenes`, `getScene`, `sceneToRuntimePrimitives`, …) | Server-attached; outside the open-endpoint evidence behind beta. |
+| `SceneView` and the elevation/analysis widgets | Execute against Honua Server analysis endpoints. |
+| `mountSourceToCesium` / `projectSourceToCesium` | Bounded entity slice, not the production adapter of `#395` — see [Experimental Cesium entity adapter](./cesium-entity-adapter.md). |
+
+The split is enumerated symbol by symbol under `packageLifecycle.surfaceTiers`
+in [`config/support-manifest.v1.json`](../config/support-manifest.v1.json) and
+projected into [`config/public-surface.json`](../config/public-surface.json). An
+export that no tier classifies fails `npm run support:check`, so a new symbol
+cannot inherit beta from the directory it lands in.
+
+Evidence backing the promotion — all release-gated, listed in the generated
+[surface tiers table](./standalone-capability-matrix.md#surface-tiers):
+
+- Workspace and state-sync fixtures: [`test/scene-workspace.test.ts`](../test/scene-workspace.test.ts),
+  [`test/scene-state-sync.test.ts`](../test/scene-state-sync.test.ts).
+- Cesium adapter fixtures, including the hardened model-layer contract:
+  [`test/cesium-scene-adapter.test.ts`](../test/cesium-scene-adapter.test.ts).
+- Bounded mount lifecycle — transactional apply, idempotent release, and
+  fail-closed limits: [`test/cesium-scene-mount.test.ts`](../test/cesium-scene-mount.test.ts).
+- CRS, vertical-datum, and fidelity diagnostics:
+  [`test/scene-primitive-spatial-diagnostics.test.ts`](../test/scene-primitive-spatial-diagnostics.test.ts).
+- Real-Cesium browser matrix and bounded teardown budgets, described in
+  [Real-Cesium browser evidence and teardown budgets](#real-cesium-browser-evidence-and-teardown-budgets):
+  [`test/playwright/cesium-scene-adapter-fixtures.spec.mjs`](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs).
+- Bundle isolation — core and 2D consumers never load Cesium, and the
+  `@honua/app-platform` split re-exports the scene surface:
+  [`scripts/verify-split-packages.mjs`](../scripts/verify-split-packages.mjs),
+  budgeted in [`bundle-budgets.json`](../bundle-budgets.json).
+
+Promotion adds no required dependency: `cesium` stays an optional peer that the
+adapter imports lazily, and no core or 2D bundle ceiling moved.
+
+**Caveat carried into beta.** The browser matrix is the S1 slice of `#928`: it
+crosses camera, quantized-mesh terrain, url-template imagery, a 3D-Tiles
+tileset, and a glTF/GLB model against real Cesium objects. WMS/WMTS/ArcGIS
+imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC
+floor are still tracked there, and those specific bindings carry unit-level
+evidence only.
+
 ## Sample Pattern
 
 ```ts doc-test=skip reason="partial excerpt requires application host context"
@@ -412,6 +472,161 @@ feature-detect it.
 
 The application owns the Cesium `Viewer`/`Scene` itself and must dispose that
 target separately.
+
+### Real-Cesium browser evidence and teardown budgets
+
+Everything above is also proven against the real `cesium` package in a real
+Chromium page, not only against the unit suite's `vi.mock("cesium")` seam. The
+lane lives in `test/playwright/cesium-scene-adapter-fixtures.spec.mjs` and runs
+inside the repository's normal browser smoke job:
+
+```bash
+npm run build
+npm run test:playwright:cesium-scene
+```
+
+The fixture mounts one accepted plan through the public
+`createCesiumSceneAdapter` surface onto a live `Viewer` and covers every
+primitive kind the adapter materializes, plus both non-`supported` outcomes:
+
+| Binding | Kind | Expected outcome |
+| --- | --- | --- |
+| `fixture-camera` | `camera` | camera driven to the plan's viewpoint |
+| `fixture-terrain` | `elevation-source` (`quantized-mesh`) | real `CesiumTerrainProvider`, exaggeration applied |
+| `fixture-imagery` | `imagery-layer` (`url-template`) | real `UrlTemplateImageryProvider`, opacity applied |
+| `fixture-imagery-mercator` | `imagery-layer` declaring `EPSG:3857` | renders, and reports `scene-primitive-crs-equivalent` at `equivalent` fidelity |
+| `fixture-tileset` | `model-layer` (`3d-tiles`) | real `Cesium3DTileset` with loaded content, placed by the primitive's `position` |
+| `fixture-model` | `model-layer` (`glb`) | real `Model`, ready, placed and scaled |
+| `fixture-i3s` | `model-layer` (`i3s`) | fails closed with `scene-primitive-model-format-not-materialized`; never reaches a Cesium factory |
+
+Every asset — the glTF/GLB, the 3D-Tiles tileset, the quantized-mesh terrain
+tiles, and the imagery tiles — is generated in-process by
+`test/playwright/cesium-scene-fixture-assets.mjs` and served from loopback. The
+spec aborts and fails on any off-origin request, so the lane has no network
+dependency at all.
+
+The plan is mounted and torn down repeatedly on fresh viewers, and the teardown
+of each cycle is measured against fixed budgets:
+
+- Adapter-owned handles are released **before** the viewer is destroyed: the
+  scene's primitive collection and imagery collection return to their baseline,
+  `terrainProvider` is cleared, and `verticalExaggeration` returns to `1`.
+- The viewer reports `isDestroyed()`, its canvas leaves the DOM, and no
+  `requestAnimationFrame` callback is left pending.
+- DOM event listener retention is constant per cycle and bounded. CesiumJS binds
+  a fixed handful of listeners to the widget's own elements and drops them with
+  the element rather than through `removeEventListener`, which is legitimate
+  because those elements are proven collectible; a listener that accumulates
+  across cycles is not.
+- Wall-clock ceilings guard against a teardown path that starts blocking rather
+  than against runner jitter; the spec records the measured actuals next to the
+  ceilings it asserts.
+- Every destroyed `Viewer` object graph must become collectible under forced GC,
+  and no WebGL canvas may outlive a non-final cycle. Chromium pins the most
+  recently used WebGL canvas regardless of what the page does, so exactly one
+  surviving canvas is the honest floor; a real retention bug accumulates across
+  cycles instead.
+- CesiumJS pools its `TaskProcessor` web workers globally and deliberately does
+  not terminate them on viewer destroy, so the worker budget is non-growth after
+  the first cycle rather than zero.
+
+Console errors and unhandled rejections fail the lane, matching the sample
+console-teardown gate.
+
+## Cesium scene mount lifecycle
+
+`applyCesiumScenePrimitives()` is a one-shot projection: it returns the layer
+handles it created and forgets them. Applying twice constructs a second set of
+providers, tilesets, and models, and the caller must remember every handle from
+the first call or leak it.
+
+`mountScenePrimitivesToCesium()` is the lifecycle-owning entry point. It applies
+the plan and returns one handle that owns every renderer resource the adapter
+created for as long as that plan is live. Applications hold the mount, not the
+handles.
+
+```ts doc-test=compile
+import {
+  type CesiumSceneRuntimeTarget,
+  type SceneRuntimePrimitive,
+  mountScenePrimitivesToCesium,
+} from "@honua/sdk-js/scene-workspace";
+
+declare const target: CesiumSceneRuntimeTarget;
+declare const acceptedPlan: readonly SceneRuntimePrimitive[];
+declare const revisedPlan: readonly SceneRuntimePrimitive[];
+declare const unmounted: AbortSignal;
+
+const mount = await mountScenePrimitivesToCesium(target, acceptedPlan, {
+  signal: unmounted,
+  maxLayers: 32,
+});
+
+// Revise the plan through the same mount: unchanged primitives are reused,
+// primitives that left the plan are disposed.
+const revision = await mount.apply(revisedPlan);
+console.log(revision.created, revision.reused, revision.disposed);
+
+// One call releases everything the mount owns.
+mount.dispose();
+```
+
+Four properties define the lifecycle.
+
+**Bounded.** A mount owns at most `maxLayers` layer handles
+(`DEFAULT_SCENE_MOUNT_LAYER_LIMIT`, 64, by default). The ceiling counts the
+elevation-source, imagery-layer, and model-layer primitives in the plan — the
+kinds that each pin one adapter-owned renderer resource — and is enforced before
+the Cesium peer is loaded. An over-budget plan is refused with a
+`HonuaCesiumSceneMountError` (`layer-limit-exceeded`) and the currently mounted
+plan is left exactly as it was, so the ceiling is an admission gate rather than a
+post-hoc count.
+
+**Diffed.** Identity is the primitive's kind and id together; configuration is a
+stable fingerprint of the whole primitive. A revision reuses each primitive whose
+identity *and* fingerprint are unchanged — its Cesium object is never
+reconstructed, so visibility and opacity the host applied to the handle survive
+the revision — and disposes exactly the handles whose primitive left the plan or
+changed. A primitive that cannot be fingerprinted deterministically is treated as
+changed and rebuilt, never assumed unchanged. An unchanged `camera` primitive is
+not re-applied either, so a revision that does not move the view does not yank a
+camera the user has navigated.
+
+**Cancellation-safe.** The mount accepts an `AbortSignal`, and `dispose()` fires
+its own. Aborting before materialization loads nothing. Aborting during
+materialization unwinds through the adapter's transactional rollback: everything
+already attached is removed and destroyed, and the terrain provider and vertical
+exaggeration are restored. The Cesium asset factories take no `AbortSignal`, so a
+load already in flight cannot be stopped at the peer — what the mount guarantees
+instead is that the resource it resolves to is destroyed and *never attached*,
+rather than landing in a scene the host has abandoned. Aborting a single
+`apply()` leaves the previously applied plan mounted and the mount usable.
+
+**Provably released.** `dispose()` releases every handle the mount owns, in
+reverse construction order, exactly once, and is idempotent. If a handle refuses
+to release, the failures are aggregated and thrown, the mount stays in
+`disposing`, and a later `dispose()` retries only what is still owned. The same
+retention applies to a handle that refused to release during a revision: the
+revision still lands, `scene-mount-disposal-incomplete` is reported, and the
+retained handle stays the mount's responsibility.
+
+Rollback is unchanged from the one-shot path: a failure mid-application restores
+the scene's pre-application terrain, imagery, and primitives, so a failed
+revision leaves the previously applied plan intact and a subsequent `dispose()`
+releases exactly that plan.
+
+Diagnostics stay plan-scoped. Every application re-diagnoses the whole plan
+against `CESIUM_SCENE_CAPABILITIES`, so a reused primitive still reports its
+current model-layer, terrain, and spatial-reference findings even though nothing
+was rebuilt for it. The mount adds one `scene-mount-applied` diagnostic per
+application whose `context` carries the revision number and the created, reused,
+and disposed ids. The two layers answer different questions: plan findings say
+whether a binding *can* render where its author meant it, and mount findings say
+what the renderer currently owns.
+
+`applyCesiumScenePrimitives()` keeps working unchanged for callers that do not
+need a lifecycle; it is the same engine with no diff, no ceiling, and no
+ownership.
 
 ## Demo Fit
 

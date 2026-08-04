@@ -73,9 +73,13 @@ options fail before mounting.
 
 ## Deliberate non-goals for this slice
 
-This is not completion of issue #395 and is not yet a beta Cesium adapter.
+This is not completion of issue #395, and this entity slice is explicitly held
+back from the `beta` tier that the surrounding
+[`@honua/app-platform/scene-workspace` surface](./scene-workspace.md#support-status-beta)
+carries: `mountSourceToCesium` and `projectSourceToCesium` stay `@experimental`
+and may change in any minor release.
 Terrain and imagery providers, glTF/models, point clouds and 3D Tiles continue
-through the existing scene primitive adapter. Multi-part geometry, vertical datum transforms, styling, clustering, streaming/tiled
+through the existing scene primitive adapter, which is beta. Multi-part geometry, vertical datum transforms, styling, clustering, streaming/tiled
 execution, live deltas, camera/selection/filter synchronization, attribution
 UI, asset authorization/caching, browser examples, and WebGL leak/performance
 certification remain future work.

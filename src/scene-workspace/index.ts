@@ -1,8 +1,25 @@
 /**
- * `@honua/sdk-js/scene-workspace` — framework-neutral 3D scene workspace state.
+ * `@honua/app-platform/scene-workspace` — framework-neutral 3D scene workspace
+ * state and the Cesium renderer adapter. `@honua/sdk-js/scene-workspace` is a
+ * deprecated 0.1.x forwarder onto this module.
  *
- * @experimental This entrypoint is not yet covered by the SDK's semver contract
- *   — the surface may change in any minor release prior to `1.0.0`.
+ * This barrel carries two support tiers, and they are enumerated symbol by
+ * symbol in `config/support-manifest.v1.json` (projected into
+ * `config/public-surface.json`) rather than inferred from the directory. The
+ * support gate fails on an export that no tier classifies, so nothing is
+ * promoted by proximity.
+ *
+ * @beta The renderer-neutral workspace state, the scene primitive contract, and
+ *   the Cesium primitive adapter keep their shape through `@honua/app-platform`
+ *   0.1.x: no export is renamed or removed, primitive discriminants and
+ *   diagnostic codes grow additively only, and Cesium stays a lazily imported
+ *   optional peer. Additive union members can still require a new arm in an
+ *   exhaustive `switch`, the `cesium` peer floor can rise within 0.1.x, and the
+ *   server-authored 3D style types track the Honua Server styling contract.
+ * @experimental Held back from the beta tier: Honua Server scene discovery, the
+ *   `SceneView` container, and the elevation/analysis widgets (server-attached,
+ *   outside the open-endpoint evidence), plus the bounded accepted-plan
+ *   `Source`-to-Cesium-entity slice. Those may change in any minor release.
  * @module
  */
 
@@ -83,6 +100,19 @@ export {
   resolvePickedFeatureAttributes,
   setTilesetStyle,
 } from "./cesium-adapter.js";
+export {
+  DEFAULT_SCENE_MOUNT_LAYER_LIMIT,
+  HonuaCesiumSceneMountError,
+  mountScenePrimitivesToCesium,
+} from "./cesium-mount.js";
+export type {
+  ApplyMountedScenePrimitivesOptions,
+  CesiumSceneMountErrorCode,
+  CesiumSceneMountState,
+  MountedCesiumScenePrimitives,
+  MountedScenePrimitiveApplyResult,
+  MountScenePrimitivesToCesiumOptions,
+} from "./cesium-mount.js";
 export type {
   AddCesium3DTilesetOptions,
   CesiumCameraLike,
@@ -96,6 +126,7 @@ export type {
   CesiumModelPlacement,
   CesiumPrimitiveCollectionLike,
   CesiumSceneLike,
+  CesiumSceneMaterializationOptions,
   CesiumSceneRuntimeTarget,
   CesiumTilesetLike,
   Honua3DStyleConditions,

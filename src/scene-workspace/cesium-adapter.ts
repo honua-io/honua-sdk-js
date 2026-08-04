@@ -21,8 +21,12 @@
  * adapter touches is read off the lazily-imported module, so the wiring is
  * exercised against a `vi.mock("cesium")` stub without a live WebGL `Viewer`.
  *
- * @experimental Part of the experimental `scene-workspace` surface; not yet
- *   covered by the SDK's semver contract prior to `1.0.0`.
+ * @beta Part of the beta `@honua/app-platform/scene-workspace` surface: the
+ *   adapter's exports are not renamed or removed through 0.1.x, and diagnostic
+ *   codes and renderer capability flags grow additively. The `cesium` peer floor
+ *   may rise within 0.1.x, and the server-authored 3D style types track the
+ *   Honua Server styling contract. See the surface tiers table in
+ *   `docs/standalone-capability-matrix.md`.
  * @module
  */
 
@@ -32,6 +36,8 @@ import {
   type SceneImageryLayerPrimitive,
   type SceneModelLayerPrimitive,
   type ScenePrimitiveApplyResult,
+  type ScenePrimitiveDiagnostic,
+  type ScenePrimitiveStatus,
   type SceneRuntimeAdapter,
   type SceneRuntimeCapabilities,
   type SceneRuntimePrimitive,
@@ -629,9 +635,25 @@ export async function applyTilesetServerStyle(
 }
 
 /**
+ * Cancellation shared by every adapter entry point that materializes a live
+ * renderer resource.
+ *
+ * The Cesium asset factories (`Cesium3DTileset.fromUrl`, `Model.fromGltfAsync`,
+ * `SingleTileImageryProvider.fromUrl`, …) take no `AbortSignal`, so a load that
+ * is already in flight cannot be stopped at the peer. What the signal *does*
+ * guarantee is the half that matters for teardown: an aborted load is never
+ * attached to the scene, and the resource it resolved to is destroyed before the
+ * rejection propagates. Nothing is stranded in a scene the host has abandoned.
+ */
+export interface CesiumSceneMaterializationOptions {
+  /** Abort the materialization. Checked before the load starts and again before the resource is attached. */
+  readonly signal?: AbortSignal;
+}
+
+/**
  * Options controlling {@link addCesium3DTileset}.
  */
-export interface AddCesium3DTilesetOptions {
+export interface AddCesium3DTilesetOptions extends CesiumSceneMaterializationOptions {
   /**
    * When `true` (the default), a tileset that advertises Honua styling metadata
    * (`extras.honua_style`) has its `style.json` sidecar fetched and applied
@@ -665,6 +687,7 @@ export async function addCesium3DTileset(
   options: AddCesium3DTilesetOptions = {},
 ): Promise<CesiumLayerHandle> {
   assertRenderableModelLayer(primitive);
+  options.signal?.throwIfAborted();
   const mod = cesium ?? (await loadCesium());
   const pointCloudShading = normalizePointCloudShading(primitive.pointCloudShading);
   const tileset = await (pointCloudShading
@@ -673,12 +696,17 @@ export async function addCesium3DTileset(
   // From here on the tileset is adapter-owned. A placement, style-sidecar, or
   // collection failure must not strand it: nothing else holds a reference, so
   // it would otherwise retain its GPU/worker resources for the process lifetime.
+  // An abort settled while the load was in flight lands here too, which is what
+  // keeps a cancelled tileset out of the scene entirely rather than attached and
+  // then detached.
   try {
+    options.signal?.throwIfAborted();
     if (primitive.position) {
       tileset.modelMatrix = placementToModelMatrix(mod, modelLayerToCesiumPlacement(primitive));
     }
     if (options.applyServerStyle !== false) {
       await applyTilesetServerStyle(tileset, primitive.uri, mod, options.fetchImpl ?? fetch.bind(globalThis));
+      options.signal?.throwIfAborted();
     }
     scene.primitives.add(tileset);
   } catch (error) {
@@ -698,8 +726,10 @@ export async function addCesiumModel(
   scene: CesiumSceneLike,
   primitive: SceneModelLayerPrimitive,
   cesium?: CesiumModule,
+  options: CesiumSceneMaterializationOptions = {},
 ): Promise<CesiumLayerHandle> {
   assertRenderableModelLayer(primitive);
+  options.signal?.throwIfAborted();
   const mod = cesium ?? (await loadCesium());
   const placement = modelLayerToCesiumPlacement(primitive);
   // `placementToModelMatrix` already folds the uniform scale into the model
@@ -711,6 +741,7 @@ export async function addCesiumModel(
     modelMatrix: placementToModelMatrix(mod, placement),
   });
   try {
+    options.signal?.throwIfAborted();
     scene.primitives.add(model);
   } catch (error) {
     destroyOwnedCesiumPrimitive(model);
@@ -793,6 +824,7 @@ export async function addCesiumImageryLayer(
   scene: CesiumSceneLike,
   primitive: SceneImageryLayerPrimitive,
   cesium?: CesiumModule,
+  options: CesiumSceneMaterializationOptions = {},
 ): Promise<CesiumLayerHandle> {
   const validation = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
     (diagnostic) => diagnostic.status === "unsupported",
@@ -801,11 +833,13 @@ export async function addCesiumImageryLayer(
   if (!scene.imageryLayers) {
     throw new Error("scene-primitive-imagery-target-missing: Cesium imageryLayers unavailable.");
   }
+  options.signal?.throwIfAborted();
 
   const mod = cesium ?? (await loadCesium());
   const provider = await createCesiumImageryProvider(primitive, mod);
   let layer: CesiumImageryLayerLike | undefined;
   try {
+    options.signal?.throwIfAborted();
     layer = scene.imageryLayers.addImageryProvider(provider);
     layer.alpha = primitive.opacity ?? 1;
   } catch (error) {
@@ -1121,7 +1155,9 @@ async function applyCesiumTerrainInternal(
   primitive: SceneElevationSourcePrimitive,
   cesium: CesiumModule | undefined,
   disposePreviousProvider: boolean,
+  signal?: AbortSignal,
 ): Promise<CesiumLayerHandle | undefined> {
+  signal?.throwIfAborted();
   assertRenderableTerrain(primitive);
   const url = typeof primitive.url === "string" && primitive.url.trim() !== "" ? primitive.url : undefined;
   if (primitive.exaggeration !== undefined && Number.isFinite(primitive.exaggeration)) {
@@ -1131,6 +1167,12 @@ async function applyCesiumTerrainInternal(
   const mod = cesium ?? (await loadCesium());
   const provider = await mod.CesiumTerrainProvider.fromUrl(url);
   if (provider && typeof provider === "object") ownedCesiumTerrainProviders.add(provider);
+  if (signal?.aborted) {
+    // The provider resolved into a scene the host has already abandoned. Release
+    // it here rather than installing it and relying on a rollback to notice.
+    disposeOwnedCesiumTerrainProvider(provider);
+    signal.throwIfAborted();
+  }
   const previousProvider = scene.terrainProvider;
   scene.terrainProvider = provider;
   if (disposePreviousProvider && previousProvider && previousProvider !== provider) {
@@ -1273,8 +1315,140 @@ export async function applyCesiumScenePrimitives(
   primitives: readonly SceneRuntimePrimitive[],
   _state?: SceneWorkspaceState,
 ): Promise<ScenePrimitiveApplyResult & { readonly layers: ReadonlyMap<string, CesiumLayerHandle> }> {
+  const application = await applyCesiumScenePrimitivesInternal(target, primitives);
+  return {
+    status: application.status,
+    diagnostics: application.diagnostics,
+    layers: application.layers,
+  };
+}
+
+/**
+ * Stable identity of a scene primitive within one mount: its kind and id.
+ *
+ * Identity is deliberately kind-qualified. Two primitives of different kinds may
+ * legitimately share an id (a terrain source and the imagery draped over it, for
+ * instance), and they own different renderer resources, so they must never be
+ * treated as revisions of one another.
+ *
+ * @internal
+ */
+export function scenePrimitiveMountKey(primitive: SceneRuntimePrimitive): string {
+  return `${primitive.kind} ${primitive.id}`;
+}
+
+/**
+ * A stable, order-independent fingerprint of a primitive's configuration, used
+ * to decide whether a revised plan's primitive is the *same* binding as the one
+ * already mounted.
+ *
+ * Returns `undefined` when the primitive cannot be fingerprinted deterministically
+ * (a cycle, or a non-serializable value smuggled through `metadata`). An absent
+ * fingerprint means "assume changed": the binding is rebuilt rather than reused,
+ * which costs a rebuild but can never leave a stale renderer resource claiming to
+ * satisfy a plan it no longer matches.
+ *
+ * @internal
+ */
+export function scenePrimitiveFingerprint(primitive: SceneRuntimePrimitive): string | undefined {
+  try {
+    return stableStringify(primitive, new Set<object>());
+  } catch {
+    return undefined;
+  }
+}
+
+function stableStringify(value: unknown, seen: Set<object>): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "function" || typeof value === "symbol") {
+    throw new TypeError("Scene primitives must be serializable to be fingerprinted.");
+  }
+  if (typeof value !== "object") return JSON.stringify(value) ?? "undefined";
+  const container = value as object;
+  if (seen.has(container)) throw new TypeError("Scene primitives must be acyclic to be fingerprinted.");
+  seen.add(container);
+  try {
+    if (Array.isArray(value)) return `[${value.map((entry) => stableStringify(entry, seen)).join(",")}]`;
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, entryValue]) => entryValue !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return `{${entries.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableStringify(entryValue, seen)}`).join(",")}}`;
+  } finally {
+    seen.delete(container);
+  }
+}
+
+/**
+ * Options for the internal apply engine that both {@link applyCesiumScenePrimitives}
+ * and the mount lifecycle share.
+ *
+ * @internal
+ */
+export interface ApplyCesiumScenePrimitivesInternalOptions {
+  /**
+   * Cancels the application. Checked before the Cesium peer loads, between
+   * primitives, and inside each materialization before its resource is attached.
+   * An abort unwinds through the same rollback path as any other failure, so the
+   * scene is left exactly as it was before the application started.
+   */
+  readonly signal?: AbortSignal;
+  /**
+   * Keys (see {@link scenePrimitiveMountKey}) whose primitive is unchanged since
+   * the previous application. A present key is skipped entirely — no renderer
+   * resource is constructed for it — and its value, when defined, is the live
+   * handle carried forward into this application's result.
+   */
+  readonly reuse?: ReadonlyMap<string, CesiumLayerHandle | undefined>;
+}
+
+/**
+ * The outcome of one application: the diagnostics and layer handles that
+ * {@link applyCesiumScenePrimitives} exposes, plus the per-key ownership record
+ * and reuse accounting the mount lifecycle needs to diff the next revision.
+ *
+ * @internal
+ */
+export interface CesiumScenePrimitiveApplication {
+  readonly status: ScenePrimitiveStatus;
+  readonly diagnostics: readonly ScenePrimitiveDiagnostic[];
+  readonly layers: ReadonlyMap<string, CesiumLayerHandle>;
+  /** Every plan key mapped to the handle it owns (`undefined` for handle-less kinds). */
+  readonly mounted: ReadonlyMap<string, CesiumLayerHandle | undefined>;
+  /** Ids of primitives whose renderer resource was constructed by this application. */
+  readonly created: readonly string[];
+  /** Ids of primitives whose renderer resource was carried forward untouched. */
+  readonly reused: readonly string[];
+}
+
+/**
+ * The application engine behind both the one-shot
+ * {@link applyCesiumScenePrimitives} and the {@link CesiumLayerHandle}-owning
+ * mount lifecycle.
+ *
+ * Two properties hold regardless of how it is driven:
+ *
+ * - **Transactional.** Any failure — including an abort — removes every handle
+ *   this application created, in reverse construction order, and restores the
+ *   terrain provider and vertical exaggeration the scene had on entry. Handles
+ *   carried in through `reuse` are never touched, so a failed revision leaves
+ *   the previously applied plan intact.
+ * - **Ownership-complete.** Every renderer resource it constructs is either
+ *   returned in `mounted` or destroyed before the call returns. Nothing is
+ *   reachable only from a discarded local.
+ *
+ * @internal
+ */
+export async function applyCesiumScenePrimitivesInternal(
+  target: CesiumSceneRuntimeTarget,
+  primitives: readonly SceneRuntimePrimitive[],
+  options: ApplyCesiumScenePrimitivesInternalOptions = {},
+): Promise<CesiumScenePrimitiveApplication> {
+  const { signal, reuse } = options;
+  signal?.throwIfAborted();
   const diagnostics = [...diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES)];
   const cesium = await loadCesium();
+  signal?.throwIfAborted();
   const toCartesian = (longitude: number, latitude: number, height: number): unknown =>
     cesium.Cartesian3.fromDegrees(longitude, latitude, height);
   const unsupportedPrimitives = new Set(
@@ -1285,35 +1459,60 @@ export async function applyCesiumScenePrimitives(
     ),
   );
   const layers = new Map<string, CesiumLayerHandle>();
+  const mounted = new Map<string, CesiumLayerHandle | undefined>();
+  const created: string[] = [];
+  const reused: string[] = [];
   const appliedHandles: CesiumLayerHandle[] = [];
   const deferredTerrainProviders: unknown[] = [];
   const scene = target.scene;
   const originalTerrainProvider = scene?.terrainProvider;
   const originalVerticalExaggeration = scene?.verticalExaggeration;
   let terrainWasApplied = false;
-  const registerHandle = (handle: CesiumLayerHandle): void => {
+  const registerHandle = (key: string, handle: CesiumLayerHandle): void => {
     appliedHandles.push(handle);
     layers.get(handle.id)?.remove();
     layers.set(handle.id, handle);
+    mounted.set(key, handle);
+    created.push(handle.id);
   };
 
   try {
     for (const primitive of primitives) {
-      if (primitive.kind === "camera") {
-        applyCameraStateToCesiumCamera(target.camera, primitive.camera, toCartesian);
+      signal?.throwIfAborted();
+      const key = scenePrimitiveMountKey(primitive);
+      if (reuse?.has(key)) {
+        // Unchanged since the last application: skip materialization entirely so
+        // the live resource — and any visibility/opacity the host set on it —
+        // survives the revision.
+        const carried = reuse.get(key);
+        mounted.set(key, carried);
+        if (carried) {
+          layers.set(carried.id, carried);
+          reused.push(carried.id);
+        }
         continue;
       }
-      if (!scene || unsupportedPrimitives.has(primitive)) continue;
+      if (primitive.kind === "camera") {
+        applyCameraStateToCesiumCamera(target.camera, primitive.camera, toCartesian);
+        mounted.set(key, undefined);
+        continue;
+      }
+      if (!scene || unsupportedPrimitives.has(primitive)) {
+        mounted.set(key, undefined);
+        continue;
+      }
 
       if (primitive.kind === "elevation-source") {
         const previousProvider = scene.terrainProvider;
         terrainWasApplied = true;
-        const handle = await applyCesiumTerrainInternal(scene, primitive, cesium, false);
+        const handle = await applyCesiumTerrainInternal(scene, primitive, cesium, false, signal);
         if (handle) {
           if (previousProvider && previousProvider !== scene.terrainProvider) {
             deferredTerrainProviders.push(previousProvider);
           }
-          registerHandle(handle);
+          registerHandle(key, handle);
+        } else {
+          mounted.set(key, undefined);
         }
         continue;
       }
@@ -1329,21 +1528,26 @@ export async function applyCesiumScenePrimitives(
             message: "Cesium imageryLayers unavailable.",
             fallback: "Attach a complete Cesium scene target before applying imagery.",
           });
+          mounted.set(key, undefined);
           continue;
         }
-        registerHandle(await addCesiumImageryLayer(scene, primitive, cesium));
+        registerHandle(key, await addCesiumImageryLayer(scene, primitive, cesium, { ...(signal ? { signal } : {}) }));
         continue;
       }
       if (primitive.kind === "model-layer") {
         // Only materialized formats reach here: anything else already diagnosed
         // as unsupported above and was filtered into `unsupportedPrimitives`.
+        const materializationOptions = { ...(signal ? { signal } : {}) };
         if (primitive.format === "3d-tiles") {
-          registerHandle(await addCesium3DTileset(scene, primitive, cesium));
+          registerHandle(key, await addCesium3DTileset(scene, primitive, cesium, materializationOptions));
         } else {
-          registerHandle(await addCesiumModel(scene, primitive, cesium));
+          registerHandle(key, await addCesiumModel(scene, primitive, cesium, materializationOptions));
         }
+        continue;
       }
+      mounted.set(key, undefined);
     }
+    signal?.throwIfAborted();
     for (const provider of [...deferredTerrainProviders].reverse()) disposeOwnedCesiumTerrainProvider(provider);
   } catch (cause) {
     const rollbackErrors: unknown[] = [];
@@ -1376,6 +1580,9 @@ export async function applyCesiumScenePrimitives(
     status: summarizeDiagnosticStatus(diagnostics),
     diagnostics,
     layers,
+    mounted,
+    created,
+    reused,
   };
 }
 

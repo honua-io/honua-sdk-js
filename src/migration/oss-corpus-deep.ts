@@ -51,6 +51,15 @@ export interface OssArcGisDeepCodemodSummary {
   totalCallSites: number;
   autoMigratedCallSites: number;
   manualCallSites: number;
+  /**
+   * Call sites the codemod declined because migrating them would have handed a
+   * compat value to an ArcGIS module it does not migrate (#1012).
+   *
+   * A subset of `manualCallSites`. Optional because observations published
+   * before the codemod could see seams do not carry the field, and a missing
+   * count must not read as a measured zero.
+   */
+  seamCallSites?: number;
   filesChanged: number;
   compatImportPath: string;
 }
@@ -388,6 +397,18 @@ export function formatOssArcGisDeepBuildMarkdown(manifest: OssArcGisCorpusManife
         ].join(" "),
       );
       lines.push("");
+      if (app.codemod.seamCallSites !== undefined && app.codemod.seamCallSites > 0) {
+        lines.push(
+          [
+            `${app.codemod.seamCallSites} of those TODOs`,
+            `${app.codemod.seamCallSites === 1 ? "is a held-back rewrite" : "are held-back rewrites"}: the construct`,
+            "is in codemod scope, but its value flows into an ArcGIS module the codemod does not migrate, so",
+            "rewriting it would have left a compat value in an un-migrated ArcGIS consumer's hands (#1012).",
+            "Held-back call sites are counted as manual, never as auto-migrated.",
+          ].join(" "),
+        );
+        lines.push("");
+      }
     }
 
     lines.push("| Step | Baseline | Migrated |");

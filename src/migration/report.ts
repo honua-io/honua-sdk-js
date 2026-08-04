@@ -42,6 +42,18 @@ export interface JsMigrationReport {
    * claim as "usage found and fully handled".
    */
   usageDetected: boolean;
+  /**
+   * Codemod-scoped call sites the codemod declined because migrating them
+   * would have handed a compat value to an ArcGIS module it does not migrate
+   * (#1012).
+   *
+   * These are counted in `manualRewriteMetric.numerator`, never in
+   * `codemodResult.metrics.autoMigratedCallSites` — a rewrite that does not
+   * typecheck is not an auto-migration. The count is surfaced separately so
+   * the corpus lane and the fixtures lane can gate on "this app has seams"
+   * without re-deriving it from TODO reason strings.
+   */
+  seamCallSites: number;
   readiness: MigrationReadiness;
   gates: MigrationGateResult[];
   manualTodosByKind: Record<CodemodConstructorKind, number>;
@@ -130,6 +142,7 @@ export function buildJsMigrationReport(
       unhandledUsageHits,
     },
     usageDetected,
+    seamCallSites: codemodResult.metrics.seamCallSites ?? 0,
     readiness,
     gates,
     manualTodosByKind,

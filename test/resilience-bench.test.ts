@@ -89,6 +89,13 @@ describe("deterministic resilience benchmark", () => {
     });
   });
 
+  // This case regenerates the *entire* benchmark corpus, so its budget tracks
+  // corpus size rather than anything it asserts. The corpus now carries three
+  // million-row columnar scenarios (#946, #939, #942); the other seven measure
+  // 11.7s together and all eight measure 12.6s, so the previous 15s budget was
+  // one heavy scenario away from flaking on a loaded runner regardless of which
+  // scenario landed next. What this case actually gates is secrecy, not
+  // duration, so the budget is set for headroom rather than kept tight.
   it("derives secrecy from the complete generated v2 report and fails a leaked cursor value", async () => {
     const report = await createBenchmarkReport({ corpus: "bench/corpus.json", budgets: "bench/budgets.json" });
     const resilience = report.scenarios.filter((scenario) => scenario.invariants.semantics);
@@ -138,5 +145,5 @@ describe("deterministic resilience benchmark", () => {
     });
     expect(evaluation.level).toBe("failure");
     expect(evaluation.items).toContainEqual(expect.objectContaining({ metric: "artifact-safety", level: "failure" }));
-  }, 15_000);
+  }, 45_000);
 });

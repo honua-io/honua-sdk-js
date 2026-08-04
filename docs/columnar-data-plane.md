@@ -432,12 +432,77 @@ acknowledged result is validated against the same batch ceilings before the
 next request starts.
 
 Cancellation before dispatch removes the request without transferring its
-buffers. Cancellation after dispatch sends the versioned cancel message and
-retires the worker transport; queued work resumes on a newly created worker.
-This makes cancellation deterministic even when an application operator fails
-to observe its `AbortSignal`. Worker operators should still poll the signal so
-worker-local resources are released promptly. Late or duplicate messages from
-a retired worker cannot settle another request.
+buffers. Late or duplicate messages from a retired worker cannot settle another
+request.
+
+## Session guarantees
+
+These are the guarantees a caller may rely on. Each one is covered by
+`test/columnar-streaming.test.ts`.
+
+### Ownership
+
+A queued batch stays caller-owned: only the single active request is
+transferred, so at most one batch's backing allocation is in flight per session
+no matter how much work is offered. A rejected request never transfers
+anything, so its buffers are still attached and still the caller's to release.
+A returned result batch is owned by the caller that received it.
+
+### Cancellation and the cancellation race
+
+Aborting an in-flight request settles that caller with `aborted` immediately —
+the session never waits on the worker to report the outcome. The versioned
+cancel message is then posted and the transport is quarantined until the worker
+reports a terminal outcome for the cancelled request:
+
+- A cooperative operation that observes `context.signal` reports its abort well
+  inside the window. The transport is not retired, the session returns to
+  `idle`, and the next request reuses the warm worker.
+- A worker that does not report within `cancelAcknowledgementMs` (50 by
+  default, validated as a non-negative safe integer) is retired, and queued work
+  resumes on a newly created worker. This keeps cancellation bounded even when
+  an operator ignores its `AbortSignal`.
+- A result that raced the cancellation is discarded together with the buffers
+  it transferred. It can never settle the aborted caller, and it can never be
+  mistaken for the next request's result.
+
+Worker operators should poll `context.signal` so worker-local resources are
+released promptly and the worker stays warm across a user-initiated cancel.
+
+### Queue ceiling
+
+`maxPendingRequests` (16 by default, and inclusive of the active request) is a
+hard ceiling validated at session creation: it must be a positive safe integer.
+Once the ceiling is reached every further `execute()` rejects with `queue-full`
+before the batch is queued or transferred, so sustained overflow is refused at
+a constant queue depth rather than accumulating.
+
+### Batch stream ordering
+
+`streamOrdering` defaults to `none`, which treats each request as independent
+and preserves whatever `sequence` and `rowOffset` the caller declared. A
+session that carries one ordered stream can opt into `strict`, which requires
+each accepted batch to declare a `sequence` greater than the previous accepted
+batch and, when `rowOffset` is declared, a `rowOffset` equal to the previous
+`rowOffset + rowCount`. A decreasing sequence, a duplicated sequence, a
+`rowOffset` gap, and an inconsistently declared `rowOffset` are each rejected
+with `invalid-request` before the batch is transferred, so the drifting batch
+stays caller-owned. The cursor advances when a batch is accepted, not when it
+completes, because a queue holds several batches before any of them settle.
+
+Under either mode, requests complete strictly first-in-first-out in submission
+order, and each result carries the identity of exactly the batch that produced
+it.
+
+### Disposal
+
+`dispose()` is idempotent. It settles the active request and every queued
+request with `disposed`, and afterwards `execute()` rejects with `disposed`
+rather than queueing. Disposal does not restore ownership of the active
+request's backing buffers, which were already detached by the transfer; queued
+callers' buffers were never transferred and remain attached.
+
+### Fail-closed behaviour
 
 The main session and worker host both fail closed on protocol-version drift,
 unknown operations, batch/metric disagreement, invalid or decreasing progress,
@@ -450,6 +515,133 @@ a failure-contained listener/read seam, so a throwing foreign signal settles
 the request instead of losing it. A closed host transport can prevent a response
 from being delivered, but that delivery failure is contained and the host still
 releases its active-request slot without an unhandled rejection.
+
+## Bounded conversion to object `Result`s
+
+`columnarBatchToResult` converts a bounded, contiguous row window of a batch
+into the protocol-neutral `Result` the rest of the SDK speaks, and
+`resultToColumnarBatch` converts one back. They exist so the columnar plane is
+opt-in rather than all-or-nothing: a popup, a table page, an export, or a
+`Result`-shaped assertion no longer forces an application to abandon the
+columnar path and re-execute its query on the object path.
+
+Both directions require an explicit `maxFeatures` ceiling. The ceiling is the
+point of the API, not a guard rail on it: feature objects cost roughly two
+orders of magnitude more memory per row than the packed columns they are read
+from, so an unbounded conversion is exactly the silent materialization the
+columnar plane exists to avoid. There is no sentinel, no `Infinity`, and no
+options object that disables it — `maxFeatures` must be a positive safe
+integer, and a window larger than it throws `HonuaGeoArrowError` with code
+`row-limit-exceeded` naming both the ceiling and the requested count. The
+ceiling is checked against plain counts before the batch is inspected, so a
+refused conversion allocates no feature object and reads no payload.
+
+`DEFAULT_COLUMNAR_RESULT_MAX_FEATURES` (100,000) is exported as a documented
+conservative starting point. It is deliberately **not** applied implicitly:
+`maxFeatures` is always written at the call site so the cost of materialization
+stays visible in the calling code.
+
+`offset` and `limit` select the window; they default to the whole batch, which
+the ceiling then bounds. Conversion cost is proportional to the window rather
+than to the batch, so a thousand-row page off a million-row batch does not pay
+for the batch: the per-row payload validation that the unbounded
+`inspectGeoArrowBatch` performs over every coordinate, dictionary index, and
+dictionary value is performed here only for the rows actually materialized.
+
+Geometry becomes GeoJSON, preserving point, linestring, and polygon kinds,
+null geometry, empty geometry, coordinate order, and `xy`/`xyz` dimensions.
+`xym` and `xyzm` batches are refused with `unsupported-layout` rather than
+silently stripped, because GeoJSON has no representation for an M coordinate.
+The batch's declared CRS is surfaced on the returned `Result` as `crs`, as
+either a serialized CRS string or a PROJJSON object; when the batch declares
+none, `crs` is undefined and consumers must not assume EPSG:4326.
+
+Feature-id, timestamp, and dictionary columns become attributes under their
+declared column names. A timestamp attribute is the Arrow value as a `bigint`
+in the column's declared unit — never a `Date` and never epoch milliseconds —
+so microsecond and nanosecond batches round-trip exactly. A dictionary
+attribute carries the decoded string. A null timestamp or dictionary value
+becomes an explicit `null` attribute, never an omitted key and never a zero. A
+feature-id column is not nullable. The returned `Result.fields` declares the
+attribute schema.
+
+The returned `Result` also carries a `columnar` provenance block holding the
+source batch's id, schema, sequence, window bounds, geometry layout, attribute
+bindings, and its full `ColumnarBatchIdentityV1`. The identity is copied and
+never re-observed, so a bounded object view can never look fresher, differently
+ordered, or differently scoped than the batch it was cut from.
+`resultToColumnarBatch` defaults every layout and identity option from that
+block, so a round trip needs only a ceiling. A plain object-path `Result` must
+instead supply `id`, `schemaId`, `identity`, and any attribute binding it wants
+lifted into a typed column.
+
+```ts doc-test=skip reason="the source batch is produced by an application's own query execution"
+const page = columnarBatchToResult(batch, { offset: 0, limit: 100, maxFeatures: 500 });
+page.features[0].geometry; // { type: "Point", coordinates: [-157.8, 21.3] }
+page.crs; // "EPSG:3857" | PROJJSON | undefined
+page.columnar.identity.freshness; // the batch's own freshness, not a new observation
+
+const roundTripped = resultToColumnarBatch(page, { maxFeatures: 500 });
+```
+
+### Nothing is dropped quietly
+
+The forward direction is complete by construction: a normative GeoArrow batch
+carries exactly a geometry column plus optional temporal, dictionary, and
+feature-id columns, and every one of them lands on the converted feature. There
+is no loss to report because there is no loss.
+
+The inverse direction is where an object `Result` can carry more than a columnar
+batch can hold, so `resultToColumnarBatch` **fails closed** with
+`unsupported-layout` on any attribute no column binding covers, naming the
+attribute and the feature index. `unmappedAttributes: "drop"` is the only way
+past it, and even then every dropped name comes back sorted on
+`droppedAttributes`, so the loss is stated rather than assumed. A conversion
+that never sets the option can treat its result as lossless without checking.
+
+The same discipline governs the rest of the inverse direction: `xym`/`xyzm`
+geometry is refused rather than stripped of its M coordinate, a geometry type
+outside point/linestring/polygon is refused rather than approximated, a window
+mixing geometry kinds is refused rather than split, and an Esri geometry
+envelope is refused rather than guessed at.
+
+### Streaming a whole batch
+
+`columnarBatchToResultPages` walks a batch as a sequence of bounded pages. It is
+how a caller converts more of a batch than one window without raising the
+ceiling: each page is a complete, independently valid `Result` bounded by
+`maxFeatures`, and only the page a consumer is holding is live, so streaming a
+million-row batch to a file retains one page rather than a million features.
+
+```ts doc-test=skip reason="the source batch and the row sink are application-owned"
+for await (const page of columnarBatchToResultPages(batch, {
+  pageSize: 1_000,
+  maxFeatures: 1_000,
+  signal: controller.signal,
+})) {
+  await writeRows(page.features);
+}
+```
+
+Pages are emitted in ascending row order, contiguous and non-overlapping, so
+concatenating every page's `features` reproduces exactly the sequence a single
+window over the same range would have produced. An empty range yields no pages
+rather than one empty page.
+
+Cancellation is cooperative and real rather than decorative. `signal` is checked
+before each page and every 1,024 rows inside one, and — because a synchronous
+loop in a single-threaded runtime can never observe an abort no matter how often
+it polls — the traversal hands control back to the host task queue every 16,384
+rows and between pages. That is what gives the poll something to find when the
+abort is raised by a task: a worker message, a timer, or a user gesture. An
+aborted traversal rejects with an `AbortError` `DOMException` and never
+materializes the remaining pages. An already-aborted signal is refused before
+the batch is inspected at all.
+
+Conversion is derived and is not cached. The
+`columnar.result.bounded-window` benchmark-lab scenario carries the memory and
+throughput budgets for both directions; see
+[`bench/README.md`](../bench/README.md).
 
 ## Typed errors
 
@@ -484,5 +676,6 @@ releases its active-request slot without an unhandled rejection.
 This slice does not claim the full #394 workstream. Arrow IPC decoding,
 multi-batch streaming across more than one in-flight worker, planner
 integration, renderer consumption, batch cache identity, incremental
-re-aggregation over realtime patches, application-specific CSP worker URL
-policy, and bounded conversion back to feature objects remain separate work.
+re-aggregation over realtime patches, and application-specific CSP worker URL
+policy remain separate work. Converting a batch that is mid-patch also remains
+out of scope: the realtime columnar patch child owns patch-consistent views.

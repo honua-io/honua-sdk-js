@@ -44,7 +44,8 @@ export class WFSLayerCompat {
   public opacity: number;
   public visible: boolean;
   public listMode: string;
-  public outFields: ReadonlyArray<string> | undefined;
+  /** Mutable to match the ArcGIS declaration (`string[]`); see #1013. */
+  public outFields: string[] | undefined;
   public customParameters: Record<string, string>;
   public spatialReference: { wkid?: number };
   public loaded: boolean;
@@ -63,7 +64,7 @@ export class WFSLayerCompat {
     this.opacity = options.opacity ?? 1;
     this.visible = options.visible ?? true;
     this.listMode = options.listMode ?? "show";
-    this.outFields = options.outFields;
+    this.outFields = options.outFields === undefined ? undefined : [...options.outFields];
     this.customParameters = { ...(options.customParameters ?? {}) };
     this.spatialReference = options.spatialReference ?? { wkid: 4326 };
     this.loaded = false;
