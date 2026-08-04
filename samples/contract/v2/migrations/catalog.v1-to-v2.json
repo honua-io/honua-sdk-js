@@ -686,13 +686,13 @@
     {
       "id": "offline-region-reference",
       "title": "Network-disabled offline region reference",
-      "summary": "Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, and reports one composed local-first state.",
+      "summary": "Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, then replays that edit exactly once against a loopback fixture transport on reconnect and reports one composed local-first state.",
       "sourceKind": "docs-example",
       "track": "fixture",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Retain as browser evidence for the disconnected-read and composed local-first state acceptance slices of the experimental offline region contract."
+        "reason": "Retain as browser evidence for the disconnected-read, offline edit capture and reconnect replay, and composed local-first state acceptance slices of the experimental offline region contract."
       },
       "sourcePath": "docs/examples/offline-region-reference",
       "docsPath": "docs/examples/offline-region-reference/README.md",
@@ -711,7 +711,7 @@
         "authMode": "none",
         "configurationStatus": "not-required",
         "config": [],
-        "provenance": "One committed integrity-, length-, and version-pinned fixture served from an isolated loopback origin and persisted through the public IndexedDB offline contract.",
+        "provenance": "One committed integrity-, length-, and version-pinned fixture served from an isolated loopback origin and persisted through the public IndexedDB offline contract; edit replay is bound to a loopback fixture endpoint that mirrors the documented acknowledgement shape and keeps no replica, upload cursor, or conflict store.",
         "attribution": "Honua deterministic incident fixture.",
         "freshness": "Explicit online observation time and stale disconnected diagnostic time."
       },
@@ -729,7 +729,7 @@
           "commands": []
         }
       },
-      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss and a partial/missing-regions local-first state that a queued edit cannot mask; the fixture does not synthesize an empty success or claim reconnect, edit replay, or server synchronization.",
+      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss and a partial/missing-regions local-first state that a queued edit cannot mask, and a conflicted, mismatched, or retryable acknowledgement leaves durable typed queue state instead of a silent drop; the fixture does not synthesize an empty success and its loopback replay endpoint does not claim replica synchronization or end-to-end exactly-once server semantics.",
       "validationProfile": "browser-fixture",
       "validation": [
         "npx playwright test test/playwright/offline-indexeddb.spec.mjs"
