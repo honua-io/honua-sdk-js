@@ -1,0 +1,71 @@
+{
+  "reproducibilityPolicy": {
+    "captureCount": 2,
+    "comparison": "byte-identical",
+    "scope": "same-page-session",
+    "animations": "disabled",
+    "stabilization": [
+      "map-idle",
+      "css-animation-freeze",
+      "fonts-ready",
+      "scroll-origin",
+      "double-animation-frame"
+    ],
+    "runtimeBinding": [
+      "playwright-version",
+      "project-name",
+      "browser-name",
+      "browser-version",
+      "platform",
+      "architecture"
+    ]
+  },
+  "runtime": {
+    "playwrightVersion": "1.58.2",
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "browserVersion": "145.0.7632.6",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "screenshots": [
+    {
+      "variant": "desktop",
+      "projectName": "chromium",
+      "browserName": "chromium",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "path": "samples/evidence/maplibre-quickstart/runs/6ae778f1-3f30-424b-8413-ce84e6960911/artifacts/screenshot-desktop.png",
+      "bytes": 173936,
+      "sha256": "18537195ee8fb97d6a3fa58546ba0a3f51546daf4232d94fdfd1837bf6400cbe",
+      "reproducibility": {
+        "captureCount": 2,
+        "comparison": "byte-identical",
+        "repeatPath": "samples/evidence/maplibre-quickstart/runs/6ae778f1-3f30-424b-8413-ce84e6960911/artifacts/screenshot-desktop-repeat.png",
+        "repeatBytes": 173936,
+        "repeatSha256": "18537195ee8fb97d6a3fa58546ba0a3f51546daf4232d94fdfd1837bf6400cbe"
+      }
+    },
+    {
+      "variant": "mobile",
+      "projectName": "chromium",
+      "browserName": "chromium",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "samples/evidence/maplibre-quickstart/runs/6ae778f1-3f30-424b-8413-ce84e6960911/artifacts/screenshot-mobile.png",
+      "bytes": 60376,
+      "sha256": "9401c34987ea6d639c99e5d78c7563f8ee80962b176d33b3400ecac21176f29c",
+      "reproducibility": {
+        "captureCount": 2,
+        "comparison": "byte-identical",
+        "repeatPath": "samples/evidence/maplibre-quickstart/runs/6ae778f1-3f30-424b-8413-ce84e6960911/artifacts/screenshot-mobile-repeat.png",
+        "repeatBytes": 60376,
+        "repeatSha256": "9401c34987ea6d639c99e5d78c7563f8ee80962b176d33b3400ecac21176f29c"
+      }
+    }
+  ]
+}
