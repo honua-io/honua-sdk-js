@@ -27,6 +27,7 @@
  */
 
 import {
+  RENDERER_WGS84_SPATIAL_CAPABILITIES,
   type SceneElevationSourcePrimitive,
   type SceneImageryLayerPrimitive,
   type SceneModelLayerPrimitive,
@@ -71,6 +72,10 @@ export const CESIUM_SCENE_CAPABILITIES: SceneRuntimeCapabilities = {
     materializedFormats: ["gltf", "glb", "3d-tiles"],
   },
   sceneLayerMetadata: true,
+  // The globe is the WGS84 ellipsoid. Web Mercator bindings are accepted
+  // because Cesium reprojects them onto that globe itself; nothing else is,
+  // because this adapter never reinterprets coordinates or heights.
+  spatial: RENDERER_WGS84_SPATIAL_CAPABILITIES,
 };
 
 /**
@@ -766,6 +771,23 @@ function assertRenderableModelLayer(primitive: SceneModelLayerPrimitive): void {
 }
 
 /**
+ * Fail closed on an unrenderable elevation source *before* the scene's terrain
+ * provider or vertical exaggeration is touched, mirroring
+ * {@link assertRenderableModelLayer}.
+ *
+ * Every terrain protocol reaches Cesium through `CesiumTerrainProvider.fromUrl`,
+ * which rejects opaquely on a missing or malformed endpoint — and an elevation
+ * source in an unhonorable CRS or vertical datum would place the whole globe's
+ * heights wrong while reporting success. Neither may reach a live scene.
+ */
+function assertRenderableTerrain(primitive: SceneElevationSourcePrimitive): void {
+  const validation = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
+    (diagnostic) => diagnostic.status === "unsupported",
+  );
+  if (validation) throw new Error(`${validation.code}: ${validation.message}`);
+}
+
+/**
  * Project validated point-cloud shading onto Cesium's `PointCloudShading`
  * option bag, dropping absent fields so Cesium keeps its own defaults instead
  * of receiving explicit `undefined`s. Returns `undefined` when nothing is set.
@@ -1132,6 +1154,7 @@ async function applyCesiumTerrainInternal(
   signal?: AbortSignal,
 ): Promise<CesiumLayerHandle | undefined> {
   signal?.throwIfAborted();
+  assertRenderableTerrain(primitive);
   const url = typeof primitive.url === "string" && primitive.url.trim() !== "" ? primitive.url : undefined;
   if (primitive.exaggeration !== undefined && Number.isFinite(primitive.exaggeration)) {
     scene.verticalExaggeration = primitive.exaggeration;

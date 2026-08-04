@@ -95,6 +95,7 @@ import {
   compileQueryFilterToSql92,
   compileTemporalFilterToGeoServicesTime,
   compileTemporalFilterToOgcDatetime,
+  queryFilterConstraints,
   queryFilterHasSpatial,
   temporalFilterToExpression,
 } from "./query-filter.js";
@@ -4301,7 +4302,37 @@ function queryFilterContext(descriptor: SourceDescriptor, geometryProperty?: str
     protocol: descriptor.protocol,
     sourceId: descriptor.id,
     ...(geometryProperty !== undefined ? { geometryProperty } : {}),
+    ...descriptorQueryFilterConstraints(descriptor),
   };
+}
+
+/**
+ * Bind this source's evaluated capability profile into the filter gate.
+ *
+ * A profile is per-source evidence, so it narrows — never widens — what the
+ * protocol's grammar allows: a GeoServices layer whose evidence advertises only
+ * `esriSpatialRelIntersects`, or an OGC collection whose queryables list omits
+ * `LIKE`, refuses those constructs by name even though the protocol could carry
+ * them. Sources without a profile keep the protocol-level behaviour, because
+ * absent evidence is not evidence of absence.
+ */
+function descriptorQueryFilterConstraints(
+  descriptor: SourceDescriptor,
+): Pick<
+  QueryFilterContext,
+  "supportedFilterOperators" | "supportedSpatialPredicates" | "supportedTemporalPredicates" | "constraintSource"
+> {
+  const constraints = descriptor.capabilityProfile?.entries.find((entry) => entry.id === "query")?.constraints;
+  if (!constraints) return {};
+  const bound = queryFilterConstraints(constraints);
+  if (
+    bound.supportedFilterOperators === undefined &&
+    bound.supportedSpatialPredicates === undefined &&
+    bound.supportedTemporalPredicates === undefined
+  ) {
+    return {};
+  }
+  return { ...bound, constraintSource: "capability-profile" };
 }
 
 /**
