@@ -271,6 +271,7 @@ export type HonuaGeoArrowErrorCode =
   | "vertex-limit-exceeded"
   | "ring-limit-exceeded"
   | "dictionary-limit-exceeded"
+  | "group-limit-exceeded"
   | "copy-limit-exceeded"
   | "serialization-limit-exceeded"
   | "unsupported-serialization"

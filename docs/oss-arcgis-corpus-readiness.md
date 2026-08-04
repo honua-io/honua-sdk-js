@@ -10,7 +10,7 @@ Every other migration number Honua publishes comes from Honua-authored fixtures.
 The corpus pins 6 public GitHub repositories at an exact commit with a reviewed permissive license. No third-party source is vendored here — the lane clones into an ignored scratch directory, analyzes the working copy, and keeps only the structured records below.
 
 - Observation generated: `2026-08-04T02:41:27.182Z`
-- Manifest revision: `2026-08-03`
+- Manifest revision: `2026-08-04`
 - Codemod target: `honua-compat`
 - Lane: opt-in only (`HONUA_OSS_ARCGIS_CORPUS_ENABLED=true`), never part of pull-request CI, static analysis only (no live Esri service contact).
 
@@ -286,6 +286,10 @@ Top manual-TODO kinds:
 Top ArcGIS modules outside codemod scope:
 
 - `@arcgis/core/layers/support/FeatureEffect` (`static-import`) — 1
+
+## Does the result still build?
+
+Call-site ratios do not answer that. A separate, separately-gated lane installs a pinned app's real dependency tree, runs the codemod over it, installs the packed compat packages, and builds the result — measuring the same commit twice so only the delta is attributed to the migration. See [post-codemod build validation](./oss-arcgis-corpus-post-codemod-build.md).
 
 ## Reproducing this page
 

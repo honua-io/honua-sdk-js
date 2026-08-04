@@ -269,6 +269,7 @@ const NAV_GROUPS = [
       "docs/esri-sample-corpus.md",
       "docs/oss-arcgis-corpus.md",
       "docs/oss-arcgis-corpus-readiness.md",
+      "docs/oss-arcgis-corpus-post-codemod-build.md",
     ],
   },
 ];
