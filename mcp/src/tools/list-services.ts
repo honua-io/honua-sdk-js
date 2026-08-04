@@ -2,6 +2,13 @@ import type { HonuaClient } from "@honua/sdk-js";
 import { z } from "zod";
 import { jsonText, mapWithConcurrency, metadataErrorText } from "../helpers.js";
 
+/**
+ * `honua_list_services` — the GeoServices-specific service catalog.
+ *
+ * Retained for existing clients; `honua_list_sources` is the protocol-neutral
+ * replacement (#1005), because "what services are under /rest/services?" is a
+ * question only an Esri endpoint can answer.
+ */
 export const schema = z.object({
   includeDetails: z
     .boolean()
@@ -30,7 +37,7 @@ export async function execute(client: HonuaClient, input: Input) {
       services: [],
       reason: `service catalog is not available on this target: ${err instanceof Error ? err.message : String(err)}`,
       guidance:
-        "No /rest/services directory here. Call honua_describe_layer / honua_query_features with a known serviceId and layerId, or point the base URL at an ArcGIS folder that lists services.",
+        "No /rest/services directory here — this tool only sees a GeoServices catalog. Call honua_list_sources, which probes every protocol family this endpoint may publish (OGC API Features included) and returns protocol-neutral source references.",
     });
   }
   const services = (response.services ?? []).filter((s) => s.type === "FeatureServer");
