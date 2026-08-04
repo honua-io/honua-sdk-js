@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 165,
-      "signatureSha256": "6883b0def68721ed2fe45418f069c4457d03830544fa134b39b4dfe05369ee41",
+      "signatureSha256": "0a7f4a53c4cb62703d51695b3427430e2eaea1ecbfb200ba2bf997227175631a",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -178,7 +178,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 165,
-      "signatureSha256": "6883b0def68721ed2fe45418f069c4457d03830544fa134b39b4dfe05369ee41",
+      "signatureSha256": "0a7f4a53c4cb62703d51695b3427430e2eaea1ecbfb200ba2bf997227175631a",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -350,8 +350,8 @@
     {
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
-      "exportCount": 1180,
-      "signatureSha256": "5492859821cc210b54bc00238d0894767cf58d43a63451ad3fc4bafae256b209",
+      "exportCount": 1181,
+      "signatureSha256": "b82e0b269c42add43a2c2f7012f6ba3e46370da22625e7e2b02d61d34e67e60a",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -1013,6 +1013,7 @@
         "OgcProcessExecuteRequest — interface",
         "OgcProcessInputs — type",
         "OgcProcessIoValue — type",
+        "OgcProcessJobRequest — interface",
         "OgcProcessStatus — type",
         "OgcProcessesDiscoveryOptions — interface",
         "OgcProcessesDiscoveryResult — interface",
@@ -1568,7 +1569,7 @@
       "subpath": "@honua/sdk-js/contract",
       "types": "dist/src/contract/index.d.ts",
       "exportCount": 452,
-      "signatureSha256": "d86f313697df8a4a105d805be99bf44d647f6ba33eb2430125d3f04777785296",
+      "signatureSha256": "6264061ae9ecbd2fd47f96c6e8b0e31bffc51cb523a7b6ec75b0ddf2291f9a02",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -2028,7 +2029,7 @@
       "subpath": "@honua/sdk-js/esri-compat",
       "types": "dist/src/esri-compat-entry.d.ts",
       "exportCount": 500,
-      "signatureSha256": "cab699def71f2087cda27870b03db9231027717e36a6bc401a4b132312a13d19",
+      "signatureSha256": "e4d6ba26af381598153202452b915ebba691b1aaf98a6dd660efbf156dd70300",
       "exports": [
         "ArcGisTokenInterceptorOptions — interface",
         "AreaMeasurement2DCompat — class",
