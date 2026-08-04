@@ -6,8 +6,9 @@ transfer primitive, a normative GeoArrow 0.2 mapping, and a lazy bounded
 worker-session protocol. The GeoArrow mapping is independently interpretable
 without loading an Arrow implementation; the optional Apache Arrow adapter is
 loaded only when explicitly requested.
-It does not decode Arrow or ship built-in filter/reprojection/aggregation
-operators. Applications register those operations in their worker module.
+It does not decode Arrow. It ships bounded reprojection and aggregation
+operations that applications register in their own worker module; every other
+operation stays application-owned.
 
 The entrypoint is experimental while the broader planner, streaming, renderer,
 and realtime work in issue #394 is completed.
@@ -284,6 +285,92 @@ the output CRS or semantics change. The operation remains bounded by the
 normal GeoArrow conversion ceilings and reports `decode`, `reproject`, and
 `complete` progress stages.
 
+### Bounded aggregation
+
+`createGeoArrowAggregateOperation()` is the one reducing operation. It scans the
+batch's packed buffer views only — it never calls `decodeGeoArrowBatch()` and
+never allocates a per-input-row object — so a million-row batch can become a
+chart, a legend, a histogram, or a binned overlay without materializing a
+million JavaScript features. Peak retained memory is bounded by the group count
+rather than the row count.
+
+Rows are grouped by the dictionary column, by the temporal column truncated to
+`second`, `minute`, `hour`, or `day`, or by a regular spatial grid cell derived
+from the geometry column. Metrics are `count`, `sum`, `min`, `max`, and `mean`
+over `featureId`, `temporal`, or a point geometry ordinate (`x`, `y`, `z`, `m`).
+
+```ts doc-test=skip reason="worker-host registration and batch identity are application-owned"
+const byClass = createGeoArrowAggregateOperation({
+  id: "incidents:by-class",
+  schemaId: "incidents@7:class-count-v1",
+  group: { kind: "dictionary" },
+  metrics: [
+    { name: "features", kind: "count" },
+    { name: "meanLongitude", kind: "mean", column: "x" },
+  ],
+  maxGroups: 4_096,
+});
+
+startColumnarWorkerHost({ transport, operations: { byClass } });
+```
+
+The result is a small Honua columnar batch in the `honua.aggregate` layout whose
+row count is the group count. `readGeoArrowAggregateBatch()` decodes it into
+group keys and metric values; that materialization is bounded by the group
+ceiling the operation already enforced.
+
+Fixed semantics, all of them explicit:
+
+- Output rows are ordered ascending by group key, with the declared null group
+  last, and that ordering is recorded in the result batch identity.
+- A null dictionary value, a null timestamp, and a null or empty geometry form
+  the declared null group, or are dropped entirely when `nullKeys: "skip"`.
+- A group with no non-null input yields a **null** `sum`, `min`, `max`, or
+  `mean` — never zero. A `count` is always a number, including zero.
+- A non-finite metric value fails closed with `HonuaGeoArrowError` rather than
+  poisoning a sum. Batch payload validation already refuses a non-finite
+  coordinate with `invalid-batch` before the scan starts, so the reduction's own
+  `invalid-input` guard is the backstop behind that contract.
+- Exceeding `maxGroups` (default 65,536, including the null group) fails closed
+  with `HonuaGeoArrowError` (`group-limit-exceeded`) before the output batch is
+  allocated. The input batch is never mutated.
+- The result identity records the source identity, the group specification, and
+  the metric specification, so two different aggregations of one source cannot
+  collide in a downstream cache.
+- The scan checks `signal` at least every 8,192 rows and yields to the host task
+  queue every 16,384 rows, so a cancelled million-row aggregation settles
+  promptly and the worker host stays reusable. Progress is reported as
+  `inspect`, `scan`, `encode`, and `complete`.
+
+#### Determinism
+
+A reduction that is not deterministic is not cacheable, and this is the first
+columnar operation whose output is small enough to be worth caching. Three
+things could otherwise make one input produce two different results.
+
+- **Worker scheduling.** The scan yields so a cancel can land, but the
+  arithmetic never observes the scheduler: accumulation is one sequential pass
+  and a yield only suspends it. `yieldIntervalRows` is therefore a pure
+  performance knob — changing it cannot change one output byte, and the
+  benchmark scenario asserts exactly that on every repetition.
+- **Group ordering.** Groups are emitted ascending by key, never in first-seen
+  or hash-iteration order, so two batches holding the same rows in a different
+  layout produce the same output order. Two dictionary entries encoding the same
+  string collapse into one group rather than into whichever index appeared
+  first, so an encoder's dictionary layout cannot leak into the result.
+- **Floating-point associativity.** `count`, `min`, and `max` are
+  order-independent by construction. `sum` and `mean` are not: a naive running
+  total makes the reported value depend on the order rows were visited in, and
+  `[1e16, 1, 1, -1e16]` accumulates left to right to `0` when the exact answer
+  is `2`. Both use Kahan–Babuška–Neumaier compensation instead, carrying each
+  addition's discarded low-order bits in a second group-indexed accumulator and
+  folding them in once at the end. That is a bound on the error rather than a
+  proof of bit-identity under every conceivable permutation, but it removes the
+  cancellation family that makes naive accumulation order-dependent in practice.
+
+The `columnar.aggregate.million-row` benchmark-lab scenario carries the memory
+and throughput budgets for this operation; see [`bench/README.md`](../bench/README.md).
+
 `createColumnarWorkerSession()` supplies the lifecycle missing from a raw
 `postMessage` call: lazy worker creation, a bounded serial queue, exact request
 correlation, monotonic progress, cross-thread cancellation, returned-batch
@@ -394,9 +481,8 @@ releases its active-request slot without an unhandled rejection.
 
 ## Deliberate remaining scope
 
-This slice does not claim the full #394 workstream. Arrow IPC decoding, built-in
-filter/projection/reprojection/aggregation operators, multi-batch streaming
-across more than one in-flight worker, planner integration, renderer
-consumption, batch cache identity, realtime patches, application-specific CSP
-worker URL policy, and bounded conversion back to feature objects remain
-separate work.
+This slice does not claim the full #394 workstream. Arrow IPC decoding,
+multi-batch streaming across more than one in-flight worker, planner
+integration, renderer consumption, batch cache identity, incremental
+re-aggregation over realtime patches, application-specific CSP worker URL
+policy, and bounded conversion back to feature objects remain separate work.

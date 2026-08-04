@@ -38,6 +38,7 @@ import { createDeckGlAdapter } from "../src/deckgl/adapter.js";
 import { bindColumnarBatchToDeckGl } from "../src/deckgl/columnar.js";
 import type { DeckGlLayer } from "../src/deckgl/types.js";
 import { COLUMNAR_FIXTURE_BUFFER_IDS, buildColumnarBatchFixture } from "./columnar-fixture.js";
+import { collectGarbage, retainedBytes } from "./retained-memory.js";
 
 /** The registered worker operation name used by this scenario. */
 const OPERATION = "columnar-data-plane.scan";
@@ -130,24 +131,6 @@ interface DataPlaneRun {
 
 type MessageListener = (event: ColumnarWorkerMessageEvent) => void;
 type FaultListener = (event: ColumnarWorkerFaultEvent) => void;
-
-/** Live JavaScript heap plus live `ArrayBuffer` bytes, the two costs this plane can grow. */
-function retainedBytes(): number {
-  const usage = process.memoryUsage();
-  return usage.heapUsed + usage.arrayBuffers;
-}
-
-/**
- * Force a collection so the memory baseline contains no carried-over garbage.
- * Returns false when Node was started without `--expose-gc`, which makes the
- * retained-memory reading unsound and fails the scenario.
- */
-function collectGarbage(): boolean {
-  const collect = (globalThis as { gc?: () => void }).gc;
-  if (typeof collect !== "function") return false;
-  collect();
-  return true;
-}
 
 /**
  * Adapt one `MessagePort` to the SDK's transport seam. A `MessageChannel` gives
