@@ -345,12 +345,74 @@ acknowledged result is validated against the same batch ceilings before the
 next request starts.
 
 Cancellation before dispatch removes the request without transferring its
-buffers. Cancellation after dispatch sends the versioned cancel message and
-retires the worker transport; queued work resumes on a newly created worker.
-This makes cancellation deterministic even when an application operator fails
-to observe its `AbortSignal`. Worker operators should still poll the signal so
-worker-local resources are released promptly. Late or duplicate messages from
-a retired worker cannot settle another request.
+buffers. Late or duplicate messages from a retired worker cannot settle another
+request.
+
+## Session guarantees
+
+These are the guarantees a caller may rely on. Each one is covered by
+`test/columnar-streaming.test.ts`.
+
+### Ownership
+
+A queued batch stays caller-owned: only the single active request is
+transferred, so at most one batch's backing allocation is in flight per session
+no matter how much work is offered. A rejected request never transfers
+anything, so its buffers are still attached and still the caller's to release.
+A returned result batch is owned by the caller that received it.
+
+### Cancellation and the cancellation race
+
+Aborting an in-flight request settles that caller with `aborted` immediately —
+the session never waits on the worker to report the outcome. The versioned
+cancel message is then posted and the transport is quarantined until the worker
+reports a terminal outcome for the cancelled request:
+
+- A cooperative operation that observes `context.signal` reports its abort well
+  inside the window. The transport is not retired, the session returns to
+  `idle`, and the next request reuses the warm worker.
+- A worker that does not report within `cancelAcknowledgementMs` (50 by
+  default) is retired, and queued work resumes on a newly created worker. This
+  keeps cancellation bounded even when an operator ignores its `AbortSignal`.
+- A result that raced the cancellation is discarded together with the buffers
+  it transferred. It can never settle the aborted caller, and it can never be
+  mistaken for the next request's result.
+
+Worker operators should poll `context.signal` so worker-local resources are
+released promptly and the worker stays warm across a user-initiated cancel.
+
+### Queue ceiling
+
+`maxPendingRequests` (16 by default, and inclusive of the active request) is a
+hard ceiling validated at session creation: it must be a positive safe integer.
+Once the ceiling is reached every further `execute()` rejects with `queue-full`
+before the batch is queued or transferred, so sustained overflow is refused at
+a constant queue depth rather than accumulating.
+
+### Batch stream ordering
+
+`streamOrdering` defaults to `none`, which treats each request as independent
+and preserves whatever `sequence` and `rowOffset` the caller declared. A
+session that carries one ordered stream can opt into `strict`, which requires
+each accepted batch to declare a `sequence` greater than the previous accepted
+batch and, when `rowOffset` is declared, a `rowOffset` equal to the previous
+`rowOffset + rowCount`. A decreasing sequence, a duplicated sequence, a
+`rowOffset` gap, and an inconsistently declared `rowOffset` are each rejected
+with `invalid-request` before the batch is transferred, so the drifting batch
+stays caller-owned. The cursor advances when a batch is accepted, not when it
+completes, because a queue holds several batches before any of them settle.
+
+Under either mode, requests complete strictly first-in-first-out in submission
+order, and each result carries the identity of exactly the batch that produced
+it.
+
+### Disposal
+
+`dispose()` is idempotent. It settles the active request and every queued
+request with `disposed`, and afterwards `execute()` rejects with `disposed`
+rather than queueing. Disposal does not restore ownership of the active
+request's backing buffers, which were already detached by the transfer; queued
+callers' buffers were never transferred and remain attached.
 
 The main session and worker host both fail closed on protocol-version drift,
 unknown operations, batch/metric disagreement, invalid or decreasing progress,
