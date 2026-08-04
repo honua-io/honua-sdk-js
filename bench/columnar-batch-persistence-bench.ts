@@ -16,18 +16,20 @@
  *
  * Three properties are budgeted in `bench/budgets.json`, matching the issue's
  * NFRs: envelope efficiency against the batch's own backing bytes, round-trip
- * rows/second, and peak retained bytes per row. Retained memory is read at stage
- * boundaries from a **collected** baseline, exactly as the data-plane harness
- * does, and the scenario fails closed when no collector is available rather than
- * publishing a reading a mid-run collection may have deflated.
+ * rows/second, and peak retained bytes per row.
+ *
+ * Memory is read at each stage boundary immediately after a forced collection —
+ * the baseline included, and always outside a timed region — so the reported
+ * number is bytes still reachable rather than bytes not yet swept. The
+ * data-plane harness collects only for its baseline because a peak over
+ * uncollected garbage is a sound *ceiling* there; here the same reading would
+ * report twice the retained bytes and gate on encoder scratch instead of on the
+ * result. The scenario fails closed when no collector is available rather than
+ * publishing an unsound reading.
  */
 import { performance } from "node:perf_hooks";
 
-import {
-  createGeoArrowBatch,
-  deserializeGeoArrowBatch,
-  serializeGeoArrowBatch,
-} from "../src/columnar/index.js";
+import { createGeoArrowBatch, deserializeGeoArrowBatch, serializeGeoArrowBatch } from "../src/columnar/index.js";
 import type { ColumnarBatchIdentityV1, ColumnarBatchV1 } from "../src/columnar/index.js";
 
 const IDENTITY: ColumnarBatchIdentityV1 = {
@@ -218,12 +220,10 @@ function runOnce(rowCount: number): PersistenceRun {
     checks: {
       rowCountPreserved: restored.batch.rowCount === rowCount,
       backingBytesPreserved: restored.metrics.backingBytes === backingBytes,
-      coordinatesPreserved:
-        restoredCoordinates.length === rowCount * 2 && restoredCoordinates[0] === firstCoordinate,
+      coordinatesPreserved: restoredCoordinates.length === rowCount * 2 && restoredCoordinates[0] === firstCoordinate,
       envelopeWithinCallerLimit: envelope.byteLength <= maxSerializedBytes,
       currentEnvelopeVersion: restored.metrics.envelopeVersion === "1.1" && restored.metrics.migrations.length === 0,
-      legacyEnvelopeMigrates:
-        migrated.metrics.migrations.join(",") === "1.0->1.1" && migrated.batch.rowCount === 1_000,
+      legacyEnvelopeMigrates: migrated.metrics.migrations.join(",") === "1.0->1.1" && migrated.batch.rowCount === 1_000,
       collectedBaseline,
     },
   };

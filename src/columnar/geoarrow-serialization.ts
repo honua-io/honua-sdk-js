@@ -208,7 +208,7 @@ function readEnvelope(
   input: Uint8Array | ArrayBuffer,
   limit: number,
   migrations: readonly GeoArrowEnvelopeMigrationV1[],
-): { envelope: SerializedEnvelope; byteLength: number; applied: readonly string[]; storedVersion: string } {
+): { envelope: SerializedEnvelope; byteLength: number; applied: readonly string[] } {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   if (bytes.byteLength > limit) {
     fail(`GeoArrow envelope is ${bytes.byteLength} bytes; the limit is ${limit}.`, "serialization-limit-exceeded");
@@ -270,7 +270,6 @@ function readEnvelope(
     envelope: migrated as unknown as SerializedEnvelope,
     byteLength: bytes.byteLength,
     applied: plan.steps,
-    storedVersion,
   };
 }
 
