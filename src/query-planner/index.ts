@@ -236,6 +236,33 @@ export {
   serializeGeoArrowBatch,
   toApacheArrowRecordBatch,
 } from "../columnar/index.js";
+// Bounded conversion between a columnar batch and an object `Result` (#942).
+// It shipped documented as part of this entrypoint but was never re-exported
+// here, so it was unreachable through a subpath; the telemetry seam below
+// observes it, which requires a caller able to reach it.
+export {
+  DEFAULT_COLUMNAR_RESULT_MAX_FEATURES,
+  columnarBatchToResult,
+  columnarBatchToResultPages,
+  resultToColumnarBatch,
+} from "../columnar/index.js";
+export type {
+  ColumnarBatchToResultOptions,
+  ColumnarBatchToResultPagesOptions,
+  ColumnarGeoJsonGeometry,
+  ColumnarGeoJsonGeometryType,
+  ColumnarResult,
+  ColumnarResultAttributeBinding,
+  ColumnarResultDictionaryBinding,
+  ColumnarResultFeatureIdBinding,
+  ColumnarResultGeometryDescriptor,
+  ColumnarResultProvenance,
+  ColumnarResultTemporalBinding,
+  ResultToColumnarBatchAttributeOptions,
+  ResultToColumnarBatchGeometryOptions,
+  ResultToColumnarBatchOptions,
+  ResultToColumnarBatchResult,
+} from "../columnar/index.js";
 export {
   COLUMNAR_PATCH_ABORT_CHECK_ROWS,
   COLUMNAR_PATCH_KIND,
