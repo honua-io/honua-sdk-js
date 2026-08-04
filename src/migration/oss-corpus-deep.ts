@@ -100,6 +100,8 @@ export interface OssArcGisDeepRun {
   generatedAt: string;
   manifestRevision: string;
   honuaVersion: string;
+  /** Honua's pinned TypeScript, which runs the probe identically in both phases. */
+  typescriptVersion: string;
   optInEnvVars: string[];
   supplyChain: OssArcGisDeepSupplyChain;
   summary: OssArcGisDeepRunSummary;
@@ -215,10 +217,11 @@ export interface BuildOssArcGisDeepRunOptions {
   apps: readonly OssArcGisDeepAppResult[];
   generatedAt: string;
   honuaVersion: string;
+  typescriptVersion: string;
 }
 
 export function buildOssArcGisDeepRun(options: BuildOssArcGisDeepRunOptions): OssArcGisDeepRun {
-  const { manifest, apps, generatedAt, honuaVersion } = options;
+  const { manifest, apps, generatedAt, honuaVersion, typescriptVersion } = options;
   const building = apps.filter(
     (app) => app.outcome === "builds-clean" || app.outcome === "builds-with-new-diagnostics",
   );
@@ -229,6 +232,7 @@ export function buildOssArcGisDeepRun(options: BuildOssArcGisDeepRunOptions): Os
     generatedAt,
     manifestRevision: manifest.revision,
     honuaVersion,
+    typescriptVersion,
     optInEnvVars: [manifest.lane.optInEnvVar, manifest.deepValidation.optInEnvVar],
     supplyChain: manifest.deepValidation.supplyChain,
     summary: {
@@ -290,6 +294,12 @@ export function formatOssArcGisDeepBuildMarkdown(manifest: OssArcGisCorpusManife
   lines.push(`- Observation generated: \`${run.generatedAt}\``);
   lines.push(`- Manifest revision: \`${run.manifestRevision}\``);
   lines.push(`- Honua packages under test: \`${run.honuaVersion}\` (packed from \`dist/packages\`, never a registry)`);
+  lines.push(
+    [
+      `- Typecheck probe: TypeScript \`${run.typescriptVersion}\`, resolved from this repository so both phases`,
+      "run the identical compiler",
+    ].join(" "),
+  );
   lines.push(`- Opt-in: both \`${run.optInEnvVars.join("=true` and `")}=true\` are required`);
   lines.push("");
 

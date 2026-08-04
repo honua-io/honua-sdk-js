@@ -266,6 +266,7 @@ describe("buildOssArcGisDeepRun", () => {
       apps: [record],
       generatedAt: "2026-08-04T00:00:00.000Z",
       honuaVersion: "0.0.0-test",
+      typescriptVersion: "5.9.3",
     });
 
     expect(run.format).toBe(OSS_ARCGIS_DEEP_BUILD_FORMAT);

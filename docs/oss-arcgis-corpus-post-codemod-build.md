@@ -9,9 +9,10 @@ The [readiness page](./oss-arcgis-corpus-readiness.md) counts call sites. It can
 
 Every app is measured **twice at the same commit with the same dependency tree** — once pristine (`baseline`) and once after `codemod --write` (`migrated`). Third-party apps carry their own pre-existing type errors, so only the *delta* is attributable to the migration. Diagnostics that were already there are reported as the app's, not as ours.
 
-- Observation generated: `2026-08-04T08:29:55.369Z`
+- Observation generated: `2026-08-04T08:58:52.826Z`
 - Manifest revision: `2026-08-04`
 - Honua packages under test: `0.1.2-beta.0` (packed from `dist/packages`, never a registry)
+- Typecheck probe: TypeScript `5.9.3`, resolved from this repository so both phases run the identical compiler
 - Opt-in: both `HONUA_OSS_ARCGIS_CORPUS_ENABLED=true` and `HONUA_OSS_ARCGIS_CORPUS_DEEP=true` are required
 
 ## Supply-chain posture

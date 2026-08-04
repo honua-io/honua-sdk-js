@@ -1,9 +1,10 @@
 {
   "format": "honua.sdk.oss-arcgis-corpus-deep-build.v1",
   "schemaVersion": 1,
-  "generatedAt": "2026-08-04T08:29:55.369Z",
+  "generatedAt": "2026-08-04T08:58:52.826Z",
   "manifestRevision": "2026-08-04",
   "honuaVersion": "0.1.2-beta.0",
+  "typescriptVersion": "5.9.3",
   "optInEnvVars": [
     "HONUA_OSS_ARCGIS_CORPUS_ENABLED",
     "HONUA_OSS_ARCGIS_CORPUS_DEEP"
@@ -47,15 +48,15 @@
         "command": "npm ci --ignore-scripts --no-audit --no-fund",
         "status": "passed",
         "exitCode": 0,
-        "durationMs": 32183,
-        "outputTail": "added 120 packages in 32s"
+        "durationMs": 85926,
+        "outputTail": "added 120 packages in 33s\nwith-build-lock: all 4 build slot(s) busy; waiting up to 3600s..."
       },
       "honuaInstall": {
         "command": "npm install --ignore-scripts --no-save <packed honua tarballs>",
         "status": "passed",
         "exitCode": 0,
-        "durationMs": 9518,
-        "outputTail": "added 63 packages in 9s"
+        "durationMs": 11943,
+        "outputTail": "added 63 packages in 12s"
       },
       "codemod": {
         "totalCallSites": 7,
@@ -66,18 +67,18 @@
       },
       "baseline": {
         "typecheck": {
-          "command": "npx tsc --noEmit -p tsconfig.honua-deep-probe.json",
+          "command": "node <honua tsc> --noEmit -p tsconfig.honua-deep-probe.json",
           "status": "failed",
           "exitCode": 2,
-          "durationMs": 2996,
+          "durationMs": 3526,
           "outputTail": "src/features/map/loadOwlFeatureLayer.jsx(30,17): error TS2353: Object literal may only specify known properties, and 'type' does not exist in type 'SymbolProperties'.\nsrc/features/map/mapSlice.jsx(8,3): error TS2322: Type 'void' is not assignable to type 'HTMLDivElement'.\nsrc/features/map/mapSlice.jsx(16,27): error TS2339: Property 'owl' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(21,35): error TS2339: Property 'map' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(23,27): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(24,29): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(25,21): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(27,7): error TS2367: This comparison appears to be unintentional because the types 'boolean' and 'string' have no overlap.\nsrc/features/map/mapSlice.jsx(27,19): error TS2339: Property 'owlLayerLoaded' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(74,7): error TS2739: Type '{}' is missing the following properties from type 'WritableDraft<{ species: any; obscured: boolean; year: any; }>': species, obscured, year\nsrc/features/owls/getOwls.jsx(83,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/features/owls/getOwls.jsx(89,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'."
         },
         "build": {
           "command": "npm run build",
           "status": "passed",
           "exitCode": 0,
-          "durationMs": 35221,
-          "outputTail": "dist/assets/ExpandedCIM-6c8d45a7.js                                           172.37 kB │ gzip:  48.07 kB\ndist/assets/WGLContainer-d1d30089.js                                          189.29 kB │ gzip:  44.81 kB\ndist/assets/arcadeUtils-acb200bf.js                                           257.87 kB │ gzip:  62.60 kB\ndist/assets/Popup-7bcb1a21.js                                                 439.76 kB │ gzip: 106.94 kB\ndist/assets/geometryEngineBase-00448903.js                                    627.77 kB │ gzip: 188.01 kB\ndist/assets/index-9d8f26df.js                                               1,470.47 kB │ gzip: 418.73 kB\n✓ built in 34.02s\n(!) %VITE_WEBSITE_TITLE% is not defined in env variables found in /index.html. Is the variable mistyped?\n(!) Some chunks are larger than 500 kBs after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
+          "durationMs": 45107,
+          "outputTail": "dist/assets/ExpandedCIM-6c8d45a7.js                                           172.37 kB │ gzip:  48.07 kB\ndist/assets/WGLContainer-d1d30089.js                                          189.29 kB │ gzip:  44.81 kB\ndist/assets/arcadeUtils-acb200bf.js                                           257.87 kB │ gzip:  62.60 kB\ndist/assets/Popup-7bcb1a21.js                                                 439.76 kB │ gzip: 106.94 kB\ndist/assets/geometryEngineBase-00448903.js                                    627.77 kB │ gzip: 188.01 kB\ndist/assets/index-9d8f26df.js                                               1,470.47 kB │ gzip: 418.73 kB\n✓ built in 43.44s\n(!) %VITE_WEBSITE_TITLE% is not defined in env variables found in /index.html. Is the variable mistyped?\n(!) Some chunks are larger than 500 kBs after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
         },
         "diagnostics": [
           "src/components/ClearFiltersButton.jsx: error TS2345: Argument of type 'AsyncThunkAction<{ species: any; obscured: any; year: any; }, void, AsyncThunkConfig>' is not assignable to parameter of type 'AnyAction'.",
@@ -111,18 +112,18 @@
       },
       "migrated": {
         "typecheck": {
-          "command": "npx tsc --noEmit -p tsconfig.honua-deep-probe.json",
+          "command": "node <honua tsc> --noEmit -p tsconfig.honua-deep-probe.json",
           "status": "failed",
           "exitCode": 2,
-          "durationMs": 2727,
+          "durationMs": 2417,
           "outputTail": "src/features/map/loadMap.jsx(47,9): error TS2353: Object literal may only specify known properties, and 'type' does not exist in type 'RendererProperties'.\nsrc/features/map/mapSlice.jsx(8,3): error TS2322: Type 'void' is not assignable to type 'string | HTMLElement'.\nsrc/features/map/mapSlice.jsx(16,27): error TS2339: Property 'owl' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(21,35): error TS2339: Property 'map' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(23,27): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(24,29): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(25,21): error TS2322: Type 'void' is not assignable to type 'object'.\nsrc/features/map/mapSlice.jsx(27,7): error TS2367: This comparison appears to be unintentional because the types 'boolean' and 'string' have no overlap.\nsrc/features/map/mapSlice.jsx(27,19): error TS2339: Property 'owlLayerLoaded' does not exist on type 'unknown'.\nsrc/features/map/mapSlice.jsx(74,7): error TS2739: Type '{}' is missing the following properties from type 'WritableDraft<{ species: any; obscured: boolean; year: any; }>': species, obscured, year\nsrc/features/owls/getOwls.jsx(83,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'.\nsrc/features/owls/getOwls.jsx(89,24): error TS2339: Property 'env' does not exist on type 'ImportMeta'."
         },
         "build": {
           "command": "npm run build",
           "status": "passed",
           "exitCode": 0,
-          "durationMs": 26482,
-          "outputTail": "dist/assets/Pipeline-c8a20f29.js                                              152.04 kB │ gzip:  42.59 kB\ndist/assets/objectResourceUtils-86120fb6.js                                   182.41 kB │ gzip:  49.29 kB\ndist/assets/arcadeUtils-04433ab0.js                                           257.90 kB │ gzip:  62.61 kB\ndist/assets/SymbolProcessor-44748a3f.js                                       276.36 kB │ gzip:  78.36 kB\ndist/assets/geometryEngineBase-e0437424.js                                    627.78 kB │ gzip: 188.02 kB\ndist/assets/index-47d29eb0.js                                               1,178.92 kB │ gzip: 346.10 kB\n✓ built in 25.58s\n(!) %VITE_WEBSITE_TITLE% is not defined in env variables found in /index.html. Is the variable mistyped?\n(!) Some chunks are larger than 500 kBs after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
+          "durationMs": 32226,
+          "outputTail": "dist/assets/Pipeline-c8a20f29.js                                              152.04 kB │ gzip:  42.59 kB\ndist/assets/objectResourceUtils-86120fb6.js                                   182.41 kB │ gzip:  49.29 kB\ndist/assets/arcadeUtils-04433ab0.js                                           257.90 kB │ gzip:  62.61 kB\ndist/assets/SymbolProcessor-44748a3f.js                                       276.36 kB │ gzip:  78.36 kB\ndist/assets/geometryEngineBase-e0437424.js                                    627.78 kB │ gzip: 188.02 kB\ndist/assets/index-47d29eb0.js                                               1,178.92 kB │ gzip: 346.10 kB\n✓ built in 30.92s\n(!) %VITE_WEBSITE_TITLE% is not defined in env variables found in /index.html. Is the variable mistyped?\n(!) Some chunks are larger than 500 kBs after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit."
         },
         "diagnostics": [
           "src/components/ClearFiltersButton.jsx: error TS2345: Argument of type 'AsyncThunkAction<{ species: any; obscured: any; year: any; }, void, AsyncThunkConfig>' is not assignable to parameter of type 'AnyAction'.",

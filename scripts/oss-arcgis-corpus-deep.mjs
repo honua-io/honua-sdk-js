@@ -37,11 +37,14 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { runNpmSync } from "./lib/npm-cli.mjs";
+
+const require = createRequire(import.meta.url);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_MANIFEST = path.join(ROOT, "config", "oss-arcgis-corpus.v1.json");
@@ -192,9 +195,15 @@ function writeTypecheckProbe(packageRoot, deepApp) {
   return probePath;
 }
 
-function runPhase(deepModule, packageRoot, deepApp, probePath) {
-  const typecheck = step(`npx tsc --noEmit -p ${path.basename(probePath)}`, () =>
-    runNpmSync(["exec", "--offline", "--yes=false", "--ignore-scripts", "--", "tsc", "--noEmit", "-p", probePath], {
+function runPhase(deepModule, packageRoot, deepApp, probePath, tscBin) {
+  // The probe deliberately runs *Honua's* pinned TypeScript, resolved by
+  // absolute path, rather than whatever the app pins (many corpus apps pin
+  // none at all). It is Honua's instrument, and it must be the identical
+  // binary in both phases for the diagnostic diff to mean anything — relying
+  // on `npx` to walk up into this repository's node_modules would be the same
+  // thing by accident, and would silently change if a checkout moved.
+  const typecheck = step(`node <honua tsc> --noEmit -p ${path.basename(probePath)}`, () =>
+    spawnSync(process.execPath, [tscBin, "--noEmit", "-p", probePath], {
       cwd: packageRoot,
       encoding: "utf8",
       timeout: STEP_TIMEOUT_MS,
@@ -258,6 +267,8 @@ async function main() {
 
   const tarballs = packHonuaPackages(deep, path.join(checkoutRoot, "_packages"));
   const version = honuaVersion(deep);
+  const tscBin = require.resolve("typescript/bin/tsc");
+  const typescriptVersion = require("typescript/package.json").version;
   const observedAt = new Date().toISOString().slice(0, 10);
   const results = [];
 
@@ -303,7 +314,7 @@ async function main() {
       }
 
       const probePath = writeTypecheckProbe(packageRoot, deepApp);
-      baseline = runPhase(deepModule, packageRoot, deepApp, probePath);
+      baseline = runPhase(deepModule, packageRoot, deepApp, probePath, tscBin);
 
       const codemodReportPath = path.join(appOutDir, "codemod.json");
       const scanTarget = path.resolve(checkoutDir, app.scanRoot);
@@ -347,7 +358,7 @@ async function main() {
         throw new Error(`installing the packed Honua packages failed: ${honuaInstall.outputTail}`);
       }
 
-      migrated = runPhase(deepModule, packageRoot, deepApp, probePath);
+      migrated = runPhase(deepModule, packageRoot, deepApp, probePath, tscBin);
 
       record = deepModule.buildOssArcGisDeepAppResult({
         app,
@@ -398,6 +409,7 @@ async function main() {
     apps: results,
     generatedAt: new Date().toISOString(),
     honuaVersion: version,
+    typescriptVersion,
   });
   const runPath = path.join(outDir, "deep-build.v1.json");
   fs.writeFileSync(runPath, `${JSON.stringify(runRecord, null, 2)}\n`, "utf8");
