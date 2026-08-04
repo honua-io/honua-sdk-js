@@ -8,6 +8,8 @@ import type { AuthMode } from "../provenance.js";
 import { type ProxyOptions, connectUpstream } from "../proxy.js";
 import { createStandaloneFixtureClient } from "./census-fixture-client.js";
 import { type MockUpstream, startMockUpstream } from "./mock-upstream.js";
+import { OGC_ENDPOINT } from "./ogc-data.js";
+import { createOgcFixtureClient } from "./ogc-fixture-client.js";
 
 /**
  * Certification target selection.
@@ -28,9 +30,21 @@ import { type MockUpstream, startMockUpstream } from "./mock-upstream.js";
  *                     of a PLAIN public FeatureServer (recorded census layer, no
  *                     Honua surfaces). Proves the tools certify green against a
  *                     non-Honua endpoint, with Honua-only tools skip-with-reason.
+ *   - `standalone-ogc` : the same surface against a NON-GeoServices endpoint
+ *                     (issue #1005) — an in-process fixture of a plain OGC API
+ *                     Features server replaying recorded pygeoapi collections.
+ *                     Nothing Esri-shaped exists there (the GeoServices entry
+ *                     points all reject), so it proves the tool contract is
+ *                     genuinely protocol-neutral rather than GeoServices with
+ *                     extra fields.
  */
 
-export type CertTargetMode = "offline" | "remote" | "stdio-proxy" | "standalone";
+export type CertTargetMode = "offline" | "remote" | "stdio-proxy" | "standalone" | "standalone-ogc";
+
+/** Target modes that certify the platform-free `createServer` surface. */
+export function isStandaloneTargetMode(mode: CertTargetMode): boolean {
+  return mode === "standalone" || mode === "standalone-ogc";
+}
 
 export interface CertificationTarget {
   mode: CertTargetMode;
@@ -51,11 +65,17 @@ export interface CertificationTarget {
 
 export function resolveTargetMode(env: NodeJS.ProcessEnv = process.env): CertTargetMode {
   const raw = (env.HONUA_MCP_CERT_TARGET ?? "offline").trim().toLowerCase();
-  if (raw === "offline" || raw === "remote" || raw === "stdio-proxy" || raw === "standalone") {
+  if (
+    raw === "offline" ||
+    raw === "remote" ||
+    raw === "stdio-proxy" ||
+    raw === "standalone" ||
+    raw === "standalone-ogc"
+  ) {
     return raw;
   }
   throw new Error(
-    `HONUA_MCP_CERT_TARGET must be "offline", "remote", "stdio-proxy", or "standalone", received "${raw}"`,
+    `HONUA_MCP_CERT_TARGET must be "offline", "remote", "stdio-proxy", "standalone", or "standalone-ogc", received "${raw}"`,
   );
 }
 
@@ -105,7 +125,42 @@ export async function openCertificationTarget(env: NodeJS.ProcessEnv = process.e
   if (mode === "standalone") {
     return openStandaloneTarget(env);
   }
+  if (mode === "standalone-ogc") {
+    return openStandaloneOgcTarget(env);
+  }
   return openOfflineTarget(env);
+}
+
+/**
+ * Open the NON-GeoServices standalone target (#1005): the same platform-free
+ * `createServer` surface, wired to an in-process fixture of a plain OGC API
+ * Features endpoint (recorded pygeoapi collections). The GeoServices entry
+ * points on that fixture all reject, so any tool still requiring Esri
+ * addressing fails here rather than passing by accident.
+ */
+async function openStandaloneOgcTarget(env: NodeJS.ProcessEnv): Promise<CertificationTarget> {
+  const server = createServer(createOgcFixtureClient());
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "honua-mcp-certifier", version: "1.0.0" });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+
+  return {
+    mode: "standalone-ogc",
+    backend: "mock-upstream",
+    serverLabel: `honua-mcp standalone → ${OGC_ENDPOINT} (recorded OGC API Features fixture, no GeoServices surface)`,
+    authMode: "anonymous",
+    honuaTransport: env.HONUA_TRANSPORT ?? null,
+    client,
+    supportsUnauthenticatedPass: false,
+    connectUnauthenticated() {
+      return Promise.reject(new Error("standalone-ogc target has no auth boundary"));
+    },
+    async close() {
+      await client.close().catch(() => {});
+      await server.close().catch(() => {});
+    },
+  };
 }
 
 /**

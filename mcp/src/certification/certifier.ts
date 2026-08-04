@@ -13,9 +13,10 @@ import {
   checkInvalidArgsContract,
   checkPaginationContract,
 } from "./contracts.js";
-import { buildInvalidArgsInputs, buildRoundTripInputs, resolveRoundTripEnv } from "./fixtures.js";
+import { type RoundTripEnv, buildInvalidArgsInputs, buildRoundTripInputs, resolveRoundTripEnv } from "./fixtures.js";
 import { checkConformance, checkWellFormed, validateAgainstSchema } from "./json-schema.js";
 import { runDeepContracts } from "./lifecycle.js";
+import { OGC_COLLECTION_IDS } from "./ogc-data.js";
 import {
   type JsonSchema,
   PLATFORM_FREE_DEGRADATIONS,
@@ -24,7 +25,7 @@ import {
   loadSchemaFile,
   loadSchemaIndex,
 } from "./schema-index.js";
-import type { CertTargetMode } from "./target.js";
+import { type CertTargetMode, isStandaloneTargetMode } from "./target.js";
 
 /** Per-tool certification record (machine-readable). */
 export interface ToolCertification {
@@ -155,13 +156,28 @@ interface AdvertisedTool {
 }
 
 /**
+ * Bind the round-trip inputs to what the target actually serves.
+ *
+ * The non-GeoServices lane has no `serviceId`/`layerId` at all, so the
+ * source-addressed tools round-trip through the protocol-neutral reference for
+ * a recorded OGC collection instead (#1005). An explicit `HONUA_MCP_SOURCE`
+ * always wins.
+ */
+function withTargetRoundTripDefaults(env: RoundTripEnv, targetMode: CertTargetMode): RoundTripEnv {
+  if (targetMode !== "standalone-ogc" || env.sourceRef) {
+    return env;
+  }
+  return { ...env, sourceRef: `ogc-features:${OGC_COLLECTION_IDS[0]}`, statisticField: env.statisticField ?? "value" };
+}
+
+/**
  * Connect an MCP client to the certified surface and produce a deterministic
  * certification report. The client is already connected (offline mock upstream,
  * a live `/mcp`, or the stdio proxy); certify never owns its lifecycle.
  */
 export async function certify(options: CertifyOptions): Promise<CertificationReport> {
   const { client } = options;
-  const roundTripEnv = resolveRoundTripEnv(options.env);
+  const roundTripEnv = withTargetRoundTripDefaults(resolveRoundTripEnv(options.env), options.targetMode);
   const roundTripInputs = buildRoundTripInputs(roundTripEnv);
 
   const index = loadSchemaIndex();
@@ -176,7 +192,7 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
   // The platform-free standalone target has no Honua publishing surface, so
   // reference-shape tools (e.g. apply_style_preset) intentionally degrade their
   // platform-bound required properties. Conformance is evaluated accordingly.
-  const platformFree = options.targetMode === "standalone";
+  const platformFree = isStandaloneTargetMode(options.targetMode);
 
   const tools: ToolCertification[] = [];
   const advertisedNames = new Set<string>();
@@ -195,7 +211,7 @@ export async function certify(options: CertifyOptions): Promise<CertificationRep
   contracts.push(paginationCheck("tools", toolPages));
   contracts.push(paginationCheck("resources", resourcePages));
   collectOutputSchemaContracts(tools, contracts);
-  contracts.push(await runErrorShapeContract(client, advertisedTools, options.targetMode));
+  contracts.push(await runErrorShapeContract(client, advertisedTools));
   await runAuthContracts(options, advertisedTools, advertisedResources, contracts);
 
   // Deep contracts: mutating round-trip, unauthenticated-write refusal, async job
@@ -417,26 +433,13 @@ function collectOutputSchemaContracts(tools: ToolCertification[], contracts: Con
   }
 }
 
-async function runErrorShapeContract(
-  client: Client,
-  advertised: AdvertisedTool[],
-  targetMode: CertTargetMode,
-): Promise<ContractCheck> {
-  // The platform-free standalone surface is built on the high-level MCP server,
-  // which rejects invalid arguments with a JSON-RPC -32602 (InvalidParams) error
-  // BEFORE the tool body runs — a valid MCP-native structured error, but not the
-  // Honua GeoprocessingError envelope this contract asserts. That envelope is a
-  // Honua-operator richness a plain FeatureServer does not (and need not) provide,
-  // so we skip-with-reason rather than fail. Other targets are unaffected.
-  if (targetMode === "standalone") {
-    return {
-      contract: "error-shape",
-      target: "(standalone)",
-      status: "skipped",
-      detail:
-        "standalone surface uses MCP-native input validation (JSON-RPC -32602 InvalidParams); the GeoprocessingError envelope is a Honua-operator surface feature",
-    };
-  }
+async function runErrorShapeContract(client: Client, advertised: AdvertisedTool[]): Promise<ContractCheck> {
+  // The platform-free surface used to skip this contract: its tools relied on
+  // MCP-native input validation (JSON-RPC -32602 InvalidParams), which is a
+  // valid structured error but not the GeoprocessingError envelope asserted
+  // here. Since #1005 the source-addressed tools validate the request
+  // themselves and emit that envelope, so the contract is exercised on every
+  // target.
   const invalidInputs = buildInvalidArgsInputs();
   const advertisedNames = new Set(advertised.map((t) => t.name));
   const target = Object.keys(invalidInputs).find((name) => advertisedNames.has(name));

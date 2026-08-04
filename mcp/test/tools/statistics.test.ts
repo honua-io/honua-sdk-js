@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { execute, schema } from "../../src/tools/statistics.js";
 import { asClient, createMockClient } from "../test-helpers.js";
 
+const NEUTRAL = { source: "geoservices-feature-service:Parks/0" };
+
+function parse(result: { content: Array<{ type: "text"; text: string }> }) {
+  return JSON.parse(result.content[0].text);
+}
+
 describe("honua_statistics", () => {
   it("builds outStatistics and returns grouped results", async () => {
     const mock = createMockClient({
@@ -10,115 +16,76 @@ describe("honua_statistics", () => {
       }),
     });
 
-    const result = await execute(
-      asClient(mock),
-      schema.parse({
-        serviceId: "Census",
-        layerId: 0,
-        statisticType: "avg",
-        onField: "VALUE",
-        groupBy: "STATE",
+    const parsed = parse(
+      await execute(
+        asClient(mock),
+        schema.parse({ ...NEUTRAL, statisticType: "avg", onField: "VALUE", groupBy: "STATE" }),
+      ),
+    );
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outStatistics: [{ statisticType: "avg", onStatisticField: "VALUE", outStatisticFieldName: "avg_VALUE" }],
+        groupByFieldsForStatistics: "STATE",
       }),
     );
-    const parsed = JSON.parse(result.content[0].text);
-
+    expect(parsed.statistic).toBe("avg_VALUE");
     expect(parsed.statistics).toHaveLength(2);
-    expect(parsed.statistics[0].attributes.STATE).toBe("CA");
+    expect(parsed.statistics[0].attributes).toEqual({ STATE: "CA", avg_VALUE: 150 });
   });
 
-  it("passes correct outStatistics to queryFeatures", async () => {
-    const mock = createMockClient();
+  it("accepts an array groupBy", async () => {
+    const mock = createMockClient({ queryFeatures: vi.fn().mockResolvedValue({ features: [] }) });
+    await execute(
+      asClient(mock),
+      schema.parse({ ...NEUTRAL, statisticType: "sum", onField: "VALUE", groupBy: ["STATE", "CITY"] }),
+    );
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(
+      expect.objectContaining({ groupByFieldsForStatistics: "STATE,CITY" }),
+    );
+  });
+
+  it("supplies the GeoServices tautology when no filter is given", async () => {
+    const mock = createMockClient({ queryFeatures: vi.fn().mockResolvedValue({ features: [] }) });
+    await execute(asClient(mock), schema.parse({ ...NEUTRAL, statisticType: "count", onField: "OBJECTID" }));
+
+    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ where: "1=1" }));
+  });
+
+  it("uses the typed filter instead of the tautology when one is given", async () => {
+    const mock = createMockClient({ queryFeatures: vi.fn().mockResolvedValue({ features: [] }) });
     await execute(
       asClient(mock),
       schema.parse({
-        serviceId: "Parks",
-        layerId: 0,
+        ...NEUTRAL,
         statisticType: "sum",
-        onField: "AREA",
+        onField: "VALUE",
+        filter: { op: "eq", field: "STATE", value: "CA" },
       }),
     );
 
-    expect(mock.queryFeatures).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outStatistics: [
-          {
-            statisticType: "sum",
-            onStatisticField: "AREA",
-            outStatisticFieldName: "sum_AREA",
-          },
-        ],
-        returnGeometry: false,
-      }),
-    );
+    expect(mock.queryFeatures).toHaveBeenCalledWith(expect.objectContaining({ where: "STATE = 'CA'" }));
   });
 
-  it("passes where filter and groupBy", async () => {
+  it("accepts the deprecated serviceId/layerId pair", async () => {
+    const mock = createMockClient({ queryFeatures: vi.fn().mockResolvedValue({ features: [] }) });
+    const parsed = parse(
+      await execute(
+        asClient(mock),
+        schema.parse({ serviceId: "Parks", layerId: 0, statisticType: "count", onField: "OBJECTID" }),
+      ),
+    );
+
+    expect(parsed.source).toBe("geoservices-feature-service:Parks/0");
+    expect(parsed.statistics).toEqual([]);
+  });
+
+  it("returns a structured validation error when no source is addressed", async () => {
     const mock = createMockClient();
-    await execute(
-      asClient(mock),
-      schema.parse({
-        serviceId: "Parks",
-        layerId: 0,
-        statisticType: "count",
-        onField: "OBJECTID",
-        where: "STATE = 'CA'",
-        groupBy: "COUNTY",
-      }),
-    );
+    const result = await execute(asClient(mock), schema.parse({ statisticType: "count", onField: "OBJECTID" }));
 
-    expect(mock.queryFeatures).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: "STATE = 'CA'",
-        groupByFieldsForStatistics: "COUNTY",
-      }),
-    );
-  });
-
-  it("defaults where to 1=1 when omitted", async () => {
-    const mock = createMockClient();
-    await execute(
-      asClient(mock),
-      schema.parse({
-        serviceId: "Parks",
-        layerId: 0,
-        statisticType: "count",
-        onField: "OBJECTID",
-      }),
-    );
-
-    expect(mock.queryFeatures).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: "1=1",
-      }),
-    );
-  });
-
-  it("returns empty statistics when query response has no features", async () => {
-    const mock = createMockClient({
-      queryFeatures: vi.fn().mockResolvedValue({}),
-    });
-    const result = await execute(
-      asClient(mock),
-      schema.parse({
-        serviceId: "Parks",
-        layerId: 0,
-        statisticType: "count",
-        onField: "OBJECTID",
-      }),
-    );
-    const parsed = JSON.parse(result.content[0].text);
-
-    expect(parsed).toEqual({ statistics: [] });
-  });
-
-  it("rejects negative layerId", () => {
-    expect(() =>
-      schema.parse({
-        serviceId: "Parks",
-        layerId: -1,
-        statisticType: "sum",
-        onField: "AREA",
-      }),
-    ).toThrow();
+    expect(result.isError).toBe(true);
+    expect(parse(result).error.kind).toBe("ValidationFailed");
   });
 });
