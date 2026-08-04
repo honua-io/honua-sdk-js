@@ -123,7 +123,23 @@ export type {
   OfflineRegionStoreConformanceOptions,
   OfflineRegionStoreConformanceReportV1,
 } from "./store-conformance.js";
-export { createIndexedDbOfflineRegionStore, IndexedDbOfflineRegionStore } from "./indexeddb.js";
+export {
+  applyOfflineRegionSchemaMigration,
+  createIndexedDbOfflineRegionStore,
+  HONUA_OFFLINE_REGION_SCHEMA_VERSION,
+  HONUA_OFFLINE_REGION_STORE_RECOVERY_KIND,
+  HONUA_OFFLINE_REGION_STORE_RECOVERY_VERSION,
+  IndexedDbOfflineRegionStore,
+  OFFLINE_REGION_SCHEMA_MIGRATIONS,
+  planOfflineRegionSchemaMigration,
+  readableOfflineRegionSchemaVersions,
+} from "./indexeddb.js";
+export type {
+  OfflineRegionSchemaMigrationPlanV1,
+  OfflineRegionSchemaMigrationRefusal,
+  OfflineRegionSchemaMigrationV1,
+  OfflineRegionStoreRecoveryV1,
+} from "./indexeddb.js";
 export {
   DEFAULT_OFFLINE_STORAGE_HEADROOM_RATIO,
   DEFAULT_OFFLINE_STORAGE_MIN_RESERVE_BYTES,
@@ -185,9 +201,17 @@ export {
   DEFAULT_OFFLINE_EDIT_QUEUE_MAX_DEPENDENCIES,
   DEFAULT_OFFLINE_EDIT_QUEUE_MAX_EDITS,
   DEFAULT_OFFLINE_EDIT_QUEUE_MAX_PAYLOAD_BYTES,
+  DEFAULT_OFFLINE_EDIT_QUEUE_MAX_RECOVERY_BYTES,
+  DEFAULT_OFFLINE_EDIT_QUEUE_MAX_RECOVERY_RECORDS,
+  HONUA_OFFLINE_EDIT_QUEUE_RECOVERY_KIND,
+  HONUA_OFFLINE_EDIT_QUEUE_RECOVERY_VERSION,
   HONUA_OFFLINE_EDIT_QUEUE_VERSION,
   HonuaOfflineEditQueueError,
+  inspectStoredOfflineEdit,
+  inspectStoredOfflineEditMetadata,
+  inspectStoredOfflineEditTombstone,
   MAX_OFFLINE_EDIT_LEASE_DURATION_MS,
+  planOfflineEditQueueRecovery,
 } from "./edit-queue.js";
 export type {
   CancelOfflineEditInput,
@@ -208,10 +232,20 @@ export type {
   OfflineEditLease,
   OfflineEditOperation,
   OfflineEditQueue,
+  OfflineEditQueueDiscardReason,
   OfflineEditQueueErrorCode,
+  OfflineEditQueueInspection,
+  OfflineEditQueueMetadata,
   OfflineEditQueueOptions,
   OfflineEditQueuePartition,
+  OfflineEditQueueRecoveryLimits,
+  OfflineEditQueueRecoveryPlanV1,
+  OfflineEditQueueRecoveryRowsV1,
+  OfflineEditQueueRecoveryV1,
+  OfflineEditQueueRepairReason,
   OfflineEditQueueStateCounts,
+  OfflineEditQueueStoredRecord,
+  OfflineEditQueueTombstone,
   OfflineEditRetry,
   OfflineFeatureEdit,
   OfflineQueuedEdit,

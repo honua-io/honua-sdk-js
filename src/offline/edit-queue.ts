@@ -227,6 +227,8 @@ export type OfflineEditQueueErrorCode =
   | "lease-mismatch"
   | "lease-expired"
   | "queue-limit-exceeded"
+  /** A persisted record failed validation on read and was not trusted into a replay. */
+  | "record-unreadable"
   | "store-failed";
 
 export class HonuaOfflineEditQueueError extends HonuaSdkError {
@@ -249,6 +251,82 @@ export class HonuaOfflineEditQueueError extends HonuaSdkError {
   public readonly path?: string;
 }
 
+/** Stable discriminator and version for edit-queue recovery reports. */
+export const HONUA_OFFLINE_EDIT_QUEUE_RECOVERY_KIND = "honua.offline-edit-queue-recovery" as const;
+export const HONUA_OFFLINE_EDIT_QUEUE_RECOVERY_VERSION = 1 as const;
+
+/** Ceilings on one recovery pass. Callers may tighten them, never raise them. */
+export const DEFAULT_OFFLINE_EDIT_QUEUE_MAX_RECOVERY_RECORDS = 100_000;
+export const DEFAULT_OFFLINE_EDIT_QUEUE_MAX_RECOVERY_BYTES = 64 * 1024 * 1024;
+
+/**
+ * Why a persisted record was refused. `foreign-version` is a record this build
+ * cannot interpret; `corrupt-record` is one whose identity, state, or timing
+ * fields do not hold together; `credential-screened` is one whose persisted
+ * partition identity is shaped like a secret or a request reference;
+ * `orphaned-metadata` is an index row whose edit no longer exists.
+ */
+export type OfflineEditQueueDiscardReason =
+  | "foreign-version"
+  | "corrupt-record"
+  | "credential-screened"
+  | "orphaned-metadata";
+
+/** A record that was repaired rather than lost. */
+export type OfflineEditQueueRepairReason = "restored-metadata";
+
+/**
+ * Structured, payload-free account of one recovery pass.
+ *
+ * Counts and reason codes only: identities are digests, and no `edit.attributes`
+ * or `edit.geometry` value is read, copied, or reported. `error` carries the
+ * same envelope every other queue failure uses, so a host routes a discard
+ * through its existing offline error path.
+ */
+export interface OfflineEditQueueRecoveryV1 {
+  readonly kind: typeof HONUA_OFFLINE_EDIT_QUEUE_RECOVERY_KIND;
+  readonly version: typeof HONUA_OFFLINE_EDIT_QUEUE_RECOVERY_VERSION;
+  /** `open` is the startup pass; `read` is a record refused between passes. */
+  readonly operation: "open" | "read";
+  readonly inspectedRecords: number;
+  readonly discardedRecords: number;
+  readonly repairedRecords: number;
+  readonly discardedByReason: Readonly<Record<OfflineEditQueueDiscardReason, number>>;
+  readonly repairedByReason: Readonly<Record<OfflineEditQueueRepairReason, number>>;
+  readonly error: HonuaOfflineEditQueueError;
+}
+
+/** One persisted row paired with the key it is stored under. */
+export interface OfflineEditQueueStoredRecord {
+  readonly key: string;
+  readonly value: unknown;
+}
+
+export interface OfflineEditQueueRecoveryRowsV1 {
+  readonly edits: readonly OfflineEditQueueStoredRecord[];
+  readonly metadata: readonly OfflineEditQueueStoredRecord[];
+  readonly tombstones: readonly OfflineEditQueueStoredRecord[];
+}
+
+export interface OfflineEditQueueRecoveryLimits {
+  readonly maxRecords?: number;
+  readonly maxBytes?: number;
+}
+
+/** Deterministic mutation set a recovery pass applies in one transaction. */
+export interface OfflineEditQueueRecoveryPlanV1 {
+  readonly report: OfflineEditQueueRecoveryV1;
+  readonly deleteEditKeys: readonly string[];
+  readonly deleteMetadataKeys: readonly string[];
+  readonly deleteTombstoneKeys: readonly string[];
+  readonly putMetadata: readonly OfflineEditQueueMetadata[];
+}
+
+/** Result of validating one persisted row before it is trusted. */
+export type OfflineEditQueueInspection<T> =
+  | { readonly status: "valid"; readonly record: T }
+  | { readonly status: "invalid"; readonly reason: OfflineEditQueueDiscardReason };
+
 export interface OfflineEditQueueOptions {
   readonly now?: () => Date;
   readonly createLeaseToken?: () => string;
@@ -262,6 +340,10 @@ export interface IndexedDbOfflineEditQueueOptions extends OfflineEditQueueOption
   /** Defaults to `honua-offline-edit-queue`. Names are origin-scoped. */
   readonly name?: string;
   readonly indexedDB?: IDBFactory;
+  /** Ceilings on the startup recovery pass. */
+  readonly recovery?: OfflineEditQueueRecoveryLimits;
+  /** Receives every discard and repair. Must not throw. */
+  readonly onRecovery?: (report: OfflineEditQueueRecoveryV1) => void;
 }
 
 interface PreparedEdit {
@@ -274,7 +356,8 @@ interface PreparedEdit {
   readonly dependencyIds: readonly `sha256:${string}`[];
 }
 
-interface OfflineEditQueueMetadata extends OfflineEditQueuePartition {
+/** Compact index row projected from an edit; carries no payload. */
+export interface OfflineEditQueueMetadata extends OfflineEditQueuePartition {
   readonly id: `sha256:${string}`;
   readonly state: OfflineQueuedEditState;
   readonly createdAt: string;
@@ -284,7 +367,8 @@ interface OfflineEditQueueMetadata extends OfflineEditQueuePartition {
   readonly leaseExpiresAt?: string;
 }
 
-interface OfflineEditQueueTombstone extends OfflineEditQueuePartition {
+/** Identity-only record of a pruned edit; exists so it cannot be re-enqueued. */
+export interface OfflineEditQueueTombstone extends OfflineEditQueuePartition {
   readonly id: `sha256:${string}`;
   readonly requestFingerprint: `sha256:${string}`;
   readonly prunedAt: string;
@@ -459,6 +543,7 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
 export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
   readonly #database: Promise<IDBDatabase>;
   readonly #options: NormalizedQueueOptions;
+  readonly #onRecovery?: (report: OfflineEditQueueRecoveryV1) => void;
 
   public constructor(options: IndexedDbOfflineEditQueueOptions = {}) {
     const factory = options.indexedDB ?? globalThis.indexedDB;
@@ -466,19 +551,31 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
     const name = options.name ?? "honua-offline-edit-queue";
     if (name.trim().length === 0) throw new Error("IndexedDB database name must be non-empty.");
     this.#options = normalizeOptions(options);
-    this.#database = openDatabase(factory, name);
+    if (options.onRecovery) this.#onRecovery = options.onRecovery;
+    const limits = options.recovery ?? {};
+    const onRecovery = options.onRecovery;
+    // Recovery runs once, before any caller can read, so an unreadable record
+    // is gone before it can be leased and replayed as though it were a write.
+    const opened = openDatabase(factory, name).then(async (database) => {
+      await recoverQueueDatabase(database, limits, onRecovery);
+      return database;
+    });
+    // A queue that refuses to open reports through every method that awaits it;
+    // swallowing the copy keeps that from also being an unhandled rejection.
+    opened.catch(() => undefined);
+    this.#database = opened;
   }
 
   public async enqueue(input: EnqueueOfflineEditInput): Promise<OfflineEditEnqueueResult> {
     const prepared = await prepareEdit(input, this.#options);
-    return this.#run("readwrite", async ({ edits, metadata, tombstones }) => {
-      const existing = await request<OfflineQueuedEdit | undefined>(edits.get(prepared.id));
-      const tombstone = await request<OfflineEditQueueTombstone | undefined>(tombstones.get(prepared.id));
+    return this.#run("readwrite", async ({ edits, metadata, tombstones }, tally) => {
+      const existing = readStoredEdit(await request<unknown>(edits.get(prepared.id)), prepared.id, tally);
+      const tombstone = readStoredTombstone(await request<unknown>(tombstones.get(prepared.id)), tally);
       rejectPrunedIdentity(tombstone, prepared);
       const dependencies = await Promise.all(
         prepared.dependencyIds.map(async (id) => {
-          const live = await request<OfflineEditQueueMetadata | undefined>(metadata.get(id));
-          return live ?? request<OfflineEditQueueTombstone | undefined>(tombstones.get(id));
+          const live = readStoredMetadata(await request<unknown>(metadata.get(id)), tally);
+          return live ?? readStoredTombstone(await request<unknown>(tombstones.get(id)), tally);
         }),
       );
       const queueSize = await request<number>(metadata.count());
@@ -501,17 +598,19 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
   public async get(editId: string, partition: OfflineEditQueuePartition): Promise<OfflineQueuedEdit | undefined> {
     const id = requiredId(editId, "editId");
     const normalized = capturePartition(partition, "partition");
-    return this.#run("readonly", async ({ edits }) => {
-      const record = await request<OfflineQueuedEdit | undefined>(edits.get(id));
+    return this.#run("readonly", async ({ edits }, tally) => {
+      const record = readStoredEdit(await request<unknown>(edits.get(id)), id, tally);
       return record && matchesPartition(record, normalized) ? copy(record) : undefined;
     });
   }
 
   public async list(options: ListOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]> {
     const { partition, limit } = captureListOptions(options);
-    return this.#run("readonly", async ({ edits, metadata }) => {
-      const ids = await scanPartitionIds(metadata, partition, limit);
-      const records = await Promise.all(ids.map((id) => request<OfflineQueuedEdit | undefined>(edits.get(id))));
+    return this.#run("readonly", async ({ edits, metadata }, tally) => {
+      const ids = await scanPartitionIds(metadata, partition, limit, tally);
+      const records = await Promise.all(
+        ids.map(async (id) => readStoredEdit(await request<unknown>(edits.get(id)), id, tally)),
+      );
       return copy(records.filter((record): record is OfflineQueuedEdit => record !== undefined));
     });
   }
@@ -520,6 +619,8 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
     const normalized = capturePartition(partition, "partition");
     return this.#run("readonly", async ({ metadata }) => {
       const index = metadata.index(PARTITION_STATE_ORDER_INDEX);
+      // Counts read index keys only; the startup pass has already reconciled the
+      // index against the edits it projects.
       const counts = emptyStateCounts();
       // The compound partition/state index counts without materializing or
       // reading any edit payload.
@@ -532,12 +633,18 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
 
   public async claimReady(options: ClaimOfflineEditsOptions): Promise<readonly OfflineQueuedEdit[]> {
     const normalized = captureClaimOptions(options, this.#options);
-    return this.#run("readwrite", async ({ edits, metadata, tombstones }) => {
-      const candidates = await scanReadyMetadata(metadata, tombstones, normalized);
+    return this.#run("readwrite", async ({ edits, metadata, tombstones }, tally) => {
+      const candidates = await scanReadyMetadata(metadata, tombstones, normalized, tally);
       const claimed: OfflineQueuedEdit[] = [];
       for (const candidate of candidates) {
-        const record = await request<OfflineQueuedEdit | undefined>(edits.get(candidate.id));
-        if (!record) throw new Error(`Offline edit metadata references missing edit "${candidate.id}".`);
+        const record = readStoredEdit(await request<unknown>(edits.get(candidate.id)), candidate.id, tally);
+        if (!record) {
+          // An index row whose edit is gone or unreadable is retired here rather
+          // than thrown, so one damaged record cannot stall every other claim.
+          edits.delete(candidate.id);
+          metadata.delete(candidate.id);
+          continue;
+        }
         const updated = claimRecord(record, normalized, this.#options);
         edits.put(updated);
         metadata.put(metadataFor(updated));
@@ -578,8 +685,12 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
   ): Promise<OfflineQueuedEdit> {
     const id = requiredId(editId, "editId");
     const normalized = capturePartition(partition, "partition");
-    return this.#run("readwrite", async ({ edits, metadata }) => {
-      const current = await request<OfflineQueuedEdit | undefined>(edits.get(id));
+    return this.#run("readwrite", async ({ edits, metadata }, tally) => {
+      const stored = await request<unknown>(edits.get(id));
+      const current = readStoredEdit(stored, id, tally);
+      if (stored !== undefined && !current) {
+        fail("record-unreadable", `Offline edit "${id}" is stored in a form this build cannot read.`, { editId: id });
+      }
       if (!current || !matchesPartition(current, normalized)) {
         fail("edit-not-found", `Offline edit "${id}" was not found.`, { editId: id });
       }
@@ -593,13 +704,19 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
   public async pruneTerminal(options: PruneTerminalOfflineEditsOptions): Promise<readonly `sha256:${string}`[]> {
     const normalized = capturePruneOptions(options);
     const prunedAt = timestamp(this.#options.now);
-    return this.#run("readwrite", async ({ edits, metadata, tombstones }) => {
-      const candidates = await scanTerminalMetadata(metadata, normalized);
+    return this.#run("readwrite", async ({ edits, metadata, tombstones }, tally) => {
+      const candidates = await scanTerminalMetadata(metadata, normalized, tally);
       const removed: `sha256:${string}`[] = [];
       for (const candidate of candidates) {
         if (await hasActiveMetadataDependent(metadata, candidate.id)) continue;
-        const record = await request<OfflineQueuedEdit | undefined>(edits.get(candidate.id));
-        if (!record) throw new Error(`Offline edit metadata references missing edit "${candidate.id}".`);
+        const record = readStoredEdit(await request<unknown>(edits.get(candidate.id)), candidate.id, tally);
+        if (!record) {
+          // Nothing readable to tombstone: retire the rows without inventing an
+          // identity claim the queue cannot substantiate.
+          edits.delete(candidate.id);
+          metadata.delete(candidate.id);
+          continue;
+        }
         tombstones.put(tombstoneFor(record, prunedAt));
         edits.delete(candidate.id);
         metadata.delete(candidate.id);
@@ -617,8 +734,12 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
     outcome: MarkOfflineEditAppliedInput | MarkOfflineEditRetryInput | MarkOfflineEditConflictedInput,
   ): Promise<OfflineQueuedEdit> {
     const id = requiredId(editId, "editId");
-    return this.#run("readwrite", async ({ edits, metadata }) => {
-      const current = await request<OfflineQueuedEdit | undefined>(edits.get(id));
+    return this.#run("readwrite", async ({ edits, metadata }, tally) => {
+      const stored = await request<unknown>(edits.get(id));
+      const current = readStoredEdit(stored, id, tally);
+      if (stored !== undefined && !current) {
+        fail("record-unreadable", `Offline edit "${id}" is stored in a form this build cannot read.`, { editId: id });
+      }
       if (!current) fail("edit-not-found", `Offline edit "${id}" was not found.`, { editId: id });
       const updated = transitionRecord(current, leaseToken, state, outcome, this.#options);
       edits.put(updated);
@@ -627,9 +748,12 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
     });
   }
 
-  async #run<T>(mode: IDBTransactionMode, body: (stores: QueueStores) => Promise<T>): Promise<T> {
+  async #run<T>(mode: IDBTransactionMode, body: (stores: QueueStores, tally: RecoveryTally) => Promise<T>): Promise<T> {
+    const tally = emptyTally();
     try {
-      return await runTransaction(await this.#database, mode, body);
+      const result = await runTransaction(await this.#database, mode, (stores) => body(stores, tally));
+      emitRecovery(this.#onRecovery, tally, "read");
+      return result;
     } catch (cause) {
       if (cause instanceof HonuaOfflineEditQueueError) throw cause;
       throw new HonuaOfflineEditQueueError("store-failed", "Offline edit queue storage failed.", { cause });
@@ -1142,12 +1266,14 @@ async function scanPartitionIds(
   store: IDBObjectStore,
   partition: OfflineEditQueuePartition,
   limit: number,
+  tally: RecoveryTally,
 ): Promise<readonly `sha256:${string}`[]> {
   const index = store.index(PARTITION_ORDER_INDEX);
   let cursor = await request<IDBCursorWithValue | null>(index.openCursor(partitionRange(partition)));
   const ids: `sha256:${string}`[] = [];
   while (cursor && ids.length < limit) {
-    ids.push((cursor.value as OfflineEditQueueMetadata).id);
+    const metadata = readStoredMetadata(cursor.value, tally);
+    if (metadata) ids.push(metadata.id);
     cursor = await continueCursor(cursor);
   }
   return ids;
@@ -1157,11 +1283,14 @@ async function scanReadyMetadata(
   metadataStore: IDBObjectStore,
   tombstoneStore: IDBObjectStore,
   options: NormalizedClaimOptions,
+  tally: RecoveryTally,
 ): Promise<readonly OfflineEditQueueMetadata[]> {
   const states = ["pending", "retryable", "leased"] as const;
   const cache = new Map<string, OfflineEditDependencyEvidence | undefined>();
   const candidates = (
-    await Promise.all(states.map((state) => scanReadyState(metadataStore, tombstoneStore, state, options, cache)))
+    await Promise.all(
+      states.map((state) => scanReadyState(metadataStore, tombstoneStore, state, options, cache, tally)),
+    )
   ).flat();
   return candidates.sort(compareMetadataCreated).slice(0, options.limit);
 }
@@ -1172,18 +1301,24 @@ async function scanReadyState(
   state: "pending" | "retryable" | "leased",
   options: NormalizedClaimOptions,
   cache: Map<string, OfflineEditDependencyEvidence | undefined>,
+  tally: RecoveryTally,
 ): Promise<readonly OfflineEditQueueMetadata[]> {
   const index = metadataStore.index(PARTITION_STATE_ORDER_INDEX);
   let cursor = await request<IDBCursorWithValue | null>(index.openCursor(partitionStateRange(options, state)));
   const candidates: OfflineEditQueueMetadata[] = [];
   while (cursor && candidates.length < options.limit) {
-    const metadata = cursor.value as OfflineEditQueueMetadata;
+    const metadata = readStoredMetadata(cursor.value, tally);
     const eligibleAt =
-      state === "pending"
+      metadata !== undefined &&
+      (state === "pending"
         ? true
         : Date.parse(state === "retryable" ? (metadata.retryAt ?? "") : (metadata.leaseExpiresAt ?? "")) <=
-          options.now.getTime();
-    if (eligibleAt && (await dependenciesAreApplied(metadataStore, tombstoneStore, metadata.dependencyIds, cache))) {
+          options.now.getTime());
+    if (
+      metadata &&
+      eligibleAt &&
+      (await dependenciesAreApplied(metadataStore, tombstoneStore, metadata.dependencyIds, cache, tally))
+    ) {
       candidates.push(metadata);
     }
     cursor = await continueCursor(cursor);
@@ -1196,12 +1331,13 @@ async function dependenciesAreApplied(
   tombstoneStore: IDBObjectStore,
   dependencyIds: readonly `sha256:${string}`[],
   cache: Map<string, OfflineEditDependencyEvidence | undefined>,
+  tally: RecoveryTally,
 ): Promise<boolean> {
   for (const id of dependencyIds) {
     let dependency = cache.get(id);
     if (!cache.has(id)) {
-      dependency = await request<OfflineEditQueueMetadata | undefined>(metadataStore.get(id));
-      dependency ??= await request<OfflineEditQueueTombstone | undefined>(tombstoneStore.get(id));
+      dependency = readStoredMetadata(await request<unknown>(metadataStore.get(id)), tally);
+      dependency ??= readStoredTombstone(await request<unknown>(tombstoneStore.get(id)), tally);
       cache.set(id, dependency);
     }
     if (!dependency || dependencyState(dependency) !== "applied") return false;
@@ -1230,14 +1366,15 @@ function hasActiveDependent(records: readonly OfflineQueuedEdit[], editId: `sha2
 async function scanTerminalMetadata(
   store: IDBObjectStore,
   options: NormalizedPruneOptions,
+  tally: RecoveryTally,
 ): Promise<readonly OfflineEditQueueMetadata[]> {
   const candidates: OfflineEditQueueMetadata[] = [];
   for (const state of ["applied", "conflicted", "cancelled"] as const) {
     const index = store.index(PARTITION_STATE_ORDER_INDEX);
     let cursor = await request<IDBCursorWithValue | null>(index.openCursor(partitionStateRange(options, state)));
     while (cursor) {
-      const metadata = cursor.value as OfflineEditQueueMetadata;
-      if (Date.parse(metadata.updatedAt) <= options.terminalBeforeMs) {
+      const metadata = readStoredMetadata(cursor.value, tally);
+      if (metadata && Date.parse(metadata.updatedAt) <= options.terminalBeforeMs) {
         candidates.push(metadata);
       }
       cursor = await continueCursor(cursor);
@@ -1292,6 +1429,522 @@ function compareMetadataUpdated(left: OfflineEditQueueMetadata, right: OfflineEd
 
 function compareUpdated(left: OfflineQueuedEdit, right: OfflineQueuedEdit): number {
   return Date.parse(left.updatedAt) - Date.parse(right.updatedAt) || compareCodeUnits(left.id, right.id);
+}
+
+// --- Persisted-record validation and recovery (issue #1045) ------------------
+//
+// The queue is the durable source of retry, lease, dependency, conflict, and
+// audit state for the whole local-first write path. It is therefore the one
+// store where a silently accepted malformed record becomes a *wrong write*
+// rather than a lost read, so nothing persisted is trusted on the way back in:
+// every read path validates the record's version, identity, state, and timing
+// fields before the record can be leased, transitioned, or replayed.
+//
+// Two rules bound what validation may look at. It never reads an
+// `edit.attributes` or `edit.geometry` *value* — only whether the key is
+// present, which is what the delete-shape rule needs — and no message, count, or
+// report ever echoes a payload. That is the same secret-safe projection the
+// local-first status contract already relies on.
+
+interface RecoveryBudget {
+  records: number;
+  bytes: number;
+  readonly maxRecords: number;
+  readonly maxBytes: number;
+}
+
+interface RecoveryTally {
+  inspected: number;
+  discarded: number;
+  repaired: number;
+  readonly discardedByReason: Record<OfflineEditQueueDiscardReason, number>;
+  readonly repairedByReason: Record<OfflineEditQueueRepairReason, number>;
+}
+
+const AUDIT_KINDS = new Set<string>([
+  "enqueued",
+  "claimed",
+  "lease-reclaimed",
+  "retry-scheduled",
+  "applied",
+  "conflicted",
+  "cancelled",
+]);
+const STORED_STATES = new Set<string>(QUEUE_STATES);
+const TERMINAL_STATES = new Set<string>(["applied", "conflicted", "cancelled"]);
+/** Depth ceiling for byte accounting only; validation never descends a payload. */
+const RECOVERY_MEASURE_DEPTH = 64;
+
+/**
+ * Validate one persisted edit record before anything may act on it.
+ *
+ * The version gate runs first: a record written by another SDK build is
+ * `foreign-version` and is never returned as though it were current, because a
+ * field this build reads may mean something else in the layout that wrote it.
+ */
+export function inspectStoredOfflineEdit(value: unknown): OfflineEditQueueInspection<OfflineQueuedEdit> {
+  if (!isStoredRecord(value)) return invalidRecord("corrupt-record");
+  if (value.version !== HONUA_OFFLINE_EDIT_QUEUE_VERSION) return invalidRecord("foreign-version");
+  if (!isDigest(value.id) || !isDigest(value.requestFingerprint) || !isDigest(value.authorizationScopeDigest)) {
+    return invalidRecord("corrupt-record");
+  }
+  if (!isPersistedText(value.sourceId) || !isPersistedText(value.idempotencyKey))
+    return invalidRecord("corrupt-record");
+  if (screenPersistedString(value.sourceId, "identity") || screenPersistedString(value.idempotencyKey, "identity")) {
+    return invalidRecord("credential-screened");
+  }
+  if (typeof value.state !== "string" || !STORED_STATES.has(value.state)) return invalidRecord("corrupt-record");
+  if (!isNormalizedTimestamp(value.createdAt) || !isNormalizedTimestamp(value.updatedAt)) {
+    return invalidRecord("corrupt-record");
+  }
+  if (!Number.isSafeInteger(value.attemptCount) || (value.attemptCount as number) < 0) {
+    return invalidRecord("corrupt-record");
+  }
+  if (!isStoredDependencyIds(value.dependencyIds, value.id)) return invalidRecord("corrupt-record");
+  if (!isStoredFeatureEdit(value.edit)) return invalidRecord("corrupt-record");
+  if (!isStoredOutcome(value)) return invalidRecord("corrupt-record");
+  if (!isStoredAudit(value.audit)) return invalidRecord("corrupt-record");
+  return { status: "valid", record: value as unknown as OfflineQueuedEdit };
+}
+
+/** Validate one persisted metadata index row. */
+export function inspectStoredOfflineEditMetadata(value: unknown): OfflineEditQueueInspection<OfflineEditQueueMetadata> {
+  if (!isStoredRecord(value)) return invalidRecord("corrupt-record");
+  if (!isDigest(value.id) || !isDigest(value.authorizationScopeDigest)) return invalidRecord("corrupt-record");
+  if (!isPersistedText(value.sourceId)) return invalidRecord("corrupt-record");
+  if (screenPersistedString(value.sourceId, "identity")) return invalidRecord("credential-screened");
+  if (typeof value.state !== "string" || !STORED_STATES.has(value.state)) return invalidRecord("corrupt-record");
+  if (!isNormalizedTimestamp(value.createdAt) || !isNormalizedTimestamp(value.updatedAt)) {
+    return invalidRecord("corrupt-record");
+  }
+  if (!isStoredDependencyIds(value.dependencyIds, value.id)) return invalidRecord("corrupt-record");
+  if (!isOptionalTimestamp(value.retryAt) || !isOptionalTimestamp(value.leaseExpiresAt)) {
+    return invalidRecord("corrupt-record");
+  }
+  return { status: "valid", record: value as unknown as OfflineEditQueueMetadata };
+}
+
+/**
+ * Validate one persisted tombstone.
+ *
+ * Tombstones exist precisely so a pruned identity cannot be re-enqueued, so a
+ * valid one is always preserved by recovery rather than treated as an orphan.
+ */
+export function inspectStoredOfflineEditTombstone(
+  value: unknown,
+): OfflineEditQueueInspection<OfflineEditQueueTombstone> {
+  if (!isStoredRecord(value)) return invalidRecord("corrupt-record");
+  if (!isDigest(value.id) || !isDigest(value.requestFingerprint) || !isDigest(value.authorizationScopeDigest)) {
+    return invalidRecord("corrupt-record");
+  }
+  if (!isPersistedText(value.sourceId)) return invalidRecord("corrupt-record");
+  if (screenPersistedString(value.sourceId, "identity")) return invalidRecord("credential-screened");
+  if (!isNormalizedTimestamp(value.prunedAt)) return invalidRecord("corrupt-record");
+  if (typeof value.terminalState !== "string" || !TERMINAL_STATES.has(value.terminalState)) {
+    return invalidRecord("corrupt-record");
+  }
+  return { status: "valid", record: value as unknown as OfflineEditQueueTombstone };
+}
+
+/**
+ * Plan one bounded recovery pass over every persisted row.
+ *
+ * Pure and deterministic, so the same rows always produce the same mutation
+ * set, and so a healthy database plans nothing at all. The edit/metadata
+ * relationship is repaired rather than abandoned in both directions: a metadata
+ * row whose edit is gone is deleted, and an edit whose metadata row is missing
+ * or disagrees has its index row re-derived from the edit itself. That is what
+ * keeps a claim from throwing `Offline edit metadata references missing edit`
+ * halfway through a replay pass.
+ */
+export function planOfflineEditQueueRecovery(
+  rows: OfflineEditQueueRecoveryRowsV1,
+  limits: OfflineEditQueueRecoveryLimits = {},
+): OfflineEditQueueRecoveryPlanV1 {
+  const budget: RecoveryBudget = {
+    records: 0,
+    bytes: 0,
+    maxRecords: tightenedPositive(
+      limits.maxRecords,
+      DEFAULT_OFFLINE_EDIT_QUEUE_MAX_RECOVERY_RECORDS,
+      "recovery.maxRecords",
+    ),
+    maxBytes: tightenedPositive(limits.maxBytes, DEFAULT_OFFLINE_EDIT_QUEUE_MAX_RECOVERY_BYTES, "recovery.maxBytes"),
+  };
+  const tally = emptyTally();
+  const deleteEditKeys: string[] = [];
+  const deleteMetadataKeys: string[] = [];
+  const deleteTombstoneKeys: string[] = [];
+  const putMetadata: OfflineEditQueueMetadata[] = [];
+  const live = new Map<string, OfflineQueuedEdit>();
+
+  for (const row of rows.edits) {
+    charge(row, budget, tally);
+    const inspection = inspectStoredOfflineEdit(row.value);
+    // A record stored under a key other than its own id cannot be addressed by
+    // the id it claims, so it is unusable however well-formed it looks.
+    if (inspection.status === "invalid" || inspection.record.id !== row.key) {
+      deleteEditKeys.push(row.key);
+      discard(tally, inspection.status === "invalid" ? inspection.reason : "corrupt-record");
+      continue;
+    }
+    live.set(inspection.record.id, inspection.record);
+  }
+
+  const indexed = new Set<string>();
+  for (const row of rows.metadata) {
+    charge(row, budget, tally);
+    const inspection = inspectStoredOfflineEditMetadata(row.value);
+    if (inspection.status === "invalid" || inspection.record.id !== row.key) {
+      deleteMetadataKeys.push(row.key);
+      discard(tally, inspection.status === "invalid" ? inspection.reason : "corrupt-record");
+      continue;
+    }
+    const edit = live.get(inspection.record.id);
+    if (!edit) {
+      deleteMetadataKeys.push(row.key);
+      discard(tally, "orphaned-metadata");
+      continue;
+    }
+    indexed.add(edit.id);
+    if (!sameMetadata(inspection.record, metadataFor(edit))) repairMetadata(putMetadata, tally, edit);
+  }
+  for (const edit of live.values()) {
+    if (!indexed.has(edit.id)) repairMetadata(putMetadata, tally, edit);
+  }
+
+  for (const row of rows.tombstones) {
+    charge(row, budget, tally);
+    const inspection = inspectStoredOfflineEditTombstone(row.value);
+    if (inspection.status === "invalid" || inspection.record.id !== row.key) {
+      deleteTombstoneKeys.push(row.key);
+      discard(tally, inspection.status === "invalid" ? inspection.reason : "corrupt-record");
+    }
+  }
+
+  return {
+    report: recoveryReport(tally, "open"),
+    deleteEditKeys,
+    deleteMetadataKeys,
+    deleteTombstoneKeys,
+    putMetadata,
+  };
+}
+
+function repairMetadata(target: OfflineEditQueueMetadata[], tally: RecoveryTally, edit: OfflineQueuedEdit): void {
+  target.push(metadataFor(edit));
+  tally.repaired += 1;
+  tally.repairedByReason["restored-metadata"] += 1;
+}
+
+function emptyTally(): RecoveryTally {
+  return {
+    inspected: 0,
+    discarded: 0,
+    repaired: 0,
+    discardedByReason: {
+      "foreign-version": 0,
+      "corrupt-record": 0,
+      "credential-screened": 0,
+      "orphaned-metadata": 0,
+    },
+    repairedByReason: { "restored-metadata": 0 },
+  };
+}
+
+function discard(tally: RecoveryTally, reason: OfflineEditQueueDiscardReason): void {
+  tally.discarded += 1;
+  tally.discardedByReason[reason] += 1;
+}
+
+function charge(row: OfflineEditQueueStoredRecord, budget: RecoveryBudget, tally: RecoveryTally): void {
+  budget.records += 1;
+  tally.inspected += 1;
+  if (budget.records > budget.maxRecords) {
+    fail("queue-limit-exceeded", `Offline edit queue recovery exceeded ${budget.maxRecords} records.`);
+  }
+  measureBytes(row.value, budget, 0);
+  if (budget.bytes > budget.maxBytes) {
+    fail("queue-limit-exceeded", `Offline edit queue recovery exceeded ${budget.maxBytes} bytes.`);
+  }
+}
+
+/**
+ * Accumulate an approximate persisted size with an explicit ceiling, so a
+ * damaged or hostile database cannot make recovery scan unboundedly. It reads
+ * sizes only — nothing is copied, decoded, or reported — and it stops as soon as
+ * the budget is spent, so no oversized string is ever materialized.
+ */
+function measureBytes(value: unknown, budget: RecoveryBudget, depth: number): void {
+  if (budget.bytes > budget.maxBytes || depth > RECOVERY_MEASURE_DEPTH) return;
+  if (typeof value === "string") {
+    budget.bytes += value.length * 2 + 2;
+    return;
+  }
+  if (value === null || typeof value !== "object") {
+    budget.bytes += 8;
+    return;
+  }
+  if (ArrayBuffer.isView(value)) {
+    budget.bytes += value.byteLength;
+    return;
+  }
+  budget.bytes += 2;
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      measureBytes(entry, budget, depth + 1);
+      if (budget.bytes > budget.maxBytes) return;
+    }
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    budget.bytes += key.length * 2 + 3;
+    measureBytes((value as Record<string, unknown>)[key], budget, depth + 1);
+    if (budget.bytes > budget.maxBytes) return;
+  }
+}
+
+function recoveryReport(tally: RecoveryTally, operation: "open" | "read"): OfflineEditQueueRecoveryV1 {
+  return deepFreeze({
+    kind: HONUA_OFFLINE_EDIT_QUEUE_RECOVERY_KIND,
+    version: HONUA_OFFLINE_EDIT_QUEUE_RECOVERY_VERSION,
+    operation,
+    inspectedRecords: tally.inspected,
+    discardedRecords: tally.discarded,
+    repairedRecords: tally.repaired,
+    discardedByReason: { ...tally.discardedByReason },
+    repairedByReason: { ...tally.repairedByReason },
+    error: new HonuaOfflineEditQueueError(
+      "record-unreadable",
+      `Offline edit queue recovery discarded ${tally.discarded} unreadable record(s) and repaired ${tally.repaired}.`,
+    ),
+  });
+}
+
+function emitRecovery(
+  onRecovery: ((report: OfflineEditQueueRecoveryV1) => void) | undefined,
+  tally: RecoveryTally,
+  operation: "open" | "read",
+): void {
+  if (!onRecovery || tally.discarded + tally.repaired === 0) return;
+  onRecovery(recoveryReport(tally, operation));
+}
+
+function invalidRecord(reason: OfflineEditQueueDiscardReason): OfflineEditQueueInspection<never> {
+  return { status: "invalid", reason };
+}
+
+function isStoredRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isDigest(value: unknown): value is `sha256:${string}` {
+  return typeof value === "string" && EDIT_ID_PATTERN.test(value);
+}
+
+/** Same shape `requiredString` enforces on write, without throwing. */
+function isPersistedText(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 1024 &&
+    value.trim() === value &&
+    encoder.encode(value).byteLength <= 1024
+  );
+}
+
+function isNormalizedTimestamp(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
+}
+
+function isOptionalTimestamp(value: unknown): boolean {
+  return value === undefined || isNormalizedTimestamp(value);
+}
+
+function isStoredDependencyIds(value: unknown, id: unknown): boolean {
+  if (!Array.isArray(value) || value.length > DEFAULT_OFFLINE_EDIT_QUEUE_MAX_DEPENDENCIES) return false;
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (!isDigest(entry) || entry === id || seen.has(entry)) return false;
+    seen.add(entry);
+  }
+  return true;
+}
+
+/**
+ * Validate the edit envelope without reading a payload value. Only the presence
+ * of `attributes`/`geometry` is consulted, because the delete-shape rule is
+ * defined over presence; their contents are never inspected.
+ */
+function isStoredFeatureEdit(value: unknown): boolean {
+  if (!isStoredRecord(value)) return false;
+  const operation = value.operation;
+  if (operation !== "add" && operation !== "update" && operation !== "delete") return false;
+  const featureId = value.featureId;
+  if (featureId === undefined) {
+    if (operation !== "add") return false;
+  } else if (!isPersistedText(featureId) && !Number.isSafeInteger(featureId)) {
+    return false;
+  }
+  const hasAttributes = value.attributes !== undefined;
+  const hasGeometry = value.geometry !== undefined;
+  if (operation === "delete") return !hasAttributes && !hasGeometry;
+  return hasAttributes || hasGeometry;
+}
+
+/** A state must carry exactly the outcome its transition wrote, and no other. */
+function isStoredOutcome(value: Record<string, unknown>): boolean {
+  const state = value.state;
+  const lease = value.lease;
+  if (state === "leased") {
+    if (!isStoredRecord(lease) || !isPersistedText(lease.token) || !isPersistedText(lease.workerId)) return false;
+    if (!isNormalizedTimestamp(lease.expiresAt)) return false;
+  } else if (lease !== undefined) {
+    return false;
+  }
+  const retry = value.retry;
+  if (state === "retryable") {
+    if (!isStoredRecord(retry) || !isNormalizedTimestamp(retry.retryAt) || !isPersistedText(retry.reasonCode)) {
+      return false;
+    }
+  } else if (retry !== undefined) {
+    return false;
+  }
+  const applied = value.applied;
+  if (state === "applied") {
+    if (!isStoredRecord(applied) || !isNormalizedTimestamp(applied.appliedAt)) return false;
+  } else if (applied !== undefined) {
+    return false;
+  }
+  const conflict = value.conflict;
+  if (state === "conflicted") {
+    if (!isStoredRecord(conflict) || !isPersistedText(conflict.conflictId)) return false;
+    if (!isNormalizedTimestamp(conflict.detectedAt)) return false;
+  } else if (conflict !== undefined) {
+    return false;
+  }
+  const cancellation = value.cancellation;
+  if (state === "cancelled") {
+    if (!isStoredRecord(cancellation) || !isNormalizedTimestamp(cancellation.cancelledAt)) return false;
+    if (!isPersistedText(cancellation.reasonCode)) return false;
+  } else if (cancellation !== undefined) {
+    return false;
+  }
+  return true;
+}
+
+function isStoredAudit(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0 || value.length > DEFAULT_OFFLINE_EDIT_QUEUE_MAX_AUDIT_EVENTS) {
+    return false;
+  }
+  let previous = 0;
+  for (const entry of value) {
+    if (!isStoredRecord(entry)) return false;
+    if (!Number.isSafeInteger(entry.sequence) || (entry.sequence as number) <= previous) return false;
+    previous = entry.sequence as number;
+    if (typeof entry.kind !== "string" || !AUDIT_KINDS.has(entry.kind)) return false;
+    if (!isNormalizedTimestamp(entry.at)) return false;
+    if (!Number.isSafeInteger(entry.attempt) || (entry.attempt as number) < 0) return false;
+  }
+  return true;
+}
+
+function sameMetadata(left: OfflineEditQueueMetadata, right: OfflineEditQueueMetadata): boolean {
+  return (
+    left.id === right.id &&
+    left.authorizationScopeDigest === right.authorizationScopeDigest &&
+    left.sourceId === right.sourceId &&
+    left.state === right.state &&
+    left.createdAt === right.createdAt &&
+    left.updatedAt === right.updatedAt &&
+    left.retryAt === right.retryAt &&
+    left.leaseExpiresAt === right.leaseExpiresAt &&
+    left.dependencyIds.length === right.dependencyIds.length &&
+    left.dependencyIds.every((id, index) => id === right.dependencyIds[index])
+  );
+}
+
+/**
+ * Read one persisted edit, counting rather than trusting a record that fails
+ * validation. Returns `undefined` for a record that must not be acted on, so a
+ * record written between recovery passes — by another tab, or by a partially
+ * applied write — can never be leased unvalidated.
+ */
+function readStoredEdit(value: unknown, id: string, tally: RecoveryTally): OfflineQueuedEdit | undefined {
+  if (value === undefined) return undefined;
+  tally.inspected += 1;
+  const inspection = inspectStoredOfflineEdit(value);
+  if (inspection.status === "invalid" || inspection.record.id !== id) {
+    discard(tally, inspection.status === "invalid" ? inspection.reason : "corrupt-record");
+    return undefined;
+  }
+  return inspection.record;
+}
+
+function readStoredTombstone(value: unknown, tally: RecoveryTally): OfflineEditQueueTombstone | undefined {
+  if (value === undefined) return undefined;
+  tally.inspected += 1;
+  const inspection = inspectStoredOfflineEditTombstone(value);
+  if (inspection.status === "invalid") {
+    discard(tally, inspection.reason);
+    return undefined;
+  }
+  return inspection.record;
+}
+
+function readStoredMetadata(value: unknown, tally: RecoveryTally): OfflineEditQueueMetadata | undefined {
+  if (value === undefined) return undefined;
+  tally.inspected += 1;
+  const inspection = inspectStoredOfflineEditMetadata(value);
+  if (inspection.status === "invalid") {
+    discard(tally, inspection.reason);
+    return undefined;
+  }
+  return inspection.record;
+}
+
+/**
+ * One bounded startup pass over edits, metadata, and tombstones.
+ *
+ * Reads are capped at the record ceiling before anything is materialized, so a
+ * database past its bounds fails with a typed `queue-limit-exceeded` rather
+ * than being scanned. Everything the plan decides is applied inside the single
+ * transaction that read it.
+ */
+async function recoverQueueDatabase(
+  database: IDBDatabase,
+  limits: OfflineEditQueueRecoveryLimits,
+  onRecovery?: (report: OfflineEditQueueRecoveryV1) => void,
+): Promise<void> {
+  const ceiling =
+    tightenedPositive(limits.maxRecords, DEFAULT_OFFLINE_EDIT_QUEUE_MAX_RECOVERY_RECORDS, "recovery.maxRecords") + 1;
+  const report = await runTransaction(database, "readwrite", async ({ edits, metadata, tombstones }) => {
+    const rows = {
+      edits: await readRows(edits, ceiling),
+      metadata: await readRows(metadata, ceiling),
+      tombstones: await readRows(tombstones, ceiling),
+    };
+    const plan = planOfflineEditQueueRecovery(rows, limits);
+    for (const key of plan.deleteEditKeys) edits.delete(key);
+    for (const key of plan.deleteMetadataKeys) metadata.delete(key);
+    for (const key of plan.deleteTombstoneKeys) tombstones.delete(key);
+    for (const row of plan.putMetadata) metadata.put(row);
+    return plan.report;
+  });
+  if (onRecovery && report.discardedRecords + report.repairedRecords > 0) onRecovery(report);
+}
+
+async function readRows(store: IDBObjectStore, ceiling: number): Promise<readonly OfflineEditQueueStoredRecord[]> {
+  const [keys, values] = await Promise.all([
+    request<IDBValidKey[]>(store.getAllKeys(null, ceiling)),
+    request<unknown[]>(store.getAll(null, ceiling)),
+  ]);
+  if (keys.length !== values.length) {
+    fail("store-failed", "Offline edit queue recovery read mismatched keys and records.");
+  }
+  return keys.map((key, index) => ({ key: String(key), value: values[index] }));
 }
 
 function openDatabase(factory: IDBFactory, name: string): Promise<IDBDatabase> {
