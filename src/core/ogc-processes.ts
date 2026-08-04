@@ -651,7 +651,9 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
     }
     this.assertDismissDeclared();
     try {
-      const cancelled = await this.client.cancelOgcProcessJob(this.jobRequest());
+      // DELETE targets the job resource itself, so it follows the same
+      // advertised route the status polls use rather than re-templating it.
+      const cancelled = await this.client.cancelOgcProcessJob(this.jobRequest(this.statusPath));
       const snapshot = await this.handleOgcStatus(cancelled);
       return snapshot.status;
     } catch (error) {
@@ -840,6 +842,14 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
    * server never advertised.
    */
   private assertDismissDeclared(): void {
+    // Under `"strict"` the DELETE route must have been advertised, exactly as
+    // the status route must be, so dismissal is never sent to a guessed path.
+    if (this.capabilityPolicy === "strict" && this.statusPath === undefined) {
+      throw capabilityRefusal("processes.jobStatusLink", this.type, {
+        construct: "job status route",
+        linkRelation: PROCESSES_LINK_REL.status,
+      });
+    }
     if (declares(this.jobControlOptions, JOB_CONTROL.dismiss)) return;
     const conformsTo = this.conformance?.conformsTo;
     if (!conformsTo) return;

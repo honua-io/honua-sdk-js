@@ -563,6 +563,8 @@ describe("OGC API Processes execution against a raw third-party server", () => {
     const processes = client.ogcProcesses({ basePath: "/pyg", conformance: conformanceWithDismiss });
     const run = await processes.execute({ processId: "buffer", mode: "async" });
 
+    // The DELETE follows the route the `Location` header advertised, the same
+    // one the status polls use — dismissal is not re-templated.
     expect(await run.cancel()).toBe("dismissed");
     expect(requests).toEqual(["POST /pyg/processes/buffer/execution", "DELETE /pyg/jobs/job-9"]);
   });
@@ -624,15 +626,20 @@ describe("OGC API Processes execution against a raw third-party server", () => {
     });
 
     it("refuses to guess a status route the server never advertised", async () => {
-      const { client } = rawClient({ omitLocation: true });
+      const { client, requests } = rawClient({ omitLocation: true });
       const processes = client.ogcProcesses({ basePath: "/pyg", capabilityPolicy: "strict" });
       const run = await processes.execute({ processId: "buffer", mode: "async" });
 
-      await expect(run.poll()).rejects.toMatchObject({
+      const refusal = {
         name: "HonuaCapabilityNotSupportedError",
         capability: "processes.jobStatusLink",
         context: { linkRelation: "self" },
-      });
+      };
+      await expect(run.poll()).rejects.toMatchObject(refusal);
+      // Dismissal targets the same resource, so it refuses on the same grounds
+      // rather than falling back to the Core template.
+      await expect(run.cancel()).rejects.toMatchObject(refusal);
+      expect(requests.some((entry) => entry.startsWith("GET /pyg/jobs") || entry.startsWith("DELETE"))).toBe(false);
     });
 
     it("refuses to guess a results route the server never advertised", async () => {
