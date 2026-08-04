@@ -1,58 +1,51 @@
 import type { HonuaClient } from "@honua/sdk-js";
 import { z } from "zod";
-import { GEOMETRY_TYPES, clampLimit, jsonText, mapSpatialRel, resolveGeometryType } from "../helpers.js";
+import { jsonText } from "../helpers.js";
+import { withCapabilityHonesty } from "../neutral/errors.js";
+import { queryFilterFields, queryShapeFields, toQuery } from "../neutral/query.js";
+import { projectDegraded, projectFeatures } from "../neutral/result.js";
+import { resolveSource, sourceRefFields } from "../neutral/source-ref.js";
 
+/**
+ * `honua_query_features` — protocol-neutral feature read (#1005).
+ *
+ * Addresses a source by its neutral `<protocol>:<address>` reference, filters
+ * with the typed semantic filter / GeoJSON geometry / canonical temporal
+ * predicate, and executes through the SDK's canonical `Source.query()`, so the
+ * same call means the same thing against GeoServices, OGC API Features, STAC,
+ * WFS, and OData. The deprecated `serviceId` + `layerId` pair is still accepted.
+ */
 export const schema = z.object({
-  serviceId: z.string().describe("The feature service ID"),
-  layerId: z.number().int().nonnegative().describe("The layer ID within the service"),
-  where: z.string().optional().describe('SQL WHERE clause, e.g. "population > 50000"'),
-  outFields: z.array(z.string()).optional().describe("Fields to return; defaults to all"),
-  geometry: z.record(z.unknown()).optional().describe("Esri JSON geometry for spatial filter"),
-  geometryType: z
-    .enum(GEOMETRY_TYPES)
-    .optional()
-    .describe("Esri geometry type. If omitted, inferred from geometry when possible."),
-  spatialRel: z
-    .enum(["intersects", "contains", "within"])
-    .optional()
-    .describe("Spatial relationship (default: intersects)"),
-  orderBy: z.string().optional().describe('Sort order, e.g. "name ASC"'),
-  limit: z.number().int().positive().optional().describe("Max features to return (default 100, max 2000)"),
-  offset: z.number().int().nonnegative().optional().describe("Number of features to skip (for pagination)"),
-  returnGeometry: z.boolean().optional().default(false).describe("Include geometry in results (default: false)"),
+  ...sourceRefFields,
+  ...queryFilterFields,
+  ...queryShapeFields,
 });
 
 export type Input = z.infer<typeof schema>;
 
 export async function execute(client: HonuaClient, input: Input) {
-  const response = await client.queryFeatures({
-    serviceId: input.serviceId,
-    layerId: input.layerId,
-    where: input.where,
-    // An empty array is a natural "no specific fields" from an agent, but Esri
-    // FeatureServer treats an empty outFields as "OBJECTID only". Coerce both
-    // missing and empty to "*" so all fields are returned.
-    outFields: input.outFields && input.outFields.length > 0 ? input.outFields : "*",
-    geometry: input.geometry,
-    geometryType: resolveGeometryType(input.geometry, input.geometryType),
-    spatialRel: mapSpatialRel(input.spatialRel),
-    orderByFields: input.orderBy,
-    resultRecordCount: clampLimit(input.limit),
-    resultOffset: input.offset,
-    returnGeometry: input.returnGeometry,
-  });
+  return withCapabilityHonesty(async () => {
+    const resolved = resolveSource(client, input);
+    const query = toQuery(input, { protocol: resolved.descriptor.protocol });
+    const result = await resolved.source.query(query);
 
-  const features = response.features ?? [];
+    // Legacy addressing keeps legacy output: a client that still sends
+    // serviceId/layerId also still expects Esri-JSON geometry. Neutral
+    // addressing gets the neutral encoding.
+    const geometryFormat = input.geometryFormat ?? (resolved.legacyAddressing ? "esri-json" : "geojson");
+    const returnGeometry = input.returnGeometry ?? false;
+    const degraded = projectDegraded(result.degraded);
 
-  return jsonText({
-    returnedCount: features.length,
-    features: features.map((f) => ({
-      attributes: f.attributes,
-      ...(input.returnGeometry && f.geometry ? { geometry: f.geometry } : {}),
-    })),
-    exceededTransferLimit: response.exceededTransferLimit ?? false,
-    objectIdFieldName: response.objectIdFieldName ?? null,
-    geometryType: response.geometryType ?? null,
-    spatialReference: response.spatialReference ?? null,
+    return jsonText({
+      source: resolved.ref.ref,
+      protocol: resolved.descriptor.protocol,
+      returnedCount: result.features.length,
+      features: projectFeatures(result, { returnGeometry, geometryFormat }),
+      geometryFormat: returnGeometry ? geometryFormat : null,
+      exceededTransferLimit: result.exceededTransferLimit,
+      totalCount: result.totalCount ?? null,
+      fields: result.fields ?? null,
+      ...(degraded ? { degraded } : {}),
+    });
   });
 }
