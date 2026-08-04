@@ -73,6 +73,11 @@ export function canonicalizeQuery<T>(query?: Readonly<Query<T>>): CanonicalQuery
   if (query.where !== undefined) assertSafeNativeExpression(query.where);
   const canonical: CanonicalQuery = {
     ...(query.where !== undefined ? { where: { kind: "source-native" as const, expression: query.where } } : {}),
+    // The typed filter and temporal member are identity-bearing: they change
+    // which rows a plan returns, so they belong in the canonical bytes that
+    // `hashQueryIr` / `hashQueryPlan` fingerprint.
+    ...(query.filter !== undefined ? { filter: query.filter } : {}),
+    ...(query.temporalFilter !== undefined ? { temporalFilter: query.temporalFilter } : {}),
     ...(query.spatialFilter
       ? {
           spatialFilter: {
@@ -110,6 +115,8 @@ export function canonicalizeQuery<T>(query?: Readonly<Query<T>>): CanonicalQuery
 export function queryFromCanonical<T>(query: CanonicalQuery, signal?: AbortSignal): Query<T> {
   return {
     ...(query.where ? { where: query.where.expression } : {}),
+    ...(query.filter !== undefined ? { filter: query.filter } : {}),
+    ...(query.temporalFilter !== undefined ? { temporalFilter: query.temporalFilter } : {}),
     ...(query.spatialFilter
       ? {
           spatialFilter: {

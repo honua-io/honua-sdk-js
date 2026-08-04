@@ -53,6 +53,7 @@ Run from the repo root unless noted. These are copied from `package.json` / CI; 
 - **Network-gated sample evidence / cloud-demo tests:** `HONUA_FIRST_MAP_LIVE_ENABLED=true npm run evidence:first-map:live`, `npm run test:cloud-demo:staging`
 - **Browser smoke (all):** `npm run test:playwright` (builds first, installs kepler deps, runs Playwright)
 - **Split-package build/verify:** `npm run build:split-packages` / `npm run verify:split-packages`
+- **Scaffold + playgrounds (`packages/create-honua-app`):** `npm run create-app:verify`, `npm run create-app:test`, `npm run create-app:templates:typecheck`, `npm run playgrounds:check` (regenerate the page with `npm run playgrounds:generate`); the registry lane is `HONUA_CREATE_APP_LIVE_ENABLED=true npm run create-app:time-to-map`. See `docs/create-honua-app.md`.
 - **API docs:** `npm run docs:api` (TypeDoc → `dist/docs-api`)
 - **Migration CLI:** `npm run scan:arcgis`, `npm run migrate:arcgis` (wrap `dist/src/migration/cli.js`)
 - **Canonical capability keys / coverage snapshot:** `npm run samples:verify` validates `samples/catalog.v2.json`'s `capabilityKeys` against `config/capability-crosswalk.v1.json`; `npm run sdk-coverage:generate` / `npm run sdk-coverage:check` produce and drift-gate `config/sdk-coverage.v1.json` from `config/support-manifest.v1.json` + `config/sdk-coverage-crosswalk.v1.json`. See `docs/capability-keys.md`.
@@ -78,6 +79,7 @@ src/            # SDK source (~240 .ts files); see Architecture for subdirs; src
 test/           # ~190 vitest specs + test/playwright/*.spec.mjs + test/fixtures (excluded from tsc/biome)
 examples/       # ~22 Vite demo apps, each with vite.config.ts, tsconfig.json, often mock-server.mjs
 mcp/            # standalone @honua/mcp-server package (own package.json, tsconfig, vitest, biome)
+packages/       # standalone packages published from source, not from dist/ (create-honua-app scaffold + its starter templates)
 scripts/        # *.mjs build/verify/demo helpers
 docs/           # design docs, decisions/, features/, examples/
 vitest.*.config.ts  # unit (vitest.config.ts), integration, staging, cloud-demo configs

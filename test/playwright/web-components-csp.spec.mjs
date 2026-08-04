@@ -63,7 +63,7 @@ test("web-component catalog renders without strict-CSP violations", async ({ pag
         (element) => element.tagName.toLowerCase().startsWith("honua-") && element.shadowRoot,
       ).length,
     }));
-    expect(result.mounted, JSON.stringify(result.tags)).toBeGreaterThanOrEqual(21);
+    expect(result.mounted, JSON.stringify(result.tags)).toBeGreaterThanOrEqual(22);
     expect(result.violations, JSON.stringify(result.violations, null, 2)).toEqual([]);
   } finally {
     await server.close();

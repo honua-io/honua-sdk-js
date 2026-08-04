@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   type BenchmarkReport,
   type MetricSummary,
+  evaluateAbsoluteBudget,
   evaluateRelativeBudget,
   evaluateReport,
   summarizeSamples,
@@ -19,7 +20,7 @@ const stableMetric = (median = 100): MetricSummary => ({
 });
 
 const budgets: Parameters<typeof evaluateReport>[1] = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   variability: {
     warningCoefficientOfVariation: 0.2,
     failureCoefficientOfVariation: 0.5,
@@ -36,7 +37,16 @@ const budgets: Parameters<typeof evaluateReport>[1] = {
       failurePercent: 30,
     },
   },
+  absolute: {},
 };
+
+/** Absolute budgets keyed to the fixture report's only scenario. */
+function absoluteBudgets(
+  metrics: Record<string, { direction: "lower-is-better" | "higher-is-better"; warning?: number; failure: number }>,
+  scenarioId = "stream.pagination.geometry",
+): Parameters<typeof evaluateReport>[1] {
+  return { ...budgets, absolute: { [scenarioId]: metrics } };
+}
 
 function benchmarkReport(
   environment: Partial<BenchmarkReport["environment"]> = {},
@@ -136,6 +146,88 @@ describe("benchmark lab statistics", () => {
       level: "warning",
       regressionPercent: 16,
     });
+  });
+});
+
+describe("absolute benchmark budgets", () => {
+  it("treats thresholds as ceilings or floors according to direction", () => {
+    const ceiling = { direction: "lower-is-better", warning: 20, failure: 24 } as const;
+    expect(evaluateAbsoluteBudget(20, ceiling)).toBe("pass");
+    expect(evaluateAbsoluteBudget(21, ceiling)).toBe("warning");
+    expect(evaluateAbsoluteBudget(24, ceiling)).toBe("warning");
+    expect(evaluateAbsoluteBudget(24.1, ceiling)).toBe("failure");
+
+    const floor = { direction: "higher-is-better", warning: 3_000_000, failure: 1_000_000 } as const;
+    expect(evaluateAbsoluteBudget(3_000_000, floor)).toBe("pass");
+    expect(evaluateAbsoluteBudget(2_999_999, floor)).toBe("warning");
+    expect(evaluateAbsoluteBudget(1_000_000, floor)).toBe("warning");
+    expect(evaluateAbsoluteBudget(999_999, floor)).toBe("failure");
+  });
+
+  it("treats a budget without a warning threshold as pass-or-fail", () => {
+    expect(evaluateAbsoluteBudget(24, { direction: "lower-is-better", failure: 24 })).toBe("pass");
+    expect(evaluateAbsoluteBudget(25, { direction: "lower-is-better", failure: 24 })).toBe("failure");
+  });
+
+  it("gates a breach with no baseline supplied", () => {
+    const evaluation = evaluateReport(
+      benchmarkReport(),
+      absoluteBudgets({ totalDurationMs: { direction: "lower-is-better", warning: 50, failure: 80 } }),
+    );
+
+    expect(evaluation.level).toBe("failure");
+    expect(evaluation.baselineCompatibility).toBeNull();
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({
+        scenarioId: "stream.pagination.geometry",
+        metric: "totalDurationMs.absolute",
+        level: "failure",
+        actual: 100,
+      }),
+    );
+  });
+
+  it("reports a value between the thresholds as a warning without failing the run", () => {
+    const evaluation = evaluateReport(
+      benchmarkReport(),
+      absoluteBudgets({ featuresPerSecond: { direction: "higher-is-better", warning: 12_000, failure: 5_000 } }),
+    );
+
+    expect(evaluation.level).toBe("warning");
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({ metric: "featuresPerSecond.absolute", level: "warning", actual: 10_000 }),
+    );
+  });
+
+  it("fails closed when a budget names an unknown scenario", () => {
+    const evaluation = evaluateReport(
+      benchmarkReport(),
+      absoluteBudgets({ totalDurationMs: { direction: "lower-is-better", failure: 1_000 } }, "columnar.renamed"),
+    );
+
+    expect(evaluation.level).toBe("failure");
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({ scenarioId: "columnar.renamed", metric: "absolute-budget", level: "failure" }),
+    );
+  });
+
+  it("fails closed when a budget names a metric the scenario does not report", () => {
+    const evaluation = evaluateReport(
+      benchmarkReport(),
+      absoluteBudgets({ peakRetainedBytesPerFeature: { direction: "lower-is-better", failure: 160 } }),
+    );
+
+    expect(evaluation.level).toBe("failure");
+    expect(evaluation.items).toContainEqual(
+      expect.objectContaining({ metric: "peakRetainedBytesPerFeature", level: "failure" }),
+    );
+  });
+
+  it("emits no absolute items when no budget is declared", () => {
+    const evaluation = evaluateReport(benchmarkReport(), budgets);
+
+    expect(evaluation.level).toBe("pass");
+    expect(evaluation.items.some((item) => item.metric.endsWith(".absolute"))).toBe(false);
   });
 });
 

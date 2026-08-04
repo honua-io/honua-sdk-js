@@ -50,7 +50,7 @@ describe("migration cli fixtures metrics", () => {
     const result = runCli(["fixtures", "--report", reportPath], getProjectRoot());
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("fixtures=4");
+    expect(result.stdout).toContain("fixtures=5");
     expect(result.stdout).toContain("target=honua-compat");
     expect(result.stdout).toContain(`reportWritten=${reportPath}`);
     expect(fs.existsSync(reportPath)).toBe(true);
@@ -79,12 +79,13 @@ describe("migration cli fixtures metrics", () => {
     };
 
     expect(report.codemodTarget).toBe("honua-compat");
-    expect(report.summary.fixtureCount).toBe(4);
+    expect(report.summary.fixtureCount).toBe(5);
     expect(report.fixtureNames).toEqual([
       "esri-real-sample-incident-command-app",
       "esri-real-sample-ops-center-app",
       "esri-real-sample-editing-app",
       "esri-real-sample-network-app",
+      "esri-real-sample-address-search-app",
     ]);
     expect(report.summary.totalCallSites).toBeGreaterThan(0);
     expect(report.summary.autoMigratedCallSites).toBe(report.summary.totalCallSites);
@@ -92,7 +93,7 @@ describe("migration cli fixtures metrics", () => {
     expect(report.summary.unhandledUsageHits).toBe(0);
     expect(report.gates.passed).toBe(true);
     expect(report.gates.failures).toEqual([]);
-    expect(report.fixtures).toHaveLength(4);
+    expect(report.fixtures).toHaveLength(5);
     expect(report.fixtures.every((fixture) => fixture.readiness === "ready")).toBe(true);
     expect(report.fixtures.every((fixture) => fixture.manualCallSites === 0)).toBe(true);
   }, 240_000);

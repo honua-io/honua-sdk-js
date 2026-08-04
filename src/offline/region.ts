@@ -1,5 +1,12 @@
 import { normalizeDiscoveryEndpoint } from "../contract/discovery.js";
 import {
+  type CredentialScreenStrictness,
+  credentialScreenMessage,
+  screenPersistedString,
+} from "./credential-screen.js";
+import { canonicalJson, compareCodeUnits, sha256 } from "./digest.js";
+import { captureOfflineStorageBudget, isStorageQuotaPressureError } from "./quota.js";
+import {
   type CreateOfflineRegionDiagnosticOptions,
   type CreateOfflineRegionManifestInput,
   DEFAULT_OFFLINE_REGION_MAX_ATTRIBUTIONS,
@@ -150,11 +157,30 @@ class TrustBudget {
     return normalized;
   }
 
+  /** A persisted machine key: also refused when it carries credential or request-URL shape. */
+  public identity(value: unknown, path: string, normalizedRequired: boolean): string {
+    return this.#screened(value, path, normalizedRequired, "identity");
+  }
+
+  /** Persisted human prose: refused only for embedded credential assignments and URLs. */
+  public label(value: unknown, path: string, normalizedRequired: boolean): string {
+    return this.#screened(value, path, normalizedRequired, "label");
+  }
+
   public metadata(count: number, path: string): void {
     if (count < 0 || this.#metadataEntries > this.limits.maxMetadataEntries - count) {
       limit(`${path} exceeds the metadata entry limit.`, path);
     }
     this.#metadataEntries += count;
+  }
+
+  // Screening runs on the normalized value and before any caller-visible echo of
+  // it, so a rejected secret is never repeated back in a message (NFR-002).
+  #screened(value: unknown, path: string, normalizedRequired: boolean, strictness: CredentialScreenStrictness): string {
+    const normalized = this.string(value, path, normalizedRequired);
+    const reason = screenPersistedString(normalized, strictness);
+    if (reason) invalid(credentialScreenMessage(path, reason), path);
+    return normalized;
   }
 }
 
@@ -189,6 +215,26 @@ export async function createOfflineRegionManifest(
   const canonicalIdentity = canonicalJson(identity);
   const id = await sha256(`honua-offline-region:v1:${canonicalIdentity}`);
   return deepFreeze({ ...identity, id });
+}
+
+/**
+ * Validate an untrusted manifest and prove its identity digest still matches its
+ * normalized contents, returning the normalized value.
+ *
+ * A store hands back whatever was persisted, so any consumer that is about to
+ * trust a stored manifest's provenance — versions, attribution, authorization
+ * scope — verifies it here first rather than reading fields off unvalidated
+ * input.
+ */
+export async function verifyOfflineRegionManifest(
+  inputManifest: OfflineRegionManifestV1,
+): Promise<OfflineRegionManifestV1> {
+  const prepared = captureManifest(inputManifest);
+  const expectedId = await sha256(`honua-offline-region:v1:${prepared.canonicalIdentity}`);
+  if (prepared.manifest.id !== expectedId) {
+    invalid("Offline region identity does not match its normalized contents.", "id");
+  }
+  return prepared.manifest;
 }
 
 /**
@@ -231,6 +277,8 @@ export async function createOfflineRegionDiagnostic(
   ]);
   if (manifest.id !== expectedId) invalid("Offline region identity does not match its normalized contents.", "id");
 
+  const storage = options.storage === undefined ? undefined : captureOfflineStorageBudget(options.storage, "storage");
+
   let admission: OfflineRegionDiagnosticAdmission;
   try {
     admission = {
@@ -239,7 +287,12 @@ export async function createOfflineRegionDiagnostic(
     };
   } catch (error) {
     if (error instanceof HonuaOfflineRegionError && (error.code === "expired" || error.code === "quota-exceeded")) {
-      admission = { status: "rejected", reason: error.code, logicalQuotaBytes };
+      admission = {
+        status: "rejected",
+        reason: error.code,
+        logicalQuotaBytes,
+        ...(error.admission ? { attempted: error.admission } : {}),
+      };
     } else {
       throw error;
     }
@@ -320,6 +373,7 @@ export async function createOfflineRegionDiagnostic(
       attributionIds: ownKeys(manifest.attribution),
     },
     admission,
+    ...(storage ? { storage } : {}),
   });
 }
 
@@ -362,16 +416,9 @@ function planPreparedAdmission(
     evictions.push(candidate);
     projected -= candidate.logicalByteLength;
   }
-  if (projected > logicalQuotaBytes) {
-    const pinned = normalized.regions
-      .filter((region) => region.id !== manifest.id && region.pinned === true)
-      .reduce((total, region) => safeAdd(total, region.logicalByteLength, "inventory.regions"), 0);
-    throw new HonuaOfflineRegionError(
-      "quota-exceeded",
-      `Offline region requires ${requiredLogicalBytes} logical bytes but only ${Math.max(0, logicalQuotaBytes - pinned)} remain after preserving pinned data.`,
-    );
-  }
-  return deepFreeze({
+  // Built before the verdict so a refusal can report exactly what was attempted
+  // (REQ-004). A refused plan is a proposal: nothing in it has been evicted.
+  const plan = deepFreeze({
     logicalQuotaBytes,
     logicalBytesBefore,
     replacementLogicalBytes,
@@ -383,6 +430,17 @@ function planPreparedAdmission(
     ),
     logicalBytesAfter: projected,
   });
+  if (projected > logicalQuotaBytes) {
+    const pinned = normalized.regions
+      .filter((region) => region.id !== manifest.id && region.pinned === true)
+      .reduce((total, region) => safeAdd(total, region.logicalByteLength, "inventory.regions"), 0);
+    throw new HonuaOfflineRegionError(
+      "quota-exceeded",
+      `Offline region requires ${requiredLogicalBytes} logical bytes but only ${Math.max(0, logicalQuotaBytes - pinned)} remain after preserving pinned data.`,
+      { admission: plan },
+    );
+  }
+  return plan;
 }
 
 /** Download and atomically commit a manifest through caller-injected adapters. */
@@ -402,7 +460,7 @@ export async function downloadOfflineRegion(
   try {
     inventory = await options.store.inventory();
   } catch (cause) {
-    throw new HonuaOfflineRegionError("store-failed", "Failed to inspect the offline region store.", { cause });
+    throw storeFailure("Failed to inspect the offline region store.", cause);
   }
   throwIfAborted(options.signal);
   const normalizedInventory = normalizeInventory(inventory);
@@ -423,7 +481,7 @@ export async function downloadOfflineRegion(
   try {
     transaction = await options.store.beginWrite(manifest.id);
   } catch (cause) {
-    throw new HonuaOfflineRegionError("store-failed", "Failed to begin an offline region transaction.", { cause });
+    throw storeFailure("Failed to begin an offline region transaction.", cause, plan);
   }
   let settled = false;
   try {
@@ -526,14 +584,40 @@ export async function downloadOfflineRegion(
       try {
         await transaction.rollback({ preserveStaged: true });
       } catch (rollbackCause) {
-        throw new HonuaOfflineRegionError("store-failed", "Offline region rollback failed.", {
-          cause: new AggregateError([cause, rollbackCause]),
-        });
+        throw storeFailure("Offline region rollback failed.", new AggregateError([cause, rollbackCause]), plan);
       }
     }
-    if (cause instanceof HonuaOfflineRegionError) throw cause;
-    throw new HonuaOfflineRegionError("store-failed", "Offline region transaction failed.", { cause });
+    if (cause instanceof HonuaOfflineRegionError) {
+      // A store adapter that wrapped a full device in its own untyped failure
+      // must not defeat the quota class the caller recovers from.
+      if (cause.code !== "store-failed" || !isStorageQuotaPressureError(cause)) throw cause;
+      throw quotaPressure(cause, plan, cause.resourceId);
+    }
+    throw storeFailure("Offline region transaction failed.", cause, plan);
   }
+}
+
+/**
+ * Classify one adapter failure. A platform storage-pressure failure raised while
+ * staging, writing, or committing is a `quota-exceeded` / `offline.region.quota`
+ * failure carrying the attempted plan (REQ-003, REQ-004) — a full device is an
+ * actionable caller condition, not the internal `store-failed` class.
+ */
+function storeFailure(message: string, cause: unknown, plan?: OfflineRegionAdmissionPlan): HonuaOfflineRegionError {
+  if (isStorageQuotaPressureError(cause)) return quotaPressure(cause, plan);
+  return new HonuaOfflineRegionError("store-failed", message, { cause });
+}
+
+function quotaPressure(
+  cause: unknown,
+  plan: OfflineRegionAdmissionPlan | undefined,
+  resourceId?: string,
+): HonuaOfflineRegionError {
+  return new HonuaOfflineRegionError(
+    "quota-exceeded",
+    "Browser storage refused the offline region write; the device is out of space. Evict or unpin a region, or request persistent storage, then retry.",
+    { cause, ...(plan ? { admission: plan } : {}), ...(resourceId ? { resourceId } : {}) },
+  );
 }
 
 function captureCreationInput(input: CreateOfflineRegionManifestInput): CreationSnapshot {
@@ -542,17 +626,19 @@ function captureCreationInput(input: CreateOfflineRegionManifestInput): Creation
     allowedKeys(record, CREATE_KEYS, "input");
     const limits = normalizeLimits(record.limits);
     const budget = new TrustBudget(limits);
-    const name = budget.string(record.name, "name", false);
-    const sourceId = budget.string(record.sourceId, "sourceId", false);
+    const name = budget.label(record.name, "name", false);
+    const sourceId = budget.identity(record.sourceId, "sourceId", false);
+    // The fingerprint is never persisted; only its domain-separated digest is,
+    // so it is deliberately budgeted without being screened or normalized.
     const authorizationScopeFingerprint = budget.string(
       record.authorizationScopeFingerprint,
       "authorizationScopeFingerprint",
       false,
     );
     const endpoint = credentialFreeEndpoint(record.endpoint, budget, false);
-    const sourceVersion = budget.string(record.sourceVersion, "sourceVersion", false);
-    const schemaVersion = budget.string(record.schemaVersion, "schemaVersion", false);
-    const planVersion = budget.string(record.planVersion, "planVersion", false);
+    const sourceVersion = budget.identity(record.sourceVersion, "sourceVersion", false);
+    const schemaVersion = budget.identity(record.schemaVersion, "schemaVersion", false);
+    const planVersion = budget.identity(record.planVersion, "planVersion", false);
     const observation = normalizeObservation(record.observation, budget, false);
     const validator = normalizeValidator(record.validator, budget, false);
     const bounds = normalizeBounds(record.bounds, budget, false);
@@ -614,10 +700,10 @@ function captureManifest(input: OfflineRegionManifestV1): PreparedManifest {
     if (record.kind !== HONUA_OFFLINE_REGION_KIND) invalid("Unsupported offline region kind.", "kind");
     if (record.version !== HONUA_OFFLINE_REGION_VERSION) invalid("Unsupported offline region version.", "version");
     const id = integrityString(record.id, "id", budget, true);
-    const name = budget.string(record.name, "name", true);
+    const name = budget.label(record.name, "name", true);
     const sourceRecord = plainRecord(record.source, "source");
     allowedKeys(sourceRecord, SOURCE_KEYS, "source");
-    const sourceId = budget.string(sourceRecord.id, "source.id", true);
+    const sourceId = budget.identity(sourceRecord.id, "source.id", true);
     const endpoint = credentialFreeEndpoint(sourceRecord.endpoint, budget, true);
     const authorizationScopeDigest = integrityString(
       sourceRecord.authorizationScopeDigest,
@@ -625,9 +711,9 @@ function captureManifest(input: OfflineRegionManifestV1): PreparedManifest {
       budget,
       true,
     );
-    const sourceVersion = budget.string(sourceRecord.sourceVersion, "source.sourceVersion", true);
-    const schemaVersion = budget.string(sourceRecord.schemaVersion, "source.schemaVersion", true);
-    const planVersion = budget.string(sourceRecord.planVersion, "source.planVersion", true);
+    const sourceVersion = budget.identity(sourceRecord.sourceVersion, "source.sourceVersion", true);
+    const schemaVersion = budget.identity(sourceRecord.schemaVersion, "source.schemaVersion", true);
+    const planVersion = budget.identity(sourceRecord.planVersion, "source.planVersion", true);
     const observation = normalizeObservation(sourceRecord.observation, budget, true);
     const validator = normalizeValidator(sourceRecord.validator, budget, true);
     const bounds = normalizeBounds(record.bounds, budget, true);
@@ -728,7 +814,7 @@ function normalizeResources(
     const record = plainRecord(input[index], path);
     allowedKeys(record, RESOURCE_KEYS, path);
     budget.metadata(1, path);
-    const id = budget.string(record.id, `${path}.id`, normalizedRequired);
+    const id = budget.identity(record.id, `${path}.id`, normalizedRequired);
     if (ids.has(id)) invalid(`Duplicate resource id "${id}".`, `${path}.id`);
     ids.add(id);
     if (normalizedRequired && previousId !== undefined && compareCodeUnits(previousId, id) >= 0) {
@@ -746,18 +832,18 @@ function normalizeResources(
     const contentType =
       record.contentType === undefined
         ? undefined
-        : budget.string(record.contentType, `${path}.contentType`, normalizedRequired);
-    const sourceVersion = budget.string(
+        : budget.identity(record.contentType, `${path}.contentType`, normalizedRequired);
+    const sourceVersion = budget.identity(
       record.sourceVersion ?? defaults.sourceVersion,
       `${path}.sourceVersion`,
       normalizedRequired,
     );
-    const schemaVersion = budget.string(
+    const schemaVersion = budget.identity(
       record.schemaVersion ?? defaults.schemaVersion,
       `${path}.schemaVersion`,
       normalizedRequired,
     );
-    const planVersion = budget.string(
+    const planVersion = budget.identity(
       record.planVersion ?? defaults.planVersion,
       `${path}.planVersion`,
       normalizedRequired,
@@ -775,7 +861,7 @@ function normalizeResources(
     let previousAttribution: string | undefined;
     const seenAttribution = new Set<string>();
     for (let item = 0; item < attributionInput.length; item += 1) {
-      const attributionId = budget.string(
+      const attributionId = budget.identity(
         attributionInput[item],
         `${path}.attributionIds[${item}]`,
         normalizedRequired,
@@ -827,8 +913,8 @@ function normalizeAttribution(
     if (!Object.hasOwn(record, rawId)) continue;
     if (entries.length >= limits.maxAttributions) limit("attribution exceeds the entry limit.", "attribution");
     budget.metadata(1, `attribution.${rawId}`);
-    const id = budget.string(rawId, "attribution id", normalizedRequired);
-    const text = budget.string(record[rawId], `attribution.${id}`, normalizedRequired);
+    const id = budget.identity(rawId, "attribution id", normalizedRequired);
+    const text = budget.label(record[rawId], `attribution.${id}`, normalizedRequired);
     entries.push([id, text]);
   }
   entries.sort(([left], [right]) => compareCodeUnits(left, right));
@@ -1087,37 +1173,6 @@ function safeAdd(left: number, right: number, path: string): number {
 
 function isExpired(region: OfflineRegionStoredRegion, nowMs: number): boolean {
   return region.expiresAt !== undefined && Date.parse(region.expiresAt) <= nowMs;
-}
-
-function compareCodeUnits(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") {
-    const encoded = JSON.stringify(value);
-    if (encoded === undefined) invalid("Offline region identity cannot contain undefined values.", "identity");
-    return encoded;
-  }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  const entries: Array<readonly [string, unknown]> = [];
-  for (const key in value as Record<string, unknown>) {
-    if (Object.hasOwn(value as object, key)) entries.push([key, (value as Record<string, unknown>)[key]]);
-  }
-  entries.sort(([left], [right]) => compareCodeUnits(left, right));
-  return `{${entries.map(([key, child]) => `${JSON.stringify(key)}:${canonicalJson(child)}`).join(",")}}`;
-}
-
-async function sha256(value: string | Uint8Array): Promise<`sha256:${string}`> {
-  const subtle = globalThis.crypto?.subtle;
-  if (!subtle) invalid("Offline region identity and integrity require Web Crypto SHA-256.", "crypto");
-  const bytes = typeof value === "string" ? encoder.encode(value) : value;
-  const digestInput: BufferSource =
-    bytes.buffer instanceof ArrayBuffer
-      ? (bytes as unknown as BufferSource)
-      : (Uint8Array.from(bytes) as unknown as BufferSource);
-  const digest = await subtle.digest("SHA-256", digestInput);
-  return `sha256:${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {

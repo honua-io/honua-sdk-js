@@ -30,9 +30,11 @@ visual builders, and the server `SourceBinding`/`MapPackage` exporters
   `ogcMapsSource`, `stacSearchSource`, `wmsSource`, `wmtsSource`,
   `wfsSource`, `odataSource`).
 - **Non-goal:** replacing the v1 `Query` envelope while protocol compilers
-  migrate. `Query.where` is a deprecated, source-native compatibility string;
-  the experimental typed semantic AST in `@honua/sdk-js/query-planner` follows
-  separate compiler/execution workflows and is not accepted by `Source.query()`.
+  migrate. `Query.filter` (typed, protocol-neutral) and `Query.temporalFilter`
+  are the stable filtering members; `Query.where` remains only as a deprecated,
+  source-native compatibility string. The experimental schema-verified semantic
+  AST in `@honua/sdk-js/query-planner` follows separate compiler/execution
+  workflows over the same filter shape.
 
 ## Module layout
 

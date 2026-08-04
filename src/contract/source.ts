@@ -25,6 +25,7 @@ import {
   type HonuaOdataMetadata,
   type HonuaOdataQueryParams,
   buildOdataSpatialFilter,
+  geometryToWkt,
   odataFieldSchema,
   rewriteWhereToOdataFilter,
 } from "../core/odata.js";
@@ -32,6 +33,7 @@ import { HonuaOgcCollectionMap, HonuaOgcMaps } from "../core/ogc-maps.js";
 import type { HonuaOgcProcesses } from "../core/ogc-processes.js";
 import { HonuaOgcRecordCollection } from "../core/ogc-records.js";
 import { HonuaOgcTiles, HonuaOgcTileset } from "../core/ogc-tiles.js";
+import type { SpatialFilter } from "../core/spatial-filter.js";
 import { HonuaStacStaticCatalog, type StacStaticSearchParams } from "../core/stac-static.js";
 import { HonuaStacSearch } from "../core/stac.js";
 import {
@@ -45,6 +47,7 @@ import {
   HonuaOgcFeatures,
 } from "../core/surfaces.js";
 import type {
+  EsriSpatialRel,
   HonuaAttachmentEditResult,
   HonuaAttachmentInfo,
   HonuaFeature,
@@ -83,6 +86,18 @@ import {
 import { wfsSpatialFilterNeedsGeometryProperty, wfsSrsNameFromOutSr } from "../query-planner/wfs-v1.js";
 import type { DescribePmtilesArchiveDeps, HonuaPmtilesArchive, PmtilesArchiveDescription } from "./pmtiles.js";
 import { pmtilesProtocolModule } from "./pmtiles.js";
+import {
+  type QueryFilterContext,
+  type QueryFilterSpatialPredicate,
+  andQueryFilters,
+  compileQueryFilterToCql2Text,
+  compileQueryFilterToOData,
+  compileQueryFilterToSql92,
+  compileTemporalFilterToGeoServicesTime,
+  compileTemporalFilterToOgcDatetime,
+  queryFilterHasSpatial,
+  temporalFilterToExpression,
+} from "./query-filter.js";
 import { addCapabilitySupport, normalizeCapabilityDescriptor } from "./source-capability-support.js";
 import {
   type AdapterFor,
@@ -352,7 +367,7 @@ export function geoServicesFeatureSource<T>(
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
       ensureCapability(descriptor, caps, "query");
-      const requestParams = toFeatureLayerRequest(request);
+      const requestParams = toFeatureLayerRequest(request, descriptor);
       if (request?.aggregation) {
         ensureCapability(descriptor, caps, "queryAggregate");
         const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
@@ -366,7 +381,7 @@ export function geoServicesFeatureSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withPagingBounds(toFeatureLayerRequest(request), request?.pagination?.limit);
+      const params = withPagingBounds(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(features, request?.pagination?.limit);
       return {
@@ -377,20 +392,20 @@ export function geoServicesFeatureSource<T>(
     },
     async queryAggregate(request) {
       ensureCapability(descriptor, caps, "queryAggregate");
-      const requestParams = toFeatureLayerRequest(request);
+      const requestParams = toFeatureLayerRequest(request, descriptor);
       const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
       const response = await layer.queryFeatures({ ...requestParams, ...aggFields });
       return aggregateResultFromFeatureLayer(response, aggregateAlias);
     },
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
-      const response = await layer.queryFeatures(toExtentOnlyRequest(toFeatureLayerRequest(request)));
+      const response = await layer.queryFeatures(toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor)));
       return extractExtentEnvelope(response);
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
       const stream = layer.queryFeaturesStream(
-        withStreamPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
+        withStreamPageSize(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit),
       );
       for await (const page of stream) {
         yield {
@@ -401,7 +416,7 @@ export function geoServicesFeatureSource<T>(
     },
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
-      return layer.queryObjectIds(toFeatureLayerRequest(request));
+      return layer.queryObjectIds(toFeatureLayerRequest(request, descriptor));
     },
     async applyEdits(envelope) {
       ensureCapability(descriptor, caps, "applyEdits");
@@ -459,7 +474,7 @@ export function geoServicesMapServiceSource<T>(
   return makeSource<T>(descriptor, caps, policy, adapterRegistry, {
     async query(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = toFeatureLayerRequest(request);
+      const params = toFeatureLayerRequest(request, descriptor);
       if (request?.aggregation) {
         ensureCapability(descriptor, caps, "queryAggregate");
         const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
@@ -470,7 +485,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
-      const params = withPagingBounds(toFeatureLayerRequest(request), request?.pagination?.limit);
+      const params = withPagingBounds(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit);
       const features = await layer.queryFeaturesAll(params);
       const typed = features.map(toTypedFeature<T>);
       const { features: limited, exceededTransferLimit } = applyQueryAllLimit(typed, request?.pagination?.limit);
@@ -482,20 +497,20 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryAggregate(request) {
       ensureCapability(descriptor, caps, "queryAggregate");
-      const params = toFeatureLayerRequest(request);
+      const params = toFeatureLayerRequest(request, descriptor);
       const { aggregateAlias, ...aggFields } = buildAggregationFields(request.aggregation);
       const response = await layer.queryFeatures({ ...params, ...aggFields });
       return aggregateResultFromUntyped<T>(response, aggregateAlias);
     },
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
-      const response = await layer.queryFeatures(toExtentOnlyRequest(toFeatureLayerRequest(request)));
+      const response = await layer.queryFeatures(toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor)));
       return extractExtentEnvelope(response);
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
       const stream = layer.queryFeaturesStream(
-        withStreamPageSize(toFeatureLayerRequest(request), request?.pagination?.limit),
+        withStreamPageSize(toFeatureLayerRequest(request, descriptor), request?.pagination?.limit),
       );
       for await (const page of stream) {
         yield {
@@ -506,7 +521,7 @@ export function geoServicesMapServiceSource<T>(
     },
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
-      return layer.queryObjectIds(toFeatureLayerRequest(request));
+      return layer.queryObjectIds(toFeatureLayerRequest(request, descriptor));
     },
     async applyEdits() {
       // MapServer is read-only; applyEdits exists only on the FeatureServer
@@ -574,7 +589,7 @@ export function ogcFeaturesSource<T>(
         // degradable capability here.
         ensureCapabilityOrFallback(descriptor, caps, "queryAggregate", policy);
       }
-      const response = await collection.items(toOgcRequest(request));
+      const response = await collection.items(toOgcRequest(request, descriptor));
       const features = response.features.map(toTypedFeatureFromOgc<T>);
       const totalCount = response.numberMatched;
       const degraded: DegradedReason[] = [];
@@ -611,7 +626,7 @@ export function ogcFeaturesSource<T>(
       // exist. Mirrors the GeoServices `withPagingBounds` + `applyQueryAllLimit`
       // pattern so `queryAll({ pagination: { limit } })` has the same
       // contract across protocols.
-      const ogcRequest = toOgcRequest(request);
+      const ogcRequest = toOgcRequest(request, descriptor);
       if (typeof limit === "number" && Number.isFinite(limit) && limit >= 0) {
         ogcRequest.limit = limit + 1;
       }
@@ -629,7 +644,7 @@ export function ogcFeaturesSource<T>(
       // the descriptor must advertise `queryAggregate`; under `degraded` the
       // fallback runs unconditionally.
       ensureCapabilityOrFallback(descriptor, caps, "queryAggregate", policy);
-      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcMaterializedRequest(request)));
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcMaterializedRequest(request, descriptor)));
       const features = all.map(toTypedFeatureFromOgc<T>);
       return {
         features,
@@ -662,12 +677,12 @@ export function ogcFeaturesSource<T>(
         const [xmin, ymin, xmax, ymax] = bbox;
         return { extent: { xmin, ymin, xmax, ymax } };
       }
-      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcMaterializedRequest(request)));
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcMaterializedRequest(request, descriptor)));
       return computeExtentFromOgcFeatures(all);
     },
     async *stream(request) {
       ensureCapability(descriptor, caps, "stream");
-      const stream = collection.itemsStream(withUnboundedMaxPages(toOgcRequest(request)));
+      const stream = collection.itemsStream(withUnboundedMaxPages(toOgcRequest(request, descriptor)));
       for await (const page of stream) {
         yield {
           features: page.map(toTypedFeatureFromOgc<T>),
@@ -680,7 +695,7 @@ export function ogcFeaturesSource<T>(
       // OGC `/items` does not expose a server-side ids-only mode; drain the
       // matching set and project the GeoJSON `id`. Callers that need a
       // bounded scan should pass `pagination.limit`.
-      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request)));
+      const all = await collection.itemsAll(withUnboundedMaxPages(toOgcRequest(request, descriptor)));
       const ids: FeatureId[] = [];
       for (const feature of all) {
         if (feature.id !== undefined && feature.id !== null) {
@@ -792,13 +807,13 @@ export function geoServicesImageSource<T>(
       // ImageServer query returns the raster catalog. The GeoServices
       // request shape is identical to FeatureServer query so we reuse
       // `toFeatureLayerRequest` and dispatch through the service.
-      const response = await service.queryRasterCatalog(toFeatureLayerRequest(request));
+      const response = await service.queryRasterCatalog(toFeatureLayerRequest(request, descriptor));
       return featureLayerResultFromUntyped<T>(response);
     },
     async queryAll(request) {
       ensureCapability(descriptor, caps, "query");
       requireImageServerCompatibleQuery(request);
-      const baseParams = toFeatureLayerRequest(request);
+      const baseParams = toFeatureLayerRequest(request, descriptor);
       const limit = request?.pagination?.limit;
       // ImageServer's catalog endpoint supports `resultOffset`/`resultRecordCount`
       // but the wrapper does not expose a `queryAllRasterCatalog` helper, so
@@ -845,7 +860,9 @@ export function geoServicesImageSource<T>(
     async queryExtent(request) {
       ensureCapability(descriptor, caps, "queryExtent");
       requireImageServerCompatibleQuery(request);
-      const response = await service.queryRasterCatalog(toExtentOnlyRequest(toFeatureLayerRequest(request)));
+      const response = await service.queryRasterCatalog(
+        toExtentOnlyRequest(toFeatureLayerRequest(request, descriptor)),
+      );
       return extractExtentEnvelope(response);
     },
     // biome-ignore lint/correctness/useYield: ImageServer has no streaming raster-catalog mode; this generator refuses iteration rather than silently emit a single page
@@ -855,7 +872,7 @@ export function geoServicesImageSource<T>(
     async queryObjectIds(request) {
       ensureCapability(descriptor, caps, "queryObjectIds");
       requireImageServerCompatibleQuery(request);
-      return service.queryRasterCatalogObjectIds(toFeatureLayerRequest(request));
+      return service.queryRasterCatalogObjectIds(toFeatureLayerRequest(request, descriptor));
     },
     async applyEdits() {
       throw new HonuaCapabilityNotSupportedError("applyEdits", descriptor.protocol, descriptor.id);
@@ -1113,7 +1130,7 @@ export function ogcRecordsSource<T>(
       if (request?.aggregation) {
         throw new HonuaCapabilityNotSupportedError("queryAggregate", descriptor.protocol, descriptor.id);
       }
-      const response = await collection.search(toOgcRecordsRequest(request));
+      const response = await collection.search(toOgcRecordsRequest(request, descriptor));
       const features = (response.features ?? []).map(toTypedFeatureFromOgcRecord<T>);
       const totalCount = response.numberMatched;
       return {
@@ -1126,7 +1143,7 @@ export function ogcRecordsSource<T>(
       ensureCapability(descriptor, caps, "query");
       const limit = request?.pagination?.limit;
       const records = await collection.searchAll({
-        ...toOgcRecordsRequest(request),
+        ...toOgcRecordsRequest(request, descriptor),
         ...withPagingBounds({}, limit),
       });
       const typed = records.map(toTypedFeatureFromOgcRecord<T>);
@@ -1147,7 +1164,7 @@ export function ogcRecordsSource<T>(
       ensureCapability(descriptor, caps, "stream");
       const limit = request?.pagination?.limit;
       const stream = collection.searchStream({
-        ...toOgcRecordsRequest(request),
+        ...toOgcRecordsRequest(request, descriptor),
         pageSize: limit !== undefined ? Math.max(1, limit) : undefined,
         maxPages: Number.MAX_SAFE_INTEGER,
       });
@@ -1162,7 +1179,7 @@ export function ogcRecordsSource<T>(
       ensureCapability(descriptor, caps, "queryObjectIds");
       const limit = request?.pagination?.limit;
       const records = await collection.searchAll({
-        ...toOgcRecordsRequest(request),
+        ...toOgcRecordsRequest(request, descriptor),
         ...withPagingBounds({}, limit),
       });
       const ids: FeatureId[] = [];
@@ -1553,7 +1570,7 @@ export function stacSearchSource<T>(
    * otherwise. A static catalog has no search endpoint, so it never probes.
    */
   const toNegotiatedStacRequest = async (request?: Query<T>): Promise<StacSearchRequest> => {
-    const stacRequest = toStacRequest(request, collectionScope);
+    const stacRequest = toStacRequest(request, collectionScope, descriptor);
     if (!staticCatalog && (await stac.supportsPostSearch())) stacRequest.usePost = true;
     return stacRequest;
   };
@@ -1581,7 +1598,9 @@ export function stacSearchSource<T>(
       ensureCapability(descriptor, caps, "query");
       const limit = request?.pagination?.limit;
       if (staticCatalog) {
-        const response = await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope)));
+        const response = await staticCatalog.search(
+          toStacStaticParams(toStacRequest(request, collectionScope, descriptor)),
+        );
         const typed = (response.features ?? []).map(toTypedFeatureFromStac<T>);
         const { features, exceededTransferLimit } = applyQueryAllLimit(typed, limit);
         return { features, exceededTransferLimit, totalCount: features.length } satisfies Result<T>;
@@ -1610,7 +1629,9 @@ export function stacSearchSource<T>(
       if (staticCatalog) {
         // A static catalog has no server-side paging; yield the whole
         // filtered set as one page.
-        const response = await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope)));
+        const response = await staticCatalog.search(
+          toStacStaticParams(toStacRequest(request, collectionScope, descriptor)),
+        );
         yield {
           features: (response.features ?? []).map(toTypedFeatureFromStac<T>),
           exceededTransferLimit: false,
@@ -1637,7 +1658,8 @@ export function stacSearchSource<T>(
       // fetches at most `limit + 1` rows, never a full-catalog scan.
       const limit = request?.pagination?.limit;
       const items = staticCatalog
-        ? ((await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope)))).features ?? [])
+        ? ((await staticCatalog.search(toStacStaticParams(toStacRequest(request, collectionScope, descriptor))))
+            .features ?? [])
         : await stac.searchAll({
             ...(await toNegotiatedStacRequest(request)),
             ...withPagingBounds({}, limit),
@@ -3219,6 +3241,8 @@ async function buildOdataParams<T>(
     const rewritten = rewriteWhereToOdataFilter(request.where);
     if (rewritten !== "") filterParts.push(rewritten);
   }
+  const typedFilter = await compileOdataQueryFilter(entity, descriptor, request, options.geomColumn);
+  if (typedFilter !== undefined) filterParts.push(typedFilter);
   if (request.spatialFilter) {
     // `$metadata` is advisory here — it only refines the geometry column
     // and SRID context. When it is missing or failing, fall back to the
@@ -3280,9 +3304,58 @@ async function buildOdataParams<T>(
     out.skip = request.pagination.offset;
   }
   if (request.signal) out.signal = request.signal;
-  void descriptor;
   return out;
 }
+
+/**
+ * Compile `Query.filter` / `Query.temporalFilter` into an OData `$filter`
+ * fragment. OData has no protocol-level time parameter, so a temporal filter
+ * must name its field; without one the adapter refuses rather than dropping the
+ * constraint. Spatial nodes reuse the `$metadata`-aware `geo.*` emitter.
+ */
+async function compileOdataQueryFilter<T>(
+  entity: HonuaOdataEntitySet,
+  descriptor: SourceDescriptor,
+  request: Query<T>,
+  geomColumn: string | undefined,
+): Promise<string | undefined> {
+  const ctx = queryFilterContext(descriptor, geomColumn);
+  const temporalExpression = request.temporalFilter
+    ? temporalFilterToExpression(request.temporalFilter, ctx)
+    : undefined;
+  if (request.temporalFilter && temporalExpression === undefined) {
+    throw new HonuaCapabilityNotSupportedError("temporalFilter.field", descriptor.protocol, descriptor.id);
+  }
+  const expression = andQueryFilters(request.filter, temporalExpression);
+  if (!expression) return undefined;
+  const meta = await entity.metadata().catch(() => undefined);
+  const typeName = meta ? meta.entitySets[entity.entitySetName] : undefined;
+  const spatialFields = (typeName && meta ? meta.fields[typeName] : undefined) ?? [];
+  const spatialContext: import("../core/odata.js").OdataSpatialFilterContext = {
+    ...(geomColumn ? { geometryColumn: geomColumn } : {}),
+    ...(spatialFields.length > 0 ? { geometryFields: spatialFields } : {}),
+  };
+  return compileQueryFilterToOData(expression, ctx, (node) => {
+    const spatialRel = ODATA_SPATIAL_REL[node.operator];
+    if (!spatialRel) {
+      throw new HonuaCapabilityNotSupportedError(`filter.spatial.${node.operator}`, descriptor.protocol, descriptor.id);
+    }
+    return buildOdataSpatialFilter(
+      { geometry: node.geometry.geometry, geometryType: node.geometry.geometryType, spatialRel },
+      spatialContext,
+    );
+  });
+}
+
+/**
+ * OData v4 standard geo functions express only `geo.intersects` (and the
+ * distance family). Every other topological predicate is refused by name so a
+ * `within` never silently returns intersecting rows.
+ */
+const ODATA_SPATIAL_REL: Partial<Record<QueryFilterSpatialPredicate, EsriSpatialRel>> = {
+  intersects: "esriSpatialRelIntersects",
+  "bbox-intersects": "esriSpatialRelEnvelopeIntersects",
+};
 
 function featureToOdataBody<T>(feature: {
   id?: FeatureId;
@@ -3713,6 +3786,11 @@ function requireImageServiceLocator(descriptor: SourceDescriptor): { serviceId: 
  */
 function requireImageServerCompatibleQuery<T>(request?: Query<T>): void {
   if (!request) return;
+  if (request.filter !== undefined && queryFilterHasSpatial(request.filter)) {
+    throw new Error(
+      "geoservices-image-service: a spatial filter node is not supported on the raster catalog; the ImageServer catalog endpoint does not accept geometry / geometryType / spatialRel filters. Attribute and temporal predicates are supported; for geometry, call protocol().identify() / exportImage() on the typed escape hatch.",
+    );
+  }
   if (request.spatialFilter) {
     throw new Error(
       "geoservices-image-service: Query.spatialFilter is not supported on the raster catalog; the ImageServer catalog endpoint does not accept geometry / geometryType / spatialRel filters. During migration, the deprecated source-native Query.where member can constrain the catalog; otherwise call protocol().identify() / exportImage() on the typed escape hatch.",
@@ -3809,6 +3887,14 @@ function requireWmsCompatibleQuery<T>(descriptor: SourceDescriptor, request: Que
       `wms: Query.where is not supported on GetFeatureInfo for source "${descriptor.id}"; WMS has no SQL/CQL filter on the wire. Pre-filter via Query.spatialFilter (point) or use a tabular protocol.`,
     );
   }
+  if (request.filter !== undefined) {
+    throw new HonuaCapabilityNotSupportedError("filter", descriptor.protocol, descriptor.id);
+  }
+  if (request.temporalFilter !== undefined) {
+    // WMS carries time as a dimension on the typed `WmsMapRequest` envelope,
+    // not as a GetFeatureInfo attribute predicate.
+    throw new HonuaCapabilityNotSupportedError("temporalFilter", descriptor.protocol, descriptor.id);
+  }
   if (request.outFields && request.outFields.length > 0) {
     throw new Error(
       `wms: Query.outFields is not supported on GetFeatureInfo for source "${descriptor.id}"; the server returns the layer's full attribute schema. Project client-side after the result lands.`,
@@ -3901,12 +3987,21 @@ function wmsCrsFromGeometrySpatialReference(spatialReference: unknown): string {
 function toStacRequest<T>(
   request: Query<T> | undefined,
   collectionScope: string | number | undefined,
+  descriptor: SourceDescriptor,
 ): StacSearchRequest {
   const out: StacSearchRequest = {};
-  if (request?.where !== undefined) {
+  const cql2 = request ? compileCql2QueryFilter(request, descriptor) : {};
+  const filterParts: string[] = [];
+  if (request?.where !== undefined && request.where !== "") filterParts.push(request.where);
+  if (cql2.filter !== undefined) filterParts.push(cql2.filter);
+  if (filterParts.length > 0) {
+    out.filter = filterParts.length === 1 ? filterParts[0] : filterParts.map((part) => `(${part})`).join(" AND ");
+    out.filterLang = "cql2-text";
+  } else if (request?.where !== undefined) {
     out.filter = request.where;
     out.filterLang = "cql2-text";
   }
+  if (cql2.datetime !== undefined) out.datetime = cql2.datetime;
   if (request?.outFields && request.outFields.length > 0) {
     out.fields = { include: [...request.outFields] };
   }
@@ -3981,6 +4076,13 @@ function toStacStaticParams(request: StacSearchRequest): StacStaticSearchParams 
       "stac-static: an `intersects` geometry filter is not supported by static catalog traversal; use an envelope spatial filter.",
     );
   }
+  if (request.filter !== undefined) {
+    // Static traversal has no CQL2 evaluator. Dropping the predicate would
+    // return every item in the catalog, so refuse instead.
+    throw new Error(
+      "stac-static: a CQL2 attribute filter (Query.filter or Query.where) is not supported by static catalog traversal; use a STAC API endpoint or filter client-side after the result lands.",
+    );
+  }
   const out: StacStaticSearchParams = {};
   if (request.collections && request.collections.length > 0) out.collections = request.collections;
   if (request.bbox) out.bbox = request.bbox;
@@ -3997,13 +4099,24 @@ function toTypedFeatureFromStac<T>(feature: HonuaStacItemResponse): HonuaTypedFe
   };
 }
 
-function toOgcRecordsRequest<T>(request?: Query<T>): Omit<OgcRecordsSearchRequest, "collectionId"> {
+function toOgcRecordsRequest<T>(
+  request: Query<T> | undefined,
+  descriptor: SourceDescriptor,
+): Omit<OgcRecordsSearchRequest, "collectionId"> {
   if (!request) return {};
   const out: Omit<OgcRecordsSearchRequest, "collectionId"> = {};
-  if (request.where !== undefined) {
+  const cql2 = compileCql2QueryFilter(request, descriptor);
+  const filterParts: string[] = [];
+  if (request.where !== undefined && request.where !== "") filterParts.push(request.where);
+  if (cql2.filter !== undefined) filterParts.push(cql2.filter);
+  if (filterParts.length > 0) {
+    out.filter = filterParts.length === 1 ? filterParts[0] : filterParts.map((part) => `(${part})`).join(" AND ");
+    out.filterLang = "cql2-text";
+  } else if (request.where !== undefined) {
     out.filter = request.where;
     out.filterLang = "cql2-text";
   }
+  if (cql2.datetime !== undefined) out.datetime = cql2.datetime;
   if (request.outFields && request.outFields.length > 0) out.properties = [...request.outFields];
   if (request.pagination) {
     if (request.pagination.limit !== undefined) out.limit = request.pagination.limit;
@@ -4117,7 +4230,10 @@ function applyQueryAllLimit<F>(
   return { features: features.slice(0, limit), exceededTransferLimit: true };
 }
 
-function toFeatureLayerRequest<T>(request?: Query<T>): {
+function toFeatureLayerRequest<T>(
+  request: Query<T> | undefined,
+  descriptor: SourceDescriptor,
+): {
   where?: string;
   outFields?: string | string[];
   returnGeometry?: boolean;
@@ -4134,17 +4250,42 @@ function toFeatureLayerRequest<T>(request?: Query<T>): {
 } {
   if (!request) return {};
   const out: Record<string, unknown> = {};
-  if (request.where !== undefined) out.where = request.where;
+  const ctx = queryFilterContext(descriptor);
+  // The typed filter, the deprecated source-native `where`, and a field-bound
+  // temporal predicate are conjunctive: each contributes a SQL-92 fragment and
+  // the adapter ANDs them. A spatial node inside the typed filter leaves the
+  // SQL and becomes the request's geometry parameters.
+  const compiled = compileGeoServicesQueryFilter(request, ctx);
+  const whereParts: string[] = [];
+  if (request.where !== undefined && request.where !== "") whereParts.push(request.where);
+  if (compiled.where !== undefined) whereParts.push(compiled.where);
+  if (whereParts.length > 0) {
+    out.where = whereParts.length === 1 ? whereParts[0] : whereParts.map((part) => `(${part})`).join(" AND ");
+  } else if (request.where !== undefined) {
+    out.where = request.where;
+  }
   if (request.outFields && request.outFields.length > 0) out.outFields = [...request.outFields];
   if (request.returnGeometry !== undefined) out.returnGeometry = request.returnGeometry;
   if (request.outSr !== undefined) out.outSr = request.outSr;
   if (request.orderBy && request.orderBy.length > 0) {
     out.orderByFields = request.orderBy.map((s) => `${s.field}${s.direction === "desc" ? " DESC" : ""}`).join(",");
   }
-  if (request.spatialFilter) {
-    out.geometry = request.spatialFilter.geometry;
-    out.geometryType = request.spatialFilter.geometryType;
-    if (request.spatialFilter.spatialRel) out.spatialRel = request.spatialFilter.spatialRel;
+  const spatialFilter = request.spatialFilter ?? compiled.spatialFilter;
+  if (request.spatialFilter && compiled.spatialFilter) {
+    // One `query` request carries one geometry. Refuse rather than drop either
+    // constraint or silently intersect them client-side.
+    throw new HonuaCapabilityNotSupportedError("filter.spatial.multiple", descriptor.protocol, descriptor.id);
+  }
+  if (spatialFilter) {
+    out.geometry = spatialFilter.geometry;
+    out.geometryType = spatialFilter.geometryType;
+    if (spatialFilter.spatialRel) out.spatialRel = spatialFilter.spatialRel;
+  }
+  if (compiled.time !== undefined) {
+    out.extraParams = {
+      ...((out.extraParams as Record<string, string | number | boolean>) ?? {}),
+      time: compiled.time,
+    };
   }
   if (request.pagination) {
     if (request.pagination.offset !== undefined) out.resultOffset = request.pagination.offset;
@@ -4152,6 +4293,41 @@ function toFeatureLayerRequest<T>(request?: Query<T>): {
   }
   if (request.signal) out.signal = request.signal;
   return out;
+}
+
+/** Filter-compilation identity used when refusing a construct. */
+function queryFilterContext(descriptor: SourceDescriptor, geometryProperty?: string): QueryFilterContext {
+  return {
+    protocol: descriptor.protocol,
+    sourceId: descriptor.id,
+    ...(geometryProperty !== undefined ? { geometryProperty } : {}),
+  };
+}
+
+/**
+ * Lower `Query.filter` + `Query.temporalFilter` onto the GeoServices request
+ * vocabulary: a SQL-92 `where` fragment, at most one geometry parameter set,
+ * and the `time=` parameter when the temporal filter targets the layer's own
+ * time dimension.
+ */
+function compileGeoServicesQueryFilter<T>(
+  request: Query<T>,
+  ctx: QueryFilterContext,
+): { where?: string; spatialFilter?: SpatialFilter; time?: string } {
+  const temporalExpression = request.temporalFilter
+    ? temporalFilterToExpression(request.temporalFilter, ctx)
+    : undefined;
+  const expression = andQueryFilters(request.filter, temporalExpression);
+  const compiled = expression ? compileQueryFilterToSql92(expression, ctx) : {};
+  const time =
+    request.temporalFilter && temporalExpression === undefined
+      ? compileTemporalFilterToGeoServicesTime(request.temporalFilter, ctx)
+      : undefined;
+  return {
+    ...(compiled.where !== undefined ? { where: compiled.where } : {}),
+    ...(compiled.spatialFilter ? { spatialFilter: compiled.spatialFilter } : {}),
+    ...(time !== undefined ? { time } : {}),
+  };
 }
 
 /**
@@ -4190,6 +4366,8 @@ function hasExtentFilter<T>(request?: Query<T>): boolean {
   if (!request) return false;
   if (request.where !== undefined && request.where !== "") return true;
   if (request.spatialFilter) return true;
+  if (request.filter !== undefined) return true;
+  if (request.temporalFilter !== undefined) return true;
   return false;
 }
 
@@ -4248,13 +4426,21 @@ function extractExtentEnvelope(response: unknown): {
   return { extent, count };
 }
 
-function toOgcRequest<T>(request?: Query<T>): Record<string, unknown> {
+function toOgcRequest<T>(request: Query<T> | undefined, descriptor: SourceDescriptor): Record<string, unknown> {
   if (!request) return {};
   const out: Record<string, unknown> = {};
-  if (request.where !== undefined) {
+  const cql2 = compileCql2QueryFilter(request, descriptor);
+  const filterParts: string[] = [];
+  if (request.where !== undefined && request.where !== "") filterParts.push(request.where);
+  if (cql2.filter !== undefined) filterParts.push(cql2.filter);
+  if (filterParts.length > 0) {
+    out.filter = filterParts.length === 1 ? filterParts[0] : filterParts.map((part) => `(${part})`).join(" AND ");
+    out.filterLang = "cql2-text";
+  } else if (request.where !== undefined) {
     out.filter = request.where;
     out.filterLang = "cql2-text";
   }
+  if (cql2.datetime !== undefined) out.datetime = cql2.datetime;
   if (request.outFields && request.outFields.length > 0) out.properties = [...request.outFields];
   if (request.outSr !== undefined) out.crs = String(request.outSr);
   if (request.pagination) {
@@ -4306,11 +4492,50 @@ function toOgcRequest<T>(request?: Query<T>): Record<string, unknown> {
  * `offset` would silently materialize only a window of the match set and break
  * the whole-result contract those methods promise.
  */
-function toOgcMaterializedRequest<T>(request?: Query<T>): Record<string, unknown> {
-  const { limit: _limit, offset: _offset, ...out } = toOgcRequest(request);
+function toOgcMaterializedRequest<T>(
+  request: Query<T> | undefined,
+  descriptor: SourceDescriptor,
+): Record<string, unknown> {
+  const { limit: _limit, offset: _offset, ...out } = toOgcRequest(request, descriptor);
   void _limit;
   void _offset;
   return out;
+}
+
+/**
+ * Compile `Query.filter` / `Query.temporalFilter` for the CQL2 protocols (OGC
+ * API Features, OGC API Records, STAC). A temporal filter without a field is
+ * the protocol's own `datetime=` parameter; with a field it becomes a CQL2
+ * temporal predicate so the constraint stays exact.
+ */
+function compileCql2QueryFilter<T>(
+  request: Query<T>,
+  descriptor: SourceDescriptor,
+): { filter?: string; datetime?: string } {
+  const ctx = queryFilterContext(descriptor, ogcGeometryProperty(descriptor));
+  const temporalExpression = request.temporalFilter
+    ? temporalFilterToExpression(request.temporalFilter, ctx)
+    : undefined;
+  const expression = andQueryFilters(request.filter, temporalExpression);
+  const filter = expression ? compileQueryFilterToCql2Text(expression, ctx, geometryToWkt) : undefined;
+  const datetime =
+    request.temporalFilter && temporalExpression === undefined
+      ? compileTemporalFilterToOgcDatetime(request.temporalFilter, ctx)
+      : undefined;
+  return {
+    ...(filter !== undefined ? { filter } : {}),
+    ...(datetime !== undefined ? { datetime } : {}),
+  };
+}
+
+/**
+ * Geometry property a CQL2 spatial predicate references. OGC collections
+ * default to the GeoJSON `geometry` member; `locator.geometryName` pins a
+ * server that publishes a differently named queryable.
+ */
+function ogcGeometryProperty(descriptor: SourceDescriptor): string {
+  const declared = descriptor.locator.geometryName;
+  return typeof declared === "string" && declared.length > 0 ? declared : "geometry";
 }
 
 function featureLayerResultFromTyped<T>(response: HonuaTypedQueryResponse<T>): Result<T> {

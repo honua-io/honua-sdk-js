@@ -1,0 +1,61 @@
+{
+  "format": "honua.sdk.create-honua-app-templates.v1",
+  "schemaVersion": 1,
+  "sdk": {
+    "package": "@honua/sdk-js",
+    "version": "0.1.2-beta.0"
+  },
+  "repository": {
+    "owner": "honua-io",
+    "name": "honua-sdk-js",
+    "branch": "trunk"
+  },
+  "playgroundProviders": [
+    {
+      "id": "stackblitz",
+      "title": "StackBlitz",
+      "urlTemplate": "https://stackblitz.com/github/{owner}/{repository}/tree/{branch}/{path}"
+    },
+    {
+      "id": "codesandbox",
+      "title": "CodeSandbox",
+      "urlTemplate": "https://codesandbox.io/s/github/{owner}/{repository}/tree/{branch}/{path}"
+    }
+  ],
+  "templates": [
+    {
+      "id": "vanilla-ts",
+      "title": "Vanilla TypeScript",
+      "summary": "Vite + TypeScript app that connects to an endpoint, explains a bounded query, and mounts the accepted plan on MapLibre.",
+      "path": "packages/create-honua-app/templates/vanilla-ts",
+      "entryFile": "src/main.ts",
+      "dataLane": "fixture",
+      "default": true,
+      "dependencies": [
+        "@honua/sdk-js",
+        "maplibre-gl",
+        "@bufbuild/protobuf",
+        "@connectrpc/connect",
+        "@connectrpc/connect-web"
+      ]
+    },
+    {
+      "id": "react-ts",
+      "title": "React TypeScript",
+      "summary": "Vite + React + TypeScript app that mounts the same accepted plan through @honua/sdk-js/react hooks on an app-owned MapLibre map.",
+      "path": "packages/create-honua-app/templates/react-ts",
+      "entryFile": "src/App.tsx",
+      "dataLane": "fixture",
+      "default": false,
+      "dependencies": [
+        "@honua/sdk-js",
+        "maplibre-gl",
+        "react",
+        "react-dom",
+        "@bufbuild/protobuf",
+        "@connectrpc/connect",
+        "@connectrpc/connect-web"
+      ]
+    }
+  ]
+}

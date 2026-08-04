@@ -1,4 +1,11 @@
+import {
+  type QueryFilterContext,
+  compileQueryFilterToCql2Text,
+  compileTemporalFilterToOgcDatetime,
+} from "../contract/query-filter.js";
 import type { ExecutableCrsBinding, JsonValue, LogicalField, SourceSchemaV2 } from "../contract/schema.js";
+import { geometryToWkt as esriGeometryToWkt } from "../core/odata.js";
+import { canonicalFilterParts } from "./canonical-filter.js";
 import { canonicalStringify, toJsonValue } from "./canonical.js";
 import {
   bboxInDefinitionOrder,
@@ -187,10 +194,31 @@ export function compileOgcApiFeaturesQuery(
     );
   }
 
+  const ctx: QueryFilterContext = {
+    protocol: source.protocol,
+    sourceId: source.id,
+    geometryProperty: source.geometryProperty ?? "geometry",
+  };
+  const parts = canonicalFilterParts(query, ctx);
+  const typedFilter = parts.expression
+    ? compileQueryFilterToCql2Text(parts.expression, ctx, esriGeometryToWkt)
+    : undefined;
+  const filterParts = [
+    ...(query.where ? [query.where.expression] : []),
+    ...(typedFilter !== undefined ? [typedFilter] : []),
+  ];
+  const filter =
+    filterParts.length === 0
+      ? undefined
+      : filterParts.length === 1
+        ? filterParts[0]
+        : filterParts.map((part) => `(${part})`).join(" AND ");
+
   return {
     compiler: "ogc-api-features-query-v1",
     collectionId: source.collectionId,
-    ...(query.where ? { filter: query.where.expression, filterLang: "cql2-text" as const } : {}),
+    ...(filter !== undefined ? { filter, filterLang: "cql2-text" as const } : {}),
+    ...(parts.protocolTime ? { datetime: compileTemporalFilterToOgcDatetime(parts.protocolTime, ctx) } : {}),
     ...(query.outFields && query.outFields.length > 0 ? { properties: query.outFields } : {}),
     ...(query.orderBy && query.orderBy.length > 0
       ? { sortby: query.orderBy.map((sort) => `${sort.direction === "desc" ? "-" : ""}${sort.field}`).join(",") }

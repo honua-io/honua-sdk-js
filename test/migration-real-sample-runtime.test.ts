@@ -35,6 +35,7 @@ async function migrateAndRunFixture(fixtureName: string): Promise<{
   codemodResult: ReturnType<typeof runEsriCompatCodemod>;
   report: ReturnType<typeof buildJsMigrationReport>;
   output: unknown;
+  moduleNamespace: Record<string, unknown>;
 }> {
   ensureBuiltCompatArtifacts();
 
@@ -59,6 +60,7 @@ async function migrateAndRunFixture(fixtureName: string): Promise<{
     codemodResult,
     report,
     output: migrated.default,
+    moduleNamespace: migrated as Record<string, unknown>,
   };
 }
 
@@ -305,6 +307,77 @@ describe("migration real sample runtime", () => {
     expect(String(output.primaryConversionText)).toContain(",");
     expect(String(output.printUrl)).toContain("https://example.test/print");
     expect(String(output.printUrl)).toContain("title=Incident+Command+Board");
+  });
+
+  it("migrates and executes address search sample", { timeout: 60_000 }, async () => {
+    const { codemodResult, report, output, moduleNamespace } = await migrateAndRunFixture(
+      "esri-real-sample-address-search-app",
+    );
+
+    expect(codemodResult.filesChanged).toBe(1);
+    expect(codemodResult.metrics.totalCodemodScopedCallSites).toBe(6);
+    expect(codemodResult.metrics.autoMigratedCallSites).toBe(6);
+    expect(codemodResult.metrics.manualCallSites).toBe(0);
+    expect(codemodResult.manualTodos).toEqual([]);
+    expect(codemodResult.metrics.byKind.locator).toEqual({ total: 1, autoMigrated: 1, manual: 0 });
+    expect(codemodResult.metrics.byKind["locator-search-source"]).toEqual({
+      total: 1,
+      autoMigrated: 1,
+      manual: 0,
+    });
+    expect(report.gates.find((gate) => gate.gate === "no-manual-todos")?.passed).toBe(true);
+    expect(report.gates.find((gate) => gate.gate === "no-unhandled-modules")?.passed).toBe(true);
+
+    expect(output).toMatchObject({
+      mapCtor: "MapCompat",
+      viewCtor: "MapViewCompat",
+      layerCtor: "FeatureLayerCompat",
+      locatorCtor: "LocatorCompat",
+      sourceCtor: "LocatorSearchSourceCompat",
+      searchCtor: "SearchCompat",
+      locatorUrl: "https://example.test/rest/services/World/GeocodeServer",
+      sourceName: "Addresses",
+      sourcePlaceholder: "Find an address",
+      sourceCount: 1,
+      uiCount: 1,
+    });
+
+    if (!isRecord(output) || !isRecord(output.locator)) {
+      throw new Error("Expected the address search sample to export its migrated locator.");
+    }
+    const locator = output.locator as { provider?: unknown };
+
+    // Un-provisioned geocoding fails with an actionable error rather than
+    // silently returning no candidates.
+    const findAddress = moduleNamespace.findAddress as (term: string) => Promise<unknown[]>;
+    await expect(findAddress("1 Honolulu Pl")).rejects.toThrow(/requires a geocoding provider/);
+
+    // The one assisted step the codemod cannot perform: attach a provider.
+    locator.provider = {
+      id: "fixture",
+      capabilities: ["geocode", "reverse", "suggest"],
+      attribution: "Fixture data",
+      geocode: async (query: string) => [
+        {
+          address: `${query}, Honolulu, HI`,
+          latitude: 21.3069,
+          longitude: -157.8583,
+          score: 0.91,
+          attributes: { City: "Honolulu" },
+          provenance: { provider: "fixture", attribution: "Fixture data" },
+        },
+      ],
+      reverse: async () => null,
+      suggest: async (text: string) => [
+        { text: `${text} Street`, provenance: { provider: "fixture", attribution: "Fixture data" } },
+      ],
+    };
+
+    const candidates = await findAddress("1 Honolulu Pl");
+    expect(candidates).toEqual([{ address: "1 Honolulu Pl, Honolulu, HI", x: -157.8583, y: 21.3069, score: 0.91 }]);
+
+    const searchAddress = moduleNamespace.searchAddress as (term: string) => Promise<string[]>;
+    await expect(searchAddress("1 Honolulu Pl")).resolves.toEqual(["1 Honolulu Pl, Honolulu, HI"]);
   });
 });
 

@@ -1,0 +1,60 @@
+name: create-honua-app Time To First Map
+
+# Scheduled registry lane for the scaffold funnel (#958 AC-002): scaffold a
+# starter on a clean machine, install its pinned dependencies from npm, build
+# it, serve the build, and drive Chromium until a MapLibre canvas has rendered
+# features — all inside a two-minute budget. Required PR CI stays offline and
+# only compiles the templates.
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+    inputs:
+      template:
+        description: "Template id to measure (defaults to the manifest default)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  time-to-first-map:
+    name: Scaffold to rendered map
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Verify the scaffold contract
+        run: npm run create-app:verify
+
+      - name: Measure scaffold to first map
+        env:
+          HONUA_CREATE_APP_LIVE_ENABLED: "true"
+          CREATE_APP_TEMPLATE: ${{ inputs.template }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${CREATE_APP_TEMPLATE}" ]]; then
+            npm run create-app:time-to-map -- --template "${CREATE_APP_TEMPLATE}"
+          else
+            npm run create-app:time-to-map
+          fi
+
+      - name: Upload time-to-first-map evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: create-honua-app-time-to-map
+          path: test-results/create-honua-app-time-to-map.json
+          if-no-files-found: error
+          retention-days: 90

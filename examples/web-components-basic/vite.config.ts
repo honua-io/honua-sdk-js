@@ -24,6 +24,10 @@ export default defineConfig({
         replacement: path.resolve(repoRoot, "src/runtime/index.ts"),
       },
       {
+        find: "@honua/sdk-js/map",
+        replacement: path.resolve(repoRoot, "src/map/index.ts"),
+      },
+      {
         find: "@honua/sdk-js",
         replacement: path.resolve(repoRoot, "src/index.ts"),
       },

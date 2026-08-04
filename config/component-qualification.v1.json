@@ -130,13 +130,13 @@
     }
   ],
   "summary": {
-    "components": 21,
+    "components": 22,
     "gates": 18,
-    "cells": 378,
-    "passing": 312,
+    "cells": 396,
+    "passing": 327,
     "failing": 0,
-    "pending": 20,
-    "notApplicable": 46,
+    "pending": 21,
+    "notApplicable": 48,
     "productionQualifiedComponents": 1,
     "productionTierComponents": 1
   },
@@ -1628,7 +1628,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -1800,7 +1800,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -2320,7 +2320,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -2496,7 +2496,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -2672,7 +2672,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -2845,7 +2845,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -3022,7 +3022,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -3065,6 +3065,179 @@
             "test/web-components-measurement-element.test.ts"
           ],
           "note": "Repeated mode rerenders leave exactly one map click and one double-click listener, proving handlers are not accumulated."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.time-slider",
+      "tag": "honua-time-slider",
+      "source": "web-components",
+      "supportTier": "survival-tier",
+      "productionQualified": false,
+      "openGates": [
+        "visual-regression"
+      ],
+      "summary": {
+        "passing": 15,
+        "failing": 0,
+        "pending": 1,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-basic.spec.mjs",
+            "test/web-components-time-slider-element.test.ts"
+          ],
+          "note": "The full WAI-ARIA slider key set is dispatched as real KeyboardEvents at the scrubber and asserted against the controller it drives: ArrowRight/ArrowUp and ArrowLeft/ArrowDown step one window, PageUp/PageDown move ten, Home/End jump to the first/last window, the inline arrows reverse under dir=rtl, unhandled keys are asserted not to be preventDefault-ed, and the degraded (no controller) panel is asserted to consume nothing. Also driven end to end in Chromium, where the scrubber is reached by keyboard, stepped with arrow keys, and the resulting aria-valuenow and emitted honua-time-change window are asserted."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-time-slider-element.test.ts"
+          ],
+          "note": "A complete WAI-ARIA slider contract: role=slider with aria-valuemin/aria-valuemax/aria-valuenow in epoch milliseconds tracking the controller's own extent and window, a human-readable aria-valuetext naming the window, aria-orientation, an accessible name derived from the panel label, and a pinned tabindex that is 0 while operable and -1 while degraded. Transport is a named role=group with aria-pressed on the play/pause toggle, the window readout is a role=status aria-live=polite region, and the degraded panel carries aria-disabled=true plus the host-supplied reason instead of an inert scrubber."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-time-slider-element.test.ts"
+          ],
+          "note": "Structurally different from the rest of the kit and asserted as such: this element builds its shadow tree once and updates every value in place, so a playback tick replaces no node. The focused scrubber is asserted to still be shadowRoot.activeElement after ticks, a speed change, and a messages/label change, and the node identity is asserted unchanged across the same updates — which is the property that also keeps an in-flight pointer drag from being torn out. A structural rebuild (the speed control appearing or its options changing) does replace the tree and is not covered."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-time-slider-element.test.ts"
+          ],
+          "note": "The time slider declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText/Highlight/GrayText rules for its panel, transport buttons, pressed play state, and — the case colour alone would lose — the scrubber track, elapsed fill, thumb, focus ring, and disabled state, with forced-color-adjust disabled on the track so the value stays visible; asserted from the emitted stylesheet."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-time-slider-element.test.ts"
+          ],
+          "note": "Below 320px the time slider drops its fixed minimum width, stacks the heading bar, collapses the transport row to one full-width column, and stacks the speed label above a full-width select; the scrubber track is capped at 100% inline size and the window readout and hint wrap rather than overflow, asserted from the emitted stylesheet."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-localization-german.test.ts"
+          ],
+          "note": "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-rtl-remaining.test.ts"
+          ],
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "pending",
+          "note": "No committed reference screenshot exists for this component yet. The feature-table baseline is the first component visual comparison; remaining components stay pending until their fixtures have deterministic, reviewable baselines."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-time-slider-element.test.ts"
+          ],
+          "note": "The time slider is mounted, bound to a real playback controller, played, scrubbed, stepped, re-sped, and disconnected while console.error and console.warn are spied; the complete cycle emits neither, and the same sweep covers the unbound and degraded panels."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-time-slider-element.test.ts"
+          ],
+          "note": "Disconnecting removes every controller subscription the element took (tick/play/pause/end), asserted by counting the controller's live listeners down to zero and by asserting a post-detach tick reaches no detached element; reconnecting re-takes exactly the same set once, and three detach/reattach cycles still leave one of each. Re-binding a second controller releases the first one's subscriptions before subscribing. The element owns no timer and no in-flight request; its pointer-drag listeners are released on pointerup and on disconnect."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-time-slider-element.test.ts"
+          ],
+          "note": "After ten controller ticks and a messages reassignment, one click on the play/pause toggle drives exactly one controller call and emits exactly one honua-time-change, and one ArrowRight drives exactly one step — asserted by counting controller invocations rather than resulting state, which is the only way this defect class is visible on an idempotent transport API."
         },
         {
           "gate": "memory-leak",
@@ -3194,7 +3367,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -3366,7 +3539,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",
@@ -3716,7 +3889,7 @@
           "evidence": [
             "test/web-components-rtl-remaining.test.ts"
           ],
-          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage."
+          "note": "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform."
         },
         {
           "gate": "visual-regression",

@@ -311,6 +311,17 @@ const FEATURE_TABLE = "web-components.feature-table";
 const FEATURE_TABLE_SUITE = "test/web-components-feature-table-element.test.ts";
 
 /**
+ * `<honua-time-slider>` (issue #959) is a view over the existing temporal
+ * playback controller rather than a controller-driven component, so it is not
+ * in the cross-cutting lifecycle harness — like `<honua-measurement>` it owns
+ * a collaborator-bound lifecycle proven by its own suite. It is also the kit's
+ * second ARIA slider (after `<honua-swipe-control>`), so its keyboard rows are
+ * seeded from real key events in both the jsdom and browser lanes.
+ */
+const TIME_SLIDER = "web-components.time-slider";
+const TIME_SLIDER_SUITE = "test/web-components-time-slider-element.test.ts";
+
+/**
  * The web-components tags covered by the cross-cutting lifecycle harness
  * `test/web-components-lifecycle-gates.test.ts`. `web-components.map` is
  * excluded because mounting it requires a real MapLibre renderer (its disposal
@@ -439,6 +450,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "Escape cancels an in-progress measurement via a real keydown.",
       },
       {
+        ids: [TIME_SLIDER],
+        evidence: [TIME_SLIDER_SUITE, BROWSER_SPEC],
+        note: "The full WAI-ARIA slider key set is dispatched as real KeyboardEvents at the scrubber and asserted against the controller it drives: ArrowRight/ArrowUp and ArrowLeft/ArrowDown step one window, PageUp/PageDown move ten, Home/End jump to the first/last window, the inline arrows reverse under dir=rtl, unhandled keys are asserted not to be preventDefault-ed, and the degraded (no controller) panel is asserted to consume nothing. Also driven end to end in Chromium, where the scrubber is reached by keyboard, stepped with arrow keys, and the resulting aria-valuenow and emitted honua-time-change window are asserted.",
+      },
+      {
         ids: ["web-components.layer-list"],
         evidence: [BROWSER_SPEC],
         note: "The controller-driven layer list is exercised in Chromium with a focused visibility checkbox activated by Space and a focused reorder button activated by Enter; controller visibility/order state and the re-rendered shadow rows are asserted.",
@@ -480,6 +496,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["web-components.measurement"],
         evidence: ["test/web-components-measurement-element.test.ts"],
         note: "role=group mode set with aria-pressed state and a role=status aria-live=polite readout.",
+      },
+      {
+        ids: [TIME_SLIDER],
+        evidence: [TIME_SLIDER_SUITE],
+        note: "A complete WAI-ARIA slider contract: role=slider with aria-valuemin/aria-valuemax/aria-valuenow in epoch milliseconds tracking the controller's own extent and window, a human-readable aria-valuetext naming the window, aria-orientation, an accessible name derived from the panel label, and a pinned tabindex that is 0 while operable and -1 while degraded. Transport is a named role=group with aria-pressed on the play/pause toggle, the window readout is a role=status aria-live=polite region, and the degraded panel carries aria-disabled=true plus the host-supplied reason instead of an inert scrubber.",
       },
       {
         ids: ["web-components.legend", "controls.legend"],
@@ -571,6 +592,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["web-components.measurement"],
         evidence: ["test/web-components-measurement-element.test.ts"],
         note: "The focused measurement mode button retains focus when the mode state rerenders.",
+      },
+      {
+        ids: [TIME_SLIDER],
+        evidence: [TIME_SLIDER_SUITE],
+        note: "Structurally different from the rest of the kit and asserted as such: this element builds its shadow tree once and updates every value in place, so a playback tick replaces no node. The focused scrubber is asserted to still be shadowRoot.activeElement after ticks, a speed change, and a messages/label change, and the node identity is asserted unchanged across the same updates — which is the property that also keeps an in-flight pointer drag from being torn out. A structural rebuild (the speed control appearing or its options changing) does replace the tree and is not covered.",
       },
       {
         ids: ["web-components.map"],
@@ -707,6 +733,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         note: "The measurement element declares forced-colors/prefers-contrast system-color rules for its mode/status surface, asserted from the emitted stylesheet.",
       },
       {
+        ids: [TIME_SLIDER],
+        evidence: [TIME_SLIDER_SUITE],
+        note: "The time slider declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText/Highlight/GrayText rules for its panel, transport buttons, pressed play state, and — the case colour alone would lose — the scrubber track, elapsed fill, thumb, focus ring, and disabled state, with forced-color-adjust disabled on the track so the value stays visible; asserted from the emitted stylesheet.",
+      },
+      {
         ids: ["web-components.chart"],
         evidence: ["test/web-components-accessibility.test.ts"],
         note: "The chart declares forced-colors/prefers-contrast Canvas/CanvasText/ButtonFace/ButtonText/Highlight rules for its panel and bars, asserted from the emitted stylesheet.",
@@ -746,6 +777,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.measurement" &&
             id !== "web-components.chart" &&
             id !== "web-components.feature-table" &&
+            id !== TIME_SLIDER &&
             id !== "web-components.map",
         ),
         note: "Shadow styles hard-code foreground/background/border colors with no forced-colors: active or prefers-contrast: more block, so state conveyed by color (selected rows, pressed modes, legend swatches, disabled buttons) collapses under a forced-colors palette.",
@@ -821,6 +853,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ],
         note: "The remaining web components emit narrow-container rules that remove fixed minimum widths, stack or wrap controls, and keep bars, layer tools, legends, and measurement content within the available inline size, asserted from focused emitted-style tests.",
       },
+      {
+        ids: [TIME_SLIDER],
+        evidence: [TIME_SLIDER_SUITE],
+        note: "Below 320px the time slider drops its fixed minimum width, stacks the heading bar, collapses the transport row to one full-width column, and stacks the speed label above a full-width select; the scrubber track is capped at 100% inline size and the window readout and hint wrap rather than overflow, asserted from the emitted stylesheet.",
+      },
     ],
     failing: [
       {
@@ -846,6 +883,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
             id !== "web-components.legend" &&
             id !== "web-components.feature-editor" &&
             id !== "web-components.chart" &&
+            id !== TIME_SLIDER &&
             id !== "web-components.measurement",
         ),
         note: "The remaining components do not yet declare an @media or @container rule; their narrow layouts remain unqualified until focused emitted-style evidence exists.",
@@ -926,6 +964,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.basemap-control",
           "web-components.measurement",
           "web-components.map-status",
+          TIME_SLIDER,
         ],
         evidence: ["test/web-components-localization-german.test.ts"],
         note: "The remaining web components expose typed caller-injected messages for user-visible labels, statuses, empty states, placeholders, and ARIA text, preserving legacy defaults and asserting German rendering coverage.",
@@ -956,6 +995,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.basemap-control",
           "web-components.measurement",
           "web-components.map-status",
+          TIME_SLIDER,
         ),
         note: "Every user-visible string is a hard-coded English literal inside the render template (button labels, status words, empty-state copy, accessible names). There is no message source to inject and no locale plumbing in either kit.",
       },
@@ -1027,9 +1067,10 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.sketch-control",
           "web-components.print-export",
           "web-components.action-panel",
+          TIME_SLIDER,
         ],
         evidence: ["test/web-components-rtl-remaining.test.ts"],
-        note: "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage.",
+        note: "The remaining web components render under dir=rtl with logical direction, spacing, alignment, and control-row styles, asserted with Arabic/RTL rendering coverage. The time slider goes further than style neutrality: its inline arrow keys are asserted to reverse under dir=rtl, and its thumb offset uses inset-inline-start with a mirrored transform.",
       },
     ],
     failing: [
@@ -1056,6 +1097,7 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
           "web-components.sketch-control",
           "web-components.print-export",
           "web-components.action-panel",
+          TIME_SLIDER,
         ),
         note: "Styles use physical left/right offsets and margins rather than logical inline-start/inline-end properties, and no test renders any component under dir=rtl.",
       },
@@ -1127,6 +1169,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         evidence: ["test/web-components-measurement-element.test.ts"],
         note: "The measurement element is mounted and disconnected while console.error and console.warn are spied; its complete lifecycle emits neither.",
       },
+      {
+        ids: [TIME_SLIDER],
+        evidence: [TIME_SLIDER_SUITE],
+        note: "The time slider is mounted, bound to a real playback controller, played, scrubbed, stepped, re-sped, and disconnected while console.error and console.warn are spied; the complete cycle emits neither, and the same sweep covers the unbound and degraded panels.",
+      },
     ],
     pendingNote:
       "Only uncaught-exception capture (Playwright pageerror) covers this component; the repo's console-error assertion helper is not applied to any component spec.",
@@ -1143,6 +1190,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["web-components.measurement"],
         evidence: ["test/web-components-measurement-element.test.ts"],
         note: "Disconnecting unbinds every map listener and restores double-click zoom.",
+      },
+      {
+        ids: [TIME_SLIDER],
+        evidence: [TIME_SLIDER_SUITE],
+        note: "Disconnecting removes every controller subscription the element took (tick/play/pause/end), asserted by counting the controller's live listeners down to zero and by asserting a post-detach tick reaches no detached element; reconnecting re-takes exactly the same set once, and three detach/reattach cycles still leave one of each. Re-binding a second controller releases the first one's subscriptions before subscribing. The element owns no timer and no in-flight request; its pointer-drag listeners are released on pointerup and on disconnect.",
       },
       {
         ids: ["controls.legend", "controls.layer-list"],
@@ -1199,6 +1251,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
         ids: ["web-components.measurement"],
         evidence: ["test/web-components-measurement-element.test.ts"],
         note: "Repeated mode rerenders leave exactly one map click and one double-click listener, proving handlers are not accumulated.",
+      },
+      {
+        ids: [TIME_SLIDER],
+        evidence: [TIME_SLIDER_SUITE],
+        note: "After ten controller ticks and a messages reassignment, one click on the play/pause toggle drives exactly one controller call and emits exactly one honua-time-change, and one ArrowRight drives exactly one step — asserted by counting controller invocations rather than resulting state, which is the only way this defect class is visible on an idempotent transport API.",
       },
       {
         ids: ["controls.basemap-switcher"],

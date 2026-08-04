@@ -195,6 +195,18 @@ non-goals are explicit rather than implied:
 npm install @honua/sdk-js
 ```
 
+Starting from scratch? Scaffold a working app instead of assembling peers:
+
+```bash
+npm create honua-app@latest my-map
+```
+
+`create-honua-app` writes a Vite + TypeScript (or React) starter that already connects to an
+endpoint and mounts a source, pinned to a published SDK version and rendering a committed
+fixture on the first `npm run dev`. Both starters also open in a browser playground with no
+install at all — see [`docs/playgrounds.md`](./docs/playgrounds.md) and
+[`docs/create-honua-app.md`](./docs/create-honua-app.md).
+
 Everything documented here ships in `@honua/sdk-js` as subpath entrypoints
 (see [`INSTALL.md`](./INSTALL.md)). Focused standalone packages are also
 published from this repository for consumers who only want a subset:
@@ -310,15 +322,34 @@ const result = await states.queryAll({
 console.log(`Loaded ${result.features.length} states`);
 ```
 
-The starter deliberately omits an attribute filter. The protocol-neutral
-`Query.where` member remains operational only as deprecated, source-native v1
-compatibility; its grammar changes with the adapter. A stable semantic-filter
-builder is not yet wired into `Source.query()`. New code that can accept
-pre-1.0 API changes can use the typed semantic AST from the experimental
-[`@honua/sdk-js/query-planner`](./docs/query-planner.md), whose examples are
-compile-checked.
+Filtering uses the same typed, protocol-neutral `Query.filter`. One expression
+compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`, or DuckDB SQL,
+and `Query.temporalFilter` compiles to the protocol's own time parameter
+(`time=`, `datetime=`) or an exact predicate on a named field. A construct the
+target cannot express throws `HonuaCapabilityNotSupportedError` naming the
+construct and the protocol — it is never silently dropped or widened:
 
-The same unfiltered query envelope works against any GeoServices, OGC API
+```ts doc-test=compile
+import { envelope, queryFilter, type Query } from "@honua/sdk-js";
+
+const filtered: Query = {
+  filter: queryFilter.and(
+    queryFilter.gt("Total_Pop_2020", 1_000_000),
+    queryFilter.spatial("intersects", envelope(-125, 24, -66, 50)),
+  ),
+  temporalFilter: { kind: "interval", start: "2026-01-01T00:00:00Z", end: null },
+  outFields: ["NAME", "Total_Pop_2020"],
+  pagination: { limit: 100 },
+};
+```
+
+The deprecated `Query.where` member remains operational only as source-native
+v1 migration compatibility; its grammar changes with the adapter, so new code
+should use `Query.filter`. The experimental
+[`@honua/sdk-js/query-planner`](./docs/query-planner.md) adds a schema-verified
+builder and explain plans over the same filter shape.
+
+The same query envelope works against any GeoServices, OGC API
 Features, WFS, OData, or STAC endpoint. Migrating from `esri-leaflet`? The raw
 GeoServices API remains available, but its `where` member below is explicitly
 GeoServices SQL rather than the deprecated protocol-neutral `Query.where`:
@@ -419,6 +450,11 @@ release smoke green across Chromium, Firefox, and WebKit. Reusable directory ent
 ledger of which ecosystem submissions were filed and accepted — live in
 [`docs/listings/maplibre-plugin-directory.md`](./docs/listings/maplibre-plugin-directory.md).
 
+Whether any of that actually makes the packages findable is measured, not assumed:
+[`docs/listings/npm-search-verification.md`](./docs/listings/npm-search-verification.md) records
+where every published `@honua/*` package ranks in npm registry search for its declared discovery
+terms, including the queries where it does not rank at all.
+
 ## Mental model: `Dataset` → `Source` → `Query` → `Result`
 
 Every Honua SDK — JavaScript, Python, .NET — speaks the same canonical
@@ -491,6 +527,13 @@ correctly use this SDK:
   a Honua-only surface degrade gracefully with a structured "not available on this
   target" result. A Honua deployment's richer `/mcp` catalog is the upgrade path
   via `honua-mcp-proxy`.
+- **Cross-model MCP eval scorecard** — how well *different client models* actually
+  drive that MCP surface, published rather than asserted:
+  [`docs/generated/mcp-eval-scorecard.md`](./docs/generated/mcp-eval-scorecard.md).
+  Every figure is generated from the committed, dated run artifacts under
+  [`mcp/evals/runs/`](./mcp/evals) — with the zero-LLM deterministic control row,
+  every non-passing run, and the protocol-certification failures included, because
+  a wins-only scoreboard is marketing.
 - **NL map control** — [`@honua/sdk-js/nl-map-control`](./docs/nl-map-control.md)
   compiles natural-language instructions into serializable, inspectable plans
   (query-planner IR plus agent-tool invocations) through a **caller-provided LLM

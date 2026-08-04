@@ -359,6 +359,25 @@ const REVIEWED_LIVE_PRODUCERS = new Map([
     },
   ],
 ]);
+
+/**
+ * Resolve a catalog live-lane command to its reviewed producer entry.
+ *
+ * The registry above is the single reviewed answer to "which generator does
+ * this lane's command actually run", and validateLiveEvidenceProducer already
+ * binds committed evidence to it. Skip-attestation renewal
+ * (scripts/renew-skip-attestations.mjs, honua-io/honua-sdk-js#972) has to run
+ * that same generator, so it reads the same registry rather than carrying a
+ * second, drift-prone copy of the mapping. Returns undefined for any command
+ * that is not a reviewed npm producer.
+ */
+export function reviewedLiveProducer(command) {
+  const parsed = parseCatalogCommand(command);
+  if (parsed.runner !== "npm") return undefined;
+  const producer = REVIEWED_LIVE_PRODUCERS.get(parsed.script);
+  return producer ? { script: parsed.script, ...producer } : undefined;
+}
+
 const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "25d",
   "ai-spatial-builder",

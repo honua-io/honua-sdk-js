@@ -16,7 +16,12 @@ npm run demo:temporal-playback:build     # production build
 npm run demo:temporal-playback:typecheck
 ```
 
-Controls: play/pause, a scrub slider over the 30-day extent, and a window
-length selector (1/3/7 days). `window.__temporalPlaybackState` exposes
+Transport is the app-platform `<honua-time-slider>` element from
+`@honua/sdk-js/web-components` (issue #959) bound to the same controller: play
+/pause, a WAI-ARIA scrubber over the 30-day extent (arrow keys step one window,
+Page Up/Down move ten, Home/End jump to the ends), step buttons, and a speed
+selector. The window *length* selector (1/3/7 days) stays a sample control
+because it configures the controller rather than driving its transport.
+`window.__temporalPlaybackState` exposes
 `{ ready, playing, windowStart, windowEnd, visibleCount, ticks }` for smoke
 checks.

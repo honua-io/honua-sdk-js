@@ -4,6 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { scanArcGisUsage } from "../src/migration/scanner.js";
 import {
   ARCGIS_WIDGET_REMOVAL_RELEASE,
   ARCGIS_WIDGET_REMOVAL_TIMEFRAME,
@@ -397,5 +398,42 @@ describe("widget readiness report on the esri-widget-cliff-app fixture", () => {
     expect(table).toContain("Legend");
     expect(table).toContain(ARCGIS_WIDGET_REMOVAL_TIMEFRAME);
     expect(table).toContain("docs/widget-survival-guide.md");
+  });
+});
+
+describe("cross-scanner agreement (#981 REQ-004)", () => {
+  it("reports ArcGIS imports in every file the widget scanner reports widget usage in", () => {
+    const root = makeTempProject();
+    fs.writeFileSync(
+      path.join(root, "import-equals.ts"),
+      ['import Legend = require("esri/widgets/Legend");', "const legend = new Legend({});", "void legend;"].join("\n"),
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(root, "amd.js"),
+      [
+        "define(['esri/widgets/Expand'], function (Expand) {",
+        "  var expand = new Expand({});",
+        "  void expand;",
+        "});",
+      ].join("\n"),
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(root, "esm.ts"),
+      ['import Search from "esri/widgets/Search";', "const search = new Search({});", "void search;"].join("\n"),
+      "utf8",
+    );
+
+    const widgetScan = scanWidgetUsage(root);
+    const arcGisScan = scanArcGisUsage(root);
+
+    const widgetFiles = new Set(widgetScan.hits.map((hit) => path.join(root, hit.file)));
+    const arcGisFiles = new Set(arcGisScan.imports.map((hit) => hit.file));
+
+    expect(widgetFiles.size).toBe(3);
+    for (const file of widgetFiles) {
+      expect(arcGisFiles.has(file)).toBe(true);
+    }
   });
 });

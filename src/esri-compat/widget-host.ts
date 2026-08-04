@@ -5,9 +5,10 @@
  * renders through the shared component set instead of shim-only markup
  * (issue #493, REQ-004).
  *
- * Only two shims delegate through this host today — `LegendCompat`
- * (`honua-legend`) and `LayerListCompat` (`honua-layer-list`). The other ~23
- * shims that accept a `container` option are state-model-only regardless of
+ * Only three shims delegate through this host today — `LegendCompat`
+ * (`honua-legend`), `LayerListCompat` (`honua-layer-list`), and
+ * `TimeSliderCompat` (`honua-time-slider`, issue #959). The other ~22 shims
+ * that accept a `container` option are state-model-only regardless of
  * registration: they never construct a host, never mount a component, and
  * never emit the missing-kit diagnostic below. {@link expectedKitConstructor}
  * additionally knows `honua-search` / `honua-measurement`, ready for the day
@@ -82,6 +83,7 @@ export interface HonuaWidgetKitLike {
   HonuaLayerListElement?: CustomElementConstructor;
   HonuaSearchElement?: CustomElementConstructor;
   HonuaMeasurementElement?: CustomElementConstructor;
+  HonuaTimeSliderElement?: CustomElementConstructor;
   defineHonuaWebComponents?: (registry?: CustomElementRegistry) => void;
 }
 
@@ -123,7 +125,7 @@ function missingWidgetKitMessage(tagName: string): string {
     "so this widget stays state-model-only and its container renders nothing.",
     'Call registerHonuaWidgetKit(() => import("@honua/sdk-js/web-components")) once during application',
     "startup, before constructing compat widgets. This affects the shims that delegate to the widget",
-    `kit — LegendCompat and LayerListCompat. See ${WIDGET_KIT_DOCS_URL}`,
+    `kit — LegendCompat, LayerListCompat, and TimeSliderCompat. See ${WIDGET_KIT_DOCS_URL}`,
   ].join(" ");
 }
 
@@ -270,6 +272,8 @@ function expectedKitConstructor(kit: HonuaWidgetKitLike, tagName: string): Custo
       return kit.HonuaSearchElement;
     case "honua-measurement":
       return kit.HonuaMeasurementElement;
+    case "honua-time-slider":
+      return kit.HonuaTimeSliderElement;
     default:
       return undefined;
   }

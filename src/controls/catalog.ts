@@ -277,6 +277,20 @@ export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
     collidesWithIds: [],
   },
   {
+    id: "web-components.time-slider",
+    tag: "honua-time-slider",
+    source: "web-components",
+    className: "HonuaTimeSliderElement",
+    supportTier: "survival-tier",
+    canonical: true,
+    // The temporal playback controller (`createTemporalPlayback`, issue #497)
+    // is the required adapter: the element is a view over it and renders an
+    // honest degraded panel until one is bound.
+    requiredAdapters: ["temporal-playback-controller"],
+    events: ["honua-time-change", "honua-time-playback-change"],
+    collidesWithIds: [],
+  },
+  {
     id: "web-components.sketch-control",
     tag: "honua-sketch-control",
     source: "web-components",

@@ -192,9 +192,12 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
       "`no-equivalent` rather than shimmed.",
   );
   lines.push(
-    "- **Locator (geocoding tasks).** Only the `Search` widget's core flow is shimmed; the standalone `Locator` " +
-      "task surface (suggest/geocode customization, custom locators) needs its own Honua surface first " +
-      "([punch list, parity gap 3](./migration-punch-list.md)).",
+    "- **Geocoding endpoints.** `Locator` itself is shimmed — `LocatorCompat` maps `addressToLocations`, " +
+      "`addressesToLocations`, `locationToAddress`, and `suggestLocations` onto the provider-pluggable geocoding " +
+      "contract, and `LocatorSearchSourceCompat` is the `Search` widget's address backend. What is out of scope is " +
+      "the *endpoint*: providers are bring-your-own (Nominatim / Photon / Pelias / a Honua GeocodeServer), the " +
+      "codemod cannot pick one for you, and a provider that does not declare `suggest` makes typeahead throw " +
+      "`HonuaCapabilityNotSupportedError` rather than silently degrading to a forward geocode.",
   );
   lines.push(
     "- **Geoprocessor / NetworkAnalyst beyond RouteTask.** Service-area, closest-facility, OD-cost-matrix, and " +
@@ -205,6 +208,10 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   lines.push("## Related reading");
   lines.push("");
   lines.push("- [Migration punch list](./migration-punch-list.md) — the honest parity/codemod accounting.");
+  lines.push(
+    "- [Third-party OSS ArcGIS app readiness](./oss-arcgis-corpus-readiness.md) — what the scanner and codemod " +
+      "actually do to real, pinned, third-party open-source ArcGIS apps (including the ones they cannot see at all).",
+  );
   lines.push("- [Honua ⇄ MapLibre migration notes](./migration-honua-maplibre.md) — the `honua-maplibre` codemod target.");
   lines.push("- [SDK guide: Migration CLI](./guide.md#migration-cli) — every `honua-migrate` subcommand.");
   return `${lines.join("\n").replace(/\s+$/, "")}\n`;

@@ -503,6 +503,46 @@ The standalone machine projection is
 ${discoveryRows}`;
 }
 
+const FILTER_GLYPH = {
+  native: "✓",
+  "attributes-only": "◐",
+  unsupported: "—",
+};
+
+/**
+ * Per-protocol truth for the typed `Query.filter` / `Query.temporalFilter`
+ * members (issue #947): which wire dialect each adapter compiles them to, and
+ * which temporal forms it can express exactly.
+ */
+export function renderFilterSection(manifest) {
+  const rows = manifest.protocols.map((protocol) => {
+    const support = protocol.queryFilter;
+    const temporal =
+      support.temporal.length === 0 ? "—" : support.temporal.map((form) => `\`${form}\``).join(", ");
+    const dialect = support.dialect === "none" ? "—" : `\`${support.dialect}\``;
+    return `| \`${protocol.id}\` | ${FILTER_GLYPH[support.filter]} | ${dialect} | ${temporal} | ${support.notes} |`;
+  });
+  return `Status: generated from [\`${MANIFEST_PATH}\`](../${MANIFEST_PATH}); do not edit this section by hand.
+
+\`Query.filter\` is the typed, protocol-neutral semantic filter and
+\`Query.temporalFilter\` is the canonical time constraint. A construct the target
+cannot express exactly throws \`HonuaCapabilityNotSupportedError\` naming the
+construct and the protocol; a documented widening (the GeoParquet bbox
+reduction) is reported through \`Result.degraded\`.
+
+- \`✓\` full attribute, spatial, and temporal predicate compilation
+- \`◐\` attribute and temporal predicates only (a spatial node is refused)
+- \`—\` no filterable query surface
+- \`source-dimension\` — a temporal filter without a field uses the protocol's own
+  time parameter (\`time=\`, \`datetime=\`)
+- \`field-predicate\` — a temporal filter that names its field compiles to an
+  exact predicate on that field
+
+| Protocol | Typed filter | Dialect | Temporal forms | Notes |
+| --- | :-: | --- | --- | --- |
+${rows.join("\n")}`;
+}
+
 export function renderStandaloneSection(manifest) {
   const rows = manifest.supportClaims.map(
     (claim) =>
@@ -729,7 +769,11 @@ export function generateOutputs({ manifest, packageJson, projectRoot = PROJECT_R
     [GENERATED_PATHS.publicSurface, renderPublicSurface(manifest)],
     [
       "docs/protocol-capability-matrix.md",
-      replaceManagedSection(protocolDoc, "protocol-matrix", renderProtocolSection(manifest)),
+      replaceManagedSection(
+        replaceManagedSection(protocolDoc, "protocol-matrix", renderProtocolSection(manifest)),
+        "filter-matrix",
+        renderFilterSection(manifest),
+      ),
     ],
     [
       "docs/standalone-capability-matrix.md",

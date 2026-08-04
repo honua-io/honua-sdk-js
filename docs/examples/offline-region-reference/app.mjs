@@ -1,13 +1,23 @@
 import {
+  createIndexedDbOfflineEditQueue,
   createIndexedDbOfflineRegionStore,
+  createLocalFirstStatus,
   createOfflineRegionDiagnostic,
   createOfflineRegionFetchHandler,
   createOfflineRegionManifest,
   downloadOfflineRegion,
+  replayOfflineEditPass,
 } from "/dist/src/offline/index.js";
 
 const DATABASE_NAME = "honua-offline-region-reference-v1";
+const EDIT_QUEUE_DATABASE_NAME = "honua-offline-region-reference-edits-v1";
+const EDIT_IDEMPOTENCY_KEY = "offline-reference-incident-1-close";
 const DATA_PATH = "/offline-data.json";
+const REPLAY_PATH = "/offline-edit-replay";
+const REPLAY_WORKER_ID = "offline-reference-replay";
+const REPLAY_LIMIT = 10;
+const REPLAY_LEASE_DURATION_MS = 5 * 60 * 1000;
+const MAX_ACKNOWLEDGEMENT_BYTES = 4096;
 const SHELL_SCOPE_PATH = new URL("./", window.location.href).pathname;
 const SHELL_CACHE_NAMESPACE = `honua-offline-region-reference-shell-${encodeURIComponent(SHELL_SCOPE_PATH)}-`;
 const SHELL_CONTROL_CACHE_NAME = `${SHELL_CACHE_NAMESPACE}control-v1`;
@@ -34,6 +44,17 @@ function publish(result) {
   text("freshness", result.freshness);
   text("provenance", `${result.sourceVersion} / ${result.schemaVersion} / ${result.planVersion}`);
   text("attribution", result.attribution || "Unavailable");
+  text("local-first", result.localFirst ? `${result.localFirst.state} · ${result.localFirst.reason}` : "Unavailable");
+  text("undelivered", result.localFirst ? String(result.localFirst.undeliveredCount) : "Unavailable");
+  text("edit", result.edit ? `${result.edit.state} · ${result.edit.idempotencyKey}` : "None");
+  text(
+    "replay",
+    result.replay
+      ? `${result.replay.claimedCount} claimed · ${result.replay.appliedCount} applied · ` +
+          `${result.replay.conflictedCount} conflicted · ${result.replay.retryableCount} retryable · ` +
+          `${result.replay.unacknowledgedCount} unacknowledged`
+      : "Not attempted",
+  );
   text("error", result.error ?? "");
   window.__HONUA_OFFLINE_REFERENCE__ = Object.freeze(result);
 }
@@ -156,6 +177,107 @@ async function readSnapshot(value, store, now) {
     return { diagnostic, payload: undefined, error: "Persisted resource is unavailable." };
   }
   return { diagnostic, payload: await response.text(), error: undefined };
+}
+
+/**
+ * Application-owned binding for the injected replay transport. This is a
+ * checked-in loopback fixture, not a hosted replica-sync client: it posts the
+ * SDK's replay request to a same-origin endpoint that mirrors the documented
+ * acknowledgement shape so a reconnect can be exercised without inventing a
+ * server contract. End-to-end exactly-once delivery remains a server property;
+ * what this proves locally is that one bounded pass makes exactly one durable
+ * queue transition per acknowledged edit.
+ */
+function createFixtureReplayTransport(endpoint) {
+  return async (request, context) => {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      cache: "no-store",
+      credentials: "omit",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(request),
+      ...(context.signal === undefined ? {} : { signal: context.signal }),
+    });
+    if (!response.ok) throw new Error(`Replay fixture responded with ${response.status}.`);
+    const bytes = await readBoundedResponseBytes(response, MAX_ACKNOWLEDGEMENT_BYTES);
+    return JSON.parse(new TextDecoder().decode(bytes));
+  };
+}
+
+/**
+ * One bounded pass, attempted only when this launch believes the fixture
+ * endpoint is reachable. A pass that claims nothing is the honest result for a
+ * partition with no ready work: the queue, not the page, decides what is still
+ * undelivered, so a repeated pass cannot re-deliver a terminal edit.
+ */
+async function replayWhenConnected(queue, partition, disconnected) {
+  if (disconnected) return undefined;
+  const receipt = await replayOfflineEditPass(
+    queue,
+    createFixtureReplayTransport(new URL(REPLAY_PATH, window.location.href)),
+    { ...partition, workerId: REPLAY_WORKER_ID, limit: REPLAY_LIMIT, leaseDurationMs: REPLAY_LEASE_DURATION_MS },
+  );
+  return {
+    claimedCount: receipt.claimedCount,
+    invokedCount: receipt.invokedCount,
+    appliedCount: receipt.appliedCount,
+    retryableCount: receipt.retryableCount,
+    conflictedCount: receipt.conflictedCount,
+    unacknowledgedCount: receipt.unacknowledgedCount,
+    outcomes: receipt.outcomes.map((outcome) => ({
+      editId: outcome.editId,
+      outcome: outcome.outcome,
+      ...(outcome.reasonCode === undefined ? {} : { reasonCode: outcome.reasonCode }),
+    })),
+  };
+}
+
+/**
+ * Identity, durable state, and audit kinds only. Attributes and geometry stay
+ * inside the queue record; the page never republishes an edit payload.
+ */
+function summarizeEdit(edits) {
+  const edit = edits.find((candidate) => candidate.idempotencyKey === EDIT_IDEMPOTENCY_KEY);
+  if (!edit) return undefined;
+  return {
+    id: edit.id,
+    requestFingerprint: edit.requestFingerprint,
+    idempotencyKey: edit.idempotencyKey,
+    state: edit.state,
+    createdAt: edit.createdAt,
+    attemptCount: edit.attemptCount,
+    leased: edit.lease !== undefined,
+    audit: edit.audit.map((event) => event.kind),
+    ...(edit.retry === undefined ? {} : { retry: { retryAt: edit.retry.retryAt, reasonCode: edit.retry.reasonCode } }),
+    ...(edit.applied === undefined ? {} : { applied: { serverOperationId: edit.applied.serverOperationId } }),
+    ...(edit.conflict === undefined ? {} : { conflict: { conflictId: edit.conflict.conflictId } }),
+  };
+}
+
+/**
+ * Records the field edit only while the endpoint is unreachable, replays the
+ * partition once when it is reachable again, then reports this partition's
+ * durable state. The idempotency key is stable, so a repeated disconnected
+ * launch returns the existing edit instead of queueing a second copy. `list`
+ * is a bounded detail sample; the counts come from `countByState`, which is
+ * the only truthful total for a partition.
+ */
+async function captureLocalWork(value, disconnected) {
+  const queue = createIndexedDbOfflineEditQueue({ name: EDIT_QUEUE_DATABASE_NAME });
+  const partition = {
+    authorizationScopeDigest: value.source.authorizationScopeDigest,
+    sourceId: value.source.id,
+  };
+  if (disconnected) {
+    await queue.enqueue({
+      ...partition,
+      idempotencyKey: EDIT_IDEMPOTENCY_KEY,
+      edit: { operation: "update", featureId: "incident-1", attributes: { status: "closed" } },
+    });
+  }
+  const replay = await replayWhenConnected(queue, partition, disconnected);
+  const edits = await queue.list({ ...partition, limit: 100 });
+  return { edits, editCounts: await queue.countByState(partition), replay, edit: summarizeEdit(edits) };
 }
 
 function referenceWorker(registration, scriptUrl) {
@@ -304,8 +426,17 @@ async function main() {
   await downloadWhenNeeded(value, store);
   const shellState = await prepareApplicationShell();
   const disconnected = !navigator.onLine || shellState === "retained";
-  const snapshot = await readSnapshot(value, store, disconnected ? OFFLINE_NOW : ONLINE_NOW);
+  const now = disconnected ? OFFLINE_NOW : ONLINE_NOW;
+  const snapshot = await readSnapshot(value, store, now);
   const diagnostic = snapshot.diagnostic;
+  const { edits, editCounts, replay, edit } = await captureLocalWork(value, disconnected);
+  const status = createLocalFirstStatus({
+    connectivity: disconnected ? "offline" : "online",
+    now,
+    regions: [diagnostic],
+    edits,
+    editCounts,
+  });
   publish({
     ready: true,
     shellReady: true,
@@ -320,6 +451,21 @@ async function main() {
     sourceVersion: diagnostic.provenance.sourceVersion,
     schemaVersion: diagnostic.provenance.schemaVersion,
     planVersion: diagnostic.provenance.planVersion,
+    localFirst: {
+      state: status.state,
+      reason: status.reason,
+      connectivity: status.connectivity,
+      availability: status.reads.availability,
+      freshness: status.reads.freshness,
+      completeness: status.reads.completeness,
+      coverage: status.writes.coverage,
+      counts: status.writes.counts,
+      undeliveredCount: status.writes.undeliveredCount,
+      conflictedCount: status.writes.conflictedCount,
+      conflictedEditIds: status.writes.conflictedEditIds,
+    },
+    edit,
+    replay,
     error: snapshot.error,
   });
 }
@@ -335,6 +481,9 @@ void main().catch((error) => {
     schemaVersion: "unknown",
     planVersion: "unknown",
     attribution: "",
+    localFirst: undefined,
+    edit: undefined,
+    replay: undefined,
     error: error instanceof Error ? error.message : "Offline startup failed.",
   });
 });

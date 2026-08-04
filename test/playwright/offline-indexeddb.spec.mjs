@@ -13,6 +13,11 @@ const SHELL_CACHE_NAMESPACE = `honua-offline-region-reference-shell-${encodeURIC
 const SHELL_CONTROL_CACHE = `${SHELL_CACHE_NAMESPACE}control-v1`;
 const SHELL_GENERATION_PREFIX = `${SHELL_CACHE_NAMESPACE}generation-v1-`;
 const SHELL_LEGACY_CACHE = `${SHELL_CACHE_NAMESPACE}v1`;
+const EDIT_IDEMPOTENCY_KEY = "offline-reference-incident-1-close";
+const EDIT_QUEUE_DATABASE = "honua-offline-region-reference-edits-v1";
+const REGION_DATABASE = "honua-offline-region-reference-v1";
+const REPLAY_RETRY_AT = "2030-01-01T00:00:00.000Z";
+const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
 test("offline reference workflow reloads after browser networking is disabled", async ({ page, context }) => {
   test.slow();
@@ -30,6 +35,17 @@ test("offline reference workflow reloads after browser networking is disabled", 
       sourceVersion: "source-v1",
       schemaVersion: "schema-v1",
       planVersion: "plan-v1",
+      localFirst: {
+        state: "online",
+        reason: "connected",
+        connectivity: "online",
+        availability: "live",
+        freshness: "fresh",
+        completeness: "complete",
+        coverage: "complete",
+        undeliveredCount: 0,
+        conflictedCount: 0,
+      },
     });
     expect(page.url()).toBe(`${server.url}/reference/index.html`);
     expect(server.offlineDataRequests).toBe(1);
@@ -47,6 +63,18 @@ test("offline reference workflow reloads after browser networking is disabled", 
       sourceVersion: "source-v1",
       schemaVersion: "schema-v1",
       planVersion: "plan-v1",
+      // Undelivered local work outranks staleness in the documented precedence.
+      localFirst: {
+        state: "pending",
+        reason: "undelivered-edits",
+        connectivity: "offline",
+        availability: "cached",
+        freshness: "stale",
+        completeness: "complete",
+        coverage: "complete",
+        undeliveredCount: 1,
+        conflictedCount: 0,
+      },
     });
     expect(server.offlineDataRequests).toBe(1);
 
@@ -684,10 +712,410 @@ test("offline reference workflow fails visibly when its persisted region is miss
       mode: "offline",
       availability: "unavailable",
       error: "Persisted region is unavailable (cache-miss).",
+      // A cache problem outranks undelivered local work, so the queued edit
+      // cannot mask the fact that the region is gone.
+      localFirst: {
+        state: "partial",
+        reason: "missing-regions",
+        connectivity: "offline",
+        availability: "unavailable",
+        completeness: "missing",
+        undeliveredCount: 1,
+      },
     });
     expect(server.offlineDataRequests).toBe(1);
     await expect(page.locator("main")).toHaveAttribute("data-state", "unavailable");
     await expect(page.getByRole("alert")).toContainText("cache-miss");
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference keeps one undelivered edit across repeated disconnected reloads", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+      ready: true,
+      localFirst: { state: "online", undeliveredCount: 0 },
+    });
+
+    await context.setOffline(true);
+    for (let reload = 0; reload < 2; reload += 1) {
+      await page.reload({ waitUntil: "load" });
+      await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject({
+        ready: true,
+        localFirst: { state: "pending", reason: "undelivered-edits", undeliveredCount: 1, conflictedCount: 0 },
+      });
+    }
+
+    // The status reads the durable queue, so a stable idempotency key must not
+    // accumulate a second copy of the same disconnected edit.
+    const queued = await page.evaluate(async () => {
+      const { createIndexedDbOfflineEditQueue } = await import("/dist/src/offline/index.js");
+      const queue = createIndexedDbOfflineEditQueue({ name: "honua-offline-region-reference-edits-v1" });
+      const store = await import("/dist/src/offline/index.js").then(({ createIndexedDbOfflineRegionStore }) =>
+        createIndexedDbOfflineRegionStore({ name: "honua-offline-region-reference-v1" }),
+      );
+      const inventory = await store.inventory();
+      const region = inventory.regions[0];
+      const read = region ? await store.readResource(region.id, "incidents") : undefined;
+      const edits = read
+        ? await queue.list({
+            authorizationScopeDigest: read.manifest.source.authorizationScopeDigest,
+            sourceId: read.manifest.source.id,
+            limit: 100,
+          })
+        : [];
+      return edits.map((edit) => ({ state: edit.state, idempotencyKey: edit.idempotencyKey, audit: edit.audit.length }));
+    });
+    expect(queued).toHaveLength(1);
+    expect(queued[0]).toMatchObject({ state: "pending", idempotencyKey: "offline-reference-incident-1-close" });
+    expect(queued[0].audit).toBe(1);
+    expect(server.offlineDataRequests).toBe(1);
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference replays a captured edit exactly once after reconnect", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await referenceState(page, {
+      ready: true,
+      shellReady: true,
+      mode: "online",
+      localFirst: { state: "online", reason: "connected", undeliveredCount: 0 },
+      replay: { claimedCount: 0, invokedCount: 0, appliedCount: 0, outcomes: [] },
+    });
+    // An empty partition claims nothing, so a connected launch never reaches
+    // the transport at all.
+    expect(server.replayRequests).toEqual([]);
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    const captured = await referenceState(page, {
+      mode: "offline",
+      availability: "ready",
+      localFirst: { state: "pending", reason: "undelivered-edits", undeliveredCount: 1, conflictedCount: 0 },
+      edit: {
+        idempotencyKey: EDIT_IDEMPOTENCY_KEY,
+        state: "pending",
+        attemptCount: 0,
+        leased: false,
+        audit: ["enqueued"],
+      },
+    });
+    expect(captured.edit.id).toMatch(DIGEST_PATTERN);
+    expect(captured.edit.requestFingerprint).toMatch(DIGEST_PATTERN);
+    expect(captured.replay).toBeUndefined();
+
+    // A reload taken with networking still disabled: the same durable record,
+    // the same idempotency identity, the same audit history. Nothing was
+    // re-enqueued and nothing was delivered.
+    await page.reload({ waitUntil: "load" });
+    const reloaded = await referenceState(page, {
+      mode: "offline",
+      localFirst: { state: "pending", undeliveredCount: 1 },
+    });
+    expect(reloaded.edit).toEqual(captured.edit);
+    expect(server.offlineDataRequests).toBe(1);
+    expect(server.replayRequests).toEqual([]);
+
+    const offlineQueue = await readReferenceQueue(page);
+    expect(offlineQueue.counts).toEqual({
+      pending: 1,
+      leased: 0,
+      retryable: 0,
+      applied: 0,
+      conflicted: 0,
+      cancelled: 0,
+    });
+    expect(offlineQueue.edits).toHaveLength(1);
+    // The payload itself survived the disconnected reload, not just its identity.
+    expect(offlineQueue.edits[0]).toMatchObject({
+      id: captured.edit.id,
+      requestFingerprint: captured.edit.requestFingerprint,
+      idempotencyKey: EDIT_IDEMPOTENCY_KEY,
+      sourceId: "incidents",
+      state: "pending",
+      edit: { operation: "update", featureId: "incident-1", attributes: { status: "closed" } },
+    });
+
+    await context.setOffline(false);
+    await page.reload({ waitUntil: "load" });
+    const applied = await referenceState(page, {
+      mode: "online",
+      localFirst: {
+        state: "online",
+        reason: "connected",
+        undeliveredCount: 0,
+        conflictedCount: 0,
+        counts: { pending: 0, leased: 0, retryable: 0, applied: 1, conflicted: 0, cancelled: 0 },
+      },
+      replay: {
+        claimedCount: 1,
+        invokedCount: 1,
+        appliedCount: 1,
+        retryableCount: 0,
+        conflictedCount: 0,
+        unacknowledgedCount: 0,
+        outcomes: [{ editId: captured.edit.id, outcome: "applied" }],
+      },
+      edit: {
+        id: captured.edit.id,
+        createdAt: captured.edit.createdAt,
+        state: "applied",
+        attemptCount: 1,
+        leased: false,
+        audit: ["enqueued", "claimed", "applied"],
+        applied: { serverOperationId: "fixture-operation-1" },
+      },
+    });
+    // The transport received the identity the queue leased and nothing else:
+    // no authorization scope, lease, or audit state crossed the boundary.
+    expect(server.replayRequests).toEqual([
+      {
+        version: "1.0",
+        editId: captured.edit.id,
+        requestFingerprint: captured.edit.requestFingerprint,
+        idempotencyKey: EDIT_IDEMPOTENCY_KEY,
+        sourceId: "incidents",
+        operation: "update",
+        requestKeys: ["edit", "editId", "idempotencyKey", "requestFingerprint", "sourceId", "version"],
+        authorization: null,
+        cookie: null,
+      },
+    ]);
+
+    // A second bounded pass over the same durable partition applies nothing
+    // further, because the queue — not the page — decides what is still ready.
+    await page.reload({ waitUntil: "load" });
+    const second = await referenceState(page, {
+      mode: "online",
+      replay: { claimedCount: 0, invokedCount: 0, appliedCount: 0, outcomes: [] },
+      localFirst: { state: "online", undeliveredCount: 0, counts: { applied: 1 } },
+    });
+    expect(second.edit).toEqual(applied.edit);
+    expect(server.replayRequests).toHaveLength(1);
+    expect(server.offlineDataRequests).toBe(1);
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference retains a typed conflict from one reconnect pass and stops retrying it", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await referenceState(page, { ready: true, shellReady: true, mode: "online" });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    const captured = await referenceState(page, {
+      mode: "offline",
+      edit: { state: "pending", audit: ["enqueued"] },
+    });
+
+    server.setReplayAcknowledgement("conflicted");
+    await context.setOffline(false);
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      localFirst: {
+        state: "conflicted",
+        reason: "conflicted-edits",
+        undeliveredCount: 0,
+        conflictedCount: 1,
+        conflictedEditIds: [captured.edit.id],
+        counts: { pending: 0, leased: 0, retryable: 0, applied: 0, conflicted: 1, cancelled: 0 },
+      },
+      replay: {
+        claimedCount: 1,
+        invokedCount: 1,
+        appliedCount: 0,
+        retryableCount: 0,
+        conflictedCount: 1,
+        unacknowledgedCount: 0,
+        outcomes: [{ editId: captured.edit.id, outcome: "conflicted" }],
+      },
+      edit: {
+        state: "conflicted",
+        attemptCount: 1,
+        leased: false,
+        audit: ["enqueued", "claimed", "conflicted"],
+        conflict: { conflictId: "fixture-conflict-1" },
+      },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    // Conflicted is terminal: the next pass claims nothing, so the fixture is
+    // never asked again and the edit is neither retried nor dropped.
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      replay: { claimedCount: 0, invokedCount: 0, outcomes: [] },
+      localFirst: { state: "conflicted", reason: "conflicted-edits", conflictedCount: 1 },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    const stored = await readReferenceQueue(page);
+    expect(stored.counts).toEqual({ pending: 0, leased: 0, retryable: 0, applied: 0, conflicted: 1, cancelled: 0 });
+    expect(stored.edits).toHaveLength(1);
+    expect(stored.edits[0]).toMatchObject({
+      id: captured.edit.id,
+      state: "conflicted",
+      attemptCount: 1,
+      conflict: { conflictId: "fixture-conflict-1", serverGeneration: "fixture-generation-2" },
+      edit: { operation: "update", featureId: "incident-1", attributes: { status: "closed" } },
+    });
+    expect(Date.parse(stored.edits[0].conflict.detectedAt)).toBeGreaterThan(0);
+    expect(stored.edits[0].lease).toBeUndefined();
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference records an unacknowledged mismatch and leaves the lease recoverable", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await referenceState(page, { ready: true, shellReady: true, mode: "online" });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    const captured = await referenceState(page, {
+      mode: "offline",
+      edit: { state: "pending", audit: ["enqueued"] },
+    });
+
+    server.setReplayAcknowledgement("identity-mismatch");
+    await context.setOffline(false);
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      localFirst: {
+        state: "pending",
+        reason: "undelivered-edits",
+        undeliveredCount: 1,
+        conflictedCount: 0,
+        counts: { pending: 0, leased: 1, retryable: 0, applied: 0, conflicted: 0, cancelled: 0 },
+      },
+      replay: {
+        claimedCount: 1,
+        invokedCount: 1,
+        appliedCount: 0,
+        retryableCount: 0,
+        conflictedCount: 0,
+        unacknowledgedCount: 1,
+        outcomes: [{ editId: captured.edit.id, outcome: "unacknowledged", reasonCode: "identity-mismatch" }],
+      },
+      // No terminal outcome was invented from an acknowledgement that named a
+      // different operation identity.
+      edit: { state: "leased", leased: true, attemptCount: 1, audit: ["enqueued", "claimed"] },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    // The lease is real: a competing worker cannot take the edit while it holds.
+    const held = await readReferenceQueue(page, { claim: true });
+    expect(held.claimed).toEqual([]);
+    expect(held.counts.leased).toBe(1);
+
+    // It becomes claimable again once the lease expires, so a mismatched
+    // acknowledgement cannot strand the edit.
+    const recovered = await readReferenceQueue(page, {
+      nowIso: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      claim: true,
+    });
+    expect(recovered.claimed).toEqual([
+      { id: captured.edit.id, state: "leased", attemptCount: 2, workerId: "browser-recovery-worker" },
+    ]);
+    expect(recovered.edits[0].audit.map((event) => event.kind)).toEqual(["enqueued", "claimed", "lease-reclaimed"]);
+    expect(recovered.edits[0].applied).toBeUndefined();
+    expect(server.replayRequests).toHaveLength(1);
+  } finally {
+    await cleanupOfflineReference(page, context);
+    await server.close();
+  }
+});
+
+test("offline reference honours a retryable acknowledgement instead of hammering the endpoint", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(`${server.url}/reference/`);
+    await referenceState(page, { ready: true, shellReady: true, mode: "online" });
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    const captured = await referenceState(page, {
+      mode: "offline",
+      edit: { state: "pending", audit: ["enqueued"] },
+    });
+
+    server.setReplayAcknowledgement("retryable");
+    await context.setOffline(false);
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      localFirst: {
+        state: "pending",
+        reason: "undelivered-edits",
+        undeliveredCount: 1,
+        counts: { pending: 0, leased: 0, retryable: 1, applied: 0, conflicted: 0, cancelled: 0 },
+      },
+      replay: {
+        claimedCount: 1,
+        invokedCount: 1,
+        appliedCount: 0,
+        retryableCount: 1,
+        conflictedCount: 0,
+        unacknowledgedCount: 0,
+        outcomes: [{ editId: captured.edit.id, outcome: "retryable" }],
+      },
+      edit: {
+        state: "retryable",
+        leased: false,
+        attemptCount: 1,
+        audit: ["enqueued", "claimed", "retry-scheduled"],
+        retry: { retryAt: REPLAY_RETRY_AT, reasonCode: "fixture-backpressure" },
+      },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    // The scheduled retry is durable, so the next bounded pass respects the
+    // backoff rather than re-invoking the endpoint immediately.
+    await page.reload({ waitUntil: "load" });
+    await referenceState(page, {
+      mode: "online",
+      replay: { claimedCount: 0, invokedCount: 0, outcomes: [] },
+      localFirst: { state: "pending", reason: "undelivered-edits", undeliveredCount: 1 },
+    });
+    expect(server.replayRequests).toHaveLength(1);
+
+    // The work is still there, and claimable, when its retry time arrives.
+    const due = await readReferenceQueue(page, { nowIso: "2030-01-01T00:00:01.000Z", claim: true });
+    expect(due.claimed).toEqual([
+      { id: captured.edit.id, state: "leased", attemptCount: 2, workerId: "browser-recovery-worker" },
+    ]);
   } finally {
     await cleanupOfflineReference(page, context);
     await server.close();
@@ -721,6 +1149,74 @@ test("IndexedDB offline region store survives reload and preserves inventory CAS
       miss: true,
     });
   } finally {
+    await server.close();
+  }
+});
+
+test("IndexedDB edit queue counts a partition larger than its bounded list window", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+    const result = await page.evaluate(async () => {
+      const { createIndexedDbOfflineEditQueue, createLocalFirstStatus } = await import("/dist/src/offline/index.js");
+      const queue = createIndexedDbOfflineEditQueue({
+        name: `${window.__offlineDatabase}-counts`,
+        createLeaseToken: () => "lease",
+      });
+      const partition = { authorizationScopeDigest: `sha256:${"c".repeat(64)}`, sourceId: "incidents" };
+      for (let index = 0; index < 110; index += 1) {
+        const enqueued = await queue.enqueue({
+          ...partition,
+          idempotencyKey: `applied-${index}`,
+          edit: { operation: "add", attributes: { status: "open" } },
+        });
+        const [claimed] = await queue.claimReady({
+          ...partition,
+          workerId: "worker",
+          limit: 1,
+          leaseDurationMs: 60_000,
+        });
+        if (claimed.id !== enqueued.edit.id) throw new Error("Claimed an unexpected edit while seeding the partition.");
+        await queue.markApplied(claimed.id, claimed.lease.token, { serverOperationId: `op-${index}` });
+      }
+      await queue.enqueue({
+        ...partition,
+        idempotencyKey: "beyond-the-window",
+        edit: { operation: "update", featureId: "incident-9", attributes: { status: "closed" } },
+      });
+      const edits = await queue.list({ ...partition, limit: 100 });
+      const editCounts = await queue.countByState(partition);
+      const sampled = createLocalFirstStatus({ connectivity: "online", now: new Date(), edits });
+      const complete = createLocalFirstStatus({ connectivity: "online", now: new Date(), edits, editCounts });
+      return {
+        listed: edits.length,
+        pendingVisible: edits.some((edit) => edit.state === "pending"),
+        editCounts,
+        sampled: { state: sampled.state, coverage: sampled.writes.coverage },
+        complete: {
+          state: complete.state,
+          coverage: complete.writes.coverage,
+          undeliveredCount: complete.writes.undeliveredCount,
+        },
+      };
+    });
+
+    expect(result.listed).toBe(100);
+    expect(result.pendingVisible).toBe(false);
+    expect(result.editCounts).toEqual({
+      pending: 1,
+      leased: 0,
+      retryable: 0,
+      applied: 110,
+      conflicted: 0,
+      cancelled: 0,
+    });
+    // The bounded sample cannot see the pending edit; the authoritative totals can.
+    expect(result.sampled).toEqual({ state: "online", coverage: "sampled" });
+    expect(result.complete).toEqual({ state: "pending", coverage: "complete", undeliveredCount: 1 });
+  } finally {
+    await page.close().catch(() => undefined);
     await server.close();
   }
 });
@@ -1262,8 +1758,691 @@ test("IndexedDB download resumes from verified staged resources", async ({ page 
   }
 });
 
+test("storage budget probe reads the origin's real quota estimate", async ({ page, context }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const probed = await page.evaluate(async () => {
+      const { probeOfflineStorageBudget } = await import("/dist/src/offline/index.js");
+      const budget = await probeOfflineStorageBudget();
+      // A platform without a StorageManager, described rather than assumed.
+      const withoutEstimate = await probeOfflineStorageBudget({ storage: {} });
+      return { budget, withoutEstimateReason: withoutEstimate.reason, withoutEstimateStatus: withoutEstimate.status };
+    });
+
+    expect(probed.budget.status).toBe("available");
+    expect(probed.budget.quotaBytes).toBeGreaterThan(0);
+    expect(probed.budget.usageBytes).toBeGreaterThanOrEqual(0);
+    expect(probed.budget.remainingBytes).toBe(Math.max(0, probed.budget.quotaBytes - probed.budget.usageBytes));
+    expect(probed.budget.reserveBytes + probed.budget.logicalBudgetBytes).toBe(probed.budget.remainingBytes);
+    expect(probed.budget.logicalBudgetBytes).toBeLessThanOrEqual(probed.budget.remainingBytes);
+    expect(["persisted", "best-effort"]).toContain(probed.budget.persistence);
+    expect(probed.withoutEstimateStatus).toBe("unavailable");
+    expect(probed.withoutEstimateReason).toBe("estimate-unsupported");
+
+    // The derived budget tracks the real platform number, not a constant: an
+    // origin held under the reserve floor is offered nothing.
+    const client = await context.newCDPSession(page);
+    const origin = await page.evaluate(() => location.origin);
+    await client.send("Storage.overrideQuotaForOrigin", { origin, quotaSize: 512 * 1024 });
+    const constrained = await page.evaluate(async () => {
+      const { probeOfflineStorageBudget } = await import("/dist/src/offline/index.js");
+      return probeOfflineStorageBudget();
+    });
+    expect(constrained.status).toBe("available");
+    expect(constrained.quotaBytes).toBeLessThanOrEqual(512 * 1024);
+    expect(constrained.logicalBudgetBytes).toBe(0);
+    await client.send("Storage.overrideQuotaForOrigin", { origin });
+  } finally {
+    await server.close();
+  }
+});
+
+test("real IndexedDB quota pressure is typed as a quota failure with its admission plan", async ({ page, context }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    // A genuine per-origin quota, enforced by the browser's own storage layer.
+    // Applied before the origin is first visited: the storage layer caches a
+    // bucket's quota when its first connection opens.
+    const client = await context.newCDPSession(page);
+    await client.send("Storage.overrideQuotaForOrigin", { origin: server.url, quotaSize: 512 * 1024 });
+    await page.goto(server.url);
+    const database = await page.evaluate(() => window.__offlineDatabase);
+
+    const result = await page.evaluate(async (name) => {
+      const { createIndexedDbOfflineRegionStore, createOfflineRegionManifest, downloadOfflineRegion } = await import(
+        "/dist/src/offline/index.js"
+      );
+      // Incompressible: IndexedDB charges quota against stored bytes, so a
+      // repeating payload would slip under the override after compression.
+      const payload = new Uint8Array(2 * 1024 * 1024);
+      for (let offset = 0; offset < payload.byteLength; offset += 65536) {
+        crypto.getRandomValues(payload.subarray(offset, offset + 65536));
+      }
+      const hash = await crypto.subtle.digest("SHA-256", payload);
+      const manifest = await createOfflineRegionManifest({
+        name: "quota pressure fixture",
+        sourceId: "fixture",
+        endpoint: "https://example.test/features",
+        authorizationScopeFingerprint: "test-scope",
+        bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, crs: "EPSG:4326" },
+        sourceVersion: "1",
+        schemaVersion: "1",
+        planVersion: "1",
+        observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+        resources: [
+          {
+            id: "oversized",
+            kind: "asset",
+            byteLength: payload.byteLength,
+            integrity: "sha256:" + [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+          },
+        ],
+      });
+      const store = createIndexedDbOfflineRegionStore({ name: `${name}-quota-pressure` });
+      const estimate = await navigator.storage.estimate();
+      try {
+        // Logical admission passes: the refusal must come from the device.
+        await downloadOfflineRegion(manifest, {
+          store,
+          logicalQuotaBytes: 16 * 1024 * 1024,
+          load: async () => payload,
+        });
+        return { outcome: "committed", estimate };
+      } catch (error) {
+        const inventory = await store.inventory();
+        return {
+          outcome: "rejected",
+          estimate,
+          name: error?.name,
+          code: error?.code,
+          sdkCode: error?.sdkCode,
+          category: error?.category,
+          retryable: error?.retryable,
+          admission: error?.admission,
+          causeName: error?.cause?.name,
+          regionCount: inventory.regions.length,
+        };
+      }
+    }, database);
+
+    // The browser really was reporting a constrained origin quota.
+    expect(result.estimate.quota).toBeLessThanOrEqual(512 * 1024);
+    expect(result.outcome).toBe("rejected");
+    expect(result.name).toBe("HonuaOfflineRegionError");
+    expect(result.code).toBe("quota-exceeded");
+    expect(result.sdkCode).toBe("offline.region.quota");
+    expect(result.category).toBe("validation");
+    expect(result.retryable).toBe(false);
+    // The browser's own failure, not a synthetic stand-in.
+    expect(result.causeName).toBe("QuotaExceededError");
+    expect(result.admission).toEqual({
+      logicalQuotaBytes: 16 * 1024 * 1024,
+      logicalBytesBefore: 0,
+      replacementLogicalBytes: 0,
+      requiredLogicalBytes: 2 * 1024 * 1024,
+      evictRegionIds: [],
+      evictedLogicalBytes: 0,
+      logicalBytesAfter: 2 * 1024 * 1024,
+    });
+    // Nothing was committed and nothing outside the plan was evicted.
+    expect(result.regionCount).toBe(0);
+    await client.send("Storage.overrideQuotaForOrigin", { origin: server.url });
+  } finally {
+    await server.close();
+  }
+});
+
+test("persistent storage is requested only when the application asks", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    const result = await page.evaluate(async (name) => {
+      const {
+        createIndexedDbOfflineRegionStore,
+        createOfflineRegionManifest,
+        downloadOfflineRegion,
+        probeOfflineStorageBudget,
+        requestOfflinePersistentStorage,
+      } = await import("/dist/src/offline/index.js");
+      let persistCalls = 0;
+      const platformPersist = navigator.storage.persist.bind(navigator.storage);
+      Object.defineProperty(navigator.storage, "persist", {
+        configurable: true,
+        value: async () => {
+          persistCalls += 1;
+          return platformPersist();
+        },
+      });
+      try {
+        const manifest = await createOfflineRegionManifest({
+          name: "persistence fixture",
+          sourceId: "fixture",
+          endpoint: "https://example.test/features",
+          authorizationScopeFingerprint: "test-scope",
+          bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, crs: "EPSG:4326" },
+          sourceVersion: "1",
+          schemaVersion: "1",
+          planVersion: "1",
+          observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+          resources: [
+            {
+              id: "metadata",
+              kind: "metadata",
+              byteLength: 3,
+              integrity:
+                "sha256:" +
+                [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("one")))]
+                  .map((byte) => byte.toString(16).padStart(2, "0"))
+                  .join(""),
+            },
+          ],
+        });
+        const store = createIndexedDbOfflineRegionStore({ name: `${name}-persistence` });
+        await probeOfflineStorageBudget();
+        await downloadOfflineRegion(manifest, { store, logicalQuotaBytes: 3, load: async () => new TextEncoder().encode("one") });
+        const implicitCalls = persistCalls;
+        const requested = await requestOfflinePersistentStorage();
+        return { implicitCalls, explicitCalls: persistCalls, requested };
+      } finally {
+        Reflect.deleteProperty(navigator.storage, "persist");
+      }
+    }, database);
+
+    // A download and a probe are not consent to prompt for persistent storage.
+    expect(result.implicitCalls).toBe(0);
+    expect(result.explicitCalls).toBe(1);
+    expect(["granted", "denied"]).toContain(result.requested.status);
+    expect(result.requested.persistence).toBe(result.requested.status === "granted" ? "persisted" : "best-effort");
+  } finally {
+    await server.close();
+  }
+});
+
+test("persisted offline region and edit-queue records stay credential-free", async ({ page }) => {
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect
+      .poll(() => page.evaluate(() => window.__offlineResult))
+      .toMatchObject({ receipt: "committed", regionCount: 1 });
+    const database = await page.evaluate(() => window.__offlineDatabase);
+    const audit = await page.evaluate(async (name) => {
+      const {
+        createIndexedDbOfflineEditQueue,
+        createIndexedDbOfflineRegionStore,
+        createOfflineRegionManifest,
+        downloadOfflineRegion,
+      } = await import("/dist/src/offline/index.js");
+      const digest = async (value) => {
+        const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+        return "sha256:" + [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+      };
+      // Distinctive so the record scan below cannot pass by coincidence.
+      const SECRET = "P4ssThisMustNeverReachDisk";
+      const refusals = [];
+      const refused = async (label, run) => {
+        try {
+          await run();
+          refusals.push(`${label}:accepted`);
+        } catch (error) {
+          refusals.push(`${label}:${error?.path ?? "no-path"}`);
+          if (typeof error?.message === "string" && error.message.includes(SECRET)) refusals.push(`${label}:echoed`);
+        }
+      };
+      const baseInput = {
+        name: "credential-free fixture",
+        sourceId: "fixture",
+        endpoint: "https://example.test/features",
+        authorizationScopeFingerprint: "test-scope",
+        bounds: { minX: 0, minY: 0, maxX: 1, maxY: 1, crs: "EPSG:4326" },
+        sourceVersion: "1",
+        schemaVersion: "1",
+        planVersion: "1",
+        observation: { state: "live", observedAt: "2026-07-29T00:00:00Z" },
+        resources: [{ id: "metadata", kind: "metadata", byteLength: 3, integrity: await digest("one") }],
+      };
+
+      await refused("manifest", () =>
+        createOfflineRegionManifest({ ...baseInput, sourceId: `fixture?token=${SECRET}` }),
+      );
+
+      const manifest = await createOfflineRegionManifest(baseInput);
+      const store = createIndexedDbOfflineRegionStore({ name });
+      await refused("beginWrite", () => store.beginWrite(`region?token=${SECRET}`));
+
+      // A direct store caller that bypassed downloadOfflineRegion.
+      const inventory = await store.inventory();
+      const transaction = await store.beginWrite(manifest.id);
+      const tampered = {
+        ...manifest,
+        source: { ...manifest.source, endpoint: `https://example.test/features?token=${SECRET}` },
+      };
+      const receipt = {
+        regionId: manifest.id,
+        resourceCount: 1,
+        logicalByteLength: 3,
+        evictedRegionIds: [],
+        integrity: "verified",
+        quotaAccounting: "logical-payload-bytes",
+        completedAt: "2026-07-29T00:00:00.000Z",
+      };
+      const guard = {
+        expectedInventoryRevision: inventory.revision,
+        logicalQuotaBytes: 3,
+        admission: {
+          logicalQuotaBytes: 3,
+          logicalBytesBefore: 3,
+          replacementLogicalBytes: 3,
+          requiredLogicalBytes: 3,
+          evictRegionIds: [],
+          evictedLogicalBytes: 0,
+          logicalBytesAfter: 3,
+        },
+      };
+      await refused("commit", () => transaction.commit(tampered, receipt, guard));
+      await transaction.rollback();
+
+      // A committed, credential-free region so the scan has real records.
+      await downloadOfflineRegion(manifest, {
+        store,
+        logicalQuotaBytes: 3,
+        load: async () => new TextEncoder().encode("one"),
+      });
+
+      const queueName = `${name}-credential-screen-edits`;
+      const queue = createIndexedDbOfflineEditQueue({ name: queueName });
+      const authorizationScopeDigest = await digest("browser-scope");
+      await refused("enqueue", () =>
+        queue.enqueue({
+          authorizationScopeDigest,
+          sourceId: "fixture",
+          idempotencyKey: `local-1&sig=${SECRET}`,
+          edit: { operation: "add", attributes: { status: "open" } },
+        }),
+      );
+      await queue.enqueue({
+        authorizationScopeDigest,
+        sourceId: "fixture",
+        idempotencyKey: "browser-credential-free",
+        edit: { operation: "add", attributes: { status: "open" } },
+      });
+
+      const openDatabase = (databaseName) =>
+        new Promise((resolve, reject) => {
+          const request = indexedDB.open(databaseName);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+      const readAll = (handle, storeName) =>
+        new Promise((resolve, reject) => {
+          const request = handle.transaction(storeName, "readonly").objectStore(storeName).getAll();
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+      const readAllKeys = (handle, storeName) =>
+        new Promise((resolve, reject) => {
+          const request = handle.transaction(storeName, "readonly").objectStore(storeName).getAllKeys();
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve(request.result);
+        });
+
+      const decoder = new TextDecoder();
+      const strings = [];
+      const collect = (value) => {
+        if (typeof value === "string") {
+          strings.push(value);
+          return;
+        }
+        if (value instanceof Uint8Array) {
+          strings.push(decoder.decode(value));
+          return;
+        }
+        if (Array.isArray(value)) {
+          for (const item of value) collect(item);
+          return;
+        }
+        if (value && typeof value === "object") {
+          for (const key of Object.keys(value)) {
+            strings.push(key);
+            collect(value[key]);
+          }
+        }
+      };
+
+      const scanned = [];
+      for (const databaseName of [name, queueName]) {
+        const handle = await openDatabase(databaseName);
+        for (const storeName of [...handle.objectStoreNames]) {
+          const records = await readAll(handle, storeName);
+          const keys = await readAllKeys(handle, storeName);
+          scanned.push({ database: databaseName, store: storeName, records: records.length });
+          for (const key of keys) collect(key);
+          for (const record of records) collect(record);
+        }
+        handle.close();
+      }
+
+      // Independent of the SDK's own denylist so this is evidence, not a tautology.
+      // Written with literal scans so the audit itself cannot backtrack.
+      const CREDENTIAL_WORDS = [
+        "token",
+        "key",
+        "secret",
+        "signature",
+        "password",
+        "passwd",
+        "credential",
+        "auth",
+        "sig",
+        "cookie",
+      ];
+      const isCredentialShaped = (value) => {
+        const lower = value.toLowerCase();
+        if (lower.includes("x-amz-") || lower.includes("x-goog-") || lower.includes("bearer ")) return true;
+        const scheme = lower.indexOf("://");
+        if (scheme > 0 && lower.slice(scheme + 3).split("/")[0].includes("@")) return true;
+        for (const segment of lower.split(/[?&;#]/u)) {
+          const assignment = segment.indexOf("=");
+          if (assignment < 0) continue;
+          const key = segment.slice(0, assignment);
+          if (CREDENTIAL_WORDS.some((word) => key.includes(word))) return true;
+        }
+        return false;
+      };
+      const offenders = [];
+      for (const value of strings) {
+        if (value.includes(SECRET)) offenders.push("secret");
+        else if (isCredentialShaped(value)) offenders.push(value.slice(0, 24));
+      }
+      return { refusals, offenders, scannedStrings: strings.length, scanned };
+    }, database);
+
+    expect(audit.refusals).toEqual([
+      "manifest:sourceId",
+      "beginWrite:regionId",
+      "commit:source.endpoint",
+      "enqueue:idempotencyKey",
+    ]);
+    expect(audit.offenders).toEqual([]);
+    expect(audit.scannedStrings).toBeGreaterThan(0);
+    // Both databases must actually have been enumerated with records present.
+    expect(audit.scanned.filter((entry) => entry.records > 0).length).toBeGreaterThanOrEqual(4);
+  } finally {
+    await server.close();
+  }
+});
+
+test("offline region read answers a query from IndexedDB with browser networking disabled", async ({
+  page,
+  context,
+}) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+
+    // Online pass: fetch the answer once, plan a snapshot from the protocol-neutral
+    // selection, and download it into the persistent store.
+    const online = await page.evaluate(async (scope) => {
+      const offline = await import("/dist/src/offline/index.js");
+      window.__honuaOffline = offline;
+      const payload = await fetch("/offline-data.json").then((response) => response.json());
+      const query = { outFields: ["id", "status"], returnGeometry: false };
+      const batch = offline.createOfflineRegionFeatureBatch(
+        {
+          features: payload.features.map((feature) => ({ attributes: feature })),
+          exceededTransferLimit: false,
+          totalCount: payload.features.length,
+        },
+        { pagination: { offset: 0 } },
+      );
+      const snapshot = await offline.planOfflineRegionSnapshot({
+        name: "Field incident area",
+        sourceId: "incidents",
+        endpoint: "https://example.test/ogc/features",
+        authorizationScopeFingerprint: scope,
+        bounds: { minX: -158.3, minY: 21.4, maxX: -157.6, maxY: 21.8, crs: "EPSG:4326" },
+        sourceVersion: "source-v1",
+        schemaVersion: "schema-v1",
+        planVersion: "plan-v1",
+        observation: { state: "cached", observedAt: new Date().toISOString() },
+        attribution: { fixture: "Honua deterministic incident fixture" },
+        query,
+        contents: [
+          {
+            kind: "features",
+            bytes: offline.encodeOfflineRegionFeatureBatch(batch),
+            contentType: "application/json",
+            attributionIds: ["fixture"],
+          },
+        ],
+      });
+      window.__honuaRegion = { manifest: snapshot.manifest, query, database: `${window.__offlineDatabase}-read` };
+      const store = offline.createIndexedDbOfflineRegionStore({ name: window.__honuaRegion.database });
+      const receipt = await offline.downloadOfflineRegion(snapshot.manifest, {
+        store,
+        load: offline.createOfflineRegionSnapshotLoader(snapshot),
+        logicalQuotaBytes: 1024 * 1024,
+      });
+      return {
+        regionId: snapshot.manifest.id,
+        resourceId: snapshot.entries[0].id,
+        integrity: receipt.integrity,
+        resourceCount: receipt.resourceCount,
+      };
+    }, "tenant:a/role:field");
+
+    expect(online.regionId).toMatch(DIGEST_PATTERN);
+    expect(online.resourceId).toMatch(/^features\/[0-9a-f]{64}$/);
+    expect(online.integrity).toBe("verified");
+    expect(online.resourceCount).toBe(1);
+    expect(server.offlineDataRequests).toBe(1);
+
+    await context.setOffline(true);
+
+    // Offline pass: a *fresh* store instance proves the answer came out of
+    // IndexedDB, and the module is already loaded so nothing touches the network.
+    const read = await page.evaluate(async (scope) => {
+      const offline = window.__honuaOffline;
+      const { manifest, query, database } = window.__honuaRegion;
+      const store = offline.createIndexedDbOfflineRegionStore({ name: database });
+      const failure = async (body) => {
+        try {
+          await body();
+          return "resolved";
+        } catch (error) {
+          return error.code ?? error.name;
+        }
+      };
+      const answer = await offline.readOfflineRegionQuery(manifest, {
+        store,
+        authorizationScopeFingerprint: scope,
+        query,
+        bounds: manifest.bounds,
+      });
+      return {
+        features: answer.result.features.map((feature) => feature.attributes),
+        exceededTransferLimit: answer.result.exceededTransferLimit,
+        totalCount: answer.result.totalCount,
+        degraded: (answer.result.degraded ?? []).map((entry) => entry.capability),
+        degradedReason: answer.result.degraded?.[0]?.reason ?? "",
+        regionId: answer.regionId,
+        cache: {
+          action: answer.cache.action,
+          freshness: answer.cache.freshness,
+          completeness: answer.cache.completeness,
+          regionId: answer.cache.regionId,
+          resourceKinds: answer.cache.resources.map((resource) => resource.kind),
+          resourceIds: answer.cache.resources.map((resource) => resource.id),
+        },
+        provenance: {
+          sourceId: answer.provenance.sourceId,
+          endpoint: answer.provenance.endpoint,
+          sourceVersion: answer.provenance.sourceVersion,
+          schemaVersion: answer.provenance.schemaVersion,
+          planVersion: answer.provenance.planVersion,
+          observationState: answer.provenance.observation.state,
+        },
+        attribution: answer.attribution,
+        planCacheValidator: answer.planCache.validator ?? null,
+        scopeMismatch: await failure(() =>
+          offline.readOfflineRegionQuery(manifest, {
+            store,
+            authorizationScopeFingerprint: "tenant:b/role:field",
+            query,
+          }),
+        ),
+        cacheMiss: await failure(() =>
+          offline.readOfflineRegionQuery(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            query: { ...query, where: "status = 'open'" },
+          }),
+        ),
+        outOfRegion: await failure(() =>
+          offline.readOfflineRegionQuery(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            query,
+            bounds: { minX: -160, minY: 20, maxX: -159, maxY: 21, crs: "EPSG:4326" },
+          }),
+        ),
+        aggregation: await failure(() =>
+          offline.readOfflineRegionQuery(manifest, {
+            store,
+            authorizationScopeFingerprint: scope,
+            query: { ...query, aggregation: { metrics: [{ fn: "count", field: "id" }] } },
+          }),
+        ),
+      };
+    }, "tenant:a/role:field");
+
+    // The read is served entirely from storage: no further network requests.
+    expect(server.offlineDataRequests).toBe(1);
+    expect(read.features).toEqual([{ id: "incident-1", status: "open" }]);
+    expect(read.exceededTransferLimit).toBe(false);
+    expect(read.totalCount).toBe(1);
+    expect(read.regionId).toBe(online.regionId);
+    expect(read.cache).toEqual({
+      action: "reuse",
+      freshness: "fresh",
+      completeness: "complete",
+      regionId: online.regionId,
+      resourceKinds: ["features"],
+      resourceIds: [online.resourceId],
+    });
+    expect(read.provenance).toEqual({
+      sourceId: "incidents",
+      endpoint: "https://example.test/ogc/features",
+      sourceVersion: "source-v1",
+      schemaVersion: "schema-v1",
+      planVersion: "plan-v1",
+      observationState: "cached",
+    });
+    expect(read.attribution).toEqual({ fixture: "Honua deterministic incident fixture" });
+    expect(read.planCacheValidator).toEqual({ kind: "fingerprint", fingerprint: online.regionId });
+    // A stored answer is never presented as a live one.
+    expect(read.degraded).toEqual(["query"]);
+    expect(read.degradedReason).toContain("cached snapshot, not a live read");
+    // Everything the region cannot answer fails closed rather than narrowing.
+    expect(read.scopeMismatch).toBe("scope-mismatch");
+    expect(read.cacheMiss).toBe("cache-miss");
+    expect(read.outOfRegion).toBe("out-of-region");
+    expect(read.aggregation).toBe("HonuaCapabilityNotSupportedError");
+  } finally {
+    await context.setOffline(false).catch(() => undefined);
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
+test("IndexedDB and in-memory region stores pass one shared conformance suite", async ({ page }) => {
+  test.slow();
+  const server = await startServer();
+  try {
+    await page.goto(server.url);
+    await expect.poll(() => page.evaluate(() => window.__offlineDatabase)).toEqual(expect.any(String));
+    const result = await page.evaluate(async () => {
+      const offline = await import("/dist/src/offline/index.js");
+      let sequence = 0;
+      const indexeddb = await offline.runOfflineRegionStoreConformance({
+        // Every case gets its own origin-scoped database, so one case can never
+        // observe another's committed state.
+        createStore: () =>
+          offline.createIndexedDbOfflineRegionStore({
+            name: `${window.__offlineDatabase}-conformance-${(sequence += 1)}`,
+          }),
+        label: "indexeddb",
+      });
+      const memory = await offline.runOfflineRegionStoreConformance({
+        createStore: () => offline.createMemoryOfflineRegionStore(),
+        label: "memory",
+      });
+      return { indexeddb, memory, cases: [...offline.OFFLINE_REGION_STORE_CONFORMANCE_CASES] };
+    });
+
+    expect(result.indexeddb.cases.filter((entry) => entry.status === "failed")).toEqual([]);
+    expect(result.memory.cases.filter((entry) => entry.status === "failed")).toEqual([]);
+    expect(result.indexeddb.total).toBe(result.cases.length);
+    expect(result.indexeddb.passed).toBe(result.cases.length);
+    // One suite, two implementations, identical case names in identical order.
+    expect(result.indexeddb.cases.map((entry) => entry.name)).toEqual(result.cases);
+    expect(result.memory.cases.map((entry) => entry.name)).toEqual(result.cases);
+  } finally {
+    await page.close().catch(() => undefined);
+    await server.close();
+  }
+});
+
+/**
+ * The loopback stand-in for a server mutation transport. It mirrors the
+ * documented acknowledgement shape and nothing else: it keeps no replica, no
+ * upload cursor, and no conflict store, so the evidence it supports is the
+ * local queue transition, never end-to-end exactly-once delivery.
+ */
+function replayAcknowledgement(request, mode, sequence) {
+  const identity = {
+    editId: request.editId,
+    requestFingerprint: request.requestFingerprint,
+    idempotencyKey: request.idempotencyKey,
+  };
+  if (mode === "conflicted") {
+    return {
+      kind: "conflicted",
+      ...identity,
+      conflictId: `fixture-conflict-${sequence}`,
+      serverGeneration: "fixture-generation-2",
+    };
+  }
+  if (mode === "retryable") {
+    return { kind: "retryable", ...identity, retryAt: REPLAY_RETRY_AT, reasonCode: "fixture-backpressure" };
+  }
+  if (mode === "identity-mismatch") {
+    // Well formed, and applied — but for a different operation identity than
+    // the one this pass leased.
+    return {
+      kind: "applied",
+      ...identity,
+      idempotencyKey: "offline-reference-unrelated-edit",
+      serverOperationId: `fixture-operation-${sequence}`,
+    };
+  }
+  return {
+    kind: "applied",
+    ...identity,
+    serverOperationId: `fixture-operation-${sequence}`,
+    serverGeneration: "fixture-generation-1",
+  };
+}
+
 async function startServer() {
   const fixture = { database: `honua-offline-test-${Date.now()}-${Math.random().toString(16).slice(2)}` };
+  const replayRequests = [];
+  let replayAcknowledgementMode = "applied";
   let offlineDataRequests = 0;
   let offlineDataOversized = false;
   let offlineDataCompressed = false;
@@ -1288,6 +2467,56 @@ async function startServer() {
       } else {
         response.end(payload);
       }
+      return;
+    }
+    if (url.pathname === "/offline-edit-replay") {
+      if (request.method !== "POST") {
+        response.statusCode = 405;
+        response.end("method not allowed");
+        return;
+      }
+      const chunks = [];
+      let bodyByteLength = 0;
+      for await (const chunk of request) {
+        bodyByteLength += chunk.byteLength;
+        if (bodyByteLength > 16 * 1024) {
+          response.statusCode = 413;
+          response.end("replay request exceeds its budget");
+          return;
+        }
+        chunks.push(chunk);
+      }
+      let replayRequest;
+      try {
+        replayRequest = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      } catch {
+        response.statusCode = 400;
+        response.end("replay request is not JSON");
+        return;
+      }
+      // Identity and headers only. The fixture deliberately never records the
+      // edit payload it was handed.
+      replayRequests.push({
+        version: replayRequest.version,
+        editId: replayRequest.editId,
+        requestFingerprint: replayRequest.requestFingerprint,
+        idempotencyKey: replayRequest.idempotencyKey,
+        sourceId: replayRequest.sourceId,
+        operation: replayRequest.edit?.operation,
+        requestKeys: Object.keys(replayRequest).sort(),
+        authorization: request.headers.authorization ?? null,
+        cookie: request.headers.cookie ?? null,
+      });
+      if (replayAcknowledgementMode === "unavailable") {
+        response.statusCode = 503;
+        response.end("replay fixture unavailable");
+        return;
+      }
+      response.setHeader("cache-control", "no-store");
+      response.setHeader("content-type", "application/json; charset=utf-8");
+      response.end(
+        JSON.stringify(replayAcknowledgement(replayRequest, replayAcknowledgementMode, replayRequests.length)),
+      );
       return;
     }
     if (shellHanging && (url.pathname.startsWith("/reference/") || url.pathname.startsWith("/dist/"))) return;
@@ -1491,6 +2720,12 @@ async function startServer() {
     get offlineDataRequests() {
       return offlineDataRequests;
     },
+    get replayRequests() {
+      return replayRequests.map((entry) => ({ ...entry }));
+    },
+    setReplayAcknowledgement(mode) {
+      replayAcknowledgementMode = mode;
+    },
     setOfflineDataOversized(value) {
       offlineDataOversized = value;
     },
@@ -1627,6 +2862,66 @@ async function readShellState(page) {
       };
     },
     "honua-offline-region-reference-shell-",
+  );
+}
+
+/** Wait for the reference workflow to publish a matching state, then return it. */
+async function referenceState(page, expected) {
+  await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject(expected);
+  return page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__);
+}
+
+/**
+ * Reads the reference workflow's durable queue partition directly, optionally
+ * at a shifted clock so lease expiry and retry backoff can be observed without
+ * waiting out wall-clock time. The partition is derived from the persisted
+ * region manifest, so this reads exactly the records the page wrote.
+ */
+async function readReferenceQueue(page, options = {}) {
+  return page.evaluate(
+    async ({ nowIso, claim, databases }) => {
+      const { createIndexedDbOfflineEditQueue, createIndexedDbOfflineRegionStore } = await import(
+        "/dist/src/offline/index.js"
+      );
+      const store = createIndexedDbOfflineRegionStore({ name: databases.region });
+      const inventory = await store.inventory();
+      const region = inventory.regions[0];
+      if (!region) return { partition: undefined, counts: undefined, claimed: [], edits: [] };
+      const read = await store.readResource(region.id, "incidents");
+      const partition = {
+        authorizationScopeDigest: read.manifest.source.authorizationScopeDigest,
+        sourceId: read.manifest.source.id,
+      };
+      const at = nowIso === undefined ? undefined : new Date(nowIso);
+      const queue = createIndexedDbOfflineEditQueue({
+        name: databases.edits,
+        ...(at === undefined ? {} : { now: () => at }),
+      });
+      const claimed = claim
+        ? await queue.claimReady({
+            ...partition,
+            workerId: "browser-recovery-worker",
+            limit: 10,
+            leaseDurationMs: 60_000,
+          })
+        : [];
+      return {
+        partition,
+        counts: await queue.countByState(partition),
+        claimed: claimed.map((edit) => ({
+          id: edit.id,
+          state: edit.state,
+          attemptCount: edit.attemptCount,
+          workerId: edit.lease?.workerId,
+        })),
+        edits: await queue.list({ ...partition, limit: 100 }),
+      };
+    },
+    {
+      nowIso: options.nowIso,
+      claim: options.claim === true,
+      databases: { region: REGION_DATABASE, edits: EDIT_QUEUE_DATABASE },
+    },
   );
 }
 

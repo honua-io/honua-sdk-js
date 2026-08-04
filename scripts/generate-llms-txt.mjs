@@ -79,6 +79,11 @@ const SECTIONS = [
         description:
           "Generated comparison page: named category boundaries (headless client vs renderer vs all-in-one SDK), bundle sizes, protocol coverage and operation-level behaviour vs raw MapLibre / arcgis-rest-js / OpenLayers, the scripted time-to-first-map benchmark, and the competitor-evidence contract (primary sources, dated observations, no current claim from historical figures).",
       },
+      {
+        path: "docs/listings/npm-search-verification.md",
+        description:
+          "Generated npm search discoverability page: where each published package actually ranks in npm registry search for its declared discovery terms, including the queries where it does not rank, with scan depth, page size, and a dated record behind every row.",
+      },
     ],
   },
   {
@@ -142,6 +147,11 @@ const SECTIONS = [
         path: "docs/nl-map-control.md",
         description:
           "Natural-language map control: plan-first NL-to-plan compilation, BYO-LLM callback, agent-safety approval envelopes, receipts, and MCP/OpenAI tool publication.",
+      },
+      {
+        path: "docs/generated/mcp-eval-scorecard.md",
+        description:
+          "Published cross-model MCP eval scorecard: per-model pass rates, the zero-LLM control, the per-scenario matrix, every non-passing run, and protocol-certification failures — generated from dated, committed run artifacts.",
       },
       {
         path: "docs/decisions/north-star-sdk-application-kernel.md",

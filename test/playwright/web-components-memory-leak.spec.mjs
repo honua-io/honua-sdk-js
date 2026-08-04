@@ -20,6 +20,7 @@ const HOSTS = {
   "web-components.locate-control": "honua-locate-control",
   "web-components.measure-control": "honua-measure-control",
   "web-components.measurement": "honua-measurement",
+  "web-components.time-slider": "honua-time-slider",
   "web-components.sketch-control": "honua-sketch-control",
   "web-components.print-export": "honua-print-export",
   "web-components.map-status": "honua-map-status",
