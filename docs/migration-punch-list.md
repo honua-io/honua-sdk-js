@@ -46,9 +46,9 @@ than being throwaway no-ops. Specifically:
   `Fullscreen`, `Zoom`, `Attribution`, `ScaleBar`, `Locate`,
   `Bookmarks`, `Print`, `Sketch`, `Editor`, `Expand`, `TimeSlider`,
   `Directions`, `CoordinateConversion`, `Measurement`
-- Tasks & support: `RouteTask`, `Query`, `OAuthInfo`,
-  `IdentityManager`, `esriRequest`, `esriConfig`, `reactiveUtils`,
-  `FeatureFilter`
+- Tasks & support: `RouteTask`, `Locator`, `LocatorSearchSource`,
+  `Query`, `OAuthInfo`, `IdentityManager`, `esriRequest`,
+  `esriConfig`, `reactiveUtils`, `FeatureFilter`
 
 The `MapViewLayerViewCompat` returned from `view.whenLayerView()`
 now carries `filter` / `effect` / `visible` state and forwards
@@ -134,12 +134,25 @@ hold the surface stable).
    `IntegratedMeshLayer`, `PointCloudLayer`, `MeshLayer`,
    `ElevationLayer`, `VoxelLayer` have no shims. These all need
    server-side glTF/I3S support (`honua-server` ticket).
-3. **`Locator` / `Geoprocessor` / `NetworkAnalyst` (beyond
-   RouteTask).** Today only `RouteTask` is shimmed against
-   `HonuaRouteService`. The remaining task surfaces (geocoding,
-   service-area, OD-cost-matrix, closest-facility,
-   non-network geoprocessing) need their own surfaces under
-   `src/core/` and matching compat classes.
+3. **`Geoprocessor` / `NetworkAnalyst` (beyond RouteTask).**
+   `Locator` is no longer in this bucket: `LocatorCompat` shims
+   `addressToLocations`, `addressesToLocations`,
+   `locationToAddress`, and `suggestLocations` onto the
+   provider-pluggable geocoding contract in `src/geocoding/`, and
+   `LocatorSearchSourceCompat` is the `Search` widget's address
+   backend — client-side, with no `honua-server` surface. The
+   caller supplies the endpoint (Nominatim / Photon / Pelias / a
+   Honua GeocodeServer), so the codemod rewrites the constructor
+   but cannot choose the provider; that one wiring step stays
+   assisted, and `@arcgis/core/rest/locator` function imports are
+   rewritten with a TODO for the URL-to-`LocatorCompat` swap.
+   Provider capability misses (no `suggest` on Nominatim) throw
+   `HonuaCapabilityNotSupportedError` instead of degrading to a
+   forward geocode. Batch geocoding is client-side — one provider
+   request per address, not a server batch endpoint. Still
+   unshimmed: service-area, OD-cost-matrix, closest-facility, and
+   non-network geoprocessing, which do need their own surfaces
+   under `src/core/` and matching compat classes.
 4. **`Query` argument depth.** *Shipped (Task E).* The codemod now
    deep-transforms `new Query({...})` argument literals into the
    Honua `QueryFeaturesRequest` shape: renames `start` →
@@ -315,15 +328,17 @@ In rough effort order:
 | Codemod event-name remap (Task D) | 1–2 days | Pure JS-side work; needs an event-name dictionary plus AST pass. |
 | Codemod dynamic-import + CJS (Task F) | 1–2 days | Mirror the static-ESM path; care needed for awaited dynamic imports' destructuring. |
 | ~~Query argument deep-transform (Task E)~~ | ~~3–5 days~~ | Shipped: codemod renames `start`/`num`/`outSpatialReference`/`spatialRelationship`, splits `geometry` into `geometry`+`geometryType`, normalizes `outStatistics[i].statisticType` against `STATISTIC_TYPE_MAP`, and emits precise manual TODOs for `timeExtent`, `quantizationParameters`, `relationParam`, dynamic statisticType, and geometry without a literal `type`. `QueryCompat` accepts both ArcGIS and Honua property spellings. |
-| Locator + Geoprocessor compat (Task C) | 1–2 weeks | Requires `HonuaGeocodeService`, `HonuaGeoprocessService` surfaces (server work). |
+| ~~Locator compat (Task C, geocoding half)~~ | ~~1 week~~ | Shipped: `LocatorCompat` + `LocatorSearchSourceCompat` ride the provider-pluggable geocoding contract, so no `HonuaGeocodeService` was needed. The provider endpoint is caller-configured, which keeps the wiring step assisted. |
+| Geoprocessor compat (Task C, remainder) | 1–2 weeks | Requires a `HonuaGeoprocessService` surface (server work); service-area / OD-cost-matrix / closest-facility likewise. |
 | Scene-layer compat (Task A-rest) | 4–8 weeks | Requires I3S/glTF pipeline on `honua-server`; not pure-JS work. |
 | ~~E2E demo conversion harness (Task I)~~ | ~~1 week~~ | Shipped: `examples/arcgis-source-app/` + `test/migration-e2e.test.ts`, wired into the JS SDK CI workflow after the unit-test step. |
 
-With the first three rows (Tasks D/F/E) now shipped, "automated app
-conversion" reaches deterministic constructor rewrite + event-name
-remap + dynamic/CJS imports + Query argument deep-transform, plus a
-manual-TODO report for everything else. The remaining rows
-(Locator/Geoprocessor and Scene-layer compat) still gate the
-unqualified "parity with ArcGIS JS SDK" claim — that should remain
-qualified as "deterministic 2D parity; scene/3D and advanced tasks
-remain assisted migration" until they land.
+With Tasks D/F/E and the geocoding half of Task C now shipped,
+"automated app conversion" reaches deterministic constructor rewrite +
+event-name remap + dynamic/CJS imports + Query argument deep-transform +
+`Locator`/`Search` address backends, plus a manual-TODO report for
+everything else. The remaining rows (Geoprocessor/NetworkAnalyst and
+Scene-layer compat) still gate the unqualified "parity with ArcGIS JS
+SDK" claim — that should remain qualified as "deterministic 2D parity;
+scene/3D and advanced tasks remain assisted migration" until they
+land.

@@ -8,7 +8,7 @@ Every classic ArcGIS JS SDK widget (`esri/widgets/*` / `@arcgis/core/widgets/*`)
 
 This guide answers, for each deprecated widget, what happens if you migrate to Honua/MapLibre instead of rewriting onto Esri's web components. Dispositions are deliberately honest — including "no equivalent" — in the spirit of [docs/migration-punch-list.md](./migration-punch-list.md).
 
-This document is generated from the versioned disposition data in [`src/migration/widget-dispositions.ts`](../src/migration/widget-dispositions.ts) (v1.0.0); the `honua-migrate` widget scanner consumes the same data, so the scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS release against https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets.html (5.0 deprecation list) and updated manually.
+This document is generated from the versioned disposition data in [`src/migration/widget-dispositions.ts`](../src/migration/widget-dispositions.ts) (v1.1.0); the `honua-migrate` widget scanner consumes the same data, so the scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS release against https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets.html (5.0 deprecation list) and updated manually.
 
 ## Scan your app first
 
@@ -76,7 +76,7 @@ A compat-backed row may also list a direct `@honua/app-platform` component. That
 | [Popup](#popup) | `@arcgis/core/widgets/Popup` | `esri/widgets/Popup` | `automated` | PopupCompat from @honua/sdk-esri-compat |
 | [Print](#print) | `@arcgis/core/widgets/Print` | `esri/widgets/Print` | `compat-shim` | PrintCompat from @honua/sdk-esri-compat |
 | [ScaleBar](#scalebar) | `@arcgis/core/widgets/ScaleBar` | `esri/widgets/ScaleBar` | `automated` | ScaleBarCompat from @honua/sdk-esri-compat (MapLibre ScaleControl underneath) |
-| [Search](#search) | `@arcgis/core/widgets/Search` | `esri/widgets/Search` | `automated` | SearchCompat from @honua/sdk-esri-compat backed by the Honua geocoding surface<br>Direct app-platform component: [`<honua-search>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
+| [Search](#search) | `@arcgis/core/widgets/Search` | `esri/widgets/Search` | `automated` | SearchCompat from @honua/sdk-esri-compat, with LocatorSearchSourceCompat as the address backend<br>Direct app-platform component: [`<honua-search>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [ShadowCast](#shadowcast) | `@arcgis/core/widgets/ShadowCast` | `esri/widgets/ShadowCast` | `no-equivalent` | None. Requires a 3D scene with shadow accumulation. |
 | [Sketch](#sketch) | `@arcgis/core/widgets/Sketch` | `esri/widgets/Sketch` | `compat-shim` | SketchCompat from @honua/sdk-esri-compat |
 | [Slice](#slice) | `@arcgis/core/widgets/Slice` | `esri/widgets/Slice` | `no-equivalent` | None. Requires 3D scene slicing. |
@@ -350,10 +350,10 @@ import "@honua/app-platform/web-components";
 
 - Disposition: `automated` (Automated)
 - Modules: `@arcgis/core/widgets/Search`, `esri/widgets/Search`
-- Target: SearchCompat from @honua/sdk-esri-compat backed by the Honua geocoding surface
+- Target: SearchCompat from @honua/sdk-esri-compat, with LocatorSearchSourceCompat as the address backend
 - Compat shim source: [`src/esri-compat/search.ts`](../src/esri-compat/search.ts)
 - Direct app-platform component: [`<honua-search>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components`
-- Notes: The honua-migrate codemod rewrites the import and safe constructor call sites deterministically; unsafe option literals fall through to an annotated manual TODO. Rendering goes through the Honua widget host, so CSS selectors and DOM structure are not byte-identical to ArcGIS. Custom Locator sources are out of scope (Locator/Geoprocessor parity gap).
+- Notes: The honua-migrate codemod rewrites the import and safe constructor call sites deterministically; unsafe option literals fall through to an annotated manual TODO. Rendering goes through the Honua widget host, so CSS selectors and DOM structure are not byte-identical to ArcGIS. Layer search works out of the box. Address search wires LocatorCompat.toSearchSource() (or LocatorSearchSourceCompat) into `sources`; the geocoding provider is bring-your-own, so the codemod rewrites the constructor but cannot choose the endpoint. Providers that do not declare `suggest` (Nominatim) omit the typeahead hook rather than faking it.
 
 App-platform usage (the module import auto-registers the element):
 
@@ -440,7 +440,7 @@ import "@honua/app-platform/web-components";
 These surfaces are intentionally **not** covered by the dispositions above:
 
 - **SceneView / 3D rendering.** Honua's `SceneViewCompat` shares 2D `MapView` behavior; WebGL/CesiumJS scene parity (environment, global viewing mode, scene layers, camera) is not implemented ([punch list, parity gaps 1-2](./migration-punch-list.md)). The 3D analysis widgets above are therefore `no-equivalent` rather than shimmed.
-- **Locator (geocoding tasks).** Only the `Search` widget's core flow is shimmed; the standalone `Locator` task surface (suggest/geocode customization, custom locators) needs its own Honua surface first ([punch list, parity gap 3](./migration-punch-list.md)).
+- **Geocoding endpoints.** `Locator` itself is shimmed — `LocatorCompat` maps `addressToLocations`, `addressesToLocations`, `locationToAddress`, and `suggestLocations` onto the provider-pluggable geocoding contract, and `LocatorSearchSourceCompat` is the `Search` widget's address backend. What is out of scope is the *endpoint*: providers are bring-your-own (Nominatim / Photon / Pelias / a Honua GeocodeServer), the codemod cannot pick one for you, and a provider that does not declare `suggest` makes typeahead throw `HonuaCapabilityNotSupportedError` rather than silently degrading to a forward geocode.
 - **Geoprocessor / NetworkAnalyst beyond RouteTask.** Service-area, closest-facility, OD-cost-matrix, and general geoprocessing have no Honua equivalent yet; the scanner's `advanced-widget-or-networking-detected` flag calls these out separately ([punch list, parity gap 3](./migration-punch-list.md)).
 
 ## Related reading

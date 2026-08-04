@@ -254,7 +254,7 @@ describe("JS parity matrix", () => {
     expect(layerList).toMatchObject({ honuaMapLibre: "assisted" });
     expect(legend).toMatchObject({ honuaMapLibre: "assisted" });
     expect(popup).toMatchObject({ honuaMapLibre: "assisted" });
-    expect(search).toMatchObject({ honuaMapLibre: "unsupported" });
+    expect(search).toMatchObject({ honuaMapLibre: "assisted" });
     expect(featureTable).toMatchObject({ honuaMapLibre: "assisted" });
   });
 
@@ -286,7 +286,11 @@ describe("JS parity matrix", () => {
     expect(summary.honuaCompat.compat).toBeGreaterThan(0);
     expect(summary.honuaMapLibre.native).toBe(5);
     expect(summary.honuaMapLibre.assisted).toBeGreaterThan(0);
-    expect(summary.honuaMapLibre.unsupported).toBeGreaterThanOrEqual(1);
+    // Every kind the codemod knows now has at least an assisted MapLibre path:
+    // Search was the last "unsupported" verdict and LocatorCompat unblocked it
+    // (issue #956). A new "unsupported" row must be justified in
+    // HONUA_MAPLIBRE_STATUS_OVERRIDES before this expectation changes.
+    expect(summary.honuaMapLibre.unsupported).toBe(0);
     expect(summary.esriLeaflet.compat).toBeGreaterThan(0);
     expect(summary.esriLeaflet.assisted).toBe(0);
   });

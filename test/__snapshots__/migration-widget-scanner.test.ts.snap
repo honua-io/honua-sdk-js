@@ -3,7 +3,7 @@
 exports[`widget readiness report on the esri-widget-cliff-app fixture > matches the JSON report snapshot 1`] = `
 {
   "deprecationRelease": "5.0",
-  "dispositionDataVersion": "1.0.0",
+  "dispositionDataVersion": "1.1.0",
   "filesScanned": 4,
   "filesWithWidgetUsage": 4,
   "removalRelease": "6.0",
@@ -275,7 +275,7 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
 exports[`widget readiness report on the esri-widget-cliff-app fixture > matches the markdown report snapshot 1`] = `
 "# ArcGIS widget readiness report
 
-Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early as Q1 2027). Disposition data v1.0.0.
+Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early as Q1 2027). Disposition data v1.1.0.
 
 - Files scanned: 4
 - Files with widget usage: 4
