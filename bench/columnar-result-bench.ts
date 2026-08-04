@@ -281,8 +281,9 @@ async function runOnce(fixture: ColumnarResultConversionFixture): Promise<Conver
 
   // The reference conversion. Untimed and unretained, so the two measured
   // regions below stay free of correctness bookkeeping.
-  const referenceKeys = columnarBatchToResult(batch, window).features.map(featureKey);
-  const orderingExact = columnarBatchToResult(batch, window).features.every(
+  const reference = columnarBatchToResult(batch, window).features;
+  const referenceKeys = reference.map(featureKey);
+  const orderingExact = reference.every(
     (feature, index) => (feature.attributes as { fid?: unknown }).fid === windowOffset + index,
   );
 
