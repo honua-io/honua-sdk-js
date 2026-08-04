@@ -364,6 +364,76 @@ the request instead of losing it. A closed host transport can prevent a response
 from being delivered, but that delivery failure is contained and the host still
 releases its active-request slot without an unhandled rejection.
 
+## Bounded conversion to object `Result`s
+
+`columnarBatchToResult` converts a bounded, contiguous row window of a batch
+into the protocol-neutral `Result` the rest of the SDK speaks, and
+`resultToColumnarBatch` converts one back. They exist so the columnar plane is
+opt-in rather than all-or-nothing: a popup, a table page, an export, or a
+`Result`-shaped assertion no longer forces an application to abandon the
+columnar path and re-execute its query on the object path.
+
+Both directions require an explicit `maxFeatures` ceiling. The ceiling is the
+point of the API, not a guard rail on it: feature objects cost roughly two
+orders of magnitude more memory per row than the packed columns they are read
+from, so an unbounded conversion is exactly the silent materialization the
+columnar plane exists to avoid. There is no sentinel, no `Infinity`, and no
+options object that disables it — `maxFeatures` must be a positive safe
+integer, and a window larger than it throws `HonuaGeoArrowError` with code
+`row-limit-exceeded` naming both the ceiling and the requested count. The
+ceiling is checked against plain counts before the batch is inspected, so a
+refused conversion allocates no feature object and reads no payload.
+
+`DEFAULT_COLUMNAR_RESULT_MAX_FEATURES` (100,000) is exported as a documented
+conservative starting point. It is deliberately **not** applied implicitly:
+`maxFeatures` is always written at the call site so the cost of materialization
+stays visible in the calling code.
+
+`offset` and `limit` select the window; they default to the whole batch, which
+the ceiling then bounds. Conversion cost is proportional to the window rather
+than to the batch, so a thousand-row page off a million-row batch does not pay
+for the batch: the per-row payload validation that the unbounded
+`inspectGeoArrowBatch` performs over every coordinate, dictionary index, and
+dictionary value is performed here only for the rows actually materialized.
+
+Geometry becomes GeoJSON, preserving point, linestring, and polygon kinds,
+null geometry, empty geometry, coordinate order, and `xy`/`xyz` dimensions.
+`xym` and `xyzm` batches are refused with `unsupported-layout` rather than
+silently stripped, because GeoJSON has no representation for an M coordinate.
+The batch's declared CRS is surfaced on the returned `Result` as `crs`, as
+either a serialized CRS string or a PROJJSON object; when the batch declares
+none, `crs` is undefined and consumers must not assume EPSG:4326.
+
+Feature-id, timestamp, and dictionary columns become attributes under their
+declared column names. A timestamp attribute is the Arrow value as a `bigint`
+in the column's declared unit — never a `Date` and never epoch milliseconds —
+so microsecond and nanosecond batches round-trip exactly. A dictionary
+attribute carries the decoded string. A null timestamp or dictionary value
+becomes an explicit `null` attribute, never an omitted key and never a zero. A
+feature-id column is not nullable. The returned `Result.fields` declares the
+attribute schema.
+
+The returned `Result` also carries a `columnar` provenance block holding the
+source batch's id, schema, sequence, window bounds, geometry layout, attribute
+bindings, and its full `ColumnarBatchIdentityV1`. The identity is copied and
+never re-observed, so a bounded object view can never look fresher, differently
+ordered, or differently scoped than the batch it was cut from.
+`resultToColumnarBatch` defaults every layout and identity option from that
+block, so a round trip needs only a ceiling. A plain object-path `Result` must
+instead supply `id`, `schemaId`, `identity`, and any attribute binding it wants
+lifted into a typed column.
+
+```ts
+const page = columnarBatchToResult(batch, { offset: 0, limit: 100, maxFeatures: 500 });
+page.features[0].geometry; // { type: "Point", coordinates: [-157.8, 21.3] }
+page.crs; // "EPSG:3857" | PROJJSON | undefined
+page.columnar.identity.freshness; // the batch's own freshness, not a new observation
+
+const roundTripped = resultToColumnarBatch(page, { maxFeatures: 500 });
+```
+
+Conversion is derived and is not cached.
+
 ## Typed errors
 
 `HonuaColumnarTransferError.code` is one of:
@@ -397,6 +467,5 @@ releases its active-request slot without an unhandled rejection.
 This slice does not claim the full #394 workstream. Arrow IPC decoding, built-in
 filter/projection/reprojection/aggregation operators, multi-batch streaming
 across more than one in-flight worker, planner integration, renderer
-consumption, batch cache identity, realtime patches, application-specific CSP
-worker URL policy, and bounded conversion back to feature objects remain
-separate work.
+consumption, batch cache identity, realtime patches, and application-specific
+CSP worker URL policy remain separate work.
