@@ -18,7 +18,7 @@
  */
 
 /** Version of this disposition dataset. Bump when rows or taxonomy change. */
-export const WIDGET_DISPOSITION_DATA_VERSION = "1.0.0";
+export const WIDGET_DISPOSITION_DATA_VERSION = "1.1.0";
 
 /** ArcGIS JS release that deprecated every classic widget. */
 export const ARCGIS_WIDGET_DEPRECATION_RELEASE = "5.0";
@@ -276,8 +276,14 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   widgetEntry(
     "Search",
     "automated",
-    "SearchCompat from @honua/sdk-esri-compat backed by the Honua geocoding surface",
-    `${AUTOMATED_NOTE} Custom Locator sources are out of scope (Locator/Geoprocessor parity gap).`,
+    "SearchCompat from @honua/sdk-esri-compat, with LocatorSearchSourceCompat as the address backend",
+    [
+      AUTOMATED_NOTE,
+      "Layer search works out of the box. Address search wires LocatorCompat.toSearchSource() (or",
+      "LocatorSearchSourceCompat) into `sources`; the geocoding provider is bring-your-own, so the codemod rewrites",
+      "the constructor but cannot choose the endpoint. Providers that do not declare `suggest` (Nominatim) omit the",
+      "typeahead hook rather than faking it.",
+    ].join(" "),
     "src/esri-compat/search.ts",
     appPlatformComponent(
       "honua-search",

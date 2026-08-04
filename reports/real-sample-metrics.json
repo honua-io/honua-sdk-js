@@ -1,0 +1,156 @@
+{
+  "codemodTarget": "honua-compat",
+  "fixturesRoot": "/home/mike/honua-io/honua-sdk-js/.claude/worktrees/agent-a74b4f218417261ea/test/fixtures",
+  "fixtureNames": [
+    "esri-real-sample-incident-command-app",
+    "esri-real-sample-ops-center-app",
+    "esri-real-sample-editing-app",
+    "esri-real-sample-network-app",
+    "esri-real-sample-address-search-app"
+  ],
+  "generatedAt": "2026-08-04T03:49:02.419Z",
+  "summary": {
+    "fixtureCount": 5,
+    "ready": 5,
+    "assisted": 0,
+    "blocked": 0,
+    "noUsageDetected": 0,
+    "totalCallSites": 73,
+    "autoMigratedCallSites": 73,
+    "manualCallSites": 0,
+    "unhandledUsageHits": 0,
+    "manualRewriteNumerator": 0,
+    "manualRewriteDenominator": 73,
+    "manualRewriteRatio": 0,
+    "manualInterventionNumerator": 0,
+    "manualInterventionDenominator": 73,
+    "manualInterventionRatio": 0
+  },
+  "gates": {
+    "failOnManual": true,
+    "failOnUnhandled": true,
+    "failOnBlocked": true,
+    "failOnNoUsage": false,
+    "maxManualRatio": 0,
+    "maxManualInterventionRatio": 0,
+    "passed": true,
+    "failures": []
+  },
+  "fixtures": [
+    {
+      "fixture": "esri-real-sample-incident-command-app",
+      "rootDir": "/home/mike/honua-io/honua-sdk-js/.claude/worktrees/agent-a74b4f218417261ea/test/fixtures/esri-real-sample-incident-command-app",
+      "readiness": "ready",
+      "usageDetected": true,
+      "scanSummary": "filesScanned=1 filesWithArcGisImports=1 importCount=27 esriLeafletImportCount=0 topSymbols=[FeatureLayer:3, Map:2, MapView:2, MapImageLayer:2, TileLayer:2, RouteLayer:2, RouteTask:2, Query:2, LayerList:2, Legend:2] flags=[none]",
+      "flags": [],
+      "totalCallSites": 28,
+      "autoMigratedCallSites": 28,
+      "manualCallSites": 0,
+      "manualRewrite": {
+        "numerator": 0,
+        "denominator": 28,
+        "ratio": 0
+      },
+      "manualIntervention": {
+        "numerator": 0,
+        "denominator": 28,
+        "ratio": 0,
+        "unhandledUsageHits": 0
+      },
+      "gates": "arcgis-usage-detected:pass,no-manual-todos:pass,no-unhandled-modules:pass,no-blocking-flags:pass"
+    },
+    {
+      "fixture": "esri-real-sample-ops-center-app",
+      "rootDir": "/home/mike/honua-io/honua-sdk-js/.claude/worktrees/agent-a74b4f218417261ea/test/fixtures/esri-real-sample-ops-center-app",
+      "readiness": "ready",
+      "usageDetected": true,
+      "scanSummary": "filesScanned=1 filesWithArcGisImports=1 importCount=16 esriLeafletImportCount=0 topSymbols=[Map:2, MapView:2, FeatureLayer:2, LayerList:2, Legend:2, Popup:2, Search:2, Home:2, BasemapToggle:2, Locate:2] flags=[none]",
+      "flags": [],
+      "totalCallSites": 16,
+      "autoMigratedCallSites": 16,
+      "manualCallSites": 0,
+      "manualRewrite": {
+        "numerator": 0,
+        "denominator": 16,
+        "ratio": 0
+      },
+      "manualIntervention": {
+        "numerator": 0,
+        "denominator": 16,
+        "ratio": 0,
+        "unhandledUsageHits": 0
+      },
+      "gates": "arcgis-usage-detected:pass,no-manual-todos:pass,no-unhandled-modules:pass,no-blocking-flags:pass"
+    },
+    {
+      "fixture": "esri-real-sample-editing-app",
+      "rootDir": "/home/mike/honua-io/honua-sdk-js/.claude/worktrees/agent-a74b4f218417261ea/test/fixtures/esri-real-sample-editing-app",
+      "readiness": "ready",
+      "usageDetected": true,
+      "scanSummary": "filesScanned=1 filesWithArcGisImports=1 importCount=13 esriLeafletImportCount=0 topSymbols=[Feature:3, Map:2, MapView:2, FeatureLayer:2, FeatureForm:2, FeatureTemplates:2, TableList:2, Sketch:2, Editor:2, Track:2] flags=[none]",
+      "flags": [],
+      "totalCallSites": 13,
+      "autoMigratedCallSites": 13,
+      "manualCallSites": 0,
+      "manualRewrite": {
+        "numerator": 0,
+        "denominator": 13,
+        "ratio": 0
+      },
+      "manualIntervention": {
+        "numerator": 0,
+        "denominator": 13,
+        "ratio": 0,
+        "unhandledUsageHits": 0
+      },
+      "gates": "arcgis-usage-detected:pass,no-manual-todos:pass,no-unhandled-modules:pass,no-blocking-flags:pass"
+    },
+    {
+      "fixture": "esri-real-sample-network-app",
+      "rootDir": "/home/mike/honua-io/honua-sdk-js/.claude/worktrees/agent-a74b4f218417261ea/test/fixtures/esri-real-sample-network-app",
+      "readiness": "ready",
+      "usageDetected": true,
+      "scanSummary": "filesScanned=1 filesWithArcGisImports=1 importCount=10 esriLeafletImportCount=0 topSymbols=[Map:2, MapView:2, MapImageLayer:2, TileLayer:2, RouteLayer:2, RouteTask:2, Directions:2, CoordinateConversion:2, Print:2, Query:2] flags=[none]",
+      "flags": [],
+      "totalCallSites": 10,
+      "autoMigratedCallSites": 10,
+      "manualCallSites": 0,
+      "manualRewrite": {
+        "numerator": 0,
+        "denominator": 10,
+        "ratio": 0
+      },
+      "manualIntervention": {
+        "numerator": 0,
+        "denominator": 10,
+        "ratio": 0,
+        "unhandledUsageHits": 0
+      },
+      "gates": "arcgis-usage-detected:pass,no-manual-todos:pass,no-unhandled-modules:pass,no-blocking-flags:pass"
+    },
+    {
+      "fixture": "esri-real-sample-address-search-app",
+      "rootDir": "/home/mike/honua-io/honua-sdk-js/.claude/worktrees/agent-a74b4f218417261ea/test/fixtures/esri-real-sample-address-search-app",
+      "readiness": "ready",
+      "usageDetected": true,
+      "scanSummary": "filesScanned=1 filesWithArcGisImports=1 importCount=6 esriLeafletImportCount=0 topSymbols=[Search:3, Map:2, MapView:2, FeatureLayer:2, Locator:2, LocatorSearchSource:2] flags=[none]",
+      "flags": [],
+      "totalCallSites": 6,
+      "autoMigratedCallSites": 6,
+      "manualCallSites": 0,
+      "manualRewrite": {
+        "numerator": 0,
+        "denominator": 6,
+        "ratio": 0
+      },
+      "manualIntervention": {
+        "numerator": 0,
+        "denominator": 6,
+        "ratio": 0,
+        "unhandledUsageHits": 0
+      },
+      "gates": "arcgis-usage-detected:pass,no-manual-todos:pass,no-unhandled-modules:pass,no-blocking-flags:pass"
+    }
+  ]
+}
