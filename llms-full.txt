@@ -1691,19 +1691,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `b5f6fc73`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `165c5dbb`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 738.5 KiB | 198.4 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 231.4 KiB | 59.7 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 750.3 KiB | 201.6 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 238.6 KiB | 61.7 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.8 KiB | 13.4 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 364.3 KiB | 98.3 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 999.8 KiB | 250.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 366.0 KiB | 98.7 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 1020.0 KiB | 255.5 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
-| Routing client | 20.5 KiB | 6.3 KiB |
+| Routing client | 20.6 KiB | 6.3 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.0.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1036.3 KiB minified / **273.8 KiB gzip**.
@@ -1713,8 +1713,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 738.5 KiB ≈ **1.73 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 198.4 KiB ≈ **0.46 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 750.3 KiB ≈ **1.74 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 201.6 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -3423,8 +3423,13 @@ do not have to infer safety or fidelity from prose:
   sources, validators, and authorization scopes are represented by
   domain-separated SHA-256 fingerprints where a raw value is unnecessary.
 - `warnings` are stable objects with `code`, `path`, `message`, and
-  `remediation`. Bounded local execution, geometry transfer, and approximate
-  spatial filtering therefore remain machine-actionable.
+  `remediation`. Bounded local execution, geometry transfer, approximate
+  spatial filtering, and a declined columnar representation therefore remain
+  machine-actionable.
+- `representation` is the deterministic result-representation decision
+  (`object` or `columnar`) with the declared source metadata and caller
+  estimates that produced it, the representations this source and query can
+  serve, and the reason. See [Result representation](#result-representation).
 
 `cache` is a deterministic decision, not a cache side effect. The caller may
 select `bypass`, `prefer-cache`, or `require-fresh` and report `fresh`, `stale`,
@@ -3435,6 +3440,94 @@ validators do not enter serialized plans. Cache storage and conditional
 requests remain the responsibility of the plan consumer. `bypass` always
 normalizes to `freshness: "unknown"` with no validator, so irrelevant cache
 observations cannot fragment plan identity.
+
+## Result representation
+
+`executionMode` answers *when* rows arrive (`snapshot` or `delta`).
+`representation` answers *what shape* they arrive in, and is selected by the
+planner rather than by a caller who already knows the columnar library exists:
+
+- `object` — the protocol-neutral `Result` feature objects every adapter
+  produces. This is the default and the only representation most sources offer.
+- `columnar` — a `ColumnarBatchV1` (see
+  [columnar-data-plane.md](./columnar-data-plane.md)) whose identity is derived
+  from the plan, so nothing per-row is materialized on the way out.
+
+Selection is metadata-only: it reads the declared source protocol and physical
+geometry encoding plus the caller's `estimates`, and never reads result data,
+constructs a worker, or performs I/O. The decision, its inputs, and its reason
+are recorded on `plan.representation`; the selected strategy is bound into
+`plan.validity.representation` and therefore into the plan fingerprint.
+
+```ts doc-test=compile
+import { capabilities } from "@honua/sdk-js/contract";
+import { COLUMNAR_REPRESENTATION_MIN_ROWS, explainQuery } from "@honua/sdk-js/query-planner";
+
+const plan = explainQuery({
+  descriptor: {
+    id: "parcels",
+    protocol: "geoparquet",
+    locator: {
+      url: "https://example.test/parcels.parquet",
+      geoparquet: { geometryColumn: "geometry", geometryEncoding: "geoarrow-point", nativeDimensions: "xy" },
+    },
+    capabilities: capabilities(["query"]),
+  },
+  estimates: { rows: COLUMNAR_REPRESENTATION_MIN_ROWS },
+  schemaVersion: "parcels-schema-3",
+  sourceVersion: "parcels-source-9",
+  authorizationScope: ["data:read"],
+});
+
+console.log(plan.representation.selected); // "columnar"
+console.log(plan.representation.reason); // "workload-above-threshold"
+console.log(plan.representation.available); // ["object", "columnar"]
+```
+
+Columnar is offered only where an executable producer exists. Today that is a
+GeoParquet source whose declared geometry encoding is `geoarrow-point`,
+`geoarrow-linestring`, or `geoarrow-polygon`, for a feature query that returns
+geometry. The multi-part `geoarrow-multipoint` / `geoarrow-multilinestring` /
+`geoarrow-multipolygon` encodings are deliberately excluded: this SDK's
+dependency-free GeoArrow mapping has no multi-part kind, and re-labelling their
+parts as a single-part column would misreport the geometry type.
+
+Every outcome is explained rather than defaulted. `representation.reason` is one
+of `explicit-pin`, `workload-above-threshold`, `workload-below-threshold`,
+`estimate-unavailable`, `protocol-not-columnar`, `encoding-not-columnar`,
+`aggregation-not-columnar`, or `geometry-not-requested`. When columnar was
+genuinely on offer and object was chosen anyway, the plan also carries a
+`columnar-representation-declined` warning; a source that never offered
+columnar produces no warning, because nothing was declined.
+
+A caller may pin the strategy with `representation: "object"` or
+`representation: "columnar"`. An unsatisfiable columnar pin throws
+`HonuaCapabilityNotSupportedError` naming `columnar-execution`, the protocol,
+and the source — it never degrades to object results. For the same reason,
+`executeQueryPlan` (the object executor) refuses a columnar-selected plan
+instead of answering it with feature objects.
+
+### Plan-derived batch identity
+
+`columnarBatchIdentityFromPlan(plan, { observedAt })` produces the
+`ColumnarBatchIdentityV1` a columnar-selected plan implies. `planId` is the
+plan's own `validity.fingerprint`; `sourceId`, `sourceVersion`,
+`schemaVersion`, and `authorizationScope` come from the plan's declared source
+identity and provenance fingerprints (never the raw scope); `ordering` is the
+canonical query's `orderBy`. Only freshness is supplied at execution, so
+planning stays observation-clock free and the plan fingerprint stays stable.
+
+`plan.fingerprint` is deliberately not used as the `planId`: it also covers cost
+estimates, which change nothing about which rows come back. Two plans that
+differ only in their estimates are interchangeable for cache reuse, and share a
+cache entry; any change to source, schema, scope, query, policy, execution mode,
+or representation moves `validity.fingerprint` and therefore the cache key.
+
+Calling it with an object plan throws `HonuaCapabilityNotSupportedError`, so a
+batch can never claim provenance the planner did not grant. The producer side —
+`GeoparquetSourceHandle.queryColumnar()` and
+`createGeoParquetNativeGeometryBatch()` in `@honua/sdk-js/geoparquet` — requires
+that identity and has no placeholder path.
 
 ## Bounded degraded execution
 
@@ -3475,8 +3568,16 @@ silently reports a partial aggregate. `maxRows` is also capped by the SDK at
   cache decision, and discovery evidence.
 - The versioned `validity` binding covers planner/contract version, source,
   schema, capabilities, authorization scope, discovery, query, CRS, policy,
-  and execution mode. Signals, observation timestamps, expiry clocks, and raw
-  realtime cursors are execution state and never enter the fingerprint.
+  execution mode, and result representation. Signals, observation timestamps,
+  expiry clocks, and raw realtime cursors are execution state and never enter
+  the fingerprint.
+- Adding the representation axis is additive to the plan contract but not
+  fingerprint-neutral: `plan.representation` and
+  `validity.representation` are hashed like every other plan member, so plans
+  and plan cache keys persisted before this axis existed are rejected by
+  `parseQueryPlan` and must be re-explained. Plan versions stay `1.0` / `2.0`;
+  the rebuild-and-compare persistence guard is what makes the rotation visible
+  rather than silent.
 - CRS validity includes the source SRS, input/filter geometry CRS bindings,
   output CRS, and the no-implicit-transform policy. It never infers a transform
   from output CRS alone.
@@ -3549,6 +3650,15 @@ survives structured-clone ownership transfer, and prevents a cache or renderer
 from treating results produced under different source/auth/order contracts as
 equivalent.
 
+The identity in the example below is hand-written because the example builds a
+batch by hand. A batch produced by a source does not invent one: the query
+planner selects columnar execution, and
+`columnarBatchIdentityFromPlan(plan, { observedAt })` derives every field except
+freshness from the accepted plan — `planId` is the plan's own
+`validity.fingerprint`. See [Plan-derived batch
+identity](./query-planner.md#plan-derived-batch-identity) and
+[Producing a batch from a GeoParquet source](#producing-a-batch-from-a-geoparquet-source).
+
 ```ts doc-test=compile
 import { createGeoArrowBatch, decodeGeoArrowBatch } from "@honua/sdk-js/query-planner";
 
@@ -3595,7 +3705,7 @@ reports `materializedRows`; there is no unbounded conversion mode.
 
 `serializeGeoArrowBatch()` and `deserializeGeoArrowBatch()` provide a bounded,
 dependency-free persistence envelope for the normative GeoArrow mapping. The
-envelope carries a `honua.geoarrow.batch` kind and `1.0` version, deduplicates
+envelope carries a `honua.geoarrow.batch` kind and a `1.1` version, deduplicates
 shared backing buffers, and restores the original batch identity and metadata.
 Deserialization re-runs the GeoArrow layout validator, so malformed or future
 version data fails instead of silently changing layout semantics. This is not
@@ -3632,6 +3742,102 @@ console.log(restored.metrics.serializedBytes);
 There is no unbounded mode: callers should set a persistence ceiling suitable
 for their cache. Unsupported envelope kinds or versions throw
 `HonuaGeoArrowError` rather than silently migrating layout semantics.
+
+### Envelope migration ladder
+
+An envelope written by an older SDK is migrated forward on read through an
+ordered registry of `fromVersion` → `toVersion` steps
+(`GEOARROW_ENVELOPE_MIGRATIONS`), and the applied chain is reported in the
+deserialization metrics. The shipped ladder carries `1.0 → 1.1`, which derives
+each backing's decoded length from its base64 length and stamps the GeoArrow
+layout version that `1.0` left implicit, so backing ceilings are now enforced
+before a single byte is decoded.
+
+Version resolution happens on the envelope header, before any payload is read.
+An unknown version, a version from a future build, and a version the ladder
+cannot carry to the current one all throw `unsupported-serialization` with a
+stable message; nothing is decoded and nothing is guessed. A migration step
+receives only the parsed envelope — never the caller's serialization options —
+so migrating an old entry can never widen a bound the caller set.
+
+```ts doc-test=compile
+import {
+  deserializeGeoArrowBatch,
+  planGeoArrowEnvelopeMigration,
+  readableGeoArrowEnvelopeVersions,
+} from "@honua/sdk-js/query-planner";
+
+// Which persisted layouts this build can still read.
+console.log(readableGeoArrowEnvelopeVersions()); // ["1.0", "1.1"]
+
+const plan = planGeoArrowEnvelopeMigration("1.0");
+if (!plan.applicable) throw new Error(`unreadable envelope: ${plan.reason}`);
+
+declare const persisted: Uint8Array;
+const restored = deserializeGeoArrowBatch(persisted);
+console.log(restored.metrics.envelopeVersion, restored.metrics.migrations); // "1.1" ["1.0->1.1"]
+```
+
+### Persistent batch cache
+
+**The default is no cache.** Nothing in the SDK persists a batch: an application
+opts in by creating a store, choosing a backend, and writing to it. When it
+does, `createColumnarBatchCache()` binds five properties that a hand-rolled
+cache would have to get right on its own.
+
+1. **Identity-bound keys.** `columnarBatchCacheKey(identity)` digests source id,
+   source version, schema version, plan id, the ordering contract, the freshness
+   validators (`validator`, `generation`), and a **digest** of the authorization
+   scope. The raw scope never appears in the key or in a persisted record, and a
+   change to any keyed component addresses a different entry. `observedAt` and
+   `staleAfter` are deliberately not keyed — they describe when a producer
+   looked, not what was asked for — so expiry is enforced on read instead.
+2. **Scope isolation.** A batch written under one authorization scope is never
+   returned to a reader holding another, and a record whose recorded scope digest
+   disagrees with the reader's is deleted rather than served.
+3. **Freshness.** A read past the record's `staleAfter`, or past the store's
+   `maxAgeMs`, returns an explicit `stale` outcome carrying the record, so a
+   caller can revalidate instead of silently receiving expired data.
+4. **Integrity.** Every read recomputes the SHA-256 of the stored envelope and
+   compares it to the digest written with it. A mismatch is a miss *and* a
+   delete; unverified bytes are never served.
+5. **Bounded storage.** An explicit byte quota and record cap are enforced by a
+   deterministic oldest-first eviction plan, applied together with the write in
+   one atomic backend operation.
+
+The store itself holds no IndexedDB, filesystem, or Node reference, so
+`/query-planner` stays SSR- and worker-safe. `createIndexedDbColumnarBatchCacheStorage()`
+is the browser backend; `createMemoryColumnarBatchCacheStorage()` is the
+in-process one with identical semantics, and
+`runColumnarBatchCacheConformance()` is the shared suite both must pass.
+
+```ts doc-test=compile
+import {
+  createColumnarBatchCache,
+  createIndexedDbColumnarBatchCacheStorage,
+} from "@honua/sdk-js/query-planner";
+import type { ColumnarBatchIdentityV1, ColumnarBatchV1 } from "@honua/sdk-js/query-planner";
+
+const cache = createColumnarBatchCache(createIndexedDbColumnarBatchCacheStorage(), {
+  quotaBytes: 32 * 1024 * 1024,
+  maxRecords: 32,
+  maxAgeMs: 15 * 60 * 1000,
+  onDiagnostic: (diagnostic) => console.warn(diagnostic.operation, diagnostic.reason),
+});
+
+declare const identity: ColumnarBatchIdentityV1;
+declare const batch: ColumnarBatchV1;
+
+const read = await cache.read(identity);
+if (read.outcome === "hit") {
+  console.log(read.batch.rowCount, read.metrics.migrations);
+} else if (read.outcome === "stale") {
+  console.log("revalidate", read.record.freshness.validator);
+} else {
+  const written = await cache.write(batch);
+  if (written.outcome === "refused") console.warn(written.reason, written.detail);
+}
+```
 
 ### Optional Apache Arrow adapter
 
@@ -3724,6 +3930,48 @@ and frozen, while batch creation retains each caller-provided `ArrayBuffer`.
 Multiple views over one buffer produce one transfer-list entry. Zero-byte
 backing buffers are valid; detached buffers are rejected using an attachment
 check that distinguishes the two cases.
+
+## Producing a batch from a GeoParquet source
+
+`GeoparquetSourceHandle.queryColumnar()` is the first executable source path
+that returns a `ColumnarBatchV1` instead of feature objects. It runs the same
+compiled DuckDB `SELECT` the object path runs, then encodes the GeoParquet 1.1
+native geometry column straight into GeoArrow buffers — no feature object is
+materialized on the way out, and the lossless-JSON row transport is bypassed
+because nothing on this path becomes a JSON row value.
+
+```ts doc-test=skip reason="partial excerpt requires a live GeoParquet runtime"
+import { geoparquetSource } from "@honua/sdk-js/geoparquet";
+import { columnarBatchIdentityFromPlan, explainQuery } from "@honua/sdk-js/query-planner";
+
+const plan = explainQuery({ descriptor, estimates: { rows: 250_000 }, authorizationScope: ["data:read"] });
+if (plan.representation.selected !== "columnar") throw new Error(plan.representation.reason);
+
+const source = geoparquetSource(descriptor, { runtime });
+const { batch } = await source.protocol("geoparquet").queryColumnar({
+  identity: columnarBatchIdentityFromPlan(plan, { observedAt: new Date().toISOString() }),
+  batchId: "parcels:0",
+  sequence: 0,
+  featureIdColumn: "id",
+});
+
+console.log(batch.identity?.planId === plan.validity.fingerprint); // true
+```
+
+The batch carries the geometry column plus an optional uint32 feature-id
+column; other attribute columns are neither scanned nor materialized in this
+first slice. The path refuses with `HonuaCapabilityNotSupportedError` — never a
+silent object fallback — when the declared geometry encoding is not one of the
+1:1 `geoarrow-point` / `geoarrow-linestring` / `geoarrow-polygon` encodings,
+when the query suppresses geometry, or when the query is an aggregate. An
+ordering key in the plan's identity that the batch does not carry is refused
+with `GEOPARQUET_COLUMNAR_ORDERING_FIELD_UNAVAILABLE` rather than dropped, so a
+batch never claims an ordering its rows do not have.
+
+Because the identity is plan-derived, the batch is admissible to
+`createColumnarBatchCache()` with no caller-supplied identity fields, and a
+change to the plan's source, schema, scope, query, policy, execution mode, or
+representation changes `columnarBatchCacheKey`.
 
 ## Memory ceilings
 
@@ -4163,7 +4411,195 @@ Conversion is derived and is not cached. The
 throughput budgets for both directions; see
 [`bench/README.md`](../bench/README.md).
 
+## Realtime patches and rebuild thresholds
+
+A live layer cannot rebuild a million-row batch per event: the re-encode and
+re-transfer cost defeat the columnar path, and they invalidate the
+`ArrayBuffer`s a renderer has already bound. `applyColumnarPatch()` applies an
+append/update/delete stream to a normative GeoArrow batch and returns exactly
+one of three outcomes — `patched-in-place`, `rebuilt`, or `rejected` — with the
+bytes copied and the rows touched.
+
+Reserved capacity is explicit. `createPatchableGeoArrowBatch()` allocates the
+declared spare rows (and vertices/rings for line and polygon geometry) behind
+the batch's own buffer descriptors; a batch created through
+`createGeoArrowBatch()` has none and rebuilds on its first append. Remaining
+capacity is derived from the batch's allocations rather than from a metadata
+claim, so it survives a worker transfer.
+
+```ts doc-test=skip reason="live cursor, batch identity, and renderer binding are application-owned"
+const live = createPatchableGeoArrowBatch(snapshotInput, { reserve: { rows: 10_000 } });
+
+const outcome = applyColumnarPatch(
+  live.batch,
+  createColumnarPatch({
+    schemaId: "incidents@7",
+    geometryKind: "point",
+    cursor: { cursor: resumeCursor, sequence: 42, observedAt: "2026-07-15T12:00:05Z" },
+    operations: [
+      { op: "append", featureId: 9001, geometry: [-157.86, 21.31], timestamp: 1n, dictionaryValue: "open" },
+      { op: "update", featureId: 8123, dictionaryValue: "closed" },
+      { op: "delete", featureId: 7044 },
+    ],
+  }),
+);
+
+if (outcome.outcome === "rebuilt") rebindRenderer(outcome.batch); // new batch identity
+```
+
+Fixed semantics, all of them explicit:
+
+- Updates and deletes are keyed by the batch's feature-id column. A batch
+  without one is rejected rather than patched by row position, because row
+  position is not stable across a rebuild.
+- At most one operation per feature id per patch. Two operations on one feature
+  would need a conflict-resolution rule the realtime contract does not define.
+- A patch carries a cursor, a monotonic sequence, and an `observedAt`. A
+  replayed sequence is rejected as `duplicate-sequence` and an older one as
+  `stale-sequence`, so at-least-once delivery is observable rather than silently
+  reapplied. Both the in-place and rebuild outcomes advance the batch identity's
+  `freshness.observedAt` and `generation`, so a cache keyed on the previous
+  identity cannot serve patched data.
+- A delete is tombstoned, never compacted in place. `decodePatchedGeoArrowBatch()`
+  and `columnarPatchLiveMask()` honor the overlay, so a deleted row never
+  resurfaces and an updated value is the value that is read. Layout-unaware
+  readers — `decodeGeoArrowBatch()`, filters, aggregation — still see tombstoned
+  rows, which is what the tombstone threshold exists to bound.
+- An in-place patch writes into the batch's existing backings, so the returned
+  batch supersedes the input: the input is not a snapshot of the pre-patch data.
+  A **rejected** patch is different — it leaves the input byte-identical.
+
+Rebuild rules are declared numbers with documented defaults, evaluated in one
+fixed order so a patch that crosses two rules always names the same one:
+
+| Reason | Option | Default | Fires when |
+| --- | --- | --- | --- |
+| `tombstone-ratio` | `maxTombstoneRatio` | `0.25` | tombstones / rowCount crosses the ceiling |
+| `tombstone-overlay` | `maxTombstoneOverlayBytes` | `4096` | the encoded tombstone overlay outgrows its budget |
+| `capacity` | `maxCapacityUtilization` | `0.9` | the append does not fit, or consumes more of the declared reserve than the ceiling |
+| `vertex-growth` | `maxVertexGrowthRatio` | `1.5` | vertices relative to the last rebuild cross the ceiling |
+| `layout` | — | — | the patch cannot be expressed in the current layout at all |
+
+`layout` covers the structural cases: an update that changes a row's vertex or
+ring count, a value that needs a dictionary entry the batch does not carry, a
+null in a column with no validity buffer, and re-creating a tombstoned feature
+id. A rebuild copies packed buffer slices — it never materializes a source row
+as an object — and produces a compacted batch with a new batch id, the declared
+reserve restored, and no tombstones. Passing `allowRebuild: false` turns every
+rebuild condition into a `rebuild-required` rejection instead, so a renderer
+that cannot rebind stays in control of when identity changes.
+
+`createColumnarPatchOperation()` registers patch application with
+`startColumnarWorkerHost()`. It reports `inspect`, `plan`, `apply`/`rebuild`,
+and `complete` progress and checks the request signal cooperatively. Buffer
+identity is preserved inside the worker, but a worker round trip transfers
+ownership in both directions, so apply patches on the thread that owns the
+renderer binding when preserving that binding is the point.
+
+## Observing columnar execution
+
+Columnar execution is observable through the SDK's own telemetry shape.
+`ColumnarTelemetry` is the same before/after/error collector as
+`HonuaRuntimeTelemetry`, so one observer object can be wired to the map runtime
+and to the columnar plane without inventing a second pipeline.
+
+**Six operations emit spans**, one span per unit of measurable work:
+
+| `kind` | Emitted by | What the span's `detail` carries |
+| --- | --- | --- |
+| `columnar-transfer` | `ColumnarBatchLease.transfer()`, including the handoff a worker session performs | `batchId` plus every `ColumnarBatchMetrics` field (`rows`, `logicalBytes`, `backingBytes`, `transferBytes`, `copiedBytes`, `bufferViews`, `backingBuffers`) |
+| `columnar-worker-operation` | `session.execute()`, spanning enqueue through settlement | `requestId`, `operation`, `batchId`, and on success `inputMetrics` / `outputMetrics` |
+| `columnar-cache-read` | `cache.read()` | `key`, `outcome` (`hit`/`stale`/`miss`), the miss or stale `reason`, and a hit's `rowCount`, `byteLength`, `envelopeVersion` |
+| `columnar-cache-write` | `cache.write()` | `key`, `outcome` (`stored`/`refused`), the refusal `reason`, and a stored write's `evictedRecords`, `evictedBytes`, `bytesAfter`, `recordsAfter` |
+| `columnar-patch-apply` | `applyColumnarPatch()` | the patch `cursor`, `sequence`, `observedAt` and operation count, then the outcome discriminant with `bufferIdentityPreserved`, the rebuild `reason` or rejection `code`, and the patch metrics |
+| `columnar-result-conversion` | `columnarBatchToResult()`, and one span per page of `columnarBatchToResultPages()` | `batchId`, `maxFeatures`, and the converted `count`, `offset`, `rowOffset`, `batchRowCount` |
+
+Every span reports quantities the operation already produced. Nothing here
+measures anything new, so observing an operation cannot change what it costs
+beyond the observation itself.
+
+**Every span is bound to one batch identity.** `span.identity` carries
+`sourceId`, `sourceVersion`, `schemaVersion`, `planId`, and
+`authorizationScopeDigest`, so a cache read, a worker operation, a patch, and a
+conversion over the same batch are correlatable in one sink. The digest is
+produced by `columnarAuthorizationScopeDigest()` — the same rule that keeps the
+raw scope out of the cache key. **A span never contains a raw authorization
+scope or any credential material**, and when a batch declares no identity, or
+its identity cannot be read, `span.identity` is `undefined` rather than
+partially invented. Spans are derived observations: nothing persists or caches
+them.
+
+**Opt-in, off by default, and contained.** No columnar surface constructs a
+sink; with none configured the columnar path costs exactly what it costs
+without this feature — no clock read, no digest, no allocation. A sink that
+throws, blocks, or misbehaves cannot fail, stall, or alter the operation it
+observes, and is never awaited on a data path. Because binding a span digests
+the authorization scope, and Web Crypto only offers that asynchronously, the
+*first* span for a previously unseen scope is delivered once its digest
+resolves; every later span for that scope is delivered synchronously, and a
+span's `before` event always precedes its own terminal event.
+
+The batch cache's `onDiagnostic` callback is unchanged and keeps firing with its
+current shape. Telemetry folds the same operation and reason discriminants into
+the SDK's seam; wire either, or both.
+
+```ts doc-test=compile
+import {
+  applyColumnarPatch,
+  columnarBatchToResult,
+  createColumnarBatchCache,
+  createColumnarWorkerSession,
+  createMemoryColumnarBatchCacheStorage,
+} from "@honua/sdk-js/query-planner";
+import type {
+  ColumnarBatchIdentityV1,
+  ColumnarBatchV1,
+  ColumnarPatchV1,
+  ColumnarTelemetry,
+  ColumnarWorkerFactory,
+} from "@honua/sdk-js/query-planner";
+
+const telemetry: ColumnarTelemetry = {
+  after: (span) => {
+    // Identity, never a raw authorization scope.
+    console.log(span.kind, span.durationMs, span.identity?.planId, span.identity?.authorizationScopeDigest);
+  },
+  error: (span) => console.warn(span.kind, span.error),
+};
+
+declare const batch: ColumnarBatchV1;
+declare const identity: ColumnarBatchIdentityV1;
+declare const patch: ColumnarPatchV1;
+declare const createWorker: ColumnarWorkerFactory;
+
+const cache = createColumnarBatchCache(createMemoryColumnarBatchCacheStorage(), { telemetry });
+const session = createColumnarWorkerSession({ createWorker, telemetry });
+
+await cache.read(identity);
+await session.execute("reproject", batch);
+applyColumnarPatch(batch, patch, { telemetry });
+columnarBatchToResult(batch, { maxFeatures: 1_000, telemetry });
+```
+
 ## Typed errors
+
+`HonuaColumnarPatchError.code`, which is also the `rejected` outcome's `code`,
+is one of:
+
+- `duplicate-sequence`
+- `stale-sequence`
+- `schema-drift`
+- `geometry-kind-drift`
+- `invalid-geometry`
+- `incomplete-append`
+- `unknown-feature-id`
+- `deleted-feature-id`
+- `duplicate-feature-id`
+- `missing-feature-id-column`
+- `ordering-conflict`
+- `patch-limit-exceeded`
+- `rebuild-required`
+- `invalid-patch-state`
 
 `HonuaColumnarTransferError.code` is one of:
 
@@ -4193,12 +4629,24 @@ throughput budgets for both directions; see
 
 ## Deliberate remaining scope
 
-This slice does not claim the full #394 workstream. Arrow IPC decoding,
-multi-batch streaming across more than one in-flight worker, planner
-integration, renderer consumption, batch cache identity, incremental
-re-aggregation over realtime patches, and application-specific CSP worker URL
-policy remain separate work. Converting a batch that is mid-patch also remains
-out of scope: the realtime columnar patch child owns patch-consistent views.
+This slice does not claim the full #394 workstream. Planner selection and one
+executable GeoParquet producer now exist (above), but the producer carries only
+geometry plus an optional feature-id column, and no other protocol has a
+columnar path: GeoServices, OGC API Features, WFS, OData, and gRPC all plan
+`object` and say so. Arrow IPC decoding,
+multi-batch streaming across more than one in-flight worker, renderer
+consumption, incremental re-aggregation over realtime
+patches (which must also invalidate or re-version their cached base batch), and
+application-specific CSP worker URL policy remain separate work. Converting a
+batch that is mid-patch also remains out of scope: `columnarBatchToResult` does
+not read the patch overlay, so a tombstoned row would appear in its window —
+read a patched batch through `decodePatchedGeoArrowBatch()` instead.
+
+Within realtime patching specifically, in-place dictionary growth, more than one
+operation per feature id in one patch, an incremental transport that ships only
+the appended byte range, and a benchmarked patch-latency budget are deliberately
+not claimed: a patch needing a new dictionary value or a second operation on one
+feature rebuilds or is rejected rather than guessing.
 
 ---
 
@@ -4261,6 +4709,11 @@ A `honua.realtime-checkpoint@1` binds all resume positions to:
 - the last contiguous sequence plus available cursor, watermark, timestamp,
   and delta-token positions;
 - a bounded recent event-id window.
+
+The plan fingerprint is the planner's own, so a planner contract change rotates
+it: adding the result-representation axis (#1042) changes every plan
+fingerprint, and checkpoints stored against a pre-#1042 plan resolve to
+`resnapshot-required` rather than silently resuming under a different plan.
 
 Changing any bound identity produces `resnapshot-required`; the SDK never
 silently reuses the cursor. A new subscription without a compatible checkpoint
@@ -5653,31 +6106,33 @@ fingerprint, and disposal of the bridge. The workflow uploads the evidence for
 `@honua/sdk-js/scene-workspace` exposes an experimental accepted-plan workflow
 for projecting a canonical `Source` query into a Cesium `EntityCollection`:
 
-```ts doc-test=skip reason="partial excerpt requires application host context"
+```ts doc-test=compile
+import type { Source } from "@honua/sdk-js/contract";
 import { explainQuery } from "@honua/sdk-js/query-planner";
-import { mountSourceToCesium } from "@honua/sdk-js/scene-workspace";
+import { type CesiumEntityCollectionTarget, mountSourceToCesium } from "@honua/sdk-js/scene-workspace";
+
+declare const source: Source<Record<string, unknown>>;
+/** A live Cesium `viewer.entities` satisfies this structurally. */
+declare const entities: CesiumEntityCollectionTarget;
 
 const plan = explainQuery({
   descriptor: source.descriptor,
-  query: {
-    pagination: { limit: 5_000 },
-    returnGeometry: true,
-    outSr: 4326,
-  },
-  sourceVersion,
-  schemaVersion,
-  authorizationScope,
+  query: { pagination: { limit: 5_000 }, returnGeometry: true, outSr: 4326 },
 });
 
-const mounted = await mountSourceToCesium(viewer.entities, source, plan, {
-  sourceVersion,
-  schemaVersion,
-  authorizationScope,
-  time: { startField: "observed_at", endField: "expires_at" },
+const mounted = await mountSourceToCesium(entities, source, plan, {
+  featureIdField: "unit_id",
   verticalDatum: "ellipsoidal-wgs84",
+  time: { startField: "observed_at", endField: "expires_at" },
 });
 
-await mounted.refresh();
+// Re-executes the same accepted plan and rebuilds the whole snapshot; stable
+// entity ids survive, the `Entity` objects behind them do not.
+const refreshed = await mounted.refresh();
+if (refreshed.state === "degraded") {
+  for (const diagnostic of mounted.diagnostics) console.warn(diagnostic.code, diagnostic.message);
+}
+
 mounted.dispose();
 ```
 
@@ -5721,22 +6176,92 @@ Unsupported features are omitted with `fidelity: "unsupported"`; they are not
 rendered as plausible substitutes. Invalid plans, CRS, limits, and adapter
 options fail before mounting.
 
+## Real-Cesium evidence
+
+Until issue [#1050](https://github.com/honua-io/honua-sdk-js/issues/1050) this
+path had no real-Cesium coverage at all: every test ran in jsdom against a
+`vi.mock("cesium")` stub. It now shares the primitive adapter's browser lane,
+[`test/playwright/cesium-scene-adapter-fixtures.spec.mjs`](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs),
+under the same rules — Playwright's headless Chromium with SwiftShader WebGL,
+fixture assets generated in-process, and any off-origin request aborted and
+failed.
+
+The lane connects to a loopback GeoServices layer with `createHonua()`, accepts
+a plan with `explainQuery`, and hands both to `mountSourceToCesium` with no
+Cesium module injected, so the lazy optional-peer import is exercised in a real
+browser. What it establishes:
+
+- **Materialization.** Every projected feature is a real `Cesium.Entity`
+  (`instanceof`, against the minified runtime). Point positions are real
+  `Cartesian3` values that convert back to the source longitude, latitude, and
+  ellipsoidal height; polylines carry `Cartesian3` vertices; polygons carry a
+  real `PolygonHierarchy`; attributes arrive in a real `PropertyBag`.
+- **Availability is Cesium's answer, not the SDK's.** Two units on opposite
+  shifts are evaluated at two clock instants, and each is available at exactly
+  one of them. Availability also decides what is drawn: each unit is picked out
+  of a real GPU pick pass inside its window and not outside it.
+- **Interior rings reach the GPU.** The zone polygon is picked where it is solid
+  and not at the centre of its hole.
+- **Omissions are reported.** A feature without stable identity and a feature
+  with an unparseable interval are dropped with `identity-missing` and
+  `time-interval-invalid`, leaving the mount honestly `degraded`.
+- **Fail-closed ceiling.** A mount whose accepted plan limit exceeds
+  `maxEntities` rejects with `HonuaCesiumEntityAdapterError`
+  (`entity-limit-exceeded`) and adds nothing to a collection that is already
+  carrying a healthy mount.
+- **Teardown.** `dispose()` returns the collection to its baseline, is
+  idempotent, and runs inside the primitive lane's measured ceilings. Across
+  repeated cycles on fresh viewers, entities, viewers, canvases, DOM listeners,
+  and Cesium worker counts all stay bounded rather than accumulating.
+- **Composition with the primitive mount.** Both mounts run on one live
+  `Viewer`; disposing either releases exactly its own resources and leaves the
+  other's Cesium objects in place by object identity.
+
+## Tier decision (issue #1050)
+
+**`mountSourceToCesium` and `projectSourceToCesium` stay `@experimental` for the
+life of `@honua/app-platform` 0.1.x.** The evidence above is what the surface
+needed to be *considered* for the beta tier that the surrounding
+[`@honua/app-platform/scene-workspace` surface](./scene-workspace.md#support-status-beta)
+carries, and it is not enough on its own, because that tier is a promise about
+shape: exports are not renamed or removed and behaviour changes are called out,
+not slipped in. Three known changes to this slice would break that promise.
+
+1. **Refresh rebuilds everything, and the browser lane measures it.** A feature
+   whose source row did not change between two snapshots still gets a *new*
+   `Entity`; only its id is carried across (`rebuildBoundary: "entity-snapshot"`).
+   Anything an application holds across a refresh — an `Entity` reference,
+   `viewer.selectedEntity`, a tracked entity, a per-entity graphic it mutated —
+   is silently discarded. Fixing that is a visible behaviour change to a
+   documented boundary, which is exactly what a beta tier commits not to do
+   quietly. (Epic #395 REQ-004 asks for the diff; this is the honest statement
+   of why the caveat stands rather than a promise that the rebuild is fine.)
+2. **There are two lifecycle owners, not one.** The entity mount and
+   `MountedCesiumScenePrimitives` compose — proven above — but nothing owns
+   both, so an application still has to dispose them in the right order itself.
+   Reconciling them (#395 REQ-003) changes the entry point's shape.
+3. **There is no symbology surface.** Points are 8 px, lines are 2 px wide, and
+   colours are Cesium's defaults; nothing in the public options can change that.
+   A production entity path needs styling, and adding it means new required
+   shapes rather than purely additive ones.
+
+Bounded materialization is deliberately kept as-is: the entity ceiling is a
+fail-closed backstop, not a paging strategy. Sources larger than the ceiling are
+refused with a stable diagnostic instead of silently truncated, and streaming or
+tiled execution stays out of this slice.
+
+What would change the decision: a refresh that preserves untouched entities, a
+single mount that owns both the entity and primitive halves, and a symbology
+contract — each with the same real-Cesium evidence the promotion of the
+primitive adapter carried in [#1026](https://github.com/honua-io/honua-sdk-js/pull/1026).
+
 ## Deliberate non-goals for this slice
 
-This is not completion of issue #395, and this entity slice is explicitly held
-back from the `beta` tier that the surrounding
-[`@honua/app-platform/scene-workspace` surface](./scene-workspace.md#support-status-beta)
-carries: `mountSourceToCesium` and `projectSourceToCesium` stay `@experimental`
-and may change in any minor release.
 Terrain and imagery providers, glTF/models, point clouds and 3D Tiles continue
-through the existing scene primitive adapter, which is beta. Multi-part geometry, vertical datum transforms, styling, clustering, streaming/tiled
-execution, live deltas, camera/selection/filter synchronization, attribution
-UI, asset authorization/caching, browser examples, and WebGL leak/performance
-certification remain future work.
-
-Refresh currently declares an `entity-snapshot` rebuild boundary. Stable IDs
-are preserved across rebuilds, but this first slice does not claim fine-grained
-property or sampled-position delta application.
+through the existing scene primitive adapter, which is beta. Multi-part
+geometry, vertical datum transforms, styling, clustering, streaming/tiled
+execution, live per-feature deltas, camera/selection/filter synchronization,
+attribution UI, and asset authorization/caching remain future work.
 
 ---
 
@@ -6247,6 +6772,99 @@ from one stored entry, so `state`, `freshness`, `completeness`, `reason`, and
 diagnostic could never have produced is rejected instead of resolving to a
 confidently wrong headline.
 
+## Schema versions, migration, and an unreadable store
+
+Two versions govern the persistent stores, and they are deliberately separate.
+
+- The **IndexedDB database version** governs object stores and indexes. It moves
+  when a store or index is added, and its `versionchange` upgrade is where
+  structural work such as the legacy staging-timestamp backfill runs.
+- The **persisted record-layout version** governs the shape of the values inside
+  those stores. For the region store it is
+  `HONUA_OFFLINE_REGION_SCHEMA_VERSION` (currently `3`), written into the
+  `schema` store and **read back on every open**; for the edit queue it is
+  `HONUA_OFFLINE_EDIT_QUEUE_VERSION`, stamped on every record and checked before
+  any other field on every read.
+
+### The region store's forward ladder
+
+`OFFLINE_REGION_SCHEMA_MIGRATIONS` is an ordered registry of
+`fromVersion` → `toVersion` steps, each a pure structural rewrite of one stored
+record. On open the store reads the persisted version and resolves a plan before
+touching anything:
+
+- **Current version** — no steps, nothing rewritten.
+- **A recognized older version** — the resolved chain is applied to every region
+  record inside one transaction, then the new version is stamped. The applied
+  chain is reported as `appliedMigrations` (for example `["2->3"]`).
+- **An unknown, future, or unreachable version** — the store fails closed with
+  `HonuaOfflineRegionError` code `store-unreadable`, naming the stored and
+  expected versions. **Nothing is deleted.**
+
+`planOfflineRegionSchemaMigration(version)` answers "can this store still be
+read?" without opening it, and `readableOfflineRegionSchemaVersions()` lists the
+versions this build accepts. The walk is bounded and cycle-safe, so a malformed
+registry refuses rather than spinning.
+
+A migrated record keeps exactly the identity it was stored under. Every step's
+output is checked before the next one runs: a step that rewrote a region id, a
+resource id, or the authorization-scope digest fails the record and aborts the
+whole transaction, leaving the prior database version readable. Re-deriving the
+scope digest would silently repartition another principal's cached bytes, so it
+is treated as a defect rather than a migration.
+
+The shipped `2 → 3` step is deliberately the identity on region records: that
+database-version change altered only staging rows. It exists so the ladder, its
+bounds, its identity invariants, and its refusal are exercised *before* the first
+real layout change, rather than being written under the pressure of one.
+
+### What an application should do when its store is unreadable
+
+`store-unreadable` means the cached bytes are intact but this build declines to
+interpret their layout — most often a version rollback, occasionally a
+hand-modified database. It is not retryable and it is not corruption.
+
+1. Report it. The regions are still on disk and still belong to the user.
+2. Offer an explicit re-download, or a newer build that can read the layout.
+3. Only then reset the store deliberately, with
+   `indexedDB.deleteDatabase(name)`. The SDK will not do that for you, because
+   cached region bytes are expensive to re-acquire — often over a metered or
+   absent network — and a silent bulk delete is the worst available outcome.
+
+Pass `onRecovery` to `createIndexedDbOfflineRegionStore` to observe every open.
+The report separates the two failure modes on purpose:
+`discardedCorruptRecords` counts records this build proved unusable and removed,
+while `unsupportedRegions` counts regions left untouched because their schema
+version has no path forward.
+
+### The edit queue's recovery posture
+
+The queue is the durable source of retry, lease, dependency, conflict, and audit
+state, so a silently accepted malformed record there becomes a *wrong write*
+rather than a lost read. Nothing persisted is trusted on the way back in.
+
+- One bounded startup pass validates every edit, metadata, and tombstone row.
+  Records past the record or byte ceiling fail with a typed
+  `queue-limit-exceeded` instead of being scanned.
+- Every read path revalidates, so a record written between passes — by another
+  tab, or by a partially applied write — cannot be leased unvalidated.
+- A record whose `version` is not `HONUA_OFFLINE_EDIT_QUEUE_VERSION` is
+  discarded, never returned as though it were current.
+- The metadata relationship is repaired in both directions: an index row whose
+  edit is gone is deleted, and an edit whose index row is missing or disagrees
+  has it re-derived from the edit itself. A damaged record no longer stalls a
+  whole claim.
+- Valid tombstones are always preserved — they are what stops a completed
+  identity from being re-enqueued.
+
+`onRecovery` reports counts and stable reason codes (`foreign-version`,
+`corrupt-record`, `credential-screened`, `orphaned-metadata`, and the
+`restored-metadata` repair) through the same offline error envelope every other
+queue failure uses. Validation reads identity, state, and timing fields only; it
+never reads an `edit.attributes` or `edit.geometry` value, and no report echoes
+one. A discarded record is a lost local write, so recovery discards only what it
+can prove is unusable, and it always says how many.
+
 ## Contract guarantees
 
 - Manifest identity is deterministic over normalized content. Resource ids,
@@ -6309,11 +6927,16 @@ confidently wrong headline.
 - Progress is explicit across planning, download, write, commit, and completion.
   A successful receipt reports `integrity: "verified"` and
   `quotaAccounting: "logical-payload-bytes"`.
-- The IndexedDB adapter uses a versioned schema. Startup upgrades legacy
-  staging records, then performs one bounded atomic recovery pass. Malformed
-  region metadata, orphaned or malformed resources, and invalid staging rows
-  are removed while valid regions remain available; an invalid inventory
-  revision is reset to the empty baseline. Recovery scans at most 100,000
+- The IndexedDB adapter uses a versioned schema, and the persisted version is
+  read rather than only written. Startup resolves the record-layout version
+  against an ordered forward migration ladder, migrates recognized older layouts
+  atomically, and fails closed with `store-unreadable` — deleting nothing — for a
+  layout it cannot reach. It then upgrades legacy staging records and performs
+  one bounded atomic recovery pass. Malformed region metadata, orphaned or
+  malformed resources, and invalid staging rows are removed while valid regions
+  remain available; an invalid inventory revision is reset to the empty
+  baseline. Corrupt-record discards and unsupported-version outcomes are
+  reported as separate counts. Recovery and migration each scan at most 100,000
   records and 64 MiB of persisted payloads, failing closed if those bounds are
   exceeded.
 - IndexedDB staging is resumable by manifest identity. If a download is
@@ -6349,6 +6972,12 @@ confidently wrong headline.
   re-enqueued after cleanup, and an applied tombstone continues to satisfy
   future dependency IDs. The persisted schema accepts no request headers,
   tokens, URLs, or raw authorization scope.
+- Persisted queue records are validated, not trusted. One bounded startup pass
+  plus per-read validation gate the record version, identity, state, timing,
+  outcome, and audit fields before a record can be leased, transitioned, or
+  replayed, and reconcile the metadata index in both directions. A
+  foreign-version, corrupt, or credential-shaped record is discarded with a
+  stable reason code and a count, never returned as though it were current.
 - `replayOfflineEditPass()` claims immediately before each sequential
   invocation of an application-owned transport, up to one explicit pass bound.
   Transport requests omit authorization
@@ -9055,7 +9684,7 @@ a tier from the directory it lives in.
 
 | Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
 | --- | --- | :-: | --- | --- | --- |
-| `@honua/app-platform/scene-workspace` | `beta` | 142 | 70 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
+| `@honua/app-platform/scene-workspace` | `beta` | 172 | 70 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
 
 ### `@honua/app-platform/scene-workspace`
 
@@ -9071,7 +9700,7 @@ Held back at `experimental` — Honua Server scene discovery, the `SceneView` co
 
 `CesiumEntityCollectionLike`, `ElevationProfileRequest`, `ElevationProfileResult`, `ElevationProfileSample`, `HonuaScene`, `LineOfSightRequest`, `LineOfSightResult`, `SceneAnalysisCesiumModule`, `SceneAnalysisOverlay`, `SceneAnalysisPosition`, `SceneAnalysisRequestExecutor`, `SceneDiscoveryRequestExecutor`, `SceneExtent3D`, `SceneMeasurement`, `SceneView`, `SceneViewEvent`, `SceneViewEventListener`, `SceneViewOptions`, `SceneViewRequestExecutor`, `SceneViewpoint`, `ViewshedRequest`, `ViewshedResult`, `ViewshedSample`, `buildElevationProfilePath`, `buildLineOfSightBody`, `buildViewshedBody`, `formatMeasurementLabel`, `getScene`, `haversineMeters`, `listScenes`, `measureScenePositions`, `normalizeScene`, `pathLengthMeters`, `positionsToWktLineString`, `renderElevationProfilePolyline`, `renderLineOfSight`, `renderMeasurement`, `renderViewshed`, `requestElevationProfile`, `requestLineOfSight`, `requestViewshed`, `resolveSceneTilesetUrl`, `sceneCameraPrimitive`, `sceneLayerStates`, `sceneTerrainPrimitive`, `sceneTilesetPrimitive`, `sceneToRuntimePrimitives`, `sceneViewpointBookmarks`, `slantDistanceMeters`, `sphericalPolygonAreaSquareMeters`
 
-Held back at `experimental` — The accepted-plan `Source` to Cesium entity lifecycle is a bounded slice, not the production adapter of issue #395; see docs/cesium-entity-adapter.md.
+Held back at `experimental` — The accepted-plan `Source` to Cesium entity lifecycle carries real-Cesium browser evidence since issue #1050 — entities materialize onto a live `Viewer` through the public path, Cesium's own availability decides what is drawn, the entity ceiling fails closed, and disposal returns the collection to baseline inside the primitive lane's measured budgets — and stays experimental for the life of 0.1.x for three named reasons: refresh rebuilds every entity (a byte-identical feature is still replaced, measured on a live collection), the entity mount and the primitive mount are two lifecycle owners with nothing owning both, and there is no symbology surface. See docs/cesium-entity-adapter.md#tier-decision-issue-1050.
 
 `CesiumEntityAdapterErrorCode`, `CesiumEntityCollectionTarget`, `CesiumEntityDiagnostic`, `CesiumEntityDiagnosticCode`, `CesiumEntityGeometry`, `CesiumEntityInterval`, `CesiumEntityPositionSample`, `CesiumEntityProjection`, `CesiumEntityProjectionItem`, `CesiumEntityRuntimeLoader`, `CesiumEntityRuntimeModule`, `CesiumEntityTimeOptions`, `CesiumEntityWorkflowState`, `DEFAULT_CESIUM_ENTITY_LIMIT`, `HonuaCesiumEntityAdapterError`, `MountSourceToCesiumOptions`, `MountedCesiumEntitySource`, `ProjectSourceToCesiumOptions`, `mountSourceToCesium`, `projectSourceToCesium`
 
@@ -9112,7 +9741,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | OGC API Tiles | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
 | OGC API Maps | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
 | OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
-| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — see the surface tiers table. |
+| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence and a recorded tier decision (#1050), not for want of proof — see the surface tiers table. |
 | OGC API Processes discovery | `open-endpoint` | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
 | OGC API Processes execution | `open-endpoint` | `experimental` | `standalone` | `native` | Any conformant OGC API Processes Part 1 (Core) server | client.ogcProcesses({ basePath, conformance }).execute() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Executes at the discovered service root in both Core response shapes (synchronous 200 results and Prefer: respond-async 201 + Location), then follows the advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture-proven; no public endpoint permits anonymous execution, so there is no live lane. |
 | Server compatibility gate | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
@@ -10631,12 +11260,12 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `755c38cd`._
+_Generated 2026-08-04 at commit `165c5dbb`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 747.5 KiB | 753.9 KiB | 200.8 KiB | 211.8 KiB |
-| `/honua` | 910.2 KiB | 937.2 KiB | 245.1 KiB | 251.0 KiB |
+| `.` (root) | 750.3 KiB | 753.9 KiB | 201.6 KiB | 211.8 KiB |
+| `/honua` | 913.0 KiB | 937.2 KiB | 245.9 KiB | 251.0 KiB |
 | `/contract` | 366.0 KiB | 400.6 KiB | 98.7 KiB | 108.0 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 887.2 KiB | 925.5 KiB | 200.0 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
@@ -10645,12 +11274,12 @@ _Generated 2026-08-04 at commit `755c38cd`._
 | `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 605.1 KiB | 612.2 KiB | 163.6 KiB | 163.9 KiB |
-| `/realtime` | 78.4 KiB | 86.2 KiB | 22.7 KiB | 25.0 KiB |
-| `/offline` | 138.7 KiB | 144.9 KiB | 37.8 KiB | 39.2 KiB |
-| `/query-planner` (worker runtime injected) | 678.0 KiB | 703.3 KiB | 148.6 KiB | 162.6 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 125.6 KiB | 138.2 KiB | 38.2 KiB | 42.0 KiB |
-| `/esri-compat` | 1019.3 KiB | 1026.2 KiB | 255.3 KiB | 280.9 KiB |
+| `/runtime` | 605.2 KiB | 612.2 KiB | 163.7 KiB | 163.9 KiB |
+| `/realtime` | 78.8 KiB | 86.2 KiB | 22.8 KiB | 25.0 KiB |
+| `/offline` | 150.6 KiB | 161.3 KiB | 41.1 KiB | 44.0 KiB |
+| `/query-planner` (worker runtime injected) | 762.6 KiB | 778.7 KiB | 172.6 KiB | 182.9 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 138.1 KiB | 138.2 KiB | 42.0 KiB | 42.0 KiB |
+| `/esri-compat` | 1020.0 KiB | 1026.2 KiB | 255.5 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
 | `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
@@ -10658,24 +11287,24 @@ _Generated 2026-08-04 at commit `755c38cd`._
 | `/auth` | 26.0 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
 | `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
 | `/map` | 181.1 KiB | 198.2 KiB | 51.3 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 139.9 KiB | 154.9 KiB | 42.2 KiB | 46.6 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 142.8 KiB | 154.9 KiB | 43.0 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 65.2 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.0 KiB | 1037.6 KiB | 271.6 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.6 KiB | 1120.1 KiB | 295.0 KiB | 321.9 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 65.3 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.2 KiB | 1037.6 KiB | 271.7 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.8 KiB | 1120.1 KiB | 295.2 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 541.1 KiB | 562.6 KiB | 145.6 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 748.1 KiB | 754.5 KiB | 201.1 KiB | 201.3 KiB |
-| browser ESM (`./browser`) | 746.8 KiB | 753.1 KiB | 200.7 KiB | 201.0 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 750.9 KiB | 754.5 KiB | 201.9 KiB | 222.1 KiB |
+| browser ESM (`./browser`) | 749.6 KiB | 753.1 KiB | 201.6 KiB | 221.7 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 238.6 KiB | 254.0 KiB | 61.7 KiB | 63.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 612.9 KiB | 627.9 KiB | 163.4 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.5 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.9 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 712.2 KiB | 717.1 KiB | 191.5 KiB | 210.6 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 715.0 KiB | 717.1 KiB | 192.3 KiB | 210.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 253.2 KiB | 267.0 KiB | 64.9 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.8 KiB | 44.7 KiB | 13.4 KiB | 14.0 KiB |
@@ -13036,6 +13665,27 @@ const description = await handle.describe();
 
 const rows = await handle.sql("SELECT count(*) FROM read_parquet('...')"); // raw escape hatch
 ```
+
+## Columnar execution
+
+When the query planner selects `representation: "columnar"` for this source,
+the same escape hatch produces a `ColumnarBatchV1` instead of feature objects:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+const handle = places.protocol("geoparquet")!;
+const { batch, rowCount } = await handle.queryColumnar({
+  identity: columnarBatchIdentityFromPlan(plan, { observedAt: new Date().toISOString() }),
+  batchId: "places:0",
+  sequence: 0,
+  featureIdColumn: "id",
+});
+```
+
+Requires a GeoParquet 1.1 native `geoarrow-point` / `geoarrow-linestring` /
+`geoarrow-polygon` geometry column and a plan-derived identity; it refuses with
+`HonuaCapabilityNotSupportedError` rather than falling back to objects. See
+[columnar-data-plane.md](./columnar-data-plane.md#producing-a-batch-from-a-geoparquet-source)
+and [query-planner.md](./query-planner.md#result-representation).
 
 ## Aggregation
 
