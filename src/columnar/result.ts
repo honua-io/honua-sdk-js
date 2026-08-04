@@ -24,6 +24,21 @@
  * performed here per materialized row instead, so cost stays proportional to
  * the window rather than to the batch.
  *
+ * **Loss is reported, never taken silently.** The forward direction is complete
+ * by construction: a normative GeoArrow batch carries exactly a geometry column
+ * plus optional temporal, dictionary, and feature-id columns, and every one of
+ * them lands on the converted feature. The inverse direction is where an object
+ * `Result` can carry more than a columnar batch can hold, so it fails closed on
+ * an attribute no column binding covers rather than dropping it, and the only
+ * way to proceed is an explicit opt-in that names every dropped attribute back
+ * to the caller.
+ *
+ * **Traversing more than one window is streaming, not a bigger window.**
+ * {@link columnarBatchToResultPages} walks a batch as a sequence of bounded
+ * pages, holding one page at a time, checking a caller's `AbortSignal` on a row
+ * cadence, and yielding to the host task queue between pages so a cancellation
+ * can actually land. The ceiling still applies — to each page.
+ *
  * @experimental
  */
 
@@ -70,6 +85,27 @@ import type { ColumnarBatchV1 } from "./types.js";
  * materialization is always visible in the calling code.
  */
 export const DEFAULT_COLUMNAR_RESULT_MAX_FEATURES = 100_000;
+
+/**
+ * Rows converted between two `AbortSignal` checks.
+ *
+ * Small enough that a cancelled page stops promptly even at the ceiling, large
+ * enough that the check is not measurable against the per-row cost of building
+ * a feature object. It is a constant rather than an option because a caller
+ * tuning it could only make cancellation worse.
+ */
+const CANCELLATION_CHECK_INTERVAL_ROWS = 1_024;
+
+/**
+ * Rows converted between two task-queue yields inside a single page.
+ *
+ * Checking a signal is worthless if nothing can ever set it: JavaScript is
+ * single-threaded, so an uninterrupted synchronous loop cannot observe an abort
+ * no matter how often it polls. A page therefore hands control back to the host
+ * on this cadence, which is what gives the poll above something to find. Pages
+ * smaller than this — the common case — pay nothing.
+ */
+const YIELD_INTERVAL_ROWS = 16_384;
 
 /** GeoJSON geometry types the Honua columnar geometry kinds map onto. */
 export type ColumnarGeoJsonGeometryType = "Point" | "LineString" | "Polygon";
@@ -199,6 +235,36 @@ export interface ColumnarBatchToResultOptions {
   readonly limits?: GeoArrowConversionLimits;
 }
 
+/**
+ * Explicit page shape for {@link columnarBatchToResultPages}.
+ *
+ * The ceiling bounds each page rather than the traversal: a caller streaming a
+ * million-row batch holds one page at a time, so the retained cost is the page,
+ * not the batch. `limit` bounds how much of the batch is walked at all.
+ */
+export interface ColumnarBatchToResultPagesOptions {
+  /**
+   * Hard ceiling on the features one page may carry. Required, and `pageSize`
+   * may not exceed it.
+   */
+  readonly maxFeatures: number;
+  /** Rows per page. Defaults to `maxFeatures`. The final page may be shorter. */
+  readonly pageSize?: number;
+  /** Zero-based first row of the traversal. Defaults to the start of the batch. */
+  readonly offset?: number;
+  /** Rows to walk from `offset`. Defaults to the rest of the batch. */
+  readonly limit?: number;
+  /**
+   * Cooperative cancellation. Checked before each page and every 1,024 rows
+   * within a page; the traversal yields to the host task queue between pages so
+   * an abort raised by a task — a worker message, a timer, a user gesture — is
+   * actually delivered rather than starved by an uninterrupted loop.
+   */
+  readonly signal?: AbortSignal;
+  /** Structural limits forwarded to batch inspection, performed once. */
+  readonly limits?: GeoArrowConversionLimits;
+}
+
 /** Geometry layout for {@link resultToColumnarBatch}. */
 export interface ResultToColumnarBatchGeometryOptions {
   readonly field?: string;
@@ -240,6 +306,36 @@ export interface ResultToColumnarBatchOptions {
   readonly geometry?: ResultToColumnarBatchGeometryOptions;
   readonly attributes?: ResultToColumnarBatchAttributeOptions;
   readonly limits?: GeoArrowConversionLimits;
+  /**
+   * What to do with an attribute no column binding covers.
+   *
+   * A normative GeoArrow batch holds exactly a geometry column plus optional
+   * temporal, dictionary, and feature-id columns, so an object `Result` can
+   * always carry attributes the batch cannot. `"fail"` — the default — refuses
+   * with `unsupported-layout` naming the attribute, because dropping a value
+   * the caller did not agree to lose is exactly the silent coercion this module
+   * exists to prevent. `"drop"` is the explicit opt-in, and even then every
+   * dropped attribute name is reported back on
+   * {@link ResultToColumnarBatchResult.droppedAttributes} so the loss is stated
+   * rather than assumed.
+   */
+  readonly unmappedAttributes?: "fail" | "drop";
+}
+
+/**
+ * A created batch plus the explicit statement of what did not fit in it.
+ *
+ * `droppedAttributes` is empty for every conversion that did not opt in to
+ * dropping, which is the default, so a caller that never sets
+ * `unmappedAttributes` can treat a returned result as lossless without checking.
+ */
+export interface ResultToColumnarBatchResult extends CreatedGeoArrowBatch {
+  /**
+   * Attribute names present on the converted features that no column binding
+   * carried into the batch, sorted and deduplicated so the report is
+   * deterministic. Always empty unless `unmappedAttributes: "drop"` was set.
+   */
+  readonly droppedAttributes: readonly string[];
 }
 
 const GEOJSON_TYPE_BY_KIND: Readonly<Record<GeoArrowGeometryKind, ColumnarGeoJsonGeometryType>> = Object.freeze({
@@ -275,14 +371,10 @@ interface ResolvedWindow {
 }
 
 /**
- * Resolve and bound the window before anything is read or allocated.
- *
- * Every rejection here happens against plain counts, so an over-ceiling request
- * costs one comparison and produces no feature object, no buffer view, and no
- * batch inspection.
+ * Validate the ceiling itself. Separate from the range because the paged
+ * traversal applies the ceiling to each page rather than to the whole walk.
  */
-function resolveWindow(available: number, options: BoundedWindowOptions, label: string): ResolvedWindow {
-  const maxFeatures = options.maxFeatures;
+function requireCeiling(maxFeatures: number, label: string): number {
   if (!Number.isSafeInteger(maxFeatures) || maxFeatures <= 0) {
     fail(
       "invalid-input",
@@ -290,6 +382,21 @@ function resolveWindow(available: number, options: BoundedWindowOptions, label: 
       { resource: "maxFeatures", actual: maxFeatures },
     );
   }
+  return maxFeatures;
+}
+
+/**
+ * Resolve the contiguous row range a caller asked for, without applying any
+ * ceiling. Rejections here are against plain counts, so nothing is read.
+ */
+function resolveRange(
+  available: number,
+  options: Omit<BoundedWindowOptions, "maxFeatures">,
+  label: string,
+): {
+  readonly offset: number;
+  readonly count: number;
+} {
   const offset = options.offset ?? 0;
   if (!Number.isSafeInteger(offset) || offset < 0) {
     fail("invalid-input", `${label} offset must be a non-negative safe integer.`, {
@@ -312,15 +419,69 @@ function resolveWindow(available: number, options: BoundedWindowOptions, label: 
       actual: limit,
     });
   }
-  const count = Math.min(limit, remaining);
-  if (count > maxFeatures) {
-    fail("row-limit-exceeded", `${label} requested ${count} features; the maxFeatures ceiling is ${maxFeatures}.`, {
-      resource: "maxFeatures",
-      requested: count,
-      limit: maxFeatures,
-    });
+  return { offset, count: Math.min(limit, remaining) };
+}
+
+/**
+ * Resolve and bound the window before anything is read or allocated.
+ *
+ * Every rejection here happens against plain counts, so an over-ceiling request
+ * costs one comparison and produces no feature object, no buffer view, and no
+ * batch inspection.
+ */
+function resolveWindow(available: number, options: BoundedWindowOptions, label: string): ResolvedWindow {
+  const maxFeatures = requireCeiling(options.maxFeatures, label);
+  const range = resolveRange(available, options, label);
+  if (range.count > maxFeatures) {
+    fail(
+      "row-limit-exceeded",
+      `${label} requested ${range.count} features; the maxFeatures ceiling is ${maxFeatures}.`,
+      { resource: "maxFeatures", requested: range.count, limit: maxFeatures },
+    );
   }
-  return { offset, count };
+  return range;
+}
+
+/**
+ * Throw the platform's own cancellation error when the caller's signal is
+ * already aborted. `DOMException`/`AbortError` rather than
+ * {@link HonuaGeoArrowError}, because a cancelled conversion is not a
+ * conversion failure and callers already branch on `error.name === "AbortError"`
+ * for every other cancellable path in the SDK.
+ */
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted !== true) return;
+  throw new DOMException("The operation was aborted", "AbortError");
+}
+
+/**
+ * Yield to the host task queue so a queued abort is actually delivered.
+ *
+ * A microtask checkpoint is not enough: the events that abort a traversal —
+ * a worker `postMessage`, a timer, a user gesture — are all delivered as tasks,
+ * so an `await` that only drains microtasks would starve every one of them and
+ * make the signal check below theatre.
+ */
+function yieldToHost(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const immediate = (globalThis as { setImmediate?: (callback: () => void) => unknown }).setImmediate;
+    if (typeof immediate === "function") {
+      immediate(resolve);
+      return;
+    }
+    if (typeof MessageChannel === "function") {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => {
+        channel.port1.close();
+        channel.port2.close();
+        resolve();
+      };
+      channel.port1.start();
+      channel.port2.postMessage(undefined);
+      return;
+    }
+    setTimeout(resolve, 0);
+  });
 }
 
 /**
@@ -473,51 +634,46 @@ function attributeBinding(inspection: GeoArrowBatchInspection): ColumnarResultAt
 }
 
 /**
- * Convert a bounded, contiguous row window of a columnar batch into a
- * protocol-neutral {@link Result} of typed features.
+ * Everything both conversion entry points need, computed once per batch.
  *
- * Features are emitted in batch row order, so the `Result` preserves the
- * batch's declared ordering exactly. Geometry becomes GeoJSON, the batch's
- * feature-id, timestamp, and dictionary columns become attributes under their
- * declared names, and a null timestamp or dictionary value becomes an explicit
- * `null` attribute rather than a missing key.
- *
- * @throws HonuaGeoArrowError `row-limit-exceeded` when the window exceeds
- * `options.maxFeatures`. The ceiling is checked before the batch is inspected,
- * so nothing is read or allocated on that path.
- * @throws HonuaGeoArrowError `unsupported-layout` for `xym`/`xyzm` geometry,
- * which GeoJSON cannot represent.
- *
- * @example
- * ```ts
- * const result = columnarBatchToResult(batch, { offset: 0, limit: 50, maxFeatures: 200 });
- * for (const feature of result.features) console.log(feature.geometry, feature.attributes);
- * ```
+ * The paged traversal inspects and validates the batch a single time and then
+ * cuts every page from this, so streaming a batch costs one inspection rather
+ * than one per page.
  */
-export function columnarBatchToResult<T extends Record<string, unknown> = Record<string, unknown>>(
-  batch: ColumnarBatchV1,
-  options: ColumnarBatchToResultOptions,
-): ColumnarResult<T> {
-  if (typeof batch !== "object" || batch === null) fail("invalid-input", "batch must be a columnar batch object.");
-  if (typeof options !== "object" || options === null) {
-    fail("invalid-input", "columnarBatchToResult requires an options object carrying the maxFeatures ceiling.");
-  }
-  const batchRowCount = batch.rowCount;
-  if (!Number.isSafeInteger(batchRowCount) || batchRowCount < 0) {
-    fail("invalid-batch", "batch.rowCount must be a non-negative safe integer.");
-  }
-  // Bound first. Nothing below this line runs for an over-ceiling request.
-  const window = resolveWindow(batchRowCount, options, "columnarBatchToResult");
+interface PreparedConversion {
+  readonly inspection: GeoArrowBatchInspection;
+  readonly components: number;
+  readonly readDictionary?: (index: number, row: number) => string;
+  readonly fields?: readonly HonuaFieldInfo[];
+  readonly attributes: ColumnarResultAttributeBinding;
+}
 
-  const inspection = inspectGeoArrowBatchScoped(batch, options.limits ?? {}, "window");
+function prepareConversion(batch: ColumnarBatchV1, limits: GeoArrowConversionLimits): PreparedConversion {
+  const inspection = inspectGeoArrowBatchScoped(batch, limits, "window");
+  const fields = describeFields(inspection);
+  return {
+    inspection,
+    components: geoJsonComponents(inspection.geometry.dimensions),
+    ...(inspection.dictionary === undefined ? {} : { readDictionary: createDictionaryReader(inspection.dictionary) }),
+    ...(fields === undefined ? {} : { fields }),
+    attributes: attributeBinding(inspection),
+  };
+}
+
+/**
+ * Materialize one contiguous row range as typed features, in ascending row
+ * order, appending to `features`.
+ */
+function convertRows<T extends Record<string, unknown>>(
+  prepared: PreparedConversion,
+  offset: number,
+  count: number,
+  features: HonuaTypedFeature<T>[],
+): HonuaTypedFeature<T>[] {
+  const { inspection, components, readDictionary } = prepared;
   const geometry = inspection.geometry;
-  const components = geoJsonComponents(geometry.dimensions);
-  const readDictionary =
-    inspection.dictionary === undefined ? undefined : createDictionaryReader(inspection.dictionary);
-
-  const end = window.offset + window.count;
-  const features: HonuaTypedFeature<T>[] = [];
-  for (let row = window.offset; row < end; row += 1) {
+  const end = offset + count;
+  for (let row = offset; row < end; row += 1) {
     const attributes: Record<string, unknown> = {};
     if (inspection.featureIds !== undefined) {
       attributes[inspection.featureIds.field] = inspection.featureIds.values[row]!;
@@ -540,8 +696,47 @@ export function columnarBatchToResult<T extends Record<string, unknown> = Record
       }),
     );
   }
+  return features;
+}
 
-  const fields = describeFields(inspection);
+/**
+ * Materialize one page cooperatively: poll the signal every
+ * {@link CANCELLATION_CHECK_INTERVAL_ROWS} rows, and hand control back to the
+ * host every {@link YIELD_INTERVAL_ROWS} rows so an abort raised by a task can
+ * actually reach the poll. Row conversion itself is the same code the
+ * synchronous entry point uses, called a chunk at a time.
+ */
+async function convertRowsCooperatively<T extends Record<string, unknown>>(
+  prepared: PreparedConversion,
+  offset: number,
+  count: number,
+  signal: AbortSignal | undefined,
+): Promise<HonuaTypedFeature<T>[]> {
+  const features: HonuaTypedFeature<T>[] = [];
+  let sinceYield = 0;
+  for (let converted = 0; converted < count; converted += CANCELLATION_CHECK_INTERVAL_ROWS) {
+    throwIfAborted(signal);
+    const chunk = Math.min(CANCELLATION_CHECK_INTERVAL_ROWS, count - converted);
+    convertRows<T>(prepared, offset + converted, chunk, features);
+    sinceYield += chunk;
+    if (converted + chunk < count && sinceYield >= YIELD_INTERVAL_ROWS) {
+      sinceYield = 0;
+      await yieldToHost();
+    }
+  }
+  return features;
+}
+
+/** Assemble one bounded window's `Result` around already-materialized features. */
+function buildResult<T extends Record<string, unknown>>(
+  prepared: PreparedConversion,
+  features: HonuaTypedFeature<T>[],
+  window: ResolvedWindow,
+  maxFeatures: number,
+): ColumnarResult<T> {
+  const { inspection, fields, attributes } = prepared;
+  const geometry = inspection.geometry;
+  const batchRowCount = inspection.batch.rowCount;
   const provenance: ColumnarResultProvenance = Object.freeze({
     batchId: inspection.batch.id,
     schemaId: inspection.batch.schema.id,
@@ -550,7 +745,7 @@ export function columnarBatchToResult<T extends Record<string, unknown> = Record
     offset: window.offset,
     count: window.count,
     rowOffset: (inspection.batch.rowOffset ?? 0) + window.offset,
-    maxFeatures: options.maxFeatures,
+    maxFeatures,
     geometry: Object.freeze({
       kind: geometry.kind,
       field: geometry.field,
@@ -558,19 +753,141 @@ export function columnarBatchToResult<T extends Record<string, unknown> = Record
       coordinateLayout: geometry.coordinateLayout,
       edges: geometry.edges,
     }),
-    attributes: attributeBinding(inspection),
+    attributes,
     identity: inspection.batch.identity!,
   });
-
-  const result: ColumnarResult<T> = {
+  return Object.freeze({
     features: Object.freeze(features),
     exceededTransferLimit: window.count < batchRowCount,
     totalCount: batchRowCount,
     ...(fields === undefined ? {} : { fields }),
     ...(geometry.crs === undefined ? {} : { crs: geometry.crs }),
     columnar: provenance,
-  };
-  return Object.freeze(result);
+  }) as ColumnarResult<T>;
+}
+
+function assertConvertibleBatch(batch: ColumnarBatchV1, label: string): number {
+  if (typeof batch !== "object" || batch === null) fail("invalid-input", "batch must be a columnar batch object.");
+  const batchRowCount = batch.rowCount;
+  if (!Number.isSafeInteger(batchRowCount) || batchRowCount < 0) {
+    fail("invalid-batch", `${label} requires batch.rowCount to be a non-negative safe integer.`);
+  }
+  return batchRowCount;
+}
+
+/**
+ * Convert a bounded, contiguous row window of a columnar batch into a
+ * protocol-neutral {@link Result} of typed features.
+ *
+ * Features are emitted in batch row order, so the `Result` preserves the
+ * batch's declared ordering exactly. Geometry becomes GeoJSON, the batch's
+ * feature-id, timestamp, and dictionary columns become attributes under their
+ * declared names, and a null timestamp or dictionary value becomes an explicit
+ * `null` attribute rather than a missing key.
+ *
+ * This direction is complete: a normative GeoArrow batch carries exactly those
+ * four columns, so nothing on the batch is left behind and there is no loss to
+ * report. Use {@link columnarBatchToResultPages} to walk more of a batch than
+ * one window without raising the ceiling.
+ *
+ * @throws HonuaGeoArrowError `row-limit-exceeded` when the window exceeds
+ * `options.maxFeatures`. The ceiling is checked before the batch is inspected,
+ * so nothing is read or allocated on that path.
+ * @throws HonuaGeoArrowError `unsupported-layout` for `xym`/`xyzm` geometry,
+ * which GeoJSON cannot represent.
+ *
+ * @example
+ * ```ts
+ * const result = columnarBatchToResult(batch, { offset: 0, limit: 50, maxFeatures: 200 });
+ * for (const feature of result.features) console.log(feature.geometry, feature.attributes);
+ * ```
+ */
+export function columnarBatchToResult<T extends Record<string, unknown> = Record<string, unknown>>(
+  batch: ColumnarBatchV1,
+  options: ColumnarBatchToResultOptions,
+): ColumnarResult<T> {
+  const batchRowCount = assertConvertibleBatch(batch, "columnarBatchToResult");
+  if (typeof options !== "object" || options === null) {
+    fail("invalid-input", "columnarBatchToResult requires an options object carrying the maxFeatures ceiling.");
+  }
+  // Bound first. Nothing below this line runs for an over-ceiling request.
+  const window = resolveWindow(batchRowCount, options, "columnarBatchToResult");
+  const prepared = prepareConversion(batch, options.limits ?? {});
+  return buildResult(prepared, convertRows<T>(prepared, window.offset, window.count, []), window, options.maxFeatures);
+}
+
+/**
+ * Walk a batch as a sequence of bounded {@link ColumnarResult} pages.
+ *
+ * This is how a caller converts more of a batch than one window without raising
+ * the ceiling: each page is a complete, independently valid `Result` bounded by
+ * `maxFeatures`, and only the page a consumer is holding is live. A consumer
+ * that streams a million-row batch to a file therefore retains one page, not a
+ * million features.
+ *
+ * Pages are emitted in ascending row order, contiguous and non-overlapping, so
+ * concatenating every page's `features` reproduces exactly the feature sequence
+ * a single window over the same range would have produced. An empty range
+ * yields no pages at all rather than one empty page.
+ *
+ * Cancellation is cooperative and real: `options.signal` is checked before each
+ * page and every 1,024 rows inside a page, and the traversal yields to the host
+ * task queue between pages so an abort raised by a task is actually delivered.
+ * An aborted traversal rejects with an `AbortError` `DOMException` and stops
+ * without materializing the remaining pages.
+ *
+ * @throws HonuaGeoArrowError `invalid-input` when `pageSize` is not a positive
+ * safe integer, and `row-limit-exceeded` when `pageSize` exceeds `maxFeatures`.
+ * Both are checked before the batch is inspected.
+ *
+ * @example
+ * ```ts
+ * for await (const page of columnarBatchToResultPages(batch, { pageSize: 1_000, maxFeatures: 1_000, signal })) {
+ *   await writeRows(page.features);
+ * }
+ * ```
+ */
+export async function* columnarBatchToResultPages<T extends Record<string, unknown> = Record<string, unknown>>(
+  batch: ColumnarBatchV1,
+  options: ColumnarBatchToResultPagesOptions,
+): AsyncGenerator<ColumnarResult<T>, void, undefined> {
+  const batchRowCount = assertConvertibleBatch(batch, "columnarBatchToResultPages");
+  if (typeof options !== "object" || options === null) {
+    fail("invalid-input", "columnarBatchToResultPages requires an options object carrying the maxFeatures ceiling.");
+  }
+  const label = "columnarBatchToResultPages";
+  const maxFeatures = requireCeiling(options.maxFeatures, label);
+  const pageSize = options.pageSize ?? maxFeatures;
+  if (!Number.isSafeInteger(pageSize) || pageSize <= 0) {
+    fail("invalid-input", `${label} pageSize must be a positive safe integer.`, {
+      resource: "pageSize",
+      actual: pageSize,
+    });
+  }
+  if (pageSize > maxFeatures) {
+    fail("row-limit-exceeded", `${label} pageSize ${pageSize} exceeds the maxFeatures ceiling of ${maxFeatures}.`, {
+      resource: "maxFeatures",
+      requested: pageSize,
+      limit: maxFeatures,
+    });
+  }
+  const range = resolveRange(batchRowCount, options, label);
+  // Refuse a signal that is already aborted before inspecting anything, so a
+  // cancelled traversal costs no more than an over-ceiling one.
+  throwIfAborted(options.signal);
+  if (range.count === 0) return;
+
+  const prepared = prepareConversion(batch, options.limits ?? {});
+  const end = range.offset + range.count;
+  for (let offset = range.offset; offset < end; offset += pageSize) {
+    throwIfAborted(options.signal);
+    const window: ResolvedWindow = { offset, count: Math.min(pageSize, end - offset) };
+    const features = await convertRowsCooperatively<T>(prepared, window.offset, window.count, options.signal);
+    yield buildResult(prepared, features, window, maxFeatures);
+    // Between pages, not before the first one: a single-page traversal should
+    // not pay a task hop, and after the last page there is nothing to cancel.
+    if (offset + pageSize < end) await yieldToHost();
+  }
 }
 
 function requiredOption<V>(value: V | undefined, name: string, predicate: (candidate: V) => boolean): V {
@@ -618,15 +935,24 @@ function inferDimensions(position: readonly unknown[], index: number): GeoArrowD
  * timestamp and dictionary columns and become null column values. A feature-id
  * column is not nullable, so a missing or null id fails closed.
  *
+ * Unlike the forward direction this one can be asked to lose something: a
+ * columnar batch has four column roles and an object `Result` may carry any
+ * number of attributes. An attribute no binding covers therefore fails closed
+ * by default, and `unmappedAttributes: "drop"` is the only way past it —
+ * reporting every dropped name on
+ * {@link ResultToColumnarBatchResult.droppedAttributes} so the loss is stated
+ * rather than assumed.
+ *
  * @throws HonuaGeoArrowError `row-limit-exceeded` when the window exceeds
  * `options.maxFeatures`, checked before any feature is read.
  * @throws HonuaGeoArrowError `unsupported-layout` when the window mixes
- * geometry kinds, which a single columnar geometry column cannot carry.
+ * geometry kinds, which a single columnar geometry column cannot carry, or
+ * carries an attribute no column binding covers.
  */
 export function resultToColumnarBatch<T extends Record<string, unknown> = Record<string, unknown>>(
   result: Result<T>,
   options: ResultToColumnarBatchOptions,
-): CreatedGeoArrowBatch {
+): ResultToColumnarBatchResult {
   if (typeof result !== "object" || result === null) fail("invalid-input", "result must be an object Result.");
   if (typeof options !== "object" || options === null) {
     fail("invalid-input", "resultToColumnarBatch requires an options object carrying the maxFeatures ceiling.");
@@ -660,6 +986,20 @@ export function resultToColumnarBatch<T extends Record<string, unknown> = Record
   const temporalBinding = options.attributes?.temporal ?? provenance?.attributes.temporal;
   const dictionaryBinding = options.attributes?.dictionary ?? provenance?.attributes.dictionary;
 
+  const unmappedAttributes = options.unmappedAttributes ?? "fail";
+  if (unmappedAttributes !== "fail" && unmappedAttributes !== "drop") {
+    fail("invalid-input", 'resultToColumnarBatch unmappedAttributes must be "fail" or "drop".', {
+      resource: "unmappedAttributes",
+      actual: unmappedAttributes,
+    });
+  }
+  const bound = new Set<string>(
+    [featureIdBinding?.attribute, temporalBinding?.attribute, dictionaryBinding?.attribute].filter(
+      (attribute): attribute is string => attribute !== undefined,
+    ),
+  );
+  const dropped = new Set<string>();
+
   let kind = options.geometry?.kind ?? provenance?.geometry.kind;
   let dimensions = options.geometry?.dimensions ?? provenance?.geometry.dimensions;
   const values: (GeoArrowPoint | GeoArrowLineString | GeoArrowPolygon | null)[] = [];
@@ -672,6 +1012,26 @@ export function resultToColumnarBatch<T extends Record<string, unknown> = Record
     const feature = features[index];
     if (typeof feature !== "object" || feature === null) {
       fail("invalid-input", `result.features[${index}] must be a feature object.`, { index });
+    }
+    // Account for every attribute before reading any of them, so a value the
+    // batch cannot carry is refused rather than quietly left behind.
+    const attributes = feature.attributes as Record<string, unknown> | undefined;
+    if (attributes !== undefined) {
+      if (typeof attributes !== "object" || attributes === null) {
+        fail("invalid-input", `result.features[${index}].attributes must be an object.`, { index });
+      }
+      for (const attribute of Object.keys(attributes)) {
+        if (bound.has(attribute)) continue;
+        if (unmappedAttributes === "drop") {
+          dropped.add(attribute);
+          continue;
+        }
+        fail(
+          "unsupported-layout",
+          `result.features[${index}].attributes.${attribute} has no columnar column; bind it through options.attributes or set unmappedAttributes: "drop" to discard it explicitly.`,
+          { index, attribute },
+        );
+      }
     }
     if (featureIdBinding !== undefined) {
       const raw = (feature.attributes as Record<string, unknown> | undefined)?.[featureIdBinding.attribute];
@@ -810,5 +1170,8 @@ export function resultToColumnarBatch<T extends Record<string, unknown> = Record
       ? {}
       : { featureIds: { field: featureIdBinding.attribute, values: featureIdValues } }),
   };
-  return createGeoArrowBatch(input, options.limits ?? {});
+  const created = createGeoArrowBatch(input, options.limits ?? {});
+  // Sorted so two runs over the same window report the same list; the set is
+  // always empty unless the caller explicitly opted in to dropping.
+  return Object.freeze({ ...created, droppedAttributes: Object.freeze([...dropped].sort()) });
 }

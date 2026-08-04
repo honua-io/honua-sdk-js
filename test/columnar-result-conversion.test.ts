@@ -5,13 +5,19 @@ import {
   DEFAULT_COLUMNAR_RESULT_MAX_FEATURES,
   type HonuaGeoArrowError,
   columnarBatchToResult,
+  columnarBatchToResultPages,
   createGeoArrowBatch,
   inspectGeoArrowBatch,
   resultToColumnarBatch,
 } from "../src/columnar/index.js";
 import type { Result } from "../src/contract/types.js";
 
-/** A batch identity must declare the schema id it belongs to. */
+/**
+ * A batch identity must declare the schema id it belongs to, and every ordering
+ * key must name a field the schema actually carries. `geometry` is the only
+ * column a normative GeoArrow batch always has, so it is the safe default here;
+ * fixtures that declare a feature-id column order by it instead.
+ */
 function identity(schemaVersion: string, overrides: Partial<ColumnarBatchIdentityV1> = {}): ColumnarBatchIdentityV1 {
   return {
     sourceId: "places",
@@ -19,7 +25,7 @@ function identity(schemaVersion: string, overrides: Partial<ColumnarBatchIdentit
     schemaVersion,
     planId: "plan:places",
     authorizationScope: "scope:public",
-    ordering: { stable: true, keys: [{ field: "fid", direction: "ascending", nulls: "last" }] },
+    ordering: { stable: true, keys: [{ field: "geometry", direction: "ascending", nulls: "last" }] },
     freshness: {
       observedAt: "2026-08-03T00:00:00.000Z",
       staleAfter: "2026-08-03T01:00:00.000Z",
@@ -458,6 +464,198 @@ describe("object Result to columnar batch conversion (#942 REQ-007)", () => {
     const created = resultToColumnarBatch(result, { offset: 1, limit: 2, maxFeatures: 2 });
     expect(created.batch.rowOffset).toBe(503);
     expect(columnarBatchToResult(created.batch, CEILING).features.map((f) => f.attributes.fid)).toEqual([3, 4]);
+  });
+});
+
+describe("bounded page traversal and cooperative cancellation (#942)", () => {
+  function pointBatch(rowCount: number): ColumnarBatchV1 {
+    return createGeoArrowBatch({
+      id: "batch-pages",
+      sequence: 0,
+      schemaId: "pages-v1",
+      identity: identity("pages-v1"),
+      geometry: { kind: "point", values: Array.from({ length: rowCount }, (_, row) => [row, row * 2]) },
+      featureIds: { field: "fid", values: Array.from({ length: rowCount }, (_, row) => row) },
+    }).batch;
+  }
+
+  async function collect<T>(source: AsyncIterable<T>): Promise<T[]> {
+    const pages: T[] = [];
+    for await (const page of source) pages.push(page);
+    return pages;
+  }
+
+  it("emits contiguous ordered pages that reassemble the equivalent single window", async () => {
+    const batch = pointBatch(10);
+    const pages = await collect(columnarBatchToResultPages(batch, { pageSize: 4, maxFeatures: 4 }));
+
+    expect(pages.map((page) => page.columnar.count)).toEqual([4, 4, 2]);
+    expect(pages.map((page) => page.columnar.offset)).toEqual([0, 4, 8]);
+    // Concatenating every page reproduces exactly what one window would have
+    // produced over the same range, in the same order.
+    expect(pages.flatMap((page) => [...page.features])).toEqual([
+      ...columnarBatchToResult(batch, { maxFeatures: 10 }).features,
+    ]);
+    // Every page is a complete Result carrying the batch's own provenance.
+    for (const page of pages) {
+      expect(page.totalCount).toBe(10);
+      expect(page.columnar.identity).toEqual(identity("pages-v1"));
+      expect(page.columnar.maxFeatures).toBe(4);
+    }
+  });
+
+  it("bounds each page rather than the traversal, and defaults pageSize to the ceiling", async () => {
+    const batch = pointBatch(10);
+    // The whole batch is walked even though the ceiling is far below its row
+    // count: the ceiling bounds what is live at once, not what is reachable.
+    const pages = await collect(columnarBatchToResultPages(batch, { maxFeatures: 3 }));
+    expect(pages.map((page) => page.features.length)).toEqual([3, 3, 3, 1]);
+    expect(pages.flatMap((page) => page.features.map((feature) => feature.attributes.fid))).toEqual([
+      0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+    ]);
+
+    // A page larger than the ceiling is refused; there is no per-page escape.
+    await expect(collect(columnarBatchToResultPages(batch, { pageSize: 4, maxFeatures: 3 }))).rejects.toMatchObject({
+      name: "HonuaGeoArrowError",
+      code: "row-limit-exceeded",
+    });
+    for (const pageSize of [0, -1, 1.5, Number.POSITIVE_INFINITY]) {
+      await expect(collect(columnarBatchToResultPages(batch, { pageSize, maxFeatures: 3 }))).rejects.toMatchObject({
+        name: "HonuaGeoArrowError",
+        code: "invalid-input",
+      });
+    }
+  });
+
+  it("honours offset and limit and yields nothing for an empty range", async () => {
+    const batch = pointBatch(10);
+    const pages = await collect(
+      columnarBatchToResultPages(batch, { offset: 6, limit: 3, pageSize: 2, maxFeatures: 2 }),
+    );
+    expect(pages.flatMap((page) => page.features.map((feature) => feature.attributes.fid))).toEqual([6, 7, 8]);
+
+    expect(await collect(columnarBatchToResultPages(batch, { offset: 10, maxFeatures: 4 }))).toEqual([]);
+    expect(await collect(columnarBatchToResultPages(batch, { limit: 0, maxFeatures: 4 }))).toEqual([]);
+  });
+
+  it("refuses an already-aborted signal before inspecting the batch", async () => {
+    // An unreadable batch proves nothing was inspected: the abort wins.
+    const broken = { ...pointBatch(4), buffers: [] } as ColumnarBatchV1;
+    await expect(
+      collect(columnarBatchToResultPages(broken, { maxFeatures: 2, signal: AbortSignal.abort() })),
+    ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("stops at the next page when a consumer aborts mid-traversal", async () => {
+    const controller = new AbortController();
+    const seen: number[] = [];
+    await expect(
+      (async () => {
+        for await (const page of columnarBatchToResultPages(pointBatch(10), {
+          pageSize: 2,
+          maxFeatures: 2,
+          signal: controller.signal,
+        })) {
+          seen.push(page.columnar.offset);
+          if (seen.length === 2) controller.abort();
+        }
+      })(),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    // Two pages were delivered; the remaining three were never materialized.
+    expect(seen).toEqual([0, 2]);
+  });
+
+  it("yields to the task queue between pages, so a task-scheduled abort lands", async () => {
+    const controller = new AbortController();
+    // A timer callback is a task. A traversal that never handed control back to
+    // the host would run to completion before this could ever fire, so
+    // observing the abort at all is the proof that it yields.
+    setTimeout(() => controller.abort(), 0);
+    const seen: number[] = [];
+    await expect(
+      (async () => {
+        for await (const page of columnarBatchToResultPages(pointBatch(400), {
+          pageSize: 2,
+          maxFeatures: 2,
+          signal: controller.signal,
+        })) {
+          seen.push(page.columnar.offset);
+        }
+      })(),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.length).toBeLessThan(200);
+  });
+});
+
+describe("inverse-direction loss reporting (#942)", () => {
+  const declared = (schemaVersion: string) =>
+    ({
+      maxFeatures: 8,
+      id: "lossy",
+      schemaId: schemaVersion,
+      identity: identity(schemaVersion),
+      geometry: { kind: "point" },
+    }) as const;
+
+  const withExtras: Result = {
+    features: [
+      { attributes: { fid: 1, note: "keep me", elevation: 42 }, geometry: { type: "Point", coordinates: [1, 2] } },
+      { attributes: { fid: 2, note: "and me" }, geometry: { type: "Point", coordinates: [3, 4] } },
+    ],
+    exceededTransferLimit: false,
+  };
+
+  it("refuses an attribute that no column can carry rather than dropping it", () => {
+    const error = expectCode(
+      () =>
+        resultToColumnarBatch(withExtras, {
+          ...declared("lossy-v1"),
+          attributes: { featureId: { attribute: "fid" } },
+        }),
+      "unsupported-layout",
+    );
+    // The message names the attribute that would have been lost and the way out.
+    expect(error.message).toContain("note");
+    expect(error.detail).toMatchObject({ index: 0, attribute: "note" });
+  });
+
+  it("reports every dropped attribute when the caller opts in explicitly", () => {
+    const created = resultToColumnarBatch(withExtras, {
+      ...declared("lossy-v2"),
+      attributes: { featureId: { attribute: "fid" } },
+      unmappedAttributes: "drop",
+    });
+    // Sorted and deduplicated across the window, so the report is deterministic.
+    expect(created.droppedAttributes).toEqual(["elevation", "note"]);
+    expect(created.batch.rowCount).toBe(2);
+  });
+
+  it("reports no loss when every attribute is bound, which is the default path", () => {
+    const created = resultToColumnarBatch(
+      {
+        features: [{ attributes: { fid: 1, note: "kept" }, geometry: { type: "Point", coordinates: [1, 2] } }],
+        exceededTransferLimit: false,
+      },
+      {
+        ...declared("lossless-v1"),
+        attributes: { featureId: { attribute: "fid" }, dictionary: { attribute: "note" } },
+      },
+    );
+    expect(created.droppedAttributes).toEqual([]);
+    expect(columnarBatchToResult(created.batch, CEILING).features[0]!.attributes).toEqual({ fid: 1, note: "kept" });
+  });
+
+  it("rejects an unknown unmappedAttributes mode instead of guessing one", () => {
+    expectCode(
+      () =>
+        resultToColumnarBatch(withExtras, {
+          ...declared("lossy-v3"),
+          attributes: { featureId: { attribute: "fid" } },
+          unmappedAttributes: "ignore" as never,
+        }),
+      "invalid-input",
+    );
   });
 });
 

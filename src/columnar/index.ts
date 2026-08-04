@@ -18,10 +18,12 @@ export { createGeoArrowBatch, decodeGeoArrowBatch, inspectGeoArrowBatch } from "
 export {
   DEFAULT_COLUMNAR_RESULT_MAX_FEATURES,
   columnarBatchToResult,
+  columnarBatchToResultPages,
   resultToColumnarBatch,
 } from "./result.js";
 export type {
   ColumnarBatchToResultOptions,
+  ColumnarBatchToResultPagesOptions,
   ColumnarGeoJsonGeometry,
   ColumnarGeoJsonGeometryType,
   ColumnarResult,
@@ -34,6 +36,7 @@ export type {
   ResultToColumnarBatchAttributeOptions,
   ResultToColumnarBatchGeometryOptions,
   ResultToColumnarBatchOptions,
+  ResultToColumnarBatchResult,
 } from "./result.js";
 export { createGeoArrowReprojectOperation } from "./geoarrow-reproject.js";
 export type { CreateGeoArrowReprojectOperationOptions } from "./geoarrow-reproject.js";

@@ -423,7 +423,7 @@ block, so a round trip needs only a ceiling. A plain object-path `Result` must
 instead supply `id`, `schemaId`, `identity`, and any attribute binding it wants
 lifted into a typed column.
 
-```ts
+```ts doc-test=skip reason="the source batch is produced by an application's own query execution"
 const page = columnarBatchToResult(batch, { offset: 0, limit: 100, maxFeatures: 500 });
 page.features[0].geometry; // { type: "Point", coordinates: [-157.8, 21.3] }
 page.crs; // "EPSG:3857" | PROJJSON | undefined
@@ -432,7 +432,64 @@ page.columnar.identity.freshness; // the batch's own freshness, not a new observ
 const roundTripped = resultToColumnarBatch(page, { maxFeatures: 500 });
 ```
 
-Conversion is derived and is not cached.
+### Nothing is dropped quietly
+
+The forward direction is complete by construction: a normative GeoArrow batch
+carries exactly a geometry column plus optional temporal, dictionary, and
+feature-id columns, and every one of them lands on the converted feature. There
+is no loss to report because there is no loss.
+
+The inverse direction is where an object `Result` can carry more than a columnar
+batch can hold, so `resultToColumnarBatch` **fails closed** with
+`unsupported-layout` on any attribute no column binding covers, naming the
+attribute and the feature index. `unmappedAttributes: "drop"` is the only way
+past it, and even then every dropped name comes back sorted on
+`droppedAttributes`, so the loss is stated rather than assumed. A conversion
+that never sets the option can treat its result as lossless without checking.
+
+The same discipline governs the rest of the inverse direction: `xym`/`xyzm`
+geometry is refused rather than stripped of its M coordinate, a geometry type
+outside point/linestring/polygon is refused rather than approximated, a window
+mixing geometry kinds is refused rather than split, and an Esri geometry
+envelope is refused rather than guessed at.
+
+### Streaming a whole batch
+
+`columnarBatchToResultPages` walks a batch as a sequence of bounded pages. It is
+how a caller converts more of a batch than one window without raising the
+ceiling: each page is a complete, independently valid `Result` bounded by
+`maxFeatures`, and only the page a consumer is holding is live, so streaming a
+million-row batch to a file retains one page rather than a million features.
+
+```ts doc-test=skip reason="the source batch and the row sink are application-owned"
+for await (const page of columnarBatchToResultPages(batch, {
+  pageSize: 1_000,
+  maxFeatures: 1_000,
+  signal: controller.signal,
+})) {
+  await writeRows(page.features);
+}
+```
+
+Pages are emitted in ascending row order, contiguous and non-overlapping, so
+concatenating every page's `features` reproduces exactly the sequence a single
+window over the same range would have produced. An empty range yields no pages
+rather than one empty page.
+
+Cancellation is cooperative and real rather than decorative. `signal` is checked
+before each page and every 1,024 rows inside one, and — because a synchronous
+loop in a single-threaded runtime can never observe an abort no matter how often
+it polls — the traversal hands control back to the host task queue every 16,384
+rows and between pages. That is what gives the poll something to find when the
+abort is raised by a task: a worker message, a timer, or a user gesture. An
+aborted traversal rejects with an `AbortError` `DOMException` and never
+materializes the remaining pages. An already-aborted signal is refused before
+the batch is inspected at all.
+
+Conversion is derived and is not cached. The
+`columnar.result.bounded-window` benchmark-lab scenario carries the memory and
+throughput budgets for both directions; see
+[`bench/README.md`](../bench/README.md).
 
 ## Typed errors
 

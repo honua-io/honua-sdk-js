@@ -19,7 +19,31 @@
     "regressions: a per-feature JavaScript object result for the same fixture costs",
     "300+ bytes/feature and an order of magnitude less throughput, and any payload",
     "copy reintroduced into the transfer or projection path fails the scenario's",
-    "zero-copy invariant outright rather than merely slowing it down."
+    "zero-copy invariant outright rather than merely slowing it down.",
+    "columnar.result.bounded-window (honua-io/honua-sdk-js#942) converts a 1,000-row",
+    "window out of a 1,000,000-row GeoArrow batch into object-shaped features. The",
+    "two failure thresholds are the numbers the issue itself names: NFR-001's 1 MB",
+    "per 1,000 converted features is exactly 1,024 retained bytes/feature, and",
+    "NFR-002 sets a 200,000 features/second floor. Measured on the same shared linux",
+    "host across fifteen samples: 219.0-258.6 retained bytes/feature and per-run",
+    "median throughput between 1,239,679 and 1,517,304 features/second, so the",
+    "ceiling sits 4.0x and the floor 6.2x clear of the worst measured median.",
+    "Throughput is timed over twenty-five consecutive distinct windows rather than",
+    "one: a single bounded conversion is milliseconds of work, short enough that one",
+    "collection landing inside it swings the reading by tens of percent and trips the",
+    "lab's repeated-run variability check on noise. Consecutive distinct windows are",
+    "the paging workload an application actually performs, so this costs no honesty;",
+    "converting one window repeatedly would instead have flattered the number out of",
+    "warm cache. retainedBytesPerFeature still measures exactly one window, which is",
+    "the quantity NFR-001 bounds.",
+    "retainedBytesPerFeature is a live-bytes reading taken after a forced collection",
+    "with the converted window still held, not an allocation-rate delta, so it",
+    "measures what the window actually retains beyond the batch backings it was cut",
+    "from; the harness fails the scenario outright when no collector is exposed. The",
+    "throughput floor is what catches the regression that matters here: the window",
+    "is one thousandth of the batch, so any implementation that reverted to scanning",
+    "or validating the whole batch per conversion would miss the floor by orders of",
+    "magnitude while still returning the correct thousand features."
   ],
   "schemaVersion": 2,
   "variability": {
@@ -54,6 +78,18 @@
         "direction": "higher-is-better",
         "warning": 2000000,
         "failure": 500000
+      }
+    },
+    "columnar.result.bounded-window": {
+      "retainedBytesPerFeature": {
+        "direction": "lower-is-better",
+        "warning": 512,
+        "failure": 1024
+      },
+      "featuresPerSecond": {
+        "direction": "higher-is-better",
+        "warning": 600000,
+        "failure": 200000
       }
     }
   }
