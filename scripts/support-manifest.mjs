@@ -29,6 +29,7 @@ export const EXECUTION_MODE_VOCABULARY = [
   "static",
   "transport",
 ];
+export const SERVER_ATTACH_DISPOSITION_VOCABULARY = ["inherent", "roadmap"];
 export const DISCOVERY_DISPOSITION_VOCABULARY = [
   "source-backed",
   "operation-only",
@@ -67,6 +68,83 @@ function positiveStatus(status) {
   return ["supported", "beta", "experimental", "facade-required"].includes(status);
 }
 
+const ROADMAP_ISSUE_PATTERN = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/[0-9]+$/;
+
+/**
+ * Deployment tiering (issue #1006): which capabilities work against any
+ * standards-speaking endpoint, and which only execute after attaching to a
+ * Honua Server facade. The tier is never authored per claim — it is the claim's
+ * `environment` read through the manifest's own `capabilityTiers` partition, so
+ * a new environment cannot enter the vocabulary without being tiered.
+ */
+export function capabilityTierByEnvironment(manifest) {
+  const byEnvironment = new Map();
+  for (const tier of manifest.capabilityTiers ?? []) {
+    for (const environment of tier.environments ?? []) byEnvironment.set(environment, tier);
+  }
+  return byEnvironment;
+}
+
+export function capabilityTierFor(manifest, environment) {
+  return capabilityTierByEnvironment(manifest).get(environment);
+}
+
+function validateCapabilityTiers(manifest, fail) {
+  const tiers = manifest.capabilityTiers ?? [];
+  if (tiers.length === 0) {
+    fail("capabilityTiers must partition the environment vocabulary");
+    return;
+  }
+  if (!unique(tiers.map((tier) => tier.id))) fail("capability tier ids must be unique");
+  if (!tiers.some((tier) => tier.honuaServerRequired === true)) {
+    fail("capabilityTiers must declare one tier that requires Honua Server");
+  }
+  if (!tiers.some((tier) => tier.honuaServerRequired === false)) {
+    fail("capabilityTiers must declare one tier that requires no Honua infrastructure");
+  }
+  const assigned = [];
+  for (const tier of tiers) {
+    if (typeof tier.summary !== "string" || tier.summary.length === 0) {
+      fail(`capability tier ${tier.id} must summarise what the tier means`);
+    }
+    for (const environment of tier.environments ?? []) {
+      if (!ENVIRONMENT_VOCABULARY.includes(environment)) {
+        fail(`capability tier ${tier.id} references unknown environment ${environment}`);
+      }
+      assigned.push(environment);
+    }
+  }
+  if (!unique(assigned)) fail("each environment must belong to exactly one capability tier");
+  for (const environment of ENVIRONMENT_VOCABULARY) {
+    if (!assigned.includes(environment)) fail(`environment ${environment} is not assigned to a capability tier`);
+  }
+}
+
+function validateServerAttach(claim, tier, fail) {
+  const serverAttach = claim.serverAttach;
+  if (!tier?.honuaServerRequired) {
+    if (serverAttach) fail(`${claim.id} is not a server-attach claim and must not declare serverAttach`);
+    return;
+  }
+  if (!serverAttach) {
+    fail(`${claim.id} is server-attach and must declare serverAttach with a roadmap issue or an inherency rationale`);
+    return;
+  }
+  if (!SERVER_ATTACH_DISPOSITION_VOCABULARY.includes(serverAttach.disposition)) {
+    fail(`${claim.id} has invalid serverAttach disposition ${serverAttach.disposition ?? "missing"}`);
+  }
+  if (typeof serverAttach.rationale !== "string" || serverAttach.rationale.trim().length < 20) {
+    fail(`${claim.id} serverAttach must state a reviewable rationale`);
+  }
+  if (serverAttach.disposition === "roadmap") {
+    if (!ROADMAP_ISSUE_PATTERN.test(serverAttach.issue ?? "")) {
+      fail(`${claim.id} serverAttach roadmap must link a GitHub issue for the open-endpoint path`);
+    }
+  } else if (serverAttach.issue !== undefined) {
+    fail(`${claim.id} serverAttach is inherent and must not link a roadmap issue`);
+  }
+}
+
 export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, checkEvidencePaths = true } = {}) {
   const failures = [];
   const fail = (message) => failures.push(message);
@@ -86,6 +164,7 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   if (!STATUS_VOCABULARY.includes(manifest.sdk?.releaseStatus)) {
     fail(`SDK release status is invalid: ${manifest.sdk?.releaseStatus ?? "missing"}`);
   }
+  validateCapabilityTiers(manifest, fail);
 
   const freshnessPolicies = new Set(Object.keys(manifest.freshnessPolicies ?? {}));
   const evidenceIds = (manifest.evidence ?? []).map((item) => item.id);
@@ -187,8 +266,10 @@ export function validateSupportManifest(manifest, { projectRoot = PROJECT_ROOT, 
   const claimIds = (manifest.supportClaims ?? []).map((claim) => claim.id);
   if (!unique(claimIds)) fail("support claim ids must be unique");
   const knownProtocolReferences = new Set([...protocolIds, ...(manifest.claimOnlyProtocols ?? [])]);
+  const tierByEnvironment = capabilityTierByEnvironment(manifest);
   for (const claim of manifest.supportClaims ?? []) {
     usedStatuses.add(claim.status);
+    validateServerAttach(claim, tierByEnvironment.get(claim.environment), fail);
     if (!STATUS_VOCABULARY.includes(claim.status)) fail(`${claim.id} has invalid status ${claim.status}`);
     if (claim.protocol && !knownProtocolReferences.has(claim.protocol)) {
       fail(`${claim.id} references unknown protocol ${claim.protocol}`);
@@ -429,6 +510,39 @@ function protocolOperationClaim(protocol, operation) {
   return protocol.operationClaims.find((claim) => claim.operations.includes(operation));
 }
 
+function serverAttachTierIds(manifest) {
+  return new Set(manifest.capabilityTiers.filter((tier) => tier.honuaServerRequired).map((tier) => tier.id));
+}
+
+function serverAttachProtocols(manifest) {
+  const serverAttachTiers = serverAttachTierIds(manifest);
+  const byEnvironment = capabilityTierByEnvironment(manifest);
+  return manifest.protocols.filter((protocol) => {
+    const tierIds = new Set(
+      protocol.operationClaims
+        .filter((claim) => positiveStatus(claim.status))
+        .map((claim) => byEnvironment.get(claim.environment)?.id),
+    );
+    return tierIds.size > 0 && [...tierIds].every((id) => serverAttachTiers.has(id));
+  });
+}
+
+function renderProtocolTierNote(manifest) {
+  const attached = serverAttachProtocols(manifest);
+  const link = "[capability tiers](./standalone-capability-matrix.md#capability-tiers)";
+  if (attached.length === 0) {
+    return `Deployment tier is separate from status: no protocol below needs a Honua
+Server attach. The per-capability line lives in the generated
+${link} table.`;
+  }
+  const list = attached.map((protocol) => `\`${protocol.id}\``).join(", ");
+  const verb = attached.length === 1 ? "is the only protocol that needs" : "are the only protocols that need";
+  return `Deployment tier is separate from status: ${list} ${verb}
+a Honua Server attach; every other protocol below answers against an endpoint you
+already run. The per-capability line lives in the generated
+${link} table.`;
+}
+
 export function renderProtocolSection(manifest) {
   const headers = ["Capability", ...manifest.protocols.map((protocol) => protocol.label)];
   const align = ["---", ...manifest.protocols.map(() => ":-:")];
@@ -478,6 +592,8 @@ rather than returning empty data.
 - \`†\` deprecated
 - \`F\` facade-required
 - \`—\` unsupported
+
+${renderProtocolTierNote(manifest)}
 
 ${table}
 
@@ -530,6 +646,14 @@ cannot express exactly throws \`HonuaCapabilityNotSupportedError\` naming the
 construct and the protocol; a documented widening (the GeoParquet bbox
 reduction) is reported through \`Result.degraded\`.
 
+This table is the **protocol default**: what each adapter can lower without
+widening the result. A source's evaluated capability profile narrows it further —
+the \`query\` capability's \`filterOperators\`, \`spatialPredicates\`, and
+\`temporalPredicates\` constraints are bound into the same gate, so an endpoint
+whose evidence omits a construct refuses it by name even where the protocol
+column below says \`✓\`. Discovery attaches these defaults as \`protocol-default\`
+evidence; observed evidence only ever narrows them.
+
 - \`✓\` full attribute, spatial, and temporal predicate compilation
 - \`◐\` attribute and temporal predicates only (a spatial node is refused)
 - \`—\` no filterable query surface
@@ -543,15 +667,76 @@ reduction) is reported through \`Result.degraded\`.
 ${rows.join("\n")}`;
 }
 
+function claimTier(manifest, claim) {
+  const tier = capabilityTierFor(manifest, claim.environment);
+  if (!tier) throw new Error(`Support claim ${claim.id} has an untiered environment ${claim.environment}`);
+  return tier;
+}
+
+function claimsInTier(manifest, tier) {
+  return manifest.supportClaims.filter((claim) => claimTier(manifest, claim).id === tier.id);
+}
+
+function openEndpointPathCell(claim) {
+  const { disposition, issue } = claim.serverAttach;
+  if (disposition !== "roadmap") return "Inherent — none possible";
+  const number = issue.slice(issue.lastIndexOf("/") + 1);
+  return `Roadmap: [#${number}](${issue})`;
+}
+
+/**
+ * Issue #1006: the open-endpoint vs server-attach tier table. Both the tiering
+ * and every rationale are projected from the manifest, so a capability cannot
+ * quietly acquire a Honua Server dependency without stating the reason here.
+ */
+export function renderCapabilityTierSection(manifest) {
+  const tierRows = manifest.capabilityTiers.map((tier) => {
+    const claims = claimsInTier(manifest, tier);
+    const environments = tier.environments.map((environment) => `\`${environment}\``).join(", ");
+    return `| **${tier.label}** (\`${tier.id}\`) | ${tier.honuaServerRequired ? "required" : "not required"} | ${environments} | ${claims.length} | ${tier.summary} |`;
+  });
+  const attachedRows = manifest.capabilityTiers
+    .filter((tier) => tier.honuaServerRequired)
+    .flatMap((tier) =>
+      claimsInTier(manifest, tier).map(
+        (claim) =>
+          `| ${claim.label} | \`${claim.status}\` | ${openEndpointPathCell(claim)} | ${claim.serverAttach.rationale} |`,
+      ),
+    );
+  return `## Capability tiers
+
+Tier answers the one question a matrix of statuses does not: what do you have to
+run yourself before this works? It is not authored per capability — it is each
+claim's \`environment\` read through the manifest's own tier partition, so a new
+environment cannot enter the vocabulary untiered.
+
+| Tier | Honua Server | Environments | Claims | What it means |
+| --- | :-: | --- | :-: | --- |
+${tierRows.join("\n")}
+
+### Server-attach capabilities and their open-endpoint path
+
+Every server-attach claim names either a roadmap issue for an open-endpoint path
+or the reason the dependency is inherent. \`Inherent\` is a product statement, not
+a scheduling excuse: it means no third-party endpoint can answer that surface at
+all, so there is nothing to implement against.
+
+| Capability | Status | Open-endpoint path | Why it attaches to a server |
+| --- | --- | --- | --- |
+${attachedRows.join("\n")}`;
+}
+
 export function renderStandaloneSection(manifest) {
   const rows = manifest.supportClaims.map(
     (claim) =>
-      `| ${claim.label} | \`${claim.status}\` | \`${claim.environment}\` | \`${claim.executionMode}\` | ${claim.backendNeeded} | ${claim.api} | ${markdownEvidence(manifest, claim.evidence, "../") || "Lifecycle-only claim"} | ${claim.notes} |`,
+      `| ${claim.label} | \`${claimTier(manifest, claim).id}\` | \`${claim.status}\` | \`${claim.environment}\` | \`${claim.executionMode}\` | ${claim.backendNeeded} | ${claim.api} | ${markdownEvidence(manifest, claim.evidence, "../") || "Lifecycle-only claim"} | ${claim.notes} |`,
   );
   return `This is the generated, evidence-linked line between capabilities that work
 against raw standards-speaking endpoints and capabilities that require the Honua
 facade. The source of truth is [\`${MANIFEST_PATH}\`](../${MANIFEST_PATH}).
 See the [standalone quickstart](./standalone-quickstart.md) for the runnable path.
+
+${renderCapabilityTierSection(manifest)}
 
 ## Status vocabulary
 
@@ -568,8 +753,8 @@ where a claim works, while \`discovery\`, \`native\`, \`client-fallback\`, and
 
 ## Matrix
 
-| Capability | Status | Environment | Execution | Backend needed | API | Evidence | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+| Capability | Tier | Status | Environment | Execution | Backend needed | API | Evidence | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
 ${rows.join("\n")}
 
 ## Current OGC line
@@ -617,7 +802,20 @@ export function renderReadmeStandaloneSection(manifest) {
   const records = supportClaim(manifest, "ogc-records-standalone");
   const discovery = supportClaim(manifest, "ogc-processes-discovery-standalone");
   const execution = supportClaim(manifest, "ogc-processes-execution-standalone");
-  return `**Honua Server is optional for standards clients.** Supported GeoServices, OGC API
+  const openTier = manifest.capabilityTiers.find((tier) => !tier.honuaServerRequired);
+  const attachTier = manifest.capabilityTiers.find((tier) => tier.honuaServerRequired);
+  const openClaims = claimsInTier(manifest, openTier);
+  const attachClaims = claimsInTier(manifest, attachTier);
+  const roadmapCount = attachClaims.filter((claim) => claim.serverAttach.disposition === "roadmap").length;
+  return `**Two deployment tiers, named up front.** ${openClaims.length} of the ${manifest.supportClaims.length} generated support
+claims are \`${openTier.id}\`: they run against standards-speaking endpoints you already
+have, or entirely in the client and build — no Honua account, no Honua Server.
+${attachClaims.length} are \`${attachTier.id}\` and execute only after attaching to a Honua Server facade;
+${roadmapCount} of those link a roadmap issue for an open-endpoint path and the rest state why the
+server dependency is inherent, in the generated
+[capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
+
+**Honua Server is optional for standards clients.** Supported GeoServices, OGC API
 Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (\`${tiles.status}\`), Maps (\`${maps.status}\`), and Records
 (\`${records.status}\`) also discover and use raw advertised paths. OGC API Processes
@@ -629,7 +827,7 @@ A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 \`MapPackage\`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
 the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
-claim, execution mode, and evidence link.`;
+claim's tier, execution mode, and evidence link.`;
 }
 
 export function renderInstallSupportSection(manifest) {
@@ -670,6 +868,7 @@ export function buildSupportProjection(manifest, packageJson) {
     statusVocabulary: manifest.statusVocabulary,
     environmentVocabulary: manifest.environmentVocabulary,
     executionModeVocabulary: manifest.executionModeVocabulary,
+    capabilityTiers: manifest.capabilityTiers,
     connectProtocols: manifest.connectProtocols,
     discoveryInventory: manifest.discoveryInventory,
     protocolOperations: manifest.protocolOperations,
@@ -690,6 +889,7 @@ export function buildSupportProjectionSchema(manifestSchema) {
     "statusVocabulary",
     "environmentVocabulary",
     "executionModeVocabulary",
+    "capabilityTiers",
     "connectProtocols",
     "discoveryInventory",
     "protocolOperations",

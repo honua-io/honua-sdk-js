@@ -12,12 +12,33 @@ The complete subpath is experimental while the remaining compiler and columnar
 slices land. The stable root promotes only the reviewed plan/execution subset
 used by the managed connection and MapLibre source workflows.
 
-The managed example below deliberately omits attribute filtering. The stable
-`Source.query()` surface does not yet accept the semantic AST, while
-`Query.where` is deprecated source-native compatibility. Typed semantic filters
-are available only from this experimental subpath until that integration lands.
-Examples later in this guide that use `Query.where` document the v1 compatibility
-compiler; they are not the new-code filtering idiom.
+The stable `Source.query()` surface accepts a typed filter directly:
+`Query.filter` and `Query.temporalFilter` are lowered onto every protocol by the
+canonical compiler in `src/contract/query-filter.ts` (issue #947). `Query.where`
+remains deprecated source-native compatibility, and examples later in this guide
+that use it document the v1 compatibility compiler rather than the new-code
+filtering idiom.
+
+The compilers in this subpath are a **second, deliberately different lane**, not
+a duplicate of that one:
+
+| | canonical (`Source.query()`) | this subpath |
+| --- | --- | --- |
+| Schema | none at query time; literals typed by the value written | verifies a `SourceSchemaV2`, maps logical fields to physical paths |
+| Evidence | per-source capability profile narrows the operator/predicate allow list | layer/conformance/FilterCapabilities evidence gates every node |
+| CRS | geometry passed through as the canonical spatial value | executable CRS binding with axis-order verification |
+| Failure | throws `HonuaCapabilityNotSupportedError` naming the construct | returns a structured `unsupported` result with a stable code and path |
+| Identity | participates in `hashQueryPlan` through the canonical query | additionally fingerprints the query, request, schema, and capability evidence |
+
+Unifying them would mean giving up either the schema verification and structured
+fidelity reporting on this side, or the schema-free stability on the other. They
+are instead kept honest by an equivalence ledger,
+`test/query-filter-lane-equivalence.test.ts`, which compiles the same filter
+through both lanes and pins every row as identical or as a documented difference
+with its reason. The known differences today are identifier quoting, timestamp
+literal formatting for schema-typed date columns, case-insensitive `LIKE` (the
+canonical lane emits the portable `UPPER()` rewrite; this lane declines to assume
+collation), and the OGC `during` topology predicate on an instant-valued column.
 
 ## Managed connection workflow
 
