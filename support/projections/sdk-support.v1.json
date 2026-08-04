@@ -31,6 +31,29 @@
     "static",
     "transport"
   ],
+  "capabilityTiers": [
+    {
+      "id": "open-endpoint",
+      "label": "Open endpoint",
+      "honuaServerRequired": false,
+      "environments": [
+        "build-time",
+        "client-only",
+        "protocol-adapter",
+        "standalone"
+      ],
+      "summary": "Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account."
+    },
+    {
+      "id": "server-attach",
+      "label": "Server attach",
+      "honuaServerRequired": true,
+      "environments": [
+        "honua-facade"
+      ],
+      "summary": "Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent."
+    }
+  ],
   "connectProtocols": [
     "grpc",
     "ogc-features",
@@ -552,6 +575,7 @@
         "statusVocabulary",
         "environmentVocabulary",
         "executionModeVocabulary",
+        "capabilityTiers",
         "discoveryInventory",
         "protocols",
         "supportClaims",
@@ -1620,6 +1644,10 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "A Honua Server FeatureService endpoint reachable over gRPC-Web",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "The Honua gRPC FeatureService is Honua Server's own wire protocol, so there is no third-party endpoint to speak it to. The open-endpoint path to the same reads is the GeoServices, OGC API Features, WFS, STAC, and OData discovery claims, which return the identical Dataset/Source/Query/Result contract."
+      },
       "api": "connect(), HonuaClient.queryFeatures, Source",
       "notes": "Discovers a canonical FeatureServer URL through the same REST service/layer metadata geoservices-feature-service discovery uses, deriving capabilities through the identical algorithm, then verifies query/stream through one bounded live QueryFeatures parity probe per layer over the gRPC-Web transport before advertising them; a schema disagreement between the probe and REST metadata fails discovery rather than silently trusting either side.",
       "evidence": [
@@ -2038,6 +2066,11 @@
       "executionMode": "facade",
       "status": "facade-required",
       "backendNeeded": "Honua Server",
+      "serverAttach": {
+        "disposition": "roadmap",
+        "issue": "https://github.com/honua-io/honua-sdk-js/issues/1009",
+        "rationale": "Execution is a standard third-party surface (OGC API — Processes Part 1 execution plus the job lifecycle); only the typed implementation is missing, so this is scheduled work rather than an inherent server dependency. Raw discovery already works open-endpoint."
+      },
       "api": "HonuaClient OGC Processes methods",
       "notes": "Typed execution uses the Honua facade today; raw third-party execution is not claimed.",
       "evidence": [
@@ -2054,6 +2087,10 @@
       "executionMode": "facade",
       "status": "facade-required",
       "backendNeeded": "Honua Server",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "The gate reads Honua Server's own administrative capabilities contract; a third-party endpoint publishes nothing equivalent to check. Open-endpoint reads skip the gate entirely rather than degrade."
+      },
       "api": "HonuaClient.checkCompatibility()",
       "notes": "Reads the Honua administrative capabilities contract and should be skipped for standalone reads.",
       "evidence": [
@@ -2070,6 +2107,10 @@
       "executionMode": "facade",
       "status": "facade-required",
       "backendNeeded": "Honua Server",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "A MapPackage is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no MapPackage."
+      },
       "api": "@honua/sdk-js/runtime",
       "notes": "Loads server-authored styles, layer order, and metadata.",
       "evidence": [
@@ -2086,6 +2127,11 @@
       "executionMode": "transport",
       "status": "facade-required",
       "backendNeeded": "Honua Server",
+      "serverAttach": {
+        "disposition": "roadmap",
+        "issue": "https://github.com/honua-io/honua-sdk-js/issues/393",
+        "rationale": "Subscriptions bind to the transports Honua Server advertises today, but OData delta and other standards feeds are open-endpoint transports; the unified snapshot-plus-delta epic owns adapting them to the same cursor contract."
+      },
       "api": "@honua/sdk-js/realtime",
       "notes": "SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately.",
       "evidence": [
@@ -2104,6 +2150,10 @@
       "executionMode": "facade",
       "status": "deprecated",
       "backendNeeded": "Honua Server and @honua/app-platform",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "Shared saved maps and presence are hosted, multi-writer state; a read-only third-party endpoint has nowhere to store them. The SDK entrypoint is a deprecated shim and the surface itself moves to @honua/app-platform."
+      },
       "api": "@honua/sdk-js/collaboration",
       "notes": "The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration.",
       "evidence": []
@@ -2118,6 +2168,11 @@
       "executionMode": "facade",
       "status": "facade-required",
       "backendNeeded": "Honua Server and @honua/mcp-server",
+      "serverAttach": {
+        "disposition": "roadmap",
+        "issue": "https://github.com/honua-io/honua-sdk-js/issues/1005",
+        "rationale": "Tool definitions are local and honua-mcp already reads public endpoints, but the tool contract still resolves execution through the bounded Honua surface; the protocol-neutral tool contract is scheduled work, not an inherent dependency."
+      },
       "api": "mcp/, @honua/sdk-js/agent-tools",
       "notes": "Tool definitions are local, while discovery and query execution use the bounded Honua server surface.",
       "evidence": [

@@ -17,6 +17,11 @@ rather than returning empty data.
 - `F` facade-required
 - `—` unsupported
 
+Deployment tier is separate from status: `grpc` is the only protocol that needs
+a Honua Server attach; every other protocol below answers against an endpoint you
+already run. The per-capability line lives in the generated
+[capability tiers](./standalone-capability-matrix.md#capability-tiers) table.
+
 | Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — |
@@ -145,6 +150,14 @@ Status: generated from [`config/support-manifest.v1.json`](../config/support-man
 cannot express exactly throws `HonuaCapabilityNotSupportedError` naming the
 construct and the protocol; a documented widening (the GeoParquet bbox
 reduction) is reported through `Result.degraded`.
+
+This table is the **protocol default**: what each adapter can lower without
+widening the result. A source's evaluated capability profile narrows it further —
+the `query` capability's `filterOperators`, `spatialPredicates`, and
+`temporalPredicates` constraints are bound into the same gate, so an endpoint
+whose evidence omits a construct refuses it by name even where the protocol
+column below says `✓`. Discovery attaches these defaults as `protocol-default`
+evidence; observed evidence only ever narrows them.
 
 - `✓` full attribute, spatial, and temporal predicate compilation
 - `◐` attribute and temporal predicates only (a spatial node is refused)

@@ -49,6 +49,7 @@ export type {
 } from "./state-sync.js";
 export {
   MAPLIBRE_SCENE_CAPABILITIES,
+  RENDERER_WGS84_SPATIAL_CAPABILITIES,
   applyMapLibreScenePrimitives,
   createMapLibreSceneAdapter,
   createSceneRuntimeAdapter,
@@ -214,6 +215,9 @@ export type {
   SceneRuntimeCapabilities,
   SceneRuntimePrimitive,
   SceneRuntimePrimitiveKind,
+  SceneSpatialCapabilities,
+  SceneSpatialFidelity,
+  SceneSpatialReference,
 } from "./primitives.js";
 export type {
   SceneBookmark,

@@ -141,6 +141,10 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 - **No provider lock-in for the extras.** Geocoding and routing are provider-pluggable
   interfaces with open-source adapters, not a facade for one vendor's API
   ([`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md)).
+  That candor is applied to Honua itself: every capability carries a generated
+  `open-endpoint` or `server-attach` tier, and each server-attach capability names a
+  roadmap issue for an open-endpoint path or why the dependency is inherent
+  ([capability tiers](./docs/standalone-capability-matrix.md#capability-tiers)).
 
 The honest comparisons are the service-client libraries, not the renderers:
 
@@ -163,6 +167,14 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
+**Two deployment tiers, named up front.** 20 of the 27 generated support
+claims are `open-endpoint`: they run against standards-speaking endpoints you already
+have, or entirely in the client and build — no Honua account, no Honua Server.
+7 are `server-attach` and execute only after attaching to a Honua Server facade;
+3 of those link a roadmap issue for an open-endpoint path and the rest state why the
+server dependency is inherent, in the generated
+[capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
+
 **Honua Server is optional for standards clients.** Supported GeoServices, OGC API
 Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw standards-speaking endpoints.
 OGC API Tiles (`beta`), Maps (`beta`), and Records
@@ -174,7 +186,7 @@ A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 `MapPackage`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
 the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
-claim, execution mode, and evidence link.
+claim's tier, execution mode, and evidence link.
 <!-- support-manifest:standalone:end -->
 
 ## What Honua does not do
@@ -2523,12 +2535,33 @@ The complete subpath is experimental while the remaining compiler and columnar
 slices land. The stable root promotes only the reviewed plan/execution subset
 used by the managed connection and MapLibre source workflows.
 
-The managed example below deliberately omits attribute filtering. The stable
-`Source.query()` surface does not yet accept the semantic AST, while
-`Query.where` is deprecated source-native compatibility. Typed semantic filters
-are available only from this experimental subpath until that integration lands.
-Examples later in this guide that use `Query.where` document the v1 compatibility
-compiler; they are not the new-code filtering idiom.
+The stable `Source.query()` surface accepts a typed filter directly:
+`Query.filter` and `Query.temporalFilter` are lowered onto every protocol by the
+canonical compiler in `src/contract/query-filter.ts` (issue #947). `Query.where`
+remains deprecated source-native compatibility, and examples later in this guide
+that use it document the v1 compatibility compiler rather than the new-code
+filtering idiom.
+
+The compilers in this subpath are a **second, deliberately different lane**, not
+a duplicate of that one:
+
+| | canonical (`Source.query()`) | this subpath |
+| --- | --- | --- |
+| Schema | none at query time; literals typed by the value written | verifies a `SourceSchemaV2`, maps logical fields to physical paths |
+| Evidence | per-source capability profile narrows the operator/predicate allow list | layer/conformance/FilterCapabilities evidence gates every node |
+| CRS | geometry passed through as the canonical spatial value | executable CRS binding with axis-order verification |
+| Failure | throws `HonuaCapabilityNotSupportedError` naming the construct | returns a structured `unsupported` result with a stable code and path |
+| Identity | participates in `hashQueryPlan` through the canonical query | additionally fingerprints the query, request, schema, and capability evidence |
+
+Unifying them would mean giving up either the schema verification and structured
+fidelity reporting on this side, or the schema-free stability on the other. They
+are instead kept honest by an equivalence ledger,
+`test/query-filter-lane-equivalence.test.ts`, which compiles the same filter
+through both lanes and pins every row as identical or as a documented difference
+with its reason. The known differences today are identifier quoting, timestamp
+literal formatting for schema-typed date columns, case-insensitive `LIKE` (the
+canonical lane emits the portable `UPPER()` rewrite; this lane declines to assume
+collation), and the OGC `during` topology predicate on an instant-valued column.
 
 ## Managed connection workflow
 
@@ -5552,6 +5585,113 @@ the query plan reports it too. A fresh region carries its manifest identity as
 the plan's `fingerprint` validator, which binds the plan's own fingerprint to the
 region that answered it; a stale region deliberately carries no validator.
 
+## Tiles, assets, and metadata (experimental)
+
+A region has always stored `tile`, `asset`, and `metadata` resources; those kinds
+read back under exactly the same gate a feature batch does. Address them with the
+typed selector builders so a snapshot and a later read agree without persisting
+any URL:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import {
+  offlineRegionAssetSelector,
+  offlineRegionMetadataSelector,
+  offlineRegionTileSelector,
+  planOfflineRegionSnapshot,
+  readOfflineRegionAsset,
+  readOfflineRegionMetadata,
+  readOfflineRegionTile,
+} from "@honua/sdk-js/offline";
+
+const snapshot = await planOfflineRegionSnapshot({
+  ...selection,
+  contents: [
+    {
+      kind: "tile",
+      bytes: tileBytes,
+      contentType: "application/vnd.mapbox-vector-tile",
+      selector: offlineRegionTileSelector({ z: 12, x: 671, y: 1042 }),
+    },
+    { kind: "asset", bytes: spriteBytes, contentType: "image/png", selector: offlineRegionAssetSelector("sprite-2x") },
+    {
+      kind: "metadata",
+      bytes: landingPageBytes,
+      contentType: "application/json",
+      selector: offlineRegionMetadataSelector("landing-page"),
+    },
+  ],
+});
+
+const tile = await readOfflineRegionTile(snapshot.manifest, {
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  tile: { z: 12, x: 671, y: 1042 },
+});
+render(tile.bytes, tile.contentType, tile.attribution);
+
+const landing = await readOfflineRegionMetadata(snapshot.manifest, {
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+  document: "landing-page",
+});
+console.log(landing.document); // parsed, because the stored media type is JSON
+```
+
+What these reads add to the shared discipline:
+
+- **Tile coordinates are canonical, not clamped.** `normalizeOfflineRegionTileKey`
+  reuses the contract's `QueryTileKey` vocabulary and folds a `tms` row onto its
+  XYZ row, so the same geographic tile has one identity. Longitude wrapping is
+  kept because a wrapped column is the same tile; an out-of-range row or zoom is
+  refused, because the renderer's clamping would quietly address a *different*
+  tile's bytes.
+- **Coverage is answered before storage is touched.** A zoom outside the region's
+  `minZoom`/`maxZoom`, or — when the region's CRS is provably WGS84 lon/lat — a
+  tile whose envelope does not meet the region's bounds, is `out-of-region`. An
+  unrecognized CRS makes no geometric claim at all; identity alone gates it and an
+  uncovered tile is an honest `cache-miss`.
+- **Bytes are opaque.** Tiles and assets are returned exactly as stored, with
+  their declared media type. The SDK never re-encodes or transcodes one.
+- **Media types are honoured, not guessed.** A metadata document is parsed only
+  when it declares a JSON media type; bytes that verified against their digest but
+  cannot be that media type are an `integrity-mismatch`, not a document.
+- **Nothing is presented as live.** Each read carries the same `DegradedReason`
+  vocabulary a `Result` does, on a `degraded` field, naming the capability the
+  cached bytes stand in for — `tiles`, `render`, or `query`.
+
+### Binding tiles to the map runtime
+
+Offline tiles reach MapLibre through the protocol seam the runtime already uses
+for other custom schemes, rather than a second tile pipeline. A style names
+`offline-region://` tiles and the handler answers each one from the region:
+
+```ts doc-test=skip reason="partial excerpt requires application host context"
+import maplibregl from "maplibre-gl";
+import {
+  buildOfflineRegionTileUrlTemplate,
+  registerOfflineRegionTileProtocol,
+} from "@honua/sdk-js/offline";
+
+const dispose = registerOfflineRegionTileProtocol(maplibregl, {
+  manifest,
+  store: applicationStore,
+  authorizationScopeFingerprint: currentAclFingerprint,
+});
+
+map.addSource("incidents", { type: "vector", tiles: [buildOfflineRegionTileUrlTemplate()] });
+```
+
+A tile the region does not hold rejects with its typed reason instead of falling
+back to the network or rendering nothing, and the handler declares `no-store` so
+freshness, eviction, and provenance stay answerable from the region alone.
+Registration is application-owned: the runtime does not auto-register this
+protocol or rewrite a style's tile URLs onto it.
+
+The same identities also plug into the existing service-worker seam.
+`resolveOfflineRegionResourceId()` turns a selection into the resource id an
+`OfflineRegionResourceMatcher` hands to `createOfflineRegionFetchHandler()`, so a
+host that already matches its own tile URLs keeps doing exactly that.
+
 `createMemoryOfflineRegionStore()` is a non-durable twin of the IndexedDB store
 for Node, workers, and tests. Both pass one shared suite:
 
@@ -7600,6 +7740,11 @@ rather than returning empty data.
 - `F` facade-required
 - `—` unsupported
 
+Deployment tier is separate from status: `grpc` is the only protocol that needs
+a Honua Server attach; every other protocol below answers against an endpoint you
+already run. The per-capability line lives in the generated
+[capability tiers](./standalone-capability-matrix.md#capability-tiers) table.
+
 | Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — |
@@ -7728,6 +7873,14 @@ Status: generated from [`config/support-manifest.v1.json`](../config/support-man
 cannot express exactly throws `HonuaCapabilityNotSupportedError` naming the
 construct and the protocol; a documented widening (the GeoParquet bbox
 reduction) is reported through `Result.degraded`.
+
+This table is the **protocol default**: what each adapter can lower without
+widening the result. A source's evaluated capability profile narrows it further —
+the `query` capability's `filterOperators`, `spatialPredicates`, and
+`temporalPredicates` constraints are bound into the same gate, so an endpoint
+whose evidence omits a construct refuses it by name even where the protocol
+column below says `✓`. Discovery attaches these defaults as `protocol-default`
+evidence; observed evidence only ever narrows them.
 
 - `✓` full attribute, spatial, and temporal predicate compilation
 - `◐` attribute and temporal predicates only (a spatial node is refused)
@@ -8523,6 +8676,35 @@ against raw standards-speaking endpoints and capabilities that require the Honua
 facade. The source of truth is [`config/support-manifest.v1.json`](../config/support-manifest.v1.json).
 See the [standalone quickstart](./standalone-quickstart.md) for the runnable path.
 
+## Capability tiers
+
+Tier answers the one question a matrix of statuses does not: what do you have to
+run yourself before this works? It is not authored per capability — it is each
+claim's `environment` read through the manifest's own tier partition, so a new
+environment cannot enter the vocabulary untiered.
+
+| Tier | Honua Server | Environments | Claims | What it means |
+| --- | :-: | --- | :-: | --- |
+| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 20 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
+| **Server attach** (`server-attach`) | required | `honua-facade` | 7 | Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent. |
+
+### Server-attach capabilities and their open-endpoint path
+
+Every server-attach claim names either a roadmap issue for an open-endpoint path
+or the reason the dependency is inherent. `Inherent` is a product statement, not
+a scheduling excuse: it means no third-party endpoint can answer that surface at
+all, so there is nothing to implement against.
+
+| Capability | Status | Open-endpoint path | Why it attaches to a server |
+| --- | --- | --- | --- |
+| Honua gRPC FeatureServer discovery | `supported` | Inherent — none possible | The Honua gRPC FeatureService is Honua Server's own wire protocol, so there is no third-party endpoint to speak it to. The open-endpoint path to the same reads is the GeoServices, OGC API Features, WFS, STAC, and OData discovery claims, which return the identical Dataset/Source/Query/Result contract. |
+| OGC API Processes execution | `facade-required` | Roadmap: [#1009](https://github.com/honua-io/honua-sdk-js/issues/1009) | Execution is a standard third-party surface (OGC API — Processes Part 1 execution plus the job lifecycle); only the typed implementation is missing, so this is scheduled work rather than an inherent server dependency. Raw discovery already works open-endpoint. |
+| Server compatibility gate | `facade-required` | Inherent — none possible | The gate reads Honua Server's own administrative capabilities contract; a third-party endpoint publishes nothing equivalent to check. Open-endpoint reads skip the gate entirely rather than degrade. |
+| Authored MapPackage runtime | `facade-required` | Inherent — none possible | A MapPackage is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no MapPackage. |
+| Realtime subscriptions | `facade-required` | Roadmap: [#393](https://github.com/honua-io/honua-sdk-js/issues/393) | Subscriptions bind to the transports Honua Server advertises today, but OData delta and other standards feeds are open-endpoint transports; the unified snapshot-plus-delta epic owns adapting them to the same cursor contract. |
+| Collaboration and saved maps compatibility shim | `deprecated` | Inherent — none possible | Shared saved maps and presence are hosted, multi-writer state; a read-only third-party endpoint has nowhere to store them. The SDK entrypoint is a deprecated shim and the surface itself moves to @honua/app-platform. |
+| MCP tools and AI execution | `facade-required` | Roadmap: [#1005](https://github.com/honua-io/honua-sdk-js/issues/1005) | Tool definitions are local and honua-mcp already reads public endpoints, but the tool contract still resolves execution through the bounded Honua surface; the protocol-neutral tool contract is scheduled work, not an inherent dependency. |
+
 ## Status vocabulary
 
 - `supported` — release-gated implementation with linked evidence
@@ -8538,35 +8720,35 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 
 ## Matrix
 
-| Capability | Status | Environment | Execution | Backend needed | API | Evidence | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| Honua gRPC FeatureServer discovery | `supported` | `honua-facade` | `native` | A Honua Server FeatureService endpoint reachable over gRPC-Web | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-grpc-fixtures](../test/connect-grpc.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) | Discovers a canonical FeatureServer URL through the same REST service/layer metadata geoservices-feature-service discovery uses, deriving capabilities through the identical algorithm, then verifies query/stream through one bounded live QueryFeatures parity probe per layer over the gRPC-Web transport before advertising them; a schema disagreement between the probe and REST metadata fails discovery rather than silently trusting either side. |
-| GeoServices FeatureServer query | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[live: first-map-live](../scripts/first-map-live-evidence.mjs)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and uses the raw FeatureServer query path; fixture-proven with scheduled anonymous live verification that needs no Honua account or server. |
-| GeoServices MapServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.mapService, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts)<br>[fixture: tile-layer-fixtures](../test/tile-layer-compat.test.ts)<br>[integration: map-service-integration](../test/integration/surfaces/map-server.integration.ts) | Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles. |
-| GeoServices ImageServer reads | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[integration: image-service-integration](../test/integration/surfaces/image-server.integration.ts) | Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor. |
-| GeoServices GeometryServer discovery | `supported` | `standalone` | `discovery` | Any ArcGIS Server GeometryServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns advertised geometry operations as metadata-only descriptors; it never invents a queryable Source. |
-| GeoServices GPServer discovery | `supported` | `standalone` | `discovery` | Any ArcGIS Server GPServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns task execution and job-lifecycle metadata without starting a job or inventing a queryable Source. |
-| Esri compatibility layer | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | @honua/sdk-js/esri-compat | [fixture: esri-compat-fixtures](../test/feature-layer-compat.test.ts) | Compatibility classes parse public GeoServices URLs and create their own client. |
-| ArcGIS scanner and migration codemod | `supported` | `build-time` | `static` | None | @honua/sdk-js/migration, honua-migrate | [fixture: migration-fixtures](../test/migration-codemod.test.ts) | Static analysis and rewrites run locally; no service is involved. |
-| Geometry operations | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
-| OGC API Features | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
-| WFS 2.0 | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | connect(), Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
-| WMS 1.3 discovery, raster rendering, and GetFeatureInfo | `supported` | `standalone` | `discovery` | Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding; canonical query additionally needs a queryable layer advertising a GeoJSON, JSON, or GML GetFeatureInfo format | connect(), Source descriptor, Source.query(), @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding and answer canonical point query() through the capabilities-advertised GetFeatureInfo URL, preferring GeoJSON/JSON and falling back to GML. Query stays disabled when the layer is not queryable, no same-origin GetFeatureInfo GET URL is advertised, the only advertised info formats are unstructured (text/plain, text/html), or no advertised CRS has a provable WMS 1.3 axis order. |
-| WMTS 1.0 discovery and raster tiles | `supported` | `standalone` | `discovery` | Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms. |
-| STAC API and static catalogs | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
-| OData v4 | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
-| PMTiles direct asset discovery | `supported` | `client-only` | `discovery` | Any static host with exact HTTP Range and readable CORS headers | connect({ protocol: 'pmtiles' }), Source.protocol('pmtiles') | [fixture: pmtiles-connect-fixtures](../test/connect-pmtiles.test.ts)<br>[fixture: pmtiles-fixtures](../test/pmtiles-contract.test.ts) | Reads only a bounded PMTiles v3 header and metadata range through the authenticated client pipeline; pmtiles:// is the sole direct auto marker, while filename-only and spoofed inputs fail closed without alternate-protocol probing. |
-| GeoParquet asset discovery | `experimental` | `client-only` | `discovery` | None; caller provides a GeoParquet profiler | connect({ protocol: 'geoparquet', geoparquet: { profiler } }) | [fixture: geoparquet-connect-fixtures](../test/connect-geoparquet.test.ts) | Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver. |
-| OGC API Tiles | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
-| OGC API Maps | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
-| OGC API Records | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
-| OGC API Processes discovery | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
-| OGC API Processes execution | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient OGC Processes methods | [integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Typed execution uses the Honua facade today; raw third-party execution is not claimed. |
-| Server compatibility gate | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
-| Authored MapPackage runtime | `facade-required` | `honua-facade` | `facade` | Honua Server | @honua/sdk-js/runtime | [fixture: map-package-fixtures](../test/runtime/map-package-fetch.test.ts) | Loads server-authored styles, layer order, and metadata. |
-| Realtime subscriptions | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [fixture: realtime-cross-transport-fixtures](../test/realtime-cross-transport-conformance.test.ts)<br>[integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts)<br>[live: realtime-live-conformance](../scripts/realtime-conformance-evidence.mjs) | SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately. |
-| Collaboration and saved maps compatibility shim | `deprecated` | `honua-facade` | `facade` | Honua Server and @honua/app-platform | @honua/sdk-js/collaboration | Lifecycle-only claim | The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration. |
-| MCP tools and AI execution | `facade-required` | `honua-facade` | `facade` | Honua Server and @honua/mcp-server | mcp/, @honua/sdk-js/agent-tools | [fixture: agent-tools-fixtures](../test/agent-tools.test.ts) | Tool definitions are local, while discovery and query execution use the bounded Honua server surface. |
+| Capability | Tier | Status | Environment | Execution | Backend needed | API | Evidence | Notes |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Honua gRPC FeatureServer discovery | `server-attach` | `supported` | `honua-facade` | `native` | A Honua Server FeatureService endpoint reachable over gRPC-Web | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-grpc-fixtures](../test/connect-grpc.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[conformance: grpc-conformance](../test/conformance/feature-service.conformance.ts) | Discovers a canonical FeatureServer URL through the same REST service/layer metadata geoservices-feature-service discovery uses, deriving capabilities through the identical algorithm, then verifies query/stream through one bounded live QueryFeatures parity probe per layer over the gRPC-Web transport before advertising them; a schema disagreement between the probe and REST metadata fails discovery rather than silently trusting either side. |
+| GeoServices FeatureServer query | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.queryFeatures, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: contract-conformance](../test/contract/conformance.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[live: first-map-live](../scripts/first-map-live-evidence.mjs)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and uses the raw FeatureServer query path; fixture-proven with scheduled anonymous live verification that needs no Honua account or server. |
+| GeoServices MapServer reads | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), HonuaClient.mapService, Source | [fixture: connect-fixtures](../test/connect.test.ts)<br>[fixture: honua-surface-fixtures](../test/honua-surface.test.ts)<br>[fixture: tile-layer-fixtures](../test/tile-layer-compat.test.ts)<br>[integration: map-service-integration](../test/integration/surfaces/map-server.integration.ts) | Discovers and uses raw MapServer paths for layer queries, export, identify, legend, find, and cached tiles. |
+| GeoServices ImageServer reads | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[integration: image-service-integration](../test/integration/surfaces/image-server.integration.ts) | Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor. |
+| GeoServices GeometryServer discovery | `open-endpoint` | `supported` | `standalone` | `discovery` | Any ArcGIS Server GeometryServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns advertised geometry operations as metadata-only descriptors; it never invents a queryable Source. |
+| GeoServices GPServer discovery | `open-endpoint` | `supported` | `standalone` | `discovery` | Any ArcGIS Server GPServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns task execution and job-lifecycle metadata without starting a job or inventing a queryable Source. |
+| Esri compatibility layer | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | @honua/sdk-js/esri-compat | [fixture: esri-compat-fixtures](../test/feature-layer-compat.test.ts) | Compatibility classes parse public GeoServices URLs and create their own client. |
+| ArcGIS scanner and migration codemod | `open-endpoint` | `supported` | `build-time` | `static` | None | @honua/sdk-js/migration, honua-migrate | [fixture: migration-fixtures](../test/migration-codemod.test.ts) | Static analysis and rewrites run locally; no service is involved. |
+| Geometry operations | `open-endpoint` | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |
+| OGC API Features | `open-endpoint` | `supported` | `standalone` | `discovery` | Any OGC API Features server | connect(), Source with locator.layout=ogc-api or auto | [fixture: ogc-features-fixtures](../test/contract/ogc-features-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers collections and item links from a raw landing page; the Honua facade remains a zero-round-trip fast path. |
+| WFS 2.0 | `open-endpoint` | `supported` | `standalone` | `discovery` | Any WFS 2.0 server | connect(), Source, HonuaWfs | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Uses the DCP operation URLs advertised by GetCapabilities instead of assuming a server path. |
+| WMS 1.3 discovery, raster rendering, and GetFeatureInfo | `open-endpoint` | `supported` | `standalone` | `discovery` | Any WMS 1.3.0 server with a MapLibre-compatible GetMap binding; canonical query additionally needs a queryable layer advertising a GeoJSON, JSON, or GML GetFeatureInfo format | connect(), Source descriptor, Source.query(), @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, CRS/axis order, formats, and same-origin operation URLs. Raw sources render through the reviewed GetMap binding and answer canonical point query() through the capabilities-advertised GetFeatureInfo URL, preferring GeoJSON/JSON and falling back to GML. Query stays disabled when the layer is not queryable, no same-origin GetFeatureInfo GET URL is advertised, the only advertised info formats are unstructured (text/plain, text/html), or no advertised CRS has a provable WMS 1.3 axis order. |
+| WMTS 1.0 discovery and raster tiles | `open-endpoint` | `supported` | `standalone` | `discovery` | Any WMTS 1.0.0 server with a Web Mercator, z-addressable tile matrix set | connect(), Source descriptor, @honua/sdk-js/map | [fixture: wms-wmts-connect-fixtures](../test/connect-wms-wmts.test.ts)<br>[fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers layers, styles, dimensions, formats, ResourceURL/KVP bindings, and tile matrices. Rendering uses the reviewed binding and fails closed when matrix identifiers cannot map exactly to MapLibre zooms. |
+| STAC API and static catalogs | `open-endpoint` | `supported` | `standalone` | `discovery` | Any STAC API or static catalog | connect(), Source with locator.layout=stac-api or stac-static | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Searches a raw STAC API or walks static catalog links with client-side filtering. |
+| OData v4 | `open-endpoint` | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
+| PMTiles direct asset discovery | `open-endpoint` | `supported` | `client-only` | `discovery` | Any static host with exact HTTP Range and readable CORS headers | connect({ protocol: 'pmtiles' }), Source.protocol('pmtiles') | [fixture: pmtiles-connect-fixtures](../test/connect-pmtiles.test.ts)<br>[fixture: pmtiles-fixtures](../test/pmtiles-contract.test.ts) | Reads only a bounded PMTiles v3 header and metadata range through the authenticated client pipeline; pmtiles:// is the sole direct auto marker, while filename-only and spoofed inputs fail closed without alternate-protocol probing. |
+| GeoParquet asset discovery | `open-endpoint` | `experimental` | `client-only` | `discovery` | None; caller provides a GeoParquet profiler | connect({ protocol: 'geoparquet', geoparquet: { profiler } }) | [fixture: geoparquet-connect-fixtures](../test/connect-geoparquet.test.ts) | Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver. |
+| OGC API Tiles | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
+| OGC API Maps | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
+| OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
+| OGC API Processes discovery | `open-endpoint` | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
+| OGC API Processes execution | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient OGC Processes methods | [integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Typed execution uses the Honua facade today; raw third-party execution is not claimed. |
+| Server compatibility gate | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
+| Authored MapPackage runtime | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | @honua/sdk-js/runtime | [fixture: map-package-fixtures](../test/runtime/map-package-fetch.test.ts) | Loads server-authored styles, layer order, and metadata. |
+| Realtime subscriptions | `server-attach` | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [fixture: realtime-cross-transport-fixtures](../test/realtime-cross-transport-conformance.test.ts)<br>[integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts)<br>[live: realtime-live-conformance](../scripts/realtime-conformance-evidence.mjs) | SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately. |
+| Collaboration and saved maps compatibility shim | `server-attach` | `deprecated` | `honua-facade` | `facade` | Honua Server and @honua/app-platform | @honua/sdk-js/collaboration | Lifecycle-only claim | The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration. |
+| MCP tools and AI execution | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server and @honua/mcp-server | mcp/, @honua/sdk-js/agent-tools | [fixture: agent-tools-fixtures](../test/agent-tools.test.ts) | Tool definitions are local, while discovery and query execution use the bounded Honua server surface. |
 
 ## Current OGC line
 
