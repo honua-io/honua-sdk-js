@@ -37,6 +37,17 @@ function main() {
     return;
   }
 
+  // Derived-artifact decoupling (#677), mirroring `npm run verify:llms`: the
+  // page is regenerated on trunk by the workflows that commit new run artifacts
+  // (mcp-cert-scheduled, mcp-eval-live). Rendering it above already proves it is
+  // producible from the committed evidence without error; at PR time (relax
+  // signal set) we do not additionally require it to be committed-fresh, so a
+  // scheduled run landing on trunk cannot wedge every open pull request.
+  if (/^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "")) {
+    process.stdout.write(`${OUTPUT_PATH} freshness relaxed for PR (regenerated on trunk; #677)\n`);
+    return;
+  }
+
   const existing = fs.existsSync(output) ? fs.readFileSync(output, "utf8").replace(/\r\n/g, "\n") : "";
   if (existing !== markdown) {
     throw new Error(`${OUTPUT_PATH} is out of date — run "npm run docs:mcp-scorecard".`);

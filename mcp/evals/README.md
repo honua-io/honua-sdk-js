@@ -7,9 +7,10 @@ committed to the repo, rendered into a leaderboard anyone can audit.
 **Public page:** these artifacts are also rendered into the
 [cross-model MCP eval scorecard](../../docs/generated/mcp-eval-scorecard.md) on
 the docs site — the same numbers plus the methodology, the candor sections, and
-the reproduction commands. Regenerate it from the repo root with
-`npm run docs:mcp-scorecard`; `npm run docs:mcp-scorecard:check` is the CI gate
-that fails when a new run here is not republished there.
+the reproduction commands. The workflows below regenerate it in the same commit
+that lands a new run, so it never trails this directory; regenerate it by hand
+from the repo root with `npm run docs:mcp-scorecard`. Freshness is gated on
+trunk by `npm run docs:mcp-scorecard:check` (relaxed on PRs, like `verify:llms`).
 
 ## Layout
 
