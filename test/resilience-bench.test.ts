@@ -90,12 +90,14 @@ describe("deterministic resilience benchmark", () => {
   });
 
   // This case regenerates the *entire* benchmark corpus, so its budget tracks
-  // corpus size rather than anything it asserts. The corpus now carries three
-  // million-row columnar scenarios (#946, #939, #942); the other seven measure
-  // 11.7s together and all eight measure 12.6s, so the previous 15s budget was
-  // one heavy scenario away from flaking on a loaded runner regardless of which
-  // scenario landed next. What this case actually gates is secrecy, not
-  // duration, so the budget is set for headroom rather than kept tight.
+  // corpus size rather than anything it asserts. The corpus now carries five
+  // million-row columnar scenarios (#946, #939, #942, #940, #941) plus the
+  // million-row producer (#1042); the whole run measures 26.0s and 26.7s on two
+  // consecutive passes over a shared linux host, against 12.6s when it carried
+  // eight scenarios. The previous 60s budget therefore left under 2.3x headroom,
+  // which is one contended runner away from flaking. What this case actually
+  // gates is secrecy, not duration, so the budget is set for headroom rather
+  // than kept tight.
   it("derives secrecy from the complete generated v2 report and fails a leaked cursor value", async () => {
     const report = await createBenchmarkReport({ corpus: "bench/corpus.json", budgets: "bench/budgets.json" });
     const resilience = report.scenarios.filter((scenario) => scenario.invariants.semantics);
@@ -145,10 +147,10 @@ describe("deterministic resilience benchmark", () => {
     });
     expect(evaluation.level).toBe("failure");
     expect(evaluation.items).toContainEqual(expect.objectContaining({ metric: "artifact-safety", level: "failure" }));
-    // The whole corpus is executed here, and it now carries four million-row
-    // columnar scenarios (data plane, reduction, bounded conversion, and
-    // persistence). The budget is wall-clock room for a contended runner, not a
-    // performance assertion: throughput is gated by the absolute budgets in
-    // `bench/budgets.json`.
-  }, 60_000);
+    // The whole corpus is executed here, and it now carries six million-row
+    // columnar scenarios (data plane, reduction, bounded conversion,
+    // persistence, realtime patches, and the GeoParquet producer). The budget is
+    // wall-clock room for a contended runner, not a performance assertion:
+    // throughput is gated by the absolute budgets in `bench/budgets.json`.
+  }, 120_000);
 });

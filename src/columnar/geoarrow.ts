@@ -1249,8 +1249,16 @@ function inspectGeometry(
   if (scope === "full") {
     for (const view of Object.values(coordinates)) {
       if (!view) continue;
-      for (const coordinate of view)
-        if (!Number.isFinite(coordinate)) fail("invalid-batch", "Coordinate buffers must contain finite values.");
+      // Indexed rather than iterated. `for...of` over a typed array pays the
+      // iterator protocol per element, and this is the only unbounded loop a
+      // full inspection runs: it visits every coordinate of every column, on
+      // every inspection, including the one each realtime patch application
+      // performs (#941). Against a million-row batch the iterator form is the
+      // dominant cost of applying a patch; the indexed form checks exactly the
+      // same values.
+      for (let index = 0; index < view.length; index += 1) {
+        if (!Number.isFinite(view[index]!)) fail("invalid-batch", "Coordinate buffers must contain finite values.");
+      }
     }
   }
   return Object.freeze({

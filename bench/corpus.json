@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "id": "honua-sdk-js-deterministic-v2",
-  "description": "Fixture-backed SDK overhead, opaque resource planning, offline reload, realtime reconnect, and million-row columnar data-plane, reduction, bounded-conversion, and persistence scenarios. No network or renderer time is included.",
+  "description": "Fixture-backed SDK overhead, opaque resource planning, offline reload, realtime reconnect, and million-row columnar data-plane, reduction, bounded-conversion, persistence, realtime-patch, and GeoParquet batch-producer scenarios. No network or renderer time is included.",
   "scenarios": [
     {
       "id": "stream.pagination.geometry",
@@ -75,6 +75,23 @@
     {
       "id": "columnar.batch-cache.million-row-round-trip",
       "kind": "columnar-batch-persistence",
+      "rowCount": 1000000,
+      "warmupRuns": 1,
+      "measurementRuns": 5
+    },
+    {
+      "id": "columnar.patch.million-row",
+      "kind": "columnar-patch",
+      "rowCount": 1000000,
+      "reserveRows": 2304,
+      "patchOperations": 1000,
+      "patchesPerSample": 8,
+      "warmupRuns": 1,
+      "measurementRuns": 5
+    },
+    {
+      "id": "columnar.producer.million-row",
+      "kind": "columnar-producer",
       "rowCount": 1000000,
       "warmupRuns": 1,
       "measurementRuns": 5
