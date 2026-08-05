@@ -289,7 +289,17 @@ jobs:
           set -euo pipefail
           git config user.name "Mike McDougall"
           git config user.email "mike@honua.io"
+          # README.md carries generator-owned managed blocks (#1068). The one
+          # this job rewrites is the bundle-size excerpt: `report:bundle-sizes`
+          # above regenerates docs/bundle-sizes.md and then resyncs the README
+          # rows from it in the same run, so the two are one atomic generated
+          # pair -- committing the doc without the excerpt leaves trunk failing
+          # `verify:bundle-budgets`. Staging only the doc is what left " M
+          # README.md" unstaged and failed the guard below on the first
+          # regeneration after #1068. Keep this list and the generated-path
+          # allowlist in "Validate and publish regeneration commits" in step.
           git add -A -- \
+            README.md \
             api-report \
             bench/cross-sdk/corpus.json \
             docs/bundle-sizes.md \
@@ -620,7 +630,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # README.md is staged here for the same reason it is staged in
+          # "Stage and commit regenerated inputs locally": it is generator-owned
+          # (#1068). `samples:generate` above rewrites the managed
+          # sample-catalog block from the catalog it just projected, so the
+          # second generator that can dirty this file writes it in THIS step,
+          # and the whole-tree guard below would otherwise stall on the same
+          # unstaged " M README.md". README.md sits outside the
+          # evidence-neutral source digest (scripts/sample-gate-receipt.mjs),
+          # so carrying it on the evidence commit cannot perturb any binding.
           git add -A -- \
+            README.md \
             samples/catalog.v2.json \
             samples/contract/v2/migrations/catalog.v1-to-v2.json \
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json \
@@ -726,9 +746,11 @@ jobs:
           done < <(git log --format=%s "$GITHUB_SHA..$generated")
           while IFS= read -r changed_path; do
             case "$changed_path" in
+              README.md | \
               api-report/* | \
               bench/cross-sdk/corpus.json | \
               docs/bundle-sizes.md | docs/comparison.md | docs/errors.md | \
+              docs/generated/mcp-eval-scorecard.md | \
               llms.txt | llms-full.txt | \
               examples/migration-workbench/public/artifacts/* | \
               examples/migration-workbench/src/generated/* | \
