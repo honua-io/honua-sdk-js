@@ -44,9 +44,16 @@ pinned to the published packages — under `playgrounds/<id>/` for every sample 
 links from it. Every other catalog sample carries a machine-readable exclusion category instead of a broken link;
 run `npm run samples:playgrounds:check` to see the full decision list.
 
+A sample whose data comes from a Node fixture server the repository runs beside it gets that origin generated too:
+its project carries byte-identical copies of the reviewed fixture pack under `fixtures/` and a Vite plugin that
+answers the sample's audited same-origin routes in `dev`, `preview` and `build` alike — the same move the starters
+above make. `samples/dist/sample-playgrounds.v1.json` records each playground's `dataOrigin`, so whether a project
+serves its own committed source or a generated fixture service is published, not inferred.
+
 | Sample | Playground | Source |
 | --- | --- | --- |
 | Safe Agent Workbench (`ai-spatial-app-builder`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder) | `examples/ai-spatial-app-builder` → `playgrounds/ai-spatial-app-builder` |
+| React quickstart (`react-quickstart`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/react-quickstart) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/react-quickstart) | `examples/react-quickstart` → `playgrounds/react-quickstart` |
 | Interactive sketch editing with terra-draw (`sketch-editing`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing) | `examples/sketch-editing` → `playgrounds/sketch-editing` |
 | STAC imagery browser (`stac-imagery-browser`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser) | `examples/stac-imagery-browser` → `playgrounds/stac-imagery-browser` |
 | Temporal playback (`temporal-playback`) | [StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback) · [CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback) | `examples/temporal-playback` → `playgrounds/temporal-playback` |

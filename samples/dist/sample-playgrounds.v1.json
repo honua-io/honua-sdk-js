@@ -21,7 +21,34 @@
           "title": "CodeSandbox",
           "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/ai-spatial-app-builder"
         }
-      ]
+      ],
+      "dataOrigin": {
+        "kind": "committed-sample-source"
+      }
+    },
+    {
+      "sampleId": "react-quickstart",
+      "projectPath": "playgrounds/react-quickstart",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/react-quickstart"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/react-quickstart"
+        }
+      ],
+      "dataOrigin": {
+        "kind": "generated-fixture-service",
+        "fixturePack": "samples/fixtures/first-map/v1",
+        "routes": [
+          "/api/v1/admin/capabilities",
+          "/rest/services/natural-earth/FeatureServer/0/query"
+        ]
+      }
     },
     {
       "sampleId": "sketch-editing",
@@ -37,7 +64,10 @@
           "title": "CodeSandbox",
           "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/sketch-editing"
         }
-      ]
+      ],
+      "dataOrigin": {
+        "kind": "committed-sample-source"
+      }
     },
     {
       "sampleId": "stac-imagery-browser",
@@ -53,7 +83,10 @@
           "title": "CodeSandbox",
           "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
         }
-      ]
+      ],
+      "dataOrigin": {
+        "kind": "committed-sample-source"
+      }
     },
     {
       "sampleId": "temporal-playback",
@@ -69,7 +102,10 @@
           "title": "CodeSandbox",
           "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/temporal-playback"
         }
-      ]
+      ],
+      "dataOrigin": {
+        "kind": "committed-sample-source"
+      }
     }
   ],
   "excluded": [
@@ -101,7 +137,7 @@
     {
       "sampleId": "imagery-cog-quickstart",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+      "detail": "Audited runtimeHosting is same-origin-fixture-service and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "kepler-analytics",
@@ -111,7 +147,7 @@
     {
       "sampleId": "maplibre-quickstart",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+      "detail": "Audited runtimeHosting is same-origin-fixture-service and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "mcp-gis-assistant",
@@ -131,12 +167,12 @@
     {
       "sampleId": "node-backend-quickstart",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is server-side-app; a playground would need a generated data origin."
+      "detail": "Audited runtimeHosting is server-side-app and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "oauth-signin",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is companion-process; a playground would need a generated data origin."
+      "detail": "Audited runtimeHosting is companion-process and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "overture-geoparquet",
@@ -146,7 +182,7 @@
     {
       "sampleId": "planning-permitting-workbench",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+      "detail": "Audited runtimeHosting is same-origin-fixture-service and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "pmtiles-static",
@@ -154,14 +190,9 @@
       "detail": "Needs committed non-source assets: public/basemap.pmtiles, public/overlay.pmtiles."
     },
     {
-      "sampleId": "react-quickstart",
-      "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
-    },
-    {
       "sampleId": "realtime-incident-dashboard",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is external-live-endpoint; a playground would need a generated data origin."
+      "detail": "Audited runtimeHosting is external-live-endpoint and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "runtime-parity-showcase",
@@ -171,7 +202,7 @@
     {
       "sampleId": "service-explorer",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is same-origin-fixture-service; a playground would need a generated data origin."
+      "detail": "Audited runtimeHosting is same-origin-fixture-service and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "spatial-analytics-workbench",

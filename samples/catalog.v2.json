@@ -1819,6 +1819,21 @@
       },
       "sourcePath": "examples/react-quickstart",
       "docsPath": "examples/react-quickstart/README.md",
+      "playground": {
+        "projectPath": "playgrounds/react-quickstart",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/react-quickstart"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/react-quickstart"
+          }
+        ]
+      },
       "capabilities": [
         "map",
         "query",

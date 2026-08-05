@@ -7,11 +7,13 @@ import { describe, it } from "node:test";
 import { SAMPLE_BUNDLE_AUDIT } from "../../scripts/build-sample-bundles.mjs";
 import {
   PLAYGROUND_EXCLUSION_CATEGORIES,
+  PLAYGROUND_FIXTURE_ORIGINS,
   analyzeSampleSource,
   bareSpecifierPackage,
   derivePlaygroundDecisions,
   evaluateSamplePlaygroundEligibility,
   publishedSdkEntrypoints,
+  resolveFixtureOrigin,
 } from "../../scripts/sample-playgrounds.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -28,10 +30,19 @@ function context(overrides = {}) {
   return {
     audit: new Map(SAMPLE_BUNDLE_AUDIT.map((record) => [record.id, record])),
     analyze: analyzeSampleSource,
+    resolveFixtureOrigin,
     sdkEntrypoints: publishedSdkEntrypoints(rootManifest),
     sdkVersion: templateManifest.sdk.version,
     ...overrides,
   };
+}
+
+function sampleById(id) {
+  return catalog.samples.find((entry) => entry.id === id);
+}
+
+function auditById(id) {
+  return SAMPLE_BUNDLE_AUDIT.find((record) => record.id === id);
 }
 
 const decisions = derivePlaygroundDecisions(catalog, context());
@@ -55,10 +66,15 @@ describe("playground eligibility", () => {
     }
   });
 
-  it("qualifies only samples whose data comes from their own committed source", () => {
+  it("qualifies only samples whose data is committed source or a declared fixture origin", () => {
     const audited = new Map(SAMPLE_BUNDLE_AUDIT.map((record) => [record.id, record]));
     for (const decision of decisions.filter((entry) => entry.qualified)) {
-      assert.equal(audited.get(decision.id)?.runtimeHosting, "self-contained");
+      if (audited.get(decision.id)?.runtimeHosting === "self-contained") {
+        assert.equal(decision.fixtureOrigin, undefined, `${decision.id} needs no generated origin`);
+        continue;
+      }
+      assert.ok(decision.fixtureOrigin, `${decision.id} qualified without a data origin`);
+      assert.ok(PLAYGROUND_FIXTURE_ORIGINS.has(decision.id));
     }
   });
 
@@ -99,13 +115,126 @@ describe("playground eligibility", () => {
     assert.equal(decision.qualified, false);
     assert.equal(decision.category, "audit-pending");
   });
+
+  it("keeps a fixture-service sample excluded until an origin is declared for it", () => {
+    const sample = sampleById("react-quickstart");
+    const decision = evaluateSamplePlaygroundEligibility(
+      sample,
+      context({ resolveFixtureOrigin: () => undefined }),
+    );
+    assert.equal(decision.qualified, false);
+    assert.equal(decision.category, "requires-data-origin");
+  });
+
+  it("still refuses browser configuration the declared origin does not answer", () => {
+    const sample = sampleById("react-quickstart");
+    const audit = auditById("react-quickstart");
+    const partial = resolveFixtureOrigin(sample, audit);
+    delete partial.env.VITE_HONUA_REACT_WHERE;
+    const decision = evaluateSamplePlaygroundEligibility(sample, context({ resolveFixtureOrigin: () => partial }));
+    assert.equal(decision.qualified, false);
+    assert.equal(decision.category, "browser-configuration");
+    assert.match(decision.detail, /VITE_HONUA_REACT_WHERE/);
+  });
+});
+
+describe("generated fixture origins", () => {
+  it("declares an origin only for samples the bundle audit says need one", () => {
+    for (const id of PLAYGROUND_FIXTURE_ORIGINS.keys()) {
+      const audit = auditById(id);
+      assert.ok(audit, `${id} has no audit record`);
+      assert.notEqual(audit.runtimeHosting, "self-contained", `${id} needs no generated origin`);
+    }
+  });
+
+  it("answers every audited route from the reviewed fixture pack, and no other route", () => {
+    for (const id of PLAYGROUND_FIXTURE_ORIGINS.keys()) {
+      const origin = resolveFixtureOrigin(sampleById(id), auditById(id));
+      const audited = auditById(id).hostFixtureRoutes;
+      for (const route of origin.routes) {
+        assert.ok(
+          audited.some((entry) => route.path === entry || route.path.startsWith(`${entry}/`)),
+          `${id}: ${route.path} is outside the audited routes`,
+        );
+      }
+      for (const entry of audited) {
+        assert.ok(
+          origin.routes.some((route) => route.path === entry || route.path.startsWith(`${entry}/`)),
+          `${id}: audited route ${entry} is unanswered`,
+        );
+      }
+    }
+  });
+
+  it("serves fixture documents byte-identical to the reviewed pack", () => {
+    for (const id of PLAYGROUND_FIXTURE_ORIGINS.keys()) {
+      const origin = resolveFixtureOrigin(sampleById(id), auditById(id));
+      for (const document of origin.documents) {
+        assert.equal(
+          fs.readFileSync(path.join(ROOT, `playgrounds/${id}`, document.target), "utf8"),
+          fs.readFileSync(path.join(ROOT, document.source), "utf8"),
+          `${id}/${document.target}`,
+        );
+      }
+    }
+  });
+
+  it("carries the reviewed fixture lane's own configuration", () => {
+    // The generated `.env` must be the lane the repository qualifies, not a
+    // guess: every value is compared against the sample's committed mock server.
+    for (const id of PLAYGROUND_FIXTURE_ORIGINS.keys()) {
+      const origin = resolveFixtureOrigin(sampleById(id), auditById(id));
+      if (Object.keys(origin.env).length === 0) continue;
+      const mockServer = fs.readFileSync(path.join(ROOT, "examples", id, "mock-server.mjs"), "utf8");
+      for (const [name, value] of Object.entries(origin.env)) {
+        assert.match(mockServer, new RegExp(`${name}:\\s*"${value.replace(/[.*+?^$()|[\]\\]/g, "\\$&")}"`), `${id} ${name}`);
+      }
+      const committed = fs.readFileSync(path.join(ROOT, `playgrounds/${id}/.env`), "utf8");
+      for (const [name, value] of Object.entries(origin.env)) {
+        assert.ok(committed.includes(`\n${name}=${value}\n`), `${id} .env is missing ${name}`);
+      }
+    }
+  });
+
+  it("refuses a credential-shaped value rather than committing it", () => {
+    const sample = sampleById("react-quickstart");
+    const audit = auditById("react-quickstart");
+    const declaration = PLAYGROUND_FIXTURE_ORIGINS.get("react-quickstart");
+    const original = declaration.env;
+    declaration.env = { ...original, VITE_HONUA_REACT_API_KEY: "abc123" };
+    try {
+      assert.throws(() => resolveFixtureOrigin(sample, audit), /credential-shaped/);
+    } finally {
+      declaration.env = original;
+    }
+  });
+
+  it("refuses a document the reviewed sample lane does not agree with", () => {
+    const sample = sampleById("react-quickstart");
+    const audit = auditById("react-quickstart");
+    assert.throws(
+      () =>
+        resolveFixtureOrigin(sample, audit, {
+          exists: () => true,
+          readJson: (file) => (file.startsWith("samples/fixtures/") ? { a: 1 } : { a: 2 }),
+        }),
+      /describe different data/,
+    );
+  });
+
+  it("refuses a route the bundle audit never established", () => {
+    const sample = sampleById("react-quickstart");
+    const audit = { ...auditById("react-quickstart"), hostFixtureRoutes: ["/api/v1/admin/capabilities"] };
+    assert.throws(() => resolveFixtureOrigin(sample, audit), /outside the audited hostFixtureRoutes/);
+  });
 });
 
 describe("generated playground projects", () => {
   const qualified = decisions.filter((decision) => decision.qualified);
 
   it("generates a project for every qualifying sample and nothing else", () => {
-    assert.ok(qualified.length >= 4, `expected qualifying samples, found ${qualified.length}`);
+    // #958 AC-001: at least five gallery samples open and run from a link.
+    assert.ok(qualified.length >= 5, `expected at least five playgrounds, found ${qualified.length}`);
     const generated = fs
       .readdirSync(path.join(ROOT, "playgrounds"), { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
@@ -150,6 +279,32 @@ describe("generated playground projects", () => {
       const config = fs.readFileSync(path.join(ROOT, decision.projectPath, "vite.config.ts"), "utf8");
       assert.doesNotMatch(config, /resolve\s*:\s*{[\s\S]*alias/);
       assert.doesNotMatch(config, /repoRoot/);
+    }
+  });
+
+  it("serves every declared route from the project's own Vite config", () => {
+    for (const decision of qualified) {
+      const config = fs.readFileSync(path.join(ROOT, decision.projectPath, "vite.config.ts"), "utf8");
+      if (!decision.fixtureOrigin) {
+        assert.doesNotMatch(config, /honuaFixtureService/);
+        continue;
+      }
+      assert.match(config, /configureServer/);
+      assert.match(config, /configurePreviewServer/);
+      for (const route of decision.fixtureOrigin.routes) {
+        assert.ok(config.includes(`"${route.path}", "${route.document}"`), `${decision.id} ${route.path}`);
+      }
+    }
+  });
+
+  it("reaches no origin but its own", () => {
+    // The point of a generated data origin is that the green path makes no
+    // third-party request; a copied source that hardcodes one would undo it.
+    for (const decision of qualified.filter((entry) => entry.fixtureOrigin)) {
+      for (const relative of decision.files) {
+        const contents = fs.readFileSync(path.join(ROOT, decision.projectPath, relative), "utf8");
+        assert.doesNotMatch(contents, /https?:\/\/(?!localhost|127\.0\.0\.1)/, `${decision.id}/${relative}`);
+      }
     }
   });
 });
@@ -198,7 +353,25 @@ describe("published decision artifact", () => {
   it("agrees with the catalog entries it was generated beside", () => {
     for (const entry of artifact.playgrounds) {
       const sample = catalog.samples.find((candidate) => candidate.id === entry.sampleId);
+      // The catalog carries what a card renders and nothing more; the data
+      // origin is published here instead.
       assert.deepEqual(sample.playground, { projectPath: entry.projectPath, providers: entry.providers });
+    }
+  });
+
+  it("publishes where every playground's data comes from", () => {
+    for (const entry of artifact.playgrounds) {
+      const decision = decisionById.get(entry.sampleId);
+      if (!decision.fixtureOrigin) {
+        assert.deepEqual(entry.dataOrigin, { kind: "committed-sample-source" });
+        continue;
+      }
+      assert.equal(entry.dataOrigin.kind, "generated-fixture-service");
+      assert.equal(entry.dataOrigin.fixturePack, decision.fixtureOrigin.pack);
+      assert.deepEqual(
+        entry.dataOrigin.routes,
+        decision.fixtureOrigin.routes.map((route) => route.path),
+      );
     }
   });
 });
