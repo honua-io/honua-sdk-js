@@ -430,6 +430,80 @@ console.log(enqueued.status); // "enqueued" or "duplicate"
 console.log(receipt.appliedCount);
 ```
 
+## Replay conflicts in the sync-conflict vocabulary
+
+A conflicted acknowledgement records an opaque `conflictId` on the queued edit.
+The SDK separately ships a conflict-review vocabulary — `SyncConflictDetail`,
+`SyncConflictId`, `SyncConflictKind`, `ServerGenerationCursor`. Without a
+projection an application holds two disjoint vocabularies for the same event.
+
+`projectOfflineReplaySyncConflict()` is that projection, and only that: a pure
+function with no I/O, no clock, and no runtime dependency on the replica-sync
+module. Pass a replica binding to `replayOfflineEditPass()` or
+`createLocalFirstStatus()` and the projection is applied to the conflicts those
+surfaces already report — it is not a second channel.
+
+```ts doc-test=skip reason="partial excerpt requires application replay transport"
+import { projectOfflineReplaySyncConflict, replayOfflineEditPass } from "@honua/sdk-js/offline";
+
+// The SDK cannot derive a replica from a queue partition, so the binding is an
+// explicit application input. Omit it and no projection is produced; nothing is
+// guessed.
+const replica = { replicaId: registeredReplicaId, datasetId: registeredDatasetId };
+
+const receipt = await replayOfflineEditPass(queue, transport, {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  workerId: replayWorkerId,
+  limit: 10,
+  leaseDurationMs: 30_000,
+  replica,
+});
+
+for (const outcome of receipt.outcomes) {
+  if (outcome.syncConflict?.outcome !== "projected") continue;
+  console.log(outcome.syncConflict.conflict.id); // a SyncConflictId
+  console.log(outcome.syncConflict.conflict.kind); // "replica-sync"
+  console.log(outcome.syncConflict.conflict.serverGen); // a ServerGenerationCursor
+}
+
+// The same projection is available directly for a record already in the queue.
+const projection = projectOfflineReplaySyncConflict({ edit: conflictedQueuedEdit, replica });
+```
+
+Three rules make the projection safe to consume:
+
+- **It never invents server semantics.** `SyncConflictDetail` members that only
+  a live server can observe or adjudicate — `base`, `serverState`,
+  `serverOperation`, `fieldConflicts`, `fieldConflictCount`,
+  `hasGeometryConflict`, `geometryConflict`, `resolutionOptions`, `resolution` —
+  are absent from the projected conflict and enumerated in
+  `projection.unavailable` with the reason `server-owned`. Members the queue
+  simply does not record (`layerId`, `client`, `device`, `metadata`, and
+  `serverGen` when the acknowledgement carried none) are listed as
+  `not-recorded`. An empty `resolutionOptions` array would read as "the server
+  offers nothing", so the member is omitted instead.
+- **It is payload-free.** `clientState` carries the operation, the delete
+  marker, and the local authoring time, never the edit's attributes or geometry.
+  Those two are listed as `payload-free` in `projection.unavailable`. The
+  authorization-scope digest, request fingerprint, and idempotency key stay in
+  the queue. `OFFLINE_REPLAY_SYNC_CONFLICT_FIELD_MAP` is the full ledger: every
+  field of a durable queued edit, and where it lands or why it does not.
+- **It fails closed.** A record this build cannot map yields
+  `{ outcome: "refused", reason, path }`, never a partially guessed conflict.
+  The reasons are `not-conflicted` (the edit is in another state),
+  `missing-conflict-record` (`conflicted` with no durable outcome),
+  `unidentified-feature` (a local create names no feature, and
+  `SyncConflictSummary.featureId` is required), and `unreadable-edit`. A
+  malformed replica binding is the caller's own argument, so it throws
+  `HonuaOfflineEditQueueError` instead.
+
+This makes the two vocabularies agree; it does not make the SDK a replica-sync
+client. The replay transport is still application-owned, end-to-end
+exactly-once delivery and hosted replica synchronization remain server
+properties, and validating a projected conflict against live server conflict
+semantics stays gated on that server work.
+
 ## Composed local-first status
 
 Cache diagnostics answer "what is in the store", and the queue answers "what
@@ -463,6 +537,9 @@ console.log(status.reason); // "undelivered-edits"
 console.log(status.reads.availability, status.reads.freshness);
 console.log(status.writes.coverage); // "complete"
 console.log(status.writes.undeliveredCount, status.writes.conflictedCount);
+// Empty unless `replica` was supplied; see "Replay conflicts in the
+// sync-conflict vocabulary" above.
+console.log(status.writes.syncConflicts.length);
 ```
 
 `OfflineEditQueue.list()` returns at most 100 records in created order and has
