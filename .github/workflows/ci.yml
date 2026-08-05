@@ -470,6 +470,16 @@ jobs:
       - name: Unit tests with coverage
         run: npm run test:coverage:prepared
 
+      # Re-runs the sample publication contract suite against a forward-shifted
+      # validation clock (+35d clears the 31-day executed window, +95d clears
+      # the 90-day non-executed one) so a fixture whose validity silently
+      # depends on the wall-clock date fails here, weeks before it wedges trunk
+      # for an unrelated pull request (#1079). One suite twice more; committed
+      # evidence merely due for renewal inside the window is #979's lane and
+      # does not fail this step.
+      - name: Sample contract look-ahead clock lane
+        run: npm run samples:contract:lookahead
+
       - name: Migration e2e harness
         run: npx vitest run test/migration-e2e.test.ts
 

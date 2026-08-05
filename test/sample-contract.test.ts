@@ -57,7 +57,72 @@ vi.setConfig({ testTimeout: 40_000 });
 
 const readJson = async (path: string) => JSON.parse(await readFile(path, "utf8"));
 const execFileAsync = promisify(execFile);
-const validationTime = { now: new Date().toISOString() };
+
+// Look-ahead clock lane (honua-io/honua-sdk-js#1079).
+//
+// This suite builds fixtures from committed evidence files and validates them
+// against a clock, so a fixture can be valid today and invalid next month with
+// no code change at all -- the calendar alone wedges trunk. That has happened
+// twice (#738, then #1078, which found a fixture that synthesized an
+// `executed` lane from a committed *skip* attestation and inherited its
+// observedAt, so it silently violated the 31-day executed window once the
+// attestation passed 24 days old).
+//
+// `HONUA_SAMPLE_CONTRACT_LOOKAHEAD_DAYS` advances *this suite's* validation
+// clock -- never the system clock, never another suite -- so those fixtures are
+// exercised weeks past their real boundary:
+//
+//   npm run samples:contract:lookahead      # +35d and +95d, plus a bisect on failure
+//   HONUA_SAMPLE_CONTRACT_LOOKAHEAD_DAYS=35 npx vitest run test/sample-contract.test.ts
+//
+// +35d crosses the 31-day executed window and +95d crosses the 90-day
+// non-executed window, which are the two policy horizons in
+// `samples/contract/v2/migrations/catalog.v1-to-v2.json`.
+//
+// Two rules keep the lane honest, and both are pinned by tests below:
+//
+//  1. Anything this suite synthesizes from a committed attestation must be
+//     re-dated to `validationTime.now`. Use `readAttestationSeed`; it does this
+//     for you. A hand-rolled `readJson` of a committed attestation that then
+//     claims a different status is exactly the #1078 bomb.
+//  2. Committed evidence that is merely due for renewal inside the look-ahead
+//     window is the renewal automation's job (#979), not a contract violation.
+//     `validationTime` therefore pins `evidenceCurrencyNow` to the real clock,
+//     so the shifted lane keeps every policy invariant live while asking "is
+//     this committed attestation still current?" at the real instant. Without
+//     that split the lane would fail on every run past the shortest committed
+//     window and become a standing false alarm.
+const lookAheadDays = Number.parseFloat(process.env.HONUA_SAMPLE_CONTRACT_LOOKAHEAD_DAYS ?? "0");
+if (!Number.isFinite(lookAheadDays) || lookAheadDays < 0) {
+  throw new Error(
+    `HONUA_SAMPLE_CONTRACT_LOOKAHEAD_DAYS must be a non-negative number of days, received "${process.env.HONUA_SAMPLE_CONTRACT_LOOKAHEAD_DAYS}"`,
+  );
+}
+const realTimeNow = new Date().toISOString();
+const validationTime = {
+  now: new Date(Date.parse(realTimeNow) + lookAheadDays * 24 * 60 * 60 * 1000).toISOString(),
+  evidenceCurrencyNow: realTimeNow,
+};
+
+// Loads a committed live-evidence attestation to seed a synthetic lane, with
+// its observation re-dated to the validation clock.
+//
+// Committed attestations age in place between re-observations; a synthetic lane
+// built from one is held to whatever window its *claimed* status carries. Seed a
+// synthetic `executed` lane (31-day window) from a committed `skipped` one
+// (90-day window) without re-dating and the fixture quietly violates policy once
+// the attestation is older than the difference -- `validateCatalog` then reports
+// an expiry violation instead of the assertion the test is about, on a date
+// nobody chose. Re-dating makes the fixture's age a property of the test run
+// rather than of when the attestation was last renewed.
+const readAttestationSeed = async (path: string, clock: { now: string } = validationTime) => {
+  const seed = await readJson(path);
+  seed.observedAt = clock.now;
+  if (seed.provenance) {
+    seed.provenance.observedAt = clock.now;
+  }
+  return seed;
+};
 const goldenJourneyIds = [
   "first-map",
   "service-explorer",
@@ -1294,13 +1359,18 @@ describe("sample publication contract", () => {
     const bound = expiredEvidence.samples.find(
       (sample: { evidence: { live: { status: string } } }) => sample.evidence.live.status === "skipped",
     );
-    // Just-expired, derived from the validation clock rather than hardcoded.
-    // A literal date has to sit after the seed attestation's observedAt (or
-    // the "expiry must follow observation time" invariant fires first and this
-    // assertion never runs), so it silently becomes wrong the moment renewal
-    // re-observes that lane past the literal. Deriving it holds for any
-    // still-current attestation, whenever it was last re-observed.
-    bound.evidence.live.expiresAt = new Date(new Date(validationTime.now).getTime() - 1000).toISOString();
+    // Just-expired, derived from the clock rather than hardcoded. A literal
+    // date has to sit after the seed attestation's observedAt (or the "expiry
+    // must follow observation time" invariant fires first and this assertion
+    // never runs), so it silently becomes wrong the moment renewal re-observes
+    // that lane past the literal. Deriving it holds for any still-current
+    // attestation, whenever it was last re-observed.
+    //
+    // Expiry is a *currency* claim, so it derives from the currency clock: this
+    // fixture has to stay just-expired at every look-ahead offset, and a lane
+    // dated `validationTime.now - 1s` would still be in the future as far as
+    // the currency check is concerned once the validation clock is shifted.
+    bound.evidence.live.expiresAt = new Date(Date.parse(validationTime.evidenceCurrencyNow) - 1000).toISOString();
     await expect(validateCatalog(expiredEvidence, packageJson, validationTime)).rejects.toThrow(
       "live evidence expired",
     );
@@ -2110,20 +2180,11 @@ runNpmScriptSync("demo:wrong:build", {
     const metadataOnlyExpiresAt = new Date(
       new Date(validationTime.now).getTime() + 7 * 24 * 60 * 60 * 1000,
     ).toISOString();
-    const executedEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
+    const executedEvidence = await readAttestationSeed(
+      "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
+    );
     executedEvidence.status = "executed";
     executedEvidence.reason = null;
-    // Re-date the observation as well as the status. The seed file is a
-    // committed *skip* attestation, which lives under the 90-day non-executed
-    // window and ages in place between re-observations; the synthetic lane
-    // below claims `executed`, which is held to the 31-day window against this
-    // same observedAt. Inheriting the seed's date therefore silently violates
-    // the executed policy once the committed attestation is more than
-    // (31 - 7) = 24 days old, and validateCatalog then reports an expiry
-    // violation instead of the assertion this test is actually about. Deriving
-    // it from validationTime keeps the fixture's age a property of the test run
-    // rather than of when the attestation was last renewed.
-    executedEvidence.observedAt = validationTime.now;
     executedEvidence.provenance = {
       sourceId: "honua-demo:incident-realtime",
       observedAt: executedEvidence.observedAt,
@@ -2227,15 +2288,11 @@ runNpmScriptSync("demo:wrong:build", {
     try {
       await mkdir("test-results", { recursive: true });
 
-      const incidentEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
+      const incidentEvidence = await readAttestationSeed(
+        "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
+      );
       incidentEvidence.status = "executed";
       incidentEvidence.reason = null;
-      // Same re-dating as the promotion test above, and for the same reason:
-      // an `executed` lane synthesized from a committed skip attestation must
-      // carry a fresh observedAt or the 31-day executed window preempts the
-      // circularity assertion. The spatial-analytics seed below has always
-      // done this; the incident seed was simply left out.
-      incidentEvidence.observedAt = validationTime.now;
       incidentEvidence.provenance = {
         sourceId: "honua-demo:incident-realtime",
         observedAt: incidentEvidence.observedAt,
@@ -2248,11 +2305,12 @@ runNpmScriptSync("demo:wrong:build", {
       incidentEvidence.degradation = { state: "none", reasons: [] };
       await writeFile(incidentEvidencePath, `${JSON.stringify(incidentEvidence, null, 2)}\n`);
 
-      const spatialEvidence = await readJson("examples/spatial-analytics-workbench/evidence/live-skipped.v1.json");
+      const spatialEvidence = await readAttestationSeed(
+        "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
+      );
       spatialEvidence.status = "executed";
       spatialEvidence.reason = null;
       spatialEvidence.sdk.gitCommit = "a6e2bb0785bcdebf47a1f5bd8254cf62e138963b";
-      spatialEvidence.observedAt = validationTime.now;
       spatialEvidence.provenance = {
         sourceId: "honua-demo:spatial-analytics",
         observedAt: spatialEvidence.observedAt,
@@ -2319,6 +2377,138 @@ runNpmScriptSync("demo:wrong:build", {
       await rm(incidentEvidencePath, { force: true });
       await rm(spatialEvidencePath, { force: true });
     }
+  });
+
+  // Look-ahead clock lane (honua-io/honua-sdk-js#1079). The three tests below
+  // pin the lane's own contract, and they run in the ordinary real-time pass as
+  // well as the shifted one so the lane cannot quietly rot into a no-op.
+  const lookAheadOffsets = [35, 95];
+  const shiftValidationClock = (days: number) => ({
+    ...validationTime,
+    now: new Date(Date.parse(validationTime.now) + days * 24 * 60 * 60 * 1000).toISOString(),
+  });
+
+  it("holds the shipped catalog valid against a forward-shifted validation clock", async () => {
+    // The false-alarm invariant. A healthy committed attestation must still
+    // pass when the validation clock is advanced past both policy horizons:
+    // +35d clears the 31-day executed window and +95d the 90-day non-executed
+    // one, whatever the committed observations happen to be today. Currency
+    // stays pinned to the real clock (see the header) because an attestation
+    // that merely falls due for renewal inside the window is the renewal
+    // automation's business (#979), not a contract violation -- without that
+    // split this lane would fail on every run past the shortest window and be
+    // worth exactly nothing.
+    const packageJson = await readJson("package.json");
+    for (const days of lookAheadOffsets) {
+      await expect(
+        validateCatalog(await readJson("samples/catalog.v2.json"), packageJson, shiftValidationClock(days)),
+      ).resolves.toBeUndefined();
+    }
+  });
+
+  it("rejects a synthetic executed lane that inherits a committed attestation's observation", async () => {
+    // The detector, pinned against the exact shape that broke trunk on
+    // 2026-08-05 (#1078): a synthetic `executed` lane seeded from a committed
+    // *skip* attestation. The skip lives under the 90-day non-executed window
+    // and ages in place; the synthetic lane claims `executed` and is held to
+    // the 31-day window against whatever observation it carries. Inherit the
+    // seed's date and the fixture drifts out of policy on a date nobody chose.
+    const packageJson = await readJson("package.json");
+    const seedPath = "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json";
+    const evidencePath = "test-results/lookahead-inherited-observation-evidence.json";
+
+    const buildCatalog = async (evidence: any, clock: { now: string }) => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      const sample = catalog.samples.find(
+        (candidate: { id: string }) => candidate.id === "realtime-incident-dashboard",
+      );
+      sample.evidence.live = {
+        mode: "demo-live",
+        status: "executed",
+        commands: ["npm run bench:live"],
+        evidencePath,
+        expiresAt: new Date(Date.parse(clock.now) + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+      evidence.status = "executed";
+      evidence.reason = null;
+      evidence.provenance = {
+        sourceId: "honua-demo:incident-realtime",
+        observedAt: evidence.observedAt,
+        validAt: null,
+        state: "live",
+        attribution: "Honua demo synthetic incident data",
+      };
+      evidence.semantics.outcome = "connected";
+      evidence.timing.totalMs = 1;
+      evidence.degradation = { state: "none", reasons: [] };
+      await writeFile(evidencePath, `${JSON.stringify(evidence, null, 2)}\n`);
+      return catalog;
+    };
+
+    // Stands in for a committed attestation last re-observed ten days ago,
+    // rather than reading however fresh the real one happens to be today. Ten
+    // days is comfortably inside the executed window at the real clock
+    // (10 + 7 = 17 of 31) and comfortably outside it at either look-ahead
+    // offset, which is the whole premise of the lane: valid now, invalid then,
+    // with nothing changing in between.
+    const inheritedObservedAt = new Date(Date.parse(validationTime.now) - 10 * 24 * 60 * 60 * 1000).toISOString();
+
+    try {
+      await mkdir("test-results", { recursive: true });
+      const options = { relaxDerivedArtifacts: true, verifyCheckout: false };
+
+      for (const days of [0, ...lookAheadOffsets]) {
+        const clock = shiftValidationClock(days);
+
+        // Re-dated through readAttestationSeed: the lane is seven days wide at
+        // every offset, so it passes whatever the calendar says.
+        const redated = await buildCatalog(await readAttestationSeed(seedPath, clock), clock);
+        await expect(validateCatalog(redated, packageJson, { ...clock, ...options })).resolves.toBeUndefined();
+
+        // Inherited: the identical lane, except its observation stayed where
+        // the seed left it. Green at the real clock and red at both look-ahead
+        // offsets -- the gate reverting PR #1078 would have tripped weeks
+        // early. The message names the observation the span is measured from,
+        // so the fix does not require re-deriving the policy arithmetic
+        // (REQ-002).
+        const seed = await readAttestationSeed(seedPath, clock);
+        seed.observedAt = inheritedObservedAt;
+        const inherited = await buildCatalog(seed, clock);
+        const assertion = expect(validateCatalog(inherited, packageJson, { ...clock, ...options }));
+        if (days === 0) {
+          await assertion.resolves.toBeUndefined();
+        } else {
+          await assertion.rejects.toThrow(
+            new RegExp(
+              `realtime-incident-dashboard: evidence expiry exceeds 31-day policy: .+ is ${days + 17}\\.\\d days after observation ${inheritedObservedAt}`,
+            ),
+          );
+        }
+      }
+    } finally {
+      await rm(evidencePath, { force: true });
+    }
+  });
+
+  it("keeps every committed attestation this suite reads behind the re-dating seed reader", async () => {
+    // REQ-003 as a structural rule rather than a review habit: a committed live
+    // attestation may only enter this file through readAttestationSeed, which
+    // re-dates its observation to the validation clock. A bare readJson of one
+    // is the #738/#1078 bug verbatim, and it stays green for weeks after it is
+    // written, so nothing else here can catch it.
+    const source = await readFile("test/sample-contract.test.ts", "utf8");
+    const bareAttestationReads = [...source.matchAll(/readJson\(\s*"([^"]*\/evidence\/live-[^"]*)"/g)].map(
+      (match) => match[1],
+    );
+    expect(
+      bareAttestationReads,
+      "read committed live attestations through readAttestationSeed so the synthetic lane carries its own observation",
+    ).toEqual([]);
+
+    // ...and the reader really does re-date, envelope and provenance alike.
+    const seed = await readAttestationSeed("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
+    expect(seed.observedAt).toBe(validationTime.now);
+    expect(seed.provenance?.observedAt ?? validationTime.now).toBe(validationTime.now);
   });
 
   it("uses one credential-safe evidence envelope for fixture, live, and unavailable lanes", async () => {

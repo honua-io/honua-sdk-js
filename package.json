@@ -352,6 +352,7 @@
     "verify:contract-v2-design": "node scripts/verify-contract-v2-design.mjs",
     "projjson:generate": "node scripts/generate-projjson-validator.mjs",
     "verify:projjson-validator": "node scripts/generate-projjson-validator.mjs --check",
+    "samples:contract:lookahead": "node scripts/sample-contract-lookahead.mjs",
     "samples:generate": "node scripts/sample-contract.mjs write",
     "samples:migrate:v1": "node scripts/sample-contract.mjs migrate-v1",
     "samples:refresh-live-expiry": "node scripts/sample-contract.mjs refresh-live-expiry",

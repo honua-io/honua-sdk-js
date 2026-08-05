@@ -58,6 +58,7 @@ Run from the repo root unless noted. These are copied from `package.json` / CI; 
 - **API docs:** `npm run docs:api` (TypeDoc → `dist/docs-api`)
 - **Migration CLI:** `npm run scan:arcgis`, `npm run migrate:arcgis` (wrap `dist/src/migration/cli.js`)
 - **Canonical capability keys / coverage snapshot:** `npm run samples:verify` validates `samples/catalog.v2.json`'s `capabilityKeys` against `config/capability-crosswalk.v1.json`; `npm run sdk-coverage:generate` / `npm run sdk-coverage:check` produce and drift-gate `config/sdk-coverage.v1.json` from `config/support-manifest.v1.json` + `config/sdk-coverage-crosswalk.v1.json`. See `docs/capability-keys.md`.
+- **Sample-contract look-ahead clock lane:** `npm run samples:contract:lookahead` re-runs `test/sample-contract.test.ts` against a forward-shifted validation clock (+35d and +95d, clearing the 31-day executed and 90-day non-executed evidence windows) so a fixture whose validity silently depends on the wall-clock date fails weeks before it wedges trunk; on failure it bisects the offset and names the date the fixture tips. `HONUA_SAMPLE_CONTRACT_LOOKAHEAD_DAYS` shifts that one suite's clock and nothing else. See the header of `test/sample-contract.test.ts`.
 - **Run a demo (dev server):** `npm run demo:<name>` (e.g. `demo:quickstart`, `demo:incident`); each demo also has `:build`, `:preview`, `:typecheck`, and often `:mock`.
 - **Proto codegen:** `npm run proto:generate` (requires the sibling `../../proto` tree and `buf`).
 

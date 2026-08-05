@@ -2966,6 +2966,31 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   const orderedSampleIds = catalog.samples.map((sample) => sample.id);
   invariant(JSON.stringify(orderedSampleIds) === JSON.stringify([...orderedSampleIds].sort()), "catalog samples must be sorted by id");
   const currentTime = options.now === undefined ? Date.now() : parseDateTime(options.now, "validation time");
+  // Second, optional clock: "is the committed evidence still current?", split
+  // out from "does this catalog satisfy the evidence policy?" so the two can be
+  // asked at different instants (honua-io/honua-sdk-js#1079).
+  //
+  // The look-ahead lane advances `now` past the 31-day executed and 90-day
+  // non-executed windows to expose fixtures whose validity silently depends on
+  // the wall-clock date. Every policy invariant -- expiry-follows-observation,
+  // the executed/non-executed window arithmetic, clock skew -- has to move with
+  // that clock or the lane detects nothing. Currency must not: a committed
+  // attestation that simply falls due for renewal inside the look-ahead window
+  // is the renewal automation's job (#979), not a contract violation, and
+  // reporting it here would turn the lane into a standing false alarm.
+  //
+  // Callers pin it to the real clock only for that lane. It defaults to the
+  // validation clock, so every production gate keeps the single-clock behaviour,
+  // and it may never lead the validation clock -- it can only decline to
+  // fast-forward currency, never backdate a lapse out of existence.
+  const evidenceCurrencyTime =
+    options.evidenceCurrencyNow === undefined
+      ? currentTime
+      : parseDateTime(options.evidenceCurrencyNow, "evidence currency time");
+  invariant(
+    evidenceCurrencyTime <= currentTime,
+    "evidence currency clock cannot lead the validation clock",
+  );
   const capabilityCrosswalk = await readJson(CAPABILITY_CROSSWALK_PATH);
   invariant(
     capabilityCrosswalk.format === "honua.sdk.capability-crosswalk.v1" && capabilityCrosswalk.schemaVersion === 1,
@@ -3146,11 +3171,22 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         sample.evidence.live.status === "executed"
           ? catalog.configuration.evidenceExpiry.executedMaxDays
           : catalog.configuration.evidenceExpiry.nonExecutedMaxDays;
+      // Name both dates and the span between them. This invariant is the one a
+      // calendar time bomb trips (#1079): a lane that inherits a committed
+      // attestation's observedAt while deriving expiresAt from the clock drifts
+      // past the window as the attestation ages, and "exceeds 31-day policy" on
+      // its own sends the reader to the catalog literal rather than to the
+      // observation the span is actually measured from.
       invariant(
         expiresAt - observedAt <= maxDays * 24 * 60 * 60 * 1000,
-        `${sample.id}: evidence expiry exceeds ${maxDays}-day policy`,
+        `${sample.id}: evidence expiry exceeds ${maxDays}-day policy: ` +
+          `${sample.evidence.live.expiresAt} is ${((expiresAt - observedAt) / 86_400_000).toFixed(1)} days after ` +
+          `observation ${evidence.observedAt}`,
       );
-      invariant(currentTime < expiresAt, `${sample.id}: live evidence expired at ${sample.evidence.live.expiresAt}`);
+      invariant(
+        evidenceCurrencyTime < expiresAt,
+        `${sample.id}: live evidence expired at ${sample.evidence.live.expiresAt}`,
+      );
       if (sample.evidence.live.status === "executed") {
         invariant(
           ["public-live", "demo-live", "authenticated"].includes(sample.evidence.live.mode),
@@ -3284,7 +3320,9 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         profile,
         expectedCommand: expectedGateCommand,
         receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, "samples/evidence")),
-        now: new Date(currentTime).toISOString(),
+        // Receipt freshness is a currency question about committed artifacts,
+        // so it reads the currency clock (see `evidenceCurrencyTime` above).
+        now: new Date(evidenceCurrencyTime).toISOString(),
         projectRoot: PROJECT_ROOT,
         verifyCheckout: options.verifyCheckout,
       });
@@ -3327,7 +3365,8 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
   // must not be able to launder a failing engine.
   await validateReleaseMatrixEvidence(goldenSamples, {
     receiptRoot: path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT)),
-    now: new Date(currentTime).toISOString(),
+    // Another committed-artifact currency gate; same clock as the receipt set.
+    now: new Date(evidenceCurrencyTime).toISOString(),
     relaxDerivedArtifacts: options.relaxDerivedArtifacts === true || derivedArtifactsRelaxed(),
     laneRegistryPath: options.releaseMatrixLaneRegistryPath,
   });
