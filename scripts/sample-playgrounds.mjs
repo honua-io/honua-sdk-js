@@ -28,8 +28,14 @@
  * from its own Vite dev/preview server, so the default lane still needs no
  * account, no key, and no third-party request.
  *
+ * The links a reader reaches for live in three places, all written from this one
+ * derivation: the catalog overlay (what a gallery card renders), the standalone
+ * artifact below, and a managed block in the sample's own
+ * `examples/<id>/README.md` (#958 REQ-001) — nobody hand-maintains a playground
+ * URL, so none of them can go stale.
+ *
  * Run with:
- *   npm run samples:playgrounds:generate   # write projects + catalog overlay
+ *   npm run samples:playgrounds:generate   # write projects + catalog overlay + sample READMEs
  *   npm run samples:playgrounds:check      # fail on drift
  */
 
@@ -50,6 +56,19 @@ const PLAYGROUND_ROOT = "playgrounds";
 const ARTIFACT_PATH = "samples/dist/sample-playgrounds.v1.json";
 const ARTIFACT_SCHEMA_PATH = "samples/contract/v2/schemas/sample-playgrounds.schema.json";
 export const ARTIFACT_FORMAT = "honua.sdk.sample-playgrounds.v1";
+
+/**
+ * Managed region in a sample's own README (#958 REQ-001's second half).
+ *
+ * The markers are the anchor, not the content: once a block exists, only the
+ * text between them is generated, so a maintainer may move the call to action
+ * wherever it reads best without the generator putting it back. A sample that
+ * newly qualifies has no markers yet, so `write` inserts the block at the end of
+ * the introduction; a sample that stops qualifying has its block removed rather
+ * than left pointing at a project that no longer exists.
+ */
+export const SAMPLE_README_START = "<!-- sample-playground:start -->";
+export const SAMPLE_README_END = "<!-- sample-playground:end -->";
 
 /** Machine-readable exclusion categories, one per reason a sample cannot ship a playground. */
 export const PLAYGROUND_EXCLUSION_CATEGORIES = [
@@ -79,13 +98,52 @@ const INELIGIBLE_SUPPORT_TIERS = new Set(["internal", "deprecated"]);
  * different published SDK releases.
  */
 const PINNED_DEPENDENCIES = Object.freeze({
-  "maplibre-gl": "5.24.0",
+  // The MapLibre major this repository's example sources are written against.
+  // `examples/shared/maplibre-vite-worker.ts`, which every map sample carries a
+  // copy of, imports `setWorkerUrl` and `maplibre-gl/dist/maplibre-gl-worker.mjs`
+  // — both v6-only — so a playground pinned to v5 fails to resolve the module at
+  // all. The scaffold starters do not carry that shim and stay on the version
+  // the published SDK's optional peer range names; until the next release widens
+  // that range to `^5 || ^6`, installing a playground prints one `peerOptional`
+  // warning, which is the honest cost of running the source the samples run.
+  "maplibre-gl": "6.0.0",
   "@bufbuild/protobuf": "2.13.0",
   "@connectrpc/connect": "2.1.2",
   "@connectrpc/connect-web": "2.1.2",
   react: "19.2.8",
   "react-dom": "19.2.8",
+  // The SDK's geometry module wraps one `@turf/*` package per operation and
+  // imports every one of them statically; see ALWAYS_INSTALLED.
+  "@turf/area": "7.3.5",
+  "@turf/bbox": "7.3.5",
+  "@turf/boolean-contains": "7.3.5",
+  "@turf/boolean-intersects": "7.3.5",
+  "@turf/boolean-within": "7.3.5",
+  "@turf/buffer": "7.3.5",
+  "@turf/centroid": "7.3.5",
+  "@turf/convex": "7.3.5",
+  "@turf/difference": "7.3.5",
+  "@turf/helpers": "7.3.5",
+  "@turf/intersect": "7.3.5",
+  "@turf/length": "7.3.5",
+  "@turf/nearest-point": "7.3.5",
+  "@turf/simplify": "7.3.5",
+  "@turf/union": "7.3.5",
+  "terra-draw": "1.32.0",
+  "terra-draw-maplibre-gl-adapter": "1.4.1",
 });
+
+/**
+ * Optional peers a sample loads at runtime rather than importing statically.
+ *
+ * The dependency derivation reads the sample's own import statements, which is
+ * exactly right for everything a bundler resolves — but an SDK factory that
+ * `import()`s an optional peer on demand leaves no static specifier to find.
+ * The playground then installs, builds and mounts a map whose feature never
+ * initialises, which is a worse link than none. Each entry is the peer set one
+ * sample's own README already names as required for its lane.
+ */
+const SAMPLE_RUNTIME_PEERS = new Map([["sketch-editing", ["terra-draw", "terra-draw-maplibre-gl-adapter"]]]);
 
 /**
  * Type packages a pinned runtime dependency needs before the generated project
@@ -102,8 +160,35 @@ const PINNED_TYPE_DEPENDENCIES = Object.freeze({
  * Peers the published SDK's own modules import statically. They are installed
  * in every playground for the same reason the scaffold templates pin them: a
  * bundler resolves the SDK's transport module whether or not the app calls it.
+ *
+ * The `@turf/*` packages are here for exactly that reason and no other. They are
+ * *optional* peers, so an app that never calls a geometry operation should not
+ * need them — but `@honua/sdk-js`'s geometry module imports all fifteen with
+ * static named imports, and any entrypoint whose module graph reaches it drags
+ * them in. Left uninstalled, Vite substitutes an optional-peer stub with no
+ * named exports and the production build fails with `MISSING_EXPORT`, which is
+ * how this list was found (see .github/workflows/sample-playground-live.yml).
  */
-const ALWAYS_INSTALLED = ["@bufbuild/protobuf", "@connectrpc/connect", "@connectrpc/connect-web"];
+const ALWAYS_INSTALLED = [
+  "@bufbuild/protobuf",
+  "@connectrpc/connect",
+  "@connectrpc/connect-web",
+  "@turf/area",
+  "@turf/bbox",
+  "@turf/boolean-contains",
+  "@turf/boolean-intersects",
+  "@turf/boolean-within",
+  "@turf/buffer",
+  "@turf/centroid",
+  "@turf/convex",
+  "@turf/difference",
+  "@turf/helpers",
+  "@turf/intersect",
+  "@turf/length",
+  "@turf/nearest-point",
+  "@turf/simplify",
+  "@turf/union",
+];
 
 const PINNED_DEV_DEPENDENCIES = Object.freeze({
   "@types/node": "24.13.3",
@@ -127,6 +212,23 @@ const COPYABLE_SHARED_SOURCES = new Map([
     },
   ],
 ]);
+
+/**
+ * Pins the generated project must force past a *published* peer range.
+ *
+ * The published SDK declares `maplibre-gl` as an optional peer at `^5.0.0`,
+ * which predates this repository's move to MapLibre 6 (`^5.0.0 || ^6.0.0` on
+ * trunk, unreleased). A fresh `npm install` refuses the combination outright
+ * (`ERESOLVE`), so without this the three map playgrounds cannot be installed at
+ * all — and with a v5 pin they install but cannot resolve the v6-only worker
+ * module their own source imports.
+ *
+ * The override states that intent explicitly rather than papering over it with
+ * `--legacy-peer-deps`, which would silence every future conflict too. Delete
+ * the entry once a release carries the widened range; `npm run
+ * samples:playgrounds:smoke` is what proves it is no longer needed.
+ */
+const PEER_RANGE_OVERRIDES = Object.freeze({ "maplibre-gl": "6.0.0" });
 
 /** Directory a generated playground keeps its committed fixture documents in. */
 const FIXTURE_DIRECTORY = "fixtures";
@@ -409,6 +511,11 @@ export function evaluateSamplePlaygroundEligibility(sample, context) {
     dependencies[packageName] = pin;
   }
   for (const packageName of ALWAYS_INSTALLED) dependencies[packageName] = PINNED_DEPENDENCIES[packageName];
+  for (const packageName of SAMPLE_RUNTIME_PEERS.get(sample.id) ?? []) {
+    const pin = PINNED_DEPENDENCIES[packageName];
+    if (!pin) return exclude("unpinned-dependency", `${packageName} has no reviewed published pin.`);
+    dependencies[packageName] = pin;
+  }
 
   const devDependencies = { ...PINNED_DEV_DEPENDENCIES };
   for (const packageName of Object.keys(dependencies)) {
@@ -438,6 +545,11 @@ export function derivePlaygroundDecisions(catalog, context) {
 }
 
 function projectPackageJson(decision, sample) {
+  // Only the overrides this project's own dependencies need: a playground that
+  // installs no map renderer carries no MapLibre override.
+  const overrides = Object.fromEntries(
+    Object.entries(PEER_RANGE_OVERRIDES).filter(([name]) => Object.hasOwn(decision.dependencies, name)),
+  );
   return `${JSON.stringify(
     {
       name: `honua-playground-${sample.id}`,
@@ -449,6 +561,7 @@ function projectPackageJson(decision, sample) {
       scripts: { dev: "vite", build: "vite build", preview: "vite preview", typecheck: "tsc --noEmit" },
       dependencies: decision.dependencies,
       devDependencies: decision.devDependencies,
+      ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     },
     null,
     2,
@@ -669,6 +782,68 @@ function providerLinks(manifest, projectPath) {
   }));
 }
 
+/**
+ * The managed block a qualifying sample's own README carries.
+ *
+ * Deliberately short, and deliberately free of anything that changes on a
+ * release: these files sit inside the sample-qualification digest, so a block
+ * that restated the pinned SDK version would re-qualify five samples every time
+ * a version moved. What it carries is exactly what cannot be hand-maintained —
+ * the provider URLs and the project they boot.
+ */
+export function renderSampleReadmeBlock(sample, decision, links) {
+  const relativeProject = path.posix.relative(sample.sourcePath, decision.projectPath);
+  return [
+    SAMPLE_README_START,
+    "<!-- Generated by scripts/sample-playgrounds.mjs. Do not edit by hand; run npm run samples:playgrounds:generate. -->",
+    "",
+    "## Run it without installing anything",
+    "",
+    links.map((link) => `[Open in ${link.title}](${link.url})`).join(" · "),
+    "",
+    `Each link boots [\`${decision.projectPath}\`](${relativeProject}), a generated standalone copy of this`,
+    "sample's committed source that resolves `@honua/sdk-js` from the published package instead of this",
+    "repository's `src/` tree. Change the sample here and run `npm run samples:playgrounds:generate`.",
+    SAMPLE_README_END,
+  ].join("\n");
+}
+
+/**
+ * Splice the managed block into a sample README.
+ *
+ * With markers present the block is replaced where it sits. Without them the
+ * block is inserted at the end of the introduction — immediately before the
+ * first `## ` section, or at the end of a README that has none — which puts the
+ * call to action above the local-run instructions it replaces for a reader who
+ * only wants to look.
+ */
+export function spliceSampleReadme(readme, block) {
+  const start = readme.indexOf(SAMPLE_README_START);
+  const end = readme.indexOf(SAMPLE_README_END);
+  if (start >= 0 && end > start) {
+    return `${readme.slice(0, start)}${block}${readme.slice(end + SAMPLE_README_END.length)}`;
+  }
+  if (start >= 0 || end >= 0) {
+    throw new Error(`sample README playground markers are malformed (${SAMPLE_README_START} / ${SAMPLE_README_END})`);
+  }
+  const section = readme.match(/^## .*$/m);
+  if (!section) return `${readme.trimEnd()}\n\n${block}\n`;
+  return `${readme.slice(0, section.index)}${block}\n\n${readme.slice(section.index)}`;
+}
+
+/** Drop the managed block, and the blank lines it introduced, from a sample README. */
+export function removeSampleReadmeBlock(readme) {
+  const start = readme.indexOf(SAMPLE_README_START);
+  const end = readme.indexOf(SAMPLE_README_END);
+  if (start < 0 && end < 0) return readme;
+  if (start < 0 || end < start) {
+    throw new Error(`sample README playground markers are malformed (${SAMPLE_README_START} / ${SAMPLE_README_END})`);
+  }
+  const before = readme.slice(0, start).replace(/\n+$/, "\n");
+  const after = readme.slice(end + SAMPLE_README_END.length).replace(/^\n+/, "");
+  return after.length === 0 ? before : `${before}\n${after}`;
+}
+
 /** The catalog overlay value a qualifying sample carries. */
 export function playgroundCatalogEntry(decision, links) {
   return { projectPath: decision.projectPath, providers: links.map((link) => ({ ...link })) };
@@ -751,16 +926,34 @@ function collectPlan() {
   const decisions = derivePlaygroundDecisions(catalog, context);
   const files = new Map();
   const catalogEntries = new Map();
+  // Sample READMEs are spliced, not generated: the file is hand-written and
+  // only the managed block belongs to this script, so each entry is the whole
+  // desired file rather than a fragment.
+  const sampleReadmes = new Map();
   for (const decision of decisions) {
-    if (!decision.qualified) continue;
     const sample = catalog.samples.find((entry) => entry.id === decision.id);
+    const readmePath = path.posix.join(sample.sourcePath, "README.md");
+    const readme = fs.existsSync(path.join(ROOT, readmePath))
+      ? fs.readFileSync(path.join(ROOT, readmePath), "utf8")
+      : undefined;
+    if (!decision.qualified) {
+      // A sample that stops qualifying must lose its links, not keep them.
+      if (readme !== undefined && readme.includes(SAMPLE_README_START)) {
+        sampleReadmes.set(readmePath, removeSampleReadmeBlock(readme));
+      }
+      continue;
+    }
     const links = providerLinks(manifest, decision.projectPath);
     for (const [relative, contents] of renderPlaygroundProject(sample, decision, links)) {
       files.set(path.posix.join(decision.projectPath, relative), contents);
     }
     catalogEntries.set(decision.id, playgroundCatalogEntry(decision, links));
+    if (readme === undefined) {
+      throw new Error(`${readmePath} is missing; a qualifying sample must document its playground`);
+    }
+    sampleReadmes.set(readmePath, spliceSampleReadme(readme, renderSampleReadmeBlock(sample, decision, links)));
   }
-  return { catalog, decisions, files, catalogEntries, sdkVersion: manifest.sdk.version };
+  return { catalog, decisions, files, catalogEntries, sampleReadmes, sdkVersion: manifest.sdk.version };
 }
 
 /** Overlay updates so the generated links reach the catalog through its reviewed migration. */
@@ -792,7 +985,7 @@ function main() {
     process.stderr.write("Usage: node scripts/sample-playgrounds.mjs [write|check]\n");
     process.exit(1);
   }
-  const { decisions, files, catalogEntries, sdkVersion } = collectPlan();
+  const { decisions, files, catalogEntries, sampleReadmes, sdkVersion } = collectPlan();
   const qualified = decisions.filter((decision) => decision.qualified);
   for (const decision of decisions) {
     if (decision.qualified) continue;
@@ -813,10 +1006,17 @@ function main() {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, contents);
     }
+    let readmesWritten = 0;
+    for (const [relative, contents] of sampleReadmes) {
+      const target = path.join(ROOT, relative);
+      if (fs.readFileSync(target, "utf8") === contents) continue;
+      fs.writeFileSync(target, contents);
+      readmesWritten += 1;
+    }
     if (overlayChanged) fs.writeFileSync(path.join(ROOT, OVERLAY_PATH), stableJson(overlay));
     fs.writeFileSync(path.join(ROOT, ARTIFACT_PATH), artifactBytes);
     process.stdout.write(
-      `samplePlaygroundsWritten=${qualified.length} excluded=${decisions.length - qualified.length}${
+      `samplePlaygroundsWritten=${qualified.length} excluded=${decisions.length - qualified.length} sampleReadmes=${readmesWritten}${
         overlayChanged ? " overlay=updated (run npm run samples:migrate:v1)" : ""
       }\n`,
     );
@@ -838,6 +1038,14 @@ function main() {
   for (const relative of committed) {
     if (!files.has(relative)) problems.push(`${relative} is not generated by any qualifying sample`);
   }
+  // The links a sample's own README publishes come from this same derivation,
+  // so a stale, invented or orphaned playground URL fails here rather than
+  // waiting for a reader to click it.
+  for (const [relative, contents] of sampleReadmes) {
+    if (fs.readFileSync(path.join(ROOT, relative), "utf8") !== contents) {
+      problems.push(`${relative} playground block has drifted`);
+    }
+  }
   if (overlayChanged) problems.push(`${OVERLAY_PATH} playground entries have drifted`);
   // Tracked, not merely present: `.gitignore`'s `dist/` rule matches
   // `samples/dist/` at any depth, so an untracked artifact reads as correct in
@@ -852,7 +1060,9 @@ function main() {
   if (committedArtifact !== artifactBytes) problems.push(`${ARTIFACT_PATH} has drifted`);
   if (problems.length > 0) reportDrift(problems);
 
-  process.stdout.write(`samplePlaygrounds=ok qualified=${qualified.length} excluded=${decisions.length - qualified.length}\n`);
+  process.stdout.write(
+    `samplePlaygrounds=ok qualified=${qualified.length} excluded=${decisions.length - qualified.length} sampleReadmes=${sampleReadmes.size}\n`,
+  );
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();

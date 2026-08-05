@@ -1,0 +1,66 @@
+name: Gallery playground registry smoke
+
+# Scheduled registry lane for the zero-install gallery playgrounds (#958
+# REQ-001): install a generated playground from the real npm registry, build it,
+# serve the production build, and drive Chromium until the sample's own
+# readiness contract holds — a rendered map, the features the reviewed fixture
+# serves, zero console or page errors, and zero off-origin requests. Required PR
+# CI stays offline and only checks the generated projects against their samples
+# and compiles them against SDK source; nothing here belongs in that lane.
+on:
+  schedule:
+    # A day after the scaffold lane so the two registry jobs never contend.
+    - cron: "0 8 * * 2"
+  workflow_dispatch:
+    inputs:
+      playground:
+        description: "Sample id to drive (defaults to every declared playground journey)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+
+jobs:
+  playground-smoke:
+    name: Installed playground renders its map
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      - name: Verify the generated playgrounds still match their samples
+        # Drive the committed generator output, never a locally regenerated
+        # tree: a playground that has drifted from its sample is the wrong thing
+        # to install from the registry.
+        run: npm run samples:playgrounds:check
+
+      - name: Install from the registry and drive the served build
+        env:
+          HONUA_PLAYGROUND_LIVE_ENABLED: "true"
+          PLAYGROUND: ${{ inputs.playground }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${PLAYGROUND}" ]]; then
+            npm run samples:playgrounds:smoke -- --playground "${PLAYGROUND}"
+          else
+            npm run samples:playgrounds:smoke
+          fi
+
+      - name: Upload playground smoke evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sample-playground-smoke
+          path: test-results/sample-playground-smoke.json
+          if-no-files-found: error
+          retention-days: 90
