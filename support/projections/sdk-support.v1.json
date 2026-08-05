@@ -2220,21 +2220,16 @@
     },
     {
       "id": "agent-tools-facade",
-      "label": "MCP tools and AI execution",
+      "label": "MCP tools and agent operations",
       "operations": [
         "agent-tools"
       ],
-      "environment": "honua-facade",
-      "executionMode": "facade",
-      "status": "facade-required",
-      "backendNeeded": "Honua Server and @honua/mcp-server",
-      "serverAttach": {
-        "disposition": "roadmap",
-        "issue": "https://github.com/honua-io/honua-sdk-js/issues/1005",
-        "rationale": "Tool definitions are local and honua-mcp already reads public endpoints, but the tool contract still resolves execution through the bounded Honua surface; the protocol-neutral tool contract is scheduled work, not an inherent dependency."
-      },
+      "environment": "standalone",
+      "executionMode": "native",
+      "status": "beta",
+      "backendNeeded": "Any GeoServices, OGC API Features, WFS, STAC, or OData endpoint the SDK's protocol clients support",
       "api": "mcp/, @honua/sdk-js/agent-tools",
-      "notes": "Tool definitions are local, while discovery and query execution use the bounded Honua server surface.",
+      "notes": "Tool definitions are local and the tool contract is the SDK's protocol-neutral one: honua-mcp addresses sources as <protocol>:<address>, filters with the typed semantic filter, and returns GeoJSON geometry against any supported open endpoint — no Honua server. A Honua deployment's richer /mcp operator catalog remains the upgrade path via honua-mcp-proxy.",
       "evidence": [
         "agent-tools-fixtures"
       ]
