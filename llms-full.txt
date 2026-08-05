@@ -3989,6 +3989,11 @@ Because the identity is plan-derived, the batch is admissible to
 change to the plan's source, schema, scope, query, policy, execution mode, or
 representation changes `columnarBatchCacheKey`.
 
+The producer materializes no per-row object, and that is budgeted rather than
+asserted: the `columnar.producer.million-row` benchmark-lab scenario runs this
+path over a 1,000,000-row column under an identity minted from a real plan and
+carries the same per-row retention ceiling the data-plane scenario declares.
+
 ## Memory ceilings
 
 Creation and transfer default to at most 1,000,000 rows and 64 MiB of unique
@@ -4659,10 +4664,18 @@ not read the patch overlay, so a tombstoned row would appear in its window —
 read a patched batch through `decodePatchedGeoArrowBatch()` instead.
 
 Within realtime patching specifically, in-place dictionary growth, more than one
-operation per feature id in one patch, an incremental transport that ships only
-the appended byte range, and a benchmarked patch-latency budget are deliberately
-not claimed: a patch needing a new dictionary value or a second operation on one
-feature rebuilds or is rejected rather than guessing.
+operation per feature id in one patch, and an incremental transport that ships
+only the appended byte range are deliberately not claimed: a patch needing a new
+dictionary value or a second operation on one feature rebuilds or is rejected
+rather than guessing.
+
+Patch latency and rebuild memory *are* budgeted. The
+`columnar.patch.million-row` benchmark-lab scenario applies 1,000-event patches
+to a 1,000,000-row batch and then lets the declared reserve fill so one
+compacting rebuild runs per repetition, carrying an in-place latency ceiling
+plus the per-feature and relative-to-backing memory ceilings the epic sets on a
+rebuild. See [`bench/README.md`](../bench/README.md) for the measured values and
+for why the latency target is the scenario's warning rather than its failure.
 
 ---
 
@@ -6142,9 +6155,11 @@ const mounted = await mountSourceToCesium(entities, source, plan, {
   time: { startField: "observed_at", endField: "expires_at" },
 });
 
-// Re-executes the same accepted plan and rebuilds the whole snapshot; stable
-// entity ids survive, the `Entity` objects behind them do not.
+// Re-executes the same accepted plan and *diffs* the result onto the live
+// collection: a feature whose row did not change keeps the very same `Entity`.
 const refreshed = await mounted.refresh();
+console.log(refreshed.reused, refreshed.updated, refreshed.created, refreshed.disposed);
+for (const crossing of refreshed.rebuildBoundaries) console.log(crossing.entityId, crossing.boundary);
 if (refreshed.state === "degraded") {
   for (const diagnostic of mounted.diagnostics) console.warn(diagnostic.code, diagnostic.message);
 }
@@ -6182,15 +6197,118 @@ entrypoint in Node/SSR therefore does not initialize a browser or WebGL runtime.
   one source instant as a zero-duration availability interval rather than
   inventing a playback duration. The same validation and
   `time-interval-invalid` diagnostic apply.
-- Serialized snapshot refresh, cancellation checks before renderer mutation,
+- Serialized refresh, cancellation checks before renderer mutation,
   reentrant-disposal guards, rollback attempts, deterministic cleanup, and
   retryable failed disposal.
 - Stable diagnostics for transfer-limited results, source degradation, missing
-  identity, unsupported geometry, invalid time intervals, and snapshot rebuilds.
+  identity, unsupported geometry, invalid time intervals, and rebuild boundaries.
 
 Unsupported features are omitted with `fidelity: "unsupported"`; they are not
 rendered as plausible substitutes. Invalid plans, CRS, limits, and adapter
 options fail before mounting.
+
+## The refresh diff
+
+`refresh()` re-executes the accepted plan and reconciles the new snapshot onto
+the collection. It is a **diff**, running the same discipline the beta primitive
+mount runs on ([#930](https://github.com/honua-io/honua-sdk-js/pull/1020)):
+
+- **Identity** is the projected entity id (`honua-<source>:s|n:<feature id>`)
+  qualified by geometry kind. The kind qualification matters for the same reason
+  it does on the primitive path: a point and a polyline are different renderer
+  objects, so a feature that changes shape is a replacement rather than a
+  revision.
+- **Configuration** is an order-independent fingerprint of the projected
+  feature, canonicalized per facet — geometry (with any position samples),
+  attributes, and availability each fingerprint separately. Attribute key order
+  is therefore not a change, and a feature that only moved does not also rewrite
+  its property bag.
+- **A feature that cannot be fingerprinted is treated as changed**, never as
+  reusable. `projectSourceToCesium` only ever emits deeply frozen JSON-like
+  snapshots, so this is a fail-closed backstop rather than a live path, and it
+  resolves toward rebuilding.
+
+What that buys, and what the browser lane asserts by object identity:
+
+| Outcome | Boundary | The live `Entity` |
+| --- | --- | --- |
+| Row unchanged | `none` | The **same object**, untouched |
+| Row changed | `entity-configuration` | The **same object**, with only the changed facets written onto it |
+| New feature | `entity-identity` | Constructed |
+| Feature left the snapshot | `snapshot-membership` | Released |
+| Geometry kind changed | `entity-geometry-kind` | Released and rebuilt |
+| Unfingerprintable | `unfingerprintable` | Released and rebuilt conservatively |
+
+Because an unchanged — and a merely changed — feature keeps its `Entity`,
+everything a host attached to that object survives a refresh:
+`viewer.selectedEntity`, a tracked entity, an entity reference the application
+holds, and a graphic property it adjusted. Geometry is written at the deepest
+field Cesium accepts (`polyline.positions`, `polygon.hierarchy`, `position`), so
+a width or material set on the graphic is not clobbered either.
+
+`refresh()` returns the projection plus `revision`, `reused`, `updated`,
+`created`, `disposed`, and `rebuildBoundaries` — one report per entity that
+crossed a boundary, so a steady-state refresh reports nothing. The mount carries
+the most recent list as `mounted.rebuildBoundaries`, and the `incremental-update`
+diagnostic carries the counts and the highest boundary crossed. A refresh that
+had to release an entity also emits `rebuild-boundary`.
+
+Mutation order is chosen so a failure cannot leave a hole: in-place writes are
+journaled with the values they displaced, replacements and arrivals are added
+next, and **departures are released last**. If any step fails, the additions are
+removed, the replaced entities are restored, and every journaled write is undone
+exactly — the departed set was never touched, so the previous snapshot is still
+attached. The mount reports the attempt with `incremental-update-failed`.
+
+## One owner for both mounts
+
+`mountCesiumScene` owns a whole Cesium scene: the primitive plan and every
+accepted-plan source mounted over it. It delegates — the primitive mount keeps
+its own diff, layer ceiling, and transactional apply; each entity mount keeps its
+own refresh diff and rollback — and adds ordering, admission, and a single
+`dispose()`.
+
+```ts doc-test=compile
+import type { Source } from "@honua/sdk-js/contract";
+import { explainQuery } from "@honua/sdk-js/query-planner";
+import { type CesiumSceneOwnerTarget, mountCesiumScene } from "@honua/sdk-js/scene-workspace";
+
+declare const source: Source<Record<string, unknown>>;
+/** A live Cesium `Viewer` satisfies this structurally: camera, scene, clock, entities. */
+declare const viewer: CesiumSceneOwnerTarget;
+
+const scene = await mountCesiumScene(viewer, [
+  { kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "quantized-mesh", url: "https://terrain.example.test" },
+]);
+
+const units = await scene.mountSource(
+  source,
+  explainQuery({
+    descriptor: source.descriptor,
+    query: { pagination: { limit: 5_000 }, returnGeometry: true, outSr: 4326 },
+  }),
+  { featureIdField: "unit_id" },
+);
+console.log(scene.sources.get(units.sourceId) === units);
+
+// One teardown: entity mounts first, in reverse acquisition order, then the
+// primitive plan. Idempotent, and retryable if a mount refuses to release.
+scene.dispose();
+```
+
+The owner is bounded the same way the mounts are: at most
+`DEFAULT_CESIUM_SCENE_SOURCE_LIMIT` (8, raise it with `maxSources`) entity mounts,
+refused with `HonuaCesiumSceneOwnerError` (`source-limit-exceeded`) before
+anything is attached. A second mount of a source it already holds is refused with
+`source-conflict` and the redundant mount is released. Disposing the owner while
+a `mountSource()` is in flight aborts it and attaches nothing. A mount that
+refuses to release does not stop the teardown: everything releasable is released,
+the failures are aggregated into an `AggregateError`, the owner stays in
+`disposing` owning exactly what refused, and a later `dispose()` retries only
+that.
+
+`mountScenePrimitivesToCesium` is untouched and is still the supported way to own
+primitives alone; `mountCesiumScene` is additive.
 
 ## Real-Cesium evidence
 
@@ -6231,45 +6349,66 @@ browser. What it establishes:
   and Cesium worker counts all stay bounded rather than accumulating.
 - **Composition with the primitive mount.** Both mounts run on one live
   `Viewer`; disposing either releases exactly its own resources and leaves the
-  other's Cesium objects in place by object identity.
+  other's Cesium objects in place by object identity. Since #1050's second slice
+  the lane also drives them through the single `mountCesiumScene` owner and
+  asserts that one `dispose()` releases both.
+- **The refresh diff, by object identity.** A feature that is byte-identical
+  across two snapshots comes back from `refresh()` as the **same `Entity`
+  object**, and a `viewer.selectedEntity` set on it before the refresh is still
+  that entity afterwards. A moved feature keeps its object too; a departed one
+  leaves the collection.
 
 ## Tier decision (issue #1050)
 
-**`mountSourceToCesium` and `projectSourceToCesium` stay `@experimental` for the
-life of `@honua/app-platform` 0.1.x.** The evidence above is what the surface
-needed to be *considered* for the beta tier that the surrounding
+**`mountSourceToCesium`, `projectSourceToCesium`, and `mountCesiumScene` stay
+`@experimental` for the life of `@honua/app-platform` 0.1.x.** The evidence above
+is what the surface needed to be *considered* for the beta tier that the
+surrounding
 [`@honua/app-platform/scene-workspace` surface](./scene-workspace.md#support-status-beta)
-carries, and it is not enough on its own, because that tier is a promise about
-shape: exports are not renamed or removed and behaviour changes are called out,
-not slipped in. Three known changes to this slice would break that promise.
+carries, because that tier is a promise about shape: exports are not renamed or
+removed and behaviour changes are called out, not slipped in.
 
-1. **Refresh rebuilds everything, and the browser lane measures it.** A feature
-   whose source row did not change between two snapshots still gets a *new*
-   `Entity`; only its id is carried across (`rebuildBoundary: "entity-snapshot"`).
-   Anything an application holds across a refresh — an `Entity` reference,
-   `viewer.selectedEntity`, a tracked entity, a per-entity graphic it mutated —
-   is silently discarded. Fixing that is a visible behaviour change to a
-   documented boundary, which is exactly what a beta tier commits not to do
-   quietly. (Epic #395 REQ-004 asks for the diff; this is the honest statement
-   of why the caveat stands rather than a promise that the rebuild is fine.)
-2. **There are two lifecycle owners, not one.** The entity mount and
-   `MountedCesiumScenePrimitives` compose — proven above — but nothing owns
-   both, so an application still has to dispose them in the right order itself.
-   Reconciling them (#395 REQ-003) changes the entry point's shape.
-3. **There is no symbology surface.** Points are 8 px, lines are 2 px wide, and
-   colours are Cesium's defaults; nothing in the public options can change that.
-   A production entity path needs styling, and adding it means new required
-   shapes rather than purely additive ones.
+Three known changes stood in the way. **Two have landed**, which is why the
+caveat is now narrower than it was:
+
+1. ~~**Refresh rebuilds everything.**~~ **Cleared.** `refresh()` is a diff (see
+   [The refresh diff](#the-refresh-diff)). A feature whose row did not change
+   keeps its live `Entity` untouched, a changed feature keeps it and has only its
+   changed facets written on, and the browser lane asserts both by object
+   identity — including that `viewer.selectedEntity` survives. The old
+   `rebuildBoundary: "entity-snapshot"` detail is gone, replaced by a per-entity
+   `CesiumEntityRebuildBoundary` vocabulary. That is epic #395 REQ-004 for this
+   path, and it is the visible behaviour change this tier decision reserved the
+   right to make.
+2. ~~**Two lifecycle owners.**~~ **Cleared.** `mountCesiumScene` (#395 REQ-003)
+   owns both mounts behind one `dispose()`, with a bounded source ceiling, a
+   measured teardown order, and delegation rather than reimplementation. It is
+   purely additive: `mountScenePrimitivesToCesium` and its beta handle are
+   unchanged.
+3. **There is no symbology surface.** *This is the remaining blocker.* Points are
+   8 px, lines are 2 px wide, and colours are Cesium's defaults; nothing in the
+   public options can change that. A production entity path needs styling, and
+   adding it means new required shapes — an options surface on both
+   `projectSourceToCesium` and `mountSourceToCesium`, and very likely a per-facet
+   contract that interacts with the in-place update path above — rather than
+   purely additive ones. Promoting now would freeze a surface we already know has
+   to grow a required dimension.
+
+Issue #1050 does not ask for symbology, and its own requirements (real-Cesium
+evidence, measured teardown, single-owner reconciliation, the refresh diff, and a
+recorded tier decision) are met. REQ-005 asks the surface to be promoted *or*
+for the reason it stays experimental to be recorded: this is that record. Two of
+three blockers are cleared and the third is named, so the tier stands and the
+statement of it is now specific rather than a blanket caveat.
 
 Bounded materialization is deliberately kept as-is: the entity ceiling is a
 fail-closed backstop, not a paging strategy. Sources larger than the ceiling are
 refused with a stable diagnostic instead of silently truncated, and streaming or
 tiled execution stays out of this slice.
 
-What would change the decision: a refresh that preserves untouched entities, a
-single mount that owns both the entity and primitive halves, and a symbology
-contract — each with the same real-Cesium evidence the promotion of the
-primitive adapter carried in [#1026](https://github.com/honua-io/honua-sdk-js/pull/1026).
+What would change the decision: a symbology contract, with the same real-Cesium
+evidence the promotion of the primitive adapter carried in
+[#1026](https://github.com/honua-io/honua-sdk-js/pull/1026).
 
 ## Deliberate non-goals for this slice
 
@@ -6715,6 +6854,80 @@ console.log(enqueued.status); // "enqueued" or "duplicate"
 console.log(receipt.appliedCount);
 ```
 
+## Replay conflicts in the sync-conflict vocabulary
+
+A conflicted acknowledgement records an opaque `conflictId` on the queued edit.
+The SDK separately ships a conflict-review vocabulary — `SyncConflictDetail`,
+`SyncConflictId`, `SyncConflictKind`, `ServerGenerationCursor`. Without a
+projection an application holds two disjoint vocabularies for the same event.
+
+`projectOfflineReplaySyncConflict()` is that projection, and only that: a pure
+function with no I/O, no clock, and no runtime dependency on the replica-sync
+module. Pass a replica binding to `replayOfflineEditPass()` or
+`createLocalFirstStatus()` and the projection is applied to the conflicts those
+surfaces already report — it is not a second channel.
+
+```ts doc-test=skip reason="partial excerpt requires application replay transport"
+import { projectOfflineReplaySyncConflict, replayOfflineEditPass } from "@honua/sdk-js/offline";
+
+// The SDK cannot derive a replica from a queue partition, so the binding is an
+// explicit application input. Omit it and no projection is produced; nothing is
+// guessed.
+const replica = { replicaId: registeredReplicaId, datasetId: registeredDatasetId };
+
+const receipt = await replayOfflineEditPass(queue, transport, {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  workerId: replayWorkerId,
+  limit: 10,
+  leaseDurationMs: 30_000,
+  replica,
+});
+
+for (const outcome of receipt.outcomes) {
+  if (outcome.syncConflict?.outcome !== "projected") continue;
+  console.log(outcome.syncConflict.conflict.id); // a SyncConflictId
+  console.log(outcome.syncConflict.conflict.kind); // "replica-sync"
+  console.log(outcome.syncConflict.conflict.serverGen); // a ServerGenerationCursor
+}
+
+// The same projection is available directly for a record already in the queue.
+const projection = projectOfflineReplaySyncConflict({ edit: conflictedQueuedEdit, replica });
+```
+
+Three rules make the projection safe to consume:
+
+- **It never invents server semantics.** `SyncConflictDetail` members that only
+  a live server can observe or adjudicate — `base`, `serverState`,
+  `serverOperation`, `fieldConflicts`, `fieldConflictCount`,
+  `hasGeometryConflict`, `geometryConflict`, `resolutionOptions`, `resolution` —
+  are absent from the projected conflict and enumerated in
+  `projection.unavailable` with the reason `server-owned`. Members the queue
+  simply does not record (`layerId`, `client`, `device`, `metadata`, and
+  `serverGen` when the acknowledgement carried none) are listed as
+  `not-recorded`. An empty `resolutionOptions` array would read as "the server
+  offers nothing", so the member is omitted instead.
+- **It is payload-free.** `clientState` carries the operation, the delete
+  marker, and the local authoring time, never the edit's attributes or geometry.
+  Those two are listed as `payload-free` in `projection.unavailable`. The
+  authorization-scope digest, request fingerprint, and idempotency key stay in
+  the queue. `OFFLINE_REPLAY_SYNC_CONFLICT_FIELD_MAP` is the full ledger: every
+  field of a durable queued edit, and where it lands or why it does not.
+- **It fails closed.** A record this build cannot map yields
+  `{ outcome: "refused", reason, path }`, never a partially guessed conflict.
+  The reasons are `not-conflicted` (the edit is in another state),
+  `missing-conflict-record` (`conflicted` with no durable outcome),
+  `unidentified-feature` (a local create names no feature, and
+  `SyncConflictSummary.featureId` is required), and `unreadable-edit`. A
+  malformed replica binding is the caller's own argument, so it throws
+  `HonuaOfflineEditQueueError` instead.
+
+This makes the two vocabularies agree; it does not make the SDK a replica-sync
+client. The replay transport is still application-owned, end-to-end
+exactly-once delivery and hosted replica synchronization remain server
+properties, and validating a projected conflict against live server conflict
+semantics stays gated on that server work.
+
 ## Composed local-first status
 
 Cache diagnostics answer "what is in the store", and the queue answers "what
@@ -6748,6 +6961,9 @@ console.log(status.reason); // "undelivered-edits"
 console.log(status.reads.availability, status.reads.freshness);
 console.log(status.writes.coverage); // "complete"
 console.log(status.writes.undeliveredCount, status.writes.conflictedCount);
+// Empty unless `replica` was supplied; see "Replay conflicts in the
+// sync-conflict vocabulary" above.
+console.log(status.writes.syncConflicts.length);
 ```
 
 `OfflineEditQueue.list()` returns at most 100 records in created order and has
@@ -9699,7 +9915,7 @@ a tier from the directory it lives in.
 
 | Surface | Status | Tier exports | Held back | SDK forwarder | Evidence |
 | --- | --- | :-: | --- | --- | --- |
-| `@honua/app-platform/scene-workspace` | `beta` | 205 | 70 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
+| `@honua/app-platform/scene-workspace` | `beta` | 205 | 82 `experimental` | `@honua/sdk-js/scene-workspace` | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) |
 
 ### `@honua/app-platform/scene-workspace`
 
@@ -9716,9 +9932,9 @@ Held back at `experimental` — Honua Server scene discovery, the `SceneView` co
 
 `CesiumEntityCollectionLike`, `ElevationProfileRequest`, `ElevationProfileResult`, `ElevationProfileSample`, `HonuaScene`, `LineOfSightRequest`, `LineOfSightResult`, `SceneAnalysisCesiumModule`, `SceneAnalysisOverlay`, `SceneAnalysisPosition`, `SceneAnalysisRequestExecutor`, `SceneDiscoveryRequestExecutor`, `SceneExtent3D`, `SceneMeasurement`, `SceneView`, `SceneViewEvent`, `SceneViewEventListener`, `SceneViewOptions`, `SceneViewRequestExecutor`, `SceneViewpoint`, `ViewshedRequest`, `ViewshedResult`, `ViewshedSample`, `buildElevationProfilePath`, `buildLineOfSightBody`, `buildViewshedBody`, `formatMeasurementLabel`, `getScene`, `haversineMeters`, `listScenes`, `measureScenePositions`, `normalizeScene`, `pathLengthMeters`, `positionsToWktLineString`, `renderElevationProfilePolyline`, `renderLineOfSight`, `renderMeasurement`, `renderViewshed`, `requestElevationProfile`, `requestLineOfSight`, `requestViewshed`, `resolveSceneTilesetUrl`, `sceneCameraPrimitive`, `sceneLayerStates`, `sceneTerrainPrimitive`, `sceneTilesetPrimitive`, `sceneToRuntimePrimitives`, `sceneViewpointBookmarks`, `slantDistanceMeters`, `sphericalPolygonAreaSquareMeters`
 
-Held back at `experimental` — The accepted-plan `Source` to Cesium entity lifecycle carries real-Cesium browser evidence since issue #1050 — entities materialize onto a live `Viewer` through the public path, Cesium's own availability decides what is drawn, the entity ceiling fails closed, and disposal returns the collection to baseline inside the primitive lane's measured budgets — and stays experimental for the life of 0.1.x for three named reasons: refresh rebuilds every entity (a byte-identical feature is still replaced, measured on a live collection), the entity mount and the primitive mount are two lifecycle owners with nothing owning both, and there is no symbology surface. See docs/cesium-entity-adapter.md#tier-decision-issue-1050.
+Held back at `experimental` — The accepted-plan `Source` to Cesium entity lifecycle carries real-Cesium browser evidence since issue #1050 — entities materialize onto a live `Viewer` through the public path, Cesium's own availability decides what is drawn, the entity ceiling fails closed, and disposal returns the collection to baseline inside the primitive lane's measured budgets. Two of the three named promotion blockers are now cleared: `refresh()` is a real diff (identity is the projected entity id qualified by geometry kind, configuration is an order-independent fingerprint, unfingerprintable means changed), so a byte-identical feature keeps the *same* live `Entity` and a `viewer.selectedEntity` set on it survives — asserted by object identity on a live collection — and `mountCesiumScene` is the single owner that composes the entity mount with the primitive mount so one `dispose()` releases both in a measured order. The slice stays experimental for the life of 0.1.x for the remaining blocker: there is no symbology surface, and adding one means new required shapes rather than purely additive ones. See docs/cesium-entity-adapter.md#tier-decision-issue-1050.
 
-`CesiumEntityAdapterErrorCode`, `CesiumEntityCollectionTarget`, `CesiumEntityDiagnostic`, `CesiumEntityDiagnosticCode`, `CesiumEntityGeometry`, `CesiumEntityInterval`, `CesiumEntityPositionSample`, `CesiumEntityProjection`, `CesiumEntityProjectionItem`, `CesiumEntityRuntimeLoader`, `CesiumEntityRuntimeModule`, `CesiumEntityTimeOptions`, `CesiumEntityWorkflowState`, `DEFAULT_CESIUM_ENTITY_LIMIT`, `HonuaCesiumEntityAdapterError`, `MountSourceToCesiumOptions`, `MountedCesiumEntitySource`, `ProjectSourceToCesiumOptions`, `mountSourceToCesium`, `projectSourceToCesium`
+`CESIUM_ENTITY_REBUILD_BOUNDARIES`, `CesiumEntityAdapterErrorCode`, `CesiumEntityCollectionTarget`, `CesiumEntityDiagnostic`, `CesiumEntityDiagnosticCode`, `CesiumEntityGeometry`, `CesiumEntityInterval`, `CesiumEntityPositionSample`, `CesiumEntityProjection`, `CesiumEntityProjectionItem`, `CesiumEntityRebuildBoundary`, `CesiumEntityRebuildBoundaryReport`, `CesiumEntityRefreshResult`, `CesiumEntityRuntimeLoader`, `CesiumEntityRuntimeModule`, `CesiumEntityTimeOptions`, `CesiumEntityWorkflowState`, `CesiumSceneOwnerErrorCode`, `CesiumSceneOwnerState`, `CesiumSceneOwnerTarget`, `DEFAULT_CESIUM_ENTITY_LIMIT`, `DEFAULT_CESIUM_SCENE_SOURCE_LIMIT`, `HonuaCesiumEntityAdapterError`, `HonuaCesiumSceneOwnerError`, `MountCesiumSceneOptions`, `MountSourceToCesiumOptions`, `MountedCesiumEntitySource`, `MountedCesiumScene`, `ProjectSourceToCesiumOptions`, `mountCesiumScene`, `mountSourceToCesium`, `projectSourceToCesium`
 
 ## Status vocabulary
 
@@ -9757,7 +9973,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | OGC API Tiles | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
 | OGC API Maps | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
 | OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
-| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence and a recorded tier decision (#1050), not for want of proof — see the surface tiers table. |
+| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, every declared imagery protocol (url-template, WMS, WMTS, single-tile, and both ArcGIS endpoint shapes) with the request each provider puts on the wire, glTF/GLB models, 3D-Tiles tilesets including a .pnts point cloud and the honua_style sidecar, the fail-closed rows for an undeclared imagery protocol and an unmaterialized model format, and a documented final-canvas GC floor whose listener budget is itself proven by an injected per-cycle leak (#928, #1055). Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table. |
 | OGC API Processes discovery | `open-endpoint` | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
 | OGC API Processes execution | `open-endpoint` | `experimental` | `standalone` | `native` | Any conformant OGC API Processes Part 1 (Core) server | client.ogcProcesses({ basePath, conformance }).execute() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Executes at the discovered service root in both Core response shapes (synchronous 200 results and Prefer: respond-async 201 + Location), then follows the advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture-proven; no public endpoint permits anonymous execution, so there is no live lane. |
 | Server compatibility gate | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |

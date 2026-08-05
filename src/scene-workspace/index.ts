@@ -19,7 +19,8 @@
  * @experimental Held back from the beta tier: Honua Server scene discovery, the
  *   `SceneView` container, and the elevation/analysis widgets (server-attached,
  *   outside the open-endpoint evidence), plus the bounded accepted-plan
- *   `Source`-to-Cesium-entity slice. Those may change in any minor release.
+ *   `Source`-to-Cesium-entity slice and the `mountCesiumScene` owner that
+ *   composes it with the primitive mount. Those may change in any minor release.
  * @module
  */
 
@@ -205,6 +206,7 @@ export type {
   Honua3DStyleSpec,
 } from "./cesium-adapter.js";
 export {
+  CESIUM_ENTITY_REBUILD_BOUNDARIES,
   DEFAULT_CESIUM_ENTITY_LIMIT,
   HonuaCesiumEntityAdapterError,
   mountSourceToCesium,
@@ -220,6 +222,9 @@ export type {
   CesiumEntityProjection,
   CesiumEntityProjectionItem,
   CesiumEntityPositionSample,
+  CesiumEntityRebuildBoundary,
+  CesiumEntityRebuildBoundaryReport,
+  CesiumEntityRefreshResult,
   CesiumEntityRuntimeLoader,
   CesiumEntityRuntimeModule,
   CesiumEntityTimeOptions,
@@ -228,6 +233,18 @@ export type {
   MountSourceToCesiumOptions,
   ProjectSourceToCesiumOptions,
 } from "./source-to-cesium.js";
+export {
+  DEFAULT_CESIUM_SCENE_SOURCE_LIMIT,
+  HonuaCesiumSceneOwnerError,
+  mountCesiumScene,
+} from "./cesium-scene-owner.js";
+export type {
+  CesiumSceneOwnerErrorCode,
+  CesiumSceneOwnerState,
+  CesiumSceneOwnerTarget,
+  MountCesiumSceneOptions,
+  MountedCesiumScene,
+} from "./cesium-scene-owner.js";
 export {
   buildElevationProfilePath,
   buildLineOfSightBody,

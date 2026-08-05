@@ -1480,13 +1480,24 @@ async function runEntityCycle(index) {
   // --- refresh against a changed source --------------------------------------
   await selectEntitySnapshot("b");
   const identityBefore = new Map(mountedIds.map((id) => [id, viewer.entities.getById(id)]));
+  const unchangedId = `${mounted.sourceId}:${ENTITY_EXPECTATIONS.b[0].suffix}`;
+  const movedId = `${mounted.sourceId}:${ENTITY_EXPECTATIONS.b[1].suffix}`;
+  const movedPositionBefore = viewer.entities.getById(movedId)?.position?.getValue(insideTime);
+  // Host-set state on a mounted entity. This is the thing the pre-#1050 refresh
+  // silently discarded, so it is set *through Cesium's own viewer API* and read
+  // back after the refresh rather than tracked by the fixture.
+  let selectionApplied = false;
+  try {
+    viewer.selectedEntity = viewer.entities.getById(unchangedId);
+    selectionApplied = viewer.selectedEntity === identityBefore.get(unchangedId);
+  } catch {
+    selectionApplied = false;
+  }
   const refreshStartedAt = performance.now();
   const refreshed = await mounted.refresh();
   const refreshMs = performance.now() - refreshStartedAt;
   const refreshTime = await renderEntitiesAt(Cesium, viewer, ENTITY_TIMES.insideWindow, 6);
   const refreshedIds = [...mounted.entityIds];
-  const unchangedId = `${mounted.sourceId}:${ENTITY_EXPECTATIONS.b[0].suffix}`;
-  const movedId = `${mounted.sourceId}:${ENTITY_EXPECTATIONS.b[1].suffix}`;
   const departedId = mountedIds.find((id) => !refreshedIds.includes(id));
   const arrivedId = refreshedIds.find((id) => !mountedIds.includes(id));
 
@@ -1495,22 +1506,39 @@ async function runEntityCycle(index) {
     state: refreshed.state,
     ids: refreshedIds,
     expectedIds: ENTITY_EXPECTATIONS.b.map((entry) => `${mounted.sourceId}:${entry.suffix}`),
+    revision: refreshed.revision,
+    reused: [...refreshed.reused],
+    updated: [...refreshed.updated],
+    created: [...refreshed.created],
+    disposed: [...refreshed.disposed],
+    boundaries: refreshed.rebuildBoundaries.map((report) => `${report.entityId}:${report.boundary}`),
     departedId: departedId ?? null,
     departedRemovedFromCollection: departedId ? viewer.entities.getById(departedId) === undefined : null,
     arrivedId: arrivedId ?? null,
     arrived: arrivedId ? describeEntity(Cesium, viewer, arrivedId, refreshTime) : null,
     moved: describeEntity(Cesium, viewer, movedId, refreshTime),
-    // The load-bearing measurement behind the tier decision: `medic-1` was
-    // byte-identical in both snapshots, yet the refresh replaced its `Entity`.
-    // That is the documented `entity-snapshot` rebuild boundary, observed on a
-    // live collection rather than inferred from the source.
+    // The load-bearing measurement behind the tier decision, inverted by #1050's
+    // refresh diff: `medic-1` is byte identical in both snapshots and now comes
+    // back as the *same* `Entity` object, observed on a live collection rather
+    // than inferred from the source.
     unchangedEntityPreserved: viewer.entities.getById(unchangedId) === identityBefore.get(unchangedId),
     unchangedStillPresent: viewer.entities.getById(unchangedId) !== undefined,
+    // A changed feature keeps its object too — only the facets that moved are
+    // written onto it — so the new position is on the old `Entity`.
+    movedEntityPreserved: viewer.entities.getById(movedId) === identityBefore.get(movedId),
+    movedPositionChanged:
+      movedPositionBefore !== undefined &&
+      !Cesium.Cartesian3.equals(movedPositionBefore, viewer.entities.getById(movedId)?.position?.getValue(refreshTime)),
+    // Cesium clears `selectedEntity` when the entity leaves the collection, so
+    // this survives only because the entity itself was never removed.
+    selectionApplied,
+    selectedEntitySurvived: viewer.selectedEntity === identityBefore.get(unchangedId),
     rebuildBoundary:
       refreshed.diagnostics.find((entry) => entry.code === "incremental-update")?.detail?.rebuildBoundary ?? null,
     diagnostics: entityDiagnostics(refreshed.diagnostics),
     entityCount: viewer.entities.values.length - baselineEntityCount,
   };
+  viewer.selectedEntity = undefined;
 
   // --- teardown ---------------------------------------------------------------
   // The entity mount is released first and measured on its own, so "the mount
@@ -1675,8 +1703,55 @@ async function runEntityCoexistenceCycle(options) {
     imageryLayerCount: viewer.scene.imageryLayers.length,
     primitiveMountState: primitiveMount.state,
   };
-
   await opened.close();
+
+  // --- the same two halves, under one owner (#1050 S2) -----------------------
+  //
+  // `mountCesiumScene` is handed the live `Viewer` itself: it satisfies the
+  // owner target structurally (camera, scene, clock, entities), which is the
+  // whole point of the shape. One `dispose()` then has to release what the two
+  // separate handles above needed two, in the right order.
+  const ownedOpen = await openEntitySource(sdk, planner);
+  const scene = await adapter.mountCesiumScene(viewer, primitivePlan);
+  const ownedSource = await scene.mountSource(ownedOpen.source, ownedOpen.plan, {
+    featureIdField: ENTITY_ID_FIELD,
+    verticalDatum: "ellipsoidal-wgs84",
+    time: { startField: "observed_at", endField: "expires_at" },
+  });
+  const ownedTime = await renderEntitiesAt(Cesium, viewer, ENTITY_TIMES.insideWindow, 8);
+  const ownedTileset = findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset");
+  const ownedPointId = `${ownedSource.sourceId}:${pointExpectation.suffix}`;
+  const composed = {
+    ownerState: scene.state,
+    entityCount: viewer.entities.values.length - baselineEntityCount,
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+    tilesetPresent: ownedTileset !== undefined,
+    sourceCount: scene.sources.size,
+    sourceOwnedByIdentity: scene.sources.get(ownedSource.sourceId) === ownedSource,
+    entityPicked: pickedEntityIds(
+      Cesium,
+      viewer,
+      viewer.entities.getById(ownedPointId).position.getValue(ownedTime),
+    ).includes(ownedPointId),
+    primitiveMountState: scene.primitives.state,
+    entityMountState: ownedSource.state,
+  };
+
+  const composedTeardownStartedAt = performance.now();
+  scene.dispose();
+  scene.dispose(); // idempotence: the second teardown must not throw or double-release
+  const composedTeardownMs = performance.now() - composedTeardownStartedAt;
+  const afterComposedDispose = {
+    ownerState: scene.state,
+    entityCount: viewer.entities.values.length - baselineEntityCount,
+    imageryLayerCount: viewer.scene.imageryLayers.length,
+    tilesetPresent: findScenePrimitive(Cesium, viewer.scene, "Cesium3DTileset") !== undefined,
+    sourceCount: scene.sources.size,
+    entityMountState: ownedSource.state,
+    primitiveMountState: scene.primitives.state,
+  };
+  await ownedOpen.close();
+
   const viewerDestroyStartedAt = performance.now();
   viewer.destroy();
   const viewerDestroyMs = performance.now() - viewerDestroyStartedAt;
@@ -1690,7 +1765,10 @@ async function runEntityCoexistenceCycle(options) {
     afterCeiling,
     afterEntityDispose,
     afterPrimitiveDispose,
+    composed,
+    afterComposedDispose,
     teardown: {
+      composedTeardownMs: Number(composedTeardownMs.toFixed(2)),
       layerTeardownMs: Number(layerTeardownMs.toFixed(2)),
       viewerDestroyMs: Number(viewerDestroyMs.toFixed(2)),
       totalMs: Number((layerTeardownMs + viewerDestroyMs).toFixed(2)),
