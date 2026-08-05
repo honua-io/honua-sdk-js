@@ -59,6 +59,12 @@ export function renderPlaygroundPage(manifest, samples = []) {
     "links from it. Every other catalog sample carries a machine-readable exclusion category instead of a broken link;",
     "run `npm run samples:playgrounds:check` to see the full decision list.",
     "",
+    "A sample whose data comes from a Node fixture server the repository runs beside it gets that origin generated too:",
+    "its project carries byte-identical copies of the reviewed fixture pack under `fixtures/` and a Vite plugin that",
+    "answers the sample's audited same-origin routes in `dev`, `preview` and `build` alike — the same move the starters",
+    "above make. `samples/dist/sample-playgrounds.v1.json` records each playground's `dataOrigin`, so whether a project",
+    "serves its own committed source or a generated fixture service is published, not inferred.",
+    "",
     "| Sample | Playground | Source |",
     "| --- | --- | --- |",
   );

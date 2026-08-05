@@ -17,8 +17,11 @@ npm run dev
 This project carries the same committed source as
 [`examples/ai-spatial-app-builder`](../../examples/ai-spatial-app-builder), with one difference: it resolves
 `@honua/sdk-js` from the published package instead of the repository's `src/` tree, so it
-runs anywhere npm does — including a browser playground. Its data comes from its own committed
-source, so the default lane needs no account, no key, and no third-party request.
+runs anywhere npm does — including a browser playground.
+
+## Where its data comes from
+
+Its own committed source, so the default lane needs no account, no key, and no third-party request.
 
 Edit the sample in `examples/ai-spatial-app-builder` and run `npm run samples:playgrounds:generate`;
 editing this copy directly fails `npm run samples:playgrounds:check`.
