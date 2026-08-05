@@ -156,6 +156,11 @@ function compilerOptions(projectRoot) {
     incremental: false,
     noEmit: true,
     baseUrl: projectRoot,
+    // A documentation snippet names the result of the call it is teaching and
+    // stops there, so the repository's dead-code rules do not apply to it: an
+    // illustrative binding is the point of the example, not an oversight.
+    noUnusedLocals: false,
+    noUnusedParameters: false,
     paths: { ...parsed.options.paths, ...splitPaths },
     skipLibCheck: true,
     sourceMap: false,
