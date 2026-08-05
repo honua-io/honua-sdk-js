@@ -39,6 +39,17 @@ is not evidence of hosted replica synchronization.** End-to-end exactly-once
 delivery is a server property; the fixture neither implements it nor stands in
 for it.
 
+Because the page supplies a replica binding, `createLocalFirstStatus()` also
+publishes each conflicted edit projected onto the SDK's shipped sync-conflict
+vocabulary as `localFirst.syncConflicts` — a `SyncConflictId`, the
+`replica-sync` kind, the client operation, the feature, and the server
+generation cursor when the acknowledgement carried one. The replica and dataset
+identifiers are fixture constants owned by this page, because the SDK cannot
+derive a replica from a queue partition and refuses to guess one. Every member
+of `SyncConflictDetail` that only a live server can observe or adjudicate is
+listed under `unavailable` rather than filled in, so the projection widens the
+vocabulary without widening the claim.
+
 `shell-manifest.v1.json` identifies one deployment and pins every document and
 transitive SDK module by URL, byte length, SHA-256, and media type. The worker
 fetches this manifest fresh and commits nothing unless every response matches,

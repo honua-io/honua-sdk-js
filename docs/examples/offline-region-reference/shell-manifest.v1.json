@@ -1,6 +1,6 @@
 {
   "format": "honua.offline-shell-manifest.v1",
-  "deploymentId": "offline-region-reference-2026-08-04-v1",
+  "deploymentId": "offline-region-reference-2026-08-04-v2",
   "resources": [
     {
       "url": "./",
@@ -10,8 +10,8 @@
     },
     {
       "url": "./app.mjs",
-      "byteLength": 18958,
-      "integrity": "sha256:d74f8d65d87e15ba8a7adf71064e126db70e1b26ed6c126eb6a5202918dea79e",
+      "byteLength": 20235,
+      "integrity": "sha256:1b8c41eda0899c8bc537f4387d2faf5ffb248792ba37392d6ad8e1f527349c13",
       "mediaType": "application/javascript"
     },
     {
@@ -82,8 +82,8 @@
     },
     {
       "url": "/dist/src/offline/edit-replay.js",
-      "byteLength": 13871,
-      "integrity": "sha256:362fde7746032b7523b5751ae8eebb8f0b78d2f30e06b723b821eedb32b54a49",
+      "byteLength": 14786,
+      "integrity": "sha256:4e1bd01847bda1b1424324f2bda940d81ac2ad93321dee7563efc57328fd8aea",
       "mediaType": "application/javascript"
     },
     {
@@ -94,8 +94,8 @@
     },
     {
       "url": "/dist/src/offline/index.js",
-      "byteLength": 4972,
-      "integrity": "sha256:7aa98a8ab46ac6e44d43c153cbb3d28bffb2fbadc4a8e3191d883f567925612d",
+      "byteLength": 5171,
+      "integrity": "sha256:9a50f6bf48789c6a0ff23f715a4179aaee8a689cec9146aa547a399eac9c8147",
       "mediaType": "application/javascript"
     },
     {
@@ -141,6 +141,12 @@
       "mediaType": "application/javascript"
     },
     {
+      "url": "/dist/src/offline/replay-conflict.js",
+      "byteLength": 16742,
+      "integrity": "sha256:108def4a29aa1e0d5440d74f1f1c5ee063e9c3255758679b22996c1fbd46de4e",
+      "mediaType": "application/javascript"
+    },
+    {
       "url": "/dist/src/offline/selection.js",
       "byteLength": 16932,
       "integrity": "sha256:cd612c2cbda04315fc7f5180cd49fb30acdfef9cccb3c3583c5b725885d53e8a",
@@ -154,8 +160,8 @@
     },
     {
       "url": "/dist/src/offline/status.js",
-      "byteLength": 19945,
-      "integrity": "sha256:7dee49c1d776c6d9972ea782fb6762c17ec2ac96229a5da5792fc11e0a9db1a8",
+      "byteLength": 20846,
+      "integrity": "sha256:658c3ac6da028844bc65e0dd86a5406697b4d72a65df1b758dddd9b08fdc9b7a",
       "mediaType": "application/javascript"
     },
     {
