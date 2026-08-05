@@ -71,7 +71,63 @@
     "because two of the three are deterministic: the envelope ratio has zero",
     "variance and retained bytes vary by 0.03%, so a 1.5x-clear ceiling would gate",
     "nothing. The rows/second floor is 2.7x under the worst observed run, which is",
-    "the only metric contention can move."
+    "the only metric contention can move.",
+    "columnar.patch.million-row (honua-io/honua-sdk-js#941) applies 1,000-event",
+    "realtime patches to a 1,000,000-row patchable batch and then lets the declared",
+    "reserve fill so one compacting rebuild runs per repetition. Two of the three",
+    "budgets are the numbers #941 itself names: NFR-003's memory ceiling of 24",
+    "bytes/feature applies to rebuildBackingBytesPerRow, and its \"no more than 2x",
+    "the batch's backing bytes\" applies to rebuildRetainedBytesPerBackingByte. Both",
+    "are effectively deterministic on this fixture -- 20.0461 exactly, and",
+    "0.9970-1.0008 across four runs -- so the ceilings gate the shape of the rebuild",
+    "rather than its timing: a rebuild that materialized rows, kept tombstoned ones,",
+    "or held a second copy live at the boundary breaches them immediately, while",
+    "contention cannot.",
+    "patchLatencyMs is the third, and it carries NFR-002's 10 ms median in-place",
+    "patch latency. Measured on a shared linux host across five runs: gated medians",
+    "of 6.51, 7.15, 9.25, 9.51, and 12.26 ms, over per-repetition readings spanning",
+    "5.86-21.35 ms. Every reading taken on a run where the rest of the corpus was",
+    "healthy is inside the target; the 12.26 ms one comes from a run on which a",
+    "pre-existing scenario (offline.region.reload) failed its own repeated-run",
+    "variability check outright, which is a reading of the host and not of the SDK.",
+    "The target is therefore met, and it is the warning here rather than the failure",
+    "for a different reason: a ceiling set at 1.05x of the worst observation of a",
+    "wall-clock metric fires on contention rather than on a regression. The issue's",
+    "number is reported on every run as the warning, and the failure ceiling is 2x",
+    "it. That is deliberately tighter than the 3.7-4.5x this file uses for other",
+    "timing gates, and the statistic is what buys the margin back: each sample is",
+    "already the median of eight timed patches and the budget is evaluated on the",
+    "median of five such samples, so the one 21 ms repetition -- observed, and",
+    "passed -- cannot move the gated number. It still catches the regression it",
+    "exists for, because that regression is qualitative rather than incremental:",
+    "re-encoding the batch per event instead of patching it in place costs the",
+    "~700 ms the producer scenario below measures for one million-row encode, which",
+    "is 35x the ceiling and not 30% over it.",
+    "The one cost patchLatencyMs deliberately excludes is the feature-id index the",
+    "first patch after each rebuild builds over a fresh backing, which runs about",
+    "180 ms against a million rows and is amortized across every later patch. It is",
+    "visible in totalDurationMs, which covers all eight timed patches; a median over",
+    "eight is the honest way to report a per-patch cost that one patch in eight does",
+    "not pay.",
+    "columnar.producer.million-row (honua-io/honua-sdk-js#1042) runs the GeoParquet",
+    "geoarrow-point producer over a 1,000,000-row column materialized the way a",
+    "DuckDB driver hands it over, under an identity minted from a plan that selected",
+    "columnar execution. NFR-001 sets the retained-bytes ceiling by reference to",
+    "columnar.data-plane.million-feature's 160 bytes/row, and that is the number",
+    "below. Measured: 20.09-20.18 peak retained bytes/feature across five runs, so",
+    "the ceiling sits 7.9x clear -- which is the point, because the path this issue",
+    "replaced decoded the batch into GeoJSON rows and handed those back, at hundreds",
+    "of bytes per row held live in the result. backingBytesPerFeature is",
+    "deterministic at 20.125 (two float64 coordinate columns, a uint32 feature id,",
+    "and a validity bitmap) and states the same property without a clock.",
+    "The featuresPerSecond floor is the secondary gate here rather than the primary",
+    "one, and it is set loosely on purpose. Measured per-run medians: 957,546,",
+    "1,176,327, 1,311,325, 1,486,676, and 1,898,328, with individual repetitions",
+    "down to 667,003 on the contended host. The floor sits 3.2x under the worst",
+    "median. Row",
+    "materialization is caught decisively by the retention ceiling above; this floor",
+    "exists so that a producer which quietly regained a per-row pass -- one that",
+    "costs time without retaining anything -- still fails something."
   ],
   "schemaVersion": 2,
   "variability": {
@@ -152,6 +208,40 @@
         "direction": "lower-is-better",
         "warning": 64,
         "failure": 80
+      }
+    },
+    "columnar.patch.million-row": {
+      "patchLatencyMs": {
+        "direction": "lower-is-better",
+        "warning": 10,
+        "failure": 20
+      },
+      "rebuildBackingBytesPerRow": {
+        "direction": "lower-is-better",
+        "warning": 21,
+        "failure": 24
+      },
+      "rebuildRetainedBytesPerBackingByte": {
+        "direction": "lower-is-better",
+        "warning": 1.25,
+        "failure": 2
+      }
+    },
+    "columnar.producer.million-row": {
+      "backingBytesPerFeature": {
+        "direction": "lower-is-better",
+        "warning": 21,
+        "failure": 24
+      },
+      "peakRetainedBytesPerFeature": {
+        "direction": "lower-is-better",
+        "warning": 64,
+        "failure": 160
+      },
+      "featuresPerSecond": {
+        "direction": "higher-is-better",
+        "warning": 800000,
+        "failure": 300000
       }
     }
   }

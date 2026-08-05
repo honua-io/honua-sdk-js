@@ -25,6 +25,18 @@ import {
   runColumnarDataPlaneBenchmark,
 } from "./columnar-data-plane-bench.js";
 import {
+  type ColumnarPatchBenchmarkOptions,
+  type ColumnarPatchBenchmarkResult,
+  type ColumnarPatchSample,
+  runColumnarPatchBenchmark,
+} from "./columnar-patch-bench.js";
+import {
+  type ColumnarProducerBenchmarkOptions,
+  type ColumnarProducerBenchmarkResult,
+  type ColumnarProducerSample,
+  runColumnarProducerBenchmark,
+} from "./columnar-producer-bench.js";
+import {
   type ColumnarResultConversionBenchmarkOptions,
   type ColumnarResultConversionBenchmarkResult,
   type ColumnarResultConversionSample,
@@ -95,6 +107,16 @@ interface ColumnarBatchPersistenceCorpusScenario extends ColumnarBatchPersistenc
   kind: "columnar-batch-persistence";
 }
 
+interface ColumnarPatchCorpusScenario extends ColumnarPatchBenchmarkOptions {
+  id: string;
+  kind: "columnar-patch";
+}
+
+interface ColumnarProducerCorpusScenario extends ColumnarProducerBenchmarkOptions {
+  id: string;
+  kind: "columnar-producer";
+}
+
 type CorpusScenario =
   | StreamCorpusScenario
   | OfflineReloadCorpusScenario
@@ -103,7 +125,9 @@ type CorpusScenario =
   | ColumnarDataPlaneCorpusScenario
   | ColumnarAggregateCorpusScenario
   | ColumnarResultConversionCorpusScenario
-  | ColumnarBatchPersistenceCorpusScenario;
+  | ColumnarBatchPersistenceCorpusScenario
+  | ColumnarPatchCorpusScenario
+  | ColumnarProducerCorpusScenario;
 
 interface Corpus {
   schemaVersion: 2;
@@ -175,6 +199,8 @@ interface ScenarioResult {
     | ColumnarAggregateSample
     | ColumnarResultConversionSample
     | ColumnarBatchPersistenceSample
+    | ColumnarPatchSample
+    | ColumnarProducerSample
   >;
   summary: {
     totalDurationMs: MetricSummary;
@@ -198,6 +224,10 @@ interface ScenarioResult {
     envelopeBytesPerBackingByte?: MetricSummary;
     serializedBytesPerRow?: MetricSummary;
     peakRetainedBytesPerRow?: MetricSummary;
+    patchLatencyMs?: MetricSummary;
+    rebuildDurationMs?: MetricSummary;
+    rebuildBackingBytesPerRow?: MetricSummary;
+    rebuildRetainedBytesPerBackingByte?: MetricSummary;
   };
   invariants: {
     expectedTotalFeatures?: number;
@@ -387,6 +417,24 @@ function validateCorpus(value: unknown): Corpus {
         throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
       }
     } else if (scenario.kind === "columnar-batch-persistence") {
+      allowedKeys = new Set([...commonKeys, "rowCount"]);
+      if (!positive(scenario.rowCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+    } else if (scenario.kind === "columnar-patch") {
+      allowedKeys = new Set([...commonKeys, "rowCount", "reserveRows", "patchOperations", "patchesPerSample"]);
+      if (
+        !positive(scenario.rowCount) ||
+        !positive(scenario.reserveRows) ||
+        !positive(scenario.patchOperations) ||
+        !positive(scenario.patchesPerSample)
+      ) {
+        throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+      }
+      // The reserve is what decides which patches are applied in place and
+      // which one rebuilds, so a reserve that cannot hold one repetition's
+      // appends is not a tuning choice — it changes what the scenario measures.
+      // The harness re-checks the exact split; this rejects the shape outright.
+      if (scenario.reserveRows >= scenario.rowCount) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
+    } else if (scenario.kind === "columnar-producer") {
       allowedKeys = new Set([...commonKeys, "rowCount"]);
       if (!positive(scenario.rowCount)) throw new Error(`Invalid benchmark scenario: ${scenario.id}`);
     } else {
@@ -672,6 +720,76 @@ function columnarBatchPersistenceResult(
   };
 }
 
+function columnarPatchResult(
+  scenario: ColumnarPatchCorpusScenario,
+  result: ColumnarPatchBenchmarkResult,
+): ScenarioResult {
+  const metrics: Array<keyof ColumnarPatchSample> = [
+    "totalDurationMs",
+    "patchLatencyMs",
+    "operationsPerSecond",
+    "rebuildDurationMs",
+    "rebuildBackingBytesPerRow",
+    "rebuildRetainedBytesPerBackingByte",
+  ];
+  const summary = Object.fromEntries(
+    metrics.map((metric) => [metric, summarizeSamples(result.samples.map((sample) => sample[metric]))]),
+  ) as ScenarioResult["summary"];
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      rowCount: scenario.rowCount,
+      reserveRows: scenario.reserveRows,
+      patchOperations: scenario.patchOperations,
+      patchesPerSample: scenario.patchesPerSample,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary,
+    invariants: {
+      // The live row count, not the batch's row count: appended rows and
+      // tombstoned ones cancel out by construction, and holding that steady is
+      // what makes every repetition a million-row measurement.
+      expectedTotalFeatures: scenario.rowCount,
+      checks: result.invariants.checks,
+      passed: result.invariants.passed,
+    },
+  };
+}
+
+function columnarProducerResult(
+  scenario: ColumnarProducerCorpusScenario,
+  result: ColumnarProducerBenchmarkResult,
+): ScenarioResult {
+  const metrics: Array<keyof ColumnarProducerSample> = [
+    "totalDurationMs",
+    "featuresPerSecond",
+    "backingBytesPerFeature",
+    "peakRetainedBytesPerFeature",
+  ];
+  const summary = Object.fromEntries(
+    metrics.map((metric) => [metric, summarizeSamples(result.samples.map((sample) => sample[metric]))]),
+  ) as ScenarioResult["summary"];
+  return {
+    id: scenario.id,
+    kind: scenario.kind,
+    parameters: {
+      rowCount: scenario.rowCount,
+      warmupRuns: scenario.warmupRuns,
+      measurementRuns: scenario.measurementRuns,
+    },
+    samples: result.samples,
+    summary,
+    invariants: {
+      expectedTotalFeatures: scenario.rowCount,
+      checks: result.invariants.checks,
+      passed: result.invariants.passed,
+    },
+  };
+}
+
 async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   if (scenario.kind === "stream-pagination") return runStreamScenario(scenario);
   if (scenario.kind === "offline-reload") return resilienceResult(scenario, await runOfflineReloadBenchmark(scenario));
@@ -689,6 +807,12 @@ async function runScenario(scenario: CorpusScenario): Promise<ScenarioResult> {
   }
   if (scenario.kind === "columnar-batch-persistence") {
     return columnarBatchPersistenceResult(scenario, await runColumnarBatchPersistenceBenchmark(scenario));
+  }
+  if (scenario.kind === "columnar-patch") {
+    return columnarPatchResult(scenario, await runColumnarPatchBenchmark(scenario));
+  }
+  if (scenario.kind === "columnar-producer") {
+    return columnarProducerResult(scenario, await runColumnarProducerBenchmark(scenario));
   }
   return queryResourceResult(scenario, await runQueryResourceHandleBenchmark(scenario));
 }
