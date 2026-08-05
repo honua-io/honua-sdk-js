@@ -13,6 +13,9 @@ import {
   mountSourceToCesium,
   projectSourceToCesium,
 } from "../src/scene-workspace/index.js";
+// Not on the barrel: the fingerprint helper is internal, and its fail-closed
+// behavior is what the diff's "unfingerprintable means changed" rule rests on.
+import { cesiumEntityFingerprint } from "../src/scene-workspace/source-to-cesium.js";
 
 const descriptor: SourceDescriptor = {
   id: "Response Units",
@@ -673,9 +676,26 @@ describe("mountSourceToCesium", () => {
     expect(Object.isFrozen(refreshed)).toBe(true);
     expect(Object.isFrozen(refreshed.diagnostics)).toBe(true);
     expect(Object.isFrozen(mounted.diagnostics)).toBe(true);
+    expect(refreshed).toMatchObject({
+      revision: 2,
+      reused: [],
+      updated: ["honua-response-units:s:medic%2F1"],
+      created: [],
+      disposed: ["honua-response-units:n:2"],
+    });
+    expect(mounted.diagnostics.map((entry) => entry.code)).toContain("incremental-update");
+    expect(mounted.diagnostics.find((entry) => entry.code === "incremental-update")).toMatchObject({
+      detail: {
+        revision: 2,
+        reusedEntityCount: 0,
+        updatedEntityCount: 1,
+        disposedEntityCount: 1,
+        rebuildBoundary: "snapshot-membership",
+      },
+    });
     expect(mounted.diagnostics.at(-1)).toMatchObject({
-      code: "incremental-update",
-      detail: { rebuildBoundary: "entity-snapshot" },
+      code: "rebuild-boundary",
+      detail: { rebuildBoundary: "snapshot-membership", departedEntityCount: 1 },
     });
 
     mounted.dispose();
@@ -753,7 +773,13 @@ describe("mountSourceToCesium", () => {
   });
 
   it("does not restore a snapshot when collection removal reenters disposal", async () => {
-    const source = fakeSource([firstResult, firstResult]);
+    // The refresh only removes what departed, so the reentrancy this covers is
+    // reachable only when a feature actually leaves the snapshot.
+    const departure: Result<Record<string, unknown>> = {
+      exceededTransferLimit: false,
+      features: [firstResult.features[1] as (typeof firstResult.features)[number]],
+    };
+    const source = fakeSource([firstResult, departure]);
     const collection = fakeCollection();
     const mounted = await mountSourceToCesium(collection, source, plan, {
       ...context,
@@ -786,6 +812,270 @@ describe("mountSourceToCesium", () => {
     mounted.dispose();
     expect(mounted.state).toBe("disposed");
     expect(collection.entities.size).toBe(0);
+  });
+});
+
+/**
+ * The refresh diff (#1050).
+ *
+ * Before this, `refresh()` removed every entity it had mounted and re-added the
+ * whole snapshot, so anything a host held across a refresh — a selection, a
+ * tracked entity, a graphic it had adjusted — was silently discarded. These
+ * cases assert the replacement contract by **object identity** against the live
+ * collection, which is the only way the claim means anything.
+ */
+describe("mountSourceToCesium refresh diff", () => {
+  const diffPlan = explainQuery({
+    descriptor,
+    query: { pagination: { limit: 100 }, returnGeometry: true, outSr: 4326 },
+    ...context,
+  });
+
+  const unit = (id: string | number, geometry: Record<string, unknown>, attributes: Record<string, unknown> = {}) => ({
+    attributes: { unit_id: id, ...attributes },
+    geometry,
+  });
+
+  const snapshot = (...features: ReturnType<typeof unit>[]): Result<Record<string, unknown>> => ({
+    exceededTransferLimit: false,
+    features,
+  });
+
+  const medic = unit("medic", { x: -157.85, y: 21.3 }, { label: "Medic" });
+  const patrol = unit("patrol", {
+    type: "LineString",
+    coordinates: [
+      [-157.86, 21.3],
+      [-157.84, 21.31],
+    ],
+  });
+
+  async function mount(results: readonly Result<Record<string, unknown>>[]) {
+    const collection = fakeCollection();
+    const mounted = await mountSourceToCesium(collection, fakeSource(results), diffPlan, {
+      ...context,
+      cesium: cesiumModule,
+    });
+    return { collection, mounted };
+  }
+
+  it("reuses the live entity of a byte-identical feature without touching it", async () => {
+    const { collection, mounted } = await mount([snapshot(medic, patrol), snapshot(medic, patrol)]);
+    const before = new Map(collection.entities);
+
+    const refreshed = await mounted.refresh();
+
+    expect(refreshed).toMatchObject({ revision: 2, updated: [], created: [], disposed: [] });
+    expect(refreshed.reused).toEqual(["honua-response-units:s:medic", "honua-response-units:s:patrol"]);
+    // Nothing crossed a boundary, so nothing is reported as having crossed one.
+    expect(refreshed.rebuildBoundaries).toEqual([]);
+    expect(mounted.rebuildBoundaries).toEqual([]);
+    for (const [id, entity] of before) {
+      expect(collection.entities.get(id), `entity ${id} must be the same object`).toBe(entity);
+    }
+    expect(mounted.diagnostics.find((entry) => entry.code === "incremental-update")).toMatchObject({
+      detail: { reusedEntityCount: 2, rebuildBoundary: "none" },
+    });
+    // A refresh that changed nothing must not report a rebuild boundary at all.
+    expect(mounted.diagnostics.some((entry) => entry.code === "rebuild-boundary")).toBe(false);
+    mounted.dispose();
+  });
+
+  it("updates a changed feature in place, so the host's entity reference survives", async () => {
+    const moved = unit("medic", { x: -157.7, y: 21.2 }, { label: "Medic" });
+    const { collection, mounted } = await mount([snapshot(medic, patrol), snapshot(moved, patrol)]);
+    const live = collection.entities.get("honua-response-units:s:medic");
+    const untouched = collection.entities.get("honua-response-units:s:patrol");
+    const graphics = live?.point;
+    const properties = live?.properties;
+
+    const refreshed = await mounted.refresh();
+
+    expect(refreshed).toMatchObject({
+      updated: ["honua-response-units:s:medic"],
+      reused: ["honua-response-units:s:patrol"],
+      created: [],
+      disposed: [],
+    });
+    // The same `Entity` object, carrying the new position.
+    expect(collection.entities.get("honua-response-units:s:medic")).toBe(live);
+    expect(live?.position).toEqual({ longitude: -157.7, latitude: 21.2, height: 0 });
+    // Only the facet that moved was written: the point graphic and the property
+    // bag are the same objects the mount created.
+    expect(live?.point).toBe(graphics);
+    expect(live?.properties).toBe(properties);
+    expect(collection.entities.get("honua-response-units:s:patrol")).toBe(untouched);
+    expect(refreshed.rebuildBoundaries).toEqual([
+      expect.objectContaining({
+        entityId: "honua-response-units:s:medic",
+        boundary: "entity-configuration",
+        incremental: false,
+        preserved: true,
+      }),
+    ]);
+    mounted.dispose();
+  });
+
+  it("writes only the attribute facet when a feature's geometry is unchanged", async () => {
+    const relabelled = unit("medic", { x: -157.85, y: 21.3 }, { label: "Medic 1" });
+    const { collection, mounted } = await mount([snapshot(medic), snapshot(relabelled)]);
+    const live = collection.entities.get("honua-response-units:s:medic");
+    const position = live?.position;
+
+    await mounted.refresh();
+
+    expect(collection.entities.get("honua-response-units:s:medic")).toBe(live);
+    expect(live?.properties).toMatchObject({ label: "Medic 1" });
+    expect(live?.position, "an unchanged geometry must not be rewritten").toBe(position);
+    mounted.dispose();
+  });
+
+  it("rewrites polyline vertices on the graphic Cesium already owns", async () => {
+    const rerouted = unit("patrol", {
+      type: "LineString",
+      coordinates: [
+        [-157.86, 21.3],
+        [-157.83, 21.32],
+      ],
+    });
+    const { collection, mounted } = await mount([snapshot(patrol), snapshot(rerouted)]);
+    const live = collection.entities.get("honua-response-units:s:patrol");
+    const graphic = live?.polyline as Record<string, unknown> | undefined;
+
+    await mounted.refresh();
+
+    expect(collection.entities.get("honua-response-units:s:patrol")).toBe(live);
+    // The `PolylineGraphics` Cesium constructed is kept — only its positions move —
+    // so a width or material the host set on it is not clobbered.
+    expect(live?.polyline).toBe(graphic);
+    expect((graphic?.positions as unknown[]).at(-1)).toEqual({ longitude: -157.83, latitude: 21.32, height: 0 });
+    mounted.dispose();
+  });
+
+  it("replaces the entity when a feature's geometry kind changes", async () => {
+    const promoted = unit("medic", {
+      type: "LineString",
+      coordinates: [
+        [-157.85, 21.3],
+        [-157.84, 21.31],
+      ],
+    });
+    const { collection, mounted } = await mount([snapshot(medic), snapshot(promoted)]);
+    const live = collection.entities.get("honua-response-units:s:medic");
+
+    const refreshed = await mounted.refresh();
+
+    expect(refreshed).toMatchObject({
+      created: ["honua-response-units:s:medic"],
+      disposed: ["honua-response-units:s:medic"],
+      updated: [],
+      reused: [],
+    });
+    expect(collection.entities.get("honua-response-units:s:medic")).not.toBe(live);
+    expect(collection.entities.get("honua-response-units:s:medic")).toMatchObject({ polyline: expect.anything() });
+    expect(refreshed.rebuildBoundaries).toEqual([
+      expect.objectContaining({ boundary: "entity-geometry-kind", preserved: false }),
+    ]);
+    mounted.dispose();
+  });
+
+  it("creates arrivals, disposes departures, and leaves the rest attached", async () => {
+    const ladder = unit("ladder", { x: -157.8, y: 21.25 });
+    const { collection, mounted } = await mount([snapshot(medic, patrol), snapshot(medic, ladder)]);
+    const survivor = collection.entities.get("honua-response-units:s:medic");
+
+    const refreshed = await mounted.refresh();
+
+    expect(refreshed).toMatchObject({
+      reused: ["honua-response-units:s:medic"],
+      created: ["honua-response-units:s:ladder"],
+      disposed: ["honua-response-units:s:patrol"],
+      updated: [],
+    });
+    expect(collection.entities.get("honua-response-units:s:medic")).toBe(survivor);
+    expect(collection.entities.has("honua-response-units:s:patrol")).toBe(false);
+    expect(mounted.entityIds).toEqual(["honua-response-units:s:medic", "honua-response-units:s:ladder"]);
+    expect(refreshed.rebuildBoundaries.map((report) => [report.entityId, report.boundary])).toEqual([
+      ["honua-response-units:s:ladder", "entity-identity"],
+      ["honua-response-units:s:patrol", "snapshot-membership"],
+    ]);
+    mounted.dispose();
+  });
+
+  it("preserves availability across a refresh that only moved a feature", async () => {
+    const timed = (longitude: number) =>
+      unit("medic", { x: longitude, y: 21.3 }, { from: "2026-03-01T00:00:00Z", to: "2026-03-01T06:00:00Z" });
+    const collection = fakeCollection();
+    const mounted = await mountSourceToCesium(
+      collection,
+      fakeSource([snapshot(timed(-157.85)), snapshot(timed(-157.7))]),
+      diffPlan,
+      { ...context, cesium: cesiumModule, time: { startField: "from", endField: "to" } },
+    );
+    const live = collection.entities.get("honua-response-units:s:medic");
+    const availability = live?.availability;
+
+    await mounted.refresh();
+
+    expect(collection.entities.get("honua-response-units:s:medic")).toBe(live);
+    expect(live?.availability, "an unchanged interval must not rebuild the availability collection").toBe(availability);
+    mounted.dispose();
+  });
+
+  it("undoes in-place writes when a later arrival cannot be added", async () => {
+    const moved = unit("medic", { x: -157.7, y: 21.2 }, { label: "Medic" });
+    const ladder = unit("ladder", { x: -157.8, y: 21.25 });
+    const { collection, mounted } = await mount([snapshot(medic), snapshot(moved, ladder)]);
+    const live = collection.entities.get("honua-response-units:s:medic");
+    const position = live?.position;
+    const properties = live?.properties;
+    collection.failAddId = "honua-response-units:s:ladder";
+
+    await expect(mounted.refresh()).rejects.toThrowError(expect.objectContaining({ code: "renderer-mutation-failed" }));
+
+    expect(mounted.state).toBe("degraded");
+    expect(mounted.entityIds).toEqual(["honua-response-units:s:medic"]);
+    expect(collection.entities.get("honua-response-units:s:medic")).toBe(live);
+    expect(live?.position, "the in-place write must be undone exactly").toBe(position);
+    expect(live?.properties).toBe(properties);
+    expect(collection.entities.has("honua-response-units:s:ladder")).toBe(false);
+    expect(mounted.diagnostics.at(-1)).toMatchObject({
+      code: "incremental-update-failed",
+      detail: { rollbackSucceeded: true },
+    });
+    collection.failAddId = undefined;
+    mounted.dispose();
+  });
+
+  it("keeps a departure attached when the refresh fails before it is released", async () => {
+    const ladder = unit("ladder", { x: -157.8, y: 21.25 });
+    const { collection, mounted } = await mount([snapshot(medic, patrol), snapshot(medic, ladder)]);
+    collection.failAddId = "honua-response-units:s:ladder";
+
+    await expect(mounted.refresh()).rejects.toThrowError(expect.objectContaining({ code: "renderer-mutation-failed" }));
+
+    // Departures are released last precisely so a failure cannot leave a hole.
+    expect([...collection.entities.keys()]).toEqual(["honua-response-units:s:medic", "honua-response-units:s:patrol"]);
+    expect(mounted.entityIds).toEqual(["honua-response-units:s:medic", "honua-response-units:s:patrol"]);
+    collection.failAddId = undefined;
+    mounted.dispose();
+  });
+
+  it("fingerprints a projected feature order-independently and fails closed", () => {
+    const item = {
+      id: "entity",
+      featureId: "entity",
+      properties: Object.freeze({ label: "Medic", shift: "day" }),
+      geometry: Object.freeze({ kind: "point" as const, coordinates: [-157.85, 21.3, 0] as const }),
+    };
+    const reordered = { ...item, properties: Object.freeze({ shift: "day", label: "Medic" }) };
+    expect(cesiumEntityFingerprint(item)).toBe(cesiumEntityFingerprint(reordered));
+    expect(cesiumEntityFingerprint({ ...item, properties: { label: "Medic", shift: "night" } })).not.toBe(
+      cesiumEntityFingerprint(item),
+    );
+    // Unfingerprintable is treated as changed, never as reusable: the diff reads
+    // `undefined` and replaces rather than reusing.
+    expect(cesiumEntityFingerprint({ ...item, properties: { at: new Date() } as never })).toBeUndefined();
   });
 });
 
@@ -825,14 +1115,21 @@ function fakeSource(
   } as unknown as Source<Record<string, unknown>> & { query: ReturnType<typeof vi.fn> };
 }
 
+/**
+ * A fake `EntityCollection` that models the one behaviour the refresh diff turns
+ * on: Cesium's `add()` *constructs* an `Entity` from the options it is given and
+ * hands that object back, so the live entity is a mutable object with its own
+ * identity, not the frozen specification the adapter passed in. Preserving it
+ * across a refresh is therefore an observable fact rather than a tautology.
+ */
 function fakeCollection(): CesiumEntityCollectionTarget & {
-  entities: Map<string, Readonly<Record<string, unknown>>>;
+  entities: Map<string, Record<string, unknown>>;
   failRemoveId?: string;
   failAddId?: string;
   onAdd?: (id: string) => void;
   onRemove?: (id: string) => void;
 } {
-  const entities = new Map<string, Readonly<Record<string, unknown>>>();
+  const entities = new Map<string, Record<string, unknown>>();
   const collection = {
     entities,
     failRemoveId: undefined as string | undefined,
@@ -844,9 +1141,10 @@ function fakeCollection(): CesiumEntityCollectionTarget & {
       const id = String(entity.id);
       if (entities.has(id)) throw new Error(`duplicate ${id}`);
       if (collection.failAddId === id) throw new Error(`cannot add ${id}`);
-      entities.set(id, entity);
+      const live: Record<string, unknown> = { ...entity };
+      entities.set(id, live);
       collection.onAdd?.(id);
-      return entity;
+      return live;
     },
     removeById: (id: string) => {
       if (collection.failRemoveId === id) throw new Error(`cannot remove ${id}`);

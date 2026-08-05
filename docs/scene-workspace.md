@@ -33,7 +33,7 @@ What may still change inside beta:
 | --- | --- |
 | Honua Server scene discovery (`listScenes`, `getScene`, `sceneToRuntimePrimitives`, …) | Server-attached; outside the open-endpoint evidence behind beta. |
 | `SceneView` and the elevation/analysis widgets | Execute against Honua Server analysis endpoints. |
-| `mountSourceToCesium` / `projectSourceToCesium` | Has real-Cesium evidence since `#1050`, and still held back for three named reasons: refresh rebuilds every entity, the entity mount and the primitive mount are two lifecycle owners, and there is no symbology surface — see [Tier decision](./cesium-entity-adapter.md#tier-decision-issue-1050). |
+| `mountSourceToCesium` / `projectSourceToCesium` / `mountCesiumScene` | Has real-Cesium evidence since `#1050`, which also cleared two of the three named blockers — `refresh()` now diffs instead of rebuilding, and `mountCesiumScene` owns both mounts behind one `dispose()`. Held back for the remaining one: there is no symbology surface, and adding it means new required shapes — see [Tier decision](./cesium-entity-adapter.md#tier-decision-issue-1050). |
 
 The split is enumerated symbol by symbol under `packageLifecycle.surfaceTiers`
 in [`config/support-manifest.v1.json`](../config/support-manifest.v1.json) and
@@ -672,13 +672,29 @@ adapter (`#1050`): entities materialize from a live `Source` and an accepted
 plan onto a real `Viewer`, Cesium's own availability decides which of them are
 drawn at a given clock instant, polygon interior rings reach the GPU, the entity
 ceiling fails closed, and disposal returns the collection to baseline inside the
-primitive lane's measured teardown ceilings. The entity mount and the primitive
-mount also compose on one viewer, each releasing exactly its own resources.
+primitive lane's measured teardown ceilings.
 
-It stays `experimental` regardless, and the reason is recorded rather than
-implied: refresh rebuilds every entity (an unchanged feature still gets a new
-`Entity`), the two mounts are two lifecycle owners with nothing owning both, and
-there is no symbology surface. See
+`refresh()` is a diff rather than a rebuild. It runs the mount-diff discipline
+the beta primitive path runs on: identity is the projected entity id qualified by
+geometry kind, configuration is an order-independent per-facet fingerprint, and a
+feature that cannot be fingerprinted is treated as changed. A feature whose row
+did not change keeps the **same live `Entity`**, a changed feature keeps it too
+and has only the changed facets written onto it, and departures are released last
+so a mid-refresh failure cannot leave a hole. The consequence a host can rely on
+is that `viewer.selectedEntity`, a tracked entity, and an entity reference the
+application holds all survive a refresh — asserted by object identity against a
+real `Viewer`.
+
+`mountCesiumScene` is the single owner over both halves: it delegates to the
+primitive mount and to each entity mount, bounds the number of sources, and
+releases everything behind one idempotent, retryable `dispose()` — entity mounts
+first, in reverse acquisition order, then the primitive plan.
+`mountScenePrimitivesToCesium` is unchanged and still owns primitives alone.
+
+The slice stays `experimental` regardless, and the reason is recorded rather than
+implied: with the refresh diff and the single owner landed, the one remaining
+blocker is that there is no symbology surface, and adding it means new required
+shapes rather than purely additive ones. See
 [Tier decision](./cesium-entity-adapter.md#tier-decision-issue-1050).
 
 ### Cesium layer disposal
@@ -862,12 +878,16 @@ asserts that every projected feature became a real `Cesium.Entity` whose
 position, polygon hierarchy, availability, and properties are real Cesium
 objects; that Cesium's availability decides what is picked out of a real GPU
 pick pass at two clock instants; that a refresh against a changed source
-rebuilds the whole snapshot; and that disposal returns the collection to
+preserves a byte-identical feature's `Entity` **by object identity** — together
+with the `viewer.selectedEntity` set on it — while moving the changed one and
+releasing the departed one; and that disposal returns the collection to
 baseline without accumulating entities, viewers, canvases, or listeners across
 cycles. The other runs an entity mount and a primitive mount on one viewer and
-asserts that each disposal releases exactly its own resources, and that an
-over-ceiling mount fails closed without disturbing either. Their budgets are the
-ones measured here, stated as run totals rather than per-cycle equalities.
+asserts that each disposal releases exactly its own resources, that an
+over-ceiling mount fails closed without disturbing either, and that the same two
+halves under one `mountCesiumScene` owner are released by a single `dispose()`.
+Their budgets are the ones measured here, stated as run totals rather than
+per-cycle equalities.
 
 Console errors and unhandled rejections fail the lane, matching the sample
 console-teardown gate.

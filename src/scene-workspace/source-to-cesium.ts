@@ -5,10 +5,26 @@
  * only while mounting, either through an injected module/loader or a lazy
  * optional-peer import.
  *
+ * `refresh()` is a diff, not a rebuild (issue #1050). It runs the same
+ * discipline the beta primitive mount runs on (#930): identity is the projected
+ * entity id qualified by geometry kind, configuration is an order-independent
+ * fingerprint of the projected feature, a feature that cannot be fingerprinted
+ * is treated as changed rather than reusable, and every crossing is reported.
+ * The consequence a host can rely on is object identity: a feature whose row did
+ * not change keeps the *same* live `Entity`, so `viewer.selectedEntity`, a
+ * tracked entity, and a graphic the host mutated all survive a refresh. A
+ * feature that did change keeps its `Entity` too — only the facets that moved
+ * are written onto it.
+ *
+ * {@link mountCesiumScene} (`./cesium-scene-owner.ts`) composes this mount with
+ * the primitive mount under one owner, so a host does not sequence two
+ * teardowns itself.
+ *
  * @experimental Held back from the beta `@honua/app-platform/scene-workspace`
- *   tier: this is a bounded feature/entity slice, not the production adapter of
- *   issue #395 (see `docs/cesium-entity-adapter.md`). Not covered by the pre-1.0
- *   semver contract. The scene primitive adapter alongside it is beta.
+ *   tier: the slice has no symbology surface, and adding one means new required
+ *   shapes rather than purely additive ones (see `docs/cesium-entity-adapter.md`).
+ *   Not covered by the pre-1.0 semver contract. The scene primitive adapter
+ *   alongside it is beta.
  */
 
 import type { Result, Source } from "../contract/types.js";
@@ -38,7 +54,8 @@ export type CesiumEntityDiagnosticCode =
   | "time-interval-invalid"
   | "time-position-invalid"
   | "incremental-update"
-  | "incremental-update-failed";
+  | "incremental-update-failed"
+  | "rebuild-boundary";
 
 export interface CesiumEntityDiagnostic {
   readonly code: CesiumEntityDiagnosticCode;
@@ -146,6 +163,110 @@ export interface CesiumEntityProjection {
   readonly state: Exclude<CesiumEntityWorkflowState, "disposing" | "disposed">;
 }
 
+/**
+ * What one entity had to cross during a {@link MountedCesiumEntitySource.refresh}.
+ *
+ * The vocabulary mirrors the beta primitive mount's `SceneRebuildBoundary`
+ * (issue #930) so the two halves of a Cesium scene answer "what did this update
+ * have to rebuild" in the same shape. It is entity-scoped rather than shared
+ * because an entity has one crossing the primitive path does not — an in-place
+ * update, where the live `Entity` object survives a *changed* feature.
+ *
+ * - `none` — identity and configuration are unchanged; the live `Entity` was not
+ *   touched at all. Anything the host attached to it (a selection, a tracked
+ *   entity, a mutated graphic) survives.
+ * - `entity-configuration` — the feature changed and the changed facets were
+ *   written onto the live `Entity`, which survives by object identity.
+ * - `entity-identity` — the feature was not previously mounted; an `Entity` was
+ *   constructed for it.
+ * - `snapshot-membership` — the feature left the snapshot; its `Entity` was
+ *   released.
+ * - `entity-geometry-kind` — the feature's geometry kind changed (a point became
+ *   a polyline, say). Identity is kind-qualified, so this is a replacement:
+ *   the old `Entity` is released and a new one constructed.
+ * - `unfingerprintable` — the feature could not be fingerprinted deterministically
+ *   and was replaced conservatively rather than assumed unchanged.
+ */
+export type CesiumEntityRebuildBoundary =
+  | "none"
+  | "entity-configuration"
+  | "entity-identity"
+  | "snapshot-membership"
+  | "entity-geometry-kind"
+  | "unfingerprintable";
+
+/** The entity boundary vocabulary, in escalation order. */
+export const CESIUM_ENTITY_REBUILD_BOUNDARIES: readonly CesiumEntityRebuildBoundary[] = Object.freeze([
+  "none",
+  "entity-configuration",
+  "entity-identity",
+  "snapshot-membership",
+  "entity-geometry-kind",
+  "unfingerprintable",
+]);
+
+/** One entity's outcome across a refresh. */
+export interface CesiumEntityRebuildBoundaryReport {
+  readonly entityId: string;
+  readonly boundary: CesiumEntityRebuildBoundary;
+  /** `true` when the entity was not touched at all. */
+  readonly incremental: boolean;
+  /** `true` when the live Cesium `Entity` object survived this refresh by identity. */
+  readonly preserved: boolean;
+  readonly reason: string;
+}
+
+const ENTITY_BOUNDARY_REASONS: Readonly<Record<CesiumEntityRebuildBoundary, string>> = Object.freeze({
+  none: "Identity and configuration are unchanged; the live entity was reused untouched.",
+  "entity-configuration": "The configuration fingerprint changed; the live entity was updated in place.",
+  "entity-identity": "The feature was not previously mounted; an entity was constructed for it.",
+  "snapshot-membership": "The feature left the snapshot; its entity was released.",
+  "entity-geometry-kind": "The feature's geometry kind changed; the entity was released and rebuilt.",
+  unfingerprintable: "The feature could not be fingerprinted deterministically and was rebuilt conservatively.",
+});
+
+/** Build one boundary report with the vocabulary's own stable reason text. */
+function entityRebuildBoundaryReport(
+  entityId: string,
+  boundary: CesiumEntityRebuildBoundary,
+): CesiumEntityRebuildBoundaryReport {
+  return Object.freeze({
+    entityId,
+    boundary,
+    incremental: boundary === "none",
+    preserved: boundary === "none" || boundary === "entity-configuration",
+    reason: ENTITY_BOUNDARY_REASONS[boundary],
+  });
+}
+
+/**
+ * The result of one {@link MountedCesiumEntitySource.refresh}: the projection the
+ * refreshed snapshot produced, plus the diff that reconciled it onto the live
+ * collection.
+ *
+ * The four id lists partition the refresh. A replaced entity — a geometry-kind
+ * change or an unfingerprintable feature — appears in both `created` and
+ * `disposed`, because that is exactly what happened to it.
+ */
+export interface CesiumEntityRefreshResult extends CesiumEntityProjection {
+  /** 1 after the initial mount, incremented for every refresh. */
+  readonly revision: number;
+  /** Ids whose live `Entity` was carried forward untouched. */
+  readonly reused: readonly string[];
+  /** Ids whose live `Entity` survived by identity and was updated in place. */
+  readonly updated: readonly string[];
+  /** Ids whose `Entity` was constructed by this refresh. */
+  readonly created: readonly string[];
+  /** Ids whose `Entity` was released because the feature left or had to be replaced. */
+  readonly disposed: readonly string[];
+  /**
+   * One entry per entity that crossed a boundary. Entities reused untouched are
+   * deliberately *not* reported: a steady-state refresh of a bounded snapshot is
+   * the common case, and it should cost nothing to report. `reused` names them.
+   */
+  readonly rebuildBoundaries: readonly CesiumEntityRebuildBoundaryReport[];
+}
+
 /** Minimal Cesium EntityCollection surface; real viewer.entities satisfies it. */
 export interface CesiumEntityCollectionTarget {
   getById(id: string): unknown;
@@ -184,9 +305,55 @@ export interface MountedCesiumEntitySource {
   readonly planFingerprint: string;
   readonly state: CesiumEntityWorkflowState;
   readonly diagnostics: readonly CesiumEntityDiagnostic[];
-  refresh(options?: ExecuteQueryPlanOptions): Promise<CesiumEntityProjection>;
+  /** 1 after the initial mount, incremented for every refresh. */
+  readonly revision: number;
+  /** Boundaries crossed by the most recent refresh. Empty after the initial mount. */
+  readonly rebuildBoundaries: readonly CesiumEntityRebuildBoundaryReport[];
+  /**
+   * Re-execute the accepted plan and reconcile the result onto the live
+   * collection.
+   *
+   * This is a **diff**, not a rebuild. Identity is the projected entity id
+   * qualified by geometry kind; configuration is an order-independent
+   * fingerprint of the projected feature. A feature whose fingerprint is
+   * unchanged keeps its live `Entity` untouched — so a selection, a tracked
+   * entity, or a graphic the host mutated survives the refresh — a changed
+   * feature has its changed facets written onto the same `Entity`, and only
+   * features that departed, changed geometry kind, or could not be fingerprinted
+   * cost an `Entity`.
+   */
+  refresh(options?: ExecuteQueryPlanOptions): Promise<CesiumEntityRefreshResult>;
   /** Cleanup is idempotent; a failed cleanup remains retryable. */
   dispose(): void;
+}
+
+/**
+ * One entity this mount owns: its stable identity, the fingerprints the diff
+ * runs on, and the materialized specification it was constructed from.
+ *
+ * The per-facet fingerprints are what make an in-place update surgical: only the
+ * facets that actually changed are written back onto the live `Entity`, so a
+ * moved feature does not also replace its unchanged graphics or property bag.
+ */
+interface MountedEntityRecord {
+  readonly id: string;
+  readonly kind: CesiumEntityGeometry["kind"];
+  readonly fingerprint: string | undefined;
+  readonly facets: EntityFacetFingerprints;
+  readonly spec: Readonly<Record<string, unknown>>;
+}
+
+interface EntityFacetFingerprints {
+  readonly geometry: string | undefined;
+  readonly properties: string | undefined;
+  readonly availability: string | undefined;
+}
+
+/** One field assignment made against a live entity, with the value it displaced. */
+interface AppliedEntityWrite {
+  readonly target: Record<string, unknown>;
+  readonly key: string;
+  readonly previous: unknown;
 }
 
 export function projectSourceToCesium<T>(
@@ -457,16 +624,16 @@ export async function mountSourceToCesium<T>(
   const result = await executeAcceptedPlan(source, plan, initialSignal);
   initialSignal.throwIfAborted();
   let projection = projectSourceToCesium(source, plan, result, mountOptions);
-  const initialSpecs = materializeProjection(cesium, projection);
-  assertEntityIdsAvailable(collection, initialSpecs.keys());
-  let mounted = new Map<string, Readonly<Record<string, unknown>>>();
+  const initialRecords = materializeProjection(cesium, projection);
+  assertEntityIdsAvailable(collection, initialRecords.keys());
+  let mounted = new Map<string, MountedEntityRecord>();
   const attemptedInitialIds: string[] = [];
   try {
-    for (const [id, spec] of initialSpecs) {
+    for (const [id, record] of initialRecords) {
       initialSignal.throwIfAborted();
       attemptedInitialIds.push(id);
-      mounted.set(id, spec);
-      collection.add(spec);
+      mounted.set(id, record);
+      collection.add(record.spec);
       initialSignal.throwIfAborted();
     }
   } catch (cause) {
@@ -479,11 +646,13 @@ export async function mountSourceToCesium<T>(
 
   let state: CesiumEntityWorkflowState = projection.state;
   let diagnostics: readonly CesiumEntityDiagnostic[] = projection.diagnostics;
+  let rebuildBoundaries: readonly CesiumEntityRebuildBoundaryReport[] = Object.freeze([]);
+  let revision = 1;
   let refreshTail: Promise<void> = Promise.resolve();
   let lifecycleEpoch = 0;
   let disposeActive = false;
 
-  const runRefresh = async (refreshOptions: ExecuteQueryPlanOptions): Promise<CesiumEntityProjection> => {
+  const runRefresh = async (refreshOptions: ExecuteQueryPlanOptions): Promise<CesiumEntityRefreshResult> => {
     if (state === "disposed" || state === "disposing") {
       throw new HonuaCesiumEntityAdapterError("disposed", "Cannot refresh a disposed Cesium entity mount.");
     }
@@ -497,61 +666,126 @@ export async function mountSourceToCesium<T>(
     assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
     const next = projectSourceToCesium(source, plan, nextResult, mountOptions);
     signal.throwIfAborted();
-    const nextSpecs = materializeProjection(cesium, next);
-    const previous = new Map(mounted);
+
+    // ── Identity + configuration diff ──────────────────────────────
+    //
+    // Identity is the projected entity id qualified by geometry kind, exactly
+    // the discipline the beta primitive mount runs on (#930): a kind change owns
+    // a different renderer object, so it is a replacement rather than an update.
+    // A feature that cannot be fingerprinted is treated as changed, never as
+    // unchanged, so a stale entity can never claim to satisfy a snapshot it no
+    // longer matches. Nothing is materialized for a feature that is reused, so a
+    // steady-state refresh allocates no Cesium values at all.
+    const previous = mounted;
+    const nextRecords = new Map<string, MountedEntityRecord>();
+    const boundaries: CesiumEntityRebuildBoundaryReport[] = [];
+    const reusedIds: string[] = [];
+    const updatedIds: string[] = [];
+    const createdIds: string[] = [];
+    const updates: { readonly previous: MountedEntityRecord; readonly next: MountedEntityRecord }[] = [];
+    const replacements: MountedEntityRecord[] = [];
+    const creations: MountedEntityRecord[] = [];
+    for (const item of next.entities) {
+      const existing = previous.get(item.id);
+      const facets = entityFacetFingerprints(item);
+      const boundary = entityRebuildBoundary(existing, item.geometry.kind, entityFingerprint(facets));
+      if (boundary === "none" && existing) {
+        nextRecords.set(item.id, existing);
+        reusedIds.push(item.id);
+        continue;
+      }
+      const record = materializeEntityRecord(cesium, item, facets);
+      nextRecords.set(item.id, record);
+      boundaries.push(entityRebuildBoundaryReport(item.id, boundary));
+      if (boundary === "entity-configuration" && existing) {
+        updates.push({ previous: existing, next: record });
+        updatedIds.push(item.id);
+      } else if (existing) {
+        replacements.push(record);
+        createdIds.push(item.id);
+      } else {
+        creations.push(record);
+        createdIds.push(item.id);
+      }
+    }
+    const departed: MountedEntityRecord[] = [];
+    for (const record of previous.values()) {
+      if (nextRecords.has(record.id)) continue;
+      departed.push(record);
+      boundaries.push(entityRebuildBoundaryReport(record.id, "snapshot-membership"));
+    }
+    const disposedIds = [...replacements.map((record) => record.id), ...departed.map((record) => record.id)];
+
     assertEntityIdsAvailable(
       collection,
-      [...nextSpecs.keys()].filter((id) => !previous.has(id)),
+      creations.map((record) => record.id),
     );
-    const attemptedNextIds: string[] = [];
+
+    // Mutation order is chosen so that every step before the last is undoable:
+    // in-place writes are journaled, additions can be removed, and the entities
+    // that left the snapshot are released only once everything else has landed.
+    const writes: AppliedEntityWrite[] = [];
+    const addedIds: string[] = [];
+    const replacedRecords: MountedEntityRecord[] = [];
     try {
-      removeIdsOrThrow(collection, [...previous.keys()]);
-      assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
-      mounted = new Map();
-      for (const [id, spec] of nextSpecs) {
+      for (const update of updates) {
         assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
-        attemptedNextIds.push(id);
-        mounted.set(id, spec);
-        collection.add(spec);
+        updateEntityInPlace(collection, update.previous, update.next, writes);
         assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
       }
+      for (const record of replacements) {
+        assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
+        const displaced = previous.get(record.id);
+        removeIdsOrThrow(collection, [record.id]);
+        if (displaced) replacedRecords.push(displaced);
+        collection.add(record.spec);
+        addedIds.push(record.id);
+        assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
+      }
+      for (const record of creations) {
+        assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
+        collection.add(record.spec);
+        addedIds.push(record.id);
+        assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
+      }
+      removeIdsOrThrow(
+        collection,
+        departed.map((record) => record.id),
+      );
+      assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
     } catch (cause) {
-      const ownedSpecs = new Map([...previous, ...nextSpecs]);
-      const cleanupFailures = removeIds(collection, [...mounted.keys(), ...attemptedNextIds]);
-      mounted = presentOwnedSpecs(collection, ownedSpecs);
+      // Roll back only what this refresh touched. Entities it reused were never
+      // mutated, and the departed set is still attached because its removal is
+      // the last step, so recovery is a matter of undoing this refresh's own
+      // additions and writes rather than rebuilding the previous snapshot.
+      const cleanupFailures = removeIds(collection, addedIds);
+      const restoreFailures: unknown[] = [];
+      for (const record of replacedRecords) {
+        try {
+          if (!collection.getById(record.id)) collection.add(record.spec);
+        } catch (error) {
+          restoreFailures.push(error);
+        }
+      }
+      for (const write of [...writes].reverse()) {
+        try {
+          write.target[write.key] = write.previous;
+        } catch (error) {
+          restoreFailures.push(error);
+        }
+      }
+      mounted = presentOwnedRecords(collection, previous);
       if (lifecycleInvalidated(currentEpoch, lifecycleEpoch, state)) {
-        if (cleanupFailures.length > 0) {
+        const owned = new Map(mounted);
+        const disposalCleanupFailures = removeIds(collection, [...owned.keys()]);
+        mounted = presentOwnedRecords(collection, owned);
+        const failures = [...cleanupFailures, ...restoreFailures, ...disposalCleanupFailures];
+        if (failures.length > 0) {
           throw mutationError(
             "Cesium entity disposal interrupted refresh and cleanup was incomplete.",
             cause,
-            cleanupFailures,
+            failures,
           );
-        }
-        throw lifecycle.signal.reason;
-      }
-      const restoreFailures: unknown[] = [];
-      for (const [id, spec] of previous) {
-        try {
-          assertLifecycleActive(currentEpoch, lifecycleEpoch, state, lifecycle.signal);
-          mounted.set(id, spec);
-          if (!collection.getById(id)) collection.add(spec);
-          assertLifecycleActive(currentEpoch, lifecycleEpoch, state, lifecycle.signal);
-        } catch (error) {
-          mounted.delete(id);
-          restoreFailures.push(error);
-          if (lifecycleInvalidated(currentEpoch, lifecycleEpoch, state)) break;
-        }
-      }
-      if (lifecycleInvalidated(currentEpoch, lifecycleEpoch, state)) {
-        const rollbackOwnedSpecs = new Map(mounted);
-        const disposalCleanupFailures = removeIds(collection, [...rollbackOwnedSpecs.keys()]);
-        mounted = presentOwnedSpecs(collection, rollbackOwnedSpecs);
-        if (disposalCleanupFailures.length > 0) {
-          throw mutationError("Cesium entity disposal interrupted rollback and cleanup was incomplete.", cause, [
-            ...cleanupFailures,
-            ...restoreFailures,
-            ...disposalCleanupFailures,
-          ]);
         }
         throw lifecycle.signal.reason;
       }
@@ -566,18 +800,21 @@ export async function mountSourceToCesium<T>(
           "warning",
           "update",
           "unsupported",
-          "Cesium entity rebuild failed; restoration was attempted.",
+          "Cesium entity reconciliation failed; restoration was attempted.",
           {
             rollbackSucceeded: cleanupFailures.length === 0 && restoreFailures.length === 0,
           },
         ),
       ]);
-      throw mutationError("Failed to rebuild the mounted Cesium entity snapshot.", cause, [
+      throw mutationError("Failed to reconcile the mounted Cesium entity snapshot.", cause, [
         ...cleanupFailures,
         ...restoreFailures,
       ]);
     }
-    assertLifecycleActive(currentEpoch, lifecycleEpoch, state, signal);
+    mounted = nextRecords;
+    revision += 1;
+    rebuildBoundaries = Object.freeze([...boundaries]);
+    const escalated = escalatedEntityBoundary(rebuildBoundaries);
     diagnostics = Object.freeze([
       ...next.diagnostics,
       diagnostic(
@@ -587,17 +824,51 @@ export async function mountSourceToCesium<T>(
         "info",
         "update",
         "equivalent",
-        "Rebuilt the bounded entity snapshot while preserving stable entity ids.",
+        `Reconciled the bounded entity snapshot: reused ${reusedIds.length}, updated ${updatedIds.length} in place, created ${createdIds.length}, disposed ${disposedIds.length}.`,
         {
+          revision,
           previousEntityCount: previous.size,
           nextEntityCount: mounted.size,
-          rebuildBoundary: "entity-snapshot",
+          reusedEntityCount: reusedIds.length,
+          updatedEntityCount: updatedIds.length,
+          createdEntityCount: createdIds.length,
+          disposedEntityCount: disposedIds.length,
+          rebuildBoundary: escalated,
+          rebuildBoundaryCounts: boundaryCounts(rebuildBoundaries),
         },
       ),
+      ...(rebuildBoundaries.some((report) => !report.preserved)
+        ? [
+            diagnostic(
+              source,
+              plan,
+              "rebuild-boundary",
+              "info",
+              "update",
+              "equivalent",
+              `Revision ${revision} could not carry every entity across in place; the highest boundary crossed was ${escalated}.`,
+              {
+                revision,
+                rebuildBoundary: escalated,
+                rebuildBoundaryCounts: boundaryCounts(rebuildBoundaries),
+                replacedEntityCount: replacements.length,
+                departedEntityCount: departed.length,
+              },
+            ),
+          ]
+        : []),
     ]);
     projection = Object.freeze({ ...next, diagnostics });
     state = next.state;
-    return projection;
+    return Object.freeze({
+      ...projection,
+      revision,
+      reused: Object.freeze(reusedIds),
+      updated: Object.freeze(updatedIds),
+      created: Object.freeze(createdIds),
+      disposed: Object.freeze(disposedIds),
+      rebuildBoundaries,
+    });
   };
 
   return {
@@ -613,6 +884,12 @@ export async function mountSourceToCesium<T>(
     },
     get diagnostics() {
       return diagnostics;
+    },
+    get revision() {
+      return revision;
+    },
+    get rebuildBoundaries() {
+      return rebuildBoundaries;
     },
     refresh(refreshOptions = {}) {
       const refreshContext = snapshotExecutionOptions(refreshOptions);
@@ -675,8 +952,173 @@ async function resolveCesium(
 function materializeProjection(
   cesium: CesiumEntityRuntimeModule,
   projection: CesiumEntityProjection,
-): Map<string, Readonly<Record<string, unknown>>> {
-  return new Map(projection.entities.map((item) => [item.id, materializeEntity(cesium, item)]));
+): Map<string, MountedEntityRecord> {
+  return new Map(
+    projection.entities.map((item) => [item.id, materializeEntityRecord(cesium, item, entityFacetFingerprints(item))]),
+  );
+}
+
+function materializeEntityRecord(
+  cesium: CesiumEntityRuntimeModule,
+  item: CesiumEntityProjectionItem,
+  facets: EntityFacetFingerprints,
+): MountedEntityRecord {
+  return {
+    id: item.id,
+    kind: item.geometry.kind,
+    fingerprint: entityFingerprint(facets),
+    facets,
+    spec: materializeEntity(cesium, item),
+  };
+}
+
+/**
+ * Per-facet, order-independent fingerprints of one projected feature.
+ *
+ * Splitting the fingerprint by facet is what lets a changed feature be updated
+ * in place surgically: a feature that only moved rewrites its position and
+ * leaves its property bag and availability — and anything the host attached to
+ * them — alone.
+ *
+ * A facet is `undefined` when it cannot be fingerprinted deterministically.
+ * `projectSourceToCesium` only ever emits deeply frozen JSON-like snapshots, so
+ * that is unreachable through the public path today; it is the fail-closed
+ * backstop for the day the projection admits a value canonicalization refuses,
+ * and it resolves to "assume changed" rather than "assume reusable".
+ */
+function entityFacetFingerprints(item: CesiumEntityProjectionItem): EntityFacetFingerprints {
+  return {
+    geometry: fingerprintFacet({ geometry: item.geometry, positionSamples: item.positionSamples ?? null }),
+    properties: fingerprintFacet(item.properties),
+    availability: fingerprintFacet(item.interval ?? null),
+  };
+}
+
+function fingerprintFacet(value: unknown): string | undefined {
+  try {
+    return canonicalStringify(toJsonValue(value));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A stable, order-independent fingerprint of a projected feature's whole
+ * configuration, or `undefined` when any facet could not be fingerprinted.
+ *
+ * @internal Exported for unit coverage of the diff's fail-closed behavior; not
+ *   part of the `scene-workspace` barrel.
+ */
+export function cesiumEntityFingerprint(item: CesiumEntityProjectionItem): string | undefined {
+  return entityFingerprint(entityFacetFingerprints(item));
+}
+
+function entityFingerprint(facets: EntityFacetFingerprints): string | undefined {
+  if (facets.geometry === undefined || facets.properties === undefined || facets.availability === undefined) {
+    return undefined;
+  }
+  return `${facets.geometry} ${facets.properties} ${facets.availability}`;
+}
+
+/**
+ * Classify one projected feature against what this mount already owns.
+ *
+ * The order matters, and mirrors the primitive mount's: a feature the mount has
+ * never seen is an identity crossing regardless of whether it can be
+ * fingerprinted, a geometry-kind change is a replacement rather than a
+ * configuration change, and an unfingerprintable feature is called out as such
+ * instead of being reported as a change nobody made.
+ */
+function entityRebuildBoundary(
+  previous: MountedEntityRecord | undefined,
+  kind: CesiumEntityGeometry["kind"],
+  fingerprint: string | undefined,
+): CesiumEntityRebuildBoundary {
+  if (previous === undefined) return "entity-identity";
+  if (previous.kind !== kind) return "entity-geometry-kind";
+  if (fingerprint === undefined || previous.fingerprint === undefined) return "unfingerprintable";
+  return previous.fingerprint === fingerprint ? "none" : "entity-configuration";
+}
+
+function escalatedEntityBoundary(reports: readonly CesiumEntityRebuildBoundaryReport[]): CesiumEntityRebuildBoundary {
+  let escalated: CesiumEntityRebuildBoundary = "none";
+  for (const report of reports) {
+    if (
+      CESIUM_ENTITY_REBUILD_BOUNDARIES.indexOf(report.boundary) > CESIUM_ENTITY_REBUILD_BOUNDARIES.indexOf(escalated)
+    ) {
+      escalated = report.boundary;
+    }
+  }
+  return escalated;
+}
+
+function boundaryCounts(reports: readonly CesiumEntityRebuildBoundaryReport[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const report of reports) counts[report.boundary] = (counts[report.boundary] ?? 0) + 1;
+  return counts;
+}
+
+/**
+ * Write a changed feature onto the `Entity` that already represents it.
+ *
+ * Only the facets whose fingerprint moved are assigned, and geometry is written
+ * at the deepest field Cesium accepts — `polyline.positions` rather than a fresh
+ * `polyline` — so a host that adjusted the graphic's width or material keeps it.
+ * Every assignment is journaled with the value it displaced so a later failure
+ * in the same refresh can undo it exactly.
+ */
+function updateEntityInPlace(
+  collection: CesiumEntityCollectionTarget,
+  previous: MountedEntityRecord,
+  next: MountedEntityRecord,
+  writes: AppliedEntityWrite[],
+): void {
+  const live = collection.getById(next.id);
+  if (!isMutableRecord(live)) {
+    throw new HonuaCesiumEntityAdapterError(
+      "renderer-mutation-failed",
+      `Cesium entity "${next.id}" is no longer available for an in-place update.`,
+      { entityId: next.id },
+    );
+  }
+  if (previous.facets.geometry !== next.facets.geometry) {
+    for (const write of geometryWrites(live, next)) applyEntityWrite(write.target, write.key, write.value, writes);
+  }
+  if (previous.facets.properties !== next.facets.properties) {
+    applyEntityWrite(live, "properties", next.spec.properties, writes);
+  }
+  if (previous.facets.availability !== next.facets.availability) {
+    applyEntityWrite(live, "availability", next.spec.availability, writes);
+  }
+}
+
+function geometryWrites(
+  live: Record<string, unknown>,
+  next: MountedEntityRecord,
+): readonly { readonly target: Record<string, unknown>; readonly key: string; readonly value: unknown }[] {
+  if (next.kind === "point") return [{ target: live, key: "position", value: next.spec.position }];
+  const graphicsKey = next.kind === "polyline" ? "polyline" : "polygon";
+  const positionsKey = next.kind === "polyline" ? "positions" : "hierarchy";
+  const graphics = live[graphicsKey];
+  const nextGraphics = next.spec[graphicsKey];
+  if (isMutableRecord(graphics) && isMutableRecord(nextGraphics)) {
+    return [{ target: graphics, key: positionsKey, value: nextGraphics[positionsKey] }];
+  }
+  return [{ target: live, key: graphicsKey, value: nextGraphics }];
+}
+
+function applyEntityWrite(
+  target: Record<string, unknown>,
+  key: string,
+  value: unknown,
+  writes: AppliedEntityWrite[],
+): void {
+  writes.push({ target, key, previous: target[key] });
+  target[key] = value;
+}
+
+function isMutableRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Object.isFrozen(value);
 }
 
 function materializeEntity(
@@ -1321,17 +1763,17 @@ function removeIdsOrThrow(collection: CesiumEntityCollectionTarget, ids: readonl
   if (failures.length > 0) throw failures[0];
 }
 
-function presentOwnedSpecs(
+function presentOwnedRecords(
   collection: CesiumEntityCollectionTarget,
-  specs: ReadonlyMap<string, Readonly<Record<string, unknown>>>,
-): Map<string, Readonly<Record<string, unknown>>> {
-  const present = new Map<string, Readonly<Record<string, unknown>>>();
-  for (const [id, spec] of specs) {
+  records: ReadonlyMap<string, MountedEntityRecord>,
+): Map<string, MountedEntityRecord> {
+  const present = new Map<string, MountedEntityRecord>();
+  for (const [id, record] of records) {
     try {
-      if (collection.getById(id)) present.set(id, spec);
+      if (collection.getById(id)) present.set(id, record);
     } catch {
       // Conservatively retain ownership so a later disposal can retry the id.
-      present.set(id, spec);
+      present.set(id, record);
     }
   }
   return present;
