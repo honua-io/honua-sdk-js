@@ -8,12 +8,16 @@ import { SAMPLE_BUNDLE_AUDIT } from "../../scripts/build-sample-bundles.mjs";
 import {
   PLAYGROUND_EXCLUSION_CATEGORIES,
   PLAYGROUND_FIXTURE_ORIGINS,
+  SAMPLE_README_END,
+  SAMPLE_README_START,
   analyzeSampleSource,
   bareSpecifierPackage,
   derivePlaygroundDecisions,
   evaluateSamplePlaygroundEligibility,
   publishedSdkEntrypoints,
+  removeSampleReadmeBlock,
   resolveFixtureOrigin,
+  spliceSampleReadme,
 } from "../../scripts/sample-playgrounds.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -373,6 +377,77 @@ describe("published decision artifact", () => {
         decision.fixtureOrigin.routes.map((route) => route.path),
       );
     }
+  });
+});
+
+describe("sample README playground links", () => {
+  const artifact = readJson("samples/dist/sample-playgrounds.v1.json");
+
+  function sampleReadme(id) {
+    return fs.readFileSync(path.join(ROOT, sampleById(id).sourcePath, "README.md"), "utf8");
+  }
+
+  it("publishes the artifact's links, verbatim, in every qualifying sample's own README", () => {
+    for (const entry of artifact.playgrounds) {
+      const readme = sampleReadme(entry.sampleId);
+      assert.ok(readme.includes(SAMPLE_README_START), `${entry.sampleId} README has no playground block`);
+      assert.ok(readme.includes(SAMPLE_README_END), `${entry.sampleId} README block is not closed`);
+      for (const provider of entry.providers) {
+        assert.ok(
+          readme.includes(`[Open in ${provider.title}](${provider.url})`),
+          `${entry.sampleId} README does not carry the published ${provider.id} link`,
+        );
+      }
+      assert.ok(readme.includes(`(../../${entry.projectPath})`), `${entry.sampleId} README does not name its project`);
+    }
+  });
+
+  it("leaves no playground block behind on a sample that does not qualify", () => {
+    for (const entry of artifact.excluded) {
+      const sample = sampleById(entry.sampleId);
+      const readmePath = path.join(ROOT, sample.sourcePath, "README.md");
+      if (!fs.existsSync(readmePath)) continue;
+      assert.ok(
+        !fs.readFileSync(readmePath, "utf8").includes(SAMPLE_README_START),
+        `${entry.sampleId} is excluded but its README still advertises a playground`,
+      );
+    }
+  });
+
+  it("carries no release-scoped value, so a version bump cannot re-qualify five samples", () => {
+    for (const entry of artifact.playgrounds) {
+      const readme = sampleReadme(entry.sampleId);
+      const block = readme.slice(readme.indexOf(SAMPLE_README_START), readme.indexOf(SAMPLE_README_END));
+      assert.ok(!block.includes(artifact.sdk.version), `${entry.sampleId} block pins the SDK version`);
+    }
+  });
+
+  it("replaces the block where it already sits rather than moving it", () => {
+    const readme = `# Title\n\nIntro.\n\n## Section\n\nBody.\n\n${SAMPLE_README_START}\nold\n${SAMPLE_README_END}\n`;
+    const next = spliceSampleReadme(readme, `${SAMPLE_README_START}\nnew\n${SAMPLE_README_END}`);
+    assert.equal(next, `# Title\n\nIntro.\n\n## Section\n\nBody.\n\n${SAMPLE_README_START}\nnew\n${SAMPLE_README_END}\n`);
+  });
+
+  it("inserts a first block at the end of the introduction", () => {
+    const block = `${SAMPLE_README_START}\nlinks\n${SAMPLE_README_END}`;
+    assert.equal(
+      spliceSampleReadme("# Title\n\nIntro.\n\n## Section\n\nBody.\n", block),
+      `# Title\n\nIntro.\n\n${block}\n\n## Section\n\nBody.\n`,
+    );
+    assert.equal(spliceSampleReadme("# Title\n\nIntro.\n", block), `# Title\n\nIntro.\n\n${block}\n`);
+  });
+
+  it("round-trips: removing the block restores the README it was inserted into", () => {
+    const block = `${SAMPLE_README_START}\nlinks\n${SAMPLE_README_END}`;
+    for (const readme of ["# Title\n\nIntro.\n\n## Section\n\nBody.\n", "# Title\n\nIntro.\n"]) {
+      assert.equal(removeSampleReadmeBlock(spliceSampleReadme(readme, block)), readme);
+    }
+    assert.equal(removeSampleReadmeBlock("# Title\n\nIntro.\n"), "# Title\n\nIntro.\n");
+  });
+
+  it("refuses a half-marked README rather than guessing where the block ends", () => {
+    assert.throws(() => spliceSampleReadme(`# Title\n\n${SAMPLE_README_START}\n`, "block"), /malformed/);
+    assert.throws(() => removeSampleReadmeBlock(`# Title\n\n${SAMPLE_README_END}\n`), /malformed/);
   });
 });
 

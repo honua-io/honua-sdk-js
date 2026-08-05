@@ -67,3 +67,14 @@ dependencies, and runs `npm run dev` — the same command the project uses local
 
 A generated sample playground is a copy, not a fork: editing it directly fails the drift check. Change the sample
 under `examples/` and regenerate with `npm run samples:playgrounds:generate`.
+
+Each qualifying sample's own `examples/<id>/README.md` carries the same links in a managed
+`sample-playground:start`/`:end` block written from this one derivation, so the gallery card, this page and the
+sample's README can never disagree — `npm run samples:playgrounds:check` fails on a link edited, invented or left
+behind by hand.
+
+Those gates are offline, and they resolve `@honua/sdk-js` from this repository's own tree. A weekly scheduled lane
+(`.github/workflows/sample-playground-live.yml`) answers the other half: it installs a generated playground from
+the real npm registry, builds it, serves the production build, and drives it headless until the sample's own
+readiness contract holds — a rendered map, the features the reviewed fixture serves, zero console errors and zero
+off-origin requests. Run it locally with `HONUA_PLAYGROUND_LIVE_ENABLED=true npm run samples:playgrounds:smoke`.
