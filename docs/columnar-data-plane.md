@@ -352,6 +352,11 @@ Because the identity is plan-derived, the batch is admissible to
 change to the plan's source, schema, scope, query, policy, execution mode, or
 representation changes `columnarBatchCacheKey`.
 
+The producer materializes no per-row object, and that is budgeted rather than
+asserted: the `columnar.producer.million-row` benchmark-lab scenario runs this
+path over a 1,000,000-row column under an identity minted from a real plan and
+carries the same per-row retention ceiling the data-plane scenario declares.
+
 ## Memory ceilings
 
 Creation and transfer default to at most 1,000,000 rows and 64 MiB of unique
@@ -1022,7 +1027,15 @@ not read the patch overlay, so a tombstoned row would appear in its window —
 read a patched batch through `decodePatchedGeoArrowBatch()` instead.
 
 Within realtime patching specifically, in-place dictionary growth, more than one
-operation per feature id in one patch, an incremental transport that ships only
-the appended byte range, and a benchmarked patch-latency budget are deliberately
-not claimed: a patch needing a new dictionary value or a second operation on one
-feature rebuilds or is rejected rather than guessing.
+operation per feature id in one patch, and an incremental transport that ships
+only the appended byte range are deliberately not claimed: a patch needing a new
+dictionary value or a second operation on one feature rebuilds or is rejected
+rather than guessing.
+
+Patch latency and rebuild memory *are* budgeted. The
+`columnar.patch.million-row` benchmark-lab scenario applies 1,000-event patches
+to a 1,000,000-row batch and then lets the declared reserve fill so one
+compacting rebuild runs per repetition, carrying an in-place latency ceiling
+plus the per-feature and relative-to-backing memory ceilings the epic sets on a
+rebuild. See [`bench/README.md`](../bench/README.md) for the measured values and
+for why the latency target is the scenario's warning rather than its failure.

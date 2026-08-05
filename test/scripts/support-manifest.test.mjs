@@ -424,8 +424,10 @@ test("every server-attach claim carries a roadmap issue or an inherency statemen
     facadeRequired.map((claim) => claim.id).sort(),
     // OGC API Processes execution left this list in #1009: standalone execution
     // resolved its roadmap entry, so it is now an open-endpoint claim and must
-    // NOT carry `serverAttach` (asserted below).
-    ["agent-tools-facade", "compatibility-gate-facade", "map-package-facade", "realtime-facade"],
+    // NOT carry `serverAttach` (asserted below). MCP tools left it the same way
+    // in #1005/#1018: the protocol-neutral tool contract shipped, so honua-mcp
+    // is an open-endpoint claim and the hosted /mcp catalog is the upgrade path.
+    ["compatibility-gate-facade", "map-package-facade", "realtime-facade"],
     "every facade-required claim must stay tiered as server-attach",
   );
   for (const claim of serverAttachClaims) {

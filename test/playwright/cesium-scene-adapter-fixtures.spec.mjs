@@ -3,6 +3,12 @@
  * (honua-sdk-js#928), its temporal binding (#1048), and the accepted-plan
  * `Source` → entity path (#1050).
  *
+ * The matrix spans every primitive kind the adapter materializes, every imagery
+ * protocol it declares, the 3D-Tiles content variants the server can hand it (a
+ * `.pnts` point cloud and the `honua_style` sidecar), and both non-`supported`
+ * outcomes. It also proves its own DOM-listener budget by injecting a real
+ * per-cycle leak and showing the budget rejects it (#1055).
+ *
  * Every other scene-adapter test in this repository runs in jsdom against a
  * `vi.mock("cesium")` stub. This lane is the opposite: a real Chromium page, the
  * real `cesium` package, a real WebGL context, and the SDK's public
@@ -44,9 +50,18 @@ import {
   buildEntitySourceQueryResponse,
 } from "./cesium-entity-source-fixture.mjs";
 import {
+  ARCGIS_MAP_SERVER_LAYER_ID,
   FIXTURE_ORIGIN,
+  HONUA_STYLE_COLOR,
+  HONUA_STYLE_SIDECAR_URI,
+  POINT_CLOUD_POINT_COUNT,
+  buildArcGisMapServerMetadata,
+  buildHonuaStyleSidecar,
+  buildPointCloudPnts,
+  buildPointCloudTilesetJson,
   buildQuantizedMeshTile,
   buildSolidPng,
+  buildStyledTilesetJson,
   buildTerrainLayerJson,
   buildTilesetJson,
   buildTriangleGlb,
@@ -93,6 +108,33 @@ const TEARDOWN_BUDGET_MS = {
 };
 
 /**
+ * The final-canvas GC floor (honua-sdk-js#928).
+ *
+ * Chromium keeps the most recently used WebGL canvas — and the drawing buffer
+ * behind it — reachable independently of the page's own references. Nothing the
+ * page does displaces it: dropping every reference does not, and creating a
+ * throwaway context afterwards does not either, which was measured rather than
+ * assumed. So "zero retained canvases" is not a property this lane can honestly
+ * assert, and asserting it anyway would only teach the next reader to relax the
+ * budget the first time it flakes.
+ *
+ * What *is* honest, and what is asserted below, is that this is a floor and not
+ * a slope:
+ *
+ *  - at most `FINAL_CANVAS_GC_FLOOR` canvases survive forced collection, however
+ *    many cycles ran;
+ *  - the survivor is always the *final* cycle's — nothing outlives a non-final
+ *    cycle;
+ *  - the same bound holds for live WebGL contexts.
+ *
+ * A real retention bug is a slope: it pins one canvas per cycle, so it reports
+ * `CYCLES` where the floor reports at most one. `CYCLES` is kept above
+ * `FINAL_CANVAS_GC_FLOOR + 1` so the two can never be confused, and the spec
+ * asserts that relationship rather than trusting it.
+ */
+const FINAL_CANVAS_GC_FLOOR = 1;
+
+/**
  * Retention budgets.
  *
  * Where the adapter or the viewer owns a resource outright the honest bound is
@@ -103,7 +145,8 @@ const TEARDOWN_BUDGET_MS = {
  *  - Web workers: CesiumJS pools its `TaskProcessor` workers globally and
  *    deliberately does not terminate them on viewer destroy → non-growth after
  *    the warmup cycle, asserted separately.
- *  - The final cycle's WebGL canvas: pinned by Chromium, not by the page.
+ *  - The final cycle's WebGL canvas: pinned by Chromium, not by the page — see
+ *    {@link FINAL_CANVAS_GC_FLOOR}.
  *  - DOM listeners bound to the widget's own elements: released with the element
  *    rather than through `removeEventListener` → bounded as a run total.
  */
@@ -114,15 +157,8 @@ const RETENTION_BUDGET = {
   pendingAnimationFrames: 0,
   /** Every destroyed `Viewer` object graph must become unreachable. */
   retainedViewers: 0,
-  /**
-   * Chromium pins the most recently used WebGL canvas independently of the
-   * page's references (creating a throwaway context afterwards does not
-   * displace it), so one surviving canvas — and only the final cycle's — is the
-   * honest floor here. A real retention bug accumulates instead, which this
-   * bound catches.
-   */
-  retainedCanvases: 1,
-  liveWebglContexts: 1,
+  retainedCanvases: FINAL_CANVAS_GC_FLOOR,
+  liveWebglContexts: FINAL_CANVAS_GC_FLOOR,
   /**
    * Net `addEventListener` minus `removeEventListener` calls per cycle, asserted
    * as an average over the run. Measured at 8 per cycle; the ceiling leaves room
@@ -131,6 +167,38 @@ const RETENTION_BUDGET = {
    */
   netListenersPerCycle: 16,
 };
+
+/**
+ * The DOM-listener budget, as a predicate rather than an inline expectation.
+ *
+ * Both directions of honua-sdk-js#1055 go through this one function: the matrix
+ * case asserts it holds on a clean run (REQ-001's reformulation — a run total,
+ * never a per-cycle equality), and the leak-injection case asserts the *same*
+ * rule rejects a genuine per-cycle leak (REQ-002). Two hand-written copies of
+ * the arithmetic could drift apart and quietly stop being the same claim.
+ */
+function netListenerRunTotalWithinBudget(netListenersPerCycle, cycles) {
+  const total = netListenersPerCycle.reduce((sum, value) => sum + value, 0);
+  return total <= RETENTION_BUDGET.netListenersPerCycle * cycles;
+}
+
+/**
+ * Cycles for the leak-injection negative test (#1055 REQ-002).
+ *
+ * Two clean cycles and two leaking ones: enough for a per-cycle leak to
+ * accumulate into the run total the budget bounds, and cheap enough that the
+ * lane's proof of its own budget costs about one extra matrix run.
+ */
+const LEAK_PROBE_CYCLES = 2;
+
+/**
+ * Listeners the fixture leaks per cycle when the injection is switched on.
+ *
+ * Twice the per-cycle ceiling, so the injected leak is unambiguous: it breaks
+ * the run total on its own, without depending on where CesiumJS's own ~8
+ * listeners per cycle happen to land.
+ */
+const INJECTED_LISTENER_LEAK_PER_CYCLE = RETENTION_BUDGET.netListenersPerCycle * 2;
 
 /**
  * Mount/teardown cycles for the accepted-plan entity lane (#1050).
@@ -168,6 +236,20 @@ const ENTITY_RETENTION_BUDGET = {
   retainedCanvases: 1,
   netListenersTotal: 64,
 };
+
+/**
+ * The decoded query of the first request the fixture server saw for `pathname`.
+ *
+ * The imagery-protocol case asserts against what actually went over the wire:
+ * the request a provider issues is the only place the adapter's per-protocol URL
+ * and parameter shaping is observable — the `ImageryLayer` it produced does not
+ * carry it. Returns `undefined` when no such request was made, which is itself a
+ * failure the case reports.
+ */
+function queryFor(requestUrls, pathname) {
+  const match = requestUrls.find((entry) => entry.startsWith(`${pathname}?`));
+  return match ? Object.fromEntries(new URLSearchParams(match.slice(match.indexOf("?") + 1))) : undefined;
+}
 
 function mimeTypeFor(filePath) {
   switch (path.extname(filePath).toLowerCase()) {
@@ -223,10 +305,19 @@ function resolveStaticPath(requestPath) {
 function startFixtureServer() {
   const glb = buildTriangleGlb();
   const tilesetJson = Buffer.from(JSON.stringify(buildTilesetJson()), "utf8");
+  const styledTilesetJson = Buffer.from(JSON.stringify(buildStyledTilesetJson()), "utf8");
+  const styleSidecar = Buffer.from(JSON.stringify(buildHonuaStyleSidecar()), "utf8");
+  const pointCloudTilesetJson = Buffer.from(JSON.stringify(buildPointCloudTilesetJson()), "utf8");
+  const pointCloudTile = buildPointCloudPnts();
   const terrainLayerJson = Buffer.from(JSON.stringify(buildTerrainLayerJson()), "utf8");
   const terrainTile = buildQuantizedMeshTile();
   const imageryTile = buildSolidPng();
+  const arcGisMapServerMetadata = Buffer.from(JSON.stringify(buildArcGisMapServerMetadata()), "utf8");
   const requestLog = [];
+  // Full request URLs, query string included. The imagery-protocol case asserts
+  // against these: what the adapter shaped for each protocol is only observable
+  // on the wire, not from the layer object it produced.
+  const requestUrls = [];
   // Which feature snapshot the entity fixture layer answers with. `refresh()`
   // re-executes the accepted plan unchanged, so the source has to be the thing
   // that changes; the page selects the snapshot explicitly rather than relying
@@ -237,6 +328,7 @@ function startFixtureServer() {
     const requestUrl = new URL(request.url ?? "/", "http://127.0.0.1");
     const requestPath = requestUrl.pathname;
     requestLog.push(requestPath);
+    requestUrls.push(`${requestPath}${requestUrl.search}`);
 
     const send = (body, contentType) => {
       response.writeHead(200, { "content-type": contentType, "cache-control": "no-store" });
@@ -264,12 +356,52 @@ function startFixtureServer() {
       return;
     }
 
-    if (requestPath === "/fixtures/model.glb" || requestPath === "/fixtures/tileset/content.glb") {
+    if (
+      requestPath === "/fixtures/model.glb" ||
+      requestPath === "/fixtures/tileset/content.glb" ||
+      requestPath === "/fixtures/styled-tileset/content.glb"
+    ) {
       send(glb, "model/gltf-binary");
       return;
     }
     if (requestPath === "/fixtures/tileset/tileset.json") {
       send(tilesetJson, "application/json; charset=utf-8");
+      return;
+    }
+    if (requestPath === "/fixtures/styled-tileset/tileset.json") {
+      send(styledTilesetJson, "application/json; charset=utf-8");
+      return;
+    }
+    if (requestPath === `/fixtures/styled-tileset/${HONUA_STYLE_SIDECAR_URI}`) {
+      send(styleSidecar, "application/json; charset=utf-8");
+      return;
+    }
+    if (requestPath === "/fixtures/point-cloud/tileset.json") {
+      send(pointCloudTilesetJson, "application/json; charset=utf-8");
+      return;
+    }
+    if (requestPath === "/fixtures/point-cloud/points.pnts") {
+      send(pointCloudTile, "application/octet-stream");
+      return;
+    }
+
+    // --- imagery protocol endpoints ----------------------------------------
+    // Each answers the request shape its Cesium provider actually issues; the
+    // spec asserts the shaping separately, off `requestUrls`.
+    if (requestPath === "/fixtures/wms" || requestPath === "/fixtures/wmts") {
+      send(imageryTile, "image/png");
+      return;
+    }
+    if (requestPath === "/fixtures/single-tile.png") {
+      send(imageryTile, "image/png");
+      return;
+    }
+    if (requestPath === "/fixtures/arcgis/MapServer" || requestPath === "/fixtures/arcgis/MapServer/") {
+      send(arcGisMapServerMetadata, "application/json; charset=utf-8");
+      return;
+    }
+    if (requestPath === "/fixtures/arcgis/MapServer/export" || requestPath === "/fixtures/arcgis/ImageServer/exportImage") {
+      send(imageryTile, "image/png");
       return;
     }
     if (requestPath === "/fixtures/terrain/layer.json") {
@@ -301,6 +433,7 @@ function startFixtureServer() {
       resolve({
         url: `http://127.0.0.1:${address.port}/`,
         requestLog,
+        requestUrls,
         close: () => new Promise((done) => server.close(() => done(undefined))),
       });
     });
@@ -504,22 +637,28 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
       // honua-sdk-js#1055). A real listener leak grows the sum instead.
       const netListeners = run.cycles.map((cycle) => cycle.resources.netListeners);
       expect(
-        netListeners.reduce((total, value) => total + value, 0),
+        netListenerRunTotalWithinBudget(netListeners, CYCLES),
         `DOM listener retention across ${CYCLES} cycles: ${netListeners.join(", ")}`,
-      ).toBeLessThanOrEqual(RETENTION_BUDGET.netListenersPerCycle * CYCLES);
+      ).toBe(true);
+      // Nothing injected a leak here; the case below turns the same rule against
+      // one that was.
+      expect(run.cycles.every((cycle) => cycle.resources.injectedListeners === 0)).toBe(true);
 
       // Every destroyed viewer must become unreachable, and with it the GPU
       // resources it owned. Forced collection uses the same CDP mechanism as
       // `web-components-memory-leak.spec.mjs`.
       //
-      // Honest limit: Chromium keeps the *most recently used* WebGL canvas
-      // reachable regardless of what the page does with it — creating a
-      // throwaway context afterwards does not displace it either, which was
-      // measured rather than assumed. So the budget is stated as: every viewer
-      // object graph is collectible, and no canvas older than the final cycle
-      // survives. That is exactly the property a leak would violate — a real
-      // retention bug accumulates across cycles rather than pinning only the
-      // last one.
+      // The honest limit is the final-canvas GC floor documented on
+      // {@link FINAL_CANVAS_GC_FLOOR}: every viewer object graph is collectible,
+      // at most one canvas survives, and the survivor is always the final
+      // cycle's. The run has to be long enough for that floor to be
+      // distinguishable from per-cycle growth, which is asserted rather than
+      // assumed — a leak pins one canvas per cycle and would report CYCLES.
+      expect(
+        CYCLES,
+        "the run must be long enough to tell the final-canvas GC floor apart from per-cycle growth",
+      ).toBeGreaterThan(FINAL_CANVAS_GC_FLOOR + 1);
+
       const client = await page.context().newCDPSession(page);
       let live;
       try {
@@ -539,16 +678,19 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
         RETENTION_BUDGET.retainedViewers,
       );
       expect(live.canvases, `WebGL canvases accumulated across cycles: ${detail}`).toBeLessThanOrEqual(
-        RETENTION_BUDGET.retainedCanvases,
+        FINAL_CANVAS_GC_FLOOR,
       );
       expect(
         live.liveCanvasCycles.filter((index) => index !== CYCLES - 1),
         `a WebGL canvas outlived a non-final cycle: ${detail}`,
       ).toEqual([]);
+      // Non-growth, stated as such: the floor does not scale with cycle count.
+      // Per-cycle retention would report one canvas per cycle here.
+      expect(live.canvases, `the final-canvas GC floor grew with the cycle count: ${detail}`).toBeLessThan(CYCLES);
 
       const finalProbe = await page.evaluate(() => globalThis.__honuaSceneProbe.snapshot());
       expect(finalProbe.liveWebglContexts, `WebGL contexts outlived their viewers: ${detail}`).toBeLessThanOrEqual(
-        RETENTION_BUDGET.liveWebglContexts,
+        FINAL_CANVAS_GC_FLOOR,
       );
 
       // --- NFR-002 / AC-4: no console errors, no unhandled rejections -------
@@ -560,6 +702,338 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
       // --- AC-5: no network egress -----------------------------------------
       expect(offOriginRequests, "the fixture must not reach the public internet").toEqual([]);
       expect(server.requestLog.some((entry) => entry.startsWith("/fixtures/"))).toBe(true);
+    } finally {
+      await server.close();
+    }
+  });
+
+  /**
+   * Every declared Cesium imagery protocol, against real providers (#928 S2).
+   *
+   * The S1 matrix proved `url-template` and stopped there, so four of the five
+   * protocols the adapter advertises — and both halves of the `arcgis-imagery`
+   * endpoint fork — had never reached a live Cesium provider. This case mounts
+   * all of them at once and asserts three things no jsdom seam can settle:
+   *
+   *  1. Each protocol became *the* provider the adapter is supposed to route it
+   *     to, resolved by `instanceof` against the real runtime's constructors.
+   *  2. What the adapter shaped for each protocol reached the wire: the WMS
+   *     GetMap query, the WMTS GetTile query, the ArcGIS service-description
+   *     fetch and its dynamic export, and the ImageServer `exportImage`
+   *     template are all read back off the fixture server's request log.
+   *  3. A protocol the adapter does not declare fails closed with a stable
+   *     diagnostic and never reaches a Cesium factory — it is never skipped.
+   */
+  test("materializes every declared imagery protocol against its real Cesium provider", async ({ page }) => {
+    const { server, consoleErrors, pageErrors, offOriginRequests } = await openFixturePage(page);
+
+    try {
+      const run = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.runImageryProtocols());
+      const matrix = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.imageryProtocolMatrix);
+      const { imagery } = run;
+
+      if (process.env.HONUA_CESIUM_FIXTURE_REPORT === "1") {
+        process.stdout.write(`${JSON.stringify(imagery, null, 2)}\n`);
+      }
+
+      expect(imagery.evidence.cesiumVersion, "the real cesium package must be loaded").toMatch(/^\d+\.\d+/);
+      expect(imagery.status, "the plan deliberately carries one fail-closed binding").toBe("unsupported");
+
+      // --- the matrix covers every protocol the adapter declares -------------
+      // Asserted against the adapter's own capability list rather than a copy of
+      // it, so a protocol added to the surface without evidence fails this lane
+      // instead of quietly staying uncovered.
+      const coveredProtocols = matrix
+        .filter((entry) => entry.materializes)
+        .map((entry) => imagery.rendered[entry.id].protocol);
+      expect([...new Set(coveredProtocols)].sort()).toEqual([...imagery.evidence.declaredProtocols].sort());
+
+      // --- per-row outcome and diagnostics ----------------------------------
+      for (const entry of matrix) {
+        const observed = imagery.rendered[entry.id];
+        expect(observed, `imagery row ${entry.id} must be reported`).toBeTruthy();
+        expect(observed.hasHandle, `${entry.id} handle presence`).toBe(entry.materializes);
+        if (entry.materializes) {
+          expect(observed.handleKind, `${entry.id} handle kind`).toBe("imagery-layer");
+          expect(observed.handleProtocol, `${entry.id} handle protocol`).toBe(observed.protocol);
+        }
+        for (const code of entry.expectedDiagnostics) {
+          expect(observed.codes, `${entry.id} diagnostics`).toContain(code);
+        }
+        expect(observed.statuses, `${entry.id} status`).toContain(entry.expect);
+      }
+
+      // --- each protocol landed on exactly one Cesium provider ---------------
+      const materialized = matrix.filter((entry) => entry.materializes);
+      expect(imagery.evidence.imageryLayerCount, "one live layer per materialized row").toBe(materialized.length);
+      materialized.forEach((entry, at) => {
+        const layer = imagery.evidence.layers[at];
+        expect(layer.providers, `${entry.id} provider identity`).toEqual([entry.provider]);
+        // Every row declares a distinct opacity, so this checks two things at
+        // once: the adapter applied it, and layer `at` really is row `at`.
+        expect(layer.alpha, `${entry.id} opacity reached ImageryLayer.alpha`).toBeCloseTo(entry.opacity, 3);
+      });
+      expect(imagery.evidence.litPixels, "the globe carrying the imagery must rasterize").toBeGreaterThan(0);
+
+      // --- the fail-closed row never reached a Cesium factory ----------------
+      const refused = imagery.rendered["protocol-unsupported"];
+      expect(refused.codes).toContain("scene-primitive-unsupported");
+      expect(refused.statuses).toContain("unsupported");
+      expect(refused.hasHandle).toBe(false);
+      // The refused row binds a URL prefix no other row shares, so this is a
+      // claim the request log can settle rather than a hopeful one.
+      expect(
+        server.requestLog.filter((entry) => entry.startsWith("/fixtures/tms/")),
+        "the refused protocol must issue no request of its own",
+      ).toEqual([]);
+
+      // --- the shaping reached the wire --------------------------------------
+      const wms = queryFor(server.requestUrls, "/fixtures/wms");
+      expect(wms, "the WMS provider must have issued a GetMap").toBeTruthy();
+      expect(wms.service).toBe("WMS");
+      expect(wms.request).toBe("GetMap");
+      expect(wms.layers, "the primitive's layer travels as WMS layers").toBe("honua:fixture");
+      expect(wms.version, "a parameter override reaches the request").toBe("1.3.0");
+      expect(wms.crs, "WMS 1.3.0 is a crs request, not an srs request").toBe("CRS:84");
+      expect(wms.format).toBe("image/png");
+      expect(wms.styles).toBe("default");
+      expect(wms.transparent).toBe("true");
+
+      const wmts = queryFor(server.requestUrls, "/fixtures/wmts");
+      expect(wmts, "the WMTS provider must have issued a GetTile").toBeTruthy();
+      expect(wmts.service).toBe("WMTS");
+      expect(wmts.request).toBe("GetTile");
+      expect(wmts.layer).toBe("honua-fixture");
+      expect(wmts.style).toBe("default");
+      expect(wmts.tilematrixset).toBe("honua-fixture-matrix");
+      expect(wmts.format).toBe("image/png");
+
+      const arcGisMetadata = queryFor(server.requestUrls, "/fixtures/arcgis/MapServer/");
+      expect(arcGisMetadata, "Cesium fetches the MapServer service description first").toBeTruthy();
+      expect(arcGisMetadata.f).toBe("json");
+      const arcGisExport = queryFor(server.requestUrls, "/fixtures/arcgis/MapServer/export");
+      expect(arcGisExport, "the MapServer row must request a dynamic export").toBeTruthy();
+      expect(arcGisExport.f).toBe("image");
+      expect(arcGisExport.layers, "the adapter's layers parameter reaches the export").toBe(
+        `show:${ARCGIS_MAP_SERVER_LAYER_ID}`,
+      );
+      expect(arcGisExport.bboxSR, "a geographic tiling scheme exports in EPSG:4326").toBe("4326");
+
+      const imageServer = queryFor(server.requestUrls, "/fixtures/arcgis/ImageServer/exportImage");
+      expect(imageServer, "the ImageServer row must request an exportImage").toBeTruthy();
+      expect(imageServer.f).toBe("image");
+      expect(imageServer.format).toBe("png32");
+      expect(imageServer.transparent).toBe("true");
+      expect(imageServer.bboxSR, "the adapter's export template is Web Mercator").toBe("3857");
+      expect(imageServer.imageSR).toBe("3857");
+      expect(imageServer.bbox.split(",")).toHaveLength(4);
+
+      expect(server.requestLog, "the single-tile row must fetch its one image").toContain(
+        "/fixtures/single-tile.png",
+      );
+
+      // --- teardown, on #1026's measured ceilings -----------------------------
+      const teardown = imagery.teardown;
+      expect(teardown.afterLayerRemoval.imageryLayerCount).toBe(RETENTION_BUDGET.imageryLayersAfterLayerRemoval);
+      expect(teardown.viewerDestroyed).toBe(true);
+      expect(teardown.canvasesInContainer).toBe(RETENTION_BUDGET.canvasesInContainer);
+      expect(teardown.layerTeardownMs).toBeLessThan(TEARDOWN_BUDGET_MS.layerTeardown);
+      expect(teardown.viewerDestroyMs).toBeLessThan(TEARDOWN_BUDGET_MS.viewerDestroy);
+      expect(teardown.totalMs).toBeLessThan(TEARDOWN_BUDGET_MS.total);
+
+      expect(run.console, "in-page console.error output").toEqual([]);
+      expect(run.errors, "in-page errors and unhandled rejections").toEqual([]);
+      expect(consoleErrors, "browser console errors").toEqual([]);
+      expect(pageErrors, "page errors").toEqual([]);
+      expect(offOriginRequests, "the fixture must not reach the public internet").toEqual([]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  /**
+   * 3D-Tiles content variants: a point cloud and the server styling sidecar
+   * (#928 S2).
+   *
+   * Both ride the ordinary `model-layer` / `3d-tiles` path, so what makes them
+   * distinct is what the *server* put in the tileset — and neither had any
+   * real-Cesium evidence before this case:
+   *
+   *  1. A `.pnts` point cloud loads through Cesium's point-cloud content
+   *     pipeline, the primitive's `pointCloudShading` becomes a real
+   *     `PointCloudShading` on the live tileset, and points actually reach the
+   *     GPU (they are selected for rendering and picked out of a pick pass).
+   *  2. A tileset advertising `extras.honua_style` has its `style.json` sidecar
+   *     discovered, fetched, and applied without the caller asking — and the
+   *     applied object is a real `Cesium3DTileStyle` whose colour expression
+   *     Cesium can execute.
+   *  3. A tileset that advertises nothing fetches nothing and stays unstyled.
+   *     That silent no-op is half the contract and would otherwise be invisible.
+   */
+  test("mounts a point-cloud tileset and applies the server styling sidecar", async ({ page }) => {
+    const { server, consoleErrors, pageErrors, offOriginRequests } = await openFixturePage(page);
+
+    try {
+      const run = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.runTilesetVariants());
+      const expectedShading = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.pointCloudShading);
+      const matrix = await page.evaluate(() => globalThis.__honuaCesiumSceneFixture.tilesetVariantMatrix);
+      const { variants } = run;
+
+      if (process.env.HONUA_CESIUM_FIXTURE_REPORT === "1") {
+        process.stdout.write(`${JSON.stringify(variants, null, 2)}\n`);
+      }
+
+      expect(variants.evidence.cesiumVersion, "the real cesium package must be loaded").toMatch(/^\d+\.\d+/);
+      expect(variants.status, "every variant in this plan is renderable").toBe("supported");
+      expect(variants.evidence.readyWithinBudget, "every variant must reach loaded content in time").toBe(true);
+      expect(variants.evidence.tilesetCount).toBe(matrix.length);
+      expect(variants.evidence.scenePrimitiveCount).toBe(matrix.length);
+      for (const entry of matrix) {
+        expect(variants.rendered[entry.id].hasHandle, `${entry.id} handle presence`).toBe(entry.materializes);
+        expect(variants.rendered[entry.id].handleFormat, `${entry.id} handle format`).toBe("3d-tiles");
+      }
+
+      // --- the point cloud ----------------------------------------------------
+      const pointCloud = variants.evidence.pointCloud;
+      expect(pointCloud.tilesLoaded, "the point-cloud tileset must finish loading").toBe(true);
+      expect(pointCloud.contentReady, "its .pnts content must reach the GPU").toBeGreaterThan(0);
+      expect(
+        pointCloud.shadingIsCesiumPointCloudShading,
+        "the primitive's shading must become a real Cesium PointCloudShading",
+      ).toBe(true);
+      expect(pointCloud.shading, "every validated shading field must survive the projection").toEqual(expectedShading);
+      // Selected for rendering, not merely parsed: Cesium counts the points it
+      // draws, and every point in the fixture grid is in the nadir frustum.
+      expect(pointCloud.pointsSelected, "the point cloud must actually be drawn").toBe(POINT_CLOUD_POINT_COUNT);
+      expect(pointCloud.pickedThisTileset, "the point cloud must be pickable out of a real pick pass").toBe(true);
+      expect(variants.evidence.litPixels, "the scene must rasterize").toBeGreaterThan(0);
+
+      // --- the styling sidecar ------------------------------------------------
+      const style = variants.evidence.style;
+      expect(
+        server.requestLog,
+        "the adapter must discover and fetch the advertised sidecar without being asked",
+      ).toContain(`/fixtures/styled-tileset/${HONUA_STYLE_SIDECAR_URI}`);
+      expect(style.advertisedDescriptor, "the descriptor survives onto the loaded tileset").toEqual({
+        encoding: "3d-tiles-styling",
+        version: "1.0",
+        uri: HONUA_STYLE_SIDECAR_URI,
+      });
+      expect(style.styleIsCesium3DTileStyle, "the applied style must be a real Cesium3DTileStyle").toBe(true);
+      expect(style.style, "both sidecar blocks reach Cesium verbatim").toEqual({
+        color: { conditions: [["true", `color('${HONUA_STYLE_COLOR}')`]] },
+        show: { conditions: [["true", "true"]] },
+      });
+      // Executed by Cesium's own expression engine, not merely assigned. #ff8800.
+      expect(style.colorEvaluates).toEqual({ red: 1, green: 0.533, blue: 0, alpha: 1 });
+
+      // --- and a tileset that advertises nothing fetches nothing ---------------
+      expect(style.unstyledAdvertisesNothing).toBe(true);
+      expect(style.unstyledHasNoStyle, "an unadvertised tileset must be added unstyled").toBe(true);
+      expect(
+        server.requestUrls.some((entry) => entry.startsWith(`/fixtures/tileset/${HONUA_STYLE_SIDECAR_URI}`)),
+        "a tileset without honua_style must trigger no sidecar fetch at all",
+      ).toBe(false);
+
+      // --- teardown, on #1026's measured ceilings ------------------------------
+      const teardown = variants.teardown;
+      expect(teardown.afterLayerRemoval.scenePrimitiveCount).toBe(RETENTION_BUDGET.scenePrimitivesAfterLayerRemoval);
+      expect(teardown.afterLayerRemoval.tilesetCount).toBe(0);
+      expect(teardown.viewerDestroyed).toBe(true);
+      expect(teardown.canvasesInContainer).toBe(RETENTION_BUDGET.canvasesInContainer);
+      expect(teardown.layerTeardownMs).toBeLessThan(TEARDOWN_BUDGET_MS.layerTeardown);
+      expect(teardown.viewerDestroyMs).toBeLessThan(TEARDOWN_BUDGET_MS.viewerDestroy);
+      expect(teardown.totalMs).toBeLessThan(TEARDOWN_BUDGET_MS.total);
+
+      expect(run.console, "in-page console.error output").toEqual([]);
+      expect(run.errors, "in-page errors and unhandled rejections").toEqual([]);
+      expect(consoleErrors, "browser console errors").toEqual([]);
+      expect(pageErrors, "page errors").toEqual([]);
+      expect(offOriginRequests, "the fixture must not reach the public internet").toEqual([]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  /**
+   * The listener budget's own negative test (honua-sdk-js#1055 REQ-002).
+   *
+   * REQ-001 reformulated the DOM-listener assertion from a per-cycle equality
+   * (which flaked, because asynchronous teardown moves a listener across a cycle
+   * boundary without leaking it) to a run total. A weaker assertion is only an
+   * improvement if it still fails on the thing it exists to catch, and that is
+   * not self-evident — so it is proven here rather than argued.
+   *
+   * The same predicate the matrix case asserts, `netListenerRunTotalWithinBudget`,
+   * is run twice over the same lane: once on a clean run, where it must hold,
+   * and once with a genuine per-cycle listener leak injected into the fixture,
+   * where it must fail. The injection is a fixture flag that defaults to off and
+   * is switched on only here, so nothing in the committed lane leaks by default.
+   */
+  test("the run-total listener budget still fails on a genuine per-cycle leak", async ({ page }) => {
+    const { server, consoleErrors, pageErrors, offOriginRequests } = await openFixturePage(page);
+
+    try {
+      // --- control: the same lane, the same predicate, nothing injected -------
+      const clean = await page.evaluate(
+        (cycles) => globalThis.__honuaCesiumSceneFixture.runCycles({ cycles }),
+        LEAK_PROBE_CYCLES,
+      );
+      const cleanNetListeners = clean.cycles.map((cycle) => cycle.resources.netListeners);
+      expect(clean.cycles.every((cycle) => cycle.resources.injectedListeners === 0)).toBe(true);
+      expect(
+        netListenerRunTotalWithinBudget(cleanNetListeners, LEAK_PROBE_CYCLES),
+        `the control run must satisfy the budget: ${cleanNetListeners.join(", ")}`,
+      ).toBe(true);
+
+      // --- the same lane with a listener leaked on every cycle ----------------
+      const leaking = await page.evaluate(
+        ({ cycles, leak }) => globalThis.__honuaCesiumSceneFixture.runCycles({ cycles, listenerLeakPerCycle: leak }),
+        { cycles: LEAK_PROBE_CYCLES, leak: INJECTED_LISTENER_LEAK_PER_CYCLE },
+      );
+      const leakingNetListeners = leaking.cycles.map((cycle) => cycle.resources.netListeners);
+
+      if (process.env.HONUA_CESIUM_FIXTURE_REPORT === "1") {
+        process.stdout.write(
+          `${JSON.stringify({ clean: cleanNetListeners, leaking: leakingNetListeners }, null, 2)}\n`,
+        );
+      }
+
+      // the injection actually happened, on every cycle
+      expect(leaking.cycles.map((cycle) => cycle.resources.injectedListeners)).toEqual(
+        Array.from({ length: LEAK_PROBE_CYCLES }, () => INJECTED_LISTENER_LEAK_PER_CYCLE),
+      );
+      // and it is a *per-cycle* leak: every cycle carries it, so the run total
+      // grows with the cycle count exactly as a real retention bug would
+      for (const [index, value] of leakingNetListeners.entries()) {
+        expect(value, `cycle ${index} must carry the injected leak`).toBeGreaterThanOrEqual(
+          INJECTED_LISTENER_LEAK_PER_CYCLE,
+        );
+      }
+      expect(
+        leakingNetListeners.reduce((total, value) => total + value, 0),
+        "the leak accumulates across the run",
+      ).toBeGreaterThan(cleanNetListeners.reduce((total, value) => total + value, 0));
+
+      // the load-bearing assertion: the reformulated budget rejects it
+      expect(
+        netListenerRunTotalWithinBudget(leakingNetListeners, LEAK_PROBE_CYCLES),
+        `the run-total budget failed to catch an injected per-cycle leak: ${leakingNetListeners.join(", ")}`,
+      ).toBe(false);
+
+      // The leak is a listener leak and nothing else: the lane stays clean, and
+      // the leaking run mounts and tears down exactly like the control run.
+      for (const cycle of [...clean.cycles, ...leaking.cycles]) {
+        expect(cycle.teardown.viewerDestroyed).toBe(true);
+        expect(cycle.teardown.canvasesInContainer).toBe(RETENTION_BUDGET.canvasesInContainer);
+        expect(cycle.teardown.pendingAnimationFrames).toBe(RETENTION_BUDGET.pendingAnimationFrames);
+      }
+
+      expect(clean.console, "in-page console.error output").toEqual([]);
+      expect(leaking.console, "in-page console.error output").toEqual([]);
+      expect(consoleErrors, "browser console errors").toEqual([]);
+      expect(pageErrors, "page errors").toEqual([]);
+      expect(offOriginRequests, "the fixture must not reach the public internet").toEqual([]);
     } finally {
       await server.close();
     }

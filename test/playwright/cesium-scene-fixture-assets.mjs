@@ -1,11 +1,12 @@
 /**
  * Deterministic 3D fixture assets for the real-Cesium scene-adapter browser lane.
  *
- * Every asset the fixture serves — the glTF/GLB model, the 3D-Tiles tileset and
- * its tile content, the quantized-mesh terrain layer descriptor and its terrain
- * tiles, and the imagery tile — is generated here in-process with nothing but
- * the Node standard library. Two properties fall out of that and both are
- * load-bearing for honua-sdk-js#928:
+ * Every asset the fixture serves — the glTF/GLB model, the 3D-Tiles tilesets and
+ * their tile content (glTF and `.pnts` point cloud), the server styling sidecar,
+ * the quantized-mesh terrain layer descriptor and its terrain tiles, the imagery
+ * tiles, and the ArcGIS MapServer service description — is generated here
+ * in-process with nothing but the Node standard library. Two properties fall out
+ * of that and both are load-bearing for honua-sdk-js#928:
  *
  *  1. The repository carries no binary blobs for this lane, so the fixture is
  *     reviewable as source and cannot drift from what the spec asserts.
@@ -115,6 +116,176 @@ export function buildTilesetJson() {
       refine: "ADD",
       content: { uri: "content.glb" },
     },
+  };
+}
+
+/**
+ * A single-tile 3D-Tiles tileset that advertises the Honua server's
+ * attribute-driven styling contract (`extras.honua_style`, honua-server#1206).
+ *
+ * The descriptor sits on the tileset JSON's *top-level* `extras`, which is what
+ * CesiumJS surfaces as `Cesium3DTileset.extras` and therefore what the adapter's
+ * auto-apply path reads. `uri` is relative, exactly as the contract specifies, so
+ * the lane also exercises the resolution of the sidecar against the tileset URL.
+ */
+export function buildStyledTilesetJson() {
+  return {
+    asset: { version: "1.1", tilesetVersion: "honua-fixture-styled-1" },
+    extras: {
+      honua_style: { encoding: "3d-tiles-styling", version: "1.0", uri: HONUA_STYLE_SIDECAR_URI },
+    },
+    geometricError: 64,
+    root: {
+      boundingVolume: { box: [0, 0, 0, 60, 0, 0, 0, 60, 0, 0, 0, 60] },
+      geometricError: 0,
+      refine: "ADD",
+      content: { uri: "content.glb" },
+    },
+  };
+}
+
+/** The sidecar's file name, relative to `tileset.json`, per the styling contract. */
+export const HONUA_STYLE_SIDECAR_URI = "style.json";
+
+/** The colour the sidecar paints the tileset. Asserted after the style reaches Cesium. */
+export const HONUA_STYLE_COLOR = "#ff8800";
+
+/**
+ * The `style.json` sidecar the styled tileset advertises.
+ *
+ * `style.color` / `style.show` are already `Cesium3DTileStyle`-shaped per the
+ * contract, so the adapter hands them through verbatim — which is precisely what
+ * the spec then reads back off the live `Cesium3DTileStyle`.
+ */
+export function buildHonuaStyleSidecar() {
+  return {
+    encoding: "3d-tiles-styling",
+    version: "1.0",
+    defaultMaterial: { color: HONUA_STYLE_COLOR, opacity: 1 },
+    style: {
+      color: { conditions: [["true", `color('${HONUA_STYLE_COLOR}')`]] },
+      show: { conditions: [["true", "true"]] },
+    },
+  };
+}
+
+/** Points per side of the fixture point cloud's square grid. */
+export const POINT_CLOUD_GRID = 20;
+
+/** Half-extent of the point grid, in metres, in the tile-local frame. */
+export const POINT_CLOUD_HALF_EXTENT = 100;
+
+/** Total points in {@link buildPointCloudPnts}. */
+export const POINT_CLOUD_POINT_COUNT = POINT_CLOUD_GRID * POINT_CLOUD_GRID;
+
+/**
+ * A single-tile 3D-Tiles tileset whose root content is {@link buildPointCloudPnts}.
+ *
+ * Point clouds ride the same `model-layer` / `3d-tiles` path as any other
+ * tileset in the renderer-neutral contract, so what makes this a *point-cloud*
+ * row is the content format plus the primitive's `pointCloudShading` — not a
+ * separate primitive kind.
+ */
+export function buildPointCloudTilesetJson() {
+  const halfExtent = POINT_CLOUD_HALF_EXTENT + 10;
+  return {
+    asset: { version: "1.1", tilesetVersion: "honua-fixture-point-cloud-1" },
+    geometricError: 64,
+    root: {
+      boundingVolume: { box: [0, 0, 0, halfExtent, 0, 0, 0, halfExtent, 0, 0, 0, 10] },
+      geometricError: 0,
+      refine: "ADD",
+      content: { uri: "points.pnts" },
+    },
+  };
+}
+
+/**
+ * Encode a 3D-Tiles 1.0 Point Cloud (`.pnts`) tile: a flat
+ * {@link POINT_CLOUD_GRID}² grid of RGB points in the tile-local frame.
+ *
+ * `.pnts` rather than a glTF with `mode: POINTS` on purpose. Cesium 1.140 still
+ * routes the `pnts` magic through its dedicated `PntsLoader`, and that is the
+ * loader a real Honua point-cloud tileset lands on — so this row proves the
+ * adapter's tileset path over the *point-cloud content pipeline*, not merely
+ * over a glTF that happens to draw points.
+ *
+ * Layout follows the tile format exactly: a 28-byte header, a feature-table JSON
+ * chunk padded with spaces so the binary body starts on an 8-byte boundary (the
+ * `POSITION` float view is read straight out of that buffer, so the alignment is
+ * load-bearing rather than cosmetic), then `POSITION` (float32 xyz) followed by
+ * `RGB` (uint8).
+ */
+export function buildPointCloudPnts() {
+  const positions = new Float32Array(POINT_CLOUD_POINT_COUNT * 3);
+  const colors = new Uint8Array(POINT_CLOUD_POINT_COUNT * 3);
+  const step = (POINT_CLOUD_HALF_EXTENT * 2) / (POINT_CLOUD_GRID - 1);
+  let at = 0;
+  for (let row = 0; row < POINT_CLOUD_GRID; row += 1) {
+    for (let column = 0; column < POINT_CLOUD_GRID; column += 1) {
+      positions[at * 3] = -POINT_CLOUD_HALF_EXTENT + column * step;
+      positions[at * 3 + 1] = -POINT_CLOUD_HALF_EXTENT + row * step;
+      positions[at * 3 + 2] = 0;
+      colors[at * 3] = 60 + Math.round((195 * column) / (POINT_CLOUD_GRID - 1));
+      colors[at * 3 + 1] = 60 + Math.round((195 * row) / (POINT_CLOUD_GRID - 1));
+      colors[at * 3 + 2] = 220;
+      at += 1;
+    }
+  }
+  const positionBytes = Buffer.from(positions.buffer, positions.byteOffset, positions.byteLength);
+  const colorBytes = Buffer.from(colors.buffer, colors.byteOffset, colors.byteLength);
+  const featureTableBinary = padTo4(Buffer.concat([positionBytes, colorBytes]), 0x00);
+
+  const featureTableJson = {
+    POINTS_LENGTH: POINT_CLOUD_POINT_COUNT,
+    POSITION: { byteOffset: 0 },
+    RGB: { byteOffset: positionBytes.byteLength },
+  };
+  const rawJson = Buffer.from(JSON.stringify(featureTableJson), "utf8");
+  const jsonPadding = (8 - ((PNTS_HEADER_BYTES + rawJson.byteLength) % 8)) % 8;
+  const featureTableJsonChunk = Buffer.concat([rawJson, Buffer.alloc(jsonPadding, 0x20)]);
+
+  const header = Buffer.alloc(PNTS_HEADER_BYTES);
+  header.write("pnts", 0, "ascii");
+  header.writeUInt32LE(1, 4); // version
+  header.writeUInt32LE(PNTS_HEADER_BYTES + featureTableJsonChunk.byteLength + featureTableBinary.byteLength, 8);
+  header.writeUInt32LE(featureTableJsonChunk.byteLength, 12);
+  header.writeUInt32LE(featureTableBinary.byteLength, 16);
+  header.writeUInt32LE(0, 20); // batch table JSON
+  header.writeUInt32LE(0, 24); // batch table binary
+  return Buffer.concat([header, featureTableJsonChunk, featureTableBinary]);
+}
+
+const PNTS_HEADER_BYTES = 28;
+
+/** ArcGIS layer id the fixture MapServer publishes, and that the primitive requests. */
+export const ARCGIS_MAP_SERVER_LAYER_ID = "0";
+
+/**
+ * The `?f=json` service description Cesium's `ArcGisMapServerImageryProvider`
+ * fetches before it will issue a single image request.
+ *
+ * `tileInfo` is deliberately absent: without it Cesium falls back to the
+ * dynamic-export path (`/export?...f=image`), which is the request shape the
+ * adapter's MapServer mapping is actually about. A pre-cached `tileInfo` would
+ * route around it and additionally pull in Cesium's missing-tile discard policy,
+ * neither of which this row exists to cover.
+ */
+export function buildArcGisMapServerMetadata() {
+  return {
+    currentVersion: 11.2,
+    serviceDescription: "Honua SDK scene-adapter fixture MapServer",
+    mapName: "Layers",
+    description: "Deterministic offline ArcGIS MapServer for the Cesium scene-adapter fixture.",
+    copyrightText: "Honua SDK fixture",
+    supportsDynamicLayers: false,
+    layers: [{ id: Number(ARCGIS_MAP_SERVER_LAYER_ID), name: "honua-fixture", defaultVisibility: true }],
+    spatialReference: { wkid: 4326 },
+    singleFusedMapCache: false,
+    capabilities: "Map,Query",
+    supportedImageFormatTypes: "PNG32,PNG,JPG",
+    fullExtent: { xmin: -180, ymin: -90, xmax: 180, ymax: 90, spatialReference: { wkid: 4326 } },
+    initialExtent: { xmin: -180, ymin: -90, xmax: 180, ymax: 90, spatialReference: { wkid: 4326 } },
   };
 }
 

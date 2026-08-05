@@ -939,6 +939,38 @@ test("offline reference retains a typed conflict from one reconnect pass and sto
         conflictedCount: 1,
         conflictedEditIds: [captured.edit.id],
         counts: { pending: 0, leased: 0, retryable: 0, applied: 0, conflicted: 1, cancelled: 0 },
+        // The same conflict, in the vocabulary the SDK's conflict-review
+        // surface already speaks. Server-adjudicated members are named
+        // unavailable rather than filled in by the page.
+        syncConflicts: [
+          {
+            outcome: "projected",
+            id: "fixture-conflict-1",
+            replicaId: "offline-reference-replica-1",
+            kind: "replica-sync",
+            status: "pending",
+            clientOperation: "update",
+            featureId: "incident-1",
+            serverGen: "fixture-generation-2",
+            unavailable: [
+              "base",
+              "serverState",
+              "serverOperation",
+              "fieldConflicts",
+              "fieldConflictCount",
+              "hasGeometryConflict",
+              "geometryConflict",
+              "resolutionOptions",
+              "resolution",
+              "layerId",
+              "client",
+              "device",
+              "metadata",
+              "clientState.attributes",
+              "clientState.geometry",
+            ],
+          },
+        ],
       },
       replay: {
         claimedCount: 1,

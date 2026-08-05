@@ -17,6 +17,16 @@ const REPLAY_PATH = "/offline-edit-replay";
 const REPLAY_WORKER_ID = "offline-reference-replay";
 const REPLAY_LIMIT = 10;
 const REPLAY_LEASE_DURATION_MS = 5 * 60 * 1000;
+/**
+ * Application-owned replica identity. The SDK cannot derive one from a queue
+ * partition, so the projection refuses to guess and the workflow states it
+ * explicitly. These are fixture identifiers for the loopback transport below,
+ * not a hosted replica registration.
+ */
+const REPLICA_BINDING = Object.freeze({
+  replicaId: "offline-reference-replica-1",
+  datasetId: "offline-reference-incidents",
+});
 const MAX_ACKNOWLEDGEMENT_BYTES = 4096;
 const SHELL_SCOPE_PATH = new URL("./", window.location.href).pathname;
 const SHELL_CACHE_NAMESPACE = `honua-offline-region-reference-shell-${encodeURIComponent(SHELL_SCOPE_PATH)}-`;
@@ -436,6 +446,7 @@ async function main() {
     regions: [diagnostic],
     edits,
     editCounts,
+    replica: REPLICA_BINDING,
   });
   publish({
     ready: true,
@@ -463,6 +474,23 @@ async function main() {
       undeliveredCount: status.writes.undeliveredCount,
       conflictedCount: status.writes.conflictedCount,
       conflictedEditIds: status.writes.conflictedEditIds,
+      // Identity and disposition only: the projection is payload-free, and so
+      // is what the page republishes from it.
+      syncConflicts: status.writes.syncConflicts.map((entry) =>
+        entry.outcome === "projected"
+          ? {
+              outcome: entry.outcome,
+              id: entry.conflict.id,
+              replicaId: entry.conflict.replicaId,
+              kind: entry.conflict.kind,
+              status: entry.conflict.status,
+              clientOperation: entry.conflict.clientOperation,
+              featureId: entry.conflict.featureId,
+              ...(entry.conflict.serverGen === undefined ? {} : { serverGen: entry.conflict.serverGen }),
+              unavailable: entry.unavailable.map((member) => member.member),
+            }
+          : { outcome: entry.outcome, reason: entry.reason },
+      ),
     },
     edit,
     replay,
