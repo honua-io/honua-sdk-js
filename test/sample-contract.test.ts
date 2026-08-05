@@ -1294,7 +1294,13 @@ describe("sample publication contract", () => {
     const bound = expiredEvidence.samples.find(
       (sample: { evidence: { live: { status: string } } }) => sample.evidence.live.status === "skipped",
     );
-    bound.evidence.live.expiresAt = "2026-07-12T23:59:59.000Z";
+    // Just-expired, derived from the validation clock rather than hardcoded.
+    // A literal date has to sit after the seed attestation's observedAt (or
+    // the "expiry must follow observation time" invariant fires first and this
+    // assertion never runs), so it silently becomes wrong the moment renewal
+    // re-observes that lane past the literal. Deriving it holds for any
+    // still-current attestation, whenever it was last re-observed.
+    bound.evidence.live.expiresAt = new Date(new Date(validationTime.now).getTime() - 1000).toISOString();
     await expect(validateCatalog(expiredEvidence, packageJson, validationTime)).rejects.toThrow(
       "live evidence expired",
     );
@@ -2107,6 +2113,17 @@ runNpmScriptSync("demo:wrong:build", {
     const executedEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
     executedEvidence.status = "executed";
     executedEvidence.reason = null;
+    // Re-date the observation as well as the status. The seed file is a
+    // committed *skip* attestation, which lives under the 90-day non-executed
+    // window and ages in place between re-observations; the synthetic lane
+    // below claims `executed`, which is held to the 31-day window against this
+    // same observedAt. Inheriting the seed's date therefore silently violates
+    // the executed policy once the committed attestation is more than
+    // (31 - 7) = 24 days old, and validateCatalog then reports an expiry
+    // violation instead of the assertion this test is actually about. Deriving
+    // it from validationTime keeps the fixture's age a property of the test run
+    // rather than of when the attestation was last renewed.
+    executedEvidence.observedAt = validationTime.now;
     executedEvidence.provenance = {
       sourceId: "honua-demo:incident-realtime",
       observedAt: executedEvidence.observedAt,
@@ -2213,6 +2230,12 @@ runNpmScriptSync("demo:wrong:build", {
       const incidentEvidence = await readJson("examples/realtime-incident-dashboard/evidence/live-skipped.v1.json");
       incidentEvidence.status = "executed";
       incidentEvidence.reason = null;
+      // Same re-dating as the promotion test above, and for the same reason:
+      // an `executed` lane synthesized from a committed skip attestation must
+      // carry a fresh observedAt or the 31-day executed window preempts the
+      // circularity assertion. The spatial-analytics seed below has always
+      // done this; the incident seed was simply left out.
+      incidentEvidence.observedAt = validationTime.now;
       incidentEvidence.provenance = {
         sourceId: "honua-demo:incident-realtime",
         observedAt: incidentEvidence.observedAt,
