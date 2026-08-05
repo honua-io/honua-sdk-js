@@ -48,12 +48,12 @@ const FORBIDDEN_TEMPLATE_ENTRIES = new Set(["node_modules", "package-lock.json",
  *
  * A scaffolded app installs the SDK **from the registry**, so its `maplibre-gl`
  * pin must satisfy the peer range of the *published* SDK version the template
- * pins — not just the range in this working tree. The templates therefore stay
- * on MapLibre 5 until a release carrying `^5.0.0 || ^6.0.0` is published;
- * pinning 6.x today makes `npm install` fail with ERESOLVE against
- * `@honua/sdk-js@0.1.2-beta.0`, whose published range is `^5.0.0`. What this
- * gate can enforce offline is the invariant that matters either way: the pinned
- * major is one the SDK supports at all.
+ * pins — not just the range in this working tree. Those two agreed again when
+ * `@honua/sdk-js@0.1.4-beta.0` shipped `^5.0.0 || ^6.0.0`, which is what let the
+ * templates move to MapLibre 6; before it, a 6.x pin failed `npm install` with
+ * ERESOLVE and this gate held the starters on 5. Reading the range from the
+ * working tree keeps the check offline, and the registry lane
+ * (`create-app:time-to-map`) is what proves the published package agrees.
  */
 const PEER_TRACKED_TEMPLATE_DEPENDENCIES = ["maplibre-gl"];
 

@@ -27,13 +27,14 @@ install. MapLibre 5 stays supported for apps that have not migrated yet; it is
 not deprecated in this release, and any future narrowing will be a dated
 decision recorded here rather than a silent break.
 
-> **Registry status (2026-08-03).** The widened range is in the source tree and
-> ships with the next release. The newest published package
-> (`@honua/sdk-js@0.1.2-beta.0`) still declares `maplibre-gl@^5.0.0`, so an app
-> that installs the SDK from npm today and asks for MapLibre 6 gets an
-> `ERESOLVE` peer conflict. That is why the `create-honua-app` starters still
-> pin 5.24.0 (`docs/create-honua-app.md`); they move to 6.x in the first release
-> whose published `peerDependencies` carry both majors.
+> **Registry status (2026-08-05).** The widened range is published:
+> `@honua/sdk-js@0.1.4-beta.0` declares `maplibre-gl@^5.0.0 || ^6.0.0`, so an app
+> that installs the SDK from npm and asks for MapLibre 6 resolves cleanly. The
+> `create-honua-app` starters and the generated sample playgrounds pin 6.1.0 on
+> that release (`docs/create-honua-app.md`, `docs/playgrounds.md`), with no
+> `overrides` entry and no `--legacy-peer-deps`. The two registry lanes —
+> `create-app:time-to-map` and `samples:playgrounds:smoke` — are what keep that
+> claim observed rather than asserted.
 
 That claim is gated, not asserted. CI runs a `MapLibre peer-major matrix
 (5.x + 6.x)` step (`npm run test:maplibre-compat`) that:

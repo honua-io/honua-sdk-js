@@ -102,11 +102,10 @@ const PINNED_DEPENDENCIES = Object.freeze({
   // `examples/shared/maplibre-vite-worker.ts`, which every map sample carries a
   // copy of, imports `setWorkerUrl` and `maplibre-gl/dist/maplibre-gl-worker.mjs`
   // — both v6-only — so a playground pinned to v5 fails to resolve the module at
-  // all. The scaffold starters do not carry that shim and stay on the version
-  // the published SDK's optional peer range names; until the next release widens
-  // that range to `^5 || ^6`, installing a playground prints one `peerOptional`
-  // warning, which is the honest cost of running the source the samples run.
-  "maplibre-gl": "6.0.0",
+  // all. The scaffold starters carry the same shim and the same pin
+  // (`packages/create-honua-app/templates/*/src/maplibre-worker.ts`), so a
+  // reader who scaffolds and a reader who opens a playground get one renderer.
+  "maplibre-gl": "6.1.0",
   "@bufbuild/protobuf": "2.13.0",
   "@connectrpc/connect": "2.1.2",
   "@connectrpc/connect-web": "2.1.2",
@@ -212,23 +211,6 @@ const COPYABLE_SHARED_SOURCES = new Map([
     },
   ],
 ]);
-
-/**
- * Pins the generated project must force past a *published* peer range.
- *
- * The published SDK declares `maplibre-gl` as an optional peer at `^5.0.0`,
- * which predates this repository's move to MapLibre 6 (`^5.0.0 || ^6.0.0` on
- * trunk, unreleased). A fresh `npm install` refuses the combination outright
- * (`ERESOLVE`), so without this the three map playgrounds cannot be installed at
- * all — and with a v5 pin they install but cannot resolve the v6-only worker
- * module their own source imports.
- *
- * The override states that intent explicitly rather than papering over it with
- * `--legacy-peer-deps`, which would silence every future conflict too. Delete
- * the entry once a release carries the widened range; `npm run
- * samples:playgrounds:smoke` is what proves it is no longer needed.
- */
-const PEER_RANGE_OVERRIDES = Object.freeze({ "maplibre-gl": "6.0.0" });
 
 /** Directory a generated playground keeps its committed fixture documents in. */
 const FIXTURE_DIRECTORY = "fixtures";
@@ -545,11 +527,10 @@ export function derivePlaygroundDecisions(catalog, context) {
 }
 
 function projectPackageJson(decision, sample) {
-  // Only the overrides this project's own dependencies need: a playground that
-  // installs no map renderer carries no MapLibre override.
-  const overrides = Object.fromEntries(
-    Object.entries(PEER_RANGE_OVERRIDES).filter(([name]) => Object.hasOwn(decision.dependencies, name)),
-  );
+  // No `overrides` block: the pinned SDK release declares `maplibre-gl` at
+  // `^5.0.0 || ^6.0.0` (#1004), so the v6 pin these projects need now resolves
+  // on its own. An override here would outlive the conflict it was written for
+  // and silence the next one.
   return `${JSON.stringify(
     {
       name: `honua-playground-${sample.id}`,
@@ -561,7 +542,6 @@ function projectPackageJson(decision, sample) {
       scripts: { dev: "vite", build: "vite build", preview: "vite preview", typecheck: "tsc --noEmit" },
       dependencies: decision.dependencies,
       devDependencies: decision.devDependencies,
-      ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     },
     null,
     2,

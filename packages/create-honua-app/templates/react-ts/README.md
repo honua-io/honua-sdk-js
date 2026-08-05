@@ -37,6 +37,7 @@ endpoint or a server-side proxy.
 | `src/App.tsx` | Connection, query, and the mounted-source hook. Change the query here. |
 | `src/main.tsx` | React root. `StrictMode` stays on: the SDK hooks are StrictMode-safe. |
 | `src/fixture-endpoint.ts` | The same-origin path the offline fixture is served on. |
+| `src/maplibre-worker.ts` | MapLibre 6's ESM worker URL, resolved through Vite. Leave it alone unless you swap the renderer. |
 | `vite.config.ts` | The fixture service. Delete it once you point the app at a real endpoint. |
 
 `HonuaMapProvider` publishes an app-owned map to descendants when the map is created deeper in the tree; this starter
@@ -49,10 +50,10 @@ compiles the JSX without it.
 `@connectrpc` packages are the SDK's optional transport peers: they are installed and pinned here so the bundle builds
 without any peer-dependency assembly, and they are what a Honua-server connection uses.
 
-This starter pins **MapLibre GL JS 5.24.0**, the major the published `@honua/sdk-js` release accepts as an optional
-peer. MapLibre 6 is supported by the SDK source (`^5.0.0 || ^6.0.0`) and ships in the next release; upgrading to 6.x
-also means configuring MapLibre's ESM worker before the first map is created — under Vite, `setWorkerUrl` with
-`import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"`.
+This starter pins **MapLibre GL JS 6.1.0**, which the published `@honua/sdk-js` release accepts as an optional peer
+(`^5.0.0 || ^6.0.0`). MapLibre 6 is ESM-only and loads its worker as a separate module, so `src/maplibre-worker.ts`
+calls `setWorkerUrl` with Vite's `?worker&url` import before the first map is created; `src/main.tsx` imports it
+first. Downgrading to MapLibre 5 is supported by the SDK and means deleting that module and its import.
 
 ## Checks
 

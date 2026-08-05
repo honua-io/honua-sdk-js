@@ -1,3 +1,4 @@
+import "./maplibre-worker.js";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { StrictMode } from "react";
