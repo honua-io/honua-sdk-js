@@ -26,8 +26,47 @@ Two modes:
 
 ## Requirements
 
-- Node.js `>=20`
+- Node.js `>=20.19`
 - Any reachable FeatureServer/OGC endpoint (public or Honua)
+
+## Install
+
+The server is published as
+[`@honua/mcp-server`](https://www.npmjs.com/package/@honua/mcp-server) with two
+bins: `honua-mcp` (the platform-free stdio server) and `honua-mcp-proxy` (the
+bridge to a Honua deployment's hosted `/mcp` catalog). No checkout, no build:
+
+```bash
+# one-off
+npx -y -p @honua/mcp-server honua-mcp   # reads HONUA_BASE_URL from the environment
+
+# or keep it installed
+npm install -g @honua/mcp-server
+```
+
+Claude Desktop, Claude Code, Cursor, and other MCP clients launch it as a stdio
+server. Copy-paste client config (`.mcp.json` / `mcp.json` / Claude Desktop's
+`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "honua": {
+      "command": "npx",
+      "args": ["-y", "-p", "@honua/mcp-server", "honua-mcp"],
+      "env": {
+        "HONUA_BASE_URL": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis",
+        "HONUA_TRANSPORT": "rest"
+      }
+    }
+  }
+}
+```
+
+That example points at a public ArcGIS endpoint — swap `HONUA_BASE_URL` for
+your own FeatureServer folder, OGC API root, or Honua deployment. Contributors
+running from a checkout: `npm install && npm run build`, then
+`node dist/src/index.js` with the same environment.
 
 ## Platform-free mode (any ArcGIS / OGC endpoint)
 
@@ -36,11 +75,15 @@ REST paths (`/rest/services`, `/FeatureServer/{id}/query`). Example — the publ
 US Census 2020 apportionment FeatureServer on `services.arcgis.com`:
 
 ```bash
-npm install
-npm run build
 HONUA_BASE_URL="https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis" \
-  HONUA_TRANSPORT="rest" node dist/src/index.js
+  HONUA_TRANSPORT="rest" npx -y -p @honua/mcp-server honua-mcp
 ```
+
+The same applies to a bare **OGC API** service root: point `HONUA_BASE_URL` at
+the root, address sources with the neutral `<protocol>:<address>` form
+(`ogc-features:<collectionId>`), and pass `layout: "ogc-api"` on calls against
+a third-party root (see the addressing table below). STAC works the same way
+with `layout: "stac-api"` or `"stac-static"`.
 
 Tools that require a Honua-only surface (server-side styling via OGC API – Styles,
 a `/rest/services` catalog) **degrade gracefully** on a plain endpoint: they
@@ -311,7 +354,10 @@ predicates) rather than matching every row. Re-record with
 Artifacts are written to the package root as
 `mcp-certification-results.json` and `mcp-certification-results.md` (gitignored;
 uploaded by CI). To certify against a **live** honua-server, set `HONUA_BASE_URL`
-(and `HONUA_TRANSPORT`, `HONUA_MCP_SERVICE_ID`, `HONUA_MCP_LAYER_ID`); the
+(and `HONUA_TRANSPORT`, `HONUA_MCP_SERVICE_ID`, `HONUA_MCP_LAYER_ID`; optionally
+`HONUA_MCP_SOURCE` for a neutral `<protocol>:<address>` source ref,
+`HONUA_MCP_ADDRESS` for the geocoding scenario, `HONUA_MCP_STYLE_ID`, and
+`HONUA_MCP_STATISTIC_FIELD`); the
 harness then drives a real `HonuaClient` instead of the fixture.
 
 The standard schemas are vendored under

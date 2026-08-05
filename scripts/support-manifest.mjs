@@ -933,7 +933,7 @@ function lifecycleCounts(manifest) {
 
 export function renderReadmeReleaseSection(manifest, packageJson) {
   const counts = lifecycleCounts(manifest);
-  return `**Release status: ${manifest.sdk.releaseStatus}** (\`${packageJson.version}\`). The ${counts.supported}-entrypoint stable tier is frozen and guarded <!-- x-release-please-version -->
+  return `**Release status: ${manifest.sdk.releaseStatus}** (\`${packageJson.version}\`). The ${counts.supported}-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; ${counts.experimental} experimental subpaths may change before 1.0, and
 ${counts.deprecated} deprecated compatibility subpaths have explicit removal versions. See
 [\`config/support-manifest.v1.json\`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -982,8 +982,8 @@ discovery (\`${discovery.status}\`, \`${discovery.environment}\`) and
 typed execution (\`${execution.status}\`, \`${execution.environment}\`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
-\`MapPackage\`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
-the facade-required execution paths. See the generated
+\`MapPackage\`s, realtime, collaboration, compatibility metadata, a richer hosted
+\`/mcp\` operator catalog, and the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
 claim's tier, execution mode, and evidence link.`;
 }
