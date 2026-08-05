@@ -21,6 +21,13 @@
  * data-origin dimension, and everything else is read from the sample's own
  * committed source (its imports, its assets, its Vite config).
  *
+ * A sample audited `same-origin-fixture-service` gets its data from a Node mock
+ * server the repository runs beside it, which a browser playground has no way to
+ * start. `PLAYGROUND_FIXTURE_ORIGINS` closes that gap the way the scaffold
+ * starters already do: the generated project serves the reviewed fixture pack
+ * from its own Vite dev/preview server, so the default lane still needs no
+ * account, no key, and no third-party request.
+ *
  * Run with:
  *   npm run samples:playgrounds:generate   # write projects + catalog overlay
  *   npm run samples:playgrounds:check      # fail on drift
@@ -76,6 +83,19 @@ const PINNED_DEPENDENCIES = Object.freeze({
   "@bufbuild/protobuf": "2.13.0",
   "@connectrpc/connect": "2.1.2",
   "@connectrpc/connect-web": "2.1.2",
+  react: "19.2.8",
+  "react-dom": "19.2.8",
+});
+
+/**
+ * Type packages a pinned runtime dependency needs before the generated project
+ * can run its own `npm run typecheck`. They are installed only when the sample
+ * actually imports the runtime package, so a vanilla playground never grows
+ * React types it has no use for.
+ */
+const PINNED_TYPE_DEPENDENCIES = Object.freeze({
+  react: { "@types/react": "19.2.18" },
+  "react-dom": { "@types/react-dom": "19.2.4" },
 });
 
 /**
@@ -108,6 +128,72 @@ const COPYABLE_SHARED_SOURCES = new Map([
   ],
 ]);
 
+/** Directory a generated playground keeps its committed fixture documents in. */
+const FIXTURE_DIRECTORY = "fixtures";
+
+/**
+ * Generated data origins, one per sample whose data comes from a repository
+ * process a playground cannot start (#958 S3).
+ *
+ * A sample audited `same-origin-fixture-service` is served by `mock-server.mjs`
+ * on the sample's own origin; StackBlitz has no such process, which is why the
+ * S2 pass excluded all of them as `requires-data-origin`. The scaffold starters
+ * already solved exactly this for `create-honua-app`: carry the reviewed First
+ * Map fixture in the project and answer the routes from the project's own Vite
+ * server. This table applies the same move to a gallery sample.
+ *
+ * Each entry is reviewed, but nothing here is taken on trust:
+ *
+ *  - every declared route must sit under one of the sample's audited
+ *    `hostFixtureRoutes`, and every audited route must be covered by a declared
+ *    one, so this table cannot answer a route the audit never established nor
+ *    quietly drop one the sample needs;
+ *  - every document is copied byte-identically out of the reviewed fixture pack
+ *    (`samples/fixtures/<pack>/v1`), the same discipline
+ *    `scripts/verify-create-honua-app.mjs` holds the starters to;
+ *  - `sampleDocument` names the file the sample's *own* fixture lane serves for
+ *    that route; the generator fails unless it carries the same JSON value, so a
+ *    playground can never show data the reviewed sample does not;
+ *  - `env` is the reviewed fixture-lane browser configuration (the sample's
+ *    `FIXTURE_BUILD_ENV`), written into the project so its default lane is the
+ *    qualified lane rather than whatever the source happens to default to.
+ */
+export const PLAYGROUND_FIXTURE_ORIGINS = new Map([
+  [
+    "react-quickstart",
+    {
+      pack: "samples/fixtures/first-map/v1",
+      routes: [
+        {
+          path: "/api/v1/admin/capabilities",
+          document: "capabilities.json",
+          sampleDocument: "test/fixtures/honua-quickstart-demo/capabilities.json",
+        },
+        {
+          path: "/rest/services/natural-earth/FeatureServer/0/query",
+          document: "features.json",
+          sampleDocument: "test/fixtures/honua-quickstart-demo/query-features.json",
+        },
+      ],
+      env: {
+        VITE_HONUA_REACT_BASE_URL: "",
+        VITE_HONUA_REACT_LAYER_ID: "0",
+        VITE_HONUA_REACT_SERVICE_ID: "natural-earth",
+        VITE_HONUA_REACT_WHERE: "1=1",
+      },
+    },
+  ],
+]);
+
+/**
+ * Names and values a generated `.env` may never carry. A playground is a public
+ * project directory, so the one thing this generator must never learn to do is
+ * commit a credential; a declaration that looks like one fails the run instead
+ * of shipping.
+ */
+const SECRET_SHAPED_ENV_NAME = /(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|BEARER)/;
+const MAX_ENV_VALUE_LENGTH = 64;
+
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".css", ".html", ".json", ".svg", ".txt", ".md"]);
 const IMPORT_PATTERN = /(?:^|[^\w$])(?:import|export)\s*(?:[\w*{}\n\r\t, $]*?from\s*)?["']([^"']+)["']/g;
 const DYNAMIC_IMPORT_PATTERN = /\bimport\(\s*["']([^"']+)["']\s*\)/g;
@@ -117,6 +203,10 @@ const SDK_PACKAGE = "@honua/sdk-js";
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(path.join(ROOT, file), "utf8"));
+}
+
+function fileExists(file) {
+  return fs.existsSync(path.join(ROOT, file));
 }
 
 function listFiles(directory) {
@@ -186,6 +276,61 @@ export function bareSpecifierPackage(specifier) {
 }
 
 /**
+ * Resolve, and prove, the generated data origin declared for one sample.
+ *
+ * Returns `undefined` when no origin is declared — the sample keeps its
+ * `requires-data-origin` exclusion. A declaration that does not agree with the
+ * audit or with the reviewed fixtures throws: this table is repository
+ * configuration, so a wrong entry is a bug to fix, never a sample to drop.
+ */
+export function resolveFixtureOrigin(sample, audit, { readJson: read = readJson, exists = fileExists } = {}) {
+  const declaration = PLAYGROUND_FIXTURE_ORIGINS.get(sample.id);
+  if (!declaration) return undefined;
+  const fail = (message) => {
+    throw new Error(`playground fixture origin for ${sample.id}: ${message}`);
+  };
+  const auditedRoutes = audit.hostFixtureRoutes ?? [];
+  if (auditedRoutes.length === 0) {
+    fail(`the audited ${audit.runtimeHosting} verdict declares no hostFixtureRoutes to serve`);
+  }
+  const documents = [];
+  for (const route of declaration.routes) {
+    if (!auditedRoutes.some((audited) => route.path === audited || route.path.startsWith(`${audited}/`))) {
+      fail(`route ${route.path} is outside the audited hostFixtureRoutes (${auditedRoutes.join(", ")})`);
+    }
+    const packDocument = `${declaration.pack}/${route.document}`;
+    if (!exists(packDocument)) fail(`${packDocument} is not a committed fixture document`);
+    if (!exists(route.sampleDocument)) fail(`${route.sampleDocument} is not a committed fixture document`);
+    // The playground must show what the reviewed sample shows. The pack is the
+    // byte source (one reviewed copy for every generated project); the sample's
+    // own lane document is the equality witness.
+    if (stableJson(read(packDocument)) !== stableJson(read(route.sampleDocument))) {
+      fail(`${packDocument} and ${route.sampleDocument} describe different data for ${route.path}`);
+    }
+    documents.push({ source: packDocument, target: `${FIXTURE_DIRECTORY}/${route.document}` });
+  }
+  for (const audited of auditedRoutes) {
+    if (!declaration.routes.some((route) => route.path === audited || route.path.startsWith(`${audited}/`))) {
+      fail(`audited route ${audited} has no declared fixture document`);
+    }
+  }
+  const env = Object.entries(declaration.env ?? {});
+  for (const [name, value] of env) {
+    if (!/^VITE_[A-Z0-9_]+$/.test(name)) fail(`${name} is not a Vite browser configuration name`);
+    if (SECRET_SHAPED_ENV_NAME.test(name)) fail(`${name} is credential-shaped and may not be committed`);
+    if (typeof value !== "string" || value.length > MAX_ENV_VALUE_LENGTH || /[\s"'#\\]/.test(value)) {
+      fail(`${name} must be a short, plain, quote-free value`);
+    }
+  }
+  return {
+    pack: declaration.pack,
+    routes: declaration.routes.map(({ path: route, document }) => ({ path: route, document })),
+    documents,
+    env: Object.fromEntries(env.sort(([left], [right]) => left.localeCompare(right))),
+  };
+}
+
+/**
  * One decision per catalog sample: a playground project, or a categorized
  * exclusion. Everything except the data-origin verdict is derived from the
  * sample's own committed tree.
@@ -200,10 +345,15 @@ export function evaluateSamplePlaygroundEligibility(sample, context) {
   }
   const audit = context.audit.get(sample.id);
   if (!audit) return exclude("audit-pending", "No audited runtime-hosting verdict for this active sample.");
-  if (audit.runtimeHosting !== "self-contained") {
+  // Data first: a project that cannot answer its own requests is not a
+  // playground, whatever else is true of its source.
+  const resolveOrigin = context.resolveFixtureOrigin ?? resolveFixtureOrigin;
+  const fixtureOrigin = audit.runtimeHosting === "self-contained" ? undefined : resolveOrigin(sample, audit);
+  if (audit.runtimeHosting !== "self-contained" && !fixtureOrigin) {
     return exclude(
       "requires-data-origin",
-      `Audited runtimeHosting is ${audit.runtimeHosting}; a playground would need a generated data origin.`,
+      `Audited runtimeHosting is ${audit.runtimeHosting} and no reviewed fixture origin is declared, ` +
+        "so a generated playground would have no data to serve.",
     );
   }
 
@@ -236,8 +386,12 @@ export function evaluateSamplePlaygroundEligibility(sample, context) {
   if (analysis.binaryFiles.length > 0) {
     return exclude("binary-asset", `Needs committed non-source assets: ${analysis.binaryFiles.join(", ")}.`);
   }
-  if (analysis.envVars.length > 0) {
-    return exclude("browser-configuration", `Default lane reads browser configuration: ${analysis.envVars.join(", ")}.`);
+  // Browser configuration is only a blocker when the generated project cannot
+  // answer it. A declared fixture origin carries the reviewed fixture-lane
+  // values, so those variables are configuration the playground supplies.
+  const unanswered = analysis.envVars.filter((name) => !Object.hasOwn(fixtureOrigin?.env ?? {}, name));
+  if (unanswered.length > 0) {
+    return exclude("browser-configuration", `Default lane reads browser configuration: ${unanswered.join(", ")}.`);
   }
 
   const dependencies = {};
@@ -256,13 +410,22 @@ export function evaluateSamplePlaygroundEligibility(sample, context) {
   }
   for (const packageName of ALWAYS_INSTALLED) dependencies[packageName] = PINNED_DEPENDENCIES[packageName];
 
+  const devDependencies = { ...PINNED_DEV_DEPENDENCIES };
+  for (const packageName of Object.keys(dependencies)) {
+    Object.assign(devDependencies, PINNED_TYPE_DEPENDENCIES[packageName] ?? {});
+  }
+
   return {
     id: sample.id,
     qualified: true,
     projectPath: `${PLAYGROUND_ROOT}/${sample.id}`,
     files: analysis.files,
     sharedSources,
+    ...(fixtureOrigin ? { fixtureOrigin } : {}),
     dependencies: Object.fromEntries(Object.entries(dependencies).sort(([left], [right]) => left.localeCompare(right))),
+    devDependencies: Object.fromEntries(
+      Object.entries(devDependencies).sort(([left], [right]) => left.localeCompare(right)),
+    ),
     auditedVia: audit.auditedVia,
   };
 }
@@ -285,7 +448,7 @@ function projectPackageJson(decision, sample) {
       engines: { node: ">=20.19.0" },
       scripts: { dev: "vite", build: "vite build", preview: "vite preview", typecheck: "tsc --noEmit" },
       dependencies: decision.dependencies,
-      devDependencies: PINNED_DEV_DEPENDENCIES,
+      devDependencies: decision.devDependencies,
     },
     null,
     2,
@@ -314,10 +477,16 @@ function projectTsconfig(hasTsx) {
   )}\n`;
 }
 
-function projectViteConfig(sample) {
+function generatedViteHeader(sample) {
   return `// Generated from examples/${sample.id} by scripts/sample-playgrounds.mjs.
 // The repository build aliases @honua/sdk-js onto src/; a playground resolves
-// the published package from node_modules instead, so no alias is needed.
+// the published package from node_modules instead, so no alias is needed.`;
+}
+
+function projectViteConfig(sample, decision) {
+  const origin = decision.fixtureOrigin;
+  if (!origin) {
+    return `${generatedViteHeader(sample)}
 import { defineConfig } from "vite";
 
 export default defineConfig({
@@ -326,10 +495,105 @@ export default defineConfig({
   build: { outDir: "dist", emptyOutDir: true },
 });
 `;
+  }
+  const routes = origin.routes
+    .map((route) => `  [${JSON.stringify(route.path)}, ${JSON.stringify(route.document)}],`)
+    .join("\n");
+  return `${generatedViteHeader(sample)}
+//
+// examples/${sample.id} reads its data from a Node fixture server the repository
+// runs beside it; a browser playground has no such process. This config answers
+// the same routes from the project's own dev and preview server, so the default
+// lane needs no account, no key, and no third-party request. Every document
+// under fixtures/ is a byte-identical copy of ${origin.pack};
+// npm run samples:playgrounds:check fails the moment either drifts.
+import { readFileSync } from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { fileURLToPath } from "node:url";
+
+import { type Plugin, defineConfig } from "vite";
+
+/** Same-origin path -> committed fixture document answering it. */
+const FIXTURE_ROUTES: ReadonlyArray<readonly [string, string]> = [
+${routes}
+];
+
+function fixtureDocument(name: string): string {
+  return readFileSync(fileURLToPath(new URL(\`./${FIXTURE_DIRECTORY}/\${name}\`, import.meta.url)), "utf8");
+}
+
+function honuaFixtureService(): Plugin {
+  const documents = new Map(FIXTURE_ROUTES.map(([route, name]) => [route, fixtureDocument(name)]));
+  const middleware = (request: IncomingMessage, response: ServerResponse, next: () => void): void => {
+    // Path-only matching: the SDK's adapters append their own query strings,
+    // exactly as the sample's repository fixture server assumes.
+    const body = documents.get(new URL(request.url ?? "/", "http://localhost").pathname);
+    if (body === undefined) {
+      next();
+      return;
+    }
+    response.setHeader("content-type", "application/json; charset=utf-8");
+    response.setHeader("cache-control", "no-store");
+    response.end(body);
+  };
+  return {
+    name: "honua-fixture-service",
+    configureServer(server) {
+      server.middlewares.use(middleware);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware);
+    },
+  };
+}
+
+export default defineConfig({
+  plugins: [honuaFixtureService()],
+  server: { host: "127.0.0.1" },
+  preview: { host: "127.0.0.1" },
+  build: { outDir: "dist", emptyOutDir: true },
+});
+`;
+}
+
+/**
+ * The reviewed fixture lane's browser configuration, as a project-local `.env`.
+ *
+ * Vite loads this in dev, preview and build alike, so the playground runs the
+ * configuration the repository qualifies rather than whatever the sample's
+ * source happens to fall back to. Only plain, non-credential values reach here;
+ * `resolveFixtureOrigin` refuses anything else.
+ */
+function projectEnvFile(sample, origin) {
+  const lines = [
+    `# Generated from examples/${sample.id} by scripts/sample-playgrounds.mjs. Do not edit by hand.`,
+    "# The reviewed fixture lane's browser configuration. Point these at a live",
+    "# service to run the identical code against real data.",
+    ...Object.entries(origin.env).map(([name, value]) => `${name}=${value}`),
+  ];
+  return `${lines.join("\n")}\n`;
 }
 
 function projectReadme(sample, decision, links) {
   const providerLines = links.map((link) => `- [Open in ${link.title}](${link.url})`).join("\n");
+  const origin = decision.fixtureOrigin;
+  const dataSection = origin
+    ? `## Where its data comes from
+
+\`examples/${sample.id}\` is served by a Node fixture server the repository runs beside it
+(\`npm run demo:*:mock\`). A browser playground cannot start that process, so this project
+serves the same reviewed documents from its own Vite dev and preview server:
+
+${origin.routes.map((route) => `- \`${route.path}\` → \`${FIXTURE_DIRECTORY}/${route.document}\``).join("\n")}
+
+Every file under \`${FIXTURE_DIRECTORY}/\` is a byte-identical copy of
+[\`${origin.pack}\`](../../${origin.pack}), and \`.env\` carries the reviewed fixture lane's
+configuration. The default lane therefore needs no account, no key, and no third-party request.
+`
+    : `## Where its data comes from
+
+Its own committed source, so the default lane needs no account, no key, and no third-party request.
+`;
   return `# ${sample.title} — zero-install playground
 
 <!-- Generated from examples/${sample.id} by scripts/sample-playgrounds.mjs. Do not edit by hand. -->
@@ -348,9 +612,9 @@ npm run dev
 This project carries the same committed source as
 [\`examples/${sample.id}\`](../../examples/${sample.id}), with one difference: it resolves
 \`${SDK_PACKAGE}\` from the published package instead of the repository's \`src/\` tree, so it
-runs anywhere npm does — including a browser playground. Its data comes from its own committed
-source, so the default lane needs no account, no key, and no third-party request.
+runs anywhere npm does — including a browser playground.
 
+${dataSection}
 Edit the sample in \`examples/${sample.id}\` and run \`npm run samples:playgrounds:generate\`;
 editing this copy directly fails \`npm run samples:playgrounds:check\`.
 `;
@@ -376,11 +640,19 @@ export function renderPlaygroundProject(sample, decision, links) {
   for (const shared of decision.sharedSources) {
     files.set(shared.target, fs.readFileSync(path.join(ROOT, shared.source), "utf8"));
   }
+  // The reviewed fixture documents are copied verbatim: the generated origin
+  // serves the same bytes the sample's repository fixture server serves.
+  for (const document of decision.fixtureOrigin?.documents ?? []) {
+    files.set(document.target, fs.readFileSync(path.join(ROOT, document.source), "utf8"));
+  }
   files.set("package.json", projectPackageJson(decision, sample));
   files.set("tsconfig.json", projectTsconfig(decision.files.some((file) => file.endsWith(".tsx"))));
-  files.set("vite.config.ts", projectViteConfig(sample));
+  files.set("vite.config.ts", projectViteConfig(sample, decision));
   files.set("README.md", projectReadme(sample, decision, links));
   files.set(".stackblitzrc", STACKBLITZ_RC);
+  if (decision.fixtureOrigin && Object.keys(decision.fixtureOrigin.env).length > 0) {
+    files.set(".env", projectEnvFile(sample, decision.fixtureOrigin));
+  }
   return files;
 }
 
@@ -403,6 +675,22 @@ export function playgroundCatalogEntry(decision, links) {
 }
 
 /**
+ * Where a generated playground's data comes from, published so a reader never
+ * has to open the project to find out. This lives in the standalone artifact
+ * rather than in the catalog: the catalog carries the links a card renders, and
+ * nothing a card does not use.
+ */
+export function playgroundDataOrigin(decision) {
+  const origin = decision.fixtureOrigin;
+  if (!origin) return { kind: "committed-sample-source" };
+  return {
+    kind: "generated-fixture-service",
+    fixturePack: origin.pack,
+    routes: origin.routes.map((route) => route.path),
+  };
+}
+
+/**
  * The published decision list.
  *
  * This is a standalone artifact rather than a member of the site projection on
@@ -422,7 +710,11 @@ export function renderPlaygroundArtifact(decisions, catalogEntries, sdkVersion) 
     sdk: { package: "@honua/sdk-js", version: sdkVersion },
     playgrounds: decisions
       .filter((decision) => decision.qualified)
-      .map((decision) => ({ sampleId: decision.id, ...catalogEntries.get(decision.id) })),
+      .map((decision) => ({
+        sampleId: decision.id,
+        ...catalogEntries.get(decision.id),
+        dataOrigin: playgroundDataOrigin(decision),
+      })),
     excluded: decisions
       .filter((decision) => !decision.qualified)
       .map((decision) => ({ sampleId: decision.id, category: decision.category, detail: decision.detail })),
@@ -452,6 +744,7 @@ function collectPlan() {
   const context = {
     audit: new Map(SAMPLE_BUNDLE_AUDIT.map((record) => [record.id, record])),
     analyze: analyzeSampleSource,
+    resolveFixtureOrigin,
     sdkEntrypoints: publishedSdkEntrypoints(readJson("package.json")),
     sdkVersion: manifest.sdk.version,
   };

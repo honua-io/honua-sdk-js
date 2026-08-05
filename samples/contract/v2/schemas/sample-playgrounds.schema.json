@@ -23,10 +23,36 @@
       "uniqueItems": true,
       "items": {
         "type": "object",
-        "required": ["sampleId", "projectPath", "providers"],
+        "required": ["sampleId", "projectPath", "providers", "dataOrigin"],
         "properties": {
           "sampleId": { "$ref": "#/$defs/slug" },
           "projectPath": { "type": "string", "pattern": "^playgrounds/[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "dataOrigin": {
+            "description": "Where the generated project's default lane gets its data. `committed-sample-source` means the sample carries its own data; `generated-fixture-service` means the project's Vite dev and preview server answers the listed same-origin routes from byte-identical copies of the named reviewed fixture pack, because the sample's own data origin is a repository process a playground cannot start (#958).",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["kind"],
+                "properties": { "kind": { "const": "committed-sample-source" } },
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "required": ["kind", "fixturePack", "routes"],
+                "properties": {
+                  "kind": { "const": "generated-fixture-service" },
+                  "fixturePack": { "type": "string", "pattern": "^samples/fixtures/[a-z0-9-]+/v[0-9]+$" },
+                  "routes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": { "type": "string", "pattern": "^/[^?#]*$" }
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
           "providers": {
             "type": "array",
             "minItems": 1,
