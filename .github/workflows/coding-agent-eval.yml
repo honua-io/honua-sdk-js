@@ -90,14 +90,49 @@ jobs:
       - name: Build SDK
         run: npm run build
 
-      - name: Install Claude Code CLI
+      - name: Prepare a hash-pinned npm
+        # The agent CLI below is placed by this npm rather than by whatever npm
+        # the PATH resolves to, so the tool that unpacks and links it is itself
+        # hash-verified. The tarball's sha512 integrity hash (from the
+        # registry's own dist.integrity field, recorded when this workflow was
+        # authored) is pinned here and verified before use, so a re-published
+        # or tampered registry artifact for the same version cannot slip in
+        # (mirrors SHA-pinning `uses:` actions elsewhere in CI).
+        #
+        # The verified tarball is unpacked and run in place rather than handed
+        # to a global installer: npm ships its dependencies bundled, so the CLI
+        # runs straight from the archive, and the step below then executes
+        # exactly the bytes this step hashed — no second, unpinned resolution
+        # between verification and use.
+        run: |
+          set -euo pipefail
+          npm_pkg="npm@11.18.0"
+          npm_expected_sha512="T67M4L5wNm0cZ7EBLErcEkY1SmzEW/WJ+SADBzsFUY1UdAPfFHXFQtZ6SEXiK0+vzXysCvAsepbMaBTwnrAD+w=="
+          npm_tarball_url="$(npm view "$npm_pkg" dist.tarball)"
+          npm_tarball_path="$(mktemp -t npm-pinned-XXXXXX.tgz)"
+          curl -fsSL -o "$npm_tarball_path" "$npm_tarball_url"
+          npm_actual_sha512="$(openssl dgst -sha512 -binary "$npm_tarball_path" | openssl base64 -A)"
+          if [[ "$npm_actual_sha512" != "$npm_expected_sha512" ]]; then
+            echo "::error::${npm_pkg} tarball sha512 mismatch: expected ${npm_expected_sha512}, got ${npm_actual_sha512}"
+            exit 1
+          fi
+          npm_root="${RUNNER_TEMP}/npm-pinned"
+          rm -rf "$npm_root"
+          mkdir -p "$npm_root"
+          tar -xzf "$npm_tarball_path" -C "$npm_root"
+          rm -f "$npm_tarball_path"
+          pinned_npm="${npm_root}/package/bin/npm-cli.js"
+          node "$pinned_npm" --version
+          echo "PINNED_NPM=${pinned_npm}" >> "$GITHUB_ENV"
+
+      - name: Install the hash-pinned Claude Code CLI
         # Exact-version pin, plus a pinned sha512 integrity hash (from the
         # registry's dist.integrity field, recorded when this workflow was
-        # authored) verified before install — Scorecard's Pinned-Dependencies
-        # check flags a bare `npm install -g pkg@version` as not hash-pinned,
-        # since a re-published registry artifact for the same version could
-        # otherwise install silently. The CLI version is also recorded in the
-        # scorecard's adapter metadata for traceability.
+        # authored) verified before use — a re-published registry artifact for
+        # the same version would otherwise be accepted silently. The verified
+        # archive is then handed to the hash-verified CLI from the step above,
+        # not to whatever `npm` the PATH resolves to. The CLI version is also
+        # recorded in the scorecard's adapter metadata for traceability.
         run: |
           set -euo pipefail
           claude_pkg="@anthropic-ai/claude-code@2.1.207"
@@ -110,8 +145,9 @@ jobs:
             echo "::error::${claude_pkg} tarball sha512 mismatch: expected ${claude_expected_sha512}, got ${claude_actual_sha512}"
             exit 1
           fi
-          npm install -g "$claude_tarball_path"
+          node "${PINNED_NPM}" install --global "$claude_tarball_path"
           rm -f "$claude_tarball_path"
+          claude --version
 
       - name: Live claude-cli lane
         env:
