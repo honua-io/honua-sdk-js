@@ -8,11 +8,15 @@
  * matching `scripts/build-browser-bundle.mjs`), records the minified and
  * gzipped byte sizes, and compares them to the ceilings in `bundle-budgets.json`.
  *
- * Two modes:
+ * Modes:
  *   - `report:bundle-sizes` (default): refresh `docs/bundle-sizes.md` with the
- *     current measured table (date + commit), then enforce budgets.
- *   - `verify:bundle-budgets` (`--check`): enforce budgets only; never writes
- *     files. This is the CI gate.
+ *     current measured table (date + commit), resync the README excerpt from
+ *     it, then enforce budgets.
+ *   - `verify:bundle-budgets` (`--check`): enforce budgets and fail if the
+ *     README excerpt drifted from the committed doc; never writes files. This
+ *     is the CI gate.
+ *   - `--sync-readme`: splice the README excerpt from the committed
+ *     `docs/bundle-sizes.md` without rebuilding or re-measuring.
  *
  * Either mode exits non-zero when any entry exceeds its budget, printing a
  * per-entry delta table so the failure is actionable.
@@ -34,6 +38,33 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
 const BUDGETS_FILE = path.join(PROJECT_ROOT, "bundle-budgets.json");
 const DOCS_FILE = path.join(PROJECT_ROOT, "docs", "bundle-sizes.md");
+const README_FILE = path.join(PROJECT_ROOT, "README.md");
+const README_START = "<!-- bundle-sizes:readme:start -->";
+const README_END = "<!-- bundle-sizes:readme:end -->";
+
+/**
+ * Rows excerpted into README.md between the bundle-sizes:readme markers,
+ * as [docs/bundle-sizes.md first-column label, README display label].
+ * The excerpt is parsed from the committed generated doc — never hand-typed —
+ * so the README cannot disagree with the table it links to.
+ */
+const README_EXCERPT = [
+  ["`/expr`", "`@honua/sdk-js/expr`"],
+  ["`/geocoding`", "`@honua/sdk-js/geocoding`"],
+  ["`/webmap`", "`@honua/sdk-js/webmap`"],
+  ["`/style`", "`@honua/sdk-js/style`"],
+  ["`/map`", "`@honua/sdk-js/map`"],
+  ["`.` (root)", "`@honua/sdk-js` (root)"],
+  ["tree-shake guard (`{ HonuaClient }` only)", "`{ HonuaClient }` from the root (tree-shake guard)"],
+  ["tree-shake guard (`{ connect }` from root, source-schema runtime excluded)", "`{ connect }` from the root (tree-shake guard)"],
+  [
+    "tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade)",
+    "`{ createHonua }` from the root (tree-shake guard)",
+  ],
+];
+const ROOT_DOC_LABEL = "`.` (root)";
+const CONNECT_GUARD_DOC_LABEL = "tree-shake guard (`{ connect }` from root, source-schema runtime excluded)";
+const CREATE_HONUA_GUARD_DOC_LABEL = "tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade)";
 
 /**
  * Runtime peers consumers provide themselves. Kept external so measurements
@@ -494,8 +525,76 @@ function printFailureTable(failures) {
   );
 }
 
+function parseDocGzipSizes() {
+  const doc = fs.readFileSync(DOCS_FILE, "utf8");
+  const sizes = new Map();
+  for (const line of doc.split("\n")) {
+    const match = line.match(/^\| (.+) \| [0-9.]+ KiB \| [0-9.]+ KiB \| ([0-9.]+ KiB) \| [0-9.]+ KiB \|$/);
+    if (match) {
+      sizes.set(match[1], match[2]);
+    }
+  }
+  return sizes;
+}
+
+function renderReadmeExcerpt() {
+  const sizes = parseDocGzipSizes();
+  const missing = README_EXCERPT.map(([docLabel]) => docLabel).filter((docLabel) => !sizes.has(docLabel));
+  if (missing.length > 0) {
+    throw new Error(
+      `README bundle excerpt rows missing from docs/bundle-sizes.md: ${missing.join(
+        ", ",
+      )} — update README_EXCERPT in scripts/report-bundle-sizes.mjs.`,
+    );
+  }
+  const lines = [];
+  lines.push("| Entrypoint (gzip) | Size |");
+  lines.push("| --- | ---: |");
+  for (const [docLabel, readmeLabel] of README_EXCERPT) {
+    lines.push(`| ${readmeLabel} | ${sizes.get(docLabel)} |`);
+  }
+  lines.push("");
+  lines.push(
+    `The root is the whole reviewed kernel and the guards price its verbs honestly: importing \`{ connect }\``,
+  );
+  lines.push(
+    `alone costs ${sizes.get(CONNECT_GUARD_DOC_LABEL)} gzip and \`{ createHonua }\` ${sizes.get(
+      CREATE_HONUA_GUARD_DOC_LABEL,
+    )} against the ${sizes.get(ROOT_DOC_LABEL)} root, so size-sensitive`,
+  );
+  lines.push("apps should import the focused subpaths rather than the root. Full per-entrypoint");
+  lines.push("table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);");
+  lines.push("refresh the table and this excerpt together with `npm run report:bundle-sizes`.");
+  return lines.join("\n");
+}
+
+function syncReadmeExcerpt({ checkOnly }) {
+  const readme = fs.readFileSync(README_FILE, "utf8");
+  const start = readme.indexOf(README_START);
+  const end = readme.indexOf(README_END);
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`README.md is missing the ${README_START} / ${README_END} markers.`);
+  }
+  const next = `${readme.slice(0, start + README_START.length)}\n${renderReadmeExcerpt()}\n${readme.slice(end)}`;
+  if (next === readme) {
+    return true;
+  }
+  if (checkOnly) {
+    return false;
+  }
+  fs.writeFileSync(README_FILE, next);
+  process.stdout.write(`Wrote ${path.relative(PROJECT_ROOT, README_FILE)} bundle-size excerpt\n`);
+  return true;
+}
+
 async function main() {
   const checkOnly = process.argv.includes("--check");
+  if (process.argv.includes("--sync-readme")) {
+    // Splice the README excerpt from the committed generated doc without
+    // rebuilding or re-measuring anything.
+    syncReadmeExcerpt({ checkOnly: false });
+    return;
+  }
   const budgets = loadBudgets();
   const measurements = await measureAll();
   const { rows, failures, missingBudget } = evaluateBudgets(measurements, budgets);
@@ -519,6 +618,13 @@ async function main() {
     fs.mkdirSync(path.dirname(DOCS_FILE), { recursive: true });
     fs.writeFileSync(DOCS_FILE, renderDoc(rows));
     process.stdout.write(`\nWrote ${path.relative(PROJECT_ROOT, DOCS_FILE)}\n`);
+    syncReadmeExcerpt({ checkOnly: false });
+  } else if (!syncReadmeExcerpt({ checkOnly: true })) {
+    process.stderr.write(
+      "README.md bundle-size excerpt is stale against docs/bundle-sizes.md — run `npm run report:bundle-sizes`\n" +
+        "(or `node scripts/report-bundle-sizes.mjs --sync-readme` to resync from the committed table).\n",
+    );
+    process.exitCode = 1;
   }
 
   if (failures.length > 0) {
