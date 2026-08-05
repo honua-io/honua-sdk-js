@@ -117,9 +117,11 @@ jobs:
             # non-generated content ride into a release under a moved tag.
             while IFS= read -r changed_path; do
               case "${changed_path}" in
+                README.md | \
                 api-report/* | \
                 bench/cross-sdk/corpus.json | \
                 docs/bundle-sizes.md | docs/comparison.md | docs/errors.md | \
+                docs/generated/mcp-eval-scorecard.md | \
                 llms.txt | llms-full.txt | \
                 examples/migration-workbench/public/artifacts/* | \
                 examples/migration-workbench/src/generated/* | \
