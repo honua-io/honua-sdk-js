@@ -52,7 +52,6 @@ vi.mock("cesium", () => ({
 import type { Query, Result, Source, SourceDescriptor } from "../src/contract/types.js";
 import { capabilities } from "../src/contract/types.js";
 import { explainQuery } from "../src/query-planner/index.js";
-import type { QueryExecutionPlanV1 } from "../src/query-planner/types.js";
 import {
   type CesiumEntityCollectionTarget,
   type CesiumEntityRuntimeModule,
@@ -423,7 +422,3 @@ function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
   });
   return { promise, resolve };
 }
-
-// Silences an unused-plan lint on the alternate descriptor when the ceiling case
-// is the only consumer; keeping the binding named makes the intent readable.
-void (otherPlan satisfies QueryExecutionPlanV1);
