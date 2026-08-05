@@ -89,7 +89,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.1.2-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.1.3-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 16 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -314,13 +314,13 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js/webmap` | 7.6 KiB |
 | `@honua/sdk-js/style` | 15.9 KiB |
 | `@honua/sdk-js/map` | 51.3 KiB |
-| `@honua/sdk-js` (root) | 201.6 KiB |
+| `@honua/sdk-js` (root) | 201.5 KiB |
 | `{ HonuaClient }` from the root (tree-shake guard) | 61.7 KiB |
 | `{ connect }` from the root (tree-shake guard) | 163.4 KiB |
 | `{ createHonua }` from the root (tree-shake guard) | 192.3 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 163.4 KiB gzip and `{ createHonua }` 192.3 KiB against the 201.6 KiB root, so size-sensitive
+alone costs 163.4 KiB gzip and `{ createHonua }` 192.3 KiB against the 201.5 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -1028,7 +1028,7 @@ directories are removed after both successful and failed runs.
 
 # Documentation versions and compatibility
 
-You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.1.2-beta.0)**.
+You are reading the documentation for `@honua/sdk-js` **trunk development (package baseline 0.1.3-beta.0)**.
 Hosted pages are development documentation built from `trunk`, not immutable
 documentation for the package baseline. Every built page and the deployed
 `versions.json` identify the exact 40-character source commit.
@@ -1045,7 +1045,8 @@ release tag exists in the authoritative GitHub repository.
 
 | Version | Status | Channel | Documentation |
 | --- | --- | --- | --- |
-| `0.1.2-beta.0` | latest-prerelease | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.2-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.1-beta.0...js-sdk-v0.1.2-beta.0) |
+| `0.1.3-beta.0` | latest-prerelease | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.3-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.2-beta.0...js-sdk-v0.1.3-beta.0) |
+| `0.1.2-beta.0` | archived | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.2-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.1-beta.0...js-sdk-v0.1.2-beta.0) |
 | `0.1.1-beta.0` | archived | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.1-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.1.0-beta.0...js-sdk-v0.1.1-beta.0) |
 | `0.1.0-beta.0` | archived | beta | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.1.0-beta.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.20-alpha.0...js-sdk-v0.1.0-beta.0) |
 | `0.0.20-alpha.0` | archived | alpha | [Tagged README fallback](https://github.com/honua-io/honua-sdk-js/blob/js-sdk-v0.0.20-alpha.0/README.md) · [release notes](https://github.com/honua-io/honua-sdk-js/compare/js-sdk-v0.0.19-alpha.0...js-sdk-v0.0.20-alpha.0) |
@@ -1707,19 +1708,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-04 at commit `b5f6fc73`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-05 at commit `964788fd`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 738.5 KiB | 198.4 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 231.4 KiB | 59.7 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 750.3 KiB | 201.5 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 238.6 KiB | 61.7 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.8 KiB | 13.4 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 364.3 KiB | 98.3 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 999.8 KiB | 250.1 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 366.0 KiB | 98.7 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 1020.0 KiB | 255.5 KiB |
 | Geocoding client | 26.9 KiB | 7.6 KiB |
-| Routing client | 20.5 KiB | 6.3 KiB |
+| Routing client | 20.6 KiB | 6.3 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.0.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1036.3 KiB minified / **273.8 KiB gzip**.
@@ -1729,8 +1730,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 738.5 KiB ≈ **1.73 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 198.4 KiB ≈ **0.46 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 750.3 KiB ≈ **1.74 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 201.5 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -6928,6 +6929,135 @@ exactly-once delivery and hosted replica synchronization remain server
 properties, and validating a projected conflict against live server conflict
 semantics stays gated on that server work.
 
+## Replica conflict policy on a replay pass
+
+A replica is registered with a `ReplicaConflictPolicy`. A replay pass accepts
+that policy explicitly, and either carries it out or refuses it by name — it is
+never quietly downgraded to "park the conflict and hope someone looks".
+
+The test that decides the two arms is one question: **can the complete effect on
+the durable edit queue be computed from queue-side state alone** — the queued
+edit, its conflict record, and the local clock — with no remote content and no
+server decision?
+
+| Policy | SDK disposition | Replay action | Reason |
+| --- | --- | --- | --- |
+| `manual` | locally-honoured | retain-for-review | queue-side-outcome |
+| `server-wins` | locally-honoured | discard-local-edit | queue-side-outcome |
+| `client-wins` | server-adjudicated | refuse | needs-server-override |
+| `last-writer-wins` | server-adjudicated | refuse | needs-remote-edit-time |
+
+- **`manual`** parks the conflicted edit for a reviewer. That is the whole
+  policy, and it needs nothing remote. It is also what an *omitted* policy does,
+  which is exactly why declaring the policy matters: without the declaration a
+  `client-wins` replica silently gets `manual` behaviour.
+- **`server-wins`** means the server's committed row stands, so the queued edit
+  lost and is abandoned — the pass records an `accept-server` resolution against
+  it and the record becomes `cancelled`. This is honoured **for the outbound
+  queue only**. Adopting the server's content into local state needs the remote
+  row; the edit queue does not own local read state, and nothing here pretends
+  to converge it.
+- **`client-wins`** means the local edit should win, but the server has already
+  refused it. Making it win needs an override the mutation transport does not
+  define. Requeuing it locally would be a retry wearing the policy's name.
+- **`last-writer-wins`** needs both writers' edit times. A conflicted
+  acknowledgement carries an opaque `ServerGenerationCursor` — an ordering
+  token, not a comparable clock — so the SDK cannot tell who wrote last.
+
+`OFFLINE_REPLAY_CONFLICT_POLICIES` is the machine-readable form of this table,
+and it is keyed by policy, so a new member of the shipped union fails the build
+rather than falling through to a default. The same table appears in the
+`ReplicaConflictPolicy` contract's own documentation, and a test fails if the
+two surfaces disagree.
+
+```ts doc-test=skip reason="partial excerpt requires application replay transport"
+import { isHonuaOfflineConflictAdjudicationError, replayOfflineEditPass } from "@honua/sdk-js/offline";
+
+try {
+  const receipt = await replayOfflineEditPass(queue, transport, {
+    authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+    sourceId: manifest.source.id,
+    workerId: replayWorkerId,
+    limit: 10,
+    leaseDurationMs: 30_000,
+    replica,
+    conflictPolicy: registeredReplica.conflictPolicy,
+  });
+  for (const outcome of receipt.outcomes) {
+    // "retained-for-review", "discarded-local-edit", or "not-applied".
+    if (outcome.conflictPolicy) console.log(outcome.conflictPolicy.outcome);
+  }
+} catch (error) {
+  if (!isHonuaOfflineConflictAdjudicationError(error)) throw error;
+  // Names the policy it refused; nothing was claimed and nothing was replayed.
+  console.log(error.code, error.policy); // "server-adjudicated-policy" "client-wins"
+}
+```
+
+The refusal happens before the first edit is claimed, so a pass either honours
+the policy it was given for every conflict it meets or does nothing at all.
+
+## Recording a reviewed resolution
+
+`recordOfflineConflictResolution()` takes the reviewer's decision in the shipped
+contract's own shape — a `SyncConflictResolution`, the value a conflict-review
+surface already produces — and records it against the durable queued edit that
+raised the conflict.
+
+```ts doc-test=skip reason="partial excerpt requires application review surface"
+import { recordOfflineConflictResolution } from "@honua/sdk-js/offline";
+
+const receipt = await recordOfflineConflictResolution(queue, {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  editId: conflictedEditId,
+  // Straight from the review surface; no mapping is invented in between.
+  resolution: { conflictId, choice: "accept-server", resolvedBy: { id: reviewerId } },
+});
+
+console.log(receipt.disposition); // "discarded"
+console.log(receipt.state); // "cancelled"
+console.log(receipt.acknowledgement); // "unacknowledged-by-server"
+```
+
+What the record then says:
+
+| Choice | Disposition | Queue state | Meaning |
+| --- | --- | --- | --- |
+| `accept-client` | `requeued` | `pending` | The local edit stands and is delivered again. |
+| `accept-server` | `discarded` | `cancelled` | The local edit is abandoned; it was never delivered. |
+| `discard` | `discarded` | `cancelled` | The local edit is abandoned; it was never delivered. |
+| `merge` | — | — | Refused. |
+
+- **The closure lands in the audit history.** A `conflict-resolved` event
+  carries the conflict id and the choice, and the edit's `conflictResolution`
+  member carries the closed conflict's identity, detection time, and server
+  generation.
+- **The conflict is not re-surfaced.** `conflict` leaves the record, so a later
+  replay pass, a later `createLocalFirstStatus()`, and the sync-conflict
+  projection all stop reporting it. A record is conflicted *or* resolved, never
+  both — and a requeued edit that conflicts again opens a *new* conflict with a
+  new id, leaving the earlier closure in `audit` where the history belongs.
+- **It is honest about delivery.** The resolution is recorded
+  `acknowledgement: "unacknowledged-by-server"`, and no code path in this build
+  produces any other value. The projection follows: a resolved conflict's
+  `status` is `resolving` (requeued) or `discarded` (abandoned) and **never**
+  `resolved`, because only a server commit makes a resolution true. The
+  `SyncConflictDetail.resolution` member — the server's acknowledgement record —
+  stays listed as `server-owned` in `projection.unavailable`, and the local
+  choice is published beside it as `projection.localResolution`.
+- **`merge` is refused**, along with any resolution carrying `mergedAttributes`
+  or `mergedGeometry`, with the same typed error the refused policies raise
+  (`isHonuaOfflineConflictAdjudicationError`, `code:
+  "server-adjudicated-resolution"`). A merged value would have to replace the
+  queued edit's payload, and the edit's id is a digest of that payload bound to
+  an idempotency key the transport may already have seen — rewriting it locally
+  would forge a different write under an identity promised for another one.
+- **Only identities are persisted.** A `SyncActor`'s `displayName` and `kind`
+  are presentation and are dropped; `resolvedBy.id` and `note` are the only
+  reviewer-authored strings stored, and both are credential-screened on the way
+  in *and* on the way back out of storage.
+
 ## Composed local-first status
 
 Cache diagnostics answer "what is in the store", and the queue answers "what
@@ -11492,25 +11622,25 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-04 at commit `92155338d`._
+_Generated 2026-08-05 at commit `964788fd`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 750.3 KiB | 753.9 KiB | 201.6 KiB | 211.8 KiB |
+| `.` (root) | 750.3 KiB | 753.9 KiB | 201.5 KiB | 211.8 KiB |
 | `/honua` | 913.0 KiB | 937.2 KiB | 245.9 KiB | 251.0 KiB |
 | `/contract` | 366.0 KiB | 400.6 KiB | 98.7 KiB | 108.0 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 887.2 KiB | 925.5 KiB | 200.0 KiB | 206.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 887.2 KiB | 925.5 KiB | 200.4 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 921.2 KiB | 961.8 KiB | 209.6 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 921.1 KiB | 961.8 KiB | 209.6 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 65.4 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
 | `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
 | `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
 | `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
 | `/runtime` | 605.2 KiB | 612.2 KiB | 163.7 KiB | 163.9 KiB |
 | `/realtime` | 78.8 KiB | 86.2 KiB | 22.8 KiB | 25.0 KiB |
-| `/offline` | 150.6 KiB | 161.3 KiB | 41.1 KiB | 44.0 KiB |
-| `/query-planner` (worker runtime injected) | 762.6 KiB | 778.7 KiB | 172.6 KiB | 182.9 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 160.8 KiB | 162.2 KiB | 48.8 KiB | 49.1 KiB |
+| `/offline` | 169.2 KiB | 186.2 KiB | 45.2 KiB | 49.7 KiB |
+| `/query-planner` (worker runtime injected) | 762.7 KiB | 778.7 KiB | 172.6 KiB | 182.9 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 166.9 KiB | 183.6 KiB | 50.8 KiB | 55.8 KiB |
 | `/esri-compat` | 1020.0 KiB | 1026.2 KiB | 255.5 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
@@ -11523,14 +11653,14 @@ _Generated 2026-08-04 at commit `92155338d`._
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.3 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.2 KiB | 1037.6 KiB | 271.7 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.8 KiB | 1120.1 KiB | 295.2 KiB | 321.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.8 KiB | 1120.1 KiB | 295.1 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 541.1 KiB | 562.6 KiB | 145.6 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
 | browser IIFE (`./browser` unpkg/jsdelivr) | 750.9 KiB | 754.5 KiB | 201.9 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 749.6 KiB | 753.1 KiB | 201.6 KiB | 221.7 KiB |
+| browser ESM (`./browser`) | 749.6 KiB | 753.1 KiB | 201.5 KiB | 221.7 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 238.6 KiB | 254.0 KiB | 61.7 KiB | 63.6 KiB |
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 612.9 KiB | 627.9 KiB | 163.4 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
