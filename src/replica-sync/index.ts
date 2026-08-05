@@ -18,6 +18,7 @@ export type { HonuaReplicaSyncClientOptions } from "./client.js";
 export {
   HonuaReplicaSyncError,
   isHonuaReplicaSyncError,
+  isReplicaSyncCapabilityRefusal,
   isUnsupportedReplicaSyncError,
 } from "./errors.js";
 export type { ReplicaSyncErrorCode } from "./errors.js";
@@ -30,6 +31,41 @@ export type {
   FixtureReplicaSyncSeed,
   FixtureReplicaSyncTransportOptions,
 } from "./fixture.js";
+export {
+  GEOSERVICES_EDIT_ERROR_CODES,
+  GEOSERVICES_REPLICA_SYNC_CAPABILITY,
+  GEOSERVICES_REPLICA_SYNC_PROTOCOL,
+  GEOSERVICES_SYNC_CAPABILITY_TOKEN,
+  GeoServicesReplicaSyncTransport,
+  classifyGeoServicesEditResult,
+  createGeoServicesReplicaSyncTransport,
+} from "./geoservices.js";
+export type {
+  GeoServicesConflictClassification,
+  GeoServicesCreateReplicaRequest,
+  GeoServicesCreateReplicaResult,
+  GeoServicesEditKind,
+  GeoServicesEditOutcome,
+  GeoServicesEditResultClassification,
+  GeoServicesLayerEdits,
+  GeoServicesReplicaSyncHttpPort,
+  GeoServicesReplicaSyncTransportOptions,
+  GeoServicesSyncConflict,
+  GeoServicesSyncDirection,
+  GeoServicesSynchronizeRequest,
+  GeoServicesSynchronizeResult,
+} from "./geoservices.js";
+export {
+  HONUA_REPLICA_SYNC_TRANSPORT_CONFORMANCE_KIND,
+  HONUA_REPLICA_SYNC_TRANSPORT_CONFORMANCE_VERSION,
+  REPLICA_SYNC_TRANSPORT_CONFORMANCE_CASES,
+  runReplicaSyncTransportConformance,
+} from "./transport-conformance.js";
+export type {
+  ReplicaSyncTransportConformanceCaseResultV1,
+  ReplicaSyncTransportConformanceOptions,
+  ReplicaSyncTransportConformanceReportV1,
+} from "./transport-conformance.js";
 export type {
   BatchConflictResolutionResult,
   ConflictFeatureState,

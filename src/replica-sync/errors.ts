@@ -9,6 +9,7 @@
  */
 
 import { type HonuaErrorCode, HonuaSdkError, isRetryableNetworkOrTimeoutHonuaError } from "../core/error-envelope.js";
+import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 
 export type ReplicaSyncErrorCode =
   | "unsupported-sync"
@@ -20,6 +21,12 @@ export type ReplicaSyncErrorCode =
   | "conflict-already-resolved"
   | "merge-required"
   | "permission-denied"
+  /**
+   * A server response did not match the dialect this build was written against:
+   * an unknown classification code, a missing required member, or a value that
+   * cannot be read losslessly. Raised instead of guessing a mapping.
+   */
+  | "response-drift"
   | "transport-failure";
 
 export class HonuaReplicaSyncError extends HonuaSdkError {
@@ -56,6 +63,21 @@ export function isUnsupportedReplicaSyncError(error: unknown): error is HonuaRep
   );
 }
 
+/**
+ * True for every typed refusal that means "this deployment does not offer the
+ * replica-sync capability you asked for".
+ *
+ * Two vocabularies legitimately answer that question: a transport that infers
+ * it from its own state raises the `unsupported-*` family, while a transport
+ * that reads a server's advertised capability surface raises the SDK-wide
+ * {@link HonuaCapabilityNotSupportedError} naming the capability. A caller
+ * deciding whether to hide manual conflict review must accept both, so the
+ * predicate lives here rather than being re-derived per call site.
+ */
+export function isReplicaSyncCapabilityRefusal(error: unknown): boolean {
+  return isUnsupportedReplicaSyncError(error) || error instanceof HonuaCapabilityNotSupportedError;
+}
+
 const REPLICA_SYNC_ERROR_CODES = {
   "unsupported-sync": "offline.replica-sync.capability",
   "unsupported-conflict-review": "offline.replica-sync.capability",
@@ -65,6 +87,7 @@ const REPLICA_SYNC_ERROR_CODES = {
   "replica-expired": "offline.replica-sync.validation",
   "conflict-already-resolved": "offline.replica-sync.validation",
   "merge-required": "offline.replica-sync.validation",
+  "response-drift": "offline.replica-sync.validation",
   "permission-denied": "offline.replica-sync.permission-denied",
   "transport-failure": "offline.transport.failure",
 } as const satisfies Record<ReplicaSyncErrorCode, HonuaErrorCode>;
