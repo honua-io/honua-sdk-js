@@ -63,12 +63,13 @@ Evidence backing the promotion — all release-gated, listed in the generated
 Promotion adds no required dependency: `cesium` stays an optional peer that the
 adapter imports lazily, and no core or 2D bundle ceiling moved.
 
-**Caveat carried into beta.** The browser matrix is the S1 slice of `#928`: it
-crosses camera, quantized-mesh terrain, url-template imagery, a 3D-Tiles
-tileset, and a glTF/GLB model against real Cesium objects. WMS/WMTS/ArcGIS
-imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC
-floor are still tracked there, and those specific bindings carry unit-level
-evidence only.
+The browser matrix (`#928`) now crosses camera, quantized-mesh terrain, every
+declared imagery protocol, 3D-Tiles tilesets including a `.pnts` point cloud and
+the server styling sidecar, and a glTF/GLB model against real Cesium objects,
+plus the fail-closed rows for an undeclared imagery protocol and an
+unmaterialized model format. Its teardown budgets are measured, its final-canvas
+GC floor is documented as a floor rather than asserted away, and its DOM-listener
+budget is proven by an injected per-cycle leak.
 
 ## Sample Pattern
 
@@ -731,8 +732,56 @@ primitive kind the adapter materializes, plus both non-`supported` outcomes:
 | `fixture-model` | `model-layer` (`glb`) | real `Model`, ready, placed and scaled |
 | `fixture-i3s` | `model-layer` (`i3s`) | fails closed with `scene-primitive-model-format-not-materialized`; never reaches a Cesium factory |
 
-Every asset — the glTF/GLB, the 3D-Tiles tileset, the quantized-mesh terrain
-tiles, and the imagery tiles — is generated in-process by
+A second case widens the imagery axis to **every protocol
+`CESIUM_SCENE_CAPABILITIES` declares**, mounted together on one viewer. Each row
+asserts the provider the adapter routed it to — resolved by `instanceof` against
+the live runtime's constructors, since Cesium ships minified — and the request
+that provider then put on the wire, which is the only place the adapter's
+per-protocol URL and parameter shaping is observable:
+
+| Binding | Protocol | Cesium provider | What the wire shows |
+| --- | --- | --- | --- |
+| `protocol-url-template` | `url-template` | `UrlTemplateImageryProvider` | `{z}/{x}/{y}` tile requests |
+| `protocol-wms` | `wms` | `WebMapServiceImageryProvider` | `GetMap` with the primitive's `layer`, `format`, `styles`, and — from `parameters` — `version=1.3.0`, which makes it a `crs=CRS:84` request rather than an `srs` one |
+| `protocol-wmts` | `wmts` | `WebMapTileServiceImageryProvider` | KVP `GetTile` with `layer`, `style`, `tilematrixset`, `format` |
+| `protocol-single-tile` | `single-tile` | `SingleTileImageryProvider` | one image request, no tile pyramid |
+| `protocol-arcgis-map-server` | `arcgis-imagery` (`…/MapServer`) | `ArcGisMapServerImageryProvider` | the `?f=json` service description, then `/export?f=image&layers=show:0&bboxSR=4326` |
+| `protocol-arcgis-image-server` | `arcgis-imagery` (`…/ImageServer`) | `UrlTemplateImageryProvider` | the adapter's own `/exportImage?f=image&…&bboxSR=3857&imageSR=3857` template |
+| `protocol-unsupported` | `tms` | none | fails closed with `scene-primitive-unsupported`; issues no request |
+
+`arcgis-imagery` appears twice because the adapter forks on the endpoint type,
+and a single row would leave half of that fork unproven. The row set is checked
+against `CESIUM_SCENE_CAPABILITIES.imagery.protocols` itself rather than against
+a copy of it, so a protocol added to the surface without evidence fails the lane
+instead of quietly staying uncovered. Each row also declares a distinct
+`opacity`, which doubles as a check that layer *n* really is row *n*.
+
+A third case covers the **3D-Tiles content variants**, where what distinguishes
+the rows is what the server put in the tileset rather than anything in the
+primitive's shape:
+
+- A `.pnts` **point cloud** loads through Cesium's point-cloud content pipeline
+  (not a glTF that happens to draw points), the primitive's `pointCloudShading`
+  becomes a real `PointCloudShading` on the live tileset with every validated
+  field intact, and the points reach the GPU — all 400 in the fixture grid are
+  selected for rendering, and the tileset is picked out of a real pick pass.
+- A tileset advertising the server's **styling sidecar**
+  (`extras.honua_style`, honua-server#1206) has its `style.json` discovered,
+  fetched, and applied without the caller asking for it. The applied object is a
+  real `Cesium3DTileStyle` carrying both sidecar blocks verbatim, and its colour
+  expression is executed by Cesium's own engine rather than merely assigned.
+- A tileset that advertises nothing fetches nothing and stays unstyled. That
+  silent no-op is half the same contract and would otherwise be invisible.
+
+The styled row binds its tileset by **absolute** URL. The sidecar `uri` is
+relative to the `tileset.json` URL and is resolved with `new URL(uri, tilesetUrl)`,
+so a bare root-relative tileset URI is not a parseable base and the adapter falls
+back to fetching the raw `uri` against the document. Server-issued tileset URLs
+are absolute, so that is what the fixture binds.
+
+Every asset — the glTF/GLB, both glTF-content 3D-Tiles tilesets, the `.pnts`
+point cloud, the styling sidecar, the quantized-mesh terrain tiles, the imagery
+tiles, and the ArcGIS MapServer service description — is generated in-process by
 `test/playwright/cesium-scene-fixture-assets.mjs` and served from loopback. The
 spec aborts and fails on any off-origin request, so the lane has no network
 dependency at all.
@@ -756,15 +805,47 @@ of each cycle is measured against fixed budgets:
   than against runner jitter; the spec records the measured actuals next to the
   ceilings it asserts.
 - Every destroyed `Viewer` object graph must become collectible under forced GC,
-  and no WebGL canvas may outlive a non-final cycle. Chromium pins the most
-  recently used WebGL canvas regardless of what the page does, so exactly one
-  surviving canvas is the honest floor; a real retention bug accumulates across
-  cycles instead.
+  bounded by the final-canvas GC floor below.
 - CesiumJS pools its `TaskProcessor` web workers globally and deliberately does
   not terminate them on viewer destroy, so the worker budget is non-growth after
   the first cycle rather than zero.
 
-A second case in the same lane covers application time and realtime deltas
+#### The final-canvas GC floor
+
+Chromium keeps the most recently used WebGL canvas — and the drawing buffer
+behind it — reachable independently of the page's own references. Nothing the
+page does displaces it: dropping every reference does not, and creating a
+throwaway context afterwards does not either, which was measured rather than
+assumed. So **zero retained canvases is not a property this lane can honestly
+assert**, and asserting it anyway would only teach the next reader to relax the
+budget the first time it flaked.
+
+What the lane asserts instead is that this is a floor and not a slope:
+
+- at most one canvas survives forced collection, however many cycles ran;
+- the survivor is always the *final* cycle's — nothing outlives a non-final
+  cycle;
+- the same bound holds for live WebGL contexts;
+- and the retained count does not scale with the cycle count.
+
+A real retention bug is a slope: it pins one canvas per cycle, so it reports one
+per cycle where the floor reports at most one in total. The spec keeps the cycle
+count above `floor + 1` and asserts that relationship rather than trusting it, so
+the two can never be confused.
+
+#### Proving the listener budget with an injected leak
+
+DOM-listener retention is bounded as a run total rather than as a per-cycle
+equality, because asynchronous teardown moves a listener across a cycle boundary
+without leaking it (`#1055`). A weaker assertion is only an improvement if it
+still fails on the thing it exists to catch, so the lane proves that rather than
+arguing it: one case runs the same predicate twice over the same matrix — once
+on a clean run, where it must hold, and once with a genuine per-cycle listener
+leak injected into the fixture, where it must fail. The injection is a fixture
+flag that defaults to off and is switched on only by that case, so nothing in the
+committed lane leaks by default.
+
+A further case in the same lane covers application time and realtime deltas
 against a live `Viewer`: it mounts a plan with the clock bound, advances
 application time, and asserts that `viewer.clock` moved, that a probe entity's
 Cesium availability changed answer because of it, and that every layer handle —
