@@ -17,7 +17,7 @@
     "@bufbuild/protobuf": "2.13.0",
     "@connectrpc/connect": "2.1.2",
     "@connectrpc/connect-web": "2.1.2",
-    "@honua/sdk-js": "0.1.2-beta.0",
+    "@honua/sdk-js": "0.1.4-beta.0",
     "@turf/area": "7.3.5",
     "@turf/bbox": "7.3.5",
     "@turf/boolean-contains": "7.3.5",
@@ -33,14 +33,11 @@
     "@turf/nearest-point": "7.3.5",
     "@turf/simplify": "7.3.5",
     "@turf/union": "7.3.5",
-    "maplibre-gl": "6.0.0"
+    "maplibre-gl": "6.1.0"
   },
   "devDependencies": {
     "@types/node": "24.13.3",
     "typescript": "5.9.3",
     "vite": "8.2.0"
-  },
-  "overrides": {
-    "maplibre-gl": "6.0.0"
   }
 }

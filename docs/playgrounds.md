@@ -4,7 +4,7 @@
 
 Every `create-honua-app` starter runs in a browser playground straight from this repository — no clone, no
 install, no account. Each project is self-contained: it depends on the published
-`@honua/sdk-js@0.1.2-beta.0` package and serves its own committed fixture, so the green path
+`@honua/sdk-js@0.1.4-beta.0` package and serves its own committed fixture, so the green path
 never depends on a third-party endpoint. Point `VITE_HONUA_ENDPOINT` at an anonymous public service to run the same
 code against live data.
 
@@ -20,7 +20,7 @@ Vite + TypeScript app that connects to an endpoint, explains a bounded query, an
 - Project directory: `packages/create-honua-app/templates/vanilla-ts`
 - Entry file: `src/main.ts`
 - Data lane: committed fixture (`fixture`)
-- Pinned SDK: `@honua/sdk-js@0.1.2-beta.0`
+- Pinned SDK: `@honua/sdk-js@0.1.4-beta.0`
 - StackBlitz: <https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/vanilla-ts>
 - CodeSandbox: <https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/vanilla-ts>
 
@@ -31,7 +31,7 @@ Vite + React + TypeScript app that mounts the same accepted plan through @honua/
 - Project directory: `packages/create-honua-app/templates/react-ts`
 - Entry file: `src/App.tsx`
 - Data lane: committed fixture (`fixture`)
-- Pinned SDK: `@honua/sdk-js@0.1.2-beta.0`
+- Pinned SDK: `@honua/sdk-js@0.1.4-beta.0`
 - StackBlitz: <https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/react-ts>
 - CodeSandbox: <https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/packages/create-honua-app/templates/react-ts>
 
