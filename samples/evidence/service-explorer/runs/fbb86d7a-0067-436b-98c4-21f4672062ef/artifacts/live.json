@@ -1,0 +1,70 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "ccb5cf1e3332aa888a39888956040531657e83a4",
+  "command": [
+    "npm",
+    "run",
+    "demo:service-explorer:live-evidence"
+  ],
+  "evidencePath": "samples/evidence/service-explorer/runs/fbb86d7a-0067-436b-98c4-21f4672062ef/artifacts/live-evidence.json",
+  "evidence": {
+    "$schema": "../../samples/contract/v1/schemas/sample-evidence.schema.json",
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "service-explorer",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-08-05T15:35:21.872Z",
+    "authMode": "anonymous",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.4-beta.0",
+      "gitCommit": "ccb5cf1e3332aa888a39888956040531657e83a4"
+    },
+    "source": {
+      "provider": "esri-sampleserver6-and-pygeoapi-demo",
+      "identity": "canonical-anonymous-geoservices+canonical-anonymous-ogc-features",
+      "endpoint": "https://demo.pygeoapi.io/master",
+      "deploymentVersion": null,
+      "dataVersion": null
+    },
+    "provenance": {
+      "sourceId": "canonical-anonymous-geoservices+canonical-anonymous-ogc-features",
+      "observedAt": "2026-08-05T15:35:21.872Z",
+      "validAt": null,
+      "state": "live",
+      "attribution": "Esri sample services and the pygeoapi development team."
+    },
+    "semantics": {
+      "operation": "dual-protocol-inspect-plan-query",
+      "outcome": "geoservices-and-ogc-plans-executed",
+      "itemCount": 2,
+      "assertions": [
+        "credential-free-fixed-https-endpoints",
+        "same-origin-path-confined-requests",
+        "bounded-request-and-response-budgets",
+        "geoservices-feature-service-inspected",
+        "ogc-features-conformance-inspected",
+        "strict-query-plans-accepted",
+        "one-result-per-protocol-returned"
+      ]
+    },
+    "timing": {
+      "totalMs": 2071.250985,
+      "firstSuccessfulInteractionMs": 405.770063
+    },
+    "degradation": {
+      "state": "none",
+      "reasons": []
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "examples/service-explorer/live-evidence.mjs",
+        "sha256": "a8c67405185e2c0296d99892c7365a9b49d6cd441a1f645a94f41b5de92a3816"
+      }
+    ]
+  }
+}
