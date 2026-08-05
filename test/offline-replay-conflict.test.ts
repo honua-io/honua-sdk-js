@@ -5,6 +5,7 @@ import {
   HonuaOfflineEditQueueError,
   OFFLINE_REPLAY_SYNC_CONFLICT_FIELD_MAP,
   type OfflineEditConflictOutcome,
+  type OfflineEditConflictResolutionOutcome,
   type OfflineEditQueue,
   type OfflineEditReplayAcknowledgement,
   type OfflineEditReplayRequest,
@@ -370,9 +371,10 @@ describe("offline replay sync-conflict losslessness", () => {
    * claims to account for.
    */
   const coverage: Record<
-    | Exclude<keyof OfflineQueuedEdit, "edit" | "conflict">
+    | Exclude<keyof OfflineQueuedEdit, "edit" | "conflict" | "conflictResolution">
     | `edit.${keyof OfflineFeatureEdit}`
-    | `conflict.${keyof OfflineEditConflictOutcome}`,
+    | `conflict.${keyof OfflineEditConflictOutcome}`
+    | `conflictResolution.${keyof OfflineEditConflictResolutionOutcome}`,
     true
   > = {
     version: true,
@@ -398,6 +400,15 @@ describe("offline replay sync-conflict losslessness", () => {
     "conflict.conflictId": true,
     "conflict.detectedAt": true,
     "conflict.serverGeneration": true,
+    "conflictResolution.conflictId": true,
+    "conflictResolution.detectedAt": true,
+    "conflictResolution.serverGeneration": true,
+    "conflictResolution.choice": true,
+    "conflictResolution.disposition": true,
+    "conflictResolution.acknowledgement": true,
+    "conflictResolution.resolvedAt": true,
+    "conflictResolution.resolvedBy": true,
+    "conflictResolution.note": true,
   };
 
   it("accounts for every field of the durable record exactly once", () => {
@@ -406,15 +417,33 @@ describe("offline replay sync-conflict losslessness", () => {
     expect([...sources].sort()).toEqual(Object.keys(coverage).sort());
   });
 
-  it("lands every carried and derived field on a member the projection really publishes", async () => {
-    const { edit } = await conflictedEdit({ serverGeneration: "server-gen-42" });
-    const projection = projected(projectOfflineReplaySyncConflict({ edit, replica: REPLICA }));
-    const published: Record<string, unknown> = {
+  function publishedMembers(projection: OfflineReplaySyncConflictProjectedV1): Record<string, unknown> {
+    return {
       editId: projection.editId,
       ...Object.fromEntries(Object.entries(projection.conflict).map(([key, value]) => [`conflict.${key}`, value])),
       ...Object.fromEntries(
         Object.entries(projection.conflict.clientState).map(([key, value]) => [`conflict.clientState.${key}`, value]),
       ),
+      ...Object.fromEntries(
+        Object.entries(projection.localResolution ?? {}).map(([key, value]) => [`localResolution.${key}`, value]),
+      ),
+    };
+  }
+
+  it("lands every carried and derived field on a member the projection really publishes", async () => {
+    const { queue: store, edit } = await conflictedEdit({ serverGeneration: "server-gen-42" });
+    const resolvedEdit = await store.resolveConflict(edit.id, PARTITION, {
+      conflictId: "server-conflict-1",
+      choice: "accept-client",
+      resolvedBy: "reviewer-1",
+      note: "Local edit stands.",
+    });
+    // The union of both projected shapes: an open conflict publishes the
+    // conflict members, and a closed one publishes the resolution members, so
+    // neither half of the ledger can point at a member nothing ever emits.
+    const published: Record<string, unknown> = {
+      ...publishedMembers(projected(projectOfflineReplaySyncConflict({ edit, replica: REPLICA }))),
+      ...publishedMembers(projected(projectOfflineReplaySyncConflict({ edit: resolvedEdit, replica: REPLICA }))),
     };
     // `clientState.deleted` is only published for a delete, so it is allowed to
     // be absent here; every other target must exist.

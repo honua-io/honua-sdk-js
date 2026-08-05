@@ -43,6 +43,28 @@ export type ReplicaState = "provisioning" | "active" | "syncing" | "out-of-date"
 /**
  * How a replica reconciles concurrent edits when synchronizing. Mirrors Esri
  * `createReplica` conflict behavior without binding to its wire spelling.
+ *
+ * A policy describes what the *replica* does; carrying one out is a different
+ * question for each surface. The offline edit queue can carry out a policy only
+ * when the complete effect on the queue follows from queue-side state alone —
+ * the queued edit, its conflict record, and the local clock — with no remote
+ * content and no server decision. That test splits the union in two, and
+ * `replayOfflineEditPass` refuses the server-adjudicated half by name rather
+ * than silently behaving like `manual`:
+ *
+ * | Policy | SDK disposition | Replay action | Reason |
+ * | --- | --- | --- | --- |
+ * | `manual` | locally-honoured | retain-for-review | queue-side-outcome |
+ * | `server-wins` | locally-honoured | discard-local-edit | queue-side-outcome |
+ * | `client-wins` | server-adjudicated | refuse | needs-server-override |
+ * | `last-writer-wins` | server-adjudicated | refuse | needs-remote-edit-time |
+ *
+ * `server-wins` is honourable for the *outbound queue only*: the queued edit
+ * lost, so it is abandoned. Adopting the server's row into local state needs
+ * the remote content and is not what this does. The machine-readable form of
+ * this table is `OFFLINE_REPLAY_CONFLICT_POLICIES` in
+ * `@honua/sdk-js/offline`, and a test fails if the two disagree; the prose is
+ * in `docs/offline-regions.md`.
  */
 export type ReplicaConflictPolicy = "server-wins" | "client-wins" | "manual" | "last-writer-wins";
 

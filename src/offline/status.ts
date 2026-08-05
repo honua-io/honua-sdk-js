@@ -203,6 +203,7 @@ const QUEUED_EDIT_KEYS = new Set([
   "retry",
   "applied",
   "conflict",
+  "conflictResolution",
   "cancellation",
   "audit",
 ]);

@@ -1,6 +1,6 @@
 {
   "format": "honua.offline-shell-manifest.v1",
-  "deploymentId": "offline-region-reference-2026-08-04-v3",
+  "deploymentId": "offline-region-reference-2026-08-05-v1",
   "resources": [
     {
       "url": "./",
@@ -63,6 +63,12 @@
       "mediaType": "application/javascript"
     },
     {
+      "url": "/dist/src/offline/conflict-resolution.js",
+      "byteLength": 13844,
+      "integrity": "sha256:e2973d1c1a51313c7a2564763e315c81087393e0a9ef70614f102113e6ea1a04",
+      "mediaType": "application/javascript"
+    },
+    {
       "url": "/dist/src/offline/credential-screen.js",
       "byteLength": 3310,
       "integrity": "sha256:9fee2f47edb407543dc3003098f237ffa2cd9564a2c10124369f2c478d3ac55a",
@@ -76,14 +82,14 @@
     },
     {
       "url": "/dist/src/offline/edit-queue.js",
-      "byteLength": 71059,
-      "integrity": "sha256:be37e6ba1a90bcb2c5c68017b88ec1865aeef17b2b2bdca5d512fd71520bd44d",
+      "byteLength": 79676,
+      "integrity": "sha256:41de222490f695c8bd914b1b8983c180e47f03a82c6c3c9a2d329fe1f2e872c4",
       "mediaType": "application/javascript"
     },
     {
       "url": "/dist/src/offline/edit-replay.js",
-      "byteLength": 14786,
-      "integrity": "sha256:4e1bd01847bda1b1424324f2bda940d81ac2ad93321dee7563efc57328fd8aea",
+      "byteLength": 17021,
+      "integrity": "sha256:b3bba27fdf0777ae1d150e471bd24309066a631e799d2a7259e1c365ad33599d",
       "mediaType": "application/javascript"
     },
     {
@@ -94,8 +100,8 @@
     },
     {
       "url": "/dist/src/offline/index.js",
-      "byteLength": 5171,
-      "integrity": "sha256:9a50f6bf48789c6a0ff23f715a4179aaee8a689cec9146aa547a399eac9c8147",
+      "byteLength": 5482,
+      "integrity": "sha256:1141e127180c7062da4decbf02afe60cbd3cc3de1cc81d3c526fa7ad96a3b4e7",
       "mediaType": "application/javascript"
     },
     {
@@ -142,8 +148,8 @@
     },
     {
       "url": "/dist/src/offline/replay-conflict.js",
-      "byteLength": 16742,
-      "integrity": "sha256:108def4a29aa1e0d5440d74f1f1c5ee063e9c3255758679b22996c1fbd46de4e",
+      "byteLength": 21373,
+      "integrity": "sha256:b864b1875bb4ff3213735d03eef40910d83e1a8959c2ea408e5ad3cd5bed1a1f",
       "mediaType": "application/javascript"
     },
     {
@@ -160,8 +166,8 @@
     },
     {
       "url": "/dist/src/offline/status.js",
-      "byteLength": 20781,
-      "integrity": "sha256:8243db9f05feec68717fd43bba8e452ebcc648753744903915d685ea7be98166",
+      "byteLength": 20807,
+      "integrity": "sha256:a0f4541f22996df811c0085be80b923db72ffdeadfa0ef39cd64ae9ff5eb9ab8",
       "mediaType": "application/javascript"
     },
     {
