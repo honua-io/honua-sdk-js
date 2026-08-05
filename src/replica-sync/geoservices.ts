@@ -719,16 +719,24 @@ export class GeoServicesReplicaSyncTransport implements ReplicaSyncTransport {
   }
 
   async #probeConflictReview(serviceId: string): Promise<boolean> {
-    const summaries = await this.#listReplicaSummaries(serviceId);
-    const probe = summaries[0];
-    // Without a replica the provider's answer is unobservable; the admin surface
-    // answered, which is the only fact available.
-    if (probe === undefined) return true;
     try {
+      const summaries = await this.#listReplicaSummaries(serviceId);
+      const probe = summaries[0];
+      // Without a replica the provider's answer is unobservable; the admin
+      // surface answered, which is the only fact available.
+      if (probe === undefined) return true;
       await this.#listReplicaConflicts(serviceId, probe.replicaId, "pending");
       return true;
     } catch (error) {
+      // The provider retains no durable records.
       if (error instanceof HonuaReplicaSyncError && error.code === "unsupported-conflict-review") return false;
+      // The `sync.offline` gate covers the admin review surface only — the
+      // FeatureServer replica endpoints are not behind it. A deployment with the
+      // capability disabled still creates and synchronizes replicas, so the
+      // review flags go false rather than failing the whole capability read.
+      // `listReplicas` / `listConflicts` still raise the capability refusal,
+      // which is where a caller needs to see it.
+      if (error instanceof HonuaCapabilityNotSupportedError) return false;
       throw error;
     }
   }

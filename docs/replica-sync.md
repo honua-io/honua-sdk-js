@@ -56,13 +56,23 @@ Nothing is attempted before the service advertises it.
 - **Sync not advertised.** `capabilities()` reads the FeatureServer metadata
   resource. If neither `syncEnabled: true` nor a `Sync` token in `capabilities`
   is present, it throws `HonuaCapabilityNotSupportedError` naming `Sync`.
-- **`sync.offline` disabled.** The admin replica routes sit behind the server's
-  `sync.offline` experimental capability gate, which answers a disabled
-  deployment with **HTTP 404** and an `application/problem+json` body whose
-  `type` is `honua:capability-experimental-disabled`. The transport recognizes
-  that body and raises `HonuaCapabilityNotSupportedError` naming `sync.offline`.
-  A disabled capability is a configuration state; surfacing it as "replica not
+- **`sync.offline` disabled.** The **admin** replica routes — and only those —
+  sit behind the server's `sync.offline` experimental capability gate, which
+  answers a disabled deployment with **HTTP 404** and an
+  `application/problem+json` body whose `type` is
+  `honua:capability-experimental-disabled`. The transport recognizes that body
+  and raises `HonuaCapabilityNotSupportedError` naming `sync.offline`. A
+  disabled capability is a configuration state; surfacing it as "replica not
   found" would report configuration as data loss.
+
+  The FeatureServer replica endpoints (`createReplica`, `synchronizeReplica`,
+  `unRegisterReplica`, `applyEdits`) are **not** behind that gate. A deployment
+  with the capability disabled still creates and synchronizes replicas, so
+  `capabilities()` reports `sync` / `createReplica` / `synchronizeReplica` as
+  available with `conflictReview: false`, rather than failing the whole
+  capability read. `listReplicas`, `listConflicts`, `getConflict`, and
+  `resolveConflict` still raise the capability refusal — that is where a caller
+  needs to see it.
 - **No durable conflict records.** A provider that cannot retain conflicts
   answers the conflict routes with HTTP 501; the transport raises
   `HonuaReplicaSyncError` with code `unsupported-conflict-review`, and

@@ -161,6 +161,26 @@ describe("capability gating", () => {
     );
   });
 
+  it("keeps replica creation available when only the review surface is gated off", async () => {
+    // `sync.offline` gates the admin review routes only; the FeatureServer
+    // replica endpoints are not behind it. A disabled deployment still creates
+    // and synchronizes replicas, so the capability read must report that rather
+    // than failing wholesale.
+    const { transport } = await transportFor({ capabilityDisabled: true });
+    const capabilities = await transport.capabilities(LOOPBACK_SERVICE_ID);
+
+    expect(capabilities).toMatchObject({
+      sync: true,
+      createReplica: true,
+      synchronizeReplica: true,
+      conflictReview: false,
+      conflictResolution: false,
+    });
+    await expect(transport.createReplica({ replicaName: "Field crew", layers: [0] })).resolves.toMatchObject({
+      serverGen: "50",
+    });
+  });
+
   it("refuses a filter the replica registry cannot honour instead of returning the wrong set", async () => {
     const { transport } = await transportFor();
     await expect(transport.listReplicas({ ownerId: "user-amelia" })).rejects.toBeInstanceOf(
