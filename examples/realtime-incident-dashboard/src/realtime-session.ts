@@ -39,7 +39,7 @@ export interface IncidentRealtimeReceipt {
   readonly phase: ResumableRealtimeState["phase"];
 }
 
-export interface IncidentRealtimeSession<TFeature> {
+export interface IncidentRealtimeSession {
   readonly gateState: ResumableRealtimeState;
   readonly lastReceipt: IncidentRealtimeReceipt | undefined;
   connect(): RealtimeSubscriptionHandle;
@@ -144,7 +144,7 @@ export function createIncidentRealtimeResumeContext(
  */
 export async function createIncidentRealtimeSession<TFeature>(
   options: CreateIncidentRealtimeSessionOptions<TFeature>,
-): Promise<IncidentRealtimeSession<TFeature>> {
+): Promise<IncidentRealtimeSession> {
   const lifecycle = new AbortController();
   let handle: RealtimeSubscriptionHandle | undefined;
   let connected = false;

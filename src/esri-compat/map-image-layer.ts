@@ -1,6 +1,5 @@
 import { HonuaClient } from "../core/client.js";
 import type {
-  ApplyEditsRequest,
   ExportMapRequest,
   HonuaApplyEditsResponse,
   HonuaExportMapResponse,

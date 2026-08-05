@@ -29,7 +29,7 @@ import type { HonuaStyleSpecification } from "../style/specification.js";
 import { type MapPackageDiff, diffPackages } from "./diff.js";
 import { HonuaMapPackageError } from "./errors.js";
 import { type LegendEntry, buildLegend } from "./legend.js";
-import type { HonuaMapPackage, HonuaMapPackageInitialView, HonuaMapPackagePopupBinding } from "./map-package.js";
+import type { HonuaMapPackage, HonuaMapPackagePopupBinding } from "./map-package.js";
 import { type PopupBindingHandle, type PopupFactory, type PopupRenderer, bindPopup } from "./popups.js";
 import {
   featureStateTargetFromSelection,

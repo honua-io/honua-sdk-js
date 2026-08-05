@@ -33,10 +33,7 @@ class FakeGeoJsonSourceHandle {
 class FakeVectorSourceHandle {
   tiles: string[] | undefined;
   readonly setTilesCalls: string[][] = [];
-  constructor(
-    spec: Record<string, unknown>,
-    private readonly supportsSetTiles: boolean,
-  ) {
+  constructor(spec: Record<string, unknown>, supportsSetTiles: boolean) {
     Object.assign(this, spec);
     this.tiles = Array.isArray(spec.tiles) ? [...(spec.tiles as string[])] : undefined;
     if (!supportsSetTiles) {

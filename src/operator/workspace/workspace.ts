@@ -53,7 +53,6 @@ export class OperatorWorkspace {
   public readonly theme: ThemeProvider;
   public readonly messages: MessageCatalog | undefined;
 
-  readonly #telemetry: OperatorTelemetry | undefined;
   readonly #bag = new ListenerBag<WorkspaceEvent>();
   readonly #unsubscribers: Array<() => void> = [];
   #activeIntentId: string | undefined;
@@ -61,7 +60,6 @@ export class OperatorWorkspace {
 
   public constructor(options: OperatorWorkspaceOptions) {
     const { client, telemetry } = options;
-    this.#telemetry = telemetry;
     this.theme =
       options.theme && typeof (options.theme as ThemeProvider).apply === "function"
         ? (options.theme as ThemeProvider)

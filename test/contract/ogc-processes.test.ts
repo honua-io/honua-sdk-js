@@ -180,7 +180,7 @@ describe("ogc-processes / IJobRun lifecycle", () => {
         ],
         [
           "/ogc/processes/jobs/job-4",
-          (url, init) => {
+          (_url, init) => {
             if (init?.method === "DELETE") {
               cancelCalls += 1;
               return jsonResponse({ jobID: "job-4", status: "dismissed" });

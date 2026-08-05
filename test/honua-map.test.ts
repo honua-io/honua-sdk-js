@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { HonuaFeatureLayer, HonuaMapService } from "@honua/sdk-js/honua";
 import { HonuaMap } from "@honua/sdk-js/map";

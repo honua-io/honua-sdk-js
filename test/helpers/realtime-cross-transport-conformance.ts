@@ -17,7 +17,6 @@ import type {
   RealtimeWebSocket,
   RealtimeWebSocketCloseEvent,
   RedactedRealtimeCheckpointV1,
-  ResumableRealtimeSubscription,
 } from "@honua/sdk-js/realtime";
 
 type RealtimeSdk = typeof import("@honua/sdk-js/realtime");

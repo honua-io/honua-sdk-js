@@ -2,11 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { type ConnectDiscoverySnapshot, HONUA_CONNECT_DISCOVERY_SNAPSHOT_VERSION, connect } from "../src/connect.js";
 import { type SourceDescriptor, capabilities } from "../src/contract/types.js";
-import {
-  type HonuaOdataMetadata,
-  getOdataSourceSchemaProjectionDetails,
-  parseOdataMetadata,
-} from "../src/core/odata.js";
+import { getOdataSourceSchemaProjectionDetails, parseOdataMetadata } from "../src/core/odata.js";
 import { buildSourceProfile } from "../src/geoparquet/metadata.js";
 import { createQueryIr, hashQueryIr, queryIrSourceIdentity } from "../src/query-planner/ir.js";
 import {

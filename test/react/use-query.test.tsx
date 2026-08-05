@@ -3,7 +3,7 @@ import { act, cleanup, render, renderHook, screen, waitFor } from "@testing-libr
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { Query, Result, Source } from "../../src/contract/index.js";
+import type { Query, Source } from "../../src/contract/index.js";
 import type { HonuaClient } from "../../src/core/client.js";
 import { HonuaProvider, useQuery } from "../../src/react/index.js";
 import { controllableSource, fakeClient, makeResult } from "./support.js";

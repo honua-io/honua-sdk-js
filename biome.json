@@ -12,7 +12,10 @@
         "useLiteralKeys": "off"
       },
       "correctness": {
-        "noSelfAssign": "off"
+        "noSelfAssign": "off",
+        "noUnusedFunctionParameters": "error",
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error"
       },
       "performance": {
         "noDelete": "off"

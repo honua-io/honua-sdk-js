@@ -1,4 +1,4 @@
-import { HonuaCogError, type HonuaCogErrorCode } from "./errors.js";
+import { HonuaCogError } from "./errors.js";
 import type {
   CogByteRangeRequest,
   CogRangePurpose,

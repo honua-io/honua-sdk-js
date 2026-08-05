@@ -61,7 +61,6 @@ export function convertLabelingInfo(
 }
 
 const FEATURE_FIELD_RE = /^\$feature\.(\w+)$/;
-const FEATURE_FIELD_GLOBAL_RE = /\$feature\.(\w+)/g;
 
 function parseLabelExpression(lc: WebMapLabelClass, warn: WarningCollector): unknown | undefined {
   // Prefer labelExpressionInfo (Arcade-based)

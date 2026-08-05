@@ -364,7 +364,7 @@ describe("query tile runtime helpers", () => {
     const controller = createQueryTileRequestController<string>(descriptor(), {
       fetchTile: (request) => {
         if (request.tileKey.z === 2 && request.tileKey.x === 0 && request.tileKey.y === 0) {
-          return new Promise((resolve, reject) => {
+          return new Promise((_resolve, reject) => {
             request.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
               once: true,
             });

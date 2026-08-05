@@ -16,7 +16,6 @@ import {
   HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1,
   type HonuaGeneratedAppBuildSpec,
   type HonuaGeneratedAppFieldBinding,
-  type HonuaGeneratedAppLayout,
   type HonuaGeneratedAppManifest,
   type HonuaGeneratedAppManifestArtifact,
   type HonuaGeneratedAppPackage,

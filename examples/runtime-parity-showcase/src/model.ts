@@ -5,7 +5,6 @@ import type {
   AttachmentApi,
   EditEnvelope,
   EditResult,
-  FeatureId,
   Query,
   RelatedQuery,
   RelatedResult,

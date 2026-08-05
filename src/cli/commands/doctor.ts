@@ -49,10 +49,6 @@ function readJsonFile(file: string): unknown {
   }
 }
 
-function stringOrUndefined(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
 function headersOrUndefined(value: unknown): Record<string, string | readonly string[] | undefined> | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const output: Record<string, string | readonly string[] | undefined> = {};

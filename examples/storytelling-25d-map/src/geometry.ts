@@ -210,7 +210,7 @@ export function sliceRouteAtProgress(metrics: StoryRouteMetrics, progress: numbe
   return sliced;
 }
 
-export function toLineFeature(coordinates: StoryCoordinate[], id: string): GeoJsonLineString {
+export function toLineFeature(coordinates: StoryCoordinate[]): GeoJsonLineString {
   if (coordinates.length < 2) {
     const coordinate = coordinates[0] ?? [0, 0];
     return {

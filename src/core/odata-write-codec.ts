@@ -168,7 +168,6 @@ export function encodeOdataEntityKey(
   options: HonuaOdataEntityKeyEncodingOptions = {},
 ): HonuaOdataEncodedEntityKey {
   try {
-    const context = encodingContext(options);
     const model = codecModel(metadata, entitySet);
     const configuredKeyFields = dataProperty(options, "keyFields", ["options", "keyFields"], "invalid-options");
     const keys =

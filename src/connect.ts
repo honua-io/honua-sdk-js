@@ -124,7 +124,6 @@ import type {
   HonuaLayerMetadata,
   HonuaOgcCollectionSummary,
   HonuaOgcCollectionsResponse,
-  HonuaOgcConformanceResponse,
   HonuaOgcLandingResponse,
   HonuaStacLandingResponse,
   OgcEndpointLayout,

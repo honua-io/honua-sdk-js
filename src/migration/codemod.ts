@@ -1901,7 +1901,7 @@ function rewriteReactiveUtilsImports(options: {
       continue;
     }
 
-    const replacement = buildReactiveUtilsCompatImport(statement, options.sourceFile, options.compatImportPath);
+    const replacement = buildReactiveUtilsCompatImport(statement, options.compatImportPath);
     if (!replacement) {
       const nodeStart = statement.getStart(options.sourceFile);
       const location = options.sourceFile.getLineAndCharacterOfPosition(nodeStart);
@@ -1990,12 +1990,7 @@ function rewriteGeometryEngineImports(options: {
 
     const isAsync = /geometryEngineAsync(\.js)?$/.test(statement.moduleSpecifier.text);
     const compatSymbol = isAsync ? "geometryEngineAsyncCompat" : "geometryEngineCompat";
-    const replacement = buildGeometryEngineCompatImport(
-      statement,
-      options.sourceFile,
-      options.compatImportPath,
-      compatSymbol,
-    );
+    const replacement = buildGeometryEngineCompatImport(statement, options.compatImportPath, compatSymbol);
     if (!replacement) {
       const nodeStart = statement.getStart(options.sourceFile);
       const location = options.sourceFile.getLineAndCharacterOfPosition(nodeStart);
@@ -2146,7 +2141,6 @@ function buildLocatorRestCompatImport(statement: ts.ImportDeclaration, compatImp
 
 function buildGeometryEngineCompatImport(
   statement: ts.ImportDeclaration,
-  sourceFile: ts.SourceFile,
   compatImportPath: string,
   compatSymbol: string,
 ): string | undefined {
@@ -2320,7 +2314,7 @@ function rewriteEsriRequestImports(options: {
       continue;
     }
 
-    const replacement = buildEsriRequestCompatImport(statement, options.sourceFile, options.compatImportPath);
+    const replacement = buildEsriRequestCompatImport(statement, options.compatImportPath);
     if (!replacement) {
       const nodeStart = statement.getStart(options.sourceFile);
       const location = options.sourceFile.getLineAndCharacterOfPosition(nodeStart);
@@ -2362,11 +2356,7 @@ function rewriteEsriRequestImports(options: {
   };
 }
 
-function buildEsriRequestCompatImport(
-  statement: ts.ImportDeclaration,
-  sourceFile: ts.SourceFile,
-  compatImportPath: string,
-): string | undefined {
+function buildEsriRequestCompatImport(statement: ts.ImportDeclaration, compatImportPath: string): string | undefined {
   const importClause = statement.importClause;
   if (!importClause) {
     return undefined;
@@ -2441,7 +2431,7 @@ function rewriteIdentityManagerImports(options: {
       continue;
     }
 
-    const replacement = buildIdentityManagerCompatImport(statement, options.sourceFile, options.compatImportPath);
+    const replacement = buildIdentityManagerCompatImport(statement, options.compatImportPath);
     if (!replacement) {
       const nodeStart = statement.getStart(options.sourceFile);
       const location = options.sourceFile.getLineAndCharacterOfPosition(nodeStart);
@@ -2485,7 +2475,6 @@ function rewriteIdentityManagerImports(options: {
 
 function buildIdentityManagerCompatImport(
   statement: ts.ImportDeclaration,
-  sourceFile: ts.SourceFile,
   compatImportPath: string,
 ): string | undefined {
   const importClause = statement.importClause;
@@ -2562,7 +2551,7 @@ function rewriteEsriConfigImports(options: {
       continue;
     }
 
-    const replacement = buildEsriConfigCompatImport(statement, options.sourceFile, options.compatImportPath);
+    const replacement = buildEsriConfigCompatImport(statement, options.compatImportPath);
     if (!replacement) {
       const nodeStart = statement.getStart(options.sourceFile);
       const location = options.sourceFile.getLineAndCharacterOfPosition(nodeStart);
@@ -2604,11 +2593,7 @@ function rewriteEsriConfigImports(options: {
   };
 }
 
-function buildEsriConfigCompatImport(
-  statement: ts.ImportDeclaration,
-  sourceFile: ts.SourceFile,
-  compatImportPath: string,
-): string | undefined {
+function buildEsriConfigCompatImport(statement: ts.ImportDeclaration, compatImportPath: string): string | undefined {
   const importClause = statement.importClause;
   if (!importClause) {
     return undefined;
@@ -2647,11 +2632,7 @@ function buildEsriConfigCompatImport(
   return `import { ${uniqueSpecifiers.join(", ")} } from "${compatImportPath}";`;
 }
 
-function buildReactiveUtilsCompatImport(
-  statement: ts.ImportDeclaration,
-  sourceFile: ts.SourceFile,
-  compatImportPath: string,
-): string | undefined {
+function buildReactiveUtilsCompatImport(statement: ts.ImportDeclaration, compatImportPath: string): string | undefined {
   const importClause = statement.importClause;
   if (!importClause) {
     return `import { reactiveUtils } from "${compatImportPath}";`;

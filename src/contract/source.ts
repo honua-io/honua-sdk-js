@@ -106,14 +106,10 @@ import {
   type AggregationFn,
   type AggregationMetric,
   type AggregationSpec,
-  type AttachmentAdd,
   type AttachmentApi,
-  type AttachmentDelete,
   type AttachmentEditOutcome,
   type AttachmentGroup,
   type AttachmentInfo,
-  type AttachmentQuery,
-  type AttachmentUpdate,
   CAPABILITIES,
   type Capabilities,
   type Capability,
@@ -2180,7 +2176,7 @@ function toWfsObjectIdsDrainRequest<T>(request: Query<T> | undefined): Query<T> 
  * GeoJSON FeatureCollection. The protocol compiler owns filter, projection,
  * paging, CRS, and transport selection so legacy drains do not duplicate it.
  */
-async function runGetFeatureJson<T>(
+async function runGetFeatureJson(
   featureType: HonuaWfsFeatureType,
   choice: OutputFormatChoice,
   featureNamespace: string | undefined,

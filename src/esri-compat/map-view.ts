@@ -1,4 +1,4 @@
-import { CompatEventBus, resolveCompatEventBus, safeInvokeCompatListener } from "./event-bus.js";
+import { CompatEventBus, resolveCompatEventBus } from "./event-bus.js";
 import { FeatureFilterCompat, type FeatureFilterCompatOptions } from "./feature-filter.js";
 
 // ── Structural Type Aliases ───────────────────────────────────

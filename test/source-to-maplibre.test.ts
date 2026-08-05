@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { Query, Result, Source, SourceDescriptor } from "../src/contract/types.js";
 import { capabilities } from "../src/contract/types.js";
-import { HonuaMapLibreSourceAdapterError, mountSourceToMapLibre, projectSourceToMapLibre } from "../src/map/index.js";
+import { mountSourceToMapLibre, projectSourceToMapLibre } from "../src/map/index.js";
 import { explainQuery } from "../src/query-planner/index.js";
 
 const descriptor: SourceDescriptor = {

@@ -420,7 +420,6 @@ function summarizeWrites(value: unknown, countsValue: unknown, limits: Normalize
   };
   const seen = new Set<string>();
   const conflictedEditIds: `sha256:${string}`[] = [];
-  let undeliveredCount = 0;
   let nextRetryAt: string | undefined;
   let oldestUndeliveredAt: string | undefined;
 
@@ -437,7 +436,6 @@ function summarizeWrites(value: unknown, countsValue: unknown, limits: Normalize
 
     if (state === "conflicted") conflictedEditIds.push(id);
     if (UNDELIVERED_EDIT_STATES.has(state)) {
-      undeliveredCount += 1;
       if (oldestUndeliveredAt === undefined || isEarlier(createdAt, oldestUndeliveredAt)) {
         oldestUndeliveredAt = createdAt;
       }

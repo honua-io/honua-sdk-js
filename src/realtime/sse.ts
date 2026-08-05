@@ -1,6 +1,5 @@
 import type {
   RealtimeFeatureEvent,
-  RealtimeFeatureObserver,
   RealtimeFeatureTransport,
   RealtimeSubscriptionHandle,
   RealtimeSubscriptionRequest,

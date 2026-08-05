@@ -156,16 +156,6 @@ interface MatrixRecorder {
   readonly completed: () => number;
 }
 
-interface RunArtifacts {
-  readonly recorder: MatrixRecorder;
-  readonly checkpoint: RealtimeDurableCheckpointV1;
-  readonly telemetry: readonly RealtimeResumableTransportTelemetry[];
-  readonly resourcesActive: number;
-  readonly pollTelemetry: readonly OdataDeltaPollTelemetry[];
-  readonly connectionAttempts: number;
-  readonly resnapshotCount: number;
-}
-
 type CancellationEvidence = NonNullable<RealtimeScenarioTransportEvidence["lifecycle"]["cancellation"]>;
 
 interface Waiter {

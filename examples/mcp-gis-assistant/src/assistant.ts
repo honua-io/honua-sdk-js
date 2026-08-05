@@ -143,7 +143,7 @@ export function answerWithFixtures(dataset: AssistantDataset, userText: string, 
   const filter = filterFromPrompt(normalized);
   const matched = applyFilters(dataset.features, filter.filters);
   const summary = boundedSummary(matched, ASSISTANT_RESULT_LIMIT);
-  const draft = createDraftQuery(dataset, filter.label, filter.where, filter.filters, matched.length);
+  const draft = createDraftQuery(filter.label, filter.where, filter.filters, matched.length);
   toolCalls.push(
     toolCall(
       startedAt,
@@ -194,7 +194,6 @@ function filterFromPrompt(normalized: string): { label: string; where: string; f
 }
 
 function createDraftQuery(
-  dataset: AssistantDataset,
   label: string,
   where: string,
   filters: Readonly<Record<string, FilterClause>>,

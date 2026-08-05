@@ -27,7 +27,6 @@ import {
   ImageryTerrainJourney,
   type ImageryTerrainSearchReceipt,
   type RasterAssetInspectionOutcome,
-  type RasterAssetInspectionReady,
 } from "./journey.js";
 import {
   activeImageryLayerCount,

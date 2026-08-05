@@ -145,7 +145,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     throw new Error("Unknown migration workbench fixture server argument");
   }
 
-  const { server, url, close } = await startMigrationWorkbenchFixtureServer();
+  const { url, close } = await startMigrationWorkbenchFixtureServer();
   process.stdout.write(`migrationWorkbenchMockUrl=${url}\n`);
 
   if (evidenceOnce) {

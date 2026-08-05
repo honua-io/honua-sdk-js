@@ -3,7 +3,6 @@ import {
   HonuaOfflineRegionError,
   type OfflineRegionCacheAdmin,
   type OfflineRegionCacheInventory,
-  type OfflineRegionCommitGuard,
   type OfflineRegionDownloadReceipt,
   type OfflineRegionManifestV1,
   type OfflineRegionResourceRead,

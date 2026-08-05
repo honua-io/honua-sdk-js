@@ -10,9 +10,7 @@ import {
   type MapViewHighlightOptionsLike,
   type MapViewLayerViewCompat,
   type MapViewLoadStatusCompat,
-  type MapViewMapPoint,
   type MapViewPaddingLike,
-  type MapViewScreenPoint,
   type MapViewSpatialReferenceLike,
 } from "./map-view.js";
 

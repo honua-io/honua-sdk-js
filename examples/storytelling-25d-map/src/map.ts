@@ -106,7 +106,7 @@ function createRouteProgressData(dataset: StoryDataset, progress: number) {
       {
         type: "Feature" as const,
         id: `${dataset.routeFeature.id}-progress`,
-        geometry: toLineFeature(coordinates, `${dataset.routeFeature.id}-progress`),
+        geometry: toLineFeature(coordinates),
         properties: {
           story_id: `${dataset.routeFeature.id}-progress`,
           name: dataset.routeFeature.properties.name,
@@ -329,10 +329,7 @@ export async function createStoryMap(options: CreateStoryMapOptions): Promise<St
         {
           type: "Feature",
           id: `${options.dataset.routeFeature.id}-progress`,
-          geometry: toLineFeature(
-            sliceRouteAtProgress(routeMetrics, progress),
-            `${options.dataset.routeFeature.id}-progress`,
-          ),
+          geometry: toLineFeature(sliceRouteAtProgress(routeMetrics, progress)),
           properties: { story_id: `${options.dataset.routeFeature.id}-progress` },
         },
       ],

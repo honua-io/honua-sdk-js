@@ -53,7 +53,6 @@ import {
 import { HonuaGeneratedAppError, toGeneratedAppDiagnostic } from "./errors.js";
 import type {
   HonuaGeneratedAppChartWidget,
-  HonuaGeneratedAppCountWidget,
   HonuaGeneratedAppFeatureRecord,
   HonuaGeneratedAppFilterWidget,
   HonuaGeneratedAppManifest,

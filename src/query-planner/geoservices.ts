@@ -5,7 +5,6 @@ import {
 } from "../contract/query-filter.js";
 import { validateExecutableCrsBinding } from "../contract/schema.js";
 import type {
-  CanonicalGeometry,
   CrsDefinition,
   ExecutableBoundingBox,
   ExecutableCrsBinding,

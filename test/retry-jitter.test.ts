@@ -9,7 +9,6 @@ describe("Retry jitter (Direction 16)", () => {
 
   it("applies equal jitter to exponential backoff", async () => {
     const delays: number[] = [];
-    const originalSetTimeout = globalThis.setTimeout;
 
     // Capture sleep durations by spying on setTimeout
     vi.spyOn(globalThis, "setTimeout").mockImplementation((fn, ms) => {

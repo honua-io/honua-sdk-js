@@ -336,7 +336,7 @@ async function certifyTool(
   let structuredOutputValidated: boolean | null = null;
   const fixtureInput = roundTripInputs[tool.name];
   if (readOnly && fixtureInput !== undefined) {
-    const outcome = await roundTripTool(client, tool, fixtureInput, errors, notes);
+    const outcome = await roundTripTool(client, tool, fixtureInput, errors);
     roundTrip = outcome.roundTrip;
     structuredOutputValidated = outcome.structuredOutputValidated;
   } else if (!readOnly) {
@@ -365,7 +365,6 @@ async function roundTripTool(
   tool: AdvertisedTool,
   input: Record<string, unknown>,
   errors: string[],
-  notes: string[],
 ): Promise<{ roundTrip: ToolCertification["roundTrip"]; structuredOutputValidated: boolean | null }> {
   try {
     const result = (await client.callTool({ name: tool.name, arguments: input })) as {

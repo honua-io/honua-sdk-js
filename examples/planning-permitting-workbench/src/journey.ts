@@ -173,8 +173,6 @@ export const DEFAULT_PROPOSAL: GeoJsonPolygon = {
  */
 export class PlanningPermittingJourney {
   readonly #kernel: HonuaKernel;
-  readonly #connection: HonuaKernelConnection<PlanningRecordAttributes>;
-  readonly #readonlyConnection: HonuaKernelConnection<PlanningRecordAttributes>;
   readonly #source: Source<PlanningRecordAttributes>;
   readonly #readonlySource: Source<PlanningRecordAttributes>;
   readonly #inspection: ConnectionInspection;
@@ -192,8 +190,6 @@ export class PlanningPermittingJourney {
     geocoder: HonuaGeocodingClient;
   }) {
     this.#kernel = options.kernel;
-    this.#connection = options.connection;
-    this.#readonlyConnection = options.readonlyConnection;
     this.#source = options.connection.source();
     this.#readonlySource = options.readonlyConnection.source();
     this.#inspection = options.inspection;
