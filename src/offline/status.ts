@@ -1,5 +1,11 @@
 import type { OfflineEditQueueStateCounts, OfflineQueuedEdit, OfflineQueuedEditState } from "./edit-queue.js";
 import {
+  type OfflineReplaySyncConflictBinding,
+  type OfflineReplaySyncConflictProjectionV1,
+  normalizeOfflineReplaySyncConflictBinding,
+  projectOfflineReplaySyncConflict,
+} from "./replay-conflict.js";
+import {
   HONUA_OFFLINE_REGION_DIAGNOSTIC_KIND,
   HONUA_OFFLINE_REGION_DIAGNOSTIC_VERSION,
   HonuaOfflineRegionError,
@@ -90,6 +96,14 @@ export interface LocalFirstWrites {
   /** Bounded, code-unit ordered; `conflictedCount` remains the complete total. */
   readonly conflictedEditIds: readonly `sha256:${string}`[];
   readonly conflictedEditIdsTruncated: boolean;
+  /**
+   * The same conflicted edits, projected onto the shipped sync-conflict
+   * contracts — one entry per `conflictedEditIds` id, in the same order. Empty
+   * unless `options.replica` supplied a replica binding, because a conflict
+   * cannot be attributed to a replica the SDK never saw. An entry may be a
+   * typed refusal; `conflictedEditIdsTruncated` still governs completeness.
+   */
+  readonly syncConflicts: readonly OfflineReplaySyncConflictProjectionV1[];
   readonly nextRetryAt?: string;
   readonly oldestUndeliveredAt?: string;
 }
@@ -127,6 +141,12 @@ export interface CreateLocalFirstStatusOptions {
   readonly edits?: readonly OfflineQueuedEdit[];
   /** Authoritative partition totals from `OfflineEditQueue.countByState`. */
   readonly editCounts?: OfflineEditQueueStateCounts;
+  /**
+   * Replica identity used to project conflicted edits onto the shipped
+   * sync-conflict contracts. Omit it and `writes.syncConflicts` stays empty;
+   * nothing else about the status changes either way.
+   */
+  readonly replica?: OfflineReplaySyncConflictBinding;
   readonly limits?: LocalFirstStatusLimits;
 }
 
@@ -137,7 +157,7 @@ interface NormalizedLocalFirstLimits {
 }
 
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
-const OPTION_KEYS = new Set(["connectivity", "now", "regions", "edits", "editCounts", "limits"]);
+const OPTION_KEYS = new Set(["connectivity", "now", "regions", "edits", "editCounts", "replica", "limits"]);
 const LIMIT_KEYS = new Set(["maxRegions", "maxEdits", "maxListedEditIds"]);
 const DIAGNOSTIC_KEYS = new Set([
   "kind",
@@ -227,9 +247,14 @@ export function createLocalFirstStatus(options: CreateLocalFirstStatusOptions): 
   const nowMs = record.now instanceof Date ? record.now.getTime() : Number.NaN;
   if (!Number.isFinite(nowMs)) invalid("options.now must be a valid Date.", "options.now");
 
+  const replica =
+    record.replica === undefined
+      ? undefined
+      : normalizeOfflineReplaySyncConflictBinding(record.replica, "options.replica");
+
   // Only an absent key defaults; an explicit null must not read as "none".
   const reads = summarizeReads(record.regions === undefined ? [] : record.regions, connectivity, limits);
-  const writes = summarizeWrites(record.edits === undefined ? [] : record.edits, record.editCounts, limits);
+  const writes = summarizeWrites(record.edits === undefined ? [] : record.edits, record.editCounts, limits, replica);
   const { state, reason } = resolveHeadline(reads, writes, connectivity);
 
   return deepFreeze({
@@ -408,7 +433,12 @@ function assertCacheFacetsAgree(
   }
 }
 
-function summarizeWrites(value: unknown, countsValue: unknown, limits: NormalizedLocalFirstLimits): LocalFirstWrites {
+function summarizeWrites(
+  value: unknown,
+  countsValue: unknown,
+  limits: NormalizedLocalFirstLimits,
+  replica: OfflineReplaySyncConflictBinding | undefined,
+): LocalFirstWrites {
   const input = denseArray(value, "options.edits", limits.maxEdits);
   const counts: Record<OfflineQueuedEditState, number> = {
     pending: 0,
@@ -420,6 +450,7 @@ function summarizeWrites(value: unknown, countsValue: unknown, limits: Normalize
   };
   const seen = new Set<string>();
   const conflictedEditIds: `sha256:${string}`[] = [];
+  const projections = new Map<string, OfflineReplaySyncConflictProjectionV1>();
   let undeliveredCount = 0;
   let nextRetryAt: string | undefined;
   let oldestUndeliveredAt: string | undefined;
@@ -435,7 +466,17 @@ function summarizeWrites(value: unknown, countsValue: unknown, limits: Normalize
     counts[state] += 1;
     const createdAt = normalizedTimestamp(record.createdAt, `${path}.createdAt`);
 
-    if (state === "conflicted") conflictedEditIds.push(id);
+    if (state === "conflicted") {
+      conflictedEditIds.push(id);
+      // Projected from the same record this summary already validated, so the
+      // conflict vocabulary and the conflicted-edit count can never disagree.
+      if (replica !== undefined) {
+        projections.set(
+          id,
+          projectOfflineReplaySyncConflict({ edit: record as unknown as OfflineQueuedEdit, replica }),
+        );
+      }
+    }
     if (UNDELIVERED_EDIT_STATES.has(state)) {
       undeliveredCount += 1;
       if (oldestUndeliveredAt === undefined || isEarlier(createdAt, oldestUndeliveredAt)) {
@@ -458,17 +499,25 @@ function summarizeWrites(value: unknown, countsValue: unknown, limits: Normalize
   const authoritative = captureEditCounts(countsValue, counts);
   const totals = authoritative ?? counts;
   const conflictedCount = totals.conflicted;
+  const listedConflictedEditIds = conflictedEditIds.slice(0, limits.maxListedEditIds);
   return {
     state: conflictedCount > 0 ? "conflicted" : undeliveredTotal(totals) > 0 ? "pending" : "idle",
     coverage: authoritative ? "complete" : "sampled",
     counts: { ...totals },
     undeliveredCount: undeliveredTotal(totals),
     conflictedCount,
-    conflictedEditIds: conflictedEditIds.slice(0, limits.maxListedEditIds),
+    conflictedEditIds: listedConflictedEditIds,
     conflictedEditIdsTruncated: conflictedCount > Math.min(conflictedEditIds.length, limits.maxListedEditIds),
+    syncConflicts: listedConflictedEditIds.map((id) => projections.get(id)).filter(isProjection),
     ...(nextRetryAt === undefined ? {} : { nextRetryAt }),
     ...(oldestUndeliveredAt === undefined ? {} : { oldestUndeliveredAt }),
   };
+}
+
+function isProjection(
+  value: OfflineReplaySyncConflictProjectionV1 | undefined,
+): value is OfflineReplaySyncConflictProjectionV1 {
+  return value !== undefined;
 }
 
 function undeliveredTotal(counts: Record<OfflineQueuedEditState, number>): number {

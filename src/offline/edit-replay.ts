@@ -6,13 +6,27 @@ import {
   type OfflineFeatureEdit,
   type OfflineQueuedEdit,
 } from "./edit-queue.js";
+import {
+  type OfflineReplaySyncConflictBinding,
+  type OfflineReplaySyncConflictProjectionV1,
+  normalizeOfflineReplaySyncConflictBinding,
+  projectOfflineReplaySyncConflict,
+} from "./replay-conflict.js";
 
 export const HONUA_OFFLINE_EDIT_REPLAY_VERSION = "1.0" as const;
 
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
 const MAX_STRING_BYTES = 1024;
 const encoder = new TextEncoder();
-const OPTION_KEYS = new Set(["authorizationScopeDigest", "sourceId", "workerId", "limit", "leaseDurationMs", "signal"]);
+const OPTION_KEYS = new Set([
+  "authorizationScopeDigest",
+  "sourceId",
+  "workerId",
+  "limit",
+  "leaseDurationMs",
+  "signal",
+  "replica",
+]);
 const COMMON_ACKNOWLEDGEMENT_KEYS = ["kind", "editId", "requestFingerprint", "idempotencyKey"] as const;
 const APPLIED_ACKNOWLEDGEMENT_KEYS = new Set([...COMMON_ACKNOWLEDGEMENT_KEYS, "serverOperationId", "serverGeneration"]);
 const RETRYABLE_ACKNOWLEDGEMENT_KEYS = new Set([...COMMON_ACKNOWLEDGEMENT_KEYS, "retryAt", "reasonCode"]);
@@ -73,6 +87,15 @@ export interface ReplayOfflineEditPassOptions extends OfflineEditQueuePartition 
   /** Required, positive, and no more than 24 hours. */
   readonly leaseDurationMs: number;
   readonly signal?: AbortSignal;
+  /**
+   * Replica identity for conflict projection. Supply it to have every
+   * conflicted acknowledgement projected onto the shipped sync-conflict
+   * contracts as {@link OfflineEditReplayItemReceipt.syncConflict}; omit it and
+   * the pass behaves exactly as before. The SDK cannot derive a replica from a
+   * queue partition, so an absent binding means no projection rather than a
+   * guessed one.
+   */
+  readonly replica?: OfflineReplaySyncConflictBinding;
 }
 
 export type OfflineEditReplayUnacknowledgedReason =
@@ -88,6 +111,12 @@ export interface OfflineEditReplayItemReceipt {
   readonly editId: `sha256:${string}`;
   readonly outcome: "applied" | "retryable" | "conflicted" | "unacknowledged";
   readonly reasonCode?: OfflineEditReplayUnacknowledgedReason;
+  /**
+   * Present only for a `conflicted` outcome when the pass was given a replica
+   * binding. It carries either the projected sync conflict or a typed refusal —
+   * never a partially guessed contract object.
+   */
+  readonly syncConflict?: OfflineReplaySyncConflictProjectionV1;
 }
 
 export interface OfflineEditReplayPassReceipt {
@@ -107,6 +136,7 @@ interface NormalizedReplayOptions extends OfflineEditQueuePartition {
   readonly limit: number;
   readonly leaseDurationMs: number;
   readonly signal?: AbortSignal;
+  readonly replica?: OfflineReplaySyncConflictBinding;
 }
 
 class AcknowledgementError extends Error {
@@ -186,6 +216,7 @@ export async function replayOfflineEditPass(
       break;
     }
 
+    let conflicted: OfflineQueuedEdit | undefined;
     try {
       if (acknowledgement.kind === "applied") {
         await queue.markApplied(queued.id, leaseToken, {
@@ -200,18 +231,31 @@ export async function replayOfflineEditPass(
           reasonCode: acknowledgement.reasonCode,
         });
       } else {
-        await queue.markConflicted(queued.id, leaseToken, {
+        conflicted = await queue.markConflicted(queued.id, leaseToken, {
           conflictId: acknowledgement.conflictId,
           ...(acknowledgement.serverGeneration === undefined
             ? {}
             : { serverGeneration: acknowledgement.serverGeneration }),
         });
       }
-      outcomes.push(deepFreeze({ editId: queued.id, outcome: acknowledgement.kind }));
     } catch {
       outcomes.push(unacknowledged(queued.id, "transition-rejected"));
       break;
     }
+    // Projected outside the transition guard on purpose: the durable write has
+    // already succeeded, so a projection refusal must not be reported as a
+    // rejected transition.
+    const syncConflict =
+      conflicted === undefined || normalized.replica === undefined
+        ? undefined
+        : projectOfflineReplaySyncConflict({ edit: conflicted, replica: normalized.replica });
+    outcomes.push(
+      deepFreeze({
+        editId: queued.id,
+        outcome: acknowledgement.kind,
+        ...(syncConflict === undefined ? {} : { syncConflict }),
+      }),
+    );
   }
 
   return createReceipt(outcomes, invokedCount, stoppedReason);
@@ -235,6 +279,10 @@ function captureOptions(value: ReplayOfflineEditPassOptions): NormalizedReplayOp
   if (signal !== undefined && !isAbortSignal(signal)) {
     invalid("options.signal must be an AbortSignal.", "options.signal");
   }
+  const replica =
+    record.replica === undefined
+      ? undefined
+      : normalizeOfflineReplaySyncConflictBinding(record.replica, "options.replica");
   return {
     authorizationScopeDigest,
     sourceId,
@@ -242,6 +290,7 @@ function captureOptions(value: ReplayOfflineEditPassOptions): NormalizedReplayOp
     limit,
     leaseDurationMs,
     ...(signal === undefined ? {} : { signal }),
+    ...(replica === undefined ? {} : { replica }),
   };
 }
 

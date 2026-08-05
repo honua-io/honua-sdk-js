@@ -173,6 +173,26 @@ export {
 } from "./edit-queue.js";
 export { HONUA_OFFLINE_EDIT_REPLAY_VERSION, replayOfflineEditPass } from "./edit-replay.js";
 export {
+  HONUA_OFFLINE_REPLAY_SYNC_CONFLICT_KIND,
+  HONUA_OFFLINE_REPLAY_SYNC_CONFLICT_VERSION,
+  OFFLINE_REPLAY_SYNC_CONFLICT_FIELD_MAP,
+  projectOfflineReplaySyncConflict,
+} from "./replay-conflict.js";
+export type {
+  OfflineReplayProjectedSyncConflict,
+  OfflineReplaySyncConflictBinding,
+  OfflineReplaySyncConflictFieldDisposition,
+  OfflineReplaySyncConflictFieldMappingV1,
+  OfflineReplaySyncConflictProjectedV1,
+  OfflineReplaySyncConflictProjectionV1,
+  OfflineReplaySyncConflictRefusalReason,
+  OfflineReplaySyncConflictRefusedV1,
+  OfflineReplaySyncConflictUnavailableMember,
+  OfflineReplaySyncConflictUnavailableReason,
+  OfflineReplaySyncConflictUnavailableV1,
+  ProjectOfflineReplaySyncConflictInput,
+} from "./replay-conflict.js";
+export {
   createLocalFirstStatus,
   DEFAULT_LOCAL_FIRST_MAX_EDITS,
   DEFAULT_LOCAL_FIRST_MAX_LISTED_EDIT_IDS,
