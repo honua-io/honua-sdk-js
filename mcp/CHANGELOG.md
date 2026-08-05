@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.1.3-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.2-beta.0...mcp-server-v0.1.3-beta.0) (2026-08-05)
+
+
+### Features
+
+* **mcp:** protocol-neutral tool contract ([#1018](https://github.com/honua-io/honua-sdk-js/issues/1018)) ([c6630b8](https://github.com/honua-io/honua-sdk-js/commit/c6630b8a7ad812264be845cca2b5135b25f7ef6e)), closes [#1005](https://github.com/honua-io/honua-sdk-js/issues/1005)
+
+
+### Bug Fixes
+
+* **dev:** make Windows npm launches portable ([9032b0f](https://github.com/honua-io/honua-sdk-js/commit/9032b0fe1f21dca42a780a05fa4d5664408c457f))
+* **dev:** make Windows npm launches portable ([b901fd9](https://github.com/honua-io/honua-sdk-js/commit/b901fd9cc11379e1489ed9c6573e080f8b0e0864)), closes [#826](https://github.com/honua-io/honua-sdk-js/issues/826)
+* **offline:** reject credential-shaped persisted identities and prove the stores stay credential-free ([#975](https://github.com/honua-io/honua-sdk-js/issues/975)) ([cefac80](https://github.com/honua-io/honua-sdk-js/commit/cefac80c5f3538a42e6efca785c4b1fdb9e6bd0e))
+
+
+### Documentation
+
+* **mcp:** publish the cross-model MCP eval scorecard on the docs site ([#993](https://github.com/honua-io/honua-sdk-js/issues/993)) ([6cd6fee](https://github.com/honua-io/honua-sdk-js/commit/6cd6feeed5213254c766e3e85d39e55ac52a459a))
+* **readme:** generate or gate the README's volatile claims and current them ([#1068](https://github.com/honua-io/honua-sdk-js/issues/1068)) ([11667c4](https://github.com/honua-io/honua-sdk-js/commit/11667c468e07594108b7452ac9c2494291a37228))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.3-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.2-beta.0 to ^0.1.3-beta.0
+
 ## [0.1.2-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.1-beta.0...mcp-server-v0.1.2-beta.0) (2026-07-21)
 
 
