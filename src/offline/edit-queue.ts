@@ -27,6 +27,7 @@ const APPLIED_KEYS = new Set(["serverOperationId", "serverGeneration"]);
 const RETRY_KEYS = new Set(["retryAt", "reasonCode"]);
 const CONFLICT_KEYS = new Set(["conflictId", "serverGeneration"]);
 const CANCEL_KEYS = new Set(["reasonCode"]);
+const RESOLVE_CONFLICT_KEYS = new Set(["conflictId", "choice", "resolvedBy", "note"]);
 
 export type OfflineEditJsonValue =
   | null
@@ -98,6 +99,61 @@ export interface OfflineEditCancellationOutcome {
   readonly reasonCode: string;
 }
 
+/**
+ * How a reviewer closed a conflict, in the queue's own spelling.
+ *
+ * The three members are exactly the members of the shipped
+ * `ConflictResolutionChoice` the queue can act on without a server. `merge` is
+ * absent on purpose: a merged value would have to replace the edit's payload,
+ * and the edit's identity is a digest of that payload, so recording a merge
+ * here would silently rewrite an idempotency identity the transport has
+ * already used. The offline conflict-resolution surface refuses `merge` rather
+ * than accepting one it cannot honour.
+ */
+export type OfflineEditConflictResolutionChoice = "accept-client" | "accept-server" | "discard";
+
+/** What the resolution did to the durable edit. */
+export type OfflineEditConflictResolutionDisposition =
+  /** The local edit stands and returns to `pending` for another delivery attempt. */
+  | "requeued"
+  /** The local edit is abandoned; the record is terminal. */
+  | "discarded";
+
+/**
+ * Delivery status of a locally recorded resolution.
+ *
+ * The single member is the honest one: a resolution recorded through this queue
+ * is durable *local* state, and only a server can acknowledge it. No code path
+ * in this build produces any other value, and none may until a transport exists
+ * that can carry a resolution to a server and read its answer back.
+ */
+export type OfflineEditConflictResolutionAcknowledgement = "unacknowledged-by-server";
+
+/**
+ * The closure of one conflict, recorded against the edit that raised it.
+ *
+ * It carries the closed conflict's identity and timing — `conflictId`,
+ * `detectedAt`, `serverGeneration` — because the `conflict` outcome itself is
+ * cleared by the transition: a record must not claim to be both conflicted and
+ * resolved. The audit history keeps the ordered account; this member is the
+ * current outcome slot, exactly as `applied` and `cancellation` are.
+ */
+export interface OfflineEditConflictResolutionOutcome {
+  readonly conflictId: string;
+  /** Carried from the conflict this resolution closed. */
+  readonly detectedAt: string;
+  /** Carried from the conflict this resolution closed, when it named one. */
+  readonly serverGeneration?: string;
+  readonly choice: OfflineEditConflictResolutionChoice;
+  readonly disposition: OfflineEditConflictResolutionDisposition;
+  readonly acknowledgement: OfflineEditConflictResolutionAcknowledgement;
+  readonly resolvedAt: string;
+  /** Opaque non-secret reviewer identity; screened before it is persisted. */
+  readonly resolvedBy?: string;
+  /** Reviewer note; screened before it is persisted. */
+  readonly note?: string;
+}
+
 export type OfflineEditAuditEventKind =
   | "enqueued"
   | "claimed"
@@ -105,6 +161,7 @@ export type OfflineEditAuditEventKind =
   | "retry-scheduled"
   | "applied"
   | "conflicted"
+  | "conflict-resolved"
   | "cancelled";
 
 export interface OfflineEditAuditEvent {
@@ -117,6 +174,8 @@ export interface OfflineEditAuditEvent {
   readonly conflictId?: string;
   readonly serverOperationId?: string;
   readonly serverGeneration?: string;
+  /** Present on `conflict-resolved`: how the reviewer closed the conflict. */
+  readonly resolutionChoice?: OfflineEditConflictResolutionChoice;
 }
 
 export interface OfflineQueuedEdit {
@@ -136,6 +195,13 @@ export interface OfflineQueuedEdit {
   readonly retry?: OfflineEditRetry;
   readonly applied?: OfflineEditAppliedOutcome;
   readonly conflict?: OfflineEditConflictOutcome;
+  /**
+   * The closure of the record's most recent conflict. Never present together
+   * with `conflict`: opening a new conflict clears it, and closing a conflict
+   * clears `conflict`, so the record always says exactly one of "conflicted"
+   * and "resolved". The ordered account of both lives in `audit`.
+   */
+  readonly conflictResolution?: OfflineEditConflictResolutionOutcome;
   readonly cancellation?: OfflineEditCancellationOutcome;
   readonly audit: readonly OfflineEditAuditEvent[];
 }
@@ -190,6 +256,20 @@ export interface CancelOfflineEditInput {
   readonly reasonCode: string;
 }
 
+export interface ResolveOfflineEditConflictInput {
+  /**
+   * The conflict being closed. It must equal the conflict the record actually
+   * carries, so a stale review cannot close a conflict the queue has since
+   * replaced with a newer one.
+   */
+  readonly conflictId: string;
+  readonly choice: OfflineEditConflictResolutionChoice;
+  /** Opaque non-secret reviewer identity. Screened before it is persisted. */
+  readonly resolvedBy?: string;
+  /** Reviewer note. Screened before it is persisted. */
+  readonly note?: string;
+}
+
 export interface OfflineEditQueue {
   enqueue(input: EnqueueOfflineEditInput): Promise<OfflineEditEnqueueResult>;
   get(editId: string, partition: OfflineEditQueuePartition): Promise<OfflineQueuedEdit | undefined>;
@@ -213,6 +293,21 @@ export interface OfflineEditQueue {
     editId: string,
     partition: OfflineEditQueuePartition,
     outcome: CancelOfflineEditInput,
+  ): Promise<OfflineQueuedEdit>;
+  /**
+   * Close a conflicted edit's conflict with a reviewed choice.
+   *
+   * Unleased, like `cancel`: the conflict transition already released the
+   * lease, and the reviewer is not the replay worker. `accept-client` requeues
+   * the edit as `pending`; `accept-server` and `discard` abandon it as
+   * `cancelled`. Either way the conflict leaves the record, so no later pass
+   * re-surfaces it, and the resolution is recorded as unacknowledged by any
+   * server.
+   */
+  resolveConflict(
+    editId: string,
+    partition: OfflineEditQueuePartition,
+    resolution: ResolveOfflineEditConflictInput,
   ): Promise<OfflineQueuedEdit>;
   pruneTerminal(options: PruneTerminalOfflineEditsOptions): Promise<readonly `sha256:${string}`[]>;
 }
@@ -509,6 +604,22 @@ export class MemoryOfflineEditQueue implements OfflineEditQueue {
     return copy(updated);
   }
 
+  public async resolveConflict(
+    editId: string,
+    partition: OfflineEditQueuePartition,
+    resolution: ResolveOfflineEditConflictInput,
+  ): Promise<OfflineQueuedEdit> {
+    const id = requiredId(editId, "editId");
+    const normalized = capturePartition(partition, "partition");
+    const current = this.#records.get(id);
+    if (!current || !matchesPartition(current, normalized)) {
+      fail("edit-not-found", `Offline edit "${id}" was not found.`, { editId: id });
+    }
+    const updated = resolveConflictRecord(current, resolution, this.#options);
+    this.#records.set(id, updated);
+    return copy(updated);
+  }
+
   public async pruneTerminal(options: PruneTerminalOfflineEditsOptions): Promise<readonly `sha256:${string}`[]> {
     const normalized = capturePruneOptions(options);
     const prunedAt = timestamp(this.#options.now);
@@ -695,6 +806,29 @@ export class IndexedDbOfflineEditQueue implements OfflineEditQueue {
         fail("edit-not-found", `Offline edit "${id}" was not found.`, { editId: id });
       }
       const updated = cancelRecord(current, outcome, this.#options);
+      edits.put(updated);
+      metadata.put(metadataFor(updated));
+      return copy(updated);
+    });
+  }
+
+  public async resolveConflict(
+    editId: string,
+    partition: OfflineEditQueuePartition,
+    resolution: ResolveOfflineEditConflictInput,
+  ): Promise<OfflineQueuedEdit> {
+    const id = requiredId(editId, "editId");
+    const normalized = capturePartition(partition, "partition");
+    return this.#run("readwrite", async ({ edits, metadata }, tally) => {
+      const stored = await request<unknown>(edits.get(id));
+      const current = readStoredEdit(stored, id, tally);
+      if (stored !== undefined && !current) {
+        fail("record-unreadable", `Offline edit "${id}" is stored in a form this build cannot read.`, { editId: id });
+      }
+      if (!current || !matchesPartition(current, normalized)) {
+        fail("edit-not-found", `Offline edit "${id}" was not found.`, { editId: id });
+      }
+      const updated = resolveConflictRecord(current, resolution, this.#options);
       edits.put(updated);
       metadata.put(metadataFor(updated));
       return copy(updated);
@@ -1002,6 +1136,10 @@ function transitionRecord(
     lease: undefined,
     retry: undefined,
     conflict: outcome,
+    // A record is conflicted or resolved, never both: a requeued edit that
+    // conflicts again opens a new conflict, and the closure of the previous one
+    // stays where the history belongs, in `audit`.
+    conflictResolution: undefined,
     audit: appendAudit(
       record,
       {
@@ -1035,6 +1173,94 @@ function cancelRecord(
     retry: undefined,
     cancellation: { cancelledAt: at, reasonCode },
     audit: appendAudit(record, { kind: "cancelled", at, attempt: record.attemptCount, reasonCode }, options),
+  });
+}
+
+/**
+ * Close a conflicted record's conflict with a reviewed choice.
+ *
+ * Three properties make the transition safe to trust:
+ *
+ * - **It is bound to the conflict it claims to close.** A resolution naming a
+ *   different `conflictId` than the record carries is refused, so a review of a
+ *   conflict the queue has already replaced cannot land on the newer one.
+ * - **It leaves no conflicted state behind.** `conflict` is cleared and its
+ *   identity, detection time, and server generation move into the resolution,
+ *   so nothing that reads conflicted records — a replay pass, the local-first
+ *   status, the sync-conflict projection — can re-surface a closed conflict.
+ * - **It is honest about delivery.** The resolution is recorded as
+ *   `unacknowledged-by-server`, because nothing here reaches a server. A
+ *   requeued edit is re-delivered by an ordinary replay pass; a discarded one
+ *   is terminal and was never delivered at all.
+ */
+function resolveConflictRecord(
+  record: OfflineQueuedEdit,
+  input: ResolveOfflineEditConflictInput,
+  options: NormalizedQueueOptions,
+): OfflineQueuedEdit {
+  if (record.state !== "conflicted" || !record.conflict) {
+    fail("invalid-transition", "Only a conflicted offline edit can have its conflict resolved.", { editId: record.id });
+  }
+  const value = plainRecord(input, "resolution");
+  allowedKeys(value, RESOLVE_CONFLICT_KEYS, "resolution");
+  const conflictId = requiredString(value.conflictId, "resolution.conflictId");
+  if (conflictId !== record.conflict.conflictId) {
+    fail("invalid-edit", "resolution.conflictId does not match the conflict this edit carries.", {
+      editId: record.id,
+      path: "resolution.conflictId",
+    });
+  }
+  const choice = value.choice;
+  if (choice !== "accept-client" && choice !== "accept-server" && choice !== "discard") {
+    fail("invalid-edit", "resolution.choice must be accept-client, accept-server, or discard.", {
+      editId: record.id,
+      path: "resolution.choice",
+    });
+  }
+  const resolvedBy =
+    value.resolvedBy === undefined ? undefined : requiredPersistedIdentity(value.resolvedBy, "resolution.resolvedBy");
+  const note = value.note === undefined ? undefined : requiredPersistedLabel(value.note, "resolution.note");
+
+  const at = timestamp(options.now);
+  const requeued = choice === "accept-client";
+  const resolution: OfflineEditConflictResolutionOutcome = {
+    conflictId,
+    detectedAt: record.conflict.detectedAt,
+    ...(record.conflict.serverGeneration === undefined ? {} : { serverGeneration: record.conflict.serverGeneration }),
+    choice,
+    disposition: requeued ? "requeued" : "discarded",
+    acknowledgement: "unacknowledged-by-server",
+    resolvedAt: at,
+    ...(resolvedBy === undefined ? {} : { resolvedBy }),
+    ...(note === undefined ? {} : { note }),
+  };
+  const audit = appendAudit(
+    record,
+    { kind: "conflict-resolved", at, attempt: record.attemptCount, conflictId, resolutionChoice: choice },
+    options,
+  );
+  if (requeued) {
+    return deepFreeze({
+      ...record,
+      state: "pending" as const,
+      updatedAt: at,
+      lease: undefined,
+      retry: undefined,
+      conflict: undefined,
+      conflictResolution: resolution,
+      audit,
+    });
+  }
+  return deepFreeze({
+    ...record,
+    state: "cancelled" as const,
+    updatedAt: at,
+    lease: undefined,
+    retry: undefined,
+    conflict: undefined,
+    conflictResolution: resolution,
+    cancellation: { cancelledAt: at, reasonCode: `conflict-resolved:${choice}` },
+    audit,
   });
 }
 
@@ -1468,8 +1694,11 @@ const AUDIT_KINDS = new Set<string>([
   "retry-scheduled",
   "applied",
   "conflicted",
+  "conflict-resolved",
   "cancelled",
 ]);
+const RESOLUTION_CHOICES = new Set<string>(["accept-client", "accept-server", "discard"]);
+const RESOLUTION_DISPOSITIONS = new Set<string>(["requeued", "discarded"]);
 const STORED_STATES = new Set<string>(QUEUE_STATES);
 const TERMINAL_STATES = new Set<string>(["applied", "conflicted", "cancelled"]);
 /** Depth ceiling for byte accounting only; validation never descends a payload. */
@@ -1503,6 +1732,10 @@ export function inspectStoredOfflineEdit(value: unknown): OfflineEditQueueInspec
   if (!isStoredDependencyIds(value.dependencyIds, value.id)) return invalidRecord("corrupt-record");
   if (!isStoredFeatureEdit(value.edit)) return invalidRecord("corrupt-record");
   if (!isStoredOutcome(value)) return invalidRecord("corrupt-record");
+  // The reviewer-authored members of a resolution are the only free text the
+  // queue persists, so they are screened on the way back in as well as on the
+  // way out: a database another tab or build wrote is not trusted here either.
+  if (isCredentialShapedResolution(value.conflictResolution)) return invalidRecord("credential-screened");
   if (!isStoredAudit(value.audit)) return invalidRecord("corrupt-record");
   return { status: "valid", record: value as unknown as OfflineQueuedEdit };
 }
@@ -1832,7 +2065,38 @@ function isStoredOutcome(value: Record<string, unknown>): boolean {
   } else if (cancellation !== undefined) {
     return false;
   }
-  return true;
+  // A resolution is not gated on one state — a requeued edit carries it while it
+  // is delivered again — but it is gated against `conflicted`, because a record
+  // that is both conflicted and resolved contradicts itself and would let a
+  // closed conflict be surfaced as open.
+  return isStoredConflictResolution(value.conflictResolution, state);
+}
+
+/** Screens an already shape-validated resolution's reviewer-authored strings. */
+function isCredentialShapedResolution(value: unknown): boolean {
+  if (!isStoredRecord(value)) return false;
+  const resolvedBy = value.resolvedBy;
+  if (typeof resolvedBy === "string" && screenPersistedString(resolvedBy, "identity")) return true;
+  const note = value.note;
+  return typeof note === "string" && screenPersistedString(note, "label") !== undefined;
+}
+
+function isStoredConflictResolution(value: unknown, state: unknown): boolean {
+  if (value === undefined) return true;
+  if (state === "conflicted") return false;
+  if (!isStoredRecord(value)) return false;
+  if (!isPersistedText(value.conflictId) || !isNormalizedTimestamp(value.detectedAt)) return false;
+  if (value.serverGeneration !== undefined && !isPersistedText(value.serverGeneration)) return false;
+  if (typeof value.choice !== "string" || !RESOLUTION_CHOICES.has(value.choice)) return false;
+  if (typeof value.disposition !== "string" || !RESOLUTION_DISPOSITIONS.has(value.disposition)) return false;
+  if (value.acknowledgement !== "unacknowledged-by-server") return false;
+  if (!isNormalizedTimestamp(value.resolvedAt)) return false;
+  if (value.resolvedBy !== undefined && !isPersistedText(value.resolvedBy)) return false;
+  if (value.note !== undefined && !isPersistedText(value.note)) return false;
+  // `accept-client` is the only choice that keeps the edit deliverable; the
+  // other two abandon it. A record whose disposition disagrees with its choice
+  // cannot be trusted to describe what the queue actually did.
+  return value.disposition === (value.choice === "accept-client" ? "requeued" : "discarded");
 }
 
 function isStoredAudit(value: unknown): boolean {
@@ -2156,6 +2420,18 @@ function requiredString(value: unknown, path: string): string {
 function requiredPersistedIdentity(value: unknown, path: string): string {
   const normalized = requiredString(value, path);
   const reason = screenPersistedString(normalized, "identity");
+  if (reason) fail("invalid-edit", credentialScreenMessage(path, reason), { path });
+  return normalized;
+}
+
+/**
+ * Reviewer-authored prose that is persisted verbatim. Screened with the label
+ * strictness — a note may contain punctuation a machine identity may not, but
+ * it must still not be a request URL or carry credential-shaped material.
+ */
+function requiredPersistedLabel(value: unknown, path: string): string {
+  const normalized = requiredString(value, path);
+  const reason = screenPersistedString(normalized, "label");
   if (reason) fail("invalid-edit", credentialScreenMessage(path, reason), { path });
   return normalized;
 }

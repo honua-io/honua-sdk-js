@@ -504,6 +504,135 @@ exactly-once delivery and hosted replica synchronization remain server
 properties, and validating a projected conflict against live server conflict
 semantics stays gated on that server work.
 
+## Replica conflict policy on a replay pass
+
+A replica is registered with a `ReplicaConflictPolicy`. A replay pass accepts
+that policy explicitly, and either carries it out or refuses it by name — it is
+never quietly downgraded to "park the conflict and hope someone looks".
+
+The test that decides the two arms is one question: **can the complete effect on
+the durable edit queue be computed from queue-side state alone** — the queued
+edit, its conflict record, and the local clock — with no remote content and no
+server decision?
+
+| Policy | SDK disposition | Replay action | Reason |
+| --- | --- | --- | --- |
+| `manual` | locally-honoured | retain-for-review | queue-side-outcome |
+| `server-wins` | locally-honoured | discard-local-edit | queue-side-outcome |
+| `client-wins` | server-adjudicated | refuse | needs-server-override |
+| `last-writer-wins` | server-adjudicated | refuse | needs-remote-edit-time |
+
+- **`manual`** parks the conflicted edit for a reviewer. That is the whole
+  policy, and it needs nothing remote. It is also what an *omitted* policy does,
+  which is exactly why declaring the policy matters: without the declaration a
+  `client-wins` replica silently gets `manual` behaviour.
+- **`server-wins`** means the server's committed row stands, so the queued edit
+  lost and is abandoned — the pass records an `accept-server` resolution against
+  it and the record becomes `cancelled`. This is honoured **for the outbound
+  queue only**. Adopting the server's content into local state needs the remote
+  row; the edit queue does not own local read state, and nothing here pretends
+  to converge it.
+- **`client-wins`** means the local edit should win, but the server has already
+  refused it. Making it win needs an override the mutation transport does not
+  define. Requeuing it locally would be a retry wearing the policy's name.
+- **`last-writer-wins`** needs both writers' edit times. A conflicted
+  acknowledgement carries an opaque `ServerGenerationCursor` — an ordering
+  token, not a comparable clock — so the SDK cannot tell who wrote last.
+
+`OFFLINE_REPLAY_CONFLICT_POLICIES` is the machine-readable form of this table,
+and it is keyed by policy, so a new member of the shipped union fails the build
+rather than falling through to a default. The same table appears in the
+`ReplicaConflictPolicy` contract's own documentation, and a test fails if the
+two surfaces disagree.
+
+```ts doc-test=skip reason="partial excerpt requires application replay transport"
+import { isHonuaOfflineConflictAdjudicationError, replayOfflineEditPass } from "@honua/sdk-js/offline";
+
+try {
+  const receipt = await replayOfflineEditPass(queue, transport, {
+    authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+    sourceId: manifest.source.id,
+    workerId: replayWorkerId,
+    limit: 10,
+    leaseDurationMs: 30_000,
+    replica,
+    conflictPolicy: registeredReplica.conflictPolicy,
+  });
+  for (const outcome of receipt.outcomes) {
+    // "retained-for-review", "discarded-local-edit", or "not-applied".
+    if (outcome.conflictPolicy) console.log(outcome.conflictPolicy.outcome);
+  }
+} catch (error) {
+  if (!isHonuaOfflineConflictAdjudicationError(error)) throw error;
+  // Names the policy it refused; nothing was claimed and nothing was replayed.
+  console.log(error.code, error.policy); // "server-adjudicated-policy" "client-wins"
+}
+```
+
+The refusal happens before the first edit is claimed, so a pass either honours
+the policy it was given for every conflict it meets or does nothing at all.
+
+## Recording a reviewed resolution
+
+`recordOfflineConflictResolution()` takes the reviewer's decision in the shipped
+contract's own shape — a `SyncConflictResolution`, the value a conflict-review
+surface already produces — and records it against the durable queued edit that
+raised the conflict.
+
+```ts doc-test=skip reason="partial excerpt requires application review surface"
+import { recordOfflineConflictResolution } from "@honua/sdk-js/offline";
+
+const receipt = await recordOfflineConflictResolution(queue, {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  editId: conflictedEditId,
+  // Straight from the review surface; no mapping is invented in between.
+  resolution: { conflictId, choice: "accept-server", resolvedBy: { id: reviewerId } },
+});
+
+console.log(receipt.disposition); // "discarded"
+console.log(receipt.state); // "cancelled"
+console.log(receipt.acknowledgement); // "unacknowledged-by-server"
+```
+
+What the record then says:
+
+| Choice | Disposition | Queue state | Meaning |
+| --- | --- | --- | --- |
+| `accept-client` | `requeued` | `pending` | The local edit stands and is delivered again. |
+| `accept-server` | `discarded` | `cancelled` | The local edit is abandoned; it was never delivered. |
+| `discard` | `discarded` | `cancelled` | The local edit is abandoned; it was never delivered. |
+| `merge` | — | — | Refused. |
+
+- **The closure lands in the audit history.** A `conflict-resolved` event
+  carries the conflict id and the choice, and the edit's `conflictResolution`
+  member carries the closed conflict's identity, detection time, and server
+  generation.
+- **The conflict is not re-surfaced.** `conflict` leaves the record, so a later
+  replay pass, a later `createLocalFirstStatus()`, and the sync-conflict
+  projection all stop reporting it. A record is conflicted *or* resolved, never
+  both — and a requeued edit that conflicts again opens a *new* conflict with a
+  new id, leaving the earlier closure in `audit` where the history belongs.
+- **It is honest about delivery.** The resolution is recorded
+  `acknowledgement: "unacknowledged-by-server"`, and no code path in this build
+  produces any other value. The projection follows: a resolved conflict's
+  `status` is `resolving` (requeued) or `discarded` (abandoned) and **never**
+  `resolved`, because only a server commit makes a resolution true. The
+  `SyncConflictDetail.resolution` member — the server's acknowledgement record —
+  stays listed as `server-owned` in `projection.unavailable`, and the local
+  choice is published beside it as `projection.localResolution`.
+- **`merge` is refused**, along with any resolution carrying `mergedAttributes`
+  or `mergedGeometry`, with the same typed error the refused policies raise
+  (`isHonuaOfflineConflictAdjudicationError`, `code:
+  "server-adjudicated-resolution"`). A merged value would have to replace the
+  queued edit's payload, and the edit's id is a digest of that payload bound to
+  an idempotency key the transport may already have seen — rewriting it locally
+  would forge a different write under an identity promised for another one.
+- **Only identities are persisted.** A `SyncActor`'s `displayName` and `kind`
+  are presentation and are dropped; `resolvedBy.id` and `note` are the only
+  reviewer-authored strings stored, and both are credential-screened on the way
+  in *and* on the way back out of storage.
+
 ## Composed local-first status
 
 Cache diagnostics answer "what is in the store", and the queue answers "what

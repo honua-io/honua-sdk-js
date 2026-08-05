@@ -173,12 +173,31 @@ export {
 } from "./edit-queue.js";
 export { HONUA_OFFLINE_EDIT_REPLAY_VERSION, replayOfflineEditPass } from "./edit-replay.js";
 export {
+  classifyOfflineReplayConflictPolicy,
+  HONUA_OFFLINE_CONFLICT_RESOLUTION_KIND,
+  HONUA_OFFLINE_CONFLICT_RESOLUTION_VERSION,
+  HonuaOfflineConflictAdjudicationError,
+  isHonuaOfflineConflictAdjudicationError,
+  OFFLINE_REPLAY_CONFLICT_POLICIES,
+  recordOfflineConflictResolution,
+} from "./conflict-resolution.js";
+export type {
+  OfflineConflictAdjudicationCode,
+  OfflineConflictResolutionReceiptV1,
+  OfflineReplayConflictPolicyAction,
+  OfflineReplayConflictPolicyDisposition,
+  OfflineReplayConflictPolicyReason,
+  OfflineReplayConflictPolicyRuleV1,
+  RecordOfflineConflictResolutionOptions,
+} from "./conflict-resolution.js";
+export {
   HONUA_OFFLINE_REPLAY_SYNC_CONFLICT_KIND,
   HONUA_OFFLINE_REPLAY_SYNC_CONFLICT_VERSION,
   OFFLINE_REPLAY_SYNC_CONFLICT_FIELD_MAP,
   projectOfflineReplaySyncConflict,
 } from "./replay-conflict.js";
 export type {
+  OfflineReplayLocalConflictResolutionV1,
   OfflineReplayProjectedSyncConflict,
   OfflineReplaySyncConflictBinding,
   OfflineReplaySyncConflictFieldDisposition,
@@ -247,6 +266,10 @@ export type {
   OfflineEditAuditEventKind,
   OfflineEditCancellationOutcome,
   OfflineEditConflictOutcome,
+  OfflineEditConflictResolutionAcknowledgement,
+  OfflineEditConflictResolutionChoice,
+  OfflineEditConflictResolutionDisposition,
+  OfflineEditConflictResolutionOutcome,
   OfflineEditEnqueueResult,
   OfflineEditJsonValue,
   OfflineEditLease,
@@ -271,11 +294,14 @@ export type {
   OfflineQueuedEdit,
   OfflineQueuedEditState,
   PruneTerminalOfflineEditsOptions,
+  ResolveOfflineEditConflictInput,
 } from "./edit-queue.js";
 export type {
   OfflineEditAppliedAcknowledgement,
   OfflineEditConflictedAcknowledgement,
   OfflineEditReplayAcknowledgement,
+  OfflineEditReplayConflictPolicyOutcome,
+  OfflineEditReplayConflictPolicyReceiptV1,
   OfflineEditReplayIdentity,
   OfflineEditReplayItemReceipt,
   OfflineEditReplayPassReceipt,

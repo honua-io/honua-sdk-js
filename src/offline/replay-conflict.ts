@@ -36,10 +36,19 @@ import type {
   FeatureId,
   ReplicaId,
   ServerGenerationCursor,
+  SyncActor,
   SyncConflictDetail,
   SyncConflictOperation,
+  SyncConflictStatus,
 } from "../replica-sync/types.js";
-import { HonuaOfflineEditQueueError, type OfflineEditOperation, type OfflineQueuedEdit } from "./edit-queue.js";
+import {
+  HonuaOfflineEditQueueError,
+  type OfflineEditConflictResolutionAcknowledgement,
+  type OfflineEditConflictResolutionChoice,
+  type OfflineEditConflictResolutionDisposition,
+  type OfflineEditOperation,
+  type OfflineQueuedEdit,
+} from "./edit-queue.js";
 
 /** Stable discriminator and version for offline replay conflict projections. */
 export const HONUA_OFFLINE_REPLAY_SYNC_CONFLICT_KIND = "honua.offline-replay-sync-conflict" as const;
@@ -90,6 +99,27 @@ export type OfflineReplayProjectedSyncConflict = Pick<
   | "serverGen"
 >;
 
+/**
+ * A resolution the durable queue recorded locally.
+ *
+ * Deliberately *not* a `SyncConflictResolutionRecord`: that contract member is
+ * the server's acknowledgement of a committed resolution, and publishing a
+ * locally recorded choice in its place would claim a commit that never
+ * happened. `resolution` therefore stays listed as `server-owned` in
+ * {@link OfflineReplaySyncConflictProjectedV1.unavailable} even when this
+ * member is present, and `acknowledgement` states the difference in the shape
+ * itself.
+ */
+export interface OfflineReplayLocalConflictResolutionV1 {
+  readonly choice: OfflineEditConflictResolutionChoice;
+  readonly disposition: OfflineEditConflictResolutionDisposition;
+  readonly acknowledgement: OfflineEditConflictResolutionAcknowledgement;
+  readonly resolvedAt: string;
+  /** Identity only; a `SyncActor`'s display name and kind are never persisted. */
+  readonly resolvedBy?: SyncActor;
+  readonly note?: string;
+}
+
 /** A `SyncConflictDetail` member this projection declines to fill. */
 export type OfflineReplaySyncConflictUnavailableMember =
   | "base"
@@ -124,7 +154,7 @@ export interface OfflineReplaySyncConflictUnavailableV1 {
 
 /** Why a well-formed input still has no conflict this build will publish. */
 export type OfflineReplaySyncConflictRefusalReason =
-  /** The queued edit is not in the `conflicted` state, so there is no conflict. */
+  /** The edit is neither conflicted nor carrying a recorded resolution. */
   | "not-conflicted"
   /** `conflicted` without a durable conflict outcome: a record this build will not trust. */
   | "missing-conflict-record"
@@ -139,6 +169,13 @@ export interface OfflineReplaySyncConflictProjectedV1 {
   readonly outcome: "projected";
   readonly editId: `sha256:${string}`;
   readonly conflict: OfflineReplayProjectedSyncConflict;
+  /**
+   * Present once a reviewer's choice has been recorded against the edit. The
+   * conflict's `status` moves with it — `resolving` for a requeued edit,
+   * `discarded` for an abandoned one — and never reaches `resolved`, because
+   * only a server commit makes a resolution true.
+   */
+  readonly localResolution?: OfflineReplayLocalConflictResolutionV1;
   /** Ordered, stable, and complete: every contract member left unfilled. */
   readonly unavailable: readonly OfflineReplaySyncConflictUnavailableV1[];
 }
@@ -213,6 +250,27 @@ export const OFFLINE_REPLAY_SYNC_CONFLICT_FIELD_MAP: readonly OfflineReplaySyncC
   { source: "conflict.conflictId", targets: ["conflict.id"], disposition: "carried" },
   { source: "conflict.detectedAt", targets: ["conflict.detectedAt"], disposition: "carried" },
   { source: "conflict.serverGeneration", targets: ["conflict.serverGen"], disposition: "carried" },
+  { source: "conflictResolution.conflictId", targets: ["conflict.id"], disposition: "carried" },
+  { source: "conflictResolution.detectedAt", targets: ["conflict.detectedAt"], disposition: "carried" },
+  { source: "conflictResolution.serverGeneration", targets: ["conflict.serverGen"], disposition: "carried" },
+  {
+    source: "conflictResolution.choice",
+    targets: ["localResolution.choice"],
+    disposition: "carried",
+  },
+  {
+    source: "conflictResolution.disposition",
+    targets: ["conflict.status", "localResolution.disposition"],
+    disposition: "derived",
+  },
+  {
+    source: "conflictResolution.acknowledgement",
+    targets: ["localResolution.acknowledgement"],
+    disposition: "carried",
+  },
+  { source: "conflictResolution.resolvedAt", targets: ["localResolution.resolvedAt"], disposition: "carried" },
+  { source: "conflictResolution.resolvedBy", targets: ["localResolution.resolvedBy"], disposition: "derived" },
+  { source: "conflictResolution.note", targets: ["localResolution.note"], disposition: "carried" },
   { source: "cancellation", targets: [], disposition: "omitted-local-only" },
   { source: "audit", targets: [], disposition: "omitted-local-only" },
 ]);
@@ -239,12 +297,38 @@ const QUEUED_EDIT_KEYS = new Set([
   "retry",
   "applied",
   "conflict",
+  "conflictResolution",
   "cancellation",
   "audit",
 ]);
 const FEATURE_EDIT_KEYS = new Set(["operation", "featureId", "attributes", "geometry"]);
 const CONFLICT_OUTCOME_KEYS = new Set(["conflictId", "detectedAt", "serverGeneration"]);
+const CONFLICT_RESOLUTION_KEYS = new Set([
+  ...CONFLICT_OUTCOME_KEYS,
+  "choice",
+  "disposition",
+  "acknowledgement",
+  "resolvedAt",
+  "resolvedBy",
+  "note",
+]);
+const RESOLUTION_CHOICES = new Set<string>(["accept-client", "accept-server", "discard"]);
 const EDIT_STATES = new Set(["pending", "leased", "retryable", "applied", "conflicted", "cancelled"]);
+
+/**
+ * A closed conflict's status, decided by what the local record can substantiate.
+ *
+ * `resolved` is unreachable on purpose: it means the resolution was committed,
+ * and no local record can know that. A requeued edit is `resolving` — the
+ * choice is made, the delivery is not — and an abandoned one is `discarded`,
+ * which the client can say of its own edit without any server.
+ */
+const RESOLVED_STATUSES: Readonly<Record<OfflineEditConflictResolutionDisposition, SyncConflictStatus>> = Object.freeze(
+  {
+    requeued: "resolving",
+    discarded: "discarded",
+  },
+);
 
 /**
  * An offline `add` is the disconnected form of a server `create`; `update` and
@@ -295,6 +379,7 @@ interface ReadableConflictedEdit {
   readonly conflictId: string;
   readonly detectedAt: string;
   readonly serverGeneration?: ServerGenerationCursor;
+  readonly resolution?: OfflineReplayLocalConflictResolutionV1;
 }
 
 type ReadResult =
@@ -357,15 +442,15 @@ export function projectOfflineReplaySyncConflict(
       // A replay conflict is always the disconnected-replica model, never a
       // named-version reconcile/post conflict; review UI routes on this.
       kind: "replica-sync",
-      // The durable record holds no resolution, so the conflict is awaiting
-      // review. Recording a resolution back against the queued edit is a
-      // separate slice; until it exists, no other status is derivable.
-      status: "pending",
+      // An unresolved record is awaiting review; a resolved one says what the
+      // reviewer chose, and never that a server committed it.
+      status: value.resolution === undefined ? "pending" : RESOLVED_STATUSES[value.resolution.disposition],
       clientOperation,
       detectedAt: value.detectedAt,
       clientState,
       ...(value.serverGeneration === undefined ? {} : { serverGen: value.serverGeneration }),
     },
+    ...(value.resolution === undefined ? {} : { localResolution: value.resolution }),
     unavailable: value.serverGeneration === undefined ? UNAVAILABLE_WITHOUT_SERVER_GENERATION : UNFILLED_MEMBERS,
   });
 }
@@ -401,16 +486,24 @@ function readConflictedEdit(value: unknown, path: string): ReadResult {
   if (typeof state !== "string" || !EDIT_STATES.has(state)) {
     return { ok: false, reason: "unreadable-edit", path: `${path}.state`, editId };
   }
-  if (state !== "conflicted") {
-    // A non-conflicted record carrying a conflict outcome contradicts itself;
-    // the queue's own record validator rejects the same combination.
+  if (state === "conflicted") {
+    // Conflicted and resolved at once contradicts itself; the queue's own record
+    // validator rejects the same combination.
+    if (record.conflictResolution !== undefined) {
+      return { ok: false, reason: "unreadable-edit", path: `${path}.conflictResolution`, editId };
+    }
+    if (record.conflict === undefined) {
+      return { ok: false, reason: "missing-conflict-record", path: `${path}.conflict`, editId };
+    }
+  } else {
+    // A non-conflicted record carrying a conflict outcome contradicts itself in
+    // the other direction.
     if (record.conflict !== undefined) {
       return { ok: false, reason: "unreadable-edit", path: `${path}.conflict`, editId };
     }
-    return { ok: false, reason: "not-conflicted", path: `${path}.state`, editId };
-  }
-  if (record.conflict === undefined) {
-    return { ok: false, reason: "missing-conflict-record", path: `${path}.conflict`, editId };
+    if (record.conflictResolution === undefined) {
+      return { ok: false, reason: "not-conflicted", path: `${path}.state`, editId };
+    }
   }
 
   const sourceId = optionalString(record.sourceId);
@@ -430,29 +523,42 @@ function readConflictedEdit(value: unknown, path: string): ReadResult {
     return { ok: false, reason: "unreadable-edit", path: `${path}.edit.operation`, editId };
   }
 
-  if (!isPlainRecord(record.conflict)) {
-    return { ok: false, reason: "unreadable-edit", path: `${path}.conflict`, editId };
+  // One reader for both shapes: an open conflict and the record of a closed one
+  // carry the same identity and timing, and the closed one adds the choice.
+  const resolved = state !== "conflicted";
+  const outcomePath = resolved ? `${path}.conflictResolution` : `${path}.conflict`;
+  const source = resolved ? record.conflictResolution : record.conflict;
+  if (!isPlainRecord(source)) {
+    return { ok: false, reason: "unreadable-edit", path: outcomePath, editId };
   }
-  const conflict = record.conflict as Record<string, unknown>;
+  const conflict = source as Record<string, unknown>;
+  const allowed = resolved ? CONFLICT_RESOLUTION_KEYS : CONFLICT_OUTCOME_KEYS;
   for (const key of Object.keys(conflict)) {
-    if (!CONFLICT_OUTCOME_KEYS.has(key)) {
-      return { ok: false, reason: "unreadable-edit", path: `${path}.conflict.${key}`, editId };
+    if (!allowed.has(key)) {
+      return { ok: false, reason: "unreadable-edit", path: `${outcomePath}.${key}`, editId };
     }
   }
   const conflictId = optionalString(conflict.conflictId);
   if (conflictId === undefined) {
-    return { ok: false, reason: "unreadable-edit", path: `${path}.conflict.conflictId`, editId };
+    return { ok: false, reason: "unreadable-edit", path: `${outcomePath}.conflictId`, editId };
   }
   const detectedAt = optionalTimestamp(conflict.detectedAt);
   if (detectedAt === undefined) {
-    return { ok: false, reason: "unreadable-edit", path: `${path}.conflict.detectedAt`, editId };
+    return { ok: false, reason: "unreadable-edit", path: `${outcomePath}.detectedAt`, editId };
   }
   let serverGeneration: string | undefined;
   if (conflict.serverGeneration !== undefined) {
     serverGeneration = optionalString(conflict.serverGeneration);
     if (serverGeneration === undefined) {
-      return { ok: false, reason: "unreadable-edit", path: `${path}.conflict.serverGeneration`, editId };
+      return { ok: false, reason: "unreadable-edit", path: `${outcomePath}.serverGeneration`, editId };
     }
+  }
+
+  let resolution: OfflineReplayLocalConflictResolutionV1 | undefined;
+  if (resolved) {
+    const read = readLocalResolution(conflict, outcomePath, editId);
+    if (!read.ok) return read;
+    resolution = read.value;
   }
 
   // Checked last: a feature-less local create is a well-formed conflict this
@@ -473,6 +579,59 @@ function readConflictedEdit(value: unknown, path: string): ReadResult {
       conflictId,
       detectedAt,
       ...(serverGeneration === undefined ? {} : { serverGeneration }),
+      ...(resolution === undefined ? {} : { resolution }),
+    },
+  };
+}
+
+type ResolutionReadResult =
+  | { readonly ok: true; readonly value: OfflineReplayLocalConflictResolutionV1 }
+  | {
+      readonly ok: false;
+      readonly reason: OfflineReplaySyncConflictRefusalReason;
+      readonly path: string;
+      readonly editId?: `sha256:${string}`;
+    };
+
+function readLocalResolution(
+  record: Record<string, unknown>,
+  path: string,
+  editId: `sha256:${string}`,
+): ResolutionReadResult {
+  const refuse = (member: string): ResolutionReadResult => ({
+    ok: false,
+    reason: "unreadable-edit",
+    path: `${path}.${member}`,
+    editId,
+  });
+  const choice = record.choice;
+  if (typeof choice !== "string" || !RESOLUTION_CHOICES.has(choice)) return refuse("choice");
+  const disposition = record.disposition;
+  // A record whose disposition disagrees with its choice cannot be trusted to
+  // describe what the queue did, and the status is derived from the disposition.
+  if (disposition !== (choice === "accept-client" ? "requeued" : "discarded")) return refuse("disposition");
+  if (record.acknowledgement !== "unacknowledged-by-server") return refuse("acknowledgement");
+  const resolvedAt = optionalTimestamp(record.resolvedAt);
+  if (resolvedAt === undefined) return refuse("resolvedAt");
+  let resolvedBy: string | undefined;
+  if (record.resolvedBy !== undefined) {
+    resolvedBy = optionalString(record.resolvedBy);
+    if (resolvedBy === undefined) return refuse("resolvedBy");
+  }
+  let note: string | undefined;
+  if (record.note !== undefined) {
+    note = optionalString(record.note);
+    if (note === undefined) return refuse("note");
+  }
+  return {
+    ok: true,
+    value: {
+      choice: choice as OfflineEditConflictResolutionChoice,
+      disposition: disposition as OfflineEditConflictResolutionDisposition,
+      acknowledgement: "unacknowledged-by-server",
+      resolvedAt,
+      ...(resolvedBy === undefined ? {} : { resolvedBy: { id: resolvedBy } }),
+      ...(note === undefined ? {} : { note }),
     },
   };
 }

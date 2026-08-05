@@ -1,3 +1,8 @@
+import type { ReplicaConflictPolicy } from "../replica-sync/types.js";
+import {
+  type OfflineReplayConflictPolicyRuleV1,
+  requireHonourableOfflineReplayConflictPolicy,
+} from "./conflict-resolution.js";
 import {
   HonuaOfflineEditQueueError,
   MAX_OFFLINE_EDIT_LEASE_DURATION_MS,
@@ -26,6 +31,7 @@ const OPTION_KEYS = new Set([
   "leaseDurationMs",
   "signal",
   "replica",
+  "conflictPolicy",
 ]);
 const COMMON_ACKNOWLEDGEMENT_KEYS = ["kind", "editId", "requestFingerprint", "idempotencyKey"] as const;
 const APPLIED_ACKNOWLEDGEMENT_KEYS = new Set([...COMMON_ACKNOWLEDGEMENT_KEYS, "serverOperationId", "serverGeneration"]);
@@ -96,6 +102,36 @@ export interface ReplayOfflineEditPassOptions extends OfflineEditQueuePartition 
    * guessed one.
    */
   readonly replica?: OfflineReplaySyncConflictBinding;
+  /**
+   * The replica's reconciliation policy, declared explicitly.
+   *
+   * Declaring it is how an application finds out that the SDK cannot carry the
+   * policy out: `client-wins` and `last-writer-wins` need a server to decide the
+   * outcome, so the pass refuses before it claims anything, naming the policy
+   * (`HonuaOfflineConflictAdjudicationError`). `manual` retains conflicts for
+   * review — which is also what an omitted policy does — and `server-wins`
+   * closes each conflict against the local edit and abandons it. See
+   * `OFFLINE_REPLAY_CONFLICT_POLICIES` and `docs/offline-regions.md`.
+   */
+  readonly conflictPolicy?: ReplicaConflictPolicy;
+}
+
+/** What a declared policy did to one conflicted edit. */
+export type OfflineEditReplayConflictPolicyOutcome =
+  /** The edit is still `conflicted` and awaiting review. */
+  | "retained-for-review"
+  /** The conflict was closed against the local edit, which is now `cancelled`. */
+  | "discarded-local-edit"
+  /**
+   * The conflict is durably recorded but the policy transition did not land —
+   * a concurrent writer moved the record first. The conflict stays open, and
+   * the pass says so instead of implying the policy was applied.
+   */
+  | "not-applied";
+
+export interface OfflineEditReplayConflictPolicyReceiptV1 {
+  readonly policy: ReplicaConflictPolicy;
+  readonly outcome: OfflineEditReplayConflictPolicyOutcome;
 }
 
 export type OfflineEditReplayUnacknowledgedReason =
@@ -114,9 +150,16 @@ export interface OfflineEditReplayItemReceipt {
   /**
    * Present only for a `conflicted` outcome when the pass was given a replica
    * binding. It carries either the projected sync conflict or a typed refusal —
-   * never a partially guessed contract object.
+   * never a partially guessed contract object. When a policy closed the
+   * conflict, the projection is of the resolved record, so its `status` and
+   * `localResolution` describe what the policy actually did.
    */
   readonly syncConflict?: OfflineReplaySyncConflictProjectionV1;
+  /**
+   * Present only for a `conflicted` outcome when the pass declared a conflict
+   * policy. A refused policy never reaches a receipt: the pass throws first.
+   */
+  readonly conflictPolicy?: OfflineEditReplayConflictPolicyReceiptV1;
 }
 
 export interface OfflineEditReplayPassReceipt {
@@ -137,6 +180,7 @@ interface NormalizedReplayOptions extends OfflineEditQueuePartition {
   readonly leaseDurationMs: number;
   readonly signal?: AbortSignal;
   readonly replica?: OfflineReplaySyncConflictBinding;
+  readonly policy?: OfflineReplayConflictPolicyRuleV1;
 }
 
 class AcknowledgementError extends Error {
@@ -242,23 +286,61 @@ export async function replayOfflineEditPass(
       outcomes.push(unacknowledged(queued.id, "transition-rejected"));
       break;
     }
-    // Projected outside the transition guard on purpose: the durable write has
-    // already succeeded, so a projection refusal must not be reported as a
-    // rejected transition.
+    // Both run outside the transition guard on purpose: the durable conflict
+    // write has already succeeded, so neither a policy that cannot land nor a
+    // projection refusal may be reported as a rejected transition.
+    const policy = conflicted === undefined ? undefined : await applyConflictPolicy(queue, normalized, conflicted);
+    const resolved = policy?.record ?? conflicted;
     const syncConflict =
-      conflicted === undefined || normalized.replica === undefined
+      resolved === undefined || normalized.replica === undefined
         ? undefined
-        : projectOfflineReplaySyncConflict({ edit: conflicted, replica: normalized.replica });
+        : projectOfflineReplaySyncConflict({ edit: resolved, replica: normalized.replica });
     outcomes.push(
       deepFreeze({
         editId: queued.id,
         outcome: acknowledgement.kind,
         ...(syncConflict === undefined ? {} : { syncConflict }),
+        ...(policy === undefined ? {} : { conflictPolicy: policy.receipt }),
       }),
     );
   }
 
   return createReceipt(outcomes, invokedCount, stoppedReason);
+}
+
+/**
+ * Carry out the declared policy on one freshly conflicted edit.
+ *
+ * `manual` — and an omitted policy, which behaves the same way — decides
+ * nothing, so there is nothing to do beyond saying so. `server-wins` closes the
+ * conflict against the local edit through the queue's own reviewed-resolution
+ * transition, so a policy-driven closure and a reviewer-driven one leave
+ * identical durable state and identical audit history.
+ */
+async function applyConflictPolicy(
+  queue: OfflineEditQueue,
+  options: NormalizedReplayOptions,
+  conflicted: OfflineQueuedEdit,
+): Promise<
+  { readonly receipt: OfflineEditReplayConflictPolicyReceiptV1; readonly record?: OfflineQueuedEdit } | undefined
+> {
+  const policy = options.policy;
+  if (policy === undefined) return undefined;
+  if (policy.action !== "discard-local-edit" || policy.choice === undefined || !conflicted.conflict) {
+    return { receipt: Object.freeze({ policy: policy.policy, outcome: "retained-for-review" }) };
+  }
+  try {
+    const record = await queue.resolveConflict(
+      conflicted.id,
+      { authorizationScopeDigest: options.authorizationScopeDigest, sourceId: options.sourceId },
+      { conflictId: conflicted.conflict.conflictId, choice: policy.choice },
+    );
+    return { receipt: Object.freeze({ policy: policy.policy, outcome: "discarded-local-edit" }), record };
+  } catch {
+    // The conflict is durably recorded; the policy simply did not land, and the
+    // receipt says that rather than implying the local edit was abandoned.
+    return { receipt: Object.freeze({ policy: policy.policy, outcome: "not-applied" }) };
+  }
 }
 
 function captureOptions(value: ReplayOfflineEditPassOptions): NormalizedReplayOptions {
@@ -283,6 +365,12 @@ function captureOptions(value: ReplayOfflineEditPassOptions): NormalizedReplayOp
     record.replica === undefined
       ? undefined
       : normalizeOfflineReplaySyncConflictBinding(record.replica, "options.replica");
+  // Refused before the first claim: a pass either honours the policy it was
+  // given for every conflict it meets, or it does nothing at all.
+  const policy =
+    record.conflictPolicy === undefined
+      ? undefined
+      : requireHonourableOfflineReplayConflictPolicy(record.conflictPolicy, "options.conflictPolicy");
   return {
     authorizationScopeDigest,
     sourceId,
@@ -291,6 +379,7 @@ function captureOptions(value: ReplayOfflineEditPassOptions): NormalizedReplayOp
     leaseDurationMs,
     ...(signal === undefined ? {} : { signal }),
     ...(replica === undefined ? {} : { replica }),
+    ...(policy === undefined ? {} : { policy }),
   };
 }
 
