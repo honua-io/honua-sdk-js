@@ -3989,6 +3989,11 @@ Because the identity is plan-derived, the batch is admissible to
 change to the plan's source, schema, scope, query, policy, execution mode, or
 representation changes `columnarBatchCacheKey`.
 
+The producer materializes no per-row object, and that is budgeted rather than
+asserted: the `columnar.producer.million-row` benchmark-lab scenario runs this
+path over a 1,000,000-row column under an identity minted from a real plan and
+carries the same per-row retention ceiling the data-plane scenario declares.
+
 ## Memory ceilings
 
 Creation and transfer default to at most 1,000,000 rows and 64 MiB of unique
@@ -4659,10 +4664,18 @@ not read the patch overlay, so a tombstoned row would appear in its window —
 read a patched batch through `decodePatchedGeoArrowBatch()` instead.
 
 Within realtime patching specifically, in-place dictionary growth, more than one
-operation per feature id in one patch, an incremental transport that ships only
-the appended byte range, and a benchmarked patch-latency budget are deliberately
-not claimed: a patch needing a new dictionary value or a second operation on one
-feature rebuilds or is rejected rather than guessing.
+operation per feature id in one patch, and an incremental transport that ships
+only the appended byte range are deliberately not claimed: a patch needing a new
+dictionary value or a second operation on one feature rebuilds or is rejected
+rather than guessing.
+
+Patch latency and rebuild memory *are* budgeted. The
+`columnar.patch.million-row` benchmark-lab scenario applies 1,000-event patches
+to a 1,000,000-row batch and then lets the declared reserve fill so one
+compacting rebuild runs per repetition, carrying an in-place latency ceiling
+plus the per-feature and relative-to-backing memory ceilings the epic sets on a
+rebuild. See [`bench/README.md`](../bench/README.md) for the measured values and
+for why the latency target is the scenario's warning rather than its failure.
 
 ---
 
@@ -6841,6 +6854,80 @@ console.log(enqueued.status); // "enqueued" or "duplicate"
 console.log(receipt.appliedCount);
 ```
 
+## Replay conflicts in the sync-conflict vocabulary
+
+A conflicted acknowledgement records an opaque `conflictId` on the queued edit.
+The SDK separately ships a conflict-review vocabulary — `SyncConflictDetail`,
+`SyncConflictId`, `SyncConflictKind`, `ServerGenerationCursor`. Without a
+projection an application holds two disjoint vocabularies for the same event.
+
+`projectOfflineReplaySyncConflict()` is that projection, and only that: a pure
+function with no I/O, no clock, and no runtime dependency on the replica-sync
+module. Pass a replica binding to `replayOfflineEditPass()` or
+`createLocalFirstStatus()` and the projection is applied to the conflicts those
+surfaces already report — it is not a second channel.
+
+```ts doc-test=skip reason="partial excerpt requires application replay transport"
+import { projectOfflineReplaySyncConflict, replayOfflineEditPass } from "@honua/sdk-js/offline";
+
+// The SDK cannot derive a replica from a queue partition, so the binding is an
+// explicit application input. Omit it and no projection is produced; nothing is
+// guessed.
+const replica = { replicaId: registeredReplicaId, datasetId: registeredDatasetId };
+
+const receipt = await replayOfflineEditPass(queue, transport, {
+  authorizationScopeDigest: manifest.source.authorizationScopeDigest,
+  sourceId: manifest.source.id,
+  workerId: replayWorkerId,
+  limit: 10,
+  leaseDurationMs: 30_000,
+  replica,
+});
+
+for (const outcome of receipt.outcomes) {
+  if (outcome.syncConflict?.outcome !== "projected") continue;
+  console.log(outcome.syncConflict.conflict.id); // a SyncConflictId
+  console.log(outcome.syncConflict.conflict.kind); // "replica-sync"
+  console.log(outcome.syncConflict.conflict.serverGen); // a ServerGenerationCursor
+}
+
+// The same projection is available directly for a record already in the queue.
+const projection = projectOfflineReplaySyncConflict({ edit: conflictedQueuedEdit, replica });
+```
+
+Three rules make the projection safe to consume:
+
+- **It never invents server semantics.** `SyncConflictDetail` members that only
+  a live server can observe or adjudicate — `base`, `serverState`,
+  `serverOperation`, `fieldConflicts`, `fieldConflictCount`,
+  `hasGeometryConflict`, `geometryConflict`, `resolutionOptions`, `resolution` —
+  are absent from the projected conflict and enumerated in
+  `projection.unavailable` with the reason `server-owned`. Members the queue
+  simply does not record (`layerId`, `client`, `device`, `metadata`, and
+  `serverGen` when the acknowledgement carried none) are listed as
+  `not-recorded`. An empty `resolutionOptions` array would read as "the server
+  offers nothing", so the member is omitted instead.
+- **It is payload-free.** `clientState` carries the operation, the delete
+  marker, and the local authoring time, never the edit's attributes or geometry.
+  Those two are listed as `payload-free` in `projection.unavailable`. The
+  authorization-scope digest, request fingerprint, and idempotency key stay in
+  the queue. `OFFLINE_REPLAY_SYNC_CONFLICT_FIELD_MAP` is the full ledger: every
+  field of a durable queued edit, and where it lands or why it does not.
+- **It fails closed.** A record this build cannot map yields
+  `{ outcome: "refused", reason, path }`, never a partially guessed conflict.
+  The reasons are `not-conflicted` (the edit is in another state),
+  `missing-conflict-record` (`conflicted` with no durable outcome),
+  `unidentified-feature` (a local create names no feature, and
+  `SyncConflictSummary.featureId` is required), and `unreadable-edit`. A
+  malformed replica binding is the caller's own argument, so it throws
+  `HonuaOfflineEditQueueError` instead.
+
+This makes the two vocabularies agree; it does not make the SDK a replica-sync
+client. The replay transport is still application-owned, end-to-end
+exactly-once delivery and hosted replica synchronization remain server
+properties, and validating a projected conflict against live server conflict
+semantics stays gated on that server work.
+
 ## Composed local-first status
 
 Cache diagnostics answer "what is in the store", and the queue answers "what
@@ -6874,6 +6961,9 @@ console.log(status.reason); // "undelivered-edits"
 console.log(status.reads.availability, status.reads.freshness);
 console.log(status.writes.coverage); // "complete"
 console.log(status.writes.undeliveredCount, status.writes.conflictedCount);
+// Empty unless `replica` was supplied; see "Replay conflicts in the
+// sync-conflict vocabulary" above.
+console.log(status.writes.syncConflicts.length);
 ```
 
 `OfflineEditQueue.list()` returns at most 100 records in created order and has
@@ -9883,7 +9973,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | OGC API Tiles | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
 | OGC API Maps | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
 | OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
-| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, url-template imagery, tilesets, and glTF/GLB models, while WMS/WMTS/ArcGIS imagery rows, point-cloud and style-sidecar variants, and the final-canvas GC floor remain open under #928. Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table. |
+| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, every declared imagery protocol (url-template, WMS, WMTS, single-tile, and both ArcGIS endpoint shapes) with the request each provider puts on the wire, glTF/GLB models, 3D-Tiles tilesets including a .pnts point cloud and the honua_style sidecar, the fail-closed rows for an undeclared imagery protocol and an unmaterialized model format, and a documented final-canvas GC floor whose listener budget is itself proven by an injected per-cycle leak (#928, #1055). Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table. |
 | OGC API Processes discovery | `open-endpoint` | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
 | OGC API Processes execution | `open-endpoint` | `experimental` | `standalone` | `native` | Any conformant OGC API Processes Part 1 (Core) server | client.ogcProcesses({ basePath, conformance }).execute() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Executes at the discovered service root in both Core response shapes (synchronous 200 results and Prefer: respond-async 201 + Location), then follows the advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture-proven; no public endpoint permits anonymous execution, so there is no live lane. |
 | Server compatibility gate | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
