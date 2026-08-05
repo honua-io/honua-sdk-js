@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import fs from "node:fs";
 import http from "node:http";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";

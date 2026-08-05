@@ -16,7 +16,6 @@ import {
 import type { GeoParquetResourceHandleV1 } from "../src/query-planner/resource.js";
 
 const SHA_A = `sha256:${"a".repeat(64)}` as const;
-const SHA_B = `sha256:${"b".repeat(64)}` as const;
 
 function descriptor(overrides: Partial<SourceDescriptor> = {}): SourceDescriptor {
   return {

@@ -23,12 +23,7 @@
 
 import { HonuaCapabilityNotSupportedError, HonuaClient, HonuaHttpError } from "@honua/sdk-js";
 import { beforeAll, describe, it } from "vitest";
-import {
-  type DiagnosticsContext,
-  createDiagnosticsInterceptor,
-  formatFailureContext,
-  runWithDiagnostics,
-} from "./diagnostics.js";
+import { type DiagnosticsContext, createDiagnosticsInterceptor } from "./diagnostics.js";
 import { recordSurface } from "./reporter.js";
 
 export { runWithDiagnostics, formatFailureContext } from "./diagnostics.js";

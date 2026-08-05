@@ -5,7 +5,12 @@
     "rules": {
       "recommended": true,
       "complexity": { "noForEach": "off", "useLiteralKeys": "off" },
-      "correctness": { "noSelfAssign": "off" },
+      "correctness": {
+        "noSelfAssign": "off",
+        "noUnusedFunctionParameters": "error",
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error"
+      },
       "performance": { "noDelete": "off" },
       "style": {
         "noNonNullAssertion": "off",

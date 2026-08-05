@@ -5,7 +5,7 @@ import {
   fixturePolicy,
   fixtureProposal,
 } from "./safe-agent.js";
-import type { AgentProposalV1, Decision, SafeAgentSession } from "./safe-agent.js";
+import type { AgentProposalV1, Decision } from "./safe-agent.js";
 
 import "./styles.css";
 

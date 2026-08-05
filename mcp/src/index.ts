@@ -283,19 +283,21 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
 
   // ── Resources ──────────────────────────────────────────────────
 
-  server.resource("services-catalog", servicesResource.uri, async (uri) => servicesResource.read(client));
+  server.resource("services-catalog", servicesResource.uri, async (_uri) => servicesResource.read(client));
 
   server.resource(
     "layer-schema",
     new ResourceTemplate(layerSchemaResource.uriTemplate, { list: undefined }),
-    async (uri, params) =>
+    async (_uri, params) =>
       layerSchemaResource.read(client, params.encodedServiceId as string, params.layerId as string),
   );
 
-  server.resource("styles-catalog", stylesResource.uri, async (uri) => stylesResource.readCatalog(client));
+  server.resource("styles-catalog", stylesResource.uri, async (_uri) => stylesResource.readCatalog(client));
 
-  server.resource("style", new ResourceTemplate(stylesResource.uriTemplate, { list: undefined }), async (uri, params) =>
-    stylesResource.read(client, params.styleId as string),
+  server.resource(
+    "style",
+    new ResourceTemplate(stylesResource.uriTemplate, { list: undefined }),
+    async (_uri, params) => stylesResource.read(client, params.styleId as string),
   );
 
   return server;

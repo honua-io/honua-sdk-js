@@ -6,7 +6,6 @@ import {
   DEFAULT_MAP_PACKAGE_CACHE_LIMIT,
   HONUA_MAP_PACKAGE_FORMAT_V1,
   type HonuaMapPackage,
-  HonuaMapPackageError,
   type MapPackageFetchCacheEntry,
   type MaplibreMap,
   fetchMapPackage,

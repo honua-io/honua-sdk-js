@@ -25,9 +25,7 @@ import type {
   SceneWorkspaceIntent,
   SceneWorkspaceListener,
   SceneWorkspaceSlice,
-  SceneWorkspaceSnapshot,
   SceneWorkspaceState,
-  SceneWorkspaceUnsubscribe,
 } from "./types.js";
 
 export function emptySceneWorkspaceState(): SceneWorkspaceState {

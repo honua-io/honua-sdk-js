@@ -29,7 +29,6 @@ import {
   type DuckDbGeometryEncoding,
   type ExplainGeoParquetQueryOptions,
   type ExplainQueryOptions,
-  type GeoParquetRemoteQueryPlanStepV2,
   HonuaQueryPlanExecutionError,
   HonuaQueryPlanningError,
   type LocalAggregatePlanStep,

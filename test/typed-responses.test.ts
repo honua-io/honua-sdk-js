@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import type {
   HonuaApplyEditsResponse,
-  HonuaAttachmentListResponse,
   HonuaExportMapResponse,
   HonuaFindResponse,
   HonuaIdentifyResponse,
@@ -10,20 +9,13 @@ import type {
   HonuaLegendResponse,
   HonuaOgcFeatureCollectionResponse,
   HonuaOgcFeatureResponse,
-  HonuaQueryAttachmentsResponse,
   HonuaQueryResponse,
   HonuaRelatedRecordsResponse,
   HonuaServiceMetadata,
   HonuaTypedFeature,
   HonuaTypedQueryResponse,
 } from "@honua/sdk-js/honua";
-import {
-  HonuaFeatureLayer,
-  HonuaMapLayer,
-  HonuaMapService,
-  HonuaOgcFeatureCollection,
-  HonuaOgcFeatures,
-} from "@honua/sdk-js/honua";
+import { HonuaMapLayer, HonuaMapService, HonuaOgcFeatureCollection, HonuaOgcFeatures } from "@honua/sdk-js/honua";
 import { HonuaClient } from "../src/index.js";
 
 function createMockClient(responseBody: unknown): HonuaClient {

@@ -325,7 +325,6 @@ export interface MountedSource<T = Record<string, unknown>> extends AsyncDisposa
 }
 
 const DEFAULT_MAX_GEOJSON_FEATURES = 10_000;
-const GEOMETRY_SUFFIXES = ["point", "line", "polygon", "polygon-outline"] as const;
 
 /**
  * Explain which materialization strategy {@link mountSource} would pick for

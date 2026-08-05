@@ -1489,7 +1489,7 @@ type FeatureIdentityMemberFor<TRecord, TSchemaState extends SchemaState> = TSche
   : { readonly identity?: FeatureIdentity };
 
 type BaseFeatureForQuery<TRecord, TQuery, TSchemaState extends SchemaState> = TQuery extends {
-  readonly select?: infer TSelect;
+  readonly select?: unknown;
 }
   ? {
       /** A field promoted to top-level geometry is removed to avoid duplicate values. */

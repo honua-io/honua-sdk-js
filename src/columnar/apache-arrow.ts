@@ -6,7 +6,6 @@ import {
   type ApacheArrowModuleLike,
   type ApacheArrowRecordBatchLike,
   type ApacheArrowRecordBatchResult,
-  type ApacheArrowVectorLike,
   type FromApacheArrowRecordBatchOptions,
   GEOARROW_SPEC_VERSION,
   type GeoArrowBatchFromApacheResult,

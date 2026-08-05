@@ -12,7 +12,6 @@ import type {
   SavedMapFeatureLock,
   SavedMapFeatureLockReleaseRequest,
   SavedMapFeatureLockRequest,
-  SavedMapFollowTarget,
   SavedMapOperationReplayRequest,
   SavedMapOperationReplayResult,
   SavedMapOperationSubmitRequest,

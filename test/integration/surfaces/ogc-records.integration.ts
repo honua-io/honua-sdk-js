@@ -30,7 +30,7 @@ import {
 
 const SURFACE = "ogc-records";
 
-integrationSuite("OGC API Records", SURFACE, ({ client, context, config }) => {
+integrationSuite("OGC API Records", SURFACE, ({ client, context }) => {
   const records = client.ogcRecords();
 
   // Memoized runtime capability probe. Resolves to a CapabilityGap when the

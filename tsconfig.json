@@ -11,6 +11,7 @@
     "rootDir": ".",
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
+    "noUnusedLocals": true,
     "noEmitOnError": true
   },
   "include": ["src", "test", "bench"],

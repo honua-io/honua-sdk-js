@@ -6,7 +6,7 @@ import {
   selectStacAsset,
   updateStacFilters,
 } from "./model.js";
-import type { StacBrowserSession, StacSearchFilters } from "./types.js";
+import type { StacSearchFilters } from "./types.js";
 
 import "./styles.css";
 

@@ -1,4 +1,4 @@
-import type { AttachmentInfo, EditFieldDomain, EditWorkflowField, SourceDescriptor } from "@honua/sdk-js/contract";
+import type { EditFieldDomain, EditWorkflowField, SourceDescriptor } from "@honua/sdk-js/contract";
 import { capabilities } from "@honua/sdk-js/contract";
 import type {
   EditWorkflowDataset,

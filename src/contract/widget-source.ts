@@ -20,7 +20,6 @@ import type {
   AggregationHistogramBucketSpec,
   AggregationMetric,
   AggregationSpec,
-  AggregationTimeIntervalSpec,
   AggregationTimeIntervalUnit,
   AggregationTimeSeriesSpec,
   DegradedReason,

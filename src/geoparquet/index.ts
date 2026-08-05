@@ -45,7 +45,6 @@ import type {
   CapabilityAwareSource,
   CapabilityPolicy,
   DegradedReason,
-  FeatureId,
   Protocol,
   Query,
   ResolveSourceContext,
@@ -67,7 +66,7 @@ import {
   quoteIdentifier,
   rowEstimateSql,
 } from "../core/geoparquet-sql.js";
-import type { EsriFieldType, HonuaExtent, HonuaFieldInfo, HonuaTypedFeature } from "../core/types.js";
+import type { EsriFieldType, HonuaFieldInfo, HonuaTypedFeature } from "../core/types.js";
 import {
   DuckDbLosslessDecodeError,
   type DuckDbLosslessJsonValue,

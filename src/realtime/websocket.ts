@@ -18,7 +18,6 @@
 import { encodeDefaultRealtimeRequest } from "./sse.js";
 import type {
   RealtimeFeatureEvent,
-  RealtimeFeatureObserver,
   RealtimeFeatureTransport,
   RealtimeSubscriptionHandle,
   RealtimeSubscriptionRequest,

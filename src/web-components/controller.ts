@@ -5,7 +5,6 @@ import type { HonuaLayerSpecification } from "../style/index.js";
 import type {
   CreateHonuaWebComponentControllerOptions,
   HonuaChartModel,
-  HonuaComponentStatus,
   HonuaControllerStateListener,
   HonuaEditorModel,
   HonuaFeatureRecord,

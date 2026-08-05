@@ -19,12 +19,7 @@ import {
 } from "@honua/sdk-js/runtime";
 import type { HonuaMapPackage, HonuaMapRuntime, MapPackageFetchCache } from "@honua/sdk-js/runtime";
 import { createHonuaWebComponentControllerFromRuntime } from "@honua/sdk-js/web-components";
-import type {
-  HonuaChartElement,
-  HonuaFeatureRecord,
-  HonuaMapElement,
-  HonuaWebComponentRuntimeLike,
-} from "@honua/sdk-js/web-components";
+import type { HonuaChartElement, HonuaMapElement, HonuaWebComponentRuntimeLike } from "@honua/sdk-js/web-components";
 import * as maplibregl from "maplibre-gl";
 
 import {

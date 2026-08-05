@@ -11,9 +11,7 @@ import type {
   StoryFeatureCollection,
   StoryFeatureId,
   StoryRouteFeature,
-  StoryRouteProperties,
   StoryStopFeature,
-  StoryStopProperties,
 } from "./types.js";
 
 const RISK_FIELDS = ["risk_score", "riskScore", "risk", "severity", "priority_score"];

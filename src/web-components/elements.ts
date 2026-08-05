@@ -53,7 +53,6 @@ import type {
   HonuaEditorMessages,
   HonuaEditorModel,
   HonuaExportDetail,
-  HonuaFeatureEditorMessages,
   HonuaFeatureRecord,
   HonuaFeatureTableModel,
   HonuaFilterChangeDetail,
@@ -2777,12 +2776,6 @@ function inferFields<T>(rows: readonly HonuaFeatureRecord<T>[]): string[] {
 function getElementById(root: Document | ShadowRoot | undefined, id: string): Element | null {
   if (root && "getElementById" in root) return root.getElementById(id);
   return typeof document !== "undefined" ? document.getElementById(id) : null;
-}
-
-function formatCell(value: unknown): string {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
 }
 
 function modeLabel(mode: string): string {

@@ -844,7 +844,7 @@ export function startColumnarWorkerHost(options: StartColumnarWorkerHostOptions)
         );
       });
       lease.dispose();
-    } catch (cause) {
+    } catch {
       if (controller.signal.aborted) sendError(request.requestId, "aborted", "Columnar worker operation was aborted");
       else sendError(request.requestId, "operation-failed", "Columnar worker operation failed");
     } finally {

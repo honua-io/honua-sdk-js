@@ -26,7 +26,6 @@ import {
   type AgentApprovalRequestV1,
   type AgentApprovalUseConsumer,
   type AgentApprovalV1,
-  type AgentDataMode,
   type AgentDigest,
   type AgentDryRunV1,
   type AgentEffect,

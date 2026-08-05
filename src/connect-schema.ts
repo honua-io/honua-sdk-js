@@ -27,7 +27,6 @@ import {
   unavailableSchemaIdentity,
   validateSourceCrsDefinition,
 } from "./contract/schema.js";
-import type { Protocol } from "./contract/types.js";
 import {
   type HonuaOdataFieldInfo,
   type HonuaOdataMetadata,
@@ -1748,10 +1747,6 @@ function notReportedDomain(): FieldValueDomain {
 
 function notReportedConstraints(): LogicalField["constraints"] {
   return { state: "unknown", reason: "not-reported" };
-}
-
-function orderedValue(value: unknown): value is string | number {
-  return (typeof value === "string" && value !== "") || (typeof value === "number" && Number.isFinite(value));
 }
 
 function stripOdataNamespace(value: string): string {

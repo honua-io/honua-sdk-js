@@ -155,7 +155,7 @@ class IdentityManagerCompatStore {
       return this.checkSignInStatus(url);
     }
 
-    const credential = await this.resolveThroughEngine(engine, url);
+    const credential = await this.resolveThroughEngine(engine);
     this.registerToken(credential);
     return { ...credential };
   }
@@ -191,7 +191,7 @@ class IdentityManagerCompatStore {
     return undefined;
   }
 
-  private async resolveThroughEngine(bound: BoundEngine, url: string): Promise<IdentityCredentialCompat> {
+  private async resolveThroughEngine(bound: BoundEngine): Promise<IdentityCredentialCompat> {
     const context = { reason: "initial" as const, forceRefresh: false };
     let credentials: HonuaAuthCredentials | string | null | undefined;
     try {

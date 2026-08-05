@@ -4,7 +4,6 @@
  * @module
  */
 
-import type { HonuaLayerSpecification } from "../style/specification.js";
 import type {
   EsriColor,
   WebMapPictureMarkerSymbol,

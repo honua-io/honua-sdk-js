@@ -8,7 +8,6 @@ import {
 } from "@honua/sdk-js/contract";
 import { createEditWorkflowDemoSession } from "./model.js";
 import type {
-  EditWorkflowDemoSession,
   InspectionAttributes,
   InspectionFeature,
   InspectionPriority,

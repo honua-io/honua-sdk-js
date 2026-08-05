@@ -14,7 +14,6 @@ import {
 } from "../src/realtime/index.js";
 import type {
   RealtimeCheckpointRecordStorage,
-  RealtimeCheckpointRecordV1,
   RealtimeCheckpointStoreDiagnosticV1,
   RealtimeCheckpointStoreOptions,
   RealtimeDurableCheckpointV1,

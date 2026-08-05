@@ -49,7 +49,6 @@ import {
 import { createRealtimeServerSentEventsTransport } from "./sse.js";
 import type { RealtimeServerSentEventsTransportOptions } from "./sse.js";
 import type {
-  RealtimeFeatureEvent,
   RealtimeFeatureObserver,
   RealtimeFeatureTransport,
   RealtimeSubscriptionHandle,
@@ -80,6 +79,12 @@ export interface RealtimeResumableTransportTelemetry {
   readonly checkpoint?: RedactedRealtimeCheckpointV1;
 }
 
+// `TFeature` is a phantom parameter: the resumable wrapper never decodes an
+// event itself, but the whole transport family (`RealtimeFeatureTransport`,
+// `RealtimeServerSentEventsTransportOptions`, `RealtimeWebSocketTransportOptions`)
+// is generic in it, and dropping the published arity would break callers that
+// write `RealtimeResumableTransportOptions<Incident>`.
+// biome-ignore lint/correctness/noUnusedVariables: published generic arity, see above
 export interface RealtimeResumableTransportOptions<TFeature = unknown> {
   readonly context: RealtimeResumeContextV1;
   readonly checkpointStore?: RealtimeCheckpointStore;

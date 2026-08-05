@@ -32,7 +32,6 @@ import {
   type DiagnosticsContext,
   type IntegrationConfig,
   makeIntegrationClient,
-  runWithDiagnostics,
   tryResolveIntegrationConfig,
 } from "../integration/harness.js";
 import { recordSurface } from "../integration/reporter.js";

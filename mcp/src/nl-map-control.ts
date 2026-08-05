@@ -1,6 +1,5 @@
 import {
   type AgentApprovalUseConsumer,
-  type AgentEnvelopeVerifier,
   verifyAgentApproval,
   verifyAgentStepAuthorization,
 } from "@honua/sdk-js/agent-safety";

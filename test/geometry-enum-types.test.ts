@@ -18,7 +18,6 @@ import type {
   HonuaServicesResponse,
   OgcCreateItemRequest,
   OgcPatchItemRequest,
-  OgcReplaceItemRequest,
   QueryFeaturesRequest,
 } from "@honua/sdk-js/honua";
 

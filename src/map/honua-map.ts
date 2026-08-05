@@ -29,7 +29,6 @@ import type {
 } from "../style/specification.js";
 import {
   isFeatureServiceSource,
-  isHonuaSource,
   isMapServiceSource,
   isOgcFeaturesSource,
   isWmsSource,

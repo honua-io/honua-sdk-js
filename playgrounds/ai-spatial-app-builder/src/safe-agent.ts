@@ -23,7 +23,7 @@ import { HONUA_AGENT_TOOL_NAMES } from "@honua/sdk-js/agent-tools";
 import type { Query, Result, Source, SourceDescriptor } from "@honua/sdk-js/contract";
 import { capabilities } from "@honua/sdk-js/contract";
 import { canonicalStringify, executeQueryPlan, explainQuery, sha256, toJsonValue } from "@honua/sdk-js/query-planner";
-import type { JsonValue, QueryExecutionPlanV1 } from "@honua/sdk-js/query-planner";
+import type { QueryExecutionPlanV1 } from "@honua/sdk-js/query-planner";
 
 export type AgentEffect = "read" | "mutation" | "realtime" | "generated-app";
 export type Decision = "approve" | "narrow" | "reject";

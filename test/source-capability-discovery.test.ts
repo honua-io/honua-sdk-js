@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GeoParquetSourceProfile, GeoParquetSourceProfiler } from "../src/connect-geoparquet.js";
 import type { ConnectDiscoverySnapshot } from "../src/connect.js";
 import { schemaStateBindingFingerprint } from "../src/contract/schema.js";
-import type { Result, Source, SourceDescriptor } from "../src/contract/types.js";
+import type { Source, SourceDescriptor } from "../src/contract/types.js";
 import { HONUA_MINIMUM_SUPPORTED_SERVER_VERSION, HonuaClient } from "../src/core/client.js";
 import type { HonuaLayerMetadata, HonuaQueryResponse } from "../src/core/types.js";
 import { createCapabilitySourceEndpointFingerprint } from "../src/source-capabilities.js";
