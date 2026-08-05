@@ -11,6 +11,11 @@
  * The spec drives it with `runCycles(...)`; running the same plan repeatedly on
  * fresh viewers is what turns single-shot teardown numbers into a leak budget.
  *
+ * The S2 lanes (`runImageryProtocols`, `runTilesetVariants`) widen that matrix to
+ * every declared imagery protocol and to the 3D-Tiles content variants — a
+ * `.pnts` point cloud and the server's `honua_style` sidecar — against the same
+ * real runtime and the same teardown ceilings.
+ *
  * @module
  */
 
@@ -161,6 +166,294 @@ const FIXTURE_MATRIX = [
 const PLAN = FIXTURE_MATRIX.map((entry) => entry.primitive);
 
 const PRIMITIVE_BY_ID = new Map(FIXTURE_MATRIX.map((entry) => [entry.id, entry.primitive]));
+
+/**
+ * The imagery-protocol matrix (#928 S2).
+ *
+ * `CESIUM_SCENE_CAPABILITIES.imagery.protocols` declares five protocols, and
+ * before this row set exactly one of them (`url-template`) had ever reached a
+ * real Cesium provider. Each row below binds one declared protocol and names the
+ * Cesium provider the adapter is supposed to route it to, so the assertion is
+ * "this protocol became *that* provider", not merely "an imagery layer appeared".
+ *
+ * `arcgis-imagery` appears twice on purpose: the adapter forks on the endpoint
+ * type, sending an ImageServer through a templated `exportImage` URL and a
+ * MapServer through Cesium's own ArcGIS provider. A single row would leave half
+ * of that fork unproven.
+ *
+ * Every row carries a distinct `opacity`. The layers land in
+ * `scene.imageryLayers` in plan order and the adapter maps `opacity` to
+ * `ImageryLayer.alpha`, so the alphas double as a self-verifying check that row
+ * *n* really is the layer the spec reads at index *n*.
+ *
+ * The last row is a protocol the adapter does not declare at all. It must fail
+ * closed with a stable code and never reach a Cesium factory — a silent skip
+ * there would be indistinguishable from a protocol that quietly renders nothing.
+ */
+const IMAGERY_PROTOCOL_MATRIX = [
+  {
+    id: "protocol-url-template",
+    expect: "supported",
+    materializes: true,
+    provider: "UrlTemplateImageryProvider",
+    primitive: {
+      kind: "imagery-layer",
+      id: "protocol-url-template",
+      sourceId: "protocol-url-template",
+      title: "url-template imagery",
+      protocol: "url-template",
+      url: "/fixtures/imagery/{z}/{x}/{y}.png",
+      opacity: 0.95,
+      maximumLevel: 2,
+      crs: "OGC:CRS84",
+    },
+  },
+  {
+    id: "protocol-wms",
+    expect: "supported",
+    materializes: true,
+    provider: "WebMapServiceImageryProvider",
+    primitive: {
+      kind: "imagery-layer",
+      id: "protocol-wms",
+      sourceId: "protocol-wms",
+      title: "WMS imagery",
+      protocol: "wms",
+      url: "/fixtures/wms",
+      layer: "honua:fixture",
+      style: "default",
+      format: "image/png",
+      // `version` and `transparent` are not WMS request-shaping keys the adapter
+      // reserves, so they travel through `parameters` — and 1.3.0 makes Cesium
+      // emit `crs=CRS:84` instead of `srs=EPSG:4326`, which the spec reads back
+      // off the wire.
+      parameters: { version: "1.3.0", transparent: true },
+      opacity: 0.85,
+      maximumLevel: 2,
+      crs: "OGC:CRS84",
+    },
+  },
+  {
+    // Cesium's WMTS provider tiles in Web Mercator by default and reprojects onto
+    // the WGS84 globe, so declaring EPSG:3857 is the honest binding — and it
+    // renders degraded rather than supported.
+    id: "protocol-wmts",
+    expect: "degraded",
+    materializes: true,
+    provider: "WebMapTileServiceImageryProvider",
+    expectedDiagnostics: ["scene-primitive-crs-equivalent"],
+    primitive: {
+      kind: "imagery-layer",
+      id: "protocol-wmts",
+      sourceId: "protocol-wmts",
+      title: "WMTS imagery",
+      protocol: "wmts",
+      url: "/fixtures/wmts",
+      layer: "honua-fixture",
+      style: "default",
+      tileMatrixSetId: "honua-fixture-matrix",
+      format: "image/png",
+      opacity: 0.75,
+      maximumLevel: 2,
+      crs: "EPSG:3857",
+    },
+  },
+  {
+    id: "protocol-single-tile",
+    expect: "supported",
+    materializes: true,
+    provider: "SingleTileImageryProvider",
+    primitive: {
+      kind: "imagery-layer",
+      id: "protocol-single-tile",
+      sourceId: "protocol-single-tile",
+      title: "single-tile imagery",
+      protocol: "single-tile",
+      url: "/fixtures/single-tile.png",
+      opacity: 0.65,
+      crs: "OGC:CRS84",
+    },
+  },
+  {
+    // ArcGIS MapServer: Cesium's own provider, which first fetches the service
+    // description and then requests dynamic exports in EPSG:4326.
+    id: "protocol-arcgis-map-server",
+    expect: "supported",
+    materializes: true,
+    provider: "ArcGisMapServerImageryProvider",
+    primitive: {
+      kind: "imagery-layer",
+      id: "protocol-arcgis-map-server",
+      sourceId: "protocol-arcgis-map-server",
+      title: "ArcGIS MapServer imagery",
+      protocol: "arcgis-imagery",
+      url: "/fixtures/arcgis/MapServer",
+      parameters: { layers: "0" },
+      opacity: 0.55,
+      maximumLevel: 2,
+      crs: "OGC:CRS84",
+    },
+  },
+  {
+    // ArcGIS ImageServer: the adapter builds an `exportImage` URL template and
+    // hands it to Cesium's generic templated provider, in Web Mercator.
+    id: "protocol-arcgis-image-server",
+    expect: "degraded",
+    materializes: true,
+    provider: "UrlTemplateImageryProvider",
+    expectedDiagnostics: ["scene-primitive-crs-equivalent"],
+    primitive: {
+      kind: "imagery-layer",
+      id: "protocol-arcgis-image-server",
+      sourceId: "protocol-arcgis-image-server",
+      title: "ArcGIS ImageServer imagery",
+      protocol: "arcgis-imagery",
+      url: "/fixtures/arcgis/ImageServer",
+      opacity: 0.45,
+      maximumLevel: 2,
+      crs: "EPSG:3857",
+    },
+  },
+  {
+    // Not a declared Cesium imagery protocol. Fails closed before any provider
+    // is constructed; it must never be skipped into silence.
+    id: "protocol-unsupported",
+    expect: "unsupported",
+    materializes: false,
+    provider: null,
+    expectedDiagnostics: ["scene-primitive-unsupported"],
+    primitive: {
+      kind: "imagery-layer",
+      id: "protocol-unsupported",
+      sourceId: "protocol-unsupported",
+      title: "TMS imagery (not a declared Cesium protocol)",
+      protocol: "tms",
+      // A URL no other row shares, so "this row issued no request" is a claim
+      // the fixture server's log can actually settle.
+      url: "/fixtures/tms/{z}/{x}/{y}.png",
+      opacity: 0.35,
+      crs: "OGC:CRS84",
+    },
+  },
+];
+
+/**
+ * Every Cesium imagery provider the adapter can construct.
+ *
+ * Identity is resolved by `instanceof` against the live runtime's constructors
+ * rather than by class name: Cesium ships minified, so names are meaningless,
+ * and matching against the whole set at once also proves a row did not land on
+ * two providers (which composition — `WebMapServiceImageryProvider` wraps a
+ * templated provider internally — could otherwise hide).
+ */
+const CESIUM_IMAGERY_PROVIDERS = [
+  "UrlTemplateImageryProvider",
+  "WebMapServiceImageryProvider",
+  "WebMapTileServiceImageryProvider",
+  "SingleTileImageryProvider",
+  "ArcGisMapServerImageryProvider",
+];
+
+/** Camera + every imagery row, in declaration order. */
+const IMAGERY_PROTOCOL_PLAN = [
+  PRIMITIVE_BY_ID.get("fixture-camera"),
+  ...IMAGERY_PROTOCOL_MATRIX.map((entry) => entry.primitive),
+];
+
+/**
+ * Point-cloud shading the point-cloud row binds.
+ *
+ * Every field is inside the contract's validated ranges, so the row proves the
+ * *projection* onto Cesium's `PointCloudShading` rather than the fail-closed
+ * path (which the unit suite already covers).
+ */
+const POINT_CLOUD_SHADING = {
+  attenuation: true,
+  maximumAttenuation: 8,
+  geometricErrorScale: 1.5,
+  eyeDomeLighting: true,
+  eyeDomeLightingStrength: 1.25,
+  eyeDomeLightingRadius: 2,
+};
+
+/**
+ * The 3D-Tiles content variants (#928 S2).
+ *
+ * Three tilesets on one viewer, because what separates them is what the *server*
+ * put in the tileset rather than anything in the primitive's shape:
+ *
+ *  - a `.pnts` point cloud carrying `pointCloudShading`;
+ *  - a tileset advertising the Honua styling sidecar (`extras.honua_style`),
+ *    which the adapter must discover, fetch, and apply without being asked;
+ *  - the plain glTF-content tileset, which must trigger *no* sidecar fetch at
+ *    all — the silent-no-op half of the same contract.
+ */
+/**
+ * The styled tileset is bound by absolute URL, unlike every other fixture asset.
+ *
+ * The styling contract makes the sidecar `uri` relative *to the tileset.json
+ * URL*, and the adapter resolves it with `new URL(uri, tilesetUrl)`. A bare
+ * root-relative tileset URI is not a parseable base, so the adapter falls back
+ * to fetching the raw `uri` against the document instead — which is not the
+ * resolution this row exists to prove. Server-issued tileset URLs are absolute,
+ * so binding an absolute one here is both the realistic case and the one that
+ * exercises the documented behaviour.
+ */
+const STYLED_TILESET_URL = new URL("/fixtures/styled-tileset/tileset.json", location.origin).href;
+
+const TILESET_VARIANT_MATRIX = [
+  {
+    id: "variant-point-cloud",
+    expect: "supported",
+    materializes: true,
+    primitive: {
+      kind: "model-layer",
+      id: "variant-point-cloud",
+      sourceId: "variant-point-cloud",
+      title: "Fixture point-cloud tileset",
+      uri: "/fixtures/point-cloud/tileset.json",
+      format: "3d-tiles",
+      position: [ORIGIN.longitude, ORIGIN.latitude, 0],
+      pointCloudShading: POINT_CLOUD_SHADING,
+      crs: "EPSG:4326",
+    },
+  },
+  {
+    id: "variant-styled",
+    expect: "supported",
+    materializes: true,
+    primitive: {
+      kind: "model-layer",
+      id: "variant-styled",
+      sourceId: "variant-styled",
+      title: "Fixture server-styled tileset",
+      uri: STYLED_TILESET_URL,
+      format: "3d-tiles",
+      position: [ORIGIN.longitude + 0.002, ORIGIN.latitude, 60],
+      crs: "EPSG:4326",
+    },
+  },
+  {
+    id: "variant-unstyled",
+    expect: "supported",
+    materializes: true,
+    primitive: {
+      kind: "model-layer",
+      id: "variant-unstyled",
+      sourceId: "variant-unstyled",
+      title: "Fixture plain tileset (no styling sidecar)",
+      uri: "/fixtures/tileset/tileset.json",
+      format: "3d-tiles",
+      position: [ORIGIN.longitude - 0.002, ORIGIN.latitude, 60],
+      crs: "EPSG:4326",
+    },
+  },
+];
+
+const TILESET_VARIANT_PLAN = [
+  PRIMITIVE_BY_ID.get("fixture-camera"),
+  ...TILESET_VARIANT_MATRIX.map((entry) => entry.primitive),
+];
 
 /**
  * The temporal cycle's plan (#1048).
@@ -326,6 +619,29 @@ function countLitPixels(canvas) {
 }
 
 /**
+ * A deliberately leaked DOM listener per injection, retained for the page's
+ * lifetime (honua-sdk-js#1055 REQ-002).
+ *
+ * Off unless a caller asks for it, and no caller in this file does: the spec
+ * turns it on for one case only, to prove the run-total listener budget still
+ * *fails* on a genuine per-cycle leak. The handlers are kept in this array on
+ * purpose — a listener the page can no longer reach is not the failure mode the
+ * budget exists to catch. `globalThis` outlives every viewer, so the leak
+ * accumulates cycle over cycle exactly the way an adapter that forgot a
+ * `removeEventListener` would.
+ */
+const injectedLeakedListeners = [];
+
+function injectListenerLeak(count) {
+  for (let index = 0; index < count; index += 1) {
+    const handler = () => undefined;
+    globalThis.addEventListener(`honua-fixture-leaked-${injectedLeakedListeners.length}`, handler);
+    injectedLeakedListeners.push(handler);
+  }
+  return count;
+}
+
+/**
  * Publish the per-binding outcome into the page itself.
  *
  * The issue's workflow asks the page to report which primitives rendered, which
@@ -420,6 +736,10 @@ async function runCycle(index, options) {
 
   renderOutcomeTable(rendered);
 
+  // Injected after the mount and never released, so it lands inside this cycle's
+  // before/after listener delta exactly like a teardown path that forgot one.
+  const injectedListeners = injectListenerLeak(options.listenerLeakPerCycle ?? 0);
+
   const cameraState = adapter.cesiumCameraToSceneState(viewer.camera);
   const evidence = {
     cesiumVersion: Cesium.VERSION,
@@ -512,11 +832,288 @@ async function runCycle(index, options) {
       workersCreated: after.workersCreated - before.workersCreated,
       workersTerminated: after.workersTerminated - before.workersTerminated,
       netListeners: after.netListeners - before.netListeners,
+      injectedListeners,
     },
     // Handed back so the spec can force collection through CDP and then ask
     // whether the GPU-backed canvas actually became unreachable.
     retain: { canvasRef, viewerRef },
   };
+}
+
+/** Everything the spec asserts about one mounted binding, shared by the S2 cycles. */
+function describeOutcome(entry, result) {
+  const handle = result.layers.get(entry.id);
+  const diagnostics = result.diagnostics.filter((diagnostic) => diagnostic.primitiveId === entry.id);
+  return {
+    kind: entry.primitive.kind,
+    format: entry.primitive.format ?? null,
+    protocol: entry.primitive.protocol ?? null,
+    expect: entry.expect,
+    hasHandle: handle !== undefined,
+    handleKind: handle?.kind ?? null,
+    handleFormat: handle?.format ?? null,
+    handleProtocol: handle?.protocol ?? null,
+    codes: diagnostics.map((diagnostic) => diagnostic.code),
+    statuses: diagnostics.map((diagnostic) => diagnostic.status),
+    fidelity: diagnostics.find((diagnostic) => diagnostic.fidelity)?.fidelity ?? null,
+  };
+}
+
+/**
+ * Which Cesium provider constructors an object is an instance of.
+ *
+ * Returns the whole matching set rather than the first hit so the spec can
+ * assert a row landed on exactly one provider.
+ */
+function imageryProviderIdentity(Cesium, provider) {
+  return CESIUM_IMAGERY_PROVIDERS.filter((name) => provider instanceof Cesium[name]);
+}
+
+/**
+ * One imagery-protocol cycle (#928 S2).
+ *
+ * Mounts every declared Cesium imagery protocol at once through the public
+ * adapter, reads each live `ImageryLayer` back off the scene, and tears the
+ * whole set down on the matrix lane's measured ceilings.
+ */
+async function runImageryProtocolCycle(options) {
+  const { adapter, Cesium } = await loadModules();
+  const container = document.createElement("div");
+  container.className = "scene-host";
+  document.getElementById("scene-hosts").append(container);
+
+  const viewer = createViewer(Cesium, container);
+  const canvas = viewer.scene.canvas;
+  const sceneAdapter = adapter.createCesiumSceneAdapter({
+    id: "fixture-cesium-imagery-protocols",
+    target: { camera: viewer.camera, scene: viewer.scene },
+  });
+
+  const applyStartedAt = performance.now();
+  const result = await sceneAdapter.apply(IMAGERY_PROTOCOL_PLAN);
+  const applyMs = performance.now() - applyStartedAt;
+
+  // Imagery tiles are fetched asynchronously; a few frames give every provider a
+  // chance to put something on the globe before the pixel read.
+  await renderUntil(viewer, () => viewer.scene.globe.tilesLoaded, options.readyTimeoutMs);
+  for (let frame = 0; frame < 8; frame += 1) {
+    viewer.scene.render();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  }
+
+  const rendered = {};
+  for (const entry of IMAGERY_PROTOCOL_MATRIX) rendered[entry.id] = describeOutcome(entry, result);
+  renderOutcomeTable(rendered);
+
+  // Read in collection order. The materialized rows were added in plan order, so
+  // index `at` is row `at` — a claim the distinct per-row alphas re-verify.
+  const layerCount = viewer.scene.imageryLayers.length;
+  const layers = Array.from({ length: layerCount }, (_, at) => {
+    const layer = viewer.scene.imageryLayers.get(at);
+    return {
+      alpha: Number(layer.alpha.toFixed(3)),
+      show: layer.show === true,
+      providers: imageryProviderIdentity(Cesium, layer.imageryProvider),
+      ready: layer.ready === undefined ? null : layer.ready === true,
+    };
+  });
+
+  const evidence = {
+    cesiumVersion: Cesium.VERSION,
+    declaredProtocols: [...adapter.CESIUM_SCENE_CAPABILITIES.imagery.protocols],
+    imageryLayerCount: layerCount,
+    layers,
+    litPixels: countLitPixels(canvas),
+    globeTilesLoaded: viewer.scene.globe.tilesLoaded === true,
+  };
+
+  // --- teardown, on the matrix lane's ceilings -------------------------------
+  const layerTeardownStartedAt = performance.now();
+  for (const handle of result.layers.values()) {
+    handle.remove();
+    handle.remove(); // idempotence
+  }
+  const layerTeardownMs = performance.now() - layerTeardownStartedAt;
+  const afterLayerRemoval = { imageryLayerCount: viewer.scene.imageryLayers.length };
+
+  const viewerDestroyStartedAt = performance.now();
+  viewer.destroy();
+  const viewerDestroyMs = performance.now() - viewerDestroyStartedAt;
+  container.remove();
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+  return {
+    status: result.status,
+    applyMs: Number(applyMs.toFixed(2)),
+    rendered,
+    evidence,
+    teardown: {
+      layerTeardownMs: Number(layerTeardownMs.toFixed(2)),
+      viewerDestroyMs: Number(viewerDestroyMs.toFixed(2)),
+      totalMs: Number((layerTeardownMs + viewerDestroyMs).toFixed(2)),
+      afterLayerRemoval,
+      viewerDestroyed: viewer.isDestroyed(),
+      canvasesInContainer: container.querySelectorAll("canvas").length,
+    },
+  };
+}
+
+/** Every `Cesium3DTileset` currently attached to the scene, in collection order. */
+function sceneTilesets(Cesium, scene) {
+  const tilesets = [];
+  for (let index = 0; index < scene.primitives.length; index += 1) {
+    const primitive = scene.primitives.get(index);
+    if (primitive instanceof Cesium.Cesium3DTileset) tilesets.push(primitive);
+  }
+  return tilesets;
+}
+
+/**
+ * One 3D-Tiles content-variant cycle (#928 S2): a `.pnts` point cloud, a
+ * server-styled tileset, and a plain one, mounted together through the public
+ * adapter and read back off the live objects.
+ */
+async function runTilesetVariantCycle(options) {
+  const { adapter, Cesium } = await loadModules();
+  const container = document.createElement("div");
+  container.className = "scene-host";
+  document.getElementById("scene-hosts").append(container);
+
+  const viewer = createViewer(Cesium, container);
+  const canvas = viewer.scene.canvas;
+  const sceneAdapter = adapter.createCesiumSceneAdapter({
+    id: "fixture-cesium-tileset-variants",
+    target: { camera: viewer.camera, scene: viewer.scene },
+  });
+
+  const baselinePrimitiveCount = viewer.scene.primitives.length;
+  const applyStartedAt = performance.now();
+  const result = await sceneAdapter.apply(TILESET_VARIANT_PLAN);
+  const applyMs = performance.now() - applyStartedAt;
+
+  const tilesets = sceneTilesets(Cesium, viewer.scene);
+  const [pointCloud, styled, unstyled] = tilesets;
+  const readyWithinBudget = await renderUntil(
+    viewer,
+    () => tilesets.every((tileset) => tileset.statistics.numberOfTilesWithContentReady > 0),
+    options.readyTimeoutMs,
+  );
+  for (let frame = 0; frame < 8; frame += 1) {
+    viewer.scene.render();
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+  }
+
+  const rendered = {};
+  for (const entry of TILESET_VARIANT_MATRIX) rendered[entry.id] = describeOutcome(entry, result);
+  renderOutcomeTable(rendered);
+
+  // The point cloud is picked out of a real GPU pick pass at its own placed
+  // position: content that loaded but never reached the GPU is picked by nobody.
+  const pointCloudAnchor = Cesium.Cartesian3.fromDegrees(ORIGIN.longitude, ORIGIN.latitude, 0);
+  const pickWindow = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, pointCloudAnchor);
+  const picked = pickWindow ? viewer.scene.drillPick(pickWindow, 8, 12, 12) : [];
+  const pointCloudEvidence = {
+    // `pointCloudShading` is a real Cesium option bag, not a copied literal.
+    shadingIsCesiumPointCloudShading: pointCloud?.pointCloudShading instanceof Cesium.PointCloudShading,
+    shading: pointCloud
+      ? {
+          attenuation: pointCloud.pointCloudShading.attenuation,
+          maximumAttenuation: pointCloud.pointCloudShading.maximumAttenuation,
+          geometricErrorScale: pointCloud.pointCloudShading.geometricErrorScale,
+          eyeDomeLighting: pointCloud.pointCloudShading.eyeDomeLighting,
+          eyeDomeLightingStrength: pointCloud.pointCloudShading.eyeDomeLightingStrength,
+          eyeDomeLightingRadius: pointCloud.pointCloudShading.eyeDomeLightingRadius,
+        }
+      : null,
+    tilesLoaded: pointCloud?.tilesLoaded === true,
+    contentReady: pointCloud?.statistics?.numberOfTilesWithContentReady ?? 0,
+    pointsSelected: pointCloud?.statistics?.numberOfPointsSelected ?? 0,
+    pickCount: picked.length,
+    // Either shape counts as "the point cloud was picked": Cesium hands back a
+    // `Cesium3DTileFeature` when the content carries features and the owning
+    // primitive otherwise, and both expose the tileset.
+    pickedThisTileset: picked.some((entry) => entry?.primitive === pointCloud || entry === pointCloud),
+  };
+
+  const styleOptions = styled?.style ? { ...styled.style.style } : null;
+  const styleEvidence = {
+    styleIsCesium3DTileStyle: styled?.style instanceof Cesium.Cesium3DTileStyle,
+    // The style Cesium holds, read back out of the live object.
+    style: styleOptions,
+    colorEvaluates: evaluateStyleColor(Cesium, styled),
+    unstyledHasNoStyle: unstyled !== undefined && unstyled.style === undefined,
+    // The descriptor the server advertised survived onto the loaded tileset.
+    advertisedDescriptor: adapter.readHonua3DStyleDescriptor(styled?.extras) ?? null,
+    unstyledAdvertisesNothing: adapter.readHonua3DStyleDescriptor(unstyled?.extras) === undefined,
+  };
+
+  const evidence = {
+    cesiumVersion: Cesium.VERSION,
+    readyWithinBudget,
+    tilesetCount: tilesets.length,
+    scenePrimitiveCount: viewer.scene.primitives.length - baselinePrimitiveCount,
+    litPixels: countLitPixels(canvas),
+    pointCloud: pointCloudEvidence,
+    style: styleEvidence,
+  };
+
+  // --- teardown, on the matrix lane's ceilings -------------------------------
+  const layerTeardownStartedAt = performance.now();
+  for (const handle of result.layers.values()) {
+    handle.remove();
+    handle.remove(); // idempotence
+  }
+  const layerTeardownMs = performance.now() - layerTeardownStartedAt;
+  const afterLayerRemoval = {
+    scenePrimitiveCount: viewer.scene.primitives.length - baselinePrimitiveCount,
+    tilesetCount: sceneTilesets(Cesium, viewer.scene).length,
+  };
+
+  const viewerDestroyStartedAt = performance.now();
+  viewer.destroy();
+  const viewerDestroyMs = performance.now() - viewerDestroyStartedAt;
+  container.remove();
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+  return {
+    status: result.status,
+    applyMs: Number(applyMs.toFixed(2)),
+    rendered,
+    evidence,
+    teardown: {
+      layerTeardownMs: Number(layerTeardownMs.toFixed(2)),
+      viewerDestroyMs: Number(viewerDestroyMs.toFixed(2)),
+      totalMs: Number((layerTeardownMs + viewerDestroyMs).toFixed(2)),
+      afterLayerRemoval,
+      viewerDestroyed: viewer.isDestroyed(),
+      canvasesInContainer: container.querySelectorAll("canvas").length,
+    },
+  };
+}
+
+/**
+ * Evaluate the applied style's colour through Cesium's own expression engine.
+ *
+ * The sidecar's condition is constant, so no feature is needed — but the
+ * evaluation still runs through the real `Cesium3DTileStyle`, which is what
+ * separates "a style object was assigned" from "a style Cesium can execute".
+ */
+function evaluateStyleColor(Cesium, tileset) {
+  const color = tileset?.style?.color;
+  if (!color || typeof color.evaluateColor !== "function") return null;
+  try {
+    const evaluated = color.evaluateColor(undefined, new Cesium.Color());
+    return evaluated
+      ? {
+          red: Number(evaluated.red.toFixed(3)),
+          green: Number(evaluated.green.toFixed(3)),
+          blue: Number(evaluated.blue.toFixed(3)),
+          alpha: Number(evaluated.alpha.toFixed(3)),
+        }
+      : null;
+  } catch (error) {
+    return { error: String(error?.message ?? error) };
+  }
 }
 
 /**
@@ -1120,15 +1717,42 @@ globalThis.__honuaCesiumSceneFixture = {
   async runCycles(options = {}) {
     const cycles = options.cycles ?? 1;
     const readyTimeoutMs = options.readyTimeoutMs ?? 25_000;
+    // Zero unless the caller injects a leak on purpose (#1055 REQ-002).
+    const listenerLeakPerCycle = options.listenerLeakPerCycle ?? 0;
     const reports = [];
     globalThis.__honuaCesiumSceneRetained = [];
     for (let index = 0; index < cycles; index += 1) {
-      const report = await runCycle(index, { readyTimeoutMs });
+      const report = await runCycle(index, { readyTimeoutMs, listenerLeakPerCycle });
       globalThis.__honuaCesiumSceneRetained.push(report.retain);
       delete report.retain;
       reports.push(report);
     }
     return { cycles: reports, probe: probe.snapshot(), console: probe.consoleErrors, errors: probe.pageErrors };
+  },
+  /** The imagery-protocol rows the spec asserts against, with their expected Cesium provider. */
+  imageryProtocolMatrix: IMAGERY_PROTOCOL_MATRIX.map(
+    ({ id, expect, materializes, provider, expectedDiagnostics, primitive }) => ({
+      id,
+      expect,
+      materializes,
+      provider,
+      opacity: primitive.opacity,
+      expectedDiagnostics: expectedDiagnostics ?? [],
+    }),
+  ),
+  /** Mount every declared Cesium imagery protocol on one viewer and read the live layers back. */
+  async runImageryProtocols(options = {}) {
+    const report = await runImageryProtocolCycle({ readyTimeoutMs: options.readyTimeoutMs ?? 25_000 });
+    return { imagery: report, probe: probe.snapshot(), console: probe.consoleErrors, errors: probe.pageErrors };
+  },
+  /** The 3D-Tiles content-variant rows (point cloud, styled, plain). */
+  tilesetVariantMatrix: TILESET_VARIANT_MATRIX.map(({ id, expect, materializes }) => ({ id, expect, materializes })),
+  /** The point-cloud shading the point-cloud row binds, for the spec to compare against. */
+  pointCloudShading: POINT_CLOUD_SHADING,
+  /** Mount the point-cloud, server-styled, and plain tilesets on one viewer. */
+  async runTilesetVariants(options = {}) {
+    const report = await runTilesetVariantCycle({ readyTimeoutMs: options.readyTimeoutMs ?? 25_000 });
+    return { variants: report, probe: probe.snapshot(), console: probe.consoleErrors, errors: probe.pageErrors };
   },
   /**
    * Run one temporal cycle: bind time, advance it, then drive one realtime-shaped
