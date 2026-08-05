@@ -695,9 +695,11 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
    *     at the other, read out of a real GPU pick pass.
    *  3. The polygon's interior ring reached the GPU: the zone is picked on its
    *     solid side and not inside its hole.
-   *  4. Refresh discards and rebuilds the whole snapshot. A feature that did not
-   *     change is still replaced, which is the measurement behind this surface's
-   *     tier decision (see `docs/cesium-entity-adapter.md`).
+   *  4. Refresh is a diff, and the only place that claim can be settled is a
+   *     live collection: a byte-identical feature comes back as the *same*
+   *     `Entity` object, with the `viewer.selectedEntity` set on it still
+   *     pointing at it, while a changed feature keeps its object and a departed
+   *     one leaves (see `docs/cesium-entity-adapter.md`).
    *  5. Disposal returns the collection to baseline, and the entities, viewers,
    *     canvases, and listeners the run creates stop accumulating.
    */
@@ -811,16 +813,41 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
         expect(refresh.arrivedId).toContain("ladder-9");
         expect(refresh.arrived).toMatchObject({ present: true, isCesiumEntity: true, kind: "point" });
         expect(refresh.moved.cartographic.longitude).toBeCloseTo(ENTITY_EXPECTATIONS.b[1].position.longitude, 6);
-        expect(refresh.entityCount, "no orphan may survive the rebuild").toBe(ENTITY_EXPECTATIONS.b.length);
-        expect(refresh.rebuildBoundary).toBe("entity-snapshot");
-        // The tier-decision measurement: `medic-1` was byte-identical across both
-        // snapshots and was still replaced. Promotion would freeze this behaviour,
-        // so it is asserted rather than hoped against.
+        expect(refresh.entityCount, "no orphan may survive the reconciliation").toBe(ENTITY_EXPECTATIONS.b.length);
+        expect(refresh.revision).toBe(2);
+        // The diff partition: two features untouched (the point and the
+        // hole-bearing polygon, both byte-identical across the snapshots), one
+        // updated in place, one constructed, one released.
+        expect(refresh.reused).toEqual([`${cycle.sourceId}:s:medic-1`, `${cycle.sourceId}:s:zone-a`]);
+        expect(refresh.updated).toEqual([`${cycle.sourceId}:s:engine-2`]);
+        expect(refresh.created).toEqual([`${cycle.sourceId}:s:ladder-9`]);
+        expect(refresh.disposed).toEqual([`${cycle.sourceId}:s:patrol-3`]);
+        expect(refresh.boundaries).toEqual([
+          `${cycle.sourceId}:s:engine-2:entity-configuration`,
+          `${cycle.sourceId}:s:ladder-9:entity-identity`,
+          `${cycle.sourceId}:s:patrol-3:snapshot-membership`,
+        ]);
+        expect(refresh.rebuildBoundary, "the escalated boundary names the worst crossing").toBe("snapshot-membership");
+        // The load-bearing measurement, inverted by #1050's refresh diff:
+        // `medic-1` is byte-identical across both snapshots and now comes back as
+        // the SAME `Entity` object, asserted by object identity on a live
+        // collection rather than inferred from the source.
         expect(
           refresh.unchangedEntityPreserved,
-          "refresh is a documented full rebuild; an unchanged feature is not carried forward by identity",
-        ).toBe(false);
-        expect(refresh.unchangedStillPresent, "but its stable id survives the rebuild").toBe(true);
+          "a byte-identical feature must keep its live Entity object across refresh()",
+        ).toBe(true);
+        expect(refresh.unchangedStillPresent).toBe(true);
+        // A changed feature keeps its object too: only the facets that moved are
+        // written onto it.
+        expect(refresh.movedEntityPreserved, "a changed feature is updated in place, not replaced").toBe(true);
+        expect(refresh.movedPositionChanged, "and the update actually reached the live entity").toBe(true);
+        // Host-set state is the reason any of this matters. Cesium clears
+        // `selectedEntity` when the entity leaves the collection, so this holds
+        // only because the entity was never removed.
+        expect(refresh.selectionApplied, "the fixture must have set viewer.selectedEntity before refreshing").toBe(
+          true,
+        );
+        expect(refresh.selectedEntitySurvived, "viewer.selectedEntity must survive a refresh").toBe(true);
 
         // --- REQ-002 / NFR-001: teardown -------------------------------------
         const teardown = cycle.teardown;
@@ -895,14 +922,18 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
   });
 
   /**
-   * Two mounts, one viewer (#1050 REQ-003 / NFR-002).
+   * Two mounts, one viewer, then one owner over both (#1050 REQ-003 / NFR-002).
    *
    * The entity mount and the scene primitive mount are separate lifecycle
-   * owners. This case is the evidence that one application can hold both: they
-   * mount onto the same live `Viewer`, each disposal releases exactly its own
-   * resources, and the survivor's Cesium objects are still the same objects by
-   * identity. The refused over-ceiling mount in the middle proves the fail-closed
-   * path leaves a healthy neighbour untouched too.
+   * owners, and the first half of this case is the evidence that one application
+   * can hold both by hand: they mount onto the same live `Viewer`, each disposal
+   * releases exactly its own resources, and the survivor's Cesium objects are
+   * still the same objects by identity. The refused over-ceiling mount in the
+   * middle proves the fail-closed path leaves a healthy neighbour untouched too.
+   *
+   * The second half is the reconciliation #1050 asks for: the same two halves are
+   * mounted again through `mountCesiumScene`, handed the live `Viewer` itself,
+   * and a single idempotent `dispose()` releases both.
    */
   test("composes an entity mount with a scene-primitive mount and fails closed on the entity ceiling", async ({
     page,
@@ -957,10 +988,37 @@ test.describe("Cesium scene adapter — real-Cesium fixture matrix", () => {
         primitiveMountState: "disposed",
       });
 
+      // --- REQ-003: one owner over both halves --------------------------------
+      expect(coexistence.composed, "mountCesiumScene owns a live primitive plan and a live source").toMatchObject({
+        ownerState: "ready",
+        entityCount: ENTITY_EXPECTATIONS.a.length,
+        imageryLayerCount: 1,
+        tilesetPresent: true,
+        sourceCount: 1,
+        sourceOwnedByIdentity: true,
+        primitiveMountState: "ready",
+        entityMountState: "degraded",
+      });
+      expect(coexistence.composed.entityPicked, "the owned entity renders over the owned scene").toBe(true);
+      // One dispose(), twice, releasing both halves and nothing else.
+      expect(coexistence.afterComposedDispose).toEqual({
+        ownerState: "disposed",
+        entityCount: 0,
+        imageryLayerCount: 0,
+        tilesetPresent: false,
+        sourceCount: 0,
+        entityMountState: "disposed",
+        primitiveMountState: "disposed",
+      });
+
       // --- teardown, on #1026's measured ceilings -----------------------------
       expect(coexistence.teardown.viewerDestroyed).toBe(true);
       expect(coexistence.teardown.canvasesInContainer).toBe(RETENTION_BUDGET.canvasesInContainer);
       expect(coexistence.teardown.layerTeardownMs).toBeLessThan(TEARDOWN_BUDGET_MS.layerTeardown);
+      expect(
+        coexistence.teardown.composedTeardownMs,
+        "one owner's teardown must fit the same layer ceiling as the two it replaces",
+      ).toBeLessThan(TEARDOWN_BUDGET_MS.layerTeardown);
       expect(coexistence.teardown.viewerDestroyMs).toBeLessThan(TEARDOWN_BUDGET_MS.viewerDestroy);
       expect(coexistence.teardown.totalMs).toBeLessThan(TEARDOWN_BUDGET_MS.total);
 

@@ -115,11 +115,12 @@ const SNAPSHOT_A = Object.freeze([
 /**
  * Snapshot B — what the source answers after the page advances it.
  *
- * Chosen so one refresh covers all four cases at once: `medic-1` is byte
- * identical, `engine-2` moved, `patrol-3` is gone, and `ladder-9` is new. The
- * unchanged row is the load-bearing one — it is how the lane measures whether
- * the documented `entity-snapshot` rebuild boundary really does discard
- * untouched entities.
+ * Chosen so one refresh covers every case at once: `medic-1` and `zone-a` are
+ * byte identical (a point and a hole-bearing polygon), `engine-2` moved,
+ * `patrol-3` is gone, and `ladder-9` is new. The unchanged rows are the
+ * load-bearing ones — they are how the lane measures, by object identity on a
+ * live collection, that the refresh diff really does carry an untouched feature
+ * across instead of replacing its `Entity`.
  */
 const SNAPSHOT_B = Object.freeze([
   SNAPSHOT_A[0],
