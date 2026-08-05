@@ -15,8 +15,8 @@ environment cannot enter the vocabulary untiered.
 
 | Tier | Honua Server | Environments | Claims | What it means |
 | --- | :-: | --- | :-: | --- |
-| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 22 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
-| **Server attach** (`server-attach`) | required | `honua-facade` | 6 | Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent. |
+| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 23 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
+| **Server attach** (`server-attach`) | required | `honua-facade` | 5 | Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent. |
 
 ### Server-attach capabilities and their open-endpoint path
 
@@ -32,7 +32,6 @@ all, so there is nothing to implement against.
 | Authored MapPackage runtime | `facade-required` | Inherent — none possible | A MapPackage is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no MapPackage. |
 | Realtime subscriptions | `facade-required` | Roadmap: [#393](https://github.com/honua-io/honua-sdk-js/issues/393) | Subscriptions bind to the transports Honua Server advertises today, but OData delta and other standards feeds are open-endpoint transports; the unified snapshot-plus-delta epic owns adapting them to the same cursor contract. |
 | Collaboration and saved maps compatibility shim | `deprecated` | Inherent — none possible | Shared saved maps and presence are hosted, multi-writer state; a read-only third-party endpoint has nowhere to store them. The SDK entrypoint is a deprecated shim and the surface itself moves to @honua/app-platform. |
-| MCP tools and AI execution | `facade-required` | Roadmap: [#1005](https://github.com/honua-io/honua-sdk-js/issues/1005) | Tool definitions are local and honua-mcp already reads public endpoints, but the tool contract still resolves execution through the bounded Honua surface; the protocol-neutral tool contract is scheduled work, not an inherent dependency. |
 
 ## Surface tiers
 
@@ -109,7 +108,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | Authored MapPackage runtime | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | @honua/sdk-js/runtime | [fixture: map-package-fixtures](../test/runtime/map-package-fetch.test.ts) | Loads server-authored styles, layer order, and metadata. |
 | Realtime subscriptions | `server-attach` | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [fixture: realtime-cross-transport-fixtures](../test/realtime-cross-transport-conformance.test.ts)<br>[integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts)<br>[live: realtime-live-conformance](../scripts/realtime-conformance-evidence.mjs) | SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately. |
 | Collaboration and saved maps compatibility shim | `server-attach` | `deprecated` | `honua-facade` | `facade` | Honua Server and @honua/app-platform | @honua/sdk-js/collaboration | Lifecycle-only claim | The SDK entrypoint is a temporary shim; new code imports @honua/app-platform/collaboration. |
-| MCP tools and AI execution | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server and @honua/mcp-server | mcp/, @honua/sdk-js/agent-tools | [fixture: agent-tools-fixtures](../test/agent-tools.test.ts) | Tool definitions are local, while discovery and query execution use the bounded Honua server surface. |
+| MCP tools and agent operations | `open-endpoint` | `beta` | `standalone` | `native` | Any GeoServices, OGC API Features, WFS, STAC, or OData endpoint the SDK's protocol clients support | mcp/, @honua/sdk-js/agent-tools | [fixture: agent-tools-fixtures](../test/agent-tools.test.ts) | Tool definitions are local and the tool contract is the SDK's protocol-neutral one: honua-mcp addresses sources as <protocol>:<address>, filters with the typed semantic filter, and returns GeoJSON geometry against any supported open endpoint — no Honua server. A Honua deployment's richer /mcp operator catalog remains the upgrade path via honua-mcp-proxy. |
 
 ## Current OGC line
 

@@ -8,7 +8,7 @@
 [![node](https://img.shields.io/node/v/@honua/sdk-js?color=43853d)](./package.json)
 [![docs](https://img.shields.io/badge/docs-honua--io.github.io-2b6cb0)](https://honua-io.github.io/honua-sdk-js/)
 
-> **MapLibre gives you the map. Honua gives you everything else.**
+> **MapLibre renders the map. Honua connects, queries, explains, and mounts the data.**
 
 `@honua/sdk-js` is the integration layer for the open map stack: typed clients for the
 protocols your data already speaks (Esri GeoServices, OGC API Features / Tiles / Maps /
@@ -17,8 +17,8 @@ runtime, provider-pluggable geocoding and routing, and a drop-in ArcGIS compatib
 layer with a codemod. MapLibre is the stable renderer path; the optional Cesium scene
 surface is beta on `@honua/app-platform`, and Kepler.gl integration is experimental.
 
-**Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and is
-removed at 6.0 — planned for **Q1 2027**. If your app constructs one, that code stops
+**Leaving ArcGIS?** Every classic Esri widget was deprecated at ArcGIS JS SDK 5.0 and
+removal begins with 6.0 — **as early as Q1 2027**. If your app constructs one, that code stops
 compiling and running when you take the 6.0 upgrade. Run
 `npm run scan:arcgis:widgets -- ./src` for a per-file readiness report, then read the
 [widget-removal survival guide](./docs/widget-survival-guide.md) — every deprecated
@@ -79,7 +79,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.1.2-beta.0`). The 22-entrypoint stable tier is frozen and guarded <!-- x-release-please-version -->
+**Release status: beta** (`0.1.2-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
 by an API-surface gate; 16 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
@@ -100,13 +100,13 @@ and the [demo gallery](https://honua-io.github.io/honua-sdk-js/gallery.html).
 
 ## Pick your path
 
-| | 🗺️ **Building on MapLibre** | 🚦 **Leaving ArcGIS** |
-| --- | --- | --- |
-| **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (planned Q1 2027) |
-| **Start** | [First Map](./docs/quickstart.md) — paste a public GeoServices or OGC Features endpoint, no account required | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner |
-| **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions |
-| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`esri-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) |
-| **Runnable proof** | [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) — deterministic fixture plus separately gated anonymous-live evidence | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end |
+| | 🗺️ **Building on MapLibre** | 🚦 **Leaving ArcGIS** | 🤖 **Connecting an AI assistant** |
+| --- | --- | --- | --- |
+| **You are…** | adding typed data access, styling, and interactions to a MapLibre (or brand-new) app | facing the classic-widget removal at ArcGIS JS 6.0 (as early as Q1 2027) | wiring a coding agent or assistant to live geospatial data |
+| **Start** | [First Map](./docs/quickstart.md) — paste a public GeoServices or OGC Features endpoint, no account required | `npm run scan:arcgis:widgets -- ./src` — per-file 6.0 readiness report from the migration scanner | point [`honua-mcp`](./mcp/README.md) at any public FeatureServer/OGC endpoint — no Honua server |
+| **Then** | [Data-to-map bridge cookbook](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` strategies, styling, filters | [Widget survival guide](./docs/widget-survival-guide.md) — all 38 deprecated widgets mapped to automated / assisted / manual dispositions | the [protocol-neutral tool contract](./mcp/README.md) + [agent skills](./skills/README.md) for Claude Code and compatible agents |
+| **Go deeper** | [MapLibre runtime](./docs/maplibre-runtime.md) · [React bindings](./docs/react.md) · [geometry ops](./docs/geometry.md) · [geocoding & routing providers](./docs/geocoding-routing-providers.md) | [`esri-compat`](./docs/migration-honua-maplibre.md) drop-ins + the `honua-migrate` codemod · [migration punch list](./docs/migration-punch-list.md) | [NL map control](./docs/nl-map-control.md) · [agent-safety threat model](./docs/agent-safety-threat-model.md) · [coding-agent evals](./docs/coding-agent-evals.md) |
+| **Runnable proof** | [`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md) — deterministic fixture plus separately gated anonymous-live evidence | [`migration-workbench`](./docs/migration-honua-maplibre.md) (`npm run demo:migration-workbench`) — scan → codemod → run, end to end | [cross-model MCP eval scorecard](./docs/generated/mcp-eval-scorecard.md) — dated runs, failures and the zero-LLM control included |
 
 ## Where it fits
 
@@ -116,11 +116,16 @@ clients, styling, interactions, editing, geocoding, migration tooling — the gl
 team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 
 - **Protocol-neutral data access.** One `Source.query(...)` call works against
-  GeoServices, OGC, WFS, OData and friends. Capability misses throw
-  `HonuaCapabilityNotSupportedError` instead of returning empty results.
+  GeoServices, OGC, WFS, OData and friends — including typed execution against raw
+  OGC API Processes servers (experimental). Capability misses throw
+  `HonuaCapabilityNotSupportedError` instead of returning empty results. Large
+  results ride an experimental columnar data plane (GeoArrow batches, streaming
+  backpressure, worker-side aggregation —
+  [`docs/columnar-data-plane.md`](./docs/columnar-data-plane.md)).
 - **Data to map in one call.** `connect()` + `mountSource()` turn a bare endpoint into a
   styled, interactive MapLibre layer; `loadMapPackage(...)` + `HonuaMapRuntime` render
-  server-authored `MapPackage`s. This is the stable renderer path. OGC web-map support
+  server-authored `MapPackage`s; `createTemporalPlayback` and the
+  `<honua-time-slider>` control animate time-enabled sources. This is the stable renderer path. OGC web-map support
   follows the generated capability matrix; Cesium integration lives on the `beta`
   `@honua/app-platform/scene-workspace` path — see the
   [surface tiers table](./docs/standalone-capability-matrix.md#surface-tiers) for the
@@ -129,7 +134,8 @@ team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 - **TypeScript first.** `strict` + `verbatimModuleSyntax`, exported types for every public
   symbol, declaration maps, and JSDoc on the public client surface.
 - **Migrate, don't rewrite.** `FeatureLayerCompat`, `MapImageLayerCompat`, `MapViewCompat`,
-  `SceneViewCompat`, `WebMapCompat`, and a safe codemod (`honua-migrate`) keep existing ArcGIS
+  `SceneViewCompat`, `WebMapCompat`, `LocatorCompat` (provider-pluggable geocoding, no
+  server required), and a safe codemod (`honua-migrate`) keep existing ArcGIS
   code running while you cut over.
 - **No provider lock-in for the extras.** Geocoding and routing are provider-pluggable
   interfaces with open-source adapters, not a facade for one vendor's API
@@ -160,11 +166,11 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 22 of the 28 generated support
+**Two deployment tiers, named up front.** 23 of the 28 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
-6 are `server-attach` and execute only after attaching to a Honua Server facade;
-2 of those link a roadmap issue for an open-endpoint path and the rest state why the
+5 are `server-attach` and execute only after attaching to a Honua Server facade;
+1 of those link a roadmap issue for an open-endpoint path and the rest state why the
 server dependency is inherent, in the generated
 [capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
 
@@ -177,8 +183,8 @@ discovery (`experimental`, `standalone`) and
 typed execution (`experimental`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
-`MapPackage`s, realtime, collaboration, MCP/AI execution, compatibility metadata, and
-the facade-required execution paths. See the generated
+`MapPackage`s, realtime, collaboration, compatibility metadata, a richer hosted
+`/mcp` operator catalog, and the facade-required execution paths. See the generated
 [backend-agnostic capability matrix](./docs/standalone-capability-matrix.md) for every
 claim's tier, execution mode, and evidence link.
 <!-- support-manifest:standalone:end -->
@@ -201,9 +207,13 @@ non-goals are explicit rather than implied:
   [CesiumJS](https://cesium.com/platform/cesiumjs/) or stay on the
   [ArcGIS Maps SDK](https://developers.arcgis.com/javascript/latest/) for that part of
   your app.
-- **Offline is experimental.** The `/offline` subpath is a replica-sync specification
-  without a production storage engine; it is excluded from the 1.0 narrative until a real
-  engine ships.
+- **Offline is experimental.** The `/offline` subpath now ships a real browser
+  engine — an IndexedDB region store, a durable edit queue with proven
+  offline-capture / reload / replay, region tile and asset serving, and quota
+  admission ([`docs/offline-regions.md`](./docs/offline-regions.md),
+  [`docs/examples/offline-region-reference`](./docs/examples/offline-region-reference/README.md)) —
+  but it is still an experimental subpath, hosted replica sync does not exist,
+  and it stays outside the 1.0 narrative until both change.
 
 ## Install
 
@@ -211,16 +221,24 @@ non-goals are explicit rather than implied:
 npm install @honua/sdk-js
 ```
 
-Starting from scratch? Scaffold a working app instead of assembling peers:
+Runtime support, stated up front:
 
-```bash
-npm create honua-app@latest my-map
-```
+| Peer / runtime | Supported range |
+|----------------|-----------------|
+| Node.js | `>=20.19` |
+| `maplibre-gl` (optional peer) | **5 and 6** (`^5.0.0 \|\| ^6.0.0`) — the 6.x half ships with the next release; the current published beta declares `^5.0.0`. MapLibre 6 is ESM-only and requires WebGL2 |
+| `cesium` (optional peer, scene surface) | `^1.139.0` |
+| `react` / `react-dom` (optional peer, `/react`) | `^18.2.0 \|\| ^19.0.0` |
 
-`create-honua-app` writes a Vite + TypeScript (or React) starter that already connects to an
-endpoint and mounts a source, pinned to a published SDK version and rendering a committed
-fixture on the first `npm run dev`. Both starters also open in a browser playground with no
-install at all — see [`docs/playgrounds.md`](./docs/playgrounds.md) and
+Starting from scratch? `create-honua-app` scaffolds a working app instead of
+assembling peers — a Vite + TypeScript (or React) starter that already connects
+to an endpoint and mounts a source, pinned to a published SDK version and
+rendering a committed fixture on the first `npm run dev`. It is **not yet
+published to npm** (`npm create honua-app` lands with the next release —
+tracked on the repo's own
+[npm-search evidence page](./docs/listings/npm-search-verification.md)); until
+then, both starters open in a browser playground with no install at all — see
+[`docs/playgrounds.md`](./docs/playgrounds.md) and
 [`docs/create-honua-app.md`](./docs/create-honua-app.md).
 
 Everything documented here ships in `@honua/sdk-js` as subpath entrypoints
@@ -231,12 +249,12 @@ published from this repository for consumers who only want a subset:
 |---------|------------|
 | [`@honua/sdk-js`](https://www.npmjs.com/package/@honua/sdk-js) | **The canonical install** — full SDK with all subpath entrypoints + the `honua` CLI |
 | [`@honua/mcp-server`](https://www.npmjs.com/package/@honua/mcp-server) | Platform-free geospatial MCP server (`honua-mcp`, `honua-mcp-proxy`) — see [`mcp/`](./mcp/README.md) |
-| [`@honua/react`](https://www.npmjs.com/package/@honua/react) | React provider, hooks, and map components ([`docs/react.md`](./docs/react.md)) |
-| [`@honua/geometry`](https://www.npmjs.com/package/@honua/geometry) | Curated turf/proj4 geometry ops + reprojection ([`docs/geometry.md`](./docs/geometry.md)) |
+| [`@honua/react`](https://www.npmjs.com/package/@honua/react) | React provider, hooks, and map components (split build; [`docs/react.md`](./docs/react.md)) |
+| [`@honua/geometry`](https://www.npmjs.com/package/@honua/geometry) | Curated turf/proj4 geometry ops + reprojection (split build; [`docs/geometry.md`](./docs/geometry.md)) |
 | [`@honua/sdk`](https://www.npmjs.com/package/@honua/sdk) | Core client + contract only (split build) |
 | [`@honua/sdk-esri-compat`](https://www.npmjs.com/package/@honua/sdk-esri-compat) | ArcGIS JS compatibility layer (split build) |
 | [`@honua/honua-migrate`](https://www.npmjs.com/package/@honua/honua-migrate) | Migration codemod + scanner, owned by the [`honua-migrate`](https://github.com/honua-io/honua-migrate) repository |
-| [`@honua/app-platform`](https://www.npmjs.com/package/@honua/app-platform) | Application-platform surfaces extracted from the SDK (own pre-1.0 cadence) |
+| [`@honua/app-platform`](https://www.npmjs.com/package/@honua/app-platform) | Application-platform surfaces extracted from the SDK (split build; own pre-1.0 cadence) |
 
 The SDK split builds exist for packaging workflows and subset consumers;
 details in [`docs/split-packages.md`](./docs/split-packages.md). Existing
@@ -272,92 +290,83 @@ transport. See [`docs/browser-bundle.md`](./docs/browser-bundle.md) for details.
 
 ## Bundle size
 
-Small and honest about size: every subpath entrypoint carries a min+gzip byte
-budget that CI enforces on every PR (`npm run verify:bundle-budgets`), so drift
-fails the build instead of shipping. Sizes are measured the way a consumer
-builds — esbuild `--bundle --minify`, runtime peers external. A tree-shake guard
-proves that importing a single symbol from the root doesn't drag the whole SDK
-in.
+Honest about size: every subpath entrypoint carries a min+gzip byte budget that
+CI enforces on every PR (`npm run verify:bundle-budgets`), so drift fails the
+build instead of shipping. Sizes are measured the way a consumer builds —
+esbuild `--bundle --minify`, runtime peers external. The excerpt below is
+generated from that measurement, tree-shake guards included:
 
+<!-- bundle-sizes:readme:start -->
 | Entrypoint (gzip) | Size |
 | --- | ---: |
-| `@honua/sdk-js/geocoding` | 1.9 KiB |
 | `@honua/sdk-js/expr` | 2.4 KiB |
-| `@honua/sdk-js/webmap` | 5.9 KiB |
-| `@honua/sdk-js/style` | 8.4 KiB |
-| `@honua/sdk-js/map` | 31.2 KiB |
-| `@honua/sdk-js` (root) | 94.9 KiB |
-| `{ HonuaClient }` only (tree-shake guard) | 48.6 KiB |
+| `@honua/sdk-js/geocoding` | 7.6 KiB |
+| `@honua/sdk-js/webmap` | 7.6 KiB |
+| `@honua/sdk-js/style` | 15.9 KiB |
+| `@honua/sdk-js/map` | 51.3 KiB |
+| `@honua/sdk-js` (root) | 201.6 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 61.7 KiB |
+| `{ connect }` from the root (tree-shake guard) | 163.4 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 192.3 KiB |
 
-Full per-entrypoint table (min + gzip, generated, not hand-written):
-[`docs/bundle-sizes.md`](./docs/bundle-sizes.md). Refresh it with
-`npm run report:bundle-sizes`. For how these sizes sit against `@arcgis/core`
-and friends — at a named category boundary, with every external figure dated
-and primary-sourced — see the generated
-[comparison page](./docs/comparison.md).
+The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
+alone costs 163.4 KiB gzip and `{ createHonua }` 192.3 KiB against the 201.6 KiB root, so size-sensitive
+apps should import the focused subpaths rather than the root. Full per-entrypoint
+table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
+refresh the table and this excerpt together with `npm run report:bundle-sizes`.
+<!-- bundle-sizes:readme:end -->
+
+For how these sizes sit against `@arcgis/core` and friends — at a named category
+boundary, with every external figure dated and primary-sourced — see the
+generated [comparison page](./docs/comparison.md).
 
 ## 60-second quickstart
 
-**No Honua server required.** The first block below runs against a *public* Esri
-GeoServices endpoint — no API key, no account, no infrastructure. The canonical
-surface is protocol-neutral: build a `Dataset` over one or more `Source`s, then
-call `queryAll()` (or `query()` / `stream()`).
+**No Honua server required.** This runs against a *public* Esri GeoServices
+endpoint — no API key, no account, no infrastructure — and walks the kernel's
+verbs in order: **connect → query → explain** (the fourth verb, **mount**, is
+the hero at the top of this page).
 
 ```ts doc-test=compile
-import { createDataset, HonuaClient, PROTOCOL_DEFAULT_CAPABILITIES } from "@honua/sdk-js";
+import { connect, explainQuery, envelope, queryFilter, type Query } from "@honua/sdk-js";
 
-// A public Esri Living Atlas FeatureServer — nothing of Honua's is running.
-const client = new HonuaClient({
-  baseUrl: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis",
+// 1. connect — a public Esri Living Atlas FeatureServer; nothing of Honua's is running.
+const data = await connect({
+  endpoint:
+    "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+  protocol: "auto",
+  authorizationScopeFingerprint: "public",
 });
+const states = data.source<{ NAME: string; Total_Pop_2020: number }>();
 
-const dataset = createDataset({
-  id: "states",
-  client,
-  sources: [
-    {
-      id: "apportionment",
-      protocol: "geoservices-feature-service",
-      locator: {
-        url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis",
-        serviceId: "2020_Census_State_Apportionment",
-        layerId: 0,
-      },
-      capabilities: PROTOCOL_DEFAULT_CAPABILITIES["geoservices-feature-service"],
-    },
-  ],
-});
-
-const states = dataset.source("apportionment")!;
-const result = await states.queryAll({
-  outFields: ["NAME", "Total_Pop_2020", "Seats_2020"],
-  returnGeometry: true,
-  pagination: { limit: 100 },
-});
-
-console.log(`Loaded ${result.features.length} states`);
-```
-
-Filtering uses the same typed, protocol-neutral `Query.filter`. One expression
-compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`, or DuckDB SQL,
-and `Query.temporalFilter` compiles to the protocol's own time parameter
-(`time=`, `datetime=`) or an exact predicate on a named field. A construct the
-target cannot express throws `HonuaCapabilityNotSupportedError` naming the
-construct and the protocol — it is never silently dropped or widened:
-
-```ts doc-test=compile
-import { envelope, queryFilter, type Query } from "@honua/sdk-js";
-
-const filtered: Query = {
+// 2. query — one typed, protocol-neutral filter expression.
+const query: Query = {
   filter: queryFilter.and(
     queryFilter.gt("Total_Pop_2020", 1_000_000),
     queryFilter.spatial("intersects", envelope(-125, 24, -66, 50)),
   ),
-  temporalFilter: { kind: "interval", start: "2026-01-01T00:00:00Z", end: null },
   outFields: ["NAME", "Total_Pop_2020"],
   pagination: { limit: 100 },
 };
+
+// 3. explain — the serializable plan, inspectable before anything executes.
+const plan = explainQuery({ descriptor: states.descriptor, query });
+console.log(plan.fingerprint, plan.steps.map((step) => `${step.engine}:${step.operation}`));
+
+const result = await states.queryAll(query);
+console.log(`Loaded ${result.features.length} states`);
 ```
+
+`Query.filter` compiles to GeoServices SQL-92, CQL2, FES 2.0, OData `$filter`,
+or DuckDB SQL, and `Query.temporalFilter` compiles to the protocol's own time
+parameter (`time=`, `datetime=`) or an exact predicate on a named field. A
+construct the target cannot express throws `HonuaCapabilityNotSupportedError`
+naming the construct and the protocol — it is never silently dropped or
+widened. `explainQuery` returns the same plan surface agents and the
+`honua explain` CLI command use: compiled predicates, bounds, cache and
+fidelity decisions, all serializable. Assembling a `Dataset` by hand — explicit
+protocol, locator, and capabilities, no discovery — is covered in
+[`docs/guide.md`](./docs/guide.md).
 
 The deprecated `Query.where` member remains operational only as source-native
 v1 migration compatibility; its grammar changes with the adapter, so new code
@@ -435,14 +444,20 @@ honua layers maui-parcels         # list a service's layers
 honua query maui-parcels/1 --count
 honua query maui-parcels/1 --where "tmk_txt LIKE '2%'" --limit 5
 honua query maui-parcels/1 --bbox -156.7,20.7,-156.3,21.0 --format geojson
+honua explain maui-parcels/1 --bbox -156.7,20.7,-156.3,21.0 --json   # the plan, no server call
 honua stac collections
 honua geocode "1 Honolulu Pl, HI"
 honua map export maui-parcels --bbox -156.7,20.7,-156.3,21.0 --size 800x600 -o maui.png
+honua tiles maui-parcels 12/912/1809 -o tile.png
 ```
 
-Authentication resolves from `--api-key`, `HONUA_API_KEY`, or a saved
-`honua login`. Run `honua --help` for the full command surface. This is the
-recommended command surface for docs and demos.
+The CLI's `--where` takes the *source-native* filter grammar by design (SQL for
+GeoServices, CQL2 for OGC) — it is a command-line convenience, not the
+deprecated protocol-neutral `Query.where`; `honua explain` shows exactly what
+any query compiles to before it runs. Authentication resolves from
+`--api-key`, `HONUA_API_KEY`, or a saved `honua login`. Run `honua --help` for
+the full command surface. This is the recommended command surface for docs and
+demos.
 
 For support-safe interoperability evidence, `honua doctor` emits a local,
 schema-validated diagnostic bundle with explicit classification/consent,
@@ -603,7 +618,8 @@ correctly use this SDK:
     [agent-safety threat model](./docs/agent-safety-threat-model.md).
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
     `/nl-map-control`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/plugin`, `/deckgl`,
-    `/offline`, `/diagnostics`, `/routing` — with `/query-planner` below, 11 experimental subpaths in total.
+    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/kepler`, `/analytics`, `/analytics/uplot`,
+    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 16 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
