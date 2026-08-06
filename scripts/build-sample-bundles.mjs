@@ -43,7 +43,7 @@ import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { runNpmSync } from "./lib/npm-cli.mjs";
 
@@ -247,11 +247,10 @@ export const SAMPLE_BUNDLE_AUDIT = [
   },
   {
     id: "maplibre-quickstart",
-    runtimeHosting: "same-origin-fixture-service",
+    runtimeHosting: "self-contained",
     buildScript: "demo:quickstart:build",
-    hostFixtureRoutes: ["/__honua-quickstart__/basemap-style.json", "/rest/services/natural-earth/FeatureServer/0"],
     auditedVia:
-      "examples/maplibre-quickstart/src/main.ts endpointFromEnvironment: with VITE_HONUA_QUICKSTART_ENDPOINT unset the endpoint is `${location.origin}/rest/services/natural-earth/FeatureServer/0` and the basemap is the same-origin fixture style; neither ships inside the built bundle (the sample has no public/ directory), so the host must serve both.",
+      "examples/maplibre-quickstart/src/main.ts endpointFromEnvironment: VITE_HONUA_QUICKSTART_ENDPOINT defaults to https://demo.honua.io/rest/services/natural-earth/FeatureServer/0 when unset, so the bundle is runnable as a standalone published sample.",
   },
   {
     id: "migration-workbench",
@@ -326,18 +325,17 @@ export const SAMPLE_BUNDLE_AUDIT = [
   },
   {
     id: "realtime-incident-dashboard",
-    runtimeHosting: "external-live-endpoint",
+    runtimeHosting: "self-contained",
     buildScript: "demo:incident:build",
     auditedVia:
-      "examples/realtime-incident-dashboard/src/realtime-transport.ts readIncidentTransportConfig: without ?transport=fixture-edit or a declared incident base/stream override, the base resolves to DEFAULT_DEMO_BASE_URL https://demo.honua.io and the sample subscribes to /api/v1/streaming/features, so the default bundle prefers a deployed live stream. A gallery-safe replay-only default is a product decision, not a bundling change.",
+      "examples/realtime-incident-dashboard/src/realtime-transport.ts readIncidentTransportConfig: on hosted (non-localhost) origins `transport=replay` defaults when no explicit override exists, so the sample uses the built-in fixture transport by default and does not require a same-origin mock service for the gallery bundle.",
   },
   {
     id: "service-explorer",
-    runtimeHosting: "same-origin-fixture-service",
+    runtimeHosting: "self-contained",
     buildScript: "demo:service-explorer:build",
-    hostFixtureRoutes: ["/fixtures/geoservices", "/fixtures/ogc"],
     auditedVia:
-      "examples/service-explorer/src/main.ts defaultEndpoint is `${window.location.origin}/fixtures/ogc`; its sole declared config name HONUA_SERVICE_EXPLORER_LIVE_ENABLED is catalog-classified server-only and non-secret, so no VITE_ override can reach the browser build and the reviewed live producer lane is unreachable from a published bundle.",
+      "examples/service-explorer/src/main.ts on hosted (non-localhost) origins defaults endpoint/source to https://demo.pygeoapi.io/master + lakes; localhost/default origins remain fixture-relative so the published bundle has no fixed same-origin fixture route requirements.",
   },
   {
     id: "shared-renderer-state",
@@ -793,6 +791,7 @@ async function buildSample(
     encoding: "utf8",
     env: fixtureBuildEnv(),
     stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: process.platform === "win32",
   });
   if (result.status !== 0) {
     process.stderr.write(result.stdout ?? "");

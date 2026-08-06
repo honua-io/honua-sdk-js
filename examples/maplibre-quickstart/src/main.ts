@@ -48,8 +48,9 @@ const FIRST_MAP_SOURCE_ID = "first-map-features";
 const FIRST_MAP_LAYER_ID = "first-map-feature";
 const FIXTURE_FEATURE_PATH = "/rest/services/natural-earth/FeatureServer/0";
 const FIXTURE_OGC_PATH = "/ogc/features";
-const FIXTURE_BASEMAP_STYLE = "/__honua-quickstart__/basemap-style.json";
-const PUBLIC_BASEMAP_STYLE = "https://demotiles.maplibre.org/style.json";
+const FIXTURE_BASEMAP_STYLE = "__honua-quickstart__/basemap-style.json";
+const PUBLIC_BASEMAP_STYLE = FIXTURE_BASEMAP_STYLE;
+const PUBLIC_DEFAULT_FIRST_MAP_ENDPOINT = "https://demo.honua.io/rest/services/natural-earth/FeatureServer/0";
 
 interface FirstMapLaunch {
   readonly endpoint: string;
@@ -84,7 +85,7 @@ function readProtocol(value: string | undefined): FirstMapProtocol {
 function endpointFromEnvironment(env: Record<string, string | undefined>): { endpoint: string; live: boolean } {
   const direct = readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT");
   if (direct) return { endpoint: direct, live: true };
-  return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
+  return { endpoint: PUBLIC_DEFAULT_FIRST_MAP_ENDPOINT, live: true };
 }
 
 function initialLaunch(): FirstMapLaunch {
@@ -105,8 +106,7 @@ function initialLaunch(): FirstMapLaunch {
     protocol: readProtocol(readOptional(env, "VITE_HONUA_QUICKSTART_PROTOCOL")),
     maxFeatures,
     basemapStyle:
-      readOptional(env, "VITE_HONUA_QUICKSTART_BASEMAP_STYLE") ??
-      (mode === "fixture" ? FIXTURE_BASEMAP_STYLE : PUBLIC_BASEMAP_STYLE),
+      readOptional(env, "VITE_HONUA_QUICKSTART_BASEMAP_STYLE") ?? (mode === "fixture" ? FIXTURE_BASEMAP_STYLE : PUBLIC_BASEMAP_STYLE),
     ...(where ? { where } : {}),
   };
 }
