@@ -52,6 +52,11 @@ declare global {
 const MAP_SOURCE_ID = "service-explorer-source";
 const BACKGROUND_LAYER_ID = "background";
 const INSPECTION_TIMEOUT_MS = 10_000;
+const DEMO_SERVICE_EXPLORER_ENDPOINT = "https://demo.pygeoapi.io/master";
+const DEMO_SERVICE_EXPLORER_SOURCE = "lakes";
+const LOCAL_FIXTURE_ENDPOINT = "/fixtures/ogc";
+const LOCAL_FIXTURE_SOURCE = "places";
+const LOCAL_FIXTURE_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 
 /* The basemap is the stage: its land tone is the design language's basemap
  * token, so the canvas re-keys with the active theme instead of staying a
@@ -96,7 +101,7 @@ const presentation = mountSamplePresentation({
   sampleId: "service-explorer",
   evidence: {
     workflow: "public-kernel inspect → strict planner → execution",
-    endpoint: "same-origin OGC fixture",
+    endpoint: "default endpoint (fixture locally; public demo in hosted deployments)",
     credentials: "not retained",
   },
   onDispose: () => disposeDemo(),
@@ -157,12 +162,24 @@ cleanup.listen(sourceList, "click", (event) => {
   void inspectEndpoint();
 });
 
+function isLocalFixtureHost(location: Location): boolean {
+  const hostname = location.hostname.toLowerCase();
+  return hostname === "" || LOCAL_FIXTURE_HOSTNAMES.has(hostname) || hostname.endsWith(".local");
+}
+
+function defaultServiceExplorerTarget(location: Location): { endpoint: string; source: string } {
+  if (isLocalFixtureHost(location)) {
+    return { endpoint: LOCAL_FIXTURE_ENDPOINT, source: LOCAL_FIXTURE_SOURCE };
+  }
+  return { endpoint: DEMO_SERVICE_EXPLORER_ENDPOINT, source: DEMO_SERVICE_EXPLORER_SOURCE };
+}
+
 setupThemeToggle();
 
-const defaultEndpoint = `${window.location.origin}/fixtures/ogc`;
+const { endpoint: defaultEndpoint, source: defaultSource } = defaultServiceExplorerTarget(location);
 endpointInput.value = defaultEndpoint;
 protocolInput.value = "ogc-features";
-sourceInput.value = "places";
+sourceInput.value = defaultSource;
 queryLimit.value = String(SERVICE_EXPLORER_DEFAULT_LIMIT);
 window.__HONUA_SERVICE_EXPLORER_DISPOSE__ = () => disposeDemo();
 void inspectEndpoint();

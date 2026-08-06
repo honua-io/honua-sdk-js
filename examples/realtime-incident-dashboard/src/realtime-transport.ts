@@ -158,7 +158,8 @@ export function readIncidentTransportConfig(location: Location = window.location
     VITE_HONUA_INCIDENT_TRANSPORT: (import.meta as ImportMetaWithOptionalEnvironment).env
       ?.VITE_HONUA_INCIDENT_TRANSPORT,
   };
-  const requestedMode = normalizeRequestedMode(params.get("transport") ?? env?.VITE_HONUA_INCIDENT_TRANSPORT);
+  const explicitMode = params.get("transport") ?? env?.VITE_HONUA_INCIDENT_TRANSPORT;
+  const requestedMode = normalizeRequestedMode(explicitMode ?? "replay");
   const fixtureOrigin = requestedMode === "fixture-edit" ? sanitizedPublicUrl(location.origin) : undefined;
   const demoBaseUrl = sanitizedPublicUrl(
     params.get("baseUrl") ?? env?.VITE_HONUA_INCIDENT_BASE_URL ?? fixtureOrigin ?? DEFAULT_DEMO_BASE_URL,

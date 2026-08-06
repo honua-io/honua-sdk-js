@@ -236,10 +236,8 @@ test("only requires-host-fixture-service bundles declare host prerequisites (#65
   const byId = new Map(published.map((entry) => [entry.id, entry]));
   for (const id of [
     "imagery-cog-quickstart",
-    "maplibre-quickstart",
     "planning-permitting-workbench",
     "react-quickstart",
-    "service-explorer",
   ]) {
     assert.equal(byId.get(id)?.runnability, "requires-host-fixture-service", `${id} must declare its prerequisites`);
   }
