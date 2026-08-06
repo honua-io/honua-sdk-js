@@ -10,7 +10,7 @@ import { createAssertionMatrix } from "./workflow.js";
 
 const PUBLIC_ARTIFACT_PREFIX = "examples/migration-workbench/public/";
 const GENERATED_TARGET_PATH = "examples/migration-workbench/src/generated/migrated-main.js";
-const GENERATED_TARGET_HREF = "/artifacts/v1/migrated-main.js";
+const GENERATED_TARGET_HREF = "./artifacts/v1/migrated-main.js";
 
 export function createMigrationWorkbenchViewModel(
   artifacts: MigrationWorkbenchArtifactSet,
