@@ -1,0 +1,174 @@
+{
+  "format": "honua.sdk.sample-playwright-gate.v1",
+  "sampleId": "maplibre-quickstart",
+  "sourceRevision": "bedbbbf4dd743c3fa69cbfa9b942a78f2c4d8729",
+  "gate": "browser",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:quickstart",
+    "--",
+    "--reporter=json"
+  ],
+  "playwright": {
+    "config": {
+      "configFile": "playwright.first-map.config.mjs",
+      "rootDir": "test/playwright",
+      "forbidOnly": false,
+      "fullyParallel": false,
+      "globalSetup": null,
+      "globalTeardown": null,
+      "globalTimeout": 0,
+      "grep": {},
+      "grepInvert": null,
+      "maxFailures": 0,
+      "metadata": {
+        "actualWorkers": 1
+      },
+      "preserveOutput": "always",
+      "projects": [
+        {
+          "repeatEach": 1,
+          "retries": 1,
+          "metadata": {
+            "actualWorkers": 1
+          },
+          "id": "chromium",
+          "name": "chromium",
+          "testDir": "test/playwright",
+          "testIgnore": [],
+          "testMatch": [
+            "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+          ],
+          "timeout": 90000
+        }
+      ],
+      "quiet": false,
+      "reporter": [
+        [
+          "json"
+        ]
+      ],
+      "reportSlowTests": {
+        "max": 5,
+        "threshold": 300000
+      },
+      "runAgents": "none",
+      "shard": null,
+      "tags": [],
+      "updateSnapshots": "missing",
+      "updateSourceMethod": "patch",
+      "version": "1.58.2",
+      "workers": 1,
+      "webServer": null
+    },
+    "suites": [
+      {
+        "title": "quickstart-map.spec.mjs",
+        "file": "quickstart-map.spec.mjs",
+        "column": 0,
+        "line": 0,
+        "specs": [
+          {
+            "title": "First Map proves the canonical fixture journey in source or packed mode",
+            "ok": true,
+            "tags": [],
+            "tests": [
+              {
+                "timeout": 90000,
+                "annotations": [],
+                "expectedStatus": "passed",
+                "projectId": "chromium",
+                "projectName": "chromium",
+                "results": [
+                  {
+                    "workerIndex": 0,
+                    "parallelIndex": 0,
+                    "status": "passed",
+                    "duration": 5590,
+                    "errors": [],
+                    "stdout": [
+                      {
+                        "buffer": "G1szNm12aXRlIHY4LjAuMTYgG1szMm1idWlsZGluZyBjbGllbnQgZW52aXJvbm1lbnQgZm9yIHByb2R1Y3Rpb24uLi4bWzM2bRtbMzltCg=="
+                      },
+                      {
+                        "buffer": "G1sySw10cmFuc2Zvcm1pbmcuLi4="
+                      },
+                      {
+                        "buffer": "G1szMm3inJMbWzM5bSAzMjUgbW9kdWxlcyB0cmFuc2Zvcm1lZC4K"
+                      },
+                      {
+                        "buffer": "cmVuZGVyaW5nIGNodW5rcy4uLgo="
+                      },
+                      {
+                        "buffer": "Y29tcHV0aW5nIGd6aXAgc2l6ZS4uLgo="
+                      },
+                      {
+                        "buffer": "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"
+                      },
+                      {
+                        "buffer": "G1szMm3inJMgYnVpbHQgaW4gODM4bXMbWzM5bQo="
+                      }
+                    ],
+                    "stderr": [
+                      {
+                        "buffer": "G1szM20bWzMzbVtJTkVGRkVDVElWRV9EWU5BTUlDX0lNUE9SVF0gG1swbW5vZGVfbW9kdWxlcy9tYXBsaWJyZS1nbC9kaXN0L21hcGxpYnJlLWdsLm1qcyBpcyBkeW5hbWljYWxseSBpbXBvcnRlZCBieSBzcmMvcnVudGltZS9wcm90b2NvbC1yZWdpc3RyeS50cyBidXQgYWxzbyBzdGF0aWNhbGx5IGltcG9ydGVkIGJ5IGV4YW1wbGVzL21hcGxpYnJlLXF1aWNrc3RhcnQvc3JjL21haW4udHMsIGV4YW1wbGVzL3NoYXJlZC9tYXBsaWJyZS12aXRlLXdvcmtlci50cywgZHluYW1pYyBpbXBvcnQgd2lsbCBub3QgbW92ZSBtb2R1bGUgaW50byBhbm90aGVyIGNodW5rLgobWzM5bQo="
+                      },
+                      {
+                        "buffer": "G1szM21bcGx1Z2luIGJ1aWx0aW46dml0ZS1yZXBvcnRlcl0gG1szM20bWzFtCighKSBTb21lIGNodW5rcyBhcmUgbGFyZ2VyIHRoYW4gNTAwIGtCIGFmdGVyIG1pbmlmaWNhdGlvbi4gQ29uc2lkZXI6Ci0gVXNpbmcgZHluYW1pYyBpbXBvcnQoKSB0byBjb2RlLXNwbGl0IHRoZSBhcHBsaWNhdGlvbgotIFVzZSBidWlsZC5yb2xsZG93bk9wdGlvbnMub3V0cHV0LmNvZGVTcGxpdHRpbmcgdG8gaW1wcm92ZSBjaHVua2luZzogaHR0cHM6Ly9yb2xsZG93bi5ycy9yZWZlcmVuY2UvT3V0cHV0T3B0aW9ucy5jb2RlU3BsaXR0aW5nCi0gQWRqdXN0IGNodW5rIHNpemUgbGltaXQgZm9yIHRoaXMgd2FybmluZyB2aWEgYnVpbGQuY2h1bmtTaXplV2FybmluZ0xpbWl0LhtbMG0bWzMzbRtbMzltCg=="
+                      }
+                    ],
+                    "retry": 0,
+                    "startTime": "2026-08-06T10:12:49.168Z",
+                    "annotations": [],
+                    "attachments": [
+                      {
+                        "name": "honua-gate:browser",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJtYXBsaWJyZS1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImJyb3dzZXIiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicnVudGltZVJlYWR5Ijp0cnVlLCJwcm9qZWN0TmFtZSI6ImNocm9taXVtIiwiYnJvd3Nlck5hbWUiOiJjaHJvbWl1bSJ9fQ=="
+                      },
+                      {
+                        "name": "honua-gate:accessibility",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJtYXBsaWJyZS1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImFjY2Vzc2liaWxpdHkiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsiZW5naW5lIjp7Im5hbWUiOiJheGUtY29yZSIsInZlcnNpb24iOiI0LjEyLjEifSwidmlvbGF0aW9ucyI6W10sInBhc3NlcyI6NTEsImtleWJvYXJkIjp7InNlbGVjdG9yIjoiW2RhdGEtdGVzdGlkPVwiaG9udWEtc2FtcGxlLWV2aWRlbmNlXCJdID4gc3VtbWFyeSIsInRhYkNvdW50Ijo3LCJ0YWJSZWFjaGVkVGFyZ2V0Ijp0cnVlLCJhY3RpdmF0ZWQiOnRydWUsImR1cmF0aW9uTXMiOjY5LjYwMDAwMDAwMDA5MzEzfX19"
+                      },
+                      {
+                        "name": "honua-gate:responsive",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJtYXBsaWJyZS1xdWlja3N0YXJ0IiwiZ2F0ZSI6InJlc3BvbnNpdmUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsidmlld3BvcnRzIjpbeyJ3aWR0aCI6MTI4MCwiaGVpZ2h0Ijo3MjAsImRvY3VtZW50V2lkdGgiOjEyODAsIm5vSG9yaXpvbnRhbE92ZXJmbG93Ijp0cnVlLCJ3b3JrZmxvd3MiOlt7InNlbGVjdG9yIjoiI2VuZHBvaW50LWZvcm0iLCJ2aXNpYmxlIjp0cnVlfSx7InNlbGVjdG9yIjoiI21hcCIsInZpc2libGUiOnRydWV9LHsic2VsZWN0b3IiOiIjZmVhdHVyZS1saXN0IiwidmlzaWJsZSI6dHJ1ZX1dfSx7IndpZHRoIjozOTAsImhlaWdodCI6ODQ0LCJkb2N1bWVudFdpZHRoIjozOTAsIm5vSG9yaXpvbnRhbE92ZXJmbG93Ijp0cnVlLCJ3b3JrZmxvd3MiOlt7InNlbGVjdG9yIjoiI2VuZHBvaW50LWZvcm0iLCJ2aXNpYmxlIjp0cnVlfSx7InNlbGVjdG9yIjoiI21hcCIsInZpc2libGUiOnRydWV9LHsic2VsZWN0b3IiOiIjZmVhdHVyZS1saXN0IiwidmlzaWJsZSI6dHJ1ZX1dfV0sIndvcmtmbG93U2VsZWN0b3JzIjpbIiNlbmRwb2ludC1mb3JtIiwiI21hcCIsIiNmZWF0dXJlLWxpc3QiXX19"
+                      },
+                      {
+                        "name": "honua-gate:fixture",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJtYXBsaWJyZS1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImZpeHR1cmUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicHJvdmlkZXIiOiJleGFtcGxlcy9tYXBsaWJyZS1xdWlja3N0YXJ0L21vY2stc2VydmVyLm1qcyIsInRyYW5zcG9ydCI6Imxvb3BiYWNrLWh0dHAiLCJjbG9zZWQiOnRydWV9fQ=="
+                      },
+                      {
+                        "name": "honua-gate:console",
+                        "contentType": "application/json",
+                        "body": "eyJmb3JtYXQiOiJob251YS5zZGsuc2FtcGxlLWdhdGUtYXNzZXJ0aW9uLnYxIiwic2FtcGxlSWQiOiJtYXBsaWJyZS1xdWlja3N0YXJ0IiwiZ2F0ZSI6ImNvbnNvbGUiLCJzdGF0dXMiOiJwYXNzZWQiLCJvYnNlcnZhdGlvbnMiOnsicGFnZUVycm9ycyI6W10sImNvbnNvbGVFcnJvcnMiOltdLCJwYWdlQ2xvc2VkIjp0cnVlLCJjb250ZXh0Q2xvc2VkIjp0cnVlLCJmaW5hbGl6YXRpb25Cb3VuZGFyeSI6Im93bmVkLXBhZ2UtYW5kLWNvbnRleHQtY2xvc2UiLCJmaW5hbGl6ZWRBZnRlclRlYXJkb3duIjp0cnVlfX0="
+                      }
+                    ]
+                  }
+                ],
+                "status": "expected"
+              }
+            ],
+            "id": "e35b927a2a4caa384536-cb28c983a6317fd7b102",
+            "file": "quickstart-map.spec.mjs",
+            "line": 10,
+            "column": 1
+          }
+        ]
+      }
+    ],
+    "errors": [],
+    "stats": {
+      "startTime": "2026-08-06T10:12:47.778Z",
+      "duration": 7128.129,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  }
+}

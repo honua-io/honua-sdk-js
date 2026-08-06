@@ -1,0 +1,70 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "service-explorer",
+  "sourceRevision": "bedbbbf4dd743c3fa69cbfa9b942a78f2c4d8729",
+  "command": [
+    "npm",
+    "run",
+    "demo:service-explorer:live-evidence"
+  ],
+  "evidencePath": "samples/evidence/service-explorer/runs/37169e66-3a25-47c3-8934-13b34a80aaf6/artifacts/live-evidence.json",
+  "evidence": {
+    "$schema": "../../samples/contract/v1/schemas/sample-evidence.schema.json",
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "service-explorer",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-08-06T10:16:31.357Z",
+    "authMode": "anonymous",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.4-beta.0",
+      "gitCommit": "bedbbbf4dd743c3fa69cbfa9b942a78f2c4d8729"
+    },
+    "source": {
+      "provider": "esri-sampleserver6-and-pygeoapi-demo",
+      "identity": "canonical-anonymous-geoservices+canonical-anonymous-ogc-features",
+      "endpoint": "https://demo.pygeoapi.io/master",
+      "deploymentVersion": null,
+      "dataVersion": null
+    },
+    "provenance": {
+      "sourceId": "canonical-anonymous-geoservices+canonical-anonymous-ogc-features",
+      "observedAt": "2026-08-06T10:16:31.357Z",
+      "validAt": null,
+      "state": "live",
+      "attribution": "Esri sample services and the pygeoapi development team."
+    },
+    "semantics": {
+      "operation": "dual-protocol-inspect-plan-query",
+      "outcome": "geoservices-and-ogc-plans-executed",
+      "itemCount": 2,
+      "assertions": [
+        "credential-free-fixed-https-endpoints",
+        "same-origin-path-confined-requests",
+        "bounded-request-and-response-budgets",
+        "geoservices-feature-service-inspected",
+        "ogc-features-conformance-inspected",
+        "strict-query-plans-accepted",
+        "one-result-per-protocol-returned"
+      ]
+    },
+    "timing": {
+      "totalMs": 2125.1133919999997,
+      "firstSuccessfulInteractionMs": 285.00573599999996
+    },
+    "degradation": {
+      "state": "none",
+      "reasons": []
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "examples/service-explorer/live-evidence.mjs",
+        "sha256": "a8c67405185e2c0296d99892c7365a9b49d6cd441a1f645a94f41b5de92a3816"
+      }
+    ]
+  }
+}
