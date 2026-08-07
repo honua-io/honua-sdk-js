@@ -1,0 +1,78 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "maplibre-quickstart",
+  "sourceRevision": "3c8f39dcb52bdc8fa914a8a00e28ce9b3fd925e2",
+  "command": [
+    "npm",
+    "run",
+    "evidence:first-map:live"
+  ],
+  "evidencePath": "samples/evidence/maplibre-quickstart/runs/c192f953-e512-433a-8a47-62791e2439fb/artifacts/live-evidence.json",
+  "evidence": {
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "maplibre-quickstart",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-08-07T08:41:31.258Z",
+    "authMode": "anonymous",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.4-beta.0",
+      "gitCommit": "3c8f39dcb52bdc8fa914a8a00e28ce9b3fd925e2"
+    },
+    "source": {
+      "provider": "esri-living-atlas",
+      "identity": "geoservices-feature-service:0",
+      "endpoint": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0",
+      "deploymentVersion": null,
+      "dataVersion": null
+    },
+    "provenance": {
+      "sourceId": "geoservices-feature-service:0",
+      "observedAt": "2026-08-07T08:41:32.549Z",
+      "validAt": null,
+      "state": "live",
+      "attribution": "States 2020 Apportionment - U.S. House of Representatives Seats"
+    },
+    "semantics": {
+      "operation": "first-map-anonymous-public-endpoint",
+      "outcome": "map-popup-filter-plan-ready",
+      "itemCount": 1,
+      "assertions": [
+        "protocol=\"geoservices-feature-service\"",
+        "sourceId=\"0\"",
+        "attribution=\"States 2020 Apportionment - U.S. House of Representatives Seats\"",
+        "freshness=\"observed\"",
+        "cacheStatus=\"miss\"",
+        "degradationCount=0",
+        "planFingerprint=\"sha256:4b1c3b16512c1adf22f11c6a4e74653912e1bda685d3b39253011c09058cd606\"",
+        "mode=\"Anonymous live\"",
+        "credentialsSent=false",
+        "unexpectedNetworkRequests=0",
+        "cleanupBudgetMet=true"
+      ]
+    },
+    "timing": {
+      "totalMs": 353,
+      "firstSuccessfulInteractionMs": 353
+    },
+    "degradation": {
+      "state": "none",
+      "reasons": []
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "scripts/first-map-live-evidence.mjs",
+        "sha256": "d103c968b016dc2a320bf799df60733669ff86252a12f8cd6987ea10ca1f1459"
+      },
+      {
+        "kind": "live-screenshot",
+        "path": "samples/evidence/maplibre-quickstart/runs/c192f953-e512-433a-8a47-62791e2439fb/artifacts/live-evidence.png",
+        "sha256": "a4d3a420c1539048906d4bd478fba9fd5675dca7090e0193faf8b7d536ee1fd2"
+      }
+    ]
+  }
+}
