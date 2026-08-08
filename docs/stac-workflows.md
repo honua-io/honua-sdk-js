@@ -8,20 +8,16 @@ timeout, injected-fetch, and cancellation pipeline.
 
 ### 1. Create a client and list the catalog
 
-```ts
+```ts doc-test=compile
 import { createDynamicStacClient } from "@honua/sdk-js/stac";
 
 const stac = createDynamicStacClient({
   baseUrl: "https://demo.honua.io/api/stac",
-  clientOptions: {
-    auth: async () => ({ bearerToken: await loadAccessToken() }),
-    interceptors: [requestTiming],
-  },
 });
 
 const catalog = await stac.catalog(AbortSignal.timeout(5_000));
 for (const collection of catalog.collections) {
-  addCollectionOption(collection.id, collection.title ?? collection.id);
+  console.log(collection.id, collection.title ?? collection.id);
 }
 ```
 
@@ -31,7 +27,7 @@ HTTP(S) links, and collection summaries. The application does not construct
 
 ### 2. Search Maui and iterate pages
 
-```ts
+```ts doc-test=skip reason="continues the catalog client and application result state from step 1"
 for await (const item of stac.items({
   method: "auto",
   collections: ["sentinel-2-l2a"],
@@ -56,7 +52,7 @@ bounded to one page and is cancelled when iteration stops.
 
 ### 3. Select an asset without guessing its connector
 
-```ts
+```ts doc-test=skip reason="continues the selected item and application rendering callbacks from prior steps"
 const asset = await stac.selectAsset(selectedItem, {
   roles: ["visual", "data"],
   formats: ["cog", "pmtiles", "geoparquet", "raster"],
