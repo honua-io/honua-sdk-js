@@ -1,0 +1,81 @@
+{
+  "format": "honua.sdk.sample-screenshot-gate.v3",
+  "sampleId": "service-explorer",
+  "sourceRevision": "e794290cf254f72d309fe5b5658c167df2cde9bd",
+  "command": [
+    "npm",
+    "run",
+    "test:playwright:service-explorer",
+    "--",
+    "--reporter=json"
+  ],
+  "reproducibilityPolicy": {
+    "captureCount": 2,
+    "comparison": "byte-identical",
+    "scope": "same-page-session",
+    "animations": "disabled",
+    "stabilization": [
+      "map-idle",
+      "css-animation-freeze",
+      "fonts-ready",
+      "scroll-origin",
+      "double-animation-frame"
+    ],
+    "runtimeBinding": [
+      "playwright-version",
+      "project-name",
+      "browser-name",
+      "browser-version",
+      "platform",
+      "architecture"
+    ]
+  },
+  "runtime": {
+    "playwrightVersion": "1.58.2",
+    "projectName": "chromium",
+    "browserName": "chromium",
+    "browserVersion": "145.0.7632.6",
+    "platform": "linux",
+    "architecture": "x64"
+  },
+  "screenshots": [
+    {
+      "variant": "desktop",
+      "projectName": "chromium",
+      "browserName": "chromium",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "path": "samples/evidence/service-explorer/runs/895e0af0-730b-4ff5-84ca-11c82d6f4656/artifacts/screenshot-desktop.png",
+      "bytes": 87582,
+      "sha256": "cd95a83a757149faf3b5213793d138d29b8da2bdb3024ef23875d5bb2e3101a2",
+      "reproducibility": {
+        "captureCount": 2,
+        "comparison": "byte-identical",
+        "repeatPath": "samples/evidence/service-explorer/runs/895e0af0-730b-4ff5-84ca-11c82d6f4656/artifacts/screenshot-desktop-repeat.png",
+        "repeatBytes": 87582,
+        "repeatSha256": "cd95a83a757149faf3b5213793d138d29b8da2bdb3024ef23875d5bb2e3101a2"
+      }
+    },
+    {
+      "variant": "mobile",
+      "projectName": "chromium",
+      "browserName": "chromium",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "samples/evidence/service-explorer/runs/895e0af0-730b-4ff5-84ca-11c82d6f4656/artifacts/screenshot-mobile.png",
+      "bytes": 60541,
+      "sha256": "53803be4234ae64cea6bc1378b2b5030f315c5abfeb275e681c8527185a149b0",
+      "reproducibility": {
+        "captureCount": 2,
+        "comparison": "byte-identical",
+        "repeatPath": "samples/evidence/service-explorer/runs/895e0af0-730b-4ff5-84ca-11c82d6f4656/artifacts/screenshot-mobile-repeat.png",
+        "repeatBytes": 60541,
+        "repeatSha256": "53803be4234ae64cea6bc1378b2b5030f315c5abfeb275e681c8527185a149b0"
+      }
+    }
+  ]
+}
