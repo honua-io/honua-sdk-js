@@ -13,7 +13,7 @@ Use `@honua/sdk-js/coverages` when the output is a raster value grid rather than
 
 ## 1. Create one authenticated request pipeline
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { createCoverageClient } from "@honua/sdk-js/coverages";
 
@@ -30,7 +30,7 @@ Coverage endpoints must share the client's origin. This prevents a caller from a
 
 ## 2. Discover before downloading
 
-```ts
+```ts doc-test=skip reason="continuation requires prior walkthrough state"
 const service = await coverages.discover();
 const source = coverages.source(service.collections[0]!.id);
 const [domain, range] = await Promise.all([source.domainSet(), source.rangeType()]);
@@ -43,7 +43,7 @@ console.table(range.fields);
 
 ## 3. Request a bounded subset
 
-```ts
+```ts doc-test=skip reason="continuation requires prior walkthrough state"
 const controller = new AbortController();
 const result = await source.coverage({
   bbox: [-158.1, 21.3, -157.9, 21.5],
@@ -60,7 +60,7 @@ The SDK rejects a request without a bbox, axis subset, or scaling constraint unl
 
 ## WCS compatibility
 
-```ts
+```ts doc-test=skip reason="continuation requires prior walkthrough state"
 import { createWcsClient } from "@honua/sdk-js/coverages";
 
 const wcs = createWcsClient(client, { basePath: "/ogc/services/7/wcs" });
