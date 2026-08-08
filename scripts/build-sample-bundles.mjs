@@ -754,6 +754,9 @@ function sampleBuildEnv(sampleId) {
     env.VITE_HONUA_QUICKSTART_WHERE = "id <= 25";
     env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE = "./__honua-quickstart__/basemap-style.json";
   }
+  if (sampleId === "realtime-incident-dashboard") {
+    env.VITE_HONUA_INCIDENT_TRANSPORT = "replay";
+  }
   return env;
 }
 
