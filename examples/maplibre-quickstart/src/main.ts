@@ -46,11 +46,11 @@ const FIXTURE_BASEMAP_LAYER_ID = "background";
 
 const FIRST_MAP_SOURCE_ID = "first-map-features";
 const FIRST_MAP_LAYER_ID = "first-map-feature";
-const FIXTURE_FEATURE_PATH = "/rest/services/natural-earth/FeatureServer/0";
+const FIXTURE_FEATURE_PATH = "/rest/services/maui-parcels/FeatureServer/1";
 const FIXTURE_OGC_PATH = "/ogc/features";
 const FIXTURE_BASEMAP_STYLE = "__honua-quickstart__/basemap-style.json";
 const PUBLIC_BASEMAP_STYLE = FIXTURE_BASEMAP_STYLE;
-const PUBLIC_DEFAULT_FIRST_MAP_ENDPOINT = "https://demo.honua.io/rest/services/natural-earth/FeatureServer/0";
+const PUBLIC_DEFAULT_FIRST_MAP_ENDPOINT = "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
 
 interface FirstMapLaunch {
   readonly endpoint: string;

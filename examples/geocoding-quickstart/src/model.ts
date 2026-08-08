@@ -26,8 +26,8 @@ export function createGeocodingClient(config: GeocodingQuickstartConfig): HonuaG
   return new HonuaGeocodingClient(geocodingClientOptionsFromConfig(config));
 }
 
-export function createGeocodingAuditRows(locatorName = "World"): GeocodingAuditRow[] {
-  const basePath = `/rest/services/${encodeURIComponent(locatorName)}/GeocodeServer`;
+export function createGeocodingAuditRows(config: GeocodingQuickstartConfig): GeocodingAuditRow[] {
+  const basePath = `${config.honuaBaseUrl}/rest/services/${encodeURIComponent(config.locatorName)}/GeocodeServer`;
   return [
     {
       capability: "Forward geocoding",

@@ -9,6 +9,7 @@ const repoRoot = path.resolve(exampleRoot, "../..");
 export default defineConfig({
   root: exampleRoot,
   envDir: exampleRoot,
+  base: "./",
   resolve: {
     alias: [
       { find: "@honua/sdk-js/geocoding", replacement: path.resolve(repoRoot, "src/geocoding/index.ts") },

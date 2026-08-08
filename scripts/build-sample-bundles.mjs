@@ -250,7 +250,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:quickstart:build",
     auditedVia:
-      "examples/maplibre-quickstart/src/main.ts endpointFromEnvironment: VITE_HONUA_QUICKSTART_ENDPOINT defaults to https://demo.honua.io/rest/services/natural-earth/FeatureServer/0 when unset, so the bundle is runnable as a standalone published sample.",
+      "examples/maplibre-quickstart/src/main.ts endpointFromEnvironment: VITE_HONUA_QUICKSTART_ENDPOINT defaults to https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1 when unset, so the bundle is runnable as a standalone published sample.",
   },
   {
     id: "migration-workbench",

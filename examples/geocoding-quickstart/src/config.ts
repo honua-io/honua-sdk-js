@@ -42,12 +42,23 @@ function readPositiveIntegerWithFallback(
   return parsed;
 }
 
+function publicHostFallback(fallbackOrigin: string): string {
+  if (!fallbackOrigin) return "";
+  try {
+    const parsedOrigin = new URL(fallbackOrigin);
+    return parsedOrigin.hostname === "samples.honua.io" ? "https://geocode.arcgis.com/arcgis" : fallbackOrigin;
+  } catch {
+    return fallbackOrigin;
+  }
+}
+
 export function resolveGeocodingQuickstartConfig(
   env: Record<string, string | undefined>,
   fallbackOrigin = globalThis.location?.origin ?? "",
 ): GeocodingQuickstartConfig {
   const explicitBaseUrl = readOptional(env, "VITE_HONUA_GEOCODING_BASE_URL");
-  const honuaBaseUrl = normalizeBaseUrl(explicitBaseUrl ?? fallbackOrigin);
+  const effectiveFallbackOrigin = publicHostFallback(fallbackOrigin);
+  const honuaBaseUrl = normalizeBaseUrl(explicitBaseUrl ?? effectiveFallbackOrigin);
 
   return {
     honuaBaseUrl,
