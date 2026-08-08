@@ -56,17 +56,17 @@
         },
         "runtimeHosting": {
           "type": "string",
-          "description": "Audited classification of how this sample's default build obtains the data it renders (honua-io/honua-sdk-js#656 REQ-001). Only the two publishable kinds can appear on a built bundle.",
-          "enum": ["self-contained", "same-origin-fixture-service"]
+          "description": "Audited classification of how this sample's default build obtains the data it renders (honua-io/honua-sdk-js#656 REQ-001). External live hosting is admitted only for the two explicitly allowlisted, semantically smoked samples.",
+          "enum": ["self-contained", "same-origin-fixture-service", "external-live-endpoint"]
         },
         "runnability": {
           "type": "string",
-          "description": "Whether this bundle runs from any static host on its own (`standalone`) or only where the embedding host also serves `hostFixtureRoutes` (`requires-host-fixture-service`). Consumers must not present a `requires-host-fixture-service` bundle as runnable without those prerequisites.",
-          "enum": ["standalone", "requires-host-fixture-service"]
+          "description": "Whether this bundle runs from any static host on its own (`standalone`), requires embedding-host fixture routes (`requires-host-fixture-service`), or requires an audited external live endpoint (`requires-live-endpoint`). Consumers must present either prerequisite honestly.",
+          "enum": ["standalone", "requires-host-fixture-service", "requires-live-endpoint"]
         },
         "hostFixtureRoutes": {
           "type": "array",
-          "description": "Same-origin path prefixes the embedding host must serve for this bundle to complete its fixture journey. Each entry matches its own exact path and everything beneath it as a path-segment prefix, so `/fixtures/cog/` covers `/fixtures/cog/assets/x` but `/fixtures/cog` never covers `/fixtures/cognition`. Entries must account for URLs the journey derives from fixture responses (for example STAC asset hrefs resolved against the item URL), not just the routes it requests first. Always empty for `runnability: standalone`.",
+          "description": "Same-origin path prefixes the embedding host must serve for this bundle to complete its fixture journey. Each entry matches its own exact path and everything beneath it as a path-segment prefix, so `/fixtures/cog/` covers `/fixtures/cog/assets/x` but `/fixtures/cog` never covers `/fixtures/cognition`. Entries must account for URLs the journey derives from fixture responses, not just the routes it requests first. Empty for `standalone` and `requires-live-endpoint`.",
           "items": { "type": "string", "pattern": "^/" }
         },
         "support": {

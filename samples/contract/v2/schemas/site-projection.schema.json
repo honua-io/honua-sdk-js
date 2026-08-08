@@ -367,13 +367,13 @@
         },
         "published": {
           "type": "array",
-          "description": "Per-bundle publication truth for every id in sampleIds, so a gallery card can state a bundle's runtime prerequisites without fetching the bundle manifest (honua-io/honua-sdk-js#656 REQ-004/REQ-005). A `requires-host-fixture-service` entry must never be presented as runnable unless the embedding host also serves its hostFixtureRoutes.",
+          "description": "Per-bundle publication truth for every id in sampleIds, so a gallery card can state runtime prerequisites without fetching the bundle manifest. `requires-host-fixture-service` needs the declared hostFixtureRoutes; `requires-live-endpoint` depends on an audited, semantically smoked external service and must never be labeled standalone.",
           "items": {
             "type": "object",
             "required": ["id", "runnability", "hostFixtureRoutes"],
             "properties": {
               "id": { "type": "string" },
-              "runnability": { "type": "string", "enum": ["standalone", "requires-host-fixture-service"] },
+              "runnability": { "type": "string", "enum": ["standalone", "requires-host-fixture-service", "requires-live-endpoint"] },
               "hostFixtureRoutes": { "type": "array", "items": { "type": "string", "pattern": "^/" } }
             },
             "additionalProperties": false
