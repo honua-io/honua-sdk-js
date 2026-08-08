@@ -9,7 +9,7 @@ in a source picker, server-rendered configuration, diagnostics, and tests.
 
 ### 1. Discover from one base URL
 
-```ts
+```ts doc-test=compile
 import {
   assertCloudNativeOperation,
   discoverCloudNativeSources,
@@ -48,7 +48,12 @@ does not probe a guessed `/search`, `/collections`, tile, or asset route.
 
 ### 2. Normalize a direct object
 
-```ts
+```ts doc-test=compile
+import {
+  assertCloudNativeOperation,
+  discoverCloudNativeSources,
+} from "@honua/sdk-js/cloud-native-discovery";
+
 const direct = await discoverCloudNativeSources(
   "https://objects.example.com/basemaps/world.pmtiles",
 );
@@ -61,7 +66,12 @@ No request is made during direct URL normalization. The PMTiles connector still
 performs its own structural range validation when the application opens the
 archive. For a URL with an ambiguous suffix, declare the candidate explicitly:
 
-```ts
+```ts doc-test=compile
+import {
+  assertCloudNativeOperation,
+  discoverCloudNativeSources,
+} from "@honua/sdk-js/cloud-native-discovery";
+
 const parquet = await discoverCloudNativeSources({
   type: "direct-asset",
   url: "https://objects.example.com/releases/places.parquet",
