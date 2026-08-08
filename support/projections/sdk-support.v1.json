@@ -699,6 +699,18 @@
       "freshnessPolicy": "nightly"
     },
     {
+      "id": "unified-raster-direct-cog-contract",
+      "kind": "fixture",
+      "path": "test/unified-raster.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "unified-raster-coverage-planning-contract",
+      "kind": "fixture",
+      "path": "test/unified-raster.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "geometry-service-integration",
       "kind": "integration",
       "path": "test/integration/surfaces/geometry-server.integration.ts",
@@ -1761,12 +1773,46 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
-      "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol()",
-      "notes": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor.",
+      "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol(), @honua/sdk-js/raster",
+      "notes": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; the raster session adds bounded bbox render, band/style descriptors, identify, and presentation handoffs without inventing statistics endpoints.",
       "evidence": [
         "geoservices-discovery-fixtures",
         "geoservices-conformance",
         "image-service-integration"
+      ]
+    },
+    {
+      "id": "unified-raster-direct-cog-client-only",
+      "label": "Unified bounded direct COG operations",
+      "operations": [
+        "discovery",
+        "render",
+        "image"
+      ],
+      "environment": "client-only",
+      "executionMode": "native",
+      "status": "experimental",
+      "backendNeeded": "A static host with exact HTTP Range and readable CORS headers plus a caller-injected structural COG decoder",
+      "api": "@honua/sdk-js/raster",
+      "notes": "Structurally validates COG layout before returning a session, enforces byte/range/pixel budgets, and provides bounded windows, bands, no-data statistics, histograms, value inspection, progress, cancellation, and MapLibre mounting. Filename suffixes are never conformance evidence.",
+      "evidence": [
+        "unified-raster-direct-cog-contract"
+      ]
+    },
+    {
+      "id": "unified-raster-coverage-descriptors",
+      "label": "OGC Coverage and WCS raster descriptors",
+      "operations": [
+        "discovery"
+      ],
+      "environment": "standalone",
+      "executionMode": "discovery",
+      "status": "experimental",
+      "backendNeeded": "An OGC API Coverages or WCS service with advertised operation URLs",
+      "api": "@honua/sdk-js/raster",
+      "notes": "Publishes common source and execution-plan vocabulary only. Network execution fails closed unless the caller supplies an executor derived from advertised links or capabilities; no endpoint path is guessed.",
+      "evidence": [
+        "unified-raster-coverage-planning-contract"
       ]
     },
     {
@@ -2658,6 +2704,10 @@
       },
       {
         "subpath": "./cog",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./raster",
         "status": "experimental"
       },
       {

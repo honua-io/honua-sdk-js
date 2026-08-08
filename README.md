@@ -166,7 +166,7 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 23 of the 28 generated support
+**Two deployment tiers, named up front.** 25 of the 30 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
 5 are `server-attach` and execute only after attaching to a Honua Server facade;
