@@ -100,10 +100,10 @@ describe("playground eligibility", () => {
     assert.equal(decision.category, "repository-vite-kit");
   });
 
-  it("excludes a sample that needs a data origin the playground cannot serve", () => {
+  it("keeps a self-contained bundle excluded when it still builds through the shared kit", () => {
     const decision = decisionById.get("service-explorer");
     assert.equal(decision.qualified, false);
-    assert.equal(decision.category, "requires-data-origin");
+    assert.equal(decision.category, "repository-vite-kit");
   });
 
   it("refuses an entrypoint the published package does not export", () => {
