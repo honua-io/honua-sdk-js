@@ -82,12 +82,7 @@ const EXPECTED_VULNERABILITIES = Object.freeze({
   },
   "@kepler.gl/layers": {
     direct: false,
-    via: [
-      "@deck.gl/geo-layers",
-      "@deck.gl/mesh-layers",
-      "@kepler.gl/deckgl-layers",
-      "@loaders.gl/gltf",
-    ],
+    via: ["@deck.gl/geo-layers", "@deck.gl/mesh-layers", "@kepler.gl/deckgl-layers", "@loaders.gl/gltf"],
     effects: ["@kepler.gl/actions", "@kepler.gl/components", "@kepler.gl/reducers", "@kepler.gl/schemas"],
     range: "*",
     fixAvailable: false,
@@ -225,7 +220,9 @@ function assertExactStringSet(actual, expected, label) {
     actualSorted.length !== expectedSorted.length ||
     actualSorted.some((value, index) => value !== expectedSorted[index])
   ) {
-    throw policyError(`${label} drifted: expected [${expectedSorted.join(", ")}], received [${actualSorted.join(", ")}]`);
+    throw policyError(
+      `${label} drifted: expected [${expectedSorted.join(", ")}], received [${actualSorted.join(", ")}]`,
+    );
   }
 }
 
@@ -297,13 +294,16 @@ function assertMetadata(report, expectedCount) {
     if (counts[severity] !== 0) throw policyError(`unexpected ${severity} vulnerability count ${counts[severity]}`);
   }
   if (counts.high !== expectedCount || counts.total !== expectedCount) {
-    throw policyError(`audit counts drifted: expected ${expectedCount} high/total, received ${counts.high}/${counts.total}`);
+    throw policyError(
+      `audit counts drifted: expected ${expectedCount} high/total, received ${counts.high}/${counts.total}`,
+    );
   }
 }
 
 function assertLockfileChain(lockfile) {
   assertPlainObject(lockfile, "Kepler package lock");
-  if (lockfile.lockfileVersion !== 3) throw policyError(`expected lockfileVersion 3, received ${lockfile.lockfileVersion}`);
+  if (lockfile.lockfileVersion !== 3)
+    throw policyError(`expected lockfileVersion 3, received ${lockfile.lockfileVersion}`);
   assertPlainObject(lockfile.packages, "Kepler package lock packages");
   const rootDependencies = lockfile.packages[""]?.dependencies;
   for (const packageName of [
