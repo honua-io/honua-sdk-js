@@ -73,7 +73,7 @@ policy in the manifest.
 | `ogc-maps` | `render` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) |
 | `ogc-records` | `query` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) |
 | `ogc-records` | `queryObjectIds`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts) |
-| `stac` | `query`, `queryObjectIds`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts) |
+| `stac` | `query`, `queryObjectIds`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: stac-fixtures](../test/contract/stac-backend-agnostic.test.ts)<br>[fixture: stac-workflow-fixtures](../test/stac-workflow.test.ts) |
 | `wfs` | `query`, `queryExtent`, `queryObjectIds`, `applyEdits`, `stream` | `supported` | `protocol-adapter` | `native` | [fixture: wfs-fixtures](../test/contract/wfs-backend-agnostic.test.ts) |
 | `wms` | `render`, `tiles`, `query` | `supported` | `protocol-adapter` | `native` | [fixture: wms-fixtures](../test/contract/wms.test.ts) |
 | `wmts` | `render`, `tiles` | `supported` | `protocol-adapter` | `native` | [fixture: wmts-fixtures](../test/contract/wmts.test.ts) |
@@ -183,7 +183,7 @@ evidence; observed evidence only ever narrows them.
 | `ogc-tiles` | — | — | — | Render-only adapter. |
 | `ogc-maps` | — | — | — | Render-only adapter. |
 | `ogc-records` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | Records `filter=` carries CQL2 text; `datetime=` carries a bare temporal window. |
-| `stac` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | STAC API only. Static catalog traversal has no CQL2 evaluator and refuses attribute filters. |
+| `stac` | ✓ | `cql2-text` | `source-dimension`, `field-predicate` | Dynamic STAC API workflows support GET/POST Item Search, CQL2 text/JSON, fields, structured sort, server-driven pagination, and typed asset handoff. Static catalog traversal has no CQL2 evaluator and refuses attribute filters. |
 | `wfs` | ✓ | `fes-2.0` | `field-predicate` | FES 2.0 Before/After/During/AnyInteracts; WFS has no time parameter, so a temporal filter names its field. |
 | `wms` | — | — | — | GetFeatureInfo has no attribute filter; time is a map dimension on the typed WMS envelope. |
 | `wmts` | — | — | — | Render-only adapter. |
