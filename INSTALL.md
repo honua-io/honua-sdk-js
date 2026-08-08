@@ -69,6 +69,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | Subpath | What it gives you |
 |---------|-------------------|
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
+| `@honua/sdk-js/raster` | Beginner-first bounded raster sessions across direct COG and ImageServer, with explicit Coverage/WCS plans, bands/windows/styles/statistics, and MapLibre/deck.gl presentation handoffs ([capability matrix](./docs/raster-capability-matrix.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet/WMS/WMTS normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
