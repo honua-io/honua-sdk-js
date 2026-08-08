@@ -53,8 +53,18 @@ const statusLine = element<HTMLParagraphElement>("status");
 const planPane = element<HTMLPreElement>("plan-json");
 const receiptPane = element<HTMLPreElement>("receipt-json");
 
-const BASEMAP_STYLE =
-  import.meta.env.VITE_HONUA_NL_MAP_CONTROL_BASEMAP_STYLE ?? "https://demotiles.maplibre.org/style.json";
+const DEFAULT_BASEMAP_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {},
+  layers: [
+    {
+      id: "background",
+      type: "background",
+      paint: { "background-color": "#d9e7df" },
+    },
+  ],
+};
+const BASEMAP_STYLE = import.meta.env.VITE_HONUA_NL_MAP_CONTROL_BASEMAP_STYLE ?? DEFAULT_BASEMAP_STYLE;
 
 const effects: string[] = [];
 function setStatus(text: string): void {

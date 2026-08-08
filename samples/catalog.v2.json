@@ -1286,12 +1286,20 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "config": [],
+        "config": [
+          "VITE_HONUA_NL_MAP_CONTROL_BASEMAP_STYLE"
+        ],
         "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.",
         "attribution": "Honua demo fixture attribution is shown in the sample.",
         "freshness": "Deterministic fixture replay time.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_NL_MAP_CONTROL_BASEMAP_STYLE",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {

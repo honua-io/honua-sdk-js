@@ -250,7 +250,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:quickstart:build",
     auditedVia:
-      "examples/maplibre-quickstart/src/main.ts endpointFromEnvironment: VITE_HONUA_QUICKSTART_ENDPOINT defaults to https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1 when unset, so the bundle is runnable as a standalone published sample.",
+      "scripts/build-sample-bundles.mjs sampleBuildEnv: the published bundle receives a bounded public Honua endpoint and a same-bundle basemap while ambient VITE_* values remain stripped; the source app keeps its deterministic same-origin fixture default.",
   },
   {
     id: "migration-workbench",
@@ -743,10 +743,16 @@ async function hashDirectory(root) {
 
 /** Strip every `VITE_*` variable so each build only ever sees the sample's
  * own committed fixture-mode default — never an ambient live override. */
-function fixtureBuildEnv() {
+function sampleBuildEnv(sampleId) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith("VITE_")) delete env[key];
+  }
+  if (sampleId === "maplibre-quickstart") {
+    env.VITE_HONUA_QUICKSTART_ENDPOINT =
+      "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
+    env.VITE_HONUA_QUICKSTART_WHERE = "id <= 25";
+    env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE = "./__honua-quickstart__/basemap-style.json";
   }
   return env;
 }
@@ -789,7 +795,7 @@ async function buildSample(
   const result = runNpmSync(["run", buildScript, "--silent", "--", "--base", "./"], {
     cwd: PROJECT_ROOT,
     encoding: "utf8",
-    env: fixtureBuildEnv(),
+    env: sampleBuildEnv(id),
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: process.platform === "win32",
   });

@@ -46,11 +46,10 @@ const FIXTURE_BASEMAP_LAYER_ID = "background";
 
 const FIRST_MAP_SOURCE_ID = "first-map-features";
 const FIRST_MAP_LAYER_ID = "first-map-feature";
-const FIXTURE_FEATURE_PATH = "/rest/services/maui-parcels/FeatureServer/1";
+const FIXTURE_FEATURE_PATH = "/rest/services/natural-earth/FeatureServer/0";
 const FIXTURE_OGC_PATH = "/ogc/features";
 const FIXTURE_BASEMAP_STYLE = "__honua-quickstart__/basemap-style.json";
 const PUBLIC_BASEMAP_STYLE = FIXTURE_BASEMAP_STYLE;
-const PUBLIC_DEFAULT_FIRST_MAP_ENDPOINT = "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
 
 interface FirstMapLaunch {
   readonly endpoint: string;
@@ -85,7 +84,7 @@ function readProtocol(value: string | undefined): FirstMapProtocol {
 function endpointFromEnvironment(env: Record<string, string | undefined>): { endpoint: string; live: boolean } {
   const direct = readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT");
   if (direct) return { endpoint: direct, live: true };
-  return { endpoint: PUBLIC_DEFAULT_FIRST_MAP_ENDPOINT, live: true };
+  return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
 }
 
 function initialLaunch(): FirstMapLaunch {
@@ -98,9 +97,7 @@ function initialLaunch(): FirstMapLaunch {
   };
   const configured = endpointFromEnvironment(env);
   const maxFeatures = Number(readOptional(env, "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT") ?? "25");
-  const where =
-    readOptional(env, "VITE_HONUA_QUICKSTART_WHERE") ??
-    (readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT") ? undefined : "id <= 25");
+  const where = readOptional(env, "VITE_HONUA_QUICKSTART_WHERE");
   const mode: FirstMapMode = configured.live ? "public-live" : "fixture";
   return {
     endpoint: configured.endpoint,

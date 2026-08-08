@@ -14,6 +14,10 @@ const manifestPath = path.join(bundleRoot, "sample-bundles.v2.json");
 const evidenceDir = path.join(projectRoot, ".artifacts", "sample-bundle-smoke");
 const evidencePath = path.join(evidenceDir, "browser-smoke.v1.json");
 
+const allowedOffOriginResponses = new Map([
+  ["maplibre-quickstart", new Set(["https://demo.honua.io"])],
+]);
+
 const mediaTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -80,6 +84,7 @@ async function smokeSample(browser, origin, sample) {
   const page = await browser.newPage();
   const failures = [];
   const observedRequests = new Set();
+  const allowedOrigins = allowedOffOriginResponses.get(sample.id) ?? new Set();
   page.on("console", (message) => {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
@@ -99,7 +104,7 @@ async function smokeSample(browser, origin, sample) {
   });
   page.on("response", (response) => {
     const url = new URL(response.url());
-    if (url.origin !== origin) {
+    if (url.origin !== origin && !allowedOrigins.has(url.origin)) {
       failures.push(`off-origin response: ${response.status()} ${response.request().method()} ${response.url()}`);
     }
     if (response.status() >= 400 && url.pathname !== "/favicon.ico") {
