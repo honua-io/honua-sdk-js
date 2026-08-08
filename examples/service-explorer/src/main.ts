@@ -54,7 +54,7 @@ const BACKGROUND_LAYER_ID = "background";
 const INSPECTION_TIMEOUT_MS = 10_000;
 const DEMO_SERVICE_EXPLORER_ENDPOINT = "https://demo.pygeoapi.io/master";
 const DEMO_SERVICE_EXPLORER_SOURCE = "lakes";
-const LOCAL_FIXTURE_ENDPOINT = "/fixtures/ogc";
+const LOCAL_FIXTURE_PATH = "/fixtures/ogc";
 const LOCAL_FIXTURE_SOURCE = "places";
 const LOCAL_FIXTURE_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -169,7 +169,7 @@ function isLocalFixtureHost(location: Location): boolean {
 
 function defaultServiceExplorerTarget(location: Location): { endpoint: string; source: string } {
   if (isLocalFixtureHost(location)) {
-    return { endpoint: LOCAL_FIXTURE_ENDPOINT, source: LOCAL_FIXTURE_SOURCE };
+    return { endpoint: `${location.origin}${LOCAL_FIXTURE_PATH}`, source: LOCAL_FIXTURE_SOURCE };
   }
   return { endpoint: DEMO_SERVICE_EXPLORER_ENDPOINT, source: DEMO_SERVICE_EXPLORER_SOURCE };
 }
