@@ -551,10 +551,10 @@
       "docsPath": "examples/coverages-wcs-basic/README.md",
       "capabilities": [
         "coverage",
-        "imagery",
         "multidimensional-raster"
       ],
       "capabilityKeys": [
+        "raster.multidim-coverage",
         "serve.ogc-api-coverages",
         "serve.wcs"
       ],
