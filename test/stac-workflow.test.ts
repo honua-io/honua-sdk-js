@@ -1,0 +1,176 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { searchMauiImagery } from "../examples/stac-imagery-browser/src/dynamic-stac-example.js";
+import { HonuaAbortError, HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
+import type { HonuaStacItemResponse } from "../src/core/types.js";
+import { createDynamicStacClient, resolveStacLink } from "../src/stac/index.js";
+
+const MAUI_ITEM: HonuaStacItemResponse = {
+  type: "Feature",
+  id: "S2B_MAUI_20260418",
+  collection: "sentinel-2-l2a",
+  geometry: null,
+  properties: {
+    datetime: "2026-04-18T21:20:29Z",
+    "eo:cloud_cover": 8,
+    "proj:epsg": 32604,
+  },
+  links: [{ rel: "self", href: "./collections/sentinel-2-l2a/items/S2B_MAUI_20260418" }],
+  assets: {
+    visual: {
+      href: "../../../../assets/maui-visual.tif?token=old",
+      type: "image/tiff; application=geotiff; profile=cloud-optimized",
+      title: "Maui visual",
+      roles: ["visual", "data"],
+      "proj:code": "EPSG:32604",
+      "raster:bands": [
+        { name: "B04", common_name: "red", data_type: "uint16", scale: 0.0001 },
+        { name: "B03", common_name: "green", data_type: "uint16", scale: 0.0001 },
+        { name: "B02", common_name: "blue", data_type: "uint16", scale: 0.0001 },
+      ],
+    },
+  },
+};
+
+describe("dynamic STAC workflows", () => {
+  it("executes the Maui POST search example with CQL2 JSON, fields, sorting, auth, and interceptors", async () => {
+    const calls: Array<{ url: string; method: string; body: Record<string, unknown>; authorization: string | null }> =
+      [];
+    const after = vi.fn();
+    const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
+      calls.push({
+        url: input.toString(),
+        method: init?.method ?? "GET",
+        body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+        authorization: new Headers(init?.headers).get("authorization"),
+      });
+      return Response.json({ type: "FeatureCollection", features: [MAUI_ITEM], links: [] });
+    });
+    const stac = createDynamicStacClient({
+      baseUrl: "https://stac.example.test/v1",
+      clientOptions: {
+        fetchFn,
+        auth: async () => "fixture-token",
+        interceptors: [{ after }],
+      },
+    });
+
+    const selected = await searchMauiImagery(stac);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      url: "https://stac.example.test/v1/search",
+      method: "POST",
+      authorization: "Bearer fixture-token",
+    });
+    expect(calls[0]?.body).toMatchObject({
+      bbox: [-156.75, 20.55, -155.85, 21.05],
+      "filter-lang": "cql2-json",
+      filter: { op: "<=", args: [{ property: "eo:cloud_cover" }, 20] },
+      sortby: [{ field: "properties.datetime", direction: "desc" }],
+    });
+    expect(after).toHaveBeenCalledOnce();
+    expect(selected.asset).toMatchObject({
+      format: "cog",
+      maturity: "experimental",
+      projection: { code: "EPSG:32604", epsg: 32604 },
+      handoff: { kind: "cog", packageExport: "@honua/sdk-js/cog" },
+    });
+    expect(selected.asset.bands[0]).toMatchObject({ name: "B04", commonName: "red" });
+  });
+
+  it("serializes GET CQL2, fields, and structured sorting", async () => {
+    let requested = "";
+    const stac = createDynamicStacClient({
+      baseUrl: "https://stac.example.test/v1",
+      clientOptions: {
+        fetchFn: async (input) => {
+          requested = input.toString();
+          return Response.json({ type: "FeatureCollection", features: [], links: [] });
+        },
+      },
+    });
+
+    await stac.search({
+      method: "GET",
+      filterLang: "cql2-json",
+      filter: { op: "=", args: [{ property: "collection" }, "sentinel-2-l2a"] },
+      fields: { include: ["id", "assets"], exclude: ["geometry"] },
+      sortby: [{ field: "properties.datetime", direction: "desc" }],
+    });
+
+    const url = new URL(requested);
+    expect(JSON.parse(url.searchParams.get("filter") ?? "null")).toEqual({
+      op: "=",
+      args: [{ property: "collection" }, "sentinel-2-l2a"],
+    });
+    expect(url.searchParams.get("fields")).toBe("id,assets,-geometry");
+    expect(url.searchParams.get("sortby")).toBe("-properties.datetime");
+  });
+
+  it("follows relative next links and bounds prefetch to one page", async () => {
+    const requests: string[] = [];
+    const fetchFn = vi.fn<typeof fetch>(async (input) => {
+      const url = input.toString();
+      requests.push(url);
+      const second = new URL(url).searchParams.get("token") === "page-two";
+      return Response.json({
+        type: "FeatureCollection",
+        features: [{ ...MAUI_ITEM, id: second ? "maui-2" : "maui-1" }],
+        links: second ? [] : [{ rel: "next", href: "./search?token=page-two" }],
+      });
+    });
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", clientOptions: { fetchFn } });
+    const ids: Array<string | number> = [];
+
+    for await (const item of stac.items({ method: "GET", pageSize: 1, maxPages: 2, prefetchPages: 1 })) {
+      if (item.id === undefined) throw new Error("fixture item id missing");
+      ids.push(item.id);
+    }
+
+    expect(ids).toEqual(["maui-1", "maui-2"]);
+    expect(requests).toHaveLength(2);
+    expect(new URL(requests[1] ?? "").searchParams.get("token")).toBe("page-two");
+  });
+
+  it("resolves relative catalog links without accepting unsafe schemes", () => {
+    expect(resolveStacLink({ rel: "child", href: "./collections/maui" }, "https://stac.example.test/v1/")).toEqual({
+      href: "https://stac.example.test/v1/collections/maui",
+      rel: "child",
+      method: "GET",
+    });
+    expect(() =>
+      resolveStacLink({ rel: "child", href: "javascript:alert(1)" }, "https://stac.example.test/v1/"),
+    ).toThrow(/HTTP or HTTPS/);
+  });
+
+  it("refreshes signed URLs but rejects unsupported assets", async () => {
+    const refreshAssetUrl = vi.fn(async () => "https://signed.example.test/maui.tif?token=new");
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", refreshAssetUrl });
+    const selected = await stac.selectAsset(MAUI_ITEM, { roles: ["data"] });
+    expect(selected.href).toBe("https://signed.example.test/maui.tif?token=new");
+    expect(refreshAssetUrl).toHaveBeenCalledOnce();
+
+    const unsupported: HonuaStacItemResponse = {
+      ...MAUI_ITEM,
+      assets: { climate: { href: "./climate.nc", type: "application/x-netcdf", roles: ["data"] } },
+      stac_extensions: undefined,
+    };
+    await expect(stac.selectAsset(unsupported)).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+    expect((await stac.assets(unsupported))[0]).toMatchObject({ format: "unsupported", maturity: "unavailable" });
+  });
+
+  it("propagates AbortSignal through search and signed URL refresh", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchFn = vi.fn<typeof fetch>(async (_input, init) => {
+      if (init?.signal?.aborted) throw new DOMException("aborted", "AbortError");
+      return Response.json({ type: "FeatureCollection", features: [], links: [] });
+    });
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", clientOptions: { fetchFn } });
+
+    await expect(stac.search({ method: "GET", signal: controller.signal })).rejects.toBeInstanceOf(HonuaAbortError);
+    await expect(stac.assets(MAUI_ITEM, { signal: controller.signal })).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(fetchFn).toHaveBeenCalledOnce();
+  });
+});
