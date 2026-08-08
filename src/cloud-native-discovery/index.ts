@@ -6,6 +6,7 @@
  * links advertised by the deployment manifest and never probes derived source
  * endpoints.
  *
+ * @experimental
  * @packageDocumentation
  */
 
