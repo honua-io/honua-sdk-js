@@ -401,7 +401,11 @@ export function planRasterOperation(
         : "ImageServer statistics and histogram endpoints are not claimed by this facade.",
     };
   }
-  const adapted = Boolean(options.coverageExecutor);
+  const adapted =
+    Boolean(options.coverageExecutor) &&
+    (operation === "inspect" ||
+      operation === "read-window" ||
+      (operation === "inspect-value" && typeof options.coverageExecutor?.inspectValue === "function"));
   return {
     sourceId: source.id,
     sourceKind: source.kind,
@@ -413,7 +417,9 @@ export function planRasterOperation(
     capability,
     reason: adapted
       ? "A caller-supplied executor owns the capabilities-advertised operation URL."
-      : "No built-in Coverage/WCS transport is claimed; supply an advertised-link executor.",
+      : options.coverageExecutor
+        ? "The supplied Coverage/WCS executor does not admit this operation."
+        : "No built-in Coverage/WCS transport is claimed; supply an advertised-link executor.",
   };
 }
 
