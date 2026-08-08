@@ -98,7 +98,9 @@ function initialLaunch(): FirstMapLaunch {
   };
   const configured = endpointFromEnvironment(env);
   const maxFeatures = Number(readOptional(env, "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT") ?? "25");
-  const where = readOptional(env, "VITE_HONUA_QUICKSTART_WHERE");
+  const where =
+    readOptional(env, "VITE_HONUA_QUICKSTART_WHERE") ??
+    (readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT") ? undefined : "id <= 25");
   const mode: FirstMapMode = configured.live ? "public-live" : "fixture";
   return {
     endpoint: configured.endpoint,
