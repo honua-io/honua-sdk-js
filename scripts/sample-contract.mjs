@@ -83,7 +83,6 @@ const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
 const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
-const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
 const SITE_CONSUMER_V3_FIXTURE_PATH =
   "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
 const SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH =
@@ -7050,7 +7049,6 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   const [legacyProjection, legacyHandoff, legacyConsumerFixtureV3] = await Promise.all([
     readJson(LEGACY_SITE_PROJECTION_PATH),
     readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH),
-    readJson(SITE_CONSUMER_FIXTURE_PATH),
     readJson(SITE_CONSUMER_V3_FIXTURE_PATH),
   ]);
   await validateSiteProjection(legacyProjection);
