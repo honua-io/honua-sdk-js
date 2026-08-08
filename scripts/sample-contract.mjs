@@ -63,17 +63,22 @@ const V1_MIGRATION_PATH = "samples/contract/v2/migrations/catalog.v1-to-v2.json"
 const CATALOG_SCHEMA_PATH = "samples/contract/v2/schemas/sample-catalog.schema.json";
 const MIGRATION_SCHEMA_PATH = "samples/contract/v2/schemas/catalog-migration.schema.json";
 const GENERATED_CATALOG_PATH = "docs/generated/sample-catalog.md";
-const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
-const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const LEGACY_SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
+const LEGACY_SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v3.json";
+const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.v3.schema.json";
 const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
 const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
   "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
 const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
 const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
   "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
-const SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
-const SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
+const LEGACY_SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
+const LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-handoff.schema.json";
+const SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v2.json";
+const SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json";
 const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
 const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
@@ -83,6 +88,10 @@ const SITE_CONSUMER_V3_FIXTURE_PATH =
   "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
 const SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-fixture.schema.json";
+const SITE_CONSUMER_V4_FIXTURE_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json";
+const SITE_CONSUMER_V4_FIXTURE_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-fixture.v4.schema.json";
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
 const NPM_CLI_HELPER = "../../scripts/lib/npm-cli.mjs";
 const FIXTURE_BUILD_OPTION_NAMES = new Set(["cwd", "env", "stdio", "timeout"]);
@@ -193,6 +202,7 @@ const SITE_CONSUMER_RESERVED_SAMPLE_ROUTES = new Set([
   "samples/index.html",
   "samples/routes.html",
   "samples/site-handoff.v1.json",
+  "samples/site-handoff.v2.json",
 ]);
 const SITE_CONSUMER_MAX_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const SITE_CONSUMER_MAX_CARDS = 512;
@@ -3566,8 +3576,8 @@ export function generateSiteProjection(catalog, packageJson) {
     };
   });
   return {
-    format: "honua.site.sdk-sample-projection.v2",
-    schemaVersion: 2,
+    format: "honua.site.sdk-sample-projection.v3",
+    schemaVersion: 3,
     catalog: {
       format: effective.format,
       schemaVersion: effective.schemaVersion,
@@ -6022,11 +6032,31 @@ function qualifiedCoverageCount(collection) {
   return collection.filter((entry) => entry.coverage.state === "qualified").length;
 }
 
-export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) {
+function siteConsumerHandoffContract(projection) {
+  if (projection.format === "honua.site.sdk-sample-projection.v2" && projection.schemaVersion === 2) {
+    return {
+      format: "honua.site.sdk-sample-consumer-handoff.v1",
+      schemaVersion: 1,
+      projectionPath: LEGACY_SITE_PROJECTION_PATH,
+      projectionSchemaPath: LEGACY_SITE_PROJECTION_SCHEMA_PATH,
+      manifest: "samples/site-handoff.v1.json",
+    };
+  }
   invariant(
-    projection.format === "honua.site.sdk-sample-projection.v2" && projection.schemaVersion === 2,
-    "site consumer handoff requires site projection v2",
+    projection.format === "honua.site.sdk-sample-projection.v3" && projection.schemaVersion === 3,
+    "site consumer handoff requires site projection v2 or v3",
   );
+  return {
+    format: "honua.site.sdk-sample-consumer-handoff.v2",
+    schemaVersion: 2,
+    projectionPath: SITE_PROJECTION_PATH,
+    projectionSchemaPath: SITE_PROJECTION_SCHEMA_PATH,
+    manifest: "samples/site-handoff.v2.json",
+  };
+}
+
+export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) {
+  const contract = siteConsumerHandoffContract(projection);
   invariant(
     matrix.format === "honua.site.sdk-capability-sample-matrix.v1" && matrix.schemaVersion === 1,
     "site consumer handoff requires capability matrix v1",
@@ -6205,8 +6235,8 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
   }));
 
   const handoff = {
-    format: "honua.site.sdk-sample-consumer-handoff.v1",
-    schemaVersion: 1,
+    format: contract.format,
+    schemaVersion: contract.schemaVersion,
     sdk: structuredClone(matrix.sdk),
     ownership: {
       producer: "honua-io/honua-sdk-js#550",
@@ -6217,8 +6247,8 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
     },
     inputs: {
       siteProjection: siteConsumerArtifactReference(
-        SITE_PROJECTION_PATH,
-        SITE_PROJECTION_SCHEMA_PATH,
+        contract.projectionPath,
+        contract.projectionSchemaPath,
         projection,
       ),
       capabilityMatrix: siteConsumerArtifactReference(
@@ -6241,7 +6271,7 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
         index: "samples/index.html",
         detailPattern: "samples/<sample-id>.html",
         migrationMap: "samples/routes.html",
-        manifest: "samples/site-handoff.v1.json",
+        manifest: contract.manifest,
         statusPages: ["fixture", "retire", "replace"],
       },
       limits: {
@@ -6461,7 +6491,11 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
     maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
     maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
   });
-  await validateJsonSchema(handoff, SITE_CONSUMER_HANDOFF_SCHEMA_PATH);
+  const handoffSchemaPath =
+    handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff?.schemaVersion === 1
+      ? LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH
+      : SITE_CONSUMER_HANDOFF_SCHEMA_PATH;
+  await validateJsonSchema(handoff, handoffSchemaPath);
   const { projection, matrix, visualEvidence, catalog, packageJson, supportTruth, qualificationEvidence } = inputs;
   let contentBoundExpected;
   const authorityInputSupplied = [
@@ -6626,7 +6660,7 @@ function siteConsumerFilterCase(id, handoff, filters) {
   };
 }
 
-export function generateSiteConsumerFixtureV3(handoff) {
+function generateVersionedSiteConsumerFixture(handoff, contract) {
   const representative = handoff.cards.find(
     (card) => card.tasks.length > 0 && card.capabilities.length > 0 && card.protocols.length > 0,
   );
@@ -6645,8 +6679,8 @@ export function generateSiteConsumerFixtureV3(handoff) {
     siteConsumerFilterCase("zero-results", handoff, { text: "__no_sdk_sample_matches__" }),
   ];
   return {
-    format: "honua.site.sdk-sample-consumer-fixture.v3",
-    schemaVersion: 3,
+    format: contract.format,
+    schemaVersion: contract.schemaVersion,
     accepts: {
       handoffFormat: handoff.format,
       handoffSchemaVersion: handoff.schemaVersion,
@@ -6655,8 +6689,8 @@ export function generateSiteConsumerFixtureV3(handoff) {
       visualEvidenceFormat: handoff.inputs.visualEvidence.format,
     },
     input: siteConsumerArtifactReference(
-      SITE_CONSUMER_HANDOFF_PATH,
-      SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
+      contract.handoffPath,
+      contract.handoffSchemaPath,
       handoff,
     ),
     assertions: {
@@ -6680,6 +6714,32 @@ export function generateSiteConsumerFixtureV3(handoff) {
   };
 }
 
+export function generateSiteConsumerFixtureV3(handoff) {
+  invariant(
+    handoff.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff.schemaVersion === 1,
+    "site consumer fixture v3 requires handoff v1",
+  );
+  return generateVersionedSiteConsumerFixture(handoff, {
+    format: "honua.site.sdk-sample-consumer-fixture.v3",
+    schemaVersion: 3,
+    handoffPath: LEGACY_SITE_CONSUMER_HANDOFF_PATH,
+    handoffSchemaPath: LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
+  });
+}
+
+export function generateSiteConsumerFixtureV4(handoff) {
+  invariant(
+    handoff.format === "honua.site.sdk-sample-consumer-handoff.v2" && handoff.schemaVersion === 2,
+    "site consumer fixture v4 requires handoff v2",
+  );
+  return generateVersionedSiteConsumerFixture(handoff, {
+    format: "honua.site.sdk-sample-consumer-fixture.v4",
+    schemaVersion: 4,
+    handoffPath: SITE_CONSUMER_HANDOFF_PATH,
+    handoffSchemaPath: SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
+  });
+}
+
 export async function validateSiteConsumerFixtureV3(fixture, handoff, options = {}) {
   validateSiteConsumerJsonBudget(fixture, "site consumer fixture v3");
   validateSensitiveMetadata(fixture, "site consumer fixture v3", {
@@ -6697,6 +6757,38 @@ export async function validateSiteConsumerFixtureV3(fixture, handoff, options = 
   invariant(
     JSON.stringify(fixture) === JSON.stringify(expected),
     "site consumer fixture v3 does not match the versioned handoff",
+  );
+  for (const filterCase of fixture.filterCases) {
+    invariant(
+      JSON.stringify(
+        filterSiteConsumerCards(handoff.cards, filterCase.filters).map((card) => card.id),
+      ) === JSON.stringify(filterCase.expectedSampleIds),
+      `${filterCase.id}: site consumer executable filter fixture drift`,
+    );
+  }
+  invariant(
+    fixture.interaction.keyboard.focusAfterClear === "task-search" &&
+      fixture.interaction.keyboard.noKeyboardTrap &&
+      fixture.interaction.responsive.requiredViewports.some((entry) => entry.id === "desktop") &&
+      fixture.interaction.responsive.requiredViewports.some((entry) => entry.id === "mobile"),
+    "site consumer keyboard or responsive fixture is incomplete",
+  );
+}
+
+export async function validateSiteConsumerFixtureV4(fixture, handoff, options = {}) {
+  validateSiteConsumerJsonBudget(fixture, "site consumer fixture v4");
+  validateSensitiveMetadata(fixture, "site consumer fixture v4", {
+    maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
+    maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
+  });
+  await validateJsonSchema(fixture, SITE_CONSUMER_V4_FIXTURE_SCHEMA_PATH);
+  if (options.verifyCheckout !== false) {
+    await validateSiteConsumerSchemaBinding(fixture.input, "site consumer fixture handoff");
+  }
+  const expected = generateSiteConsumerFixtureV4(handoff);
+  invariant(
+    JSON.stringify(fixture) === JSON.stringify(expected),
+    "site consumer fixture v4 does not match the versioned handoff",
   );
   for (const filterCase of fixture.filterCases) {
     invariant(
@@ -6770,7 +6862,11 @@ export function generateCiSelection(catalog) {
 
 export async function validateSiteProjection(projection) {
   validateSensitiveMetadata(projection, "site projection");
-  await validateJsonSchema(projection, SITE_PROJECTION_SCHEMA_PATH);
+  const schemaPath =
+    projection?.format === "honua.site.sdk-sample-projection.v2" && projection?.schemaVersion === 2
+      ? LEGACY_SITE_PROJECTION_SCHEMA_PATH
+      : SITE_PROJECTION_SCHEMA_PATH;
+  await validateJsonSchema(projection, schemaPath);
 }
 
 export async function validateCiSelection(selection) {
@@ -6885,7 +6981,7 @@ function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = [])
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
-    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v2.json`](../../samples/dist/honua-site-samples.v2.json).",
+    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers.",
     "",
   ].join("\n");
 }
@@ -6971,7 +7067,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     verifyCheckout: options.verifyCheckout,
   });
   const handoff = generateSiteConsumerHandoff(projection, capabilityMatrix, visualEvidence);
-  const consumerFixtureV3 = generateSiteConsumerFixtureV3(handoff);
+  const consumerFixtureV4 = generateSiteConsumerFixtureV4(handoff);
   await validateSiteConsumerHandoff(handoff, {
     projection,
     matrix: capabilityMatrix,
@@ -6982,9 +7078,22 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     qualificationEvidence,
     verifyCheckout: options.verifyCheckout,
   });
-  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff, {
+  await validateSiteConsumerFixtureV4(consumerFixtureV4, handoff, {
     verifyCheckout: options.verifyCheckout,
   });
+  const [legacyProjection, legacyHandoff, legacyConsumerFixtureV2, legacyConsumerFixtureV3] = await Promise.all([
+    readJson(LEGACY_SITE_PROJECTION_PATH),
+    readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH),
+    readJson(SITE_CONSUMER_FIXTURE_PATH),
+    readJson(SITE_CONSUMER_V3_FIXTURE_PATH),
+  ]);
+  await validateSiteProjection(legacyProjection);
+  await validateSiteConsumerHandoff(legacyHandoff);
+  invariant(
+    JSON.stringify(legacyConsumerFixtureV2) === JSON.stringify(generateSiteConsumerFixture(legacyProjection)),
+    "legacy site consumer fixture v2 drift",
+  );
+  await validateSiteConsumerFixtureV3(legacyConsumerFixtureV3, legacyHandoff);
   return new Map([
     [
       GENERATED_CATALOG_PATH,
@@ -6995,8 +7104,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
     [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
-    [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
-    [SITE_CONSUMER_V3_FIXTURE_PATH, stableJson(consumerFixtureV3)],
+    [SITE_CONSUMER_V4_FIXTURE_PATH, stableJson(consumerFixtureV4)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
 }

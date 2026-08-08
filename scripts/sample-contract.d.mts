@@ -232,8 +232,8 @@ export interface SiteConsumerArtifactReference {
 }
 
 export interface SiteConsumerHandoff {
-  format: "honua.site.sdk-sample-consumer-handoff.v1";
-  schemaVersion: 1;
+  format: "honua.site.sdk-sample-consumer-handoff.v1" | "honua.site.sdk-sample-consumer-handoff.v2";
+  schemaVersion: 1 | 2;
   sdk: { package: string; version: string };
   ownership: Record<string, unknown>;
   inputs: Record<
@@ -286,6 +286,11 @@ export interface SiteConsumerFixtureV3 {
     expectedSampleIds: string[];
   }>;
   interaction: Record<string, unknown>;
+}
+
+export interface SiteConsumerFixtureV4 extends Omit<SiteConsumerFixtureV3, "format" | "schemaVersion"> {
+  format: "honua.site.sdk-sample-consumer-fixture.v4";
+  schemaVersion: 4;
 }
 
 export interface BrowserArtifactManifest {
@@ -349,6 +354,8 @@ export function generateSiteProjection(
   catalog: SampleCatalog,
   packageJson: { name: string; version: string },
 ): {
+  format: "honua.site.sdk-sample-projection.v3";
+  schemaVersion: 3;
   samples: ProjectedSample[];
   routes: Array<Record<string, unknown>>;
   goldenJourneys: GoldenJourney[];
@@ -416,6 +423,12 @@ export function filterSiteConsumerCards(
 ): SiteConsumerCard[];
 export function generateSiteConsumerFixtureV3(handoff: SiteConsumerHandoff): SiteConsumerFixtureV3;
 export function validateSiteConsumerFixtureV3(
+  fixture: unknown,
+  handoff: SiteConsumerHandoff,
+  options?: { verifyCheckout?: boolean },
+): Promise<void>;
+export function generateSiteConsumerFixtureV4(handoff: SiteConsumerHandoff): SiteConsumerFixtureV4;
+export function validateSiteConsumerFixtureV4(
   fixture: unknown,
   handoff: SiteConsumerHandoff,
   options?: { verifyCheckout?: boolean },

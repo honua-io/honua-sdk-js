@@ -1,7 +1,7 @@
 # Sample browser bundle publication (#642 and #656, completing #401 REQ-003)
 
 The samples gallery at [samples.honua.io](https://samples.honua.io)
-(honua-io/honua-samples#3) renders `samples/dist/honua-site-samples.v2.json`
+(honua-io/honua-samples#3) renders `samples/dist/honua-site-samples.v3.json`
 metadata but cannot embed a *running* sample from that projection alone --
 it needs the actual built browser bundle. This is the publication leg #401's
 REQ-003 defined and left unimplemented.
@@ -84,9 +84,10 @@ credential-free, and deterministic, but its default lane addresses same-origin
 fixture routes that are **not inside the bundle** (the sample's
 `mock-server.mjs` defines them). Consumers **must not** present such a bundle
 as runnable unless the embedding host also serves its `hostFixtureRoutes`;
-`samples/dist/honua-site-samples.v2.json`'s `sampleBundles.published[]` carries
-the same two fields so a gallery card can say so without fetching the bundle
-manifest.
+`samples/dist/honua-site-samples.v3.json`'s `sampleBundles.published[]` carries
+the same fields, including `requires-live-endpoint`, so a gallery card can say
+so without fetching the bundle manifest. The frozen v2 projection and v1
+handoff remain available for existing consumers.
 
 This closes a real overstatement: `maplibre-quickstart` has been published
 since honua-io/honua-sdk-js#642 with an undeclared prerequisite of exactly this
@@ -162,14 +163,15 @@ and behind a separately-cacheable, version-pinned CDN reference.
 Every `samples/catalog.v2.json` entry that is not in `INCLUDED_SAMPLES` is
 projected into the manifest's `excluded[]` array as `{ id, category, reason
 }`, and from there into the site projection's `sampleBundles.excluded[]`
-(`samples/dist/honua-site-samples.v2.json`, `generateSiteProjection` in
+(`samples/dist/honua-site-samples.v3.json`, `generateSiteProjection` in
 `scripts/sample-contract.mjs`) so the gallery can render *why* a card has no
 runnable bundle instead of just omitting one.
 
 `category` is one of a fixed, schema-enumerated set
 (`EXCLUDED_SAMPLE_CATEGORIES` in `scripts/build-sample-bundles.mjs`,
 mirrored in both `sample-bundles.schema.json` and
-`site-projection.schema.json`; a unit test asserts the three stay in sync):
+`site-projection.v3.schema.json`; a unit test also holds the frozen v2 enum
+unchanged):
 
 | Category | Meaning |
 | --- | --- |
@@ -376,7 +378,7 @@ Instead, `.github/workflows/ci.yml`:
 
 ## Discovery from the site projection
 
-`samples/dist/honua-site-samples.v2.json` (`generateSiteProjection` in
+`samples/dist/honua-site-samples.v3.json` (`generateSiteProjection` in
 `scripts/sample-contract.mjs`) carries a `sampleBundles` pointer -- format,
 the release/asset location above, the list of bundled sample IDs (kept in
 sync with `INCLUDED_SAMPLE_IDS`), a `published[]` list carrying each bundle's
@@ -388,13 +390,10 @@ already fetches the projection can find the manifest, state every runnable
 card's prerequisites, and explain every un-bundled card, without guessing a
 path, a prerequisite, or a reason.
 
-`sampleBundles.excluded` and `sampleBundles.published` are both optional in
-`site-projection.schema.json` (unlike `sample-bundles.schema.json`'s
-`excluded`, which is required) so that the currently-committed
-`samples/dist/honua-site-samples.v2.json` -- generated before the field
-existed and not resealed by a feature PR per the derived-artifact decoupling
-policy below -- stays schema-valid until the next scheduled
-`regenerate-derived-artifacts.yml` run picks it up.
+`sampleBundles.excluded` and `sampleBundles.published` remain optional in the
+projection schemas for compatibility. The committed v2 projection, v1
+handoff, and v3 consumer fixture remain byte-bound legacy artifacts; current
+generation emits the additive v3 projection, v2 handoff, and v4 fixture.
 
 ## Remaining scope
 

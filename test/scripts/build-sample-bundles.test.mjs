@@ -33,6 +33,9 @@ const bundleSchema = JSON.parse(
   fs.readFileSync(path.join(ROOT, "samples/contract/v2/schemas/sample-bundles.schema.json"), "utf8"),
 );
 const siteProjectionSchema = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "samples/contract/v2/schemas/site-projection.v3.schema.json"), "utf8"),
+);
+const legacySiteProjectionSchema = JSON.parse(
   fs.readFileSync(path.join(ROOT, "samples/contract/v2/schemas/site-projection.schema.json"), "utf8"),
 );
 
@@ -394,12 +397,16 @@ test("the exclusion category enum stays in sync between the source list and both
   assert.deepEqual([...projectionEnum].sort(), [...EXCLUDED_SAMPLE_CATEGORIES].sort());
 });
 
-test("the runnability enum stays in sync between the source map and both JSON schemas", () => {
+test("the v3 runnability enum stays in sync while the closed v2 schema remains compatible", () => {
   const expected = [...new Set(RUNNABILITY_BY_HOSTING.values())].sort();
   assert.deepEqual([...bundleSchema.$defs.sample.properties.runnability.enum].sort(), expected);
   assert.deepEqual(
     [...siteProjectionSchema.$defs.sampleBundles.properties.published.items.properties.runnability.enum].sort(),
     expected,
+  );
+  assert.deepEqual(
+    [...legacySiteProjectionSchema.$defs.sampleBundles.properties.published.items.properties.runnability.enum].sort(),
+    expected.filter((runnability) => runnability !== "requires-live-endpoint"),
   );
   assert.deepEqual(
     [...bundleSchema.$defs.sample.properties.runtimeHosting.enum].sort(),

@@ -16,7 +16,7 @@ execution evidence so none of those meanings has to be inferred from another.
   projection consumed by `scripts/sample-runner.mjs`. The runner checks that
   the projection is an exact, current derivation of the catalog before it
   executes any command.
-- `site-projection.schema.json` contains presentation-safe metadata for every
+- `site-projection.v3.schema.json` contains presentation-safe metadata for every
   catalog entry and the existing route migration map. Commands, configuration
   names, credential material, and executable source are not copied to the site.
 - `capability-sample-matrix.schema.json` defines the generated support-to-sample
@@ -31,12 +31,12 @@ execution evidence so none of those meanings has to be inferred from another.
   the exact Playwright project and browser runtime, every semantic gate
   receipt, artifact integrity, and the shared freshness window. Site consumer
   routes and presentation remain a separate consumer concern.
-- `site-consumer-handoff.schema.json` defines that separate consumer boundary.
-  `samples/dist/honua-site-consumer-handoff.v1.json` content-binds the site
+- `site-consumer-handoff.v2.schema.json` defines the current consumer boundary.
+  `samples/dist/honua-site-consumer-handoff.v2.json` content-binds the site
   projection, capability matrix, and golden visual evidence; projects public
   cards and visible gaps; declares task, capability, protocol, and supporting
   facets; and resolves every canonical, legacy, replacement, and retirement
-  route without copying executable source. The generated v3 consumer fixture
+  route without copying executable source. The generated v4 consumer fixture
   pins the artifact digest and executes representative filter cases plus the
   required accessible keyboard and desktop/mobile responsive behavior. Both
   artifacts publish closed collection, string, JSON-depth, and byte budgets;
@@ -375,8 +375,8 @@ virtual display with `HONUA_FIRST_MAP_RELEASE_MATRIX=true`.
   (`inputs.visualEvidence.schemaBytes`/`schemaSha256`,
   honua-io/honua-sdk-js#791), so adding even an optional property to it is a
   versioned contract change: `golden-journey-visual-evidence.schema.json` would
-  have to bump v1 to v2, `site-consumer-handoff.schema.json` and
-  `site-consumer-fixture.schema.json` would have to bump with it because they pin
+  have to bump v1 to v2, the current site-consumer handoff and fixture schemas
+  would have to bump with it because they pin
   the visual-evidence `format` const, every committed projection and consumer
   fixture would have to be regenerated in the same change, and honua-site would
   have to move to the new format strings. That transition belongs to a dedicated
