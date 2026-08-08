@@ -11,6 +11,11 @@ The sample demonstrates:
 - Supported renderable tile or thumbnail preview projection.
 - Clear unsupported messaging for raster analysis and coverage export.
 
+The focused SDK path is [`src/dynamic-stac-example.ts`](./src/dynamic-stac-example.ts). It searches Maui by bounds and
+time with POST + CQL2 JSON, selects a typed visual/data asset, and returns the connector handoff used by a renderer.
+The sample's default UI remains deterministic and fixture-backed; replace its injected `fetchFn` with the browser's
+fetch only when targeting a pinned deployment under your control.
+
 The default app uses deterministic fixtures and performs no external network calls. A live Honua Cloud-backed catalog can reuse the same model shape once credentials and STAC service wiring are supplied by the host application.
 
 <!-- sample-playground:start -->

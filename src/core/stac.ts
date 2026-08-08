@@ -398,14 +398,23 @@ function serializeStacSearchParams(request: StacSearchRequest): URLSearchParams 
   if (request.intersects !== undefined) params.set("intersects", JSON.stringify(request.intersects));
   const fields = stacFieldsCsv(request.fields);
   if (fields !== undefined) params.set("fields", fields);
-  if (request.filter !== undefined) params.set("filter", request.filter);
+  if (request.filter !== undefined) {
+    params.set("filter", typeof request.filter === "string" ? request.filter : JSON.stringify(request.filter));
+  }
   if (request.filterLang !== undefined) params.set("filter-lang", request.filterLang);
   if (request.limit !== undefined) params.set("limit", String(request.limit));
   // honua-server uses numeric `offset` paging on GET. `next` is kept as
   // optional support for STAC servers that advertise an opaque token.
   if (request.offset !== undefined) params.set("offset", String(request.offset));
   if (request.next !== undefined) params.set("next", request.next);
-  if (request.sortby !== undefined) params.set("sortby", request.sortby);
+  if (request.sortby !== undefined) {
+    params.set(
+      "sortby",
+      typeof request.sortby === "string"
+        ? request.sortby
+        : request.sortby.map((sort) => `${sort.direction === "desc" ? "-" : "+"}${sort.field}`).join(","),
+    );
+  }
   // An opaque continuation captured from a `rel=next` href wins over the
   // locally derived paging params: the server stated exactly how to ask for
   // the next page (token cursors carry state the client cannot reconstruct).

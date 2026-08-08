@@ -1720,7 +1720,7 @@ export interface StacSearchRequest {
   intersects?: Record<string, unknown>;
   ids?: readonly string[];
   collections?: readonly string[];
-  filter?: string;
+  filter?: string | Readonly<Record<string, unknown>>;
   filterLang?: "cql2-text" | "cql2-json";
   limit?: number;
   /**
@@ -1749,7 +1749,7 @@ export interface StacSearchRequest {
   nextBody?: Readonly<Record<string, unknown>>;
   /** Subset of asset / item properties to return. */
   fields?: { include?: readonly string[]; exclude?: readonly string[] };
-  sortby?: string;
+  sortby?: string | readonly StacSortField[];
   signal?: AbortSignal;
   /** When `true`, the adapter posts the body to `/search`. */
   usePost?: boolean;
@@ -1760,6 +1760,12 @@ export interface StacSearchRequest {
    * and collection paths resolve directly under the client baseUrl.
    */
   stacBasePath?: string;
+}
+
+/** Structured STAC Item Search sort expression, primarily for POST requests. */
+export interface StacSortField {
+  readonly field: string;
+  readonly direction: "asc" | "desc";
 }
 
 /** One band declaration from the STAC Raster extension. */

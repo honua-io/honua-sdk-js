@@ -435,12 +435,14 @@
       "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
+        "@honua/sdk-js/stac",
         "Source with locator.layout=stac-api or stac-static",
         "connect()"
       ],
       "evidence": [
         "scripts/live-conformance-evidence.mjs",
-        "test/contract/stac-backend-agnostic.test.ts"
+        "test/contract/stac-backend-agnostic.test.ts",
+        "test/stac-workflow.test.ts"
       ],
       "source": "support-manifest"
     },
