@@ -1,6 +1,7 @@
 /**
  * Dynamic STAC catalog, search, pagination, and asset workflow facade.
  *
+ * @experimental
  * @packageDocumentation
  */
 
