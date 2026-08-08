@@ -8,6 +8,7 @@ import {
   openRasterSession,
   planRasterOperation,
 } from "../src/raster/index.js";
+import type { RasterCoverageExecutor } from "../src/raster/index.js";
 
 const metadata: CogDecodedMetadata = {
   format: "cog",
@@ -163,5 +164,36 @@ describe("unified raster session", () => {
       endToEnd: "unavailable",
     });
     expect(RASTER_FORMAT_MATURITY).toMatchObject({ zarr: "metadata-only", netcdf: "metadata-only" });
+  });
+
+  it("plans only methods actually admitted by an injected Coverage/WCS executor", () => {
+    const coverage = { kind: "wcs", id: "temperature", endpoint: "https://coverage.example/wcs" } as const;
+    const executor: RasterCoverageExecutor = {
+      async inspect(source) {
+        return { source, structurallyValidated: false };
+      },
+      async readWindow() {
+        throw new Error("not executed by planning");
+      },
+    };
+
+    expect(planRasterOperation(coverage, "inspect", { coverageExecutor: executor }).mode).toBe("server-operation");
+    expect(planRasterOperation(coverage, "read-window", { coverageExecutor: executor }).mode).toBe("server-operation");
+    for (const operation of ["statistics", "histogram", "render", "inspect-value"] as const) {
+      expect(planRasterOperation(coverage, operation, { coverageExecutor: executor })).toMatchObject({
+        mode: "unavailable",
+        reason: "The supplied Coverage/WCS executor does not admit this operation.",
+      });
+    }
+
+    const valueExecutor: RasterCoverageExecutor = {
+      ...executor,
+      async inspectValue() {
+        return { kind: "decoded-value", values: [] };
+      },
+    };
+    expect(planRasterOperation(coverage, "inspect-value", { coverageExecutor: valueExecutor }).mode).toBe(
+      "server-operation",
+    );
   });
 });
