@@ -6874,40 +6874,6 @@ export async function validateCiSelection(selection) {
   await validateJsonSchema(selection, CI_SELECTION_SCHEMA_PATH);
 }
 
-function generateSiteConsumerFixture(projection) {
-  return {
-    format: "honua.site.sdk-sample-consumer-fixture.v2",
-    schemaVersion: 2,
-    accepts: {
-      projectionFormat: projection.format,
-      projectionSchemaVersion: projection.schemaVersion,
-      catalogFormat: projection.catalog.format,
-      catalogSchemaVersion: projection.catalog.schemaVersion,
-    },
-    input: {
-      path: SITE_PROJECTION_PATH,
-      schemaPath: SITE_PROJECTION_SCHEMA_PATH,
-      sha256: sha256(Buffer.from(stableJson(projection))),
-    },
-    assertions: {
-      sampleCount: projection.samples.length,
-      rootExampleCount: projection.samples.filter((sample) => sample.sourceKind === "root-example").length,
-      docsExampleCount: projection.samples.filter((sample) => sample.sourceKind === "docs-example").length,
-      goldenJourneyCount: projection.goldenJourneys.length,
-      qualifiedGoldenCount: projection.goldenJourneys.filter((journey) => journey.status === "qualified").length,
-      routeCount: projection.routes.length,
-      sampleBundleCount: projection.sampleBundles.sampleIds.length,
-      sampleIdsUnique: true,
-      routeIdsUnique: true,
-      routesEndInHtml: true,
-      executableSourceOwner: "honua-io/honua-sdk-js",
-      presentationOwner: "honua-io/honua-site",
-      credentialValuesForbidden: true,
-    },
-    representativeRoutes: ["quickstart-map", "public-safety", "two-protocols"],
-  };
-}
-
 /**
  * Release-matrix section of the generated catalog (honua-io/honua-sdk-js#766
  * REQ-004). This is the qualification record's human-readable projection of the
@@ -7081,7 +7047,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   await validateSiteConsumerFixtureV4(consumerFixtureV4, handoff, {
     verifyCheckout: options.verifyCheckout,
   });
-  const [legacyProjection, legacyHandoff, legacyConsumerFixtureV2, legacyConsumerFixtureV3] = await Promise.all([
+  const [legacyProjection, legacyHandoff, legacyConsumerFixtureV3] = await Promise.all([
     readJson(LEGACY_SITE_PROJECTION_PATH),
     readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH),
     readJson(SITE_CONSUMER_FIXTURE_PATH),
@@ -7089,10 +7055,6 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   ]);
   await validateSiteProjection(legacyProjection);
   await validateSiteConsumerHandoff(legacyHandoff);
-  invariant(
-    JSON.stringify(legacyConsumerFixtureV2) === JSON.stringify(generateSiteConsumerFixture(legacyProjection)),
-    "legacy site consumer fixture v2 drift",
-  );
   await validateSiteConsumerFixtureV3(legacyConsumerFixtureV3, legacyHandoff);
   return new Map([
     [
