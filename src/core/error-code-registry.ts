@@ -83,6 +83,17 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "core.job-failed": classification("core", "protocol", false, "Remote job reached a failed terminal state"),
   "core.wms-capabilities-parse": classification("core", "protocol", false, "WMS capabilities document is invalid"),
   "core.wmts-capabilities-parse": classification("core", "protocol", false, "WMTS capabilities document is invalid"),
+  "core.coverage.invalid-request": classification("core", "validation", false, "Coverage request is invalid"),
+  "core.coverage.invalid-response": classification("core", "protocol", false, "Coverage response is invalid"),
+  "core.coverage.response-too-large": classification(
+    "core",
+    "validation",
+    false,
+    "Coverage response exceeds its byte limit",
+  ),
+  "core.coverage.unsupported-format": classification("core", "capability", false, "Coverage format is unsupported"),
+  "core.coverage.service-error": classification("core", "protocol", false, "Coverage service rejected the request"),
+  "core.coverage.wcs-exception": classification("core", "protocol", false, "WCS exception report"),
   "discovery.ambiguous-protocol": classification(
     "discovery",
     "validation",

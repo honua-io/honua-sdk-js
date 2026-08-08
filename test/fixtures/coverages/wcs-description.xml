@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wcs:CoverageDescriptions xmlns:wcs="http://www.opengis.net/wcs/2.0" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:gmlcov="http://www.opengis.net/gmlcov/1.0" xmlns:swe="http://www.opengis.net/swe/2.0">
+  <wcs:CoverageDescription>
+    <wcs:CoverageId>7</wcs:CoverageId>
+    <gml:boundedBy><gml:Envelope srsName="http://www.opengis.net/def/crs/EPSG/0/4326" axisLabels="Lat Long"><gml:lowerCorner>21.2 -158.3</gml:lowerCorner><gml:upperCorner>21.75 -157.6</gml:upperCorner></gml:Envelope></gml:boundedBy>
+    <gmlcov:rangeType><swe:DataRecord>
+      <swe:field name="elevation"><swe:Quantity><swe:label>Elevation</swe:label><swe:nilValues><swe:NilValues><swe:nilValue reason="http://www.opengis.net/def/nil/OGC/0/missing">-9999</swe:nilValue></swe:NilValues></swe:nilValues></swe:Quantity></swe:field>
+    </swe:DataRecord></gmlcov:rangeType>
+  </wcs:CoverageDescription>
+</wcs:CoverageDescriptions>

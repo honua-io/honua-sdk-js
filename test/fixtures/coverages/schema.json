@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "elevation": {
+      "title": "Elevation",
+      "description": "Height above mean sea level",
+      "type": "number",
+      "x-ogc-nodata": [-9999]
+    },
+    "quality": {
+      "title": "Quality mask",
+      "type": "integer",
+      "noData": 255
+    }
+  }
+}

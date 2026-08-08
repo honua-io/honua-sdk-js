@@ -201,6 +201,18 @@
         "disposition": "renderer-native",
         "owner": "@honua/sdk-js/runtime",
         "autoClassification": "not-applicable"
+      },
+      {
+        "id": "ogc-coverages",
+        "disposition": "operation-only",
+        "owner": "@honua/sdk-js/coverages",
+        "autoClassification": "not-applicable"
+      },
+      {
+        "id": "wcs",
+        "disposition": "operation-only",
+        "owner": "@honua/sdk-js/coverages",
+        "autoClassification": "not-applicable"
       }
     ],
     "staticFormats": [
@@ -482,9 +494,19 @@
             "ogc-tiles",
             "ogc-maps",
             "ogc-records",
-            "ogc-processes"
+            "ogc-processes",
+            "ogc-coverages"
           ],
           "supportClaimIds": [],
+          "external": false
+        },
+        "ogc-coverages": {
+          "protocolIds": [
+            "ogc-coverages"
+          ],
+          "supportClaimIds": [
+            "ogc-coverages-standalone"
+          ],
           "external": false
         },
         "ogc-features": {
@@ -538,6 +560,15 @@
           "protocolIds": [],
           "supportClaimIds": [],
           "external": true
+        },
+        "wcs": {
+          "protocolIds": [
+            "wcs"
+          ],
+          "supportClaimIds": [
+            "wcs-standalone"
+          ],
+          "external": false
         },
         "wfs": {
           "protocolIds": [
@@ -726,6 +757,12 @@
       "id": "ogc-maps-fixtures",
       "kind": "fixture",
       "path": "test/connect-ogc-maps.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "coverages-wcs-fixtures",
+      "kind": "fixture",
+      "path": "test/coverages-wcs.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -1668,6 +1705,58 @@
         "temporal": [],
         "notes": "Reserved identifier with no query path."
       }
+    },
+    {
+      "id": "ogc-coverages",
+      "label": "OGC API Coverages",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "render"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "experimental",
+          "evidence": [
+            "coverages-wcs-fixtures"
+          ]
+        }
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [
+          "source-dimension"
+        ],
+        "notes": "Coverage axes and datetime are explicit subset dimensions, not feature predicates."
+      }
+    },
+    {
+      "id": "wcs",
+      "label": "WCS 2.0.1",
+      "defaultOperationStatus": "unsupported",
+      "operationClaims": [
+        {
+          "operations": [
+            "render"
+          ],
+          "environment": "protocol-adapter",
+          "executionMode": "native",
+          "status": "experimental",
+          "evidence": [
+            "coverages-wcs-fixtures"
+          ]
+        }
+      ],
+      "queryFilter": {
+        "dialect": "none",
+        "filter": "unsupported",
+        "temporal": [
+          "source-dimension"
+        ],
+        "notes": "WCS SUBSET/DATETIME dimensions are explicit coverage constraints."
+      }
     }
   ],
   "supportClaims": [
@@ -2056,6 +2145,42 @@
       "evidence": [
         "ogc-maps-fixtures",
         "live-conformance"
+      ]
+    },
+    {
+      "id": "ogc-coverages-standalone",
+      "label": "OGC API Coverages discovery and bounded retrieval",
+      "protocol": "ogc-coverages",
+      "operations": [
+        "discovery",
+        "render"
+      ],
+      "environment": "standalone",
+      "executionMode": "native",
+      "status": "experimental",
+      "backendNeeded": "Any compatible OGC API Coverages server",
+      "api": "@honua/sdk-js/coverages createCoverageClient(), CoverageSource",
+      "notes": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline.",
+      "evidence": [
+        "coverages-wcs-fixtures"
+      ]
+    },
+    {
+      "id": "wcs-standalone",
+      "label": "WCS 2.0.1 discovery and bounded retrieval",
+      "protocol": "wcs",
+      "operations": [
+        "discovery",
+        "render"
+      ],
+      "environment": "standalone",
+      "executionMode": "native",
+      "status": "experimental",
+      "backendNeeded": "Any compatible WCS 2.0.1 KVP endpoint",
+      "api": "@honua/sdk-js/coverages createWcsClient()",
+      "notes": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions.",
+      "evidence": [
+        "coverages-wcs-fixtures"
       ]
     },
     {
@@ -2658,6 +2783,10 @@
       },
       {
         "subpath": "./cog",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./coverages",
         "status": "experimental"
       },
       {

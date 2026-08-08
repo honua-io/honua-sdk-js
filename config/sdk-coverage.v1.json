@@ -355,6 +355,20 @@
       "source": "support-manifest"
     },
     {
+      "key": "serve.ogc-api-coverages",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "@honua/sdk-js/coverages createCoverageClient()",
+        "CoverageSource"
+      ],
+      "evidence": [
+        "test/coverages-wcs.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline."
+    },
+    {
       "key": "serve.ogc-api-features",
       "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
@@ -440,6 +454,19 @@
         "test/pmtiles-contract.test.ts"
       ],
       "source": "support-manifest"
+    },
+    {
+      "key": "serve.wcs",
+      "status": "partial",
+      "sinceVersion": "0.1.0-beta.0",
+      "entrypoints": [
+        "@honua/sdk-js/coverages createWcsClient()"
+      ],
+      "evidence": [
+        "test/coverages-wcs.test.ts"
+      ],
+      "source": "support-manifest",
+      "note": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions."
     },
     {
       "key": "serve.wfs",
