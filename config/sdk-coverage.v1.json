@@ -312,6 +312,7 @@
       "status": "partial",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
+        "@honua/sdk-js/raster",
         "HonuaClient.imageService",
         "Source.protocol()",
         "connect()",
@@ -323,7 +324,7 @@
         "test/integration/surfaces/image-server.integration.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor."
+      "note": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; the raster session adds bounded bbox render, band/style descriptors, identify, and presentation handoffs without inventing statistics endpoints."
     },
     {
       "key": "serve.geoservices-mapserver",
