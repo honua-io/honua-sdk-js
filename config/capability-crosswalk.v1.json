@@ -206,6 +206,11 @@
       "internalOnly": true,
       "reason": "ArcGIS-to-Honua migration codemod and scan tooling; dev-time only, not a platform capability."
     },
+    "multidimensional-raster": {
+      "capabilityKeys": [
+        "raster.multidim-coverage"
+      ]
+    },
     "node": {
       "internalOnly": true,
       "reason": "Marks a sample as running in Node rather than a browser; a runtime-environment property, not a platform capability."
