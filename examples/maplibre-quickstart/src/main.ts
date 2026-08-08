@@ -105,7 +105,8 @@ function initialLaunch(): FirstMapLaunch {
     protocol: readProtocol(readOptional(env, "VITE_HONUA_QUICKSTART_PROTOCOL")),
     maxFeatures,
     basemapStyle:
-      readOptional(env, "VITE_HONUA_QUICKSTART_BASEMAP_STYLE") ?? (mode === "fixture" ? FIXTURE_BASEMAP_STYLE : PUBLIC_BASEMAP_STYLE),
+      readOptional(env, "VITE_HONUA_QUICKSTART_BASEMAP_STYLE") ??
+      (mode === "fixture" ? FIXTURE_BASEMAP_STYLE : PUBLIC_BASEMAP_STYLE),
     ...(where ? { where } : {}),
   };
 }
