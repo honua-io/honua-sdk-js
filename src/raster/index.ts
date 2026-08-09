@@ -436,7 +436,8 @@ export class UnifiedRasterSession {
     this.options = options;
     const endpoint =
       source.kind === "image-server" ? source.baseUrl : source.kind === "cog" ? cogUrl(source) : source.endpoint;
-    this.client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: new URL(endpoint).origin });
+    const clientBaseUrl = source.kind === "image-server" ? source.baseUrl : new URL(endpoint).origin;
+    this.client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: clientBaseUrl });
 
     if (source.kind === "cog") {
       if (!options.decoderFactory) {
@@ -536,7 +537,7 @@ export class UnifiedRasterSession {
         imageSr: request.spatialReference,
         bandIds: request.bands,
         noData: request.noData,
-        interpolation: request.resampling,
+        interpolation: imageServerInterpolation(request.resampling),
         renderingRule: imageServerRenderingRule(request.style),
         format: "png",
         signal: options.signal,
@@ -707,6 +708,12 @@ export class UnifiedRasterSession {
   private assertActive(): void {
     if (this.disposed) throw new HonuaCapabilityNotSupportedError("active-session", this.source.kind, this.source.id);
   }
+}
+
+function imageServerInterpolation(resampling: RasterWindowRequest["resampling"]): string | undefined {
+  if (resampling === "nearest") return "RSP_NearestNeighbor";
+  if (resampling === "bilinear") return "RSP_BilinearInterpolation";
+  return undefined;
 }
 
 /** Open a source. Direct COG resolves only after bounded structural validation succeeds. */
