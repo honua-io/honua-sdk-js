@@ -79,7 +79,9 @@
     "geoparquet",
     "maplibre-vector",
     "maplibre-raster",
-    "maplibre-geojson"
+    "maplibre-geojson",
+    "ogc-coverages",
+    "wcs"
   ],
   "protocolAliases": {
     "feature-server": "geoservices-feature-service",
@@ -228,7 +230,13 @@
       "render",
       "tiles"
     ],
-    "maplibre-geojson": []
+    "maplibre-geojson": [],
+    "ogc-coverages": [
+      "render"
+    ],
+    "wcs": [
+      "render"
+    ]
   },
   "resultScenarios": [
     {
