@@ -624,7 +624,12 @@ async function bootstrap(): Promise<void> {
         renderFeatureList(filterFirstMapFeatures(summaries, activeChoice), selected.id, selectFeature);
         activePopup?.remove();
         if (lngLat) {
-          activePopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: "320px" })
+          activePopup = new maplibregl.Popup({
+            closeButton: true,
+            closeOnClick: false,
+            maxWidth: "320px",
+            offset: matchMedia("(min-width: 60.001rem)").matches ? ([-180, 0] as [number, number]) : 0,
+          })
             .setLngLat([lngLat[0], lngLat[1]])
             .setDOMContent(createPopupContent(summary))
             .addTo(map);

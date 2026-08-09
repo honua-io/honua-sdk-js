@@ -218,7 +218,7 @@
   display: flex;
   flex-direction: column;
   width: min(24rem, calc(100vw - 2 * var(--hn-space-3)));
-  max-height: calc(100% - 56px);
+  max-height: calc(100% - 24px);
 }
 
 .explorer-header {
@@ -239,8 +239,8 @@
 
 .explorer-body {
   display: grid;
-  gap: var(--hn-space-3);
-  padding: var(--hn-space-4);
+  gap: var(--hn-space-2);
+  padding: var(--hn-space-3);
   overflow-y: auto;
 }
 
@@ -320,7 +320,7 @@
  * min-height keeps the query result legible when the explorer body scrolls. */
 .table-scroll {
   min-height: 8rem;
-  max-height: 11rem;
+  max-height: 9.75rem;
 }
 
 .feature-name {
@@ -338,6 +338,21 @@
   background: var(--hn-surface-sunken);
   border: 1px solid var(--hn-line);
   border-radius: var(--hn-radius-sm);
+}
+
+.explorer-panel .attribute-list {
+  display: none;
+}
+
+.hn-app button,
+.hn-app input,
+.hn-app select,
+.hn-app summary {
+  min-height: 44px;
+}
+
+.hn-app button {
+  min-width: 44px;
 }
 
 .selection-card > .hn-register {
@@ -402,6 +417,10 @@
 /* -- Feature popup (hn-popup card mounted into the MapLibre popup) ---------- */
 .popup-kicker {
   margin: 0 0 var(--hn-space-0);
+}
+
+.hn-popup-title {
+  padding-right: 44px;
 }
 
 .popup-subtitle {

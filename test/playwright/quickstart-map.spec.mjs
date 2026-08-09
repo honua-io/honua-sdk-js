@@ -94,6 +94,14 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     expect(failedRequiredRequests).toEqual([]);
     const desktopMap = await page.locator("#map").boundingBox();
     expect(desktopMap?.height).toBeGreaterThanOrEqual(500);
+    const undersizedAuthoredTargets = await page.evaluate(() =>
+      [...document.querySelectorAll("button, input, select, summary")]
+        .filter((element) => !element.closest(".maplibregl-control-container"))
+        .map((element) => ({ id: element.id, rect: element.getBoundingClientRect() }))
+        .filter(({ rect }) => rect.width < 44 || rect.height < 44)
+        .map(({ id, rect }) => ({ id, width: rect.width, height: rect.height })),
+    );
+    expect(undersizedAuthoredTargets).toEqual([]);
 
     await expect(page.locator("#linked-visible-count")).toHaveText("3");
     await page.locator("#attribute-filter").selectOption({ label: "STATUS: Ready" });
