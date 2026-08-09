@@ -262,8 +262,10 @@
         "id": "cloud-native-analysis"
       },
       "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The browser bundle currently reads a process-service token variable."
+        "status": "not-required"
+      },
+      "live": {
+        "mode": "authenticated"
       }
     },
     "imagery-cog-quickstart": {
