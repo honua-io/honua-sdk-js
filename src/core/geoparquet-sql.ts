@@ -852,7 +852,7 @@ export function describeSql(sources: readonly string[]): string {
 export function rowEstimateSql(sources: readonly string[]): string {
   const list = sources.map(stringLiteral);
   const arg = list.length === 1 ? list[0] : `[${list.join(", ")}]`;
-  return `SELECT CAST(COALESCE(sum(num_rows), 0) AS BIGINT) AS row_estimate FROM parquet_file_metadata(${arg})`;
+  return `SELECT CAST(COALESCE(sum(num_rows), 0) AS BIGINT) AS row_estimate, CAST(count(*) AS BIGINT) AS row_group_count FROM parquet_file_metadata(${arg})`;
 }
 
 /**

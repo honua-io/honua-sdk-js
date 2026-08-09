@@ -69,6 +69,8 @@
     "esri-compat-standalone": { "capabilityKeys": ["serve.geoservices-featureserver", "editing.featureserver-edits"] },
     "migration-client-only": { "internalOnly": true, "reason": "Static ArcGIS-to-Honua codemod/scan tooling; dev-time only, not a platform capability." },
     "geometry-client-only": { "internalOnly": true, "reason": "Client-side geometry math (buffer/area/simplify/measure/reprojection); the published vocabulary has no client-geometry-library category, and this is distinct from serve.geoservices-geometry-service (ArcGIS GeometryServer discovery)." },
+    "columnar-workflow-direct-geoparquet-client-only": { "internalOnly": true, "reason": "Client-side GeoParquet analysis and handoffs consume a static object; they do not provide the canonical raster.cloud-cog-serving server capability or any other platform serving key." },
+    "columnar-workflow-honua-query-results": { "internalOnly": true, "reason": "Arrow and Parquet are bounded FeatureServer response-format extensions; the canonical vocabulary tracks the FeatureServer surface, already mapped by esri-compat-standalone, rather than every result encoding." },
     "compatibility-gate-facade": { "capabilityKeys": ["discovery.capability-manifest"] },
     "map-package-facade": { "internalOnly": true, "reason": "Composite server-authored-content facade (styles + layer order + metadata); no single discrete canonical key covers this composite concept." },
     "scene-workspace-cesium": { "internalOnly": true, "reason": "Client-side 3D scene state and the Cesium renderer adapter; a rendering-pipeline surface like the other renderer adapters, not a platform capability. serve.3d-tiles-scene stays a serving capability of Honua Server, which this surface consumes rather than provides." },

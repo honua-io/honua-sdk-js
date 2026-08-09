@@ -302,6 +302,13 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/nl-map-control/src/main.ts imports test/fixtures/nl-map-control/recorded-completions.json as a bundled module and mounts an inline MapLibre style; the sample issues no fetch.",
   },
   {
+    id: "columnar-query-quickstart",
+    runtimeHosting: "self-contained",
+    buildScript: "demo:columnar-query:build",
+    auditedVia:
+      "examples/columnar-query-quickstart/src/main.ts constructs and renders a deterministic request plan against example.invalid; it never executes session.stream(), calls fetch, loads data, or references external assets.",
+  },
+  {
     id: "node-backend-quickstart",
     runtimeHosting: "server-side-app",
     auditedVia:

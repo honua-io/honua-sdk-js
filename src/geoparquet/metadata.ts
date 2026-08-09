@@ -24,6 +24,8 @@ export interface SourceProfileField {
 }
 
 export interface SourceProfileGeometry extends GeometryColumnPlan {
+  /** Dataset bbox from validated single-object GeoParquet metadata. */
+  readonly bbox?: readonly number[];
   /** False when DuckDB exposed a raw GeoArrow nested value that this SQL compiler cannot execute safely. */
   readonly runtimeSupported?: boolean;
   /**
@@ -62,6 +64,8 @@ export interface SourceProfile {
   readonly crs?: string;
   /** Footer-derived row estimate (`num_rows` sum), when available. */
   readonly rowEstimate?: number;
+  /** Footer-derived number of Parquet row groups, when available. */
+  readonly rowGroupCount?: number;
 }
 
 /** Parsed subset of the GeoParquet `geo` metadata document. */
@@ -306,6 +310,8 @@ export interface BuildProfileInput {
   readonly geometryColumnOverride?: string;
   /** Footer row estimate. */
   readonly rowEstimate?: number;
+  /** Footer row-group count. */
+  readonly rowGroupCount?: number;
 }
 
 /**
@@ -316,7 +322,7 @@ export interface BuildProfileInput {
  * override.
  */
 export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
-  const { describe, geoJson, geometryColumnOverride, rowEstimate } = input;
+  const { describe, geoJson, geometryColumnOverride, rowEstimate, rowGroupCount } = input;
   const allColumns = describe.map((r) => r.column_name);
   const rowsByName = new Map<string, DescribeRow>();
   const rowsByLowerName = new Map<string, DescribeRow>();
@@ -431,6 +437,7 @@ export function buildSourceProfile(input: BuildProfileInput): SourceProfile {
     ...(geometries ? { geometries } : {}),
     ...(crs ? { crs } : {}),
     ...(rowEstimate !== undefined ? { rowEstimate } : {}),
+    ...(rowGroupCount !== undefined ? { rowGroupCount } : {}),
   };
 }
 
@@ -505,6 +512,9 @@ function geometryPlanFromGeoMetadata(
     ...(nativeDimensions !== undefined ? { nativeDimensions } : {}),
     ...(runtimeSupported ? {} : { runtimeSupported: false }),
     ...(bboxColumn ? { bboxColumn } : {}),
+    ...(metadataState === "valid" && Array.isArray(metadata?.bbox) && validGeoParquetBbox(metadata.bbox)
+      ? { bbox: Object.freeze([...metadata.bbox]) as readonly number[] }
+      : {}),
     metadataState,
     geometryTypesState,
     ...(inspectedGeometryTypes.values ? { geometryTypes: inspectedGeometryTypes.values } : {}),
