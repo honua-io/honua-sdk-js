@@ -589,7 +589,8 @@
       "validation": [
         "npm run demo:columnar-query:typecheck",
         "npm run demo:columnar-query:build",
-        "npx vitest run test/columnar-workflow.test.ts test/columnar-workflow-honua-arrow.test.ts"
+        "npx vitest run test/columnar-workflow.test.ts",
+        "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
       ]
     },
     {
