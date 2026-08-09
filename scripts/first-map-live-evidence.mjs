@@ -15,8 +15,7 @@ import { validateEvidenceEnvelope } from "./sample-contract.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const producerPath = "scripts/first-map-live-evidence.mjs";
-const sourceEndpoint =
-  "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
+const sourceEndpoint = "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
 const sourceOrigin = new URL(sourceEndpoint).origin;
 
 function outputPath(argv) {
@@ -68,7 +67,7 @@ async function writeEnvelope(target, values) {
     authMode: "anonymous",
     sdk: { package: packageJson.name, version: packageJson.version, gitCommit: sourceRevision() },
     source: {
-      provider: "esri-living-atlas",
+      provider: "honua-demo",
       identity: values.sourceIdentity,
       endpoint: sourceEndpoint,
       deploymentVersion: null,
@@ -102,13 +101,14 @@ async function main() {
   process.env.VITE_HONUA_QUICKSTART_ENDPOINT = sourceEndpoint;
   process.env.VITE_HONUA_QUICKSTART_PROTOCOL = "geoservices-feature-service";
   process.env.VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT = "5";
-  process.env.VITE_HONUA_QUICKSTART_WHERE = "NAME = 'Hawaii'";
+  process.env.VITE_HONUA_QUICKSTART_WHERE = "1=1";
   process.env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE = "/__honua-quickstart__/basemap-style.json";
 
   let fixture;
   let browser;
   let page;
-  const rejectedRequests = [];
+    const rejectedRequests = [];
+    const failedRequiredRequests = [];
   const pageErrors = [];
   const consoleErrors = [];
   try {
@@ -121,6 +121,11 @@ async function main() {
     page.on("pageerror", (error) => pageErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    page.on("response", (response) => {
+      if (new URL(response.url()).origin === sourceOrigin && response.status() >= 400) {
+        failedRequiredRequests.push(`${response.status()} ${response.url()}`);
+      }
     });
     await context.route("**/*", async (route) => {
       const request = route.request();
@@ -155,15 +160,16 @@ async function main() {
       freshness: document.querySelector("#evidence-freshness")?.textContent?.trim(),
       cache: document.querySelector("#evidence-cache")?.textContent?.trim(),
       degradation: document.querySelector("#evidence-degradation")?.textContent?.trim(),
+      endpoint: document.querySelector("#evidence-endpoint")?.textContent?.trim(),
       popup: document.querySelector(".maplibregl-popup")?.textContent?.trim(),
     }));
     if (
       runtime?.mode !== "public-live" ||
       runtime.authorizationMode !== "anonymous" ||
       runtime.sourceProtocol !== "geoservices-feature-service" ||
-      runtime.sourceId !== "0" ||
-      typeof runtime.sourceAttribution !== "string" ||
-      runtime.sourceAttribution.length === 0 ||
+      runtime.sourceId !== "1" ||
+      runtime.baseUrl !== sourceEndpoint ||
+      runtime.sourceAttribution !== null ||
       typeof runtime.sourceObservedAt !== "string" ||
       runtime.sourceFreshness !== "observed" ||
       !["bypass", "hit", "miss", "refreshed"].includes(runtime.cacheStatus) ||
@@ -173,11 +179,13 @@ async function main() {
       runtime.journeyComplete !== true ||
       !runtime.planFingerprint?.startsWith("sha256:") ||
       !presentation.popup ||
-      !presentation.source?.includes(runtime.sourceAttribution) ||
+      presentation.endpoint !== sourceEndpoint ||
+      !presentation.source?.includes("no attribution advertised") ||
       presentation.freshness !== "SDK observation available" ||
       presentation.cache !== runtime.cacheStatus ||
       !presentation.degradation ||
       rejectedRequests.length > 0 ||
+      failedRequiredRequests.length > 0 ||
       pageErrors.length > 0 ||
       consoleErrors.length > 0
     ) {
@@ -252,6 +260,9 @@ async function main() {
       browserState ? `browserState=${JSON.stringify(browserState)}` : null,
       pageErrors.length > 0 ? `pageErrors=${JSON.stringify(pageErrors)}` : null,
       rejectedRequests.length > 0 ? `rejectedRequests=${JSON.stringify(rejectedRequests)}` : null,
+      failedRequiredRequests.length > 0
+        ? `failedRequiredRequests=${JSON.stringify(failedRequiredRequests)}`
+        : null,
     ]
       .filter(Boolean)
       .join("; ");

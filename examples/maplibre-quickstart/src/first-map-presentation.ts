@@ -40,8 +40,8 @@ export const FIRST_MAP_TIMING_BUDGETS_MS = Object.freeze({
   cleanup: 1_000,
 });
 
-const TITLE_FIELDS = ["NAME", "TITLE", "name", "title", "LABEL", "label"];
-const SUBTITLE_FIELDS = ["STATUS", "CATEGORY", "status", "category", "TYPE", "type"];
+const TITLE_FIELDS = ["NAME", "TITLE", "name", "title", "LABEL", "label", "TMK", "tmk_txt"];
+const SUBTITLE_FIELDS = ["STATUS", "CATEGORY", "status", "category", "TYPE", "type", "ZONE", "zone"];
 const ID_FIELDS = ["OBJECTID", "objectid", "FID", "fid", "ID", "id"];
 const MAX_FILTER_FIELDS = 12;
 const MAX_FILTER_VALUES_PER_FIELD = 50;

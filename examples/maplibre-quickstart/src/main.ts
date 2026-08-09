@@ -4,7 +4,11 @@ import "../../_kit/design/index.css";
 
 import * as maplibregl from "maplibre-gl";
 
-import { resolveFirstMapConfig } from "./first-map-config.js";
+import {
+  PUBLIC_FIRST_MAP_ENDPOINT,
+  SAME_ORIGIN_FIRST_MAP_FIXTURE,
+  resolveFirstMapConfig,
+} from "./first-map-config.js";
 import type { FirstMapMode, FirstMapProtocol } from "./first-map-config.js";
 import {
   FIRST_MAP_TIMING_BUDGETS_MS,
@@ -83,8 +87,11 @@ function readProtocol(value: string | undefined): FirstMapProtocol {
 
 function endpointFromEnvironment(env: Record<string, string | undefined>): { endpoint: string; live: boolean } {
   const direct = readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT");
+  if (direct === SAME_ORIGIN_FIRST_MAP_FIXTURE) {
+    return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
+  }
   if (direct) return { endpoint: direct, live: true };
-  return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
+  return { endpoint: PUBLIC_FIRST_MAP_ENDPOINT, live: true };
 }
 
 function initialLaunch(): FirstMapLaunch {
@@ -139,6 +146,9 @@ function resetJourney(): void {
 }
 
 function resetPresentation(): void {
+  setText("#result-count", "0 mapped features");
+  setText("#result-provenance", "Connecting to the selected source");
+  setText("#result-interaction", "Select a feature on the map or from the result list.");
   setText("#map-visible-count", "0 visible");
   setText("#map-filter-count", "0 filters");
   setText("#linked-visible-count", "0");
@@ -227,6 +237,10 @@ function renderSelection(summary: FirstMapFeatureSummary | undefined): void {
   setText("#selected-feature-subtitle", summary?.subtitle ?? "Select a feature from the map or results list.");
   setText("#selected-feature-id", summary?.id ?? "—");
   setText("#selected-feature-geometry", summary?.geometryKind ?? "—");
+  setText(
+    "#result-interaction",
+    summary ? `Selected ${summary.title}` : "Select a feature on the map or from the result list.",
+  );
   const attributes = getElement<HTMLElement>("#selected-feature-attributes");
   attributes.replaceChildren();
   if (!summary) {
@@ -596,6 +610,8 @@ async function bootstrap(): Promise<void> {
       setText("#status-target", safeEndpoint(result.view.connection.endpoint));
       setText("#status-service-layer", result.view.source.id);
       setText("#status-feature-count", `${summaries.length} accepted`);
+      setText("#result-count", `${summaries.length} mapped feature${summaries.length === 1 ? "" : "s"}`);
+      setText("#result-provenance", safeEndpoint(result.view.connection.endpoint));
       setText(
         "#status-geometry-types",
         [...new Set(summaries.map(({ geometryKind }) => geometryKind))].join(", ") || "none",

@@ -55,8 +55,13 @@ not claims about a first-time human session or public-network latency.
 
 ## Secret-free live run
 
-Paste any anonymous, CORS-enabled GeoServices FeatureServer layer or OGC API Features landing-page URL into the form.
-The same path can also be preconfigured for development:
+`npm run demo:quickstart` now opens on the anonymous Maui parcels layer advertised by the
+`demo.honua.io` service directory:
+
+`https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1`
+
+Paste any other anonymous, CORS-enabled GeoServices FeatureServer layer or OGC API Features landing-page URL into the
+form. The same path can also be preconfigured for development:
 
 ```bash
 VITE_HONUA_QUICKSTART_ENDPOINT=https://your-public-data.example/ogc/features \

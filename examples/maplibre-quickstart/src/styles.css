@@ -9,14 +9,14 @@
 
 /* -- App frame: map stage above, run-report drawer docked below ------------ */
 .app-frame {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  height: 100dvh;
+  min-height: 100dvh;
+  background: var(--hn-surface-sunken);
 }
 
 .map-shell {
   position: relative;
-  min-height: 0;
+  height: 100dvh;
+  min-height: 42rem;
 }
 
 .map-stage {
@@ -31,7 +31,31 @@
   inset: 0;
 }
 
-/* -- Floating workflow panel (top-left): brand, form, journey -------------- */
+/* -- Result headline (top-left) -------------------------------------------- */
+.result-intro {
+  display: grid;
+  gap: var(--hn-space-2);
+  width: min(25rem, calc(100vw - 2 * var(--hn-space-3)));
+  padding: var(--hn-space-4);
+}
+
+.result-title {
+  max-width: 12ch;
+  margin: 0;
+  font-family: var(--hn-font-display);
+  font-size: var(--hn-text-h2);
+  font-weight: 700;
+  letter-spacing: var(--hn-tracking-heading);
+  line-height: 1;
+}
+
+.result-lede {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--hn-ink-secondary);
+}
+
+/* -- Supporting workflow panel below the result --------------------------- */
 .workflow-panel {
   display: flex;
   flex-direction: column;
@@ -40,6 +64,42 @@
   max-height: calc(100% - 150px);
   padding: var(--hn-space-4);
   overflow-y: auto;
+}
+
+.support-panel {
+  display: grid;
+  grid-template-columns: minmax(13rem, 0.8fr) minmax(20rem, 1.4fr) minmax(18rem, 1fr);
+  gap: var(--hn-space-5);
+  width: auto;
+  max-height: none;
+  padding: var(--hn-space-6);
+  overflow: visible;
+  border-inline: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.support-copy {
+  min-width: 0;
+}
+
+.support-copy > .hn-register {
+  margin: 0 0 var(--hn-space-1);
+  color: var(--hn-accent);
+}
+
+.support-lede {
+  margin: var(--hn-space-2) 0 0;
+  font-size: var(--hn-text-sm);
+}
+
+.support-panel .journey {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.support-panel .workflow-foot {
+  grid-column: 1 / -1;
 }
 
 .workflow-brand {
@@ -165,6 +225,11 @@
   flex: none;
 }
 
+.explorer-kicker {
+  margin: 0 0 var(--hn-space-0);
+  color: var(--hn-accent);
+}
+
 .map-status {
   display: flex;
   flex-wrap: wrap;
@@ -177,6 +242,46 @@
   gap: var(--hn-space-3);
   padding: var(--hn-space-4);
   overflow-y: auto;
+}
+
+.result-legend {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--hn-space-3);
+  padding: var(--hn-space-3);
+  background: var(--hn-accent-wash);
+  border: 1px solid var(--hn-line-strong);
+  border-radius: var(--hn-radius-sm);
+}
+
+.legend-swatch {
+  width: 2.5rem;
+  height: 2.5rem;
+  background: var(--hn-accent);
+  border: 2px solid var(--hn-surface);
+  border-radius: var(--hn-radius-sm);
+  box-shadow: 0 0 0 1px var(--hn-accent);
+  opacity: 0.82;
+}
+
+.result-legend strong {
+  display: block;
+  font-family: var(--hn-font-display);
+}
+
+.result-legend p,
+.result-interaction {
+  margin: var(--hn-space-0) 0 0;
+  font-family: var(--hn-font-mono);
+  font-size: var(--hn-text-register);
+  color: var(--hn-ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.result-interaction {
+  margin: 0;
+  color: var(--hn-accent);
 }
 
 .filter-row {
@@ -214,8 +319,8 @@
 /* The wrap is a scroll container, so its automatic minimum size is 0; the
  * min-height keeps the query result legible when the explorer body scrolls. */
 .table-scroll {
-  min-height: 14rem;
-  max-height: 16rem;
+  min-height: 8rem;
+  max-height: 11rem;
 }
 
 .feature-name {
@@ -229,8 +334,10 @@
 }
 
 .selection-card {
-  border-top: 1px solid var(--hn-line);
-  padding-top: var(--hn-space-3);
+  padding: var(--hn-space-3);
+  background: var(--hn-surface-sunken);
+  border: 1px solid var(--hn-line);
+  border-radius: var(--hn-radius-sm);
 }
 
 .selection-card > .hn-register {
@@ -548,6 +655,8 @@
     flex-direction: column;
     gap: var(--hn-space-3);
     padding: var(--hn-space-3);
+    height: auto;
+    min-height: 0;
   }
 
   .map-shell .hn-map-slot {
@@ -558,7 +667,7 @@
     overflow: visible;
   }
 
-  .workflow-panel {
+  .result-intro {
     order: 1;
   }
 
@@ -603,6 +712,15 @@
     gap: var(--hn-space-4);
     max-height: none;
     overflow: visible;
+  }
+
+  .support-panel {
+    grid-template-columns: 1fr;
+    padding: var(--hn-space-4);
+  }
+
+  .support-panel .workflow-foot {
+    grid-column: auto;
   }
 }
 
