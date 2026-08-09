@@ -142,11 +142,11 @@ export async function startGeoprocessingJobRunnerFixtureServer({ build = true } 
       }
       res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
       res.end("Not found");
-    } catch (error) {
+    } catch {
       sendJson(res, 500, {
         title: "Fixture server error",
         status: 500,
-        detail: error instanceof Error ? error.message : String(error),
+        detail: "The fixture server could not complete the request.",
       });
     }
   });
