@@ -93,6 +93,14 @@ describe("playground smoke decisions", () => {
     }
   });
 
+  it("keeps the columnar quickstart planning-only and network-free at boot", () => {
+    const journey = PLAYGROUND_SMOKE_JOURNEYS.get("columnar-query-quickstart");
+    const source = playgroundSource("columnar-query-quickstart");
+    assert.match(journey.rendersNoMap, /planning-only/);
+    assert.match(journey.noBootFeatures, /without loading data or making a network request/);
+    assert.ok(source.includes('note: "Planning is deterministic and performs no network request."'));
+  });
+
   it("answers, for every playground, whether anything is asserted about its data", () => {
     for (const [id, journey] of PLAYGROUND_SMOKE_JOURNEYS) {
       assert.notEqual(journey.features === undefined, journey.noBootFeatures === undefined, id);

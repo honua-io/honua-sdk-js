@@ -14,6 +14,7 @@ import {
   bareSpecifierPackage,
   derivePlaygroundDecisions,
   evaluateSamplePlaygroundEligibility,
+  portableRelativePath,
   publishedSdkEntrypoints,
   removeSampleReadmeBlock,
   resolveFixtureOrigin,
@@ -452,6 +453,11 @@ describe("sample README playground links", () => {
 });
 
 describe("source analysis helpers", () => {
+  it("normalizes generated relative paths across host platforms", () => {
+    assert.equal(portableRelativePath("public\\basemap.pmtiles"), "public/basemap.pmtiles");
+    assert.equal(portableRelativePath("src/main.ts"), "src/main.ts");
+  });
+
   it("resolves a scoped or deep specifier to its package", () => {
     assert.equal(bareSpecifierPackage("maplibre-gl/dist/maplibre-gl.css"), "maplibre-gl");
     assert.equal(bareSpecifierPackage("@honua/sdk-js/runtime"), "@honua/sdk-js");

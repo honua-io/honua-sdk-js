@@ -1,6 +1,9 @@
 import { openColumnarSession } from "@honua/sdk-js/columnar-workflow";
 import "./style.css";
 
+const smokeState = { ready: false };
+Object.assign(window, { __HONUA_COLUMNAR_QUERY_QUICKSTART__: smokeState });
+
 const session = openColumnarSession(
   {
     kind: "honua-feature-query",
@@ -50,4 +53,5 @@ if (output) {
     null,
     2,
   );
+  smokeState.ready = true;
 }

@@ -293,6 +293,11 @@ function fileExists(file) {
   return fs.existsSync(path.join(ROOT, file));
 }
 
+/** Normalize filesystem-relative paths before they enter generated JSON or diagnostics. */
+export function portableRelativePath(file) {
+  return file.split(path.win32.sep).join(path.posix.sep);
+}
+
 function listFiles(directory) {
   if (!fs.existsSync(directory)) return [];
   return fs
@@ -316,7 +321,7 @@ export function bareImportsOfFile(file) {
 
 /** Read the committed source a playground would carry, and everything it references. */
 export function analyzeSampleSource(sampleRoot) {
-  const sourceFiles = listFiles(path.join(sampleRoot, "src")).map((file) => path.relative(sampleRoot, file));
+  const sourceFiles = listFiles(path.join(sampleRoot, "src")).map((file) => portableRelativePath(path.relative(sampleRoot, file)));
   const indexHtml = fs.existsSync(path.join(sampleRoot, "index.html")) ? ["index.html"] : [];
   const files = [...indexHtml, ...sourceFiles];
   const specifiers = new Set();
@@ -335,7 +340,9 @@ export function analyzeSampleSource(sampleRoot) {
     }
     for (const [, name] of text.matchAll(ENV_PATTERN)) envVars.add(name);
   }
-  const publicFiles = listFiles(path.join(sampleRoot, "public")).map((file) => path.relative(sampleRoot, file));
+  const publicFiles = listFiles(path.join(sampleRoot, "public")).map((file) =>
+    portableRelativePath(path.relative(sampleRoot, file)),
+  );
   return {
     files,
     publicFiles,
