@@ -113,6 +113,40 @@ test("requires an explicit decoder for server payloads", async () => {
   );
 });
 
+test("discards server error bodies before the shared pipeline can parse them", async () => {
+  let cancelled = false;
+  const session = openColumnarSession(serverSource, {
+    clientOptions: {
+      fetchFn: async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.enqueue(new Uint8Array(64 * 1024));
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+          { status: 400 },
+        ),
+    },
+    decodeServerResponse: async function* () {
+      yield batch;
+    },
+    inspectBatch: () => metrics,
+  });
+
+  await assert.rejects(
+    async () => {
+      for await (const _result of session.stream({ limit: 1 })) {
+        // The request fails before decode.
+      }
+    },
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "REQUEST_FAILED",
+  );
+  assert.equal(cancelled, true);
+});
+
 test("keeps direct execution bounded and surfaces metadata", async () => {
   const direct: ColumnarWorkflowSource = {
     kind: "direct-geoparquet",
@@ -142,6 +176,50 @@ test("keeps direct execution bounded and surfaces metadata", async () => {
   const results = [];
   for await (const result of session.stream({ columns: ["zone"], limit: 2 })) results.push(result);
   assert.equal(results[0]?.evidence.execution, "browser-bounded");
+});
+
+test("propagates cancellation through direct metadata inspection", async () => {
+  const direct: ColumnarWorkflowSource = {
+    kind: "direct-geoparquet",
+    id: "abortable-parcels",
+    url: "https://example.test/parcels.parquet",
+    sourceVersion: "etag-v1",
+    schemaVersion: "geo-1.1",
+    authorizationScope: "public",
+  };
+  let receivedSignal: AbortSignal | undefined;
+  let cancelled = false;
+  let markDescribeStarted: () => void = () => undefined;
+  const describeStarted = new Promise<void>((resolve) => {
+    markDescribeStarted = resolve;
+  });
+  const session = openColumnarSession(direct, {
+    openDirectGeoParquet: async () => ({
+      describe: (signal) => {
+        receivedSignal = signal;
+        markDescribeStarted();
+        return new Promise((_, reject) => {
+          signal?.addEventListener(
+            "abort",
+            () => {
+              cancelled = true;
+              reject(signal.reason);
+            },
+            { once: true },
+          );
+        });
+      },
+      queryColumnar: () => batch,
+    }),
+  });
+  const controller = new AbortController();
+  const pending = session.inspect(controller.signal);
+  await describeStarted;
+  controller.abort(new Error("stop inspection"));
+
+  await assert.rejects(pending, (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "ABORTED");
+  assert.equal(receivedSignal, controller.signal);
+  assert.equal(cancelled, true);
 });
 
 test("provides explicit worker, render, and download handoffs", () => {

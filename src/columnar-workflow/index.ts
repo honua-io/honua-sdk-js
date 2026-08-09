@@ -151,7 +151,7 @@ export type ColumnarResponseDecoder = (context: ColumnarResponseDecoderContext) 
 export interface ApacheArrowResponseDecoderOptions extends HonuaArrowWkbMappingOptions {}
 
 export interface DirectGeoParquetHandle {
-  describe(): Promise<unknown> | unknown;
+  describe(signal?: AbortSignal): Promise<unknown> | unknown;
   queryColumnar(query: unknown): Promise<ColumnarBatchV1> | ColumnarBatchV1;
   close?(): Promise<void> | void;
 }
@@ -393,7 +393,7 @@ const defaultDirectOpener: DirectGeoParquetOpener = async (source) => {
     throw new ColumnarWorkflowError("REQUEST_FAILED", `GeoParquet protocol handle is unavailable for ${source.id}.`);
   }
   return {
-    describe: () => handle.describe(),
+    describe: (signal) => handle.describe(signal),
     async queryColumnar(input) {
       const query = input as ColumnarWorkflowQuery;
       if (query.aggregations?.length) {
@@ -521,7 +521,14 @@ export const openColumnarSession = (
         });
       }
       const handle = await getDirectHandle(signal);
-      return normalizeDescription(source, await handle.describe());
+      try {
+        const description = await handle.describe(signal);
+        throwIfAborted(signal);
+        return normalizeDescription(source, description);
+      } catch (cause) {
+        throwIfAborted(signal);
+        throw cause;
+      }
     },
 
     plan,
@@ -559,6 +566,7 @@ export const openColumnarSession = (
             request.path,
             { headers: request.headers, body: request.body },
             query.signal,
+            { discardErrorBody: true },
           );
         } catch (error) {
           throwIfAborted(query.signal);
