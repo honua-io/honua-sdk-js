@@ -152,7 +152,10 @@ export type ColumnarResponseDecoder = (context: ColumnarResponseDecoderContext) 
 export interface ApacheArrowResponseDecoderOptions extends HonuaArrowWkbMappingOptions {}
 
 export interface DirectGeoParquetHandle {
-  /** Exact HTTP payload bytes admitted by the opener; zero when no workflow-owned network read occurred. */
+  /**
+   * Exact HTTP payload bytes admitted by the opener. They are charged only to
+   * the session operation that initiated this cached handle.
+   */
   readonly transferBytes?: number;
   describe(signal?: AbortSignal): Promise<unknown> | unknown;
   queryColumnar(query: unknown): Promise<ColumnarBatchV1> | ColumnarBatchV1;
@@ -288,6 +291,13 @@ const throwIfAborted = (signal?: AbortSignal): void => {
   }
 };
 
+const containsWidenedSpatialFilter = (filter: QueryFilterExpression): boolean => {
+  if (filter.kind === "spatial") return filter.geometry.geometryType !== "esriGeometryEnvelope";
+  if (filter.kind === "boolean") return filter.args.some(containsWidenedSpatialFilter);
+  if (filter.kind === "not") return containsWidenedSpatialFilter(filter.arg);
+  return false;
+};
+
 const validateQuery = (
   source: ColumnarWorkflowSource,
   query: ColumnarWorkflowQuery,
@@ -321,6 +331,12 @@ const validateQuery = (
     throw new ColumnarWorkflowError(
       "INVALID_QUERY",
       "Direct GeoParquet column projection is not supported by the bounded workflow.",
+    );
+  }
+  if (source.kind === "direct-geoparquet" && query.filter && containsWidenedSpatialFilter(query.filter)) {
+    throw new ColumnarWorkflowError(
+      "INVALID_QUERY",
+      "Direct GeoParquet spatial filter expressions must use an envelope so execution cannot widen the geometry.",
     );
   }
   for (const aggregation of query.aggregations ?? []) {
@@ -616,6 +632,7 @@ const defaultDirectOpener = async (
           },
           batchId: `${source.id}:0`,
           sequence: 0,
+          ...(query.offset === undefined ? {} : { rowOffset: query.offset }),
           limits: {
             maxRows: query.limit,
             maxVertices: Math.max(1, Math.min(2_147_483_647, Math.floor(budgets.maxBackingBytes / 16))),
@@ -692,12 +709,16 @@ export const openColumnarSession = (
     });
   };
 
-  const getDirectHandle = async (signal?: AbortSignal): Promise<DirectGeoParquetHandle> => {
+  const getDirectHandle = async (
+    signal?: AbortSignal,
+  ): Promise<{ readonly handle: DirectGeoParquetHandle; readonly openedByCaller: boolean }> => {
     throwIfAborted(signal);
     if (disposed) {
       throw new ColumnarWorkflowError("ABORTED", "Columnar workflow session is disposed.");
     }
+    let openedByCaller = false;
     if (!directHandlePromise) {
+      openedByCaller = true;
       const directSource = source as DirectGeoParquetColumnarSource;
       const pending = options.openDirectGeoParquet
         ? Promise.resolve(options.openDirectGeoParquet(directSource, directOpenAbort.signal))
@@ -743,7 +764,7 @@ export const openColumnarSession = (
         })
       : await pending;
     throwIfAborted(signal);
-    return opened;
+    return { handle: opened, openedByCaller };
   };
 
   return Object.freeze({
@@ -757,7 +778,7 @@ export const openColumnarSession = (
           format: source.format,
         });
       }
-      const handle = await getDirectHandle(signal);
+      const { handle } = await getDirectHandle(signal);
       try {
         const description = await handle.describe(signal);
         throwIfAborted(signal);
@@ -781,7 +802,7 @@ export const openColumnarSession = (
       const decoded = async function* (): AsyncIterable<ColumnarBatchV1> {
         throwIfAborted(query.signal);
         if (source.kind === "direct-geoparquet") {
-          const handle = await getDirectHandle(query.signal);
+          const { handle, openedByCaller } = await getDirectHandle(query.signal);
           if (query.bbox) {
             const description = normalizeDescription(source, await handle.describe(query.signal));
             if (!supportsWgs84Bbox(description.crs)) {
@@ -792,7 +813,7 @@ export const openColumnarSession = (
               );
             }
           }
-          const admittedBytes = handle.transferBytes ?? 0;
+          const admittedBytes = openedByCaller ? (handle.transferBytes ?? 0) : 0;
           if (!Number.isSafeInteger(admittedBytes) || admittedBytes < 0) {
             throw new ColumnarWorkflowError(
               "INVALID_RESPONSE",

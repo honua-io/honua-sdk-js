@@ -148,6 +148,41 @@ test("rejects spatial filter expressions instead of silently dropping their geom
   );
 });
 
+test("rejects direct spatial expressions that would widen a non-envelope geometry", () => {
+  let opened = false;
+  const session = openColumnarSession(directSource, {
+    openDirectGeoParquet: () => {
+      opened = true;
+      return { describe: () => ({}), queryColumnar: () => batch };
+    },
+  });
+  assert.throws(
+    () =>
+      session.plan({
+        filter: {
+          kind: "spatial",
+          operator: "intersects",
+          geometry: {
+            geometry: {
+              rings: [
+                [
+                  [-158, 21],
+                  [-157, 21],
+                  [-157, 22],
+                  [-158, 21],
+                ],
+              ],
+            },
+            geometryType: "esriGeometryPolygon",
+          },
+        },
+        limit: 2,
+      }),
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
+  );
+  assert.equal(opened, false);
+});
+
 test("preserves a deployment path prefix in planned request URLs", () => {
   const session = openColumnarSession({ ...serverSource, baseUrl: "https://example.test/honua/" });
   const plan = session.plan({ limit: 10 });
@@ -349,7 +384,25 @@ test("keeps direct execution bounded and surfaces metadata", async () => {
   const results = [];
   for await (const result of session.stream({ limit: 2 })) results.push(result);
   assert.equal(results[0]?.evidence.execution, "browser-bounded");
-  assert.equal(results[0]?.evidence.transferBytes, 96);
+  // inspect() initiated the cached opener, so this later stream performs no
+  // network read and must not report the object's bytes again.
+  assert.equal(results[0]?.evidence.transferBytes, 0);
+});
+
+test("charges direct transfer bytes only to the stream that initiates the cached opener", async () => {
+  const session = openColumnarSession(directSource, {
+    openDirectGeoParquet: async () => ({
+      transferBytes: 96,
+      describe: () => ({}),
+      queryColumnar: () => batch,
+    }),
+    inspectBatch: () => metrics,
+  });
+
+  const bytes: number[] = [];
+  for await (const result of session.stream({ limit: 2 })) bytes.push(result.evidence.transferBytes);
+  for await (const result of session.stream({ limit: 2 })) bytes.push(result.evidence.transferBytes);
+  assert.deepEqual(bytes, [96, 0]);
 });
 
 test("rejects unsupported direct column projections before opening the source", () => {
