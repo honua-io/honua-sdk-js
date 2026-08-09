@@ -1284,16 +1284,32 @@ function inspectGeometry(
   }
   if (scope === "full") {
     if (kind === "point") {
-      for (let row = 0; row < batch.rowCount; row += 1) {
-        if (!isValid(validity, row)) continue;
-        const point = names.map((name, dimension) =>
-          coordinateLayout === "interleaved"
-            ? coordinates.interleaved![row * names.length + dimension]!
-            : coordinates[name]![row]!,
-        );
-        const emptyPoint = point.every(Number.isNaN);
-        if (!emptyPoint && point.some((coordinate) => !Number.isFinite(coordinate))) {
-          fail("invalid-batch", "Point coordinates must be finite, or all NaN for an empty Point.");
+      let allCoordinatesFinite = true;
+      coordinateScan: for (const view of Object.values(coordinates)) {
+        if (!view) continue;
+        for (let index = 0; index < view.length; index += 1) {
+          if (!Number.isFinite(view[index]!)) {
+            allCoordinatesFinite = false;
+            break coordinateScan;
+          }
+        }
+      }
+      if (!allCoordinatesFinite) {
+        for (let row = 0; row < batch.rowCount; row += 1) {
+          if (!isValid(validity, row)) continue;
+          let allNaN = true;
+          let allFinite = true;
+          for (let dimension = 0; dimension < names.length; dimension += 1) {
+            const coordinate =
+              coordinateLayout === "interleaved"
+                ? coordinates.interleaved![row * names.length + dimension]!
+                : coordinates[names[dimension]!]![row]!;
+            allNaN &&= Number.isNaN(coordinate);
+            allFinite &&= Number.isFinite(coordinate);
+          }
+          if (!allNaN && !allFinite) {
+            fail("invalid-batch", "Point coordinates must be finite, or all NaN for an empty Point.");
+          }
         }
       }
     } else {
