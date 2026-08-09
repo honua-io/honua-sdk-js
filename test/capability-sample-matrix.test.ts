@@ -163,12 +163,13 @@ describe("capability-to-sample matrix contract", () => {
     // connect() discovery claims registered in issues #554 and #820
     // + the Cesium 3D scene workspace claim promoted to beta in issue #931.
     expect(matrix.supportClaims).toHaveLength(28);
-    // 56 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
+    // 57 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
     // manifest-advertised PMTiles plugin entrypoint published in issue #671)
     // + "./analytics" and "./analytics/uplot" (the linked-analytics contract
     // and its reference third-party chart adapter, issue #682)
-    // + "./kepler" (the optional Kepler.gl workspace bridge from issue #684).
-    expect(matrix.packageEntrypoints).toHaveLength(56);
+    // + "./kepler" (the optional Kepler.gl workspace bridge from issue #684)
+    // + "./cloud-native-discovery" (the normalized source discovery facade).
+    expect(matrix.packageEntrypoints).toHaveLength(57);
     // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
     // service-explorer are the four real, evidence-backed qualified samples
     // (the Imagery and Terrain, First Map, ArcGIS Migration Workbench, and
