@@ -110,13 +110,16 @@ export class HonuaStacSearch {
   private async dispatchSearch(request: StacSearchRequest): Promise<HonuaStacItemCollectionResponse> {
     const wire = this.withBase(request);
     if (wire.usePost !== true) return this.client.searchStac(wire);
-    if (this.postSearchUsable === false) return this.client.searchStac({ ...wire, usePost: false });
+    const allowPostFallback = request.allowPostFallback !== false;
+    if (this.postSearchUsable === false && allowPostFallback) {
+      return this.client.searchStac({ ...wire, usePost: false });
+    }
     try {
       const response = await this.client.searchStac(wire);
       this.postSearchUsable = true;
       return response;
     } catch (error) {
-      if (this.postSearchUsable !== undefined || request.signal?.aborted === true) throw error;
+      if (!allowPostFallback || this.postSearchUsable !== undefined || request.signal?.aborted === true) throw error;
       this.postSearchUsable = false;
       return this.client.searchStac({ ...wire, usePost: false });
     }

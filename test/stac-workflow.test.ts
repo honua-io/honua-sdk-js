@@ -133,6 +133,41 @@ describe("dynamic STAC workflows", () => {
     expect(new URL(requests[1] ?? "").searchParams.get("token")).toBe("page-two");
   });
 
+  it("observes and cancels a prefetched page when iteration stops early", async () => {
+    let prefetched = false;
+    let aborted = false;
+    const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
+      if (new URL(input.toString()).searchParams.has("token")) {
+        prefetched = true;
+        if (init?.signal?.aborted) {
+          aborted = true;
+          throw new DOMException("aborted", "AbortError");
+        }
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => {
+              aborted = true;
+              reject(new DOMException("aborted", "AbortError"));
+            },
+            { once: true },
+          );
+        });
+      }
+      return Response.json({
+        type: "FeatureCollection",
+        features: [{ ...MAUI_ITEM, id: "maui-1" }],
+        links: [{ rel: "next", href: "./search?token=page-two" }],
+      });
+    });
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", clientOptions: { fetchFn } });
+
+    for await (const _page of stac.pages({ method: "GET", pageSize: 1, maxPages: 2, prefetchPages: 1 })) break;
+
+    expect(prefetched).toBe(true);
+    expect(aborted).toBe(true);
+  });
+
   it("resolves relative catalog links without accepting unsafe schemes", () => {
     expect(resolveStacLink({ rel: "child", href: "./collections/maui" }, "https://stac.example.test/v1/")).toEqual({
       href: "https://stac.example.test/v1/collections/maui",
@@ -174,6 +209,28 @@ describe("dynamic STAC workflows", () => {
     expect(assets[0]?.href).toBe("https://stac.example.test/v1/collections/sentinel/items/visual.pmtiles");
   });
 
+  it("includes the configured mount path when resolving relative links", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async (input) => {
+      if (input.toString().includes("/collections")) return Response.json({ collections: [], links: [] });
+      return Response.json({ links: [{ rel: "data", href: "./collections" }] });
+    });
+    const stac = createDynamicStacClient({
+      baseUrl: "https://stac.example.test/api",
+      basePath: "/stac",
+      clientOptions: { fetchFn },
+    });
+
+    const catalog = await stac.catalog();
+
+    expect(catalog.links[0]?.href).toBe("https://stac.example.test/api/stac/collections");
+    expect(fetchFn.mock.calls.map(([input]) => input.toString())).toEqual(
+      expect.arrayContaining([
+        "https://stac.example.test/api/stac?f=json",
+        "https://stac.example.test/api/stac/collections?f=json",
+      ]),
+    );
+  });
+
   it("refreshes signed URLs but rejects unsupported assets", async () => {
     const refreshAssetUrl = vi.fn(async () => "https://signed.example.test/maui.tif?token=new");
     const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", refreshAssetUrl });
@@ -188,6 +245,27 @@ describe("dynamic STAC workflows", () => {
     };
     await expect(stac.selectAsset(unsupported)).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
     expect((await stac.assets(unsupported))[0]).toMatchObject({ format: "unsupported", maturity: "unavailable" });
+  });
+
+  it("does not treat projection or raster metadata as proof of a COG", async () => {
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1" });
+    const ordinaryTiff: HonuaStacItemResponse = {
+      ...MAUI_ITEM,
+      assets: {
+        visual: {
+          href: "./ordinary.tif",
+          type: "image/tiff",
+          roles: ["data"],
+          "proj:epsg": 32604,
+          "raster:bands": [{ name: "B04", common_name: "red" }],
+        },
+      },
+    };
+
+    const descriptor = (await stac.assets(ordinaryTiff))[0];
+    expect(descriptor).toMatchObject({ format: "unsupported", maturity: "unavailable" });
+    expect(descriptor?.handoff).toBeUndefined();
+    await expect(stac.selectAsset(ordinaryTiff)).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
   });
 
   it("propagates AbortSignal through search and signed URL refresh", async () => {
@@ -232,5 +310,21 @@ describe("dynamic STAC workflows", () => {
 
     await stac.search();
     expect(methods).toEqual(["GET", "GET", "POST"]);
+  });
+
+  it("does not fall back to GET when POST is explicitly requested", async () => {
+    const methods: string[] = [];
+    const stac = createDynamicStacClient({
+      baseUrl: "https://stac.example.test/v1",
+      clientOptions: {
+        fetchFn: async (_input, init) => {
+          methods.push(init?.method ?? "GET");
+          return Response.json({ message: "POST disabled" }, { status: 405 });
+        },
+      },
+    });
+
+    await expect(stac.search({ method: "POST", limit: 1 })).rejects.toThrow();
+    expect(methods).toEqual(["POST"]);
   });
 });

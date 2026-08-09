@@ -76,7 +76,8 @@ export interface DynamicStacClientOptions {
   readonly refreshAssetUrl?: StacSignedUrlRefresh;
 }
 
-export interface DynamicStacSearchRequest extends Omit<StacSearchRequest, "usePost" | "stacBasePath"> {
+export interface DynamicStacSearchRequest
+  extends Omit<StacSearchRequest, "usePost" | "allowPostFallback" | "stacBasePath"> {
   /** `auto` discovers POST support once and otherwise uses standard GET search. */
   readonly method?: StacSearchMethod;
 }
@@ -181,7 +182,7 @@ export class DynamicStacClient {
 
   public constructor(options: DynamicStacClientOptions) {
     this.baseUrl = normalizeHttpUrl(options.baseUrl, "STAC base URL");
-    this.resolutionBaseUrl = ensureDirectoryUrl(this.baseUrl);
+    this.resolutionBaseUrl = mountedStacBaseUrl(this.baseUrl, options.basePath ?? "");
     this.client = new HonuaClient({ baseUrl: this.baseUrl, ...options.clientOptions });
     this.api = new HonuaStacSearch({ client: this.client, basePath: options.basePath ?? "" });
     this.refreshAssetUrl = options.refreshAssetUrl;
@@ -222,16 +223,20 @@ export class DynamicStacClient {
     const abort = () => controller.abort();
     request.signal?.addEventListener("abort", abort, { once: true });
     if (request.signal?.aborted) controller.abort();
+    let iterator: AsyncGenerator<HonuaStacItemResponse[], void, undefined> | undefined;
+    let pending: Promise<IteratorResult<HonuaStacItemResponse[], void>> | undefined;
     try {
       const wire = await this.wireSearchRequest({ ...request, signal: controller.signal });
-      const iterator = this.api.searchStream({ ...wire, pageSize, maxPages, signal: controller.signal });
+      iterator = this.api.searchStream({ ...wire, pageSize, maxPages, signal: controller.signal });
       let current = await iterator.next();
       while (true) {
         if (current.done) break;
         if (request.prefetchPages === 1) {
-          const pending = iterator.next();
+          pending = iterator.next();
+          void pending.catch(() => undefined);
           yield current.value;
           current = await pending;
+          pending = undefined;
         } else {
           yield current.value;
           current = await iterator.next();
@@ -240,6 +245,8 @@ export class DynamicStacClient {
     } finally {
       request.signal?.removeEventListener("abort", abort);
       controller.abort();
+      if (pending) await pending.catch(() => undefined);
+      if (iterator) await iterator.return(undefined).catch(() => undefined);
     }
   }
 
@@ -297,7 +304,7 @@ export class DynamicStacClient {
   private async wireSearchRequest(request: DynamicStacSearchRequest): Promise<StacSearchRequest> {
     const { method = "auto", ...rest } = request;
     const usePost = method === "POST" || (method === "auto" && (await this.api.supportsPostSearch(request.signal)));
-    return { ...rest, usePost };
+    return { ...rest, usePost, allowPostFallback: method === "auto" };
   }
 }
 
@@ -333,12 +340,7 @@ function describeAsset(
   else if (mediaType?.includes("geoparquet") || mediaType?.includes("parquet") || path.endsWith(".parquet")) {
     format = mediaType?.includes("arrow") ? "geoarrow" : "geoparquet";
   } else if (mediaType?.includes("arrow") || path.endsWith(".arrow") || path.endsWith(".feather")) format = "geoarrow";
-  else if (
-    mediaType?.includes("cloud-optimized") ||
-    mediaType?.includes("profile=cloud-optimized") ||
-    ((mediaType?.includes("image/tiff") || path.endsWith(".tif") || path.endsWith(".tiff")) &&
-      (asset["raster:bands"] !== undefined || asset["proj:code"] !== undefined || asset["proj:epsg"] !== undefined))
-  ) {
+  else if (mediaType?.includes("cloud-optimized") || mediaType?.includes("profile=cloud-optimized")) {
     format = "cog";
   } else if (mediaType?.startsWith("image/") && !mediaType.includes("tiff")) format = "raster";
   if (asset.type) evidence.push(`media-type:${asset.type}`);
@@ -453,6 +455,21 @@ function normalizeHttpUrl(value: string, label: string): string {
 function ensureDirectoryUrl(value: string): string {
   const url = new URL(value);
   if (!url.pathname.endsWith("/")) url.pathname += "/";
+  return url.href;
+}
+
+function mountedStacBaseUrl(baseUrl: string, basePath: string): string {
+  let mountStart = 0;
+  while (mountStart < basePath.length && basePath.charCodeAt(mountStart) === 47) mountStart += 1;
+  let mountEnd = basePath.length;
+  while (mountEnd > mountStart && basePath.charCodeAt(mountEnd - 1) === 47) mountEnd -= 1;
+  const mount = basePath.slice(mountStart, mountEnd);
+  if (mount.length === 0) return ensureDirectoryUrl(baseUrl);
+
+  const url = new URL(baseUrl);
+  let baseEnd = url.pathname.length;
+  while (baseEnd > 0 && url.pathname.charCodeAt(baseEnd - 1) === 47) baseEnd -= 1;
+  url.pathname = `${url.pathname.slice(0, baseEnd)}/${mount}/`;
   return url.href;
 }
 
