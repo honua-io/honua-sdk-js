@@ -42,6 +42,10 @@ vi.setConfig({ testTimeout: 60_000 });
 const readJson = async (file: string) => JSON.parse(await readFile(file, "utf8"));
 const sha256 = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 const derivedArtifactsRelaxed = /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "");
+const isCapabilityNarrowing = (legacy: readonly string[], current: readonly string[]): boolean => {
+  const legacyKeys = new Set(legacy);
+  return current.every((key) => legacyKeys.has(key));
+};
 
 async function checkoutBoundHandoff(current: SiteConsumerHandoff): Promise<SiteConsumerHandoff> {
   // PR CI validates the newly generated authority set and the committed,
@@ -220,7 +224,12 @@ describe("honua-site consumer handoff", () => {
     expect(fixture).toMatchObject({ format: "honua.site.sdk-sample-consumer-fixture.v3", schemaVersion: 3 });
   });
 
-  it("publishes live-backed samples through v3 without forking catalog identities", async () => {
+  it("permits v3 to retire stale capability claims but rejects expansion under an existing identity", () => {
+    expect(isCapabilityNarrowing(["geocoding.forward", "geocoding.reverse"], ["geocoding.forward"])).toBe(true);
+    expect(isCapabilityNarrowing(["geocoding.forward"], ["geocoding.forward", "geocoding.reverse"])).toBe(false);
+  });
+
+  it("publishes live-backed samples through v3 without forking identities or adding capability claims", async () => {
     const [legacyProjection, projection, handoff, fixture] = await Promise.all([
       readJson("samples/dist/honua-site-samples.v2.json"),
       readJson("samples/dist/honua-site-samples.v3.json"),
@@ -243,9 +252,15 @@ describe("honua-site consumer handoff", () => {
       legacyProjection.samples.map((sample: { id: string }) => sample.id),
     );
     expect(projection.routes).toEqual(legacyProjection.routes);
-    expect(projection.samples.map((sample: { capabilityKeys: string[] }) => sample.capabilityKeys)).toEqual(
-      legacyProjection.samples.map((sample: { capabilityKeys: string[] }) => sample.capabilityKeys),
+    const legacyCapabilities = new Map<string, string[]>(
+      legacyProjection.samples.map((sample: { id: string; capabilityKeys: string[] }): [string, string[]] => [
+        sample.id,
+        sample.capabilityKeys,
+      ]),
     );
+    for (const sample of projection.samples as Array<{ id: string; capabilityKeys: string[] }>) {
+      expect(isCapabilityNarrowing(legacyCapabilities.get(sample.id) ?? [], sample.capabilityKeys)).toBe(true);
+    }
   });
 
   it("content-binds the committed handoff, upstream artifacts, schemas, and consumer fixture", async () => {
