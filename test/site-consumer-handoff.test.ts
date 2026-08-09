@@ -761,7 +761,7 @@ describe("honua-site consumer handoff", () => {
     const escapedPath = structuredClone(archive);
     escapedPath.entries[0].sourcePath = "../../forged-receipt.json";
     await expect(validateLegacyVisualReceiptArchive(escapedPath, legacyHandoff)).rejects.toThrow(
-      "legacy receipt archive identity, revision, path, or digest drift",
+      "JSON Schema validation failed",
     );
 
     const escapedProducerPath = structuredClone(archive);
