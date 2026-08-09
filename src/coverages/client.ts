@@ -721,7 +721,18 @@ function attributeValue(attributes: string, name: string): string | undefined {
 }
 
 function stripTags(value: string): string {
-  return value.replace(/<[^>]+>/g, "");
+  const text: string[] = [];
+  let insideTag = false;
+  for (const character of value) {
+    if (character === "<") {
+      insideTag = true;
+    } else if (character === ">") {
+      insideTag = false;
+    } else if (!insideTag) {
+      text.push(character);
+    }
+  }
+  return text.join("");
 }
 
 function decodeXml(value: string): string {

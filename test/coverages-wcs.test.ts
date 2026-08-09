@@ -231,4 +231,29 @@ describe("WCS 2.0.1 compatibility client", () => {
     expect(error).toBeInstanceOf(HonuaWcsExceptionError);
     expect(error).toMatchObject({ exceptionCode: "InvalidParameterValue", locator: "SUBSET", statusCode: 400 });
   });
+
+  it("extracts exception text without retaining adversarial markup", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://coverages.example",
+      fetchFn: vi.fn(
+        async () =>
+          new Response(
+            `<ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/2.0">
+              <ows:Exception exceptionCode="NoApplicableCode">
+                <ows:ExceptionText><scr<script>ipt>alert(1)</script>Safe &lt;coverage&gt; message</ows:ExceptionText>
+              </ows:Exception>
+            </ows:ExceptionReport>`,
+            { status: 400, headers: { "Content-Type": "application/xml" } },
+          ),
+      ),
+    });
+
+    const error = await createWcsClient(client, { basePath: "/ogc/services/7/wcs" })
+      .getCoverage("7", { subsets: [{ axis: "Lat", low: 99, high: 100 }] })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(HonuaWcsExceptionError);
+    expect(error).toMatchObject({ message: "iptalert(1)Safe <coverage> message" });
+    expect((error as Error).message.toLowerCase()).not.toContain("<script");
+  });
 });
