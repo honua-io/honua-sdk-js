@@ -79,8 +79,8 @@ than one source require an explicit `sourceId` in the locator/options or in
 `source(id)`—the kernel never chooses the first advertised source silently.
 
 <!-- support-manifest:release:start -->
-**Release status: beta** (`0.1.7-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 25 experimental subpaths may change before 1.0, and
+**Release status: beta** (`0.1.4-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
+by an API-surface gate; 17 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -166,10 +166,10 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 28 of the 35 generated support
+**Two deployment tiers, named up front.** 23 of the 28 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
-7 are `server-attach` and execute only after attaching to a Honua Server facade;
+5 are `server-attach` and execute only after attaching to a Honua Server facade;
 1 of those link a roadmap issue for an open-endpoint path and the rest state why the
 server dependency is inherent, in the generated
 [capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
@@ -300,17 +300,17 @@ generated from that measurement, tree-shake guards included:
 | Entrypoint (gzip) | Size |
 | --- | ---: |
 | `@honua/sdk-js/expr` | 2.4 KiB |
-| `@honua/sdk-js/geocoding` | 7.8 KiB |
+| `@honua/sdk-js/geocoding` | 7.6 KiB |
 | `@honua/sdk-js/webmap` | 7.6 KiB |
-| `@honua/sdk-js/style` | 16.1 KiB |
-| `@honua/sdk-js/map` | 51.5 KiB |
-| `@honua/sdk-js` (root) | 202.6 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 62.0 KiB |
-| `{ connect }` from the root (tree-shake guard) | 164.0 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 192.9 KiB |
+| `@honua/sdk-js/style` | 15.9 KiB |
+| `@honua/sdk-js/map` | 51.3 KiB |
+| `@honua/sdk-js` (root) | 201.5 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 61.7 KiB |
+| `{ connect }` from the root (tree-shake guard) | 163.4 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 192.3 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 164.0 KiB gzip and `{ createHonua }` 192.9 KiB against the 202.6 KiB root, so size-sensitive
+alone costs 163.4 KiB gzip and `{ createHonua }` 192.3 KiB against the 201.5 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -470,7 +470,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 35 executable examples: 4 qualified golden samples, 13 recipes, 15 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 33 executable examples: 4 qualified golden samples, 11 recipes, 15 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at
@@ -617,9 +617,9 @@ correctly use this SDK:
     The agent surface's security posture is documented in the
     [agent-safety threat model](./docs/agent-safety-threat-model.md).
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
-    `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
-    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/pmtiles`, `/stac`, `/raster`, `/coverages`, `/columnar-workflow`, `/kepler`, `/analytics`, `/analytics/uplot`, `/zarr`,
-    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 25 experimental subpaths in total.
+    `/nl-map-control`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
+    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/kepler`, `/analytics`, `/analytics/uplot`,
+    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 17 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
