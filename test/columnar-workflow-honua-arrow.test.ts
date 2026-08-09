@@ -64,6 +64,13 @@ const context = (
   };
 };
 
+const fullIdentity = () => ({
+  ...context().identity,
+  planId: "synthetic-arrow",
+  ordering: { stable: false as const, keys: [] },
+  freshness: { observedAt: "2026-08-09T00:00:00.000Z" },
+});
+
 const decode = async (input: ColumnarResponseDecoderContext) => {
   const batches = [];
   for await (const batch of createApacheArrowResponseDecoder()(input)) batches.push(batch);
@@ -257,7 +264,7 @@ test("preserves bounded GeoArrow CRS and edges metadata across Binary and LargeB
   }
 });
 
-test("decodes supported ISO and EWKB byte orders and Z coordinates without inferring CRS", async () => {
+test("decodes supported ISO and EWKB byte orders, Z coordinates, and embedded SRID", async () => {
   const batch = await decodeSynthetic([
     pointWkb([1, 2, 3], { littleEndian: false, dimensions: "xyz" }),
     pointWkb([4, 5, 6], { dimensions: "xyz", flavor: "ewkb", srid: 4326 }),
@@ -269,8 +276,8 @@ test("decodes supported ISO and EWKB byte orders and Z coordinates without infer
       [4, 5, 6],
     ],
   );
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crs, undefined);
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, undefined);
+  assert.equal(inspectGeoArrowBatch(batch).geometry.crs, "EPSG:4326");
+  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, "authority_code");
 });
 
 test("preserves null and empty Point, LineString, and Polygon semantics", async () => {
@@ -455,23 +462,33 @@ test("cancels an unbounded response stream as soon as the transfer ceiling is cr
   assert.ok(pulls < 10);
 });
 
-test("consumes zero, custom, and mixed embedded EWKB SRIDs without inferring batch CRS", async () => {
-  const batch = await decodeSynthetic([
-    pointWkb([1, 2]),
-    pointWkb([3, 4], { flavor: "ewkb", srid: 0 }),
-    pointWkb([5, 6], { flavor: "ewkb", srid: 987_654 }),
-    pointWkb([7, 8], { flavor: "ewkb", srid: 4326 }),
+test("propagates an embedded EWKB SRID instead of mislabeling its coordinates", () => {
+  const ewkb = new Uint8Array(25);
+  const view = new DataView(ewkb.buffer);
+  view.setUint8(0, 1);
+  view.setUint32(1, 0x2000_0001, true);
+  view.setUint32(5, 3857, true);
+  view.setFloat64(9, -17_575_317, true);
+  view.setFloat64(17, 2_427_237, true);
+  const geometryMetadata = new Map([
+    ["ARROW:extension:name", "geoarrow.wkb"],
+    ["ARROW:extension:metadata", JSON.stringify({ geometry_types: ["Point"] })],
   ]);
+  const recordBatch = {
+    numRows: 1,
+    schema: { fields: [{ name: "geometry", type: "Binary", metadata: geometryMetadata }] },
+    getChildAt: (index: number) => (index === 0 ? { get: () => ewkb } : null),
+  };
 
-  assert.deepEqual(
-    decodeGeoArrowBatch(batch).rows.map(({ geometry }) => geometry),
-    [
-      [1, 2],
-      [3, 4],
-      [5, 6],
-      [7, 8],
-    ],
-  );
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crs, undefined);
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, undefined);
+  const batch = decodeHonuaArrowWkbRecordBatch({
+    recordBatch,
+    id: "ewkb-srid",
+    sequence: 0,
+    schemaId: "places-v1",
+    identity: fullIdentity(),
+    maxRows: 1,
+    maxBackingBytes: 1024,
+  });
+  assert.equal(inspectGeoArrowBatch(batch).geometry.crs, "EPSG:3857");
+  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, "authority_code");
 });
