@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://honua.io/schemas/sdk-js/multidimensional-format-maturity.v1.json",
-  "title": "Internal NetCDF and HDF5 maturity descriptor",
+  "title": "Internal Zarr, NetCDF, and HDF5 maturity descriptor",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -37,7 +37,13 @@
     "sourceOfTruth": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["serverRepository", "serverCommit", "reconciledAt", "references"],
+      "required": [
+        "serverRepository",
+        "serverCommit",
+        "additionalServerEvidenceCommits",
+        "reconciledAt",
+        "references"
+      ],
       "properties": {
         "serverRepository": {
           "const": "honua-io/honua-server"
@@ -57,6 +63,14 @@
           "items": {
             "$ref": "#/$defs/reference"
           }
+        },
+        "additionalServerEvidenceCommits": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/additionalServerEvidenceCommit"
+          }
         }
       }
     },
@@ -74,13 +88,27 @@
         "unblockRule"
       ],
       "properties": {
-        "publicSdkExport": { "const": false },
-        "runnableSample": { "const": false },
-        "supportClaim": { "const": false },
-        "coverageClaim": { "const": false },
-        "browserFullFileDownload": { "const": false },
-        "studioApi": { "const": false },
-        "cliApi": { "const": false },
+        "publicSdkExport": {
+          "const": false
+        },
+        "runnableSample": {
+          "const": false
+        },
+        "supportClaim": {
+          "const": false
+        },
+        "coverageClaim": {
+          "const": false
+        },
+        "browserFullFileDownload": {
+          "const": false
+        },
+        "studioApi": {
+          "const": false
+        },
+        "cliApi": {
+          "const": false
+        },
         "unblockRule": {
           "type": "string",
           "minLength": 80
@@ -89,8 +117,8 @@
     },
     "trackedFormats": {
       "type": "array",
-      "minItems": 2,
-      "maxItems": 2,
+      "minItems": 3,
+      "maxItems": 3,
       "items": {
         "$ref": "#/$defs/trackedFormat"
       }
@@ -113,7 +141,12 @@
     "curriculum": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["currentState", "currentAllowedContent", "currentProhibitedContent", "futureSequence"],
+      "required": [
+        "currentState",
+        "currentAllowedContent",
+        "currentProhibitedContent",
+        "futureSequence"
+      ],
       "properties": {
         "currentState": {
           "const": "architecture-only"
@@ -122,13 +155,19 @@
           "type": "array",
           "minItems": 2,
           "uniqueItems": true,
-          "items": { "type": "string", "minLength": 10 }
+          "items": {
+            "type": "string",
+            "minLength": 10
+          }
         },
         "currentProhibitedContent": {
           "type": "array",
           "minItems": 4,
           "uniqueItems": true,
-          "items": { "type": "string", "minLength": 10 }
+          "items": {
+            "type": "string",
+            "minLength": 10
+          }
         },
         "futureSequence": {
           "type": "array",
@@ -144,18 +183,42 @@
     "reference": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "path", "url", "assertion"],
+      "required": [
+        "id",
+        "path",
+        "url",
+        "assertion"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^server-[a-z0-9-]+$" },
-        "path": { "type": "string", "minLength": 8 },
-        "url": { "type": "string", "format": "uri", "pattern": "^https://github\\.com/honua-io/honua-server/blob/[a-f0-9]{40}/" },
-        "assertion": { "type": "string", "minLength": 30 }
+        "id": {
+          "type": "string",
+          "pattern": "^server-[a-z0-9-]+$"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 8
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://github\\.com/honua-io/honua-server/blob/[a-f0-9]{40}/"
+        },
+        "assertion": {
+          "type": "string",
+          "minLength": 30
+        }
       }
     },
     "evidence": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["surface", "state", "statement", "evidenceRefs", "releaseBlocking"],
+      "required": [
+        "surface",
+        "state",
+        "statement",
+        "evidenceRefs",
+        "releaseBlocking"
+      ],
       "properties": {
         "surface": {
           "enum": [
@@ -166,87 +229,453 @@
             "worker-driver-image",
             "live-fixture",
             "live-canary",
-            "sdk-adapter"
+            "sdk-adapter",
+            "coverage-http",
+            "datacube-tile-http",
+            "wcs-http",
+            "version-codec-layout-contract"
           ]
         },
         "state": {
-          "enum": ["verified-source", "build-optional", "missing"]
+          "enum": [
+            "verified-source",
+            "build-optional",
+            "missing",
+            "implementation-evidenced",
+            "integration-tested",
+            "route-and-component-tested"
+          ]
         },
-        "statement": { "type": "string", "minLength": 35 },
+        "statement": {
+          "type": "string",
+          "minLength": 35
+        },
         "evidenceRefs": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "type": "string", "pattern": "^server-[a-z0-9-]+$" }
+          "items": {
+            "type": "string",
+            "pattern": "^server-[a-z0-9-]+$"
+          }
         },
-        "releaseBlocking": { "type": "boolean" }
+        "releaseBlocking": {
+          "type": "boolean"
+        },
+        "route": {
+          "type": "string",
+          "minLength": 10
+        },
+        "boundary": {
+          "type": "string",
+          "minLength": 40
+        }
       }
     },
     "trackedFormat": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "label", "role", "scopeBoundary", "evidence"],
+      "required": [
+        "id",
+        "label",
+        "role",
+        "scopeBoundary",
+        "maturity",
+        "evidence"
+      ],
       "properties": {
-        "id": { "enum": ["netcdf4", "hdf5"] },
-        "label": { "type": "string", "minLength": 4 },
-        "role": { "const": "maturity-track" },
-        "scopeBoundary": { "type": "string", "minLength": 60 },
+        "id": {
+          "enum": [
+            "netcdf4",
+            "hdf5",
+            "zarr"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 4
+        },
+        "role": {
+          "const": "maturity-track"
+        },
+        "scopeBoundary": {
+          "type": "string",
+          "minLength": 60
+        },
         "evidence": {
           "type": "array",
-          "minItems": 8,
-          "maxItems": 8,
-          "items": { "$ref": "#/$defs/evidence" }
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "maturity": {
+          "$ref": "#/$defs/maturity"
+        },
+        "contractLimits": {
+          "$ref": "#/$defs/contractLimits"
+        },
+        "publicationGates": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/publicationGate"
+          }
+        },
+        "architecture": {
+          "$ref": "#/$defs/architecture"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "id": {
+                "const": "zarr"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          },
+          "then": {
+            "required": [
+              "contractLimits",
+              "publicationGates",
+              "architecture"
+            ],
+            "properties": {
+              "evidence": {
+                "minItems": 10,
+                "maxItems": 10,
+                "type": "array"
+              },
+              "contractLimits": {
+                "$ref": "#/$defs/contractLimits"
+              },
+              "publicationGates": {
+                "type": "array",
+                "minItems": 10,
+                "maxItems": 10,
+                "items": {
+                  "$ref": "#/$defs/publicationGate"
+                }
+              },
+              "architecture": {
+                "$ref": "#/$defs/architecture"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "evidence": {
+                "minItems": 8,
+                "maxItems": 8,
+                "type": "array"
+              },
+              "contractLimits": false,
+              "publicationGates": false,
+              "architecture": false
+            }
+          }
+        }
+      ]
     },
     "referenceOnlyFormat": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "label", "role", "statement", "evidenceRefs"],
+      "required": [
+        "id",
+        "label",
+        "role",
+        "statement",
+        "evidenceRefs"
+      ],
       "properties": {
-        "id": { "const": "grib" },
-        "label": { "const": "GRIB / GRIB2" },
-        "role": { "const": "reference-only" },
-        "statement": { "type": "string", "minLength": 60 },
+        "id": {
+          "const": "grib"
+        },
+        "label": {
+          "const": "GRIB / GRIB2"
+        },
+        "role": {
+          "const": "reference-only"
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 60
+        },
         "evidenceRefs": {
           "type": "array",
           "minItems": 3,
           "uniqueItems": true,
-          "items": { "type": "string", "pattern": "^server-[a-z0-9-]+$" }
+          "items": {
+            "type": "string",
+            "pattern": "^server-[a-z0-9-]+$"
+          }
         }
       }
     },
     "releaseBlocker": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "appliesTo", "requirement", "evidenceNeeded"],
+      "required": [
+        "id",
+        "appliesTo",
+        "requirement",
+        "evidenceNeeded"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
         "appliesTo": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["netcdf4", "hdf5"] }
+          "items": {
+            "enum": [
+              "netcdf4",
+              "hdf5",
+              "zarr"
+            ]
+          }
         },
-        "requirement": { "type": "string", "minLength": 40 },
-        "evidenceNeeded": { "type": "string", "minLength": 40 }
+        "requirement": {
+          "type": "string",
+          "minLength": 40
+        },
+        "evidenceNeeded": {
+          "type": "string",
+          "minLength": 40
+        }
       }
     },
     "curriculumPhase": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["order", "id", "title", "entryCriteria", "learningOutcome"],
+      "required": [
+        "order",
+        "id",
+        "title",
+        "entryCriteria",
+        "learningOutcome"
+      ],
       "properties": {
-        "order": { "type": "integer", "minimum": 1 },
-        "id": { "enum": ["inspect-metadata", "request-bounded-slice", "render-or-analyze", "publish-walkthrough"] },
-        "title": { "type": "string", "minLength": 8 },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "id": {
+          "enum": [
+            "inspect-metadata",
+            "request-bounded-slice",
+            "render-or-analyze",
+            "publish-walkthrough"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 8
+        },
         "entryCriteria": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "type": "string", "pattern": "^[a-z0-9-]+$" }
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          }
         },
-        "learningOutcome": { "type": "string", "minLength": 40 }
+        "learningOutcome": {
+          "type": "string",
+          "minLength": 40
+        }
+      }
+    },
+    "additionalServerEvidenceCommit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "commit"
+      ],
+      "properties": {
+        "scope": {
+          "const": "zarr"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        }
+      }
+    },
+    "maturity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "client",
+        "server",
+        "endToEnd"
+      ],
+      "properties": {
+        "client": {
+          "$ref": "#/$defs/maturityState"
+        },
+        "server": {
+          "$ref": "#/$defs/maturityState"
+        },
+        "endToEnd": {
+          "$ref": "#/$defs/maturityState"
+        }
+      }
+    },
+    "maturityState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "summary"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "supported",
+            "experimental",
+            "metadata-only",
+            "unavailable"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 40
+        }
+      }
+    },
+    "nonEmptyStringList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 20
+      }
+    },
+    "contractLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "versions",
+        "codecs",
+        "layout",
+        "crs",
+        "budgets"
+      ],
+      "properties": {
+        "versions": {
+          "$ref": "#/$defs/nonEmptyStringList"
+        },
+        "codecs": {
+          "$ref": "#/$defs/nonEmptyStringList"
+        },
+        "layout": {
+          "$ref": "#/$defs/nonEmptyStringList"
+        },
+        "crs": {
+          "$ref": "#/$defs/nonEmptyStringList"
+        },
+        "budgets": {
+          "$ref": "#/$defs/nonEmptyStringList"
+        }
+      }
+    },
+    "publicationGate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "group",
+        "id",
+        "state",
+        "requirement"
+      ],
+      "properties": {
+        "group": {
+          "enum": [
+            "public-fixture",
+            "live-service",
+            "sdk-publication",
+            "sample-publication"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+$"
+        },
+        "state": {
+          "const": "missing"
+        },
+        "requirement": {
+          "type": "string",
+          "minLength": 40
+        }
+      }
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executionModes",
+        "futureResponsibilities",
+        "crossCutting"
+      ],
+      "properties": {
+        "executionModes": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "direct-object-range"
+            },
+            {
+              "const": "honua-server-operation"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "futureResponsibilities": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/futureResponsibility"
+          }
+        },
+        "crossCutting": {
+          "$ref": "#/$defs/nonEmptyStringList"
+        }
+      }
+    },
+    "futureResponsibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "statement"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "metadata",
+            "slice",
+            "tile"
+          ]
+        },
+        "statement": {
+          "type": "string",
+          "minLength": 50
+        }
       }
     }
   }

@@ -3,7 +3,7 @@
   "format": "honua.sdk-js.internal-multidimensional-format-maturity.v1",
   "schemaVersion": 1,
   "visibility": "internal-planning-only",
-  "title": "NetCDF4 and geospatial HDF5 client maturity boundary",
+  "title": "Zarr, NetCDF4, and geospatial HDF5 client maturity boundary",
   "sourceOfTruth": {
     "serverRepository": "honua-io/honua-server",
     "serverCommit": "61b7038e1887c98131aa217b6f0ae7869356a1f3",
@@ -68,6 +68,60 @@
         "path": "src/Honua.Core/Features/Raster/Multidimensional/Services/NotEnabledMultidimensionalCoverageMetadataReader.cs",
         "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/src/Honua.Core/Features/Raster/Multidimensional/Services/NotEnabledMultidimensionalCoverageMetadataReader.cs",
         "assertion": "The default managed multidimensional reader advertises no supported formats and throws a stable reader-unavailable error."
+      },
+      {
+        "id": "server-zarr-endpoints",
+        "path": "src/Honua.Server/Features/Protocols/Zarr/ZarrEndpoints.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/src/Honua.Server/Features/Protocols/Zarr/ZarrEndpoints.cs",
+        "assertion": "Maps versioned Zarr administration and public datacube tile routes."
+      },
+      {
+        "id": "server-zarr-endpoint-tests",
+        "path": "tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/ZarrEndpointTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/ZarrEndpointTests.cs",
+        "assertion": "Exercises register, list, get, and delete lifecycle operations through HTTP without proving a readable public store."
+      },
+      {
+        "id": "server-zarr-registration",
+        "path": "src/Honua.Server/Features/Infrastructure/Hosting/FeatureRegistrationExtensions.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/src/Honua.Server/Features/Infrastructure/Hosting/FeatureRegistrationExtensions.cs",
+        "assertion": "Registers Zarr services in the server composition root."
+      },
+      {
+        "id": "server-zarr-coverage-service",
+        "path": "src/Honua.Protocols.OgcApi/Coverages/Services/ZarrCoverageService.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/src/Honua.Protocols.OgcApi/Coverages/Services/ZarrCoverageService.cs",
+        "assertion": "Binds registered Zarr stores to OGC API Coverages and plans bounded CoverageJSON subsets."
+      },
+      {
+        "id": "server-zarr-subset-tests",
+        "path": "tests/dotnet/Honua.Core.Tests/Raster/ZarrParser/ZarrSubsetReaderTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/tests/dotnet/Honua.Core.Tests/Raster/ZarrParser/ZarrSubsetReaderTests.cs",
+        "assertion": "Proves chunk-aware bounded subset reads with deterministic in-memory fixtures."
+      },
+      {
+        "id": "server-zarr-datacube-tests",
+        "path": "tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/DatacubeTileEndpointTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/DatacubeTileEndpointTests.cs",
+        "assertion": "Proves the datacube HTTP route exists, but only records the no-registration negative path."
+      },
+      {
+        "id": "server-zarr-interface-proof",
+        "path": "docs/gis/data/public-interface-proof.json",
+        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/docs/gis/data/public-interface-proof.json",
+        "assertion": "Records datacube route coverage plus planner and renderer component evidence."
+      },
+      {
+        "id": "server-zarr-wcs-tests",
+        "path": "tests/dotnet/Honua.Protocols.OgcClassic.Tests/Source/Wcs20/Wcs20ZarrEndpointsTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/tests/dotnet/Honua.Protocols.OgcClassic.Tests/Source/Wcs20/Wcs20ZarrEndpointsTests.cs",
+        "assertion": "Exercises positive registered-Zarr native-CRS PNG slices and explicit unsupported cases through HTTP fixtures."
+      }
+    ],
+    "additionalServerEvidenceCommits": [
+      {
+        "scope": "zarr",
+        "commit": "639d37449fb8da5e9df4b12b7641ba4c6c5ac581"
       }
     ]
   },
@@ -79,7 +133,7 @@
     "browserFullFileDownload": false,
     "studioApi": false,
     "cliApi": false,
-    "unblockRule": "Do not design or publish an SDK adapter until the server provides versioned variable/dimension inspection and bounded subset HTTP contracts, explicit worker image proof, pinned live fixtures, and a live canary receipt for both tracked formats."
+    "unblockRule": "Do not design or publish an SDK adapter until each tracked format has a stable versioned metadata and bounded read contract, explicit runtime proof where applicable, pinned live fixtures, a deployed canary receipt, and reviewed bounded client evidence."
   },
   "trackedFormats": [
     {
@@ -92,59 +146,101 @@
           "surface": "admin-registration",
           "state": "verified-source",
           "statement": "The server has authenticated v1 admin registration CRUD for NetCdf4 objects; registration is catalog metadata, not readable client data.",
-          "evidenceRefs": ["server-registration-routes", "server-format-domain", "server-registration-validation", "server-registration-contract-tests"],
+          "evidenceRefs": [
+            "server-registration-routes",
+            "server-format-domain",
+            "server-registration-validation",
+            "server-registration-contract-tests"
+          ],
           "releaseBlocking": false
         },
         {
           "surface": "metadata-conversion-to-zarr",
           "state": "build-optional",
           "statement": "A separately deployed native worker can scan NetCDF metadata and best-effort convert the object to derived Zarr; this is not guaranteed in every server build or deployment.",
-          "evidenceRefs": ["server-path-b-decision", "server-scan-dispatch", "server-worker-conversion", "server-reader-disabled"],
+          "evidenceRefs": [
+            "server-path-b-decision",
+            "server-scan-dispatch",
+            "server-worker-conversion",
+            "server-reader-disabled"
+          ],
           "releaseBlocking": false
         },
         {
           "surface": "versioned-variable-dimension-http",
           "state": "missing",
           "statement": "No pinned public versioned HTTP contract proves client inspection of NetCDF variables, dimensions, coordinates, attributes, or conventions.",
-          "evidenceRefs": ["server-registration-routes", "server-registration-contract-tests"],
+          "evidenceRefs": [
+            "server-registration-routes",
+            "server-registration-contract-tests"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "bounded-subset-http",
           "state": "missing",
           "statement": "No pinned public versioned HTTP contract proves bounded NetCDF variable, time, vertical, or spatial subsetting with explicit limits.",
-          "evidenceRefs": ["server-path-b-decision", "server-registration-routes"],
+          "evidenceRefs": [
+            "server-path-b-decision",
+            "server-registration-routes"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "worker-driver-image",
           "state": "build-optional",
           "statement": "The pinned native worker Dockerfile checks for a netCDF GDAL driver at image build time, but no deployed image matrix or runtime receipt is pinned here.",
-          "evidenceRefs": ["server-worker-image", "server-worker-contract-tests"],
+          "evidenceRefs": [
+            "server-worker-image",
+            "server-worker-contract-tests"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "live-fixture",
           "state": "missing",
           "statement": "No immutable public or CI NetCDF fixture is bound to a real Honua registration, worker conversion, derived Zarr, and bounded result receipt.",
-          "evidenceRefs": ["server-registration-contract-tests", "server-worker-contract-tests"],
+          "evidenceRefs": [
+            "server-registration-contract-tests",
+            "server-worker-contract-tests"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "live-canary",
           "state": "missing",
           "statement": "No scheduled canary proves NetCDF registration through bounded read across a deployed server and worker version pair.",
-          "evidenceRefs": ["server-registration-contract-tests", "server-worker-contract-tests"],
+          "evidenceRefs": [
+            "server-registration-contract-tests",
+            "server-worker-contract-tests"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "sdk-adapter",
           "state": "missing",
           "statement": "The JavaScript SDK intentionally exposes no NetCDF adapter, types, error surface, package export, or runnable example.",
-          "evidenceRefs": ["server-reader-disabled", "server-registration-routes"],
+          "evidenceRefs": [
+            "server-reader-disabled",
+            "server-registration-routes"
+          ],
           "releaseBlocking": true
         }
-      ]
+      ],
+      "maturity": {
+        "client": {
+          "state": "unavailable",
+          "summary": "The JavaScript SDK exposes no NetCDF adapter, public types, request operations, or package entrypoint."
+        },
+        "server": {
+          "state": "metadata-only",
+          "summary": "Authenticated registration and build-optional metadata scanning exist, but no stable public variable or bounded subset read contract is proven."
+        },
+        "endToEnd": {
+          "state": "unavailable",
+          "summary": "No deployed server-to-JavaScript path proves bounded NetCDF inspection or subset semantics."
+        }
+      }
     },
     {
       "id": "hdf5",
@@ -156,59 +252,353 @@
           "surface": "admin-registration",
           "state": "verified-source",
           "statement": "The server has authenticated v1 admin registration CRUD for CloudOptimizedHdf5 objects; registration does not establish CF mapping or readable bytes.",
-          "evidenceRefs": ["server-registration-routes", "server-format-domain", "server-registration-validation", "server-registration-contract-tests"],
+          "evidenceRefs": [
+            "server-registration-routes",
+            "server-format-domain",
+            "server-registration-validation",
+            "server-registration-contract-tests"
+          ],
           "releaseBlocking": false
         },
         {
           "surface": "metadata-conversion-to-zarr",
           "state": "build-optional",
           "statement": "ADR-0039 routes HDF5 through the optional GDAL worker and derived Zarr, while the managed default reader remains disabled.",
-          "evidenceRefs": ["server-path-b-decision", "server-scan-dispatch", "server-worker-conversion", "server-reader-disabled"],
+          "evidenceRefs": [
+            "server-path-b-decision",
+            "server-scan-dispatch",
+            "server-worker-conversion",
+            "server-reader-disabled"
+          ],
           "releaseBlocking": false
         },
         {
           "surface": "versioned-variable-dimension-http",
           "state": "missing",
           "statement": "No pinned public versioned HTTP contract proves geospatial HDF5 dataset/group, variable, dimension, coordinate, attribute, or convention inspection.",
-          "evidenceRefs": ["server-registration-routes", "server-registration-contract-tests"],
+          "evidenceRefs": [
+            "server-registration-routes",
+            "server-registration-contract-tests"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "bounded-subset-http",
           "state": "missing",
           "statement": "No pinned public versioned HTTP contract proves bounded geospatial HDF5 variable, time, vertical, or spatial subset reads.",
-          "evidenceRefs": ["server-path-b-decision", "server-registration-routes"],
+          "evidenceRefs": [
+            "server-path-b-decision",
+            "server-registration-routes"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "worker-driver-image",
           "state": "missing",
           "statement": "The worker image commentary expects HDF support, but its executable build guard checks netCDF and GRIB only and no HDF5 driver/runtime matrix is pinned.",
-          "evidenceRefs": ["server-worker-image", "server-worker-contract-tests"],
+          "evidenceRefs": [
+            "server-worker-image",
+            "server-worker-contract-tests"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "live-fixture",
           "state": "missing",
           "statement": "No immutable geospatial HDF5 fixture is bound to a real Honua registration, worker conversion, derived Zarr, and bounded result receipt.",
-          "evidenceRefs": ["server-registration-contract-tests", "server-worker-contract-tests"],
+          "evidenceRefs": [
+            "server-registration-contract-tests",
+            "server-worker-contract-tests"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "live-canary",
           "state": "missing",
           "statement": "No scheduled canary proves geospatial HDF5 registration through bounded read across a deployed server and worker version pair.",
-          "evidenceRefs": ["server-registration-contract-tests", "server-worker-contract-tests"],
+          "evidenceRefs": [
+            "server-registration-contract-tests",
+            "server-worker-contract-tests"
+          ],
           "releaseBlocking": true
         },
         {
           "surface": "sdk-adapter",
           "state": "missing",
           "statement": "The JavaScript SDK intentionally exposes no HDF5 adapter, types, error surface, package export, generic group browser, or runnable example.",
-          "evidenceRefs": ["server-reader-disabled", "server-registration-routes"],
+          "evidenceRefs": [
+            "server-reader-disabled",
+            "server-registration-routes"
+          ],
           "releaseBlocking": true
         }
-      ]
+      ],
+      "maturity": {
+        "client": {
+          "state": "unavailable",
+          "summary": "The JavaScript SDK exposes no geospatial HDF5 adapter, public types, request operations, or package entrypoint."
+        },
+        "server": {
+          "state": "metadata-only",
+          "summary": "Authenticated registration and build-optional conversion architecture exist, but HDF5 driver and public bounded-read proof are missing."
+        },
+        "endToEnd": {
+          "state": "unavailable",
+          "summary": "No deployed server-to-JavaScript path proves geospatial HDF5 inspection or bounded subset semantics."
+        }
+      }
+    },
+    {
+      "id": "zarr",
+      "label": "Zarr v2 / v3",
+      "role": "maturity-track",
+      "scopeBoundary": "Read-only, bounded Zarr v2 and v3 metadata, subset, CoverageJSON, WCS, and datacube tile paths with explicit codec, layout, coordinate, CRS, and resource limits; no Zarr authoring, unrestricted enumeration, or implicit browser full-store download.",
+      "maturity": {
+        "client": {
+          "state": "unavailable",
+          "summary": "The JavaScript SDK exposes no Zarr connector, metadata reader, slice reader, tile client, or package entrypoint."
+        },
+        "server": {
+          "state": "experimental",
+          "summary": "Registration, bounded subset internals, CoverageJSON, WCS fixtures, and datacube route components exist without a positive public live canary."
+        },
+        "endToEnd": {
+          "state": "unavailable",
+          "summary": "No public deployment and JavaScript client jointly prove the pinned Zarr contract, budgets, errors, and rendering handoff."
+        }
+      },
+      "evidence": [
+        {
+          "surface": "admin-registration",
+          "state": "integration-tested",
+          "statement": "Versioned Zarr admin registration CRUD and refresh routes are composed and exercised through HTTP lifecycle tests.",
+          "evidenceRefs": [
+            "server-zarr-endpoints",
+            "server-zarr-endpoint-tests",
+            "server-zarr-registration"
+          ],
+          "releaseBlocking": false,
+          "route": "POST /api/v1/admin/zarr-stores with list, get, delete, and refresh operations",
+          "boundary": "The lifecycle test does not prove a readable public object-store fixture or a successful metadata refresh."
+        },
+        {
+          "surface": "versioned-variable-dimension-http",
+          "state": "implementation-evidenced",
+          "statement": "Server components parse bounded Zarr v2 and v3 metadata for registered stores, but no stable public metadata inspection contract is pinned.",
+          "evidenceRefs": [
+            "server-zarr-coverage-service",
+            "server-zarr-subset-tests"
+          ],
+          "releaseBlocking": true,
+          "route": "Registered-store metadata behind OGC API Coverages services",
+          "boundary": "Component evidence does not establish general store enumeration, consolidated metadata support, or a public versioned client contract."
+        },
+        {
+          "surface": "bounded-subset-http",
+          "state": "implementation-evidenced",
+          "statement": "Chunk-aware bounded subset reads and CoverageJSON planning exist with hard limits, but positive public HTTP proof is absent.",
+          "evidenceRefs": [
+            "server-zarr-coverage-service",
+            "server-zarr-subset-tests"
+          ],
+          "releaseBlocking": true,
+          "route": "GET /ogc/coverages/collections/{collectionId}/coverage",
+          "boundary": "Reader fixtures and service components do not replace a Zarr-specific positive deployed coverage receipt."
+        },
+        {
+          "surface": "coverage-http",
+          "state": "implementation-evidenced",
+          "statement": "ZarrCoverageService maps registered stores to collection, schema, and bounded CoverageJSON responses.",
+          "evidenceRefs": [
+            "server-zarr-coverage-service",
+            "server-zarr-subset-tests"
+          ],
+          "releaseBlocking": true,
+          "route": "GET /ogc/coverages/collections/{collectionId}/coverage",
+          "boundary": "No Zarr-specific positive OGC API Coverages HTTP round trip or public live response is pinned."
+        },
+        {
+          "surface": "datacube-tile-http",
+          "state": "route-and-component-tested",
+          "statement": "The public datacube route, planner, and PNG renderer components are evidenced for registered Zarr slices.",
+          "evidenceRefs": [
+            "server-zarr-endpoints",
+            "server-zarr-datacube-tests",
+            "server-zarr-interface-proof"
+          ],
+          "releaseBlocking": true,
+          "route": "GET /api/v1/datacubes/{layerId}/tiles/{tileMatrixSetId}/{z}/{x}/{y}",
+          "boundary": "The endpoint test is negative-path only and does not prove a positive registered-store HTTP or live tile response."
+        },
+        {
+          "surface": "wcs-http",
+          "state": "integration-tested",
+          "statement": "WCS 2.0.1 fixtures return bounded native-CRS PNG slices for registered Zarr data and exercise explicit failures.",
+          "evidenceRefs": [
+            "server-zarr-wcs-tests"
+          ],
+          "releaseBlocking": true,
+          "route": "WCS 2.0.1 GetCoverage through ImageServer and service routes",
+          "boundary": "TIFF and range-subset composition remain unsupported and no public live WCS receipt is pinned."
+        },
+        {
+          "surface": "version-codec-layout-contract",
+          "state": "implementation-evidenced",
+          "statement": "The audited implementation has explicit v2/v3, codec, chunk layout, coordinate, CRS, and resource-budget boundaries.",
+          "evidenceRefs": [
+            "server-zarr-coverage-service",
+            "server-zarr-subset-tests",
+            "server-zarr-wcs-tests"
+          ],
+          "releaseBlocking": true,
+          "route": "Internal Zarr metadata and chunk readers used by coverage and tile services",
+          "boundary": "The implementation matrix is not yet backed by immutable public v2/v3 fixtures and deterministic range traces."
+        },
+        {
+          "surface": "live-fixture",
+          "state": "missing",
+          "statement": "No immutable redistributable Zarr v2 and v3 fixtures are bound to expected metadata, subset, tile, and range-trace digests.",
+          "evidenceRefs": [
+            "server-zarr-subset-tests",
+            "server-zarr-wcs-tests"
+          ],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "live-canary",
+          "state": "missing",
+          "statement": "No scheduled public canary proves advertised Zarr coverage and datacube routes against a pinned deployment.",
+          "evidenceRefs": [
+            "server-zarr-datacube-tests",
+            "server-zarr-interface-proof"
+          ],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "sdk-adapter",
+          "state": "missing",
+          "statement": "The JavaScript SDK intentionally exposes no Zarr adapter, types, errors, package export, or runnable sample.",
+          "evidenceRefs": [
+            "server-zarr-coverage-service",
+            "server-zarr-subset-tests"
+          ],
+          "releaseBlocking": true
+        }
+      ],
+      "contractLimits": {
+        "versions": [
+          "Zarr v2 reads .zgroup, .zattrs, and .zarray; grouped discovery depends on an optional attributes variables manifest.",
+          "Zarr v3 reads root and child zarr.json nodes; grouped discovery depends on the root attributes variables list and is not general store enumeration."
+        ],
+        "codecs": [
+          "Tested reads cover v2 uncompressed and zlib chunks plus v3 uncompressed and gzip chunks.",
+          "Zarr v3 zstd, blosc, sharding_indexed, crc32c, and unknown codecs are rejected.",
+          "Filters, Fortran order, big-endian values, and unsupported non-numeric data types are rejected."
+        ],
+        "layout": [
+          "C-order regular chunk grids are supported, including v3 c-prefixed and v2-style dotted chunk keys.",
+          "Coordinates depend on Honua variable, dimension, extent, and CRS attributes rather than unrestricted CF/Zarr inference."
+        ],
+        "crs": [
+          "Server georeferencing reads Honua crs_wkid and extent attributes when present.",
+          "Datacube tile requests require the tile matrix set SRID to equal the coverage storage SRID.",
+          "Cross-CRS reprojection of a Zarr tile window is not implemented."
+        ],
+        "budgets": [
+          "Metadata documents are capped at 64 KiB and discovery is capped at 64 variables.",
+          "The subset reader caps a request at 4096 chunks and 256 MiB decoded data.",
+          "OGC API Coverage output is capped at 16 MiB decoded data and a datacube tile slice at 4 MiB decoded data."
+        ]
+      },
+      "publicationGates": [
+        {
+          "group": "public-fixture",
+          "id": "immutable-fixture",
+          "state": "missing",
+          "requirement": "Publish a redistributable immutable fixture URL, license, SHA-256 digest, expected metadata, subset digest, and tile digest."
+        },
+        {
+          "group": "public-fixture",
+          "id": "version-matrix",
+          "state": "missing",
+          "requirement": "Cover one supported Zarr v2 store and one supported Zarr v3 store across codec, CRS, spatial, temporal, vertical, and named dimensions."
+        },
+        {
+          "group": "public-fixture",
+          "id": "range-proof",
+          "state": "missing",
+          "requirement": "Record deterministic byte-range traces proving chunk-bounded reads and rejection at declared request limits."
+        },
+        {
+          "group": "live-service",
+          "id": "advertised-contract",
+          "state": "missing",
+          "requirement": "Record a deployed server commit and capability manifest that advertise the exact Zarr-backed routes under test."
+        },
+        {
+          "group": "live-service",
+          "id": "positive-coverage",
+          "state": "missing",
+          "requirement": "Fetch a bounded public Zarr-backed OGC API Coverage subset and verify media type, byte limit, axes, shape, and digest."
+        },
+        {
+          "group": "live-service",
+          "id": "positive-tile",
+          "state": "missing",
+          "requirement": "Fetch a public Zarr-backed datacube PNG tile and verify media type, dimensions, byte limit, and digest."
+        },
+        {
+          "group": "sdk-publication",
+          "id": "stable-server-contract",
+          "state": "missing",
+          "requirement": "Pin a versioned server contract for registration, metadata, subset, tile, version, codec, coordinate, CRS, and errors."
+        },
+        {
+          "group": "sdk-publication",
+          "id": "bounded-client",
+          "state": "missing",
+          "requirement": "Implement typed metadata, slice, and tile operations with byte and chunk budgets, cancellation, auth, interception, and typed errors."
+        },
+        {
+          "group": "sdk-publication",
+          "id": "client-evidence",
+          "state": "missing",
+          "requirement": "Pass deterministic fixture contracts and scheduled live evidence without adding unsupported codecs or coordinate inference."
+        },
+        {
+          "group": "sample-publication",
+          "id": "public-api-first",
+          "state": "missing",
+          "requirement": "Publish a runnable sample only after the SDK export exists and both fixture and live evidence gates pass."
+        }
+      ],
+      "architecture": {
+        "executionModes": [
+          "direct-object-range",
+          "honua-server-operation"
+        ],
+        "futureResponsibilities": [
+          {
+            "id": "metadata",
+            "statement": "Describe groups, arrays, dimensions, chunks, data types, codecs, fill values, coordinates, CRS, and consolidated metadata without array payload downloads."
+          },
+          {
+            "id": "slice",
+            "statement": "Read an explicitly bounded spatial, temporal, vertical, or named-dimension slice through chunk-aware requests."
+          },
+          {
+            "id": "tile",
+            "statement": "Request a bounded server datacube tile or adapt an admitted two-dimensional slice without hiding CRS or resampling limits."
+          }
+        ],
+        "crossCutting": [
+          "Cancellation and authentication must flow through the shared request pipeline.",
+          "Request interception must expose every metadata, range, subset, and tile request.",
+          "Byte, chunk, dimension, and decoded-output budgets must default closed and remain observable.",
+          "Unsupported versions, codecs, coordinates, and CRS transformations must fail with typed errors.",
+          "Direct object-store access and Honua server operations must remain distinct execution modes."
+        ]
+      }
     }
   ],
   "referenceOnlyFormats": [
@@ -217,52 +607,116 @@
       "label": "GRIB / GRIB2",
       "role": "reference-only",
       "statement": "Server source includes a Grib registration enum, extension validation, conversion-path test reference, and GDAL image guard. GRIB is outside issue #1121 and creates no SDK roadmap, support claim, or curriculum lane here.",
-      "evidenceRefs": ["server-format-domain", "server-registration-validation", "server-worker-image", "server-worker-contract-tests"]
+      "evidenceRefs": [
+        "server-format-domain",
+        "server-registration-validation",
+        "server-worker-image",
+        "server-worker-contract-tests"
+      ]
     }
   ],
   "releaseBlockers": [
     {
       "id": "server-versioned-metadata-http",
-      "appliesTo": ["netcdf4", "hdf5"],
+      "appliesTo": [
+        "netcdf4",
+        "hdf5"
+      ],
       "requirement": "Publish a stable versioned HTTP operation for bounded variable, dimension, coordinate, attribute, and convention inspection.",
       "evidenceNeeded": "Server contract tests and generated protocol documentation pinned to an immutable server commit."
     },
     {
       "id": "server-bounded-subset-http",
-      "appliesTo": ["netcdf4", "hdf5"],
+      "appliesTo": [
+        "netcdf4",
+        "hdf5"
+      ],
       "requirement": "Publish bounded variable, spatial, temporal, and vertical subset operations without whole-file fallback.",
       "evidenceNeeded": "Positive and limit-rejection contract tests covering range, byte, cell, variable, and timeout budgets."
     },
     {
       "id": "worker-driver-image-matrix",
-      "appliesTo": ["netcdf4", "hdf5"],
+      "appliesTo": [
+        "netcdf4",
+        "hdf5"
+      ],
       "requirement": "Pin an explicit NetCDF4 and HDF5 GDAL driver/image/version matrix for every supported deployment profile.",
       "evidenceNeeded": "Image build assertions plus deployed runtime receipts for each claimed format and architecture."
     },
     {
       "id": "pinned-live-format-fixtures",
-      "appliesTo": ["netcdf4", "hdf5"],
+      "appliesTo": [
+        "netcdf4",
+        "hdf5"
+      ],
       "requirement": "Bind immutable, license-safe fixtures with known variables, dimensions, coordinates, chunks, fill values, and expected subset digests.",
       "evidenceNeeded": "Fixture hashes, registration receipt, conversion artifact digest, and deterministic bounded response assertions."
     },
     {
       "id": "deployed-live-canary",
-      "appliesTo": ["netcdf4", "hdf5"],
+      "appliesTo": [
+        "netcdf4",
+        "hdf5"
+      ],
       "requirement": "Continuously prove the complete server and native-worker path against pinned deployed versions.",
       "evidenceNeeded": "Scheduled redacted canary receipts covering metadata, bounded subsets, cancellation, auth, failures, and derived-artifact provenance."
     },
     {
       "id": "sdk-adapter-contract",
-      "appliesTo": ["netcdf4", "hdf5"],
+      "appliesTo": [
+        "netcdf4",
+        "hdf5"
+      ],
       "requirement": "Design the client only after server proof, with bounded requests, typed metadata/errors, cancellation, auth, interceptors, cache rules, and safe render/columnar handoffs.",
       "evidenceNeeded": "Reviewed public API design, fixtures, unit and server contract tests, package inventory updates, support truth, and gallery admission evidence."
+    },
+    {
+      "id": "zarr-immutable-fixture-and-version-matrix",
+      "appliesTo": [
+        "zarr"
+      ],
+      "requirement": "Publish immutable Zarr v2 and v3 fixtures covering supported codecs, layouts, dimensions, coordinates, CRS, and expected results.",
+      "evidenceNeeded": "License, SHA-256 digests, expected metadata, subset and tile digests, and deterministic byte-range traces at declared limits."
+    },
+    {
+      "id": "zarr-positive-server-routes",
+      "appliesTo": [
+        "zarr"
+      ],
+      "requirement": "Prove advertised Zarr-backed CoverageJSON, WCS, and datacube tile routes against a pinned public deployment.",
+      "evidenceNeeded": "Capability manifest, server commit, request receipts, media types, axes, shapes, dimensions, byte ceilings, and output digests."
+    },
+    {
+      "id": "zarr-stable-version-codec-contract",
+      "appliesTo": [
+        "zarr"
+      ],
+      "requirement": "Stabilize public metadata, subset, tile, version, codec, layout, coordinate, CRS, error, and request-budget semantics.",
+      "evidenceNeeded": "Generated server contract documentation plus positive and limit-rejection tests for every admitted version and codec lane."
+    },
+    {
+      "id": "zarr-bounded-sdk-client",
+      "appliesTo": [
+        "zarr"
+      ],
+      "requirement": "Implement reviewed metadata, slice, and tile operations with typed errors and closed resource budgets.",
+      "evidenceNeeded": "Public API review, package inventory, cancellation, auth, interceptor, fixture, live, and packed-artifact evidence."
+    },
+    {
+      "id": "zarr-sample-publication",
+      "appliesTo": [
+        "zarr"
+      ],
+      "requirement": "Keep runnable Zarr curriculum withheld until the executable SDK and public fixture and live-service gates pass.",
+      "evidenceNeeded": "Admitted SDK export, deterministic example receipt, live canary, expected output, troubleshooting, and provenance evidence."
     }
   ],
   "curriculum": {
     "currentState": "architecture-only",
     "currentAllowedContent": [
       "Internal maturity matrix with pinned server source evidence",
-      "Architecture guidance that names blockers and safe boundaries"
+      "Architecture guidance that names blockers and safe boundaries",
+      "Pinned Zarr server implementation evidence and explicit v2/v3 contract limits"
     ],
     "currentProhibitedContent": [
       "Public SDK API or package subpath export",
@@ -275,28 +729,41 @@
         "order": 1,
         "id": "inspect-metadata",
         "title": "Inspect one variable",
-        "entryCriteria": ["server-versioned-metadata-http", "worker-driver-image-matrix", "pinned-live-format-fixtures"],
+        "entryCriteria": [
+          "server-versioned-metadata-http",
+          "worker-driver-image-matrix",
+          "pinned-live-format-fixtures"
+        ],
         "learningOutcome": "Identify a supported variable, dimensions, coordinate axes, units, chunks, fill value, CRS mapping, and server-enforced bounds."
       },
       {
         "order": 2,
         "id": "request-bounded-slice",
         "title": "Request one bounded slice",
-        "entryCriteria": ["server-bounded-subset-http", "deployed-live-canary"],
+        "entryCriteria": [
+          "server-bounded-subset-http",
+          "deployed-live-canary"
+        ],
         "learningOutcome": "Select one variable and bounded spatial, temporal, and vertical interval with cancellation and deterministic expected output."
       },
       {
         "order": 3,
         "id": "render-or-analyze",
         "title": "Choose a safe handoff",
-        "entryCriteria": ["sdk-adapter-contract"],
+        "entryCriteria": [
+          "sdk-adapter-contract"
+        ],
         "learningOutcome": "Project the bounded result to an admitted coverage/raster descriptor or Arrow-style columnar handoff without loading the source file."
       },
       {
         "order": 4,
         "id": "publish-walkthrough",
         "title": "Publish the task walkthrough",
-        "entryCriteria": ["pinned-live-format-fixtures", "deployed-live-canary", "sdk-adapter-contract"],
+        "entryCriteria": [
+          "pinned-live-format-fixtures",
+          "deployed-live-canary",
+          "sdk-adapter-contract"
+        ],
         "learningOutcome": "Run a pinned end-to-end task with expected output, failure troubleshooting, source provenance, and a complete-project link."
       }
     ]
