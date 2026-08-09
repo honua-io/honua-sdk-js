@@ -19,6 +19,24 @@ instead of relying on prose or fixture-specific validator knowledge. The OGC
 projection also checks in a bounded OpenAPI definition for exactly the routes
 and query parameters implemented by the harness.
 
+`first-map/v1` remains the byte-compatible synthetic harness baseline.
+`first-map/v2` is a governed real-geography pack containing the 48 Maui County
+tracts selected from the SHA-256-pinned 2025 Census TIGER/Line Hawaii tract
+archive. Its pure-JavaScript refresh job verifies the upstream data and terms
+digests, uses the repository-pinned Node/proj4 toolchain, and derives both
+protocol projections from one canonical `MultiPolygon` model without
+simplification:
+
+```sh
+npm run samples:fixtures:first-map-v2
+npm run samples:fixtures:first-map-v2:write
+```
+
+Fixture pack v2 license records are closed by
+`samples/scenarios/fixture-license-registry.mjs`. Callers cannot introduce an
+arbitrary SPDX expression, `LicenseRef`, terms URL, digest, or obligation
+override.
+
 Verify every pack:
 
 ```sh

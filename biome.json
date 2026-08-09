@@ -47,9 +47,16 @@
           }
         }
       }
+    },
+    {
+      "include": ["packages/create-honua-app/package.json"],
+      "formatter": {
+        "lineWidth": 80
+      }
     }
   ],
   "files": {
+    "maxSize": 4194304,
     "include": [
       "src/**/*.ts",
       "test/**/*.ts",
@@ -75,7 +82,8 @@
       "src/gen",
       "src/contract/generated",
       "test/fixtures",
-      "examples/arcgis-source-app"
+      "examples/arcgis-source-app",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json"
     ]
   }
 }

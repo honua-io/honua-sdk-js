@@ -202,6 +202,11 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
     assert.match(workflow, /\["SDK CI","PR issue disposition","Schema sync gate","Security"\]/u);
     assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --watch --fail-fast/u);
+    const mergeWait = workflow.slice(
+      workflow.indexOf("- name: Merge validated regeneration PR"),
+      workflow.indexOf("- name: Dispatch strict trunk CI and docs validation"),
+    );
+    assert.match(mergeWait, /timeout-minutes: 50/u);
     assert.match(workflow, /current_trunk="\$\(git rev-parse refs\/remotes\/origin\/trunk\)"/u);
     assert.match(workflow, /gh pr merge "\$PR_NUMBER"[\s\S]*--merge[\s\S]*--match-head-commit "\$GENERATED"/u);
     assert.match(workflow, /gh workflow run regenerate-derived-artifacts\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u);
@@ -214,6 +219,24 @@ describe("pull request issue disposition policy", () => {
     assert.ok(comparisonCommand > llmsGeneration && llmsCommand > comparisonCommand);
     assert.ok(llmsVerification > llmsGeneration);
     assert.match(workflow, /name: Verify llms\.txt freshness before publication[\s\S]*run: npm run verify:llms/u);
+    const sampleGeneration = workflow.indexOf("name: Regenerate sample dist projections");
+    const finalLlmsGeneration = workflow.indexOf(
+      "name: Regenerate and verify llms aggregate after sample projection",
+    );
+    const finalLlmsCommand = workflow.indexOf("npm run docs:llms", finalLlmsGeneration);
+    const finalLlmsVerification = workflow.indexOf("npm run verify:llms", finalLlmsGeneration);
+    const evidenceCommit = workflow.indexOf("name: Stage and commit resealed evidence locally");
+    assert.ok(
+      sampleGeneration >= 0 &&
+        finalLlmsGeneration > sampleGeneration &&
+        finalLlmsCommand > finalLlmsGeneration &&
+        finalLlmsVerification > finalLlmsCommand &&
+        evidenceCommit > finalLlmsVerification,
+    );
+    assert.match(
+      workflow,
+      /name: Stage and commit resealed evidence locally[\s\S]*git add -A --[\s\S]*llms\.txt \\[\s\S]*llms-full\.txt \\/u,
+    );
     assert.doesNotMatch(workflow, /git push origin "\$generated:refs\/heads\/trunk"/u);
   });
 
@@ -235,7 +258,7 @@ describe("pull request issue disposition policy", () => {
     );
     assert.match(
       workflow,
-      /^  release-please-disposition:\n    needs: release-please\n    runs-on: ubuntu-latest\n    permissions:\n      checks: write\n      contents: read\n      issues: read\n      pull-requests: read$/mu,
+      /^  release-please-disposition:\n    needs: \[release-please, release-please-refresh, release-please-ci\]\n[\s\S]*?    runs-on: ubuntu-latest\n    permissions:\n      checks: write\n      contents: read\n      issues: read\n      pull-requests: read$/mu,
     );
     assert.equal(actionUses.length, usesLines.length);
     assert.ok(actionUses.length > 0);

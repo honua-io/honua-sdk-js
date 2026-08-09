@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { deflateSync } from "node:zlib";
 
@@ -937,7 +938,7 @@ test("packed receipt re-reads the final dist tree instead of trusting its invent
       /does not match the bounded sample dist tree|bundle digest/,
     );
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1039,7 +1040,7 @@ test("bounded canonical reads reject a forced symlink swap and size growth", asy
       /changed|exceeds/,
     );
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
     await rm(outside, { recursive: true, force: true });
   }
 });
@@ -1077,7 +1078,7 @@ test("bounded canonical reads reject a FIFO swap without blocking", { skip: proc
     assert.equal(result.error, undefined, result.error?.message);
     assert.equal(result.status, 0, result.stderr);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1257,6 +1258,62 @@ function git(root, args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 }
 
+const TEMPORARY_REPOSITORY_REMOVE_RETRIES = 4;
+const TEMPORARY_REPOSITORY_REMOVE_RETRY_DELAY_MS = 25;
+const TRANSIENT_REMOVE_ERROR_CODES = new Set(["EBUSY", "ENOTEMPTY", "EPERM"]);
+
+async function removeTemporaryRepository(repository, { removeDirectory = rm, wait = delay } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await removeDirectory(repository, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!TRANSIENT_REMOVE_ERROR_CODES.has(error?.code) || attempt >= TEMPORARY_REPOSITORY_REMOVE_RETRIES) {
+        throw error;
+      }
+      await wait(TEMPORARY_REPOSITORY_REMOVE_RETRY_DELAY_MS * (attempt + 1));
+    }
+  }
+}
+
+test("temporary Git repository cleanup retries transient removal races with bounded backoff", async () => {
+  let attempts = 0;
+  const waits = [];
+  const transientRemove = async () => {
+    attempts += 1;
+    if (attempts < 3) throw Object.assign(new Error("pack directory is still busy"), { code: "ENOTEMPTY" });
+  };
+  await removeTemporaryRepository("/tmp/repository", {
+    removeDirectory: transientRemove,
+    wait: async (milliseconds) => waits.push(milliseconds),
+  });
+  assert.equal(attempts, 3);
+  assert.deepEqual(waits, [25, 50]);
+
+  attempts = 0;
+  await assert.rejects(
+    removeTemporaryRepository("/tmp/repository", {
+      removeDirectory: async () => {
+        attempts += 1;
+        throw Object.assign(new Error("pack directory stayed busy"), { code: "ENOTEMPTY" });
+      },
+      wait: async () => {},
+    }),
+    /pack directory stayed busy/,
+  );
+  assert.equal(attempts, TEMPORARY_REPOSITORY_REMOVE_RETRIES + 1);
+
+  await assert.rejects(
+    removeTemporaryRepository("/tmp/repository", {
+      removeDirectory: async () => {
+        throw Object.assign(new Error("permission denied"), { code: "EACCES" });
+      },
+      wait: async () => assert.fail("non-transient removal errors must not retry"),
+    }),
+    /permission denied/,
+  );
+});
+
 async function integrityRepository({ trackedEvidence = false } = {}) {
   const repository = await mkdtemp(path.join(os.tmpdir(), "honua-gate-source-"));
   await mkdir(path.join(repository, "scripts"), { recursive: true });
@@ -1309,7 +1366,7 @@ test("evidence-neutral digest ignores changes outside the sample-relevant allowl
     assert.equal(evidenceNeutralSourceDigest(repository), digest);
     assert.equal(verifyEvidenceNeutralCheckout(digest, repository), digest);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1417,7 +1474,7 @@ test("evidence-neutral digest still tracks the sample-relevant allowlist (#746 R
     git(repository, ["commit", "--quiet", "-m", "first-map playwright config change"]);
     assert.notEqual(evidenceNeutralSourceDigest(repository), playwrightConfigDigest);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1435,7 +1492,7 @@ test("evidence-neutral source binding survives evidence-only changes and commits
     assert.equal(evidenceNeutralSourceDigest(repository), digest);
     assert.equal(verifyEvidenceNeutralCheckout(digest, repository), digest);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1468,7 +1525,7 @@ test("persisted source binding rejects missing and source-different revisions, b
       /source revision does not match its source digest/,
     );
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1481,7 +1538,7 @@ test("source binding rejects assume-unchanged and skip-worktree inputs", async (
     git(repository, ["update-index", "--skip-worktree", "samples/.keep"]);
     assert.throws(() => verifyEvidenceNeutralCheckout(undefined, repository), /skip-worktree/);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1522,7 +1579,7 @@ test("source snapshot preserves prior canonical evidence and isolates fresh run 
     await writeFile(prior, '{"status":"forged"}\n');
     await assert.rejects(verifyGateSourceSnapshot(sourceSnapshot, repository), /unrelated canonical evidence/);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1542,7 +1599,7 @@ test("a later gate run cannot delete an earlier gate receipt", async () => {
     await rm(priorReceipt);
     await assert.rejects(verifyGateSourceSnapshot(sourceSnapshot, repository), /removed canonical evidence/);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1587,7 +1644,7 @@ test("bulk command-group snapshots cannot prewrite future receipts or rewrite pr
       /changed unrelated canonical evidence/,
     );
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1602,7 +1659,7 @@ test("source snapshot rejects an empty commit or ref move during a gate", async 
     git(repository, ["commit", "--quiet", "--allow-empty", "-m", "move head"]);
     await assert.rejects(verifyGateSourceSnapshot(sourceSnapshot, repository), /source revision changed/);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1653,7 +1710,7 @@ test("a clean source snapshot accepts only its own fresh controlled artifact", a
     assert.equal(receipt.status, "passed");
     assert.equal(receipt.sourceDigest, sourceSnapshot.sourceDigest);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1673,7 +1730,7 @@ test("source snapshot rejects producer drift and unrelated forged test output", 
     await writeFile(path.join(repository, "samples/evidence/forged/unrelated.json"), "{}\n");
     await assert.rejects(verifyGateSourceSnapshot(sourceSnapshot, repository), /outside its controlled canonical evidence paths/);
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1688,7 +1745,7 @@ test("pre-existing controlled output cannot be captured as a fresh run", async (
       /run root must be fresh/,
     );
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
   }
 });
 
@@ -1718,7 +1775,7 @@ test("canonical evidence root and sample ancestors cannot be external symlinks",
       /canonical sample evidence directory must be a non-symlink directory/,
     );
   } finally {
-    await rm(repository, { recursive: true, force: true });
+    await removeTemporaryRepository(repository);
     await rm(external, { recursive: true, force: true });
   }
 });

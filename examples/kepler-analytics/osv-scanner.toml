@@ -1,0 +1,9 @@
+[[IgnoredVulns]]
+id = "GHSA-5p2g-fcmc-qvqq"
+ignoreUntil = 2026-09-08
+reason = "Locked image-size 0.7.5 has no JXL or HEIF parser, so the vulnerable parser paths do not exist; no patched release is available."
+
+[[IgnoredVulns]]
+id = "GHSA-w3rx-r6r6-pgpr"
+ignoreUntil = 2026-09-08
+reason = "image-size is only transitive through texture-compressor's unused build-time CLI in this private browser demo; no untrusted image reaches it and no patched release is available."

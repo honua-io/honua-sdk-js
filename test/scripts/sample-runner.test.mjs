@@ -889,6 +889,101 @@ test("evidence run pruning preserves receipt-bound runs and removes only UUID or
   }
 });
 
+test("evidence pruning retains the published run until projection advancement, then removes it", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "honua-evidence-visual-rollover-"));
+  const sampleId = "safe-sample";
+  const baseRoot = path.join(root, "samples/evidence", sampleId);
+  const receiptRun = "11111111-1111-4111-8111-111111111111";
+  const publishedRun = "22222222-2222-4222-8222-222222222222";
+  const orphan = "33333333-3333-4333-8333-333333333333";
+  try {
+    await mkdir(path.join(baseRoot, "receipts"), { recursive: true });
+    for (const runId of [receiptRun, publishedRun, orphan]) {
+      await mkdir(path.join(baseRoot, "runs", runId), { recursive: true });
+    }
+    await writeFile(
+      path.join(baseRoot, "receipts/fixture.v1.json"),
+      `${JSON.stringify(structuralReceipt(sampleId, "fixture", receiptRun))}\n`,
+    );
+    const visualPath = path.join(root, "samples/dist/golden-journey-visual-evidence.v1.json");
+    await mkdir(path.dirname(visualPath), { recursive: true });
+    await writeFile(
+      visualPath,
+      `${JSON.stringify({
+        format: "honua.sdk.golden-journey-visual-evidence.v1",
+        schemaVersion: 1,
+        qualifiedGoldenJourneys: [
+          {
+            sampleId,
+            semanticEvidence: [{ runRoot: `samples/evidence/${sampleId}/runs/${publishedRun}` }],
+          },
+        ],
+      })}\n`,
+    );
+
+    await pruneUnreferencedEvidenceRuns(baseRoot, sampleId, { projectRoot: root });
+    assert.deepEqual((await readdir(path.join(baseRoot, "runs"))).sort(), [publishedRun, receiptRun].sort());
+
+    await writeFile(
+      visualPath,
+      `${JSON.stringify({
+        format: "honua.sdk.golden-journey-visual-evidence.v1",
+        schemaVersion: 1,
+        qualifiedGoldenJourneys: [
+          {
+            sampleId,
+            semanticEvidence: [{ runRoot: `samples/evidence/${sampleId}/runs/${receiptRun}` }],
+          },
+        ],
+      })}\n`,
+    );
+    await pruneUnreferencedEvidenceRuns(baseRoot, sampleId, { projectRoot: root });
+    assert.deepEqual(await readdir(path.join(baseRoot, "runs")), [receiptRun]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("evidence pruning fails closed on a malformed published visual run binding", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "honua-evidence-visual-invalid-"));
+  const sampleId = "safe-sample";
+  const runId = "11111111-1111-4111-8111-111111111111";
+  const baseRoot = path.join(root, "samples/evidence", sampleId);
+  const sentinel = path.join(baseRoot, "runs", runId, "must-survive.txt");
+  try {
+    await mkdir(path.join(baseRoot, "receipts"), { recursive: true });
+    await mkdir(path.dirname(sentinel), { recursive: true });
+    await writeFile(sentinel, "preserve on invalid visual evidence\n");
+    await writeFile(
+      path.join(baseRoot, "receipts/fixture.v1.json"),
+      `${JSON.stringify(structuralReceipt(sampleId, "fixture", runId))}\n`,
+    );
+    const visualPath = path.join(root, "samples/dist/golden-journey-visual-evidence.v1.json");
+    await mkdir(path.dirname(visualPath), { recursive: true });
+    await writeFile(
+      visualPath,
+      `${JSON.stringify({
+        format: "honua.sdk.golden-journey-visual-evidence.v1",
+        schemaVersion: 1,
+        qualifiedGoldenJourneys: [
+          {
+            sampleId,
+            semanticEvidence: [{ runRoot: "samples/evidence/other-sample/runs/escape" }],
+          },
+        ],
+      })}\n`,
+    );
+
+    await assert.rejects(
+      pruneUnreferencedEvidenceRuns(baseRoot, sampleId, { projectRoot: root }),
+      /published golden journey visual evidence has an invalid run binding/,
+    );
+    assert.equal(await readFile(sentinel, "utf8"), "preserve on invalid visual evidence\n");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("evidence pruning validates every receipt binding before deleting any run", async () => {
   const sampleId = "safe-sample";
   const runId = "11111111-1111-4111-8111-111111111111";

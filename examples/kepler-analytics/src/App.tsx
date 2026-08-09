@@ -33,6 +33,11 @@ const STYLE_ICON = `data:image/svg+xml,${encodeURIComponent(
     </svg>`,
 )}`;
 
+function withFixtureBase(raw: string): string {
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
+  return new URL(raw.replace(/^\/+/, ""), new URL("./", window.location.href)).toString();
+}
+
 interface FixtureMetadata {
   storyId: string;
   storyTitle: string;
@@ -176,11 +181,11 @@ async function loadFixtureBundle(): Promise<{
     end: string;
   };
 }> {
-  const metadata = await fetchJson<FixtureMetadata>("/data/fixture-metadata.json");
+  const metadata = await fetchJson<FixtureMetadata>(withFixtureBase("data/fixture-metadata.json"));
   const replayTimestamps: number[] = [];
   const fixtureInputs = await Promise.all(
     metadata.datasets.map(async (dataset) => {
-      const rawDataset = await fetchJson<GeoJsonFeatureCollection>(dataset.path);
+      const rawDataset = await fetchJson<GeoJsonFeatureCollection>(withFixtureBase(dataset.path));
       if ((REPLAY_FILTER_DATASETS as readonly string[]).includes(dataset.id)) {
         for (const feature of rawDataset.features ?? []) {
           const replayAt = feature.properties?.[REPLAY_TIME_FIELD];

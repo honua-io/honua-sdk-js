@@ -3,11 +3,13 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { lstat, mkdir, opendir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, opendir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 import { deriveExcludedSamples, derivePublishedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
 import {
@@ -63,26 +65,48 @@ const V1_MIGRATION_PATH = "samples/contract/v2/migrations/catalog.v1-to-v2.json"
 const CATALOG_SCHEMA_PATH = "samples/contract/v2/schemas/sample-catalog.schema.json";
 const MIGRATION_SCHEMA_PATH = "samples/contract/v2/schemas/catalog-migration.schema.json";
 const GENERATED_CATALOG_PATH = "docs/generated/sample-catalog.md";
-const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
-const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const LEGACY_SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
+const LEGACY_SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
+const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v3.json";
+const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.v3.schema.json";
 const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
 const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
   "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
 const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
 const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
   "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
-const SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
-const SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
+const LEGACY_SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
+const LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-handoff.schema.json";
+const LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v1.json";
+const LEGACY_VISUAL_RECEIPT_ARCHIVE_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-legacy-receipt-archive.schema.json";
+const LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json";
+const LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-legacy-receipt-archive.v2.schema.json";
+const LEGACY_VISUAL_MAX_ARTIFACT_FILES = 160;
+const LEGACY_VISUAL_MAX_ARTIFACT_BLOBS = 128;
+const LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES = 4 * 1024 * 1024;
+const LEGACY_VISUAL_MAX_ARTIFACT_ENCODED_BYTES = 8 * 1024 * 1024;
+const LEGACY_VISUAL_MAX_ARTIFACT_DECODED_BYTES = 16 * 1024 * 1024;
+const LEGACY_VISUAL_MAX_ARTIFACT_REFERENCED_BYTES = 32 * 1024 * 1024;
+const SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v2.json";
+const SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json";
 const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
 const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
-const SITE_CONSUMER_FIXTURE_PATH = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
 const SITE_CONSUMER_V3_FIXTURE_PATH =
   "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
 const SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-fixture.schema.json";
+const SITE_CONSUMER_V4_FIXTURE_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json";
+const SITE_CONSUMER_V4_FIXTURE_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-fixture.v4.schema.json";
 const FIXTURE_BUILD_ENVIRONMENT_HELPER = "../../scripts/lib/fixture-build-environment.mjs";
 const NPM_CLI_HELPER = "../../scripts/lib/npm-cli.mjs";
 const FIXTURE_BUILD_OPTION_NAMES = new Set(["cwd", "env", "stdio", "timeout"]);
@@ -193,6 +217,7 @@ const SITE_CONSUMER_RESERVED_SAMPLE_ROUTES = new Set([
   "samples/index.html",
   "samples/routes.html",
   "samples/site-handoff.v1.json",
+  "samples/site-handoff.v2.json",
 ]);
 const SITE_CONSUMER_MAX_ARTIFACT_BYTES = 16 * 1024 * 1024;
 const SITE_CONSUMER_MAX_CARDS = 512;
@@ -3566,8 +3591,8 @@ export function generateSiteProjection(catalog, packageJson) {
     };
   });
   return {
-    format: "honua.site.sdk-sample-projection.v2",
-    schemaVersion: 2,
+    format: "honua.site.sdk-sample-projection.v3",
+    schemaVersion: 3,
     catalog: {
       format: effective.format,
       schemaVersion: effective.schemaVersion,
@@ -3993,8 +4018,31 @@ async function validateQualificationEvidenceRoot(
   }
 }
 
-async function validateQualificationRunInventory(receiptRoot, sampleId, receipts) {
-  const runIds = orderedUnique(
+async function readPublishedGoldenVisualEvidence(candidatePath) {
+  const artifactPath = path.resolve(candidatePath ?? path.join(PROJECT_ROOT, GOLDEN_VISUAL_EVIDENCE_PATH));
+  let bytes;
+  try {
+    bytes = await readCanonicalBoundedFile(path.dirname(artifactPath), path.basename(artifactPath), {
+      label: "published golden journey visual evidence",
+      maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") return undefined;
+    throw error;
+  }
+  const visualEvidence = parseJsonDocument(bytes.toString("utf8"), artifactPath);
+  invariant(
+    visualEvidence?.format === "honua.sdk.golden-journey-visual-evidence.v1" &&
+      visualEvidence.schemaVersion === 1 &&
+      Array.isArray(visualEvidence.qualifiedGoldenJourneys) &&
+      visualEvidence.qualifiedGoldenJourneys.length <= SITE_CONSUMER_MAX_CARDS,
+    "published golden journey visual evidence has an invalid bounded contract shape",
+  );
+  return visualEvidence;
+}
+
+export async function validateQualificationRunInventory(receiptRoot, sampleId, receipts, publishedVisualEvidence) {
+  const receiptRunIds = orderedUnique(
     receipts.map((receipt) => {
       const prefix = `${QUALIFICATION_EVIDENCE_ROOT}/${sampleId}/runs/`;
       invariant(receipt.runRoot.startsWith(prefix), `${sampleId}: receipt run root is orphaned`);
@@ -4003,12 +4051,52 @@ async function validateQualificationRunInventory(receiptRoot, sampleId, receipts
       return runId;
     }),
   );
+  const publishedEntries = publishedVisualEvidence?.qualifiedGoldenJourneys?.filter(
+    (entry) => entry?.sampleId === sampleId,
+  ) ?? [];
+  invariant(publishedEntries.length <= 1, `${sampleId}: published visual evidence entry is duplicated`);
+  const publishedRunIds = [];
+  if (publishedEntries.length === 1) {
+    const semanticEvidence = publishedEntries[0].semanticEvidence;
+    invariant(
+      Array.isArray(semanticEvidence) && semanticEvidence.length === receipts.length,
+      `${sampleId}: published visual evidence semantic gate inventory is incomplete`,
+    );
+    const receiptGates = receipts.map((receipt) => receipt.gate).sort();
+    const publishedGates = semanticEvidence.map((semantic) => semantic?.gate);
+    invariant(
+      publishedGates.every((gate) => typeof gate === "string") &&
+        new Set(publishedGates).size === publishedGates.length &&
+        JSON.stringify([...publishedGates].sort()) === JSON.stringify(receiptGates),
+      `${sampleId}: published visual evidence semantic gates do not match current receipts`,
+    );
+    const prefix = `${QUALIFICATION_EVIDENCE_ROOT}/${sampleId}/runs/`;
+    for (const semantic of semanticEvidence) {
+      const runRoot = semantic.runRoot;
+      const runId = typeof runRoot === "string" ? runRoot.slice(prefix.length) : "";
+      invariant(
+        runRoot === `${prefix}${runId}` && isSampleEvidenceRunId(runId),
+        `${sampleId}: published visual evidence run root is invalid`,
+      );
+      publishedRunIds.push(runId);
+    }
+  }
+  const distinctPublishedRunIds = orderedUnique(publishedRunIds);
+  invariant(
+    distinctPublishedRunIds.length <= receiptRunIds.length,
+    `${sampleId}: published visual evidence rollover exceeds the current receipt run bound`,
+  );
+  const expectedRunIds = orderedUnique([...receiptRunIds, ...distinctPublishedRunIds]);
+  invariant(
+    expectedRunIds.length <= receiptRunIds.length * 2,
+    `${sampleId}: qualification rollover run bound is invalid`,
+  );
   const runEntries = await evidenceDirectoryEntries(
     path.join(receiptRoot, sampleId, "runs"),
     `${sampleId}: run directory`,
-    { maxEntries: runIds.length, containmentRoot: receiptRoot },
+    { maxEntries: expectedRunIds.length, containmentRoot: receiptRoot },
   );
-  exactEvidenceDirectoryNames(runEntries, runIds, `${sampleId}: run directory`);
+  exactEvidenceDirectoryNames(runEntries, expectedRunIds, `${sampleId}: run directory`);
 }
 
 function validateQualificationEvidenceInput(qualificationEvidence, catalog) {
@@ -4109,6 +4197,7 @@ function validateQualificationEvidenceInput(qualificationEvidence, catalog) {
 
 export async function collectQualificationEvidence(catalog, options = {}) {
   const receiptRoot = path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT));
+  const publishedVisualEvidence = await readPublishedGoldenVisualEvidence(options.goldenVisualEvidencePath);
   const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
   const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
   const qualifiedJourneys = [...catalog.goldenJourneys]
@@ -4184,7 +4273,7 @@ export async function collectQualificationEvidence(catalog, options = {}) {
         artifact: structuredClone(receipt.artifacts[0]),
       });
     }
-    await validateQualificationRunInventory(receiptRoot, sample.id, receipts);
+    await validateQualificationRunInventory(receiptRoot, sample.id, receipts, publishedVisualEvidence);
     samples.push({ sampleId: sample.id, receipts });
   }
   const evidence = {
@@ -4521,12 +4610,14 @@ function goldenVisualArtifactReferences(entry) {
   const references = [];
   for (const screenshot of entry.screenshots) {
     references.push({
+      kind: "screenshot",
       label: `${entry.sampleId} ${screenshot.variant} screenshot`,
       path: screenshot.sourcePath,
       bytes: screenshot.bytes,
       sha256: screenshot.sha256,
     });
     references.push({
+      kind: "screenshot",
       label: `${entry.sampleId} ${screenshot.variant} repeat screenshot`,
       path: screenshot.reproducibility.repeatSourcePath,
       bytes: screenshot.reproducibility.repeatBytes,
@@ -4535,12 +4626,15 @@ function goldenVisualArtifactReferences(entry) {
   }
   for (const semantic of entry.semanticEvidence) {
     references.push({
+      kind: "receipt",
+      gate: semantic.gate,
       label: `${entry.sampleId} ${semantic.gate} receipt`,
       path: semantic.receiptPath,
       bytes: null,
       sha256: semantic.receiptSha256,
     });
     references.push({
+      kind: "report",
       label: `${entry.sampleId} ${semantic.gate} report`,
       path: semantic.reportPath,
       bytes: semantic.reportBytes,
@@ -4548,6 +4642,529 @@ function goldenVisualArtifactReferences(entry) {
     });
   }
   return references;
+}
+
+function legacyVisualReceiptClaims(handoff) {
+  const claims = [];
+  for (const card of handoff.cards ?? []) {
+    if (!card.visualEvidence) continue;
+    for (const semantic of card.visualEvidence.semanticEvidence) {
+      claims.push({
+        sampleId: card.visualEvidence.sampleId,
+        gate: semantic.gate,
+        sourceRevision: card.visualEvidence.source.revision,
+        sourceDigest: card.visualEvidence.source.evidenceNeutralSha256,
+        sourcePath: semantic.receiptPath,
+        sha256: semantic.receiptSha256,
+        semantic,
+      });
+    }
+  }
+  claims.sort((left, right) =>
+    left.sampleId.localeCompare(right.sampleId) ||
+    GOLDEN_VISUAL_GATE_ORDER.indexOf(left.gate) - GOLDEN_VISUAL_GATE_ORDER.indexOf(right.gate),
+  );
+  invariant(
+    new Set(claims.map((claim) => `${claim.sampleId}:${claim.gate}`)).size === claims.length,
+    "legacy visual receipt claims contain duplicate sample/gate identities",
+  );
+  return claims;
+}
+
+function readHistoricalProducerBlob(root, revision, producerPath) {
+  invariant(/^[a-f0-9]{40}$/.test(revision), "legacy producer revision is missing or invalid");
+  invariant(producerPath === "scripts/sample-runner.mjs", "legacy producer path is not the governed sample runner");
+  let bytes;
+  try {
+    bytes = execFileSync("git", ["show", `${revision}:${producerPath}`], {
+      cwd: root,
+      encoding: "buffer",
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    });
+  } catch {
+    throw new Error(`legacy producer blob is unavailable at immutable revision ${revision}`);
+  }
+  invariant(bytes.byteLength > 0 && bytes.byteLength <= 1024 * 1024, "legacy producer blob is empty or excessive");
+  return bytes;
+}
+
+function readHistoricalVisualArtifactBlob(root, reference) {
+  invariant(
+    typeof reference.path === "string" &&
+      (reference.path.startsWith("samples/evidence/") ||
+        reference.path === LEGACY_SITE_PROJECTION_PATH ||
+        reference.path === CAPABILITY_SAMPLE_MATRIX_PATH ||
+        reference.path === GOLDEN_VISUAL_EVIDENCE_PATH ||
+        /^(?:scripts\/[a-z0-9-]+|examples\/[a-z0-9-]+\/[A-Za-z0-9._/-]+)\.mjs$/u.test(reference.path)) &&
+      !path.isAbsolute(reference.path) &&
+      !reference.path.includes("\\") &&
+      path.posix.normalize(reference.path) === reference.path &&
+      (reference.bytes === null ||
+        (Number.isSafeInteger(reference.bytes) &&
+          reference.bytes > 0 &&
+          reference.bytes <= LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES)) &&
+      /^[a-f0-9]{64}$/.test(reference.sha256),
+    "legacy visual artifact capture reference is invalid",
+  );
+  let history;
+  try {
+    history = execFileSync(
+      "git",
+      ["log", "--all", "--diff-filter=AM", "--max-count=257", "--format=%H", "--", reference.path],
+      {
+        cwd: root,
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+      },
+    );
+  } catch {
+    throw new Error(`legacy visual artifact capture history is unavailable for ${reference.path}`);
+  }
+  const revisions = [...new Set(history.split(/\r?\n/u).filter(Boolean))];
+  invariant(
+    revisions.length <= 256 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
+    `legacy visual artifact capture history is invalid or excessive for ${reference.path}`,
+  );
+  for (const revision of revisions) {
+    try {
+      const bytes = execFileSync("git", ["show", `${revision}:${reference.path}`], {
+        cwd: root,
+        encoding: "buffer",
+        maxBuffer: LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES,
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+      });
+      if (
+        bytes.byteLength > 0 &&
+        bytes.byteLength <= LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES &&
+        (reference.bytes === null || bytes.byteLength === reference.bytes) &&
+        sha256(bytes) === reference.sha256
+      ) {
+        return bytes;
+      }
+    } catch {
+      // A merge or rename candidate may not contain the path. Continue only
+      // inside this explicit one-time capture command; validation never uses Git.
+    }
+  }
+  throw new Error(`legacy visual artifact capture blob is unavailable for ${reference.path}`);
+}
+
+async function legacyVisualArtifactClaims(handoff, readArtifact) {
+  const claims = new Map();
+  const legacyHandoffInputPaths = new Map([
+    ["siteProjection", LEGACY_SITE_PROJECTION_PATH],
+    ["capabilityMatrix", CAPABILITY_SAMPLE_MATRIX_PATH],
+    ["visualEvidence", GOLDEN_VISUAL_EVIDENCE_PATH],
+  ]);
+  const add = (reference, runRoots, label, allowProducerSource = false, allowHandoffInput = false) => {
+    const referencePath = typeof reference.path === "string" ? reference.path : "";
+    const inRun = [...runRoots].some((runRoot) => referencePath.startsWith(`${runRoot}/artifacts/`));
+    const governedProducerSource =
+      allowProducerSource &&
+      /^(?:scripts\/[a-z0-9-]+|examples\/[a-z0-9-]+\/[A-Za-z0-9._/-]+)\.mjs$/u.test(referencePath);
+    const governedHandoffInput = allowHandoffInput && [...legacyHandoffInputPaths.values()].includes(referencePath);
+    invariant(
+      typeof reference.path === "string" &&
+        (inRun || governedProducerSource || governedHandoffInput) &&
+        !path.isAbsolute(reference.path) &&
+        !reference.path.includes("\\") &&
+        path.posix.normalize(reference.path) === reference.path &&
+        (reference.bytes === null ||
+          (Number.isSafeInteger(reference.bytes) &&
+            reference.bytes > 0 &&
+            reference.bytes <= LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES)) &&
+        /^[a-f0-9]{64}$/.test(reference.sha256),
+      `${label} is outside its frozen receipt run or has an invalid content address`,
+    );
+    const descriptor = { path: reference.path, bytes: reference.bytes, sha256: reference.sha256 };
+    const previous = claims.get(reference.path);
+    invariant(
+      !previous ||
+        (previous.sha256 === descriptor.sha256 &&
+          (previous.bytes === null || descriptor.bytes === null || previous.bytes === descriptor.bytes)),
+      `${label} has conflicting frozen content addresses`,
+    );
+    if (!previous) claims.set(reference.path, descriptor);
+    else if (previous.bytes === null && descriptor.bytes !== null) previous.bytes = descriptor.bytes;
+  };
+  for (const [name, expectedPath] of legacyHandoffInputPaths) {
+    const reference = handoff.inputs?.[name];
+    invariant(reference?.path === expectedPath, `legacy handoff ${name} artifact path drift`);
+    add(reference, new Set(), `legacy handoff ${name} artifact`, false, true);
+  }
+  for (const card of handoff.cards ?? []) {
+    if (!card.visualEvidence) continue;
+    const runRoots = new Set(card.visualEvidence.semanticEvidence.map((semantic) => semantic.runRoot));
+    for (const reference of goldenVisualArtifactReferences(card.visualEvidence)) {
+      if (reference.kind === "receipt") continue;
+      add(reference, runRoots, reference.label);
+    }
+    for (const semantic of card.visualEvidence.semanticEvidence) {
+      if (semantic.gate !== "packed-build" && semantic.gate !== "live") continue;
+      const primary = claims.get(semantic.reportPath);
+      invariant(primary, `${card.id} ${semantic.gate} primary report is missing from the frozen inventory`);
+      const primaryBytes = await readArtifact(primary);
+      invariant(
+        primaryBytes.byteLength === primary.bytes && sha256(primaryBytes) === primary.sha256,
+        `${card.id} ${semantic.gate} primary report is stale`,
+      );
+      const report = parseJsonDocument(primaryBytes.toString("utf8"), primary.path);
+      const semanticRunRoots = new Set([semantic.runRoot]);
+      if (semantic.gate === "packed-build") {
+        add(
+          {
+            path: report.packageTarball,
+            bytes: report.packageTarballBytes,
+            sha256: report.packageTarballSha256,
+          },
+          semanticRunRoots,
+          `${card.id} packed package tarball`,
+        );
+        invariant(
+          typeof report.sampleDistRoot === "string" && Array.isArray(report.files),
+          `${card.id} packed report has no bounded dist inventory`,
+        );
+        for (const file of report.files) {
+          invariant(
+            typeof file.path === "string" &&
+              !path.posix.isAbsolute(file.path) &&
+              path.posix.normalize(file.path) === file.path &&
+              !file.path.startsWith("../"),
+            `${card.id} packed dist path is invalid`,
+          );
+          add(
+            {
+              path: path.posix.join(report.sampleDistRoot, file.path),
+              bytes: file.bytes,
+              sha256: file.sha256,
+            },
+            semanticRunRoots,
+            `${card.id} packed dist artifact`,
+          );
+        }
+      } else {
+        invariant(
+          typeof report.evidencePath === "string" && report.evidence && typeof report.evidence === "object",
+          `${card.id} live report has no embedded evidence`,
+        );
+        const evidenceBytes = Buffer.from(stableJson(report.evidence));
+        add(
+          {
+            path: report.evidencePath,
+            bytes: evidenceBytes.byteLength,
+            sha256: sha256(evidenceBytes),
+          },
+          semanticRunRoots,
+          `${card.id} live evidence`,
+        );
+        for (const artifact of report.evidence.artifacts ?? []) {
+          add(
+            { path: artifact.path, bytes: null, sha256: artifact.sha256 },
+            semanticRunRoots,
+            `${card.id} live evidence artifact`,
+            artifact.kind === "producer-generator",
+          );
+        }
+      }
+    }
+  }
+  for (const claim of claims.values()) {
+    const bytes = await readArtifact(claim);
+    invariant(
+      (claim.bytes === null || bytes.byteLength === claim.bytes) && sha256(bytes) === claim.sha256,
+      `${claim.path} frozen artifact byte or digest binding is stale`,
+    );
+    if (claim.bytes === null) claim.bytes = bytes.byteLength;
+  }
+  const files = [...claims.values()].sort((left, right) => left.path.localeCompare(right.path));
+  invariant(
+    files.length > 0 && files.length <= LEGACY_VISUAL_MAX_ARTIFACT_FILES,
+    "legacy visual artifact inventory is empty or excessive",
+  );
+  return files;
+}
+
+async function validateLegacyVisualReceiptArchiveEnvelope(archive, handoff, schemaPath) {
+  invariant(
+    handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff.schemaVersion === 1,
+    "legacy visual receipt archive can validate only handoff v1",
+  );
+  await validateJsonSchema(archive, schemaPath);
+  invariant(
+    archive.handoff.path === LEGACY_SITE_CONSUMER_HANDOFF_PATH &&
+      archive.handoff.format === handoff.format &&
+      archive.handoff.schemaVersion === handoff.schemaVersion &&
+      archive.handoff.sha256 === sha256(Buffer.from(stableJson(handoff))) &&
+      archive.visualEvidence.path === handoff.inputs.visualEvidence.path &&
+      archive.visualEvidence.sha256 === handoff.inputs.visualEvidence.sha256,
+    "legacy visual receipt archive is not bound to the frozen handoff and visual evidence",
+  );
+  const producers = new Map();
+  for (const producer of archive.producers) {
+    const bytes = Buffer.from(producer.contentBase64, "base64");
+    invariant(
+      bytes.toString("base64") === producer.contentBase64 &&
+        bytes.byteLength === producer.bytes &&
+        sha256(bytes) === producer.sha256,
+      "legacy producer blob is missing or stale",
+    );
+    const key = `${producer.sourceRevision}:${producer.sourcePath}:${producer.sha256}`;
+    invariant(!producers.has(key), "legacy producer archive contains a duplicate identity");
+    producers.set(key, bytes);
+  }
+  const claims = legacyVisualReceiptClaims(handoff);
+  invariant(archive.entries.length === claims.length, "legacy visual receipt archive entry set is incomplete or excessive");
+  const records = [];
+  const archived = new Map();
+  for (let index = 0; index < claims.length; index += 1) {
+    const claim = claims[index];
+    const entry = archive.entries[index];
+    invariant(
+      entry.sampleId === claim.sampleId &&
+        entry.gate === claim.gate &&
+        entry.sourceRevision === claim.sourceRevision &&
+        entry.sourceDigest === claim.sourceDigest &&
+        entry.sourcePath === claim.sourcePath &&
+        path.posix.normalize(entry.sourcePath) === entry.sourcePath &&
+        entry.sha256 === claim.sha256,
+      `${claim.sampleId} ${claim.gate} legacy receipt archive identity, revision, path, or digest drift`,
+    );
+    const bytes = Buffer.from(entry.contentBase64, "base64");
+    invariant(
+      bytes.toString("base64") === entry.contentBase64 &&
+        bytes.byteLength === entry.bytes &&
+        sha256(bytes) === entry.sha256,
+      `${claim.sampleId} ${claim.gate} legacy receipt archive blob is missing or has stale bytes`,
+    );
+    const receipt = parseJsonDocument(bytes.toString("utf8"), entry.sourcePath);
+    validateGateReceiptStructure(receipt, {
+      sampleId: claim.sampleId,
+      gate: claim.gate,
+      sourceRevision: claim.sourceRevision,
+      sourceDigest: claim.sourceDigest,
+    });
+    const producerBytes = producers.get(
+      `${receipt.sourceRevision}:${receipt.producer.path}:${receipt.producer.sha256}`,
+    );
+    invariant(
+      producerBytes,
+      `${claim.sampleId} ${claim.gate} legacy producer revision, path, or blob is missing or stale`,
+    );
+    invariant(
+      receipt.sdkMode === claim.semantic.sdkMode &&
+        receipt.runRoot === claim.semantic.runRoot &&
+        receipt.observedAt === claim.semantic.observedAt &&
+        receipt.expiresAt === claim.semantic.expiresAt &&
+        JSON.stringify(receipt.artifacts[0]) ===
+          JSON.stringify({
+            kind: claim.semantic.reportKind,
+            path: claim.semantic.reportPath,
+            bytes: claim.semantic.reportBytes,
+            sha256: claim.semantic.reportSha256,
+          }),
+      `${claim.sampleId} ${claim.gate} legacy receipt archive metadata drift`,
+    );
+    records.push({ claim, receipt, producerBytes });
+    archived.set(`${claim.sampleId}:${claim.gate}`, bytes);
+    archived.set(entry.sourcePath, bytes);
+  }
+  return { records, archived };
+}
+
+async function materializeLegacyVisualArtifacts(files, blobs) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "honua-legacy-visual-evidence-"));
+  try {
+    for (const file of files) {
+      const bytes = blobs.get(file.sha256);
+      invariant(bytes, `${file.path} legacy visual artifact blob is missing`);
+      const destination = path.resolve(root, file.path);
+      invariant(
+        destination.startsWith(`${root}${path.sep}`),
+        `${file.path} legacy visual artifact materialization escapes its root`,
+      );
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, bytes);
+    }
+    return root;
+  } catch (error) {
+    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    throw error;
+  }
+}
+
+export async function generateLegacyVisualReceiptArchive(handoff, options = {}) {
+  const root = path.resolve(options.projectRoot ?? PROJECT_ROOT);
+  const v1Archive =
+    options.receiptArchive ??
+    parseJsonDocument(
+      await readFile(path.join(root, LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH), "utf8"),
+      LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH,
+    );
+  await validateLegacyVisualReceiptArchiveEnvelope(
+    v1Archive,
+    handoff,
+    LEGACY_VISUAL_RECEIPT_ARCHIVE_SCHEMA_PATH,
+  );
+  const artifactBytes = new Map();
+  const captureArtifact = (reference) => {
+    let bytes = artifactBytes.get(reference.path);
+    if (!bytes) {
+      bytes = readHistoricalVisualArtifactBlob(root, reference);
+      artifactBytes.set(reference.path, bytes);
+    }
+    return bytes;
+  };
+  const files = await legacyVisualArtifactClaims(handoff, captureArtifact);
+  const blobs = new Map();
+  for (const file of files) {
+    if (blobs.has(file.sha256)) continue;
+    const bytes = captureArtifact(file);
+    const encoded = gzipSync(bytes, { level: 9 });
+    // Canonicalize platform-dependent gzip header metadata so the content-addressed
+    // archive is byte-for-byte reproducible across producer operating systems.
+    encoded.fill(0, 4, 8);
+    encoded[9] = 255;
+    blobs.set(file.sha256, {
+      bytes: bytes.byteLength,
+      sha256: file.sha256,
+      encoding: "gzip-base64",
+      encodedBytes: encoded.byteLength,
+      contentBase64: encoded.toString("base64"),
+    });
+  }
+  const referencedBytes = files.reduce((total, file) => total + file.bytes, 0);
+  const decodedBytes = [...blobs.values()].reduce((total, blob) => total + blob.bytes, 0);
+  invariant(
+    blobs.size <= LEGACY_VISUAL_MAX_ARTIFACT_BLOBS &&
+      referencedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_REFERENCED_BYTES &&
+      decodedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_DECODED_BYTES &&
+      [...blobs.values()].reduce((total, blob) => total + blob.encodedBytes, 0) <=
+        LEGACY_VISUAL_MAX_ARTIFACT_ENCODED_BYTES,
+    "legacy visual artifact archive is excessive",
+  );
+  return {
+    $schema: "../schemas/site-consumer-legacy-receipt-archive.v2.schema.json",
+    format: "honua.site.sdk-sample-legacy-receipt-archive.v2",
+    schemaVersion: 2,
+    handoff: structuredClone(v1Archive.handoff),
+    visualEvidence: structuredClone(v1Archive.visualEvidence),
+    artifacts: {
+      fileCount: files.length,
+      referencedBytes,
+      blobCount: blobs.size,
+      decodedBytes,
+      inventorySha256: sha256(Buffer.from(stableJson(files))),
+      files,
+      blobs: [...blobs.values()].sort((left, right) => left.sha256.localeCompare(right.sha256)),
+    },
+    producers: structuredClone(v1Archive.producers),
+    entries: structuredClone(v1Archive.entries),
+  };
+}
+
+export async function validateLegacyVisualReceiptArchive(archive, handoff) {
+  invariant(
+    archive?.format === "honua.site.sdk-sample-legacy-receipt-archive.v2" && archive.schemaVersion === 2,
+    "legacy visual validation requires the self-contained v2 archive",
+  );
+  const { records, archived } = await validateLegacyVisualReceiptArchiveEnvelope(
+    archive,
+    handoff,
+    LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_SCHEMA_PATH,
+  );
+  const blobs = new Map();
+  let decodedBytes = 0;
+  let encodedBytes = 0;
+  for (const blob of archive.artifacts.blobs) {
+    let encoded;
+    let bytes;
+    try {
+      encoded = Buffer.from(blob.contentBase64, "base64");
+      invariant(encoded.toString("base64") === blob.contentBase64, "invalid base64");
+      bytes = gunzipSync(encoded, { maxOutputLength: LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES });
+    } catch {
+      throw new Error("legacy visual artifact blob is missing, malformed, or excessive");
+    }
+    invariant(
+      blob.encoding === "gzip-base64" &&
+        encoded.byteLength === blob.encodedBytes &&
+        bytes.byteLength === blob.bytes &&
+        sha256(bytes) === blob.sha256,
+      "legacy visual artifact blob is missing or stale",
+    );
+    invariant(!blobs.has(blob.sha256), "legacy visual artifact blob archive contains a duplicate identity");
+    blobs.set(blob.sha256, bytes);
+    decodedBytes += bytes.byteLength;
+    encodedBytes += encoded.byteLength;
+  }
+  invariant(
+    blobs.size === archive.artifacts.blobCount &&
+      blobs.size <= LEGACY_VISUAL_MAX_ARTIFACT_BLOBS &&
+      decodedBytes === archive.artifacts.decodedBytes &&
+      decodedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_DECODED_BYTES &&
+      encodedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_ENCODED_BYTES,
+    "legacy visual artifact blob summary is stale or excessive",
+  );
+  let referencedBytes = 0;
+  const referencedBlobs = new Set();
+  const artifactFiles = new Map();
+  for (const file of archive.artifacts.files) {
+    invariant(
+      path.posix.normalize(file.path) === file.path && !artifactFiles.has(file.path),
+      "legacy visual artifact file inventory contains an escaped or duplicate path",
+    );
+    const bytes = blobs.get(file.sha256);
+    invariant(
+      bytes && bytes.byteLength === file.bytes,
+      `${file.path} legacy visual artifact has no content-addressed blob`,
+    );
+    artifactFiles.set(file.path, bytes);
+    referencedBlobs.add(file.sha256);
+    referencedBytes += file.bytes;
+  }
+  const expectedFiles = await legacyVisualArtifactClaims(handoff, (reference) => {
+    const bytes = artifactFiles.get(reference.path);
+    invariant(bytes, `${reference.path} legacy visual artifact blob is broken or missing`);
+    return bytes;
+  });
+  invariant(
+    JSON.stringify(archive.artifacts.files) === JSON.stringify(expectedFiles),
+    "legacy visual artifact file inventory is incomplete, excessive, or cross-run",
+  );
+  invariant(
+    archive.artifacts.fileCount === expectedFiles.length &&
+      referencedBytes === archive.artifacts.referencedBytes &&
+      referencedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_REFERENCED_BYTES &&
+      archive.artifacts.inventorySha256 === sha256(Buffer.from(stableJson(expectedFiles))),
+    "legacy visual artifact file summary is stale or excessive",
+  );
+  invariant(
+    referencedBlobs.size === blobs.size,
+    "legacy visual artifact blob archive contains an unreferenced or missing blob",
+  );
+  const materializedRoot = await materializeLegacyVisualArtifacts(expectedFiles, blobs);
+  try {
+    for (const { claim, receipt, producerBytes } of records) {
+      await validateGateReceipt(receipt, {
+        sampleId: claim.sampleId,
+        gate: claim.gate,
+        sourceRevision: claim.sourceRevision,
+        sourceDigest: claim.sourceDigest,
+        projectRoot: materializedRoot,
+        verifyCheckout: false,
+        now: receipt.observedAt,
+        producerBytes,
+      });
+    }
+  } finally {
+    await rm(materializedRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+  for (const file of expectedFiles) archived.set(file.path, blobs.get(file.sha256));
+  return archived;
 }
 
 /**
@@ -4623,7 +5240,7 @@ function validateGoldenVisualEvidenceFreshness(entry, now = Date.now()) {
   }
 }
 
-function validateGoldenVisualEvidenceEntries(visualEvidence) {
+function validateGoldenVisualEvidenceEntries(visualEvidence, options = {}) {
   const now = Date.now();
   const journeyIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.journeyId);
   const sampleIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.sampleId);
@@ -4646,7 +5263,10 @@ function validateGoldenVisualEvidenceEntries(visualEvidence) {
       `${entry.sampleId}: visual evidence is missing a required desktop/mobile screenshot variant`,
     );
     validateGoldenVisualEvidenceOwnership(entry);
-    validateGoldenVisualEvidenceFreshness(entry, now);
+    validateGoldenVisualEvidenceFreshness(
+      entry,
+      options.historical === true ? Date.parse(entry.observedAt) : now,
+    );
     invariant(
       entry.screenshots.every(
         (screenshot) =>
@@ -4672,17 +5292,22 @@ function validateGoldenVisualEvidenceEntries(visualEvidence) {
  * broken link, a replaced file, or a stale digest fails publication instead of
  * shipping an unverifiable golden card (honua-io/honua-sdk-js#550).
  */
-async function validateGoldenVisualEvidenceArtifactFiles(entry) {
+async function validateGoldenVisualEvidenceArtifactFiles(entry, options = {}) {
   for (const reference of goldenVisualArtifactReferences(entry)) {
     let bytes;
-    try {
-      bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
-        label: reference.label,
-        maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-      });
-    } catch (error) {
-      if (error?.code === "ENOENT") throw new Error(`${reference.label} is broken or missing`);
-      throw error;
+    if (options.archivedReceipts) {
+      bytes = options.archivedReceipts.get(reference.path);
+      invariant(bytes, `${reference.label} historical blob is broken or missing`);
+    } else {
+      try {
+        bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
+          label: reference.label,
+          maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        });
+      } catch (error) {
+        if (error?.code === "ENOENT") throw new Error(`${reference.label} is broken or missing`);
+        throw error;
+      }
     }
     invariant(
       (reference.bytes === null || bytes.byteLength === reference.bytes) &&
@@ -6022,11 +6647,31 @@ function qualifiedCoverageCount(collection) {
   return collection.filter((entry) => entry.coverage.state === "qualified").length;
 }
 
-export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) {
+function siteConsumerHandoffContract(projection) {
+  if (projection.format === "honua.site.sdk-sample-projection.v2" && projection.schemaVersion === 2) {
+    return {
+      format: "honua.site.sdk-sample-consumer-handoff.v1",
+      schemaVersion: 1,
+      projectionPath: LEGACY_SITE_PROJECTION_PATH,
+      projectionSchemaPath: LEGACY_SITE_PROJECTION_SCHEMA_PATH,
+      manifest: "samples/site-handoff.v1.json",
+    };
+  }
   invariant(
-    projection.format === "honua.site.sdk-sample-projection.v2" && projection.schemaVersion === 2,
-    "site consumer handoff requires site projection v2",
+    projection.format === "honua.site.sdk-sample-projection.v3" && projection.schemaVersion === 3,
+    "site consumer handoff requires site projection v2 or v3",
   );
+  return {
+    format: "honua.site.sdk-sample-consumer-handoff.v2",
+    schemaVersion: 2,
+    projectionPath: SITE_PROJECTION_PATH,
+    projectionSchemaPath: SITE_PROJECTION_SCHEMA_PATH,
+    manifest: "samples/site-handoff.v2.json",
+  };
+}
+
+export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) {
+  const contract = siteConsumerHandoffContract(projection);
   invariant(
     matrix.format === "honua.site.sdk-capability-sample-matrix.v1" && matrix.schemaVersion === 1,
     "site consumer handoff requires capability matrix v1",
@@ -6205,8 +6850,8 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
   }));
 
   const handoff = {
-    format: "honua.site.sdk-sample-consumer-handoff.v1",
-    schemaVersion: 1,
+    format: contract.format,
+    schemaVersion: contract.schemaVersion,
     sdk: structuredClone(matrix.sdk),
     ownership: {
       producer: "honua-io/honua-sdk-js#550",
@@ -6217,8 +6862,8 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
     },
     inputs: {
       siteProjection: siteConsumerArtifactReference(
-        SITE_PROJECTION_PATH,
-        SITE_PROJECTION_SCHEMA_PATH,
+        contract.projectionPath,
+        contract.projectionSchemaPath,
         projection,
       ),
       capabilityMatrix: siteConsumerArtifactReference(
@@ -6241,7 +6886,7 @@ export function generateSiteConsumerHandoff(projection, matrix, visualEvidence) 
         index: "samples/index.html",
         detailPattern: "samples/<sample-id>.html",
         migrationMap: "samples/routes.html",
-        manifest: "samples/site-handoff.v1.json",
+        manifest: contract.manifest,
         statusPages: ["fixture", "retire", "replace"],
       },
       limits: {
@@ -6359,12 +7004,15 @@ function validateSiteConsumerExternalUrl(value, label) {
   );
 }
 
-async function validateSiteConsumerArtifactInput(reference, label) {
+async function validateSiteConsumerArtifactInput(reference, label, archivedArtifacts) {
   await validateSiteConsumerLocalLink(reference.schemaPath, `${label} schema`, "file");
-  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
-    label: `${label} artifact`,
-    maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-  });
+  const bytes = archivedArtifacts
+    ? archivedArtifacts.get(reference.path)
+    : await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
+        label: `${label} artifact`,
+        maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+      });
+  invariant(bytes, `${label} historical artifact blob is broken or missing`);
   invariant(
     bytes.byteLength === reference.bytes && sha256(bytes) === reference.sha256,
     `${label} artifact byte or digest binding drift`,
@@ -6461,7 +7109,19 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
     maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
     maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
   });
-  await validateJsonSchema(handoff, SITE_CONSUMER_HANDOFF_SCHEMA_PATH);
+  const handoffSchemaPath =
+    handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff?.schemaVersion === 1
+      ? LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH
+      : SITE_CONSUMER_HANDOFF_SCHEMA_PATH;
+  await validateJsonSchema(handoff, handoffSchemaPath);
+  let archivedReceipts;
+  if (inputs.legacyReceiptArchive !== undefined) {
+    invariant(
+      handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff?.schemaVersion === 1,
+      "legacy receipt archives cannot validate the current site consumer handoff",
+    );
+    archivedReceipts = await validateLegacyVisualReceiptArchive(inputs.legacyReceiptArchive, handoff);
+  }
   const { projection, matrix, visualEvidence, catalog, packageJson, supportTruth, qualificationEvidence } = inputs;
   let contentBoundExpected;
   const authorityInputSupplied = [
@@ -6503,9 +7163,15 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   } else if (inputs.verifyCheckout !== false) {
     const artifacts = {};
     for (const [name, reference] of Object.entries(handoff.inputs)) {
-      artifacts[name] = await validateSiteConsumerArtifactInput(reference, `site consumer ${name}`);
+      artifacts[name] = await validateSiteConsumerArtifactInput(
+        reference,
+        `site consumer ${name}`,
+        archivedReceipts,
+      );
     }
-    validateGoldenVisualEvidenceEntries(artifacts.visualEvidence);
+    validateGoldenVisualEvidenceEntries(artifacts.visualEvidence, {
+      historical: archivedReceipts !== undefined,
+    });
     contentBoundExpected = generateSiteConsumerHandoff(
       artifacts.siteProjection,
       artifacts.capabilityMatrix,
@@ -6523,7 +7189,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
     }
     for (const card of handoff.cards) {
       if (!card.visualEvidence) continue;
-      await validateGoldenVisualEvidenceArtifactFiles(card.visualEvidence);
+      await validateGoldenVisualEvidenceArtifactFiles(card.visualEvidence, { archivedReceipts });
     }
   }
   invariant(
@@ -6626,7 +7292,7 @@ function siteConsumerFilterCase(id, handoff, filters) {
   };
 }
 
-export function generateSiteConsumerFixtureV3(handoff) {
+function generateVersionedSiteConsumerFixture(handoff, contract) {
   const representative = handoff.cards.find(
     (card) => card.tasks.length > 0 && card.capabilities.length > 0 && card.protocols.length > 0,
   );
@@ -6645,8 +7311,8 @@ export function generateSiteConsumerFixtureV3(handoff) {
     siteConsumerFilterCase("zero-results", handoff, { text: "__no_sdk_sample_matches__" }),
   ];
   return {
-    format: "honua.site.sdk-sample-consumer-fixture.v3",
-    schemaVersion: 3,
+    format: contract.format,
+    schemaVersion: contract.schemaVersion,
     accepts: {
       handoffFormat: handoff.format,
       handoffSchemaVersion: handoff.schemaVersion,
@@ -6655,8 +7321,8 @@ export function generateSiteConsumerFixtureV3(handoff) {
       visualEvidenceFormat: handoff.inputs.visualEvidence.format,
     },
     input: siteConsumerArtifactReference(
-      SITE_CONSUMER_HANDOFF_PATH,
-      SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
+      contract.handoffPath,
+      contract.handoffSchemaPath,
       handoff,
     ),
     assertions: {
@@ -6680,6 +7346,32 @@ export function generateSiteConsumerFixtureV3(handoff) {
   };
 }
 
+export function generateSiteConsumerFixtureV3(handoff) {
+  invariant(
+    handoff.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff.schemaVersion === 1,
+    "site consumer fixture v3 requires handoff v1",
+  );
+  return generateVersionedSiteConsumerFixture(handoff, {
+    format: "honua.site.sdk-sample-consumer-fixture.v3",
+    schemaVersion: 3,
+    handoffPath: LEGACY_SITE_CONSUMER_HANDOFF_PATH,
+    handoffSchemaPath: LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
+  });
+}
+
+export function generateSiteConsumerFixtureV4(handoff) {
+  invariant(
+    handoff.format === "honua.site.sdk-sample-consumer-handoff.v2" && handoff.schemaVersion === 2,
+    "site consumer fixture v4 requires handoff v2",
+  );
+  return generateVersionedSiteConsumerFixture(handoff, {
+    format: "honua.site.sdk-sample-consumer-fixture.v4",
+    schemaVersion: 4,
+    handoffPath: SITE_CONSUMER_HANDOFF_PATH,
+    handoffSchemaPath: SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
+  });
+}
+
 export async function validateSiteConsumerFixtureV3(fixture, handoff, options = {}) {
   validateSiteConsumerJsonBudget(fixture, "site consumer fixture v3");
   validateSensitiveMetadata(fixture, "site consumer fixture v3", {
@@ -6697,6 +7389,38 @@ export async function validateSiteConsumerFixtureV3(fixture, handoff, options = 
   invariant(
     JSON.stringify(fixture) === JSON.stringify(expected),
     "site consumer fixture v3 does not match the versioned handoff",
+  );
+  for (const filterCase of fixture.filterCases) {
+    invariant(
+      JSON.stringify(
+        filterSiteConsumerCards(handoff.cards, filterCase.filters).map((card) => card.id),
+      ) === JSON.stringify(filterCase.expectedSampleIds),
+      `${filterCase.id}: site consumer executable filter fixture drift`,
+    );
+  }
+  invariant(
+    fixture.interaction.keyboard.focusAfterClear === "task-search" &&
+      fixture.interaction.keyboard.noKeyboardTrap &&
+      fixture.interaction.responsive.requiredViewports.some((entry) => entry.id === "desktop") &&
+      fixture.interaction.responsive.requiredViewports.some((entry) => entry.id === "mobile"),
+    "site consumer keyboard or responsive fixture is incomplete",
+  );
+}
+
+export async function validateSiteConsumerFixtureV4(fixture, handoff, options = {}) {
+  validateSiteConsumerJsonBudget(fixture, "site consumer fixture v4");
+  validateSensitiveMetadata(fixture, "site consumer fixture v4", {
+    maxDepth: SITE_CONSUMER_MAX_JSON_DEPTH,
+    maxNodes: SITE_CONSUMER_MAX_JSON_NODES * 2,
+  });
+  await validateJsonSchema(fixture, SITE_CONSUMER_V4_FIXTURE_SCHEMA_PATH);
+  if (options.verifyCheckout !== false) {
+    await validateSiteConsumerSchemaBinding(fixture.input, "site consumer fixture handoff");
+  }
+  const expected = generateSiteConsumerFixtureV4(handoff);
+  invariant(
+    JSON.stringify(fixture) === JSON.stringify(expected),
+    "site consumer fixture v4 does not match the versioned handoff",
   );
   for (const filterCase of fixture.filterCases) {
     invariant(
@@ -6770,46 +7494,16 @@ export function generateCiSelection(catalog) {
 
 export async function validateSiteProjection(projection) {
   validateSensitiveMetadata(projection, "site projection");
-  await validateJsonSchema(projection, SITE_PROJECTION_SCHEMA_PATH);
+  const schemaPath =
+    projection?.format === "honua.site.sdk-sample-projection.v2" && projection?.schemaVersion === 2
+      ? LEGACY_SITE_PROJECTION_SCHEMA_PATH
+      : SITE_PROJECTION_SCHEMA_PATH;
+  await validateJsonSchema(projection, schemaPath);
 }
 
 export async function validateCiSelection(selection) {
   validateSensitiveMetadata(selection, "CI selection");
   await validateJsonSchema(selection, CI_SELECTION_SCHEMA_PATH);
-}
-
-function generateSiteConsumerFixture(projection) {
-  return {
-    format: "honua.site.sdk-sample-consumer-fixture.v2",
-    schemaVersion: 2,
-    accepts: {
-      projectionFormat: projection.format,
-      projectionSchemaVersion: projection.schemaVersion,
-      catalogFormat: projection.catalog.format,
-      catalogSchemaVersion: projection.catalog.schemaVersion,
-    },
-    input: {
-      path: SITE_PROJECTION_PATH,
-      schemaPath: SITE_PROJECTION_SCHEMA_PATH,
-      sha256: sha256(Buffer.from(stableJson(projection))),
-    },
-    assertions: {
-      sampleCount: projection.samples.length,
-      rootExampleCount: projection.samples.filter((sample) => sample.sourceKind === "root-example").length,
-      docsExampleCount: projection.samples.filter((sample) => sample.sourceKind === "docs-example").length,
-      goldenJourneyCount: projection.goldenJourneys.length,
-      qualifiedGoldenCount: projection.goldenJourneys.filter((journey) => journey.status === "qualified").length,
-      routeCount: projection.routes.length,
-      sampleBundleCount: projection.sampleBundles.sampleIds.length,
-      sampleIdsUnique: true,
-      routeIdsUnique: true,
-      routesEndInHtml: true,
-      executableSourceOwner: "honua-io/honua-sdk-js",
-      presentationOwner: "honua-io/honua-site",
-      credentialValuesForbidden: true,
-    },
-    representativeRoutes: ["quickstart-map", "public-safety", "two-protocols"],
-  };
 }
 
 /**
@@ -6885,7 +7579,7 @@ function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = [])
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
-    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The presentation-safe projection is [`samples/dist/honua-site-samples.v2.json`](../../samples/dist/honua-site-samples.v2.json).",
+    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers.",
     "",
   ].join("\n");
 }
@@ -6971,7 +7665,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     verifyCheckout: options.verifyCheckout,
   });
   const handoff = generateSiteConsumerHandoff(projection, capabilityMatrix, visualEvidence);
-  const consumerFixtureV3 = generateSiteConsumerFixtureV3(handoff);
+  const consumerFixtureV4 = generateSiteConsumerFixtureV4(handoff);
   await validateSiteConsumerHandoff(handoff, {
     projection,
     matrix: capabilityMatrix,
@@ -6982,9 +7676,18 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     qualificationEvidence,
     verifyCheckout: options.verifyCheckout,
   });
-  await validateSiteConsumerFixtureV3(consumerFixtureV3, handoff, {
+  await validateSiteConsumerFixtureV4(consumerFixtureV4, handoff, {
     verifyCheckout: options.verifyCheckout,
   });
+  const [legacyProjection, legacyHandoff, legacyConsumerFixtureV3, legacyReceiptArchive] = await Promise.all([
+    readJson(LEGACY_SITE_PROJECTION_PATH),
+    readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH),
+    readJson(SITE_CONSUMER_V3_FIXTURE_PATH),
+    readJson(LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH),
+  ]);
+  await validateSiteProjection(legacyProjection);
+  await validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive });
+  await validateSiteConsumerFixtureV3(legacyConsumerFixtureV3, legacyHandoff);
   return new Map([
     [
       GENERATED_CATALOG_PATH,
@@ -6995,8 +7698,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
     [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
-    [SITE_CONSUMER_FIXTURE_PATH, stableJson(generateSiteConsumerFixture(projection))],
-    [SITE_CONSUMER_V3_FIXTURE_PATH, stableJson(consumerFixtureV3)],
+    [SITE_CONSUMER_V4_FIXTURE_PATH, stableJson(consumerFixtureV4)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
 }
@@ -7300,6 +8002,18 @@ async function runContract(command, options = {}) {
 
 async function main(argv) {
   const [command = "check", ...args] = argv;
+  if (command === "archive-legacy-visual-receipts") {
+    invariant(args.length === 0, "archive-legacy-visual-receipts does not accept arguments");
+    const handoff = await readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH);
+    const archive = await generateLegacyVisualReceiptArchive(handoff);
+    await validateLegacyVisualReceiptArchive(archive, handoff);
+    await mkdir(path.dirname(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH)), { recursive: true });
+    await writeFile(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH), stableJson(archive), "utf8");
+    process.stdout.write(
+      `Archived ${archive.entries.length} frozen legacy receipts and ${archive.artifacts.fileCount} artifact paths\n`,
+    );
+    return;
+  }
   if (["check", "write"].includes(command)) {
     let qualificationBootstrapSampleId;
     if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {

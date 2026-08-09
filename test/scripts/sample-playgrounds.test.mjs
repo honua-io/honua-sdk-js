@@ -100,7 +100,7 @@ describe("playground eligibility", () => {
     assert.equal(decision.category, "repository-vite-kit");
   });
 
-  it("excludes a sample that needs a data origin the playground cannot serve", () => {
+  it("keeps a live-backed bundle excluded without a reviewed fixture origin", () => {
     const decision = decisionById.get("service-explorer");
     assert.equal(decision.qualified, false);
     assert.equal(decision.category, "requires-data-origin");

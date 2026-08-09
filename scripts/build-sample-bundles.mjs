@@ -97,7 +97,7 @@ export const RUNTIME_HOSTING_KINDS = [
   "not-a-runtime-sample",
 ];
 
-/** The two hosting kinds a public gallery bundle may be published for. */
+/** Hosting kinds that are generically safe for public gallery publication. */
 export const PUBLISHABLE_RUNTIME_HOSTING = new Set(["self-contained", "same-origin-fixture-service"]);
 
 /**
@@ -109,6 +109,38 @@ export const PUBLISHABLE_RUNTIME_HOSTING = new Set(["self-contained", "same-orig
 export const RUNNABILITY_BY_HOSTING = new Map([
   ["self-contained", "standalone"],
   ["same-origin-fixture-service", "requires-host-fixture-service"],
+  ["external-live-endpoint", "requires-live-endpoint"],
+]);
+
+/**
+ * The only live-backed bundles admitted to publication. This is deliberately
+ * keyed by literal sample id rather than by hosting kind: every other
+ * `external-live-endpoint` remains excluded. Each exception binds the browser
+ * allowlist and the semantic live smoke to one exact HTTPS origin.
+ */
+export const PUBLISHED_LIVE_SAMPLE_POLICY = new Map([
+  [
+    "maplibre-quickstart",
+    {
+      allowedOrigins: ["https://demo.honua.io"],
+      semanticProbe: {
+        url: "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1/query?where=id%20%3C%3D%2025&outFields=*&returnGeometry=true&f=geojson",
+        kind: "geojson-feature-collection",
+        minimumFeatures: 1,
+      },
+    },
+  ],
+  [
+    "service-explorer",
+    {
+      allowedOrigins: ["https://demo.pygeoapi.io"],
+      semanticProbe: {
+        url: "https://demo.pygeoapi.io/master/collections/lakes/items?limit=1&f=json",
+        kind: "geojson-feature-collection",
+        minimumFeatures: 1,
+      },
+    },
+  ],
 ]);
 
 /**
@@ -247,11 +279,10 @@ export const SAMPLE_BUNDLE_AUDIT = [
   },
   {
     id: "maplibre-quickstart",
-    runtimeHosting: "same-origin-fixture-service",
+    runtimeHosting: "external-live-endpoint",
     buildScript: "demo:quickstart:build",
-    hostFixtureRoutes: ["/__honua-quickstart__/basemap-style.json", "/rest/services/natural-earth/FeatureServer/0"],
     auditedVia:
-      "examples/maplibre-quickstart/src/main.ts endpointFromEnvironment: with VITE_HONUA_QUICKSTART_ENDPOINT unset the endpoint is `${location.origin}/rest/services/natural-earth/FeatureServer/0` and the basemap is the same-origin fixture style; neither ships inside the built bundle (the sample has no public/ directory), so the host must serve both.",
+      "scripts/build-sample-bundles.mjs sampleBuildEnv and PUBLISHED_LIVE_SAMPLE_POLICY: the published bundle receives the exact https://demo.honua.io FeatureServer endpoint and a same-bundle basemap while ambient browser configuration remains stripped; the source app keeps its deterministic same-origin fixture default.",
   },
   {
     id: "migration-workbench",
@@ -326,18 +357,17 @@ export const SAMPLE_BUNDLE_AUDIT = [
   },
   {
     id: "realtime-incident-dashboard",
-    runtimeHosting: "external-live-endpoint",
+    runtimeHosting: "self-contained",
     buildScript: "demo:incident:build",
     auditedVia:
-      "examples/realtime-incident-dashboard/src/realtime-transport.ts readIncidentTransportConfig: without ?transport=fixture-edit or a declared incident base/stream override, the base resolves to DEFAULT_DEMO_BASE_URL https://demo.honua.io and the sample subscribes to /api/v1/streaming/features, so the default bundle prefers a deployed live stream. A gallery-safe replay-only default is a product decision, not a bundling change.",
+      "examples/realtime-incident-dashboard/src/realtime-transport.ts readIncidentTransportConfig: on hosted (non-localhost) origins `transport=replay` defaults when no explicit override exists, so the sample uses the built-in fixture transport by default and does not require a same-origin mock service for the gallery bundle.",
   },
   {
     id: "service-explorer",
-    runtimeHosting: "same-origin-fixture-service",
+    runtimeHosting: "external-live-endpoint",
     buildScript: "demo:service-explorer:build",
-    hostFixtureRoutes: ["/fixtures/geoservices", "/fixtures/ogc"],
     auditedVia:
-      "examples/service-explorer/src/main.ts defaultEndpoint is `${window.location.origin}/fixtures/ogc`; its sole declared config name HONUA_SERVICE_EXPLORER_LIVE_ENABLED is catalog-classified server-only and non-secret, so no VITE_ override can reach the browser build and the reviewed live producer lane is unreachable from a published bundle.",
+      "examples/service-explorer/src/main.ts and PUBLISHED_LIVE_SAMPLE_POLICY: hosted (non-localhost) origins default endpoint/source to the exact https://demo.pygeoapi.io origin plus master/lakes; localhost remains fixture-relative for deterministic source tests.",
   },
   {
     id: "shared-renderer-state",
@@ -452,6 +482,8 @@ export function evaluateSampleBundleEligibility(catalogEntry, auditRecord) {
 
   const blockers = [];
   const hosting = auditRecord.runtimeHosting;
+  const publishedLivePolicy =
+    hosting === "external-live-endpoint" ? PUBLISHED_LIVE_SAMPLE_POLICY.get(catalogEntry.id) : undefined;
 
   if (STRUCTURAL_HOSTING_KINDS.has(hosting)) blockers.push(HOSTING_EXCLUSION.get(hosting));
   if (INELIGIBLE_SUPPORT_TIERS.has(catalogEntry.supportTier)) {
@@ -479,7 +511,7 @@ export function evaluateSampleBundleEligibility(catalogEntry, auditRecord) {
       detail: `Catalog classifies ${credentials.length} declared config name${credentials.length > 1 ? "s" : ""} as a browser-public credential; a static gallery bundle may not embed one.`,
     });
   }
-  if (!STRUCTURAL_HOSTING_KINDS.has(hosting) && !PUBLISHABLE_RUNTIME_HOSTING.has(hosting)) {
+  if (!STRUCTURAL_HOSTING_KINDS.has(hosting) && !PUBLISHABLE_RUNTIME_HOSTING.has(hosting) && !publishedLivePolicy) {
     blockers.push(HOSTING_EXCLUSION.get(hosting));
   }
 
@@ -570,6 +602,7 @@ export function deriveSampleBundleDecisions(catalog, { audit = SAMPLE_BUNDLE_AUD
  */
 export function verifySampleBundleAudit(catalog, { audit = SAMPLE_BUNDLE_AUDIT, root = PROJECT_ROOT } = {}) {
   const byId = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+  const auditById = new Map(audit.map((record) => [record.id, record]));
   const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   for (const record of audit) {
     const catalogEntry = byId.get(record.id);
@@ -615,6 +648,27 @@ export function verifySampleBundleAudit(catalog, { audit = SAMPLE_BUNDLE_AUDIT, 
     } else {
       invariant(routes.length === 0, `${record.id}: only same-origin-fixture-service may declare hostFixtureRoutes`);
     }
+  }
+  for (const [id, policy] of PUBLISHED_LIVE_SAMPLE_POLICY) {
+    const record = auditById.get(id);
+    if (!record) continue;
+    invariant(
+      record.runtimeHosting === "external-live-endpoint",
+      `${id}: live publication policy requires external-live-endpoint hosting`,
+    );
+    invariant(Array.isArray(policy.allowedOrigins) && policy.allowedOrigins.length > 0, `${id}: live policy requires allowedOrigins`);
+    for (const origin of policy.allowedOrigins) {
+      const parsed = new URL(origin);
+      invariant(parsed.protocol === "https:" && parsed.origin === origin, `${id}: allowed live origin must be an exact HTTPS origin`);
+    }
+    const probeUrl = new URL(policy.semanticProbe?.url ?? "");
+    invariant(policy.allowedOrigins.includes(probeUrl.origin), `${id}: semantic probe must use an allowed live origin`);
+    invariant(
+      policy.semanticProbe.kind === "geojson-feature-collection" &&
+        Number.isSafeInteger(policy.semanticProbe.minimumFeatures) &&
+        policy.semanticProbe.minimumFeatures > 0,
+      `${id}: live policy requires a bounded semantic GeoJSON probe`,
+    );
   }
   return audit;
 }
@@ -745,10 +799,19 @@ async function hashDirectory(root) {
 
 /** Strip every `VITE_*` variable so each build only ever sees the sample's
  * own committed fixture-mode default — never an ambient live override. */
-function fixtureBuildEnv() {
+function sampleBuildEnv(sampleId) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith("VITE_")) delete env[key];
+  }
+  if (sampleId === "maplibre-quickstart") {
+    env.VITE_HONUA_QUICKSTART_ENDPOINT =
+      "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
+    env.VITE_HONUA_QUICKSTART_WHERE = "id <= 25";
+    env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE = "./__honua-quickstart__/basemap-style.json";
+  }
+  if (sampleId === "realtime-incident-dashboard") {
+    env.VITE_HONUA_INCIDENT_TRANSPORT = "replay";
   }
   return env;
 }
@@ -791,8 +854,9 @@ async function buildSample(
   const result = runNpmSync(["run", buildScript, "--silent", "--", "--base", "./"], {
     cwd: PROJECT_ROOT,
     encoding: "utf8",
-    env: fixtureBuildEnv(),
+    env: sampleBuildEnv(id),
     stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: process.platform === "win32",
   });
   if (result.status !== 0) {
     process.stderr.write(result.stdout ?? "");
