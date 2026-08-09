@@ -1,0 +1,304 @@
+{
+  "$schema": "./multidimensional-format-maturity.schema.json",
+  "format": "honua.sdk-js.internal-multidimensional-format-maturity.v1",
+  "schemaVersion": 1,
+  "visibility": "internal-planning-only",
+  "title": "NetCDF4 and geospatial HDF5 client maturity boundary",
+  "sourceOfTruth": {
+    "serverRepository": "honua-io/honua-server",
+    "serverCommit": "61b7038e1887c98131aa217b6f0ae7869356a1f3",
+    "reconciledAt": "2026-08-08T12:00:00Z",
+    "references": [
+      {
+        "id": "server-registration-routes",
+        "path": "src/Honua.Server/Features/Protocols/Coverages/Multidimensional/MultidimensionalCoverageEndpoints.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/src/Honua.Server/Features/Protocols/Coverages/Multidimensional/MultidimensionalCoverageEndpoints.cs",
+        "assertion": "Authenticated v1 admin CRUD and asynchronous refresh/status routes exist for multidimensional coverage registrations."
+      },
+      {
+        "id": "server-format-domain",
+        "path": "src/Honua.Core/Features/Raster/Multidimensional/Domain/MultidimensionalCoverageModels.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/src/Honua.Core/Features/Raster/Multidimensional/Domain/MultidimensionalCoverageModels.cs",
+        "assertion": "The server domain names CloudOptimizedHdf5, NetCdf4, and Grib registration formats and variable/dimension metadata records."
+      },
+      {
+        "id": "server-registration-validation",
+        "path": "src/Honua.Core/Features/Raster/Multidimensional/Domain/MultidimensionalCoverageValidation.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/src/Honua.Core/Features/Raster/Multidimensional/Domain/MultidimensionalCoverageValidation.cs",
+        "assertion": "Registration validates cloud provider, object path, extension, and bounded declared variable names without proving readable bytes."
+      },
+      {
+        "id": "server-path-b-decision",
+        "path": "docs/internal/contributor/adr/0039-cloud-optimized-hdf-netcdf-reader-strategy.md",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/docs/internal/contributor/adr/0039-cloud-optimized-hdf-netcdf-reader-strategy.md",
+        "assertion": "ADR-0039 selects GDAL sidecar conversion to derived Zarr and explicitly rejects a browser or in-process whole-file reader path."
+      },
+      {
+        "id": "server-scan-dispatch",
+        "path": "src/Honua.Server/Features/Protocols/Coverages/Multidimensional/MultidimCoverageScanJob.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/src/Honua.Server/Features/Protocols/Coverages/Multidimensional/MultidimCoverageScanJob.cs",
+        "assertion": "The refresh path dispatches an internal native-profile metadata job and can best-effort register its derived Zarr output."
+      },
+      {
+        "id": "server-worker-conversion",
+        "path": "src/Honua.Worker.Gdal/Execution/GdalMultidimCoverageMetadataJobExecutor.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/src/Honua.Worker.Gdal/Execution/GdalMultidimCoverageMetadataJobExecutor.cs",
+        "assertion": "The optional native worker runs gdalmdiminfo and best-effort gdal_translate to Zarr through bounded VSI access."
+      },
+      {
+        "id": "server-worker-image",
+        "path": "docker/worker-gdal/Dockerfile",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/docker/worker-gdal/Dockerfile",
+        "assertion": "The pinned ubuntu-full worker build checks netCDF and GRIB drivers, but contains no explicit HDF5 driver assertion or deployed-image receipt."
+      },
+      {
+        "id": "server-registration-contract-tests",
+        "path": "tests/dotnet/Honua.Server.Tests/Features/Protocols/Coverages/Multidimensional/MultidimensionalCoverageEndpointTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/tests/dotnet/Honua.Server.Tests/Features/Protocols/Coverages/Multidimensional/MultidimensionalCoverageEndpointTests.cs",
+        "assertion": "Server tests exercise admin registration and job dispatch with in-memory doubles, not a pinned live NetCDF or HDF5 object and worker."
+      },
+      {
+        "id": "server-worker-contract-tests",
+        "path": "tests/dotnet/Honua.Worker.Gdal.Tests/GdalMultidimCoverageExecutorTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/tests/dotnet/Honua.Worker.Gdal.Tests/GdalMultidimCoverageExecutorTests.cs",
+        "assertion": "Worker tests verify command construction, artifact mapping, path handling, and failure behavior with fake command results rather than live format bytes."
+      },
+      {
+        "id": "server-reader-disabled",
+        "path": "src/Honua.Core/Features/Raster/Multidimensional/Services/NotEnabledMultidimensionalCoverageMetadataReader.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/61b7038e1887c98131aa217b6f0ae7869356a1f3/src/Honua.Core/Features/Raster/Multidimensional/Services/NotEnabledMultidimensionalCoverageMetadataReader.cs",
+        "assertion": "The default managed multidimensional reader advertises no supported formats and throws a stable reader-unavailable error."
+      }
+    ]
+  },
+  "policy": {
+    "publicSdkExport": false,
+    "runnableSample": false,
+    "supportClaim": false,
+    "coverageClaim": false,
+    "browserFullFileDownload": false,
+    "studioApi": false,
+    "cliApi": false,
+    "unblockRule": "Do not design or publish an SDK adapter until the server provides versioned variable/dimension inspection and bounded subset HTTP contracts, explicit worker image proof, pinned live fixtures, and a live canary receipt for both tracked formats."
+  },
+  "trackedFormats": [
+    {
+      "id": "netcdf4",
+      "label": "NetCDF-4",
+      "role": "maturity-track",
+      "scopeBoundary": "CF-aware NetCDF-4 coverage variables, dimensions, coordinates, attributes, grids, chunks, scale/offset, calendars, vertical axes, and no-data; never an implicit whole-file browser download.",
+      "evidence": [
+        {
+          "surface": "admin-registration",
+          "state": "verified-source",
+          "statement": "The server has authenticated v1 admin registration CRUD for NetCdf4 objects; registration is catalog metadata, not readable client data.",
+          "evidenceRefs": ["server-registration-routes", "server-format-domain", "server-registration-validation", "server-registration-contract-tests"],
+          "releaseBlocking": false
+        },
+        {
+          "surface": "metadata-conversion-to-zarr",
+          "state": "build-optional",
+          "statement": "A separately deployed native worker can scan NetCDF metadata and best-effort convert the object to derived Zarr; this is not guaranteed in every server build or deployment.",
+          "evidenceRefs": ["server-path-b-decision", "server-scan-dispatch", "server-worker-conversion", "server-reader-disabled"],
+          "releaseBlocking": false
+        },
+        {
+          "surface": "versioned-variable-dimension-http",
+          "state": "missing",
+          "statement": "No pinned public versioned HTTP contract proves client inspection of NetCDF variables, dimensions, coordinates, attributes, or conventions.",
+          "evidenceRefs": ["server-registration-routes", "server-registration-contract-tests"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "bounded-subset-http",
+          "state": "missing",
+          "statement": "No pinned public versioned HTTP contract proves bounded NetCDF variable, time, vertical, or spatial subsetting with explicit limits.",
+          "evidenceRefs": ["server-path-b-decision", "server-registration-routes"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "worker-driver-image",
+          "state": "build-optional",
+          "statement": "The pinned native worker Dockerfile checks for a netCDF GDAL driver at image build time, but no deployed image matrix or runtime receipt is pinned here.",
+          "evidenceRefs": ["server-worker-image", "server-worker-contract-tests"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "live-fixture",
+          "state": "missing",
+          "statement": "No immutable public or CI NetCDF fixture is bound to a real Honua registration, worker conversion, derived Zarr, and bounded result receipt.",
+          "evidenceRefs": ["server-registration-contract-tests", "server-worker-contract-tests"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "live-canary",
+          "state": "missing",
+          "statement": "No scheduled canary proves NetCDF registration through bounded read across a deployed server and worker version pair.",
+          "evidenceRefs": ["server-registration-contract-tests", "server-worker-contract-tests"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "sdk-adapter",
+          "state": "missing",
+          "statement": "The JavaScript SDK intentionally exposes no NetCDF adapter, types, error surface, package export, or runnable example.",
+          "evidenceRefs": ["server-reader-disabled", "server-registration-routes"],
+          "releaseBlocking": true
+        }
+      ]
+    },
+    {
+      "id": "hdf5",
+      "label": "Geospatial HDF5",
+      "role": "maturity-track",
+      "scopeBoundary": "Only HDF5 datasets that map to a documented geospatial coverage model; generic group browsing and an implication that arbitrary HDF5 is spatial are explicitly outside scope.",
+      "evidence": [
+        {
+          "surface": "admin-registration",
+          "state": "verified-source",
+          "statement": "The server has authenticated v1 admin registration CRUD for CloudOptimizedHdf5 objects; registration does not establish CF mapping or readable bytes.",
+          "evidenceRefs": ["server-registration-routes", "server-format-domain", "server-registration-validation", "server-registration-contract-tests"],
+          "releaseBlocking": false
+        },
+        {
+          "surface": "metadata-conversion-to-zarr",
+          "state": "build-optional",
+          "statement": "ADR-0039 routes HDF5 through the optional GDAL worker and derived Zarr, while the managed default reader remains disabled.",
+          "evidenceRefs": ["server-path-b-decision", "server-scan-dispatch", "server-worker-conversion", "server-reader-disabled"],
+          "releaseBlocking": false
+        },
+        {
+          "surface": "versioned-variable-dimension-http",
+          "state": "missing",
+          "statement": "No pinned public versioned HTTP contract proves geospatial HDF5 dataset/group, variable, dimension, coordinate, attribute, or convention inspection.",
+          "evidenceRefs": ["server-registration-routes", "server-registration-contract-tests"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "bounded-subset-http",
+          "state": "missing",
+          "statement": "No pinned public versioned HTTP contract proves bounded geospatial HDF5 variable, time, vertical, or spatial subset reads.",
+          "evidenceRefs": ["server-path-b-decision", "server-registration-routes"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "worker-driver-image",
+          "state": "missing",
+          "statement": "The worker image commentary expects HDF support, but its executable build guard checks netCDF and GRIB only and no HDF5 driver/runtime matrix is pinned.",
+          "evidenceRefs": ["server-worker-image", "server-worker-contract-tests"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "live-fixture",
+          "state": "missing",
+          "statement": "No immutable geospatial HDF5 fixture is bound to a real Honua registration, worker conversion, derived Zarr, and bounded result receipt.",
+          "evidenceRefs": ["server-registration-contract-tests", "server-worker-contract-tests"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "live-canary",
+          "state": "missing",
+          "statement": "No scheduled canary proves geospatial HDF5 registration through bounded read across a deployed server and worker version pair.",
+          "evidenceRefs": ["server-registration-contract-tests", "server-worker-contract-tests"],
+          "releaseBlocking": true
+        },
+        {
+          "surface": "sdk-adapter",
+          "state": "missing",
+          "statement": "The JavaScript SDK intentionally exposes no HDF5 adapter, types, error surface, package export, generic group browser, or runnable example.",
+          "evidenceRefs": ["server-reader-disabled", "server-registration-routes"],
+          "releaseBlocking": true
+        }
+      ]
+    }
+  ],
+  "referenceOnlyFormats": [
+    {
+      "id": "grib",
+      "label": "GRIB / GRIB2",
+      "role": "reference-only",
+      "statement": "Server source includes a Grib registration enum, extension validation, conversion-path test reference, and GDAL image guard. GRIB is outside issue #1121 and creates no SDK roadmap, support claim, or curriculum lane here.",
+      "evidenceRefs": ["server-format-domain", "server-registration-validation", "server-worker-image", "server-worker-contract-tests"]
+    }
+  ],
+  "releaseBlockers": [
+    {
+      "id": "server-versioned-metadata-http",
+      "appliesTo": ["netcdf4", "hdf5"],
+      "requirement": "Publish a stable versioned HTTP operation for bounded variable, dimension, coordinate, attribute, and convention inspection.",
+      "evidenceNeeded": "Server contract tests and generated protocol documentation pinned to an immutable server commit."
+    },
+    {
+      "id": "server-bounded-subset-http",
+      "appliesTo": ["netcdf4", "hdf5"],
+      "requirement": "Publish bounded variable, spatial, temporal, and vertical subset operations without whole-file fallback.",
+      "evidenceNeeded": "Positive and limit-rejection contract tests covering range, byte, cell, variable, and timeout budgets."
+    },
+    {
+      "id": "worker-driver-image-matrix",
+      "appliesTo": ["netcdf4", "hdf5"],
+      "requirement": "Pin an explicit NetCDF4 and HDF5 GDAL driver/image/version matrix for every supported deployment profile.",
+      "evidenceNeeded": "Image build assertions plus deployed runtime receipts for each claimed format and architecture."
+    },
+    {
+      "id": "pinned-live-format-fixtures",
+      "appliesTo": ["netcdf4", "hdf5"],
+      "requirement": "Bind immutable, license-safe fixtures with known variables, dimensions, coordinates, chunks, fill values, and expected subset digests.",
+      "evidenceNeeded": "Fixture hashes, registration receipt, conversion artifact digest, and deterministic bounded response assertions."
+    },
+    {
+      "id": "deployed-live-canary",
+      "appliesTo": ["netcdf4", "hdf5"],
+      "requirement": "Continuously prove the complete server and native-worker path against pinned deployed versions.",
+      "evidenceNeeded": "Scheduled redacted canary receipts covering metadata, bounded subsets, cancellation, auth, failures, and derived-artifact provenance."
+    },
+    {
+      "id": "sdk-adapter-contract",
+      "appliesTo": ["netcdf4", "hdf5"],
+      "requirement": "Design the client only after server proof, with bounded requests, typed metadata/errors, cancellation, auth, interceptors, cache rules, and safe render/columnar handoffs.",
+      "evidenceNeeded": "Reviewed public API design, fixtures, unit and server contract tests, package inventory updates, support truth, and gallery admission evidence."
+    }
+  ],
+  "curriculum": {
+    "currentState": "architecture-only",
+    "currentAllowedContent": [
+      "Internal maturity matrix with pinned server source evidence",
+      "Architecture guidance that names blockers and safe boundaries"
+    ],
+    "currentProhibitedContent": [
+      "Public SDK API or package subpath export",
+      "Runnable sample or gallery capability claim",
+      "Implicit browser full-file download workflow",
+      "Invented Studio or CLI configuration surface"
+    ],
+    "futureSequence": [
+      {
+        "order": 1,
+        "id": "inspect-metadata",
+        "title": "Inspect one variable",
+        "entryCriteria": ["server-versioned-metadata-http", "worker-driver-image-matrix", "pinned-live-format-fixtures"],
+        "learningOutcome": "Identify a supported variable, dimensions, coordinate axes, units, chunks, fill value, CRS mapping, and server-enforced bounds."
+      },
+      {
+        "order": 2,
+        "id": "request-bounded-slice",
+        "title": "Request one bounded slice",
+        "entryCriteria": ["server-bounded-subset-http", "deployed-live-canary"],
+        "learningOutcome": "Select one variable and bounded spatial, temporal, and vertical interval with cancellation and deterministic expected output."
+      },
+      {
+        "order": 3,
+        "id": "render-or-analyze",
+        "title": "Choose a safe handoff",
+        "entryCriteria": ["sdk-adapter-contract"],
+        "learningOutcome": "Project the bounded result to an admitted coverage/raster descriptor or Arrow-style columnar handoff without loading the source file."
+      },
+      {
+        "order": 4,
+        "id": "publish-walkthrough",
+        "title": "Publish the task walkthrough",
+        "entryCriteria": ["pinned-live-format-fixtures", "deployed-live-canary", "sdk-adapter-contract"],
+        "learningOutcome": "Run a pinned end-to-end task with expected output, failure troubleshooting, source provenance, and a complete-project link."
+      }
+    ]
+  }
+}
