@@ -1341,13 +1341,18 @@ export function validateFixturePackDirectory(
     "Fixture manifest exceeds 128 KiB.",
   );
   const manifest = JSON.parse(manifestBytes.toString("utf8"));
-  if (manifest.fixturePackVersion === "honua.fixture-pack/v1") validateManifestShapeV1(manifest);
-  else if (manifest.fixturePackVersion === "honua.fixture-pack/v2") validateManifestShapeV2(manifest);
-  else throw new Error("Unsupported fixture manifest version.");
-  const expectedRevision = manifest.fixturePackVersion === "honua.fixture-pack/v1" ? "v1" : "v2";
-  if (revision !== expectedRevision) {
+  const expectedRevision =
+    manifest.fixturePackVersion === "honua.fixture-pack/v1"
+      ? "v1"
+      : manifest.fixturePackVersion === "honua.fixture-pack/v2"
+        ? "v2"
+        : undefined;
+  if (!expectedRevision) throw new Error("Unsupported fixture manifest version.");
+  if (revision !== expectedRevision || manifest.identity?.revision !== expectedRevision) {
     throw new Error("Fixture pack protocol version does not match its directory revision.");
   }
+  if (expectedRevision === "v1") validateManifestShapeV1(manifest);
+  else validateManifestShapeV2(manifest);
   if (manifest.identity?.id !== packId || manifest.identity?.revision !== revision) {
     throw new Error("Fixture manifest identity does not match its directory id/revision.");
   }
