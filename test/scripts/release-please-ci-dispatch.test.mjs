@@ -283,5 +283,17 @@ describe("Release Please workflow policy", () => {
       assert.match(job, /\^\[0-9a-f\]\{40\}\$/u);
       assert.match(job, /"\$\{GITHUB_SHA\}" != "\$\{RELEASE_HEAD_SHA\}"/u);
     }
+
+    const biome = JSON.parse(fs.readFileSync(path.join(root, "biome.json"), "utf8"));
+    const createAppOverride = biome.overrides.find((override) =>
+      override.include?.includes("packages/create-honua-app/package.json"),
+    );
+    assert.deepEqual(createAppOverride, {
+      include: ["packages/create-honua-app/package.json"],
+      formatter: { lineWidth: 80 },
+    });
+    const createAppPath = path.join(root, "packages/create-honua-app/package.json");
+    const createAppSource = fs.readFileSync(createAppPath, "utf8").replaceAll("\r\n", "\n");
+    assert.equal(createAppSource, `${JSON.stringify(JSON.parse(createAppSource), null, 2)}\n`);
   });
 });

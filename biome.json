@@ -47,6 +47,12 @@
           }
         }
       }
+    },
+    {
+      "include": ["packages/create-honua-app/package.json"],
+      "formatter": {
+        "lineWidth": 80
+      }
     }
   ],
   "files": {
