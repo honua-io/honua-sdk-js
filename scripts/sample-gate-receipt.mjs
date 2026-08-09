@@ -1574,11 +1574,14 @@ export async function validateGateReceipt(receipt, options = {}) {
   if (options.verifyCheckout !== false && !derivedArtifactsRelaxed()) {
     verifyEvidenceNeutralCheckout(receipt.sourceDigest, root, receipt.sourceRevision);
   }
-  const producerBytes = await readCanonicalBoundedFile(root, receipt.producer.path, {
-    label: "gate receipt producer",
-    maxBytes: MAX_REPORT_BYTES,
-  });
-  if (!derivedArtifactsRelaxed()) {
+  const producerBytes = options.producerBytes
+    ? Buffer.from(options.producerBytes)
+    : await readCanonicalBoundedFile(root, receipt.producer.path, {
+        label: "gate receipt producer",
+        maxBytes: MAX_REPORT_BYTES,
+      });
+  invariant(producerBytes.byteLength > 0 && producerBytes.byteLength <= MAX_REPORT_BYTES, "gate receipt producer blob is invalid");
+  if (options.producerBytes || !derivedArtifactsRelaxed()) {
     invariant(sha256(producerBytes) === receipt.producer.sha256, "gate receipt producer digest mismatch");
   }
   const artifact = receipt.artifacts[0];

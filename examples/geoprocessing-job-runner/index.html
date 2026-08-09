@@ -3,83 +3,130 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Honua Geometry and Geoprocessing Job Runner</title>
+    <meta name="theme-color" content="#0d3b43" />
+    <link rel="icon" href="data:," />
+    <title>Run a buffer job and collect the result | Honua SDK</title>
   </head>
   <body>
     <main class="app-shell">
-      <section class="top-bar" aria-label="Process controls">
-        <div class="control-group">
-          <label for="aoi-select">AOI</label>
-          <select id="aoi-select"></select>
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Honua SDK for JavaScript · Public walkthrough</p>
+          <h1>Run a buffer job and collect the result</h1>
+          <p class="lede">A deterministic 350 m planar buffer around Honolulu Hale, executed through the OGC Processes job lifecycle.</p>
         </div>
-        <div class="control-group">
-          <label for="plan-select">Process</label>
-          <select id="plan-select"></select>
+        <div class="hero-actions">
+          <span class="fixture-badge">Pinned fixture · not a live service</span>
+          <button id="primary-action" class="primary-action" type="button">Run buffer job</button>
         </div>
-        <div class="control-group">
-          <label for="category-filter">Category</label>
-          <select id="category-filter">
-            <option value="all">All</option>
-            <option value="facility">Facility</option>
-            <option value="route">Route</option>
-            <option value="shelter">Shelter</option>
-            <option value="asset">Asset</option>
-          </select>
-        </div>
-        <button id="run-job" type="button">Run Job</button>
-        <button id="poll-job" type="button">Poll</button>
-        <button id="cancel-job" type="button">Cancel</button>
-        <button id="export-workspace" type="button">Export</button>
-      </section>
+      </header>
 
-      <section class="status-strip" aria-label="Job status">
-        <article>
-          <span>Job</span>
-          <strong id="job-state">Idle</strong>
-        </article>
-        <article>
-          <span>Cache</span>
-          <strong id="cache-state">0 ready</strong>
-        </article>
-        <article>
-          <span>Capability</span>
-          <strong id="capability-state">available</strong>
-        </article>
-        <article>
-          <span>Results</span>
-          <strong id="result-count">0</strong>
-        </article>
-      </section>
-
-      <section class="workspace-grid">
-        <aside class="side-panel" aria-label="Process catalog">
-          <div class="meta-list">
-            <div><span>AOI area</span><strong id="aoi-area"></strong></div>
-            <div><span>Geometry</span><strong id="aoi-geometry"></strong></div>
-            <div><span>Duration</span><strong id="plan-duration"></strong></div>
-            <div><span>Layer</span><strong id="materialized-layer"></strong></div>
+      <section class="workspace" aria-label="Buffer result walkthrough">
+        <figure class="map-card" aria-labelledby="map-title" aria-describedby="geometry-alternative">
+          <figcaption id="map-title">
+            <span>Downtown Honolulu · EPSG:3857 execution</span>
+            <strong>Honolulu Hale buffer result</strong>
+          </figcaption>
+          <svg id="result-map" class="result-map" viewBox="0 0 1000 650" role="img" aria-label="Map of downtown Honolulu showing Honolulu Hale as the input point and its 350 metre buffer as an output polygon">
+            <defs>
+              <pattern id="blocks" width="64" height="64" patternUnits="userSpaceOnUse" patternTransform="rotate(8)">
+                <rect width="64" height="64" fill="#e8dfc9"></rect>
+                <path d="M0 2H64M2 0V64" stroke="#d4c8ab" stroke-width="3"></path>
+              </pattern>
+              <filter id="polygon-shadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#17363a" flood-opacity=".24"></feDropShadow>
+              </filter>
+            </defs>
+            <rect width="1000" height="650" fill="url(#blocks)"></rect>
+            <path class="ocean" d="M0 520 C180 475 300 530 455 505 C610 478 765 520 1000 445 L1000 650 L0 650 Z"></path>
+            <path class="park" d="M82 87H282V210H82Z M716 310H914V430H716Z"></path>
+            <g class="streets" aria-hidden="true">
+              <path d="M24 190 C250 205 520 155 970 180"></path>
+              <path d="M10 278 C250 292 565 235 995 263"></path>
+              <path d="M20 365 C290 388 650 318 990 350"></path>
+              <path d="M165 15 C195 220 220 410 250 590"></path>
+              <path d="M420 0 C438 210 475 420 505 610"></path>
+              <path d="M690 5 C705 205 740 430 772 575"></path>
+            </g>
+            <g class="street-labels" aria-hidden="true">
+              <text x="58" y="174">S Beretania St</text>
+              <text x="530" y="247">S King St</text>
+              <text x="45" y="348">Kapiolani Blvd</text>
+              <text x="435" y="92" transform="rotate(83 435 92)">Punchbowl St</text>
+              <text x="742" y="96" transform="rotate(82 742 96)">Alakea St</text>
+            </g>
+            <g class="landmarks" aria-hidden="true">
+              <circle cx="505" cy="188" r="5"></circle><text x="517" y="193">Hawaiʻi State Capitol</text>
+              <circle cx="603" cy="294" r="5"></circle><text x="615" y="299">ʻIolani Palace</text>
+              <circle cx="710" cy="385" r="5"></circle><text x="722" y="390">Kawaiahaʻo Church</text>
+            </g>
+            <path id="buffer-polygon" class="buffer-polygon" data-rendered="false" d="" filter="url(#polygon-shadow)"></path>
+            <circle id="input-point" class="input-halo" r="15"></circle>
+            <circle id="input-core" class="input-core" r="7"></circle>
+            <g class="map-label" transform="translate(518 338)">
+              <rect width="148" height="34" rx="5"></rect>
+              <text x="10" y="22">Honolulu Hale</text>
+            </g>
+            <g class="north" transform="translate(920 72)" aria-hidden="true"><path d="M0 34L14 0L28 34L14 27Z"></path><text x="9" y="50">N</text></g>
+            <g class="scale" transform="translate(48 588)" aria-hidden="true"><path d="M0 0H140M0-6V6M70-6V6M140-6V6"></path><text x="0" y="22">0</text><text x="58" y="22">250</text><text x="126" y="22">500 m</text></g>
+          </svg>
+          <div class="legend" aria-label="Map legend">
+            <span><i class="legend-input"></i>Input · Honolulu Hale</span>
+            <span><i class="legend-output"></i>Output · 350 m buffer</span>
           </div>
-          <div id="process-list" class="process-list"></div>
-          <div id="job-diagnostics" class="diagnostics">No failed-job diagnostics</div>
+        </figure>
+
+        <aside class="run-panel" aria-label="Job status and result facts">
+          <section class="state-card" aria-live="polite">
+            <p>Job state</p>
+            <strong id="job-state" data-status="idle">Idle</strong>
+            <span id="result-state">Waiting for result</span>
+          </section>
+          <section class="timeline-card">
+            <header><h2>Status timeline</h2><span id="timeline-count">0 / 4</span></header>
+            <ol id="status-timeline" class="status-timeline"><li class="pending"><span>Ready</span><p>The fixture submits automatically on load.</p></li></ol>
+          </section>
+          <section id="geometry-alternative" class="geometry-card">
+            <h2>Geometry alternative</h2>
+            <table aria-label="Accessible input and output geometry summary">
+              <thead><tr><th>Role</th><th>Geometry</th><th>CRS</th></tr></thead>
+              <tbody>
+                <tr><td>Input</td><td>Point at 21.3049, -157.8579</td><td>EPSG:3857</td></tr>
+                <tr><td>Output</td><td>Polygon, 33 ring positions</td><td>EPSG:3857</td></tr>
+              </tbody>
+            </table>
+            <dl>
+              <div><dt>Distance</dt><dd>350 m planar</dd></div>
+              <div><dt>Digest</dt><dd id="result-digest" class="digest">7694a78db36e259510c879e9fdaaac548f03a0c98792d7acf2a1f397740532df</dd></div>
+            </dl>
+          </section>
+          <p id="error-message" class="error-message" hidden>No request or job errors</p>
         </aside>
-
-        <section class="map-panel" aria-label="Linked map">
-          <div id="map-surface" class="map-surface"></div>
-        </section>
-
-        <section class="analytics-panel" aria-label="Linked results">
-          <div class="metrics">
-            <div><span>Features</span><strong id="metric-count">0</strong></div>
-            <div><span>Critical</span><strong id="metric-critical">0</strong></div>
-            <div><span>People</span><strong id="metric-population">0</strong></div>
-          </div>
-          <div id="risk-chart" class="risk-chart"></div>
-          <div id="result-table" class="result-table"></div>
-          <div id="feature-detail" class="feature-detail"></div>
-        </section>
       </section>
 
-      <textarea id="workspace-export" aria-label="Workspace export" spellcheck="false"></textarea>
+      <section class="supporting" aria-label="Implementation details">
+        <article>
+          <p class="section-kicker">Code</p>
+          <h2>The public SDK path</h2>
+          <pre><code>const job = await client.ogcProcesses().execute({
+  processId: "geometry.buffer",
+  inputs: { wkb, srid: 3857, distance: 350 },
+  mode: "async"
+});
+
+const { outputs } = await job.results({ deadlineMs: 2500 });</code></pre>
+        </article>
+        <article class="contract-facts">
+          <p class="section-kicker">Protocol</p>
+          <h2>OGC API Processes</h2>
+          <dl>
+            <div><dt>Process</dt><dd id="process-id">geometry.buffer</dd></div>
+            <div><dt>Endpoint</dt><dd>/ogc/processes/processes/geometry.buffer/execution</dd></div>
+            <div><dt>Lifecycle</dt><dd>accepted → running → successful → results</dd></div>
+            <div><dt>Input WKB</dt><dd id="input-wkb" class="digest">AQEAAAA1K7tQM8JwwSnDYAG4hkJB</dd></div>
+          </dl>
+        </article>
+      </section>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

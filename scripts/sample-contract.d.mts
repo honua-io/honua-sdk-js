@@ -232,8 +232,8 @@ export interface SiteConsumerArtifactReference {
 }
 
 export interface SiteConsumerHandoff {
-  format: "honua.site.sdk-sample-consumer-handoff.v1";
-  schemaVersion: 1;
+  format: "honua.site.sdk-sample-consumer-handoff.v1" | "honua.site.sdk-sample-consumer-handoff.v2";
+  schemaVersion: 1 | 2;
   sdk: { package: string; version: string };
   ownership: Record<string, unknown>;
   inputs: Record<
@@ -274,6 +274,53 @@ export interface SiteConsumerHandoff {
   gaps: Array<Record<string, unknown>>;
 }
 
+export interface LegacyVisualReceiptArchiveV1 {
+  $schema: string;
+  format: "honua.site.sdk-sample-legacy-receipt-archive.v1";
+  schemaVersion: 1;
+  handoff: { path: string; format: string; schemaVersion: number; sha256: string };
+  visualEvidence: { path: string; sha256: string };
+  producers: Array<{
+    sourceRevision: string;
+    sourcePath: string;
+    bytes: number;
+    sha256: string;
+    contentBase64: string;
+  }>;
+  entries: Array<{
+    sampleId: string;
+    gate: string;
+    sourceRevision: string;
+    sourceDigest: string;
+    sourcePath: string;
+    bytes: number;
+    sha256: string;
+    contentBase64: string;
+  }>;
+}
+
+export interface LegacyVisualReceiptArchive
+  extends Omit<LegacyVisualReceiptArchiveV1, "$schema" | "format" | "schemaVersion"> {
+  $schema: string;
+  format: "honua.site.sdk-sample-legacy-receipt-archive.v2";
+  schemaVersion: 2;
+  artifacts: {
+    fileCount: number;
+    referencedBytes: number;
+    blobCount: number;
+    decodedBytes: number;
+    inventorySha256: string;
+    files: Array<{ path: string; bytes: number; sha256: string }>;
+    blobs: Array<{
+      bytes: number;
+      sha256: string;
+      encoding: "gzip-base64";
+      encodedBytes: number;
+      contentBase64: string;
+    }>;
+  };
+}
+
 export interface SiteConsumerFixtureV3 {
   format: "honua.site.sdk-sample-consumer-fixture.v3";
   schemaVersion: 3;
@@ -286,6 +333,11 @@ export interface SiteConsumerFixtureV3 {
     expectedSampleIds: string[];
   }>;
   interaction: Record<string, unknown>;
+}
+
+export interface SiteConsumerFixtureV4 extends Omit<SiteConsumerFixtureV3, "format" | "schemaVersion"> {
+  format: "honua.site.sdk-sample-consumer-fixture.v4";
+  schemaVersion: 4;
 }
 
 export interface BrowserArtifactManifest {
@@ -349,6 +401,8 @@ export function generateSiteProjection(
   catalog: SampleCatalog,
   packageJson: { name: string; version: string },
 ): {
+  format: "honua.site.sdk-sample-projection.v3";
+  schemaVersion: 3;
   samples: ProjectedSample[];
   routes: Array<Record<string, unknown>>;
   goldenJourneys: GoldenJourney[];
@@ -364,8 +418,19 @@ export function generateSiteProjection(
 };
 export function collectQualificationEvidence(
   catalog: SampleCatalog,
-  options?: { receiptRoot?: string },
+  options?: { receiptRoot?: string; goldenVisualEvidencePath?: string },
 ): Promise<QualificationEvidenceInventory>;
+export function validateQualificationRunInventory(
+  receiptRoot: string,
+  sampleId: string,
+  receipts: QualificationEvidenceInventory["samples"][number]["receipts"],
+  publishedVisualEvidence?: {
+    qualifiedGoldenJourneys?: Array<{
+      sampleId?: string;
+      semanticEvidence?: Array<{ gate?: string; runRoot?: string }>;
+    }>;
+  },
+): Promise<void>;
 export function generateCapabilitySampleMatrix(
   catalog: SampleCatalog,
   packageJson: Record<string, unknown>,
@@ -397,8 +462,17 @@ export function validateSiteConsumerHandoff(
     supportTruth?: Record<string, unknown>;
     qualificationEvidence?: QualificationEvidenceInventory;
     verifyCheckout?: boolean;
+    legacyReceiptArchive?: LegacyVisualReceiptArchive;
   },
 ): Promise<void>;
+export function generateLegacyVisualReceiptArchive(
+  handoff: SiteConsumerHandoff,
+  options?: { projectRoot?: string; receiptArchive?: LegacyVisualReceiptArchiveV1 },
+): Promise<LegacyVisualReceiptArchive>;
+export function validateLegacyVisualReceiptArchive(
+  archive: unknown,
+  handoff: SiteConsumerHandoff,
+): Promise<Map<string, Buffer>>;
 export function filterSiteConsumerCards(
   cards: SiteConsumerCard[],
   filters?: {
@@ -416,6 +490,12 @@ export function filterSiteConsumerCards(
 ): SiteConsumerCard[];
 export function generateSiteConsumerFixtureV3(handoff: SiteConsumerHandoff): SiteConsumerFixtureV3;
 export function validateSiteConsumerFixtureV3(
+  fixture: unknown,
+  handoff: SiteConsumerHandoff,
+  options?: { verifyCheckout?: boolean },
+): Promise<void>;
+export function generateSiteConsumerFixtureV4(handoff: SiteConsumerHandoff): SiteConsumerFixtureV4;
+export function validateSiteConsumerFixtureV4(
   fixture: unknown,
   handoff: SiteConsumerHandoff,
   options?: { verifyCheckout?: boolean },

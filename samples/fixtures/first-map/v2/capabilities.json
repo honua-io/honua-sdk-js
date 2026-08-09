@@ -1,0 +1,29 @@
+{
+  "success": true,
+  "data": {
+    "metadataApiVersions": ["honua.io/v1alpha1"],
+    "resourceKinds": ["Layer"],
+    "compatibility": {
+      "serverVersion": "1.2.0",
+      "releaseChannel": "stable",
+      "controlPlaneApi": {
+        "major": 1,
+        "basePath": "/api/v1/admin",
+        "deprecated": false
+      },
+      "metadataSchemas": [
+        {
+          "version": "honua.io/v1alpha1",
+          "deprecated": false
+        }
+      ],
+      "features": {
+        "metadataResources": true,
+        "manifestExport": true,
+        "manifestApply": true,
+        "manifestDryRun": true,
+        "manifestPrune": true
+      }
+    }
+  }
+}

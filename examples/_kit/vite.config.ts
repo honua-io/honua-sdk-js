@@ -176,6 +176,7 @@ export function createSampleViteConfig(metaUrl: string, options: SampleViteOptio
   let emittedBundle: Array<{ fileName: string; kind: "asset" | "chunk" }> | undefined;
 
   return defineConfig({
+    base: "./",
     root: exampleRoot,
     envDir: exampleRoot,
     define: {

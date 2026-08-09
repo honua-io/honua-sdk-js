@@ -1,0 +1,304 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@deck.gl/geo-layers": {
+      "name": "@deck.gl/geo-layers",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@loaders.gl/3d-tiles"
+      ],
+      "effects": [
+        "@kepler.gl/deckgl-layers"
+      ],
+      "range": ">=8.6.6",
+      "nodes": [
+        "node_modules/@deck.gl/geo-layers"
+      ],
+      "fixAvailable": true
+    },
+    "@deck.gl/mesh-layers": {
+      "name": "@deck.gl/mesh-layers",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@loaders.gl/gltf"
+      ],
+      "effects": [],
+      "range": ">=8.6.6",
+      "nodes": [
+        "node_modules/@deck.gl/mesh-layers"
+      ],
+      "fixAvailable": true
+    },
+    "@kepler.gl/actions": {
+      "name": "@kepler.gl/actions",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@kepler.gl/layers",
+        "@kepler.gl/processors"
+      ],
+      "effects": [],
+      "range": "*",
+      "nodes": [
+        "node_modules/@kepler.gl/actions"
+      ],
+      "fixAvailable": false
+    },
+    "@kepler.gl/components": {
+      "name": "@kepler.gl/components",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@kepler.gl/actions",
+        "@kepler.gl/layers",
+        "@kepler.gl/processors",
+        "@kepler.gl/reducers",
+        "@kepler.gl/schemas"
+      ],
+      "effects": [],
+      "range": "*",
+      "nodes": [
+        "node_modules/@kepler.gl/components"
+      ],
+      "fixAvailable": false
+    },
+    "@kepler.gl/deckgl-layers": {
+      "name": "@kepler.gl/deckgl-layers",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@deck.gl/geo-layers"
+      ],
+      "effects": [],
+      "range": "*",
+      "nodes": [
+        "node_modules/@kepler.gl/deckgl-layers"
+      ],
+      "fixAvailable": true
+    },
+    "@kepler.gl/layers": {
+      "name": "@kepler.gl/layers",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@deck.gl/geo-layers",
+        "@deck.gl/mesh-layers",
+        "@kepler.gl/deckgl-layers",
+        "@loaders.gl/gltf"
+      ],
+      "effects": [
+        "@kepler.gl/actions",
+        "@kepler.gl/components",
+        "@kepler.gl/reducers",
+        "@kepler.gl/schemas"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@kepler.gl/layers"
+      ],
+      "fixAvailable": false
+    },
+    "@kepler.gl/processors": {
+      "name": "@kepler.gl/processors",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@kepler.gl/schemas"
+      ],
+      "effects": [
+        "@kepler.gl/tasks"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@kepler.gl/processors"
+      ],
+      "fixAvailable": false
+    },
+    "@kepler.gl/reducers": {
+      "name": "@kepler.gl/reducers",
+      "severity": "high",
+      "isDirect": true,
+      "via": [
+        "@kepler.gl/actions",
+        "@kepler.gl/deckgl-layers",
+        "@kepler.gl/layers",
+        "@kepler.gl/processors",
+        "@kepler.gl/schemas",
+        "@kepler.gl/tasks"
+      ],
+      "effects": [],
+      "range": "*",
+      "nodes": [
+        "node_modules/@kepler.gl/reducers"
+      ],
+      "fixAvailable": false
+    },
+    "@kepler.gl/schemas": {
+      "name": "@kepler.gl/schemas",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@kepler.gl/layers"
+      ],
+      "effects": [
+        "@kepler.gl/processors"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@kepler.gl/schemas"
+      ],
+      "fixAvailable": false
+    },
+    "@kepler.gl/tasks": {
+      "name": "@kepler.gl/tasks",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@kepler.gl/processors"
+      ],
+      "effects": [],
+      "range": "*",
+      "nodes": [
+        "node_modules/@kepler.gl/tasks"
+      ],
+      "fixAvailable": true
+    },
+    "@loaders.gl/3d-tiles": {
+      "name": "@loaders.gl/3d-tiles",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@loaders.gl/gltf"
+      ],
+      "effects": [
+        "@deck.gl/geo-layers"
+      ],
+      "range": ">=3.1.0-alpha.1",
+      "nodes": [
+        "node_modules/@loaders.gl/3d-tiles"
+      ],
+      "fixAvailable": true
+    },
+    "@loaders.gl/gltf": {
+      "name": "@loaders.gl/gltf",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "@loaders.gl/textures"
+      ],
+      "effects": [
+        "@deck.gl/mesh-layers",
+        "@kepler.gl/layers",
+        "@loaders.gl/3d-tiles"
+      ],
+      "range": ">=3.1.0-alpha.1",
+      "nodes": [
+        "node_modules/@deck.gl/mesh-layers/node_modules/@loaders.gl/gltf",
+        "node_modules/@loaders.gl/3d-tiles/node_modules/@loaders.gl/gltf",
+        "node_modules/@loaders.gl/gltf"
+      ],
+      "fixAvailable": false
+    },
+    "@loaders.gl/textures": {
+      "name": "@loaders.gl/textures",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "texture-compressor"
+      ],
+      "effects": [
+        "@loaders.gl/gltf"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/@deck.gl/mesh-layers/node_modules/@loaders.gl/textures",
+        "node_modules/@loaders.gl/3d-tiles/node_modules/@loaders.gl/textures",
+        "node_modules/@loaders.gl/textures"
+      ],
+      "fixAvailable": false
+    },
+    "image-size": {
+      "name": "image-size",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1138808,
+          "name": "image-size",
+          "dependency": "image-size",
+          "title": "image-size: ICNS parser allows denial of service through an infinite loop",
+          "url": "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr",
+          "severity": "high",
+          "cwe": [
+            "CWE-835"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<=2.0.2"
+        },
+        {
+          "source": 1138809,
+          "name": "image-size",
+          "dependency": "image-size",
+          "title": "image-size: JXL and HEIF parsers allow denial of service through infinite loops",
+          "url": "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
+          "severity": "high",
+          "cwe": [
+            "CWE-835"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<=2.0.2"
+        }
+      ],
+      "effects": [
+        "texture-compressor"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/image-size"
+      ],
+      "fixAvailable": false
+    },
+    "texture-compressor": {
+      "name": "texture-compressor",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "image-size"
+      ],
+      "effects": [
+        "@loaders.gl/textures"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/texture-compressor"
+      ],
+      "fixAvailable": false
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 15,
+      "critical": 0,
+      "total": 15
+    },
+    "dependencies": {
+      "prod": 791,
+      "dev": 47,
+      "optional": 35,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 840
+    }
+  }
+}

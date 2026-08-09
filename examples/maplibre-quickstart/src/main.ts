@@ -48,8 +48,8 @@ const FIRST_MAP_SOURCE_ID = "first-map-features";
 const FIRST_MAP_LAYER_ID = "first-map-feature";
 const FIXTURE_FEATURE_PATH = "/rest/services/natural-earth/FeatureServer/0";
 const FIXTURE_OGC_PATH = "/ogc/features";
-const FIXTURE_BASEMAP_STYLE = "/__honua-quickstart__/basemap-style.json";
-const PUBLIC_BASEMAP_STYLE = "https://demotiles.maplibre.org/style.json";
+const FIXTURE_BASEMAP_STYLE = "__honua-quickstart__/basemap-style.json";
+const PUBLIC_BASEMAP_STYLE = FIXTURE_BASEMAP_STYLE;
 
 interface FirstMapLaunch {
   readonly endpoint: string;

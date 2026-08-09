@@ -1,6 +1,10 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { gzipSync } from "node:zlib";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -8,15 +12,20 @@ import {
   filterSiteConsumerCards,
   generateCapabilitySampleMatrix,
   generateGoldenJourneyVisualEvidence,
-  generateSiteConsumerFixtureV3,
+  generateLegacyVisualReceiptArchive,
+  generateSiteConsumerFixtureV4,
   generateSiteConsumerHandoff,
   generateSiteProjection,
+  validateLegacyVisualReceiptArchive,
   validateSiteConsumerFixtureV3,
+  validateSiteConsumerFixtureV4,
   validateSiteConsumerHandoff,
+  validateSiteProjection,
 } from "../scripts/sample-contract.mjs";
 import type {
   CapabilitySampleMatrix,
   GoldenJourneyVisualEvidence,
+  LegacyVisualReceiptArchive,
   SiteConsumerHandoff,
 } from "../scripts/sample-contract.mjs";
 
@@ -38,7 +47,7 @@ async function checkoutBoundHandoff(current: SiteConsumerHandoff): Promise<SiteC
   // PR CI validates the newly generated authority set and the committed,
   // internally bound projection independently until trunk regenerates them.
   if (!derivedArtifactsRelaxed) return current;
-  return readJson("samples/dist/honua-site-consumer-handoff.v1.json");
+  return readJson("samples/dist/honua-site-consumer-handoff.v2.json");
 }
 
 async function buildCanonicalInputs() {
@@ -52,7 +61,7 @@ async function buildCanonicalInputs() {
   const matrix = generateCapabilitySampleMatrix(catalog, packageJson, supportTruth, qualificationEvidence);
   const visualEvidence = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
   const handoff = generateSiteConsumerHandoff(projection, matrix, visualEvidence);
-  const fixture = generateSiteConsumerFixtureV3(handoff);
+  const fixture = generateSiteConsumerFixtureV4(handoff);
   return {
     catalog,
     packageJson,
@@ -95,13 +104,13 @@ describe("honua-site consumer handoff", () => {
 
       await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
       await expect(validateSiteConsumerHandoff(committedHandoff)).resolves.toBeUndefined();
-      await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerFixtureV4(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
       expect(generateSiteConsumerHandoff(inputs.projection, inputs.matrix, inputs.visualEvidence)).toEqual(
         inputs.handoff,
       );
       expect(inputs.handoff).toMatchObject({
-        format: "honua.site.sdk-sample-consumer-handoff.v1",
-        schemaVersion: 1,
+        format: "honua.site.sdk-sample-consumer-handoff.v2",
+        schemaVersion: 2,
         ownership: {
           executableSourceOwner: "honua-io/honua-sdk-js",
           presentationOwner: "honua-io/honua-site",
@@ -193,18 +202,64 @@ describe("honua-site consumer handoff", () => {
     },
   );
 
+  it("keeps the v2 projection, v1 handoff, and v3 fixture valid for existing consumers", async () => {
+    const [projection, handoff, fixture] = await Promise.all([
+      readJson("samples/dist/honua-site-samples.v2.json"),
+      readJson("samples/dist/honua-site-consumer-handoff.v1.json"),
+      readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json"),
+    ]);
+
+    await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
+    await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    await expect(validateSiteConsumerFixtureV3(fixture, handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    const projectionSchemaBytes = await readFile(handoff.inputs.siteProjection.schemaPath, "utf8");
+    expect(handoff.inputs.siteProjection.schemaBytes).toBe(Buffer.byteLength(projectionSchemaBytes));
+    expect(handoff.inputs.siteProjection.schemaSha256).toBe(sha256(projectionSchemaBytes));
+    expect(projection).toMatchObject({ format: "honua.site.sdk-sample-projection.v2", schemaVersion: 2 });
+    expect(handoff).toMatchObject({ format: "honua.site.sdk-sample-consumer-handoff.v1", schemaVersion: 1 });
+    expect(fixture).toMatchObject({ format: "honua.site.sdk-sample-consumer-fixture.v3", schemaVersion: 3 });
+  });
+
+  it("publishes live-backed samples through v3 without forking catalog identities", async () => {
+    const [legacyProjection, projection, handoff, fixture] = await Promise.all([
+      readJson("samples/dist/honua-site-samples.v2.json"),
+      readJson("samples/dist/honua-site-samples.v3.json"),
+      readJson("samples/dist/honua-site-consumer-handoff.v2.json"),
+      readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json"),
+    ]);
+
+    await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
+    await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    await expect(validateSiteConsumerFixtureV4(fixture, handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    for (const sampleId of ["maplibre-quickstart", "service-explorer"]) {
+      expect(projection.sampleBundles.published).toContainEqual(
+        expect.objectContaining({ id: sampleId, runnability: "requires-live-endpoint" }),
+      );
+      expect(projection.sampleBundles.published).not.toContainEqual(
+        expect.objectContaining({ id: sampleId, runnability: "standalone" }),
+      );
+    }
+    expect(projection.samples.map((sample: { id: string }) => sample.id)).toEqual(
+      legacyProjection.samples.map((sample: { id: string }) => sample.id),
+    );
+    expect(projection.routes).toEqual(legacyProjection.routes);
+    expect(projection.samples.map((sample: { capabilityKeys: string[] }) => sample.capabilityKeys)).toEqual(
+      legacyProjection.samples.map((sample: { capabilityKeys: string[] }) => sample.capabilityKeys),
+    );
+  });
+
   it("content-binds the committed handoff, upstream artifacts, schemas, and consumer fixture", async () => {
     const inputs = await canonicalInputs();
-    const handoffBytes = await readFile("samples/dist/honua-site-consumer-handoff.v1.json", "utf8");
+    const handoffBytes = await readFile("samples/dist/honua-site-consumer-handoff.v2.json", "utf8");
     const committedHandoff = JSON.parse(handoffBytes) as SiteConsumerHandoff;
-    const fixtureBytes = await readFile("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json", "utf8");
+    const fixtureBytes = await readFile("samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json", "utf8");
     const committedFixture = JSON.parse(fixtureBytes);
 
     expect(inputs.packageJson.files).toEqual(
       expect.arrayContaining([
         "samples/dist",
         "samples/contract/v2/schemas",
-        "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
+        "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
       ]),
     );
     expect(handoffBytes).toBe(`${JSON.stringify(committedHandoff, null, 2)}\n`);
@@ -213,8 +268,8 @@ describe("honua-site consumer handoff", () => {
       expect(committedFixture).toEqual(inputs.fixture);
     }
     expect(committedFixture.input).toMatchObject({
-      path: "samples/dist/honua-site-consumer-handoff.v1.json",
-      schemaPath: "samples/contract/v2/schemas/site-consumer-handoff.schema.json",
+      path: "samples/dist/honua-site-consumer-handoff.v2.json",
+      schemaPath: "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json",
       bytes: Buffer.byteLength(handoffBytes),
       sha256: sha256(handoffBytes),
     });
@@ -460,7 +515,7 @@ describe("honua-site consumer handoff", () => {
 
     const fixtureDrift = structuredClone(inputs.fixture);
     fixtureDrift.filterCases[1].expectedSampleIds = [];
-    await expect(validateSiteConsumerFixtureV3(fixtureDrift, inputs.handoff)).rejects.toThrow(
+    await expect(validateSiteConsumerFixtureV4(fixtureDrift, inputs.handoff)).rejects.toThrow(
       "does not match the versioned handoff",
     );
 
@@ -667,6 +722,217 @@ describe("honua-site consumer handoff", () => {
     await expect(validateSiteConsumerHandoff(checkoutHandoff)).resolves.toBeUndefined();
   });
 
+  it("keeps frozen legacy receipts content-bound across current receipt rollover", { timeout: 240_000 }, async () => {
+    const inputs = await canonicalInputs();
+    const legacyHandoff = (await readJson("samples/dist/honua-site-consumer-handoff.v1.json")) as SiteConsumerHandoff;
+    const archive = (await readJson(
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
+    )) as LegacyVisualReceiptArchive;
+
+    await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
+    await expect(
+      validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive: archive }),
+    ).resolves.toBeUndefined();
+    await expect(generateLegacyVisualReceiptArchive(legacyHandoff)).resolves.toEqual(archive);
+    expect(
+      archive.artifacts.files.filter((file) => file.path.startsWith("samples/dist/")).map((file) => file.path),
+    ).toEqual(
+      Object.values(legacyHandoff.inputs)
+        .map((reference) => reference.path)
+        .sort(),
+    );
+
+    const originalPath = process.env.PATH;
+    process.env.PATH = "";
+    try {
+      await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
+    } finally {
+      process.env.PATH = originalPath;
+    }
+
+    const tamperedBlob = structuredClone(archive);
+    tamperedBlob.entries[0].contentBase64 = Buffer.from("forged legacy receipt").toString("base64");
+    await expect(validateLegacyVisualReceiptArchive(tamperedBlob, legacyHandoff)).rejects.toThrow(
+      "legacy receipt archive blob is missing or has stale bytes",
+    );
+
+    const missingBlob = structuredClone(archive);
+    missingBlob.entries.shift();
+    await expect(validateLegacyVisualReceiptArchive(missingBlob, legacyHandoff)).rejects.toThrow(
+      "legacy visual receipt archive entry set is incomplete or excessive",
+    );
+
+    const missingRevision = structuredClone(archive);
+    Reflect.deleteProperty(missingRevision.entries[0], "sourceRevision");
+    await expect(validateLegacyVisualReceiptArchive(missingRevision, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const missingProducerBlob = structuredClone(archive);
+    Reflect.deleteProperty(missingProducerBlob.producers[0], "contentBase64");
+    await expect(validateLegacyVisualReceiptArchive(missingProducerBlob, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const tamperedProducerBlob = structuredClone(archive);
+    tamperedProducerBlob.producers[0].contentBase64 = Buffer.from("forged producer").toString("base64");
+    await expect(validateLegacyVisualReceiptArchive(tamperedProducerBlob, legacyHandoff)).rejects.toThrow(
+      "legacy producer blob is missing or stale",
+    );
+
+    const tamperedArtifactBlob = structuredClone(archive);
+    tamperedArtifactBlob.artifacts.blobs[0].contentBase64 = Buffer.from("forged artifact").toString("base64");
+    await expect(validateLegacyVisualReceiptArchive(tamperedArtifactBlob, legacyHandoff)).rejects.toThrow(
+      "legacy visual artifact blob is missing, malformed, or excessive",
+    );
+
+    const missingArtifact = structuredClone(archive);
+    missingArtifact.artifacts.files.shift();
+    await expect(validateLegacyVisualReceiptArchive(missingArtifact, legacyHandoff)).rejects.toThrow(
+      /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
+    );
+
+    const missingHandoffInput = structuredClone(archive);
+    missingHandoffInput.artifacts.files = missingHandoffInput.artifacts.files.filter(
+      (file) => file.path !== legacyHandoff.inputs.capabilityMatrix.path,
+    );
+    await expect(validateLegacyVisualReceiptArchive(missingHandoffInput, legacyHandoff)).rejects.toThrow(
+      /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
+    );
+
+    const excessiveArtifact = structuredClone(archive);
+    const firstArtifact = excessiveArtifact.artifacts.files.find((file) => file.path.includes("/runs/"));
+    if (!firstArtifact) throw new Error("legacy archive needs a run artifact");
+    excessiveArtifact.artifacts.files.push({
+      ...firstArtifact,
+      path: firstArtifact.path.replace(/[^/]+$/u, "unrelated-fifth-artifact.json"),
+    });
+    excessiveArtifact.artifacts.files.sort((left, right) => left.path.localeCompare(right.path));
+    await expect(validateLegacyVisualReceiptArchive(excessiveArtifact, legacyHandoff)).rejects.toThrow(
+      "legacy visual artifact file inventory is incomplete, excessive, or cross-run",
+    );
+
+    const duplicateArtifactPath = structuredClone(archive);
+    duplicateArtifactPath.artifacts.files.push(structuredClone(duplicateArtifactPath.artifacts.files[0]));
+    await expect(validateLegacyVisualReceiptArchive(duplicateArtifactPath, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const missingArtifactBlob = structuredClone(archive);
+    missingArtifactBlob.artifacts.blobs.shift();
+    await expect(validateLegacyVisualReceiptArchive(missingArtifactBlob, legacyHandoff)).rejects.toThrow(
+      /blob summary is stale or excessive|has no content-addressed blob/,
+    );
+
+    const decompressionBomb = structuredClone(archive);
+    const bombBytes = gzipSync(Buffer.alloc(4 * 1024 * 1024 + 1));
+    decompressionBomb.artifacts.blobs[0].contentBase64 = bombBytes.toString("base64");
+    decompressionBomb.artifacts.blobs[0].encodedBytes = bombBytes.byteLength;
+    await expect(validateLegacyVisualReceiptArchive(decompressionBomb, legacyHandoff)).rejects.toThrow(
+      "legacy visual artifact blob is missing, malformed, or excessive",
+    );
+
+    const escapedArtifactPath = structuredClone(archive);
+    escapedArtifactPath.artifacts.files[0].path = "../../forged-artifact.json";
+    await expect(validateLegacyVisualReceiptArchive(escapedArtifactPath, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const crossRunArtifact = structuredClone(archive);
+    const firstRunFile = crossRunArtifact.artifacts.files.find((file) => file.path.includes("/runs/"));
+    const firstRun = firstRunFile?.path.match(/^(.*\/runs\/[^/]+)\/artifacts\//u)?.[1];
+    const otherRun = crossRunArtifact.artifacts.files
+      .find((file) => file.path.includes("/runs/") && !file.path.startsWith(`${firstRun}/`))
+      ?.path.match(/^(.*\/runs\/[^/]+)\/artifacts\//u)?.[1];
+    if (!firstRunFile || !firstRun || !otherRun) throw new Error("legacy archive needs at least two run roots");
+    firstRunFile.path = firstRunFile.path.replace(firstRun, otherRun);
+    crossRunArtifact.artifacts.files.sort((left, right) => left.path.localeCompare(right.path));
+    await expect(validateLegacyVisualReceiptArchive(crossRunArtifact, legacyHandoff)).rejects.toThrow(
+      /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
+    );
+
+    const escapedPath = structuredClone(archive);
+    escapedPath.entries[0].sourcePath = "../../forged-receipt.json";
+    await expect(validateLegacyVisualReceiptArchive(escapedPath, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const escapedProducerPath = structuredClone(archive);
+    escapedProducerPath.producers[0].sourcePath = "../../forged-producer.mjs";
+    await expect(validateLegacyVisualReceiptArchive(escapedProducerPath, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const staleCurrentHandoff = structuredClone(await checkoutBoundHandoff(inputs.handoff));
+    const currentVisual = staleCurrentHandoff.cards.find((card) => card.visualEvidence)?.visualEvidence;
+    if (!currentVisual) throw new Error("current qualified visual fixture is missing");
+    currentVisual.semanticEvidence[0].receiptSha256 = sha256("rolled-current-receipt");
+    await expect(validateSiteConsumerHandoff(staleCurrentHandoff)).rejects.toThrow(
+      "receipt byte or digest binding is stale",
+    );
+    await expect(validateSiteConsumerHandoff(staleCurrentHandoff, { legacyReceiptArchive: archive })).rejects.toThrow(
+      "legacy receipt archives cannot validate the current site consumer handoff",
+    );
+    await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
+  });
+
+  it(
+    "validates the self-contained legacy archive from extracted, shallow, and packed inputs",
+    { timeout: 180_000 },
+    async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "honua-legacy-archive-contexts-"));
+      const archivePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json";
+      const handoffPath = "samples/dist/honua-site-consumer-handoff.v1.json";
+      try {
+        const extracted = path.join(root, "source-extract");
+        await mkdir(path.join(extracted, path.dirname(archivePath)), { recursive: true });
+        await mkdir(path.join(extracted, path.dirname(handoffPath)), { recursive: true });
+        await cp(archivePath, path.join(extracted, archivePath));
+        await cp(handoffPath, path.join(extracted, handoffPath));
+
+        const shallow = path.join(root, "depth-one");
+        execFileSync("git", ["clone", "--depth", "1", pathToFileURL(process.cwd()).href, shallow], {
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        expect(execFileSync("git", ["rev-list", "--count", "HEAD"], { cwd: shallow, encoding: "utf8" }).trim()).toBe(
+          "1",
+        );
+        await cp(archivePath, path.join(shallow, archivePath));
+
+        const packed = path.join(root, "packed");
+        await mkdir(packed, { recursive: true });
+        const npmCli = process.env.npm_execpath;
+        if (!npmCli) throw new Error("npm_execpath is unavailable for the packed archive fixture");
+        const packResult = JSON.parse(
+          execFileSync(process.execPath, [npmCli, "pack", "--json", "--ignore-scripts", "--pack-destination", packed], {
+            cwd: process.cwd(),
+            encoding: "utf8",
+            maxBuffer: 32 * 1024 * 1024,
+            windowsHide: true,
+          }),
+        );
+        const tarball = path.join(packed, packResult[0].filename);
+        execFileSync("tar", ["-xf", tarball, "-C", packed], { stdio: "ignore", windowsHide: true });
+
+        const contexts = [extracted, shallow, path.join(packed, "package")];
+        const originalPath = process.env.PATH;
+        process.env.PATH = "";
+        try {
+          for (const context of contexts) {
+            const archive = JSON.parse(await readFile(path.join(context, archivePath), "utf8"));
+            const handoff = JSON.parse(await readFile(path.join(context, handoffPath), "utf8"));
+            await expect(validateLegacyVisualReceiptArchive(archive, handoff)).resolves.toBeInstanceOf(Map);
+          }
+        } finally {
+          process.env.PATH = originalPath;
+        }
+      } finally {
+        await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+      }
+    },
+  );
+
   it(
     "fails publication when a referenced contract schema is edited without a version bump",
     { timeout: 90_000 },
@@ -683,7 +949,7 @@ describe("honua-site consumer handoff", () => {
       const publishable = await checkoutBoundHandoff(inputs.handoff);
 
       // Every published reference content-addresses its governing schema, including
-      // the handoff's own schema, which only the v3 fixture can reference.
+      // the handoff's own schema, which only the v4 fixture can reference.
       const references = [...Object.values(publishable.inputs), inputs.fixture.input];
       expect(references).toHaveLength(4);
       for (const reference of references) {
@@ -723,7 +989,7 @@ describe("honua-site consumer handoff", () => {
       const handoffSchemaOriginal = await readFile(handoffSchemaPath, "utf8");
       try {
         await writeFile(handoffSchemaPath, `${handoffSchemaOriginal.trimEnd()}\n\n`, "utf8");
-        await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).rejects.toThrow(
+        await expect(validateSiteConsumerFixtureV4(inputs.fixture, inputs.handoff)).rejects.toThrow(
           "fixture handoff schema definition changed without a version bump",
         );
       } finally {
@@ -750,7 +1016,7 @@ describe("honua-site consumer handoff", () => {
       // Restored schemas publish cleanly again.
       await expect(validateSiteConsumerHandoff(publishable)).resolves.toBeUndefined();
       await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
-      await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerFixtureV4(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
     },
   );
 
