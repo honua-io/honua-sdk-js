@@ -107,7 +107,7 @@ function harness(options = {}) {
       updateAccepted = true;
       return options.updateResponse ?? {
         message: "Updating pull request branch.",
-        url: `https://github.com/repos/${repository}/pulls/${stale.pullRequestNumber}`,
+        url: `https://api.github.com/repos/${repository}/pulls/${stale.pullRequestNumber}`,
       };
     }
     if (pathname.endsWith(`/git/commits/${refreshedHeadSha}`)) {
@@ -188,7 +188,24 @@ describe("trusted Release Please base refresh", () => {
       [harness({ releaseBranchHead: "f".repeat(40) }), /branch does not match the validated pull-request head/u],
       [harness({ comparison: { status: "diverged" } }), /not a strict ancestor/u],
       [harness({ writeError: true }), /simulated update failure/u],
-      [harness({ updateResponse: { message: "not accepted", url: "https://github.com/" } }), /did not accept/u],
+      [
+        harness({
+          updateResponse: {
+            message: "not accepted",
+            url: `https://api.github.com/repos/${repository}/pulls/${fixture.pullRequestNumber}`,
+          },
+        }),
+        /did not accept/u,
+      ],
+      [
+        harness({
+          updateResponse: {
+            message: "Updating pull request branch.",
+            url: `https://github.com/repos/${repository}/pulls/${fixture.pullRequestNumber}`,
+          },
+        }),
+        /did not accept/u,
+      ],
       [harness({ refreshCommit: { sha: refreshedHeadSha, parents: [{ sha: fixture.headSha }] } }), /two-parent/u],
     ];
     for (const [testHarness, expected] of cases) {

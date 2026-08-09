@@ -889,7 +889,7 @@ test("evidence run pruning preserves receipt-bound runs and removes only UUID or
   }
 });
 
-test("evidence pruning preserves the currently published visual run during receipt rollover", async () => {
+test("evidence pruning retains the published run until projection advancement, then removes it", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "honua-evidence-visual-rollover-"));
   const sampleId = "safe-sample";
   const baseRoot = path.join(root, "samples/evidence", sampleId);
@@ -923,6 +923,22 @@ test("evidence pruning preserves the currently published visual run during recei
 
     await pruneUnreferencedEvidenceRuns(baseRoot, sampleId, { projectRoot: root });
     assert.deepEqual((await readdir(path.join(baseRoot, "runs"))).sort(), [publishedRun, receiptRun].sort());
+
+    await writeFile(
+      visualPath,
+      `${JSON.stringify({
+        format: "honua.sdk.golden-journey-visual-evidence.v1",
+        schemaVersion: 1,
+        qualifiedGoldenJourneys: [
+          {
+            sampleId,
+            semanticEvidence: [{ runRoot: `samples/evidence/${sampleId}/runs/${receiptRun}` }],
+          },
+        ],
+      })}\n`,
+    );
+    await pruneUnreferencedEvidenceRuns(baseRoot, sampleId, { projectRoot: root });
+    assert.deepEqual(await readdir(path.join(baseRoot, "runs")), [receiptRun]);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -621,6 +621,45 @@ jobs:
         if: steps.decision.outputs.skip == 'false'
         run: npm run samples:generate
 
+      # samples:generate rewrites docs/generated/sample-catalog.md, which is an
+      # input to llms-full.txt. Refresh both deterministic llms outputs only
+      # after that final documentation input has converged, then prove the
+      # generated-artifact PR cannot publish a stale aggregate.
+      - name: Regenerate and verify llms aggregate after sample projection
+        if: steps.decision.outputs.skip == 'false'
+        run: |
+          npm run docs:llms
+          npm run verify:llms
+
+      # Each reseal pass preserves the run set referenced by the currently
+      # published visual projection while new receipt-bound runs are promoted.
+      # Once samples:generate advances that projection, the previous published
+      # set is no longer authoritative. Run the existing canonical, fail-closed
+      # pruner against the new projection before strict inventory validation so
+      # those superseded runs cannot become orphaned fifth entries.
+      - name: Prune superseded golden evidence runs after projection rollover
+        if: steps.decision.outputs.skip == 'false'
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          import path from "node:path";
+          import { pruneUnreferencedEvidenceRuns } from "./scripts/sample-runner.mjs";
+
+          const catalog = JSON.parse(await readFile("samples/catalog.v2.json", "utf8"));
+          const sampleIds = [...new Set(
+            catalog.goldenJourneys
+              .filter((journey) => journey.status === "qualified")
+              .map((journey) => journey.candidateSampleId),
+          )].sort();
+          for (const sampleId of sampleIds) {
+            await pruneUnreferencedEvidenceRuns(
+              path.resolve("samples/evidence", sampleId),
+              sampleId,
+            );
+          }
+          NODE
+
       # Commit resealed evidence locally as a separate child commit. Its
       # sourceRevision points at the preceding generated-input commit (or the
       # original trunk commit when no generated input changed), so preserving
@@ -641,10 +680,14 @@ jobs:
           # so carrying it on the evidence commit cannot perturb any binding.
           git add -A -- \
             README.md \
+            docs/generated/sample-catalog.md \
+            llms.txt \
+            llms-full.txt \
             samples/catalog.v2.json \
             samples/contract/v2/migrations/catalog.v1-to-v2.json \
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json \
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json \
+            samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json \
             samples/evidence/imagery-cog-quickstart \
             samples/evidence/maplibre-quickstart \
             samples/evidence/migration-workbench \
@@ -750,7 +793,7 @@ jobs:
               api-report/* | \
               bench/cross-sdk/corpus.json | \
               docs/bundle-sizes.md | docs/comparison.md | docs/errors.md | \
-              docs/generated/mcp-eval-scorecard.md | \
+              docs/generated/mcp-eval-scorecard.md | docs/generated/sample-catalog.md | \
               llms.txt | llms-full.txt | \
               examples/migration-workbench/public/artifacts/* | \
               examples/migration-workbench/src/generated/* | \
@@ -762,6 +805,7 @@ jobs:
               samples/contract/v2/release-matrix-lanes.v1.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
+              samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json | \
               samples/dist/* | samples/evidence/imagery-cog-quickstart/* | \
               samples/evidence/maplibre-quickstart/* | samples/evidence/migration-workbench/* | \
               samples/evidence/service-explorer/*)

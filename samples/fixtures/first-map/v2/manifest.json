@@ -1,0 +1,116 @@
+{
+  "fixturePackVersion": "honua.fixture-pack/v2",
+  "identity": {
+    "id": "first-map",
+    "version": "2.0.0",
+    "revision": "v2",
+    "title": "Governed Maui County 2025 TIGER/Line census tracts"
+  },
+  "schema": {
+    "protocols": ["honua-capabilities-v1", "esri-geoservices-feature-server", "ogc-api-features-1.0"],
+    "geometryType": "MultiPolygon",
+    "authorityCrs": "EPSG:4326",
+    "coordinateEncoding": {
+      "format": "Esri JSON",
+      "axes": ["x-longitude", "y-latitude"],
+      "order": "xy"
+    },
+    "projections": [
+      {
+        "protocol": "esri-geoservices-feature-server",
+        "crs": "EPSG:4326",
+        "coordinateEncoding": {
+          "format": "Esri JSON",
+          "axes": ["x-longitude", "y-latitude"],
+          "order": "xy"
+        }
+      },
+      {
+        "protocol": "ogc-api-features-1.0",
+        "crs": "OGC:CRS84",
+        "coordinateEncoding": {
+          "format": "GeoJSON",
+          "axes": ["longitude", "latitude"],
+          "order": "xy"
+        }
+      }
+    ],
+    "extent": [-157.366549, 20.45293, -155.926785, 21.280347],
+    "featureCount": 48,
+    "selectedRecordId": 1,
+    "files": {
+      "capabilities": "capabilities.json",
+      "layer": "layer.json",
+      "features": "features.json",
+      "ogcLanding": "ogc-landing.json",
+      "ogcApiDefinition": "ogc-api-definition.json",
+      "ogcConformance": "ogc-conformance.json",
+      "ogcCollection": "ogc-collection.json",
+      "ogcItems": "ogc-items.json"
+    }
+  },
+  "provenance": {
+    "sourceUrl": "https://www2.census.gov/geo/tiger/TIGER2025/TRACT/tl_2025_15_tract.zip",
+    "sourceSha256": "92b736e066555d55afa795f9dd5944edccd26a97fa70bd1066bf09c7661c5900",
+    "sourceBytes": 1772413,
+    "retrievedAt": "2026-08-08T00:00:00.000Z",
+    "sourceVintage": "2025-01-01",
+    "selection": {
+      "field": "COUNTYFP",
+      "equals": "009",
+      "sort": "GEOID"
+    },
+    "transformation": {
+      "id": "honua-tiger-shapefile-v1",
+      "sourceCrs": "EPSG:4269",
+      "targetCrs": "EPSG:4326",
+      "coordinatePrecision": 7,
+      "geometryNormalization": "Retain every source ring without simplification; transform NAD83 to WGS84 with proj4; round to 7 decimals; group rings by containment; enforce RFC 7946 orientation; rotate and sort rings and polygons canonically.",
+      "attributeSelection": ["GEOID", "NAME", "NAMELSAD", "ALAND", "AWATER"],
+      "objectIdAssignment": "1-based index after ascending GEOID sort"
+    },
+    "toolchain": {
+      "node": "20.19.0 (.nvmrc)",
+      "projection": "proj4@2.20.9 (package-lock.json)",
+      "archive": "node:zlib inflateRawSync",
+      "parser": "scripts/refresh-first-map-tiger-v2.mjs"
+    },
+    "refreshCommand": "npm run samples:fixtures:first-map-v2:write"
+  },
+  "license": {
+    "registryVersion": "honua.fixture-license-registry/v1",
+    "expression": "LicenseRef-US-Government-Work",
+    "termsUrl": "https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2025/TGRSHP2025_TechDoc_Ch1.pdf",
+    "termsSha256": "ce40bee768cdb00f9dadc154ca0b1dc6ca91180c1b9362e5d2b70cbea2d75003",
+    "citation": "Source: U.S. Census Bureau, 2025 TIGER/Line Shapefiles.",
+    "attributionRequired": false,
+    "redistributionAllowed": true,
+    "shareAlikeRequired": false,
+    "disclaimer": "Statistical boundaries are not legal land descriptions, do not determine jurisdiction or ownership, and are provided without warranty."
+  },
+  "freshness": {
+    "policy": "immutable",
+    "asOf": "2025-01-01T00:00:00.000Z",
+    "refreshAfterDays": null
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "canonicalization": "canonicalDatasetSha256 hashes recursively key-sorted JSON over the ordered GeoJSON features. File hashes cover exact UTF-8 JSON bytes. Metadata hashes exclude the recursive integrity object.",
+    "canonicalDatasetSha256": "7f89bc5b449b39e64c23f02c07ddb9f4d0bbeeda215d927f39ef88d2b9ea9752",
+    "metadataFingerprint": "8b89109072f029af3151c7eeaf72fae1d7248d730161ea2aebeb8ce2c4582e7a",
+    "metadataComponents": {
+      "license": "1e1d843ab9323487d3a1cba216c8662981370f1d74aa02c5aa21eb70f5a2f37b",
+      "provenance": "ba93c50184df59dec1b5c6a3a842369d07dd5e540de47afcbf8d7af9034a251b"
+    },
+    "files": {
+      "capabilities.json": "ecc34e46e07cc0bc70cf28695365f7991731897cc75bd2821e4ff155acebf599",
+      "features.json": "1bb83123398ec1a266dab3b71fbef245b1b9d852715b5cdbd65d85b351e94f96",
+      "layer.json": "a5861a30c4081a5e35b5bbb1e4b158d686154e4356205871c409fb66c28112d7",
+      "ogc-api-definition.json": "3be9b489ac03e5807ba5f0eb8cb1c561b9b745277b23536553f7f9bb8d96f250",
+      "ogc-collection.json": "9ae8d24007ce80875cd0ff9322ee91bacd0c9a76e25b423333d5aa3620aba35b",
+      "ogc-conformance.json": "c6708ab48d2adba1f922fdc47013284135ad330e1fc8c4474cafe38f3b3f2373",
+      "ogc-items.json": "c6ebae244538225ec8b038ba03f7d8c00dabea5d08f5db29ce9c9d230ae61e20",
+      "ogc-landing.json": "6a280f31adee99bd6d187bcc6315d8499255e84193db2276dfb333d8cc7af65d"
+    }
+  }
+}

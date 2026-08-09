@@ -662,7 +662,7 @@
     {
       "id": "geoprocessing-job-runner",
       "title": "Geoprocessing job runner",
-      "summary": "Submits, polls, cancels, and inspects asynchronous geoprocessing jobs.",
+      "summary": "Runs a deterministic Honolulu buffer job and renders the verified polygon result.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "supported",
@@ -686,37 +686,20 @@
         "process.geoprocessing"
       ],
       "protocols": [
-        "geoservices",
         "ogc-processes"
       ],
       "renderers": [
-        "none"
+        "svg"
       ],
       "data": {
-        "mode": "hybrid",
-        "authMode": "bearer",
-        "config": [
-          "VITE_HONUA_PROCESS_SERVICE_TOKEN",
-          "VITE_HONUA_PROCESS_SERVICE_URL"
-        ],
-        "provenance": "Committed job-state fixture or configured process endpoint.",
-        "attribution": "Process-owner attribution from service metadata.",
-        "freshness": "Job receipt and poll observation times.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads a process-service token variable.",
-        "configClassifications": [
-          {
-            "name": "VITE_HONUA_PROCESS_SERVICE_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_PROCESS_SERVICE_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          }
-        ]
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.",
+        "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.",
+        "freshness": "Immutable fixture contract; no public-live result claim.",
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -732,10 +715,11 @@
           "commands": []
         }
       },
-      "expectedDegradation": "Unavailable or unlicensed processes are shown as structured capability gaps.",
+      "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:gp-runner:typecheck",
+        "npx vitest run test/geoprocessing-job-runner.test.ts",
         "npm run demo:gp-runner:build"
       ]
     },
@@ -811,7 +795,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-05T13:39:53.733Z"
+          "expiresAt": "2026-09-09T15:16:23.132Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1059,7 +1043,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-05T13:37:48.259Z"
+          "expiresAt": "2026-09-09T15:14:13.737Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1181,7 +1165,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-05T13:40:16.879Z"
+          "expiresAt": "2026-09-09T15:16:47.758Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -2096,7 +2080,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-05T13:41:16.616Z"
+          "expiresAt": "2026-09-09T15:17:50.671Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
