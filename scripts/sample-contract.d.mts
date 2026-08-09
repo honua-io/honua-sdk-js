@@ -274,6 +274,31 @@ export interface SiteConsumerHandoff {
   gaps: Array<Record<string, unknown>>;
 }
 
+export interface LegacyVisualReceiptArchive {
+  $schema: string;
+  format: "honua.site.sdk-sample-legacy-receipt-archive.v1";
+  schemaVersion: 1;
+  handoff: { path: string; format: string; schemaVersion: number; sha256: string };
+  visualEvidence: { path: string; sha256: string };
+  producers: Array<{
+    sourceRevision: string;
+    sourcePath: string;
+    bytes: number;
+    sha256: string;
+    contentBase64: string;
+  }>;
+  entries: Array<{
+    sampleId: string;
+    gate: string;
+    sourceRevision: string;
+    sourceDigest: string;
+    sourcePath: string;
+    bytes: number;
+    sha256: string;
+    contentBase64: string;
+  }>;
+}
+
 export interface SiteConsumerFixtureV3 {
   format: "honua.site.sdk-sample-consumer-fixture.v3";
   schemaVersion: 3;
@@ -415,8 +440,17 @@ export function validateSiteConsumerHandoff(
     supportTruth?: Record<string, unknown>;
     qualificationEvidence?: QualificationEvidenceInventory;
     verifyCheckout?: boolean;
+    legacyReceiptArchive?: LegacyVisualReceiptArchive;
   },
 ): Promise<void>;
+export function generateLegacyVisualReceiptArchive(
+  handoff: SiteConsumerHandoff,
+  options?: { projectRoot?: string },
+): Promise<LegacyVisualReceiptArchive>;
+export function validateLegacyVisualReceiptArchive(
+  archive: unknown,
+  handoff: SiteConsumerHandoff,
+): Promise<Map<string, Buffer>>;
 export function filterSiteConsumerCards(
   cards: SiteConsumerCard[],
   filters?: {
