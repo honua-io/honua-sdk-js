@@ -124,6 +124,11 @@ test("keeps direct execution bounded and surfaces metadata", async () => {
 test("provides explicit worker, render, and download handoffs", () => {
   const session = openColumnarSession(serverSource);
   assert.equal(session.worker(batch).kind, "worker");
+  assert.equal(session.worker(batch, "projection").operation, "projection");
+  assert.throws(
+    () => session.worker(batch, " "),
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "UNSUPPORTED_HANDOFF",
+  );
   assert.equal(session.render(batch, "point").zeroCopyPreferred, true);
   const download = session.download({ limit: 25 });
   assert.equal(download.suggestedFileName, "bounded-parcels.arrow");

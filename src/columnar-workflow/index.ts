@@ -10,6 +10,12 @@ import { HonuaClient } from "../core/client.js";
 import { envelope } from "../core/spatial-filter.js";
 import type { HonuaClientOptions } from "../core/types.js";
 import * as GeoParquet from "../geoparquet/index.js";
+import {
+  HonuaArrowWkbError,
+  type HonuaArrowWkbMappingOptions,
+  decodeHonuaArrowWkbRecordBatch,
+  hasHonuaArrowWkbGeometry,
+} from "./honua-arrow-wkb.js";
 
 export type ColumnarWorkflowFormat = "arrow" | "parquet";
 export type ColumnarWorkflowExecution = "browser-bounded" | "server-pushdown";
@@ -132,6 +138,9 @@ export interface ColumnarResponseDecoderContext {
 
 export type ColumnarResponseDecoder = (context: ColumnarResponseDecoderContext) => AsyncIterable<ColumnarBatchV1>;
 
+/** Mapping hints for the bounded Honua Server geoarrow.wkb response bridge. */
+export interface ApacheArrowResponseDecoderOptions extends HonuaArrowWkbMappingOptions {}
+
 export interface DirectGeoParquetHandle {
   describe(): Promise<unknown> | unknown;
   queryColumnar(query: unknown): Promise<ColumnarBatchV1> | ColumnarBatchV1;
@@ -171,6 +180,7 @@ export type ColumnarWorkflowErrorCode =
   | "BATCH_LIMIT_EXCEEDED"
   | "TRANSFER_LIMIT_EXCEEDED"
   | "BACKING_LIMIT_EXCEEDED"
+  | "INVALID_RESPONSE"
   | "DECODER_REQUIRED"
   | "BROWSER_AGGREGATION_REQUIRED"
   | "UNSUPPORTED_HANDOFF"
@@ -203,7 +213,8 @@ export interface ColumnarWorkerHandoff {
   readonly kind: "worker";
   readonly batch: ColumnarBatchV1;
   readonly transfer: readonly ArrayBuffer[];
-  readonly operation: "decode" | "aggregate";
+  /** Application-owned key registered with startColumnarWorkerHost(). */
+  readonly operation: string;
 }
 
 export interface ColumnarRenderHandoff {
@@ -224,7 +235,7 @@ export interface ColumnarWorkflowSession {
   plan(query: ColumnarWorkflowQuery): ColumnarWorkflowPlan;
   stream(query: ColumnarWorkflowQuery): AsyncIterable<ColumnarWorkflowBatch>;
   table(batch: ColumnarBatchV1, maxRows: number): ColumnarTableHandoff;
-  worker(batch: ColumnarBatchV1, operation?: "decode" | "aggregate"): ColumnarWorkerHandoff;
+  worker(batch: ColumnarBatchV1, operation?: string): ColumnarWorkerHandoff;
   render(batch: ColumnarBatchV1, geometry: "point" | "line" | "polygon"): ColumnarRenderHandoff;
   download(query: ColumnarWorkflowQuery): ColumnarDownloadHandoff;
   dispose(): Promise<void>;
@@ -635,6 +646,9 @@ export const openColumnarSession = (
     },
 
     worker(batch, operation = "decode") {
+      if (operation.trim() !== operation || operation.length === 0) {
+        throw new ColumnarWorkflowError("UNSUPPORTED_HANDOFF", "Worker operation must be a non-empty trimmed string.");
+      }
       const transfer: ArrayBuffer[] = [];
       collectTransfers(batch, transfer, new Set<ArrayBuffer>());
       return Object.freeze({ kind: "worker", batch, transfer: Object.freeze(transfer), operation });
@@ -666,8 +680,47 @@ export const openColumnarSession = (
   } satisfies ColumnarWorkflowSession);
 };
 
-export const createApacheArrowResponseDecoder = (): ColumnarResponseDecoder =>
-  async function* ({ response, identity: sourceIdentity, budgets, signal }) {
+function throwArrowDecoderError(error: unknown): never {
+  if (error instanceof ColumnarWorkflowError) throw error;
+  if (error instanceof HonuaArrowWkbError) {
+    if (error.code === "aborted") {
+      throw new ColumnarWorkflowError("ABORTED", error.message, error.details, { cause: error });
+    }
+    if (error.code === "row-limit") {
+      throw new ColumnarWorkflowError("ROW_LIMIT_EXCEEDED", error.message, error.details, { cause: error });
+    }
+    if (error.code === "backing-limit") {
+      throw new ColumnarWorkflowError("BACKING_LIMIT_EXCEEDED", error.message, error.details, { cause: error });
+    }
+    throw new ColumnarWorkflowError("INVALID_RESPONSE", error.message, error.details, { cause: error });
+  }
+  if (error instanceof Columnar.HonuaGeoArrowError) {
+    if (error.code === "row-limit-exceeded") {
+      throw new ColumnarWorkflowError("ROW_LIMIT_EXCEEDED", error.message, error.detail, { cause: error });
+    }
+    if (
+      error.code === "vertex-limit-exceeded" ||
+      error.code === "ring-limit-exceeded" ||
+      error.code === "dictionary-limit-exceeded" ||
+      error.code === "copy-limit-exceeded"
+    ) {
+      throw new ColumnarWorkflowError("BACKING_LIMIT_EXCEEDED", error.message, error.detail, { cause: error });
+    }
+  }
+  throw new ColumnarWorkflowError(
+    "INVALID_RESPONSE",
+    "Arrow response is not a supported bounded columnar payload.",
+    undefined,
+    {
+      cause: error,
+    },
+  );
+}
+
+export const createApacheArrowResponseDecoder = (
+  options: ApacheArrowResponseDecoderOptions = {},
+): ColumnarResponseDecoder =>
+  async function* ({ response, identity: sourceIdentity, budgets, query, signal }) {
     throwIfAborted(signal);
     const declaredLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(declaredLength) && declaredLength > budgets.maxTransferBytes) {
@@ -687,30 +740,92 @@ export const createApacheArrowResponseDecoder = (): ColumnarResponseDecoder =>
     const apache = (await (Columnar.loadApacheArrow as unknown as () => Promise<unknown>)()) as {
       RecordBatchReader: { from(input: Uint8Array): Promise<AsyncIterable<unknown>> | AsyncIterable<unknown> };
     };
-    const reader = await apache.RecordBatchReader.from(bytes);
+    let reader: AsyncIterable<unknown>;
+    try {
+      reader = await apache.RecordBatchReader.from(bytes);
+    } catch (error) {
+      throwArrowDecoderError(error);
+    }
     let batchIndex = 0;
+    let decodedRows = 0;
+    const observedAt = new Date().toISOString();
+    const planId = `columnar-workflow:${sourceIdentity.sourceId}:arrow:${JSON.stringify({
+      columns: query.columns,
+      filter: query.filter,
+      bbox: query.bbox,
+      limit: query.limit,
+      offset: query.offset,
+      orderBy: query.orderBy,
+      aggregations: query.aggregations,
+    })}`;
     for await (const recordBatch of reader) {
       throwIfAborted(signal);
+      if (batchIndex >= budgets.maxBatches) {
+        throw new ColumnarWorkflowError(
+          "BATCH_LIMIT_EXCEEDED",
+          `Arrow response exceeds the ${budgets.maxBatches}-batch ceiling.`,
+        );
+      }
+      const value = recordBatch as { readonly numRows?: unknown };
+      if (!Number.isSafeInteger(value.numRows) || (value.numRows as number) < 0) {
+        throw new ColumnarWorkflowError("INVALID_RESPONSE", "Arrow RecordBatch has an invalid row count.");
+      }
+      const remainingRows = Math.min(budgets.maxRows, query.limit) - decodedRows;
+      if ((value.numRows as number) > remainingRows) {
+        throw new ColumnarWorkflowError(
+          "ROW_LIMIT_EXCEEDED",
+          `Arrow response exceeds the ${Math.min(budgets.maxRows, query.limit)}-row ceiling.`,
+        );
+      }
       const identity: ColumnarBatchIdentityV1 = {
         ...sourceIdentity,
-        planId: `honua-arrow-${batchIndex}`,
-        ordering: { stable: false, keys: [] },
-        freshness: { observedAt: new Date().toISOString() },
-      };
-      const converted = Columnar.fromApacheArrowRecordBatch(
-        recordBatch as Parameters<typeof Columnar.fromApacheArrowRecordBatch>[0],
-        {
-          id: `${identity.sourceId}:${batchIndex}`,
-          sequence: batchIndex,
-          schemaId: identity.schemaVersion,
-          identity,
-          limits: {
-            maxRows: budgets.maxRows,
-            maxBackingBytes: budgets.maxBackingBytes,
-          },
+        planId,
+        ordering: {
+          stable: Boolean(query.orderBy?.length),
+          keys: (query.orderBy ?? []).map((order) => ({
+            field: order.field,
+            direction: order.direction === "asc" ? "ascending" : "descending",
+            nulls: "last",
+          })),
         },
-      );
-      yield converted.batch;
+        freshness: { observedAt },
+      };
+      let converted: ColumnarBatchV1;
+      try {
+        converted = hasHonuaArrowWkbGeometry(recordBatch)
+          ? decodeHonuaArrowWkbRecordBatch({
+              recordBatch,
+              id: `${identity.sourceId}:${batchIndex}`,
+              sequence: batchIndex,
+              rowOffset: (query.offset ?? 0) + decodedRows,
+              schemaId: identity.schemaVersion,
+              identity,
+              maxRows: remainingRows,
+              maxBackingBytes: budgets.maxBackingBytes,
+              signal,
+              ...options,
+            })
+          : Columnar.fromApacheArrowRecordBatch(
+              recordBatch as Parameters<typeof Columnar.fromApacheArrowRecordBatch>[0],
+              {
+                id: `${identity.sourceId}:${batchIndex}`,
+                sequence: batchIndex,
+                rowOffset: (query.offset ?? 0) + decodedRows,
+                schemaId: identity.schemaVersion,
+                identity,
+                limits: {
+                  maxRows: remainingRows,
+                  maxBackingBytes: budgets.maxBackingBytes,
+                  maxCopiedBytes: budgets.maxBackingBytes,
+                },
+              },
+            ).batch;
+      } catch (error) {
+        throwArrowDecoderError(error);
+      }
+      throwIfAborted(signal);
+      decodedRows += converted.rowCount;
+      yield converted;
       batchIndex += 1;
     }
   };

@@ -248,7 +248,7 @@
       "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Deterministic in-browser request planning with no data or network access.", "attribution": "No spatial data is loaded or rendered.", "freshness": "Versioned with the SDK query contract." },
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:columnar-query:build"] }, "live": { "status": "planned", "commands": [] } },
       "expectedDegradation": "The example plans but does not execute because no demo-manifest target currently advertises live Arrow or Parquet output.",
-      "validation": ["npm run demo:columnar-query:typecheck", "npm run demo:columnar-query:build", "npx vitest run test/columnar-workflow.test.ts"]
+      "validation": ["npm run demo:columnar-query:typecheck", "npm run demo:columnar-query:build", "npx vitest run test/columnar-workflow.test.ts test/columnar-workflow-honua-arrow.test.ts"]
     },
     {
       "id": "oauth-signin",

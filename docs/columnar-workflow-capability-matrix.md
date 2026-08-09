@@ -7,11 +7,12 @@ The `@honua/sdk-js/columnar-workflow` session joins existing GeoParquet and GeoA
 | Inspect direct GeoParquet schema, geometry encoding, CRS, bbox, row estimate, and row-group metadata | Experimental | Not applicable | Fixture contract | `test/columnar-workflow.test.ts` and existing GeoParquet fixtures |
 | Push columns, filter, bbox, limit, offset, order, and aggregations into direct GeoParquet execution | Experimental | Not applicable | Fixture contract | Existing GeoParquet query tests plus `test/columnar-workflow.test.ts` |
 | Build typed FeatureServer `f=parquet` and `f=arrow` GET/POST queries | Experimental | Server contract required | Fixture contract only | `test/columnar-workflow.test.ts` |
-| Decode Arrow IPC as bounded batches | Experimental, optional Apache Arrow peer | Server contract required | Fixture contract only | `createApacheArrowResponseDecoder` and columnar adapter tests |
+| Decode Honua `geoarrow.wkb` Arrow IPC as bounded normative batches | Experimental, optional Apache Arrow peer; Point, LineString, or Polygon plus one object-id, one UTF-8/dictionary field, and one timestamp field | Current FeatureServer `f=arrow` contract | Exact server-produced fixture only | `test/fixtures/columnar/honua-server-geoarrow-wkb.manifest.json` and `test/columnar-workflow-honua-arrow.test.ts` |
+| Decode broader Arrow schemas, multi-geometries, or M coordinates | Decoder extension point | Server contract available | Not admitted | The built-in bridge fails closed rather than dropping fields or geometry parts |
 | Decode Honua Parquet responses | Decoder extension point | Server contract required | Not admitted | No demo-manifest target currently proves the response contract |
 | Enforce row, batch, transfer-byte, and backing-memory ceilings | Experimental | Not applicable | Fixture contract | `test/columnar-workflow.test.ts` |
 | Cancellation, auth, retry, timeout, and interceptor pipeline | Experimental | Compatible endpoint required | Fixture contract | `HonuaClient.pipelineFetch` contract tests |
 | Table, worker, deck.gl, aggregation, and download handoffs | Experimental descriptors; existing columnar primitives execute them | Not applicable | Fixture contract | Columnar and deck.gl contract tests |
 | Zarr and NetCDF | Maturity marker only | Maturity marker only | Not implemented | No executable claim |
 
-No row, byte, latency, or memory result in this matrix is a live-server claim. A live status requires a pinned demo-manifest target and the same semantic verification used by the samples gallery.
+No row, byte, latency, or memory result in this matrix is a live-server claim. The WKB interop artifact is bound to Honua Server commit `fd1c651efa7078c269742152a2777298e3b1c4d4` and proves serialization compatibility only. A live status requires a pinned demo-manifest target and the same semantic verification used by the samples gallery.

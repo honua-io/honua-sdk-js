@@ -5,7 +5,7 @@ Use this walkthrough when the same analysis may begin with a Honua feature layer
 ## 1. Define a hard budget
 
 ```ts doc-test=compile
-import { openColumnarSession } from "@honua/sdk-js/columnar-workflow";
+import { createApacheArrowResponseDecoder, openColumnarSession } from "@honua/sdk-js/columnar-workflow";
 
 const session = openColumnarSession({
   kind: "honua-feature-query",
@@ -18,6 +18,7 @@ const session = openColumnarSession({
   schemaVersion: "layer-v1",
   authorizationScope: "user",
 }, {
+  decodeServerResponse: createApacheArrowResponseDecoder({ geometryKind: "point" }),
   budgets: {
     maxRows: 25_000,
     maxBatches: 32,
@@ -31,15 +32,15 @@ const session = openColumnarSession({
 
 ```ts doc-test=skip reason="Continues with the session declared in the previous independently compiled snippet."
 const plan = session.plan({
-  columns: ["zone", "assessed_value"],
+  columns: ["name", "created"],
   bbox: [-158.1, 21.2, -157.6, 21.8],
   filter: {
     kind: "comparison",
     operator: "gte",
-    left: { kind: "property", name: "assessed_value" },
-    right: { kind: "literal", value: 1_000_000 },
+    left: { kind: "property", name: "objectid" },
+    right: { kind: "literal", value: 1 },
   },
-  orderBy: [{ field: "assessed_value", direction: "desc" }],
+  orderBy: [{ field: "created", direction: "desc" }],
   limit: 5_000,
 });
 console.log(plan.execution, plan.pushdown, plan.boundedBy);
@@ -49,11 +50,11 @@ Expected outcome: `execution` is `server-pushdown`; the URL or POST body contain
 
 ## 3. Stream with backpressure and cancellation
 
-Install Apache Arrow as the optional peer and pass `createApacheArrowResponseDecoder()` when the deployment advertises Arrow IPC. Each loop iteration requests the next decoded batch only after your handler completes.
+Install Apache Arrow as the optional peer and pass `createApacheArrowResponseDecoder()` only when the deployment advertises Arrow IPC. The built-in Honua bridge decodes the current server's `geoarrow.wkb` geometry plus one object-id, one UTF-8/dictionary field, and one timestamp field into the normative batch. It rejects ambiguous or additional fields rather than dropping them; use a custom `decodeServerResponse` for a broader schema. `geometryKind` is needed only when an empty or all-null response cannot declare its kind. Each loop iteration requests the next decoded batch only after your handler completes.
 
 ```ts doc-test=skip reason="Requires an advertised live Honua Arrow endpoint and application renderBatch implementation."
 for await (const { batch, evidence } of session.stream({
-  columns: ["zone", "assessed_value"],
+  columns: ["name", "created"],
   bbox: [-158.1, 21.2, -157.6, 21.8],
   limit: 5_000,
   signal: controller.signal,
@@ -63,7 +64,7 @@ for await (const { batch, evidence } of session.stream({
 }
 ```
 
-Expected outcome: evidence reports cumulative rows, batches, bytes, elapsed time, peak backing bytes, and the governing ceilings. An exceeded ceiling or abort is a typed `ColumnarWorkflowError`, not partial success.
+Expected outcome: evidence reports cumulative rows, batches, bytes, elapsed time, peak backing bytes, and the governing ceilings. An exceeded ceiling, unsupported WKB/schema layout, or abort is a typed `ColumnarWorkflowError`, not partial success. The checked-in interoperability fixture was emitted by Honua Server commit `fd1c651efa7078c269742152a2777298e3b1c4d4`; it is fixture evidence, not a live deployment claim. The built-in decoder does not decode `f=parquet` responses.
 
 ## 4. Switch to a direct GeoParquet object
 
@@ -85,4 +86,4 @@ Expected outcome: `execution` is `browser-bounded`. Use server pushdown when it 
 
 ## 5. Pick an explicit handoff
 
-Use `table` for a small decoded preview, `worker` for a transferable batch descriptor, `render` for a deck.gl-oriented zero-copy descriptor, or `download` to preserve the exact bounded server request. Existing columnar primitives perform aggregation and concrete deck.gl binding.
+Use `table` for a small decoded preview, `worker` for a transferable batch descriptor, `render` for a deck.gl-oriented zero-copy descriptor, or `download` to preserve the exact bounded server request. Worker operation names are application-owned, so `worker(batch, "projection")` can address a registered `createGeoArrowProjectionOperation()` without pretending the handoff itself executes it. Existing columnar primitives perform aggregation and concrete deck.gl binding.

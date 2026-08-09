@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "producer": {
+    "repository": "https://github.com/honua-io/honua-server",
+    "commit": "fd1c651efa7078c269742152a2777298e3b1c4d4",
+    "formatter": "src/Honua.Protocols.GeoServices/FeatureServer/Services/GeoArrowQueryFormatter.cs",
+    "test": "tests/dotnet/Honua.Protocols.GeoServices.Tests/Source/FeatureServer/Services/GeoArrowQueryFormatterTests.cs#FormatAsGeoArrowAsync_WithFeatures_WritesReadableArrowStreamWithGeoMetadata"
+  },
+  "artifact": {
+    "path": "test/fixtures/columnar/honua-server-geoarrow-wkb.arrow",
+    "mediaType": "application/vnd.apache.arrow.stream",
+    "bytes": 1336,
+    "sha256": "c5d9c789171970b19ca9c54d5eda97f045f28adf66324f949c14813e8f90d001"
+  },
+  "contract": {
+    "requestFormat": "f=arrow",
+    "geometryExtension": "geoarrow.wkb",
+    "fields": [
+      { "name": "objectid", "type": "Int64", "role": "feature-id" },
+      { "name": "name", "type": "Utf8", "role": "dictionary" },
+      { "name": "created", "type": "Timestamp<MILLISECOND, UTC>", "role": "temporal" },
+      { "name": "geometry", "type": "Binary", "role": "geometry" }
+    ],
+    "rows": 1
+  },
+  "maturity": "fixture-only; no deployed demo-manifest target is claimed"
+}
