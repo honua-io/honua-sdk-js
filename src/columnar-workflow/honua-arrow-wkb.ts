@@ -94,7 +94,6 @@ interface ParsedGeometry {
   readonly kind: GeoArrowGeometryKind;
   readonly dimensions: GeoArrowDimensions;
   readonly value: GeoArrowPoint | GeoArrowLineString | GeoArrowPolygon;
-  readonly srid?: number;
 }
 
 interface GeometryBudget {
@@ -443,8 +442,7 @@ class WkbCursor {
       type -= 1000;
       hasZ = true;
     }
-    const srid = hasSrid ? this.uint32(littleEndian) : undefined;
-    if (srid === 0) fail("unsupported-layout", "EWKB SRID 0 does not identify a usable coordinate reference system.");
+    if (hasSrid) this.uint32(littleEndian);
     if (hasM) fail("unsupported-layout", "WKB M and ZM coordinates are not admitted by this decoder.");
     const dimensions: GeoArrowDimensions = hasZ ? "xyz" : "xy";
     const width = hasZ ? 3 : 2;
@@ -476,7 +474,7 @@ class WkbCursor {
         byteLength: this.view.byteLength,
       });
     }
-    return srid === undefined ? result : { ...result, srid };
+    return result;
   }
 
   private ensure(bytes: number): void {
@@ -568,19 +566,6 @@ const timestampValue = (value: unknown, field: string, row: number, unit: GeoArr
   return BigInt(value);
 };
 
-const crsMatchesSrid = (crs: GeoArrowCrs, srid: number): boolean => {
-  if (typeof crs === "string") {
-    const normalized = crs.trim().toUpperCase();
-    return normalized === `EPSG:${srid}` || normalized === String(srid);
-  }
-  const id = isRecord(crs.id) ? crs.id : undefined;
-  return (
-    typeof id?.authority === "string" &&
-    id.authority.toUpperCase() === "EPSG" &&
-    (id.code === srid || id.code === String(srid))
-  );
-};
-
 export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchInput): ColumnarBatchV1 {
   throwIfAborted(input.signal);
   const batch = arrowBatch(input.recordBatch);
@@ -603,7 +588,6 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
   const geometries: Array<GeoArrowPoint | GeoArrowLineString | GeoArrowPolygon | null> = [];
   let observedKind: GeoArrowGeometryKind | undefined;
   let observedDimensions: GeoArrowDimensions | undefined;
-  let observedSrid: number | undefined;
   const geometryVector = vector(batch, geometryIndex);
   for (let row = 0; row < batch.numRows; row += 1) {
     throwIfAborted(input.signal);
@@ -621,15 +605,6 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
     }
     observedKind = parsed.kind;
     observedDimensions = parsed.dimensions;
-    if (parsed.srid !== undefined) {
-      if (observedSrid !== undefined && observedSrid !== parsed.srid) {
-        fail("invalid-payload", "Arrow EWKB values contain conflicting embedded SRIDs.", {
-          first: observedSrid,
-          current: parsed.srid,
-        });
-      }
-      observedSrid = parsed.srid;
-    }
     geometries.push(parsed.value);
   }
   const kind = observedKind ?? declaration.kind ?? input.geometryKind;
@@ -649,18 +624,6 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
       `Arrow WKB geometry kind ${kind} does not match the configured ${input.geometryKind} hint.`,
     );
   }
-  let outputCrs = declaration.crs;
-  let outputCrsType = declaration.crsType;
-  if (observedSrid !== undefined) {
-    if (outputCrs !== undefined && !crsMatchesSrid(outputCrs, observedSrid)) {
-      fail("invalid-payload", "Embedded EWKB SRID conflicts with the declared Arrow CRS metadata.", {
-        srid: observedSrid,
-      });
-    }
-    outputCrs ??= `EPSG:${observedSrid}`;
-    outputCrsType ??= "authority_code";
-  }
-
   const temporalInfo =
     fields.temporal === undefined ? null : timestampType(fieldType(batch.schema.fields[fields.temporal]!));
   const temporalValues: Array<bigint | null> = [];
