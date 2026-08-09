@@ -21,8 +21,9 @@ work is tracked by
 [`honua-sdk-js#550`](https://github.com/honua-io/honua-sdk-js/issues/550).
 
 Downstream tooling consumes the generated
-[`honua-site-samples.v2.json`](../samples/dist/honua-site-samples.v2.json)
-projection from a pinned SDK commit or published npm tarball. It must not infer
+[`honua-site-samples.v3.json`](../samples/dist/honua-site-samples.v3.json)
+projection from a pinned SDK commit or published npm tarball. The frozen v2
+projection remains available for existing consumers. Tooling must not infer
 stability from `package.json` export presence. The v1 sample contract remains
 available only as a frozen compatibility surface for consumers completing
 their v2 migration.
@@ -30,9 +31,9 @@ their v2 migration.
 ## Versioned gallery handoff
 
 The SDK also publishes
-[`honua-site-consumer-handoff.v1.json`](../samples/dist/honua-site-consumer-handoff.v1.json).
+[`honua-site-consumer-handoff.v2.json`](../samples/dist/honua-site-consumer-handoff.v2.json).
 It is the content-addressed consumer projection for the gallery rather than a
-second application implementation. It joins the v2 presentation projection,
+second application implementation. It joins the v3 presentation projection,
 the generated capability-to-sample matrix, and current golden visual evidence;
 then exposes canonical public cards, filter dimensions, visible coverage gaps,
 legacy route dispositions, and lifecycle replacement or retirement notices.
@@ -71,7 +72,7 @@ evidence, and only overstated claims fail. See
 admission contract.
 
 The generated
-[`honua-site-consumer.v3.json`](../samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json)
+[`honua-site-consumer.v4.json`](../samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json)
 fixture pins the handoff digest and expected task, capability, protocol,
 keyboard, accessibility, and desktop/mobile behavior. These are requirements
 for the presentation consumer. Contract-declared card, route, gap, facet,

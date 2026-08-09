@@ -289,14 +289,6 @@ test(
       expect(credentialBearingRequests).toEqual([]);
     } finally {
       try {
-        const closure = await fixtureServer.close();
-        expect(closure).toEqual({
-          closed: true,
-          listeningAfterClose: false,
-          activeConnectionsAfterClose: 0,
-        });
-        await attestClosedFixture(testInfo, SAMPLE_ID, "startMigrationWorkbenchFixtureServer");
-      } finally {
         await finalizeSampleConsole({
           testInfo,
           sampleId: SAMPLE_ID,
@@ -305,6 +297,14 @@ test(
           pageErrors,
           consoleErrors,
         });
+      } finally {
+        const closure = await fixtureServer.close();
+        expect(closure).toEqual({
+          closed: true,
+          listeningAfterClose: false,
+          activeConnectionsAfterClose: 0,
+        });
+        await attestClosedFixture(testInfo, SAMPLE_ID, "startMigrationWorkbenchFixtureServer");
       }
     }
   },

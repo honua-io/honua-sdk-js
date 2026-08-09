@@ -17,8 +17,8 @@ function writeSummary(result) {
     "## Trusted Release Please canonical CI",
     "",
     result.status === "already-dispatched"
-      ? "The exact current release head already has a confirmed canonical CI dispatch."
-      : "Canonical CI was dispatched and confirmed for the exact current release head.",
+      ? "The exact current release head already has terminal-success canonical CI."
+      : "Canonical CI was dispatched and reached terminal success for the exact current release head.",
     `Pull request: ${result.repository}#${result.pullRequestNumber}.`,
     `Release head: ${result.headSha}.`,
     `Trusted trunk policy revision: ${result.trustedPolicySha}.`,
@@ -30,8 +30,8 @@ function writeSummary(result) {
 }
 
 async function main() {
-  if (requiredEnvironment("RELEASE_PLEASE_PRS_CREATED") !== "true") {
-    throw new Error("Release Please did not report a created or updated pull request.");
+  if (requiredEnvironment("RELEASE_PLEASE_PR_READY") !== "true") {
+    throw new Error("The trusted base-refresh job did not expose an exact current Release Please pull request.");
   }
   const { trustedPolicySha } = validateTrustedReleasePleaseWorkflowContext({
     eventName: requiredEnvironment("GITHUB_EVENT_NAME"),
@@ -43,6 +43,7 @@ async function main() {
     await dispatchReleasePleaseCi({
       repository: requiredEnvironment("GITHUB_REPOSITORY"),
       trustedPolicySha,
+      waitForCompletion: true,
     }),
   );
 }

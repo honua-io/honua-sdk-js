@@ -19,6 +19,7 @@ export default defineConfig({
       "test/pr-fast-runner.test.ts",
       "test/realtime.test.ts",
       "test/live-benchmark-evidence.test.ts",
+      "test/multidimensional-format-maturity.test.ts",
       "test/runtime-style-interactions.test.ts",
       "test/stream-perf-bench.test.ts",
       "test/contract/conformance.test.ts",

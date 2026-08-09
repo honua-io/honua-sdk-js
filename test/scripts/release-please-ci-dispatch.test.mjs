@@ -99,7 +99,7 @@ function harness({ snapshot = fixture, branchHead = snapshot.headSha, initialRun
       };
     }
     if (pathname.endsWith("/actions/workflows/ci.yml/runs")) {
-      return { workflow_runs: dispatched ? confirmedRuns : initialRuns };
+      return { workflow_runs: dispatched ? (typeof confirmedRuns === "function" ? confirmedRuns() : confirmedRuns) : initialRuns };
     }
     if (pathname.endsWith("/actions/workflows/ci.yml/dispatches")) {
       dispatched = true;
@@ -182,6 +182,45 @@ describe("trusted Release Please canonical CI dispatch", () => {
     );
   });
 
+  it("waits for terminal success on the exact dispatched head", async () => {
+    let reads = 0;
+    const queued = workflowRun(fixture, 9003);
+    const success = workflowRun(fixture, 9003, { status: "completed", conclusion: "success" });
+    const testHarness = harness({ confirmedRuns: () => (reads++ === 0 ? [queued] : [success]) });
+    const result = await dispatchReleasePleaseCi(
+      {
+        repository,
+        trustedPolicySha: fixture.baseSha,
+        confirmationAttempts: 1,
+        confirmationDelayMs: 0,
+        completionAttempts: 2,
+        completionDelayMs: 0,
+        waitForCompletion: true,
+      },
+      testHarness.request,
+    );
+    assert.equal(result.workflowRunId, success.id);
+    assert.equal(result.workflowRunConclusion, "success");
+  });
+
+  it("fails closed when exact-head canonical CI reaches terminal failure", async () => {
+    const failure = workflowRun(fixture, 9004, { status: "completed", conclusion: "failure" });
+    const testHarness = harness({ initialRuns: [failure] });
+    await assert.rejects(
+      dispatchReleasePleaseCi(
+        {
+          repository,
+          trustedPolicySha: fixture.baseSha,
+          completionAttempts: 1,
+          completionDelayMs: 0,
+          waitForCompletion: true,
+        },
+        testHarness.request,
+      ),
+      /Canonical CI concluded failure/u,
+    );
+  });
+
   it("fails closed before dispatch when the canonical release branch moved", async () => {
     const testHarness = harness({ branchHead: "f".repeat(40) });
     await assert.rejects(
@@ -207,16 +246,27 @@ describe("Release Please workflow policy", () => {
       .replaceAll("\r\n", "\n");
     const ci = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8").replaceAll("\r\n", "\n");
     const dispatcher = jobSlice(release, "release-please-ci");
+    const refresher = jobSlice(release, "release-please-refresh");
+    const disposition = jobSlice(release, "release-please-disposition");
     const jsSdk = jobSlice(ci, "js-sdk");
     const mcpSdk = jobSlice(ci, "mcp-sdk");
 
     assert.match(release, /prs_created: \$\{\{ steps\.release\.outputs\.prs_created \}\}/u);
-    assert.match(dispatcher, /if: \$\{\{ needs\.release-please\.outputs\.prs_created == 'true' \}\}/u);
+    assert.match(refresher, /if: \$\{\{ always\(\) && needs\.release-please\.result == 'success' \}\}/u);
+    assert.match(refresher, /permissions:\n      contents: write\n      pull-requests: write/u);
+    assert.match(refresher, /persist-credentials: false/u);
+    assert.match(refresher, /node scripts\/refresh-release-please-base\.mjs/u);
+    assert.doesNotMatch(refresher, /actions: write|checks: write/u);
+
+    assert.match(dispatcher, /needs: \[release-please, release-please-refresh\]/u);
+    assert.match(dispatcher, /release_pr_present == 'true'/u);
     assert.match(dispatcher, /permissions:\n      actions: write\n      contents: read\n      pull-requests: read/u);
     assert.match(dispatcher, /ref: \$\{\{ github\.sha \}\}/u);
     assert.match(dispatcher, /persist-credentials: false/u);
     assert.match(dispatcher, /node scripts\/dispatch-release-please-ci\.mjs/u);
     assert.doesNotMatch(dispatcher, /checks: write|contents: write|pull-requests: write/u);
+    assert.match(disposition, /needs: \[release-please, release-please-refresh, release-please-ci\]/u);
+    assert.match(disposition, /needs\.release-please-ci\.result == 'success'/u);
 
     assert.match(
       ci,
@@ -233,5 +283,17 @@ describe("Release Please workflow policy", () => {
       assert.match(job, /\^\[0-9a-f\]\{40\}\$/u);
       assert.match(job, /"\$\{GITHUB_SHA\}" != "\$\{RELEASE_HEAD_SHA\}"/u);
     }
+
+    const biome = JSON.parse(fs.readFileSync(path.join(root, "biome.json"), "utf8"));
+    const createAppOverride = biome.overrides.find((override) =>
+      override.include?.includes("packages/create-honua-app/package.json"),
+    );
+    assert.deepEqual(createAppOverride, {
+      include: ["packages/create-honua-app/package.json"],
+      formatter: { lineWidth: 80 },
+    });
+    const createAppPath = path.join(root, "packages/create-honua-app/package.json");
+    const createAppSource = fs.readFileSync(createAppPath, "utf8").replaceAll("\r\n", "\n");
+    assert.equal(createAppSource, `${JSON.stringify(JSON.parse(createAppSource), null, 2)}\n`);
   });
 });

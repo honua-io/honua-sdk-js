@@ -18,6 +18,7 @@ import {
   INCLUDED_SAMPLES,
   INELIGIBLE_SUPPORT_TIERS,
   PUBLISHABLE_RUNTIME_HOSTING,
+  PUBLISHED_LIVE_SAMPLE_POLICY,
   routeCoveredByHostFixtureRoutes,
   RUNNABILITY_BY_HOSTING,
   RUNTIME_HOSTING_KINDS,
@@ -32,6 +33,9 @@ const bundleSchema = JSON.parse(
   fs.readFileSync(path.join(ROOT, "samples/contract/v2/schemas/sample-bundles.schema.json"), "utf8"),
 );
 const siteProjectionSchema = JSON.parse(
+  fs.readFileSync(path.join(ROOT, "samples/contract/v2/schemas/site-projection.v3.schema.json"), "utf8"),
+);
+const legacySiteProjectionSchema = JSON.parse(
   fs.readFileSync(path.join(ROOT, "samples/contract/v2/schemas/site-projection.schema.json"), "utf8"),
 );
 
@@ -210,14 +214,14 @@ test("every published bundle clears the catalog-derived eligibility gates (#656 
       `${included.id}: a published bundle may not depend on a browser-public credential`,
     );
     assert.ok(
-      PUBLISHABLE_RUNTIME_HOSTING.has(included.runtimeHosting),
+      PUBLISHABLE_RUNTIME_HOSTING.has(included.runtimeHosting) || PUBLISHED_LIVE_SAMPLE_POLICY.has(included.id),
       `${included.id}: runtimeHosting "${included.runtimeHosting}" is not publishable`,
     );
     assert.equal(included.runnability, RUNNABILITY_BY_HOSTING.get(included.runtimeHosting));
   }
 });
 
-test("only requires-host-fixture-service bundles declare host prerequisites (#656 REQ-005)", () => {
+test("published bundles declare the prerequisites implied by runnability (#656 REQ-005)", () => {
   const published = derivePublishedSamples(catalog);
   assert.deepEqual(
     published.map((entry) => entry.id),
@@ -226,9 +230,13 @@ test("only requires-host-fixture-service bundles declare host prerequisites (#65
   for (const entry of published) {
     if (entry.runnability === "standalone") {
       assert.deepEqual(entry.hostFixtureRoutes, [], `${entry.id}: a standalone bundle needs no host routes`);
-    } else {
+    } else if (entry.runnability === "requires-host-fixture-service") {
       assert.equal(entry.runnability, "requires-host-fixture-service");
       assert.ok(entry.hostFixtureRoutes.length > 0, `${entry.id}: must state what the host has to serve`);
+    } else {
+      assert.equal(entry.runnability, "requires-live-endpoint");
+      assert.deepEqual(entry.hostFixtureRoutes, [], `${entry.id}: a live-backed bundle must not claim host fixture routes`);
+      assert.ok(PUBLISHED_LIVE_SAMPLE_POLICY.has(entry.id), `${entry.id}: live publication must be explicitly allowlisted`);
     }
   }
   // The five samples whose default lane addresses same-origin fixture routes
@@ -236,10 +244,8 @@ test("only requires-host-fixture-service bundles declare host prerequisites (#65
   const byId = new Map(published.map((entry) => [entry.id, entry]));
   for (const id of [
     "imagery-cog-quickstart",
-    "maplibre-quickstart",
     "planning-permitting-workbench",
     "react-quickstart",
-    "service-explorer",
   ]) {
     assert.equal(byId.get(id)?.runnability, "requires-host-fixture-service", `${id} must declare its prerequisites`);
   }
@@ -391,7 +397,7 @@ test("the exclusion category enum stays in sync between the source list and both
   assert.deepEqual([...projectionEnum].sort(), [...EXCLUDED_SAMPLE_CATEGORIES].sort());
 });
 
-test("the runnability enum stays in sync between the source map and both JSON schemas", () => {
+test("the v3 runnability enum stays in sync while the closed v2 schema remains compatible", () => {
   const expected = [...new Set(RUNNABILITY_BY_HOSTING.values())].sort();
   assert.deepEqual([...bundleSchema.$defs.sample.properties.runnability.enum].sort(), expected);
   assert.deepEqual(
@@ -399,9 +405,30 @@ test("the runnability enum stays in sync between the source map and both JSON sc
     expected,
   );
   assert.deepEqual(
-    [...bundleSchema.$defs.sample.properties.runtimeHosting.enum].sort(),
-    [...PUBLISHABLE_RUNTIME_HOSTING].sort(),
+    [...legacySiteProjectionSchema.$defs.sampleBundles.properties.published.items.properties.runnability.enum].sort(),
+    expected.filter((runnability) => runnability !== "requires-live-endpoint"),
   );
+  assert.deepEqual(
+    [...bundleSchema.$defs.sample.properties.runtimeHosting.enum].sort(),
+    [...PUBLISHABLE_RUNTIME_HOSTING, "external-live-endpoint"].sort(),
+  );
+});
+
+test("only the two exact-origin live samples bypass generic external exclusion", () => {
+  assert.deepEqual([...PUBLISHED_LIVE_SAMPLE_POLICY.keys()], ["maplibre-quickstart", "service-explorer"]);
+  for (const [id, policy] of PUBLISHED_LIVE_SAMPLE_POLICY) {
+    assert.deepEqual(policy.allowedOrigins, [id === "maplibre-quickstart" ? "https://demo.honua.io" : "https://demo.pygeoapi.io"]);
+    assert.equal(new URL(policy.semanticProbe.url).origin, policy.allowedOrigins[0]);
+    const included = INCLUDED_SAMPLES.find((sample) => sample.id === id);
+    assert.equal(included?.runtimeHosting, "external-live-endpoint");
+    assert.equal(included?.runnability, "requires-live-endpoint");
+  }
+  const unexpected = evaluateSampleBundleEligibility(
+    fakeSample("fixture-unapproved-live"),
+    fakeAudit("fixture-unapproved-live", { runtimeHosting: "external-live-endpoint" }),
+  );
+  assert.equal(unexpected.decision, "exclude");
+  assert.equal(unexpected.category, "requires-live-backend");
 });
 
 test("a browser-public credential blocks publication as requires-api-key (#656 REQ-003)", () => {

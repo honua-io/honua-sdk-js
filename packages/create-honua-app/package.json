@@ -17,7 +17,16 @@
     "access": "public",
     "provenance": true
   },
-  "keywords": ["gis", "geospatial", "maplibre", "typescript", "honua", "scaffold", "starter", "create-app"],
+  "keywords": [
+    "gis",
+    "geospatial",
+    "maplibre",
+    "typescript",
+    "honua",
+    "scaffold",
+    "starter",
+    "create-app"
+  ],
   "type": "module",
   "bin": {
     "create-honua-app": "bin/create-honua-app.mjs"
@@ -25,7 +34,14 @@
   "exports": {
     "./package.json": "./package.json"
   },
-  "files": ["bin", "lib", "templates", "templates.manifest.json", "README.md", "LICENSE"],
+  "files": [
+    "bin",
+    "lib",
+    "templates",
+    "templates.manifest.json",
+    "README.md",
+    "LICENSE"
+  ],
   "engines": {
     "node": ">=20.19.0"
   }

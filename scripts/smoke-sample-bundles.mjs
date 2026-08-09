@@ -8,11 +8,15 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "@playwright/test";
 
+import { PUBLISHED_LIVE_SAMPLE_POLICY } from "./build-sample-bundles.mjs";
+
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bundleRoot = path.join(projectRoot, ".artifacts", "sample-bundles");
 const manifestPath = path.join(bundleRoot, "sample-bundles.v2.json");
 const evidenceDir = path.join(projectRoot, ".artifacts", "sample-bundle-smoke");
 const evidencePath = path.join(evidenceDir, "browser-smoke.v1.json");
+
+const hostedSmokeHostname = "samples.honua.test";
 
 const mediaTypes = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -28,8 +32,16 @@ const mediaTypes = new Map([
 
 async function main() {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  const samples = manifest.samples.filter((sample) => sample.runnability === "standalone");
-  if (samples.length === 0) throw new Error("sample bundle smoke found no standalone samples");
+  const samples = manifest.samples.filter((sample) =>
+    ["standalone", "requires-live-endpoint"].includes(sample.runnability),
+  );
+  if (samples.length === 0) throw new Error("sample bundle smoke found no directly runnable samples");
+  for (const [id] of PUBLISHED_LIVE_SAMPLE_POLICY) {
+    const sample = samples.find((candidate) => candidate.id === id);
+    if (!sample || sample.runtimeHosting !== "external-live-endpoint" || sample.runnability !== "requires-live-endpoint") {
+      throw new Error(`${id}: live publication policy is missing from the built manifest`);
+    }
+  }
 
   await mkdir(evidenceDir, { recursive: true });
   const server = createStaticServer(new Set(samples.map((sample) => sample.id)));
@@ -39,12 +51,17 @@ async function main() {
   });
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("sample bundle smoke server has no TCP address");
-  const origin = `http://127.0.0.1:${address.port}`;
+  const localOrigin = `http://127.0.0.1:${address.port}`;
+  const hostedOrigin = `http://${hostedSmokeHostname}:${address.port}`;
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: [`--host-resolver-rules=MAP ${hostedSmokeHostname} 127.0.0.1`],
+  });
   const results = [];
   try {
     for (const sample of samples) {
+      const origin = sample.id === "service-explorer" ? hostedOrigin : localOrigin;
       results.push(await smokeSample(browser, origin, sample));
     }
   } finally {
@@ -80,6 +97,10 @@ async function smokeSample(browser, origin, sample) {
   const page = await browser.newPage();
   const failures = [];
   const observedRequests = new Set();
+  const livePolicy = PUBLISHED_LIVE_SAMPLE_POLICY.get(sample.id);
+  const allowedOrigins = new Set(livePolicy?.allowedOrigins ?? []);
+  const liveProbe = await runSemanticLiveProbe(sample.id, livePolicy);
+  if (liveProbe && !liveProbe.passed) failures.push(`live probe: ${liveProbe.failure}`);
   page.on("console", (message) => {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
@@ -99,7 +120,7 @@ async function smokeSample(browser, origin, sample) {
   });
   page.on("response", (response) => {
     const url = new URL(response.url());
-    if (url.origin !== origin) {
+    if (url.origin !== origin && !allowedOrigins.has(url.origin)) {
       failures.push(`off-origin response: ${response.status()} ${response.request().method()} ${response.url()}`);
     }
     if (response.status() >= 400 && url.pathname !== "/favicon.ico") {
@@ -144,9 +165,52 @@ async function smokeSample(browser, origin, sample) {
     title,
     passed: uniqueFailures.length === 0,
     requestCount: observedRequests.size,
+    liveProbe,
     failures: uniqueFailures,
     screenshot,
   };
+}
+
+async function runSemanticLiveProbe(sampleId, policy) {
+  if (!policy) return null;
+  const expectedOrigins = new Set(policy.allowedOrigins);
+  try {
+    const response = await fetch(policy.semanticProbe.url, {
+      headers: { accept: "application/geo+json, application/json" },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const responseOrigin = new URL(response.url).origin;
+    if (!expectedOrigins.has(responseOrigin)) {
+      throw new Error(`redirected to undeclared origin ${responseOrigin}`);
+    }
+    if (!response.ok) throw new Error(`returned HTTP ${response.status}`);
+    const payload = await response.json();
+    if (policy.semanticProbe.kind !== "geojson-feature-collection") {
+      throw new Error(`unsupported semantic probe ${policy.semanticProbe.kind}`);
+    }
+    if (payload?.type !== "FeatureCollection" || !Array.isArray(payload.features)) {
+      throw new Error("did not return a GeoJSON FeatureCollection");
+    }
+    if (payload.features.length < policy.semanticProbe.minimumFeatures) {
+      throw new Error(`returned ${payload.features.length} features`);
+    }
+    return {
+      passed: true,
+      origin: responseOrigin,
+      status: response.status,
+      semantic: policy.semanticProbe.kind,
+      featureCount: payload.features.length,
+    };
+  } catch (error) {
+    return {
+      passed: false,
+      origin: policy.allowedOrigins[0],
+      status: null,
+      semantic: policy.semanticProbe.kind,
+      featureCount: 0,
+      failure: `${sampleId}: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 function createStaticServer(sampleIds) {

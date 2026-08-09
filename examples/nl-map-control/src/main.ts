@@ -53,6 +53,19 @@ const statusLine = element<HTMLParagraphElement>("status");
 const planPane = element<HTMLPreElement>("plan-json");
 const receiptPane = element<HTMLPreElement>("receipt-json");
 
+const DEFAULT_BASEMAP_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {},
+  layers: [
+    {
+      id: "background",
+      type: "background",
+      paint: { "background-color": "#d9e7df" },
+    },
+  ],
+};
+const BASEMAP_STYLE = import.meta.env.VITE_HONUA_NL_MAP_CONTROL_BASEMAP_STYLE ?? DEFAULT_BASEMAP_STYLE;
+
 const effects: string[] = [];
 function setStatus(text: string): void {
   statusLine.textContent = text;
@@ -61,11 +74,7 @@ function setStatus(text: string): void {
 const map = new maplibregl.Map({
   container: "map",
   attributionControl: false,
-  style: {
-    version: 8,
-    sources: {},
-    layers: [{ id: "background", type: "background", paint: { "background-color": "#0b2530" } }],
-  },
+  style: BASEMAP_STYLE,
   center: [-122.3321, 47.6062],
   zoom: 10.5,
 });

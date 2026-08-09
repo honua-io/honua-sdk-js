@@ -166,7 +166,7 @@
     {
       "sampleId": "maplibre-quickstart",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is same-origin-fixture-service and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
+      "detail": "Audited runtimeHosting is external-live-endpoint and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "mcp-gis-assistant",
@@ -210,8 +210,8 @@
     },
     {
       "sampleId": "realtime-incident-dashboard",
-      "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is external-live-endpoint and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
+      "category": "repository-vite-kit",
+      "detail": "Builds through the shared example kit rather than a plain Vite config."
     },
     {
       "sampleId": "runtime-parity-showcase",
@@ -221,7 +221,7 @@
     {
       "sampleId": "service-explorer",
       "category": "requires-data-origin",
-      "detail": "Audited runtimeHosting is same-origin-fixture-service and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
+      "detail": "Audited runtimeHosting is external-live-endpoint and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
       "sampleId": "spatial-analytics-workbench",
