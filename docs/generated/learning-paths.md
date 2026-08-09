@@ -30,7 +30,7 @@ Labels: `fixture` · `public-live`
 - Compile check: `npm run demo:quickstart:typecheck`
 - Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
+- Provenance: Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.
 - Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
 - Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
 - Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
@@ -91,7 +91,7 @@ Labels: `fixture` · `public-live`
 - Compile check: `npm run demo:quickstart:typecheck`
 - Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
+- Provenance: Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.
 - Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
 - Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
 - Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
