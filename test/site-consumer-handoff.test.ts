@@ -770,7 +770,7 @@ describe("honua-site consumer handoff", () => {
       "JSON Schema validation failed",
     );
 
-    const staleCurrentHandoff = structuredClone(inputs.handoff);
+    const staleCurrentHandoff = await checkoutBoundHandoff(inputs.handoff);
     const currentVisual = staleCurrentHandoff.cards.find((card) => card.visualEvidence)?.visualEvidence;
     if (!currentVisual) throw new Error("current qualified visual fixture is missing");
     currentVisual.semanticEvidence[0].receiptSha256 = sha256("rolled-current-receipt");
