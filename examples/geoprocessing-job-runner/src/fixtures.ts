@@ -1,278 +1,167 @@
-import { createHonuaCacheState } from "@honua/sdk-js/honua";
+import fixtureJson from "../fixture.json" with { type: "json" };
 
-import type { RunnerDataset, RunnerFeature } from "./types.js";
+import type {
+  BufferArtifact,
+  BufferFeature,
+  BufferInputs,
+  BufferPoint,
+  FixtureExchange,
+  PolygonGeometry,
+} from "./types.js";
 
-const GENERATED_AT = "2026-05-07T18:30:00Z";
-const SR = { wkid: 4326 };
+interface PinnedFixtureDocument {
+  readonly processId: string;
+  readonly jobId: string;
+  readonly inputPoint: BufferPoint;
+  readonly inputs: BufferInputs;
+  readonly resultGeometrySha256: string;
+  readonly resultFeature: BufferFeature;
+  readonly exchanges: readonly {
+    readonly method: string;
+    readonly path: string;
+    readonly responseStatus: number;
+    readonly jobStatus?: string;
+  }[];
+}
 
-export function createFixtureGeoprocessingDataset(): RunnerDataset {
+const fixture = fixtureJson as unknown as PinnedFixtureDocument;
+
+export const PROCESS_ID = fixture.processId;
+export const JOB_ID = fixture.jobId;
+export const INPUT_POINT = fixture.inputPoint;
+export const BUFFER_INPUTS = fixture.inputs;
+export const RESULT_GEOMETRY_SHA256 = fixture.resultGeometrySha256;
+export const RESULT_FEATURE = fixture.resultFeature;
+export const PINNED_EXCHANGES = fixture.exchanges;
+export const EXECUTION_PATH = `/ogc/processes/processes/${PROCESS_ID}/execution`;
+export const JOB_PATH = `/ogc/processes/jobs/${JOB_ID}`;
+export const RESULTS_PATH = `${JOB_PATH}/results`;
+export const EXECUTION_BODY = { inputs: BUFFER_INPUTS, response: "document" } as const;
+
+export function createResultArtifact(): BufferArtifact {
   return {
-    workspaceId: "honua-gp-job-runner-fixture",
-    resultSourceId: "honua-cloud:gp-runner-results",
-    generatedAt: GENERATED_AT,
-    aois: [
-      {
-        id: "urban-core",
-        title: "Urban core",
-        extent: { xmin: -157.88, ymin: 21.28, xmax: -157.79, ymax: 21.34, spatialReference: SR },
-        geometryLabel: "AOI polygon, 250 m buffer",
-        areaSqKm: 19.8,
-      },
-      {
-        id: "harbor-corridor",
-        title: "Harbor corridor",
-        extent: { xmin: -157.93, ymin: 21.29, xmax: -157.84, ymax: 21.37, spatialReference: SR },
-        geometryLabel: "Route corridor, 400 m clip",
-        areaSqKm: 24.4,
-      },
-      {
-        id: "windward-shelters",
-        title: "Windward shelters",
-        extent: { xmin: -157.82, ymin: 21.37, xmax: -157.72, ymax: 21.47, spatialReference: SR },
-        geometryLabel: "Shelter catchment, 1 km dissolve",
-        areaSqKm: 31.2,
-      },
-    ],
-    processes: [
-      {
-        id: "geometry-buffer",
-        title: "Buffer AOI geometry",
-        protocol: "GeometryServer",
-        operation: "buffer",
-        capabilityState: "available",
-        cache: createHonuaCacheState({
-          scope: "metadata",
-          status: "hit",
-          keyFingerprint: "geometry-buffer:v1",
-          revalidatedAt: GENERATED_AT,
-        }),
-      },
-      {
-        id: "geometry-intersect",
-        title: "Intersect input layers",
-        protocol: "GeometryServer",
-        operation: "intersect",
-        capabilityState: "available",
-        cache: createHonuaCacheState({
-          scope: "metadata",
-          status: "hit",
-          keyFingerprint: "geometry-intersect:v1",
-          revalidatedAt: GENERATED_AT,
-        }),
-      },
-      {
-        id: "gp-route-profile",
-        title: "Route impact profile",
-        protocol: "GPServer",
-        operation: "submitJob",
-        capabilityState: "degraded",
-        cache: createHonuaCacheState({
-          scope: "metadata",
-          status: "stale",
-          keyFingerprint: "gp-route-profile:v1",
-          revalidatedAt: "2026-05-06T23:00:00Z",
-        }),
-      },
-      {
-        id: "ogc-materialize",
-        title: "Materialize result layer",
-        protocol: "OGC Processes",
-        operation: "execute",
-        capabilityState: "available",
-        cache: createHonuaCacheState({
-          scope: "metadata",
-          status: "refreshed",
-          keyFingerprint: "ogc-materialize:v1",
-          revalidatedAt: GENERATED_AT,
-        }),
-      },
-      {
-        id: "network-allocation",
-        title: "Network allocation solver",
-        protocol: "GPServer",
-        operation: "submitJob",
-        capabilityState: "unsupported",
-        requiresTicket: "honua-server seeded graph solver",
-        cache: createHonuaCacheState({
-          scope: "metadata",
-          status: "miss",
-          keyFingerprint: "network-allocation:v1",
-        }),
-      },
-    ],
-    plans: [
-      {
-        id: "buffer-overlay",
-        title: "Buffer and intersect facilities",
-        processIds: ["geometry-buffer", "geometry-intersect", "ogc-materialize"],
-        description: "Buffer the active AOI, intersect facilities, and materialize a review layer.",
-        materializes: true,
-        estimatedDuration: "12-18 sec",
-        capabilityState: "available",
-        fixtureMode: "materialize-facilities",
-        outputLayerTitle: "Buffered facility exposure",
-      },
-      {
-        id: "route-profile",
-        title: "Route impact profile",
-        processIds: ["gp-route-profile", "ogc-materialize"],
-        description: "Run a GPServer route profile and publish linked line/point results.",
-        materializes: true,
-        estimatedDuration: "20-35 sec",
-        capabilityState: "degraded",
-        fixtureMode: "route-profile",
-        outputLayerTitle: "Route profile impact layer",
-      },
-      {
-        id: "network-allocation",
-        title: "Network allocation solver",
-        processIds: ["network-allocation"],
-        description: "Show an unsupported upstream capability without hiding the failed job state.",
-        materializes: false,
-        estimatedDuration: "Not available",
-        capabilityState: "unsupported",
-        fixtureMode: "unsupported-capability",
-        outputLayerTitle: "Network allocation output",
-      },
-    ],
-    inputSources: [
-      {
-        id: "honua-cloud:critical-facilities",
-        title: "Critical facilities",
-        type: "input-layer",
-        cache: createHonuaCacheState({
-          scope: "metadata",
-          status: "hit",
-          keyFingerprint: "critical-facilities:v3",
-          revalidatedAt: GENERATED_AT,
-        }),
-        capabilities: ["query", "bbox", "geometry", "linked-view-sync"],
-        capabilityState: "available",
-      },
-      {
-        id: "honua-cloud:evacuation-routes",
-        title: "Evacuation routes",
-        type: "input-layer",
-        cache: createHonuaCacheState({
-          scope: "metadata",
-          status: "stale",
-          keyFingerprint: "evacuation-routes:v2",
-          revalidatedAt: "2026-05-06T22:45:00Z",
-        }),
-        capabilities: ["query", "routing", "profile"],
-        capabilityState: "degraded",
-      },
-    ],
-    features: runnerFeatures(),
+    id: "honolulu-hale-buffer-geometry",
+    kind: "Inline",
+    title: "Honolulu Hale 350 m buffer",
+    href: `data:application/geo+json,${encodeURIComponent(JSON.stringify(RESULT_FEATURE))}`,
+    type: "application/geo+json",
   };
 }
 
-function runnerFeatures(): RunnerFeature[] {
-  return [
-    feature(
-      "facility-1001",
-      "Iwilei electrical substation",
-      "facility",
-      "critical",
-      "urban",
-      96,
-      34000,
-      90,
-      ["urban-core", "harbor-corridor"],
-      -157.866,
-      21.318,
-    ),
-    feature(
-      "asset-1002",
-      "Ala Moana pump station",
-      "asset",
-      "high",
-      "urban",
-      88,
-      18000,
-      130,
-      ["urban-core"],
-      -157.846,
-      21.291,
-    ),
-    feature(
-      "route-1003",
-      "Nimitz outbound bottleneck",
-      "route",
-      "high",
-      "harbor",
-      82,
-      52000,
-      260,
-      ["urban-core", "harbor-corridor"],
-      -157.894,
-      21.327,
-    ),
-    feature(
-      "facility-1004",
-      "Sand Island fuel terminal",
-      "facility",
-      "critical",
-      "harbor",
-      94,
-      61000,
-      180,
-      ["harbor-corridor"],
-      -157.887,
-      21.307,
-    ),
-    feature(
-      "shelter-1005",
-      "Kaneohe high shelter",
-      "shelter",
-      "moderate",
-      "windward",
-      63,
-      7200,
-      410,
-      ["windward-shelters"],
-      -157.797,
-      21.405,
-    ),
-    feature(
-      "shelter-1006",
-      "Kailua community hub",
-      "shelter",
-      "low",
-      "windward",
-      47,
-      9800,
-      760,
-      ["windward-shelters"],
-      -157.741,
-      21.397,
-    ),
-  ];
+export async function digestGeometry(geometry: PolygonGeometry): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(geometry));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
 }
 
-function feature(
-  id: string,
-  title: string,
-  category: RunnerFeature["category"],
-  risk: RunnerFeature["risk"],
-  zone: string,
-  score: number,
-  peopleServed: number,
-  distanceMeters: number,
-  aoiIds: readonly string[],
-  x: number,
-  y: number,
-): RunnerFeature {
-  return {
-    id,
-    title,
-    category,
-    risk,
-    zone,
-    score,
-    peopleServed,
-    distanceMeters,
-    aoiIds,
-    geometry: { x, y, spatialReference: SR },
+export function decodeResultArtifact(value: unknown): BufferFeature {
+  if (!value || typeof value !== "object") throw new Error("The OGC result output is not an artifact object.");
+  const artifact = value as Partial<BufferArtifact>;
+  if (artifact.type !== "application/geo+json" || typeof artifact.href !== "string") {
+    throw new Error("The OGC result artifact is not GeoJSON.");
+  }
+  const comma = artifact.href.indexOf(",");
+  if (!artifact.href.startsWith("data:application/geo+json,") || comma < 0) {
+    throw new Error("The fixture result must use the server's inline GeoJSON artifact form.");
+  }
+  const feature = JSON.parse(decodeURIComponent(artifact.href.slice(comma + 1))) as BufferFeature;
+  if (feature.type !== "Feature" || feature.geometry?.type !== "Polygon") {
+    throw new Error("The GeoJSON result does not contain a polygon feature.");
+  }
+  return feature;
+}
+
+export function createPinnedFixtureFetch(options: { failExecution?: boolean } = {}): {
+  readonly fetch: typeof fetch;
+  readonly exchanges: FixtureExchange[];
+} {
+  const exchanges: FixtureExchange[] = [];
+  let statusPolls = 0;
+  let dismissed = false;
+
+  const json = (body: unknown, status = 200, headers: HeadersInit = {}): Response =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "content-type": "application/json", ...headers },
+    });
+
+  const fixtureFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    const bodyText = request.method === "POST" ? await request.text() : "";
+    const body = bodyText ? (JSON.parse(bodyText) as unknown) : undefined;
+    exchanges.push({ method: request.method, path: url.pathname, body, prefer: request.headers.get("prefer") });
+
+    if (request.method === "POST" && url.pathname === EXECUTION_PATH) {
+      if (options.failExecution || stableJson(body) !== stableJson(EXECUTION_BODY)) {
+        return json(
+          { type: "about:blank", title: "Invalid buffer inputs", status: 422, detail: "Invalid buffer inputs: pinned fixture inputs did not match." },
+          422,
+        );
+      }
+      statusPolls = 0;
+      dismissed = false;
+      return json(
+        {
+          processID: PROCESS_ID,
+          jobID: JOB_ID,
+          status: "accepted",
+          progress: 5,
+          message: "Buffer job accepted",
+          links: [
+            { rel: "status", href: JOB_PATH, type: "application/json" },
+            { rel: "results", href: RESULTS_PATH, type: "application/json" },
+          ],
+        },
+        201,
+        { location: JOB_PATH },
+      );
+    }
+
+    if (request.method === "GET" && url.pathname === JOB_PATH) {
+      if (dismissed) return json(statusDocument("dismissed", 100, "Buffer job dismissed"));
+      statusPolls += 1;
+      return statusPolls === 1
+        ? json(statusDocument("running", 62, "Computing buffer geometry"))
+        : json(statusDocument("successful", 100, "Buffer completed"));
+    }
+
+    if (request.method === "GET" && url.pathname === RESULTS_PATH) {
+      return json({ output1: createResultArtifact() });
+    }
+
+    if (request.method === "DELETE" && url.pathname === JOB_PATH) {
+      dismissed = true;
+      return json(statusDocument("dismissed", 100, "Dismissed via OGC API"));
+    }
+
+    return json({ title: "No such fixture route", status: 404, detail: url.pathname }, 404);
   };
+
+  return { fetch: fixtureFetch as typeof fetch, exchanges };
+}
+
+function statusDocument(status: "running" | "successful" | "dismissed", progress: number, message: string) {
+  return {
+    processID: PROCESS_ID,
+    jobID: JOB_ID,
+    status,
+    progress,
+    message,
+    links: [
+      { rel: "status", href: JOB_PATH, type: "application/json" },
+      { rel: "results", href: RESULTS_PATH, type: "application/json" },
+    ],
+  };
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, nested]) => `${JSON.stringify(key)}:${stableJson(nested)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }

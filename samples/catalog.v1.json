@@ -100,19 +100,19 @@
     {
       "id": "geoprocessing-job-runner",
       "title": "Geoprocessing job runner",
-      "summary": "Submits, polls, cancels, and inspects asynchronous geoprocessing jobs.",
+      "summary": "Runs a deterministic Honolulu buffer job and renders the verified polygon result.",
       "tier": "advanced",
       "supportStatus": "supported",
       "disposition": { "decision": "merge", "reason": "Fold into the analysis journey while retaining this focused recipe." },
       "sourcePath": "examples/geoprocessing-job-runner",
       "docsPath": "examples/geoprocessing-job-runner/README.md",
       "capabilities": ["async-jobs", "cancel", "geoprocessing"],
-      "protocols": ["geoservices", "ogc-processes"],
-      "renderers": ["none"],
-      "data": { "mode": "hybrid", "authMode": "bearer", "config": ["VITE_HONUA_PROCESS_SERVICE_TOKEN", "VITE_HONUA_PROCESS_SERVICE_URL"], "provenance": "Committed job-state fixture or configured process endpoint.", "attribution": "Process-owner attribution from service metadata.", "freshness": "Job receipt and poll observation times." },
+      "protocols": ["ogc-processes"],
+      "renderers": ["svg"],
+      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.", "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.", "freshness": "Immutable fixture contract; no public-live result claim." },
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:gp-runner:mock"] }, "live": { "status": "planned", "commands": [] } },
-      "expectedDegradation": "Unavailable or unlicensed processes are shown as structured capability gaps.",
-      "validation": ["npm run demo:gp-runner:typecheck", "npm run demo:gp-runner:build"]
+      "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result.",
+      "validation": ["npm run demo:gp-runner:typecheck", "npx vitest run test/geoprocessing-job-runner.test.ts", "npm run demo:gp-runner:build", "npm run test:playwright:gp-runner"]
     },
     {
       "id": "imagery-cog-quickstart",
