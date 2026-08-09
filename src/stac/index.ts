@@ -176,10 +176,12 @@ export class DynamicStacClient {
   public readonly client: HonuaClient;
   private readonly api: HonuaStacSearch;
   private readonly baseUrl: string;
+  private readonly resolutionBaseUrl: string;
   private readonly refreshAssetUrl: StacSignedUrlRefresh | undefined;
 
   public constructor(options: DynamicStacClientOptions) {
     this.baseUrl = normalizeHttpUrl(options.baseUrl, "STAC base URL");
+    this.resolutionBaseUrl = ensureDirectoryUrl(this.baseUrl);
     this.client = new HonuaClient({ baseUrl: this.baseUrl, ...options.clientOptions });
     this.api = new HonuaStacSearch({ client: this.client, basePath: options.basePath ?? "" });
     this.refreshAssetUrl = options.refreshAssetUrl;
@@ -191,7 +193,7 @@ export class DynamicStacClient {
       this.api.collections({ signal }),
     ]);
     const links = [...(landing.links ?? []), ...(collectionResponse.links ?? [])].map((link) =>
-      resolveStacLink(link, this.baseUrl),
+      resolveStacLink(link, this.resolutionBaseUrl),
     );
     return {
       landing,
@@ -265,7 +267,10 @@ export class DynamicStacClient {
       });
       if (options.signal?.aborted) throw new HonuaAbortError();
       const rawHref = typeof refreshed === "string" ? refreshed : (refreshed?.href ?? asset.href);
-      const href = normalizeHttpUrl(new URL(rawHref, itemBaseUrl(item, this.baseUrl)).href, `STAC asset ${key}`);
+      const href = normalizeHttpUrl(
+        new URL(rawHref, itemBaseUrl(item, this.resolutionBaseUrl)).href,
+        `STAC asset ${key}`,
+      );
       const descriptor = describeAsset(item, key, asset, href, roles);
       if (options.formats && !options.formats.includes(descriptor.format as Exclude<StacAssetFormat, "unsupported">)) {
         continue;
@@ -291,7 +296,7 @@ export class DynamicStacClient {
 
   private async wireSearchRequest(request: DynamicStacSearchRequest): Promise<StacSearchRequest> {
     const { method = "auto", ...rest } = request;
-    const usePost = method === "POST" || (method === "auto" && (await this.api.supportsPostSearch()));
+    const usePost = method === "POST" || (method === "auto" && (await this.api.supportsPostSearch(request.signal)));
     return { ...rest, usePost };
   }
 }
@@ -442,6 +447,12 @@ function normalizeHttpUrl(value: string, label: string): string {
     });
   }
   url.hash = "";
+  return url.href;
+}
+
+function ensureDirectoryUrl(value: string): string {
+  const url = new URL(value);
+  if (!url.pathname.endsWith("/")) url.pathname += "/";
   return url.href;
 }
 

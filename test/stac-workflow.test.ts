@@ -144,6 +144,36 @@ describe("dynamic STAC workflows", () => {
     ).toThrow(/HTTP or HTTPS/);
   });
 
+  it("uses the STAC root as a directory when resolving relative links", async () => {
+    const requests: string[] = [];
+    const fetchFn = vi.fn<typeof fetch>(async (input) => {
+      const url = input.toString();
+      requests.push(url);
+      if (url.endsWith("/collections")) return Response.json({ collections: [], links: [] });
+      return Response.json({ links: [{ rel: "data", href: "./collections" }] });
+    });
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", clientOptions: { fetchFn } });
+
+    const catalog = await stac.catalog();
+    const assets = await stac.assets({
+      type: "Feature",
+      id: "maui",
+      geometry: null,
+      properties: {},
+      links: [{ rel: "self", href: "./collections/sentinel/items/maui" }],
+      assets: { data: { href: "./visual.pmtiles" } },
+    });
+
+    expect(requests).toEqual(
+      expect.arrayContaining([
+        "https://stac.example.test/v1?f=json",
+        "https://stac.example.test/v1/collections?f=json",
+      ]),
+    );
+    expect(catalog.links[0]?.href).toBe("https://stac.example.test/v1/collections");
+    expect(assets[0]?.href).toBe("https://stac.example.test/v1/collections/sentinel/items/visual.pmtiles");
+  });
+
   it("refreshes signed URLs but rejects unsupported assets", async () => {
     const refreshAssetUrl = vi.fn(async () => "https://signed.example.test/maui.tif?token=new");
     const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", refreshAssetUrl });
@@ -172,5 +202,35 @@ describe("dynamic STAC workflows", () => {
     await expect(stac.search({ method: "GET", signal: controller.signal })).rejects.toBeInstanceOf(HonuaAbortError);
     await expect(stac.assets(MAUI_ITEM, { signal: controller.signal })).rejects.toBeInstanceOf(HonuaAbortError);
     expect(fetchFn).toHaveBeenCalledOnce();
+  });
+
+  it("cancels automatic POST discovery and does not cache an aborted probe", async () => {
+    const methods: string[] = [];
+    let requestCount = 0;
+    const fetchFn = vi.fn<typeof fetch>(async (_input, init) => {
+      requestCount += 1;
+      methods.push(init?.method ?? "GET");
+      if (requestCount === 1) {
+        return await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), {
+            once: true,
+          });
+        });
+      }
+      if (requestCount === 2) {
+        return Response.json({ links: [{ rel: "search", href: "./search", method: "POST" }] });
+      }
+      return Response.json({ type: "FeatureCollection", features: [], links: [] });
+    });
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", clientOptions: { fetchFn } });
+    const controller = new AbortController();
+
+    const abortedSearch = stac.search({ signal: controller.signal });
+    await vi.waitFor(() => expect(fetchFn).toHaveBeenCalledOnce());
+    controller.abort();
+    await expect(abortedSearch).rejects.toBeInstanceOf(HonuaAbortError);
+
+    await stac.search();
+    expect(methods).toEqual(["GET", "GET", "POST"]);
   });
 });
