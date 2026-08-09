@@ -14,6 +14,7 @@ This repository owns the JavaScript/TypeScript SDK, browser runtime helpers, mig
 - Migration tooling for ArcGIS usage scanning, safe codemods, parity matrices, fixture metrics, content export/import/reconcile, URL rewriting, service reconciliation, migration demo reports, and a fixture-only Esri sample corpus with license/terms guardrails.
 - Example apps for MapLibre quickstart, 2.5D storytelling, kepler analytics, and an exploratory Cesium route-playback spike.
 - MCP server package with tools and resources for service listing, layer description, extent, counts, feature queries, and statistics.
+- Zarr remains an internal maturity-only track: server implementation is evidenced, but the JavaScript client is unavailable and its sample is withheld pending public fixture and live-service proof. See `docs/decisions/zarr-client-maturity.md`.
 
 ## Source Evidence
 

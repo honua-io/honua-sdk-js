@@ -1,0 +1,250 @@
+{
+  "$schema": "./zarr-client-maturity.v1.schema.json",
+  "format": "honua.sdk.zarr-client-maturity.v1",
+  "schemaVersion": 1,
+  "reviewedAt": "2026-08-08",
+  "issue": "https://github.com/honua-io/honua-sdk-js/issues/1120",
+  "visibility": {
+    "status": "internal-only",
+    "reason": "The canonical capability vocabulary describes platform serving and the SDK coverage vocabulary only accepts covered or partial. Neither can represent an unavailable Zarr client and a deliberately withheld sample without implying an executable SDK surface."
+  },
+  "sourceRefs": {
+    "sdk": {
+      "repository": "honua-io/honua-sdk-js",
+      "commit": "74c8f3aa34771b6ebfcaa9d223738cd1cbef1668"
+    },
+    "server": {
+      "repository": "honua-io/honua-server",
+      "commit": "639d37449fb8da5e9df4b12b7641ba4c6c5ac581"
+    }
+  },
+  "maturity": {
+    "server": {
+      "status": "implementation-evidenced",
+      "summary": "Registration, bounded subset reads, CoverageJSON serving, WCS fixture paths, and datacube tile components exist, but the repository does not contain a positive public live Zarr canary covering the end-to-end serving claim."
+    },
+    "client": {
+      "status": "unavailable",
+      "summary": "The JavaScript SDK exposes no Zarr package, connector, metadata reader, slice reader, or tile client."
+    },
+    "sample": {
+      "status": "withheld",
+      "summary": "No runnable or published Zarr sample is allowed until the public fixture, live service, and SDK publication gates pass."
+    }
+  },
+  "serverEvidence": [
+    {
+      "id": "registration",
+      "status": "integration-tested",
+      "route": "POST /api/v1/admin/zarr-stores with list/get/delete and POST /{id}/refresh",
+      "evidence": [
+        {
+          "repository": "honua-io/honua-server",
+          "path": "src/Honua.Server/Features/Protocols/Zarr/ZarrEndpoints.cs",
+          "line": 35,
+          "claim": "Maps the versioned Zarr administration route family and refresh operation."
+        },
+        {
+          "repository": "honua-io/honua-server",
+          "path": "tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/ZarrEndpointTests.cs",
+          "line": 126,
+          "claim": "Exercises the register, list, get, and delete lifecycle through HTTP."
+        },
+        {
+          "repository": "honua-io/honua-server",
+          "path": "src/Honua.Server/Features/Infrastructure/Hosting/FeatureRegistrationExtensions.cs",
+          "line": 114,
+          "claim": "Registers Zarr services in the server composition root."
+        }
+      ],
+      "boundary": "The lifecycle test proves the administration contract, not a readable public cloud-hosted store or a successful refresh against object storage."
+    },
+    {
+      "id": "coverage",
+      "status": "implementation-evidenced",
+      "route": "GET /ogc/coverages/collections/{collectionId}/coverage",
+      "evidence": [
+        {
+          "repository": "honua-io/honua-server",
+          "path": "src/Honua.Protocols.OgcApi/Coverages/Services/ZarrCoverageService.cs",
+          "line": 22,
+          "claim": "Binds registered Zarr stores to the OGC API Coverages service."
+        },
+        {
+          "repository": "honua-io/honua-server",
+          "path": "src/Honua.Protocols.OgcApi/Coverages/Services/ZarrCoverageService.cs",
+          "line": 178,
+          "claim": "Plans and returns a bounded CoverageJSON subset."
+        },
+        {
+          "repository": "honua-io/honua-server",
+          "path": "tests/dotnet/Honua.Core.Tests/Raster/ZarrParser/ZarrSubsetReaderTests.cs",
+          "line": 21,
+          "claim": "Proves chunk-aware bounded subset reads with pinned in-memory fixtures."
+        }
+      ],
+      "boundary": "The service and reader are fixture-evidenced, but no Zarr-specific positive OGC API Coverages HTTP round trip or public live response is recorded in the audited proof."
+    },
+    {
+      "id": "datacube-tile",
+      "status": "route-and-component-tested",
+      "route": "GET /api/v1/datacubes/{layerId}/tiles/{tileMatrixSetId}/{z}/{x}/{y}",
+      "evidence": [
+        {
+          "repository": "honua-io/honua-server",
+          "path": "src/Honua.Server/Features/Protocols/Zarr/ZarrEndpoints.cs",
+          "line": 65,
+          "claim": "Maps the public datacube tile route to a registered Zarr coverage slice."
+        },
+        {
+          "repository": "honua-io/honua-server",
+          "path": "tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/DatacubeTileEndpointTests.cs",
+          "line": 36,
+          "claim": "Proves that the HTTP route exists and returns 404 without a servable registration."
+        },
+        {
+          "repository": "honua-io/honua-server",
+          "path": "docs/gis/data/public-interface-proof.json",
+          "line": 423,
+          "claim": "Records route coverage plus planner and renderer component evidence."
+        }
+      ],
+      "boundary": "The checked-in endpoint test is negative-path only; planner and PNG renderer tests do not replace a positive registered-store HTTP or live canary."
+    },
+    {
+      "id": "wcs",
+      "status": "integration-tested",
+      "route": "WCS 2.0.1 GetCoverage through ImageServer and service routes",
+      "evidence": [
+        {
+          "repository": "honua-io/honua-server",
+          "path": "tests/dotnet/Honua.Protocols.OgcClassic.Tests/Source/Wcs20/Wcs20ZarrEndpointsTests.cs",
+          "line": 69,
+          "claim": "Exercises positive registered-Zarr PNG slices and explicit unsupported cases through HTTP."
+        }
+      ],
+      "boundary": "The fixture path supports bounded native-CRS single-coordinate PNG slices; TIFF and range-subset composition are explicitly unsupported."
+    }
+  ],
+  "contractLimits": {
+    "versions": [
+      "Zarr v2 reads .zgroup, .zattrs, and .zarray; grouped discovery depends on an optional attributes variables manifest.",
+      "Zarr v3 reads root and child zarr.json nodes; grouped discovery depends on the root attributes variables list and is not general store enumeration."
+    ],
+    "codecs": [
+      "Tested reads cover v2 uncompressed and zlib chunks plus v3 uncompressed and gzip chunks.",
+      "v3 zstd, blosc, sharding_indexed, crc32c, and unknown codecs are rejected.",
+      "Zarr filters, Fortran order, big-endian values, and unsupported non-numeric data types are rejected."
+    ],
+    "layout": [
+      "C-order regular chunk grids are supported.",
+      "v3 default c-prefixed chunk keys and v2-style dotted chunk keys are recognized.",
+      "Coordinates depend on Honua attributes for variables, dimension names, extent, and CRS rather than unrestricted CF/Zarr metadata inference."
+    ],
+    "crs": [
+      "Server georeferencing reads the Honua crs_wkid and extent attributes when present.",
+      "Datacube tile requests require the tile matrix set SRID to equal the coverage storage SRID.",
+      "Cross-CRS reprojection of a Zarr tile window is not implemented."
+    ],
+    "budgets": [
+      "Metadata documents are capped at 64 KiB and discovery is capped at 64 variables.",
+      "The subset reader caps a request at 4096 chunks and 256 MiB decoded data.",
+      "OGC API Coverage output is capped at 16 MiB decoded data and a datacube tile slice at 4 MiB decoded data."
+    ]
+  },
+  "evidenceGates": {
+    "publicFixture": [
+      {
+        "id": "immutable-fixture",
+        "status": "missing",
+        "requirement": "Publish a redistributable immutable fixture URL, license, SHA-256 digest, expected metadata, and expected subset and tile digests."
+      },
+      {
+        "id": "version-matrix",
+        "status": "missing",
+        "requirement": "Cover one supported Zarr v2 store and one supported Zarr v3 store, including codec, CRS, spatial, temporal, vertical, and named-dimension expectations."
+      },
+      {
+        "id": "range-proof",
+        "status": "missing",
+        "requirement": "Record deterministic byte-range traces proving chunk-bounded reads and rejection at declared request limits."
+      }
+    ],
+    "liveService": [
+      {
+        "id": "advertised-contract",
+        "status": "missing",
+        "requirement": "Record a deployed server commit and capability manifest that advertise the exact Zarr-backed routes under test."
+      },
+      {
+        "id": "positive-coverage",
+        "status": "missing",
+        "requirement": "Fetch one bounded Zarr-backed OGC API Coverage subset from a public deployment and verify media type, byte limit, axes, shape, and digest."
+      },
+      {
+        "id": "positive-tile",
+        "status": "missing",
+        "requirement": "Fetch one Zarr-backed datacube PNG tile from a public deployment and verify media type, dimensions, byte limit, and digest."
+      }
+    ],
+    "sdkPublication": [
+      {
+        "id": "stable-server-contract",
+        "status": "missing",
+        "requirement": "Pin a versioned server contract that resolves registration, metadata, subset, tile, version, codec, coordinate, and CRS semantics."
+      },
+      {
+        "id": "bounded-client",
+        "status": "missing",
+        "requirement": "Implement typed metadata, slice, and tile operations with explicit byte and chunk budgets, cancellation, auth, request interception, and typed unsupported-format errors."
+      },
+      {
+        "id": "client-evidence",
+        "status": "missing",
+        "requirement": "Pass deterministic fixture contracts and scheduled live evidence without adding unsupported codecs or coordinate inference."
+      }
+    ],
+    "samplePublication": [
+      {
+        "id": "public-api-first",
+        "status": "missing",
+        "requirement": "Publish a runnable sample only after the SDK package export exists and both fixture and live evidence gates pass."
+      }
+    ]
+  },
+  "futureApiShape": {
+    "exposed": false,
+    "candidatePackage": "@honua/sdk-js/zarr",
+    "operations": [
+      {
+        "id": "metadata",
+        "responsibility": "Describe groups, arrays, named dimensions, chunks, data types, codecs, fill values, coordinates, CRS, and consolidated-metadata availability without downloading array payloads."
+      },
+      {
+        "id": "slice",
+        "responsibility": "Read an explicitly bounded spatial, temporal, vertical, or named-dimension slice using chunk-aware range requests and return a typed multidimensional result."
+      },
+      {
+        "id": "tile",
+        "responsibility": "Request a bounded server-rendered datacube tile or adapt an explicitly supported two-dimensional slice to a renderer without hiding CRS or resampling constraints."
+      }
+    ],
+    "crossCutting": [
+      "Cancellation and authentication flow through the shared request pipeline.",
+      "Request interception exposes every metadata, range, subset, and tile request.",
+      "Byte, chunk, dimension, and decoded-output budgets default closed and are observable.",
+      "Unsupported versions, codecs, coordinates, and CRS transformations fail with typed errors.",
+      "Direct object-store access and Honua server operations remain distinct execution modes."
+    ]
+  },
+  "externalVocabulary": {
+    "canonicalKeys": [
+      "raster.multidim-coverage",
+      "serve.ogc-api-coverages",
+      "serve.wcs"
+    ],
+    "mappingStatus": "internal-only",
+    "gap": "The canonical keys name server capabilities, while config/sdk-coverage.schema.json only allows covered or partial SDK entries with executable entrypoints and evidence. It has no unavailable, blocked, or withheld state and no client-specific Zarr key.",
+    "promotionRule": "Do not add Zarr to the support manifest, SDK coverage crosswalk, package exports, public capability projection, or sample catalog until an executable client and its required evidence exist."
+  }
+}
