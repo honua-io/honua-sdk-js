@@ -80,7 +80,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.4-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 17 experimental subpaths may change before 1.0, and
+by an API-surface gate; 18 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -166,7 +166,7 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 23 of the 28 generated support
+**Two deployment tiers, named up front.** 25 of the 30 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
 5 are `server-attach` and execute only after attaching to a Honua Server facade;
@@ -300,17 +300,17 @@ generated from that measurement, tree-shake guards included:
 | Entrypoint (gzip) | Size |
 | --- | ---: |
 | `@honua/sdk-js/expr` | 2.4 KiB |
-| `@honua/sdk-js/geocoding` | 7.6 KiB |
+| `@honua/sdk-js/geocoding` | 7.7 KiB |
 | `@honua/sdk-js/webmap` | 7.6 KiB |
-| `@honua/sdk-js/style` | 15.9 KiB |
-| `@honua/sdk-js/map` | 51.3 KiB |
-| `@honua/sdk-js` (root) | 201.5 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 61.7 KiB |
-| `{ connect }` from the root (tree-shake guard) | 163.4 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 192.3 KiB |
+| `@honua/sdk-js/style` | 16.0 KiB |
+| `@honua/sdk-js/map` | 51.4 KiB |
+| `@honua/sdk-js` (root) | 201.9 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 61.8 KiB |
+| `{ connect }` from the root (tree-shake guard) | 163.5 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 192.4 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 163.4 KiB gzip and `{ createHonua }` 192.3 KiB against the 201.5 KiB root, so size-sensitive
+alone costs 163.5 KiB gzip and `{ createHonua }` 192.4 KiB against the 201.9 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -618,8 +618,8 @@ correctly use this SDK:
     [agent-safety threat model](./docs/agent-safety-threat-model.md).
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
     `/nl-map-control`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
-    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/kepler`, `/analytics`, `/analytics/uplot`,
-    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 17 experimental subpaths in total.
+    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/coverages`, `/kepler`, `/analytics`, `/analytics/uplot`,
+    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 18 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
