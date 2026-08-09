@@ -3,8 +3,8 @@ import { test } from "vitest";
 
 import {
   ColumnarWorkflowError,
-  openColumnarSession,
   type ColumnarWorkflowSource,
+  openColumnarSession,
 } from "../src/columnar-workflow/index.js";
 import type { ColumnarBatchMetrics, ColumnarBatchV1 } from "../src/columnar/index.js";
 
@@ -80,11 +80,14 @@ test("requires an explicit decoder for server payloads", async () => {
   const session = openColumnarSession(serverSource, {
     clientOptions: { fetchFn: async () => new Response(new Uint8Array([1]), { status: 200 }) },
   });
-  await assert.rejects(async () => {
-    for await (const _result of session.stream({ limit: 1 })) {
-      // Decoder check fails before emission.
-    }
-  }, (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "DECODER_REQUIRED");
+  await assert.rejects(
+    async () => {
+      for await (const _result of session.stream({ limit: 1 })) {
+        // Decoder check fails before emission.
+      }
+    },
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "DECODER_REQUIRED",
+  );
 });
 
 test("keeps direct execution bounded and surfaces metadata", async () => {

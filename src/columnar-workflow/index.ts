@@ -1,10 +1,3 @@
-import { HonuaClient } from "../core/client.js";
-import { envelope } from "../core/spatial-filter.js";
-import type { HonuaClientOptions } from "../core/types.js";
-import {
-  compileQueryFilterToSql92,
-  type QueryFilterExpression,
-} from "../contract/query-filter.js";
 import type {
   ColumnarBatchIdentityV1,
   ColumnarBatchMetrics,
@@ -12,6 +5,10 @@ import type {
   DecodedGeoArrowRow,
 } from "../columnar/index.js";
 import * as Columnar from "../columnar/index.js";
+import { type QueryFilterExpression, compileQueryFilterToSql92 } from "../contract/query-filter.js";
+import { HonuaClient } from "../core/client.js";
+import { envelope } from "../core/spatial-filter.js";
+import type { HonuaClientOptions } from "../core/types.js";
 import * as GeoParquet from "../geoparquet/index.js";
 
 export type ColumnarWorkflowFormat = "arrow" | "parquet";
@@ -302,11 +299,13 @@ const buildServerRequest = (
   if (query.aggregations?.length) {
     parameters.set(
       "outStatistics",
-      JSON.stringify(query.aggregations.map((aggregation) => ({
-        statisticType: aggregation.operation,
-        onStatisticField: aggregation.field,
-        outStatisticFieldName: aggregation.name,
-      }))),
+      JSON.stringify(
+        query.aggregations.map((aggregation) => ({
+          statisticType: aggregation.operation,
+          onStatisticField: aggregation.field,
+          outStatisticFieldName: aggregation.name,
+        })),
+      ),
     );
   }
   parameters.set("returnGeometry", String(query.returnGeometry ?? true));
@@ -324,10 +323,7 @@ const buildServerRequest = (
   });
 };
 
-const normalizeDescription = (
-  source: DirectGeoParquetColumnarSource,
-  raw: unknown,
-): ColumnarWorkflowDescription => {
+const normalizeDescription = (source: DirectGeoParquetColumnarSource, raw: unknown): ColumnarWorkflowDescription => {
   const value = (raw ?? {}) as Record<string, unknown>;
   return Object.freeze({
     sourceId: source.id,
@@ -345,14 +341,17 @@ const normalizeDescription = (
 
 const defaultDirectOpener: DirectGeoParquetOpener = async (source) => {
   const runtime = new GeoParquet.GeoparquetRuntime();
-  const sdkSource = GeoParquet.geoparquetSource({
-    id: source.id,
-    protocol: "geoparquet",
-    locator: {
-      url: source.url,
-      ...(source.geometryColumn ? { geoparquet: { geometryColumn: source.geometryColumn } } : {}),
-    },
-  } as Parameters<typeof GeoParquet.geoparquetSource>[0], { runtime });
+  const sdkSource = GeoParquet.geoparquetSource(
+    {
+      id: source.id,
+      protocol: "geoparquet",
+      locator: {
+        url: source.url,
+        ...(source.geometryColumn ? { geoparquet: { geometryColumn: source.geometryColumn } } : {}),
+      },
+    } as Parameters<typeof GeoParquet.geoparquetSource>[0],
+    { runtime },
+  );
   const handle = sdkSource.protocol("geoparquet");
   if (!handle) {
     await runtime.dispose();
@@ -431,11 +430,15 @@ export const openColumnarSession = (
   options: ColumnarWorkflowOptions = {},
 ): ColumnarWorkflowSession => {
   const budgets = Object.freeze({ ...DEFAULT_BUDGETS, ...options.budgets });
-  const inspectBatch = options.inspectBatch ?? ((batch: ColumnarBatchV1) =>
-    (Columnar.inspectColumnarBatch as unknown as (
-      value: ColumnarBatchV1,
-      limits: Pick<ColumnarWorkflowBudgets, "maxRows" | "maxBackingBytes">,
-    ) => ColumnarBatchMetrics)(batch, budgets));
+  const inspectBatch =
+    options.inspectBatch ??
+    ((batch: ColumnarBatchV1) =>
+      (
+        Columnar.inspectColumnarBatch as unknown as (
+          value: ColumnarBatchV1,
+          limits: Pick<ColumnarWorkflowBudgets, "maxRows" | "maxBackingBytes">,
+        ) => ColumnarBatchMetrics
+      )(batch, budgets));
   const now = options.now ?? (() => Date.now());
   let directHandle: DirectGeoParquetHandle | undefined;
 
@@ -532,11 +535,10 @@ export const openColumnarSession = (
           );
         }
         if (!response.ok) {
-          throw new ColumnarWorkflowError(
-            "REQUEST_FAILED",
-            `Columnar query returned HTTP ${response.status}.`,
-            { status: response.status, url: request.url },
-          );
+          throw new ColumnarWorkflowError("REQUEST_FAILED", `Columnar query returned HTTP ${response.status}.`, {
+            status: response.status,
+            url: request.url,
+          });
         }
         options.onProgress?.({ phase: "decode" });
         yield* options.decodeServerResponse({
@@ -558,7 +560,10 @@ export const openColumnarSession = (
         throwIfAborted(query.signal);
         batches += 1;
         if (batches > budgets.maxBatches) {
-          throw new ColumnarWorkflowError("BATCH_LIMIT_EXCEEDED", `Decoded batch count exceeds the ${budgets.maxBatches} batch ceiling.`);
+          throw new ColumnarWorkflowError(
+            "BATCH_LIMIT_EXCEEDED",
+            `Decoded batch count exceeds the ${budgets.maxBatches} batch ceiling.`,
+          );
         }
         const metrics = inspectBatch(batch, budgets);
         const batchRows = metricNumber(metrics, ["rowCount", "rows"]);
@@ -568,17 +573,27 @@ export const openColumnarSession = (
         transferBytes += batchTransferBytes;
         peakBackingBytes = Math.max(peakBackingBytes, batchBackingBytes);
         if (rows > Math.min(query.limit, budgets.maxRows)) {
-          throw new ColumnarWorkflowError("ROW_LIMIT_EXCEEDED", "Decoded rows exceed the requested or configured row ceiling.", {
-            rows,
-            limit: query.limit,
-            maxRows: budgets.maxRows,
-          });
+          throw new ColumnarWorkflowError(
+            "ROW_LIMIT_EXCEEDED",
+            "Decoded rows exceed the requested or configured row ceiling.",
+            {
+              rows,
+              limit: query.limit,
+              maxRows: budgets.maxRows,
+            },
+          );
         }
         if (transferBytes > budgets.maxTransferBytes) {
-          throw new ColumnarWorkflowError("TRANSFER_LIMIT_EXCEEDED", `Decoded bytes exceed the ${budgets.maxTransferBytes} byte transfer ceiling.`);
+          throw new ColumnarWorkflowError(
+            "TRANSFER_LIMIT_EXCEEDED",
+            `Decoded bytes exceed the ${budgets.maxTransferBytes} byte transfer ceiling.`,
+          );
         }
         if (peakBackingBytes > budgets.maxBackingBytes) {
-          throw new ColumnarWorkflowError("BACKING_LIMIT_EXCEEDED", `Batch backing bytes exceed the ${budgets.maxBackingBytes} byte memory ceiling.`);
+          throw new ColumnarWorkflowError(
+            "BACKING_LIMIT_EXCEEDED",
+            `Batch backing bytes exceed the ${budgets.maxBackingBytes} byte memory ceiling.`,
+          );
         }
         const evidence = Object.freeze({
           sourceId: source.id,
@@ -610,7 +625,10 @@ export const openColumnarSession = (
 
     table(batch, maxRows) {
       if (!Number.isSafeInteger(maxRows) || maxRows <= 0 || maxRows > budgets.maxRows) {
-        throw new ColumnarWorkflowError("ROW_LIMIT_EXCEEDED", `Table handoff must be bounded between 1 and ${budgets.maxRows} rows.`);
+        throw new ColumnarWorkflowError(
+          "ROW_LIMIT_EXCEEDED",
+          `Table handoff must be bounded between 1 and ${budgets.maxRows} rows.`,
+        );
       }
       const rows = Columnar.decodeGeoArrowBatch(batch, { maxRows }).rows;
       return Object.freeze({ kind: "table", rows, truncated: rows.length === maxRows });
@@ -629,7 +647,10 @@ export const openColumnarSession = (
     download(query) {
       const workflowPlan = plan(query);
       if (!workflowPlan.request) {
-        throw new ColumnarWorkflowError("UNSUPPORTED_HANDOFF", "Download handoffs are available only for Honua server query results.");
+        throw new ColumnarWorkflowError(
+          "UNSUPPORTED_HANDOFF",
+          "Download handoffs are available only for Honua server query results.",
+        );
       }
       return Object.freeze({
         kind: "download",
@@ -650,12 +671,18 @@ export const createApacheArrowResponseDecoder = (): ColumnarResponseDecoder =>
     throwIfAborted(signal);
     const declaredLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(declaredLength) && declaredLength > budgets.maxTransferBytes) {
-      throw new ColumnarWorkflowError("TRANSFER_LIMIT_EXCEEDED", `Arrow response exceeds the ${budgets.maxTransferBytes} byte transfer ceiling.`);
+      throw new ColumnarWorkflowError(
+        "TRANSFER_LIMIT_EXCEEDED",
+        `Arrow response exceeds the ${budgets.maxTransferBytes} byte transfer ceiling.`,
+      );
     }
     const bytes = new Uint8Array(await response.arrayBuffer());
     throwIfAborted(signal);
     if (bytes.byteLength > budgets.maxTransferBytes) {
-      throw new ColumnarWorkflowError("TRANSFER_LIMIT_EXCEEDED", `Arrow response exceeds the ${budgets.maxTransferBytes} byte transfer ceiling.`);
+      throw new ColumnarWorkflowError(
+        "TRANSFER_LIMIT_EXCEEDED",
+        `Arrow response exceeds the ${budgets.maxTransferBytes} byte transfer ceiling.`,
+      );
     }
     const apache = (await (Columnar.loadApacheArrow as unknown as () => Promise<unknown>)()) as {
       RecordBatchReader: { from(input: Uint8Array): Promise<AsyncIterable<unknown>> | AsyncIterable<unknown> };
