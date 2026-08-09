@@ -31,38 +31,34 @@ const budgets: ColumnarWorkflowBudgets = {
 const context = (
   overrides: Partial<ColumnarResponseDecoderContext> = {},
   payload: Uint8Array = fixture,
-): ColumnarResponseDecoderContext => {
-  const responseBody = new ArrayBuffer(payload.byteLength);
-  new Uint8Array(responseBody).set(payload);
-  return {
-    source: {
-      kind: "honua-feature-query",
-      id: "honua-arrow-fixture",
-      baseUrl: "https://example.test/",
-      serviceId: "Places",
-      layerId: 0,
-      format: "arrow",
-      sourceVersion: manifest.producer.commit,
-      schemaVersion: "places-v1",
-      authorizationScope: "public",
+): ColumnarResponseDecoderContext => ({
+  source: {
+    kind: "honua-feature-query",
+    id: "honua-arrow-fixture",
+    baseUrl: "https://example.test/",
+    serviceId: "Places",
+    layerId: 0,
+    format: "arrow",
+    sourceVersion: manifest.producer.commit,
+    schemaVersion: "places-v1",
+    authorizationScope: "public",
+  },
+  query: { columns: ["name", "created"], limit: 10, orderBy: [{ field: "created", direction: "asc" }] },
+  response: new Response(Uint8Array.from(payload).buffer, {
+    headers: {
+      "content-length": String(payload.byteLength),
+      "content-type": "application/vnd.apache.arrow.stream",
     },
-    query: { columns: ["name", "created"], limit: 10, orderBy: [{ field: "created", direction: "asc" }] },
-    response: new Response(responseBody, {
-      headers: {
-        "content-length": String(payload.byteLength),
-        "content-type": "application/vnd.apache.arrow.stream",
-      },
-    }),
-    budgets,
-    identity: {
-      sourceId: "honua-arrow-fixture",
-      sourceVersion: manifest.producer.commit,
-      schemaVersion: "places-v1",
-      authorizationScope: "public",
-    },
-    ...overrides,
-  };
-};
+  }),
+  budgets,
+  identity: {
+    sourceId: "honua-arrow-fixture",
+    sourceVersion: manifest.producer.commit,
+    schemaVersion: "places-v1",
+    authorizationScope: "public",
+  },
+  ...overrides,
+});
 
 const fullIdentity = () => ({
   ...context().identity,
@@ -204,7 +200,18 @@ const syntheticIpc = async (
 
 const decodeSynthetic = async (geometries: readonly (Uint8Array | null)[], options: SyntheticIpcOptions = {}) => {
   const payload = await syntheticIpc(geometries, options);
-  const batches = await decode(context({ query: { limit: 10 } }, payload));
+  const batches = await decode(
+    context(
+      {
+        query: {
+          columns: [],
+          limit: Math.max(1, geometries.length),
+          orderBy: [{ field: "geometry", direction: "asc" }],
+        },
+      },
+      payload,
+    ),
+  );
   assert.equal(batches.length, 1);
   return batches[0]!;
 };
@@ -252,7 +259,7 @@ test("preserves bounded GeoArrow CRS and edges metadata across Binary and LargeB
       extensionMetadata: { crs: projjson, crs_type: "projjson" },
     }),
   ).geometry;
-  assert.deepEqual(JSON.parse(JSON.stringify(projjsonGeometry.crs)), projjson);
+  assert.equal(JSON.stringify(projjsonGeometry.crs), JSON.stringify(projjson));
   assert.equal(projjsonGeometry.crsType, "projjson");
   assert.equal(projjsonGeometry.edges, "planar");
 
@@ -403,7 +410,16 @@ test("reports BinaryView as an explicit Apache Arrow JS runtime limitation", () 
         id: "binary-view",
         sequence: 0,
         schemaId: "binary-view-v1",
-        identity: fullIdentity(),
+        identity: {
+          ...context().identity,
+          schemaVersion: "binary-view-v1",
+          planId: "binary-view-plan",
+          ordering: {
+            stable: true,
+            keys: [{ field: "geometry", direction: "ascending", nulls: "last" }],
+          },
+          freshness: { observedAt: "2026-08-09T00:00:00Z", generation: "1" },
+        },
         maxRows: 1,
         maxBackingBytes: 1024,
       }),
