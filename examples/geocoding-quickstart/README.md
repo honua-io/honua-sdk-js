@@ -26,7 +26,7 @@ version-controlled set of Honolulu addresses and does not claim freshness or att
 
 ## SDK call
 
-```ts
+```ts doc-test=skip reason="excerpt continues inside the sample's imported async browser bootstrap"
 const geocoder = new HonuaGeocodingClient({
   baseUrl: ".",
   locatorName: "World",
