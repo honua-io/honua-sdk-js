@@ -444,6 +444,7 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "demo:spatial-analytics:evidence",
   "test:migration:real-samples",
   "test:playwright:ai-spatial-builder",
+  "test:playwright:geocoding",
   "test:playwright:imagery-cog",
   "test:playwright:incident",
   "test:playwright:migration-workbench",

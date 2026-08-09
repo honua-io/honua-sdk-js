@@ -263,6 +263,13 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "docs/examples/automatic-source-workflow has no vite.config.ts; it is a documentation snippet (plain script/CDN pattern) exercised by a Playwright spec.",
   },
   {
+    id: "geocoding-quickstart",
+    runtimeHosting: "self-contained",
+    buildScript: "demo:geocoding:build",
+    auditedVia:
+      "examples/geocoding-quickstart/src/config.ts fixes the default SDK baseUrl to the bundle-relative '.' origin, and examples/geocoding-quickstart/public/rest/services/World/GeocodeServer/findAddressCandidates ships the exact extensionless response path requested by HonuaGeocodingClient.forwardGeocode; the catalog exposes no browser configuration or credential lane.",
+  },
+  {
     id: "imagery-cog-quickstart",
     runtimeHosting: "same-origin-fixture-service",
     buildScript: "demo:imagery-cog:build",

@@ -245,14 +245,37 @@
     "geocoding-quickstart": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
+      "summary": "Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view.",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion."
+        "state": "active",
+        "reason": "Credential-free map-first recipe with a self-contained GeocodeServer fixture route and focused desktop/mobile browser coverage."
+      },
+      "capabilities": [
+        "forward-geocode",
+        "map"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Repository-owned synthetic Honolulu address response committed at the exact GeocodeServer route used by the SDK.",
+        "attribution": "Honua SDK deterministic sample fixture; no external geocoder attribution is claimed.",
+        "freshness": "Immutable for the built source revision; not presented as current real-world geocoder data."
       },
       "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
-      }
+        "status": "not-required"
+      },
+      "live": {
+        "mode": "unavailable",
+        "status": "not-applicable",
+        "commands": []
+      },
+      "expectedDegradation": "A missing or invalid committed fixture route surfaces an explicit unavailable state; the sample never falls through to an ungoverned public geocoder.",
+      "validation": [
+        "npm run demo:geocoding:typecheck",
+        "npm run demo:geocoding:build",
+        "npx vitest run test/geocoding-quickstart.test.ts",
+        "npm run test:playwright:geocoding"
+      ]
     },
     "geoprocessing-job-runner": {
       "track": "recipe",
@@ -310,7 +333,7 @@
           "npm run evidence:cog:live"
         ],
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-09-09T16:23:50.807Z"
+        "expiresAt": "2026-09-09T17:25:43.989Z"
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "validation": [
@@ -349,7 +372,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-09-09T16:21:41.957Z"
+        "expiresAt": "2026-09-09T17:23:34.102Z"
       }
     },
     "mcp-gis-assistant": {
@@ -382,7 +405,7 @@
           "npm run evidence:migration-workbench:live"
         ],
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-09-09T16:24:15.469Z"
+        "expiresAt": "2026-09-09T17:26:07.186Z"
       }
     },
     "nl-map-control": {
@@ -509,7 +532,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-09-09T16:25:14.836Z"
+        "expiresAt": "2026-09-09T17:27:08.134Z"
       },
       "validation": [
         "npm run demo:service-explorer:typecheck",

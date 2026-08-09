@@ -1,7 +1,7 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../shared/maplibre-vite-worker.js";
 
-import type { GeocodeResult, GeocodeSuggestion, ReverseGeocodeResult } from "@honua/sdk-js/geocoding";
+import type { GeocodeResult } from "@honua/sdk-js/geocoding";
 import * as maplibregl from "maplibre-gl";
 
 import { resolveGeocodingQuickstartConfig } from "./config.js";
@@ -12,25 +12,23 @@ import {
   emptyGeocodingFeatureCollection,
   formatCoordinate,
   geocodeResultsToFeatures,
-  reverseResultToFeature,
 } from "./model.js";
-import type { GeocodingAuditRow, GeocodingPointFeature, GeocodingPointFeatureCollection } from "./types.js";
+import type { GeocodingPointFeatureCollection } from "./types.js";
 
 import "./styles.css";
 
 interface GeocodingDemoRuntime {
   readonly ready: boolean;
-  readonly mode: string;
+  readonly mode: "fixture-only";
   readonly locatorName: string;
-  readonly endpointBase: string;
-  readonly forwardCount: number;
-  readonly suggestions: readonly string[];
-  readonly reverseAddress: string | null;
-  readonly auditRows: readonly GeocodingAuditRow[];
+  readonly endpoint: string;
+  readonly resultCount: number;
+  readonly markerCount: number;
+  readonly selectedAddress: string | null;
+  readonly selectedScore: number | null;
+  readonly selectedCoordinates: readonly [number, number] | null;
   readonly lastError: string | null;
-  runForward(query: string): Promise<GeocodeResult[]>;
-  runReverse(latitude: number, longitude: number): Promise<ReverseGeocodeResult | null>;
-  typeahead(query: string): Promise<GeocodeSuggestion[]>;
+  selectResult(index: number): void;
 }
 
 declare global {
@@ -39,26 +37,19 @@ declare global {
   }
 }
 
-const FORWARD_SOURCE_ID = "geocoding-forward-results";
-const FORWARD_LAYER_ID = "geocoding-forward-results-layer";
-const REVERSE_SOURCE_ID = "geocoding-reverse-result";
-const REVERSE_LAYER_ID = "geocoding-reverse-result-layer";
+const CANDIDATE_SOURCE_ID = "geocoding-candidates";
+const CANDIDATE_LAYER_ID = "geocoding-candidates-layer";
 const OUTLINE_SOURCE_ID = "geocoding-fixture-outline";
-
-const config = resolveGeocodingQuickstartConfig(import.meta.env);
+const config = resolveGeocodingQuickstartConfig();
 const client = createGeocodingClient(config);
-const auditRows = createGeocodingAuditRows(config);
-const endpointPath = `/rest/services/${encodeURIComponent(config.locatorName)}/GeocodeServer`;
-const endpointBase = config.mode === "live" ? `${config.honuaBaseUrl}${endpointPath}` : endpointPath;
+const [auditRow] = createGeocodingAuditRows(config);
+const endpointPath = `/rest/services/${encodeURIComponent(config.locatorName)}/GeocodeServer/findAddressCandidates`;
 
 let ready = false;
-let mapReady = false;
-let forwardResults: GeocodeResult[] = [];
-let suggestions: GeocodeSuggestion[] = [];
-let reverseResult: ReverseGeocodeResult | null = null;
+let results: GeocodeResult[] = [];
+let selectedIndex = -1;
+let selectedMarker: maplibregl.Marker | null = null;
 let lastError: string | null = null;
-let lastOperation = "Initializing";
-let suggestTimer: ReturnType<typeof setTimeout> | undefined;
 
 window.__HONUA_GEOCODING_DEMO__ = {
   get ready() {
@@ -70,27 +61,29 @@ window.__HONUA_GEOCODING_DEMO__ = {
   get locatorName() {
     return config.locatorName;
   },
-  get endpointBase() {
-    return endpointBase;
+  get endpoint() {
+    return endpointPath;
   },
-  get forwardCount() {
-    return forwardResults.length;
+  get resultCount() {
+    return results.length;
   },
-  get suggestions() {
-    return suggestions.map((suggestion) => suggestion.text);
+  get markerCount() {
+    return selectedMarker ? 1 : 0;
   },
-  get reverseAddress() {
-    return reverseResult?.address ?? null;
+  get selectedAddress() {
+    return results[selectedIndex]?.address ?? null;
   },
-  get auditRows() {
-    return auditRows;
+  get selectedScore() {
+    return results[selectedIndex]?.score ?? null;
+  },
+  get selectedCoordinates() {
+    const result = results[selectedIndex];
+    return result ? ([result.longitude, result.latitude] as const) : null;
   },
   get lastError() {
     return lastError;
   },
-  runForward,
-  runReverse,
-  typeahead,
+  selectResult,
 };
 
 const map = new maplibregl.Map({
@@ -105,21 +98,17 @@ const map = new maplibregl.Map({
       {
         id: "background",
         type: "background",
-        paint: {
-          "background-color": "#e8eef2",
-        },
+        paint: { "background-color": "#bedbd9" },
       },
     ],
   },
 });
 
-map.addControl(new maplibregl.NavigationControl({ visualizePitch: false }), "top-right");
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
 function getElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
-  if (!element) {
-    throw new Error(`Missing required element: ${selector}`);
-  }
+  if (!element) throw new Error(`Missing required element: ${selector}`);
   return element;
 }
 
@@ -127,367 +116,166 @@ function setText(selector: string, value: string): void {
   getElement<HTMLElement>(selector).textContent = value;
 }
 
-function escapeHtml(value: unknown): string {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+function candidateLabel(result: GeocodeResult): string {
+  const placeName = result.attributes.PlaceName;
+  return placeName ? `${placeName} - ${result.address}` : result.address;
 }
 
-function featureSummary(feature: GeocodingPointFeature): string {
-  return `${formatCoordinate(feature.properties.latitude)}, ${formatCoordinate(feature.properties.longitude)}`;
-}
-
-function setBusy(isBusy: boolean): void {
-  getElement<HTMLButtonElement>("#forward-submit").disabled = isBusy;
-  getElement<HTMLInputElement>("#address-input").disabled = isBusy;
-}
-
-function renderStatus(): void {
-  setText("#mode-state", config.mode === "live" ? "Live Honua" : "Fixture safe mode");
-  setText("#locator-state", config.locatorName);
-  setText("#endpoint-state", endpointBase);
-  setText("#map-endpoint-state", endpointBase);
-  setText("#operation-state", lastError ? "Error" : lastOperation);
-  setText(
-    "#map-coordinate",
-    reverseResult ? `${reverseResult.longitude.toFixed(5)}, ${reverseResult.latitude.toFixed(5)}` : "-",
-  );
-  setText("#error-state", lastError ?? "None");
-}
-
-function renderAuditRows(): void {
-  const table = getElement<HTMLElement>("#audit-table");
-  table.innerHTML = auditRows
-    .map(
-      (row) => `
-        <article>
-          <strong>${escapeHtml(row.capability)}</strong>
-          <span>${escapeHtml(row.interaction)}</span>
-          <code>${escapeHtml(row.sdkSurface)}</code>
-          <small>${escapeHtml(row.endpoint)}</small>
-          <em>${escapeHtml(row.cachePolicy)}</em>
-        </article>
-      `,
-    )
-    .join("");
-}
-
-function renderForwardResults(): void {
-  const list = getElement<HTMLElement>("#forward-results");
-  list.innerHTML = "";
-
-  if (forwardResults.length === 0) {
-    list.innerHTML = '<div class="empty-copy">No forward geocode matches.</div>';
-    setText("#forward-count", "0 candidates");
-    return;
-  }
-
-  setText("#forward-count", `${forwardResults.length} candidate${forwardResults.length === 1 ? "" : "s"}`);
-  forwardResults.forEach((result, index) => {
-    const item = document.createElement("article");
-    item.className = "result-row";
-    item.innerHTML = `
-      <div>
-        <strong>${escapeHtml(result.address)}</strong>
-        <span>${escapeHtml(result.attributes.Addr_type ?? "Candidate")} / score ${Math.round(result.score)}</span>
-      </div>
-    `;
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.dataset.resultIndex = String(index);
-    button.textContent = "Show";
-    button.addEventListener("click", () => focusForwardResult(index));
-    item.append(button);
-    list.append(item);
-  });
-}
-
-function renderSuggestions(nextSuggestions: readonly GeocodeSuggestion[]): void {
-  const list = getElement<HTMLElement>("#suggestion-list");
-  list.innerHTML = "";
-
-  if (nextSuggestions.length === 0) {
-    list.innerHTML = '<div class="empty-copy">No suggestions.</div>';
-    return;
-  }
-
-  for (const suggestion of nextSuggestions) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "suggestion-button";
-    button.textContent = suggestion.text;
-    button.addEventListener("click", () => {
-      getElement<HTMLInputElement>("#address-input").value = suggestion.text;
-      suggestions = [];
-      renderSuggestions([]);
-      void runForward(suggestion.text);
-    });
-    list.append(button);
-  }
-}
-
-function renderReverseResult(): void {
-  if (!reverseResult) {
-    setText("#reverse-address", "No address selected");
-    setText("#reverse-detail", "-");
-    return;
-  }
-
-  setText("#reverse-address", reverseResult.address);
-  setText(
-    "#reverse-detail",
-    `${formatCoordinate(reverseResult.latitude)}, ${formatCoordinate(reverseResult.longitude)} / ${
-      reverseResult.attributes.Addr_type ?? reverseResult.attributes.City ?? "nearest address"
-    }`,
-  );
-}
-
-function updateGeoJsonSource(sourceId: string, collection: GeocodingPointFeatureCollection): void {
-  const source = map.getSource(sourceId);
+function updateGeoJsonSource(collection: GeocodingPointFeatureCollection): void {
+  const source = map.getSource(CANDIDATE_SOURCE_ID);
   if (source && "setData" in source) {
     (source as { setData(data: GeocodingPointFeatureCollection): void }).setData(collection);
   }
 }
 
-function showPopup(feature: GeocodingPointFeature): void {
-  new maplibregl.Popup({ closeButton: true, closeOnClick: true })
-    .setLngLat(feature.geometry.coordinates)
-    .setHTML(
-      `<strong>${escapeHtml(feature.properties.address)}</strong><span>${escapeHtml(featureSummary(feature))}</span>`,
-    )
-    .addTo(map);
+function renderOptions(): void {
+  const select = getElement<HTMLSelectElement>("#address-select");
+  select.replaceChildren();
+  results.forEach((result, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    option.textContent = candidateLabel(result);
+    select.append(option);
+  });
+  select.disabled = results.length === 0;
 }
 
-function focusFeature(feature: GeocodingPointFeature): void {
-  map.flyTo({ center: feature.geometry.coordinates, zoom: Math.max(map.getZoom(), 14), essential: true });
-  showPopup(feature);
+function renderUnavailableState(): void {
+  results = [];
+  selectedIndex = -1;
+  updateGeoJsonSource(emptyGeocodingFeatureCollection());
+  selectedMarker?.remove();
+  selectedMarker = null;
+
+  const select = getElement<HTMLSelectElement>("#address-select");
+  const option = document.createElement("option");
+  option.textContent = "Addresses unavailable";
+  select.replaceChildren(option);
+  select.disabled = true;
+  setText("#selected-address", "Address unavailable");
+  setText("#selected-detail", "No geocoding result is available.");
+  setText("#selected-coordinates", "Not available");
+  setText("#candidate-count", "0");
 }
 
-function focusForwardResult(index: number): void {
-  const feature = geocodeResultsToFeatures(forwardResults).features[index];
-  if (feature) focusFeature(feature);
+function markerElement(): HTMLElement {
+  const element = document.createElement("div");
+  element.className = "selected-marker";
+  element.setAttribute("aria-hidden", "true");
+  const pin = document.createElement("span");
+  pin.className = "selected-marker__pin";
+  element.append(pin);
+  return element;
 }
 
-function fitForwardResults(features: readonly GeocodingPointFeature[]): void {
-  if (features.length === 0) return;
-  if (features.length === 1) {
-    map.flyTo({ center: features[0].geometry.coordinates, zoom: 14, essential: true });
-    return;
+function renderSelectedResult(animate: boolean): void {
+  const result = results[selectedIndex];
+  if (!result) return;
+
+  const select = getElement<HTMLSelectElement>("#address-select");
+  select.value = String(selectedIndex);
+  setText("#selected-address", result.address);
+  setText(
+    "#selected-detail",
+    `${result.attributes.Addr_type ?? "Candidate"} / score ${Math.round(result.score)} / ${config.locatorName} locator`,
+  );
+  setText("#selected-coordinates", `${formatCoordinate(result.longitude)}, ${formatCoordinate(result.latitude)}`);
+  setText("#candidate-count", String(results.length));
+
+  const coordinates: [number, number] = [result.longitude, result.latitude];
+  if (!selectedMarker) {
+    selectedMarker = new maplibregl.Marker({ element: markerElement(), anchor: "bottom" })
+      .setLngLat(coordinates)
+      .addTo(map);
+  } else {
+    selectedMarker.setLngLat(coordinates);
   }
 
+  if (animate) {
+    map.easeTo({ center: coordinates, zoom: Math.max(map.getZoom(), 13.8), duration: 450 });
+  }
+}
+
+function selectResult(index: number): void {
+  if (!Number.isInteger(index) || index < 0 || index >= results.length) return;
+  selectedIndex = index;
+  renderSelectedResult(true);
+}
+
+function fitResults(collection: GeocodingPointFeatureCollection): void {
   const bounds = new maplibregl.LngLatBounds();
-  for (const feature of features) {
-    bounds.extend(feature.geometry.coordinates);
+  for (const feature of collection.features) bounds.extend(feature.geometry.coordinates);
+  if (!bounds.isEmpty()) {
+    map.fitBounds(bounds, { padding: 72, maxZoom: 13, duration: 0 });
   }
-  map.fitBounds(bounds, { padding: 96, maxZoom: 14, essential: true });
 }
 
 function addMapLayers(): void {
   map.addSource(OUTLINE_SOURCE_ID, {
     type: "geojson",
-    data: {
-      type: "FeatureCollection",
-      features: [OAHU_URBAN_CORE_OUTLINE],
-    },
+    data: { type: "FeatureCollection", features: [OAHU_URBAN_CORE_OUTLINE] },
   });
   map.addLayer({
     id: "geocoding-fixture-outline-fill",
     type: "fill",
     source: OUTLINE_SOURCE_ID,
-    paint: {
-      "fill-color": "#dbe9df",
-      "fill-opacity": 0.82,
-    },
+    paint: { "fill-color": "#f4eddb", "fill-opacity": 0.96 },
   });
   map.addLayer({
     id: "geocoding-fixture-outline-line",
     type: "line",
     source: OUTLINE_SOURCE_ID,
-    paint: {
-      "line-color": "#56706a",
-      "line-width": 2,
-    },
+    paint: { "line-color": "#52736f", "line-width": 2 },
   });
-
-  map.addSource(FORWARD_SOURCE_ID, {
-    type: "geojson",
-    data: emptyGeocodingFeatureCollection(),
-  });
+  map.addSource(CANDIDATE_SOURCE_ID, { type: "geojson", data: emptyGeocodingFeatureCollection() });
   map.addLayer({
-    id: FORWARD_LAYER_ID,
+    id: CANDIDATE_LAYER_ID,
     type: "circle",
-    source: FORWARD_SOURCE_ID,
+    source: CANDIDATE_SOURCE_ID,
     paint: {
-      "circle-color": "#0f766e",
-      "circle-radius": 8,
+      "circle-color": "#0c6f68",
+      "circle-radius": 7,
       "circle-stroke-color": "#ffffff",
       "circle-stroke-width": 2,
     },
-  });
-
-  map.addSource(REVERSE_SOURCE_ID, {
-    type: "geojson",
-    data: emptyGeocodingFeatureCollection(),
-  });
-  map.addLayer({
-    id: REVERSE_LAYER_ID,
-    type: "circle",
-    source: REVERSE_SOURCE_ID,
-    paint: {
-      "circle-color": "#c2410c",
-      "circle-radius": 9,
-      "circle-stroke-color": "#ffffff",
-      "circle-stroke-width": 2,
-    },
-  });
-
-  map.on("click", FORWARD_LAYER_ID, (event) => {
-    const feature = event.features?.[0] as GeocodingPointFeature | undefined;
-    if (feature) focusFeature(feature);
-  });
-  map.on("mouseenter", FORWARD_LAYER_ID, () => {
-    map.getCanvas().style.cursor = "pointer";
-  });
-  map.on("mouseleave", FORWARD_LAYER_ID, () => {
-    map.getCanvas().style.cursor = "";
-  });
-}
-
-async function runForward(query: string): Promise<GeocodeResult[]> {
-  const searchText = query.trim();
-  if (!searchText) return forwardResults;
-
-  setBusy(true);
-  lastError = null;
-  lastOperation = "Forward geocode";
-  renderStatus();
-
-  try {
-    const results = await client.forwardGeocode(searchText, {
-      maxResults: config.maxResults,
-      spatialReferenceWkid: 4326,
-      ...(config.countryCodes ? { countryCodes: config.countryCodes } : {}),
-    });
-    forwardResults = results;
-    const collection = geocodeResultsToFeatures(results);
-    renderForwardResults();
-    updateGeoJsonSource(FORWARD_SOURCE_ID, collection);
-    fitForwardResults(collection.features);
-    lastOperation = `Forward geocode / ${results.length} result${results.length === 1 ? "" : "s"}`;
-    return results;
-  } catch (error) {
-    lastError = error instanceof Error ? error.message : "Forward geocode failed";
-    renderForwardResults();
-    return [];
-  } finally {
-    setBusy(false);
-    renderStatus();
-  }
-}
-
-async function typeahead(query: string): Promise<GeocodeSuggestion[]> {
-  const searchText = query.trim();
-  if (searchText.length < 2) {
-    suggestions = [];
-    renderSuggestions(suggestions);
-    return suggestions;
-  }
-
-  lastError = null;
-  lastOperation = "Suggest";
-  renderStatus();
-
-  try {
-    suggestions = await client.suggest(searchText, {
-      maxSuggestions: config.maxSuggestions,
-      ...(config.countryCodes ? { countryCodes: config.countryCodes } : {}),
-    });
-    renderSuggestions(suggestions);
-    lastOperation = `Suggest / ${suggestions.length} hint${suggestions.length === 1 ? "" : "s"}`;
-    return suggestions;
-  } catch (error) {
-    lastError = error instanceof Error ? error.message : "Suggest failed";
-    suggestions = [];
-    renderSuggestions(suggestions);
-    return [];
-  } finally {
-    renderStatus();
-  }
-}
-
-async function runReverse(latitude: number, longitude: number): Promise<ReverseGeocodeResult | null> {
-  lastError = null;
-  lastOperation = "Reverse geocode";
-  renderStatus();
-
-  try {
-    reverseResult = await client.reverseGeocode(latitude, longitude, { spatialReferenceWkid: 4326 });
-    renderReverseResult();
-    const collection = reverseResultToFeature(reverseResult);
-    updateGeoJsonSource(REVERSE_SOURCE_ID, collection);
-    if (collection.features[0]) showPopup(collection.features[0]);
-    lastOperation = reverseResult ? "Reverse geocode / address found" : "Reverse geocode / no address";
-    return reverseResult;
-  } catch (error) {
-    lastError = error instanceof Error ? error.message : "Reverse geocode failed";
-    reverseResult = null;
-    renderReverseResult();
-    updateGeoJsonSource(REVERSE_SOURCE_ID, emptyGeocodingFeatureCollection());
-    return null;
-  } finally {
-    renderStatus();
-  }
-}
-
-function wireControls(): void {
-  const form = getElement<HTMLFormElement>("#forward-form");
-  const input = getElement<HTMLInputElement>("#address-input");
-  input.value = config.initialQuery;
-
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    void runForward(input.value);
-  });
-
-  input.addEventListener("input", () => {
-    if (suggestTimer !== undefined) clearTimeout(suggestTimer);
-    suggestTimer = setTimeout(() => {
-      void typeahead(input.value);
-    }, 160);
-  });
-
-  map.on("click", (event) => {
-    void runReverse(event.lngLat.lat, event.lngLat.lng);
   });
 }
 
 async function start(): Promise<void> {
-  renderAuditRows();
-  renderForwardResults();
-  renderSuggestions([]);
-  renderReverseResult();
-  renderStatus();
-  wireControls();
+  setText("#endpoint-state", auditRow.endpoint);
+  getElement<HTMLSelectElement>("#address-select").addEventListener("change", (event) => {
+    selectResult(Number((event.currentTarget as HTMLSelectElement).value));
+  });
 
   await new Promise<void>((resolve) => {
     map.once("load", () => {
       addMapLayers();
-      mapReady = true;
+      map.getCanvas().setAttribute("aria-label", "Interactive map of reviewed Honolulu geocoding candidates");
       resolve();
     });
   });
 
-  await runForward(config.initialQuery);
-  ready = mapReady;
-  renderStatus();
+  try {
+    results = await client.forwardGeocode(config.initialQuery, {
+      maxResults: config.maxResults,
+      spatialReferenceWkid: 4326,
+    });
+    if (results.length === 0) throw new Error("The fixture returned no address candidates.");
+
+    const collection = geocodeResultsToFeatures(results);
+    updateGeoJsonSource(collection);
+    renderOptions();
+    selectedIndex = 0;
+    renderSelectedResult(false);
+    fitResults(collection);
+    setText("#status-message", `${results.length} reviewed addresses ready to select.`);
+  } catch (error) {
+    lastError = error instanceof Error ? error.message : "The geocoding fixture could not be loaded.";
+    renderUnavailableState();
+    setText("#status-message", `Fixture unavailable: ${lastError}`);
+  } finally {
+    ready = true;
+  }
 }
 
-start().catch((error: unknown) => {
-  lastError = error instanceof Error ? error.message : "Geocoding demo failed to start";
-  ready = true;
-  renderStatus();
-});
+void start();
