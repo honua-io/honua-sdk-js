@@ -79,4 +79,27 @@ describe("derived-artifact loop guard", () => {
     assert.match(workflow, /node scripts\/check-derived-artifact-tip\.mjs/u);
     assert.doesNotMatch(workflow, /subject="\$\(git log -1 --format=%s\)"/u);
   });
+
+  it("stages and publishes every current sample projection atomically", () => {
+    const workflow = fs.readFileSync(
+      path.join(root, ".github/workflows/regenerate-derived-artifacts.yml"),
+      "utf8",
+    );
+    const stage = workflow.slice(
+      workflow.indexOf("- name: Stage and commit resealed evidence locally"),
+      workflow.indexOf("- name: Verify regenerated artifacts strictly"),
+    );
+    const publish = workflow.slice(
+      workflow.indexOf("- name: Validate and publish regeneration commits"),
+      workflow.indexOf("- name: Dispatch strict CI for regeneration PR"),
+    );
+
+    for (const generatedPath of [
+      "docs/generated/sample-catalog.md",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
+    ]) {
+      assert.match(stage, new RegExp(generatedPath.replaceAll(".", "\\."), "u"));
+      assert.match(publish, new RegExp(generatedPath.replaceAll(".", "\\."), "u"));
+    }
+  });
 });

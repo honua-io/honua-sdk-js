@@ -641,10 +641,12 @@ jobs:
           # so carrying it on the evidence commit cannot perturb any binding.
           git add -A -- \
             README.md \
+            docs/generated/sample-catalog.md \
             samples/catalog.v2.json \
             samples/contract/v2/migrations/catalog.v1-to-v2.json \
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json \
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json \
+            samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json \
             samples/evidence/imagery-cog-quickstart \
             samples/evidence/maplibre-quickstart \
             samples/evidence/migration-workbench \
@@ -750,7 +752,7 @@ jobs:
               api-report/* | \
               bench/cross-sdk/corpus.json | \
               docs/bundle-sizes.md | docs/comparison.md | docs/errors.md | \
-              docs/generated/mcp-eval-scorecard.md | \
+              docs/generated/mcp-eval-scorecard.md | docs/generated/sample-catalog.md | \
               llms.txt | llms-full.txt | \
               examples/migration-workbench/public/artifacts/* | \
               examples/migration-workbench/src/generated/* | \
@@ -762,6 +764,7 @@ jobs:
               samples/contract/v2/release-matrix-lanes.v1.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json | \
               samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json | \
+              samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json | \
               samples/dist/* | samples/evidence/imagery-cog-quickstart/* | \
               samples/evidence/maplibre-quickstart/* | samples/evidence/migration-workbench/* | \
               samples/evidence/service-explorer/*)
