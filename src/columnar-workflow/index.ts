@@ -1,3 +1,12 @@
+/**
+ * Plans bounded columnar query workflows and decodes the supported Honua Arrow
+ * response subset into normative SDK batches.
+ *
+ * @experimental Not yet covered by the SDK's semver contract; this entrypoint
+ *   may change in any minor release prior to `1.0.0`.
+ * @packageDocumentation
+ */
+
 import type {
   ColumnarBatchIdentityV1,
   ColumnarBatchMetrics,
