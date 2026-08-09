@@ -245,14 +245,37 @@
     "geocoding-quickstart": {
       "track": "recipe",
       "validationProfile": "browser-recipe",
+      "summary": "Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view.",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion."
+        "state": "active",
+        "reason": "Credential-free map-first recipe with a self-contained GeocodeServer fixture route and focused desktop/mobile browser coverage."
+      },
+      "capabilities": [
+        "forward-geocode",
+        "map"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Repository-owned synthetic Honolulu address response committed at the exact GeocodeServer route used by the SDK.",
+        "attribution": "Honua SDK deterministic sample fixture; no external geocoder attribution is claimed.",
+        "freshness": "Immutable for the built source revision; not presented as current real-world geocoder data."
       },
       "configuration": {
-        "status": "legacy-unsafe",
-        "gap": "The browser bundle currently reads Honua API-key and bearer-token variables."
-      }
+        "status": "not-required"
+      },
+      "live": {
+        "mode": "unavailable",
+        "status": "not-applicable",
+        "commands": []
+      },
+      "expectedDegradation": "A missing or invalid committed fixture route surfaces an explicit unavailable state; the sample never falls through to an ungoverned public geocoder.",
+      "validation": [
+        "npm run demo:geocoding:typecheck",
+        "npm run demo:geocoding:build",
+        "npx vitest run test/geocoding-quickstart.test.ts",
+        "npm run test:playwright:geocoding"
+      ]
     },
     "geoprocessing-job-runner": {
       "track": "recipe",

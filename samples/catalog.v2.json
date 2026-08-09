@@ -603,25 +603,22 @@
     {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
-      "summary": "Runs forward, reverse, and suggestion workflows with map feedback.",
+      "summary": "Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Credential-free map-first recipe with a self-contained GeocodeServer fixture route and focused desktop/mobile browser coverage."
       },
       "sourcePath": "examples/geocoding-quickstart",
       "docsPath": "examples/geocoding-quickstart/README.md",
       "capabilities": [
         "forward-geocode",
-        "reverse-geocode",
-        "suggest"
+        "map"
       ],
       "capabilityKeys": [
-        "geocoding.forward",
-        "geocoding.reverse"
+        "geocoding.forward"
       ],
       "protocols": [
         "geoservices"
@@ -630,73 +627,14 @@
         "maplibre"
       ],
       "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "config": [
-          "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
-          "VITE_HONUA_GEOCODING_API_KEY",
-          "VITE_HONUA_GEOCODING_BASE_URL",
-          "VITE_HONUA_GEOCODING_BEARER_TOKEN",
-          "VITE_HONUA_GEOCODING_COUNTRY_CODES",
-          "VITE_HONUA_GEOCODING_INITIAL_QUERY",
-          "VITE_HONUA_GEOCODING_LOCATOR_NAME",
-          "VITE_HONUA_GEOCODING_MAX_RESULTS",
-          "VITE_HONUA_GEOCODING_MAX_SUGGESTIONS"
-        ],
-        "provenance": "Committed gazetteer responses or configured Honua GeocodeServer.",
-        "attribution": "Gazetteer attribution supplied by the endpoint.",
-        "freshness": "Fixture capture metadata or live response time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables.",
-        "configClassifications": [
-          {
-            "name": "VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_GEOCODING_API_KEY",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_GEOCODING_BASE_URL",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_GEOCODING_BEARER_TOKEN",
-            "exposure": "browser-public",
-            "valueKind": "credential",
-            "credentialScope": "secret"
-          },
-          {
-            "name": "VITE_HONUA_GEOCODING_COUNTRY_CODES",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_GEOCODING_INITIAL_QUERY",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_GEOCODING_LOCATOR_NAME",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_GEOCODING_MAX_RESULTS",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          },
-          {
-            "name": "VITE_HONUA_GEOCODING_MAX_SUGGESTIONS",
-            "exposure": "browser-public",
-            "valueKind": "non-secret"
-          }
-        ]
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Repository-owned synthetic Honolulu address response committed at the exact GeocodeServer route used by the SDK.",
+        "attribution": "Honua SDK deterministic sample fixture; no external geocoder attribution is claimed.",
+        "freshness": "Immutable for the built source revision; not presented as current real-world geocoder data.",
+        "configurationStatus": "not-required",
+        "configClassifications": []
       },
       "evidence": {
         "fixture": {
@@ -707,16 +645,18 @@
           ]
         },
         "live": {
-          "mode": "authenticated",
-          "status": "planned",
+          "mode": "unavailable",
+          "status": "not-applicable",
           "commands": []
         }
       },
-      "expectedDegradation": "The UI identifies fixture fallback when the live endpoint is unavailable.",
+      "expectedDegradation": "A missing or invalid committed fixture route surfaces an explicit unavailable state; the sample never falls through to an ungoverned public geocoder.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:geocoding:typecheck",
-        "npm run demo:geocoding:build"
+        "npm run demo:geocoding:build",
+        "npx vitest run test/geocoding-quickstart.test.ts",
+        "npm run test:playwright:geocoding"
       ]
     },
     {

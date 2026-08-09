@@ -268,7 +268,8 @@ describe("sample publication contract", () => {
     });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "geocoding-quickstart")).toMatchObject({
       track: "recipe",
-      lifecycle: { state: "rework" },
+      lifecycle: { state: "active" },
+      data: { mode: "fixture", authMode: "none", configurationStatus: "not-required", config: [] },
     });
     expect(catalog.samples.find((sample: { id: string }) => sample.id === "sketch-editing")).toMatchObject({
       track: "recipe",
