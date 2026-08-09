@@ -73,11 +73,19 @@ async function assertRefreshAncestry(repository, baseSha, trustedPolicySha, requ
 
 function validateUpdateResponse(response, repository, pullRequestNumber) {
   const url = new URL(String(response?.url ?? ""));
+  const expected = new URL(
+    `${apiRoot().replace(/\/+$/u, "")}/repos/${repository}/pulls/${pullRequestNumber}`,
+  );
   if (
     response?.message !== "Updating pull request branch." ||
+    expected.protocol !== "https:" ||
     url.protocol !== "https:" ||
-    url.hostname !== "github.com" ||
-    url.pathname.toLowerCase() !== `/repos/${repository}/pulls/${pullRequestNumber}`.toLowerCase()
+    url.origin !== expected.origin ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.pathname.toLowerCase() !== expected.pathname.toLowerCase() ||
+    url.search !== "" ||
+    url.hash !== ""
   ) {
     throw new Error("GitHub did not accept the exact Release Please branch refresh.");
   }
