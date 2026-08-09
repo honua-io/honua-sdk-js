@@ -34,20 +34,26 @@ function render(snapshot: WalkthroughSnapshot): void {
   setText("#job-state", status);
   getElement<HTMLElement>("#job-state").dataset.status = snapshot.status;
   setText("#timeline-count", `${snapshot.timeline.length} / 4`);
-  setText("#result-state", snapshot.result ? "Rendered and verified" : snapshot.error ? "Not rendered" : "Waiting for result");
+  setText(
+    "#result-state",
+    snapshot.result ? "Rendered and verified" : snapshot.error ? "Not rendered" : "Waiting for result",
+  );
   setText("#result-digest", snapshot.resultDigest ?? RESULT_GEOMETRY_SHA256);
   setText("#error-message", snapshot.error ?? "No request or job errors");
   getElement<HTMLElement>("#error-message").hidden = !snapshot.error;
 
   const button = getElement<HTMLButtonElement>("#primary-action");
-  button.disabled = snapshot.status === "submitting" || (snapshot.busy && snapshot.status !== "accepted" && snapshot.status !== "running");
-  button.textContent = snapshot.status === "accepted" || snapshot.status === "running"
-    ? "Cancel job"
-    : snapshot.status === "idle"
-      ? "Run buffer job"
-      : snapshot.status === "dismissed" || snapshot.status === "failed"
-        ? "Restart buffer job"
-        : "Replay buffer job";
+  button.disabled =
+    snapshot.status === "submitting" ||
+    (snapshot.busy && snapshot.status !== "accepted" && snapshot.status !== "running");
+  button.textContent =
+    snapshot.status === "accepted" || snapshot.status === "running"
+      ? "Cancel job"
+      : snapshot.status === "idle"
+        ? "Run buffer job"
+        : snapshot.status === "dismissed" || snapshot.status === "failed"
+          ? "Restart buffer job"
+          : "Replay buffer job";
 
   const timeline = getElement<HTMLOListElement>("#status-timeline");
   timeline.innerHTML = snapshot.timeline.length
@@ -75,12 +81,12 @@ function renderMap(feature: BufferFeature | undefined): void {
 
 function polygonPath(geometry: PolygonGeometry): string {
   const ring = geometry.coordinates[0] ?? [];
-  return ring
+  return `${ring
     .map(([x, y], index) => {
       const point = project(x, y);
       return `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`;
     })
-    .join(" ") + " Z";
+    .join(" ")} Z`;
 }
 
 function project(x: number, y: number): { x: number; y: number } {

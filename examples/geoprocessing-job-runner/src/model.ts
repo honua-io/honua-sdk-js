@@ -1,13 +1,7 @@
 import type { IJobRun, JobSnapshot, JobStatus } from "@honua/sdk-js/contract";
 import { HonuaClient } from "@honua/sdk-js/honua";
 
-import {
-  BUFFER_INPUTS,
-  PROCESS_ID,
-  RESULT_GEOMETRY_SHA256,
-  decodeResultArtifact,
-  digestGeometry,
-} from "./fixtures.js";
+import { BUFFER_INPUTS, PROCESS_ID, RESULT_GEOMETRY_SHA256, decodeResultArtifact, digestGeometry } from "./fixtures.js";
 import type { BufferArtifact, TimelineEntry, WalkthroughSnapshot } from "./types.js";
 
 type SnapshotListener = (snapshot: WalkthroughSnapshot) => void;
@@ -130,7 +124,11 @@ export class BufferJobWalkthrough {
       return;
     }
     if (snapshot.status === "failed" || snapshot.status === "dismissed") {
-      this.append(snapshot.status, snapshot.status === "failed" ? "Failed" : "Dismissed", snapshot.error?.message ?? "Job ended.");
+      this.append(
+        snapshot.status,
+        snapshot.status === "failed" ? "Failed" : "Dismissed",
+        snapshot.error?.message ?? "Job ended.",
+      );
     }
   }
 

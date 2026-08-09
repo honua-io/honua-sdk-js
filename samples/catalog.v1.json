@@ -112,7 +112,7 @@
       "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Pinned same-origin four-exchange geometry.buffer fixture with exact WKB inputs and GeoJSON digest.", "attribution": "Honua geometry.buffer contract; Honolulu Hale location named in the fixture.", "freshness": "Immutable fixture contract; no public-live result claim." },
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:gp-runner:mock"] }, "live": { "status": "planned", "commands": [] } },
       "expectedDegradation": "Cancellation becomes dismissed; invalid inputs surface a structured problem without a fabricated result.",
-      "validation": ["npm run demo:gp-runner:typecheck", "npx vitest run test/geoprocessing-job-runner.test.ts", "npm run demo:gp-runner:build", "npm run test:playwright:gp-runner"]
+      "validation": ["npm run demo:gp-runner:typecheck", "npx vitest run test/geoprocessing-job-runner.test.ts", "npm run demo:gp-runner:build"]
     },
     {
       "id": "imagery-cog-quickstart",

@@ -51,8 +51,12 @@ describe("Run a buffer job and collect the result", () => {
     const fixture = createPinnedFixtureFetch();
     const walkthrough = new BufferJobWalkthrough({ baseUrl: "https://fixture.example", fetch: fixture.fetch });
     let releaseAccepted!: () => void;
-    const accepted = new Promise<void>((resolve) => { releaseAccepted = resolve; });
-    const unsubscribe = walkthrough.subscribe((snapshot) => { if (snapshot.status === "accepted") releaseAccepted(); });
+    const accepted = new Promise<void>((resolve) => {
+      releaseAccepted = resolve;
+    });
+    const unsubscribe = walkthrough.subscribe((snapshot) => {
+      if (snapshot.status === "accepted") releaseAccepted();
+    });
     const running = walkthrough.run();
     await accepted;
     await walkthrough.cancel();

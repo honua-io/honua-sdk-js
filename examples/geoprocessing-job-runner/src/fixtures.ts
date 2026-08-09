@@ -95,7 +95,12 @@ export function createPinnedFixtureFetch(options: { failExecution?: boolean } = 
     if (request.method === "POST" && url.pathname === EXECUTION_PATH) {
       if (options.failExecution || stableJson(body) !== stableJson(EXECUTION_BODY)) {
         return json(
-          { type: "about:blank", title: "Invalid buffer inputs", status: 422, detail: "Invalid buffer inputs: pinned fixture inputs did not match." },
+          {
+            type: "about:blank",
+            title: "Invalid buffer inputs",
+            status: 422,
+            detail: "Invalid buffer inputs: pinned fixture inputs did not match.",
+          },
           422,
         );
       }
