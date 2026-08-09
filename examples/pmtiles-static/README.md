@@ -35,6 +35,20 @@ deployment points at any archive on object storage — S3 / R2 / GCS). Static
 hosts must honour HTTP `Range` requests, which PMTiles relies on; the bundled
 `mock-server.mjs` (used by the Playwright smoke) does.
 
+## Optional Maui range proxy
+
+Point the same map at a durable artifact returned by a Honua `publish` job:
+
+```bash
+VITE_HONUA_MAUI_PMTILES_PROXY_URL=https://your-honua.example/api/v1/tiles/pmtiles/ARTIFACT_ID \
+npm run demo:pmtiles-static
+```
+
+This is a non-secret browser URL. The sample intentionally has no public live
+default: its evidence stays `planned` until a governed manifest names and probes
+a deployed Maui artifact. See the ordered
+[publish-MVT-to-PMTiles walkthrough](../../docs/pmtiles-lifecycle.md).
+
 ## CDN recipe (build-less)
 
 PMTiles works from a plain HTML page with no bundler:

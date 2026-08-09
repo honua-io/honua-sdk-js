@@ -28,7 +28,9 @@ declare global {
 
 // The archive is a plain static asset served next to the app (see `public/`).
 // A PMTiles URL for MapLibre is the archive URL prefixed with `pmtiles://`.
-const archiveUrl = new URL("basemap.pmtiles", window.location.href).toString();
+const configuredMauiProxyUrl = import.meta.env.VITE_HONUA_MAUI_PMTILES_PROXY_URL?.trim();
+const archiveUrl = configuredMauiProxyUrl || new URL("basemap.pmtiles", window.location.href).toString();
+const sourceMaturity = configuredMauiProxyUrl ? "Honua managed range proxy" : "Direct committed archive";
 const pmtilesUrl = `pmtiles://${archiveUrl}`;
 
 const state: {
@@ -133,7 +135,7 @@ async function main(): Promise<void> {
 
   text("protocol-state", isPmtilesProtocolRegistered() ? "pmtiles:// registered" : "not registered");
   text("source-state", runtime.honuaMap.hasSource("basemap") ? "basemap ready" : "missing");
-  text("endpoint-state", `Serving ${archiveUrl}`);
+  text("endpoint-state", `${sourceMaturity}: ${archiveUrl}`);
 
   // Inspect the archive metadata through the contract's describe() surface.
   try {

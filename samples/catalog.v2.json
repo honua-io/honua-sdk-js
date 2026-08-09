@@ -1751,7 +1751,7 @@
     {
       "id": "pmtiles-static",
       "title": "PMTiles static map",
-      "summary": "Loads a static PMTiles archive without a Honua server.",
+      "summary": "Loads a committed direct PMTiles archive by default or an explicitly configured Honua Maui range proxy.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "supported",
@@ -1776,14 +1776,22 @@
         "maplibre"
       ],
       "data": {
-        "mode": "fixture",
+        "mode": "hybrid",
         "authMode": "none",
-        "config": [],
-        "provenance": "Committed fixture-sized PMTiles archive.",
+        "config": [
+          "VITE_HONUA_MAUI_PMTILES_PROXY_URL"
+        ],
+        "provenance": "Committed fixture-sized PMTiles archive, or an explicitly configured durable Honua range-proxy artifact.",
         "attribution": "Archive attribution must be supplied by the host.",
-        "freshness": "Fixture version committed with the repository.",
-        "configurationStatus": "not-required",
-        "configClassifications": []
+        "freshness": "Fixture version committed with the repository; configured proxy freshness comes from its publish receipt.",
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "VITE_HONUA_MAUI_PMTILES_PROXY_URL",
+            "exposure": "browser-public",
+            "valueKind": "non-secret"
+          }
+        ]
       },
       "evidence": {
         "fixture": {
@@ -1799,7 +1807,7 @@
           "commands": []
         }
       },
-      "expectedDegradation": "The sample reports missing range-request support instead of fetching an unbounded archive.",
+      "expectedDegradation": "The deterministic direct fixture remains available by default. A configured proxy reports range, expiry, or availability failure without claiming live evidence or silently materializing the archive.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:pmtiles-static:typecheck",

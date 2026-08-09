@@ -263,6 +263,10 @@
     "./cog": {
       "types": "./dist/src/cog/index.d.ts",
       "default": "./dist/src/cog/index.js"
+    },
+    "./pmtiles": {
+      "types": "./dist/src/pmtiles/index.d.ts",
+      "default": "./dist/src/pmtiles/index.js"
     }
   },
   "bin": {

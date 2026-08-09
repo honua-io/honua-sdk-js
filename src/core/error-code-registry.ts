@@ -15,6 +15,7 @@ export type HonuaErrorDomain =
   | "realtime"
   | "offline"
   | "plugin"
+  | "pmtiles"
   | "agent"
   | "app";
 
@@ -47,6 +48,49 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "core.cancelled": classification("core", "cancellation", false, "Caller cancelled the operation"),
   "core.grpc.transient": classification("core", "protocol", true, "Retryable gRPC-Web transport failure"),
   "core.grpc.rejected": classification("core", "protocol", false, "Non-retryable gRPC-Web transport failure"),
+  "pmtiles.lifecycle.invalid-request": classification(
+    "pmtiles",
+    "validation",
+    false,
+    "PMTiles lifecycle request is invalid",
+  ),
+  "pmtiles.lifecycle.invalid-response": classification(
+    "pmtiles",
+    "validation",
+    false,
+    "PMTiles lifecycle response violates the server contract",
+  ),
+  "pmtiles.lifecycle.response-too-large": classification(
+    "pmtiles",
+    "validation",
+    false,
+    "PMTiles lifecycle response exceeds its byte ceiling",
+  ),
+  "pmtiles.lifecycle.job-poll-timeout": classification(
+    "pmtiles",
+    "timeout",
+    true,
+    "PMTiles job did not reach a terminal state within polling bounds",
+  ),
+  "pmtiles.lifecycle.job-failed": classification("pmtiles", "protocol", false, "PMTiles job reached the failed state"),
+  "pmtiles.lifecycle.job-cancelled": classification(
+    "pmtiles",
+    "cancellation",
+    false,
+    "PMTiles job reached the cancelled state",
+  ),
+  "pmtiles.lifecycle.access-url-expired": classification(
+    "pmtiles",
+    "validation",
+    false,
+    "Published PMTiles access URL is expired",
+  ),
+  "pmtiles.lifecycle.manual-cleanup-unsupported": classification(
+    "pmtiles",
+    "capability",
+    false,
+    "Managed PMTiles artifact deletion is not exposed",
+  ),
   "core.geometry.unknown-geometry": classification(
     "core",
     "validation",

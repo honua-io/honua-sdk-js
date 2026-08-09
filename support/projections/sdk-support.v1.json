@@ -510,7 +510,9 @@
           "protocolIds": [
             "pmtiles"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "pmtiles-managed-lifecycle-honua-facade"
+          ],
           "external": false
         },
         "s3": {
@@ -786,6 +788,12 @@
       "id": "pmtiles-connect-fixtures",
       "kind": "fixture",
       "path": "test/connect-pmtiles.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "pmtiles-lifecycle-fixtures",
+      "kind": "fixture",
+      "path": "test/pmtiles-lifecycle.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -2003,6 +2011,27 @@
       ]
     },
     {
+      "id": "pmtiles-managed-lifecycle-honua-facade",
+      "label": "PMTiles managed publish lifecycle",
+      "protocol": "pmtiles",
+      "operations": [
+        "tiles"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "experimental",
+      "backendNeeded": "Honua Server tile operations with configured cloud file storage",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "Archive and publish jobs create artifacts through Honua Server tile operations and configured cloud storage. Direct archive discovery remains the open-endpoint alternative and does not require server attach."
+      },
+      "api": "createHonuaPmtilesLifecycle(), registerPmtilesSource()",
+      "notes": "Submits archive/publish jobs, bounds typed status polling, cancels work, and normalizes public, signed, and durable range-proxy descriptors. Manual managed artifact deletion is not claimed.",
+      "evidence": [
+        "pmtiles-lifecycle-fixtures"
+      ]
+    },
+    {
       "id": "geoparquet-discovery-client-only",
       "label": "GeoParquet asset discovery",
       "protocol": "geoparquet",
@@ -2658,6 +2687,10 @@
       },
       {
         "subpath": "./cog",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./pmtiles",
         "status": "experimental"
       },
       {
