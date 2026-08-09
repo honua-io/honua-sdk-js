@@ -71,8 +71,8 @@ export class BufferJobWalkthrough {
           signal: this.activeAbort.signal,
           deadlineMs: 2_500,
           maxAttempts: 4,
-          pollIntervalMs: 120,
-          maxPollIntervalMs: 120,
+          pollIntervalMs: 600,
+          maxPollIntervalMs: 600,
         });
         if (generation !== this.generation) return;
         const feature = decodeResultArtifact(result.outputs.output1);

@@ -2,7 +2,7 @@
 
 This public walkthrough uses the JavaScript SDK's real OGC API Processes surface:
 
-```ts
+```ts doc-test=skip reason="partial excerpt requires the walkthrough's initialized client and pinned WKB input"
 const job = await client.ogcProcesses().execute({
   processId: "geometry.buffer",
   inputs: { wkb, srid: 3857, distance: 350 },

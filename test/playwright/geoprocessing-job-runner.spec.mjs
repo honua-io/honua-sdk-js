@@ -45,6 +45,7 @@ test("result-first buffer walkthrough is semantic, responsive, deterministic, an
     expect(server.requests[0]).toMatchObject({ body: { inputs: server.fixture.inputs, response: "document" }, prefer: "respond-async" });
 
     await page.getByRole("button", { name: "Replay buffer job" }).click();
+    await expect(page.locator("#job-state")).toHaveText("Running");
     await expect(page.getByRole("button", { name: "Cancel job" })).toBeVisible();
     await page.getByRole("button", { name: "Cancel job" }).click();
     await expect(page.locator("#job-state")).toHaveText("Dismissed");
