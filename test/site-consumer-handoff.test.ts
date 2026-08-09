@@ -737,8 +737,7 @@ describe("honua-site consumer handoff", () => {
     await expect(validateSiteConsumerHandoff(checkoutHandoff)).resolves.toBeUndefined();
   });
 
-  it("keeps frozen legacy receipts content-bound across current receipt rollover", { timeout: 240_000 }, async () => {
-    const inputs = await canonicalInputs();
+  it("resolves frozen live producers from the content-addressed archive root", async () => {
     const legacyHandoff = (await readJson("samples/dist/honua-site-consumer-handoff.v1.json")) as SiteConsumerHandoff;
     const archive = (await readJson(
       "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
@@ -748,6 +747,41 @@ describe("honua-site consumer handoff", () => {
     );
     if (!archivedGenerator) throw new Error("legacy archive needs the First Map live producer");
     expect(sha256(await readFile(archivedGenerator.path))).not.toBe(archivedGenerator.sha256);
+
+    const originalRelax = process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+    Reflect.deleteProperty(process.env, "HONUA_DERIVED_ARTIFACTS_RELAX");
+    try {
+      await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
+
+      const tamperedArchivedGenerator = structuredClone(archive);
+      const archivedGeneratorBlob = tamperedArchivedGenerator.artifacts.blobs.find(
+        (blob) => blob.sha256 === archivedGenerator.sha256,
+      );
+      if (!archivedGeneratorBlob) throw new Error("legacy archive needs the First Map live producer blob");
+      archivedGeneratorBlob.contentBase64 = gzipSync(Buffer.from("forged archived generator")).toString("base64");
+      await expect(validateLegacyVisualReceiptArchive(tamperedArchivedGenerator, legacyHandoff)).rejects.toThrow(
+        "legacy visual artifact blob is missing or stale",
+      );
+
+      const missingArchivedGenerator = structuredClone(archive);
+      missingArchivedGenerator.artifacts.files = missingArchivedGenerator.artifacts.files.filter(
+        (file) => file.path !== archivedGenerator.path,
+      );
+      await expect(validateLegacyVisualReceiptArchive(missingArchivedGenerator, legacyHandoff)).rejects.toThrow(
+        /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
+      );
+    } finally {
+      if (originalRelax === undefined) Reflect.deleteProperty(process.env, "HONUA_DERIVED_ARTIFACTS_RELAX");
+      else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = originalRelax;
+    }
+  });
+
+  it("keeps frozen legacy receipts content-bound across current receipt rollover", { timeout: 240_000 }, async () => {
+    const inputs = await canonicalInputs();
+    const legacyHandoff = (await readJson("samples/dist/honua-site-consumer-handoff.v1.json")) as SiteConsumerHandoff;
+    const archive = (await readJson(
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
+    )) as LegacyVisualReceiptArchive;
 
     await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
     await expect(
@@ -804,24 +838,6 @@ describe("honua-site consumer handoff", () => {
     tamperedArtifactBlob.artifacts.blobs[0].contentBase64 = Buffer.from("forged artifact").toString("base64");
     await expect(validateLegacyVisualReceiptArchive(tamperedArtifactBlob, legacyHandoff)).rejects.toThrow(
       "legacy visual artifact blob is missing, malformed, or excessive",
-    );
-
-    const tamperedArchivedGenerator = structuredClone(archive);
-    const archivedGeneratorBlob = tamperedArchivedGenerator.artifacts.blobs.find(
-      (blob) => blob.sha256 === archivedGenerator.sha256,
-    );
-    if (!archivedGeneratorBlob) throw new Error("legacy archive needs the First Map live producer blob");
-    archivedGeneratorBlob.contentBase64 = gzipSync(Buffer.from("forged archived generator")).toString("base64");
-    await expect(validateLegacyVisualReceiptArchive(tamperedArchivedGenerator, legacyHandoff)).rejects.toThrow(
-      "legacy visual artifact blob is missing or stale",
-    );
-
-    const missingArchivedGenerator = structuredClone(archive);
-    missingArchivedGenerator.artifacts.files = missingArchivedGenerator.artifacts.files.filter(
-      (file) => file.path !== archivedGenerator.path,
-    );
-    await expect(validateLegacyVisualReceiptArchive(missingArchivedGenerator, legacyHandoff)).rejects.toThrow(
-      /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
     );
 
     const missingArtifact = structuredClone(archive);
