@@ -483,6 +483,7 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:gp-runner:typecheck",
+            "npx vitest run test/geoprocessing-job-runner.test.ts",
             "npm run demo:gp-runner:build"
           ]
         },
