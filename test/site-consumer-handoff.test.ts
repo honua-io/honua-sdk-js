@@ -863,7 +863,7 @@ describe("honua-site consumer handoff", () => {
       "JSON Schema validation failed",
     );
 
-    const staleCurrentHandoff = await checkoutBoundHandoff(inputs.handoff);
+    const staleCurrentHandoff = structuredClone(await checkoutBoundHandoff(inputs.handoff));
     const currentVisual = staleCurrentHandoff.cards.find((card) => card.visualEvidence)?.visualEvidence;
     if (!currentVisual) throw new Error("current qualified visual fixture is missing");
     currentVisual.semanticEvidence[0].receiptSha256 = sha256("rolled-current-receipt");
@@ -873,6 +873,7 @@ describe("honua-site consumer handoff", () => {
     await expect(validateSiteConsumerHandoff(staleCurrentHandoff, { legacyReceiptArchive: archive })).rejects.toThrow(
       "legacy receipt archives cannot validate the current site consumer handoff",
     );
+    await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
   });
 
   it(
