@@ -17,9 +17,15 @@ function readDescriptor(): Record<string, any> {
   return readJson(descriptorPath) as Record<string, any>;
 }
 
+interface ServerEvidenceSurface {
+  id: string;
+  boundary: string;
+  evidence: unknown[];
+}
+
 describe("Zarr client maturity descriptor", () => {
   it("validates the versioned descriptor against its schema", () => {
-    const schema = readJson(schemaPath);
+    const schema = readJson(schemaPath) as Record<string, unknown>;
     const descriptor = readDescriptor();
     const validate = new Ajv2020({ allErrors: true, strict: true }).compile(schema);
 
@@ -37,12 +43,14 @@ describe("Zarr client maturity descriptor", () => {
 
   it("records registration, coverage, datacube tile, and WCS evidence boundaries", () => {
     const descriptor = readDescriptor();
-    const surfaces = new Map(descriptor.serverEvidence.map((surface: any) => [surface.id, surface]));
+    const surfaces = new Map<string, ServerEvidenceSurface>(
+      (descriptor.serverEvidence as ServerEvidenceSurface[]).map((surface) => [surface.id, surface]),
+    );
 
     expect([...surfaces.keys()]).toEqual(["registration", "coverage", "datacube-tile", "wcs"]);
     for (const id of surfaces.keys()) {
-      expect(surfaces.get(id).boundary).toBeTruthy();
-      expect(surfaces.get(id).evidence.length).toBeGreaterThan(0);
+      expect(surfaces.get(id)?.boundary).toBeTruthy();
+      expect(surfaces.get(id)?.evidence.length).toBeGreaterThan(0);
     }
   });
 
