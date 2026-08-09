@@ -57,7 +57,7 @@
             "properties": {
               "path": {
                 "type": "string",
-                "pattern": "^(?:samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[a-f0-9-]{36}/artifacts/[A-Za-z0-9._/-]+|scripts/[a-z0-9-]+\\.mjs|examples/[a-z0-9]+(?:-[a-z0-9]+)*/[A-Za-z0-9._/-]+\\.mjs)$"
+                "pattern": "^(?:samples/dist/(?:honua-site-samples\\.v2|capability-sample-matrix\\.v1|golden-journey-visual-evidence\\.v1)\\.json|samples/evidence/[a-z0-9]+(?:-[a-z0-9]+)*/runs/[a-f0-9-]{36}/artifacts/[A-Za-z0-9._/-]+|scripts/[a-z0-9-]+\\.mjs|examples/[a-z0-9]+(?:-[a-z0-9]+)*/[A-Za-z0-9._/-]+\\.mjs)$"
               },
               "bytes": { "type": "integer", "minimum": 1, "maximum": 4194304 },
               "sha256": { "$ref": "#/$defs/sha256" }

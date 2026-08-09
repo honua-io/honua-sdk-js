@@ -4693,6 +4693,9 @@ function readHistoricalVisualArtifactBlob(root, reference) {
   invariant(
     typeof reference.path === "string" &&
       (reference.path.startsWith("samples/evidence/") ||
+        reference.path === LEGACY_SITE_PROJECTION_PATH ||
+        reference.path === CAPABILITY_SAMPLE_MATRIX_PATH ||
+        reference.path === GOLDEN_VISUAL_EVIDENCE_PATH ||
         /^(?:scripts\/[a-z0-9-]+|examples\/[a-z0-9-]+\/[A-Za-z0-9._/-]+)\.mjs$/u.test(reference.path)) &&
       !path.isAbsolute(reference.path) &&
       !reference.path.includes("\\") &&
@@ -4708,7 +4711,7 @@ function readHistoricalVisualArtifactBlob(root, reference) {
   try {
     history = execFileSync(
       "git",
-      ["log", "--all", "--diff-filter=AM", "--format=%H", "--", reference.path],
+      ["log", "--all", "--diff-filter=AM", "--max-count=257", "--format=%H", "--", reference.path],
       {
         cwd: root,
         encoding: "utf8",
@@ -4722,7 +4725,7 @@ function readHistoricalVisualArtifactBlob(root, reference) {
   }
   const revisions = [...new Set(history.split(/\r?\n/u).filter(Boolean))];
   invariant(
-    revisions.length <= 64 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
+    revisions.length <= 256 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
     `legacy visual artifact capture history is invalid or excessive for ${reference.path}`,
   );
   for (const revision of revisions) {
@@ -4752,15 +4755,21 @@ function readHistoricalVisualArtifactBlob(root, reference) {
 
 async function legacyVisualArtifactClaims(handoff, readArtifact) {
   const claims = new Map();
-  const add = (reference, runRoots, label, allowProducerSource = false) => {
+  const legacyHandoffInputPaths = new Map([
+    ["siteProjection", LEGACY_SITE_PROJECTION_PATH],
+    ["capabilityMatrix", CAPABILITY_SAMPLE_MATRIX_PATH],
+    ["visualEvidence", GOLDEN_VISUAL_EVIDENCE_PATH],
+  ]);
+  const add = (reference, runRoots, label, allowProducerSource = false, allowHandoffInput = false) => {
     const referencePath = typeof reference.path === "string" ? reference.path : "";
     const inRun = [...runRoots].some((runRoot) => referencePath.startsWith(`${runRoot}/artifacts/`));
     const governedProducerSource =
       allowProducerSource &&
       /^(?:scripts\/[a-z0-9-]+|examples\/[a-z0-9-]+\/[A-Za-z0-9._/-]+)\.mjs$/u.test(referencePath);
+    const governedHandoffInput = allowHandoffInput && [...legacyHandoffInputPaths.values()].includes(referencePath);
     invariant(
       typeof reference.path === "string" &&
-        (inRun || governedProducerSource) &&
+        (inRun || governedProducerSource || governedHandoffInput) &&
         !path.isAbsolute(reference.path) &&
         !reference.path.includes("\\") &&
         path.posix.normalize(reference.path) === reference.path &&
@@ -4782,6 +4791,11 @@ async function legacyVisualArtifactClaims(handoff, readArtifact) {
     if (!previous) claims.set(reference.path, descriptor);
     else if (previous.bytes === null && descriptor.bytes !== null) previous.bytes = descriptor.bytes;
   };
+  for (const [name, expectedPath] of legacyHandoffInputPaths) {
+    const reference = handoff.inputs?.[name];
+    invariant(reference?.path === expectedPath, `legacy handoff ${name} artifact path drift`);
+    add(reference, new Set(), `legacy handoff ${name} artifact`, false, true);
+  }
   for (const card of handoff.cards ?? []) {
     if (!card.visualEvidence) continue;
     const runRoots = new Set(card.visualEvidence.semanticEvidence.map((semantic) => semantic.runRoot));
@@ -6990,12 +7004,15 @@ function validateSiteConsumerExternalUrl(value, label) {
   );
 }
 
-async function validateSiteConsumerArtifactInput(reference, label) {
+async function validateSiteConsumerArtifactInput(reference, label, archivedArtifacts) {
   await validateSiteConsumerLocalLink(reference.schemaPath, `${label} schema`, "file");
-  const bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
-    label: `${label} artifact`,
-    maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-  });
+  const bytes = archivedArtifacts
+    ? archivedArtifacts.get(reference.path)
+    : await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
+        label: `${label} artifact`,
+        maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+      });
+  invariant(bytes, `${label} historical artifact blob is broken or missing`);
   invariant(
     bytes.byteLength === reference.bytes && sha256(bytes) === reference.sha256,
     `${label} artifact byte or digest binding drift`,
@@ -7146,7 +7163,11 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   } else if (inputs.verifyCheckout !== false) {
     const artifacts = {};
     for (const [name, reference] of Object.entries(handoff.inputs)) {
-      artifacts[name] = await validateSiteConsumerArtifactInput(reference, `site consumer ${name}`);
+      artifacts[name] = await validateSiteConsumerArtifactInput(
+        reference,
+        `site consumer ${name}`,
+        archivedReceipts,
+      );
     }
     validateGoldenVisualEvidenceEntries(artifacts.visualEvidence, {
       historical: archivedReceipts !== undefined,

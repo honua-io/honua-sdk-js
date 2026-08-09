@@ -366,10 +366,13 @@ the exact receipt reports, screenshots, packed SDK tarballs and declared sample
 dist files, live evidence, and live producer sources that `validateGateReceipt`
 rehashes. It deliberately excludes unrelated files from the old run roots.
 
-Artifact paths form a closed inventory derived from the frozen handoff and its
-content-addressed reports. The current archive has 136 paths, 117 deduplicated
-blobs, 12,295,968 unique decoded bytes, and 6,243,318 gzip bytes (an 8,648,062
-byte JSON fixture after base64 and metadata). Validation caps the archive at
+Artifact paths form a closed inventory derived from the frozen handoff, its three
+bound projection/matrix/visual-evidence inputs, and its content-addressed reports.
+The current archive has 139 paths, 120 deduplicated blobs, 12,883,315 unique
+decoded bytes, and 6,288,496 gzip bytes (an 8,709,539 byte JSON fixture after
+base64 and metadata). The three handoff inputs account for 587,347 decoded bytes
+and 45,178 gzip bytes; the receipt and transitive evidence payload remains
+12,295,968 decoded bytes. Validation caps the archive at
 160 paths, 128 blobs, 16 MiB decoded unique content, 8 MiB compressed content,
 32 MiB referenced content, and 4 MiB per blob. It rejects missing, extra,
 duplicate, escaped, cross-run, stale, oversized, and decompression-bomb content.

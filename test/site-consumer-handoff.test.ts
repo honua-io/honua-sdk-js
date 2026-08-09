@@ -734,6 +734,13 @@ describe("honua-site consumer handoff", () => {
       validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive: archive }),
     ).resolves.toBeUndefined();
     await expect(generateLegacyVisualReceiptArchive(legacyHandoff)).resolves.toEqual(archive);
+    expect(
+      archive.artifacts.files.filter((file) => file.path.startsWith("samples/dist/")).map((file) => file.path),
+    ).toEqual(
+      Object.values(legacyHandoff.inputs)
+        .map((reference) => reference.path)
+        .sort(),
+    );
 
     const originalPath = process.env.PATH;
     process.env.PATH = "";
@@ -782,6 +789,14 @@ describe("honua-site consumer handoff", () => {
     const missingArtifact = structuredClone(archive);
     missingArtifact.artifacts.files.shift();
     await expect(validateLegacyVisualReceiptArchive(missingArtifact, legacyHandoff)).rejects.toThrow(
+      /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
+    );
+
+    const missingHandoffInput = structuredClone(archive);
+    missingHandoffInput.artifacts.files = missingHandoffInput.artifacts.files.filter(
+      (file) => file.path !== legacyHandoff.inputs.capabilityMatrix.path,
+    );
+    await expect(validateLegacyVisualReceiptArchive(missingHandoffInput, legacyHandoff)).rejects.toThrow(
       /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
     );
 
