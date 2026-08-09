@@ -1,7 +1,7 @@
 # Sample browser bundle publication (#642 and #656, completing #401 REQ-003)
 
 The samples gallery at [samples.honua.io](https://samples.honua.io)
-(honua-io/honua-samples#3) renders `samples/dist/honua-site-samples.v2.json`
+(honua-io/honua-samples#3) renders `samples/dist/honua-site-samples.v3.json`
 metadata but cannot embed a *running* sample from that projection alone --
 it needs the actual built browser bundle. This is the publication leg #401's
 REQ-003 defined and left unimplemented.
@@ -84,9 +84,10 @@ credential-free, and deterministic, but its default lane addresses same-origin
 fixture routes that are **not inside the bundle** (the sample's
 `mock-server.mjs` defines them). Consumers **must not** present such a bundle
 as runnable unless the embedding host also serves its `hostFixtureRoutes`;
-`samples/dist/honua-site-samples.v2.json`'s `sampleBundles.published[]` carries
-the same two fields so a gallery card can say so without fetching the bundle
-manifest.
+`samples/dist/honua-site-samples.v3.json`'s `sampleBundles.published[]` carries
+the same fields, including `requires-live-endpoint`, so a gallery card can say
+so without fetching the bundle manifest. The frozen v2 projection and v1
+handoff remain available for existing consumers.
 
 This closes a real overstatement: `maplibre-quickstart` has been published
 since honua-io/honua-sdk-js#642 with an undeclared prerequisite of exactly this
@@ -115,12 +116,10 @@ a silent breaking change.
 
 **v1 is retired rather than dual-published**, for two reasons:
 
-- v1 has no field that can express a host prerequisite. Any v1 manifest listing
-  the five `requires-host-fixture-service` bundles -- which includes
-  `maplibre-quickstart`, already published in v1 -- is misleading by
-  construction. Continuing to emit v1 would preserve exactly the overstatement
-  this issue exists to remove, and restricting v1 to the standalone bundles
-  would instead drop the flagship First Map card out of it.
+- v1 has no field that can express a runtime prerequisite. Any v1 manifest
+  listing `requires-host-fixture-service` or `requires-live-endpoint` bundles is
+  misleading by construction. Continuing to emit v1 would preserve exactly the
+  overstatement this contract exists to remove.
 - `sample-bundles.tar.gz` is a single rolling asset built from the v2 sample
   set. A left-behind `sample-bundles.v1.json` would pair stale per-file hashes
   with fresh bundle bytes and fail every integrity check it exists to support,
@@ -164,19 +163,20 @@ and behind a separately-cacheable, version-pinned CDN reference.
 Every `samples/catalog.v2.json` entry that is not in `INCLUDED_SAMPLES` is
 projected into the manifest's `excluded[]` array as `{ id, category, reason
 }`, and from there into the site projection's `sampleBundles.excluded[]`
-(`samples/dist/honua-site-samples.v2.json`, `generateSiteProjection` in
+(`samples/dist/honua-site-samples.v3.json`, `generateSiteProjection` in
 `scripts/sample-contract.mjs`) so the gallery can render *why* a card has no
 runnable bundle instead of just omitting one.
 
 `category` is one of a fixed, schema-enumerated set
 (`EXCLUDED_SAMPLE_CATEGORIES` in `scripts/build-sample-bundles.mjs`,
 mirrored in both `sample-bundles.schema.json` and
-`site-projection.schema.json`; a unit test asserts the three stay in sync):
+`site-projection.v3.schema.json`; a unit test also holds the frozen v2 enum
+unchanged):
 
 | Category | Meaning |
 | --- | --- |
 | `requires-api-key` | The catalog classifies at least one config name as `exposure: browser-public` *and* `valueKind: credential`; a static bundle may not embed one. |
-| `requires-live-backend` | `runtimeHosting: external-live-endpoint` -- the default build resolves to an off-bundle live endpoint, so a bundle would be neither offline nor deterministic. |
+| `requires-live-backend` | `runtimeHosting: external-live-endpoint` without one of the two explicit live publication policies -- the default build resolves to an unqualified off-bundle endpoint. |
 | `requires-companion-server` | `runtimeHosting: companion-process` -- the default flow needs its own running server process as a participant, not just a data origin. |
 | `non-browser-app` | `runtimeHosting: server-side-app` -- no Vite config, no browser renderer. |
 | `non-runtime-sample` | `runtimeHosting: not-a-runtime-sample` -- a docs snippet or migration-codemod test input. |
@@ -218,6 +218,12 @@ reviewer can re-derive it and the projected `reason` explains *why*, not just
 *that*. Non-active entries deliberately have **no** record, so a catalog
 promotion forces a fresh audited decision instead of inheriting a guess.
 
+`PUBLISHED_LIVE_SAMPLE_POLICY` is a separate fail-closed exception table. It
+contains only `maplibre-quickstart` and `service-explorer`, binds each to one
+exact HTTPS origin, and defines the bounded GeoJSON probe that must pass during
+the browser-bundle smoke. It does not make `external-live-endpoint` generically
+publishable.
+
 `verifySampleBundleAudit(catalog)` then machine-checks every structural
 consequence of those declarations against the tree, and runs on every
 `samples:bundles:build`:
@@ -243,11 +249,12 @@ reason can never drift from the decision that produced it:
 2. ineligible support tier;
 3. `legacy-unsafe` configuration status;
 4. a browser-public credential;
-5. non-publishable `runtimeHosting` (`external-live-endpoint` /
-   `companion-process`).
+5. non-publishable `runtimeHosting` (`external-live-endpoint` unless the sample
+   has one of the two literal live policies, or `companion-process`).
 
 No blockers means publish, with `runnability` derived 1:1 from
-`runtimeHosting`. `deriveSampleBundleDecisions` additionally throws if an audit
+`runtimeHosting`: live-backed exceptions are `requires-live-endpoint`, never
+`standalone`. `deriveSampleBundleDecisions` additionally throws if an audit
 record names an unknown id, an id is audited twice, a record covers a
 non-active entry, or an **active** entry has no record at all.
 
@@ -264,7 +271,7 @@ published set from 8 to 13. Five entries were promoted:
 | Sample | Verdict | Why it was previously excluded |
 | --- | --- | --- |
 | `ai-spatial-app-builder` | `standalone` | Excluded as `agent-shaped` -- a presentation preference, not an eligibility fact. `src/main.ts` imports only `./safe-agent.js` and issues no `fetch`/`EventSource`/`WebSocket`; both config names are server-only, so no host-model lane is reachable from a bundle. |
-| `service-explorer` | `requires-host-fixture-service` | Was `audit-pending`. Its sole config name `HONUA_SERVICE_EXPLORER_LIVE_ENABLED` is catalog-classified **server-only**, so no `VITE_` override can reach the browser build and the live producer lane is unreachable; the default is `${origin}/fixtures/ogc`. |
+| `service-explorer` | `requires-live-endpoint` | Its published, non-localhost default is `https://demo.pygeoapi.io/master`; the bundle is admitted only through the exact-origin live policy and semantic `lakes` FeatureCollection smoke. Local source tests retain `${origin}/fixtures/ogc`. |
 | `planning-permitting-workbench` | `requires-host-fixture-service` | Was `audit-pending`. Catalog declares no config surface at all (`configurationStatus: not-required`, `authMode: none`); the default addresses `${origin}/rest/services/Maui/Planning/FeatureServer`. |
 | `imagery-cog-quickstart` | `requires-host-fixture-service` | Was `requires-live-backend`. With `VITE_HONUA_IMAGERY_BASE_URL` unset, `resolveImageryCogConfig` resolves mode `fixture-safe` against the document origin, and `normalizeBaseUrl` rejects any cross-origin, query-bearing, or credential-bearing override. |
 | `react-quickstart` | `requires-host-fixture-service` | Was `requires-api-key`. No `VITE_HONUA_REACT_*` name is catalog-classified as a credential and its `mock-server.mjs` asserts no authorization header, so the catalog's `api-key` `authMode` describes a live lane a bundle cannot reach. |
@@ -371,7 +378,7 @@ Instead, `.github/workflows/ci.yml`:
 
 ## Discovery from the site projection
 
-`samples/dist/honua-site-samples.v2.json` (`generateSiteProjection` in
+`samples/dist/honua-site-samples.v3.json` (`generateSiteProjection` in
 `scripts/sample-contract.mjs`) carries a `sampleBundles` pointer -- format,
 the release/asset location above, the list of bundled sample IDs (kept in
 sync with `INCLUDED_SAMPLE_IDS`), a `published[]` list carrying each bundle's
@@ -383,13 +390,10 @@ already fetches the projection can find the manifest, state every runnable
 card's prerequisites, and explain every un-bundled card, without guessing a
 path, a prerequisite, or a reason.
 
-`sampleBundles.excluded` and `sampleBundles.published` are both optional in
-`site-projection.schema.json` (unlike `sample-bundles.schema.json`'s
-`excluded`, which is required) so that the currently-committed
-`samples/dist/honua-site-samples.v2.json` -- generated before the field
-existed and not resealed by a feature PR per the derived-artifact decoupling
-policy below -- stays schema-valid until the next scheduled
-`regenerate-derived-artifacts.yml` run picks it up.
+`sampleBundles.excluded` and `sampleBundles.published` remain optional in the
+projection schemas for compatibility. The committed v2 projection, v1
+handoff, and v3 consumer fixture remain byte-bound legacy artifacts; current
+generation emits the additive v3 projection, v2 handoff, and v4 fixture.
 
 ## Remaining scope
 

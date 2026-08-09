@@ -443,7 +443,7 @@ jobs:
         run: npm run demo:primitive-matrix
 
       - name: Kepler example audit
-        run: npm audit --prefix examples/kepler-analytics
+        run: node --test examples/kepler-analytics/test/audit.test.mjs && node examples/kepler-analytics/scripts/audit.mjs
 
       - name: Example builds
         run: npm run demo:examples:build:prepared

@@ -8,11 +8,13 @@ import {
   filterSiteConsumerCards,
   generateCapabilitySampleMatrix,
   generateGoldenJourneyVisualEvidence,
-  generateSiteConsumerFixtureV3,
+  generateSiteConsumerFixtureV4,
   generateSiteConsumerHandoff,
   generateSiteProjection,
   validateSiteConsumerFixtureV3,
+  validateSiteConsumerFixtureV4,
   validateSiteConsumerHandoff,
+  validateSiteProjection,
 } from "../scripts/sample-contract.mjs";
 import type {
   CapabilitySampleMatrix,
@@ -38,7 +40,7 @@ async function checkoutBoundHandoff(current: SiteConsumerHandoff): Promise<SiteC
   // PR CI validates the newly generated authority set and the committed,
   // internally bound projection independently until trunk regenerates them.
   if (!derivedArtifactsRelaxed) return current;
-  return readJson("samples/dist/honua-site-consumer-handoff.v1.json");
+  return readJson("samples/dist/honua-site-consumer-handoff.v2.json");
 }
 
 async function buildCanonicalInputs() {
@@ -52,7 +54,7 @@ async function buildCanonicalInputs() {
   const matrix = generateCapabilitySampleMatrix(catalog, packageJson, supportTruth, qualificationEvidence);
   const visualEvidence = await generateGoldenJourneyVisualEvidence(catalog, qualificationEvidence);
   const handoff = generateSiteConsumerHandoff(projection, matrix, visualEvidence);
-  const fixture = generateSiteConsumerFixtureV3(handoff);
+  const fixture = generateSiteConsumerFixtureV4(handoff);
   return {
     catalog,
     packageJson,
@@ -95,13 +97,13 @@ describe("honua-site consumer handoff", () => {
 
       await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
       await expect(validateSiteConsumerHandoff(committedHandoff)).resolves.toBeUndefined();
-      await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerFixtureV4(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
       expect(generateSiteConsumerHandoff(inputs.projection, inputs.matrix, inputs.visualEvidence)).toEqual(
         inputs.handoff,
       );
       expect(inputs.handoff).toMatchObject({
-        format: "honua.site.sdk-sample-consumer-handoff.v1",
-        schemaVersion: 1,
+        format: "honua.site.sdk-sample-consumer-handoff.v2",
+        schemaVersion: 2,
         ownership: {
           executableSourceOwner: "honua-io/honua-sdk-js",
           presentationOwner: "honua-io/honua-site",
@@ -193,18 +195,64 @@ describe("honua-site consumer handoff", () => {
     },
   );
 
+  it("keeps the v2 projection, v1 handoff, and v3 fixture valid for existing consumers", async () => {
+    const [projection, handoff, fixture] = await Promise.all([
+      readJson("samples/dist/honua-site-samples.v2.json"),
+      readJson("samples/dist/honua-site-consumer-handoff.v1.json"),
+      readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json"),
+    ]);
+
+    await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
+    await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    await expect(validateSiteConsumerFixtureV3(fixture, handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    const projectionSchemaBytes = await readFile(handoff.inputs.siteProjection.schemaPath, "utf8");
+    expect(handoff.inputs.siteProjection.schemaBytes).toBe(Buffer.byteLength(projectionSchemaBytes));
+    expect(handoff.inputs.siteProjection.schemaSha256).toBe(sha256(projectionSchemaBytes));
+    expect(projection).toMatchObject({ format: "honua.site.sdk-sample-projection.v2", schemaVersion: 2 });
+    expect(handoff).toMatchObject({ format: "honua.site.sdk-sample-consumer-handoff.v1", schemaVersion: 1 });
+    expect(fixture).toMatchObject({ format: "honua.site.sdk-sample-consumer-fixture.v3", schemaVersion: 3 });
+  });
+
+  it("publishes live-backed samples through v3 without forking catalog identities", async () => {
+    const [legacyProjection, projection, handoff, fixture] = await Promise.all([
+      readJson("samples/dist/honua-site-samples.v2.json"),
+      readJson("samples/dist/honua-site-samples.v3.json"),
+      readJson("samples/dist/honua-site-consumer-handoff.v2.json"),
+      readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json"),
+    ]);
+
+    await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
+    await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    await expect(validateSiteConsumerFixtureV4(fixture, handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    for (const sampleId of ["maplibre-quickstart", "service-explorer"]) {
+      expect(projection.sampleBundles.published).toContainEqual(
+        expect.objectContaining({ id: sampleId, runnability: "requires-live-endpoint" }),
+      );
+      expect(projection.sampleBundles.published).not.toContainEqual(
+        expect.objectContaining({ id: sampleId, runnability: "standalone" }),
+      );
+    }
+    expect(projection.samples.map((sample: { id: string }) => sample.id)).toEqual(
+      legacyProjection.samples.map((sample: { id: string }) => sample.id),
+    );
+    expect(projection.routes).toEqual(legacyProjection.routes);
+    expect(projection.samples.map((sample: { capabilityKeys: string[] }) => sample.capabilityKeys)).toEqual(
+      legacyProjection.samples.map((sample: { capabilityKeys: string[] }) => sample.capabilityKeys),
+    );
+  });
+
   it("content-binds the committed handoff, upstream artifacts, schemas, and consumer fixture", async () => {
     const inputs = await canonicalInputs();
-    const handoffBytes = await readFile("samples/dist/honua-site-consumer-handoff.v1.json", "utf8");
+    const handoffBytes = await readFile("samples/dist/honua-site-consumer-handoff.v2.json", "utf8");
     const committedHandoff = JSON.parse(handoffBytes) as SiteConsumerHandoff;
-    const fixtureBytes = await readFile("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json", "utf8");
+    const fixtureBytes = await readFile("samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json", "utf8");
     const committedFixture = JSON.parse(fixtureBytes);
 
     expect(inputs.packageJson.files).toEqual(
       expect.arrayContaining([
         "samples/dist",
         "samples/contract/v2/schemas",
-        "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
+        "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
       ]),
     );
     expect(handoffBytes).toBe(`${JSON.stringify(committedHandoff, null, 2)}\n`);
@@ -213,8 +261,8 @@ describe("honua-site consumer handoff", () => {
       expect(committedFixture).toEqual(inputs.fixture);
     }
     expect(committedFixture.input).toMatchObject({
-      path: "samples/dist/honua-site-consumer-handoff.v1.json",
-      schemaPath: "samples/contract/v2/schemas/site-consumer-handoff.schema.json",
+      path: "samples/dist/honua-site-consumer-handoff.v2.json",
+      schemaPath: "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json",
       bytes: Buffer.byteLength(handoffBytes),
       sha256: sha256(handoffBytes),
     });
@@ -460,7 +508,7 @@ describe("honua-site consumer handoff", () => {
 
     const fixtureDrift = structuredClone(inputs.fixture);
     fixtureDrift.filterCases[1].expectedSampleIds = [];
-    await expect(validateSiteConsumerFixtureV3(fixtureDrift, inputs.handoff)).rejects.toThrow(
+    await expect(validateSiteConsumerFixtureV4(fixtureDrift, inputs.handoff)).rejects.toThrow(
       "does not match the versioned handoff",
     );
 
@@ -683,7 +731,7 @@ describe("honua-site consumer handoff", () => {
       const publishable = await checkoutBoundHandoff(inputs.handoff);
 
       // Every published reference content-addresses its governing schema, including
-      // the handoff's own schema, which only the v3 fixture can reference.
+      // the handoff's own schema, which only the v4 fixture can reference.
       const references = [...Object.values(publishable.inputs), inputs.fixture.input];
       expect(references).toHaveLength(4);
       for (const reference of references) {
@@ -723,7 +771,7 @@ describe("honua-site consumer handoff", () => {
       const handoffSchemaOriginal = await readFile(handoffSchemaPath, "utf8");
       try {
         await writeFile(handoffSchemaPath, `${handoffSchemaOriginal.trimEnd()}\n\n`, "utf8");
-        await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).rejects.toThrow(
+        await expect(validateSiteConsumerFixtureV4(inputs.fixture, inputs.handoff)).rejects.toThrow(
           "fixture handoff schema definition changed without a version bump",
         );
       } finally {
@@ -750,7 +798,7 @@ describe("honua-site consumer handoff", () => {
       // Restored schemas publish cleanly again.
       await expect(validateSiteConsumerHandoff(publishable)).resolves.toBeUndefined();
       await expect(validateSiteConsumerHandoff(inputs.handoff, inputs)).resolves.toBeUndefined();
-      await expect(validateSiteConsumerFixtureV3(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
+      await expect(validateSiteConsumerFixtureV4(inputs.fixture, inputs.handoff)).resolves.toBeUndefined();
     },
   );
 
