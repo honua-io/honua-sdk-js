@@ -202,6 +202,11 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
     assert.match(workflow, /\["SDK CI","PR issue disposition","Schema sync gate","Security"\]/u);
     assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --watch --fail-fast/u);
+    const mergeWait = workflow.slice(
+      workflow.indexOf("- name: Merge validated regeneration PR"),
+      workflow.indexOf("- name: Dispatch strict trunk CI and docs validation"),
+    );
+    assert.match(mergeWait, /timeout-minutes: 50/u);
     assert.match(workflow, /current_trunk="\$\(git rev-parse refs\/remotes\/origin\/trunk\)"/u);
     assert.match(workflow, /gh pr merge "\$PR_NUMBER"[\s\S]*--merge[\s\S]*--match-head-commit "\$GENERATED"/u);
     assert.match(workflow, /gh workflow run regenerate-derived-artifacts\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u);
