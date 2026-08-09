@@ -76,8 +76,6 @@ const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence
 const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
   "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
 const LEGACY_SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
-const ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH =
-  "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json";
 const LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-handoff.schema.json";
 const LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH =
@@ -101,8 +99,6 @@ const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
 const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
-const SITE_CONSUMER_V2_FIXTURE_PATH =
-  "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
 const SITE_CONSUMER_V3_FIXTURE_PATH =
   "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
 const SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH =
@@ -184,18 +180,6 @@ const GOLDEN_VISUAL_GATE_ORDER = Object.freeze([
 ]);
 const GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS = 300;
 const GOLDEN_VISUAL_MAX_WINDOW_SECONDS = 7 * 24 * 60 * 60;
-// The one command that renews every golden-visual window this file enforces.
-// Named in the failure and in the pre-expiry note so an expiry never costs
-// anyone a bisect to find out what to run (honua-io/honua-sdk-js#1266 REQ-002).
-const GOLDEN_VISUAL_RENEWAL_COMMAND = "npm run samples:generate";
-const GOLDEN_VISUAL_RENEWAL_AUTOMATION =
-  "gh workflow run regenerate-derived-artifacts.yml --repo honua-io/honua-sdk-js";
-// A golden-visual window is renewed by an automation that runs every six hours
-// (.github/workflows/regenerate-derived-artifacts.yml), so a published window
-// should never get within a day of expiring while that automation is healthy.
-// Crossing this horizon is not yet a failure -- it is the note that says the
-// renewal path has stopped working, hours before the calendar wedges CI.
-const GOLDEN_VISUAL_RENEWAL_HORIZON_HOURS = 24;
 const SITE_CONSUMER_PUBLIC_TRACKS = Object.freeze(["golden", "recipe", "lab"]);
 const SITE_CONSUMER_FILTER_DIMENSIONS = Object.freeze([
   "task",
@@ -423,7 +407,6 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "25d",
   "ai-spatial-builder",
   "app-bootstrap",
-  "columnar-query",
   "coverages-wcs",
   "edit-workflow",
   "geocoding",
@@ -461,8 +444,6 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "demo:spatial-analytics:evidence",
   "test:migration:real-samples",
   "test:playwright:ai-spatial-builder",
-  "test:playwright:columnar-query",
-  "test:playwright:coverages-wcs",
   "test:playwright:geocoding",
   "test:playwright:imagery-cog",
   "test:playwright:incident",
@@ -473,7 +454,6 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:service-explorer",
   "test:playwright:sketch-editing",
   "test:playwright:spatial-analytics",
-  "test:playwright:stac-browser",
 ]);
 const BOUNDED_VALIDATION_SEGMENTS = [
   /^npm --prefix examples\/kepler-analytics run build$/,
@@ -3487,7 +3467,7 @@ export async function validateLiveEvidenceProducer(evidence, sample, options = {
     producer.path === binding.generatorPath,
     `${sample.id}: producer generator path for ${command} must be ${binding.generatorPath}`,
   );
-  const generatorBytes = await readFile(path.join(options.projectRoot ?? PROJECT_ROOT, producer.path));
+  const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
   if (options.relaxed !== true) {
     invariant(
       sha256(generatorBytes) === producer.sha256,
@@ -4922,7 +4902,7 @@ async function validateLegacyVisualReceiptArchiveEnvelope(archive, handoff, sche
   );
   await validateJsonSchema(archive, schemaPath);
   invariant(
-    archive.handoff.path === ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH &&
+    archive.handoff.path === LEGACY_SITE_CONSUMER_HANDOFF_PATH &&
       archive.handoff.format === handoff.format &&
       archive.handoff.schemaVersion === handoff.schemaVersion &&
       archive.handoff.sha256 === sha256(Buffer.from(stableJson(handoff))) &&
@@ -5239,111 +5219,32 @@ function validateGoldenVisualEvidenceOwnership(entry) {
   );
 }
 
-/** Whole-unit duration for humans: "3d 4h", "45m", "12s". */
-function formatDuration(milliseconds) {
-  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
-  if (minutes > 0) return `${minutes}m`;
-  return `${seconds}s`;
-}
-
-/**
- * Names the single reason one window is unacceptable, or null when it is fine.
- * Expiry (a renewal lapse nobody's branch caused) reads differently from an
- * inverted, over-long, or future-dated window (a real authoring defect), and
- * the caller needs the distinction to write a message someone can act on
- * (honua-io/honua-sdk-js#1266 REQ-002).
- */
-function goldenVisualWindowDefect(label, item, now) {
-  const observedAt = Date.parse(item.observedAt);
-  const expiresAt = Date.parse(item.expiresAt);
-  const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
-  const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
-  if (!Number.isFinite(observedAt) || !Number.isFinite(expiresAt)) {
-    return `${label} window has unparseable timestamps (observedAt=${item.observedAt}, expiresAt=${item.expiresAt})`;
-  }
-  if (expiresAt <= observedAt) {
-    return `${label} window ends before it starts (observedAt=${item.observedAt}, expiresAt=${item.expiresAt})`;
-  }
-  if (expiresAt - observedAt > maximumWindowMs) {
-    return `${label} window spans ${formatDuration(expiresAt - observedAt)}, longer than the ${formatDuration(maximumWindowMs)} policy maximum`;
-  }
-  if (observedAt > now + maximumFutureSkewMs) {
-    return `${label} was observed ${formatDuration(observedAt - now)} in the future (observedAt=${item.observedAt})`;
-  }
-  if (expiresAt <= now) {
-    return `${label} expired ${formatDuration(now - expiresAt)} ago (expiresAt=${item.expiresAt})`;
-  }
-  return null;
-}
-
 /**
  * Every freshness window a published golden entry advertises: the aggregate visual
  * window, each semantic gate receipt, and the live observation. Any expired member
  * means the card is no longer current (honua-io/honua-sdk-js#550).
- *
- * The failure names the offending window, why it is unacceptable, and the exact
- * command that renews it. An expiry is a renewal lapse, not a branch defect, and
- * the message used to say neither -- so a wall-clock detonation read as an
- * inscrutable red gate on somebody else's pull request (#1266).
  */
 function validateGoldenVisualEvidenceFreshness(entry, now = Date.now()) {
+  const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
+  const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
   const windows = [
-    { label: "aggregate visual evidence", observedAt: entry.observedAt, expiresAt: entry.expiresAt },
-    ...entry.semanticEvidence.map((semantic) => ({ ...semantic, label: `${semantic.gate} gate receipt` })),
-    {
-      label: "live observation",
-      observedAt: entry.liveEvidence.observedAt,
-      expiresAt: entry.liveEvidence.expiresAt,
-    },
+    { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
+    ...entry.semanticEvidence,
+    { observedAt: entry.liveEvidence.observedAt, expiresAt: entry.liveEvidence.expiresAt },
   ];
-  const defects = windows
-    .map((item) => goldenVisualWindowDefect(item.label, item, now))
-    .filter((defect) => defect !== null);
-  invariant(
-    defects.length === 0,
-    `${entry.sampleId}: visual evidence is stale or has an invalid freshness window -- ${defects.join("; ")}. ` +
-      `Renew it with \`${GOLDEN_VISUAL_RENEWAL_COMMAND}\` and commit the regenerated evidence, or let the ` +
-      `regeneration automation do it: \`${GOLDEN_VISUAL_RENEWAL_AUTOMATION}\``,
-  );
-  reportGoldenVisualRenewalHorizon(entry, windows, now);
-}
-
-// validateGoldenVisualEvidenceFreshness runs once per document per process and
-// several documents republish the same windows; report each distinct sample's
-// horizon once so the note stays readable.
-const reportedGoldenVisualHorizonNotes = new Set();
-
-/**
- * Pre-expiry note (honua-io/honua-sdk-js#1266 REQ-002). A published window that
- * is inside the renewal horizon is still valid, so this never fails a lane -- it
- * is the signal that the six-hourly regeneration has stopped renewing this
- * evidence, printed while there is still time to fix the automation instead of
- * discovering the lapse as a red gate on an unrelated pull request.
- */
-function reportGoldenVisualRenewalHorizon(entry, windows, now) {
-  const horizonMs = GOLDEN_VISUAL_RENEWAL_HORIZON_HOURS * 60 * 60 * 1000;
-  const soonest = windows
-    // A window whose whole span is shorter than the horizon is never judged
-    // against it: only the real seven-day receipt windows the regeneration is
-    // responsible for can be overdue for renewal.
-    .filter((item) => Date.parse(item.expiresAt) - Date.parse(item.observedAt) > horizonMs)
-    .map((item) => Date.parse(item.expiresAt))
-    .filter((expiresAt) => Number.isFinite(expiresAt))
-    .sort((left, right) => left - right)[0];
-  if (soonest === undefined || soonest - now > horizonMs) return;
-  const note =
-    `note: ${entry.sampleId}: golden visual evidence expires in ${formatDuration(soonest - now)} ` +
-    `(inside the ${GOLDEN_VISUAL_RENEWAL_HORIZON_HOURS}h renewal horizon). The six-hourly regeneration should have ` +
-    `renewed it already; renew it now with \`${GOLDEN_VISUAL_RENEWAL_COMMAND}\` or \`${GOLDEN_VISUAL_RENEWAL_AUTOMATION}\``;
-  if (reportedGoldenVisualHorizonNotes.has(note)) return;
-  reportedGoldenVisualHorizonNotes.add(note);
-  process.stdout.write(`${note}\n`);
+  for (const item of windows) {
+    const observedAt = Date.parse(item.observedAt);
+    const expiresAt = Date.parse(item.expiresAt);
+    invariant(
+      Number.isFinite(observedAt) &&
+        Number.isFinite(expiresAt) &&
+        observedAt <= now + maximumFutureSkewMs &&
+        expiresAt > now &&
+        expiresAt > observedAt &&
+        expiresAt - observedAt <= maximumWindowMs,
+      `${entry.sampleId}: visual evidence is stale or has an invalid freshness window`,
+    );
+  }
 }
 
 function validateGoldenVisualEvidenceEntries(visualEvidence, options = {}) {
@@ -6672,7 +6573,7 @@ function validateSiteConsumerCardIdentities(cards) {
  * verifiable from the handoff alone (honua-io/honua-sdk-js#550 golden-card receipt
  * enforcement).
  */
-function validateGoldenCardReceiptEnforcement(handoff, now = Date.now(), historical = false) {
+function validateGoldenCardReceiptEnforcement(handoff, now = Date.now()) {
   invariant(
     JSON.stringify(handoff.policy.qualifiedRequires) ===
       JSON.stringify(SITE_CONSUMER_QUALIFIED_REQUIREMENTS),
@@ -6697,7 +6598,7 @@ function validateGoldenCardReceiptEnforcement(handoff, now = Date.now(), histori
       `${card.id}: golden card visual receipt belongs to another journey or sample`,
     );
     validateGoldenVisualEvidenceOwnership(visual);
-    validateGoldenVisualEvidenceFreshness(visual, historical ? Date.parse(visual.observedAt) : now);
+    validateGoldenVisualEvidenceFreshness(visual, now);
     const gates = new Map(visual.semanticEvidence.map((entry) => [entry.gate, entry]));
     if (requirements.has("source")) {
       invariant(
@@ -7140,7 +7041,7 @@ async function validateSiteConsumerArtifactInput(reference, label, archivedArtif
  * Two layers, and only the second is load-bearing. `$id`, `format`, and
  * `schemaVersion` catch a reference pointed at the wrong or a renamed schema, but a
  * schema under inspection declares them about itself, so they cannot detect a schema
- * edited in place while keeping its version â€” the exact no-version-bump case. The
+ * edited in place while keeping its version — the exact no-version-bump case. The
  * recomputed byte digest can, so it fails publication whether the edit weakened a
  * constraint or only reformatted the file.
  *
@@ -7288,7 +7189,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
   invariant(cardById.size === handoff.cards.length, "site consumer handoff card IDs must be unique");
   validateSiteConsumerCardIdentities(handoff.cards);
-  validateGoldenCardReceiptEnforcement(handoff, Date.now(), archivedReceipts !== undefined);
+  validateGoldenCardReceiptEnforcement(handoff);
   if (inputs.verifyCheckout !== false) {
     for (const [name, reference] of Object.entries(handoff.inputs)) {
       await validateSiteConsumerSchemaBinding(reference, `site consumer ${name}`);
@@ -7463,58 +7364,6 @@ export function generateSiteConsumerFixtureV3(handoff) {
     handoffPath: LEGACY_SITE_CONSUMER_HANDOFF_PATH,
     handoffSchemaPath: LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH,
   });
-}
-
-export function generateSiteConsumerFixtureV2(projection) {
-  invariant(
-    projection.format === "honua.site.sdk-sample-projection.v2" && projection.schemaVersion === 2,
-    "site consumer fixture v2 requires projection v2",
-  );
-  const samples = Array.isArray(projection.samples) ? projection.samples : [];
-  const journeys = Array.isArray(projection.goldenJourneys) ? projection.goldenJourneys : [];
-  const routes = Array.isArray(projection.routes) ? projection.routes : [];
-  const sampleIds = samples.map((sample) => sample.id);
-  const routeIds = routes.map((route) => route.id);
-  const representativeRoutes = ["quickstart-map", "public-safety", "two-protocols"];
-  invariant(
-    representativeRoutes.every((routeId) => routeIds.includes(routeId)),
-    "site consumer fixture v2 representative route is absent from the projection",
-  );
-  return {
-    format: "honua.site.sdk-sample-consumer-fixture.v2",
-    schemaVersion: 2,
-    accepts: {
-      projectionFormat: projection.format,
-      projectionSchemaVersion: projection.schemaVersion,
-      catalogFormat: projection.catalog.format,
-      catalogSchemaVersion: projection.catalog.schemaVersion,
-    },
-    input: {
-      path: LEGACY_SITE_PROJECTION_PATH,
-      schemaPath: LEGACY_SITE_PROJECTION_SCHEMA_PATH,
-      sha256: sha256(stableJson(projection)),
-    },
-    assertions: {
-      sampleCount: samples.length,
-      rootExampleCount: samples.filter((sample) => sample.sourceKind === "root-example").length,
-      docsExampleCount: samples.filter((sample) => sample.sourceKind === "docs-example").length,
-      goldenJourneyCount: journeys.length,
-      qualifiedGoldenCount: journeys.filter((journey) => journey.status === "qualified").length,
-      routeCount: routes.length,
-      sampleBundleCount: Array.isArray(projection.sampleBundles?.sampleIds)
-        ? projection.sampleBundles.sampleIds.length
-        : 0,
-      sampleIdsUnique: new Set(sampleIds).size === sampleIds.length,
-      routeIdsUnique: new Set(routeIds).size === routeIds.length,
-      routesEndInHtml: routes.every(
-        (route) => typeof route.route === "string" && route.route.endsWith(".html"),
-      ),
-      executableSourceOwner: projection.contract.executableSourceOwner,
-      presentationOwner: projection.contract.presentationOwner,
-      credentialValuesForbidden: true,
-    },
-    representativeRoutes,
-  };
 }
 
 export function generateSiteConsumerFixtureV4(handoff) {
@@ -7720,7 +7569,7 @@ function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = [])
     "",
     "This inventory is generated from [`samples/catalog.v2.json`](../../samples/catalog.v2.json). Do not edit it by hand.",
     "",
-    `Catalog contract: \`${catalog.format}\` Â· SDK: \`${packageJson.name}\` (effective version derived from \`package.json\`) Â· ${catalog.samples.length} executable examples`,
+    `Catalog contract: \`${catalog.format}\` · SDK: \`${packageJson.name}\` (effective version derived from \`package.json\`) · ${catalog.samples.length} executable examples`,
     "",
     "## Golden journey readiness",
     "",
@@ -7805,10 +7654,6 @@ export async function collectReleaseMatrixLanes(catalog, options = {}) {
 export async function generatedOutputs(catalog, packageJson, options = {}) {
   const readme = await readFile(path.join(PROJECT_ROOT, "README.md"), "utf8");
   const projection = generateSiteProjection(catalog, packageJson);
-  const legacyProjection = structuredClone(projection);
-  legacyProjection.format = "honua.site.sdk-sample-projection.v2";
-  legacyProjection.schemaVersion = 2;
-  delete legacyProjection.sampleBundles;
   const ciSelection = generateCiSelection(catalog);
   const supportTruth = options.supportTruth ?? (await readJson(SUPPORT_TRUTH_PATH));
   // Publication is intentionally anchored to the canonical evidence root. Tests inject
@@ -7827,10 +7672,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     verifyCheckout: options.verifyCheckout,
   });
   const handoff = generateSiteConsumerHandoff(projection, capabilityMatrix, visualEvidence);
-  const legacyHandoff = generateSiteConsumerHandoff(legacyProjection, capabilityMatrix, visualEvidence);
-  const legacyConsumerFixtureV2 = generateSiteConsumerFixtureV2(legacyProjection);
   const consumerFixtureV4 = generateSiteConsumerFixtureV4(handoff);
-  const legacyConsumerFixtureV3 = generateSiteConsumerFixtureV3(legacyHandoff);
   await validateSiteConsumerHandoff(handoff, {
     projection,
     matrix: capabilityMatrix,
@@ -7844,122 +7686,28 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   await validateSiteConsumerFixtureV4(consumerFixtureV4, handoff, {
     verifyCheckout: options.verifyCheckout,
   });
-  await validateSiteProjection(legacyProjection);
-  await validateSiteConsumerHandoff(legacyHandoff, {
-    projection: legacyProjection,
-    matrix: capabilityMatrix,
-    visualEvidence,
-    catalog,
-    packageJson,
-    supportTruth,
-    qualificationEvidence,
-    verifyCheckout: options.verifyCheckout,
-  });
-  await validateSiteConsumerFixtureV3(legacyConsumerFixtureV3, legacyHandoff, {
-    verifyCheckout: options.verifyCheckout,
-  });
-  const [archivedLegacyHandoff, legacyReceiptArchive] = await Promise.all([
-    readJson(ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH),
+  const [legacyProjection, legacyHandoff, legacyConsumerFixtureV3, legacyReceiptArchive] = await Promise.all([
+    readJson(LEGACY_SITE_PROJECTION_PATH),
+    readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH),
+    readJson(SITE_CONSUMER_V3_FIXTURE_PATH),
     readJson(LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH),
   ]);
-  await validateSiteConsumerHandoff(archivedLegacyHandoff, { legacyReceiptArchive });
-  const outputs = new Map([
+  await validateSiteProjection(legacyProjection);
+  await validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive });
+  await validateSiteConsumerFixtureV3(legacyConsumerFixtureV3, legacyHandoff);
+  return new Map([
     [
       GENERATED_CATALOG_PATH,
       generatedCatalogMarkdown(catalog, packageJson, await collectReleaseMatrixLanes(catalog, options)),
     ],
-    [LEGACY_SITE_PROJECTION_PATH, stableJson(legacyProjection)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
-    [LEGACY_SITE_CONSUMER_HANDOFF_PATH, stableJson(legacyHandoff)],
     [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
-    [SITE_CONSUMER_V2_FIXTURE_PATH, stableJson(legacyConsumerFixtureV2)],
-    [SITE_CONSUMER_V3_FIXTURE_PATH, stableJson(legacyConsumerFixtureV3)],
     [SITE_CONSUMER_V4_FIXTURE_PATH, stableJson(consumerFixtureV4)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
-  // Deliberately not conditioned on options.verifyCheckout: this scans the
-  // committed contract tree, not the evidence artifacts a relaxed lane skips,
-  // and the relaxed pull-request lane is exactly where the next unrenewable
-  // window would otherwise be introduced unnoticed.
-  await validateGoldenVisualFreshnessRenewability(outputs);
-  return outputs;
-}
-
-// Committed documents that publish golden-visual freshness windows but are NOT
-// regenerated: frozen compatibility copies whose windows are validated against
-// their own observedAt (historical mode), never against the wall clock. Nothing
-// renews these, and nothing has to.
-const ARCHIVED_GOLDEN_VISUAL_FRESHNESS_PATHS = Object.freeze([
-  ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH,
-  LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH,
-  LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH,
-]);
-const GOLDEN_VISUAL_FRESHNESS_SCAN_ROOTS = Object.freeze([
-  "samples/dist",
-  "samples/contract/v2/consumer-fixtures",
-]);
-
-export function publishesGoldenVisualWindow(value) {
-  if (Array.isArray(value)) return value.some((item) => publishesGoldenVisualWindow(item));
-  if (!value || typeof value !== "object") return false;
-  for (const [key, nested] of Object.entries(value)) {
-    if (key === "visualEvidence" || key === "qualifiedGoldenJourneys") return true;
-    if (publishesGoldenVisualWindow(nested)) return true;
-  }
-  return false;
-}
-
-/**
- * The candidate documents -- already narrowed to the ones that are neither
- * regenerated nor registered as archives -- that publish a golden-visual window
- * anyway. Pure, so the rule is testable without writing a time bomb into the
- * real contract tree.
- */
-export function unrenewableGoldenVisualPaths(documents) {
-  return [...documents]
-    .filter(([, document]) => publishesGoldenVisualWindow(document))
-    .map(([relativePath]) => relativePath)
-    .sort();
-}
-
-/**
- * The structural half of honua-io/honua-sdk-js#1266.
- *
- * `samples/dist/honua-site-consumer-handoff.v1.json` published golden-visual
- * windows, was validated against the wall clock like every other current
- * document, and was the one such document `samples:generate` did not rewrite --
- * it was read back from disk and republished unchanged. Nothing renewed it, so
- * seven days after the observation that produced it, it expired and took the
- * whole sample-publication gate (and with it, every pull request's test signal)
- * down. #1258 made it a regenerated output; this gate is what stops the next
- * one from being added.
- *
- * Every committed document carrying a golden-visual window must therefore be
- * either regenerated here -- and so renewed on every regeneration pass -- or
- * explicitly registered as an archived copy that is validated historically. A
- * new document that is neither fails now, at authoring time, instead of a week
- * later on somebody else's branch.
- */
-async function validateGoldenVisualFreshnessRenewability(outputs) {
-  const documents = new Map();
-  for (const root of GOLDEN_VISUAL_FRESHNESS_SCAN_ROOTS) {
-    for (const relativePath of await walkFiles(root)) {
-      if (!relativePath.endsWith(".json")) continue;
-      if (outputs.has(relativePath) || ARCHIVED_GOLDEN_VISUAL_FRESHNESS_PATHS.includes(relativePath)) continue;
-      documents.set(relativePath, await readJson(relativePath));
-    }
-  }
-  const unrenewable = unrenewableGoldenVisualPaths(documents);
-  invariant(
-    unrenewable.length === 0,
-    `${unrenewable.join(", ")} publishes golden visual freshness windows that nothing renews: the file is ` +
-      `neither regenerated by \`${GOLDEN_VISUAL_RENEWAL_COMMAND}\` nor registered in ` +
-      `ARCHIVED_GOLDEN_VISUAL_FRESHNESS_PATHS as a historically validated archive. A window nobody renews expires ` +
-      `on the calendar and wedges the sample publication gate (honua-io/honua-sdk-js#1266)`,
-  );
 }
 
 export function generatedOutputDrift(expectedOutputs, currentOutputs) {
@@ -8263,7 +8011,7 @@ async function main(argv) {
   const [command = "check", ...args] = argv;
   if (command === "archive-legacy-visual-receipts") {
     invariant(args.length === 0, "archive-legacy-visual-receipts does not accept arguments");
-    const handoff = await readJson(ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH);
+    const handoff = await readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH);
     const archive = await generateLegacyVisualReceiptArchive(handoff);
     await validateLegacyVisualReceiptArchive(archive, handoff);
     await mkdir(path.dirname(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH)), { recursive: true });

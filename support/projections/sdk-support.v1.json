@@ -5,7 +5,7 @@
   "generatedFrom": "config/support-manifest.v1.json",
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.1.7-beta.0",
+    "version": "0.1.4-beta.0",
     "releaseStatus": "beta"
   },
   "statusVocabulary": [
@@ -532,10 +532,7 @@
           "protocolIds": [
             "pmtiles"
           ],
-          "supportClaimIds": [
-            "pmtiles-discovery-client-only",
-            "pmtiles-managed-lifecycle-honua-facade"
-          ],
+          "supportClaimIds": [],
           "external": false
         },
         "s3": {
@@ -769,18 +766,6 @@
       "freshnessPolicy": "release-gated"
     },
     {
-      "id": "coverages-wcs-browser",
-      "kind": "integration",
-      "path": "test/playwright/coverages-wcs-basic.spec.mjs",
-      "freshnessPolicy": "release-gated"
-    },
-    {
-      "id": "unified-raster-fixtures",
-      "kind": "fixture",
-      "path": "test/unified-raster.test.ts",
-      "freshnessPolicy": "release-gated"
-    },
-    {
       "id": "ogc-records-fixtures",
       "kind": "fixture",
       "path": "test/connect-ogc.test.ts",
@@ -802,24 +787,6 @@
       "id": "stac-fixtures",
       "kind": "fixture",
       "path": "test/contract/stac-backend-agnostic.test.ts",
-      "freshnessPolicy": "release-gated"
-    },
-    {
-      "id": "stac-workflow-fixtures",
-      "kind": "fixture",
-      "path": "test/stac-workflow.test.ts",
-      "freshnessPolicy": "release-gated"
-    },
-    {
-      "id": "stac-browser-product-fixtures",
-      "kind": "fixture",
-      "path": "test/stac-imagery-browser.test.ts",
-      "freshnessPolicy": "release-gated"
-    },
-    {
-      "id": "stac-browser-product-playwright",
-      "kind": "integration",
-      "path": "test/playwright/stac-imagery-browser.spec.mjs",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -859,12 +826,6 @@
       "freshnessPolicy": "release-gated"
     },
     {
-      "id": "pmtiles-lifecycle-fixtures",
-      "kind": "fixture",
-      "path": "test/pmtiles-lifecycle.test.ts",
-      "freshnessPolicy": "release-gated"
-    },
-    {
       "id": "geoparquet-fixtures",
       "kind": "fixture",
       "path": "test/geoparquet-source.test.ts",
@@ -874,18 +835,6 @@
       "id": "geoparquet-connect-fixtures",
       "kind": "fixture",
       "path": "test/connect-geoparquet.test.ts",
-      "freshnessPolicy": "release-gated"
-    },
-    {
-      "id": "columnar-workflow-contract",
-      "kind": "fixture",
-      "path": "test/columnar-workflow.test.ts",
-      "freshnessPolicy": "release-gated"
-    },
-    {
-      "id": "columnar-workflow-honua-arrow-interop",
-      "kind": "fixture",
-      "path": "test/columnar-workflow-honua-arrow.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -1770,8 +1719,7 @@
           "executionMode": "native",
           "status": "experimental",
           "evidence": [
-            "coverages-wcs-fixtures",
-            "coverages-wcs-browser"
+            "coverages-wcs-fixtures"
           ]
         }
       ],
@@ -1781,7 +1729,7 @@
         "temporal": [
           "source-dimension"
         ],
-        "notes": "Coverage axes and datetime are explicit subset dimensions, not feature predicates. Release-gated browser evidence is fixture-only; no anonymous live canary exists."
+        "notes": "Coverage axes and datetime are explicit subset dimensions, not feature predicates."
       }
     },
     {
@@ -1797,8 +1745,7 @@
           "executionMode": "native",
           "status": "experimental",
           "evidence": [
-            "coverages-wcs-fixtures",
-            "coverages-wcs-browser"
+            "coverages-wcs-fixtures"
           ]
         }
       ],
@@ -1808,7 +1755,7 @@
         "temporal": [
           "source-dimension"
         ],
-        "notes": "WCS SUBSET/DATETIME dimensions are explicit coverage constraints. Release-gated browser evidence is fixture-only; no anonymous live canary exists."
+        "notes": "WCS SUBSET/DATETIME dimensions are explicit coverage constraints."
       }
     }
   ],
@@ -1903,31 +1850,12 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
-      "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol(), @honua/sdk-js/raster",
-      "notes": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; the experimental raster facade adds bounded bbox rendering, explicit one-based band selection, identify, and presentation handoffs without inventing statistics endpoints.",
+      "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol()",
+      "notes": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor.",
       "evidence": [
         "geoservices-discovery-fixtures",
         "geoservices-conformance",
-        "image-service-integration",
-        "unified-raster-fixtures"
-      ]
-    },
-    {
-      "id": "unified-raster-direct-cog-client-only",
-      "label": "Unified bounded direct COG operations",
-      "operations": [
-        "discovery",
-        "render",
-        "image"
-      ],
-      "environment": "client-only",
-      "executionMode": "native",
-      "status": "experimental",
-      "backendNeeded": "A static host with exact HTTP Range and readable CORS headers plus a caller-injected structural COG decoder",
-      "api": "@honua/sdk-js/raster",
-      "notes": "Consumes the dynamic STAC COG handoff or an explicit COG media type, structurally validates the object, enforces byte/range/pixel budgets, and provides bounded windows, one-based bands, statistics, histograms, value inspection, progress, cancellation, and MapLibre mounting.",
-      "evidence": [
-        "unified-raster-fixtures"
+        "image-service-integration"
       ]
     },
     {
@@ -2123,27 +2051,6 @@
       ]
     },
     {
-      "id": "dynamic-stac-workflow-client-only",
-      "label": "Dynamic STAC search and cloud-native asset selection",
-      "protocol": "stac",
-      "operations": [
-        "discovery",
-        "query",
-        "stream"
-      ],
-      "environment": "client-only",
-      "executionMode": "native",
-      "status": "experimental",
-      "backendNeeded": "Any STAC API; executable assets additionally require the compatible PMTiles, COG, columnar, or runtime client surface",
-      "api": "@honua/sdk-js/stac",
-      "notes": "Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. The walkthrough executes authenticated, byte-bounded PMTiles v3 inspection with redacted range evidence, but does not mount the archive as a tile source; pmtiles-static remains renderer proof. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable.",
-      "evidence": [
-        "stac-workflow-fixtures",
-        "stac-browser-product-fixtures",
-        "stac-browser-product-playwright"
-      ]
-    },
-    {
       "id": "odata-standalone",
       "label": "OData v4",
       "protocol": "odata",
@@ -2185,27 +2092,6 @@
       ]
     },
     {
-      "id": "pmtiles-managed-lifecycle-honua-facade",
-      "label": "PMTiles managed publish lifecycle",
-      "protocol": "pmtiles",
-      "operations": [
-        "tiles"
-      ],
-      "environment": "honua-facade",
-      "executionMode": "facade",
-      "status": "experimental",
-      "backendNeeded": "Honua Server tile operations with configured cloud file storage",
-      "serverAttach": {
-        "disposition": "inherent",
-        "rationale": "Archive and publish jobs create artifacts through Honua Server tile operations and configured cloud storage. Direct archive discovery remains the open-endpoint alternative and does not require server attach."
-      },
-      "api": "@honua/sdk-js/pmtiles inspectPmtilesArchive(), createHonuaPmtilesLifecycle(), registerPmtilesSource()",
-      "notes": "Submits archive/publish jobs, bounds typed status polling, cancels work, validates public/signed/range-proxy access semantics, and exposes direct versus managed descriptors. Evidence is contract-only; no pinned managed live canary is claimed, and manual managed artifact deletion is unavailable.",
-      "evidence": [
-        "pmtiles-lifecycle-fixtures"
-      ]
-    },
-    {
       "id": "geoparquet-discovery-client-only",
       "label": "GeoParquet asset discovery",
       "protocol": "geoparquet",
@@ -2220,48 +2106,6 @@
       "notes": "Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver.",
       "evidence": [
         "geoparquet-connect-fixtures"
-      ]
-    },
-    {
-      "id": "columnar-workflow-direct-geoparquet-client-only",
-      "label": "Bounded direct GeoParquet columnar workflow",
-      "protocol": "geoparquet",
-      "operations": [
-        "query",
-        "queryAggregate",
-        "stream"
-      ],
-      "environment": "client-only",
-      "executionMode": "native",
-      "status": "experimental",
-      "backendNeeded": "None; a range-readable GeoParquet object and optional DuckDB-WASM peer",
-      "api": "@honua/sdk-js/columnar-workflow",
-      "notes": "Inspects and queries a structurally validated GeoParquet source with explicit row, batch, transfer-byte, and backing-memory ceilings; worker, render, table, and download boundaries remain explicit.",
-      "evidence": [
-        "geoparquet-fixtures",
-        "columnar-workflow-contract"
-      ]
-    },
-    {
-      "id": "columnar-workflow-honua-query-results",
-      "label": "Honua Arrow and Parquet feature-query results",
-      "operations": [
-        "query",
-        "stream"
-      ],
-      "environment": "honua-facade",
-      "executionMode": "facade",
-      "status": "experimental",
-      "backendNeeded": "Honua Server deployment that advertises Arrow or Parquet FeatureServer query output",
-      "serverAttach": {
-        "disposition": "inherent",
-        "rationale": "The f=arrow and f=parquet result formats are Honua FeatureServer extensions. The direct-object equivalent is the separate client-only GeoParquet claim, while this claim intentionally requires a deployment that advertises the response contract."
-      },
-      "api": "@honua/sdk-js/columnar-workflow",
-      "notes": "Builds bounded GET or POST queries through the normal request pipeline. The built-in Arrow decoder is fixture-proven against an exact Honua Server geoarrow.wkb artifact for a Binary/LargeBinary Point/LineString/Polygon XY/XYZ subset plus object-id, UTF-8/dictionary, and timestamp fields. BinaryView, broader Arrow schemas, and all Parquet responses require an injected decoder. No live status is claimed without a demo-manifest target.",
-      "evidence": [
-        "columnar-workflow-contract",
-        "columnar-workflow-honua-arrow-interop"
       ]
     },
     {
@@ -2315,12 +2159,10 @@
       "executionMode": "native",
       "status": "experimental",
       "backendNeeded": "Any compatible OGC API Coverages server",
-      "api": "@honua/sdk-js/coverages createCoverageClient(), CoverageSource, @honua/sdk-js/raster",
-      "notes": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. A strict standalone browser fixture proves named properties, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists.",
+      "api": "@honua/sdk-js/coverages createCoverageClient(), CoverageSource",
+      "notes": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline.",
       "evidence": [
-        "coverages-wcs-fixtures",
-        "coverages-wcs-browser",
-        "unified-raster-fixtures"
+        "coverages-wcs-fixtures"
       ]
     },
     {
@@ -2335,12 +2177,10 @@
       "executionMode": "native",
       "status": "experimental",
       "backendNeeded": "Any compatible WCS 2.0.1 KVP endpoint",
-      "api": "@honua/sdk-js/coverages createWcsClient(), @honua/sdk-js/raster",
-      "notes": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. A strict standalone browser fixture proves named RANGESUBSET, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists.",
+      "api": "@honua/sdk-js/coverages createWcsClient()",
+      "notes": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions.",
       "evidence": [
-        "coverages-wcs-fixtures",
-        "coverages-wcs-browser",
-        "unified-raster-fixtures"
+        "coverages-wcs-fixtures"
       ]
     },
     {
@@ -2946,27 +2786,11 @@
         "status": "experimental"
       },
       {
-        "subpath": "./pmtiles",
-        "status": "experimental"
-      },
-      {
-        "subpath": "./stac",
-        "status": "experimental"
-      },
-      {
-        "subpath": "./raster",
-        "status": "experimental"
-      },
-      {
         "subpath": "./coverages",
         "status": "experimental"
       },
       {
         "subpath": "./geoparquet",
-        "status": "experimental"
-      },
-      {
-        "subpath": "./columnar-workflow",
         "status": "experimental"
       },
       {
@@ -3027,14 +2851,6 @@
       },
       {
         "subpath": "./routing",
-        "status": "experimental"
-      },
-      {
-        "subpath": "./interactions/declarative",
-        "status": "experimental"
-      },
-      {
-        "subpath": "./studio-agent",
         "status": "experimental"
       },
       {

@@ -1,19 +1,6 @@
 # Read multidimensional coverages with OGC API Coverages and WCS
 
-> **Maturity: experimental.** The standalone fixture is release-gated in a real browser, but there is no reviewed anonymous live OGC API Coverages or WCS canary. [Issue #1115](https://github.com/honua-io/honua-sdk-js/issues/1115) remains open until scheduled bounded interoperability evidence exists.
-
 Use `@honua/sdk-js/coverages` when the output is a raster value grid rather than vector features or a pre-rendered map. The client keeps protocol details explicit and uses the same `HonuaClient` request pipeline as the rest of the SDK.
-
-## Run the qualified standalone example
-
-[`examples/coverages-wcs-basic`](../../examples/coverages-wcs-basic/README.md) executes both real clients against a strict committed transport, renders their PNG results through the same MapLibre image-source helper, and exposes cancellation and structured WCS degradation without a live fallback.
-
-```bash
-npm run demo:coverages-wcs
-npm run test:playwright:coverages-wcs
-```
-
-The example's `fixtureFetch` rejects every unexpected origin. Its browser test separately blocks and records any escaped HTTP request, so the fixture qualification cannot silently become a network-dependent demo. This proves the bundle and developer workflow; it does not claim real-server interoperability.
 
 ## Choose the right raster path
 
@@ -95,7 +82,7 @@ The WCS client supports GetCapabilities, DescribeCoverage, GetCoverage, repeated
 
 ## Display a browser image
 
-`coverageToMapLibreImage()` converts a PNG/JPEG response and bbox into a MapLibre image source plus raster layer descriptor. The qualified example passes both the OGC `properties=elevation` response and WCS `RANGESUBSET=elevation` response through this helper, then switches the mounted source without changing presentation code. Dispose each object URL when the map or layer is removed. GeoTIFF remains a data result; render it with the COG/raster pipeline or request PNG from the service.
+`coverageToMapLibreImage()` converts a PNG/JPEG response and bbox into a MapLibre image source plus raster layer descriptor. Dispose its object URL when the map or layer is removed. GeoTIFF remains a data result; render it with the COG/raster pipeline or request PNG from the service.
 
 ## Discovery integration status
 
