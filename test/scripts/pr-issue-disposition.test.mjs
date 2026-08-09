@@ -207,6 +207,23 @@ describe("pull request issue disposition policy", () => {
       workflow.indexOf("- name: Dispatch strict trunk CI and docs validation"),
     );
     assert.match(mergeWait, /timeout-minutes: 50/u);
+    assert.doesNotMatch(mergeWait, /--auto/u);
+    const boundedRequiredCheckWait = mergeWait.indexOf(
+      'gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --watch',
+    );
+    const postWaitPrRead = mergeWait.indexOf('post_wait_pr="$(gh pr view');
+    const postWaitTopologyRead = mergeWait.indexOf(
+      'git merge-base --is-ancestor "$GITHUB_SHA" "$GENERATED"',
+    );
+    const immediateMerge = mergeWait.indexOf('gh pr merge "$PR_NUMBER"');
+    assert.ok(boundedRequiredCheckWait >= 0);
+    assert.ok(postWaitPrRead > boundedRequiredCheckWait);
+    assert.ok(postWaitTopologyRead > postWaitPrRead);
+    assert.ok(immediateMerge > postWaitTopologyRead);
+    assert.match(mergeWait, /\.headRefOid/u);
+    assert.match(mergeWait, /\.baseRefOid/u);
+    assert.match(mergeWait, /post_wait_base_ref" != "trunk"/u);
+    assert.match(mergeWait, /--match-head-commit "\$GENERATED"/u);
     assert.match(workflow, /current_trunk="\$\(git rev-parse refs\/remotes\/origin\/trunk\)"/u);
     assert.match(workflow, /gh pr merge "\$PR_NUMBER"[\s\S]*--merge[\s\S]*--match-head-commit "\$GENERATED"/u);
     assert.match(workflow, /gh workflow run regenerate-derived-artifacts\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u);

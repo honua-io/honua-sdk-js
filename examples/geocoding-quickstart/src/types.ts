@@ -1,15 +1,9 @@
-export type GeocodingQuickstartMode = "fixture-safe" | "live";
-
 export interface GeocodingQuickstartConfig {
   readonly honuaBaseUrl: string;
-  readonly apiKey?: string;
-  readonly bearerToken?: string;
   readonly locatorName: string;
   readonly initialQuery: string;
-  readonly countryCodes?: string;
   readonly maxResults: number;
-  readonly maxSuggestions: number;
-  readonly mode: GeocodingQuickstartMode;
+  readonly mode: "fixture-only";
 }
 
 export interface GeocodingAuditRow {
@@ -21,12 +15,13 @@ export interface GeocodingAuditRow {
 }
 
 export interface GeocodingPointFeatureProperties {
-  readonly kind: "forward" | "reverse";
+  readonly kind: "forward";
+  readonly index: number;
   readonly address: string;
   readonly subtitle: string;
   readonly latitude: number;
   readonly longitude: number;
-  readonly score?: number;
+  readonly score: number;
 }
 
 export interface GeocodingPointFeature {

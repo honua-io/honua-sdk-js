@@ -935,6 +935,36 @@ jobs:
             sleep 10
           done
           gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --watch --fail-fast --interval 10
+
+          # GENERATED passed the commit-subject and changed-path allowlists before
+          # publication. Rebind the still-open same-repository PR and its remote
+          # branch to that immutable approved commit after the bounded check wait.
+          post_wait_pr="$(gh pr view "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json state,headRefName,headRefOid,baseRefName,baseRefOid)"
+          post_wait_state="$(jq -r '.state' <<<"$post_wait_pr")"
+          post_wait_head_ref="$(jq -r '.headRefName' <<<"$post_wait_pr")"
+          post_wait_head="$(jq -r '.headRefOid' <<<"$post_wait_pr")"
+          post_wait_base_ref="$(jq -r '.baseRefName' <<<"$post_wait_pr")"
+          post_wait_base="$(jq -r '.baseRefOid' <<<"$post_wait_pr")"
+          expected_head_ref="automation/derived-artifacts-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ "$post_wait_state" != "OPEN" || \
+                "$post_wait_head_ref" != "$expected_head_ref" || \
+                "$post_wait_head" != "$GENERATED" || \
+                "$post_wait_base_ref" != "trunk" || \
+                "$post_wait_base" != "$GITHUB_SHA" ]]; then
+            echo "Regeneration PR #$PR_NUMBER drifted after validation."
+            exit 1
+          fi
+          git fetch origin \
+            "refs/heads/$post_wait_head_ref:refs/remotes/origin/$post_wait_head_ref"
+          remote_generated="$(git rev-parse "refs/remotes/origin/$post_wait_head_ref")"
+          if [[ "$remote_generated" != "$GENERATED" ]] || \
+             ! git merge-base --is-ancestor "$GITHUB_SHA" "$GENERATED"; then
+            echo "Regeneration PR #$PR_NUMBER no longer has the approved generated topology."
+            exit 1
+          fi
+
           git fetch origin trunk
           current_trunk="$(git rev-parse refs/remotes/origin/trunk)"
           if [[ "$current_trunk" != "$GITHUB_SHA" ]]; then

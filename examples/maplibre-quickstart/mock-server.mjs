@@ -11,7 +11,7 @@ const projectRoot = path.resolve(exampleRoot, "../..");
 const distRoot = path.resolve(exampleRoot, "dist");
 
 export const FIXTURE_BUILD_ENV = {
-  VITE_HONUA_QUICKSTART_ENDPOINT: "",
+  VITE_HONUA_QUICKSTART_ENDPOINT: "honua:first-map-fixture",
   VITE_HONUA_QUICKSTART_PROTOCOL: "auto",
   VITE_HONUA_QUICKSTART_WHERE: "1=1",
   VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: "25",

@@ -815,6 +815,42 @@ test("live receipts bind the reviewed command to exactly its reviewed producer",
     observedAt,
   });
   assert.equal(receipt.status, "passed");
+
+  const staleProducerEvidence = structuredClone(evidence);
+  staleProducerEvidence.artifacts[0].sha256 = "0".repeat(64);
+  const staleProducerEvidencePath = await artifact(
+    "stale-reviewed-producer-evidence.json",
+    staleProducerEvidence,
+    targetSampleId,
+  );
+  const staleProducerReportPath = await artifact(
+    "stale-reviewed-producer-live-report.json",
+    {
+      format: "honua.sdk.sample-live-gate.v1",
+      sampleId: targetSampleId,
+      sourceRevision: revision,
+      command,
+      evidencePath: staleProducerEvidencePath,
+      evidence: staleProducerEvidence,
+    },
+    targetSampleId,
+  );
+  const staleProducerOptions = {
+    ...receiptOptions("live", "live-evidence-report", staleProducerReportPath, targetSampleId),
+    command,
+    observedAt,
+  };
+  const previousRelax = process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+  try {
+    process.env.HONUA_DERIVED_ARTIFACTS_RELAX = "";
+    await assert.rejects(createGateReceipt(staleProducerOptions), /producer generator digest drift/);
+    process.env.HONUA_DERIVED_ARTIFACTS_RELAX = "1";
+    const relaxedReceipt = await createGateReceipt(staleProducerOptions);
+    assert.equal(relaxedReceipt.status, "passed");
+  } finally {
+    if (previousRelax === undefined) delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+    else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = previousRelax;
+  }
 });
 
 test("packed receipt re-reads the final dist tree instead of trusting its inventory", async () => {

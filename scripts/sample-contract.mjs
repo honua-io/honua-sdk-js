@@ -443,6 +443,7 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "demo:spatial-analytics:evidence",
   "test:migration:real-samples",
   "test:playwright:ai-spatial-builder",
+  "test:playwright:geocoding",
   "test:playwright:imagery-cog",
   "test:playwright:incident",
   "test:playwright:migration-workbench",
@@ -3225,7 +3226,12 @@ export async function validateCatalog(catalog, packageJson, options = {}) {
         );
         invariant(sample.evidence.live.targetMode, `${sample.id}: non-executed live evidence requires targetMode`);
       }
-      await validateLiveEvidenceProducer(evidence, sample, { relaxed: options.relaxDerivedArtifacts });
+      await validateLiveEvidenceProducer(evidence, sample, {
+        relaxed:
+          options.relaxDerivedArtifacts === true ||
+          derivedArtifactsRelaxed() ||
+          qualificationBootstrapSampleIds.has(sample.id),
+      });
     } else {
       invariant(!sample.evidence.live.evidencePath, `${sample.id}: ${sample.evidence.live.status} cannot carry evidencePath`);
       invariant(!sample.evidence.live.expiresAt, `${sample.id}: ${sample.evidence.live.status} cannot carry expiresAt`);

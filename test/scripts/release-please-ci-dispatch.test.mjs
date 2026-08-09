@@ -259,6 +259,7 @@ describe("Release Please workflow policy", () => {
     assert.doesNotMatch(refresher, /actions: write|checks: write/u);
 
     assert.match(dispatcher, /needs: \[release-please, release-please-refresh\]/u);
+    assert.match(dispatcher, /timeout-minutes: 50/u);
     assert.match(dispatcher, /release_pr_present == 'true'/u);
     assert.match(dispatcher, /permissions:\n      actions: write\n      contents: read\n      pull-requests: read/u);
     assert.match(dispatcher, /ref: \$\{\{ github\.sha \}\}/u);

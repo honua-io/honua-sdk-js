@@ -13,9 +13,16 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
   const pageErrors = [];
   const consoleErrors = [];
   const externalRequests = [];
+  const failedRequiredRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("response", (response) => {
+    const url = new URL(response.url());
+    if (url.origin === fixtureOrigin && response.status() >= 400) {
+      failedRequiredRequests.push(`${response.status()} ${url.pathname}`);
+    }
   });
 
   const fixtureServer = await startQuickstartFixtureServer();
@@ -32,7 +39,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
   });
 
   try {
-    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.setViewportSize({ width: 1280, height: 720 });
     const navigation = await page.goto(fixtureServer.url);
     expect(navigation?.headers()["content-security-policy"]).toContain("connect-src 'self'");
     if (browserName === "chromium") {
@@ -44,7 +51,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
       .toBe(true);
     const sampleReadyDurationMs = await page.evaluate(() => performance.now());
 
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("every decision in the open");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Your first map is already working.");
     await expect(page.getByTestId("honua-sample-mode")).toHaveText("Fixture replay");
     await expect(page.getByTestId("honua-sample-mode")).toHaveAttribute("data-mode", "fixture");
     for (const stage of ["connect", "discover", "explain", "query", "mount"]) {
@@ -76,6 +83,26 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     expect(runtime?.sourceId).toBe("0");
     expect(runtime?.cacheStatus).toMatch(/^(bypass|hit|miss|refreshed)$/);
 
+    await expect(page.getByTestId("first-map-result-legend")).toContainText("3 mapped features");
+    await expect(page.locator("#result-provenance")).toHaveText(
+      `${fixtureOrigin}/rest/services/natural-earth/FeatureServer/0`,
+    );
+    await expect(page.locator("#selected-feature-title")).toHaveText("Civic center service zone");
+    await expect(page.locator('[data-feature-id="1"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#map-overlay")).toHaveAttribute("data-state", "ready");
+    await expect(page.locator("#status-error")).toHaveText("None");
+    expect(failedRequiredRequests).toEqual([]);
+    const desktopMap = await page.locator("#map").boundingBox();
+    expect(desktopMap?.height).toBeGreaterThanOrEqual(500);
+    const undersizedAuthoredTargets = await page.evaluate(() =>
+      [...document.querySelectorAll("button, input, select, summary")]
+        .filter((element) => !element.closest(".maplibregl-control-container"))
+        .map((element) => ({ id: element.id, rect: element.getBoundingClientRect() }))
+        .filter(({ rect }) => rect.width < 44 || rect.height < 44)
+        .map(({ id, rect }) => ({ id, width: rect.width, height: rect.height })),
+    );
+    expect(undersizedAuthoredTargets).toEqual([]);
+
     await expect(page.locator("#linked-visible-count")).toHaveText("3");
     await page.locator("#attribute-filter").selectOption({ label: "STATUS: Ready" });
     await expect(page.locator("#linked-visible-count")).toHaveText("1");
@@ -95,6 +122,8 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await expect(inspect).toBeFocused();
     await inspect.press("Enter");
     await expect(page.locator("#selected-feature-title")).toHaveText("Harbor response district");
+    await expect(page.locator("#result-interaction")).toHaveText("Selected Harbor response district");
+    await expect(inspect).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".maplibregl-popup")).toContainText("Harbor response district");
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.selectedFeatureId))
@@ -133,7 +162,9 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     });
 
     await expect(page.getByRole("application", { name: "Interactive map of queried features" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Linked table" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Explore the map" })).toBeVisible();
+    const mobileMap = await page.locator("#map").boundingBox();
+    expect(mobileMap?.height).toBeGreaterThanOrEqual(844 * 0.4);
     expect(await page.evaluate(() => ({ documentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth })))
       .toEqual({ documentWidth: 390, viewportWidth: 390 });
 
@@ -144,6 +175,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     expect(cleanup?.cleanupDurationMs).toBeLessThanOrEqual(1_000);
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
     expect(externalRequests).toEqual([]);
+    expect(failedRequiredRequests).toEqual([]);
   } finally {
     if (!page.isClosed()) await page.evaluate(async () => await window.__HONUA_QUICKSTART_DISPOSE__?.());
     await fixtureServer.close();
@@ -152,5 +184,6 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await finalizeSampleConsole({ testInfo, sampleId: SAMPLE_ID, page, context, pageErrors, consoleErrors });
     expect(fixtureClosed).toBe(true);
     expect(externalRequests).toEqual([]);
+    expect(failedRequiredRequests).toEqual([]);
   }
 });
