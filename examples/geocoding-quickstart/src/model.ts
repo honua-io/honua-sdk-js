@@ -1,10 +1,6 @@
 import { type GeocodeResult, type GeocodingClientOptions, HonuaGeocodingClient } from "@honua/sdk-js/geocoding";
 
-import type {
-  GeocodingAuditRow,
-  GeocodingPointFeatureCollection,
-  GeocodingQuickstartConfig,
-} from "./types.js";
+import type { GeocodingAuditRow, GeocodingPointFeatureCollection, GeocodingQuickstartConfig } from "./types.js";
 
 export function geocodingClientOptionsFromConfig(config: GeocodingQuickstartConfig): GeocodingClientOptions {
   return {
