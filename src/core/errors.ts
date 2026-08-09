@@ -42,10 +42,13 @@ import {
 export type HonuaDiscoveryErrorCode =
   | "ambiguous-protocol"
   | "ambiguous-source"
+  | "invalid-cloud-native-input"
+  | "invalid-cloud-native-manifest"
   | "invalid-endpoint"
   | "invalid-cache-identity"
   | "invalid-discovery-cache"
   | "invalid-capability"
+  | "cloud-native-operation-unavailable"
   | "unsupported-protocol"
   | "protocol-mismatch";
 
