@@ -76,6 +76,20 @@ test("fails closed before a request when the row budget is exceeded", () => {
   );
 });
 
+test("rejects fieldless aggregations before constructing a server request", () => {
+  const session = openColumnarSession(serverSource);
+  assert.throws(
+    () => session.plan({ limit: 10, aggregations: [{ name: "total", operation: "count" }] }),
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
+  );
+});
+
+test("preserves a deployment path prefix in planned request URLs", () => {
+  const session = openColumnarSession({ ...serverSource, baseUrl: "https://example.test/honua/" });
+  const plan = session.plan({ limit: 10 });
+  assert.equal(new URL(plan.request?.url ?? "").pathname, "/honua/rest/services/Parcels/FeatureServer/0/query");
+});
+
 test("requires an explicit decoder for server payloads", async () => {
   const session = openColumnarSession(serverSource, {
     clientOptions: { fetchFn: async () => new Response(new Uint8Array([1]), { status: 200 }) },

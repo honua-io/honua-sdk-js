@@ -214,6 +214,7 @@ export type {
   GeoArrowConversionMetrics,
   GeoArrowCoordinateLayout,
   GeoArrowCrs,
+  GeoArrowCrsType,
   GeoArrowDictionaryBuffers,
   GeoArrowDictionaryColumnInput,
   GeoArrowDimensions,
