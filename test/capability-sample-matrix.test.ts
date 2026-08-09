@@ -155,21 +155,21 @@ describe("capability-to-sample matrix contract", () => {
         inputs.qualificationEvidence,
       ),
     ).toEqual(matrix);
-    expect(matrix.samples).toHaveLength(35);
+    expect(matrix.samples).toHaveLength(33);
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
-    // 35 = 30 pre-existing claims + two columnar workflow claims
-    // + the dynamic STAC workflow, direct COG raster, and managed PMTiles claims.
-    expect(matrix.supportClaims).toHaveLength(35);
-    // 65 = 59 original package entrypoints + the experimental STAC, raster,
-    // PMTiles, zarr, and the experimental declarative-interactions compiler
-    // and Studio agent session.
-    expect(matrix.packageEntrypoints).toHaveLength(65);
-    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./pmtiles")).toMatchObject({
-      subpath: "./pmtiles",
-      supportStatus: "experimental",
-    });
+    // 28 = 25 pre-existing support claims + the gRPC and direct-PMTiles
+    // connect() discovery claims registered in issues #554 and #820
+    // + the Cesium 3D scene workspace claim promoted to beta in issue #931.
+    expect(matrix.supportClaims).toHaveLength(28);
+    // 57 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
+    // manifest-advertised PMTiles plugin entrypoint published in issue #671)
+    // + "./analytics" and "./analytics/uplot" (the linked-analytics contract
+    // and its reference third-party chart adapter, issue #682)
+    // + "./kepler" (the optional Kepler.gl workspace bridge from issue #684)
+    // + "./cloud-native-discovery" (the normalized source discovery facade).
+    expect(matrix.packageEntrypoints).toHaveLength(57);
     // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
     // service-explorer are the four real, evidence-backed qualified samples
     // (the Imagery and Terrain, First Map, ArcGIS Migration Workbench, and
