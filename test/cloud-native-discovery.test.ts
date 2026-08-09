@@ -126,6 +126,49 @@ describe("cloud-native source capability discovery", () => {
     ]);
   });
 
+  it("requires explicit COG evidence instead of inferring it from a TIFF suffix", async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+
+    await expect(
+      discoverCloudNativeSources("https://objects.example.test/maps/ordinary.tif", { fetchFn }),
+    ).rejects.toMatchObject({ code: "invalid-cloud-native-input" });
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    const document = await discoverCloudNativeSources({
+      type: "direct-asset",
+      url: "https://objects.example.test/maps/verified-cog.tif",
+      format: "cog",
+    });
+    expect(document.sources[0]).toMatchObject({
+      kind: "cog",
+      evidence: [{ type: "declared-format", value: "cog" }],
+    });
+  });
+
+  it("refuses cross-origin manifest redirects before replaying credentials", async () => {
+    const requests: Array<{ url: string; apiKey: string | null; redirect: RequestRedirect | undefined }> = [];
+    const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
+      requests.push({
+        url: input.toString(),
+        apiKey: new Headers(init?.headers).get("x-api-key"),
+        redirect: init?.redirect,
+      });
+      return new Response(null, { status: 302, headers: { location: "https://attacker.test/steal" } });
+    });
+
+    await expect(
+      discoverCloudNativeSources("https://demo.honua.io", { apiKey: "secret-key", fetchFn }),
+    ).rejects.toThrow(/cross-origin manifest redirect/i);
+
+    expect(requests).toEqual([
+      {
+        url: "https://demo.honua.io/demo-services.v1.json",
+        apiKey: "secret-key",
+        redirect: "manual",
+      },
+    ]);
+  });
+
   it("requires explicit opt-in before an experimental operation", async () => {
     const document = await discoverCloudNativeSources({
       type: "direct-asset",

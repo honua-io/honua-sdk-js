@@ -30,6 +30,8 @@ export const HONUA_CLOUD_NATIVE_DISCOVERY_SCHEMA_VERSION = "1.0.0";
 export const HONUA_DEMO_SERVICES_MANIFEST_PATH = "demo-services.v1.json";
 const MAX_CLOUD_NATIVE_MANIFEST_BYTES = 1_048_576;
 const MAX_CLOUD_NATIVE_MANIFEST_SERVICES = 1_000;
+const MAX_CLOUD_NATIVE_MANIFEST_REDIRECTS = 20;
+const REDIRECT_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
 
 export const CLOUD_NATIVE_SOURCE_KINDS = [
   "cog",
@@ -274,6 +276,13 @@ function normalizeInput(input: CloudNativeDiscoveryInput): NormalizedDeploymentI
     const url = normalizeHttpUrl(input, "input URL");
     const format = inferDirectFormat(url);
     if (format) return { type: "direct-asset", url, format };
+    if (hasTiffSuffix(url)) {
+      throw new HonuaCloudNativeDiscoveryError(
+        "invalid-cloud-native-input",
+        "A TIFF filename does not prove that the asset is cloud optimized. Pass an explicit direct-asset format.",
+        { url },
+      );
+    }
     if (new URL(url).pathname.endsWith(`/${HONUA_DEMO_SERVICES_MANIFEST_PATH}`)) {
       return {
         type: "honua-deployment",
@@ -532,14 +541,14 @@ async function requestManifest(url: string, options: CloudNativeDiscoveryOptions
     }
     if (options.signal?.aborted) throw new HonuaAbortError();
     const fetchFn = options.fetchFn ?? fetch;
-    let response = await fetchFn(context.url, context.init);
+    let response = await fetchManifestWithSafeRedirects(fetchFn, context.url, context.init);
     if ((response.status === 401 || response.status === 403) && options.auth) {
       const refreshed = await resolveCredentials(options, "unauthorized", true, credentials);
       if (refreshed) {
         const refreshedHeaders = new Headers(context.init.headers);
         applyCredentials(refreshedHeaders, refreshed);
         context = { ...context, init: { ...context.init, headers: refreshedHeaders } };
-        response = await fetchFn(context.url, context.init);
+        response = await fetchManifestWithSafeRedirects(fetchFn, context.url, context.init);
       }
     }
     const durationMs = Date.now() - startedAt;
@@ -579,6 +588,51 @@ async function requestManifest(url: string, options: CloudNativeDiscoveryOptions
       ),
     );
     throw error;
+  }
+}
+
+async function fetchManifestWithSafeRedirects(
+  fetchFn: typeof fetch,
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  let currentUrl = url;
+  const allowedOrigin = new URL(url).origin;
+  for (let redirects = 0; ; redirects += 1) {
+    const response = await fetchFn(currentUrl, { ...init, redirect: "manual" });
+    if (response.type === "opaqueredirect") {
+      throw new HonuaNetworkError(
+        "Refusing to follow an opaque redirect because deployment credentials could be leaked.",
+        undefined,
+      );
+    }
+    if (!REDIRECT_STATUSES.has(response.status)) return response;
+    if (redirects >= MAX_CLOUD_NATIVE_MANIFEST_REDIRECTS) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new HonuaNetworkError(
+        `Exceeded the maximum of ${MAX_CLOUD_NATIVE_MANIFEST_REDIRECTS} manifest redirects.`,
+        undefined,
+      );
+    }
+
+    const location = response.headers.get("location");
+    let target: URL;
+    try {
+      if (!location) throw new Error("missing Location header");
+      target = new URL(location, currentUrl);
+    } catch (cause) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new HonuaNetworkError("Manifest redirect has an invalid Location header.", cause);
+    }
+    if (target.origin !== allowedOrigin) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new HonuaNetworkError(
+        `Refusing to follow a cross-origin manifest redirect to ${target.origin}; deployment credentials would be leaked.`,
+        undefined,
+      );
+    }
+    await response.body?.cancel().catch(() => undefined);
+    currentUrl = target.href;
   }
 }
 
@@ -691,12 +745,16 @@ function operationError(
 function inferDirectFormat(url: string): CloudNativeDirectAssetFormat | undefined {
   const path = new URL(url).pathname.toLowerCase().replace(/\/$/, "");
   if (path.endsWith(".pmtiles")) return "pmtiles";
-  if (path.endsWith(".tif") || path.endsWith(".tiff")) return "cog";
   if (path.endsWith(".parquet")) return "geoparquet";
   if (path.endsWith(".arrow") || path.endsWith(".feather")) return "geoarrow";
   if (path.endsWith(".zarr")) return "zarr";
   if (path.endsWith(".nc") || path.endsWith(".nc4") || path.endsWith(".netcdf")) return "netcdf";
   return undefined;
+}
+
+function hasTiffSuffix(url: string): boolean {
+  const path = new URL(url).pathname.toLowerCase().replace(/\/$/, "");
+  return path.endsWith(".tif") || path.endsWith(".tiff");
 }
 
 function normalizeHttpUrl(value: string, label: string): string {
