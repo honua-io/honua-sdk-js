@@ -216,9 +216,11 @@ export class GeoparquetRuntime {
       geoJson = undefined;
     }
     let rowEstimate: number | undefined;
+    let rowGroupCount: number | undefined;
     try {
       const rows = await driver.query(rowEstimateSql(sources));
       rowEstimate = toNumber(rows[0]?.row_estimate);
+      rowGroupCount = toNumber(rows[0]?.row_group_count);
     } catch {
       rowEstimate = undefined;
     }
@@ -227,6 +229,7 @@ export class GeoparquetRuntime {
       ...(geoJson ? { geoJson } : {}),
       ...(geometryColumnOverride ? { geometryColumnOverride } : {}),
       ...(rowEstimate !== undefined ? { rowEstimate } : {}),
+      ...(rowGroupCount !== undefined ? { rowGroupCount } : {}),
     });
   }
 
@@ -821,6 +824,10 @@ export interface GeoparquetDescription {
   readonly crs?: string;
   /** Footer-derived row estimate. */
   readonly rowEstimate?: number;
+  /** Dataset bbox from validated GeoParquet metadata. */
+  readonly bbox?: readonly number[];
+  /** Footer-derived Parquet row-group count. */
+  readonly rowGroupCount?: number;
 }
 
 /**
@@ -1075,6 +1082,8 @@ export function geoparquetSource<T = Record<string, unknown>>(
           : { geometryEncoding: profile.geometry.encoding }),
         ...(profile.crs ? { crs: profile.crs } : {}),
         ...(profile.rowEstimate !== undefined ? { rowEstimate: profile.rowEstimate } : {}),
+        ...(profile.geometry?.bbox ? { bbox: profile.geometry.bbox } : {}),
+        ...(profile.rowGroupCount !== undefined ? { rowGroupCount: profile.rowGroupCount } : {}),
       };
     },
     sql(query: string) {

@@ -382,6 +382,7 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "25d",
   "ai-spatial-builder",
   "app-bootstrap",
+  "columnar-query",
   "edit-workflow",
   "geocoding",
   "gp-runner",
