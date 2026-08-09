@@ -7,6 +7,7 @@ const allowedStatuses = new Set(["demoed", "tested-only", "blocked", "not-in-sco
 
 const requiredCapabilities = [
   "Service discovery",
+  "Cloud-native capability discovery",
   "Metadata",
   "FeatureServer",
   "MapServer",
