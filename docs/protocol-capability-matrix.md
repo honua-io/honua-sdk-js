@@ -84,8 +84,8 @@ policy in the manifest.
 | `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
 | `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs)<br>[fixture: maplibre-peer-major-matrix](../test/maplibre-peer-major-compat.test.ts)<br>[integration: maplibre-peer-major-browser](../test/playwright/migration-browser-maplibre.spec.mjs) |
 | `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
-| `ogc-coverages` | `render` | `experimental` | `protocol-adapter` | `native` | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts)<br>[integration: coverages-wcs-browser](../test/playwright/coverages-wcs-basic.spec.mjs) |
-| `wcs` | `render` | `experimental` | `protocol-adapter` | `native` | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts)<br>[integration: coverages-wcs-browser](../test/playwright/coverages-wcs-basic.spec.mjs) |
+| `ogc-coverages` | `render` | `experimental` | `protocol-adapter` | `native` | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) |
+| `wcs` | `render` | `experimental` | `protocol-adapter` | `native` | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) |
 
 ### Generated discovery disposition inventory
 
@@ -193,8 +193,8 @@ evidence; observed evidence only ever narrows them.
 | `maplibre-vector` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
 | `maplibre-raster` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
 | `maplibre-geojson` | — | — | — | Reserved identifier with no query path. |
-| `ogc-coverages` | — | — | `source-dimension` | Coverage axes and datetime are explicit subset dimensions, not feature predicates. Release-gated browser evidence is fixture-only; no anonymous live canary exists. |
-| `wcs` | — | — | `source-dimension` | WCS SUBSET/DATETIME dimensions are explicit coverage constraints. Release-gated browser evidence is fixture-only; no anonymous live canary exists. |
+| `ogc-coverages` | — | — | `source-dimension` | Coverage axes and datetime are explicit subset dimensions, not feature predicates. |
+| `wcs` | — | — | `source-dimension` | WCS SUBSET/DATETIME dimensions are explicit coverage constraints. |
 <!-- support-manifest:filter-matrix:end -->
 
 ## Notes by protocol

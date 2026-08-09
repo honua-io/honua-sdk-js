@@ -1,6 +1,6 @@
 {
   "name": "@honua/sdk-js",
-  "version": "0.1.7-beta.0",
+  "version": "0.1.4-beta.0",
   "description": "Open GIS SDK for MapLibre — one typed client for ArcGIS/Esri GeoServices, OGC API, WFS, WMS, STAC, OData, and GeoParquet, plus an ArcGIS migration codemod, geocoding, and routing",
   "license": "Apache-2.0",
   "author": "Honua",
@@ -156,10 +156,6 @@
       "types": "./dist/src/interactions/index.d.ts",
       "default": "./dist/src/interactions/index.js"
     },
-    "./interactions/declarative": {
-      "types": "./dist/src/interactions/declarative.d.ts",
-      "default": "./dist/src/interactions/declarative.js"
-    },
     "./filter-registry": {
       "types": "./dist/src/filter-registry/index.d.ts",
       "default": "./dist/src/filter-registry/index.js"
@@ -228,10 +224,6 @@
       "types": "./dist/src/nl-map-control/index.d.ts",
       "default": "./dist/src/nl-map-control/index.js"
     },
-    "./studio-agent": {
-      "types": "./dist/src/studio-agent/index.d.ts",
-      "default": "./dist/src/studio-agent/index.js"
-    },
     "./operator": {
       "types": "./dist/src/_deprecated/operator.d.ts",
       "default": "./dist/src/_deprecated/operator.js"
@@ -272,25 +264,9 @@
       "types": "./dist/src/geoparquet/index.d.ts",
       "default": "./dist/src/geoparquet/index.js"
     },
-    "./columnar-workflow": {
-      "types": "./dist/src/columnar-workflow/index.d.ts",
-      "default": "./dist/src/columnar-workflow/index.js"
-    },
-    "./stac": {
-      "types": "./dist/src/stac/index.d.ts",
-      "default": "./dist/src/stac/index.js"
-    },
     "./cog": {
       "types": "./dist/src/cog/index.d.ts",
       "default": "./dist/src/cog/index.js"
-    },
-    "./pmtiles": {
-      "types": "./dist/src/pmtiles/index.d.ts",
-      "default": "./dist/src/pmtiles/index.js"
-    },
-    "./raster": {
-      "types": "./dist/src/raster/index.d.ts",
-      "default": "./dist/src/raster/index.js"
     },
     "./coverages": {
       "types": "./dist/src/coverages/index.d.ts",
@@ -409,11 +385,8 @@
     "release:seal:check": "node scripts/release-seal.mjs check",
     "release:seal:test": "node --test test/scripts/release-seal.test.mjs",
     "samples:bundles:build": "node scripts/build-sample-bundles.mjs build",
-    "samples:bundles:test": "node --test test/scripts/build-sample-bundles.test.mjs test/scripts/immutable-sample-bundle-attestation.test.mjs",
-    "samples:bundles:verify": "npm run samples:bundles:test && node scripts/build-sample-bundles.mjs check",
-    "samples:bundles:pack": "node scripts/pack-sample-bundles.mjs",
-    "samples:bundles:attestation:receipt": "node scripts/immutable-sample-bundle-attestation.mjs receipt",
-    "samples:bundles:attestation:policy": "node scripts/immutable-sample-bundle-attestation.mjs policy",
+    "samples:bundles:test": "node --test test/scripts/build-sample-bundles.test.mjs",
+    "samples:bundles:verify": "node --test test/scripts/build-sample-bundles.test.mjs && node scripts/build-sample-bundles.mjs check",
     "samples:bundles:smoke": "node scripts/smoke-sample-bundles.mjs",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
@@ -504,7 +477,6 @@
     "demo:imagery-cog:mock": "node examples/imagery-cog-quickstart/mock-server.mjs",
     "demo:imagery-cog:typecheck": "tsc -p examples/imagery-cog-quickstart/tsconfig.json --noEmit",
     "evidence:cog:live": "npm run build --silent && node scripts/cog-live-evidence.mjs --output test-results/cog-live-evidence.json --strict",
-    "evidence:pmtiles:live": "npm run build --silent && node scripts/pmtiles-live-evidence.mjs --output test-results/pmtiles-live-evidence.json --strict",
     "evidence:planning:live": "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
     "evidence:live-conformance": "npm run build --silent && node scripts/live-conformance-evidence.mjs --output test-results/live-conformance-evidence.json --strict",
     "evidence:realtime:fixture": "npm run build --silent && node scripts/realtime-conformance-evidence.mjs --lane fixture --output test-results/realtime-fixture-conformance-evidence.json --strict",
@@ -578,21 +550,14 @@
     "demo:pmtiles-static:preview": "vite preview --config examples/pmtiles-static/vite.config.ts --host 127.0.0.1",
     "demo:pmtiles-static:mock": "node examples/pmtiles-static/mock-server.mjs",
     "demo:pmtiles-static:typecheck": "tsc -p examples/pmtiles-static/tsconfig.json --noEmit",
-    "demo:pmtiles-managed": "npm run demo:pmtiles-managed:build --silent && node docs/examples/pmtiles-managed-lifecycle/dist/main.js",
-    "demo:pmtiles-managed:build": "npm run build --silent && tsc -p docs/examples/pmtiles-managed-lifecycle/tsconfig.build.json",
-    "demo:pmtiles-managed:typecheck": "tsc -p docs/examples/pmtiles-managed-lifecycle/tsconfig.json --noEmit",
     "demo:nl-map-control": "vite --config examples/nl-map-control/vite.config.ts",
     "demo:nl-map-control:build": "vite build --config examples/nl-map-control/vite.config.ts",
     "demo:nl-map-control:preview": "vite preview --config examples/nl-map-control/vite.config.ts --host 127.0.0.1",
     "demo:nl-map-control:typecheck": "tsc -p examples/nl-map-control/tsconfig.json --noEmit",
-    "demo:columnar-query": "vite --config examples/columnar-query-quickstart/vite.config.ts",
-    "demo:columnar-query:build": "vite build --config examples/columnar-query-quickstart/vite.config.ts",
-    "demo:columnar-query:typecheck": "tsc -p examples/columnar-query-quickstart/tsconfig.json --noEmit",
-    "test:playwright:columnar-query": "playwright test test/playwright/columnar-query-quickstart.spec.mjs",
     "demo:primitive-matrix": "node scripts/verify-primitive-demo-matrix.mjs",
-    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:react-quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:unified-ops:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:overture:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && npm run demo:sketch-editing:typecheck && npm run demo:planning-workbench:typecheck && npm run demo:web-components:typecheck && npm run demo:app-bootstrap:typecheck && npm run demo:runtime-parity:typecheck && npm run demo:nl-map-control:typecheck && npm run demo:columnar-query:typecheck && npm run demo:temporal-playback:typecheck && node scripts/ensure-kepler-demo-deps.mjs && npm --prefix examples/kepler-analytics run typecheck",
-    "demo:examples:build": "npm run prepare:test-sdk --silent && node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:overture:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build:prepared && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:sketch-editing:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:app-bootstrap:build && npm run demo:runtime-parity:build && npm run demo:nl-map-control:build && npm run demo:columnar-query:build && npm run demo:temporal-playback:build && npm run demo:kepler:build",
-    "demo:examples:build:prepared": "npm run prepare:test-sdk:already --silent && node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:overture:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build:prepared && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:sketch-editing:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:app-bootstrap:build && npm run demo:runtime-parity:build && npm run demo:nl-map-control:build && npm run demo:columnar-query:build && npm run demo:temporal-playback:build && npm run demo:kepler:build",
+    "demo:examples:typecheck": "npm run demo:quickstart:typecheck && npm run demo:react-quickstart:typecheck && npm run demo:incident:typecheck && npm run demo:unified-ops:typecheck && npm run demo:25d:typecheck && npm run demo:service-explorer:typecheck && npm run demo:migration-workbench:typecheck && npm run demo:mcp-gis-assistant:typecheck && npm run demo:ai-spatial-builder:typecheck && npm run demo:spatial-analytics:typecheck && npm run demo:gp-runner:typecheck && npm run demo:stac-browser:typecheck && npm run demo:overture:typecheck && npm run demo:imagery-cog:typecheck && npm run demo:geocoding:typecheck && npm run demo:node-backend:typecheck && npm run demo:terrain-elevation:typecheck && npm run demo:edit-workflow:typecheck && npm run demo:sketch-editing:typecheck && npm run demo:planning-workbench:typecheck && npm run demo:web-components:typecheck && npm run demo:app-bootstrap:typecheck && npm run demo:runtime-parity:typecheck && npm run demo:nl-map-control:typecheck && npm run demo:temporal-playback:typecheck && node scripts/ensure-kepler-demo-deps.mjs && npm --prefix examples/kepler-analytics run typecheck",
+    "demo:examples:build": "npm run prepare:test-sdk --silent && node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:overture:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build:prepared && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:sketch-editing:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:app-bootstrap:build && npm run demo:runtime-parity:build && npm run demo:nl-map-control:build && npm run demo:temporal-playback:build && npm run demo:kepler:build",
+    "demo:examples:build:prepared": "npm run prepare:test-sdk:already --silent && node scripts/ensure-kepler-demo-deps.mjs && npm run demo:quickstart:build && npm run demo:react-quickstart:build && npm run demo:incident:build && npm run demo:unified-ops:build && npm run demo:25d:build && npm run demo:service-explorer:build && npm run demo:migration-workbench:build && npm run demo:mcp-gis-assistant:build && npm run demo:ai-spatial-builder:build && npm run demo:spatial-analytics:build && npm run demo:gp-runner:build && npm run demo:stac-browser:build && npm run demo:overture:build && npm run demo:imagery-cog:build && npm run demo:geocoding:build && npm run demo:node-backend:build:prepared && npm run demo:terrain-elevation:build && npm run demo:edit-workflow:build && npm run demo:sketch-editing:build && npm run demo:planning-workbench:build && npm run demo:web-components:build && npm run demo:app-bootstrap:build && npm run demo:runtime-parity:build && npm run demo:nl-map-control:build && npm run demo:temporal-playback:build && npm run demo:kepler:build",
     "pretest": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk --silent",
     "test": "vitest run",
     "pretest:prepared": "npm run check:test-build-ownership --silent && npm run prepare:test-sdk:already --silent",
@@ -615,7 +580,6 @@
     "test:playwright:imagery-cog": "playwright test test/playwright/imagery-cog-quickstart.spec.mjs",
     "test:playwright:geocoding": "playwright test test/playwright/geocoding-quickstart.spec.mjs",
     "test:playwright:terrain-elevation": "playwright test test/playwright/terrain-rgb-elevation.spec.mjs",
-    "test:playwright:coverages-wcs": "vite build --config examples/coverages-wcs-basic/vite.config.ts && playwright test test/playwright/coverages-wcs-basic.spec.mjs",
     "test:playwright:edit-workflow": "playwright test test/playwright/edit-workflow-demo.spec.mjs",
     "test:playwright:sketch-editing": "playwright test test/playwright/sketch-editing.spec.mjs",
     "test:playwright:planning-workbench": "playwright test test/playwright/planning-permitting-workbench.spec.mjs",
@@ -768,8 +732,7 @@
     "uplot": "^1.6.32",
     "vite": "^8.0.16",
     "vitest": "^4.0.16",
-    "ws": "^8.21.1",
-    "yaml": "2.8.1"
+    "ws": "^8.21.1"
   },
   "files": [
     "dist/src",
@@ -792,7 +755,6 @@
     "samples/contract/v1/schemas",
     "samples/contract/v2/schemas",
     "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
-    "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json",
     "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v1.json",
     "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",

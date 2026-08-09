@@ -13,7 +13,6 @@ import {
   generateCapabilitySampleMatrix,
   generateGoldenJourneyVisualEvidence,
   generateLegacyVisualReceiptArchive,
-  generateSiteConsumerFixtureV3,
   generateSiteConsumerFixtureV4,
   generateSiteConsumerHandoff,
   generateSiteProjection,
@@ -122,9 +121,9 @@ describe("honua-site consumer handoff", () => {
           sourceImplementationDuplicated: false,
         },
         counts: {
-          cards: 32,
+          cards: 31,
           qualifiedJourneys: 4,
-          canonicalRoutes: 32,
+          canonicalRoutes: 31,
           legacyRoutes: 20,
           gaps: inputs.matrix.gaps.length,
         },
@@ -207,39 +206,22 @@ describe("honua-site consumer handoff", () => {
     },
   );
 
-  it("keeps the rolling v2 projection, v1 handoff, and v3 fixture on canonical evidence", async () => {
-    const [projection, matrix, handoff, currentHandoff, fixture, visualEvidence] = await Promise.all([
+  it("keeps the v2 projection, v1 handoff, and v3 fixture valid for existing consumers", async () => {
+    const [projection, handoff, fixture] = await Promise.all([
       readJson("samples/dist/honua-site-samples.v2.json"),
-      readJson("samples/dist/capability-sample-matrix.v1.json"),
       readJson("samples/dist/honua-site-consumer-handoff.v1.json"),
-      readJson("samples/dist/honua-site-consumer-handoff.v2.json"),
       readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json"),
-      readJson("samples/dist/golden-journey-visual-evidence.v1.json"),
     ]);
 
     await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
     await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
     await expect(validateSiteConsumerFixtureV3(fixture, handoff, { verifyCheckout: false })).resolves.toBeUndefined();
-    expect(handoff).toEqual(generateSiteConsumerHandoff(projection, matrix, visualEvidence));
-    expect(fixture).toEqual(generateSiteConsumerFixtureV3(handoff));
     const projectionSchemaBytes = await readFile(handoff.inputs.siteProjection.schemaPath, "utf8");
     expect(handoff.inputs.siteProjection.schemaBytes).toBe(Buffer.byteLength(projectionSchemaBytes));
     expect(handoff.inputs.siteProjection.schemaSha256).toBe(sha256(projectionSchemaBytes));
     expect(projection).toMatchObject({ format: "honua.site.sdk-sample-projection.v2", schemaVersion: 2 });
     expect(handoff).toMatchObject({ format: "honua.site.sdk-sample-consumer-handoff.v1", schemaVersion: 1 });
     expect(fixture).toMatchObject({ format: "honua.site.sdk-sample-consumer-fixture.v3", schemaVersion: 3 });
-    const canonicalImagery = visualEvidence.qualifiedGoldenJourneys.find(
-      (entry: { sampleId: string }) => entry.sampleId === "imagery-cog-quickstart",
-    );
-    const legacyImagery = handoff.cards.find(
-      (card: { id: string }) => card.id === "imagery-cog-quickstart",
-    )?.visualEvidence;
-    const currentImagery = currentHandoff.cards.find(
-      (card: { id: string }) => card.id === "imagery-cog-quickstart",
-    )?.visualEvidence;
-    expect(canonicalImagery).toBeDefined();
-    expect(legacyImagery).toEqual(canonicalImagery);
-    expect(currentImagery).toEqual(canonicalImagery);
   });
 
   it("permits v3 to retire stale capability claims but rejects expansion under an existing identity", () => {
@@ -258,7 +240,7 @@ describe("honua-site consumer handoff", () => {
     await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
     await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
     await expect(validateSiteConsumerFixtureV4(fixture, handoff, { verifyCheckout: false })).resolves.toBeUndefined();
-    for (const sampleId of ["service-explorer"]) {
+    for (const sampleId of ["maplibre-quickstart", "service-explorer"]) {
       expect(projection.sampleBundles.published).toContainEqual(
         expect.objectContaining({ id: sampleId, runnability: "requires-live-endpoint" }),
       );
@@ -266,14 +248,9 @@ describe("honua-site consumer handoff", () => {
         expect.objectContaining({ id: sampleId, runnability: "standalone" }),
       );
     }
-    const currentSamplesById = new Map(projection.samples.map((sample: { id: string }) => [sample.id, sample]));
-    const legacySamplesById = new Map(legacyProjection.samples.map((sample: { id: string }) => [sample.id, sample]));
-    expect(currentSamplesById.size).toBe(projection.samples.length);
-    expect([...legacySamplesById.keys()].filter((id) => !currentSamplesById.has(id))).toEqual([]);
-    const additiveIds = [...currentSamplesById.keys()].filter((id) => !legacySamplesById.has(id));
-    const permittedV3OnlyIds = new Set(["columnar-query-quickstart", "coverages-wcs-basic"]);
-    expect(additiveIds.filter((id) => typeof id !== "string" || !permittedV3OnlyIds.has(id))).toEqual([]);
-    expect(additiveIds.length).toBeLessThanOrEqual(permittedV3OnlyIds.size);
+    expect(projection.samples.map((sample: { id: string }) => sample.id)).toEqual(
+      legacyProjection.samples.map((sample: { id: string }) => sample.id),
+    );
     expect(projection.routes).toEqual(legacyProjection.routes);
     const legacyCapabilities = new Map<string, string[]>(
       legacyProjection.samples.map((sample: { id: string; capabilityKeys: string[] }): [string, string[]] => [
@@ -282,12 +259,7 @@ describe("honua-site consumer handoff", () => {
       ]),
     );
     for (const sample of projection.samples as Array<{ id: string; capabilityKeys: string[] }>) {
-      const legacyCapabilityKeys = legacyCapabilities.get(sample.id);
-      if (legacyCapabilityKeys === undefined) {
-        expect(permittedV3OnlyIds.has(sample.id)).toBe(true);
-        continue;
-      }
-      expect(isCapabilityNarrowing(legacyCapabilityKeys, sample.capabilityKeys)).toBe(true);
+      expect(isCapabilityNarrowing(legacyCapabilities.get(sample.id) ?? [], sample.capabilityKeys)).toBe(true);
     }
   });
 
@@ -722,34 +694,6 @@ describe("honua-site consumer handoff", () => {
       ),
     ).rejects.toThrow("visual evidence is stale or has an invalid freshness window");
 
-    // A coherent window that simply aged out is the honua-io/honua-sdk-js#1266
-    // shape, and it is not a defect in whatever branch happens to be running:
-    // the message has to separate "this lapsed, renew it with X" from "this card
-    // is malformed", or a renewal lapse gets triaged as a code bug on an
-    // unrelated pull request.
-    const lapsed = await validateSiteConsumerHandoff(
-      tamper((visual) => {
-        visual.liveEvidence.observedAt = "2026-01-01T00:00:00.000Z";
-        visual.liveEvidence.expiresAt = "2026-01-08T00:00:00.000Z";
-      }),
-    ).then(
-      () => "",
-      (error: unknown) => (error instanceof Error ? error.message : String(error)),
-    );
-    expect(lapsed).toMatch(/live observation expired .+ ago \(expiresAt=2026-01-08T00:00:00\.000Z\)/);
-    expect(lapsed).toContain("npm run samples:generate");
-
-    // The malformed shape keeps naming itself as malformed, not as an expiry.
-    const malformed = await validateSiteConsumerHandoff(
-      tamper((visual) => {
-        visual.expiresAt = visual.observedAt;
-      }),
-    ).then(
-      () => "",
-      (error: unknown) => (error instanceof Error ? error.message : String(error)),
-    );
-    expect(malformed).toContain("aggregate visual evidence window ends before it starts");
-
     await expect(
       validateSiteConsumerHandoff(
         tamper((visual) => {
@@ -793,52 +737,9 @@ describe("honua-site consumer handoff", () => {
     await expect(validateSiteConsumerHandoff(checkoutHandoff)).resolves.toBeUndefined();
   });
 
-  it("resolves frozen live producers from the content-addressed archive root", async () => {
-    const legacyHandoff = (await readJson(
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json",
-    )) as SiteConsumerHandoff;
-    const archive = (await readJson(
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
-    )) as LegacyVisualReceiptArchive;
-    const archivedGenerator = archive.artifacts.files.find(
-      (file) => file.path === "scripts/first-map-live-evidence.mjs",
-    );
-    if (!archivedGenerator) throw new Error("legacy archive needs the First Map live producer");
-    expect(sha256(await readFile(archivedGenerator.path))).not.toBe(archivedGenerator.sha256);
-
-    const originalRelax = process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
-    Reflect.deleteProperty(process.env, "HONUA_DERIVED_ARTIFACTS_RELAX");
-    try {
-      await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
-
-      const tamperedArchivedGenerator = structuredClone(archive);
-      const archivedGeneratorBlob = tamperedArchivedGenerator.artifacts.blobs.find(
-        (blob) => blob.sha256 === archivedGenerator.sha256,
-      );
-      if (!archivedGeneratorBlob) throw new Error("legacy archive needs the First Map live producer blob");
-      archivedGeneratorBlob.contentBase64 = gzipSync(Buffer.from("forged archived generator")).toString("base64");
-      await expect(validateLegacyVisualReceiptArchive(tamperedArchivedGenerator, legacyHandoff)).rejects.toThrow(
-        "legacy visual artifact blob is missing or stale",
-      );
-
-      const missingArchivedGenerator = structuredClone(archive);
-      missingArchivedGenerator.artifacts.files = missingArchivedGenerator.artifacts.files.filter(
-        (file) => file.path !== archivedGenerator.path,
-      );
-      await expect(validateLegacyVisualReceiptArchive(missingArchivedGenerator, legacyHandoff)).rejects.toThrow(
-        /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
-      );
-    } finally {
-      if (originalRelax === undefined) Reflect.deleteProperty(process.env, "HONUA_DERIVED_ARTIFACTS_RELAX");
-      else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = originalRelax;
-    }
-  });
-
   it("keeps frozen legacy receipts content-bound across current receipt rollover", { timeout: 240_000 }, async () => {
     const inputs = await canonicalInputs();
-    const legacyHandoff = (await readJson(
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json",
-    )) as SiteConsumerHandoff;
+    const legacyHandoff = (await readJson("samples/dist/honua-site-consumer-handoff.v1.json")) as SiteConsumerHandoff;
     const archive = (await readJson(
       "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
     )) as LegacyVisualReceiptArchive;
@@ -996,7 +897,7 @@ describe("honua-site consumer handoff", () => {
     async () => {
       const root = await mkdtemp(path.join(os.tmpdir(), "honua-legacy-archive-contexts-"));
       const archivePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json";
-      const handoffPath = "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json";
+      const handoffPath = "samples/dist/honua-site-consumer-handoff.v1.json";
       try {
         const extracted = path.join(root, "source-extract");
         await mkdir(path.join(extracted, path.dirname(archivePath)), { recursive: true });

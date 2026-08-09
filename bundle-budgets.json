@@ -43,8 +43,6 @@
   "'tree-shake:runtime-terra-draw-sketch' guards the terra-draw sketch binding (#492): terra-draw and terra-draw-maplibre-gl-adapter are optional peers kept external (reached only via dynamic import in createTerraDrawSketch), so importing { bindTerraDrawSketch } from /runtime measures 3,078 minified / 1,393 gzip bytes; the ceiling is measured actual plus ~10% headroom. /runtime absorbed the binding within its existing ceiling.",
   "/style and /webmap were reset for first-class renderer objects (#497): the /style entrypoint gains the classBreaks/uniqueValue/heatmap/cluster renderer factories, legend contracts, and the shared /expr-based compiler (measured 47,836 minified / 11,551 gzip; gzip growth over the prior actual is ~3 KiB, within the 6 KiB NFR-001 allowance); /webmap now emits renderer objects and compiles through the same single implementation, adding the shared compiler to its bundle (measured 25,383 minified / 7,705 gzip). Each ceiling is measured actual plus ~10% headroom.",
   "/react was reset for the react depth pass (#498): HonuaSourceLayer/useMountedSource pull the data-to-map bridge (mountSource + geojson projection + popup/hover wiring) and the selection context pulls the interactions feature-state + exploration selection-target primitives onto the entrypoint. Measured 415,869 minified / 109,064 gzip before the trunk rebase (+0.4 KiB min / +2.0 KiB gzip over the prior ceiling); ceilings are measured actual plus ~10% headroom.",
-  "/agent-tools and /nl-map-control were reset for the five composition verbs (setLayerStyle, addWidget, removeWidget, bindInteraction, removeInteraction): the new definitions, the transcribed ADR-0030 interaction schema, and the zero-import declarative contract module they validate against measure 44,820 minified / 12,421 gzip on /agent-tools, and /nl-map-control carries that growth through its agent-tools dependency at 87,681 minified (its gzip stayed under the existing ceiling, so only the exceeded metric was reset). Each reset ceiling is measured actual plus ~10% headroom, and both entrypoints remain subpath-only.",
-  "/interactions/declarative and /studio-agent gained their first dedicated guards with the declarative-interaction compiler and the Studio agent session: the ADR-0030 compiler (closed-set validation, $event.* substitution, fan-out cap, and the compile table over the existing /interactions binding primitives) measures 14,688 minified / 5,147 gzip bytes, and the session (SSE chat transport plus frame parser, the dependency-free MCP client, and the two-plane turn loop, bundling its agent-tools dependency the way a real consumer build does) measures 25,989 minified / 8,252 gzip bytes. Each ceiling is measured actual plus ~10% headroom. Both subpaths are experimental and subpath-only \u2014 root and browser barrels are unchanged.",
   "/agent-tools gained its first dedicated guard when it was promoted to the stable tier alongside /agent-safety (#502): the ten JSON-Schema tool definitions, the bounded executor with audit/redaction, the runtime adapters, and the MCP/OpenAI exporters measure 21,131 minified / 6,523 gzip bytes; the ceiling is measured actual plus ~10% headroom. Both agent entrypoints remain subpath-only \u2014 root and browser barrels are unchanged.",
   "The affected entrypoint ceilings were reset for the unified error envelope (#524): migrated public errors now carry stable domain/category/retryability metadata, bounded redacted context, cause projection, and a governed 102-code registry. Small domain entrypoints gain roughly 3.5\u20134.4 KiB gzip for this common runtime contract; only exceeded metrics were reset to measured actual plus 10% headroom. After the geometry error family joined the envelope on trunk, the root/browser gzip ceilings were reset from the merged measurements to restore the same 10% headroom policy.",
   "The exceeded /honua, /contract, /runtime, and /geoparquet metrics were reset for the merged SourceSchemaV2 contract foundation (#523). /geoparquet carries bounded GeoParquet metadata consistency and native-geometry support validation while preserving v1 query-result normalization; the other entrypoints expose or consume the stable schema envelope. Only exceeded metrics were reset to measured actual plus 10% headroom.",
@@ -97,12 +95,11 @@
   "/offline was reset for offline-store trust (#1045, #1046). The edit queue gained a bounded startup recovery pass, a persisted-record version gate, and per-read validation on every path that can lease or transition a record; the region store gained a read-the-version-then-migrate-forward schema ladder, identity-preservation checks on every migrated record, and a fail-closed unreadable-store outcome that refuses instead of bulk-deleting cached regions. Measured on the tree merged with #1052's planner-selected columnar execution: 150,145 minified / 40,948 gzip. Both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the graph — validation reuses the existing credential screen and the ladder is dependency-free — and the entrypoint stays subpath-only, so root, /honua, and browser barrels are unchanged. /runtime is deliberately NOT reset here: it measures 167,174 gzip on the merged tree, inside the 167,884 ceiling trunk already carries, so the pre-merge reset this branch held was reverted to trunk's value.",
   "/scene-workspace was reset for the shipped MapLibre and Cesium state-sync ports (#1049): the documented 2D/3D camera correspondence, the shared port core (echo suppression, bounded convergence, disposal-safe listeners, degradation reporting), the live 2D camera/selection/filter/time/detail bindings, and the live globe camera/selection/entity-visibility/clock bindings measured 150,950 minified / 45,737 gzip bytes on their own, so both ceilings were set to that actual plus ~10%. Re-measured on the tree merged with #1048's Cesium clock binding, #1052's planner-selected columnar execution, #1054's offline-store trust, and #1051's precision/asset metadata, the entrypoint is 164,659 minified / 49,971 gzip. That sits inside the ceilings this work set, so they are recorded rather than widened again — the headroom is thin, and the next change that actually exceeds them should reset against its own measurement. No new dependency enters the entrypoint's static graph — both renderers stay duck-typed and CesiumJS is still reached only through a lazy dynamic import — and root, /honua, and browser ceilings are unchanged because the scene surface remains subpath-only.",
   "/offline was reset for the replica conflict policy contract and reviewed conflict resolutions (#1047). replayOfflineEditPass now accepts a ReplicaConflictPolicy and classifies every member of the shipped union — manual and server-wins are carried out from queue-side state, client-wins and last-writer-wins are refused by name — and the durable queue gained a reviewed-resolution transition (a conflict-resolved audit event, the requeue-or-abandon disposition, the unacknowledged-by-server marker, persisted-record validation for the new outcome, and credential screening of the reviewer-authored strings on the way in and on the way back out), with recordOfflineConflictResolution taking a SyncConflictResolution unchanged and the projection publishing the closed conflict. Trunk measured 162,099 minified / 43,827 gzip before this change and 173,311 / 46,255 after, so both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the graph — the replica-sync coupling stays type-only, so no dist/src/offline/*.js imports anything from src/replica-sync — and /offline remains subpath-only, so root, /honua, and browser barrels are unchanged.",
-  "/scene-workspace was reset for the entity refresh diff and the single-owner scene mount (#1050) — the thin headroom #1049 flagged is what this change spent. refresh() no longer discards the snapshot: it diffs on identity (the projected entity id qualified by geometry kind) plus an order-independent per-facet configuration fingerprint, reuses a byte-identical feature's live Entity untouched, writes only the changed facets of a changed feature onto the Entity it already has, replaces on a geometry-kind change or an unfingerprintable feature, releases departures last so a failure cannot leave a hole, and reports every crossing through a CesiumEntityRebuildBoundary vocabulary. mountCesiumScene adds the owner that composes the entity mount with the primitive mount behind one dispose(). Measured 170,924 minified / 51,989 gzip bytes; both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the static graph — the owner delegates to the two existing mounts, the fingerprint reuses the planner's canonicalization the entity path already imported, and CesiumJS is still reached only through a lazy dynamic import — and root, /honua, and browser ceilings are unchanged because the scene surface remains subpath-only.",
-  "/pmtiles gained its first dedicated guard with #1118 and was narrowed before promotion: the authenticated bounded inspector uses PMTiles-specific endpoint, identity, hostile-cache validation, and the same HonuaClient.pipelineFetch range primitive as generic connect() without retaining dist/src/connect.js. The corrected public subpath measures 339,031 minified / 91,407 gzip bytes inside its dedicated ceilings, and the 32,718 / 9,293 tree-shake:pmtiles-lifecycle guard remains isolated from generic discovery/render/plugin/runtime inputs. Final review replaced the duplicated generic/focused cache validators with one pure PMTiles v7 validator called by both orchestrators; generic connect does not import the focused high-level runner, and /pmtiles still forbids dist/src/connect.js. Exact base-to-head minified deltas are root +2,646 (774,616 actual), browser-iife +2,588 (775,214), browser-esm +2,724 (773,881), tree-shake:root-createHonua +2,298 (736,588), tree-shake:map-source-workflow +171 (45,994), and tree-shake:error-leaf +37 (15,894); /runtime gzip remains +24 (167,908). Existing root/browser-esm and compact error-family ceilings still hold and are not widened again. Only browser-iife and tree-shake:root-createHonua newly exceed their exact-base ceilings, so those two are reset to actual plus 10%; every other shared ceiling is unchanged."
+  "/scene-workspace was reset for the entity refresh diff and the single-owner scene mount (#1050) — the thin headroom #1049 flagged is what this change spent. refresh() no longer discards the snapshot: it diffs on identity (the projected entity id qualified by geometry kind) plus an order-independent per-facet configuration fingerprint, reuses a byte-identical feature's live Entity untouched, writes only the changed facets of a changed feature onto the Entity it already has, replaces on a geometry-kind change or an unfingerprintable feature, releases departures last so a failure cannot leave a hole, and reports every crossing through a CesiumEntityRebuildBoundary vocabulary. mountCesiumScene adds the owner that composes the entity mount with the primitive mount behind one dispose(). Measured 170,924 minified / 51,989 gzip bytes; both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the static graph — the owner delegates to the two existing mounts, the fingerprint reuses the planner's canonicalization the entity path already imported, and CesiumJS is still reached only through a lazy dynamic import — and root, /honua, and browser ceilings are unchanged because the scene surface remains subpath-only."
  ],
  "entrypoints": {
   ".": {
-   "min": 849224,
+   "min": 771970,
    "gzip": 216894
   },
   "/honua": {
@@ -130,28 +127,20 @@
    "gzip": 22439
   },
   "/agent-tools": {
-   "min": 49303,
-   "gzip": 13664
+   "min": 39107,
+   "gzip": 11180
   },
   "/agent-safety": {
    "min": 74925,
    "gzip": 20971
   },
   "/nl-map-control": {
-   "min": 96450,
+   "min": 86514,
    "gzip": 25947
-  },
-  "/interactions/declarative": {
-   "min": 16157,
-   "gzip": 5662
-  },
-  "/studio-agent": {
-   "min": 28588,
-   "gzip": 9078
   },
   "/runtime": {
    "min": 626939,
-   "gzip": 184699
+   "gzip": 167884
   },
   "/realtime": {
    "min": 88268,
@@ -234,11 +223,11 @@
    "gzip": 4328
   },
   "browser-iife": {
-   "min": 852736,
+   "min": 772626,
    "gzip": 227405
   },
   "browser-esm": {
-   "min": 848415,
+   "min": 771157,
    "gzip": 227031
   },
   "tree-shake:HonuaClient": {
@@ -254,7 +243,7 @@
    "gzip": 6372
   },
   "tree-shake:root-createHonua": {
-   "min": 810247,
+   "min": 734290,
    "gzip": 215690
   },
   "/react": {
@@ -274,7 +263,7 @@
    "gzip": 69700
   },
   "tree-shake:map-source-workflow": {
-   "min": 50594,
+   "min": 45823,
    "gzip": 14365
   },
   "tree-shake:runtime-terra-draw-sketch": {
@@ -286,20 +275,12 @@
    "gzip": 9377
   },
   "tree-shake:error-leaf": {
-   "min": 17484,
+   "min": 15857,
    "gzip": 4648
   },
   "tree-shake:error-registry": {
    "min": 16701,
    "gzip": 3556
-  },
-  "/pmtiles": {
-   "min": 372930,
-   "gzip": 101098
-  },
-  "tree-shake:pmtiles-lifecycle": {
-   "min": 35990,
-   "gzip": 10223
   }
  }
 }

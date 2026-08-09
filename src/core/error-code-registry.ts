@@ -15,7 +15,6 @@ export type HonuaErrorDomain =
   | "realtime"
   | "offline"
   | "plugin"
-  | "pmtiles"
   | "agent"
   | "app";
 
@@ -48,49 +47,6 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "core.cancelled": classification("core", "cancellation", false, "Caller cancelled the operation"),
   "core.grpc.transient": classification("core", "protocol", true, "Retryable gRPC-Web transport failure"),
   "core.grpc.rejected": classification("core", "protocol", false, "Non-retryable gRPC-Web transport failure"),
-  "pmtiles.lifecycle.invalid-request": classification(
-    "pmtiles",
-    "validation",
-    false,
-    "PMTiles lifecycle request is invalid",
-  ),
-  "pmtiles.lifecycle.invalid-response": classification(
-    "pmtiles",
-    "validation",
-    false,
-    "PMTiles lifecycle response violates the server contract",
-  ),
-  "pmtiles.lifecycle.response-too-large": classification(
-    "pmtiles",
-    "validation",
-    false,
-    "PMTiles lifecycle response exceeds its byte ceiling",
-  ),
-  "pmtiles.lifecycle.job-poll-timeout": classification(
-    "pmtiles",
-    "timeout",
-    true,
-    "PMTiles job did not reach a terminal state within polling bounds",
-  ),
-  "pmtiles.lifecycle.job-failed": classification("pmtiles", "protocol", false, "PMTiles job reached the failed state"),
-  "pmtiles.lifecycle.job-cancelled": classification(
-    "pmtiles",
-    "cancellation",
-    false,
-    "PMTiles job reached the cancelled state",
-  ),
-  "pmtiles.lifecycle.access-url-expired": classification(
-    "pmtiles",
-    "validation",
-    false,
-    "Published PMTiles access URL is expired",
-  ),
-  "pmtiles.lifecycle.manual-cleanup-unsupported": classification(
-    "pmtiles",
-    "capability",
-    false,
-    "Managed PMTiles artifact deletion is not exposed",
-  ),
   "core.geometry.unknown-geometry": classification(
     "core",
     "validation",
@@ -138,39 +94,6 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "core.coverage.unsupported-format": classification("core", "capability", false, "Coverage format is unsupported"),
   "core.coverage.service-error": classification("core", "protocol", false, "Coverage service rejected the request"),
   "core.coverage.wcs-exception": classification("core", "protocol", false, "WCS exception report"),
-  "core.zarr.invalid-request": classification("core", "validation", false, "Zarr request is invalid"),
-  "core.zarr.invalid-response": classification("core", "protocol", false, "Zarr response is invalid"),
-  "core.zarr.response-too-large": classification("core", "validation", false, "Zarr response exceeds its byte limit"),
-  "core.zarr.metadata-pending": classification("core", "capability", false, "Zarr metadata scan is pending"),
-  "core.zarr.missing-spatial-extent": classification(
-    "core",
-    "capability",
-    false,
-    "Zarr storage spatial extent is missing or unusable",
-  ),
-  "core.zarr.no-tileable-variable": classification(
-    "core",
-    "capability",
-    false,
-    "Zarr metadata contains no tileable variable",
-  ),
-  "core.zarr.missing-spatial-reference": classification(
-    "core",
-    "capability",
-    false,
-    "Zarr registration is missing a positive storage SRID for tile handoff",
-  ),
-  "core.zarr.spatial-reference-mismatch": classification(
-    "core",
-    "capability",
-    false,
-    "Zarr storage and tile matrix spatial references do not match",
-  ),
-  "core.zarr.unsupported-version": classification("core", "capability", false, "Zarr version is unsupported"),
-  "core.zarr.unsupported-codec": classification("core", "capability", false, "Zarr codec is unsupported"),
-  "core.zarr.unsupported-dtype": classification("core", "capability", false, "Zarr dtype is unsupported"),
-  "core.zarr.ambiguous-dimensions": classification("core", "validation", false, "Zarr dimensions are ambiguous"),
-  "core.zarr.service-error": classification("core", "protocol", false, "Zarr service rejected the request"),
   "discovery.ambiguous-protocol": classification(
     "discovery",
     "validation",

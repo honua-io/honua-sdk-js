@@ -29,10 +29,8 @@ import {
   isRunnableRootExampleDirectory,
   migrateCatalogV1ToV2,
   parseJsonDocument,
-  publishesGoldenVisualWindow,
   refreshOverlayLiveExpiry,
   reviewedLiveProducer,
-  unrenewableGoldenVisualPaths,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
@@ -227,10 +225,10 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(35);
+    expect(catalog.samples).toHaveLength(34);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(31);
+    ).toHaveLength(30);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
@@ -278,23 +276,6 @@ describe("sample publication contract", () => {
       lifecycle: { state: "active" },
     });
     expect(catalog.siteMappings).toHaveLength(21);
-  });
-
-  it("accepts only the reviewed bounded Coverage and WCS browser command", async () => {
-    const catalog = await readJson("samples/catalog.v2.json");
-    const packageJson = await readJson("package.json");
-    expect(packageJson.scripts["test:playwright:coverages-wcs"]).toBe(
-      "vite build --config examples/coverages-wcs-basic/vite.config.ts && playwright test test/playwright/coverages-wcs-basic.spec.mjs",
-    );
-    const commandPolicyOptions = { ...validationTime, relaxDerivedArtifacts: true, verifyCheckout: false };
-    await expect(validateCatalog(catalog, packageJson, commandPolicyOptions)).resolves.toBeUndefined();
-
-    const unboundedPackage = structuredClone(packageJson);
-    unboundedPackage.scripts["test:playwright:coverages-wcs"] =
-      `${packageJson.scripts["test:playwright:coverages-wcs"]} && node -e "process.exit(0)"`;
-    await expect(validateCatalog(catalog, unboundedPackage, commandPolicyOptions)).rejects.toThrow(
-      "coverages-wcs-basic: automatic validation command is not in the reviewed bounded registry: npm run test:playwright:coverages-wcs",
-    );
   });
 
   it("replays the reviewed v1 migration without semantic drift", async () => {
@@ -964,13 +945,13 @@ describe("sample publication contract", () => {
       format: "honua.site.sdk-sample-projection.v3",
       schemaVersion: 3,
     });
-    expect(projection.samples).toHaveLength(35);
+    expect(projection.samples).toHaveLength(34);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(35);
+    expect(ciSelection.samples).toHaveLength(34);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(visualEvidence).toMatchObject({
       format: "honua.sdk.golden-journey-visual-evidence.v1",
@@ -1021,11 +1002,13 @@ describe("sample publication contract", () => {
       schemaVersion: 2,
       publication: { manifestAsset: "sample-bundles.v2.json" },
     });
-    for (const [sampleId, runnability] of [
-      ["maplibre-quickstart", "standalone"],
-      ["service-explorer", "requires-live-endpoint"],
-    ] as const) {
-      expect(projection.sampleBundles.published).toContainEqual(expect.objectContaining({ id: sampleId, runnability }));
+    for (const sampleId of ["maplibre-quickstart", "service-explorer"]) {
+      expect(projection.sampleBundles.published).toContainEqual(
+        expect.objectContaining({ id: sampleId, runnability: "requires-live-endpoint" }),
+      );
+      expect(projection.sampleBundles.published).not.toContainEqual(
+        expect.objectContaining({ id: sampleId, runnability: "standalone" }),
+      );
     }
     for (const sample of catalog.samples) {
       const projected = projection.samples.find((candidate: { id: string }) => candidate.id === sample.id);
@@ -1166,17 +1149,6 @@ describe("sample publication contract", () => {
     await expect(validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence)).rejects.toThrow(
       "stale or has an invalid freshness window",
     );
-    // An expiry is a renewal lapse, not a branch defect (#1266). The failure has
-    // to name the window that lapsed, when it lapsed, and the command that
-    // renews it: "stale or invalid" alone sent a wall-clock expiry to triage as
-    // if some pull request had broken the contract.
-    const lapsed = await validateGoldenJourneyVisualEvidence(staleLive, staleCatalog, qualificationEvidence).then(
-      () => "",
-      (error: unknown) => (error instanceof Error ? error.message : String(error)),
-    );
-    expect(lapsed).toMatch(/live observation expired .+ ago \(expiresAt=2026-07-08T00:00:00\.000Z\)/);
-    expect(lapsed).toContain("npm run samples:generate");
-    expect(lapsed).toContain("regenerate-derived-artifacts.yml");
 
     const incidentCatalog = structuredClone(catalog);
     const incidentJourney = incidentCatalog.goldenJourneys.find(
@@ -1294,13 +1266,9 @@ describe("sample publication contract", () => {
     expect(bumpedProjection.catalog.version).toBe(bumpedVersion);
     expect(bumpedProjection.samples[0].sdk.version).toBe(bumpedVersion);
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
-      "samples/dist/honua-site-samples.v2.json",
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/capability-sample-matrix.v1.json",
-      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     ]);
 
@@ -1312,20 +1280,16 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(currentOutputs, semanticDrift)).toEqual(["docs/generated/sample-catalog.md"]);
 
     const integrityDrift = new Map(currentOutputs);
-    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json";
     const consumerFixture = JSON.parse(currentOutputs.get(fixturePath)!);
     consumerFixture.input.sha256 = "0".repeat(64);
     integrityDrift.set(fixturePath, `${JSON.stringify(consumerFixture, null, 2)}\n`);
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
-      "samples/dist/honua-site-samples.v2.json",
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/capability-sample-matrix.v1.json",
-      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
       fixturePath,
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
@@ -2077,21 +2041,6 @@ runNpmScriptSync("demo:wrong:build", {
       ),
     ).toThrow("expected exactly one demo:fixture:build fixture build");
     await expect(validateFixtureBuildHarnesses()).resolves.toBe(24);
-  });
-
-  it("keeps the columnar browser validation exact and bounded", async () => {
-    const packageJson = await readJson("package.json");
-    const catalog = await readJson("samples/catalog.v2.json");
-    const columnar = catalog.samples.find((sample: { id: string }) => sample.id === "columnar-query-quickstart");
-    expect(columnar.validation).toContain("npm run test:playwright:columnar-query");
-    const policyValidationTime = { ...validationTime, verifyCheckout: false };
-    await expect(validateCatalog(catalog, packageJson, policyValidationTime)).resolves.toBeUndefined();
-
-    const unboundedPackage = structuredClone(packageJson);
-    unboundedPackage.scripts["test:playwright:columnar-query"] += " && vite";
-    await expect(validateCatalog(catalog, unboundedPackage, policyValidationTime)).rejects.toThrow(
-      "automatic validation command is not in the reviewed bounded registry",
-    );
   });
 
   it("accepts only bounded, whole catalog commands", async () => {
@@ -2916,33 +2865,5 @@ runNpmScriptSync("demo:wrong:build", {
 
     manifest.files[0].sha256 = "0".repeat(64);
     await expect(verifyBrowserArtifactManifest(manifest)).rejects.toThrow("SHA-256 drift");
-  });
-
-  // honua-io/honua-sdk-js#1266. A committed document that publishes a
-  // golden-visual freshness window and is regenerated by nothing expires on the
-  // calendar and takes the whole publication gate down with it, a week after
-  // whoever added it has moved on. The rule is structural: every such document
-  // is either a regenerated output or a registered archive validated against its
-  // own observedAt. Exercised on a synthetic document set so the rule is proved
-  // without committing a time bomb to the real contract tree.
-  it("refuses a golden-visual freshness window that no regeneration renews", async () => {
-    const rolling = await readJson("samples/dist/honua-site-consumer-handoff.v1.json");
-
-    expect(publishesGoldenVisualWindow(rolling)).toBe(true);
-    expect(publishesGoldenVisualWindow(await readJson("samples/dist/sample-ci-selection.v2.json"))).toBe(false);
-    expect(publishesGoldenVisualWindow({ nested: [{ deep: { qualifiedGoldenJourneys: [] } }] })).toBe(true);
-
-    // Only the unrenewable candidates reach the rule: regenerated outputs and
-    // registered archives are filtered out before it, and a document with no
-    // window at all is never a time bomb in the first place.
-    expect(
-      unrenewableGoldenVisualPaths(
-        new Map<string, unknown>([
-          ["samples/dist/frozen-copy.v1.json", rolling],
-          ["samples/dist/sample-ci-selection.v2.json", { samples: [] }],
-        ]),
-      ),
-    ).toEqual(["samples/dist/frozen-copy.v1.json"]);
-    expect(unrenewableGoldenVisualPaths(new Map<string, unknown>())).toEqual([]);
   });
 });

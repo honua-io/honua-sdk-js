@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "sdk": {
     "package": "@honua/sdk-js",
-    "version": "0.1.7-beta.0"
+    "version": "0.1.4-beta.0"
   },
   "generatedFrom": [
     "config/sdk-coverage-crosswalk.v1.json",
@@ -312,7 +312,6 @@
       "status": "partial",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "@honua/sdk-js/raster",
         "HonuaClient.imageService",
         "Source.protocol()",
         "connect()",
@@ -321,11 +320,10 @@
       "evidence": [
         "test/contract/geoservices-conformance.test.ts",
         "test/geoservices-discovery.test.ts",
-        "test/integration/surfaces/image-server.integration.ts",
-        "test/unified-raster.test.ts"
+        "test/integration/surfaces/image-server.integration.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; the experimental raster facade adds bounded bbox rendering, explicit one-based band selection, identify, and presentation handoffs without inventing statistics endpoints."
+      "note": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor."
     },
     {
       "key": "serve.geoservices-mapserver",
@@ -365,16 +363,13 @@
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
         "@honua/sdk-js/coverages createCoverageClient()",
-        "@honua/sdk-js/raster",
         "CoverageSource"
       ],
       "evidence": [
-        "test/coverages-wcs.test.ts",
-        "test/playwright/coverages-wcs-basic.spec.mjs",
-        "test/unified-raster.test.ts"
+        "test/coverages-wcs.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. A strict standalone browser fixture proves named properties, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists."
+      "note": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline."
     },
     {
       "key": "serve.ogc-api-features",
@@ -437,57 +432,44 @@
     },
     {
       "key": "serve.stac",
-      "status": "partial",
+      "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "@honua/sdk-js/stac",
         "Source with locator.layout=stac-api or stac-static",
         "connect()"
       ],
       "evidence": [
         "scripts/live-conformance-evidence.mjs",
-        "test/contract/stac-backend-agnostic.test.ts",
-        "test/playwright/stac-imagery-browser.spec.mjs",
-        "test/stac-imagery-browser.test.ts",
-        "test/stac-workflow.test.ts"
+        "test/contract/stac-backend-agnostic.test.ts"
       ],
-      "source": "support-manifest",
-      "note": "Searches a raw STAC API or walks static catalog links with client-side filtering. Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. The walkthrough executes authenticated, byte-bounded PMTiles v3 inspection with redacted range evidence, but does not mount the archive as a tile source; pmtiles-static remains renderer proof. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable."
+      "source": "support-manifest"
     },
     {
       "key": "serve.vector-tiles",
-      "status": "partial",
+      "status": "covered",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "@honua/sdk-js/pmtiles inspectPmtilesArchive()",
         "Source.protocol('pmtiles')",
-        "connect({ protocol: 'pmtiles' })",
-        "createHonuaPmtilesLifecycle()",
-        "registerPmtilesSource()"
+        "connect({ protocol: 'pmtiles' })"
       ],
       "evidence": [
         "test/connect-pmtiles.test.ts",
-        "test/pmtiles-contract.test.ts",
-        "test/pmtiles-lifecycle.test.ts"
+        "test/pmtiles-contract.test.ts"
       ],
-      "source": "support-manifest",
-      "note": "Reads only a bounded PMTiles v3 header and metadata range through the authenticated client pipeline; pmtiles:// is the sole direct auto marker, while filename-only and spoofed inputs fail closed without alternate-protocol probing. Submits archive/publish jobs, bounds typed status polling, cancels work, validates public/signed/range-proxy access semantics, and exposes direct versus managed descriptors. Evidence is contract-only; no pinned managed live canary is claimed, and manual managed artifact deletion is unavailable."
+      "source": "support-manifest"
     },
     {
       "key": "serve.wcs",
       "status": "partial",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "@honua/sdk-js/coverages createWcsClient()",
-        "@honua/sdk-js/raster"
+        "@honua/sdk-js/coverages createWcsClient()"
       ],
       "evidence": [
-        "test/coverages-wcs.test.ts",
-        "test/playwright/coverages-wcs-basic.spec.mjs",
-        "test/unified-raster.test.ts"
+        "test/coverages-wcs.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. A strict standalone browser fixture proves named RANGESUBSET, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists."
+      "note": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions."
     },
     {
       "key": "serve.wfs",

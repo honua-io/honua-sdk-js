@@ -120,6 +120,17 @@ export const RUNNABILITY_BY_HOSTING = new Map([
  */
 export const PUBLISHED_LIVE_SAMPLE_POLICY = new Map([
   [
+    "maplibre-quickstart",
+    {
+      allowedOrigins: ["https://demo.honua.io"],
+      semanticProbe: {
+        url: "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1/query?where=id%20%3C%3D%2025&outFields=*&returnGeometry=true&f=geojson",
+        kind: "geojson-feature-collection",
+        minimumFeatures: 1,
+      },
+    },
+  ],
+  [
     "service-explorer",
     {
       allowedOrigins: ["https://demo.pygeoapi.io"],
@@ -230,7 +241,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:coverages-wcs:build",
     auditedVia:
-      "examples/coverages-wcs-basic/src/main.ts injects ./pinned-fixtures.js as HonuaClient.fetchFn and mounts its bounded PNG through an inline-style MapLibre image source; the strict bundled transport answers OGC API Coverages and WCS metadata plus coverage requests from in-memory JSON/XML/PNG fixtures and rejects every unexpected origin, so the default build issues no external request.",
+      "examples/coverages-wcs-basic/src/main.ts injects ./pinned-fixtures.js as HonuaClient.fetchFn; that bundled module answers OGC API Coverages and WCS metadata plus coverage requests from in-memory JSON/XML/PNG fixtures, so the default build issues no network request.",
   },
   {
     id: "ai-spatial-app-builder",
@@ -260,17 +271,32 @@ export const SAMPLE_BUNDLE_AUDIT = [
   },
   {
     id: "imagery-cog-quickstart",
-    runtimeHosting: "self-contained",
+    runtimeHosting: "same-origin-fixture-service",
     buildScript: "demo:imagery-cog:build",
+    hostFixtureRoutes: [
+      "/api/v1/terrain/OahuTerrain/elevation/value",
+      // The whole `/fixtures/cog/` prefix, not just `item.json`: the item's
+      // STAC assets carry relative hrefs (`./assets/<key>`) that the SDK's
+      // stac-static inspection resolves against the item URL, so the bundle
+      // then requests `/fixtures/cog/assets/<key>`. Declaring only the item
+      // route left a host provisioning exactly the stated prerequisites
+      // 404ing on every asset read.
+      "/fixtures/cog/",
+      "/fixtures/imagery/cog/",
+      "/rest/services/OahuCog/ImageServer",
+      "/rest/services/OahuImagery/MapServer/WMS",
+      "/rest/services/OahuTerrain/ImageServer",
+      "/stac/search",
+    ],
     auditedVia:
-      "The default bundle contains a deterministic CC0-1.0 tiled EPSG:4326 GeoTIFF split into SHA-256-pinned logical 64 KiB chunks with independently pinned lossless storage and licensed PNG map fixtures. Exact-identity fixture transport serves STAC, WMS/ImageServer metadata, export, and elevation; fixture-only georeferenced image sources serve the Oahu imagery bbox and a bounded MapLibre protocol serves Terrain-RGB while configured same-origin Honua service mode remains unchanged. Pure-static bundle smoke exercises the complete journey with no host fixture routes.",
+      "examples/imagery-cog-quickstart/src/config.ts resolveImageryCogConfig: with VITE_HONUA_IMAGERY_BASE_URL unset it resolves mode \"fixture-safe\" against the document origin, and normalizeBaseUrl rejects any cross-origin, query-bearing, or credential-bearing override, so the bundle can only ever address the same-origin fixture routes in examples/imagery-cog-quickstart/mock-server.mjs.",
   },
   {
     id: "maplibre-quickstart",
-    runtimeHosting: "self-contained",
+    runtimeHosting: "external-live-endpoint",
     buildScript: "demo:quickstart:build",
     auditedVia:
-      "examples/maplibre-quickstart/vite.config.ts emits the governed first-map/v2 layer and query responses at bundle-relative extensionless routes; examples/maplibre-quickstart/src/main.ts resolves the fixture sentinel relative to the app subpath; and sampleBuildEnv pins that sentinel, GeoServices protocol, all 48 records, and the same-bundle basemap.",
+      "scripts/build-sample-bundles.mjs sampleBuildEnv and PUBLISHED_LIVE_SAMPLE_POLICY: the published bundle receives the exact https://demo.honua.io FeatureServer endpoint and a same-bundle basemap while ambient browser configuration remains stripped; the source app keeps its deterministic same-origin fixture default.",
   },
   {
     id: "migration-workbench",
@@ -392,51 +418,6 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/temporal-playback/src/main.ts mounts an inline MapLibre style over in-module fixture frames; the sample issues no fetch.",
   },
 ];
-
-/**
- * Product assertions that the pure-static published bundle smoke must prove.
- * These are kept beside the hosting audit so a self-contained verdict cannot
- * outlive the map/data behavior that made the sample publishable.
- */
-export const SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS = new Map([
-  [
-    "coverages-wcs-basic",
-    {
-      kind: "coverage",
-      state: "__HONUA_COVERAGES_WCS__",
-      readyField: "ready",
-      canvasSelector: ".maplibregl-canvas",
-      ogcSourceId: "ogc-elevation",
-      ogcLayerId: "ogc-elevation-raster",
-      wcsSourceId: "wcs-elevation",
-      wcsLayerId: "wcs-elevation-raster",
-      fixtureDigest: "8c7b5b3f8bd31bca2df07c4a70254d75e70d63838c2f77e033def3c1b8d2acff",
-      fixtureByteLength: 281_908,
-      imageWidth: 320,
-      imageHeight: 220,
-      centerPixelValue: 450,
-      centerPixelColor: [221, 174, 82],
-      legendSelector: "#legend-labels",
-      legendMinText: "0 m",
-      legendMaxText: "600 m",
-      pixelSelector: "#pixel-value",
-      pixelText: "450 m",
-    },
-  ],
-  [
-    "columnar-query-quickstart",
-    {
-      state: "__HONUA_COLUMNAR_QUERY_QUICKSTART__",
-      readyField: "ready",
-      resultSelector: "#map-state",
-      resultAttribute: "data-state",
-      resultValue: "ready",
-      canvasSelector: ".maplibregl-canvas",
-      sourceFeatureCountMethod: "sourceFeatureCount",
-      markerSelector: ".maplibregl-marker",
-    },
-  ],
-]);
 
 /**
  * Whether a same-origin request path is satisfied by a bundle's declared
@@ -803,10 +784,6 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-function compareUtf8(left, right) {
-  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
-}
-
 async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
 }
@@ -818,7 +795,7 @@ function mediaTypeFor(filePath) {
 async function walkFiles(root, relativeDirectory = "") {
   const files = [];
   const entries = await readdir(path.join(root, relativeDirectory), { withFileTypes: true });
-  for (const entry of entries.sort((left, right) => compareUtf8(left.name, right.name))) {
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     const relativePath = path.posix.join(relativeDirectory, entry.name);
     if (entry.isDirectory()) files.push(...(await walkFiles(root, relativePath)));
     else if (entry.isFile()) files.push(relativePath);
@@ -843,21 +820,16 @@ async function hashDirectory(root) {
 
 /** Strip every `VITE_*` variable so each build only ever sees the sample's
  * own committed fixture-mode default — never an ambient live override. */
-const FIRST_MAP_STANDALONE_CONFIG = Object.freeze({
-  VITE_HONUA_QUICKSTART_ENDPOINT: "honua:first-map-fixture",
-  VITE_HONUA_QUICKSTART_PROTOCOL: "geoservices-feature-service",
-  VITE_HONUA_QUICKSTART_WHERE: "1=1",
-  VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: "48",
-  VITE_HONUA_QUICKSTART_BASEMAP_STYLE: "./__honua-quickstart__/basemap-style.json",
-});
-
 function sampleBuildEnv(sampleId) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith("VITE_")) delete env[key];
   }
   if (sampleId === "maplibre-quickstart") {
-    Object.assign(env, FIRST_MAP_STANDALONE_CONFIG);
+    env.VITE_HONUA_QUICKSTART_ENDPOINT =
+      "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
+    env.VITE_HONUA_QUICKSTART_WHERE = "id <= 25";
+    env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE = "./__honua-quickstart__/basemap-style.json";
   }
   if (sampleId === "realtime-incident-dashboard") {
     env.VITE_HONUA_INCIDENT_TRANSPORT = "replay";
@@ -925,12 +897,7 @@ async function buildSample(
     `${id}: copied bundle is missing index.html`,
   );
 
-  const configDefaults = Object.fromEntries(
-    browserPublicConfigNames(catalogEntry).map((name) => [
-      name,
-      id === "maplibre-quickstart" ? (FIRST_MAP_STANDALONE_CONFIG[name] ?? null) : null,
-    ]),
-  );
+  const configDefaults = Object.fromEntries(browserPublicConfigNames(catalogEntry).map((name) => [name, null]));
 
   return {
     id,
