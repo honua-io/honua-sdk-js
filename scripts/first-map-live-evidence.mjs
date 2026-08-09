@@ -107,8 +107,8 @@ async function main() {
   let fixture;
   let browser;
   let page;
-    const rejectedRequests = [];
-    const failedRequiredRequests = [];
+  const rejectedRequests = [];
+  const failedRequiredRequests = [];
   const pageErrors = [];
   const consoleErrors = [];
   try {
