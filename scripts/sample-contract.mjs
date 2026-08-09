@@ -3,8 +3,9 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { lstat, mkdir, opendir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, opendir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -4677,6 +4678,105 @@ function readHistoricalProducerBlob(root, revision, producerPath) {
   return bytes;
 }
 
+/**
+ * Resolve a frozen evidence file by its committed path and content address.
+ * The current working tree is deliberately never consulted: derived evidence
+ * pruning may remove the old run after the legacy handoff is frozen.
+ */
+export function readHistoricalContentAddressedBlob(root, reference) {
+  invariant(
+    typeof reference?.path === "string" &&
+      reference.path.startsWith("samples/evidence/") &&
+      !path.isAbsolute(reference.path) &&
+      !reference.path.includes("\\") &&
+      path.posix.normalize(reference.path) === reference.path,
+    "legacy artifact path is not canonical evidence content",
+  );
+  invariant(
+    Number.isSafeInteger(reference.bytes) &&
+      reference.bytes >= 0 &&
+      reference.bytes <= SITE_CONSUMER_MAX_ARTIFACT_BYTES &&
+      /^[a-f0-9]{64}$/.test(reference.sha256),
+    "legacy artifact content address is invalid",
+  );
+  let history;
+  try {
+    history = execFileSync(
+      "git",
+      ["log", "--all", "--diff-filter=AM", "--format=%H", "--", reference.path],
+      {
+      cwd: root,
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+      },
+    );
+  } catch {
+    throw new Error(`legacy artifact history is unavailable for ${reference.path}`);
+  }
+  const revisions = [...new Set(history.split(/\r?\n/u).filter(Boolean))];
+  invariant(
+    revisions.length <= 64 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
+    `legacy artifact history is invalid or excessive for ${reference.path}`,
+  );
+  for (const revision of revisions) {
+    let bytes;
+    try {
+      bytes = execFileSync("git", ["show", `${revision}:${reference.path}`], {
+        cwd: root,
+        encoding: "buffer",
+        maxBuffer: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+      });
+    } catch {
+      continue;
+    }
+    if (bytes.byteLength === reference.bytes && sha256(bytes) === reference.sha256) {
+      return { bytes, revision };
+    }
+  }
+  throw new Error(`legacy artifact blob is unavailable at a committed immutable revision: ${reference.path}`);
+}
+
+async function historicalEvidenceCheckout(root, revision, checkouts) {
+  let checkout = checkouts.get(revision);
+  if (checkout) return checkout.root;
+  const container = await mkdtemp(path.join(os.tmpdir(), "honua-legacy-evidence-"));
+  const checkoutRoot = path.join(container, "checkout");
+  try {
+    execFileSync("git", ["clone", "--shared", "--no-checkout", "--quiet", root, checkoutRoot], {
+      cwd: root,
+      encoding: "buffer",
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    });
+    execFileSync("git", ["-C", checkoutRoot, "config", "core.autocrlf", "false"], {
+      cwd: root,
+      windowsHide: true,
+    });
+    execFileSync("git", ["-C", checkoutRoot, "config", "core.eol", "lf"], {
+      cwd: root,
+      windowsHide: true,
+    });
+    execFileSync("git", ["-C", checkoutRoot, "checkout", "--detach", "--quiet", revision], {
+      cwd: root,
+      encoding: "buffer",
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    });
+  } catch (error) {
+    await rm(container, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    throw new Error(`legacy evidence checkout is unavailable at immutable revision ${revision}`, {
+      cause: error,
+    });
+  }
+  checkout = { container, root: checkoutRoot };
+  checkouts.set(revision, checkout);
+  return checkout.root;
+}
+
 export async function generateLegacyVisualReceiptArchive(handoff, options = {}) {
   invariant(
     handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff.schemaVersion === 1,
@@ -4779,59 +4879,87 @@ export async function validateLegacyVisualReceiptArchive(archive, handoff) {
   const claims = legacyVisualReceiptClaims(handoff);
   invariant(archive.entries.length === claims.length, "legacy visual receipt archive entry set is incomplete or excessive");
   const archived = new Map();
-  for (let index = 0; index < claims.length; index += 1) {
-    const claim = claims[index];
-    const entry = archive.entries[index];
-    invariant(
-      entry.sampleId === claim.sampleId &&
-        entry.gate === claim.gate &&
-        entry.sourceRevision === claim.sourceRevision &&
-        entry.sourceDigest === claim.sourceDigest &&
-        entry.sourcePath === claim.sourcePath &&
-        path.posix.normalize(entry.sourcePath) === entry.sourcePath &&
-        entry.sha256 === claim.sha256,
-      `${claim.sampleId} ${claim.gate} legacy receipt archive identity, revision, path, or digest drift`,
+  const historicalBlobs = new Map();
+  const checkouts = new Map();
+  const historicalBlob = (reference) => {
+    const key = `${reference.path}:${reference.bytes}:${reference.sha256}`;
+    let resolved = historicalBlobs.get(key);
+    if (!resolved) {
+      resolved = readHistoricalContentAddressedBlob(PROJECT_ROOT, reference);
+      historicalBlobs.set(key, resolved);
+    }
+    return resolved;
+  };
+  try {
+    for (let index = 0; index < claims.length; index += 1) {
+      const claim = claims[index];
+      const entry = archive.entries[index];
+      invariant(
+        entry.sampleId === claim.sampleId &&
+          entry.gate === claim.gate &&
+          entry.sourceRevision === claim.sourceRevision &&
+          entry.sourceDigest === claim.sourceDigest &&
+          entry.sourcePath === claim.sourcePath &&
+          path.posix.normalize(entry.sourcePath) === entry.sourcePath &&
+          entry.sha256 === claim.sha256,
+        `${claim.sampleId} ${claim.gate} legacy receipt archive identity, revision, path, or digest drift`,
+      );
+      const bytes = Buffer.from(entry.contentBase64, "base64");
+      invariant(
+        bytes.toString("base64") === entry.contentBase64 &&
+          bytes.byteLength === entry.bytes &&
+          sha256(bytes) === entry.sha256,
+        `${claim.sampleId} ${claim.gate} legacy receipt archive blob is missing or has stale bytes`,
+      );
+      const receipt = parseJsonDocument(bytes.toString("utf8"), entry.sourcePath);
+      const producerBytes = producers.get(
+        `${receipt.sourceRevision}:${receipt.producer.path}:${receipt.producer.sha256}`,
+      );
+      invariant(
+        producerBytes,
+        `${claim.sampleId} ${claim.gate} legacy producer revision, path, or blob is missing or stale`,
+      );
+      const artifactRevision = historicalBlob(receipt.artifacts[0]).revision;
+      const projectRoot = await historicalEvidenceCheckout(PROJECT_ROOT, artifactRevision, checkouts);
+      await validateGateReceipt(receipt, {
+        sampleId: claim.sampleId,
+        gate: claim.gate,
+        sourceRevision: claim.sourceRevision,
+        sourceDigest: claim.sourceDigest,
+        projectRoot,
+        verifyCheckout: false,
+        now: receipt.observedAt,
+        producerBytes,
+      });
+      invariant(
+        receipt.sdkMode === claim.semantic.sdkMode &&
+          receipt.runRoot === claim.semantic.runRoot &&
+          receipt.observedAt === claim.semantic.observedAt &&
+          receipt.expiresAt === claim.semantic.expiresAt &&
+          JSON.stringify(receipt.artifacts[0]) ===
+            JSON.stringify({
+              kind: claim.semantic.reportKind,
+              path: claim.semantic.reportPath,
+              bytes: claim.semantic.reportBytes,
+              sha256: claim.semantic.reportSha256,
+            }),
+        `${claim.sampleId} ${claim.gate} legacy receipt archive metadata drift`,
+      );
+      archived.set(`${claim.sampleId}:${claim.gate}`, bytes);
+    }
+    for (const card of handoff.cards) {
+      if (!card.visualEvidence) continue;
+      for (const reference of goldenVisualArtifactReferences(card.visualEvidence)) {
+        if (reference.kind === "receipt") continue;
+        archived.set(reference.path, historicalBlob(reference).bytes);
+      }
+    }
+  } finally {
+    await Promise.all(
+      [...checkouts.values()].map((checkout) =>
+        rm(checkout.container, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+      ),
     );
-    const bytes = Buffer.from(entry.contentBase64, "base64");
-    invariant(
-      bytes.toString("base64") === entry.contentBase64 &&
-        bytes.byteLength === entry.bytes &&
-        sha256(bytes) === entry.sha256,
-      `${claim.sampleId} ${claim.gate} legacy receipt archive blob is missing or has stale bytes`,
-    );
-    const receipt = parseJsonDocument(bytes.toString("utf8"), entry.sourcePath);
-    const producerBytes = producers.get(
-      `${receipt.sourceRevision}:${receipt.producer.path}:${receipt.producer.sha256}`,
-    );
-    invariant(
-      producerBytes,
-      `${claim.sampleId} ${claim.gate} legacy producer revision, path, or blob is missing or stale`,
-    );
-    await validateGateReceipt(receipt, {
-      sampleId: claim.sampleId,
-      gate: claim.gate,
-      sourceRevision: claim.sourceRevision,
-      sourceDigest: claim.sourceDigest,
-      projectRoot: PROJECT_ROOT,
-      verifyCheckout: false,
-      now: receipt.observedAt,
-      producerBytes,
-    });
-    invariant(
-      receipt.sdkMode === claim.semantic.sdkMode &&
-        receipt.runRoot === claim.semantic.runRoot &&
-        receipt.observedAt === claim.semantic.observedAt &&
-        receipt.expiresAt === claim.semantic.expiresAt &&
-        JSON.stringify(receipt.artifacts[0]) ===
-          JSON.stringify({
-            kind: claim.semantic.reportKind,
-            path: claim.semantic.reportPath,
-            bytes: claim.semantic.reportBytes,
-            sha256: claim.semantic.reportSha256,
-          }),
-      `${claim.sampleId} ${claim.gate} legacy receipt archive metadata drift`,
-    );
-    archived.set(`${claim.sampleId}:${claim.gate}`, bytes);
   }
   return archived;
 }
@@ -4964,8 +5092,9 @@ function validateGoldenVisualEvidenceEntries(visualEvidence, options = {}) {
 async function validateGoldenVisualEvidenceArtifactFiles(entry, options = {}) {
   for (const reference of goldenVisualArtifactReferences(entry)) {
     let bytes;
-    if (reference.kind === "receipt" && options.archivedReceipts) {
-      bytes = options.archivedReceipts.get(`${entry.sampleId}:${reference.gate}`);
+    if (options.archivedReceipts) {
+      const key = reference.kind === "receipt" ? `${entry.sampleId}:${reference.gate}` : reference.path;
+      bytes = options.archivedReceipts.get(key);
       invariant(bytes, `${reference.label} historical blob is broken or missing`);
     } else {
       try {

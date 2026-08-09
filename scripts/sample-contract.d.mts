@@ -451,6 +451,10 @@ export function validateLegacyVisualReceiptArchive(
   archive: unknown,
   handoff: SiteConsumerHandoff,
 ): Promise<Map<string, Buffer>>;
+export function readHistoricalContentAddressedBlob(
+  root: string,
+  reference: SiteConsumerArtifactReference,
+): { bytes: Buffer; revision: string };
 export function filterSiteConsumerCards(
   cards: SiteConsumerCard[],
   filters?: {

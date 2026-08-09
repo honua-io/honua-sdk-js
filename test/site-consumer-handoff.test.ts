@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -12,6 +13,7 @@ import {
   generateSiteConsumerFixtureV4,
   generateSiteConsumerHandoff,
   generateSiteProjection,
+  readHistoricalContentAddressedBlob,
   validateLegacyVisualReceiptArchive,
   validateSiteConsumerFixtureV3,
   validateSiteConsumerFixtureV4,
@@ -727,6 +729,34 @@ describe("honua-site consumer handoff", () => {
       validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive: archive }),
     ).resolves.toBeUndefined();
     await expect(generateLegacyVisualReceiptArchive(legacyHandoff)).resolves.toEqual(archive);
+
+    const firstReceipt = JSON.parse(Buffer.from(archive.entries[0].contentBase64, "base64").toString("utf8"));
+    const historyContainer = await mkdtemp(path.join(process.env.TEMP ?? process.cwd(), "honua-history-only-"));
+    const historyOnly = path.join(historyContainer, "checkout");
+    try {
+      execFileSync("git", ["clone", "--shared", "--no-checkout", "--quiet", process.cwd(), historyOnly], {
+        windowsHide: true,
+      });
+      await expect(readFile(path.join(historyOnly, firstReceipt.artifacts[0].path))).rejects.toThrow(/ENOENT/u);
+      const resolved = readHistoricalContentAddressedBlob(historyOnly, firstReceipt.artifacts[0]);
+      expect(resolved.bytes.byteLength).toBe(firstReceipt.artifacts[0].bytes);
+      expect(sha256(resolved.bytes)).toBe(firstReceipt.artifacts[0].sha256);
+      expect(resolved.revision).toMatch(/^[a-f0-9]{40}$/u);
+      expect(() =>
+        readHistoricalContentAddressedBlob(historyOnly, {
+          ...firstReceipt.artifacts[0],
+          sha256: sha256("tampered historical artifact"),
+        }),
+      ).toThrow("legacy artifact blob is unavailable at a committed immutable revision");
+      expect(() =>
+        readHistoricalContentAddressedBlob(historyOnly, {
+          ...firstReceipt.artifacts[0],
+          path: "../../escaped-artifact.json",
+        }),
+      ).toThrow("legacy artifact path is not canonical evidence content");
+    } finally {
+      await rm(historyContainer, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
 
     const tamperedBlob = structuredClone(archive);
     tamperedBlob.entries[0].contentBase64 = Buffer.from("forged legacy receipt").toString("base64");
