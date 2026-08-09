@@ -743,6 +743,11 @@ describe("honua-site consumer handoff", () => {
     const archive = (await readJson(
       "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
     )) as LegacyVisualReceiptArchive;
+    const archivedGenerator = archive.artifacts.files.find(
+      (file) => file.path === "scripts/first-map-live-evidence.mjs",
+    );
+    if (!archivedGenerator) throw new Error("legacy archive needs the First Map live producer");
+    expect(sha256(await readFile(archivedGenerator.path))).not.toBe(archivedGenerator.sha256);
 
     await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
     await expect(
@@ -799,6 +804,24 @@ describe("honua-site consumer handoff", () => {
     tamperedArtifactBlob.artifacts.blobs[0].contentBase64 = Buffer.from("forged artifact").toString("base64");
     await expect(validateLegacyVisualReceiptArchive(tamperedArtifactBlob, legacyHandoff)).rejects.toThrow(
       "legacy visual artifact blob is missing, malformed, or excessive",
+    );
+
+    const tamperedArchivedGenerator = structuredClone(archive);
+    const archivedGeneratorBlob = tamperedArchivedGenerator.artifacts.blobs.find(
+      (blob) => blob.sha256 === archivedGenerator.sha256,
+    );
+    if (!archivedGeneratorBlob) throw new Error("legacy archive needs the First Map live producer blob");
+    archivedGeneratorBlob.contentBase64 = gzipSync(Buffer.from("forged archived generator")).toString("base64");
+    await expect(validateLegacyVisualReceiptArchive(tamperedArchivedGenerator, legacyHandoff)).rejects.toThrow(
+      "legacy visual artifact blob is missing or stale",
+    );
+
+    const missingArchivedGenerator = structuredClone(archive);
+    missingArchivedGenerator.artifacts.files = missingArchivedGenerator.artifacts.files.filter(
+      (file) => file.path !== archivedGenerator.path,
+    );
+    await expect(validateLegacyVisualReceiptArchive(missingArchivedGenerator, legacyHandoff)).rejects.toThrow(
+      /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
     );
 
     const missingArtifact = structuredClone(archive);

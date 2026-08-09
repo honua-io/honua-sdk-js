@@ -1203,7 +1203,7 @@ async function validateLiveEvidence(evidence, evidencePath, receipt, root) {
     `${receipt.sampleId} live receipt command is not the reviewed catalog command`,
   );
   const relaxed = derivedArtifactsRelaxed();
-  await validateLiveEvidenceProducer(evidence, sample, { relaxed });
+  await validateLiveEvidenceProducer(evidence, sample, { relaxed, projectRoot: root });
   invariant(
     evidence.sampleId === receipt.sampleId && evidence.lane === "live" && evidence.status === "executed",
     "live evidence sample or lane binding mismatch",

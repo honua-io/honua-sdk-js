@@ -3467,7 +3467,7 @@ export async function validateLiveEvidenceProducer(evidence, sample, options = {
     producer.path === binding.generatorPath,
     `${sample.id}: producer generator path for ${command} must be ${binding.generatorPath}`,
   );
-  const generatorBytes = await readFile(path.join(PROJECT_ROOT, producer.path));
+  const generatorBytes = await readFile(path.join(options.projectRoot ?? PROJECT_ROOT, producer.path));
   if (options.relaxed !== true) {
     invariant(
       sha256(generatorBytes) === producer.sha256,
