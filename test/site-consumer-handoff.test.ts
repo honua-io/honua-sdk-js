@@ -743,13 +743,13 @@ describe("honua-site consumer handoff", () => {
     const missingRevision = structuredClone(archive);
     delete missingRevision.entries[0].sourceRevision;
     await expect(validateLegacyVisualReceiptArchive(missingRevision, legacyHandoff)).rejects.toThrow(
-      "schema validation failed",
+      "JSON Schema validation failed",
     );
 
     const missingProducerBlob = structuredClone(archive);
     delete missingProducerBlob.producers[0].contentBase64;
     await expect(validateLegacyVisualReceiptArchive(missingProducerBlob, legacyHandoff)).rejects.toThrow(
-      "schema validation failed",
+      "JSON Schema validation failed",
     );
 
     const tamperedProducerBlob = structuredClone(archive);
@@ -767,7 +767,7 @@ describe("honua-site consumer handoff", () => {
     const escapedProducerPath = structuredClone(archive);
     escapedProducerPath.producers[0].sourcePath = "../../forged-producer.mjs";
     await expect(validateLegacyVisualReceiptArchive(escapedProducerPath, legacyHandoff)).rejects.toThrow(
-      "schema validation failed",
+      "JSON Schema validation failed",
     );
 
     const staleCurrentHandoff = structuredClone(inputs.handoff);
