@@ -443,7 +443,9 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:geocoding:typecheck",
-            "npm run demo:geocoding:build"
+            "npm run demo:geocoding:build",
+            "npx vitest run test/geocoding-quickstart.test.ts",
+            "npm run test:playwright:geocoding"
           ]
         },
         "fixtureEvidence": {
@@ -458,8 +460,8 @@
         }
       },
       "liveEvidence": {
-        "mode": "authenticated",
-        "status": "planned"
+        "mode": "unavailable",
+        "status": "not-applicable"
       }
     },
     {
