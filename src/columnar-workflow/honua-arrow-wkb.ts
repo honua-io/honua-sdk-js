@@ -275,12 +275,34 @@ const geometryDeclaration = (
 const integerType = (type: string): boolean => /^(?:U?Int)(?:8|16|32|64)$/.test(type);
 const utf8Type = (type: string): boolean => type === "Utf8" || type === "LargeUtf8";
 const timestampType = (type: string): { readonly unit: GeoArrowTimestampUnit; readonly timezone?: string } | null => {
-  const match = /^Timestamp<(SECOND|MILLISECOND|MICROSECOND|NANOSECOND)(?:,\s*([^>]+))?>$/.exec(type);
-  if (!match) return null;
-  return {
-    unit: match[1]!.toLowerCase() as GeoArrowTimestampUnit,
-    ...(match[2] ? { timezone: match[2] } : {}),
-  };
+  const prefix = "Timestamp<";
+  if (!type.startsWith(prefix) || !type.endsWith(">")) return null;
+
+  const body = type.slice(prefix.length, -1);
+  const separator = body.indexOf(",");
+  const declaredUnit = separator < 0 ? body : body.slice(0, separator);
+  let unit: GeoArrowTimestampUnit;
+  switch (declaredUnit) {
+    case "SECOND":
+      unit = "second";
+      break;
+    case "MILLISECOND":
+      unit = "millisecond";
+      break;
+    case "MICROSECOND":
+      unit = "microsecond";
+      break;
+    case "NANOSECOND":
+      unit = "nanosecond";
+      break;
+    default:
+      return null;
+  }
+
+  if (separator < 0) return { unit };
+  const timezone = body.slice(separator + 1).trim();
+  if (timezone.length === 0 || timezone.includes(">")) return null;
+  return { unit, timezone };
 };
 
 const explicitField = (
