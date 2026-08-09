@@ -694,8 +694,8 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
           field: geometryField.name,
           dimensions,
           coordinateLayout: "interleaved" as const,
-          ...(outputCrs === undefined ? {} : { crs: outputCrs }),
-          ...(outputCrsType === undefined ? {} : { crsType: outputCrsType }),
+          ...(declaration.crs === undefined ? {} : { crs: declaration.crs }),
+          ...(declaration.crsType === undefined ? {} : { crsType: declaration.crsType }),
           edges: declaration.edges,
           values: geometries as readonly (GeoArrowPoint | null)[],
         }
@@ -705,8 +705,8 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
             field: geometryField.name,
             dimensions,
             coordinateLayout: "interleaved" as const,
-            ...(outputCrs === undefined ? {} : { crs: outputCrs }),
-            ...(outputCrsType === undefined ? {} : { crsType: outputCrsType }),
+            ...(declaration.crs === undefined ? {} : { crs: declaration.crs }),
+            ...(declaration.crsType === undefined ? {} : { crsType: declaration.crsType }),
             edges: declaration.edges,
             values: geometries as readonly (GeoArrowLineString | null)[],
           }
@@ -715,8 +715,8 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
             field: geometryField.name,
             dimensions,
             coordinateLayout: "interleaved" as const,
-            ...(outputCrs === undefined ? {} : { crs: outputCrs }),
-            ...(outputCrsType === undefined ? {} : { crsType: outputCrsType }),
+            ...(declaration.crs === undefined ? {} : { crs: declaration.crs }),
+            ...(declaration.crsType === undefined ? {} : { crsType: declaration.crsType }),
             edges: declaration.edges,
             values: geometries as readonly (GeoArrowPolygon | null)[],
           };

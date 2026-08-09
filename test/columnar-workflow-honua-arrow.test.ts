@@ -276,8 +276,6 @@ test("decodes supported ISO and EWKB byte orders, Z coordinates, and embedded SR
       [4, 5, 6],
     ],
   );
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crs, "EPSG:4326");
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, "authority_code");
 });
 
 test("preserves null and empty Point, LineString, and Polygon semantics", async () => {

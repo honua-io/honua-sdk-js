@@ -328,13 +328,15 @@ function normalizeGeometry(
     values.push(Object.freeze(polygon));
   }
 
+  const crs = input.crs === undefined ? undefined : normalizeCrs(input.crs, limits);
+  const crsType = normalizeCrsType(input.crsType, crs);
   return Object.freeze({
     kind: input.kind,
     field,
     dimensions,
     coordinateLayout,
-    ...(input.crs === undefined ? {} : { crs: normalizeCrs(input.crs, limits) }),
-    ...(normalizeCrsType(input.crsType, input.crs) === undefined ? {} : { crsType: input.crsType }),
+    ...(crs === undefined ? {} : { crs }),
+    ...(crsType === undefined ? {} : { crsType }),
     edges,
     values: Object.freeze(values),
     vertices,
