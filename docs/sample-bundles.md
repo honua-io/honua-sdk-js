@@ -356,6 +356,30 @@ qualified receipt, on every trunk push.
 > so a weakened assertion, a dropped browser-matrix project, or a build
 > config change cannot verify against a previously sealed receipt.
 
+### Frozen legacy evidence archive
+
+The frozen v1 site handoff is validated with
+`honua-site-consumer-legacy-receipts.v2.json`. This additive archive leaves the
+v1 receipt archive and handoff byte-for-byte unchanged, while making historical
+validation independent of the mutable evidence tree and Git history. V2 embeds
+the exact receipt reports, screenshots, packed SDK tarballs and declared sample
+dist files, live evidence, and live producer sources that `validateGateReceipt`
+rehashes. It deliberately excludes unrelated files from the old run roots.
+
+Artifact paths form a closed inventory derived from the frozen handoff and its
+content-addressed reports. The current archive has 136 paths, 117 deduplicated
+blobs, 12,295,968 unique decoded bytes, and 6,243,318 gzip bytes (an 8,648,062
+byte JSON fixture after base64 and metadata). Validation caps the archive at
+160 paths, 128 blobs, 16 MiB decoded unique content, 8 MiB compressed content,
+32 MiB referenced content, and 4 MiB per blob. It rejects missing, extra,
+duplicate, escaped, cross-run, stale, oversized, and decompression-bomb content.
+
+Git is permitted only in the explicit one-time capture command
+`npm run samples:archive-legacy-visual-receipts`, which resolves the already
+content-addressed historical bytes before writing v2. Normal `samples:verify`,
+source-extract, shallow-clone, and package validation reads only the committed
+v2 archive and never invokes Git for frozen evidence.
+
 Instead, `.github/workflows/ci.yml`:
 
 - builds and schema/hash-verifies the manifest on every PR and trunk push

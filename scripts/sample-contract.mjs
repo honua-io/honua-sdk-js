@@ -3,11 +3,13 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { lstat, mkdir, opendir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, opendir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 import { deriveExcludedSamples, derivePublishedSamples, INCLUDED_SAMPLE_IDS } from "./build-sample-bundles.mjs";
 import {
@@ -80,6 +82,16 @@ const LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH =
   "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v1.json";
 const LEGACY_VISUAL_RECEIPT_ARCHIVE_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-legacy-receipt-archive.schema.json";
+const LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json";
+const LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-legacy-receipt-archive.v2.schema.json";
+const LEGACY_VISUAL_MAX_ARTIFACT_FILES = 160;
+const LEGACY_VISUAL_MAX_ARTIFACT_BLOBS = 128;
+const LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES = 4 * 1024 * 1024;
+const LEGACY_VISUAL_MAX_ARTIFACT_ENCODED_BYTES = 8 * 1024 * 1024;
+const LEGACY_VISUAL_MAX_ARTIFACT_DECODED_BYTES = 16 * 1024 * 1024;
+const LEGACY_VISUAL_MAX_ARTIFACT_REFERENCED_BYTES = 32 * 1024 * 1024;
 const SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v2.json";
 const SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json";
@@ -4677,83 +4689,197 @@ function readHistoricalProducerBlob(root, revision, producerPath) {
   return bytes;
 }
 
-export async function generateLegacyVisualReceiptArchive(handoff, options = {}) {
+function readHistoricalVisualArtifactBlob(root, reference) {
   invariant(
-    handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff.schemaVersion === 1,
-    "legacy visual receipt archive requires handoff v1",
+    typeof reference.path === "string" &&
+      (reference.path.startsWith("samples/evidence/") ||
+        /^(?:scripts\/[a-z0-9-]+|examples\/[a-z0-9-]+\/[A-Za-z0-9._/-]+)\.mjs$/u.test(reference.path)) &&
+      !path.isAbsolute(reference.path) &&
+      !reference.path.includes("\\") &&
+      path.posix.normalize(reference.path) === reference.path &&
+      (reference.bytes === null ||
+        (Number.isSafeInteger(reference.bytes) &&
+          reference.bytes > 0 &&
+          reference.bytes <= LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES)) &&
+      /^[a-f0-9]{64}$/.test(reference.sha256),
+    "legacy visual artifact capture reference is invalid",
   );
-  const root = path.resolve(options.projectRoot ?? PROJECT_ROOT);
-  const entries = [];
-  const producers = new Map();
-  for (const claim of legacyVisualReceiptClaims(handoff)) {
-    const bytes = await readCanonicalBoundedFile(root, claim.sourcePath, {
-      label: `${claim.sampleId} ${claim.gate} legacy receipt source`,
-      maxBytes: 1024 * 1024,
-    });
-    invariant(
-      sha256(bytes) === claim.sha256,
-      `${claim.sampleId} ${claim.gate} legacy receipt source digest is stale`,
+  let history;
+  try {
+    history = execFileSync(
+      "git",
+      ["log", "--all", "--diff-filter=AM", "--format=%H", "--", reference.path],
+      {
+        cwd: root,
+        encoding: "utf8",
+        maxBuffer: 1024 * 1024,
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+      },
     );
-    const receipt = parseJsonDocument(bytes.toString("utf8"), claim.sourcePath);
-    validateGateReceiptStructure(receipt, {
-      sampleId: claim.sampleId,
-      gate: claim.gate,
-      sourceRevision: claim.sourceRevision,
-      sourceDigest: claim.sourceDigest,
-    });
-    const producerBytes = readHistoricalProducerBlob(root, receipt.sourceRevision, receipt.producer.path);
-    invariant(
-      sha256(producerBytes) === receipt.producer.sha256,
-      `${claim.sampleId} ${claim.gate} legacy producer digest is stale at immutable revision`,
-    );
-    const producerKey = `${receipt.sourceRevision}:${receipt.producer.path}:${receipt.producer.sha256}`;
-    producers.set(producerKey, {
-      sourceRevision: receipt.sourceRevision,
-      sourcePath: receipt.producer.path,
-      bytes: producerBytes.byteLength,
-      sha256: receipt.producer.sha256,
-      contentBase64: producerBytes.toString("base64"),
-    });
-    entries.push({
-      sampleId: claim.sampleId,
-      gate: claim.gate,
-      sourceRevision: claim.sourceRevision,
-      sourceDigest: claim.sourceDigest,
-      sourcePath: claim.sourcePath,
-      bytes: bytes.byteLength,
-      sha256: claim.sha256,
-      contentBase64: bytes.toString("base64"),
-    });
+  } catch {
+    throw new Error(`legacy visual artifact capture history is unavailable for ${reference.path}`);
   }
-  return {
-    $schema: "../schemas/site-consumer-legacy-receipt-archive.schema.json",
-    format: "honua.site.sdk-sample-legacy-receipt-archive.v1",
-    schemaVersion: 1,
-    handoff: {
-      path: LEGACY_SITE_CONSUMER_HANDOFF_PATH,
-      format: handoff.format,
-      schemaVersion: handoff.schemaVersion,
-      sha256: sha256(Buffer.from(stableJson(handoff))),
-    },
-    visualEvidence: {
-      path: handoff.inputs.visualEvidence.path,
-      sha256: handoff.inputs.visualEvidence.sha256,
-    },
-    producers: [...producers.values()].sort((left, right) =>
-      left.sourceRevision.localeCompare(right.sourceRevision) ||
-      left.sourcePath.localeCompare(right.sourcePath) ||
-      left.sha256.localeCompare(right.sha256),
-    ),
-    entries,
-  };
+  const revisions = [...new Set(history.split(/\r?\n/u).filter(Boolean))];
+  invariant(
+    revisions.length <= 64 && revisions.every((revision) => /^[a-f0-9]{40}$/.test(revision)),
+    `legacy visual artifact capture history is invalid or excessive for ${reference.path}`,
+  );
+  for (const revision of revisions) {
+    try {
+      const bytes = execFileSync("git", ["show", `${revision}:${reference.path}`], {
+        cwd: root,
+        encoding: "buffer",
+        maxBuffer: LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES,
+        stdio: ["ignore", "pipe", "ignore"],
+        windowsHide: true,
+      });
+      if (
+        bytes.byteLength > 0 &&
+        bytes.byteLength <= LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES &&
+        (reference.bytes === null || bytes.byteLength === reference.bytes) &&
+        sha256(bytes) === reference.sha256
+      ) {
+        return bytes;
+      }
+    } catch {
+      // A merge or rename candidate may not contain the path. Continue only
+      // inside this explicit one-time capture command; validation never uses Git.
+    }
+  }
+  throw new Error(`legacy visual artifact capture blob is unavailable for ${reference.path}`);
 }
 
-export async function validateLegacyVisualReceiptArchive(archive, handoff) {
+async function legacyVisualArtifactClaims(handoff, readArtifact) {
+  const claims = new Map();
+  const add = (reference, runRoots, label, allowProducerSource = false) => {
+    const referencePath = typeof reference.path === "string" ? reference.path : "";
+    const inRun = [...runRoots].some((runRoot) => referencePath.startsWith(`${runRoot}/artifacts/`));
+    const governedProducerSource =
+      allowProducerSource &&
+      /^(?:scripts\/[a-z0-9-]+|examples\/[a-z0-9-]+\/[A-Za-z0-9._/-]+)\.mjs$/u.test(referencePath);
+    invariant(
+      typeof reference.path === "string" &&
+        (inRun || governedProducerSource) &&
+        !path.isAbsolute(reference.path) &&
+        !reference.path.includes("\\") &&
+        path.posix.normalize(reference.path) === reference.path &&
+        (reference.bytes === null ||
+          (Number.isSafeInteger(reference.bytes) &&
+            reference.bytes > 0 &&
+            reference.bytes <= LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES)) &&
+        /^[a-f0-9]{64}$/.test(reference.sha256),
+      `${label} is outside its frozen receipt run or has an invalid content address`,
+    );
+    const descriptor = { path: reference.path, bytes: reference.bytes, sha256: reference.sha256 };
+    const previous = claims.get(reference.path);
+    invariant(
+      !previous ||
+        (previous.sha256 === descriptor.sha256 &&
+          (previous.bytes === null || descriptor.bytes === null || previous.bytes === descriptor.bytes)),
+      `${label} has conflicting frozen content addresses`,
+    );
+    if (!previous) claims.set(reference.path, descriptor);
+    else if (previous.bytes === null && descriptor.bytes !== null) previous.bytes = descriptor.bytes;
+  };
+  for (const card of handoff.cards ?? []) {
+    if (!card.visualEvidence) continue;
+    const runRoots = new Set(card.visualEvidence.semanticEvidence.map((semantic) => semantic.runRoot));
+    for (const reference of goldenVisualArtifactReferences(card.visualEvidence)) {
+      if (reference.kind === "receipt") continue;
+      add(reference, runRoots, reference.label);
+    }
+    for (const semantic of card.visualEvidence.semanticEvidence) {
+      if (semantic.gate !== "packed-build" && semantic.gate !== "live") continue;
+      const primary = claims.get(semantic.reportPath);
+      invariant(primary, `${card.id} ${semantic.gate} primary report is missing from the frozen inventory`);
+      const primaryBytes = await readArtifact(primary);
+      invariant(
+        primaryBytes.byteLength === primary.bytes && sha256(primaryBytes) === primary.sha256,
+        `${card.id} ${semantic.gate} primary report is stale`,
+      );
+      const report = parseJsonDocument(primaryBytes.toString("utf8"), primary.path);
+      const semanticRunRoots = new Set([semantic.runRoot]);
+      if (semantic.gate === "packed-build") {
+        add(
+          {
+            path: report.packageTarball,
+            bytes: report.packageTarballBytes,
+            sha256: report.packageTarballSha256,
+          },
+          semanticRunRoots,
+          `${card.id} packed package tarball`,
+        );
+        invariant(
+          typeof report.sampleDistRoot === "string" && Array.isArray(report.files),
+          `${card.id} packed report has no bounded dist inventory`,
+        );
+        for (const file of report.files) {
+          invariant(
+            typeof file.path === "string" &&
+              !path.posix.isAbsolute(file.path) &&
+              path.posix.normalize(file.path) === file.path &&
+              !file.path.startsWith("../"),
+            `${card.id} packed dist path is invalid`,
+          );
+          add(
+            {
+              path: path.posix.join(report.sampleDistRoot, file.path),
+              bytes: file.bytes,
+              sha256: file.sha256,
+            },
+            semanticRunRoots,
+            `${card.id} packed dist artifact`,
+          );
+        }
+      } else {
+        invariant(
+          typeof report.evidencePath === "string" && report.evidence && typeof report.evidence === "object",
+          `${card.id} live report has no embedded evidence`,
+        );
+        const evidenceBytes = Buffer.from(stableJson(report.evidence));
+        add(
+          {
+            path: report.evidencePath,
+            bytes: evidenceBytes.byteLength,
+            sha256: sha256(evidenceBytes),
+          },
+          semanticRunRoots,
+          `${card.id} live evidence`,
+        );
+        for (const artifact of report.evidence.artifacts ?? []) {
+          add(
+            { path: artifact.path, bytes: null, sha256: artifact.sha256 },
+            semanticRunRoots,
+            `${card.id} live evidence artifact`,
+            artifact.kind === "producer-generator",
+          );
+        }
+      }
+    }
+  }
+  for (const claim of claims.values()) {
+    const bytes = await readArtifact(claim);
+    invariant(
+      (claim.bytes === null || bytes.byteLength === claim.bytes) && sha256(bytes) === claim.sha256,
+      `${claim.path} frozen artifact byte or digest binding is stale`,
+    );
+    if (claim.bytes === null) claim.bytes = bytes.byteLength;
+  }
+  const files = [...claims.values()].sort((left, right) => left.path.localeCompare(right.path));
+  invariant(
+    files.length > 0 && files.length <= LEGACY_VISUAL_MAX_ARTIFACT_FILES,
+    "legacy visual artifact inventory is empty or excessive",
+  );
+  return files;
+}
+
+async function validateLegacyVisualReceiptArchiveEnvelope(archive, handoff, schemaPath) {
   invariant(
     handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff.schemaVersion === 1,
     "legacy visual receipt archive can validate only handoff v1",
   );
-  await validateJsonSchema(archive, LEGACY_VISUAL_RECEIPT_ARCHIVE_SCHEMA_PATH);
+  await validateJsonSchema(archive, schemaPath);
   invariant(
     archive.handoff.path === LEGACY_SITE_CONSUMER_HANDOFF_PATH &&
       archive.handoff.format === handoff.format &&
@@ -4778,6 +4904,7 @@ export async function validateLegacyVisualReceiptArchive(archive, handoff) {
   }
   const claims = legacyVisualReceiptClaims(handoff);
   invariant(archive.entries.length === claims.length, "legacy visual receipt archive entry set is incomplete or excessive");
+  const records = [];
   const archived = new Map();
   for (let index = 0; index < claims.length; index += 1) {
     const claim = claims[index];
@@ -4800,6 +4927,12 @@ export async function validateLegacyVisualReceiptArchive(archive, handoff) {
       `${claim.sampleId} ${claim.gate} legacy receipt archive blob is missing or has stale bytes`,
     );
     const receipt = parseJsonDocument(bytes.toString("utf8"), entry.sourcePath);
+    validateGateReceiptStructure(receipt, {
+      sampleId: claim.sampleId,
+      gate: claim.gate,
+      sourceRevision: claim.sourceRevision,
+      sourceDigest: claim.sourceDigest,
+    });
     const producerBytes = producers.get(
       `${receipt.sourceRevision}:${receipt.producer.path}:${receipt.producer.sha256}`,
     );
@@ -4807,16 +4940,6 @@ export async function validateLegacyVisualReceiptArchive(archive, handoff) {
       producerBytes,
       `${claim.sampleId} ${claim.gate} legacy producer revision, path, or blob is missing or stale`,
     );
-    await validateGateReceipt(receipt, {
-      sampleId: claim.sampleId,
-      gate: claim.gate,
-      sourceRevision: claim.sourceRevision,
-      sourceDigest: claim.sourceDigest,
-      projectRoot: PROJECT_ROOT,
-      verifyCheckout: false,
-      now: receipt.observedAt,
-      producerBytes,
-    });
     invariant(
       receipt.sdkMode === claim.semantic.sdkMode &&
         receipt.runRoot === claim.semantic.runRoot &&
@@ -4831,8 +4954,202 @@ export async function validateLegacyVisualReceiptArchive(archive, handoff) {
           }),
       `${claim.sampleId} ${claim.gate} legacy receipt archive metadata drift`,
     );
+    records.push({ claim, receipt, producerBytes });
     archived.set(`${claim.sampleId}:${claim.gate}`, bytes);
+    archived.set(entry.sourcePath, bytes);
   }
+  return { records, archived };
+}
+
+async function materializeLegacyVisualArtifacts(files, blobs) {
+  const root = await mkdtemp(path.join(os.tmpdir(), "honua-legacy-visual-evidence-"));
+  try {
+    for (const file of files) {
+      const bytes = blobs.get(file.sha256);
+      invariant(bytes, `${file.path} legacy visual artifact blob is missing`);
+      const destination = path.resolve(root, file.path);
+      invariant(
+        destination.startsWith(`${root}${path.sep}`),
+        `${file.path} legacy visual artifact materialization escapes its root`,
+      );
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, bytes);
+    }
+    return root;
+  } catch (error) {
+    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+    throw error;
+  }
+}
+
+export async function generateLegacyVisualReceiptArchive(handoff, options = {}) {
+  const root = path.resolve(options.projectRoot ?? PROJECT_ROOT);
+  const v1Archive =
+    options.receiptArchive ??
+    parseJsonDocument(
+      await readFile(path.join(root, LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH), "utf8"),
+      LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH,
+    );
+  await validateLegacyVisualReceiptArchiveEnvelope(
+    v1Archive,
+    handoff,
+    LEGACY_VISUAL_RECEIPT_ARCHIVE_SCHEMA_PATH,
+  );
+  const artifactBytes = new Map();
+  const captureArtifact = (reference) => {
+    let bytes = artifactBytes.get(reference.path);
+    if (!bytes) {
+      bytes = readHistoricalVisualArtifactBlob(root, reference);
+      artifactBytes.set(reference.path, bytes);
+    }
+    return bytes;
+  };
+  const files = await legacyVisualArtifactClaims(handoff, captureArtifact);
+  const blobs = new Map();
+  for (const file of files) {
+    if (blobs.has(file.sha256)) continue;
+    const bytes = captureArtifact(file);
+    const encoded = gzipSync(bytes, { level: 9 });
+    // Canonicalize platform-dependent gzip header metadata so the content-addressed
+    // archive is byte-for-byte reproducible across producer operating systems.
+    encoded.fill(0, 4, 8);
+    encoded[9] = 255;
+    blobs.set(file.sha256, {
+      bytes: bytes.byteLength,
+      sha256: file.sha256,
+      encoding: "gzip-base64",
+      encodedBytes: encoded.byteLength,
+      contentBase64: encoded.toString("base64"),
+    });
+  }
+  const referencedBytes = files.reduce((total, file) => total + file.bytes, 0);
+  const decodedBytes = [...blobs.values()].reduce((total, blob) => total + blob.bytes, 0);
+  invariant(
+    blobs.size <= LEGACY_VISUAL_MAX_ARTIFACT_BLOBS &&
+      referencedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_REFERENCED_BYTES &&
+      decodedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_DECODED_BYTES &&
+      [...blobs.values()].reduce((total, blob) => total + blob.encodedBytes, 0) <=
+        LEGACY_VISUAL_MAX_ARTIFACT_ENCODED_BYTES,
+    "legacy visual artifact archive is excessive",
+  );
+  return {
+    $schema: "../schemas/site-consumer-legacy-receipt-archive.v2.schema.json",
+    format: "honua.site.sdk-sample-legacy-receipt-archive.v2",
+    schemaVersion: 2,
+    handoff: structuredClone(v1Archive.handoff),
+    visualEvidence: structuredClone(v1Archive.visualEvidence),
+    artifacts: {
+      fileCount: files.length,
+      referencedBytes,
+      blobCount: blobs.size,
+      decodedBytes,
+      inventorySha256: sha256(Buffer.from(stableJson(files))),
+      files,
+      blobs: [...blobs.values()].sort((left, right) => left.sha256.localeCompare(right.sha256)),
+    },
+    producers: structuredClone(v1Archive.producers),
+    entries: structuredClone(v1Archive.entries),
+  };
+}
+
+export async function validateLegacyVisualReceiptArchive(archive, handoff) {
+  invariant(
+    archive?.format === "honua.site.sdk-sample-legacy-receipt-archive.v2" && archive.schemaVersion === 2,
+    "legacy visual validation requires the self-contained v2 archive",
+  );
+  const { records, archived } = await validateLegacyVisualReceiptArchiveEnvelope(
+    archive,
+    handoff,
+    LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_SCHEMA_PATH,
+  );
+  const blobs = new Map();
+  let decodedBytes = 0;
+  let encodedBytes = 0;
+  for (const blob of archive.artifacts.blobs) {
+    let encoded;
+    let bytes;
+    try {
+      encoded = Buffer.from(blob.contentBase64, "base64");
+      invariant(encoded.toString("base64") === blob.contentBase64, "invalid base64");
+      bytes = gunzipSync(encoded, { maxOutputLength: LEGACY_VISUAL_MAX_ARTIFACT_BLOB_BYTES });
+    } catch {
+      throw new Error("legacy visual artifact blob is missing, malformed, or excessive");
+    }
+    invariant(
+      blob.encoding === "gzip-base64" &&
+        encoded.byteLength === blob.encodedBytes &&
+        bytes.byteLength === blob.bytes &&
+        sha256(bytes) === blob.sha256,
+      "legacy visual artifact blob is missing or stale",
+    );
+    invariant(!blobs.has(blob.sha256), "legacy visual artifact blob archive contains a duplicate identity");
+    blobs.set(blob.sha256, bytes);
+    decodedBytes += bytes.byteLength;
+    encodedBytes += encoded.byteLength;
+  }
+  invariant(
+    blobs.size === archive.artifacts.blobCount &&
+      blobs.size <= LEGACY_VISUAL_MAX_ARTIFACT_BLOBS &&
+      decodedBytes === archive.artifacts.decodedBytes &&
+      decodedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_DECODED_BYTES &&
+      encodedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_ENCODED_BYTES,
+    "legacy visual artifact blob summary is stale or excessive",
+  );
+  let referencedBytes = 0;
+  const referencedBlobs = new Set();
+  const artifactFiles = new Map();
+  for (const file of archive.artifacts.files) {
+    invariant(
+      path.posix.normalize(file.path) === file.path && !artifactFiles.has(file.path),
+      "legacy visual artifact file inventory contains an escaped or duplicate path",
+    );
+    const bytes = blobs.get(file.sha256);
+    invariant(
+      bytes && bytes.byteLength === file.bytes,
+      `${file.path} legacy visual artifact has no content-addressed blob`,
+    );
+    artifactFiles.set(file.path, bytes);
+    referencedBlobs.add(file.sha256);
+    referencedBytes += file.bytes;
+  }
+  const expectedFiles = await legacyVisualArtifactClaims(handoff, (reference) => {
+    const bytes = artifactFiles.get(reference.path);
+    invariant(bytes, `${reference.path} legacy visual artifact blob is broken or missing`);
+    return bytes;
+  });
+  invariant(
+    JSON.stringify(archive.artifacts.files) === JSON.stringify(expectedFiles),
+    "legacy visual artifact file inventory is incomplete, excessive, or cross-run",
+  );
+  invariant(
+    archive.artifacts.fileCount === expectedFiles.length &&
+      referencedBytes === archive.artifacts.referencedBytes &&
+      referencedBytes <= LEGACY_VISUAL_MAX_ARTIFACT_REFERENCED_BYTES &&
+      archive.artifacts.inventorySha256 === sha256(Buffer.from(stableJson(expectedFiles))),
+    "legacy visual artifact file summary is stale or excessive",
+  );
+  invariant(
+    referencedBlobs.size === blobs.size,
+    "legacy visual artifact blob archive contains an unreferenced or missing blob",
+  );
+  const materializedRoot = await materializeLegacyVisualArtifacts(expectedFiles, blobs);
+  try {
+    for (const { claim, receipt, producerBytes } of records) {
+      await validateGateReceipt(receipt, {
+        sampleId: claim.sampleId,
+        gate: claim.gate,
+        sourceRevision: claim.sourceRevision,
+        sourceDigest: claim.sourceDigest,
+        projectRoot: materializedRoot,
+        verifyCheckout: false,
+        now: receipt.observedAt,
+        producerBytes,
+      });
+    }
+  } finally {
+    await rm(materializedRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+  }
+  for (const file of expectedFiles) archived.set(file.path, blobs.get(file.sha256));
   return archived;
 }
 
@@ -4964,8 +5281,8 @@ function validateGoldenVisualEvidenceEntries(visualEvidence, options = {}) {
 async function validateGoldenVisualEvidenceArtifactFiles(entry, options = {}) {
   for (const reference of goldenVisualArtifactReferences(entry)) {
     let bytes;
-    if (reference.kind === "receipt" && options.archivedReceipts) {
-      bytes = options.archivedReceipts.get(`${entry.sampleId}:${reference.gate}`);
+    if (options.archivedReceipts) {
+      bytes = options.archivedReceipts.get(reference.path);
       invariant(bytes, `${reference.label} historical blob is broken or missing`);
     } else {
       try {
@@ -7345,7 +7662,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     readJson(LEGACY_SITE_PROJECTION_PATH),
     readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH),
     readJson(SITE_CONSUMER_V3_FIXTURE_PATH),
-    readJson(LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH),
+    readJson(LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH),
   ]);
   await validateSiteProjection(legacyProjection);
   await validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive });
@@ -7669,9 +7986,11 @@ async function main(argv) {
     const handoff = await readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH);
     const archive = await generateLegacyVisualReceiptArchive(handoff);
     await validateLegacyVisualReceiptArchive(archive, handoff);
-    await mkdir(path.dirname(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH)), { recursive: true });
-    await writeFile(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH), stableJson(archive), "utf8");
-    process.stdout.write(`Archived ${archive.entries.length} frozen legacy visual receipt blobs\n`);
+    await mkdir(path.dirname(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH)), { recursive: true });
+    await writeFile(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH), stableJson(archive), "utf8");
+    process.stdout.write(
+      `Archived ${archive.entries.length} frozen legacy receipts and ${archive.artifacts.fileCount} artifact paths\n`,
+    );
     return;
   }
   if (["check", "write"].includes(command)) {

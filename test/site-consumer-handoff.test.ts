@@ -1,6 +1,10 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { gzipSync } from "node:zlib";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -21,6 +25,7 @@ import {
 import type {
   CapabilitySampleMatrix,
   GoldenJourneyVisualEvidence,
+  LegacyVisualReceiptArchive,
   SiteConsumerHandoff,
 } from "../scripts/sample-contract.mjs";
 
@@ -717,16 +722,26 @@ describe("honua-site consumer handoff", () => {
     await expect(validateSiteConsumerHandoff(checkoutHandoff)).resolves.toBeUndefined();
   });
 
-  it("keeps frozen legacy receipts content-bound across current receipt rollover", async () => {
+  it("keeps frozen legacy receipts content-bound across current receipt rollover", { timeout: 240_000 }, async () => {
     const inputs = await canonicalInputs();
     const legacyHandoff = (await readJson("samples/dist/honua-site-consumer-handoff.v1.json")) as SiteConsumerHandoff;
-    const archive = await readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v1.json");
+    const archive = (await readJson(
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
+    )) as LegacyVisualReceiptArchive;
 
     await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
     await expect(
       validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive: archive }),
     ).resolves.toBeUndefined();
     await expect(generateLegacyVisualReceiptArchive(legacyHandoff)).resolves.toEqual(archive);
+
+    const originalPath = process.env.PATH;
+    process.env.PATH = "";
+    try {
+      await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
+    } finally {
+      process.env.PATH = originalPath;
+    }
 
     const tamperedBlob = structuredClone(archive);
     tamperedBlob.entries[0].contentBase64 = Buffer.from("forged legacy receipt").toString("base64");
@@ -741,13 +756,13 @@ describe("honua-site consumer handoff", () => {
     );
 
     const missingRevision = structuredClone(archive);
-    delete missingRevision.entries[0].sourceRevision;
+    Reflect.deleteProperty(missingRevision.entries[0], "sourceRevision");
     await expect(validateLegacyVisualReceiptArchive(missingRevision, legacyHandoff)).rejects.toThrow(
       "JSON Schema validation failed",
     );
 
     const missingProducerBlob = structuredClone(archive);
-    delete missingProducerBlob.producers[0].contentBase64;
+    Reflect.deleteProperty(missingProducerBlob.producers[0], "contentBase64");
     await expect(validateLegacyVisualReceiptArchive(missingProducerBlob, legacyHandoff)).rejects.toThrow(
       "JSON Schema validation failed",
     );
@@ -756,6 +771,69 @@ describe("honua-site consumer handoff", () => {
     tamperedProducerBlob.producers[0].contentBase64 = Buffer.from("forged producer").toString("base64");
     await expect(validateLegacyVisualReceiptArchive(tamperedProducerBlob, legacyHandoff)).rejects.toThrow(
       "legacy producer blob is missing or stale",
+    );
+
+    const tamperedArtifactBlob = structuredClone(archive);
+    tamperedArtifactBlob.artifacts.blobs[0].contentBase64 = Buffer.from("forged artifact").toString("base64");
+    await expect(validateLegacyVisualReceiptArchive(tamperedArtifactBlob, legacyHandoff)).rejects.toThrow(
+      "legacy visual artifact blob is missing, malformed, or excessive",
+    );
+
+    const missingArtifact = structuredClone(archive);
+    missingArtifact.artifacts.files.shift();
+    await expect(validateLegacyVisualReceiptArchive(missingArtifact, legacyHandoff)).rejects.toThrow(
+      /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
+    );
+
+    const excessiveArtifact = structuredClone(archive);
+    const firstArtifact = excessiveArtifact.artifacts.files.find((file) => file.path.includes("/runs/"));
+    if (!firstArtifact) throw new Error("legacy archive needs a run artifact");
+    excessiveArtifact.artifacts.files.push({
+      ...firstArtifact,
+      path: firstArtifact.path.replace(/[^/]+$/u, "unrelated-fifth-artifact.json"),
+    });
+    excessiveArtifact.artifacts.files.sort((left, right) => left.path.localeCompare(right.path));
+    await expect(validateLegacyVisualReceiptArchive(excessiveArtifact, legacyHandoff)).rejects.toThrow(
+      "legacy visual artifact file inventory is incomplete, excessive, or cross-run",
+    );
+
+    const duplicateArtifactPath = structuredClone(archive);
+    duplicateArtifactPath.artifacts.files.push(structuredClone(duplicateArtifactPath.artifacts.files[0]));
+    await expect(validateLegacyVisualReceiptArchive(duplicateArtifactPath, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const missingArtifactBlob = structuredClone(archive);
+    missingArtifactBlob.artifacts.blobs.shift();
+    await expect(validateLegacyVisualReceiptArchive(missingArtifactBlob, legacyHandoff)).rejects.toThrow(
+      /blob summary is stale or excessive|has no content-addressed blob/,
+    );
+
+    const decompressionBomb = structuredClone(archive);
+    const bombBytes = gzipSync(Buffer.alloc(4 * 1024 * 1024 + 1));
+    decompressionBomb.artifacts.blobs[0].contentBase64 = bombBytes.toString("base64");
+    decompressionBomb.artifacts.blobs[0].encodedBytes = bombBytes.byteLength;
+    await expect(validateLegacyVisualReceiptArchive(decompressionBomb, legacyHandoff)).rejects.toThrow(
+      "legacy visual artifact blob is missing, malformed, or excessive",
+    );
+
+    const escapedArtifactPath = structuredClone(archive);
+    escapedArtifactPath.artifacts.files[0].path = "../../forged-artifact.json";
+    await expect(validateLegacyVisualReceiptArchive(escapedArtifactPath, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const crossRunArtifact = structuredClone(archive);
+    const firstRunFile = crossRunArtifact.artifacts.files.find((file) => file.path.includes("/runs/"));
+    const firstRun = firstRunFile?.path.match(/^(.*\/runs\/[^/]+)\/artifacts\//u)?.[1];
+    const otherRun = crossRunArtifact.artifacts.files
+      .find((file) => file.path.includes("/runs/") && !file.path.startsWith(`${firstRun}/`))
+      ?.path.match(/^(.*\/runs\/[^/]+)\/artifacts\//u)?.[1];
+    if (!firstRunFile || !firstRun || !otherRun) throw new Error("legacy archive needs at least two run roots");
+    firstRunFile.path = firstRunFile.path.replace(firstRun, otherRun);
+    crossRunArtifact.artifacts.files.sort((left, right) => left.path.localeCompare(right.path));
+    await expect(validateLegacyVisualReceiptArchive(crossRunArtifact, legacyHandoff)).rejects.toThrow(
+      /blob is broken or missing|inventory is incomplete, excessive, or cross-run/,
     );
 
     const escapedPath = structuredClone(archive);
@@ -781,6 +859,63 @@ describe("honua-site consumer handoff", () => {
       "legacy receipt archives cannot validate the current site consumer handoff",
     );
   });
+
+  it(
+    "validates the self-contained legacy archive from extracted, shallow, and packed inputs",
+    { timeout: 180_000 },
+    async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "honua-legacy-archive-contexts-"));
+      const archivePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json";
+      const handoffPath = "samples/dist/honua-site-consumer-handoff.v1.json";
+      try {
+        const extracted = path.join(root, "source-extract");
+        await mkdir(path.join(extracted, path.dirname(archivePath)), { recursive: true });
+        await mkdir(path.join(extracted, path.dirname(handoffPath)), { recursive: true });
+        await cp(archivePath, path.join(extracted, archivePath));
+        await cp(handoffPath, path.join(extracted, handoffPath));
+
+        const shallow = path.join(root, "depth-one");
+        execFileSync("git", ["clone", "--depth", "1", pathToFileURL(process.cwd()).href, shallow], {
+          stdio: "ignore",
+          windowsHide: true,
+        });
+        expect(execFileSync("git", ["rev-list", "--count", "HEAD"], { cwd: shallow, encoding: "utf8" }).trim()).toBe(
+          "1",
+        );
+        await cp(archivePath, path.join(shallow, archivePath));
+
+        const packed = path.join(root, "packed");
+        await mkdir(packed, { recursive: true });
+        const npmCli = process.env.npm_execpath;
+        if (!npmCli) throw new Error("npm_execpath is unavailable for the packed archive fixture");
+        const packResult = JSON.parse(
+          execFileSync(process.execPath, [npmCli, "pack", "--json", "--ignore-scripts", "--pack-destination", packed], {
+            cwd: process.cwd(),
+            encoding: "utf8",
+            maxBuffer: 32 * 1024 * 1024,
+            windowsHide: true,
+          }),
+        );
+        const tarball = path.join(packed, packResult[0].filename);
+        execFileSync("tar", ["-xf", tarball, "-C", packed], { stdio: "ignore", windowsHide: true });
+
+        const contexts = [extracted, shallow, path.join(packed, "package")];
+        const originalPath = process.env.PATH;
+        process.env.PATH = "";
+        try {
+          for (const context of contexts) {
+            const archive = JSON.parse(await readFile(path.join(context, archivePath), "utf8"));
+            const handoff = JSON.parse(await readFile(path.join(context, handoffPath), "utf8"));
+            await expect(validateLegacyVisualReceiptArchive(archive, handoff)).resolves.toBeInstanceOf(Map);
+          }
+        } finally {
+          process.env.PATH = originalPath;
+        }
+      } finally {
+        await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
+      }
+    },
+  );
 
   it(
     "fails publication when a referenced contract schema is edited without a version bump",
