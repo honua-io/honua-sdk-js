@@ -1754,6 +1754,12 @@ export interface StacSearchRequest {
   /** When `true`, the adapter posts the body to `/search`. */
   usePost?: boolean;
   /**
+   * When `false`, a failed first POST is surfaced instead of replayed as GET.
+   * Dynamic workflow callers use this for an explicitly requested POST;
+   * discovered `auto` POST support leaves fallback enabled.
+   */
+  allowPostFallback?: boolean;
+  /**
    * Path prefix the STAC endpoints are mounted under. Defaults to `/stac`
    * (the Honua Server facade). Backend-agnostic callers pointing at a raw
    * STAC API root (e.g. Earth Search at `.../v1`) pass `""` so the search
