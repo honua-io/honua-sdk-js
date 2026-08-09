@@ -3,8 +3,7 @@ import type { ConnectProtocolHint, Query } from "@honua/sdk-js";
 export type FirstMapMode = "fixture" | "public-live";
 export type FirstMapProtocol = Extract<ConnectProtocolHint, "auto" | "geoservices-feature-service" | "ogc-features">;
 
-export const PUBLIC_FIRST_MAP_ENDPOINT =
-  "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
+export const PUBLIC_FIRST_MAP_ENDPOINT = "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
 export const SAME_ORIGIN_FIRST_MAP_FIXTURE = "honua:first-map-fixture";
 
 export interface FirstMapConfig<T = Record<string, unknown>> {

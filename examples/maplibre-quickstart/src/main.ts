@@ -4,11 +4,7 @@ import "../../_kit/design/index.css";
 
 import * as maplibregl from "maplibre-gl";
 
-import {
-  PUBLIC_FIRST_MAP_ENDPOINT,
-  SAME_ORIGIN_FIRST_MAP_FIXTURE,
-  resolveFirstMapConfig,
-} from "./first-map-config.js";
+import { PUBLIC_FIRST_MAP_ENDPOINT, SAME_ORIGIN_FIRST_MAP_FIXTURE, resolveFirstMapConfig } from "./first-map-config.js";
 import type { FirstMapMode, FirstMapProtocol } from "./first-map-config.js";
 import {
   FIRST_MAP_TIMING_BUDGETS_MS,

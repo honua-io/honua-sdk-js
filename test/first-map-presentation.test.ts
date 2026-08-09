@@ -59,7 +59,15 @@ describe("First Map presentation contract", () => {
     const [parcel] = summarizeFirstMapFeatures([
       {
         attributes: { id: 42, tmk_txt: "2-3-8-004-017", zone: "R-2", taxacres: 0.31 },
-        geometry: { rings: [[[-156.48, 20.89], [-156.47, 20.9], [-156.48, 20.89]]] },
+        geometry: {
+          rings: [
+            [
+              [-156.48, 20.89],
+              [-156.47, 20.9],
+              [-156.48, 20.89],
+            ],
+          ],
+        },
       },
     ]);
 
