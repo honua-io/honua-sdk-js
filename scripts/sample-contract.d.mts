@@ -274,7 +274,7 @@ export interface SiteConsumerHandoff {
   gaps: Array<Record<string, unknown>>;
 }
 
-export interface LegacyVisualReceiptArchive {
+export interface LegacyVisualReceiptArchiveV1 {
   $schema: string;
   format: "honua.site.sdk-sample-legacy-receipt-archive.v1";
   schemaVersion: 1;
@@ -297,6 +297,28 @@ export interface LegacyVisualReceiptArchive {
     sha256: string;
     contentBase64: string;
   }>;
+}
+
+export interface LegacyVisualReceiptArchive
+  extends Omit<LegacyVisualReceiptArchiveV1, "$schema" | "format" | "schemaVersion"> {
+  $schema: string;
+  format: "honua.site.sdk-sample-legacy-receipt-archive.v2";
+  schemaVersion: 2;
+  artifacts: {
+    fileCount: number;
+    referencedBytes: number;
+    blobCount: number;
+    decodedBytes: number;
+    inventorySha256: string;
+    files: Array<{ path: string; bytes: number; sha256: string }>;
+    blobs: Array<{
+      bytes: number;
+      sha256: string;
+      encoding: "gzip-base64";
+      encodedBytes: number;
+      contentBase64: string;
+    }>;
+  };
 }
 
 export interface SiteConsumerFixtureV3 {
@@ -445,16 +467,12 @@ export function validateSiteConsumerHandoff(
 ): Promise<void>;
 export function generateLegacyVisualReceiptArchive(
   handoff: SiteConsumerHandoff,
-  options?: { projectRoot?: string },
+  options?: { projectRoot?: string; receiptArchive?: LegacyVisualReceiptArchiveV1 },
 ): Promise<LegacyVisualReceiptArchive>;
 export function validateLegacyVisualReceiptArchive(
   archive: unknown,
   handoff: SiteConsumerHandoff,
 ): Promise<Map<string, Buffer>>;
-export function readHistoricalContentAddressedBlob(
-  root: string,
-  reference: SiteConsumerArtifactReference,
-): { bytes: Buffer; revision: string };
 export function filterSiteConsumerCards(
   cards: SiteConsumerCard[],
   filters?: {
