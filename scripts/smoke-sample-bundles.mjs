@@ -232,7 +232,8 @@ function createStaticServer(sampleIds) {
       await sendFile(request, response, filePath);
     } catch (error) {
       if (error?.code === "ENOENT") return sendStatus(response, 404, "Not found");
-      sendStatus(response, 500, error instanceof Error ? error.message : String(error));
+      process.stderr.write(`sample bundle server error: ${error instanceof Error ? error.message : String(error)}\n`);
+      sendStatus(response, 500, "Internal server error");
     }
   });
 }
