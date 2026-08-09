@@ -537,6 +537,81 @@
       ]
     },
     {
+      "id": "coverages-wcs-basic",
+      "title": "Bounded coverage quickstart",
+      "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Provide the smallest deterministic OGC API Coverages workflow while WCS/connect discovery matures."
+      },
+      "sourcePath": "examples/coverages-wcs-basic",
+      "docsPath": "examples/coverages-wcs-basic/README.md",
+      "capabilities": [
+        "coverage",
+        "multidimensional-raster"
+      ],
+      "capabilityKeys": [
+        "raster.multidim-coverage",
+        "serve.ogc-api-coverages",
+        "serve.wcs"
+      ],
+      "protocols": [
+        "ogc-coverages",
+        "wcs"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
+        "attribution": "Honua protocol contract fixture.",
+        "freshness": "Versioned with the repository and server contract.",
+        "configurationStatus": "not-required",
+        "configClassifications": []
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": [
+            "npm run demo:coverages-wcs:build"
+          ]
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
+      "expectedDegradation": "Unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
+      "validationProfile": "browser-recipe",
+      "validation": [
+        "npm run demo:coverages-wcs:typecheck",
+        "npm run demo:coverages-wcs:build"
+      ],
+      "playground": {
+        "projectPath": "playgrounds/coverages-wcs-basic",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          }
+        ]
+      }
+    },
+    {
       "id": "edit-workflow-demo",
       "title": "Conflict-aware editing workflow",
       "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",

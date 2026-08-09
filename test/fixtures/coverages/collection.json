@@ -1,0 +1,25 @@
+{
+  "id": "7",
+  "title": "Oahu elevation",
+  "itemType": "coverage",
+  "extent": {
+    "spatial": {
+      "bbox": [[-158.3, 21.2, -157.6, 21.75]],
+      "crs": "http://www.opengis.net/def/crs/EPSG/0/4326"
+    }
+  },
+  "storageCrs": "http://www.opengis.net/def/crs/EPSG/0/4326",
+  "grid": {
+    "axisLabels": ["Lat", "Long"],
+    "shape": [5500, 7000]
+  },
+  "domain": {
+    "axes": {
+      "Lat": { "lower": 21.2, "upper": 21.75, "resolution": 0.0001 },
+      "Long": { "lower": -158.3, "upper": -157.6, "resolution": 0.0001 },
+      "phenomenonTime": { "values": ["2025-01-01T00:00:00Z"] }
+    }
+  },
+  "defaultFields": ["elevation"],
+  "links": [{ "rel": "coverage", "href": "./coverage" }]
+}

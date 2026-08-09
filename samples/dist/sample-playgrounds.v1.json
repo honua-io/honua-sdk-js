@@ -27,6 +27,25 @@
       }
     },
     {
+      "sampleId": "coverages-wcs-basic",
+      "projectPath": "playgrounds/coverages-wcs-basic",
+      "providers": [
+        {
+          "id": "stackblitz",
+          "title": "StackBlitz",
+          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+        },
+        {
+          "id": "codesandbox",
+          "title": "CodeSandbox",
+          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+        }
+      ],
+      "dataOrigin": {
+        "kind": "committed-sample-source"
+      }
+    },
+    {
       "sampleId": "react-quickstart",
       "projectPath": "playgrounds/react-quickstart",
       "providers": [

@@ -225,10 +225,10 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(33);
+    expect(catalog.samples).toHaveLength(34);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(29);
+    ).toHaveLength(30);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
@@ -945,13 +945,13 @@ describe("sample publication contract", () => {
       format: "honua.site.sdk-sample-projection.v3",
       schemaVersion: 3,
     });
-    expect(projection.samples).toHaveLength(33);
+    expect(projection.samples).toHaveLength(34);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
     expect(
       projection.goldenJourneys.find((journey: { id: string }) => journey.id === "incident-operations"),
     ).toMatchObject({ status: "planned", candidateSampleId: "realtime-incident-dashboard" });
-    expect(ciSelection.samples).toHaveLength(33);
+    expect(ciSelection.samples).toHaveLength(34);
     expect(ciSelection.profiles).toHaveLength(catalog.qualityProfiles.length);
     expect(visualEvidence).toMatchObject({
       format: "honua.sdk.golden-journey-visual-evidence.v1",

@@ -224,6 +224,12 @@ classification is conservatively non-retryable.
 | `core.job-failed` | `core` | `protocol` | no | Remote job reached a failed terminal state |
 | `core.wms-capabilities-parse` | `core` | `protocol` | no | WMS capabilities document is invalid |
 | `core.wmts-capabilities-parse` | `core` | `protocol` | no | WMTS capabilities document is invalid |
+| `core.coverage.invalid-request` | `core` | `validation` | no | Coverage request is invalid |
+| `core.coverage.invalid-response` | `core` | `protocol` | no | Coverage response is invalid |
+| `core.coverage.response-too-large` | `core` | `validation` | no | Coverage response exceeds its byte limit |
+| `core.coverage.unsupported-format` | `core` | `capability` | no | Coverage format is unsupported |
+| `core.coverage.service-error` | `core` | `protocol` | no | Coverage service rejected the request |
+| `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
 | `discovery.ambiguous-protocol` | `discovery` | `validation` | no | Multiple protocols match the endpoint |
 | `discovery.ambiguous-source` | `discovery` | `validation` | no | Multiple sources match the selection |
 | `discovery.invalid-cloud-native-input` | `discovery` | `validation` | no | Cloud-native discovery input is invalid or ambiguous |

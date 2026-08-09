@@ -237,6 +237,13 @@ export const EXCLUDED_SAMPLE_CATEGORIES = [
  */
 export const SAMPLE_BUNDLE_AUDIT = [
   {
+    id: "coverages-wcs-basic",
+    runtimeHosting: "self-contained",
+    buildScript: "demo:coverages-wcs:build",
+    auditedVia:
+      "examples/coverages-wcs-basic/src/main.ts injects ./pinned-fixtures.js as HonuaClient.fetchFn; that bundled module answers OGC API Coverages and WCS metadata plus coverage requests from in-memory JSON/XML/PNG fixtures, so the default build issues no network request.",
+  },
+  {
     id: "ai-spatial-app-builder",
     runtimeHosting: "self-contained",
     buildScript: "demo:ai-spatial-builder:build",

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A bounded OGC API Coverages request with the Honua JavaScript SDK." />
+    <title>Bounded coverage | Honua SDK</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Cloud-native raster recipe</p>
+        <h1>Read one bounded coverage.</h1>
+        <p>Discover the axes, choose a range field, then request only the pixels the view needs.</p>
+      </header>
+      <section class="result" aria-labelledby="result-title">
+        <div>
+          <p class="step">01 / Discover</p>
+          <h2 id="result-title">Oahu elevation</h2>
+          <dl>
+            <dt>Axes</dt><dd id="axes">Loading...</dd>
+            <dt>Range</dt><dd id="range">Loading...</dd>
+            <dt>WCS</dt><dd id="wcs">Loading...</dd>
+            <dt>Request</dt><dd><code>bbox + 320 x 220 + PNG</code></dd>
+            <dt>Limit</dt><dd><code>1 MiB</code></dd>
+          </dl>
+        </div>
+        <figure>
+          <img id="preview" alt="Fixture coverage preview" />
+          <figcaption id="status" aria-live="polite">Fetching a bounded subset...</figcaption>
+        </figure>
+      </section>
+      <aside>
+        <strong>Why bounded?</strong>
+        <span>The SDK rejects an accidental full-coverage download and enforces the byte ceiling while streaming.</span>
+      </aside>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

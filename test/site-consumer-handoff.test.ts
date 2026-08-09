@@ -121,9 +121,9 @@ describe("honua-site consumer handoff", () => {
           sourceImplementationDuplicated: false,
         },
         counts: {
-          cards: 30,
+          cards: 31,
           qualifiedJourneys: 4,
-          canonicalRoutes: 30,
+          canonicalRoutes: 31,
           legacyRoutes: 20,
           gaps: inputs.matrix.gaps.length,
         },

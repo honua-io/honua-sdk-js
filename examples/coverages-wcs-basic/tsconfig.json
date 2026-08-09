@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@honua/sdk-js/coverages": ["../../src/coverages/index.ts"],
+      "@honua/sdk-js/honua": ["../../src/honua.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "vite.config.ts"]
+}
