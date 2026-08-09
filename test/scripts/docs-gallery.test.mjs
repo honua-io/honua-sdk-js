@@ -443,7 +443,7 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
     });
     assert.equal(byId.get("edit-workflow-demo").sample.lifecycle.state, "replace");
     assert.equal(byId.get("geocoding-quickstart").sample.track, "recipe");
-    assert.equal(byId.get("geocoding-quickstart").sample.lifecycle.state, "rework");
+    assert.equal(byId.get("geocoding-quickstart").sample.lifecycle.state, "active");
     assert.equal(byId.get("sketch-editing").sample.track, "recipe");
     assert.equal(byId.get("sketch-editing").sample.lifecycle.state, "active");
     const planningCard = byId.get("planning-permitting-workbench");

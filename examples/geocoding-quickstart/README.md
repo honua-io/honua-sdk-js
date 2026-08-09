@@ -1,75 +1,51 @@
-# Honua Geocoding Quickstart
+# Address to pin
 
-Small browser sample for the SDK geocoding surface. It demonstrates:
+A map-first public example for the stable `@honua/sdk-js/geocoding` entrypoint. It makes one real
+`HonuaGeocodingClient.forwardGeocode()` request, places the selected candidate on MapLibre, and keeps the selected option,
+standardized address, score, locator, coordinates, and pin synchronized.
 
-- forward geocoding through `HonuaGeocodingClient.forwardGeocode()`
-- reverse geocoding from a clicked MapLibre point through `HonuaGeocodingClient.reverseGeocode()`
-- typeahead suggestions through `HonuaGeocodingClient.suggest()`
-- visible audit rows that map each interaction to its GeocodeServer endpoint
+The default and published lanes are deliberately **fixture-only**. This repository does not currently govern an anonymous
+public GeocodeServer suitable for a public demo, so the example does not substitute or imply a third-party live endpoint.
 
-This remains the focused geocoding recipe. The planning and permitting journey
-reuses forward geocoding as one step of a larger task, while this sample owns
-forward, reverse, and suggestion behavior in isolation. Its current browser
-credential configuration remains cataloged as rework and is not a live-success
-claim.
-
-## Fast Local Run
-
-The fixture lane is same-origin and does not need a live Honua server.
+## Deterministic fixture lane
 
 ```bash
 npm install
 npm run demo:geocoding:mock
 ```
 
-The script builds the app, serves it locally, and serves fixture responses for:
+The Vite build ships the reviewed response at the exact SDK route:
 
-- `GET /rest/services/World/GeocodeServer/findAddressCandidates`
-- `GET /rest/services/World/GeocodeServer/reverseGeocode`
-- `GET /rest/services/World/GeocodeServer/suggest`
-
-The local URL is printed as `geocodingMockUrl=http://127.0.0.1:PORT`.
-
-## Live Honua Run
-
-```bash
-npm run demo:geocoding
+```text
+./rest/services/World/GeocodeServer/findAddressCandidates
 ```
 
-Supported env vars:
+The relative route remains inside the sample on root and nested static hosts. `mock-server.mjs` serves the same committed
+document as JSON during focused browser tests; it does not maintain a second response body. The fixture is a synthetic,
+version-controlled set of Honolulu addresses and does not claim freshness or attribution from a public geocoder.
 
-- `VITE_HONUA_GEOCODING_BASE_URL`: Honua base URL. Omit it for the same-origin fixture lane.
-- `VITE_HONUA_GEOCODING_LOCATOR_NAME`: GeocodeServer locator service. Default: `World`.
-- `VITE_HONUA_GEOCODING_INITIAL_QUERY`: startup forward search. Default: `Honolulu Hale`.
-- `VITE_HONUA_GEOCODING_COUNTRY_CODES`: forwarded as `countryCode`. Default: `US`.
-- `VITE_HONUA_GEOCODING_MAX_RESULTS`: forwarded as `maxLocations`. Default: `5`.
-- `VITE_HONUA_GEOCODING_MAX_SUGGESTIONS`: forwarded as `maxSuggestions`. Default: `5`.
-- `VITE_HONUA_GEOCODING_API_KEY`: optional API key forwarded as `X-API-Key`.
-- `VITE_HONUA_GEOCODING_BEARER_TOKEN`: browser bearer-token forwarding is disabled unless
-  `VITE_HONUA_ALLOW_BROWSER_BEARER_TOKEN=true` is also set. Prefer short-lived API keys or backend-issued sessions for
-  browser demos.
+## SDK call
 
-## Network Contract And Audit Mapping
+```ts
+const geocoder = new HonuaGeocodingClient({
+  baseUrl: ".",
+  locatorName: "World",
+});
 
-The sample uses SDK methods only for GeocodeServer calls:
+const candidates = await geocoder.forwardGeocode("Honolulu civic landmarks", {
+  maxResults: 4,
+  spatialReferenceWkid: 4326,
+});
+```
 
-| User action | SDK surface | Endpoint |
-| --- | --- | --- |
-| Address search | `HonuaGeocodingClient.forwardGeocode()` | `/rest/services/{locatorName}/GeocodeServer/findAddressCandidates` |
-| Map click | `HonuaGeocodingClient.reverseGeocode()` | `/rest/services/{locatorName}/GeocodeServer/reverseGeocode` |
-| Typeahead input | `HonuaGeocodingClient.suggest()` | `/rest/services/{locatorName}/GeocodeServer/suggest` |
-
-The SDK already exposes suggest as a first-class API, so this sample has no demo-local fallback for typeahead.
-Searches and clicked-coordinate lookups are treated as ad hoc user requests and are not cached by the example.
-
-For browser smoke tests and troubleshooting, the runtime exposes `window.__HONUA_GEOCODING_DEMO__` with readiness,
-result counts, the resolved locator, audit rows, and focused `runForward()`, `runReverse()`, and `typeahead()` helpers.
+Use a governed Honua GeocodeServer URL and the host's credential/session policy in your own application. This public example
+intentionally has no browser credential variables and makes no live-success claim.
 
 ## Verification
 
 ```bash
 npm run demo:geocoding:typecheck
-npm test -- test/geocoding-quickstart.test.ts
+npx vitest run test/geocoding-quickstart.test.ts
 npm run demo:geocoding:build
 npm run test:playwright:geocoding
 ```

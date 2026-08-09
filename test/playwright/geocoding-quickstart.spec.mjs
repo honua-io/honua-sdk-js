@@ -4,54 +4,114 @@ import { startGeocodingFixtureServer } from "../../examples/geocoding-quickstart
 
 test.setTimeout(90_000);
 
-test("Geocoding Quickstart exercises forward, reverse, suggest, and audit mapping", async ({ page }) => {
-  const pageErrors = [];
-  page.on("pageerror", (error) => {
-    pageErrors.push(error.message);
+const HONOLULU_HALE = "530 S King St, Honolulu, HI 96813, USA";
+const ALA_MOANA = "1450 Ala Moana Blvd, Honolulu, HI 96814, USA";
+let server;
+
+test.beforeAll(async () => {
+  server = await startGeocodingFixtureServer();
+});
+
+test.afterAll(async () => {
+  await server?.close();
+});
+
+function captureErrors(page) {
+  const errors = { console: [], page: [], requests: [], responses: [] };
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.console.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.page.push(error.message));
+  page.on("requestfailed", (request) => errors.requests.push(`${request.method()} ${request.url()}`));
+  page.on("response", (response) => {
+    if (response.status() >= 400) errors.responses.push(`${response.status()} ${response.url()}`);
+  });
+  return errors;
+}
+
+test("pins the exact fixture result and keeps selection, text, and marker synchronized", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const errors = captureErrors(page);
+  const geocodeResponses = [];
+  page.on("response", (response) => {
+    if (new URL(response.url()).pathname.endsWith("/rest/services/World/GeocodeServer/findAddressCandidates")) {
+      geocodeResponses.push(response.status());
+    }
   });
 
-  const server = await startGeocodingFixtureServer();
+  const startedAt = Date.now();
+  await page.goto(server.url);
+  await expect
+    .poll(async () => page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.ready === true), { timeout: 3_000 })
+    .toBe(true);
+  expect(Date.now() - startedAt).toBeLessThan(3_000);
 
-  try {
-    await page.goto(server.url);
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.ready === true)).toBe(true);
+  await expect(page.locator("#selected-address")).toHaveText(HONOLULU_HALE);
+  await expect(page.locator("#selected-detail")).toHaveText("PointAddress / score 100 / World locator");
+  await expect(page.locator("#candidate-count")).toHaveText("4");
+  await expect(page.locator(".maplibregl-marker")).toHaveCount(1);
+  await expect(page.locator(".legend")).toContainText("Selected pin");
+  await expect(page.getByLabel("Data mode: fixture only")).toBeVisible();
 
-    await expect(page.locator("#mode-state")).toHaveText("Fixture safe mode");
-    await expect(page.locator("#locator-state")).toHaveText("World");
-    await expect(page.locator("#endpoint-state")).toHaveText("/rest/services/World/GeocodeServer");
-    await expect(page.locator("#forward-results")).toContainText("Honolulu Hale");
-    await expect(page.locator("#audit-table")).toContainText("HonuaGeocodingClient.forwardGeocode");
-    await expect(page.locator("#audit-table")).toContainText("HonuaGeocodingClient.reverseGeocode");
-    await expect(page.locator("#audit-table")).toContainText("HonuaGeocodingClient.suggest");
+  expect(
+    await page.evaluate(() => {
+      const runtime = window.__HONUA_GEOCODING_DEMO__;
+      return {
+        address: runtime?.selectedAddress,
+        score: runtime?.selectedScore,
+        coordinates: runtime?.selectedCoordinates,
+        results: runtime?.resultCount,
+        markers: runtime?.markerCount,
+        error: runtime?.lastError,
+      };
+    }),
+  ).toEqual({
+    address: HONOLULU_HALE,
+    score: 100,
+    coordinates: [-157.85833, 21.30455],
+    results: 4,
+    markers: 1,
+    error: null,
+  });
 
-    await page.locator("#address-input").fill("Ala");
-    await expect(page.locator("#suggestion-list")).toContainText("Ala Moana Center");
-    await expect
-      .poll(async () =>
-        page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.suggestions.some((text) => text.includes("Ala Moana"))),
-      )
-      .toBe(true);
-    await page.getByRole("button", { name: /Ala Moana Center/ }).click();
-    await expect(page.locator("#forward-results")).toContainText("Ala Moana Center");
-    await expect.poll(async () => page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.forwardCount)).toBe(1);
+  await page.locator("#address-select").selectOption("1");
+  await expect(page.locator("#selected-address")).toHaveText(ALA_MOANA);
+  await expect(page.locator("#selected-detail")).toHaveText("PointAddress / score 98 / World locator");
+  await expect(page.locator("#selected-coordinates")).toHaveText("-157.84365, 21.29118");
+  await expect(page.locator("#address-select")).toHaveValue("1");
+  expect(await page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.selectedAddress)).toBe(ALA_MOANA);
+  expect(await page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.selectedCoordinates)).toEqual([
+    -157.84365, 21.29118,
+  ]);
 
-    await page.locator("#map").click({ position: { x: 420, y: 260 } });
-    await expect(page.locator("#reverse-address")).toContainText("Honolulu");
-    await expect
-      .poll(async () => page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.reverseAddress ?? ""))
-      .toContain("Honolulu");
+  const mapBox = await page.locator(".map-panel").boundingBox();
+  const resultBox = await page.locator(".result-panel").boundingBox();
+  const provenanceBox = await page.locator(".implementation").boundingBox();
+  expect(mapBox.width).toBeGreaterThan(resultBox.width);
+  expect(mapBox.x).toBeLessThan(resultBox.x);
+  expect(mapBox.height).toBeGreaterThanOrEqual(560);
+  expect(provenanceBox.y).toBeGreaterThan(resultBox.y + resultBox.height);
 
-    const runtime = await page.evaluate(() => ({
-      endpointBase: window.__HONUA_GEOCODING_DEMO__?.endpointBase,
-      auditRowCount: window.__HONUA_GEOCODING_DEMO__?.auditRows.length ?? 0,
-      lastError: window.__HONUA_GEOCODING_DEMO__?.lastError ?? null,
-    }));
+  expect(geocodeResponses).toEqual([200]);
+  expect(errors).toEqual({ console: [], page: [], requests: [], responses: [] });
+  await expect(page.locator("body")).not.toContainText(/failed|failure|unavailable|error/i);
+});
 
-    expect(runtime.endpointBase).toBe("/rest/services/World/GeocodeServer");
-    expect(runtime.auditRowCount).toBe(3);
-    expect(runtime.lastError).toBeNull();
-    expect(pageErrors).toEqual([]);
-  } finally {
-    await server.close();
-  }
+test("keeps the map first, the selected result visible, and the map at least 40vh on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors = captureErrors(page);
+  await page.goto(server.url);
+  await expect
+    .poll(async () => page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.ready === true), { timeout: 3_000 })
+    .toBe(true);
+
+  const mapBox = await page.locator(".map-panel").boundingBox();
+  const resultBox = await page.locator(".result-panel").boundingBox();
+  const addressBox = await page.locator("#selected-address").boundingBox();
+  expect(mapBox.y).toBeLessThan(resultBox.y);
+  expect(mapBox.height).toBeGreaterThanOrEqual(844 * 0.4);
+  expect(addressBox.y).toBeLessThan(844);
+  await expect(page.locator("#selected-address")).toHaveText(HONOLULU_HALE);
+  await expect(page.locator(".maplibregl-marker")).toHaveCount(1);
+  expect(errors).toEqual({ console: [], page: [], requests: [], responses: [] });
 });

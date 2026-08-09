@@ -3,86 +3,85 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Honua Geocoding Quickstart</title>
+    <meta
+      name="description"
+      content="A fixture-only Honua SDK example that turns reviewed Honolulu addresses into synchronized MapLibre pins."
+    />
+    <title>Address to pin | Honua SDK</title>
   </head>
   <body>
     <main class="app-shell">
-      <section class="control-panel" aria-label="Geocoding controls">
-        <header class="panel-header">
-          <p class="eyebrow">Honua GeocodeServer</p>
-          <h1>Geocoding Service Demo</h1>
-          <p>Forward search, typeahead suggestions, reverse lookup, and capability audit rows through the Honua JS SDK.</p>
-        </header>
+      <header class="masthead">
+        <div>
+          <p class="eyebrow">Honua SDK public example</p>
+          <h1>Address to pin, with the result in view.</h1>
+        </div>
+        <div class="fixture-badge" aria-label="Data mode: fixture only">
+          <span class="fixture-badge__dot" aria-hidden="true"></span>
+          Fixture-only data
+        </div>
+      </header>
 
-        <section class="status-grid" aria-label="Demo status">
-          <div>
-            <span>Mode</span>
-            <strong id="mode-state">Loading</strong>
-          </div>
-          <div>
-            <span>Locator</span>
-            <strong id="locator-state">Loading</strong>
-          </div>
-          <div>
-            <span>Endpoint</span>
-            <strong id="endpoint-state">Loading</strong>
-          </div>
-          <div>
-            <span>Last Operation</span>
-            <strong id="operation-state">Loading</strong>
+      <section class="workspace" aria-label="Geocoding result workspace">
+        <section class="map-panel" aria-label="Map of geocoded Honolulu addresses">
+          <div id="map" aria-describedby="selected-address selected-coordinates"></div>
+          <div class="map-label" aria-hidden="true">Honolulu, Oahu</div>
+          <div class="legend" aria-label="Map legend">
+            <strong>Legend</strong>
+            <span><i class="legend__candidate" aria-hidden="true"></i>Candidate address</span>
+            <span><i class="legend__selected" aria-hidden="true"></i>Selected pin</span>
           </div>
         </section>
 
-        <section class="tool-panel" aria-label="Forward geocoding">
-          <form id="forward-form">
-            <label class="field-label" for="address-input">Forward Geocode</label>
-            <div class="search-row">
-              <input id="address-input" name="address" autocomplete="off" />
-              <button id="forward-submit" type="submit">Search</button>
-            </div>
-          </form>
-          <div id="suggestion-list" class="suggestion-list" aria-label="Typeahead suggestions"></div>
-        </section>
-
-        <section class="results-panel" aria-label="Forward geocode results">
-          <div class="section-heading">
-            <h2>Candidates</h2>
-            <span id="forward-count">0 candidates</span>
+        <aside class="result-panel" aria-label="Selected geocoding result">
+          <div class="result-intro">
+            <p class="step-label">01 / Select</p>
+            <h2>Choose a reviewed address</h2>
+            <p>The fixture returns a bounded set through the real SDK forward-geocoding client.</p>
           </div>
-          <div id="forward-results" class="result-list"></div>
-        </section>
 
-        <section class="reverse-panel" aria-label="Reverse geocode result">
-          <div class="section-heading">
-            <h2>Clicked Point</h2>
-            <span id="map-coordinate">-</span>
-          </div>
-          <div class="reverse-card">
-            <span>Reverse Geocode</span>
-            <strong id="reverse-address">No address selected</strong>
-            <p id="reverse-detail">-</p>
-          </div>
-        </section>
+          <label class="field-label" for="address-select">Address candidate</label>
+          <select id="address-select" disabled>
+            <option>Loading reviewed addresses...</option>
+          </select>
 
-        <section class="audit-panel" aria-label="Capability audit mapping">
-          <h2>Audit Mapping</h2>
-          <div id="audit-table" class="audit-table"></div>
-        </section>
+          <article id="selected-result" class="selected-result" aria-live="polite">
+            <p class="step-label">02 / Pinned result</p>
+            <h2 id="selected-address">Locating Honolulu Hale...</h2>
+            <p id="selected-detail" class="result-meta">Waiting for the fixture response.</p>
+            <dl class="coordinate-grid">
+              <div>
+                <dt>Coordinates</dt>
+                <dd id="selected-coordinates">-157.85833, 21.30455</dd>
+              </div>
+              <div>
+                <dt>Candidates</dt>
+                <dd id="candidate-count">Loading</dd>
+              </div>
+            </dl>
+          </article>
 
-        <section class="status-grid" aria-label="Error status">
-          <div>
-            <span>Error</span>
-            <strong id="error-state">None</strong>
-          </div>
-        </section>
+          <p id="status-message" class="status-message" role="status">Resolving the committed fixture...</p>
+        </aside>
       </section>
 
-      <section class="map-stage" aria-label="Geocoding map">
-        <div id="map"></div>
-        <div class="map-overlay">
-          <span>SDK endpoint base</span>
-          <strong id="map-endpoint-state">/rest/services/World/GeocodeServer</strong>
-        </div>
+      <section class="implementation" aria-label="Protocol, endpoint, and provenance">
+        <article>
+          <span>Protocol</span>
+          <strong>Esri GeoServices</strong>
+        </article>
+        <article>
+          <span>SDK surface</span>
+          <strong><code>HonuaGeocodingClient.forwardGeocode()</code></strong>
+        </article>
+        <article>
+          <span>Endpoint</span>
+          <strong id="endpoint-state"><code>./rest/services/World/GeocodeServer/findAddressCandidates</code></strong>
+        </article>
+        <article>
+          <span>Provenance</span>
+          <strong>Repository-owned deterministic fixture; no public geocoder is claimed.</strong>
+        </article>
       </section>
     </main>
 
