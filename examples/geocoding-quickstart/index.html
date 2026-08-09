@@ -31,11 +31,16 @@
             <span><i class="legend__candidate" aria-hidden="true"></i>Candidate address</span>
             <span><i class="legend__selected" aria-hidden="true"></i>Selected pin</span>
           </div>
+          <article id="selected-result" class="selected-result map-result-strip" aria-live="polite">
+            <p class="step-label">Pinned result</p>
+            <h2 id="selected-address">Locating Honolulu Hale...</h2>
+            <p id="selected-detail" class="result-meta">Waiting for the fixture response.</p>
+          </article>
         </section>
 
         <aside class="result-panel" aria-label="Selected geocoding result">
           <div class="result-intro">
-            <p class="step-label">01 / Select</p>
+            <p class="step-label">Search / select</p>
             <h2>Choose a reviewed address</h2>
             <p>The fixture returns a bounded set through the real SDK forward-geocoding client.</p>
           </div>
@@ -45,21 +50,16 @@
             <option>Loading reviewed addresses...</option>
           </select>
 
-          <article id="selected-result" class="selected-result" aria-live="polite">
-            <p class="step-label">02 / Pinned result</p>
-            <h2 id="selected-address">Locating Honolulu Hale...</h2>
-            <p id="selected-detail" class="result-meta">Waiting for the fixture response.</p>
-            <dl class="coordinate-grid">
-              <div>
-                <dt>Coordinates</dt>
-                <dd id="selected-coordinates">-157.85833, 21.30455</dd>
-              </div>
-              <div>
-                <dt>Candidates</dt>
-                <dd id="candidate-count">Loading</dd>
-              </div>
-            </dl>
-          </article>
+          <dl class="coordinate-grid">
+            <div>
+              <dt>Coordinates</dt>
+              <dd id="selected-coordinates">-157.85833, 21.30455</dd>
+            </div>
+            <div>
+              <dt>Candidates</dt>
+              <dd id="candidate-count">Loading</dd>
+            </div>
+          </dl>
 
           <p id="status-message" class="status-message" role="status">Resolving the committed fixture...</p>
         </aside>

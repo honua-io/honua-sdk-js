@@ -107,11 +107,25 @@ test("keeps the map first, the selected result visible, and the map at least 40v
 
   const mapBox = await page.locator(".map-panel").boundingBox();
   const resultBox = await page.locator(".result-panel").boundingBox();
+  const linkedResultBox = await page.locator("#selected-result").boundingBox();
   const addressBox = await page.locator("#selected-address").boundingBox();
+  const detailBox = await page.locator("#selected-detail").boundingBox();
+  const selectBox = await page.locator("#address-select").boundingBox();
+  const legendBox = await page.locator(".legend").boundingBox();
+  const markerBox = await page.locator(".maplibregl-marker").boundingBox();
   expect(mapBox.y).toBeLessThan(resultBox.y);
   expect(mapBox.height).toBeGreaterThanOrEqual(844 * 0.4);
   expect(addressBox.y).toBeLessThan(844);
+  expect(detailBox.y + detailBox.height).toBeLessThanOrEqual(844);
+  expect(selectBox.y + selectBox.height).toBeLessThanOrEqual(844);
+  expect(linkedResultBox.x).toBeGreaterThanOrEqual(0);
+  expect(linkedResultBox.x + linkedResultBox.width).toBeLessThanOrEqual(390);
+  expect(legendBox.y).toBeGreaterThanOrEqual(linkedResultBox.y);
+  expect(legendBox.y + legendBox.height).toBeLessThanOrEqual(linkedResultBox.y + linkedResultBox.height);
+  expect(markerBox.y + markerBox.height).toBeLessThan(linkedResultBox.y);
   await expect(page.locator("#selected-address")).toHaveText(HONOLULU_HALE);
+  await expect(page.locator("#selected-detail")).toHaveText("PointAddress / score 100 / World locator");
   await expect(page.locator(".maplibregl-marker")).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   expect(errors).toEqual({ console: [], page: [], requests: [], responses: [] });
 });
