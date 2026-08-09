@@ -1,6 +1,6 @@
 # Bounded coverage quickstart
 
-This is the smallest OGC API Coverages workflow: inspect domain and range metadata, request a spatially and dimensionally bounded PNG, then project it to a MapLibre-compatible image source/layer descriptor.
+This is the smallest OGC API Coverages and WCS workflow: inspect OGC domain and range metadata, verify the same coverage through WCS `GetCapabilities` and `DescribeCoverage`, request a spatially and dimensionally bounded PNG, then project it to a MapLibre-compatible image source/layer descriptor.
 
 ```bash
 npm run demo:coverages-wcs

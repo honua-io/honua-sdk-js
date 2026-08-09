@@ -1181,6 +1181,12 @@ export class HonuaClient {
       redirect?: "safe-follow" | "error" | "manual";
       discardErrorBody?: boolean;
       /**
+       * Builds the body retained by `HonuaHttpError` for unsuccessful
+       * responses. Bounded protocol clients use this hook to consume failure
+       * bodies under the same byte ceiling as successful responses.
+       */
+      errorBody?: (response: Response, deadlineSignal: AbortSignal | undefined) => Promise<unknown>;
+      /**
        * Invoked immediately before every physical fetch attempt, including
        * retry and replay-safe authentication attempts. Bounded callers use
        * this guard to reserve request and byte budgets before network I/O.
@@ -1225,15 +1231,17 @@ export class HonuaClient {
       ...(options.redirect ? { redirect: options.redirect } : {}),
       ...(options.beforeAttempt ? { beforeAttempt: options.beforeAttempt } : {}),
       ...(options.beforeReplay ? { beforeReplay: options.beforeReplay } : {}),
-      ...(options.prepareResponse ? { deadlineThroughFinalize: true } : {}),
-      ...(options.discardErrorBody
-        ? {
-            errorBody: (response: Response) => {
-              void response.body?.cancel().catch(() => undefined);
-              return Promise.resolve({});
-            },
-          }
-        : {}),
+      ...(options.prepareResponse || options.errorBody ? { deadlineThroughFinalize: true } : {}),
+      ...(options.errorBody
+        ? { errorBody: options.errorBody }
+        : options.discardErrorBody
+          ? {
+              errorBody: (response: Response) => {
+                void response.body?.cancel().catch(() => undefined);
+                return Promise.resolve({});
+              },
+            }
+          : {}),
       finalize: async (response, _durationMs, _request, runAfter, deadlineSignal) => {
         const candidate = options.prepareResponse ? await options.prepareResponse(response, deadlineSignal) : response;
         const prepared = candidate === response ? response : preserveResponseSemantics(candidate, response);

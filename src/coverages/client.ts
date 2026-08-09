@@ -171,7 +171,7 @@ export class HonuaCoverageClient {
         ...(response.headers.get("Content-Disposition")
           ? { contentDisposition: response.headers.get("Content-Disposition") ?? undefined }
           : {}),
-        requestUrl: new URL(path, `${this.client.serverBaseUrl}/`).toString(),
+        requestUrl: resolveCoverageRequestUrl(this.client.serverBaseUrl, path),
       };
     } catch (error) {
       throw translateServiceError(error, protocol);
@@ -293,7 +293,7 @@ export class HonuaWcsClient {
         ...(response.headers.get("Content-Disposition")
           ? { contentDisposition: response.headers.get("Content-Disposition") ?? undefined }
           : {}),
-        requestUrl: new URL(path, `${this.client.serverBaseUrl}/`).toString(),
+        requestUrl: resolveCoverageRequestUrl(this.client.serverBaseUrl, path),
       };
     } catch (error) {
       throw translateServiceError(error, "wcs");
@@ -320,6 +320,8 @@ async function boundedFetch(
   signal?: AbortSignal,
 ): Promise<Response> {
   return client.pipelineFetch("GET", path, { headers: { Accept: accept } }, signal, {
+    errorBody: async (response, deadlineSignal) =>
+      parseErrorBody(await readBoundedBytes(response, maxResponseBytes, deadlineSignal)),
     prepareResponse: async (response, deadlineSignal) => {
       const bytes = await readBoundedBytes(response, maxResponseBytes, deadlineSignal);
       return new Response(ownedArrayBuffer(bytes), {
@@ -329,6 +331,16 @@ async function boundedFetch(
       });
     },
   });
+}
+
+function parseErrorBody(bytes: Uint8Array): unknown {
+  const text = new TextDecoder().decode(bytes);
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return { raw: text };
+  }
 }
 
 async function readBoundedBytes(
@@ -514,6 +526,9 @@ function assertBoundedCoverageRequest(request: {
   readonly subsets?: readonly CoverageAxisSubset[];
   readonly scaleSize?: unknown;
   readonly scaleFactor?: number;
+  readonly resolution?: unknown;
+  readonly scaleAxes?: unknown;
+  readonly scaleExtent?: unknown;
   readonly allowFullCoverage?: boolean;
 }): void {
   if (
@@ -521,7 +536,10 @@ function assertBoundedCoverageRequest(request: {
     !request.bbox &&
     !request.subsets?.length &&
     request.scaleSize === undefined &&
-    request.scaleFactor === undefined
+    request.scaleFactor === undefined &&
+    request.resolution === undefined &&
+    request.scaleAxes === undefined &&
+    request.scaleExtent === undefined
   ) {
     throw new HonuaCoverageError(
       "invalid-request",
@@ -612,6 +630,17 @@ function withQuery(path: string, params: URLSearchParams): string {
 }
 
 function normalizeSameOriginPath(serverBaseUrl: string, value: string): string {
+  if (!isAbsoluteHttpUrl(serverBaseUrl)) {
+    if (isAbsoluteHttpUrl(value) || value.startsWith("//")) {
+      throw new HonuaCoverageError(
+        "invalid-request",
+        "Coverage endpoints must remain relative when the HonuaClient base URL is relative.",
+        { endpoint: value },
+      );
+    }
+    const endpoint = new URL(value.startsWith("/") ? value : `/${value}`, "https://honua-relative.invalid");
+    return `${endpoint.pathname.replace(/\/$/, "")}${endpoint.search}`;
+  }
   const server = new URL(`${serverBaseUrl.replace(/\/$/, "")}/`);
   const endpoint = new URL(value, server);
   if (endpoint.origin !== server.origin) {
@@ -622,6 +651,16 @@ function normalizeSameOriginPath(serverBaseUrl: string, value: string): string {
     );
   }
   return `${endpoint.pathname.replace(/\/$/, "")}${endpoint.search}`;
+}
+
+function resolveCoverageRequestUrl(serverBaseUrl: string, path: string): string {
+  return isAbsoluteHttpUrl(serverBaseUrl)
+    ? new URL(path, `${serverBaseUrl.replace(/\/$/, "")}/`).toString()
+    : `${serverBaseUrl}${path}`;
+}
+
+function isAbsoluteHttpUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://");
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {

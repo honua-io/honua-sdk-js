@@ -141,6 +141,49 @@ describe("OGC API Coverages client", () => {
     ).rejects.toBeInstanceOf(HonuaCoverageError);
   });
 
+  it("bounds unsuccessful response bodies before the shared pipeline parses them", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://coverages.example",
+      fetchFn: vi.fn(
+        async () =>
+          new Response("failure body is larger than the metadata ceiling", {
+            status: 500,
+            headers: { "Content-Type": "text/plain" },
+          }),
+      ),
+    });
+
+    await expect(createCoverageClient(client, { maxMetadataResponseBytes: 8 }).landing()).rejects.toMatchObject({
+      code: "response-too-large",
+    });
+  });
+
+  it("supports same-origin relative HonuaClient base URLs", async () => {
+    const requested: string[] = [];
+    const client = new HonuaClient({
+      baseUrl: "/api",
+      fetchFn: vi.fn(async (input) => {
+        const rawUrl = String(input);
+        requested.push(rawUrl);
+        const url = new URL(rawUrl, "https://browser.example");
+        if (url.pathname === "/api/ogc/coverages") return jsonFixture("landing.json");
+        if (url.pathname === "/api/ogc/services/7/wcs") {
+          return new Response(fixture("wcs-capabilities.xml"), { headers: { "Content-Type": "application/xml" } });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    });
+
+    expect((await createCoverageClient(client).landing()).title).toBe("Honua island elevation coverages");
+    expect((await createWcsClient(client, { basePath: "/ogc/services/7/wcs" }).capabilities()).coverageIds).toEqual([
+      "7",
+    ]);
+    expect(requested).toEqual([
+      "/api/ogc/coverages",
+      "/api/ogc/services/7/wcs?SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCapabilities",
+    ]);
+  });
+
   it("passes caller cancellation into the shared client pipeline", async () => {
     const controller = new AbortController();
     controller.abort();
@@ -215,6 +258,28 @@ describe("WCS 2.0.1 compatibility client", () => {
     expect(requested?.searchParams.get("SCALESIZE")).toBe("Lat(128),Long(256)");
     expect(requested?.searchParams.get("RANGESUBSET")).toBe("elevation");
     expect(requested?.searchParams.get("FORMAT")).toBe("image/tiff");
+  });
+
+  it("accepts every supported scaling mode as an explicit download bound", async () => {
+    const requested: URL[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://coverages.example",
+      fetchFn: coverageFetch((request) => {
+        const url = new URL(request.url);
+        if (url.pathname.endsWith("/coverage") || url.searchParams.get("REQUEST") === "GetCoverage") {
+          requested.push(url);
+        }
+      }),
+    });
+
+    await createCoverageClient(client).getCoverage("7", { resolution: [30, 30], format: "image/png" });
+    const wcs = createWcsClient(client, { basePath: "/ogc/services/7/wcs" });
+    await wcs.getCoverage("7", { scaleAxes: { Lat: 2, Long: 3 } });
+    await wcs.getCoverage("7", { scaleExtent: [{ axis: "Lat", low: 21.3, high: 21.5 }] });
+
+    expect(requested[0]?.searchParams.get("resolution")).toBe("30,30");
+    expect(requested[1]?.searchParams.get("SCALEAXES")).toBe("Lat(2),Long(3)");
+    expect(requested[2]?.searchParams.get("SCALEEXTENT")).toBe("Lat(21.3,21.5)");
   });
 
   it("surfaces structured OWS exception reports", async () => {
