@@ -40,12 +40,14 @@ const PINNED_DEMO_MANIFEST = {
 
 describe("cloud-native source capability discovery", () => {
   it("uses the pinned deployment manifest and only its authoritative source links", async () => {
-    const requests: Array<{ url: string; authorization: string | null; trace: string | null }> = [];
+    const requests: Array<{ url: string; accept: string | null; authorization: string | null; trace: string | null }> =
+      [];
     const after = vi.fn();
     const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
       const headers = new Headers(init?.headers);
       requests.push({
         url: input.toString(),
+        accept: headers.get("accept"),
         authorization: headers.get("authorization"),
         trace: headers.get("x-discovery-trace"),
       });
@@ -58,9 +60,8 @@ describe("cloud-native source capability discovery", () => {
       interceptors: [
         {
           before(context) {
-            const headers = new Headers(context.init.headers);
-            headers.set("x-discovery-trace", "contract-test");
-            return { init: { ...context.init, headers } };
+            expect(context.init.headers).toBeDefined();
+            return { init: { headers: { "x-discovery-trace": "contract-test" } } };
           },
           after,
         },
@@ -70,6 +71,7 @@ describe("cloud-native source capability discovery", () => {
     expect(requests).toEqual([
       {
         url: "https://demo.honua.io/demo-services.v1.json",
+        accept: "application/json",
         authorization: "Bearer rotated-token",
         trace: "contract-test",
       },
@@ -168,15 +170,65 @@ describe("cloud-native source capability discovery", () => {
 
   it("preserves typed HTTP failures and notifies error interceptors", async () => {
     const onError = vi.fn();
+    const after = vi.fn();
     const fetchFn = vi.fn<typeof fetch>(async () => new Response("not authorized", { status: 401 }));
 
     await expect(
       discoverCloudNativeSources("https://demo.honua.io", {
         fetchFn,
-        interceptors: [{ error: onError }],
+        interceptors: [{ after, error: onError }],
       }),
     ).rejects.toBeInstanceOf(HonuaHttpError);
+    expect(after).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ error: expect.any(HonuaHttpError) }));
+  });
+
+  it("refreshes provider credentials once after an unauthorized manifest response", async () => {
+    const auth = vi.fn(async ({ forceRefresh }: { forceRefresh: boolean }) => ({
+      bearerToken: forceRefresh ? "fresh-token" : "stale-token",
+    }));
+    const authorizations: Array<string | null> = [];
+    const after = vi.fn();
+    const fetchFn = vi.fn<typeof fetch>(async (_input, init) => {
+      authorizations.push(new Headers(init?.headers).get("authorization"));
+      return authorizations.length === 1
+        ? new Response("expired", { status: 401 })
+        : Response.json(PINNED_DEMO_MANIFEST);
+    });
+
+    await discoverCloudNativeSources("https://demo.honua.io", {
+      auth,
+      fetchFn,
+      interceptors: [{ after }],
+    });
+
+    expect(authorizations).toEqual(["Bearer stale-token", "Bearer fresh-token"]);
+    expect(auth).toHaveBeenNthCalledWith(1, { forceRefresh: false, reason: "initial" });
+    expect(auth).toHaveBeenNthCalledWith(2, {
+      forceRefresh: true,
+      previousCredentials: { bearerToken: "stale-token" },
+      reason: "unauthorized",
+    });
+    expect(after).toHaveBeenCalledOnce();
+  });
+
+  it("rejects oversized and overpopulated deployment manifests", async () => {
+    const oversizedFetch = vi.fn<typeof fetch>(async () =>
+      Response.json(PINNED_DEMO_MANIFEST, { headers: { "content-length": "1048577" } }),
+    );
+    await expect(
+      discoverCloudNativeSources("https://demo.honua.io", { fetchFn: oversizedFetch }),
+    ).rejects.toMatchObject({ code: "invalid-cloud-native-manifest" });
+
+    const crowdedManifest = {
+      ...PINNED_DEMO_MANIFEST,
+      services: Array.from({ length: 1_001 }, (_, index) => ({ id: `service-${index}`, protocols: {} })),
+    };
+    await expect(
+      discoverCloudNativeSources("https://demo.honua.io", {
+        fetchFn: async () => Response.json(crowdedManifest),
+      }),
+    ).rejects.toMatchObject({ code: "invalid-cloud-native-manifest" });
   });
 
   it("serializes deterministically and validates the version envelope", async () => {

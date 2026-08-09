@@ -28,6 +28,8 @@ import type {
 export const HONUA_CLOUD_NATIVE_DISCOVERY_FORMAT = "honua.cloud-native-discovery.v1";
 export const HONUA_CLOUD_NATIVE_DISCOVERY_SCHEMA_VERSION = "1.0.0";
 export const HONUA_DEMO_SERVICES_MANIFEST_PATH = "demo-services.v1.json";
+const MAX_CLOUD_NATIVE_MANIFEST_BYTES = 1_048_576;
+const MAX_CLOUD_NATIVE_MANIFEST_SERVICES = 1_000;
 
 export const CLOUD_NATIVE_SOURCE_KINDS = [
   "cog",
@@ -343,6 +345,13 @@ function deploymentDocument(
       { manifestUrl },
     );
   }
+  if (value.services.length > MAX_CLOUD_NATIVE_MANIFEST_SERVICES) {
+    throw new HonuaCloudNativeDiscoveryError(
+      "invalid-cloud-native-manifest",
+      `The Honua deployment manifest exceeds the ${MAX_CLOUD_NATIVE_MANIFEST_SERVICES}-service limit.`,
+      { manifestUrl, serviceCount: value.services.length },
+    );
+  }
   const format = stringValue(value.format);
   const schemaVersion = stringValue(value.schemaVersion);
   if (!format || !schemaVersion) {
@@ -483,7 +492,7 @@ function locatorFromProtocol(
 }
 
 async function requestManifest(url: string, options: CloudNativeDiscoveryOptions): Promise<unknown> {
-  const credentials = await resolveCredentials(options);
+  const credentials = await resolveCredentials(options, "initial", false);
   const headers = new Headers({ Accept: "application/json" });
   if (options.apiKey) headers.set("X-API-Key", options.apiKey);
   if (options.bearerToken) headers.set("Authorization", `Bearer ${options.bearerToken}`);
@@ -502,30 +511,51 @@ async function requestManifest(url: string, options: CloudNativeDiscoveryOptions
       if (!mutation) continue;
       const nextUrl = mutation.url ?? context.url;
       const nextMethod = mutation.method ?? context.method;
+      const nextInit =
+        mutation.init === undefined
+          ? context.init
+          : {
+              ...context.init,
+              ...mutation.init,
+              headers: mergeHeaders(context.init.headers, mutation.init.headers),
+            };
       context = {
         url: nextUrl,
         path: `${new URL(nextUrl).pathname}${new URL(nextUrl).search}`,
         method: nextMethod,
         init: {
-          ...(mutation.init ?? context.init),
+          ...nextInit,
           method: nextMethod,
           ...(options.signal ? { signal: options.signal } : {}),
         },
       };
     }
     if (options.signal?.aborted) throw new HonuaAbortError();
-    const response = await (options.fetchFn ?? fetch)(context.url, context.init);
-    const durationMs = Date.now() - startedAt;
-    for (const interceptor of options.interceptors ?? []) {
-      await interceptor.after?.({ request: cloneRequestContext(context), response: response.clone(), durationMs });
+    const fetchFn = options.fetchFn ?? fetch;
+    let response = await fetchFn(context.url, context.init);
+    if ((response.status === 401 || response.status === 403) && options.auth) {
+      const refreshed = await resolveCredentials(options, "unauthorized", true, credentials);
+      if (refreshed) {
+        const refreshedHeaders = new Headers(context.init.headers);
+        applyCredentials(refreshedHeaders, refreshed);
+        context = { ...context, init: { ...context.init, headers: refreshedHeaders } };
+        response = await fetchFn(context.url, context.init);
+      }
     }
+    const durationMs = Date.now() - startedAt;
     if (!response.ok) {
-      const body = await response.text();
+      const body = await readBoundedResponseText(response, MAX_CLOUD_NATIVE_MANIFEST_BYTES, options.signal);
       throw new HonuaHttpError(response.status, response.statusText || "Manifest request failed", body);
     }
+    const interceptorResponse = (options.interceptors ?? []).some((interceptor) => interceptor.after)
+      ? response.clone()
+      : undefined;
+    let manifest: unknown;
     try {
-      return await response.json();
+      const text = await readBoundedResponseText(response, MAX_CLOUD_NATIVE_MANIFEST_BYTES, options.signal);
+      manifest = JSON.parse(text) as unknown;
     } catch (cause) {
+      if (isHonuaError(cause)) throw cause;
       throw new HonuaCloudNativeDiscoveryError(
         "invalid-cloud-native-manifest",
         "The Honua deployment manifest response is not valid JSON.",
@@ -533,6 +563,14 @@ async function requestManifest(url: string, options: CloudNativeDiscoveryOptions
         { cause },
       );
     }
+    for (const interceptor of options.interceptors ?? []) {
+      await interceptor.after?.({
+        request: cloneRequestContext(context),
+        response: interceptorResponse?.clone() ?? response.clone(),
+        durationMs,
+      });
+    }
+    return manifest;
   } catch (cause) {
     const error = normalizeRequestError(cause, options.signal, context.url);
     await Promise.allSettled(
@@ -544,9 +582,14 @@ async function requestManifest(url: string, options: CloudNativeDiscoveryOptions
   }
 }
 
-async function resolveCredentials(options: CloudNativeDiscoveryOptions): Promise<HonuaAuthCredentials | undefined> {
+async function resolveCredentials(
+  options: CloudNativeDiscoveryOptions,
+  reason: "initial" | "unauthorized",
+  forceRefresh: boolean,
+  previousCredentials?: HonuaAuthCredentials,
+): Promise<HonuaAuthCredentials | undefined> {
   if (!options.auth) return undefined;
-  const context = { reason: "initial" as const, forceRefresh: false };
+  const context = { reason, forceRefresh, ...(previousCredentials ? { previousCredentials } : {}) };
   const result = await (typeof options.auth === "function"
     ? options.auth(context)
     : options.auth.getCredentials(context));
@@ -569,6 +612,68 @@ function normalizeRequestError(cause: unknown, signal: AbortSignal | undefined, 
 
 function cloneRequestContext(context: HonuaRequestContext): HonuaRequestContext {
   return { ...context, init: { ...context.init, headers: new Headers(context.init.headers) } };
+}
+
+function mergeHeaders(...sources: Array<HeadersInit | undefined>): Headers {
+  const merged = new Headers();
+  for (const source of sources) {
+    if (!source) continue;
+    new Headers(source).forEach((value, key) => merged.set(key, value));
+  }
+  return merged;
+}
+
+async function readBoundedResponseText(response: Response, maximum: number, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) {
+    void response.body?.cancel().catch(() => undefined);
+    throw new HonuaAbortError();
+  }
+  const advertised = response.headers.get("content-length");
+  if (advertised !== null) {
+    const length = Number(advertised);
+    if (Number.isFinite(length) && length > maximum) {
+      void response.body?.cancel().catch(() => undefined);
+      throw new HonuaCloudNativeDiscoveryError(
+        "invalid-cloud-native-manifest",
+        `The Honua deployment manifest exceeds the ${maximum}-byte response limit.`,
+      );
+    }
+  }
+  if (!response.body) return "";
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const abort = () => void reader.cancel().catch(() => undefined);
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    for (;;) {
+      if (signal?.aborted) throw new HonuaAbortError();
+      const { done, value } = await reader.read();
+      if (signal?.aborted) throw new HonuaAbortError();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maximum) {
+        void reader.cancel().catch(() => undefined);
+        throw new HonuaCloudNativeDiscoveryError(
+          "invalid-cloud-native-manifest",
+          `The Honua deployment manifest exceeds the ${maximum}-byte response limit.`,
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
 }
 
 function operationError(
