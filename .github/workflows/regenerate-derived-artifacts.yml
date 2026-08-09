@@ -621,6 +621,35 @@ jobs:
         if: steps.decision.outputs.skip == 'false'
         run: npm run samples:generate
 
+      # Each reseal pass preserves the run set referenced by the currently
+      # published visual projection while new receipt-bound runs are promoted.
+      # Once samples:generate advances that projection, the previous published
+      # set is no longer authoritative. Run the existing canonical, fail-closed
+      # pruner against the new projection before strict inventory validation so
+      # those superseded runs cannot become orphaned fifth entries.
+      - name: Prune superseded golden evidence runs after projection rollover
+        if: steps.decision.outputs.skip == 'false'
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          import path from "node:path";
+          import { pruneUnreferencedEvidenceRuns } from "./scripts/sample-runner.mjs";
+
+          const catalog = JSON.parse(await readFile("samples/catalog.v2.json", "utf8"));
+          const sampleIds = [...new Set(
+            catalog.goldenJourneys
+              .filter((journey) => journey.status === "qualified")
+              .map((journey) => journey.candidateSampleId),
+          )].sort();
+          for (const sampleId of sampleIds) {
+            await pruneUnreferencedEvidenceRuns(
+              path.resolve("samples/evidence", sampleId),
+              sampleId,
+            );
+          }
+          NODE
+
       # Commit resealed evidence locally as a separate child commit. Its
       # sourceRevision points at the preceding generated-input commit (or the
       # original trunk commit when no generated input changed), so preserving
