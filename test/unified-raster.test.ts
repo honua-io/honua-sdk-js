@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { CogDecodedMetadata, CogDecoderFactory } from "../src/cog/index.js";
+import type { CogDecodedMetadata, CogDecoderFactory, CogNoDataValue } from "../src/cog/index.js";
+import { HonuaClient } from "../src/core/client.js";
 import {
   RASTER_FORMAT_MATURITY,
   UNIFIED_RASTER_CAPABILITY_MATRIX,
@@ -57,11 +58,12 @@ function boundedFetch(ranges: string[]): typeof fetch {
 function decoder(
   format: CogDecodedMetadata["format"] = "cog",
   values: readonly number[] = [0, 10, 20, 30],
+  nodata: CogNoDataValue = 0,
 ): CogDecoderFactory {
   return async () => ({
     async inspect({ readRange }) {
       await readRange({ offset: 0, length: 32 });
-      return { ...metadata, format };
+      return { ...metadata, format, bands: metadata.bands.map((band) => ({ ...band, nodata })) };
     },
     async readWindow(request, { readRange }) {
       await readRange({ offset: 4096, length: 16 });
@@ -128,6 +130,25 @@ describe("unified raster session", () => {
     await session.dispose();
   });
 
+  it("honors numeric-string no-data metadata in statistics", async () => {
+    const session = await openRasterSession(
+      directCogSource({
+        id: "string-nodata-cog",
+        url: "https://assets.example/string-nodata",
+        mediaType: "image/tiff; application=geotiff; profile=cloud-optimized",
+      }),
+      { decoderFactory: decoder("cog", [0, 10, 20, 30], "0"), clientOptions: { fetchFn: boundedFetch([]) } },
+    );
+
+    const result = await session.statistics(
+      { space: "pixel", x: 0, y: 0, width: 2, height: 2, bands: [1] },
+      { bins: 3 },
+    );
+
+    expect(result.bands[0]).toMatchObject({ band: 1, count: 3, noDataCount: 1, min: 10, max: 30, mean: 20 });
+    await session.dispose();
+  });
+
   it("emits one ordered histogram bin for a constant-valued band", async () => {
     const session = await openRasterSession(
       directCogSource({
@@ -171,6 +192,9 @@ describe("unified raster session", () => {
         session.readWindow({ space: "pixel", x: 0, y: 0, width: 2, height: 2, bands: [1], style }),
       ).rejects.toMatchObject({ capability: "styled-window", protocol: "direct-cog" });
     }
+    await expect(
+      session.inspectValue({ space: "pixel", x: 0, y: 0, bands: [1], style: { kind: "stretch", method: "min-max" } }),
+    ).rejects.toMatchObject({ capability: "styled-window", protocol: "direct-cog" });
     expect(ranges).toEqual(["bytes=0-31"]);
     await session.dispose();
   });
@@ -207,6 +231,24 @@ describe("unified raster session", () => {
     const requestUrl = new URL(requests[0] ?? "");
     expect(requestUrl.searchParams.get("size")).toBe("256,128");
     expect(requestUrl.searchParams.get("interpolation")).toBe("RSP_BilinearInterpolation");
+  });
+
+  it("rejects an injected ImageServer client bound to a different base URL", async () => {
+    const fetchFn = vi.fn(async () => Response.json({})) as typeof fetch;
+    const client = new HonuaClient({ baseUrl: "https://other.example/arcgis", fetchFn });
+
+    await expect(
+      openRasterSession(
+        {
+          kind: "image-server",
+          id: "bound-imagery",
+          baseUrl: "https://honua.example/arcgis",
+          serviceId: "Imagery/Bound",
+        },
+        { client },
+      ),
+    ).rejects.toMatchObject({ capability: "source-client-base-url", protocol: "image-server" });
+    expect(fetchFn).not.toHaveBeenCalled();
   });
 
   it("maps nearest-neighbor resampling to the ImageServer wire value", async () => {

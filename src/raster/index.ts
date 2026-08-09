@@ -437,6 +437,9 @@ export class UnifiedRasterSession {
     const endpoint =
       source.kind === "image-server" ? source.baseUrl : source.kind === "cog" ? cogUrl(source) : source.endpoint;
     const clientBaseUrl = source.kind === "image-server" ? source.baseUrl : new URL(endpoint).origin;
+    if (source.kind === "image-server" && options.client) {
+      assertImageServerClientBaseUrl(options.client, source);
+    }
     this.client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: clientBaseUrl });
 
     if (source.kind === "cog") {
@@ -580,7 +583,7 @@ export class UnifiedRasterSession {
     const bins = normalizeHistogramBins(options.bins);
     const statistics = result.bands.map((band) => {
       const metadata = inspection.bands.find((candidate) => candidate.index === band.band);
-      return statisticsForBand(band.band, band.values, request.noData ?? numericNoData(metadata), bins);
+      return statisticsForBand(band.band, band.values, request.noData ?? numericNoData(metadata, this.source.id), bins);
     });
     this.progress("statistics", "completed", result.transfer);
     return { window: request, bands: statistics, transfer: result.transfer };
@@ -605,7 +608,15 @@ export class UnifiedRasterSession {
         throw new HonuaCapabilityNotSupportedError("pixel-coordinate", "direct-cog", this.source.id);
       }
       const window = await this.readWindow(
-        { space: "pixel", x: request.x, y: request.y, width: 1, height: 1, bands: request.bands },
+        {
+          space: "pixel",
+          x: request.x,
+          y: request.y,
+          width: 1,
+          height: 1,
+          bands: request.bands,
+          style: request.style,
+        },
         options,
       );
       if (window.kind !== "decoded-window") {
@@ -823,8 +834,15 @@ function normalizeHistogramBins(value: number | undefined): number {
   return value;
 }
 
-function numericNoData(band: CogBand | undefined): number | undefined {
-  return typeof band?.nodata === "number" ? band.nodata : undefined;
+function numericNoData(band: CogBand | undefined, sourceId: string): number | undefined {
+  if (typeof band?.nodata === "number") return band.nodata;
+  if (typeof band?.nodata !== "string") return undefined;
+  const value = band.nodata.trim();
+  const parsed = value.length > 0 ? Number(value) : Number.NaN;
+  if (!Number.isFinite(parsed)) {
+    throw new HonuaCapabilityNotSupportedError("numeric-nodata", "direct-cog", sourceId);
+  }
+  return parsed;
 }
 
 function statisticsForBand(
@@ -996,6 +1014,20 @@ function validateMapLibreCoordinates(
     throw new HonuaCapabilityNotSupportedError("wgs84-presentation-coordinates", sourceKind, sourceId);
   }
   return coordinates;
+}
+
+function assertImageServerClientBaseUrl(client: HonuaClient, source: ImageServerRasterSource): void {
+  if (normalizeClientBaseUrl(client.serverBaseUrl) !== normalizeClientBaseUrl(source.baseUrl)) {
+    throw new HonuaCapabilityNotSupportedError("source-client-base-url", "image-server", source.id);
+  }
+}
+
+function normalizeClientBaseUrl(value: string): string {
+  try {
+    return new URL(value).toString().replace(/\/$/, "");
+  } catch {
+    return value.replace(/\/+$/, "");
+  }
 }
 
 function encodeServiceId(serviceId: string): string {
