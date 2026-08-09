@@ -22,25 +22,25 @@ a Honua Server attach; every other protocol below answers against an endpoint yo
 already run. The per-capability line lives in the generated
 [capability tiers](./standalone-capability-matrix.md#capability-tiers) table.
 
-| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — |
-| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | — | ◇ | — | — | — |
-| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — |
-| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — | — | — | — | — |
-| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — |
-| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | — |
-| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ◇ | — | — | — |
-| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON | OGC API Coverages | WCS 2.0.1 |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — | — | — |
+| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | — | ◇ | — | — | — | — | — |
+| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | ◇ | ◇ |
+| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | — | — | — |
+| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ◇ | — | — | — | — | — |
+| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Generated claim evidence
 
@@ -84,6 +84,8 @@ policy in the manifest.
 | `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
 | `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs)<br>[fixture: maplibre-peer-major-matrix](../test/maplibre-peer-major-compat.test.ts)<br>[integration: maplibre-peer-major-browser](../test/playwright/migration-browser-maplibre.spec.mjs) |
 | `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
+| `ogc-coverages` | `render` | `experimental` | `protocol-adapter` | `native` | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) |
+| `wcs` | `render` | `experimental` | `protocol-adapter` | `native` | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) |
 
 ### Generated discovery disposition inventory
 
@@ -115,6 +117,8 @@ The standalone machine projection is
 | Protocol | `maplibre-vector` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
 | Protocol | `maplibre-raster` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
 | Protocol | `maplibre-geojson` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
+| Protocol | `ogc-coverages` | `operation-only` | `not-applicable` | `@honua/sdk-js/coverages` |
+| Protocol | `wcs` | `operation-only` | `not-applicable` | `@honua/sdk-js/coverages` |
 | Static format | `static-stac` | `source-backed` | `explicit-only` | `connect({ protocol: 'stac' })` |
 | Static format | `pmtiles` | `source-backed` | `structural-marker` | `connect({ protocol: 'pmtiles' })` |
 | Static format | `geoparquet` | `source-backed` | `explicit-only` | `connect({ protocol: 'geoparquet' })` |
@@ -189,6 +193,8 @@ evidence; observed evidence only ever narrows them.
 | `maplibre-vector` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
 | `maplibre-raster` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
 | `maplibre-geojson` | — | — | — | Reserved identifier with no query path. |
+| `ogc-coverages` | — | — | `source-dimension` | Coverage axes and datetime are explicit subset dimensions, not feature predicates. |
+| `wcs` | — | — | `source-dimension` | WCS SUBSET/DATETIME dimensions are explicit coverage constraints. |
 <!-- support-manifest:filter-matrix:end -->
 
 ## Notes by protocol

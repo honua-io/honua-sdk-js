@@ -406,9 +406,9 @@ describe("entrypoint modules", () => {
   it("exposes the canonical contract entrypoint", () => {
     // Twenty canonical protocols: gRPC, five GeoServices service
     // types (FeatureServer, MapServer, ImageServer, Geometry, GP), OGC
-    // API Features / Tiles / Maps / Records, STAC, WFS / WMS / WMTS /
-    // OData, PMTiles, GeoParquet, and three MapLibre-native sources.
-    expect(PROTOCOLS).toHaveLength(20);
+    // API Features / Tiles / Maps / Records / Coverages, STAC, WFS / WMS /
+    // WMTS / WCS, OData, PMTiles, GeoParquet, and three MapLibre-native sources.
+    expect(PROTOCOLS).toHaveLength(22);
     expect(CAPABILITIES.length).toBeGreaterThan(0);
     expect(Object.keys(PROTOCOL_DEFAULT_CAPABILITIES)).toEqual([...PROTOCOLS]);
     expect(WIDGET_SOURCE_SCHEMA_VERSION).toBe("honua.widget-source.v1");

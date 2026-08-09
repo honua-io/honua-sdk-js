@@ -62,7 +62,9 @@ export type Protocol =
   | "geoparquet"
   | "maplibre-vector"
   | "maplibre-raster"
-  | "maplibre-geojson";
+  | "maplibre-geojson"
+  | "ogc-coverages"
+  | "wcs";
 
 /** All protocol identifiers, in declaration order. */
 export const PROTOCOLS: readonly Protocol[] = [
@@ -86,6 +88,8 @@ export const PROTOCOLS: readonly Protocol[] = [
   "maplibre-vector",
   "maplibre-raster",
   "maplibre-geojson",
+  "ogc-coverages",
+  "wcs",
 ] as const;
 
 // ── Capabilities ──────────────────────────────────────────────
@@ -265,6 +269,8 @@ export const PROTOCOL_DEFAULT_CAPABILITIES: Readonly<Record<Protocol, Capabiliti
   // Reserved/recognized protocol token only: inline MapPackage GeoJSON is supported,
   // but descriptor-to-runtime support for maplibre-geojson is not implemented.
   "maplibre-geojson": capabilities([]),
+  "ogc-coverages": capabilities(["render"]),
+  wcs: capabilities(["render"]),
 };
 
 // ── Source identity ───────────────────────────────────────────

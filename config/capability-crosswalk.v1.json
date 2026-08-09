@@ -109,6 +109,12 @@
       "internalOnly": true,
       "reason": "Client-side UI control widgets; not a platform capability."
     },
+    "coverage": {
+      "capabilityKeys": [
+        "serve.ogc-api-coverages",
+        "serve.wcs"
+      ]
+    },
     "custom-elements": {
       "internalOnly": true,
       "reason": "Web Components custom-element framework binding; not a platform capability."
@@ -199,6 +205,11 @@
     "migration": {
       "internalOnly": true,
       "reason": "ArcGIS-to-Honua migration codemod and scan tooling; dev-time only, not a platform capability."
+    },
+    "multidimensional-raster": {
+      "capabilityKeys": [
+        "raster.multidim-coverage"
+      ]
     },
     "node": {
       "internalOnly": true,
