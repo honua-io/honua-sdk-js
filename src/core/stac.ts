@@ -51,6 +51,7 @@ export class HonuaStacSearch {
   public readonly client: HonuaClient;
   private readonly basePath: string | undefined;
   private postSearchProbe: Promise<boolean> | undefined;
+  private postSearchSupported: boolean | undefined;
   /**
    * Verified state of the POST search path: `undefined` until the first POST
    * attempt, `true` once one succeeded, `false` once one failed (a wrong
@@ -132,20 +133,29 @@ export class HonuaStacSearch {
    * `false` when the landing page is unreachable or advertises no POST
    * search link, so callers fall back to the universally supported `GET`.
    */
-  public async supportsPostSearch(): Promise<boolean> {
+  public async supportsPostSearch(signal?: AbortSignal): Promise<boolean> {
+    if (this.postSearchSupported !== undefined) return this.postSearchSupported;
+    if (signal) {
+      const supported = await this.probePostSearch(signal);
+      this.postSearchSupported = supported;
+      return supported;
+    }
     this.postSearchProbe ??= this.probePostSearch();
-    return this.postSearchProbe;
+    const supported = await this.postSearchProbe;
+    this.postSearchSupported = supported;
+    return supported;
   }
 
-  private async probePostSearch(): Promise<boolean> {
+  private async probePostSearch(signal?: AbortSignal): Promise<boolean> {
     try {
-      const landing = await this.landing();
+      const landing = await this.landing({ signal });
       for (const link of landing.links ?? []) {
         if (link.rel !== "search") continue;
         if (typeof link.method === "string" && link.method.toUpperCase() === "POST") return true;
       }
       return false;
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) throw error;
       // Landing page unreachable / not a STAC document: stay on GET rather
       // than failing the search the caller actually asked for.
       return false;
