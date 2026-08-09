@@ -16,6 +16,7 @@ import type {
 import * as Columnar from "../columnar/index.js";
 import { type QueryFilterExpression, compileQueryFilterToSql92 } from "../contract/query-filter.js";
 import { HonuaClient } from "../core/client.js";
+import { encodeServiceIdPath } from "../core/path-utils.js";
 import { envelope } from "../core/spatial-filter.js";
 import type { HonuaClientOptions } from "../core/types.js";
 import * as GeoParquet from "../geoparquet/index.js";
@@ -171,6 +172,8 @@ export interface ColumnarWorkflowOptions {
   readonly budgets?: Partial<ColumnarWorkflowBudgets>;
   readonly decodeServerResponse?: ColumnarResponseDecoder;
   readonly openDirectGeoParquet?: DirectGeoParquetOpener;
+  /** Fetch implementation used by the default bounded direct-GeoParquet opener. */
+  readonly directFetchFn?: typeof fetch;
   readonly inspectBatch?: (
     batch: ColumnarBatchV1,
     limits: Pick<ColumnarWorkflowBudgets, "maxRows" | "maxBackingBytes">,
@@ -257,6 +260,16 @@ const DEFAULT_BUDGETS: ColumnarWorkflowBudgets = Object.freeze({
   maxBackingBytes: 64 * 1024 * 1024,
 });
 
+const resolveBudgets = (overrides?: Partial<ColumnarWorkflowBudgets>): ColumnarWorkflowBudgets => {
+  const budgets = { ...DEFAULT_BUDGETS, ...overrides };
+  for (const name of Object.keys(DEFAULT_BUDGETS) as Array<keyof ColumnarWorkflowBudgets>) {
+    if (!Number.isSafeInteger(budgets[name]) || budgets[name] <= 0) {
+      throw new ColumnarWorkflowError("INVALID_QUERY", `${name} must be a positive safe integer.`);
+    }
+  }
+  return Object.freeze(budgets);
+};
+
 const metricNumber = (metrics: ColumnarBatchMetrics, names: readonly string[]): number => {
   const value = metrics as unknown as Record<string, unknown>;
   for (const name of names) {
@@ -273,7 +286,11 @@ const throwIfAborted = (signal?: AbortSignal): void => {
   }
 };
 
-const validateQuery = (query: ColumnarWorkflowQuery, budgets: ColumnarWorkflowBudgets): void => {
+const validateQuery = (
+  source: ColumnarWorkflowSource,
+  query: ColumnarWorkflowQuery,
+  budgets: ColumnarWorkflowBudgets,
+): void => {
   if (!Number.isSafeInteger(query.limit) || query.limit <= 0) {
     throw new ColumnarWorkflowError("INVALID_QUERY", "limit must be a positive safe integer.");
   }
@@ -285,6 +302,12 @@ const validateQuery = (query: ColumnarWorkflowQuery, budgets: ColumnarWorkflowBu
   }
   if (query.bbox?.some((coordinate) => !Number.isFinite(coordinate))) {
     throw new ColumnarWorkflowError("INVALID_QUERY", "bbox coordinates must be finite.");
+  }
+  if (source.kind === "direct-geoparquet" && query.columns?.length) {
+    throw new ColumnarWorkflowError(
+      "INVALID_QUERY",
+      "Direct GeoParquet column projection is not supported by the bounded workflow.",
+    );
   }
   for (const aggregation of query.aggregations ?? []) {
     if (typeof aggregation.field !== "string" || aggregation.field.trim().length === 0) {
@@ -310,6 +333,12 @@ const buildServerRequest = (
       protocol: "geoservices-feature-service",
       sourceId: source.id,
     });
+    if (compiled.spatialFilter) {
+      throw new ColumnarWorkflowError(
+        "INVALID_QUERY",
+        "Spatial filter expressions must use the explicit bbox query field for columnar server requests.",
+      );
+    }
     parameters.set("where", compiled.where ?? "1=1");
   }
   if (query.bbox) {
@@ -338,7 +367,7 @@ const buildServerRequest = (
   }
   parameters.set("returnGeometry", String(query.returnGeometry ?? true));
 
-  const path = `/rest/services/${encodeURIComponent(source.serviceId)}/FeatureServer/${source.layerId}/query`;
+  const path = `/rest/services/${encodeServiceIdPath(source.serviceId)}/FeatureServer/${source.layerId}/query`;
   const queryString = parameters.toString();
   const usePost = query.preferPost === true || queryString.length > 1_800;
   const requestPath = usePost ? path : `${path}?${queryString}`;
@@ -374,74 +403,173 @@ const normalizeDescription = (source: DirectGeoParquetColumnarSource, raw: unkno
   });
 };
 
-const defaultDirectOpener: DirectGeoParquetOpener = async (source) => {
-  const runtime = new GeoParquet.GeoparquetRuntime();
-  const sdkSource = GeoParquet.geoparquetSource(
-    {
-      id: source.id,
-      protocol: "geoparquet",
-      locator: {
-        url: source.url,
-        ...(source.geometryColumn ? { geoparquet: { geometryColumn: source.geometryColumn } } : {}),
-      },
-    } as Parameters<typeof GeoParquet.geoparquetSource>[0],
-    { runtime },
-  );
-  const handle = sdkSource.protocol("geoparquet");
-  if (!handle) {
-    await runtime.dispose();
-    throw new ColumnarWorkflowError("REQUEST_FAILED", `GeoParquet protocol handle is unavailable for ${source.id}.`);
+const readBoundedDirectResponse = async (
+  response: Response,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<Uint8Array> => {
+  const advertisedLength = response.headers.get("content-length");
+  if (advertisedLength !== null) {
+    const parsedLength = Number(advertisedLength);
+    if (Number.isFinite(parsedLength) && parsedLength > maxBytes) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new ColumnarWorkflowError(
+        "TRANSFER_LIMIT_EXCEEDED",
+        `Direct GeoParquet content length exceeds the ${maxBytes} byte transfer ceiling.`,
+      );
+    }
   }
-  return {
-    describe: (signal) => handle.describe(signal),
-    async queryColumnar(input) {
-      const query = input as ColumnarWorkflowQuery;
-      if (query.aggregations?.length) {
+  if (!response.body) {
+    throw new ColumnarWorkflowError("INVALID_RESPONSE", "Direct GeoParquet response has no readable body.");
+  }
+
+  let output: Uint8Array;
+  try {
+    output = new Uint8Array(maxBytes);
+  } catch (cause) {
+    throw new ColumnarWorkflowError(
+      "BACKING_LIMIT_EXCEEDED",
+      `Unable to reserve the ${maxBytes} byte direct GeoParquet backing ceiling.`,
+      undefined,
+      { cause },
+    );
+  }
+  const reader = response.body.getReader();
+  let length = 0;
+  try {
+    while (true) {
+      throwIfAborted(signal);
+      const next = await reader.read();
+      throwIfAborted(signal);
+      if (next.done) break;
+      if (next.value.byteLength > maxBytes - length) {
+        await reader.cancel().catch(() => undefined);
         throw new ColumnarWorkflowError(
-          "BROWSER_AGGREGATION_REQUIRED",
-          "Direct GeoParquet aggregation uses the explicit worker aggregation handoff after bounded decode.",
+          "TRANSFER_LIMIT_EXCEEDED",
+          `Direct GeoParquet bytes exceed the ${maxBytes} byte transfer ceiling.`,
         );
       }
-      const produced = await handle.queryColumnar({
-        query: {
-          outFields: query.columns,
-          filter: query.filter,
-          spatialFilter: query.bbox ? envelope(...query.bbox) : undefined,
-          pagination: { limit: query.limit, offset: query.offset },
-          orderBy: query.orderBy,
-          returnGeometry: query.returnGeometry,
-          signal: query.signal,
+      output.set(next.value, length);
+      length += next.value.byteLength;
+    }
+  } catch (cause) {
+    throwIfAborted(signal);
+    throw cause;
+  } finally {
+    reader.releaseLock();
+  }
+  if (length === 0) {
+    throw new ColumnarWorkflowError("INVALID_RESPONSE", "Direct GeoParquet response body is empty.");
+  }
+  return output.subarray(0, length);
+};
+
+const defaultDirectOpener = async (
+  source: DirectGeoParquetColumnarSource,
+  signal: AbortSignal | undefined,
+  budgets: ColumnarWorkflowBudgets,
+  fetchFn: typeof fetch,
+): Promise<DirectGeoParquetHandle> => {
+  throwIfAborted(signal);
+  let response: Response;
+  try {
+    response = await fetchFn(source.url, {
+      headers: { accept: "application/vnd.apache.parquet" },
+      signal,
+    });
+  } catch (cause) {
+    throwIfAborted(signal);
+    throw new ColumnarWorkflowError(
+      "REQUEST_FAILED",
+      `Direct GeoParquet request failed for ${source.id}.`,
+      { url: source.url },
+      { cause },
+    );
+  }
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ColumnarWorkflowError("REQUEST_FAILED", `Direct GeoParquet request returned HTTP ${response.status}.`, {
+      status: response.status,
+      url: source.url,
+    });
+  }
+  const bytes = await readBoundedDirectResponse(
+    response,
+    Math.min(budgets.maxTransferBytes, budgets.maxBackingBytes),
+    signal,
+  );
+  const runtime = new GeoParquet.GeoparquetRuntime();
+  try {
+    const registeredName = "honua-direct-source.parquet";
+    await runtime.registerFileBuffer(registeredName, bytes);
+    throwIfAborted(signal);
+    const sdkSource = GeoParquet.geoparquetSource(
+      {
+        id: source.id,
+        protocol: "geoparquet",
+        locator: {
+          url: registeredName,
+          ...(source.geometryColumn ? { geoparquet: { geometryColumn: source.geometryColumn } } : {}),
         },
-        identity: {
-          sourceId: source.id,
-          sourceVersion: source.sourceVersion,
-          schemaVersion: source.schemaVersion,
-          planId: `columnar-workflow:${source.id}:${JSON.stringify({
-            columns: query.columns,
+      } as Parameters<typeof GeoParquet.geoparquetSource>[0],
+      { runtime },
+    );
+    const handle = sdkSource.protocol("geoparquet");
+    if (!handle) {
+      throw new ColumnarWorkflowError("REQUEST_FAILED", `GeoParquet protocol handle is unavailable for ${source.id}.`);
+    }
+    return {
+      describe: (signal) => handle.describe(signal),
+      async queryColumnar(input) {
+        const query = input as ColumnarWorkflowQuery;
+        if (query.aggregations?.length) {
+          throw new ColumnarWorkflowError(
+            "BROWSER_AGGREGATION_REQUIRED",
+            "Direct GeoParquet aggregation uses the explicit worker aggregation handoff after bounded decode.",
+          );
+        }
+        const produced = await handle.queryColumnar({
+          query: {
             filter: query.filter,
-            bbox: query.bbox,
-            limit: query.limit,
-            offset: query.offset,
+            spatialFilter: query.bbox ? envelope(...query.bbox) : undefined,
+            pagination: { limit: query.limit, offset: query.offset },
             orderBy: query.orderBy,
-          })}`,
-          authorizationScope: source.authorizationScope,
-          ordering: {
-            stable: Boolean(query.orderBy?.length),
-            keys: (query.orderBy ?? []).map((order) => ({
-              field: order.field,
-              direction: order.direction === "asc" ? "ascending" : "descending",
-              nulls: "last",
-            })),
+            returnGeometry: query.returnGeometry,
+            signal: query.signal,
           },
-          freshness: { observedAt: new Date().toISOString() },
-        },
-        batchId: `${source.id}:0`,
-        sequence: 0,
-      });
-      return produced.batch;
-    },
-    close: () => runtime.dispose(),
-  };
+          identity: {
+            sourceId: source.id,
+            sourceVersion: source.sourceVersion,
+            schemaVersion: source.schemaVersion,
+            planId: `columnar-workflow:${source.id}:${JSON.stringify({
+              filter: query.filter,
+              bbox: query.bbox,
+              limit: query.limit,
+              offset: query.offset,
+              orderBy: query.orderBy,
+            })}`,
+            authorizationScope: source.authorizationScope,
+            ordering: {
+              stable: Boolean(query.orderBy?.length),
+              keys: (query.orderBy ?? []).map((order) => ({
+                field: order.field,
+                direction: order.direction === "asc" ? "ascending" : "descending",
+                nulls: "last",
+              })),
+            },
+            freshness: { observedAt: new Date().toISOString() },
+          },
+          batchId: `${source.id}:0`,
+          sequence: 0,
+        });
+        return produced.batch;
+      },
+      close: () => runtime.dispose(),
+    };
+  } catch (cause) {
+    await runtime.dispose();
+    throw cause;
+  }
 };
 
 const collectTransfers = (value: unknown, output: ArrayBuffer[], seen: Set<ArrayBuffer>): void => {
@@ -464,7 +592,7 @@ export const openColumnarSession = (
   source: ColumnarWorkflowSource,
   options: ColumnarWorkflowOptions = {},
 ): ColumnarWorkflowSession => {
-  const budgets = Object.freeze({ ...DEFAULT_BUDGETS, ...options.budgets });
+  const budgets = resolveBudgets(options.budgets);
   const inspectBatch =
     options.inspectBatch ??
     ((batch: ColumnarBatchV1) =>
@@ -476,9 +604,10 @@ export const openColumnarSession = (
       )(batch, budgets));
   const now = options.now ?? (() => Date.now());
   let directHandle: DirectGeoParquetHandle | undefined;
+  let directHandlePromise: Promise<DirectGeoParquetHandle> | undefined;
 
   const plan = (query: ColumnarWorkflowQuery): ColumnarWorkflowPlan => {
-    validateQuery(query, budgets);
+    validateQuery(source, query, budgets);
     const pushdown = ["columns", "filter", "bbox", "limit", "offset", "orderBy"].filter(
       (name) => query[name as keyof ColumnarWorkflowQuery] !== undefined,
     );
@@ -501,12 +630,27 @@ export const openColumnarSession = (
 
   const getDirectHandle = async (signal?: AbortSignal): Promise<DirectGeoParquetHandle> => {
     throwIfAborted(signal);
-    directHandle ??= await (options.openDirectGeoParquet ?? defaultDirectOpener)(
-      source as DirectGeoParquetColumnarSource,
-      signal,
-    );
+    if (!directHandlePromise) {
+      const directSource = source as DirectGeoParquetColumnarSource;
+      const pending = options.openDirectGeoParquet
+        ? Promise.resolve(options.openDirectGeoParquet(directSource, signal))
+        : defaultDirectOpener(directSource, signal, budgets, options.directFetchFn ?? fetch);
+      directHandlePromise = pending;
+      void pending.then(
+        (opened) => {
+          if (directHandlePromise === pending) directHandle = opened;
+        },
+        () => {
+          if (directHandlePromise === pending) {
+            directHandlePromise = undefined;
+            directHandle = undefined;
+          }
+        },
+      );
+    }
+    const opened = await directHandlePromise;
     throwIfAborted(signal);
-    return directHandle;
+    return opened;
   };
 
   return Object.freeze({
@@ -674,7 +818,7 @@ export const openColumnarSession = (
         );
       }
       const rows = Columnar.decodeGeoArrowBatch(batch, { maxRows }).rows;
-      return Object.freeze({ kind: "table", rows, truncated: rows.length === maxRows });
+      return Object.freeze({ kind: "table", rows, truncated: batch.rowCount > rows.length });
     },
 
     worker(batch, operation = "decode") {
@@ -706,8 +850,12 @@ export const openColumnarSession = (
     },
 
     async dispose() {
-      await directHandle?.close?.();
+      const pending = directHandlePromise;
+      const opened = directHandle;
+      directHandlePromise = undefined;
       directHandle = undefined;
+      const handle = pending ? await pending.catch(() => undefined) : opened;
+      await handle?.close?.();
     },
   } satisfies ColumnarWorkflowSession);
 };

@@ -604,6 +604,7 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
   let observedKind: GeoArrowGeometryKind | undefined;
   let observedDimensions: GeoArrowDimensions | undefined;
   let observedSrid: number | undefined;
+  let observedMissingSrid = false;
   const geometryVector = vector(batch, geometryIndex);
   for (let row = 0; row < batch.numRows; row += 1) {
     throwIfAborted(input.signal);
@@ -629,6 +630,8 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
         });
       }
       observedSrid = parsed.srid;
+    } else {
+      observedMissingSrid = true;
     }
     geometries.push(parsed.value);
   }
@@ -652,6 +655,11 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
   let outputCrs = declaration.crs;
   let outputCrsType = declaration.crsType;
   if (observedSrid !== undefined) {
+    if (observedMissingSrid && outputCrs === undefined) {
+      fail("invalid-payload", "Arrow WKB values mix embedded and missing SRIDs without declared Arrow CRS metadata.", {
+        srid: observedSrid,
+      });
+    }
     if (outputCrs !== undefined && !crsMatchesSrid(outputCrs, observedSrid)) {
       fail("invalid-payload", "Embedded EWKB SRID conflicts with the declared Arrow CRS metadata.", {
         srid: observedSrid,

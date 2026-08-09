@@ -264,11 +264,16 @@ test("preserves bounded GeoArrow CRS and edges metadata across Binary and LargeB
   }
 });
 
-test("decodes supported ISO and EWKB byte orders, Z coordinates, and embedded SRID", async () => {
-  const batch = await decodeSynthetic([
+test("requires declared CRS metadata when WKB values mix embedded and missing SRIDs", async () => {
+  const geometries = [
     pointWkb([1, 2, 3], { littleEndian: false, dimensions: "xyz" }),
     pointWkb([4, 5, 6], { dimensions: "xyz", flavor: "ewkb", srid: 4326 }),
-  ]);
+  ];
+  await assert.rejects(() => decodeSynthetic(geometries), /mix embedded and missing SRIDs/);
+
+  const batch = await decodeSynthetic(geometries, {
+    extensionMetadata: { crs: "EPSG:4326", crs_type: "authority_code" },
+  });
   assert.deepEqual(
     decodeGeoArrowBatch(batch).rows.map(({ geometry }) => geometry),
     [
