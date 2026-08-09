@@ -102,4 +102,20 @@ describe("derived-artifact loop guard", () => {
       assert.match(publish, new RegExp(generatedPath.replaceAll(".", "\\."), "u"));
     }
   });
+
+  it("prunes superseded runs after projection generation and before strict staging", () => {
+    const workflow = fs.readFileSync(
+      path.join(root, ".github/workflows/regenerate-derived-artifacts.yml"),
+      "utf8",
+    );
+    const generate = workflow.indexOf("- name: Regenerate sample dist projections");
+    const prune = workflow.indexOf(
+      "- name: Prune superseded golden evidence runs after projection rollover",
+    );
+    const stage = workflow.indexOf("- name: Stage and commit resealed evidence locally");
+
+    assert.ok(generate >= 0 && generate < prune && prune < stage);
+    assert.match(workflow.slice(prune, stage), /pruneUnreferencedEvidenceRuns/u);
+    assert.match(workflow.slice(prune, stage), /journey\.status === "qualified"/u);
+  });
 });
