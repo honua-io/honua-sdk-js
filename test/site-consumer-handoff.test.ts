@@ -248,18 +248,11 @@ describe("honua-site consumer handoff", () => {
         expect.objectContaining({ id: sampleId, runnability: "standalone" }),
       );
     }
-    const currentSamplesById = new Map(
-      projection.samples.map((sample: { id: string }) => [sample.id, sample]),
-    );
-    const legacySamplesById = new Map(
-      legacyProjection.samples.map((sample: { id: string }) => [sample.id, sample]),
-    );
+    const currentSamplesById = new Map(projection.samples.map((sample: { id: string }) => [sample.id, sample]));
+    const legacySamplesById = new Map(legacyProjection.samples.map((sample: { id: string }) => [sample.id, sample]));
     expect(currentSamplesById.size).toBe(projection.samples.length);
-    expect(
-      [...legacySamplesById.keys()].filter((id) => !currentSamplesById.has(id)),
-    ).toEqual([]);
-    const additiveIds =
-      [...currentSamplesById.keys()].filter((id) => !legacySamplesById.has(id));
+    expect([...legacySamplesById.keys()].filter((id) => !currentSamplesById.has(id))).toEqual([]);
+    const additiveIds = [...currentSamplesById.keys()].filter((id) => !legacySamplesById.has(id));
     expect(additiveIds.every((id) => id === "coverages-wcs-basic")).toBe(true);
     expect(additiveIds.length).toBeLessThanOrEqual(1);
     expect(projection.routes).toEqual(legacyProjection.routes);
