@@ -1,0 +1,74 @@
+{
+  "format": "honua.sdk.sample-live-gate.v1",
+  "sampleId": "migration-workbench",
+  "sourceRevision": "60a45b78f86f1f6708dfa373276e33384600c732",
+  "command": [
+    "npm",
+    "run",
+    "evidence:migration-workbench:live"
+  ],
+  "evidencePath": "samples/evidence/migration-workbench/runs/d5b75cdf-2ab0-46d1-841f-bba581d6fb75/artifacts/live-evidence.json",
+  "evidence": {
+    "format": "honua.sdk.sample-evidence.v1",
+    "schemaVersion": 1,
+    "sampleId": "migration-workbench",
+    "lane": "live",
+    "status": "executed",
+    "reason": null,
+    "observedAt": "2026-08-09T18:39:27.257Z",
+    "authMode": "none",
+    "sdk": {
+      "package": "@honua/sdk-js",
+      "version": "0.1.4-beta.0",
+      "gitCommit": "60a45b78f86f1f6708dfa373276e33384600c732"
+    },
+    "source": {
+      "provider": "honua-migrate-cli",
+      "identity": "arcgis-source-app:v1",
+      "endpoint": null,
+      "deploymentVersion": null,
+      "dataVersion": null
+    },
+    "provenance": {
+      "sourceId": "arcgis-source-app:v1",
+      "observedAt": "2026-08-09T18:39:27.257Z",
+      "validAt": null,
+      "state": "live",
+      "attribution": "Honua-authored arcgis-source-app repository fixture; no third-party sample source is reproduced."
+    },
+    "semantics": {
+      "operation": "migration-workbench-deterministic-cli-replay",
+      "outcome": "codemod:auto=9,manual=0,total=9",
+      "itemCount": 9,
+      "assertions": [
+        "readiness=\"ready\"",
+        "autoMigratedCallSites=9",
+        "manualCallSites=0",
+        "totalCodemodScopedCallSites=9",
+        "manualInterventionRatio=0",
+        "behaviorProofPassed=true",
+        "behaviorAssertionCount=23",
+        "patchApplyCheckPassed=true",
+        "patchTargetTreeEqual=true",
+        "artifactCount=6",
+        "sourceUpload=false",
+        "credentialsRequired=false"
+      ]
+    },
+    "timing": {
+      "totalMs": 3531,
+      "firstSuccessfulInteractionMs": 3531
+    },
+    "degradation": {
+      "state": "none",
+      "reasons": []
+    },
+    "artifacts": [
+      {
+        "kind": "producer-generator",
+        "path": "scripts/migration-workbench-live-evidence.mjs",
+        "sha256": "9662644ef5154fc918e014984b4fbfaf6b48f9320eecd0aba01b05eb57ab20ea"
+      }
+    ]
+  }
+}
