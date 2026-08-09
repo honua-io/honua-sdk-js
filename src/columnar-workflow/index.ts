@@ -303,6 +303,9 @@ const validateQuery = (
   if (query.bbox?.some((coordinate) => !Number.isFinite(coordinate))) {
     throw new ColumnarWorkflowError("INVALID_QUERY", "bbox coordinates must be finite.");
   }
+  if (query.offset !== undefined && (!Number.isSafeInteger(query.offset) || query.offset < 0)) {
+    throw new ColumnarWorkflowError("INVALID_QUERY", "offset must be a non-negative safe integer.");
+  }
   if (source.kind === "direct-geoparquet" && query.columns?.length) {
     throw new ColumnarWorkflowError(
       "INVALID_QUERY",
@@ -605,6 +608,8 @@ export const openColumnarSession = (
   const now = options.now ?? (() => Date.now());
   let directHandle: DirectGeoParquetHandle | undefined;
   let directHandlePromise: Promise<DirectGeoParquetHandle> | undefined;
+  const directOpenAbort = new AbortController();
+  let disposed = false;
 
   const plan = (query: ColumnarWorkflowQuery): ColumnarWorkflowPlan => {
     validateQuery(source, query, budgets);
@@ -630,11 +635,14 @@ export const openColumnarSession = (
 
   const getDirectHandle = async (signal?: AbortSignal): Promise<DirectGeoParquetHandle> => {
     throwIfAborted(signal);
+    if (disposed) {
+      throw new ColumnarWorkflowError("ABORTED", "Columnar workflow session is disposed.");
+    }
     if (!directHandlePromise) {
       const directSource = source as DirectGeoParquetColumnarSource;
       const pending = options.openDirectGeoParquet
-        ? Promise.resolve(options.openDirectGeoParquet(directSource, signal))
-        : defaultDirectOpener(directSource, signal, budgets, options.directFetchFn ?? fetch);
+        ? Promise.resolve(options.openDirectGeoParquet(directSource, directOpenAbort.signal))
+        : defaultDirectOpener(directSource, directOpenAbort.signal, budgets, options.directFetchFn ?? fetch);
       directHandlePromise = pending;
       void pending.then(
         (opened) => {
@@ -648,7 +656,33 @@ export const openColumnarSession = (
         },
       );
     }
-    const opened = await directHandlePromise;
+    const pending = directHandlePromise;
+    const opened = signal
+      ? await new Promise<DirectGeoParquetHandle>((resolve, reject) => {
+          let settled = false;
+          const finish = (callback: () => void): void => {
+            if (settled) return;
+            settled = true;
+            signal.removeEventListener("abort", abort);
+            callback();
+          };
+          const abort = (): void => {
+            finish(() => {
+              try {
+                throwIfAborted(signal);
+              } catch (error) {
+                reject(error);
+              }
+            });
+          };
+          signal.addEventListener("abort", abort, { once: true });
+          if (signal.aborted) abort();
+          pending.then(
+            (handle) => finish(() => resolve(handle)),
+            (error: unknown) => finish(() => reject(error)),
+          );
+        })
+      : await pending;
     throwIfAborted(signal);
     return opened;
   };
@@ -705,15 +739,32 @@ export const openColumnarSession = (
         const client = new HonuaClient({ baseUrl: source.baseUrl, ...options.clientOptions });
         let response: Response;
         try {
+          const maximumResponseBytes = Math.min(budgets.maxTransferBytes, budgets.maxBackingBytes);
+          const overflowCode: "TRANSFER_LIMIT_EXCEEDED" | "BACKING_LIMIT_EXCEEDED" =
+            budgets.maxBackingBytes < budgets.maxTransferBytes ? "BACKING_LIMIT_EXCEEDED" : "TRANSFER_LIMIT_EXCEEDED";
           response = await client.pipelineFetch(
             request.method,
             request.path,
             { headers: request.headers, body: request.body },
             query.signal,
-            { discardErrorBody: true },
+            {
+              discardErrorBody: true,
+              prepareResponse: async (networkResponse, deadlineSignal) => {
+                const bytes = await readBoundedResponseBytes(
+                  networkResponse,
+                  maximumResponseBytes,
+                  deadlineSignal ?? query.signal,
+                  overflowCode,
+                );
+                const prepared = boundedColumnarResponse(networkResponse, bytes);
+                preparedColumnarResponseBytes.set(prepared, bytes);
+                return prepared;
+              },
+            },
           );
         } catch (error) {
           throwIfAborted(query.signal);
+          if (error instanceof ColumnarWorkflowError) throw error;
           throw new ColumnarWorkflowError(
             "REQUEST_FAILED",
             `Columnar query failed for ${source.id}.`,
@@ -850,6 +901,9 @@ export const openColumnarSession = (
     },
 
     async dispose() {
+      if (disposed) return;
+      disposed = true;
+      directOpenAbort.abort(new Error("Columnar workflow session was disposed."));
       const pending = directHandlePromise;
       const opened = directHandle;
       directHandlePromise = undefined;
@@ -901,6 +955,7 @@ async function readBoundedResponseBytes(
   response: Response,
   maximum: number,
   signal?: AbortSignal,
+  overflowCode: "TRANSFER_LIMIT_EXCEEDED" | "BACKING_LIMIT_EXCEEDED" = "TRANSFER_LIMIT_EXCEEDED",
 ): Promise<Uint8Array> {
   throwIfAborted(signal);
   const advertised = response.headers.get("content-length");
@@ -909,15 +964,27 @@ async function readBoundedResponseBytes(
     if (Number.isFinite(declaredLength) && declaredLength > maximum) {
       await response.body?.cancel().catch(() => undefined);
       throw new ColumnarWorkflowError(
-        "TRANSFER_LIMIT_EXCEEDED",
-        `Arrow response exceeds the ${maximum} byte transfer ceiling.`,
+        overflowCode,
+        `Arrow response exceeds the ${maximum} byte materialization ceiling.`,
       );
     }
   }
   if (!response.body) return new Uint8Array();
 
   const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(maximum);
+  } catch (cause) {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+    throw new ColumnarWorkflowError(
+      "BACKING_LIMIT_EXCEEDED",
+      `Unable to reserve the ${maximum} byte Arrow response backing ceiling.`,
+      undefined,
+      { cause },
+    );
+  }
   let total = 0;
   const abort = () => void reader.cancel(signal?.reason).catch(() => undefined);
   signal?.addEventListener("abort", abort, { once: true });
@@ -927,28 +994,38 @@ async function readBoundedResponseBytes(
       const { done, value } = await reader.read();
       throwIfAborted(signal);
       if (done) break;
-      total += value.byteLength;
-      if (total > maximum) {
+      if (value.byteLength > maximum - total) {
         await reader.cancel().catch(() => undefined);
         throw new ColumnarWorkflowError(
-          "TRANSFER_LIMIT_EXCEEDED",
-          `Arrow response exceeds the ${maximum} byte transfer ceiling.`,
+          overflowCode,
+          `Arrow response exceeds the ${maximum} byte materialization ceiling.`,
         );
       }
-      chunks.push(value);
+      bytes.set(value, total);
+      total += value.byteLength;
     }
   } finally {
     signal?.removeEventListener("abort", abort);
     reader.releaseLock();
   }
 
-  const bytes = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return bytes;
+  return bytes.subarray(0, total);
+}
+
+const preparedColumnarResponseBytes = new WeakMap<Response, Uint8Array>();
+
+function boundedColumnarResponse(response: Response, bytes: Uint8Array): Response {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
+  });
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
 }
 
 export const createApacheArrowResponseDecoder = (
@@ -956,7 +1033,19 @@ export const createApacheArrowResponseDecoder = (
 ): ColumnarResponseDecoder =>
   async function* ({ response, identity: sourceIdentity, budgets, query, signal }) {
     throwIfAborted(signal);
-    const bytes = await readBoundedResponseBytes(response, budgets.maxTransferBytes, signal);
+    const preparedBytes = preparedColumnarResponseBytes.get(response);
+    if (preparedBytes) {
+      preparedColumnarResponseBytes.delete(response);
+      await response.body?.cancel().catch(() => undefined);
+    }
+    const bytes =
+      preparedBytes ??
+      (await readBoundedResponseBytes(
+        response,
+        Math.min(budgets.maxTransferBytes, budgets.maxBackingBytes),
+        signal,
+        budgets.maxBackingBytes < budgets.maxTransferBytes ? "BACKING_LIMIT_EXCEEDED" : "TRANSFER_LIMIT_EXCEEDED",
+      ));
     const apache = (await (Columnar.loadApacheArrow as unknown as () => Promise<unknown>)()) as {
       RecordBatchReader: { from(input: Uint8Array): Promise<AsyncIterable<unknown>> | AsyncIterable<unknown> };
     };

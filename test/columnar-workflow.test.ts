@@ -85,6 +85,19 @@ test("fails closed before a request when the row budget is exceeded", () => {
   );
 });
 
+test("rejects invalid offsets before planning either execution lane", () => {
+  for (const offset of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.throws(
+      () => openColumnarSession(serverSource).plan({ limit: 5, offset }),
+      (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
+    );
+    assert.throws(
+      () => openColumnarSession(directSource).plan({ limit: 5, offset }),
+      (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
+    );
+  }
+});
+
 test("rejects fieldless aggregations before constructing a server request", () => {
   const session = openColumnarSession(serverSource);
   assert.throws(
@@ -180,6 +193,113 @@ test("discards server error bodies before the shared pipeline can parse them", a
       }
     },
     (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "REQUEST_FAILED",
+  );
+  assert.equal(cancelled, true);
+});
+
+test("bounds successful responses before after interceptors inspect them", async () => {
+  let afterCalled = false;
+  let cancelled = false;
+  const session = openColumnarSession(serverSource, {
+    budgets: { maxTransferBytes: 8 },
+    clientOptions: {
+      interceptors: [
+        {
+          after: async ({ response }) => {
+            afterCalled = true;
+            await response.arrayBuffer();
+          },
+        },
+      ],
+      fetchFn: async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.enqueue(new Uint8Array(16));
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        ),
+    },
+    decodeServerResponse: async function* () {
+      yield batch;
+    },
+    inspectBatch: () => metrics,
+  });
+
+  await assert.rejects(
+    async () => {
+      for await (const _result of session.stream({ limit: 2 })) {
+        // Preparation rejects before after hooks or decode.
+      }
+    },
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "TRANSFER_LIMIT_EXCEEDED",
+  );
+  assert.equal(afterCalled, false);
+  assert.equal(cancelled, true);
+});
+
+test("keeps prepared response bytes readable after an interceptor consumes its clone", async () => {
+  const observed: number[][] = [];
+  const session = openColumnarSession(serverSource, {
+    budgets: { maxTransferBytes: 8, maxBackingBytes: 8 },
+    clientOptions: {
+      interceptors: [
+        {
+          after: async ({ response }) => {
+            observed.push([...new Uint8Array(await response.arrayBuffer())]);
+          },
+        },
+      ],
+      fetchFn: async () => new Response(new Uint8Array([1, 2, 3])),
+    },
+    decodeServerResponse: async function* ({ response }) {
+      observed.push([...new Uint8Array(await response.arrayBuffer())]);
+      yield batch;
+    },
+    inspectBatch: () => ({ rowCount: 2, backingBytes: 3 }) as unknown as ColumnarBatchMetrics,
+  });
+
+  const results = [];
+  for await (const result of session.stream({ limit: 2 })) results.push(result);
+  assert.equal(results.length, 1);
+  assert.deepEqual(observed, [
+    [1, 2, 3],
+    [1, 2, 3],
+  ]);
+});
+
+test("honors a smaller backing ceiling while materializing a server response", async () => {
+  let cancelled = false;
+  const session = openColumnarSession(serverSource, {
+    budgets: { maxTransferBytes: 64, maxBackingBytes: 8 },
+    clientOptions: {
+      fetchFn: async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.enqueue(new Uint8Array(16));
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+        ),
+    },
+    decodeServerResponse: async function* () {
+      yield batch;
+    },
+  });
+
+  await assert.rejects(
+    async () => {
+      for await (const _result of session.stream({ limit: 2 })) {
+        // Preparation rejects before decode.
+      }
+    },
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "BACKING_LIMIT_EXCEEDED",
   );
   assert.equal(cancelled, true);
 });
@@ -304,6 +424,39 @@ test("shares an in-flight direct opener and closes the resulting handle once", a
   await Promise.all([first, second]);
   await session.dispose();
   assert.equal(closeCount, 1);
+});
+
+test("keeps a shared direct opener alive when one caller cancels", async () => {
+  const firstController = new AbortController();
+  let openerSignal: AbortSignal | undefined;
+  let resolveHandle: (handle: {
+    describe(): Record<string, never>;
+    queryColumnar(): ColumnarBatchV1;
+  }) => void = () => undefined;
+  const pendingHandle = new Promise<{
+    describe(): Record<string, never>;
+    queryColumnar(): ColumnarBatchV1;
+  }>((resolve) => {
+    resolveHandle = resolve;
+  });
+  const session = openColumnarSession(directSource, {
+    openDirectGeoParquet: (_source, signal) => {
+      openerSignal = signal;
+      return pendingHandle;
+    },
+  });
+
+  const first = session.inspect(firstController.signal);
+  const second = session.inspect();
+  assert.notEqual(openerSignal, firstController.signal);
+  firstController.abort(new Error("cancel only the first waiter"));
+  await assert.rejects(first, (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "ABORTED");
+  assert.equal(openerSignal?.aborted, false);
+
+  resolveHandle({ describe: () => ({}), queryColumnar: () => batch });
+  assert.equal((await second).sourceId, directSource.id);
+  await session.dispose();
+  assert.equal(openerSignal?.aborted, true);
 });
 
 test("clears a rejected direct opener so a later inspection can retry", async () => {
