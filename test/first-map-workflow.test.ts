@@ -2,7 +2,12 @@ import { readFileSync } from "node:fs";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { MAX_FIRST_MAP_FEATURES, resolveFirstMapConfig } from "../examples/maplibre-quickstart/src/first-map-config.js";
+import {
+  MAX_FIRST_MAP_FEATURES,
+  PUBLIC_FIRST_MAP_ENDPOINT,
+  SAME_ORIGIN_FIRST_MAP_FIXTURE,
+  resolveFirstMapConfig,
+} from "../examples/maplibre-quickstart/src/first-map-config.js";
 import { runFirstMapWorkflow } from "../examples/maplibre-quickstart/src/workflow.js";
 import { type SampleFixtureHarness, loadFixturePack, startSampleFixtureHarness } from "../samples/scenarios/index.mjs";
 import { FirstMapTestMap } from "./helpers/first-map-test-map.js";
@@ -184,6 +189,18 @@ describe("First Map copyable workflow core", () => {
   });
 
   it("validates public endpoints and materialization bounds before network work", () => {
+    expect(PUBLIC_FIRST_MAP_ENDPOINT).toBe("https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1");
+    expect(SAME_ORIGIN_FIRST_MAP_FIXTURE).toBe("honua:first-map-fixture");
+    const liveProducer = readFileSync(new URL("../scripts/first-map-live-evidence.mjs", import.meta.url), "utf8");
+    expect(liveProducer).toContain(`const sourceEndpoint = ${JSON.stringify(PUBLIC_FIRST_MAP_ENDPOINT)}`);
+    expect(liveProducer).toContain('runtime.sourceId !== "1"');
+    const fixtureProducer = readFileSync(
+      new URL("../examples/maplibre-quickstart/mock-server.mjs", import.meta.url),
+      "utf8",
+    );
+    expect(fixtureProducer).toContain(
+      `VITE_HONUA_QUICKSTART_ENDPOINT: ${JSON.stringify(SAME_ORIGIN_FIRST_MAP_FIXTURE)}`,
+    );
     expect(() => resolveFirstMapConfig({ endpoint: "ftp://fixture.example/data" })).toThrow("only HTTP(S)");
     expect(() => resolveFirstMapConfig({ endpoint: "https://fixture.example/data?token=secret" })).toThrow(
       "cannot contain credentials",

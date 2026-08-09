@@ -4,7 +4,7 @@ import "../../_kit/design/index.css";
 
 import * as maplibregl from "maplibre-gl";
 
-import { resolveFirstMapConfig } from "./first-map-config.js";
+import { PUBLIC_FIRST_MAP_ENDPOINT, SAME_ORIGIN_FIRST_MAP_FIXTURE, resolveFirstMapConfig } from "./first-map-config.js";
 import type { FirstMapMode, FirstMapProtocol } from "./first-map-config.js";
 import {
   FIRST_MAP_TIMING_BUDGETS_MS,
@@ -83,8 +83,11 @@ function readProtocol(value: string | undefined): FirstMapProtocol {
 
 function endpointFromEnvironment(env: Record<string, string | undefined>): { endpoint: string; live: boolean } {
   const direct = readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT");
+  if (direct === SAME_ORIGIN_FIRST_MAP_FIXTURE) {
+    return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
+  }
   if (direct) return { endpoint: direct, live: true };
-  return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
+  return { endpoint: PUBLIC_FIRST_MAP_ENDPOINT, live: true };
 }
 
 function initialLaunch(): FirstMapLaunch {
@@ -97,7 +100,9 @@ function initialLaunch(): FirstMapLaunch {
   };
   const configured = endpointFromEnvironment(env);
   const maxFeatures = Number(readOptional(env, "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT") ?? "25");
-  const where = readOptional(env, "VITE_HONUA_QUICKSTART_WHERE");
+  const where =
+    readOptional(env, "VITE_HONUA_QUICKSTART_WHERE") ??
+    (configured.endpoint === PUBLIC_FIRST_MAP_ENDPOINT ? `id <= ${maxFeatures}` : undefined);
   const mode: FirstMapMode = configured.live ? "public-live" : "fixture";
   return {
     endpoint: configured.endpoint,
@@ -139,6 +144,9 @@ function resetJourney(): void {
 }
 
 function resetPresentation(): void {
+  setText("#result-count", "0 mapped features");
+  setText("#result-provenance", "Connecting to the selected source");
+  setText("#result-interaction", "Select a feature on the map or from the result list.");
   setText("#map-visible-count", "0 visible");
   setText("#map-filter-count", "0 filters");
   setText("#linked-visible-count", "0");
@@ -227,6 +235,10 @@ function renderSelection(summary: FirstMapFeatureSummary | undefined): void {
   setText("#selected-feature-subtitle", summary?.subtitle ?? "Select a feature from the map or results list.");
   setText("#selected-feature-id", summary?.id ?? "—");
   setText("#selected-feature-geometry", summary?.geometryKind ?? "—");
+  setText(
+    "#result-interaction",
+    summary ? `Selected ${summary.title}` : "Select a feature on the map or from the result list.",
+  );
   const attributes = getElement<HTMLElement>("#selected-feature-attributes");
   attributes.replaceChildren();
   if (!summary) {
@@ -596,6 +608,8 @@ async function bootstrap(): Promise<void> {
       setText("#status-target", safeEndpoint(result.view.connection.endpoint));
       setText("#status-service-layer", result.view.source.id);
       setText("#status-feature-count", `${summaries.length} accepted`);
+      setText("#result-count", `${summaries.length} mapped feature${summaries.length === 1 ? "" : "s"}`);
+      setText("#result-provenance", safeEndpoint(result.view.connection.endpoint));
       setText(
         "#status-geometry-types",
         [...new Set(summaries.map(({ geometryKind }) => geometryKind))].join(", ") || "none",
@@ -608,7 +622,12 @@ async function bootstrap(): Promise<void> {
         renderFeatureList(filterFirstMapFeatures(summaries, activeChoice), selected.id, selectFeature);
         activePopup?.remove();
         if (lngLat) {
-          activePopup = new maplibregl.Popup({ closeButton: true, closeOnClick: false, maxWidth: "320px" })
+          activePopup = new maplibregl.Popup({
+            closeButton: true,
+            closeOnClick: false,
+            maxWidth: "320px",
+            offset: matchMedia("(min-width: 60.001rem)").matches ? ([-180, 0] as [number, number]) : 0,
+          })
             .setLngLat([lngLat[0], lngLat[1]])
             .setDOMContent(createPopupContent(summary))
             .addTo(map);

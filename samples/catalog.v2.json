@@ -955,8 +955,8 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "First Map: endpoint to inspected MapLibre map",
-      "summary": "Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result.",
+      "title": "First Map: Maui parcels in MapLibre",
+      "summary": "Starts with a populated, interactive Maui parcel map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
       "sourceKind": "root-example",
       "track": "golden",
       "journeyId": "first-map",
@@ -996,7 +996,7 @@
           "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
           "VITE_HONUA_QUICKSTART_WHERE"
         ],
-        "provenance": "Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.",
+        "provenance": "Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.",
         "attribution": "Endpoint-advertised attribution is shown and preserved; unavailable attribution is stated explicitly.",
         "freshness": "SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.",
         "configurationStatus": "approved",

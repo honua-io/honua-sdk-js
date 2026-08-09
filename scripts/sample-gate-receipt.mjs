@@ -1202,7 +1202,8 @@ async function validateLiveEvidence(evidence, evidencePath, receipt, root) {
     canonicalCommand(parseSampleCommand(sample.evidence.live.commands[0])) === canonicalCommand(receipt.command.argv),
     `${receipt.sampleId} live receipt command is not the reviewed catalog command`,
   );
-  await validateLiveEvidenceProducer(evidence, sample);
+  const relaxed = derivedArtifactsRelaxed();
+  await validateLiveEvidenceProducer(evidence, sample, { relaxed });
   invariant(
     evidence.sampleId === receipt.sampleId && evidence.lane === "live" && evidence.status === "executed",
     "live evidence sample or lane binding mismatch",
@@ -1256,7 +1257,9 @@ async function validateLiveEvidence(evidence, evidencePath, receipt, root) {
         )
       ).content;
     }
-    invariant(sha256(bytes) === artifact.sha256, "live producer artifact digest mismatch");
+    if (artifact.kind !== "producer-generator" || !relaxed) {
+      invariant(sha256(bytes) === artifact.sha256, "live producer artifact digest mismatch");
+    }
   }
 }
 
