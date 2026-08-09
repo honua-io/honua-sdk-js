@@ -496,6 +496,9 @@ export class UnifiedRasterSession {
     validateBoundedWindow(request);
     this.progress("read-window", "started");
     if (this.source.kind === "cog") {
+      if (request.style !== undefined) {
+        throw new HonuaCapabilityNotSupportedError("styled-window", "direct-cog", this.source.id);
+      }
       if (request.space !== "pixel") {
         throw new HonuaCapabilityNotSupportedError("pixel-window", "direct-cog", this.source.id);
       }
@@ -618,6 +621,9 @@ export class UnifiedRasterSession {
       if (request.space !== "coordinate") {
         throw new HonuaCapabilityNotSupportedError("map-coordinate", "image-server", this.source.id);
       }
+      if (request.bands !== undefined) {
+        throw new HonuaCapabilityNotSupportedError("inspect-value-band-selection", "image-server", this.source.id);
+      }
       const response = await this.client.imageService(this.source.serviceId).identify({
         geometry: { x: request.x, y: request.y },
         sr: request.spatialReference,
@@ -651,14 +657,24 @@ export class UnifiedRasterSession {
     if (result.kind !== "server-image") {
       throw new HonuaCapabilityNotSupportedError("encoded-image", this.source.kind, this.source.id);
     }
-    return { type: "image", url: result.href, coordinates: coordinates ?? bboxCoordinates(result.request) };
+    return {
+      type: "image",
+      url: result.href,
+      coordinates: coordinates
+        ? validateMapLibreCoordinates(coordinates, this.source.kind, this.source.id)
+        : bboxCoordinates(result.request, this.source.kind, this.source.id),
+    };
   }
 
   toDeckGlBitmap(result: RasterWindowResult): RasterDeckGlBitmapDescriptor {
     if (result.kind !== "server-image" || result.request.space !== "bbox") {
       throw new HonuaCapabilityNotSupportedError("encoded-bitmap", this.source.kind, this.source.id);
     }
-    return { type: "BitmapLayer", image: result.href, bounds: result.request.bbox };
+    return {
+      type: "BitmapLayer",
+      image: result.href,
+      bounds: wgs84Bbox(result.request, this.source.kind, this.source.id),
+    };
   }
 
   legend(style: RasterStyle): readonly RasterLegendEntry[] {
@@ -834,7 +850,18 @@ function statisticsForBand(
     max = Math.max(max, value);
   }
   if (accepted.length === 0) return { band, count: 0, noDataCount, histogram: [] };
-  const width = max === min ? 1 : (max - min) / binCount;
+  if (max === min) {
+    return {
+      band,
+      count: accepted.length,
+      noDataCount,
+      min,
+      max,
+      mean: min,
+      histogram: [{ min, max, count: accepted.length }],
+    };
+  }
+  const width = (max - min) / binCount;
   const counts = Array.from({ length: binCount }, () => 0);
   for (const value of accepted) {
     const index = Math.min(binCount - 1, Math.floor((value - min) / width));
@@ -849,7 +876,7 @@ function statisticsForBand(
     mean: sum / accepted.length,
     histogram: counts.map((count, index) => ({
       min: min + index * width,
-      max: max === min ? max : min + (index + 1) * width,
+      max: min + (index + 1) * width,
       count,
     })),
   };
@@ -887,7 +914,7 @@ function imageServerRenderingRule(style: RasterStyle | undefined): Record<string
   return {
     rasterFunction: "Stretch",
     rasterFunctionArguments: {
-      StretchType: style.method,
+      StretchType: imageServerStretchType(style.method),
       MinPercent: style.minPercent,
       MaxPercent: style.maxPercent,
       NumberOfStandardDeviations: style.standardDeviations,
@@ -896,17 +923,79 @@ function imageServerRenderingRule(style: RasterStyle | undefined): Record<string
   };
 }
 
-function bboxCoordinates(request: RasterWindowRequest): CogMapLibreCoordinates {
-  if (request.space !== "bbox") {
-    throw new HonuaCapabilityNotSupportedError("bbox-coordinates", "server-raster");
-  }
-  const [west, south, east, north] = request.bbox;
+function imageServerStretchType(method: RasterStretchStyle["method"]): 3 | 5 | 6 {
+  if (method === "standard-deviation") return 3;
+  if (method === "min-max") return 5;
+  return 6;
+}
+
+function bboxCoordinates(
+  request: RasterWindowRequest,
+  sourceKind: RasterSourceKind,
+  sourceId: string,
+): CogMapLibreCoordinates {
+  const [west, south, east, north] = wgs84Bbox(request, sourceKind, sourceId);
   return [
     [west, north],
     [east, north],
     [east, south],
     [west, south],
   ];
+}
+
+function wgs84Bbox(
+  request: RasterWindowRequest,
+  sourceKind: RasterSourceKind,
+  sourceId: string,
+): readonly [number, number, number, number] {
+  if (request.space !== "bbox") {
+    throw new HonuaCapabilityNotSupportedError("bbox-coordinates", "server-raster");
+  }
+  if (!isWgs84SpatialReference(request.spatialReference)) {
+    throw new HonuaCapabilityNotSupportedError("wgs84-presentation-extent", sourceKind, sourceId);
+  }
+  const [west, south, east, north] = request.bbox;
+  if (west < -180 || east > 180 || south < -90 || north > 90) {
+    throw new HonuaCapabilityNotSupportedError("wgs84-presentation-extent", sourceKind, sourceId);
+  }
+  return request.bbox;
+}
+
+function isWgs84SpatialReference(spatialReference: string | number | undefined): boolean {
+  if (spatialReference === 4326) return true;
+  if (typeof spatialReference !== "string") return false;
+  const normalized = spatialReference.trim().toLowerCase();
+  return (
+    normalized === "4326" ||
+    normalized === "epsg:4326" ||
+    normalized === "crs:84" ||
+    normalized === "ogc:crs84" ||
+    normalized === "urn:ogc:def:crs:epsg::4326" ||
+    normalized === "urn:ogc:def:crs:ogc::crs84" ||
+    normalized === "http://www.opengis.net/def/crs/epsg/0/4326" ||
+    normalized === "http://www.opengis.net/def/crs/ogc/1.3/crs84"
+  );
+}
+
+function validateMapLibreCoordinates(
+  coordinates: CogMapLibreCoordinates,
+  sourceKind: RasterSourceKind,
+  sourceId: string,
+): CogMapLibreCoordinates {
+  if (
+    coordinates.some(
+      ([longitude, latitude]) =>
+        !Number.isFinite(longitude) ||
+        !Number.isFinite(latitude) ||
+        longitude < -180 ||
+        longitude > 180 ||
+        latitude < -90 ||
+        latitude > 90,
+    )
+  ) {
+    throw new HonuaCapabilityNotSupportedError("wgs84-presentation-coordinates", sourceKind, sourceId);
+  }
+  return coordinates;
 }
 
 function encodeServiceId(serviceId: string): string {
