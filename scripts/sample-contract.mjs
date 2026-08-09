@@ -5010,6 +5010,10 @@ export async function generateLegacyVisualReceiptArchive(handoff, options = {}) 
     if (blobs.has(file.sha256)) continue;
     const bytes = captureArtifact(file);
     const encoded = gzipSync(bytes, { level: 9 });
+    // Canonicalize platform-dependent gzip header metadata so the content-addressed
+    // archive is byte-for-byte reproducible across producer operating systems.
+    encoded.fill(0, 4, 8);
+    encoded[9] = 255;
     blobs.set(file.sha256, {
       bytes: bytes.byteLength,
       sha256: file.sha256,
