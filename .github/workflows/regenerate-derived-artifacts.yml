@@ -621,6 +621,16 @@ jobs:
         if: steps.decision.outputs.skip == 'false'
         run: npm run samples:generate
 
+      # samples:generate rewrites docs/generated/sample-catalog.md, which is an
+      # input to llms-full.txt. Refresh both deterministic llms outputs only
+      # after that final documentation input has converged, then prove the
+      # generated-artifact PR cannot publish a stale aggregate.
+      - name: Regenerate and verify llms aggregate after sample projection
+        if: steps.decision.outputs.skip == 'false'
+        run: |
+          npm run docs:llms
+          npm run verify:llms
+
       # Each reseal pass preserves the run set referenced by the currently
       # published visual projection while new receipt-bound runs are promoted.
       # Once samples:generate advances that projection, the previous published
@@ -671,6 +681,8 @@ jobs:
           git add -A -- \
             README.md \
             docs/generated/sample-catalog.md \
+            llms.txt \
+            llms-full.txt \
             samples/catalog.v2.json \
             samples/contract/v2/migrations/catalog.v1-to-v2.json \
             samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json \
