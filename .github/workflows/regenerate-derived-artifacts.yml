@@ -900,7 +900,7 @@ jobs:
 
       - name: Merge validated regeneration PR
         if: needs.regenerate.outputs.changed == 'true'
-        timeout-minutes: 35
+        timeout-minutes: 50
         env:
           GH_TOKEN: ${{ github.token }}
           GENERATED: ${{ steps.publish.outputs.generated }}
