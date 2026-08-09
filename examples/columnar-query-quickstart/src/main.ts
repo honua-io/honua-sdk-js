@@ -1,24 +1,27 @@
 import { openColumnarSession } from "@honua/sdk-js/columnar-workflow";
 import "./style.css";
 
-const session = openColumnarSession({
-  kind: "honua-feature-query",
-  id: "parcel-subset",
-  baseUrl: "https://example.invalid/",
-  serviceId: "Parcels",
-  layerId: 0,
-  format: "arrow",
-  sourceVersion: "example-v1",
-  schemaVersion: "example-v1",
-  authorizationScope: "public",
-}, {
-  budgets: {
-    maxRows: 5_000,
-    maxBatches: 16,
-    maxTransferBytes: 8 * 1024 * 1024,
-    maxBackingBytes: 16 * 1024 * 1024,
+const session = openColumnarSession(
+  {
+    kind: "honua-feature-query",
+    id: "parcel-subset",
+    baseUrl: "https://example.invalid/",
+    serviceId: "Parcels",
+    layerId: 0,
+    format: "arrow",
+    sourceVersion: "example-v1",
+    schemaVersion: "example-v1",
+    authorizationScope: "public",
   },
-});
+  {
+    budgets: {
+      maxRows: 5_000,
+      maxBatches: 16,
+      maxTransferBytes: 8 * 1024 * 1024,
+      maxBackingBytes: 16 * 1024 * 1024,
+    },
+  },
+);
 
 const plan = session.plan({
   columns: ["zone", "assessed_value"],
@@ -35,12 +38,16 @@ const plan = session.plan({
 
 const output = document.querySelector<HTMLPreElement>("#result");
 if (output) {
-  output.textContent = JSON.stringify({
-    execution: plan.execution,
-    pushedToServer: plan.pushdown,
-    remainsInBrowser: plan.browser,
-    ceilings: plan.boundedBy,
-    request: plan.request,
-    note: "Planning is deterministic and performs no network request.",
-  }, null, 2);
+  output.textContent = JSON.stringify(
+    {
+      execution: plan.execution,
+      pushedToServer: plan.pushdown,
+      remainsInBrowser: plan.browser,
+      ceilings: plan.boundedBy,
+      request: plan.request,
+      note: "Planning is deterministic and performs no network request.",
+    },
+    null,
+    2,
+  );
 }
