@@ -74,7 +74,7 @@ base/service/layer composition variables are intentionally not browser inputs; p
 
 Optional browser settings:
 
-- `VITE_HONUA_QUICKSTART_WHERE` — source-native filter, default `1=1`.
+- `VITE_HONUA_QUICKSTART_WHERE` — source-native filter; the built-in Maui endpoint defaults to `id <= 25`.
 - `VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT` — positive bounded row limit, default `25`.
 - `VITE_HONUA_QUICKSTART_BASEMAP_STYLE` — MapLibre style URL.
 

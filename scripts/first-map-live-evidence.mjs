@@ -101,7 +101,7 @@ async function main() {
   process.env.VITE_HONUA_QUICKSTART_ENDPOINT = sourceEndpoint;
   process.env.VITE_HONUA_QUICKSTART_PROTOCOL = "geoservices-feature-service";
   process.env.VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT = "5";
-  process.env.VITE_HONUA_QUICKSTART_WHERE = "1=1";
+  process.env.VITE_HONUA_QUICKSTART_WHERE = "id <= 5";
   process.env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE = "/__honua-quickstart__/basemap-style.json";
 
   let fixture;
