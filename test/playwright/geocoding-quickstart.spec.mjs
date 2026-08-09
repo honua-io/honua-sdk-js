@@ -129,3 +129,33 @@ test("keeps the map first, the selected result visible, and the map at least 40v
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   expect(errors).toEqual({ console: [], page: [], requests: [], responses: [] });
 });
+
+test("clears placeholder result data when the fixture request fails", async ({ page }) => {
+  await page.route("**/rest/services/World/GeocodeServer/findAddressCandidates*", async (route) => {
+    await route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"unavailable"}' });
+  });
+
+  await page.goto(server.url);
+  await expect
+    .poll(async () => page.evaluate(() => window.__HONUA_GEOCODING_DEMO__?.ready === true), { timeout: 3_000 })
+    .toBe(true);
+
+  await expect(page.locator("#selected-address")).toHaveText("Address unavailable");
+  await expect(page.locator("#selected-detail")).toHaveText("No geocoding result is available.");
+  await expect(page.locator("#selected-coordinates")).toHaveText("Not available");
+  await expect(page.locator("#candidate-count")).toHaveText("0");
+  await expect(page.locator("#address-select")).toBeDisabled();
+  await expect(page.locator("#address-select")).toHaveText("Addresses unavailable");
+  await expect(page.locator(".maplibregl-marker")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => {
+      const runtime = window.__HONUA_GEOCODING_DEMO__;
+      return {
+        address: runtime?.selectedAddress,
+        coordinates: runtime?.selectedCoordinates,
+        results: runtime?.resultCount,
+        markers: runtime?.markerCount,
+      };
+    }),
+  ).toEqual({ address: null, coordinates: null, results: 0, markers: 0 });
+});

@@ -140,6 +140,24 @@ function renderOptions(): void {
   select.disabled = results.length === 0;
 }
 
+function renderUnavailableState(): void {
+  results = [];
+  selectedIndex = -1;
+  updateGeoJsonSource(emptyGeocodingFeatureCollection());
+  selectedMarker?.remove();
+  selectedMarker = null;
+
+  const select = getElement<HTMLSelectElement>("#address-select");
+  const option = document.createElement("option");
+  option.textContent = "Addresses unavailable";
+  select.replaceChildren(option);
+  select.disabled = true;
+  setText("#selected-address", "Address unavailable");
+  setText("#selected-detail", "No geocoding result is available.");
+  setText("#selected-coordinates", "Not available");
+  setText("#candidate-count", "0");
+}
+
 function markerElement(): HTMLElement {
   const element = document.createElement("div");
   element.className = "selected-marker";
@@ -253,6 +271,7 @@ async function start(): Promise<void> {
     setText("#status-message", `${results.length} reviewed addresses ready to select.`);
   } catch (error) {
     lastError = error instanceof Error ? error.message : "The geocoding fixture could not be loaded.";
+    renderUnavailableState();
     setText("#status-message", `Fixture unavailable: ${lastError}`);
   } finally {
     ready = true;
