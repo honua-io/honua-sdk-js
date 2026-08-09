@@ -845,14 +845,14 @@ export function describeSql(sources: readonly string[]): string {
 }
 
 /**
- * Cheap row-count estimate from the parquet footer (`num_rows` per row group),
+ * Cheap row-count and row-group totals from the Parquet file metadata,
  * summed across all files. Avoids a full `count(*)` table scan on large
  * Overture extracts.
  */
 export function rowEstimateSql(sources: readonly string[]): string {
   const list = sources.map(stringLiteral);
   const arg = list.length === 1 ? list[0] : `[${list.join(", ")}]`;
-  return `SELECT CAST(COALESCE(sum(num_rows), 0) AS BIGINT) AS row_estimate, CAST(count(*) AS BIGINT) AS row_group_count FROM parquet_file_metadata(${arg})`;
+  return `SELECT CAST(COALESCE(sum(num_rows), 0) AS BIGINT) AS row_estimate, CAST(COALESCE(sum(num_row_groups), 0) AS BIGINT) AS row_group_count FROM parquet_file_metadata(${arg})`;
 }
 
 /**

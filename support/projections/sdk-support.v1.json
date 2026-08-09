@@ -2156,7 +2156,7 @@
         "rationale": "The f=arrow and f=parquet result formats are Honua FeatureServer extensions. The direct-object equivalent is the separate client-only GeoParquet claim, while this claim intentionally requires a deployment that advertises the response contract."
       },
       "api": "@honua/sdk-js/columnar-workflow",
-      "notes": "Builds bounded GET or POST queries through the normal request pipeline. The built-in Arrow decoder is fixture-proven against an exact Honua Server geoarrow.wkb artifact for the normative Point/LineString/Polygon plus object-id, UTF-8/dictionary, and timestamp subset; broader Arrow schemas and all Parquet responses require an injected decoder. No live status is claimed without a demo-manifest target.",
+      "notes": "Builds bounded GET or POST queries through the normal request pipeline. The built-in Arrow decoder is fixture-proven against an exact Honua Server geoarrow.wkb artifact for a Binary/LargeBinary Point/LineString/Polygon XY/XYZ subset plus object-id, UTF-8/dictionary, and timestamp fields. BinaryView, broader Arrow schemas, and all Parquet responses require an injected decoder. No live status is claimed without a demo-manifest target.",
       "evidence": [
         "columnar-workflow-contract",
         "columnar-workflow-honua-arrow-interop"

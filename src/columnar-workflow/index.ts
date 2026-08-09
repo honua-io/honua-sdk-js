@@ -286,6 +286,14 @@ const validateQuery = (query: ColumnarWorkflowQuery, budgets: ColumnarWorkflowBu
   if (query.bbox?.some((coordinate) => !Number.isFinite(coordinate))) {
     throw new ColumnarWorkflowError("INVALID_QUERY", "bbox coordinates must be finite.");
   }
+  for (const aggregation of query.aggregations ?? []) {
+    if (typeof aggregation.field !== "string" || aggregation.field.trim().length === 0) {
+      throw new ColumnarWorkflowError(
+        "INVALID_QUERY",
+        `Aggregation "${aggregation.name}" requires a non-empty source field.`,
+      );
+    }
+  }
 };
 
 const buildServerRequest = (
@@ -333,10 +341,11 @@ const buildServerRequest = (
   const path = `/rest/services/${encodeURIComponent(source.serviceId)}/FeatureServer/${source.layerId}/query`;
   const queryString = parameters.toString();
   const usePost = query.preferPost === true || queryString.length > 1_800;
+  const requestPath = usePost ? path : `${path}?${queryString}`;
   return Object.freeze({
     method: usePost ? "POST" : "GET",
-    path: usePost ? path : `${path}?${queryString}`,
-    url: new URL(usePost ? path : `${path}?${queryString}`, source.baseUrl).toString(),
+    path: requestPath,
+    url: `${source.baseUrl.replace(/\/+$/, "")}${requestPath}`,
     headers: usePost ? Object.freeze({ "content-type": "application/x-www-form-urlencoded" }) : Object.freeze({}),
     body: usePost ? queryString : undefined,
     format: source.format,
@@ -726,26 +735,66 @@ function throwArrowDecoderError(error: unknown): never {
   );
 }
 
+async function readBoundedResponseBytes(
+  response: Response,
+  maximum: number,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  throwIfAborted(signal);
+  const advertised = response.headers.get("content-length");
+  if (advertised !== null) {
+    const declaredLength = Number(advertised);
+    if (Number.isFinite(declaredLength) && declaredLength > maximum) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new ColumnarWorkflowError(
+        "TRANSFER_LIMIT_EXCEEDED",
+        `Arrow response exceeds the ${maximum} byte transfer ceiling.`,
+      );
+    }
+  }
+  if (!response.body) return new Uint8Array();
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const abort = () => void reader.cancel(signal?.reason).catch(() => undefined);
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    for (;;) {
+      throwIfAborted(signal);
+      const { done, value } = await reader.read();
+      throwIfAborted(signal);
+      if (done) break;
+      total += value.byteLength;
+      if (total > maximum) {
+        await reader.cancel().catch(() => undefined);
+        throw new ColumnarWorkflowError(
+          "TRANSFER_LIMIT_EXCEEDED",
+          `Arrow response exceeds the ${maximum} byte transfer ceiling.`,
+        );
+      }
+      chunks.push(value);
+    }
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 export const createApacheArrowResponseDecoder = (
   options: ApacheArrowResponseDecoderOptions = {},
 ): ColumnarResponseDecoder =>
   async function* ({ response, identity: sourceIdentity, budgets, query, signal }) {
     throwIfAborted(signal);
-    const declaredLength = Number(response.headers.get("content-length"));
-    if (Number.isFinite(declaredLength) && declaredLength > budgets.maxTransferBytes) {
-      throw new ColumnarWorkflowError(
-        "TRANSFER_LIMIT_EXCEEDED",
-        `Arrow response exceeds the ${budgets.maxTransferBytes} byte transfer ceiling.`,
-      );
-    }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    throwIfAborted(signal);
-    if (bytes.byteLength > budgets.maxTransferBytes) {
-      throw new ColumnarWorkflowError(
-        "TRANSFER_LIMIT_EXCEEDED",
-        `Arrow response exceeds the ${budgets.maxTransferBytes} byte transfer ceiling.`,
-      );
-    }
+    const bytes = await readBoundedResponseBytes(response, budgets.maxTransferBytes, signal);
     const apache = (await (Columnar.loadApacheArrow as unknown as () => Promise<unknown>)()) as {
       RecordBatchReader: { from(input: Uint8Array): Promise<AsyncIterable<unknown>> | AsyncIterable<unknown> };
     };
