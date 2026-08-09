@@ -345,11 +345,17 @@ const buildServerRequest = (
   return Object.freeze({
     method: usePost ? "POST" : "GET",
     path: requestPath,
-    url: `${source.baseUrl.replace(/\/+$/, "")}${requestPath}`,
+    url: `${trimTrailingSlashes(source.baseUrl)}${requestPath}`,
     headers: usePost ? Object.freeze({ "content-type": "application/x-www-form-urlencoded" }) : Object.freeze({}),
     body: usePost ? queryString : undefined,
     format: source.format,
   });
+};
+
+const trimTrailingSlashes = (value: string): string => {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
 };
 
 const normalizeDescription = (source: DirectGeoParquetColumnarSource, raw: unknown): ColumnarWorkflowDescription => {
