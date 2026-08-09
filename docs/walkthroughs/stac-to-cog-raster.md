@@ -12,7 +12,7 @@ Pass the evidence-classified `StacAssetCandidate` from discovery into the
 raster descriptor. Do not reduce the candidate to a `.tif` URL: a suffix is not
 proof that the internal TIFF layout is cloud optimized.
 
-```ts
+```ts doc-test=skip reason="continues a caller-owned STAC candidate, decoder factory, and cancellation signal"
 const raster = await openRasterSession(
   { kind: "cog", id: candidate.id, candidate },
   { decoderFactory, decoderExecution: "worker", signal },
@@ -25,7 +25,7 @@ inspection returns `format: "cog"`. An ordinary GeoTIFF fails with
 
 ## 2. Inspect the plan before doing work
 
-```ts
+```ts doc-test=skip reason="continues the structurally validated raster session from step 1"
 const plan = raster.plan("read-window");
 // mode: "worker-decode", bounded: true
 ```
@@ -36,7 +36,7 @@ behind a worker-backed factory.
 
 ## 3. Read only the required pixels and bands
 
-```ts
+```ts doc-test=skip reason="continues the raster session and caller-owned cancellation signal from prior steps"
 const window = await raster.readWindow(
   {
     space: "pixel",
@@ -62,14 +62,16 @@ before an oversized operation continues.
 For a published ImageServer rendition, keep the same task vocabulary but use a
 bounded map extent:
 
-```ts
+```ts doc-test=compile
+import { openRasterSession } from "@honua/sdk-js/raster";
+
 const published = await openRasterSession({
   kind: "image-server",
   id: "oahu-imagery",
   baseUrl: "https://honua.example",
   serviceId: "Imagery/Oahu",
   deployment: "honua",
-}, { clientOptions: { auth, interceptors } });
+});
 
 const image = await published.readWindow({
   space: "bbox",
@@ -94,4 +96,3 @@ retry, cancellation, and interceptor pipeline.
 - Unsupported codec from the decoder: load a decoder build containing the codec, or use the server-rendered subset path.
 
 The complete focused project is [`examples/raster-quickstart`](../../examples/raster-quickstart/README.md).
-
