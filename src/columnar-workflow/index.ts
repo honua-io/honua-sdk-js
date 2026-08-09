@@ -152,6 +152,8 @@ export type ColumnarResponseDecoder = (context: ColumnarResponseDecoderContext) 
 export interface ApacheArrowResponseDecoderOptions extends HonuaArrowWkbMappingOptions {}
 
 export interface DirectGeoParquetHandle {
+  /** Exact HTTP payload bytes admitted by the opener; zero when no workflow-owned network read occurred. */
+  readonly transferBytes?: number;
   describe(signal?: AbortSignal): Promise<unknown> | unknown;
   queryColumnar(query: unknown): Promise<ColumnarBatchV1> | ColumnarBatchV1;
   close?(): Promise<void> | void;
@@ -300,8 +302,17 @@ const validateQuery = (
       `Requested ${query.limit} rows exceeds the ${budgets.maxRows} row ceiling.`,
     );
   }
-  if (query.bbox?.some((coordinate) => !Number.isFinite(coordinate))) {
-    throw new ColumnarWorkflowError("INVALID_QUERY", "bbox coordinates must be finite.");
+  if (
+    query.bbox &&
+    (query.bbox.length !== 4 ||
+      query.bbox.some((coordinate) => !Number.isFinite(coordinate)) ||
+      query.bbox[0] > query.bbox[2] ||
+      query.bbox[1] > query.bbox[3])
+  ) {
+    throw new ColumnarWorkflowError(
+      "INVALID_QUERY",
+      "bbox must contain finite, ordered xmin/ymin/xmax/ymax coordinates.",
+    );
   }
   if (query.offset !== undefined && (!Number.isSafeInteger(query.offset) || query.offset < 0)) {
     throw new ColumnarWorkflowError("INVALID_QUERY", "offset must be a non-negative safe integer.");
@@ -412,15 +423,35 @@ const readBoundedDirectResponse = async (
   signal?: AbortSignal,
 ): Promise<Uint8Array> => {
   const advertisedLength = response.headers.get("content-length");
-  if (advertisedLength !== null) {
-    const parsedLength = Number(advertisedLength);
-    if (Number.isFinite(parsedLength) && parsedLength > maxBytes) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new ColumnarWorkflowError(
-        "TRANSFER_LIMIT_EXCEEDED",
-        `Direct GeoParquet content length exceeds the ${maxBytes} byte transfer ceiling.`,
-      );
-    }
+  if (advertisedLength === null || !/^\d+$/.test(advertisedLength)) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ColumnarWorkflowError(
+      "INVALID_RESPONSE",
+      "Direct GeoParquet requires an explicit non-negative Content-Length for bounded allocation.",
+    );
+  }
+  const expectedLength = Number(advertisedLength);
+  if (!Number.isSafeInteger(expectedLength) || expectedLength <= 0) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ColumnarWorkflowError(
+      "INVALID_RESPONSE",
+      "Direct GeoParquet Content-Length must be a positive safe integer.",
+    );
+  }
+  if (expectedLength > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ColumnarWorkflowError(
+      "TRANSFER_LIMIT_EXCEEDED",
+      `Direct GeoParquet content length exceeds the ${maxBytes} byte transfer ceiling.`,
+    );
+  }
+  const contentEncoding = response.headers.get("content-encoding");
+  if (contentEncoding && contentEncoding.toLowerCase() !== "identity") {
+    await response.body?.cancel().catch(() => undefined);
+    throw new ColumnarWorkflowError(
+      "INVALID_RESPONSE",
+      "Direct GeoParquet responses must use identity encoding so Content-Length bounds the readable bytes.",
+    );
   }
   if (!response.body) {
     throw new ColumnarWorkflowError("INVALID_RESPONSE", "Direct GeoParquet response has no readable body.");
@@ -428,11 +459,11 @@ const readBoundedDirectResponse = async (
 
   let output: Uint8Array;
   try {
-    output = new Uint8Array(maxBytes);
+    output = new Uint8Array(expectedLength);
   } catch (cause) {
     throw new ColumnarWorkflowError(
       "BACKING_LIMIT_EXCEEDED",
-      `Unable to reserve the ${maxBytes} byte direct GeoParquet backing ceiling.`,
+      `Unable to reserve the ${expectedLength} byte direct GeoParquet response.`,
       undefined,
       { cause },
     );
@@ -445,11 +476,11 @@ const readBoundedDirectResponse = async (
       const next = await reader.read();
       throwIfAborted(signal);
       if (next.done) break;
-      if (next.value.byteLength > maxBytes - length) {
+      if (next.value.byteLength > expectedLength - length) {
         await reader.cancel().catch(() => undefined);
         throw new ColumnarWorkflowError(
-          "TRANSFER_LIMIT_EXCEEDED",
-          `Direct GeoParquet bytes exceed the ${maxBytes} byte transfer ceiling.`,
+          "INVALID_RESPONSE",
+          "Direct GeoParquet response bytes exceed the declared Content-Length.",
         );
       }
       output.set(next.value, length);
@@ -461,10 +492,13 @@ const readBoundedDirectResponse = async (
   } finally {
     reader.releaseLock();
   }
-  if (length === 0) {
-    throw new ColumnarWorkflowError("INVALID_RESPONSE", "Direct GeoParquet response body is empty.");
+  if (length !== expectedLength) {
+    throw new ColumnarWorkflowError(
+      "INVALID_RESPONSE",
+      `Direct GeoParquet response ended after ${length} bytes; ${expectedLength} bytes were declared.`,
+    );
   }
-  return output.subarray(0, length);
+  return output;
 };
 
 const defaultDirectOpener = async (
@@ -522,6 +556,7 @@ const defaultDirectOpener = async (
       throw new ColumnarWorkflowError("REQUEST_FAILED", `GeoParquet protocol handle is unavailable for ${source.id}.`);
     }
     return {
+      transferBytes: bytes.byteLength,
       describe: (signal) => handle.describe(signal),
       async queryColumnar(input) {
         const query = input as ColumnarWorkflowQuery;
@@ -723,6 +758,14 @@ export const openColumnarSession = (
         throwIfAborted(query.signal);
         if (source.kind === "direct-geoparquet") {
           const handle = await getDirectHandle(query.signal);
+          const admittedBytes = handle.transferBytes ?? 0;
+          if (!Number.isSafeInteger(admittedBytes) || admittedBytes < 0) {
+            throw new ColumnarWorkflowError(
+              "INVALID_RESPONSE",
+              "Direct GeoParquet opener reported an invalid transfer byte count.",
+            );
+          }
+          transferBytes = admittedBytes;
           yield await handle.queryColumnar(query);
           return;
         }
@@ -756,6 +799,7 @@ export const openColumnarSession = (
                   deadlineSignal ?? query.signal,
                   overflowCode,
                 );
+                transferBytes = bytes.byteLength;
                 const prepared = boundedColumnarResponse(networkResponse, bytes);
                 preparedColumnarResponseBytes.set(prepared, bytes);
                 return prepared;
@@ -806,9 +850,7 @@ export const openColumnarSession = (
         const metrics = inspectBatch(batch, budgets);
         const batchRows = metricNumber(metrics, ["rowCount", "rows"]);
         const batchBackingBytes = metricNumber(metrics, ["backingBytes", "byteLength"]);
-        const batchTransferBytes = metricNumber(metrics, ["transferBytes", "backingBytes", "byteLength"]);
         rows += batchRows;
-        transferBytes += batchTransferBytes;
         peakBackingBytes = Math.max(peakBackingBytes, batchBackingBytes);
         if (rows > Math.min(query.limit, budgets.maxRows)) {
           throw new ColumnarWorkflowError(

@@ -74,7 +74,7 @@ test("streams fixture batches through the normal request pipeline", async () => 
   assert.equal(requests.length, 1);
   assert.equal(results.length, 1);
   assert.equal(results[0]?.evidence.rows, 2);
-  assert.equal(results[0]?.evidence.transferBytes, 128);
+  assert.equal(results[0]?.evidence.transferBytes, 3);
 });
 
 test("fails closed before a request when the row budget is exceeded", () => {
@@ -93,6 +93,22 @@ test("rejects invalid offsets before planning either execution lane", () => {
     );
     assert.throws(
       () => openColumnarSession(directSource).plan({ limit: 5, offset }),
+      (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
+    );
+  }
+});
+
+test("rejects inverted bounding boxes before planning either execution lane", () => {
+  for (const bbox of [
+    [10, 0, -10, 5],
+    [-10, 5, 10, -5],
+  ] as const) {
+    assert.throws(
+      () => openColumnarSession(serverSource).plan({ limit: 5, bbox }),
+      (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
+    );
+    assert.throws(
+      () => openColumnarSession(directSource).plan({ limit: 5, bbox }),
       (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
     );
   }
@@ -307,6 +323,7 @@ test("honors a smaller backing ceiling while materializing a server response", a
 test("keeps direct execution bounded and surfaces metadata", async () => {
   const session = openColumnarSession(directSource, {
     openDirectGeoParquet: async () => ({
+      transferBytes: 96,
       describe: () => ({
         schema: [{ name: "zone", type: "VARCHAR" }],
         geometryEncoding: "geoarrow.point",
@@ -325,6 +342,7 @@ test("keeps direct execution bounded and surfaces metadata", async () => {
   const results = [];
   for await (const result of session.stream({ limit: 2 })) results.push(result);
   assert.equal(results[0]?.evidence.execution, "browser-bounded");
+  assert.equal(results[0]?.evidence.transferBytes, 96);
 });
 
 test("rejects unsupported direct column projections before opening the source", () => {
@@ -379,6 +397,7 @@ test("bounds the default direct GeoParquet network read before DuckDB can scan i
             cancelled = true;
           },
         }),
+        { headers: { "content-length": "16" } },
       ),
   });
 
