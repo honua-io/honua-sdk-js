@@ -23,13 +23,17 @@ describe("capabilities XML fuzzing", () => {
   it("fails arbitrary untrusted documents with an Error or returns a frozen root", () => {
     fc.assert(
       fc.property(fc.string({ maxLength: 4_096 }), (xml) => {
+        let root: ReturnType<typeof parseCapabilitiesXml>;
+
         try {
-          const root = parseCapabilitiesXml(xml, "WMTS");
-          expect(Object.isFrozen(root)).toBe(true);
-          expect(root.name.length).toBeGreaterThan(0);
+          root = parseCapabilitiesXml(xml, "WMTS");
         } catch (error) {
           expect(error).toBeInstanceOf(Error);
+          return;
         }
+
+        expect(Object.isFrozen(root)).toBe(true);
+        expect(root.name.length).toBeGreaterThan(0);
       }),
       { numRuns: 1_000 },
     );
