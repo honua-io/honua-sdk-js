@@ -8,7 +8,7 @@ import {
   openRasterSession,
   planRasterOperation,
 } from "../src/raster/index.js";
-import type { RasterCoverageExecutor } from "../src/raster/index.js";
+import type { RasterCoverageExecutor, RasterStyle } from "../src/raster/index.js";
 
 const metadata: CogDecodedMetadata = {
   format: "cog",
@@ -54,7 +54,10 @@ function boundedFetch(ranges: string[]): typeof fetch {
   }) as typeof fetch;
 }
 
-function decoder(format: CogDecodedMetadata["format"] = "cog"): CogDecoderFactory {
+function decoder(
+  format: CogDecodedMetadata["format"] = "cog",
+  values: readonly number[] = [0, 10, 20, 30],
+): CogDecoderFactory {
   return async () => ({
     async inspect({ readRange }) {
       await readRange({ offset: 0, length: 32 });
@@ -65,7 +68,7 @@ function decoder(format: CogDecodedMetadata["format"] = "cog"): CogDecoderFactor
       return {
         width: request.sampling?.width ?? request.width,
         height: request.sampling?.height ?? request.height,
-        bands: [{ band: 1, values: new Uint8Array([0, 10, 20, 30]) }],
+        bands: [{ band: 1, values: new Uint8Array(values) }],
       };
     },
   });
@@ -122,6 +125,53 @@ describe("unified raster session", () => {
 
     expect(result.bands[0]).toMatchObject({ band: 1, count: 3, noDataCount: 1, min: 10, max: 30, mean: 20 });
     expect(result.bands[0]?.histogram).toHaveLength(3);
+    await session.dispose();
+  });
+
+  it("emits one ordered histogram bin for a constant-valued band", async () => {
+    const session = await openRasterSession(
+      directCogSource({
+        id: "constant-cog",
+        url: "https://assets.example/constant",
+        mediaType: "image/tiff; application=geotiff; profile=cloud-optimized",
+      }),
+      { decoderFactory: decoder("cog", [7, 7, 7, 7]), clientOptions: { fetchFn: boundedFetch([]) } },
+    );
+
+    const result = await session.statistics(
+      { space: "pixel", x: 0, y: 0, width: 2, height: 2, bands: [1] },
+      { bins: 4 },
+    );
+
+    expect(result.bands[0]).toMatchObject({ band: 1, count: 4, min: 7, max: 7, mean: 7 });
+    expect(result.bands[0]?.histogram).toEqual([{ min: 7, max: 7, count: 4 }]);
+    await session.dispose();
+  });
+
+  it("rejects every styling facade on direct COG windows before decoding", async () => {
+    const ranges: string[] = [];
+    const session = await openRasterSession(
+      directCogSource({
+        id: "unstyled-cog",
+        url: "https://assets.example/unstyled",
+        mediaType: "image/tiff; application=geotiff; profile=cloud-optimized",
+      }),
+      { decoderFactory: decoder(), clientOptions: { fetchFn: boundedFetch(ranges) } },
+    );
+    const styles: readonly RasterStyle[] = [
+      { kind: "stretch", method: "min-max" },
+      { kind: "colormap", stops: [{ value: 1, color: [255, 0, 0] }] },
+      { kind: "hillshade" },
+      { kind: "terrain" },
+      { kind: "multiband", red: 3, green: 2, blue: 1 },
+    ];
+
+    for (const style of styles) {
+      await expect(
+        session.readWindow({ space: "pixel", x: 0, y: 0, width: 2, height: 2, bands: [1], style }),
+      ).rejects.toMatchObject({ capability: "styled-window", protocol: "direct-cog" });
+    }
+    expect(ranges).toEqual(["bytes=0-31"]);
     await session.dispose();
   });
 
@@ -188,6 +238,136 @@ describe("unified raster session", () => {
     });
 
     expect(new URL(requested).searchParams.get("interpolation")).toBe("RSP_NearestNeighbor");
+  });
+
+  it.each([
+    ["min-max", 5],
+    ["percent-clip", 6],
+    ["standard-deviation", 3],
+  ] as const)("maps the %s stretch facade to ImageServer StretchType %i", async (method, stretchType) => {
+    let requested = "";
+    const session = await openRasterSession(
+      {
+        kind: "image-server",
+        id: "styled-imagery",
+        baseUrl: "https://honua.example/arcgis",
+        serviceId: "Imagery/Styled",
+      },
+      {
+        clientOptions: {
+          fetchFn: async (input) => {
+            requested = String(input);
+            return Response.json({ href: "https://images.example/styled.png" });
+          },
+        },
+      },
+    );
+
+    await session.readWindow({
+      space: "bbox",
+      bbox: [-158.1, 21.2, -157.7, 21.6],
+      width: 64,
+      height: 64,
+      spatialReference: 4326,
+      style: { kind: "stretch", method },
+    });
+
+    const encodedRule = new URL(requested).searchParams.get("renderingRule");
+    expect(encodedRule).not.toBeNull();
+    const rule = JSON.parse(encodedRule ?? "{}") as { rasterFunctionArguments?: { StretchType?: number } };
+    expect(rule.rasterFunctionArguments?.StretchType).toBe(stretchType);
+  });
+
+  it("rejects ImageServer value inspection band selection before issuing identify", async () => {
+    const fetchFn = vi.fn(async () => Response.json({ results: [] })) as typeof fetch;
+    const session = await openRasterSession(
+      {
+        kind: "image-server",
+        id: "banded-imagery",
+        baseUrl: "https://honua.example/arcgis",
+        serviceId: "Imagery/Banded",
+      },
+      { clientOptions: { fetchFn } },
+    );
+
+    await expect(
+      session.inspectValue({ space: "coordinate", x: -157.8, y: 21.3, spatialReference: 4326, bands: [3, 2, 1] }),
+    ).rejects.toMatchObject({ capability: "inspect-value-band-selection", protocol: "image-server" });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("fails closed instead of passing projected or implicit native extents to browser renderers", async () => {
+    const session = await openRasterSession(
+      {
+        kind: "image-server",
+        id: "projected-imagery",
+        baseUrl: "https://honua.example/arcgis",
+        serviceId: "Imagery/Projected",
+      },
+      { clientOptions: { fetchFn: async () => Response.json({ href: "https://images.example/projected.png" }) } },
+    );
+    const projected = await session.readWindow({
+      space: "bbox",
+      bbox: [-17_594_000, 2_340_000, -17_482_000, 2_470_000],
+      width: 256,
+      height: 256,
+      spatialReference: 3857,
+    });
+    const implicitNative = await session.readWindow({
+      space: "bbox",
+      bbox: [-158.1, 21.2, -157.7, 21.6],
+      width: 256,
+      height: 256,
+    });
+
+    for (const result of [projected, implicitNative]) {
+      expect(() => session.toMapLibreImageSource(result)).toThrowError(
+        expect.objectContaining({ capability: "wgs84-presentation-extent" }),
+      );
+      expect(() => session.toDeckGlBitmap(result)).toThrowError(
+        expect.objectContaining({ capability: "wgs84-presentation-extent" }),
+      );
+    }
+    expect(
+      session.toMapLibreImageSource(projected, [
+        [-158.1, 21.6],
+        [-157.7, 21.6],
+        [-157.7, 21.2],
+        [-158.1, 21.2],
+      ]).coordinates,
+    ).toEqual([
+      [-158.1, 21.6],
+      [-157.7, 21.6],
+      [-157.7, 21.2],
+      [-158.1, 21.2],
+    ]);
+  });
+
+  it("uses explicitly WGS84 extents for MapLibre and deck.gl presentation", async () => {
+    const session = await openRasterSession(
+      {
+        kind: "image-server",
+        id: "geographic-imagery",
+        baseUrl: "https://honua.example/arcgis",
+        serviceId: "Imagery/Geographic",
+      },
+      { clientOptions: { fetchFn: async () => Response.json({ href: "https://images.example/geographic.png" }) } },
+    );
+    const result = await session.readWindow({
+      space: "bbox",
+      bbox: [-158.1, 21.2, -157.7, 21.6],
+      width: 256,
+      height: 256,
+      spatialReference: "EPSG:4326",
+    });
+
+    expect(session.toMapLibreImageSource(result).coordinates).toEqual([
+      [-158.1, 21.6],
+      [-157.7, 21.6],
+      [-157.7, 21.2],
+      [-158.1, 21.2],
+    ]);
+    expect(session.toDeckGlBitmap(result).bounds).toEqual([-158.1, 21.2, -157.7, 21.6]);
   });
 
   it("keeps coverage execution and future formats explicit", () => {
