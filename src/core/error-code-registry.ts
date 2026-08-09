@@ -106,6 +106,18 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Multiple sources match the selection",
   ),
+  "discovery.invalid-cloud-native-input": classification(
+    "discovery",
+    "validation",
+    false,
+    "Cloud-native discovery input is invalid or ambiguous",
+  ),
+  "discovery.invalid-cloud-native-manifest": classification(
+    "discovery",
+    "validation",
+    false,
+    "Cloud-native deployment manifest is invalid",
+  ),
   "discovery.invalid-endpoint": classification("discovery", "validation", false, "Discovery endpoint is invalid"),
   "discovery.invalid-cache-identity": classification(
     "discovery",
@@ -124,6 +136,12 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     "validation",
     false,
     "Discovered capability evidence is invalid",
+  ),
+  "discovery.cloud-native-operation-unavailable": classification(
+    "discovery",
+    "capability",
+    false,
+    "Cloud-native source operation is unavailable at its declared maturity",
   ),
   "discovery.unsupported-protocol": classification(
     "discovery",

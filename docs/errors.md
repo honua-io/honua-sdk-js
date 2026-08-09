@@ -232,10 +232,13 @@ classification is conservatively non-retryable.
 | `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
 | `discovery.ambiguous-protocol` | `discovery` | `validation` | no | Multiple protocols match the endpoint |
 | `discovery.ambiguous-source` | `discovery` | `validation` | no | Multiple sources match the selection |
+| `discovery.invalid-cloud-native-input` | `discovery` | `validation` | no | Cloud-native discovery input is invalid or ambiguous |
+| `discovery.invalid-cloud-native-manifest` | `discovery` | `validation` | no | Cloud-native deployment manifest is invalid |
 | `discovery.invalid-endpoint` | `discovery` | `validation` | no | Discovery endpoint is invalid |
 | `discovery.invalid-cache-identity` | `discovery` | `validation` | no | Discovery cache identity is invalid |
 | `discovery.invalid-discovery-cache` | `discovery` | `validation` | no | Discovery cache entry is invalid |
 | `discovery.invalid-capability` | `discovery` | `validation` | no | Discovered capability evidence is invalid |
+| `discovery.cloud-native-operation-unavailable` | `discovery` | `capability` | no | Cloud-native source operation is unavailable at its declared maturity |
 | `discovery.unsupported-protocol` | `discovery` | `capability` | no | Endpoint protocol is unsupported |
 | `discovery.protocol-mismatch` | `discovery` | `validation` | no | Endpoint protocol conflicts with its hint |
 | `query.planning.invalid-query` | `query` | `validation` | no | Query is invalid |
