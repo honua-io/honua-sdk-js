@@ -371,8 +371,19 @@ export function generateSiteProjection(
 };
 export function collectQualificationEvidence(
   catalog: SampleCatalog,
-  options?: { receiptRoot?: string },
+  options?: { receiptRoot?: string; goldenVisualEvidencePath?: string },
 ): Promise<QualificationEvidenceInventory>;
+export function validateQualificationRunInventory(
+  receiptRoot: string,
+  sampleId: string,
+  receipts: QualificationEvidenceInventory["samples"][number]["receipts"],
+  publishedVisualEvidence?: {
+    qualifiedGoldenJourneys?: Array<{
+      sampleId?: string;
+      semanticEvidence?: Array<{ gate?: string; runRoot?: string }>;
+    }>;
+  },
+): Promise<void>;
 export function generateCapabilitySampleMatrix(
   catalog: SampleCatalog,
   packageJson: Record<string, unknown>,
