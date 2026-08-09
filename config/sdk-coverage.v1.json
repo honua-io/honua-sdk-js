@@ -82,13 +82,16 @@
       "status": "partial",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "HonuaClient.checkCompatibility()"
+        "assertCloudNativeOperation",
+        "discoverCloudNativeSources",
+        "serializeCloudNativeDiscovery (@honua/sdk-js/cloud-native-discovery)"
       ],
       "evidence": [
-        "test/server-compatibility.test.ts"
+        "docs/cloud-native-source-discovery.md",
+        "test/cloud-native-discovery.test.ts"
       ],
-      "source": "support-manifest",
-      "note": "Reads the Honua administrative capabilities contract and should be skipped for standalone reads."
+      "source": "sdk-coverage-crosswalk",
+      "note": "The cloud-native discovery subpath normalizes authoritative Honua demo manifest links and direct cloud-object URLs into stable descriptors with separate client/server/end-to-end maturity. COG, STAC, PMTiles, and experimental GeoParquet client paths are represented; GeoArrow remains metadata-only, OGC Coverages/WCS remain server-advertisement-only, and Zarr/NetCDF are non-executable maturity markers pending later epic children."
     },
     {
       "key": "editing.featureserver-edits",
