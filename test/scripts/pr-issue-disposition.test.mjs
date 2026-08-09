@@ -214,6 +214,24 @@ describe("pull request issue disposition policy", () => {
     assert.ok(comparisonCommand > llmsGeneration && llmsCommand > comparisonCommand);
     assert.ok(llmsVerification > llmsGeneration);
     assert.match(workflow, /name: Verify llms\.txt freshness before publication[\s\S]*run: npm run verify:llms/u);
+    const sampleGeneration = workflow.indexOf("name: Regenerate sample dist projections");
+    const finalLlmsGeneration = workflow.indexOf(
+      "name: Regenerate and verify llms aggregate after sample projection",
+    );
+    const finalLlmsCommand = workflow.indexOf("npm run docs:llms", finalLlmsGeneration);
+    const finalLlmsVerification = workflow.indexOf("npm run verify:llms", finalLlmsGeneration);
+    const evidenceCommit = workflow.indexOf("name: Stage and commit resealed evidence locally");
+    assert.ok(
+      sampleGeneration >= 0 &&
+        finalLlmsGeneration > sampleGeneration &&
+        finalLlmsCommand > finalLlmsGeneration &&
+        finalLlmsVerification > finalLlmsCommand &&
+        evidenceCommit > finalLlmsVerification,
+    );
+    assert.match(
+      workflow,
+      /name: Stage and commit resealed evidence locally[\s\S]*git add -A --[\s\S]*llms\.txt \\[\s\S]*llms-full\.txt \\/u,
+    );
     assert.doesNotMatch(workflow, /git push origin "\$generated:refs\/heads\/trunk"/u);
   });
 
