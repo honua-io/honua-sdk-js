@@ -50,7 +50,7 @@ Expected outcome: `execution` is `server-pushdown`; the URL or POST body contain
 
 ## 3. Stream with backpressure and cancellation
 
-Install Apache Arrow as the optional peer and pass `createApacheArrowResponseDecoder()` only when the deployment advertises Arrow IPC. The built-in Honua bridge decodes the current server's `geoarrow.wkb` geometry plus one object-id, one UTF-8/dictionary field, and one timestamp field into the normative batch. It rejects ambiguous or additional fields rather than dropping them; use a custom `decodeServerResponse` for a broader schema. `geometryKind` is needed only when an empty or all-null response cannot declare its kind. Each loop iteration requests the next decoded batch only after your handler completes.
+Install Apache Arrow as the optional peer and pass `createApacheArrowResponseDecoder()` only when the deployment advertises Arrow IPC. The built-in Honua bridge decodes a bounded GeoArrow WKB subset: Binary/LargeBinary Point, LineString, or Polygon in XY/XYZ, plus one object-id, one UTF-8/dictionary field, and one timestamp field. BinaryView, multi-geometries, GeometryCollection, M/ZM coordinates, ambiguous fields, and additional fields require a custom `decodeServerResponse`; the bridge fails closed rather than dropping data. `geometryKind` is needed only when an empty or all-null response cannot declare its kind. Each loop iteration requests the next decoded batch only after your handler completes.
 
 ```ts doc-test=skip reason="Requires an advertised live Honua Arrow endpoint and application renderBatch implementation."
 for await (const { batch, evidence } of session.stream({

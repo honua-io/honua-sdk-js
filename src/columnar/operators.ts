@@ -95,6 +95,7 @@ export function createGeoArrowFilterOperation(options: CreateGeoArrowFilterOpera
       dimensions: inspection.geometry.dimensions,
       coordinateLayout: inspection.geometry.coordinateLayout,
       ...(inspection.geometry.crs === undefined ? {} : { crs: inspection.geometry.crs }),
+      ...(inspection.geometry.crsType === undefined ? {} : { crsType: inspection.geometry.crsType }),
       edges: inspection.geometry.edges,
       values: selected.map((row) => row.geometry),
     } as GeoArrowGeometryColumnInput;
@@ -205,6 +206,7 @@ export function createGeoArrowProjectionOperation(
       dimensions: inspection.geometry.dimensions,
       coordinateLayout: inspection.geometry.coordinateLayout,
       ...(inspection.geometry.crs === undefined ? {} : { crs: inspection.geometry.crs }),
+      ...(inspection.geometry.crsType === undefined ? {} : { crsType: inspection.geometry.crsType }),
       edges: inspection.geometry.edges,
       values: geometryValues,
     } as GeoArrowGeometryColumnInput;
@@ -306,6 +308,9 @@ export function createGeoArrowTransformOperation(
           ? {}
           : { crs: inspection.geometry.crs }
         : { crs: options.outputCrs }),
+      ...(options.outputCrs === undefined && inspection.geometry.crsType !== undefined
+        ? { crsType: inspection.geometry.crsType }
+        : {}),
       edges: inspection.geometry.edges,
       values: geometryValues,
     } as GeoArrowGeometryColumnInput;

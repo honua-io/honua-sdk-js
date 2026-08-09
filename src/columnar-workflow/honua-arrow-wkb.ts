@@ -2,6 +2,7 @@ import {
   type ColumnarBatchIdentityV1,
   type ColumnarBatchV1,
   type GeoArrowCrs,
+  type GeoArrowCrsType,
   type GeoArrowDimensions,
   type GeoArrowEdges,
   type GeoArrowGeometryKind,
@@ -84,7 +85,8 @@ export interface DecodeHonuaArrowWkbBatchInput extends HonuaArrowWkbMappingOptio
 interface GeometryDeclaration {
   readonly kind?: GeoArrowGeometryKind;
   readonly dimensions?: GeoArrowDimensions;
-  readonly crs: GeoArrowCrs;
+  readonly crs?: GeoArrowCrs;
+  readonly crsType?: GeoArrowCrsType;
   readonly edges: GeoArrowEdges;
 }
 
@@ -186,10 +188,15 @@ const geometryFieldIndex = (batch: ArrowRecordBatchLike): number => {
       geometryFields: matches.length,
     });
   }
-  if (fieldType(matches[0]!.field) !== "Binary") {
-    fail("unsupported-layout", "Honua geoarrow.wkb geometry must use Arrow Binary storage.", {
+  const storageType = fieldType(matches[0]!.field);
+  if (storageType !== "Binary" && storageType !== "LargeBinary") {
+    const message =
+      storageType === "BinaryView"
+        ? "Arrow BinaryView storage is not supported by the current Apache Arrow JS peer; use an injected decoder."
+        : "Honua geoarrow.wkb geometry must use Arrow Binary or LargeBinary storage.";
+    fail("unsupported-layout", message, {
       field: matches[0]!.field.name,
-      type: fieldType(matches[0]!.field),
+      type: storageType,
     });
   }
   return matches[0]!.index;
@@ -242,13 +249,28 @@ const geometryDeclaration = (
   const field = batch.schema.fields[index]!;
   const metadata = metadataMap(field.metadata, `Arrow field "${field.name}" metadata`);
   const extensionJson = metadata.get(EXTENSION_METADATA);
-  const extension = extensionJson
-    ? parseMetadataJson(extensionJson, `Arrow field "${field.name}" extension metadata`, maxBackingBytes)
-    : {};
+  const extension =
+    extensionJson === undefined
+      ? {}
+      : parseMetadataJson(extensionJson, `Arrow field "${field.name}" extension metadata`, maxBackingBytes);
   const declared = declaredGeometryType(extension.geometry_types);
   const edgeValue = extension.edges ?? "planar";
   if (!["planar", "spherical", "vincenty", "thomas", "andoyer", "karney"].includes(String(edgeValue))) {
     fail("unsupported-layout", `Honua Arrow edge interpretation "${String(edgeValue)}" is unsupported.`);
+  }
+  const crs = extension.crs;
+  if (crs !== undefined && typeof crs !== "string" && !isRecord(crs)) {
+    fail("invalid-payload", "geoarrow.wkb crs metadata must be a serialized CRS string or PROJJSON object.");
+  }
+  const crsType = extension.crs_type;
+  if (
+    crsType !== undefined &&
+    (typeof crsType !== "string" || !["projjson", "wkt2:2019", "authority_code", "srid"].includes(crsType))
+  ) {
+    fail("invalid-payload", `geoarrow.wkb crs_type metadata "${String(crsType)}" is unsupported.`);
+  }
+  if (crsType !== undefined && crs === undefined) {
+    fail("invalid-payload", "geoarrow.wkb crs_type metadata requires crs metadata.");
   }
 
   const schemaMetadata = metadataMap(batch.schema.metadata, "Arrow schema metadata");
@@ -267,7 +289,8 @@ const geometryDeclaration = (
 
   return {
     ...declared,
-    crs: (extension.crs as GeoArrowCrs | undefined) ?? "OGC:CRS84",
+    ...(crs === undefined ? {} : { crs: crs as GeoArrowCrs }),
+    ...(crsType === undefined ? {} : { crsType: crsType as GeoArrowCrsType }),
     edges: edgeValue as GeoArrowEdges,
   };
 };
@@ -425,7 +448,7 @@ class WkbCursor {
     const width = hasZ ? 3 : 2;
     let result: ParsedGeometry;
     if (type === 1) {
-      result = { kind: "point", dimensions, value: this.position(littleEndian, width) };
+      result = { kind: "point", dimensions, value: this.position(littleEndian, width, true) };
     } else if (type === 2) {
       const count = this.count(littleEndian, this.budget.maxVertices - this.budget.vertices, "vertices");
       const line: GeoArrowPosition[] = [];
@@ -476,7 +499,6 @@ class WkbCursor {
     this.ensure(8);
     const value = this.view.getFloat64(this.offset, littleEndian);
     this.offset += 8;
-    if (!Number.isFinite(value)) fail("invalid-payload", "WKB coordinates must be finite numbers.");
     return value;
   }
 
@@ -488,7 +510,7 @@ class WkbCursor {
     return count;
   }
 
-  private position(littleEndian: boolean, width: number): GeoArrowPosition {
+  private position(littleEndian: boolean, width: number, allowEmptyPoint = false): GeoArrowPosition {
     if (this.budget.vertices >= this.budget.maxVertices) {
       fail("backing-limit", `WKB vertices exceed the ${this.budget.maxVertices}-vertex decode ceiling.`);
     }
@@ -496,6 +518,10 @@ class WkbCursor {
     if (this.budget.vertices % ABORT_CHECK_VERTICES === 0) throwIfAborted(this.budget.signal);
     const result: number[] = [];
     for (let index = 0; index < width; index += 1) result.push(this.float64(littleEndian));
+    const emptyPoint = allowEmptyPoint && result.every(Number.isNaN);
+    if (!emptyPoint && result.some((coordinate) => !Number.isFinite(coordinate))) {
+      fail("invalid-payload", "WKB coordinates must be finite, or all NaN for an empty Point.");
+    }
     return result;
   }
 }
@@ -632,7 +658,8 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
           field: geometryField.name,
           dimensions,
           coordinateLayout: "interleaved" as const,
-          crs: declaration.crs,
+          ...(declaration.crs === undefined ? {} : { crs: declaration.crs }),
+          ...(declaration.crsType === undefined ? {} : { crsType: declaration.crsType }),
           edges: declaration.edges,
           values: geometries as readonly (GeoArrowPoint | null)[],
         }
@@ -642,7 +669,8 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
             field: geometryField.name,
             dimensions,
             coordinateLayout: "interleaved" as const,
-            crs: declaration.crs,
+            ...(declaration.crs === undefined ? {} : { crs: declaration.crs }),
+            ...(declaration.crsType === undefined ? {} : { crsType: declaration.crsType }),
             edges: declaration.edges,
             values: geometries as readonly (GeoArrowLineString | null)[],
           }
@@ -651,7 +679,8 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
             field: geometryField.name,
             dimensions,
             coordinateLayout: "interleaved" as const,
-            crs: declaration.crs,
+            ...(declaration.crs === undefined ? {} : { crs: declaration.crs }),
+            ...(declaration.crsType === undefined ? {} : { crsType: declaration.crsType }),
             edges: declaration.edges,
             values: geometries as readonly (GeoArrowPolygon | null)[],
           };
