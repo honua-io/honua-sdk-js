@@ -333,6 +333,22 @@ const validateQuery = (
   }
 };
 
+const WGS84_BBOX_CRS = new Set([
+  "epsg:4326",
+  "crs:84",
+  "crs84",
+  "ogc:crs84",
+  "wgs 84",
+  "urn:ogc:def:crs:ogc:1.3:crs84",
+  "urn:ogc:def:crs:ogc::crs84",
+  "urn:ogc:def:crs:epsg::4326",
+  "http://www.opengis.net/def/crs/ogc/1.3/crs84",
+  "http://www.opengis.net/def/crs/epsg/0/4326",
+]);
+
+const supportsWgs84Bbox = (crs: unknown): boolean =>
+  typeof crs === "string" && WGS84_BBOX_CRS.has(crs.trim().toLowerCase());
+
 const buildServerRequest = (
   source: HonuaColumnarQuerySource,
   query: ColumnarWorkflowQuery,
@@ -341,7 +357,8 @@ const buildServerRequest = (
   parameters.set("f", source.format);
   parameters.set("resultRecordCount", String(query.limit));
   if (query.offset !== undefined) parameters.set("resultOffset", String(query.offset));
-  if (query.columns?.length) parameters.set("outFields", query.columns.join(","));
+  parameters.set("outFields", query.columns?.length ? query.columns.join(",") : "*");
+  parameters.set("where", "1=1");
   if (query.filter) {
     const compiled = compileQueryFilterToSql92(query.filter, {
       protocol: "geoservices-feature-service",
@@ -599,6 +616,13 @@ const defaultDirectOpener = async (
           },
           batchId: `${source.id}:0`,
           sequence: 0,
+          limits: {
+            maxRows: query.limit,
+            maxVertices: Math.max(1, Math.min(2_147_483_647, Math.floor(budgets.maxBackingBytes / 16))),
+            maxRings: Math.max(1, Math.min(2_147_483_647, Math.floor(budgets.maxBackingBytes / 4))),
+            maxBackingBytes: budgets.maxBackingBytes,
+            maxCopiedBytes: Math.min(2_147_483_647, budgets.maxBackingBytes),
+          },
         });
         return produced.batch;
       },
@@ -758,6 +782,16 @@ export const openColumnarSession = (
         throwIfAborted(query.signal);
         if (source.kind === "direct-geoparquet") {
           const handle = await getDirectHandle(query.signal);
+          if (query.bbox) {
+            const description = normalizeDescription(source, await handle.describe(query.signal));
+            if (!supportsWgs84Bbox(description.crs)) {
+              throw new ColumnarWorkflowError(
+                "INVALID_QUERY",
+                "Direct GeoParquet bbox queries require an explicitly declared WGS84 longitude/latitude CRS.",
+                { crs: description.crs },
+              );
+            }
+          }
           const admittedBytes = handle.transferBytes ?? 0;
           if (!Number.isSafeInteger(admittedBytes) || admittedBytes < 0) {
             throw new ColumnarWorkflowError(
@@ -766,7 +800,23 @@ export const openColumnarSession = (
             );
           }
           transferBytes = admittedBytes;
-          yield await handle.queryColumnar(query);
+          try {
+            yield await handle.queryColumnar(query);
+          } catch (cause) {
+            if (cause instanceof GeoParquet.GeoParquetNativeGeometryError) {
+              if (cause.code === "GEOPARQUET_NATIVE_ROW_LIMIT_EXCEEDED") {
+                throw new ColumnarWorkflowError("ROW_LIMIT_EXCEEDED", cause.message, cause.detail, { cause });
+              }
+              if (
+                cause.code === "GEOPARQUET_NATIVE_VERTEX_LIMIT_EXCEEDED" ||
+                cause.code === "GEOPARQUET_NATIVE_RING_LIMIT_EXCEEDED" ||
+                cause.code === "GEOPARQUET_NATIVE_BACKING_LIMIT_EXCEEDED"
+              ) {
+                throw new ColumnarWorkflowError("BACKING_LIMIT_EXCEEDED", cause.message, cause.detail, { cause });
+              }
+            }
+            throw cause;
+          }
           return;
         }
         if (!options.decodeServerResponse) {

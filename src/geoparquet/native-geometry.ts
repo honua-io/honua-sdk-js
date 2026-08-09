@@ -66,6 +66,7 @@ export type GeoParquetNativeGeometryErrorCode =
   | "GEOPARQUET_NATIVE_ROW_LIMIT_EXCEEDED"
   | "GEOPARQUET_NATIVE_VERTEX_LIMIT_EXCEEDED"
   | "GEOPARQUET_NATIVE_RING_LIMIT_EXCEEDED"
+  | "GEOPARQUET_NATIVE_BACKING_LIMIT_EXCEEDED"
   | "GEOPARQUET_NATIVE_PART_LIMIT_EXCEEDED"
   /** A multi-part encoding was asked to produce a batch; GeoArrow has no multi-part kind here. */
   | "GEOPARQUET_COLUMNAR_UNSUPPORTED_ENCODING"
@@ -93,10 +94,16 @@ export class GeoParquetNativeGeometryError extends Error {
 }
 
 export interface GeoParquetNativeGeometryLimits {
+  /** Bounds geometry rows before any GeoArrow batch is allocated. */
+  readonly maxRows?: number;
   /** Forwarded to `createGeoArrowBatch`/`decodeGeoArrowBatch`; bounds total vertices decoded. */
   readonly maxVertices?: number;
   /** Forwarded to `createGeoArrowBatch`/`decodeGeoArrowBatch`; bounds total rings decoded. */
   readonly maxRings?: number;
+  /** Hard ceiling for the produced batch's retained backing buffers. */
+  readonly maxBackingBytes?: number;
+  /** Hard ceiling for payload bytes copied while producing the batch. */
+  readonly maxCopiedBytes?: number;
   /** Bounds the flattened polygon-part count when decoding `multipolygon`. */
   readonly maxParts?: number;
 }
@@ -247,7 +254,9 @@ function remapGeoArrowError(cause: unknown, rowLimitCode: GeoParquetNativeGeomet
           ? "GEOPARQUET_NATIVE_VERTEX_LIMIT_EXCEEDED"
           : cause.code === "ring-limit-exceeded"
             ? "GEOPARQUET_NATIVE_RING_LIMIT_EXCEEDED"
-            : "GEOPARQUET_NATIVE_INVALID_VALUE";
+            : cause.code === "copy-limit-exceeded"
+              ? "GEOPARQUET_NATIVE_BACKING_LIMIT_EXCEEDED"
+              : "GEOPARQUET_NATIVE_INVALID_VALUE";
     throw new GeoParquetNativeGeometryError(code, "$", cause.detail, { cause });
   }
   throw cause;
@@ -261,8 +270,11 @@ function runGeoArrow(
   maxRows?: number,
 ): readonly DecodedGeoArrowRow[] {
   const conversionLimits: GeoArrowConversionLimits = {
+    ...(limits.maxRows !== undefined ? { maxRows: limits.maxRows } : {}),
     ...(limits.maxVertices !== undefined ? { maxVertices: limits.maxVertices } : {}),
     ...(limits.maxRings !== undefined ? { maxRings: limits.maxRings } : {}),
+    ...(limits.maxBackingBytes !== undefined ? { maxBackingBytes: limits.maxBackingBytes } : {}),
+    ...(limits.maxCopiedBytes !== undefined ? { maxCopiedBytes: limits.maxCopiedBytes } : {}),
     ...(maxRows !== undefined ? { maxRows } : {}),
   };
   syntheticSequence += 1;
@@ -610,8 +622,11 @@ export function createGeoParquetNativeGeometryBatch(
   const geometryField = input.geometryField ?? "geometry";
   assertOrderingFieldsAvailable(identity, geometryField, input.featureIds?.field);
   const conversionLimits: GeoArrowConversionLimits = {
+    ...(limits.maxRows !== undefined ? { maxRows: limits.maxRows } : {}),
     ...(limits.maxVertices !== undefined ? { maxVertices: limits.maxVertices } : {}),
     ...(limits.maxRings !== undefined ? { maxRings: limits.maxRings } : {}),
+    ...(limits.maxBackingBytes !== undefined ? { maxBackingBytes: limits.maxBackingBytes } : {}),
+    ...(limits.maxCopiedBytes !== undefined ? { maxCopiedBytes: limits.maxCopiedBytes } : {}),
   };
   const batchInput: CreateGeoArrowBatchInput = {
     id: input.batchId,

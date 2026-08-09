@@ -54,6 +54,13 @@ test("plans bounded columns, bbox, filter, sorting, and aggregation as server pu
   assert.match(plan.request?.url ?? "", /outStatistics=/);
 });
 
+test("includes GeoServices defaults in a bare server query", () => {
+  const request = openColumnarSession(serverSource).plan({ limit: 10 }).request;
+  const url = new URL(request?.url ?? "");
+  assert.equal(url.searchParams.get("outFields"), "*");
+  assert.equal(url.searchParams.get("where"), "1=1");
+});
+
 test("streams fixture batches through the normal request pipeline", async () => {
   const requests: Request[] = [];
   const session = openColumnarSession(serverSource, {
@@ -358,6 +365,29 @@ test("rejects unsupported direct column projections before opening the source", 
     (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
   );
   assert.equal(opened, false);
+});
+
+test("rejects a WGS84 bbox against a projected direct source before querying", async () => {
+  let queried = false;
+  const session = openColumnarSession(directSource, {
+    openDirectGeoParquet: () => ({
+      describe: () => ({ crs: "EPSG:3857" }),
+      queryColumnar: () => {
+        queried = true;
+        return batch;
+      },
+    }),
+  });
+
+  await assert.rejects(
+    async () => {
+      for await (const _result of session.stream({ bbox: [-158, 21, -157, 22], limit: 2 })) {
+        // CRS validation rejects before direct SQL execution.
+      }
+    },
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_QUERY",
+  );
+  assert.equal(queried, false);
 });
 
 test("validates every configured budget before exposing a session", () => {
