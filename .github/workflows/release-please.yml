@@ -200,13 +200,53 @@ jobs:
             dispatch_tag_publish publish-create-honua-app.yml "${CREATE_APP_TAG_NAME}"
           fi
 
-  release-please-ci:
+  release-please-refresh:
     needs: release-please
-    if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+    if: ${{ always() && needs.release-please.result == 'success' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-please-base-refresh-${{ github.repository }}
+      cancel-in-progress: true
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_pr_present: ${{ steps.refresh.outputs.release_pr_present }}
+      release_head_sha: ${{ steps.refresh.outputs.release_head_sha }}
+      refresh_status: ${{ steps.refresh.outputs.refresh_status }}
+    steps:
+      - name: Check out trusted base-refresh policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-refresh-policy
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js for trusted base-refresh policy
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20.19.0"
+
+      - name: Refresh the unchanged exact Release Please branch onto trusted trunk
+        id: refresh
+        working-directory: trusted-refresh-policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_PLEASE_PRS_CREATED: ${{ needs.release-please.outputs.prs_created }}
+          TRUSTED_POLICY_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
+          node scripts/refresh-release-please-base.mjs
+
+  release-please-ci:
+    needs: [release-please, release-please-refresh]
+    if: ${{ needs.release-please-refresh.outputs.release_pr_present == 'true' }}
     runs-on: ubuntu-latest
     concurrency:
       group: release-please-ci-dispatch-${{ github.repository }}
       cancel-in-progress: true
+    timeout-minutes: 45
     permissions:
       actions: write
       contents: read
@@ -225,18 +265,24 @@ jobs:
         with:
           node-version: "20.19.0"
 
-      - name: Dispatch canonical CI for the exact Release Please head
+      - name: Dispatch and await canonical CI for the exact Release Please head
         working-directory: trusted-ci-policy
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_PLEASE_PRS_CREATED: ${{ needs.release-please.outputs.prs_created }}
+          RELEASE_PLEASE_PR_READY: ${{ needs.release-please-refresh.outputs.release_pr_present }}
           TRUSTED_POLICY_SHA: ${{ github.sha }}
         run: |
           test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
           node scripts/dispatch-release-please-ci.mjs
 
   release-please-disposition:
-    needs: release-please
+    needs: [release-please, release-please-refresh, release-please-ci]
+    if: >-
+      ${{ always() &&
+          needs.release-please.result == 'success' &&
+          needs.release-please-refresh.result == 'success' &&
+          (needs.release-please-refresh.outputs.release_pr_present != 'true' ||
+           needs.release-please-ci.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       checks: write

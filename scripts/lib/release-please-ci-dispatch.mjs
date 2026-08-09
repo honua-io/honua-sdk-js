@@ -145,6 +145,39 @@ function confirmationOptions(input) {
   return { attempts, delayMs };
 }
 
+function completionOptions(input) {
+  const attempts = input.completionAttempts ?? 270;
+  const delayMs = input.completionDelayMs ?? 10_000;
+  if (!Number.isSafeInteger(attempts) || attempts < 1 || attempts > 360) {
+    throw new Error("Canonical CI completion attempts must be an integer from 1 through 360.");
+  }
+  if (!Number.isSafeInteger(delayMs) || delayMs < 0 || delayMs > 30_000) {
+    throw new Error("Canonical CI completion delay must be an integer from 0 through 30000 ms.");
+  }
+  return { attempts, delayMs };
+}
+
+async function waitForExactRunCompletion(input, expected, initialRun, request, wait) {
+  const { attempts, delayMs } = completionOptions(input);
+  let run = initialRun;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (run.status === "completed") {
+      if (run.conclusion !== "success") {
+        throw new Error(`Canonical CI concluded ${run.conclusion ?? "without a conclusion"} for exact head ${expected.headSha}.`);
+      }
+      await verifyStillCurrent(input, expected, request);
+      return run;
+    }
+    if (attempt + 1 < attempts) await new Promise((resolve) => wait(resolve, delayMs));
+    const exact = (await listCiWorkflowRuns(input.repository, request))
+      .map((candidate) => exactRun(candidate, expected))
+      .find((candidate) => candidate?.id === initialRun.id);
+    if (!exact) throw new Error(`Canonical CI run ${initialRun.id} disappeared before terminal completion.`);
+    run = exact;
+  }
+  throw new Error(`Canonical CI run ${initialRun.id} did not complete after ${attempts} attempts.`);
+}
+
 /** Dispatch read-only canonical CI against the exact current Release Please head. */
 export async function dispatchReleasePleaseCi(input, request = githubRequest, wait = setTimeout) {
   const repository = String(input?.repository ?? "");
@@ -165,6 +198,9 @@ export async function dispatchReleasePleaseCi(input, request = githubRequest, wa
   const initialRuns = await listCiWorkflowRuns(repository, request);
   const existing = reusableExactRun(initialRuns, expected);
   if (existing) {
+    const completed = input.waitForCompletion
+      ? await waitForExactRunCompletion({ ...input, repository, trustedPolicySha }, expected, existing, request, wait)
+      : existing;
     await verifyStillCurrent({ repository, trustedPolicySha }, expected, request);
     return {
       status: "already-dispatched",
@@ -174,6 +210,7 @@ export async function dispatchReleasePleaseCi(input, request = githubRequest, wa
       trustedPolicySha,
       workflowRunId: existing.id,
       workflowRunUrl: existing.url,
+      workflowRunConclusion: completed.conclusion,
     };
   }
 
@@ -194,6 +231,15 @@ export async function dispatchReleasePleaseCi(input, request = githubRequest, wa
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const confirmed = reusableExactRun(await listCiWorkflowRuns(repository, request), expected, baselineIds);
     if (confirmed) {
+      const completed = input.waitForCompletion
+        ? await waitForExactRunCompletion(
+            { ...input, repository, trustedPolicySha },
+            expected,
+            confirmed,
+            request,
+            wait,
+          )
+        : confirmed;
       await verifyStillCurrent({ repository, trustedPolicySha }, expected, request);
       return {
         status: "dispatched",
@@ -203,6 +249,7 @@ export async function dispatchReleasePleaseCi(input, request = githubRequest, wa
         trustedPolicySha,
         workflowRunId: confirmed.id,
         workflowRunUrl: confirmed.url,
+        workflowRunConclusion: completed.conclusion,
       };
     }
     if (attempt + 1 < attempts) await new Promise((resolve) => wait(resolve, delayMs));
