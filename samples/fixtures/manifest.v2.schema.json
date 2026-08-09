@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sample-fixture-pack-v2.json",
+  "title": "Honua deterministic sample fixture pack manifest v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["fixturePackVersion", "identity", "schema", "provenance", "license", "freshness", "integrity"],
+  "properties": {
+    "fixturePackVersion": { "const": "honua.fixture-pack/v2" },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "revision", "title"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+        "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+        "revision": { "const": "v2" },
+        "title": { "$ref": "#/$defs/printable" }
+      }
+    },
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocols",
+        "geometryType",
+        "authorityCrs",
+        "coordinateEncoding",
+        "projections",
+        "extent",
+        "featureCount",
+        "selectedRecordId",
+        "files"
+      ],
+      "properties": {
+        "protocols": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["honua-capabilities-v1", "esri-geoservices-feature-server", "ogc-api-features-1.0"]
+          }
+        },
+        "geometryType": { "const": "MultiPolygon" },
+        "authorityCrs": { "const": "EPSG:4326" },
+        "coordinateEncoding": { "$ref": "#/$defs/coordinateEncoding" },
+        "projections": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["protocol", "crs", "coordinateEncoding"],
+            "properties": {
+              "protocol": { "enum": ["esri-geoservices-feature-server", "ogc-api-features-1.0"] },
+              "crs": { "enum": ["EPSG:4326", "OGC:CRS84"] },
+              "coordinateEncoding": { "$ref": "#/$defs/coordinateEncoding" }
+            }
+          }
+        },
+        "extent": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": { "type": "number" }
+        },
+        "featureCount": { "const": 48 },
+        "selectedRecordId": { "type": "integer", "minimum": 1, "maximum": 48 },
+        "files": {
+          "type": "object",
+          "minProperties": 8,
+          "maxProperties": 8,
+          "additionalProperties": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceUrl",
+        "sourceSha256",
+        "sourceBytes",
+        "retrievedAt",
+        "sourceVintage",
+        "selection",
+        "transformation",
+        "toolchain",
+        "refreshCommand"
+      ],
+      "properties": {
+        "sourceUrl": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "sourceBytes": { "type": "integer", "minimum": 1 },
+        "retrievedAt": { "type": "string", "format": "date-time" },
+        "sourceVintage": { "type": "string", "format": "date" },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["field", "equals", "sort"],
+          "properties": {
+            "field": { "const": "COUNTYFP" },
+            "equals": { "const": "009" },
+            "sort": { "const": "GEOID" }
+          }
+        },
+        "transformation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "sourceCrs",
+            "targetCrs",
+            "coordinatePrecision",
+            "geometryNormalization",
+            "attributeSelection",
+            "objectIdAssignment"
+          ],
+          "properties": {
+            "id": { "const": "honua-tiger-shapefile-v1" },
+            "sourceCrs": { "const": "EPSG:4269" },
+            "targetCrs": { "const": "EPSG:4326" },
+            "coordinatePrecision": { "const": 7 },
+            "geometryNormalization": { "$ref": "#/$defs/printable" },
+            "attributeSelection": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "uniqueItems": true,
+              "items": { "enum": ["GEOID", "NAME", "NAMELSAD", "ALAND", "AWATER"] }
+            },
+            "objectIdAssignment": { "const": "1-based index after ascending GEOID sort" }
+          }
+        },
+        "toolchain": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["node", "projection", "archive", "parser"],
+          "properties": {
+            "node": { "const": "20.19.0 (.nvmrc)" },
+            "projection": { "const": "proj4@2.20.9 (package-lock.json)" },
+            "archive": { "const": "node:zlib inflateRawSync" },
+            "parser": { "const": "scripts/refresh-first-map-tiger-v2.mjs" }
+          }
+        },
+        "refreshCommand": { "const": "npm run samples:fixtures:first-map-v2:write" }
+      }
+    },
+    "license": {
+      "oneOf": [{ "$ref": "#/$defs/apacheLicense" }, { "$ref": "#/$defs/usGovernmentLicense" }]
+    },
+    "freshness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "asOf", "refreshAfterDays"],
+      "properties": {
+        "policy": { "const": "immutable" },
+        "asOf": { "type": "string", "format": "date-time" },
+        "refreshAfterDays": { "type": "null" }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "canonicalization",
+        "canonicalDatasetSha256",
+        "metadataFingerprint",
+        "metadataComponents",
+        "files"
+      ],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "canonicalization": { "$ref": "#/$defs/printable" },
+        "canonicalDatasetSha256": { "$ref": "#/$defs/sha256" },
+        "metadataFingerprint": { "$ref": "#/$defs/sha256" },
+        "metadataComponents": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["license", "provenance"],
+          "properties": {
+            "license": { "$ref": "#/$defs/sha256" },
+            "provenance": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "files": {
+          "type": "object",
+          "minProperties": 8,
+          "maxProperties": 8,
+          "additionalProperties": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "printable": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "pattern": "^[^\\u0000-\\u001F\\u007F]+$"
+    },
+    "coordinateEncoding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "axes", "order"],
+      "properties": {
+        "format": { "enum": ["Esri JSON", "GeoJSON"] },
+        "axes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "string", "minLength": 1, "maxLength": 32 }
+        },
+        "order": { "const": "xy" }
+      }
+    },
+    "licenseShape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registryVersion",
+        "expression",
+        "termsUrl",
+        "termsSha256",
+        "citation",
+        "attributionRequired",
+        "redistributionAllowed",
+        "shareAlikeRequired",
+        "disclaimer"
+      ],
+      "properties": {
+        "registryVersion": { "type": "string" },
+        "expression": { "type": "string" },
+        "termsUrl": { "type": "string", "format": "uri" },
+        "termsSha256": { "$ref": "#/$defs/sha256" },
+        "citation": { "$ref": "#/$defs/printable" },
+        "attributionRequired": { "type": "boolean" },
+        "redistributionAllowed": { "type": "boolean" },
+        "shareAlikeRequired": { "type": "boolean" },
+        "disclaimer": { "$ref": "#/$defs/printable" }
+      }
+    },
+    "apacheLicense": {
+      "allOf": [
+        { "$ref": "#/$defs/licenseShape" },
+        {
+          "type": "object",
+          "properties": {
+            "registryVersion": { "const": "honua.fixture-license-registry/v1" },
+            "expression": { "const": "Apache-2.0" },
+            "termsUrl": { "const": "https://www.apache.org/licenses/LICENSE-2.0.txt" },
+            "termsSha256": { "const": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30" },
+            "citation": { "const": "Copyright Honua contributors; synthetic demonstration data." },
+            "attributionRequired": { "const": true },
+            "redistributionAllowed": { "const": true },
+            "shareAlikeRequired": { "const": false },
+            "disclaimer": {
+              "const": "Licensed under the Apache License, Version 2.0; distributed on an AS IS basis, without warranties or conditions."
+            }
+          }
+        }
+      ]
+    },
+    "usGovernmentLicense": {
+      "allOf": [
+        { "$ref": "#/$defs/licenseShape" },
+        {
+          "type": "object",
+          "properties": {
+            "registryVersion": { "const": "honua.fixture-license-registry/v1" },
+            "expression": { "const": "LicenseRef-US-Government-Work" },
+            "termsUrl": {
+              "const": "https://www2.census.gov/geo/pdfs/maps-data/data/tiger/tgrshp2025/TGRSHP2025_TechDoc_Ch1.pdf"
+            },
+            "termsSha256": { "const": "ce40bee768cdb00f9dadc154ca0b1dc6ca91180c1b9362e5d2b70cbea2d75003" },
+            "citation": { "const": "Source: U.S. Census Bureau, 2025 TIGER/Line Shapefiles." },
+            "attributionRequired": { "const": false },
+            "redistributionAllowed": { "const": true },
+            "shareAlikeRequired": { "const": false },
+            "disclaimer": {
+              "const": "Statistical boundaries are not legal land descriptions, do not determine jurisdiction or ownership, and are provided without warranty."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

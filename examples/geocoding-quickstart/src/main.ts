@@ -47,8 +47,9 @@ const OUTLINE_SOURCE_ID = "geocoding-fixture-outline";
 
 const config = resolveGeocodingQuickstartConfig(import.meta.env);
 const client = createGeocodingClient(config);
-const auditRows = createGeocodingAuditRows(config.locatorName);
-const endpointBase = `/rest/services/${encodeURIComponent(config.locatorName)}/GeocodeServer`;
+const auditRows = createGeocodingAuditRows(config);
+const endpointPath = `/rest/services/${encodeURIComponent(config.locatorName)}/GeocodeServer`;
+const endpointBase = config.mode === "live" ? `${config.honuaBaseUrl}${endpointPath}` : endpointPath;
 
 let ready = false;
 let mapReady = false;

@@ -1,0 +1,2447 @@
+{
+  "format": "honua.site.sdk-sample-projection.v3",
+  "schemaVersion": 3,
+  "catalog": {
+    "format": "honua.sdk.sample-catalog.v2",
+    "schemaVersion": 2,
+    "package": "@honua/sdk-js",
+    "version": "0.1.4-beta.0"
+  },
+  "contract": {
+    "producer": "honua-io/honua-sdk-js#540",
+    "consumer": "honua-io/honua-sdk-js#550",
+    "executableSourceOwner": "honua-io/honua-sdk-js",
+    "presentationOwner": "honua-io/honua-site"
+  },
+  "goldenJourneys": [
+    {
+      "id": "first-map",
+      "title": "First Map",
+      "status": "qualified",
+      "candidateSampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "service-explorer",
+      "title": "Universal Service Explorer",
+      "status": "qualified",
+      "candidateSampleId": "service-explorer"
+    },
+    {
+      "id": "planning-permitting",
+      "title": "Planning and Permitting",
+      "status": "planned",
+      "candidateSampleId": "planning-permitting-workbench"
+    },
+    {
+      "id": "incident-operations",
+      "title": "Realtime Incident Operations",
+      "status": "planned",
+      "candidateSampleId": "realtime-incident-dashboard"
+    },
+    {
+      "id": "imagery-terrain",
+      "title": "Imagery and Terrain",
+      "status": "qualified",
+      "candidateSampleId": "imagery-cog-quickstart"
+    },
+    {
+      "id": "cloud-native-analysis",
+      "title": "Cloud-Native Spatial Analysis",
+      "status": "planned",
+      "candidateSampleId": "spatial-analytics-workbench"
+    },
+    {
+      "id": "arcgis-migration",
+      "title": "ArcGIS Migration Workbench",
+      "status": "qualified",
+      "candidateSampleId": "migration-workbench"
+    }
+  ],
+  "externalReplacements": [
+    {
+      "id": "honua-app-platform",
+      "title": "@honua/app-platform",
+      "url": "https://www.npmjs.com/package/@honua/app-platform"
+    }
+  ],
+  "qualityProfiles": [
+    {
+      "id": "browser-fixture",
+      "description": "Internal browser conformance fixture with deterministic browser and console checks.",
+      "gates": {
+        "packedBuild": false,
+        "browser": true,
+        "accessibility": false,
+        "console": true,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    },
+    {
+      "id": "browser-lab",
+      "description": "Exploratory browser integration with packed, browser, accessibility, console, and responsive gates.",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    },
+    {
+      "id": "browser-recipe",
+      "description": "Copyable browser recipe with packed, browser, accessibility, console, and responsive gates.",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    },
+    {
+      "id": "golden-browser",
+      "description": "Canonical browser journey requiring the complete packed, browser, visual, performance, and live-evidence matrix.",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": true,
+        "performance": true,
+        "liveEvidence": true
+      }
+    },
+    {
+      "id": "headless-recipe",
+      "description": "Copyable Node or headless recipe requiring packed-package validation without browser presentation gates.",
+      "gates": {
+        "packedBuild": true,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    },
+    {
+      "id": "internal-fixture",
+      "description": "Internal input or conformance fixture; public presentation and packed-application gates do not apply.",
+      "gates": {
+        "packedBuild": false,
+        "browser": false,
+        "accessibility": false,
+        "console": false,
+        "responsive": false,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      }
+    }
+  ],
+  "samples": [
+    {
+      "id": "ai-spatial-app-builder",
+      "title": "Safe Agent Workbench",
+      "summary": "Proves typed proposals, shared policy validation, signed single-use approval, bounded execution, refusal, and verified receipt states.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "North-star safe-agent flagship rebuilt around plan-bound approval and receipts."
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/ai-spatial-app-builder",
+        "docsPath": "examples/ai-spatial-app-builder/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "agent-approval",
+        "agent-planning",
+        "atomic-authorization",
+        "query-planning",
+        "receipts",
+        "typed-agent-tools"
+      ],
+      "capabilityKeys": [
+        "ai.agent-operations",
+        "ai.approval-workflows",
+        "ai.mcp-discovery"
+      ],
+      "protocols": [
+        "geoservices",
+        "honua"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "host-mediated",
+        "provenance": "Committed parcel fixture plus optional host-mediated proposal and live-data endpoints.",
+        "attribution": "City and County of Honolulu — deterministic demonstration fixture.",
+        "freshness": "Fixture snapshot 2026-07-10; optional live lane records its observation time.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "targetMode": "authenticated",
+          "status": "skipped",
+          "evidencePath": "examples/ai-spatial-app-builder/evidence/live-skipped.v1.json",
+          "expiresAt": "2026-10-08T18:00:00.000Z"
+        }
+      },
+      "expectedDegradation": "Missing host endpoints produce a structured skip; mutation, realtime, and generated-app effects stay disabled without separate host policy."
+    },
+    {
+      "id": "app-bootstrap-basic",
+      "title": "Application bootstrap basic",
+      "summary": "Bootstraps a minimal application through the legacy app-platform compatibility surface.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "lifecycle": {
+        "state": "retire",
+        "reason": "The app-platform split supersedes this SDK-owned compatibility demonstration.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "external",
+          "id": "honua-app-platform"
+        }
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/app-bootstrap-basic",
+        "docsPath": "examples/app-bootstrap-basic/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "app-bootstrap"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed bootstrap fixture.",
+        "attribution": "Honua fixture data.",
+        "freshness": "Deterministic replay.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "Compatibility APIs are removed when the package advances to 0.2.0."
+    },
+    {
+      "id": "arcgis-source-app",
+      "title": "ArcGIS source migration fixture",
+      "summary": "Provides the ArcGIS JavaScript source application used by the migration end-to-end harness.",
+      "sourceKind": "root-example",
+      "track": "fixture",
+      "supportTier": "internal",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as a test input, not as a public Honua application."
+      },
+      "validationProfile": "internal-fixture",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/arcgis-source-app",
+        "docsPath": "examples/arcgis-source-app/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "arcgis",
+        "migration"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "arcgis"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed migration input fixture.",
+        "attribution": "Synthetic parcel fixture.",
+        "freshness": "Versioned with the repository.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "This is intentionally an ArcGIS input and does not load Honua at runtime."
+    },
+    {
+      "id": "automatic-source-workflow",
+      "title": "Automatic source-to-map workflow fixture",
+      "summary": "Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures.",
+      "sourceKind": "docs-example",
+      "track": "fixture",
+      "supportTier": "internal",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as the browser conformance fixture for the automatic source workflow."
+      },
+      "validationProfile": "browser-fixture",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "docs/examples/automatic-source-workflow",
+        "docsPath": "docs/examples/automatic-source-workflow/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "interaction-state",
+        "map",
+        "strategy-selection"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoservices",
+        "pmtiles",
+        "wms",
+        "wmts"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "In-memory feature and tile fixtures served from the local test origin.",
+        "attribution": "Honua deterministic browser fixtures.",
+        "freshness": "Versioned with the repository.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "Unsupported strategies and interaction operations remain explicit test failures."
+    },
+    {
+      "id": "cesium-route-playback",
+      "title": "Cesium route playback lab",
+      "summary": "Explores bounded route playback and elevation context through an optional Cesium consumer integration.",
+      "sourceKind": "docs-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion.",
+        "targetRelease": "0.2.0-beta.0"
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "docs/examples/cesium-route-playback",
+        "docsPath": "docs/examples/cesium-route-playback/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "route-playback",
+        "terrain",
+        "three-dimensional"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "routing.solve",
+        "serve.3d-tiles-scene"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "cesium"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "provenance": "Committed route query fixture or an explicitly configured Honua feature layer.",
+        "attribution": "Route and terrain providers remain visible in diagnostics.",
+        "freshness": "Fixture version or live query observation time.",
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "Live mode reads baseUrl and ionToken from URL query parameters; no configuration name is approved until the sample is reworked."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support."
+    },
+    {
+      "id": "edit-workflow-demo",
+      "title": "Conflict-aware editing workflow",
+      "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "replace",
+        "reason": "The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "journey",
+          "id": "planning-permitting"
+        }
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/edit-workflow-demo",
+        "docsPath": "examples/edit-workflow-demo/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "attachments",
+        "editing",
+        "optimistic-updates"
+      ],
+      "capabilityKeys": [
+        "editing.featureserver-edits"
+      ],
+      "protocols": [
+        "geoservices",
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed deterministic edit fixture.",
+        "attribution": "Honua synthetic operations data.",
+        "freshness": "Deterministic fixture replay time.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "demo-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Editing is read-only when the service does not advertise mutation capability."
+    },
+    {
+      "id": "geocoding-quickstart",
+      "title": "Geocoding quickstart",
+      "summary": "Runs forward, reverse, and suggestion workflows with map feedback.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion.",
+        "targetRelease": "0.2.0-beta.0"
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/geocoding-quickstart",
+        "docsPath": "examples/geocoding-quickstart/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "forward-geocode",
+        "reverse-geocode",
+        "suggest"
+      ],
+      "capabilityKeys": [
+        "geocoding.forward",
+        "geocoding.reverse"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "provenance": "Committed gazetteer responses or configured Honua GeocodeServer.",
+        "attribution": "Gazetteer attribution supplied by the endpoint.",
+        "freshness": "Fixture capture metadata or live response time.",
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "The UI identifies fixture fallback when the live endpoint is unavailable."
+    },
+    {
+      "id": "geoprocessing-job-runner",
+      "title": "Geoprocessing job runner",
+      "summary": "Submits, polls, cancels, and inspects asynchronous geoprocessing jobs.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "merge",
+        "reason": "Fold into the analysis journey while retaining this focused recipe.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "journey",
+          "id": "cloud-native-analysis"
+        }
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/geoprocessing-job-runner",
+        "docsPath": "examples/geoprocessing-job-runner/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "async-jobs",
+        "cancel",
+        "geoprocessing"
+      ],
+      "capabilityKeys": [
+        "process.geoprocessing"
+      ],
+      "protocols": [
+        "geoservices",
+        "ogc-processes"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "bearer",
+        "provenance": "Committed job-state fixture or configured process endpoint.",
+        "attribution": "Process-owner attribution from service metadata.",
+        "freshness": "Job receipt and poll observation times.",
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads a process-service token variable."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Unavailable or unlicensed processes are shown as structured capability gaps."
+    },
+    {
+      "id": "imagery-cog-quickstart",
+      "title": "Imagery and Terrain journey",
+      "summary": "Searches STAC, renders a bounded direct COG window in MapLibre, compares published imagery, and samples terrain elevation profiles.",
+      "sourceKind": "root-example",
+      "track": "golden",
+      "journeyId": "imagery-terrain",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Qualified Imagery and Terrain journey with current packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and pinned public STAC/COG live receipts."
+      },
+      "validationProfile": "golden-browser",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/imagery-cog-quickstart",
+        "docsPath": "examples/imagery-cog-quickstart/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "cog",
+        "elevation",
+        "imagery",
+        "profile",
+        "range-requests",
+        "raster",
+        "stac",
+        "terrain"
+      ],
+      "capabilityKeys": [
+        "raster.cloud-cog-serving",
+        "raster.terrain-rgb",
+        "serve.elevation",
+        "serve.stac"
+      ],
+      "protocols": [
+        "geoservices",
+        "stac",
+        "terrain-rgb",
+        "wms"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "host-mediated",
+        "provenance": "Committed STAC, bounded COG range/decoded-window, imagery, and terrain fixtures; a configured same-origin Honua service; or the scheduled pinned Element 84 Earth Search Sentinel-2 item.",
+        "attribution": "STAC and elevation provider attribution, license, version, checksum, and ETag remain visible in workflow receipts; the pinned lane records ESA, Sinergise, AWS, and Element 84 attribution from its reviewed contract.",
+        "freshness": "Fixture acquisition/version metadata, configured-service response observation time, or the scheduled pinned-item observation time.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "executed",
+          "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
+          "expiresAt": "2026-09-09T15:16:23.132Z"
+        }
+      },
+      "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
+    },
+    {
+      "id": "kepler-analytics",
+      "title": "Kepler operations analytics",
+      "summary": "Replays operations data through kepler.gl with linked filters and KPI evidence.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Retain as a renderer recipe and align it with the columnar large-data journey.",
+        "targetRelease": "0.2.0-beta.0"
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/kepler-analytics",
+        "docsPath": "examples/kepler-analytics/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "analytics",
+        "linked-filters",
+        "replay"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geojson",
+        "honua"
+      ],
+      "renderers": [
+        "kepler"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "provenance": "Committed Honua export with refresh metadata.",
+        "attribution": "Synthetic Honua operations fixture.",
+        "freshness": "Fixture metadata records the source retrieval time.",
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle reads a public Mapbox token; it is explicitly classified as public, but the current browser policy does not approve credential values."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "The committed export is labeled replayed rather than live."
+    },
+    {
+      "id": "maplibre-quickstart",
+      "title": "First Map: endpoint to inspected MapLibre map",
+      "summary": "Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result.",
+      "sourceKind": "root-example",
+      "track": "golden",
+      "journeyId": "first-map",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
+      },
+      "validationProfile": "golden-browser",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/maplibre-quickstart",
+        "docsPath": "examples/maplibre-quickstart/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "direct-connect",
+        "discovery",
+        "explain-plan",
+        "linked-views",
+        "map",
+        "provenance",
+        "query"
+      ],
+      "capabilityKeys": [
+        "discovery.capability-manifest"
+      ],
+      "protocols": [
+        "geoservices",
+        "ogc-features"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "provenance": "Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.",
+        "attribution": "Endpoint-advertised attribution is shown and preserved; unavailable attribution is stated explicitly.",
+        "freshness": "SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "executed",
+          "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
+          "expiresAt": "2026-09-09T15:14:13.737Z"
+        }
+      },
+      "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
+    },
+    {
+      "id": "mcp-gis-assistant",
+      "title": "MCP GIS assistant",
+      "summary": "Demonstrates assistant tool discovery and safe SDK-backed spatial operations.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Use the same plan, provenance, approval, and evidence contracts as the agent journey.",
+        "targetRelease": "0.2.0-beta.0"
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/mcp-gis-assistant",
+        "docsPath": "examples/mcp-gis-assistant/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "agent-tools",
+        "mcp",
+        "query"
+      ],
+      "capabilityKeys": [
+        "ai.mcp-discovery"
+      ],
+      "protocols": [
+        "honua",
+        "mcp"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed MCP response fixture.",
+        "attribution": "Tool results preserve source attribution.",
+        "freshness": "Deterministic fixture replay time.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "demo-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Write tools are unavailable without host policy and explicit approval."
+    },
+    {
+      "id": "migration-workbench",
+      "title": "ArcGIS migration workbench",
+      "summary": "Scans and transforms ArcGIS application source with auditable compatibility results.",
+      "sourceKind": "root-example",
+      "track": "golden",
+      "journeyId": "arcgis-migration",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Qualified ArcGIS Migration Workbench journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and deterministic-CLI live receipts."
+      },
+      "validationProfile": "golden-browser",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/migration-workbench",
+        "docsPath": "docs/migration-honua-maplibre.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "codemod",
+        "compatibility",
+        "migration"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed ArcGIS source fixtures and migration reports.",
+        "attribution": "Fixture source attribution is preserved in output.",
+        "freshness": "Versioned with the migration corpus.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "demo-live",
+          "status": "executed",
+          "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
+          "expiresAt": "2026-09-09T15:16:47.758Z"
+        }
+      },
+      "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
+    },
+    {
+      "id": "nl-map-control",
+      "title": "Natural-language map control",
+      "summary": "A recorded fixture LLM compiles a canned instruction into an inspectable plan; read-only plans auto-execute, mutating plans require a signed agent-safety approval, and every execution emits a receipt beside the live map effects.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Headline proof of the plan-first NL map-control layer (#500): BYO LLM, approval envelopes, and execution receipts on a live MapLibre map."
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/nl-map-control",
+        "docsPath": "examples/nl-map-control/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "agent-approval",
+        "agent-planning",
+        "agent-tools",
+        "map",
+        "receipts"
+      ],
+      "capabilityKeys": [
+        "ai.agent-operations",
+        "ai.approval-workflows",
+        "ai.mcp-discovery"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed recorded LLM completions and incident fixtures from test/fixtures/nl-map-control/.",
+        "attribution": "Honua demo fixture attribution is shown in the sample.",
+        "freshness": "Deterministic fixture replay time.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "demo-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Viewport and mutation plans refuse to execute without a verified approval envelope and report approval-required; the recorded LLM answers only the canned demo instructions."
+    },
+    {
+      "id": "node-backend-quickstart",
+      "title": "Node backend quickstart",
+      "summary": "Uses the protocol-neutral client from a Node service without browser dependencies.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Preserve the focused server-side installation and lifecycle path."
+      },
+      "validationProfile": "headless-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/node-backend-quickstart",
+        "docsPath": "examples/node-backend-quickstart/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "node",
+        "query",
+        "server"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "provenance": "Committed mock responses or configured Honua endpoint.",
+        "attribution": "Response provenance is returned by the service.",
+        "freshness": "Fixture replay or live query observation time.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "The recipe fails explicitly when required server capabilities are absent."
+    },
+    {
+      "id": "oauth-signin",
+      "title": "OAuth sign-in",
+      "summary": "Demonstrates browser authentication and session lifecycle without embedding credentials.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as the focused browser authentication recipe."
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/oauth-signin",
+        "docsPath": "examples/oauth-signin/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "authentication",
+        "oauth",
+        "session"
+      ],
+      "capabilityKeys": [
+        "identity.oidc"
+      ],
+      "protocols": [
+        "oauth"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "oauth",
+        "provenance": "Self-hosted deterministic OAuth identity-provider fixture.",
+        "attribution": "No spatial data is rendered.",
+        "freshness": "Fixture session issuance and expiry times.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Live sign-in is unavailable until the host supplies an OAuth configuration."
+    },
+    {
+      "id": "offline-region-reference",
+      "title": "Network-disabled offline region reference",
+      "summary": "Proves that a persisted IndexedDB region, a durable queued edit, and a bounded host-owned application shell survive reload after browser networking is disabled, then replays that edit exactly once against a loopback fixture transport on reconnect and reports one composed local-first state.",
+      "sourceKind": "docs-example",
+      "track": "fixture",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as browser evidence for the disconnected-read, offline edit capture and reconnect replay, and composed local-first state acceptance slices of the experimental offline region contract."
+      },
+      "validationProfile": "browser-fixture",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "docs/examples/offline-region-reference",
+        "docsPath": "docs/examples/offline-region-reference/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "offline",
+        "provenance"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "One committed integrity-, length-, and version-pinned fixture served from an isolated loopback origin and persisted through the public IndexedDB offline contract; edit replay is bound to a loopback fixture endpoint that mirrors the documented acknowledgement shape and keeps no replica, upload cursor, or conflict store.",
+        "attribution": "Honua deterministic incident fixture.",
+        "freshness": "Explicit online observation time and stale disconnected diagnostic time.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "A missing persisted region renders an explicit offline cache miss and a partial/missing-regions local-first state that a queued edit cannot mask, and a conflicted, mismatched, or retryable acknowledgement leaves durable typed queue state instead of a silent drop; the fixture does not synthesize an empty success and its loopback replay endpoint does not claim replica synchronization or end-to-end exactly-once server semantics."
+    },
+    {
+      "id": "overture-geoparquet",
+      "title": "Overture GeoParquet",
+      "summary": "Plans and executes bounded Overture GeoParquet queries with truthful worker, range, memory, and pruning evidence.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Large-data flagship now shares one bounded semantic workflow across deterministic fixture and pinned AWS lanes."
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/overture-geoparquet",
+        "docsPath": "examples/overture-geoparquet/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "cancellation",
+        "columnar",
+        "geoparquet",
+        "large-data",
+        "progressive-rendering",
+        "range-reads"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoparquet",
+        "s3"
+      ],
+      "renderers": [
+        "svg"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "provenance": "Committed deterministic GeoParquet fixture or pinned Overture STAC item 2026-06-17.0/places/place/00000 on public AWS Open Data.",
+        "attribution": "Overture Maps Foundation Open Map Data with per-feature upstream sources preserved by the live schema.",
+        "freshness": "Pinned release, schema, object ETag, last modification, and execution observation time are shown separately.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Unsupported or malformed ranges, expired objects, unsafe plans, worker failures, the 10-second source-probe deadline, and the 30-second engine budget stop explicitly. DuckDB full-HTTP fallback is disabled; scheduled evidence rejects un-ranged GETs and measures browser range bytes, while rows scanned and row groups pruned remain unverified."
+    },
+    {
+      "id": "planning-permitting-workbench",
+      "title": "Planning and Permitting journey",
+      "summary": "Runs public SDK geocoding, metadata-backed queries, bounded geometry analysis, edit and attachment recovery, and review export against deterministic same-origin services.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "journeyId": "planning-permitting",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Maintain the fixture-first public SDK workflow and source/packed browser gates as the planned planning candidate; golden qualification and live evidence remain explicitly unclaimed."
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/planning-permitting-workbench",
+        "docsPath": "examples/planning-permitting-workbench/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "attachments",
+        "editing",
+        "forward-geocode",
+        "geometry",
+        "linked-views",
+        "planning",
+        "provenance",
+        "query"
+      ],
+      "capabilityKeys": [
+        "editing.featureserver-edits",
+        "geocoding.forward"
+      ],
+      "protocols": [
+        "geoservices",
+        "honua"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed versioned same-origin Maui planning metadata, geocoding, feature, edit, attachment, and deterministic failure fixtures.",
+        "attribution": "Honua synthetic Maui planning data; not a current regulatory determination.",
+        "freshness": "Fixture version and generated-at values are committed with the repository; no live freshness claim is made.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Metadata or capability discovery failure disables search, analysis, review export, and mutation without a local success fallback; the fixture hazard result is not a regulatory determination."
+    },
+    {
+      "id": "pmtiles-static",
+      "title": "PMTiles static map",
+      "summary": "Loads a static PMTiles archive without a Honua server.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Preserve the smallest server-optional vector-tile recipe."
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/pmtiles-static",
+        "docsPath": "examples/pmtiles-static/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "offline",
+        "pmtiles",
+        "vector-tiles"
+      ],
+      "capabilityKeys": [
+        "serve.vector-tiles"
+      ],
+      "protocols": [
+        "pmtiles"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed fixture-sized PMTiles archive.",
+        "attribution": "Archive attribution must be supplied by the host.",
+        "freshness": "Fixture version committed with the repository.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "The sample reports missing range-request support instead of fetching an unbounded archive."
+    },
+    {
+      "id": "react-quickstart",
+      "title": "React quickstart",
+      "summary": "Focused React provider, hooks, and map-component recipe alongside the framework-neutral First Map journey.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Keep one focused React integration recipe without duplicating or redesigning First Map."
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/react-quickstart",
+        "docsPath": "examples/react-quickstart/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "map",
+        "query",
+        "react"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "provenance": "Committed quickstart fixture or configured Honua service.",
+        "attribution": "Service attribution shown in the map runtime.",
+        "freshness": "Fixture capture metadata or live observation time.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "The component exposes connection and capability errors through React state."
+    },
+    {
+      "id": "realtime-incident-dashboard",
+      "title": "Realtime incident operations",
+      "summary": "Runs live-first incident command with observable reconciliation and a guarded, resettable edit lab.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "journeyId": "incident-operations",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Flagship realtime journey now proves authority, diagnostics, degradation, concurrency, idempotency, and safe reset."
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/realtime-incident-dashboard",
+        "docsPath": "examples/realtime-incident-dashboard/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "idempotency",
+        "optimistic-concurrency",
+        "realtime",
+        "reconciliation",
+        "safe-editing",
+        "sse"
+      ],
+      "capabilityKeys": [
+        "editing.featureserver-edits",
+        "streaming.feature-subscriptions"
+      ],
+      "protocols": [
+        "geoservices",
+        "sse"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "provenance": "Deployed demo stream when advertised; otherwise visibly labeled deterministic replay. Edits are limited to an isolated resettable fixture profile.",
+        "attribution": "Synthetic incident operations data.",
+        "freshness": "Snapshot, observation, and event times plus cursor, sequence, lag, reconnect, deduplication, and reconciliation outcomes.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "targetMode": "demo-live",
+          "status": "skipped",
+          "evidencePath": "examples/realtime-incident-dashboard/evidence/live-skipped.v1.json",
+          "expiresAt": "2026-10-10T02:18:02.730Z"
+        }
+      },
+      "expectedDegradation": "Unavailable live capability becomes a visibly labeled read-only replay; stale/offline state disables mutation, and live writes fail closed without an isolated resettable profile."
+    },
+    {
+      "id": "runtime-parity-showcase",
+      "title": "Runtime parity showcase",
+      "summary": "Compares supported rendering paths and makes fidelity differences explicit.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "replace",
+        "reason": "Replace parity claims with renderer-specific execution and fidelity reports.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "journey",
+          "id": "service-explorer"
+        }
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/runtime-parity-showcase",
+        "docsPath": "examples/runtime-parity-showcase/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "fidelity",
+        "renderer-adapters",
+        "runtime"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "cesium",
+        "kepler",
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed renderer comparison fixtures.",
+        "attribution": "Honua synthetic fixtures.",
+        "freshness": "Versioned with the repository.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "Unsupported renderer operations are reported as fidelity differences."
+    },
+    {
+      "id": "service-explorer",
+      "title": "Universal service explorer",
+      "summary": "Turns a service URL into inspected protocol truth, accepted plans, a bounded query, and copyable map code.",
+      "sourceKind": "root-example",
+      "track": "golden",
+      "journeyId": "service-explorer",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Qualified Universal Service Explorer journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous dual-protocol live receipts."
+      },
+      "validationProfile": "golden-browser",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/service-explorer",
+        "docsPath": "examples/service-explorer/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "cancellation",
+        "capability-discovery",
+        "explain-plan",
+        "fidelity",
+        "map",
+        "protocols",
+        "provenance",
+        "query"
+      ],
+      "capabilityKeys": [
+        "discovery.capability-manifest"
+      ],
+      "protocols": [
+        "geoservices",
+        "odata",
+        "ogc",
+        "stac",
+        "wfs",
+        "wms",
+        "wmts"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "provenance": "Same-origin deterministic GeoServices and OGC fixtures, or a reviewed credential-free dual-protocol public producer when explicitly enabled.",
+        "attribution": "Inspected source attribution remains visible; fixtures are Honua synthetic data and the scheduled defaults credit Esri and pygeoapi.",
+        "freshness": "Fixture replay is deterministic; a future scheduled public envelope records its observation time without changing feature-cache semantics.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "executed",
+          "evidencePath": "samples/evidence/service-explorer/live.v1.json",
+          "expiresAt": "2026-09-09T15:17:50.671Z"
+        }
+      },
+      "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
+    },
+    {
+      "id": "shared-renderer-state",
+      "title": "Shared renderer state lab",
+      "summary": "Exercises loop-safe camera, selection, filter, and time synchronization across MapLibre and Cesium.",
+      "sourceKind": "docs-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as an integration lab for the renderer-neutral state synchronizer."
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "docs/examples/shared-renderer-state",
+        "docsPath": "docs/examples/shared-renderer-state/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "camera",
+        "filtering",
+        "selection",
+        "temporal"
+      ],
+      "capabilityKeys": [
+        "temporal.filtering"
+      ],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "cesium",
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Deterministic renderer-neutral state fixture.",
+        "attribution": "Honua synthetic state fixture.",
+        "freshness": "Versioned with the repository.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "Missing optional renderers fail their own lane without changing shared state semantics."
+    },
+    {
+      "id": "sketch-editing",
+      "title": "Interactive sketch editing with terra-draw",
+      "summary": "terra-draw draw modes drive the edit-sketch workflow: undo/redo, snapping, and applyEdits submission.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as the focused terra-draw drawing, snapping, undo, and edit-submission recipe; the planning journey owns the end-to-end planning workflow."
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/sketch-editing",
+        "docsPath": "examples/sketch-editing/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "editing",
+        "sketch",
+        "snapping"
+      ],
+      "capabilityKeys": [
+        "editing.featureserver-edits"
+      ],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed deterministic harbor-parcel fixture.",
+        "attribution": "Honua synthetic operations data.",
+        "freshness": "Deterministic fixture replay time.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Sketch tools report unsupported capabilities when terra-draw is not installed; the SDK works without the optional peer."
+    },
+    {
+      "id": "spatial-analytics-workbench",
+      "title": "Spatial analytics workbench",
+      "summary": "Explains and accepts one plan linking AOI, map, table, chart, provenance, and reusable output.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "journeyId": "cloud-native-analysis",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "rework",
+        "reason": "Join the large-data journey and distinguish fixture estimates from executed plans.",
+        "targetRelease": "0.2.0-beta.0"
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/spatial-analytics-workbench",
+        "docsPath": "examples/spatial-analytics-workbench/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "aggregation",
+        "analysis",
+        "bounded-local",
+        "explain-plan",
+        "linked-views",
+        "provenance"
+      ],
+      "capabilityKeys": [
+        "analytics.buffer-aggregate"
+      ],
+      "protocols": [
+        "geoservices",
+        "ogc"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "anonymous",
+        "provenance": "Committed analysis fixtures or a configured public GeoServices source.",
+        "attribution": "Input/output attribution, source/schema versions, observation time, cache decision, and plan fingerprint are retained.",
+        "freshness": "Fixture replay uses a fixed observation; configured live execution records its observation time.",
+        "configurationStatus": "approved"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "targetMode": "public-live",
+          "status": "skipped",
+          "evidencePath": "examples/spatial-analytics-workbench/evidence/live-skipped.v1.json",
+          "expiresAt": "2026-11-01T08:34:51.355Z"
+        }
+      },
+      "expectedDegradation": "Remote fixtures are labeled replayed, bounded-local execution is capped, unsafe materialization is rejected, and OGC/DuckDB planner execution is a structured #389 follow-on."
+    },
+    {
+      "id": "stac-imagery-browser",
+      "title": "STAC imagery browser",
+      "summary": "Discovers STAC collections and previews supported imagery assets.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/stac-imagery-browser",
+        "docsPath": "examples/stac-imagery-browser/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "cog",
+        "imagery",
+        "stac"
+      ],
+      "capabilityKeys": [
+        "raster.cloud-cog-serving",
+        "serve.stac"
+      ],
+      "protocols": [
+        "stac"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed deterministic STAC catalog.",
+        "attribution": "Asset-provider attribution from STAC metadata.",
+        "freshness": "Fixture item datetime and catalog version.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "public-live",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Unsupported asset types retain metadata but disable rendering with a reason."
+    },
+    {
+      "id": "storytelling-25d-map",
+      "title": "2.5D storytelling map",
+      "summary": "Combines terrain, extrusion, OGC overlays, and route playback in a guided story.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "merge",
+        "reason": "Use its strongest interactions inside the imagery and 3D journey.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "journey",
+          "id": "imagery-terrain"
+        }
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/storytelling-25d-map",
+        "docsPath": "examples/storytelling-25d-map/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "storytelling",
+        "terrain",
+        "three-dimensional"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "serve.3d-tiles-scene"
+      ],
+      "protocols": [
+        "honua",
+        "ogc-features"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "provenance": "Committed Oahu story fixtures or configured Honua services.",
+        "attribution": "Basemap, terrain, and thematic source attribution is displayed.",
+        "freshness": "Fixture capture or live layer observation time.",
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads a Honua API-key variable."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Terrain and live overlays fail independently with structured status."
+    },
+    {
+      "id": "temporal-playback",
+      "title": "Temporal playback",
+      "summary": "Animates a month of seeded synthetic seismic events with createTemporalPlayback, styled by a first-class classBreaksRenderer whose legend derives from renderer.legendItems().",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Canonical demo for first-class renderer objects + temporal playback (#497): renderer-driven styling, legend contracts, and filter-composed time windows."
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/temporal-playback",
+        "docsPath": "examples/temporal-playback/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "map",
+        "realtime",
+        "renderer-adapters"
+      ],
+      "capabilityKeys": [
+        "streaming.feature-subscriptions"
+      ],
+      "protocols": [
+        "geojson"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Synthetic seismic events generated in the browser from a seeded PRNG; no network access.",
+        "attribution": "Honua synthetic demo data.",
+        "freshness": "Deterministic seeded generation per load.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "Playback filters compose with bind-time layer filters; when MapLibre is unavailable the renderer objects still serialize and expose legend metadata headlessly."
+    },
+    {
+      "id": "terrain-rgb-elevation",
+      "title": "Terrain RGB elevation",
+      "summary": "Reads Terrain-RGB tiles for point elevation and route profiles.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "supported",
+      "lifecycle": {
+        "state": "merge",
+        "reason": "Combine point/profile proof with the imagery and 3D flagship.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "journey",
+          "id": "imagery-terrain"
+        }
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/terrain-rgb-elevation",
+        "docsPath": "examples/terrain-rgb-elevation/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "elevation",
+        "profile",
+        "terrain"
+      ],
+      "capabilityKeys": [
+        "raster.terrain-rgb",
+        "serve.elevation"
+      ],
+      "protocols": [
+        "terrain-rgb"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "provenance": "Committed Oahu DEM fixture or configured terrain service.",
+        "attribution": "Elevation-source attribution displayed with results.",
+        "freshness": "Fixture asset version or live response time.",
+        "configurationStatus": "legacy-unsafe",
+        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned"
+        }
+      },
+      "expectedDegradation": "Profile and map terrain expose independent capability failures."
+    },
+    {
+      "id": "unified-ops-workspace",
+      "title": "Unified operations workspace",
+      "summary": "Composes incident command, analysis, and shared workspace state.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "lifecycle": {
+        "state": "retire",
+        "reason": "Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "journey",
+          "id": "incident-operations"
+        }
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/unified-ops-workspace",
+        "docsPath": "examples/unified-ops-workspace/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "analysis",
+        "realtime",
+        "workspace"
+      ],
+      "capabilityKeys": [
+        "streaming.feature-subscriptions"
+      ],
+      "protocols": [
+        "honua",
+        "sse"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed operations workspace fixture.",
+        "attribution": "Synthetic Honua operations data.",
+        "freshness": "Deterministic snapshot and delta replay.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "Deprecated app-shell APIs remain available only through their transition window."
+    },
+    {
+      "id": "web-components-basic",
+      "title": "Web components basic",
+      "summary": "Demonstrates the SDK custom-element controls against a map.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "lifecycle": {
+        "state": "retire",
+        "reason": "Controls move with app-platform rather than remaining in the core SDK gallery.",
+        "targetRelease": "0.2.0-beta.0",
+        "replacement": {
+          "kind": "external",
+          "id": "honua-app-platform"
+        }
+      },
+      "validationProfile": "browser-lab",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/web-components-basic",
+        "docsPath": "examples/web-components-basic/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "controls",
+        "custom-elements",
+        "map"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "honua"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed control-gallery fixture.",
+        "attribution": "Honua fixture data.",
+        "freshness": "Versioned with the repository.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "Deprecated controls are linked to their app-platform replacements."
+    }
+  ],
+  "routes": [
+    {
+      "id": "analyst-workbench",
+      "route": "demo-analyst-workbench.html",
+      "ownership": "sdk-projection",
+      "sampleId": "spatial-analytics-workbench"
+    },
+    {
+      "id": "codemod",
+      "route": "sample-codemod.html",
+      "ownership": "sdk-projection",
+      "sampleId": "migration-workbench"
+    },
+    {
+      "id": "control-legend",
+      "route": "sample-control-legend.html",
+      "ownership": "site-exception",
+      "exceptionReason": "Site-owned focused presentation route until app-platform owns a replacement executable.",
+      "title": "Legend control",
+      "summary": "Presents one control extracted from the site controls gallery.",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "capabilities": [
+        "legend",
+        "web-components"
+      ]
+    },
+    {
+      "id": "control-search",
+      "route": "sample-control-search.html",
+      "ownership": "site-exception",
+      "exceptionReason": "Site-owned focused presentation route until app-platform owns a replacement executable.",
+      "title": "Search control",
+      "summary": "Presents one control extracted from the site controls gallery.",
+      "track": "lab",
+      "supportTier": "deprecated",
+      "capabilities": [
+        "search",
+        "web-components"
+      ]
+    },
+    {
+      "id": "controls-kit",
+      "route": "demo-sdk-controls.html",
+      "ownership": "sdk-projection",
+      "sampleId": "web-components-basic"
+    },
+    {
+      "id": "editing",
+      "route": "demo-editing.html",
+      "ownership": "sdk-projection",
+      "sampleId": "planning-permitting-workbench"
+    },
+    {
+      "id": "esri-leaflet",
+      "route": "demo-esri-leaflet.html",
+      "ownership": "sdk-projection",
+      "sampleId": "arcgis-source-app"
+    },
+    {
+      "id": "expr-builder",
+      "route": "sample-expr-builder.html",
+      "ownership": "sdk-projection",
+      "sampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "geocoding",
+      "route": "sample-geocoding.html",
+      "ownership": "sdk-projection",
+      "sampleId": "geocoding-quickstart"
+    },
+    {
+      "id": "gp-runner",
+      "route": "demo-geoprocessing.html",
+      "ownership": "sdk-projection",
+      "sampleId": "geoprocessing-job-runner"
+    },
+    {
+      "id": "hello-webmap",
+      "route": "sample-hello-webmap.html",
+      "ownership": "sdk-projection",
+      "sampleId": "app-bootstrap-basic"
+    },
+    {
+      "id": "imagery-terrain",
+      "route": "demo-imagery-terrain.html",
+      "ownership": "sdk-projection",
+      "sampleId": "imagery-cog-quickstart"
+    },
+    {
+      "id": "maui-3d",
+      "route": "demo-maui-3d.html",
+      "ownership": "sdk-projection",
+      "sampleId": "imagery-cog-quickstart"
+    },
+    {
+      "id": "maui-explorer",
+      "route": "demo.html",
+      "ownership": "sdk-projection",
+      "sampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "planning-permitting",
+      "route": "demo-planning-permitting.html",
+      "ownership": "sdk-projection",
+      "sampleId": "planning-permitting-workbench"
+    },
+    {
+      "id": "public-safety",
+      "route": "demo-public-safety.html",
+      "ownership": "sdk-projection",
+      "sampleId": "realtime-incident-dashboard"
+    },
+    {
+      "id": "quickstart-map",
+      "route": "demo.html",
+      "ownership": "sdk-projection",
+      "sampleId": "maplibre-quickstart"
+    },
+    {
+      "id": "service-explorer",
+      "route": "sample-service-explorer.html",
+      "ownership": "sdk-projection",
+      "sampleId": "service-explorer"
+    },
+    {
+      "id": "spatial-analytics",
+      "route": "sample-spatial-analytics.html",
+      "ownership": "sdk-projection",
+      "sampleId": "spatial-analytics-workbench"
+    },
+    {
+      "id": "two-protocols",
+      "route": "demo-two-protocols.html",
+      "ownership": "sdk-projection",
+      "sampleId": "service-explorer"
+    },
+    {
+      "id": "wms-overlay",
+      "route": "sample-raster-overlay.html",
+      "ownership": "sdk-projection",
+      "sampleId": "imagery-cog-quickstart"
+    }
+  ],
+  "sampleBundles": {
+    "format": "honua.sdk.sample-bundles.v2",
+    "schemaVersion": 2,
+    "publication": {
+      "repo": "honua-io/honua-sdk-js",
+      "releaseTag": "sample-bundles-latest",
+      "manifestAsset": "sample-bundles.v2.json",
+      "bundleAsset": "sample-bundles.tar.gz"
+    },
+    "sampleIds": [
+      "ai-spatial-app-builder",
+      "imagery-cog-quickstart",
+      "maplibre-quickstart",
+      "migration-workbench",
+      "nl-map-control",
+      "overture-geoparquet",
+      "planning-permitting-workbench",
+      "pmtiles-static",
+      "react-quickstart",
+      "realtime-incident-dashboard",
+      "service-explorer",
+      "sketch-editing",
+      "stac-imagery-browser",
+      "temporal-playback"
+    ],
+    "published": [
+      {
+        "id": "ai-spatial-app-builder",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "imagery-cog-quickstart",
+        "runnability": "requires-host-fixture-service",
+        "hostFixtureRoutes": [
+          "/api/v1/terrain/OahuTerrain/elevation/value",
+          "/fixtures/cog/",
+          "/fixtures/imagery/cog/",
+          "/rest/services/OahuCog/ImageServer",
+          "/rest/services/OahuImagery/MapServer/WMS",
+          "/rest/services/OahuTerrain/ImageServer",
+          "/stac/search"
+        ]
+      },
+      {
+        "id": "maplibre-quickstart",
+        "runnability": "requires-live-endpoint",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "migration-workbench",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "nl-map-control",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "overture-geoparquet",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "planning-permitting-workbench",
+        "runnability": "requires-host-fixture-service",
+        "hostFixtureRoutes": [
+          "/rest/services/Maui/Planning/FeatureServer"
+        ]
+      },
+      {
+        "id": "pmtiles-static",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "react-quickstart",
+        "runnability": "requires-host-fixture-service",
+        "hostFixtureRoutes": [
+          "/api/v1/admin/capabilities",
+          "/rest/services/natural-earth/FeatureServer/0"
+        ]
+      },
+      {
+        "id": "realtime-incident-dashboard",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "service-explorer",
+        "runnability": "requires-live-endpoint",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "sketch-editing",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "stac-imagery-browser",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "temporal-playback",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      }
+    ],
+    "excluded": [
+      {
+        "id": "app-bootstrap-basic",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"retire\" (target 0.2.0-beta.0): The app-platform split supersedes this SDK-owned compatibility demonstration. Replacement: external \"honua-app-platform\"."
+      },
+      {
+        "id": "arcgis-source-app",
+        "category": "non-runtime-sample",
+        "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. Catalog supportTier is \"internal\", which may not gain a new public runnable surface. examples/arcgis-source-app has no vite.config.ts; it is the pre-migration ArcGIS input consumed by npm run test:migration:real-samples (catalog validationProfile internal-fixture)."
+      },
+      {
+        "id": "automatic-source-workflow",
+        "category": "non-runtime-sample",
+        "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. Catalog supportTier is \"internal\", which may not gain a new public runnable surface. docs/examples/automatic-source-workflow has no vite.config.ts; it is a documentation snippet (plain script/CDN pattern) exercised by a Playwright spec."
+      },
+      {
+        "id": "cesium-route-playback",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Replace URL-query endpoint and ion-token configuration with the approved secret-safe configuration surface before promotion."
+      },
+      {
+        "id": "edit-workflow-demo",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"replace\" (target 0.2.0-beta.0): The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Replacement: journey \"planning-permitting\"."
+      },
+      {
+        "id": "geocoding-quickstart",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion."
+      },
+      {
+        "id": "geoprocessing-job-runner",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"merge\" (target 0.2.0-beta.0): Fold into the analysis journey while retaining this focused recipe. Replacement: journey \"cloud-native-analysis\"."
+      },
+      {
+        "id": "kepler-analytics",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Retain as a renderer recipe and align it with the columnar large-data journey."
+      },
+      {
+        "id": "mcp-gis-assistant",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Use the same plan, provenance, approval, and evidence contracts as the agent journey."
+      },
+      {
+        "id": "node-backend-quickstart",
+        "category": "non-browser-app",
+        "reason": "Not a browser app: no Vite config and no browser renderer. examples/node-backend-quickstart has no vite.config.ts; the catalog declares renderers [none], validationProfile headless-recipe, and an entirely server-only config surface including API-key and service-account credentials."
+      },
+      {
+        "id": "oauth-signin",
+        "category": "requires-companion-server",
+        "reason": "The default flow needs its own running companion server process at runtime, not just a data origin. examples/oauth-signin/mock-server.mjs is a mock OAuth identity provider the sample redirects to and exchanges codes against at runtime (catalog data.authMode oauth); the flow needs a live participant process, not a static data origin."
+      },
+      {
+        "id": "offline-region-reference",
+        "category": "non-runtime-sample",
+        "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. docs/examples/offline-region-reference has no vite.config.ts; it is a bounded documentation reference exercised by test/playwright/offline-indexeddb.spec.mjs with an isolated loopback fixture origin."
+      },
+      {
+        "id": "runtime-parity-showcase",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"replace\" (target 0.2.0-beta.0): Replace parity claims with renderer-specific execution and fidelity reports. Replacement: journey \"service-explorer\"."
+      },
+      {
+        "id": "shared-renderer-state",
+        "category": "non-runtime-sample",
+        "reason": "Not a Honua-runtime Vite package: a documentation snippet or migration-codemod test input. docs/examples/shared-renderer-state has no vite.config.ts; it is a documentation snippet exercised by test/playwright/shared-renderer-state.spec.mjs."
+      },
+      {
+        "id": "spatial-analytics-workbench",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Join the large-data journey and distinguish fixture estimates from executed plans."
+      },
+      {
+        "id": "storytelling-25d-map",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"merge\" (target 0.2.0-beta.0): Use its strongest interactions inside the imagery and 3D journey. Replacement: journey \"imagery-terrain\"."
+      },
+      {
+        "id": "terrain-rgb-elevation",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"merge\" (target 0.2.0-beta.0): Combine point/profile proof with the imagery and 3D flagship. Replacement: journey \"imagery-terrain\"."
+      },
+      {
+        "id": "unified-ops-workspace",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"retire\" (target 0.2.0-beta.0): Application-shell ownership moves to app-platform; preserve the realtime SDK journey separately. Replacement: journey \"incident-operations\"."
+      },
+      {
+        "id": "web-components-basic",
+        "category": "lifecycle-not-active",
+        "reason": "Catalog lifecycle.state is \"retire\" (target 0.2.0-beta.0): Controls move with app-platform rather than remaining in the core SDK gallery. Replacement: external \"honua-app-platform\"."
+      }
+    ]
+  }
+}

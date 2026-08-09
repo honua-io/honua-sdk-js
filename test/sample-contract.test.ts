@@ -940,6 +940,10 @@ describe("sample publication contract", () => {
       validateGoldenJourneyVisualEvidence(visualEvidence, catalog, qualificationEvidence),
     ).resolves.toBeUndefined();
 
+    expect(projection).toMatchObject({
+      format: "honua.site.sdk-sample-projection.v3",
+      schemaVersion: 3,
+    });
     expect(projection.samples).toHaveLength(33);
     expect(projection.routes).toHaveLength(21);
     expect(projection.goldenJourneys.map((journey: { id: string }) => journey.id)).toEqual(goldenJourneyIds);
@@ -990,14 +994,21 @@ describe("sample publication contract", () => {
     expect(projection.externalReplacements).toEqual(catalog.externalReplacements);
     expect(JSON.stringify(projection)).not.toContain('"commands"');
     expect(JSON.stringify(projection)).not.toContain("VITE_");
-    // site-projection.schema.json transitionally accepts a v1 bundle-manifest
-    // pointer so the not-yet-resealed committed projection stays valid; pin
-    // generation to v2 so that allowance cannot mask a regression.
+    // Projection v3 carries every release-manifest runnability without
+    // changing the frozen v2 consumer contract.
     expect(projection.sampleBundles).toMatchObject({
       format: "honua.sdk.sample-bundles.v2",
       schemaVersion: 2,
       publication: { manifestAsset: "sample-bundles.v2.json" },
     });
+    for (const sampleId of ["maplibre-quickstart", "service-explorer"]) {
+      expect(projection.sampleBundles.published).toContainEqual(
+        expect.objectContaining({ id: sampleId, runnability: "requires-live-endpoint" }),
+      );
+      expect(projection.sampleBundles.published).not.toContainEqual(
+        expect.objectContaining({ id: sampleId, runnability: "standalone" }),
+      );
+    }
     for (const sample of catalog.samples) {
       const projected = projection.samples.find((candidate: { id: string }) => candidate.id === sample.id);
       const selected = ciSelection.samples.find((candidate: { id: string }) => candidate.id === sample.id);
@@ -1250,15 +1261,14 @@ describe("sample publication contract", () => {
       `live evidence SDK version ${packageJson.version} does not match ${bumpedVersion}`,
     );
     const bumpedOutputs = await generatedOutputs(catalog, bumpedPackage);
-    const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v2.json")!);
+    const bumpedProjection = JSON.parse(bumpedOutputs.get("samples/dist/honua-site-samples.v3.json")!);
     expect(bumpedProjection.catalog.version).toBe(bumpedVersion);
     expect(bumpedProjection.samples[0].sdk.version).toBe(bumpedVersion);
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
-      "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/honua-site-samples.v3.json",
       "samples/dist/capability-sample-matrix.v1.json",
-      "samples/dist/honua-site-consumer-handoff.v1.json",
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
+      "samples/dist/honua-site-consumer-handoff.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     ]);
 
     const semanticDrift = new Map(currentOutputs);
@@ -1269,17 +1279,16 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(currentOutputs, semanticDrift)).toEqual(["docs/generated/sample-catalog.md"]);
 
     const integrityDrift = new Map(currentOutputs);
-    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
+    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json";
     const consumerFixture = JSON.parse(currentOutputs.get(fixturePath)!);
     consumerFixture.input.sha256 = "0".repeat(64);
     integrityDrift.set(fixturePath, `${JSON.stringify(consumerFixture, null, 2)}\n`);
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
-      "samples/dist/honua-site-samples.v2.json",
+      "samples/dist/honua-site-samples.v3.json",
       "samples/dist/capability-sample-matrix.v1.json",
-      "samples/dist/honua-site-consumer-handoff.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v2.json",
       fixturePath,
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
