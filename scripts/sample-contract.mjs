@@ -4002,8 +4002,31 @@ async function validateQualificationEvidenceRoot(
   }
 }
 
-async function validateQualificationRunInventory(receiptRoot, sampleId, receipts) {
-  const runIds = orderedUnique(
+async function readPublishedGoldenVisualEvidence(candidatePath) {
+  const artifactPath = path.resolve(candidatePath ?? path.join(PROJECT_ROOT, GOLDEN_VISUAL_EVIDENCE_PATH));
+  let bytes;
+  try {
+    bytes = await readCanonicalBoundedFile(path.dirname(artifactPath), path.basename(artifactPath), {
+      label: "published golden journey visual evidence",
+      maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") return undefined;
+    throw error;
+  }
+  const visualEvidence = parseJsonDocument(bytes.toString("utf8"), artifactPath);
+  invariant(
+    visualEvidence?.format === "honua.sdk.golden-journey-visual-evidence.v1" &&
+      visualEvidence.schemaVersion === 1 &&
+      Array.isArray(visualEvidence.qualifiedGoldenJourneys) &&
+      visualEvidence.qualifiedGoldenJourneys.length <= SITE_CONSUMER_MAX_CARDS,
+    "published golden journey visual evidence has an invalid bounded contract shape",
+  );
+  return visualEvidence;
+}
+
+export async function validateQualificationRunInventory(receiptRoot, sampleId, receipts, publishedVisualEvidence) {
+  const receiptRunIds = orderedUnique(
     receipts.map((receipt) => {
       const prefix = `${QUALIFICATION_EVIDENCE_ROOT}/${sampleId}/runs/`;
       invariant(receipt.runRoot.startsWith(prefix), `${sampleId}: receipt run root is orphaned`);
@@ -4012,12 +4035,52 @@ async function validateQualificationRunInventory(receiptRoot, sampleId, receipts
       return runId;
     }),
   );
+  const publishedEntries = publishedVisualEvidence?.qualifiedGoldenJourneys?.filter(
+    (entry) => entry?.sampleId === sampleId,
+  ) ?? [];
+  invariant(publishedEntries.length <= 1, `${sampleId}: published visual evidence entry is duplicated`);
+  const publishedRunIds = [];
+  if (publishedEntries.length === 1) {
+    const semanticEvidence = publishedEntries[0].semanticEvidence;
+    invariant(
+      Array.isArray(semanticEvidence) && semanticEvidence.length === receipts.length,
+      `${sampleId}: published visual evidence semantic gate inventory is incomplete`,
+    );
+    const receiptGates = receipts.map((receipt) => receipt.gate).sort();
+    const publishedGates = semanticEvidence.map((semantic) => semantic?.gate);
+    invariant(
+      publishedGates.every((gate) => typeof gate === "string") &&
+        new Set(publishedGates).size === publishedGates.length &&
+        JSON.stringify([...publishedGates].sort()) === JSON.stringify(receiptGates),
+      `${sampleId}: published visual evidence semantic gates do not match current receipts`,
+    );
+    const prefix = `${QUALIFICATION_EVIDENCE_ROOT}/${sampleId}/runs/`;
+    for (const semantic of semanticEvidence) {
+      const runRoot = semantic.runRoot;
+      const runId = typeof runRoot === "string" ? runRoot.slice(prefix.length) : "";
+      invariant(
+        runRoot === `${prefix}${runId}` && isSampleEvidenceRunId(runId),
+        `${sampleId}: published visual evidence run root is invalid`,
+      );
+      publishedRunIds.push(runId);
+    }
+  }
+  const distinctPublishedRunIds = orderedUnique(publishedRunIds);
+  invariant(
+    distinctPublishedRunIds.length <= receiptRunIds.length,
+    `${sampleId}: published visual evidence rollover exceeds the current receipt run bound`,
+  );
+  const expectedRunIds = orderedUnique([...receiptRunIds, ...distinctPublishedRunIds]);
+  invariant(
+    expectedRunIds.length <= receiptRunIds.length * 2,
+    `${sampleId}: qualification rollover run bound is invalid`,
+  );
   const runEntries = await evidenceDirectoryEntries(
     path.join(receiptRoot, sampleId, "runs"),
     `${sampleId}: run directory`,
-    { maxEntries: runIds.length, containmentRoot: receiptRoot },
+    { maxEntries: expectedRunIds.length, containmentRoot: receiptRoot },
   );
-  exactEvidenceDirectoryNames(runEntries, runIds, `${sampleId}: run directory`);
+  exactEvidenceDirectoryNames(runEntries, expectedRunIds, `${sampleId}: run directory`);
 }
 
 function validateQualificationEvidenceInput(qualificationEvidence, catalog) {
@@ -4118,6 +4181,7 @@ function validateQualificationEvidenceInput(qualificationEvidence, catalog) {
 
 export async function collectQualificationEvidence(catalog, options = {}) {
   const receiptRoot = path.resolve(options.receiptRoot ?? path.join(PROJECT_ROOT, QUALIFICATION_EVIDENCE_ROOT));
+  const publishedVisualEvidence = await readPublishedGoldenVisualEvidence(options.goldenVisualEvidencePath);
   const profileById = new Map(catalog.qualityProfiles.map((profile) => [profile.id, profile]));
   const sampleById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
   const qualifiedJourneys = [...catalog.goldenJourneys]
@@ -4193,7 +4257,7 @@ export async function collectQualificationEvidence(catalog, options = {}) {
         artifact: structuredClone(receipt.artifacts[0]),
       });
     }
-    await validateQualificationRunInventory(receiptRoot, sample.id, receipts);
+    await validateQualificationRunInventory(receiptRoot, sample.id, receipts, publishedVisualEvidence);
     samples.push({ sampleId: sample.id, receipts });
   }
   const evidence = {

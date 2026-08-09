@@ -7,6 +7,7 @@ import {
   collectQualificationEvidence,
   generateCapabilitySampleMatrix,
   validateCapabilitySampleMatrix,
+  validateQualificationRunInventory,
 } from "../scripts/sample-contract.mjs";
 import type { QualificationEvidenceInventory } from "../scripts/sample-contract.mjs";
 
@@ -401,6 +402,113 @@ describe("capability-to-sample matrix contract", () => {
       );
     } finally {
       await rm(receiptRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("admits only the bounded published visual rollover run set", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "honua-matrix-run-rollover-"));
+    const sampleId = "imagery-cog-quickstart";
+    const currentRuns = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+      "44444444-4444-4444-8444-444444444444",
+    ];
+    const publishedRuns = [
+      "55555555-5555-4555-8555-555555555555",
+      "66666666-6666-4666-8666-666666666666",
+      "77777777-7777-4777-8777-777777777777",
+      "88888888-8888-4888-8888-888888888888",
+    ];
+    const gates = [
+      "accessibility",
+      "browser",
+      "console",
+      "fixture",
+      "live",
+      "packed-build",
+      "performance",
+      "responsive",
+      "screenshot",
+    ];
+    const runForGate = (runs: string[], gate: string) => {
+      if (gate === "packed-build") return runs[0];
+      if (["browser", "accessibility", "console", "responsive", "screenshot", "performance"].includes(gate)) {
+        return runs[1];
+      }
+      return gate === "fixture" ? runs[2] : runs[3];
+    };
+    const receipts = qualificationReceipts(sampleId).map((receipt) => ({
+      ...receipt,
+      runRoot: `samples/evidence/${sampleId}/runs/${runForGate(currentRuns, receipt.gate)}`,
+    }));
+    const publishedVisualEvidence = {
+      format: "honua.sdk.golden-journey-visual-evidence.v1",
+      schemaVersion: 1,
+      qualifiedGoldenJourneys: [
+        {
+          sampleId,
+          semanticEvidence: gates.map((gate) => ({
+            gate,
+            runRoot: `samples/evidence/${sampleId}/runs/${runForGate(publishedRuns, gate)}`,
+          })),
+        },
+      ],
+    };
+    try {
+      for (const runId of [...currentRuns, ...publishedRuns]) {
+        await mkdir(path.join(root, sampleId, "runs", runId), { recursive: true });
+      }
+      await expect(
+        validateQualificationRunInventory(root, sampleId, receipts, publishedVisualEvidence),
+      ).resolves.toBeUndefined();
+
+      await mkdir(path.join(root, sampleId, "runs", "99999999-9999-4999-8999-999999999999"));
+      await expect(
+        validateQualificationRunInventory(root, sampleId, receipts, publishedVisualEvidence),
+      ).rejects.toThrow("found more than 8 entries for its exact expected set");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects an unrelated fifth run when published visual evidence matches current receipts", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "honua-matrix-run-fifth-"));
+    const sampleId = "imagery-cog-quickstart";
+    const runIds = [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222",
+      "33333333-3333-4333-8333-333333333333",
+      "44444444-4444-4444-8444-444444444444",
+    ];
+    const runForGate = (gate: string) => {
+      if (gate === "packed-build") return runIds[0];
+      if (["browser", "accessibility", "console", "responsive", "screenshot", "performance"].includes(gate)) {
+        return runIds[1];
+      }
+      return gate === "fixture" ? runIds[2] : runIds[3];
+    };
+    const receipts = qualificationReceipts(sampleId).map((receipt) => ({
+      ...receipt,
+      runRoot: `samples/evidence/${sampleId}/runs/${runForGate(receipt.gate)}`,
+    }));
+    const publishedVisualEvidence = {
+      qualifiedGoldenJourneys: [
+        {
+          sampleId,
+          semanticEvidence: receipts.map((receipt) => ({ gate: receipt.gate, runRoot: receipt.runRoot })),
+        },
+      ],
+    };
+    try {
+      for (const runId of [...runIds, "55555555-5555-4555-8555-555555555555"]) {
+        await mkdir(path.join(root, sampleId, "runs", runId), { recursive: true });
+      }
+      await expect(
+        validateQualificationRunInventory(root, sampleId, receipts, publishedVisualEvidence),
+      ).rejects.toThrow("found more than 4 entries for its exact expected set");
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 
