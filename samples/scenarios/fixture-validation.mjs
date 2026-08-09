@@ -3,11 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { canonicalJson, hasAsciiControlCharacters, parseRfc3339Instant } from "./determinism.mjs";
+import { assertRegisteredFixtureLicense } from "./fixture-license-registry.mjs";
 import { FIXTURE_RUN_ID_PATTERN_SOURCE } from "./identifiers.mjs";
 
 const MAXIMUM_DATA_FILES = 16;
-const MAXIMUM_FILE_BYTES = 2 * 1024 * 1024;
-const MAXIMUM_PACK_BYTES = 8 * 1024 * 1024;
+const MAXIMUM_V1_FILE_BYTES = 2 * 1024 * 1024;
+const MAXIMUM_V1_PACK_BYTES = 8 * 1024 * 1024;
+const MAXIMUM_V2_FILE_BYTES = 4 * 1024 * 1024;
+const MAXIMUM_V2_PACK_BYTES = 16 * 1024 * 1024;
 const READ_ONLY_NO_FOLLOW = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0);
 
 function sameStableFile(left, right) {
@@ -146,7 +149,7 @@ function validateCoordinateEncoding(encoding, description) {
   if (encoding.order !== "xy") throw new Error(`${description} order must be xy.`);
 }
 
-function validateManifestShape(manifest) {
+function validateManifestShapeV1(manifest) {
   assertExactKeys(
     manifest,
     ["fixturePackVersion", "identity", "schema", "provenance", "license", "freshness", "integrity"],
@@ -328,6 +331,216 @@ function validateManifestShape(manifest) {
   }
 }
 
+function assertSha256(value, description) {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) {
+    throw new Error(`${description} must be a lowercase SHA-256 digest.`);
+  }
+}
+
+function validateManifestShapeV2(manifest) {
+  assertExactKeys(
+    manifest,
+    ["fixturePackVersion", "identity", "schema", "provenance", "license", "freshness", "integrity"],
+    ["fixturePackVersion", "identity", "schema", "provenance", "license", "freshness", "integrity"],
+    "Fixture manifest",
+  );
+  if (manifest.fixturePackVersion !== "honua.fixture-pack/v2") throw new Error("Fixture manifest is not v2.");
+  assertExactKeys(
+    manifest.identity,
+    ["id", "version", "revision", "title"],
+    ["id", "version", "revision", "title"],
+    "Fixture identity",
+  );
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(manifest.identity.id)) throw new Error("Fixture identity id is invalid.");
+  if (!/^\d+\.\d+\.\d+$/.test(manifest.identity.version) || manifest.identity.revision !== "v2") {
+    throw new Error("Fixture identity version/revision is invalid.");
+  }
+  assertBoundedString(manifest.identity.title, "Fixture title", 160);
+  assertExactKeys(
+    manifest.schema,
+    [
+      "protocols",
+      "geometryType",
+      "authorityCrs",
+      "coordinateEncoding",
+      "projections",
+      "extent",
+      "featureCount",
+      "selectedRecordId",
+      "files",
+    ],
+    [
+      "protocols",
+      "geometryType",
+      "authorityCrs",
+      "coordinateEncoding",
+      "projections",
+      "extent",
+      "featureCount",
+      "selectedRecordId",
+      "files",
+    ],
+    "Fixture schema",
+  );
+  if (!Array.isArray(manifest.schema.protocols) || manifest.schema.protocols.length !== 3) {
+    throw new Error("Fixture schema protocols are invalid.");
+  }
+  assertUnique(manifest.schema.protocols, "Fixture schema protocols must be unique.");
+  if (manifest.schema.geometryType !== "MultiPolygon" || manifest.schema.authorityCrs !== "EPSG:4326") {
+    throw new Error("Fixture v2 geometry or authority CRS is unsupported.");
+  }
+  validateCoordinateEncoding(manifest.schema.coordinateEncoding, "Fixture coordinate encoding");
+  if (!Array.isArray(manifest.schema.projections) || manifest.schema.projections.length !== 2) {
+    throw new Error("Fixture schema projections are invalid.");
+  }
+  for (const [index, projection] of manifest.schema.projections.entries()) {
+    assertExactKeys(
+      projection,
+      ["protocol", "crs", "coordinateEncoding"],
+      ["protocol", "crs", "coordinateEncoding"],
+      `Fixture projection ${index}`,
+    );
+    validateCoordinateEncoding(projection.coordinateEncoding, `Fixture projection ${index} coordinate encoding`);
+  }
+  if (
+    !Array.isArray(manifest.schema.extent) ||
+    manifest.schema.extent.length !== 4 ||
+    !manifest.schema.extent.every(Number.isFinite)
+  ) {
+    throw new Error("Fixture extent is invalid.");
+  }
+  if (
+    manifest.schema.featureCount !== 48 ||
+    !Number.isSafeInteger(manifest.schema.selectedRecordId) ||
+    manifest.schema.selectedRecordId < 1 ||
+    manifest.schema.selectedRecordId > 48
+  ) {
+    throw new Error("Fixture v2 count or selectedRecordId is invalid.");
+  }
+  assertPlainRecord(manifest.schema.files, "Fixture schema files must be an object.");
+  if (Object.values(manifest.schema.files).length !== 8)
+    throw new Error("Fixture v2 must declare exactly eight files.");
+  for (const name of Object.values(manifest.schema.files)) {
+    if (typeof name !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name)) {
+      throw new Error("Fixture schema file name is invalid.");
+    }
+  }
+
+  assertExactKeys(
+    manifest.provenance,
+    [
+      "sourceUrl",
+      "sourceSha256",
+      "sourceBytes",
+      "retrievedAt",
+      "sourceVintage",
+      "selection",
+      "transformation",
+      "toolchain",
+      "refreshCommand",
+    ],
+    [
+      "sourceUrl",
+      "sourceSha256",
+      "sourceBytes",
+      "retrievedAt",
+      "sourceVintage",
+      "selection",
+      "transformation",
+      "toolchain",
+      "refreshCommand",
+    ],
+    "Fixture provenance",
+  );
+  if (typeof manifest.provenance.sourceUrl !== "string" || !manifest.provenance.sourceUrl.startsWith("https://")) {
+    throw new Error("Fixture provenance sourceUrl must be HTTPS.");
+  }
+  assertSha256(manifest.provenance.sourceSha256, "Fixture source digest");
+  if (!Number.isSafeInteger(manifest.provenance.sourceBytes) || manifest.provenance.sourceBytes < 1) {
+    throw new Error("Fixture source byte length is invalid.");
+  }
+  if (
+    parseRfc3339Instant(manifest.provenance.retrievedAt) === undefined ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(manifest.provenance.sourceVintage)
+  ) {
+    throw new Error("Fixture provenance dates are invalid.");
+  }
+  assertExactKeys(
+    manifest.provenance.selection,
+    ["field", "equals", "sort"],
+    ["field", "equals", "sort"],
+    "Fixture provenance selection",
+  );
+  assertExactKeys(
+    manifest.provenance.transformation,
+    [
+      "id",
+      "sourceCrs",
+      "targetCrs",
+      "coordinatePrecision",
+      "geometryNormalization",
+      "attributeSelection",
+      "objectIdAssignment",
+    ],
+    [
+      "id",
+      "sourceCrs",
+      "targetCrs",
+      "coordinatePrecision",
+      "geometryNormalization",
+      "attributeSelection",
+      "objectIdAssignment",
+    ],
+    "Fixture provenance transformation",
+  );
+  assertBoundedString(manifest.provenance.transformation.geometryNormalization, "Geometry normalization", 1024);
+  assertExactKeys(
+    manifest.provenance.toolchain,
+    ["node", "projection", "archive", "parser"],
+    ["node", "projection", "archive", "parser"],
+    "Fixture provenance toolchain",
+  );
+  for (const [name, value] of Object.entries(manifest.provenance.toolchain)) {
+    assertBoundedString(value, `Fixture toolchain ${name}`, 160);
+  }
+  assertBoundedString(manifest.provenance.refreshCommand, "Fixture refresh command", 512);
+  assertRegisteredFixtureLicense(manifest.license);
+
+  assertExactKeys(
+    manifest.freshness,
+    ["policy", "asOf", "refreshAfterDays"],
+    ["policy", "asOf", "refreshAfterDays"],
+    "Fixture freshness",
+  );
+  if (
+    manifest.freshness.policy !== "immutable" ||
+    manifest.freshness.refreshAfterDays !== null ||
+    parseRfc3339Instant(manifest.freshness.asOf) === undefined
+  ) {
+    throw new Error("Fixture freshness is invalid.");
+  }
+  assertExactKeys(
+    manifest.integrity,
+    ["algorithm", "canonicalization", "canonicalDatasetSha256", "metadataFingerprint", "metadataComponents", "files"],
+    ["algorithm", "canonicalization", "canonicalDatasetSha256", "metadataFingerprint", "metadataComponents", "files"],
+    "Fixture integrity",
+  );
+  if (manifest.integrity.algorithm !== "sha256") throw new Error("Fixture integrity algorithm is unsupported.");
+  assertBoundedString(manifest.integrity.canonicalization, "Fixture canonicalization", 1024);
+  assertSha256(manifest.integrity.canonicalDatasetSha256, "Fixture canonical dataset digest");
+  assertSha256(manifest.integrity.metadataFingerprint, "Fixture metadata fingerprint");
+  assertExactKeys(
+    manifest.integrity.metadataComponents,
+    ["license", "provenance"],
+    ["license", "provenance"],
+    "Fixture metadata components",
+  );
+  for (const hash of Object.values(manifest.integrity.metadataComponents))
+    assertSha256(hash, "Fixture metadata digest");
+  assertPlainRecord(manifest.integrity.files, "Fixture integrity files must be an object.");
+  for (const hash of Object.values(manifest.integrity.files)) assertSha256(hash, "Fixture file digest");
+}
+
 function assertUnique(values, message) {
   if (new Set(values).size !== values.length) throw new Error(message);
 }
@@ -441,7 +654,7 @@ function validateIncidentChanges(changes, description) {
   }
 }
 
-function validateFirstMap(manifest, data) {
+function validateFirstMapV1(manifest, data) {
   const expectedFileRoles = [
     "capabilities",
     "features",
@@ -788,6 +1001,224 @@ function validateFirstMap(manifest, data) {
   }
 }
 
+function ringArea(ring) {
+  let area = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) {
+    area += ring[index][0] * ring[index + 1][1] - ring[index + 1][0] * ring[index][1];
+  }
+  return area / 2;
+}
+
+function validateFirstMapV2(manifest, data) {
+  const roles = [
+    "capabilities",
+    "features",
+    "layer",
+    "ogcApiDefinition",
+    "ogcCollection",
+    "ogcConformance",
+    "ogcItems",
+    "ogcLanding",
+  ];
+  if (!sameValues(Object.keys(manifest.schema.files), roles)) {
+    throw new Error("First Map v2 fixture logical file roles are incomplete or unsupported.");
+  }
+  const capabilities = data[manifest.schema.files.capabilities];
+  const features = data[manifest.schema.files.features];
+  const layer = data[manifest.schema.files.layer];
+  const api = data[manifest.schema.files.ogcApiDefinition];
+  const collection = data[manifest.schema.files.ogcCollection];
+  const conformance = data[manifest.schema.files.ogcConformance];
+  const items = data[manifest.schema.files.ogcItems];
+  const landing = data[manifest.schema.files.ogcLanding];
+  if (!capabilities?.success || !features || !layer || !api || !collection || !conformance || !items || !landing) {
+    throw new Error("First Map v2 is missing a required projection.");
+  }
+  assertJsonEqual(
+    manifest.schema.protocols,
+    ["honua-capabilities-v1", "esri-geoservices-feature-server", "ogc-api-features-1.0"],
+    "First Map v2 protocols are invalid.",
+  );
+  assertJsonEqual(
+    manifest.schema.projections,
+    [
+      {
+        protocol: "esri-geoservices-feature-server",
+        crs: "EPSG:4326",
+        coordinateEncoding: { format: "Esri JSON", axes: ["x-longitude", "y-latitude"], order: "xy" },
+      },
+      {
+        protocol: "ogc-api-features-1.0",
+        crs: "OGC:CRS84",
+        coordinateEncoding: { format: "GeoJSON", axes: ["longitude", "latitude"], order: "xy" },
+      },
+    ],
+    "First Map v2 projections are invalid.",
+  );
+  const expectedProvenance = {
+    sourceUrl: "https://www2.census.gov/geo/tiger/TIGER2025/TRACT/tl_2025_15_tract.zip",
+    sourceSha256: "92b736e066555d55afa795f9dd5944edccd26a97fa70bd1066bf09c7661c5900",
+    sourceBytes: 1_772_413,
+    retrievedAt: "2026-08-08T00:00:00.000Z",
+    sourceVintage: "2025-01-01",
+    selection: { field: "COUNTYFP", equals: "009", sort: "GEOID" },
+    transformation: {
+      id: "honua-tiger-shapefile-v1",
+      sourceCrs: "EPSG:4269",
+      targetCrs: "EPSG:4326",
+      coordinatePrecision: 7,
+      geometryNormalization:
+        "Retain every source ring without simplification; transform NAD83 to WGS84 with proj4; round to 7 decimals; group rings by containment; enforce RFC 7946 orientation; rotate and sort rings and polygons canonically.",
+      attributeSelection: ["GEOID", "NAME", "NAMELSAD", "ALAND", "AWATER"],
+      objectIdAssignment: "1-based index after ascending GEOID sort",
+    },
+    toolchain: {
+      node: "20.19.0 (.nvmrc)",
+      projection: "proj4@2.20.9 (package-lock.json)",
+      archive: "node:zlib inflateRawSync",
+      parser: "scripts/refresh-first-map-tiger-v2.mjs",
+    },
+    refreshCommand: "npm run samples:fixtures:first-map-v2:write",
+  };
+  assertJsonEqual(manifest.provenance, expectedProvenance, "First Map v2 provenance is not the pinned job.");
+  if (manifest.license.expression !== "LicenseRef-US-Government-Work") {
+    throw new Error("First Map v2 must use the registered U.S. government-work record.");
+  }
+
+  const expectedFields = [
+    { name: "OBJECTID", type: "esriFieldTypeOID", alias: "OBJECTID" },
+    { name: "GEOID", type: "esriFieldTypeString", alias: "Census tract GEOID", length: 11 },
+    { name: "NAME", type: "esriFieldTypeString", alias: "Census tract name", length: 7 },
+    { name: "NAMELSAD", type: "esriFieldTypeString", alias: "Legal/statistical area description", length: 100 },
+    { name: "ALAND", type: "esriFieldTypeDouble", alias: "Land area (square meters)" },
+    { name: "AWATER", type: "esriFieldTypeDouble", alias: "Water area (square meters)" },
+  ];
+  assertJsonEqual(features.fields, expectedFields, "First Map v2 query fields are invalid.");
+  assertJsonEqual(layer.fields, expectedFields, "First Map v2 layer fields drifted.");
+  if (
+    features.objectIdFieldName !== "OBJECTID" ||
+    layer.objectIdField !== "OBJECTID" ||
+    features.geometryType !== "esriGeometryPolygon" ||
+    layer.geometryType !== "esriGeometryPolygon" ||
+    features.spatialReference?.wkid !== 4326 ||
+    layer.extent?.spatialReference?.wkid !== 4326 ||
+    layer.capabilities !== "Query"
+  ) {
+    throw new Error("First Map v2 GeoServices metadata is invalid.");
+  }
+  if (
+    features.features.length !== 48 ||
+    items.features?.length !== 48 ||
+    items.numberMatched !== 48 ||
+    items.numberReturned !== 48
+  ) {
+    throw new Error("First Map v2 must contain exactly 48 features in both projections.");
+  }
+  const geoids = [];
+  for (const [index, esriFeature] of features.features.entries()) {
+    const ogcFeature = items.features[index];
+    const attributes = esriFeature.attributes;
+    if (attributes.OBJECTID !== index + 1 || ogcFeature?.id !== index + 1 || ogcFeature?.type !== "Feature") {
+      throw new Error(`First Map v2 feature ${index} identity drifted.`);
+    }
+    if (
+      !/^15\d{9}$/.test(attributes.GEOID) ||
+      typeof attributes.NAME !== "string" ||
+      typeof attributes.NAMELSAD !== "string" ||
+      !Number.isSafeInteger(attributes.ALAND) ||
+      !Number.isSafeInteger(attributes.AWATER)
+    ) {
+      throw new Error(`First Map v2 feature ${index} attributes are invalid.`);
+    }
+    geoids.push(attributes.GEOID);
+    assertJsonEqual(ogcFeature.properties, attributes, `First Map v2 feature ${index} properties drifted.`);
+    if (
+      ogcFeature.geometry?.type !== "MultiPolygon" ||
+      !Array.isArray(ogcFeature.geometry.coordinates) ||
+      ogcFeature.geometry.coordinates.length < 1
+    ) {
+      throw new Error(`First Map v2 feature ${index} must be a nonempty MultiPolygon.`);
+    }
+    const expectedRings = [];
+    for (const [polygonIndex, polygon] of ogcFeature.geometry.coordinates.entries()) {
+      if (!Array.isArray(polygon) || polygon.length < 1) throw new Error("First Map v2 polygons must contain rings.");
+      for (const [ringIndex, ring] of polygon.entries()) {
+        if (!Array.isArray(ring) || ring.length < 4) throw new Error("First Map v2 rings must contain four positions.");
+        assertJsonEqual(ring[0], ring.at(-1), "First Map v2 rings must be closed.");
+        const area = ringArea(ring);
+        if (area === 0 || (ringIndex === 0 ? area < 0 : area > 0)) {
+          throw new Error(`First Map v2 polygon ${polygonIndex} violates RFC 7946 ring orientation.`);
+        }
+        expectedRings.push([...ring].reverse());
+      }
+    }
+    assertJsonEqual(esriFeature.geometry?.rings, expectedRings, `First Map v2 feature ${index} geometry drifted.`);
+  }
+  assertJsonEqual(geoids, [...geoids].sort(), "First Map v2 GEOIDs must be sorted.");
+  assertUnique(geoids, "First Map v2 GEOIDs must be unique.");
+  if (!features.features.some((feature) => feature.attributes.OBJECTID === manifest.schema.selectedRecordId)) {
+    throw new Error("First Map v2 selectedRecordId must identify a feature.");
+  }
+  const extent = extentFromPositions(items.features.map((feature) => feature.geometry.coordinates));
+  assertJsonEqual(extent, manifest.schema.extent, "First Map v2 extent does not match canonical coordinates.");
+  assertJsonEqual(
+    [layer.extent.xmin, layer.extent.ymin, layer.extent.xmax, layer.extent.ymax],
+    manifest.schema.extent,
+    "First Map v2 layer extent drifted.",
+  );
+  const datasetHash = sha256(canonicalJson({ type: "FeatureCollection", features: items.features }));
+  if (datasetHash !== manifest.integrity.canonicalDatasetSha256) {
+    throw new Error("First Map v2 canonical dataset digest drifted.");
+  }
+
+  const projectedProvenance = {
+    sourceUrl: manifest.provenance.sourceUrl,
+    sourceSha256: manifest.provenance.sourceSha256,
+    retrievedAt: manifest.provenance.retrievedAt,
+    selection: manifest.provenance.selection,
+  };
+  for (const [description, metadata] of [
+    ["GeoServices layer", layer],
+    ["OGC landing page", landing],
+    ["OGC collection", collection],
+    ["OGC items", items],
+  ]) {
+    const attribution = description === "GeoServices layer" ? metadata.copyrightText : metadata.attribution;
+    if (attribution !== manifest.license.citation) throw new Error(`${description} citation drifted.`);
+    assertJsonEqual(metadata.license, manifest.license, `${description} license drifted.`);
+    assertJsonEqual(metadata.provenance, projectedProvenance, `${description} provenance drifted.`);
+    if (
+      description !== "GeoServices layer" &&
+      linkHref(metadata.links, "license", description) !== manifest.license.termsUrl
+    ) {
+      throw new Error(`${description} license link drifted.`);
+    }
+  }
+  const collectionId = "maui-census-tracts-2025";
+  if (collection.id !== collectionId || collection.title !== layer.name || collection.itemType !== "feature") {
+    throw new Error("First Map v2 collection identity drifted.");
+  }
+  if (
+    linkHref(collection.links, "items", "First Map v2 collection") !== `/ogc/features/collections/${collectionId}/items`
+  ) {
+    throw new Error("First Map v2 collection items link drifted.");
+  }
+  if (api.openapi !== "3.0.3" || api.servers?.[0]?.url !== "/ogc/features") {
+    throw new Error("First Map v2 API definition is invalid.");
+  }
+  const collectionParameters = api.paths?.["/collections/{collectionId}"]?.get?.parameters;
+  const collectionEnum = collectionParameters?.find((parameter) => parameter.name === "collectionId")?.schema?.enum;
+  if (!sameValues(collectionEnum ?? [], [collectionId])) throw new Error("First Map v2 API collection enum drifted.");
+  if (
+    !sameValues(conformance.conformsTo ?? [], [
+      "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core",
+      "http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson",
+    ])
+  ) {
+    throw new Error("First Map v2 OGC conformance drifted.");
+  }
+}
+
 function validateIncidentOperations(manifest, data) {
   if (!sameValues(Object.keys(manifest.schema.files), ["events", "snapshot"])) {
     throw new Error("Incident Operations fixture logical file roles are incomplete or unsupported.");
@@ -910,8 +1341,11 @@ export function validateFixturePackDirectory(
     "Fixture manifest exceeds 128 KiB.",
   );
   const manifest = JSON.parse(manifestBytes.toString("utf8"));
-  validateManifestShape(manifest);
-  if (revision !== "v1" || manifest.fixturePackVersion !== "honua.fixture-pack/v1") {
+  if (manifest.fixturePackVersion === "honua.fixture-pack/v1") validateManifestShapeV1(manifest);
+  else if (manifest.fixturePackVersion === "honua.fixture-pack/v2") validateManifestShapeV2(manifest);
+  else throw new Error("Unsupported fixture manifest version.");
+  const expectedRevision = manifest.fixturePackVersion === "honua.fixture-pack/v1" ? "v1" : "v2";
+  if (revision !== expectedRevision) {
     throw new Error("Fixture pack protocol version does not match its directory revision.");
   }
   if (manifest.identity?.id !== packId || manifest.identity?.revision !== revision) {
@@ -921,14 +1355,17 @@ export function validateFixturePackDirectory(
     throw new Error("Fixture identity version must be SemVer.");
   }
   if (manifest.integrity?.algorithm !== "sha256") throw new Error("Fixture integrity algorithm must be sha256.");
-  if (!manifest.provenance?.source || !manifest.provenance?.retrievedAt || !manifest.provenance?.refreshCommand) {
+  const provenanceSource = expectedRevision === "v1" ? manifest.provenance?.source : manifest.provenance?.sourceUrl;
+  if (!provenanceSource || !manifest.provenance?.retrievedAt || !manifest.provenance?.refreshCommand) {
     throw new Error("Fixture provenance source, retrieval time, and refresh command are required.");
   }
   if (parseRfc3339Instant(manifest.provenance.retrievedAt) === undefined)
     throw new Error("Fixture retrievedAt must be a timestamp.");
-  if (!manifest.license?.spdx || !manifest.license?.attribution || manifest.license.redistributionAllowed !== true) {
-    throw new Error("Fixture license, attribution, and redistribution permission are required.");
-  }
+  if (expectedRevision === "v1") {
+    if (!manifest.license?.spdx || !manifest.license?.attribution || manifest.license.redistributionAllowed !== true) {
+      throw new Error("Fixture license, attribution, and redistribution permission are required.");
+    }
+  } else assertRegisteredFixtureLicense(manifest.license);
   if (!manifest.freshness?.policy || parseRfc3339Instant(manifest.freshness.asOf) === undefined) {
     throw new Error("Fixture freshness policy and asOf timestamp are required.");
   }
@@ -955,17 +1392,21 @@ export function validateFixturePackDirectory(
   const data = {};
   const actualChecksums = {};
   const checksumChanges = [];
+  const maximumFileBytes = expectedRevision === "v1" ? MAXIMUM_V1_FILE_BYTES : MAXIMUM_V2_FILE_BYTES;
+  const maximumPackBytes = expectedRevision === "v1" ? MAXIMUM_V1_PACK_BYTES : MAXIMUM_V2_PACK_BYTES;
   let totalBytes = 0;
   for (const name of sorted(actualNames)) {
     const filePath = path.join(resolvedRoot, name);
     const bytes = readBoundedRegularFile(
       filePath,
-      MAXIMUM_FILE_BYTES,
+      maximumFileBytes,
       `Fixture data file ${name}`,
-      `Fixture data file exceeds 2 MiB: ${name}`,
+      `Fixture data file exceeds ${maximumFileBytes / (1024 * 1024)} MiB: ${name}`,
     );
     totalBytes += bytes.byteLength;
-    if (totalBytes > MAXIMUM_PACK_BYTES) throw new Error("Fixture pack exceeds 8 MiB.");
+    if (totalBytes > maximumPackBytes) {
+      throw new Error(`Fixture pack exceeds ${maximumPackBytes / (1024 * 1024)} MiB.`);
+    }
     const actual = sha256(bytes);
     actualChecksums[name] = actual;
     if (manifest.integrity.files[name] !== actual) {
@@ -975,7 +1416,8 @@ export function validateFixturePackDirectory(
   }
   if (checksumChanges.length > 0 && !allowChecksumChanges) throw new Error("Fixture data checksum mismatch.");
 
-  if (packId === "first-map") validateFirstMap(manifest, data);
+  if (packId === "first-map" && expectedRevision === "v1") validateFirstMapV1(manifest, data);
+  else if (packId === "first-map" && expectedRevision === "v2") validateFirstMapV2(manifest, data);
   else if (packId === "incident-operations") validateIncidentOperations(manifest, data);
   else throw new Error(`No semantic fixture validator is registered for ${packId}.`);
 

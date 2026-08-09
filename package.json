@@ -365,6 +365,8 @@
     "qualification:components": "npm run build --silent && node scripts/component-qualification.mjs write",
     "qualification:components:check": "npm run build --silent && node scripts/component-qualification.mjs check",
     "samples:fixtures:verify": "node samples/fixtures/verify.mjs && biome check samples/scenarios/ samples/fixtures/",
+    "samples:fixtures:first-map-v2": "node scripts/refresh-first-map-tiger-v2.mjs",
+    "samples:fixtures:first-map-v2:write": "node scripts/refresh-first-map-tiger-v2.mjs --write",
     "samples:verify:flagships": "node scripts/verify-flagship-evidence.mjs",
     "samples:run": "node scripts/sample-runner.mjs",
     "samples:list": "node scripts/sample-runner.mjs list",
