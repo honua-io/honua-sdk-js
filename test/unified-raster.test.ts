@@ -135,7 +135,7 @@ describe("unified raster session", () => {
       {
         kind: "image-server",
         id: "oahu-imagery",
-        baseUrl: "https://honua.example",
+        baseUrl: "https://honua.example/arcgis",
         serviceId: "Imagery/Oahu",
         deployment: "honua",
       },
@@ -149,11 +149,45 @@ describe("unified raster session", () => {
       height: 128,
       spatialReference: 4326,
       bands: [3, 2, 1],
+      resampling: "bilinear",
     });
 
     expect(result).toMatchObject({ kind: "server-image", href: "https://images.example/subset.png" });
-    expect(requests[0]).toContain("/rest/services/Imagery/Oahu/ImageServer/exportImage");
-    expect(requests[0]).toContain("size=256%2C128");
+    expect(requests[0]).toContain("https://honua.example/arcgis/rest/services/Imagery/Oahu/ImageServer/exportImage");
+    const requestUrl = new URL(requests[0] ?? "");
+    expect(requestUrl.searchParams.get("size")).toBe("256,128");
+    expect(requestUrl.searchParams.get("interpolation")).toBe("RSP_BilinearInterpolation");
+  });
+
+  it("maps nearest-neighbor resampling to the ImageServer wire value", async () => {
+    let requested = "";
+    const session = await openRasterSession(
+      {
+        kind: "image-server",
+        id: "oahu-imagery",
+        baseUrl: "https://honua.example/arcgis",
+        serviceId: "Imagery/Oahu",
+        deployment: "arcgis",
+      },
+      {
+        clientOptions: {
+          fetchFn: async (input) => {
+            requested = String(input);
+            return Response.json({ href: "https://images.example/subset.png" });
+          },
+        },
+      },
+    );
+
+    await session.readWindow({
+      space: "bbox",
+      bbox: [-158.1, 21.2, -157.7, 21.6],
+      width: 64,
+      height: 64,
+      resampling: "nearest",
+    });
+
+    expect(new URL(requested).searchParams.get("interpolation")).toBe("RSP_NearestNeighbor");
   });
 
   it("keeps coverage execution and future formats explicit", () => {
