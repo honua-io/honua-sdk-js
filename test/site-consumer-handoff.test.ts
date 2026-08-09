@@ -8,9 +8,11 @@ import {
   filterSiteConsumerCards,
   generateCapabilitySampleMatrix,
   generateGoldenJourneyVisualEvidence,
+  generateLegacyVisualReceiptArchive,
   generateSiteConsumerFixtureV4,
   generateSiteConsumerHandoff,
   generateSiteProjection,
+  validateLegacyVisualReceiptArchive,
   validateSiteConsumerFixtureV3,
   validateSiteConsumerFixtureV4,
   validateSiteConsumerHandoff,
@@ -713,6 +715,71 @@ describe("honua-site consumer handoff", () => {
     expect(honestlyPending.length).toBeGreaterThan(0);
     expect(honestlyPending.every((card) => !card.visualEvidence && !card.evidenceBindingId)).toBe(true);
     await expect(validateSiteConsumerHandoff(checkoutHandoff)).resolves.toBeUndefined();
+  });
+
+  it("keeps frozen legacy receipts content-bound across current receipt rollover", async () => {
+    const inputs = await canonicalInputs();
+    const legacyHandoff = (await readJson("samples/dist/honua-site-consumer-handoff.v1.json")) as SiteConsumerHandoff;
+    const archive = await readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v1.json");
+
+    await expect(validateLegacyVisualReceiptArchive(archive, legacyHandoff)).resolves.toBeInstanceOf(Map);
+    await expect(
+      validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive: archive }),
+    ).resolves.toBeUndefined();
+    await expect(generateLegacyVisualReceiptArchive(legacyHandoff)).resolves.toEqual(archive);
+
+    const tamperedBlob = structuredClone(archive);
+    tamperedBlob.entries[0].contentBase64 = Buffer.from("forged legacy receipt").toString("base64");
+    await expect(validateLegacyVisualReceiptArchive(tamperedBlob, legacyHandoff)).rejects.toThrow(
+      "legacy receipt archive blob is missing or has stale bytes",
+    );
+
+    const missingBlob = structuredClone(archive);
+    missingBlob.entries.shift();
+    await expect(validateLegacyVisualReceiptArchive(missingBlob, legacyHandoff)).rejects.toThrow(
+      "legacy visual receipt archive entry set is incomplete or excessive",
+    );
+
+    const missingRevision = structuredClone(archive);
+    delete missingRevision.entries[0].sourceRevision;
+    await expect(validateLegacyVisualReceiptArchive(missingRevision, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const missingProducerBlob = structuredClone(archive);
+    delete missingProducerBlob.producers[0].contentBase64;
+    await expect(validateLegacyVisualReceiptArchive(missingProducerBlob, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const tamperedProducerBlob = structuredClone(archive);
+    tamperedProducerBlob.producers[0].contentBase64 = Buffer.from("forged producer").toString("base64");
+    await expect(validateLegacyVisualReceiptArchive(tamperedProducerBlob, legacyHandoff)).rejects.toThrow(
+      "legacy producer blob is missing or stale",
+    );
+
+    const escapedPath = structuredClone(archive);
+    escapedPath.entries[0].sourcePath = "../../forged-receipt.json";
+    await expect(validateLegacyVisualReceiptArchive(escapedPath, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const escapedProducerPath = structuredClone(archive);
+    escapedProducerPath.producers[0].sourcePath = "../../forged-producer.mjs";
+    await expect(validateLegacyVisualReceiptArchive(escapedProducerPath, legacyHandoff)).rejects.toThrow(
+      "JSON Schema validation failed",
+    );
+
+    const staleCurrentHandoff = await checkoutBoundHandoff(inputs.handoff);
+    const currentVisual = staleCurrentHandoff.cards.find((card) => card.visualEvidence)?.visualEvidence;
+    if (!currentVisual) throw new Error("current qualified visual fixture is missing");
+    currentVisual.semanticEvidence[0].receiptSha256 = sha256("rolled-current-receipt");
+    await expect(validateSiteConsumerHandoff(staleCurrentHandoff)).rejects.toThrow(
+      "receipt byte or digest binding is stale",
+    );
+    await expect(validateSiteConsumerHandoff(staleCurrentHandoff, { legacyReceiptArchive: archive })).rejects.toThrow(
+      "legacy receipt archives cannot validate the current site consumer handoff",
+    );
   });
 
   it(

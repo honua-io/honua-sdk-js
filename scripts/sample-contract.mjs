@@ -76,6 +76,10 @@ const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
 const LEGACY_SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
 const LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-handoff.schema.json";
+const LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v1.json";
+const LEGACY_VISUAL_RECEIPT_ARCHIVE_SCHEMA_PATH =
+  "samples/contract/v2/schemas/site-consumer-legacy-receipt-archive.schema.json";
 const SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v2.json";
 const SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-handoff.v2.schema.json";
@@ -4594,12 +4598,14 @@ function goldenVisualArtifactReferences(entry) {
   const references = [];
   for (const screenshot of entry.screenshots) {
     references.push({
+      kind: "screenshot",
       label: `${entry.sampleId} ${screenshot.variant} screenshot`,
       path: screenshot.sourcePath,
       bytes: screenshot.bytes,
       sha256: screenshot.sha256,
     });
     references.push({
+      kind: "screenshot",
       label: `${entry.sampleId} ${screenshot.variant} repeat screenshot`,
       path: screenshot.reproducibility.repeatSourcePath,
       bytes: screenshot.reproducibility.repeatBytes,
@@ -4608,12 +4614,15 @@ function goldenVisualArtifactReferences(entry) {
   }
   for (const semantic of entry.semanticEvidence) {
     references.push({
+      kind: "receipt",
+      gate: semantic.gate,
       label: `${entry.sampleId} ${semantic.gate} receipt`,
       path: semantic.receiptPath,
       bytes: null,
       sha256: semantic.receiptSha256,
     });
     references.push({
+      kind: "report",
       label: `${entry.sampleId} ${semantic.gate} report`,
       path: semantic.reportPath,
       bytes: semantic.reportBytes,
@@ -4621,6 +4630,210 @@ function goldenVisualArtifactReferences(entry) {
     });
   }
   return references;
+}
+
+function legacyVisualReceiptClaims(handoff) {
+  const claims = [];
+  for (const card of handoff.cards ?? []) {
+    if (!card.visualEvidence) continue;
+    for (const semantic of card.visualEvidence.semanticEvidence) {
+      claims.push({
+        sampleId: card.visualEvidence.sampleId,
+        gate: semantic.gate,
+        sourceRevision: card.visualEvidence.source.revision,
+        sourceDigest: card.visualEvidence.source.evidenceNeutralSha256,
+        sourcePath: semantic.receiptPath,
+        sha256: semantic.receiptSha256,
+        semantic,
+      });
+    }
+  }
+  claims.sort((left, right) =>
+    left.sampleId.localeCompare(right.sampleId) ||
+    GOLDEN_VISUAL_GATE_ORDER.indexOf(left.gate) - GOLDEN_VISUAL_GATE_ORDER.indexOf(right.gate),
+  );
+  invariant(
+    new Set(claims.map((claim) => `${claim.sampleId}:${claim.gate}`)).size === claims.length,
+    "legacy visual receipt claims contain duplicate sample/gate identities",
+  );
+  return claims;
+}
+
+function readHistoricalProducerBlob(root, revision, producerPath) {
+  invariant(/^[a-f0-9]{40}$/.test(revision), "legacy producer revision is missing or invalid");
+  invariant(producerPath === "scripts/sample-runner.mjs", "legacy producer path is not the governed sample runner");
+  let bytes;
+  try {
+    bytes = execFileSync("git", ["show", `${revision}:${producerPath}`], {
+      cwd: root,
+      encoding: "buffer",
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    });
+  } catch {
+    throw new Error(`legacy producer blob is unavailable at immutable revision ${revision}`);
+  }
+  invariant(bytes.byteLength > 0 && bytes.byteLength <= 1024 * 1024, "legacy producer blob is empty or excessive");
+  return bytes;
+}
+
+export async function generateLegacyVisualReceiptArchive(handoff, options = {}) {
+  invariant(
+    handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff.schemaVersion === 1,
+    "legacy visual receipt archive requires handoff v1",
+  );
+  const root = path.resolve(options.projectRoot ?? PROJECT_ROOT);
+  const entries = [];
+  const producers = new Map();
+  for (const claim of legacyVisualReceiptClaims(handoff)) {
+    const bytes = await readCanonicalBoundedFile(root, claim.sourcePath, {
+      label: `${claim.sampleId} ${claim.gate} legacy receipt source`,
+      maxBytes: 1024 * 1024,
+    });
+    invariant(
+      sha256(bytes) === claim.sha256,
+      `${claim.sampleId} ${claim.gate} legacy receipt source digest is stale`,
+    );
+    const receipt = parseJsonDocument(bytes.toString("utf8"), claim.sourcePath);
+    validateGateReceiptStructure(receipt, {
+      sampleId: claim.sampleId,
+      gate: claim.gate,
+      sourceRevision: claim.sourceRevision,
+      sourceDigest: claim.sourceDigest,
+    });
+    const producerBytes = readHistoricalProducerBlob(root, receipt.sourceRevision, receipt.producer.path);
+    invariant(
+      sha256(producerBytes) === receipt.producer.sha256,
+      `${claim.sampleId} ${claim.gate} legacy producer digest is stale at immutable revision`,
+    );
+    const producerKey = `${receipt.sourceRevision}:${receipt.producer.path}:${receipt.producer.sha256}`;
+    producers.set(producerKey, {
+      sourceRevision: receipt.sourceRevision,
+      sourcePath: receipt.producer.path,
+      bytes: producerBytes.byteLength,
+      sha256: receipt.producer.sha256,
+      contentBase64: producerBytes.toString("base64"),
+    });
+    entries.push({
+      sampleId: claim.sampleId,
+      gate: claim.gate,
+      sourceRevision: claim.sourceRevision,
+      sourceDigest: claim.sourceDigest,
+      sourcePath: claim.sourcePath,
+      bytes: bytes.byteLength,
+      sha256: claim.sha256,
+      contentBase64: bytes.toString("base64"),
+    });
+  }
+  return {
+    $schema: "../schemas/site-consumer-legacy-receipt-archive.schema.json",
+    format: "honua.site.sdk-sample-legacy-receipt-archive.v1",
+    schemaVersion: 1,
+    handoff: {
+      path: LEGACY_SITE_CONSUMER_HANDOFF_PATH,
+      format: handoff.format,
+      schemaVersion: handoff.schemaVersion,
+      sha256: sha256(Buffer.from(stableJson(handoff))),
+    },
+    visualEvidence: {
+      path: handoff.inputs.visualEvidence.path,
+      sha256: handoff.inputs.visualEvidence.sha256,
+    },
+    producers: [...producers.values()].sort((left, right) =>
+      left.sourceRevision.localeCompare(right.sourceRevision) ||
+      left.sourcePath.localeCompare(right.sourcePath) ||
+      left.sha256.localeCompare(right.sha256),
+    ),
+    entries,
+  };
+}
+
+export async function validateLegacyVisualReceiptArchive(archive, handoff) {
+  invariant(
+    handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff.schemaVersion === 1,
+    "legacy visual receipt archive can validate only handoff v1",
+  );
+  await validateJsonSchema(archive, LEGACY_VISUAL_RECEIPT_ARCHIVE_SCHEMA_PATH);
+  invariant(
+    archive.handoff.path === LEGACY_SITE_CONSUMER_HANDOFF_PATH &&
+      archive.handoff.format === handoff.format &&
+      archive.handoff.schemaVersion === handoff.schemaVersion &&
+      archive.handoff.sha256 === sha256(Buffer.from(stableJson(handoff))) &&
+      archive.visualEvidence.path === handoff.inputs.visualEvidence.path &&
+      archive.visualEvidence.sha256 === handoff.inputs.visualEvidence.sha256,
+    "legacy visual receipt archive is not bound to the frozen handoff and visual evidence",
+  );
+  const producers = new Map();
+  for (const producer of archive.producers) {
+    const bytes = Buffer.from(producer.contentBase64, "base64");
+    invariant(
+      bytes.toString("base64") === producer.contentBase64 &&
+        bytes.byteLength === producer.bytes &&
+        sha256(bytes) === producer.sha256,
+      "legacy producer blob is missing or stale",
+    );
+    const key = `${producer.sourceRevision}:${producer.sourcePath}:${producer.sha256}`;
+    invariant(!producers.has(key), "legacy producer archive contains a duplicate identity");
+    producers.set(key, bytes);
+  }
+  const claims = legacyVisualReceiptClaims(handoff);
+  invariant(archive.entries.length === claims.length, "legacy visual receipt archive entry set is incomplete or excessive");
+  const archived = new Map();
+  for (let index = 0; index < claims.length; index += 1) {
+    const claim = claims[index];
+    const entry = archive.entries[index];
+    invariant(
+      entry.sampleId === claim.sampleId &&
+        entry.gate === claim.gate &&
+        entry.sourceRevision === claim.sourceRevision &&
+        entry.sourceDigest === claim.sourceDigest &&
+        entry.sourcePath === claim.sourcePath &&
+        path.posix.normalize(entry.sourcePath) === entry.sourcePath &&
+        entry.sha256 === claim.sha256,
+      `${claim.sampleId} ${claim.gate} legacy receipt archive identity, revision, path, or digest drift`,
+    );
+    const bytes = Buffer.from(entry.contentBase64, "base64");
+    invariant(
+      bytes.toString("base64") === entry.contentBase64 &&
+        bytes.byteLength === entry.bytes &&
+        sha256(bytes) === entry.sha256,
+      `${claim.sampleId} ${claim.gate} legacy receipt archive blob is missing or has stale bytes`,
+    );
+    const receipt = parseJsonDocument(bytes.toString("utf8"), entry.sourcePath);
+    const producerBytes = producers.get(
+      `${receipt.sourceRevision}:${receipt.producer.path}:${receipt.producer.sha256}`,
+    );
+    invariant(
+      producerBytes,
+      `${claim.sampleId} ${claim.gate} legacy producer revision, path, or blob is missing or stale`,
+    );
+    await validateGateReceipt(receipt, {
+      sampleId: claim.sampleId,
+      gate: claim.gate,
+      sourceRevision: claim.sourceRevision,
+      sourceDigest: claim.sourceDigest,
+      projectRoot: PROJECT_ROOT,
+      verifyCheckout: false,
+      now: receipt.observedAt,
+      producerBytes,
+    });
+    invariant(
+      receipt.sdkMode === claim.semantic.sdkMode &&
+        receipt.runRoot === claim.semantic.runRoot &&
+        receipt.observedAt === claim.semantic.observedAt &&
+        receipt.expiresAt === claim.semantic.expiresAt &&
+        JSON.stringify(receipt.artifacts[0]) ===
+          JSON.stringify({
+            kind: claim.semantic.reportKind,
+            path: claim.semantic.reportPath,
+            bytes: claim.semantic.reportBytes,
+            sha256: claim.semantic.reportSha256,
+          }),
+      `${claim.sampleId} ${claim.gate} legacy receipt archive metadata drift`,
+    );
+    archived.set(`${claim.sampleId}:${claim.gate}`, bytes);
+  }
+  return archived;
 }
 
 /**
@@ -4696,7 +4909,7 @@ function validateGoldenVisualEvidenceFreshness(entry, now = Date.now()) {
   }
 }
 
-function validateGoldenVisualEvidenceEntries(visualEvidence) {
+function validateGoldenVisualEvidenceEntries(visualEvidence, options = {}) {
   const now = Date.now();
   const journeyIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.journeyId);
   const sampleIds = visualEvidence.qualifiedGoldenJourneys.map((entry) => entry.sampleId);
@@ -4719,7 +4932,10 @@ function validateGoldenVisualEvidenceEntries(visualEvidence) {
       `${entry.sampleId}: visual evidence is missing a required desktop/mobile screenshot variant`,
     );
     validateGoldenVisualEvidenceOwnership(entry);
-    validateGoldenVisualEvidenceFreshness(entry, now);
+    validateGoldenVisualEvidenceFreshness(
+      entry,
+      options.historical === true ? Date.parse(entry.observedAt) : now,
+    );
     invariant(
       entry.screenshots.every(
         (screenshot) =>
@@ -4745,17 +4961,22 @@ function validateGoldenVisualEvidenceEntries(visualEvidence) {
  * broken link, a replaced file, or a stale digest fails publication instead of
  * shipping an unverifiable golden card (honua-io/honua-sdk-js#550).
  */
-async function validateGoldenVisualEvidenceArtifactFiles(entry) {
+async function validateGoldenVisualEvidenceArtifactFiles(entry, options = {}) {
   for (const reference of goldenVisualArtifactReferences(entry)) {
     let bytes;
-    try {
-      bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
-        label: reference.label,
-        maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
-      });
-    } catch (error) {
-      if (error?.code === "ENOENT") throw new Error(`${reference.label} is broken or missing`);
-      throw error;
+    if (reference.kind === "receipt" && options.archivedReceipts) {
+      bytes = options.archivedReceipts.get(`${entry.sampleId}:${reference.gate}`);
+      invariant(bytes, `${reference.label} historical blob is broken or missing`);
+    } else {
+      try {
+        bytes = await readCanonicalBoundedFile(PROJECT_ROOT, reference.path, {
+          label: reference.label,
+          maxBytes: SITE_CONSUMER_MAX_ARTIFACT_BYTES,
+        });
+      } catch (error) {
+        if (error?.code === "ENOENT") throw new Error(`${reference.label} is broken or missing`);
+        throw error;
+      }
     }
     invariant(
       (reference.bytes === null || bytes.byteLength === reference.bytes) &&
@@ -6559,6 +6780,14 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
       ? LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH
       : SITE_CONSUMER_HANDOFF_SCHEMA_PATH;
   await validateJsonSchema(handoff, handoffSchemaPath);
+  let archivedReceipts;
+  if (inputs.legacyReceiptArchive !== undefined) {
+    invariant(
+      handoff?.format === "honua.site.sdk-sample-consumer-handoff.v1" && handoff?.schemaVersion === 1,
+      "legacy receipt archives cannot validate the current site consumer handoff",
+    );
+    archivedReceipts = await validateLegacyVisualReceiptArchive(inputs.legacyReceiptArchive, handoff);
+  }
   const { projection, matrix, visualEvidence, catalog, packageJson, supportTruth, qualificationEvidence } = inputs;
   let contentBoundExpected;
   const authorityInputSupplied = [
@@ -6602,7 +6831,9 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
     for (const [name, reference] of Object.entries(handoff.inputs)) {
       artifacts[name] = await validateSiteConsumerArtifactInput(reference, `site consumer ${name}`);
     }
-    validateGoldenVisualEvidenceEntries(artifacts.visualEvidence);
+    validateGoldenVisualEvidenceEntries(artifacts.visualEvidence, {
+      historical: archivedReceipts !== undefined,
+    });
     contentBoundExpected = generateSiteConsumerHandoff(
       artifacts.siteProjection,
       artifacts.capabilityMatrix,
@@ -6620,7 +6851,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
     }
     for (const card of handoff.cards) {
       if (!card.visualEvidence) continue;
-      await validateGoldenVisualEvidenceArtifactFiles(card.visualEvidence);
+      await validateGoldenVisualEvidenceArtifactFiles(card.visualEvidence, { archivedReceipts });
     }
   }
   invariant(
@@ -7110,13 +7341,14 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   await validateSiteConsumerFixtureV4(consumerFixtureV4, handoff, {
     verifyCheckout: options.verifyCheckout,
   });
-  const [legacyProjection, legacyHandoff, legacyConsumerFixtureV3] = await Promise.all([
+  const [legacyProjection, legacyHandoff, legacyConsumerFixtureV3, legacyReceiptArchive] = await Promise.all([
     readJson(LEGACY_SITE_PROJECTION_PATH),
     readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH),
     readJson(SITE_CONSUMER_V3_FIXTURE_PATH),
+    readJson(LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH),
   ]);
   await validateSiteProjection(legacyProjection);
-  await validateSiteConsumerHandoff(legacyHandoff);
+  await validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive });
   await validateSiteConsumerFixtureV3(legacyConsumerFixtureV3, legacyHandoff);
   return new Map([
     [
@@ -7432,6 +7664,16 @@ async function runContract(command, options = {}) {
 
 async function main(argv) {
   const [command = "check", ...args] = argv;
+  if (command === "archive-legacy-visual-receipts") {
+    invariant(args.length === 0, "archive-legacy-visual-receipts does not accept arguments");
+    const handoff = await readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH);
+    const archive = await generateLegacyVisualReceiptArchive(handoff);
+    await validateLegacyVisualReceiptArchive(archive, handoff);
+    await mkdir(path.dirname(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH)), { recursive: true });
+    await writeFile(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH), stableJson(archive), "utf8");
+    process.stdout.write(`Archived ${archive.entries.length} frozen legacy visual receipt blobs\n`);
+    return;
+  }
   if (["check", "write"].includes(command)) {
     let qualificationBootstrapSampleId;
     if (command === "write" && args.length === 2 && args[0] === "--qualification-bootstrap") {
