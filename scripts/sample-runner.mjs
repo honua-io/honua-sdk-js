@@ -80,6 +80,8 @@ const SAFE_HOST_ENVIRONMENT = new Set([
 ]);
 const MAX_CAPTURE_BYTES = 8 * 1024 * 1024;
 const MAX_GATE_ARTIFACT_BYTES = 16 * 1024 * 1024;
+const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence.v1.json";
+const GOLDEN_VISUAL_EVIDENCE_FORMAT = "honua.sdk.golden-journey-visual-evidence.v1";
 const MAX_PACKED_FILES = 6_000;
 const MAX_PACKED_BYTES = 128 * 1024 * 1024;
 const PLAYWRIGHT_EVIDENCE_ROOT = "test/playwright";
@@ -3093,6 +3095,52 @@ export async function publishGateReceiptGroup(options) {
   return publishGateReceiptGroups({ ...shared, groups: [{ runRoot, receipts }] });
 }
 
+async function publishedVisualEvidenceRunIds(projectRoot, sampleId) {
+  let bytes;
+  try {
+    bytes = await readCanonicalBoundedFile(projectRoot, GOLDEN_VISUAL_EVIDENCE_PATH, {
+      label: "published golden journey visual evidence",
+      maxBytes: MAX_GATE_ARTIFACT_BYTES,
+    });
+  } catch (error) {
+    if (error?.code === "ENOENT") return new Set();
+    throw error;
+  }
+
+  let visualEvidence;
+  try {
+    visualEvidence = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    fail("published golden journey visual evidence is not valid JSON");
+  }
+  if (
+    visualEvidence?.format !== GOLDEN_VISUAL_EVIDENCE_FORMAT ||
+    visualEvidence.schemaVersion !== 1 ||
+    !Array.isArray(visualEvidence.qualifiedGoldenJourneys)
+  ) {
+    fail("published golden journey visual evidence has an invalid contract shape");
+  }
+
+  const entries = visualEvidence.qualifiedGoldenJourneys.filter((entry) => entry?.sampleId === sampleId);
+  if (entries.length > 1) fail(`${sampleId}: published golden journey visual evidence is duplicated`);
+  if (entries.length === 0) return new Set();
+  if (!Array.isArray(entries[0].semanticEvidence) || entries[0].semanticEvidence.length === 0) {
+    fail(`${sampleId}: published golden journey visual evidence has no semantic run bindings`);
+  }
+
+  const prefix = `samples/evidence/${sampleId}/runs/`;
+  const referenced = new Set();
+  for (const semantic of entries[0].semanticEvidence) {
+    const runRoot = semantic?.runRoot;
+    const runId = typeof runRoot === "string" ? runRoot.slice(prefix.length) : "";
+    if (runRoot !== `${prefix}${runId}` || !isSampleEvidenceRunId(runId)) {
+      fail(`${sampleId}: published golden journey visual evidence has an invalid run binding`);
+    }
+    referenced.add(runId);
+  }
+  return referenced;
+}
+
 export async function pruneUnreferencedEvidenceRuns(baseRoot, sampleId, options = {}) {
   const binding = await canonicalPruneDirectories(baseRoot, sampleId, options.projectRoot ?? PROJECT_ROOT);
   if (!binding) return;
@@ -3101,7 +3149,7 @@ export async function pruneUnreferencedEvidenceRuns(baseRoot, sampleId, options 
     readdir(binding.receiptRoot.absolute, { withFileTypes: true }),
     readdir(binding.runsRoot.absolute, { withFileTypes: true }),
   ]);
-  const referenced = new Set();
+  const referenced = await publishedVisualEvidenceRunIds(binding.projectRoot, sampleId);
   const receiptNames = new Set(SAMPLE_GATE_NAMES.map((gate) => `${gate}.v1.json`));
   for (const entry of receiptEntries) {
     if (!receiptNames.has(entry.name) || !entry.isFile() || entry.isSymbolicLink()) {
