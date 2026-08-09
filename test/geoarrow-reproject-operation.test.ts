@@ -87,4 +87,31 @@ describe("GeoArrow reprojection operation", () => {
     });
     expect(() => operation(batch, context([]))).toThrow("preserve coordinate dimensionality");
   });
+
+  it("preserves an empty Point without invoking the host transform", async () => {
+    const { batch } = createGeoArrowBatch({
+      id: "points:empty",
+      sequence: 0,
+      schemaId: "points@1",
+      identity: identity("points@1"),
+      geometry: { kind: "point", values: [[Number.NaN, Number.NaN], [1, 2], null] },
+    });
+    const projectedPositions: (readonly number[])[] = [];
+    const operation = createGeoArrowReprojectOperation({
+      schemaId: "points@1:target",
+      identity: identity("points@1:target"),
+      targetCrs: "EPSG:3857",
+      project: (position) => {
+        projectedPositions.push(position);
+        return [position[0]! + 10, position[1]! + 20];
+      },
+    });
+
+    const projected = await operation(batch, context([]));
+    const rows = decodeGeoArrowBatch(projected).rows;
+    expect((rows[0]!.geometry as readonly number[]).every(Number.isNaN)).toBe(true);
+    expect(rows[1]!.geometry).toEqual([11, 22]);
+    expect(rows[2]!.geometry).toBeNull();
+    expect(projectedPositions).toEqual([[1, 2]]);
+  });
 });

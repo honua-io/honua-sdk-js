@@ -821,11 +821,16 @@ function geoParquetEncodingMatchesGeometryTypes(encoding: string, geometryTypes:
 }
 
 function validGeoParquetBbox(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    (value.length === 4 || value.length === 6) &&
-    value.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))
-  );
+  if (
+    !Array.isArray(value) ||
+    (value.length !== 4 && value.length !== 6) ||
+    !value.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))
+  ) {
+    return false;
+  }
+  return value.length === 4
+    ? value[0] <= value[2] && value[1] <= value[3]
+    : value[0] <= value[3] && value[1] <= value[4] && value[2] <= value[5];
 }
 
 function validGeoParquetCovering(value: unknown): boolean {

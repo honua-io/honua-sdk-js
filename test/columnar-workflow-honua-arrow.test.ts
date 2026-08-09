@@ -177,6 +177,7 @@ const unsupportedWkb = (type: number): Uint8Array => {
 interface SyntheticIpcOptions {
   readonly storage?: "binary" | "large-binary";
   readonly extensionMetadata?: string | Readonly<Record<string, unknown>>;
+  readonly maxBackingBytes?: number;
 }
 
 const syntheticIpc = async (
@@ -204,7 +205,21 @@ const syntheticIpc = async (
 
 const decodeSynthetic = async (geometries: readonly (Uint8Array | null)[], options: SyntheticIpcOptions = {}) => {
   const payload = await syntheticIpc(geometries, options);
-  const batches = await decode(context({ query: { limit: 10 } }, payload));
+  const batches = await decode(
+    context(
+      {
+        query: {
+          columns: [],
+          limit: Math.max(1, geometries.length),
+          orderBy: [{ field: "geometry", direction: "asc" }],
+        },
+        ...(options.maxBackingBytes === undefined
+          ? {}
+          : { budgets: { ...budgets, maxBackingBytes: options.maxBackingBytes } }),
+      },
+      payload,
+    ),
+  );
   assert.equal(batches.length, 1);
   return batches[0]!;
 };
@@ -339,6 +354,14 @@ test("preserves null and empty Point, LineString, and Polygon semantics", async 
         ],
       ],
     ],
+  );
+});
+
+test("bounds XYZ WKB coordinate arrays before materializing them", async () => {
+  const positions = Array.from({ length: 8 }, (_, index) => [index, index + 1, index + 2] as const);
+  await assert.rejects(
+    () => decodeSynthetic([lineStringWkb(positions, { dimensions: "xyz" })], { maxBackingBytes: 512 }),
+    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "BACKING_LIMIT_EXCEEDED",
   );
 });
 

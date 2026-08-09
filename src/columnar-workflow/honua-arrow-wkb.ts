@@ -100,9 +100,32 @@ interface ParsedGeometry {
 interface GeometryBudget {
   vertices: number;
   rings: number;
+  materializedBytes: number;
   readonly maxVertices: number;
   readonly maxRings: number;
+  readonly maxMaterializedBytes: number;
   readonly signal?: AbortSignal;
+}
+
+// Conservative retained-size model for the short-lived JavaScript geometry
+// tree. A decoded ordinate and its eventual packed Float64 value coexist while
+// createGeoArrowBatch builds the normative output, and every nested array also
+// carries a header plus references to its children. Charge all of those bytes
+// before allocating the corresponding array so XYZ WKB cannot outrun the
+// caller's backing ceiling merely because the old vertex bound assumed XY.
+const MATERIALIZED_ARRAY_HEADER_BYTES = 32;
+const MATERIALIZED_ARRAY_SLOT_BYTES = 8;
+const MATERIALIZED_ORDINATE_BYTES = 16;
+
+function reserveGeometryMaterialization(budget: GeometryBudget, bytes: number, resource: string): void {
+  if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > budget.maxMaterializedBytes - budget.materializedBytes) {
+    fail("backing-limit", `WKB ${resource} exceeds the bounded materialization ceiling.`, {
+      requestedBytes: bytes,
+      materializedBytes: budget.materializedBytes,
+      limit: budget.maxMaterializedBytes,
+    });
+  }
+  budget.materializedBytes += bytes;
 }
 
 function fail(
@@ -453,15 +476,30 @@ class WkbCursor {
       result = { kind: "point", dimensions, value: this.position(littleEndian, width, true) };
     } else if (type === 2) {
       const count = this.count(littleEndian, this.budget.maxVertices - this.budget.vertices, "vertices");
+      reserveGeometryMaterialization(
+        this.budget,
+        MATERIALIZED_ARRAY_HEADER_BYTES + count * MATERIALIZED_ARRAY_SLOT_BYTES,
+        "LineString position array",
+      );
       const line: GeoArrowPosition[] = [];
       for (let index = 0; index < count; index += 1) line.push(this.position(littleEndian, width));
       result = { kind: "linestring", dimensions, value: line };
     } else if (type === 3) {
       const ringCount = this.count(littleEndian, this.budget.maxRings - this.budget.rings, "rings");
       this.budget.rings += ringCount;
+      reserveGeometryMaterialization(
+        this.budget,
+        MATERIALIZED_ARRAY_HEADER_BYTES + ringCount * MATERIALIZED_ARRAY_SLOT_BYTES,
+        "Polygon ring array",
+      );
       const polygon: GeoArrowPosition[][] = [];
       for (let ring = 0; ring < ringCount; ring += 1) {
         const count = this.count(littleEndian, this.budget.maxVertices - this.budget.vertices, "vertices");
+        reserveGeometryMaterialization(
+          this.budget,
+          MATERIALIZED_ARRAY_HEADER_BYTES + count * MATERIALIZED_ARRAY_SLOT_BYTES,
+          "Polygon position array",
+        );
         const positions: GeoArrowPosition[] = [];
         for (let index = 0; index < count; index += 1) positions.push(this.position(littleEndian, width));
         polygon.push(positions);
@@ -516,6 +554,11 @@ class WkbCursor {
     if (this.budget.vertices >= this.budget.maxVertices) {
       fail("backing-limit", `WKB vertices exceed the ${this.budget.maxVertices}-vertex decode ceiling.`);
     }
+    reserveGeometryMaterialization(
+      this.budget,
+      MATERIALIZED_ARRAY_HEADER_BYTES + width * MATERIALIZED_ORDINATE_BYTES,
+      `${width === 3 ? "XYZ" : "XY"} position`,
+    );
     this.budget.vertices += 1;
     if (this.budget.vertices % ABORT_CHECK_VERTICES === 0) throwIfAborted(this.budget.signal);
     const result: number[] = [];
@@ -597,9 +640,26 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
   const geometryField = batch.schema.fields[geometryIndex]!;
   const declaration = geometryDeclaration(batch, geometryIndex, input.maxBackingBytes);
   const fields = mappedFields(batch, geometryIndex, input);
-  const maxVertices = Math.max(1, Math.floor(input.maxBackingBytes / 16));
-  const maxRings = Math.max(1, Math.min(maxVertices, Math.floor(input.maxBackingBytes / 4)));
-  const budget: GeometryBudget = { vertices: 0, rings: 0, maxVertices, maxRings, signal: input.signal };
+  const maxVertices = Math.floor(
+    input.maxBackingBytes / (MATERIALIZED_ARRAY_HEADER_BYTES + 3 * MATERIALIZED_ORDINATE_BYTES),
+  );
+  const maxRings = Math.floor(
+    input.maxBackingBytes / (MATERIALIZED_ARRAY_HEADER_BYTES + MATERIALIZED_ARRAY_SLOT_BYTES),
+  );
+  const budget: GeometryBudget = {
+    vertices: 0,
+    rings: 0,
+    materializedBytes: 0,
+    maxVertices,
+    maxRings,
+    maxMaterializedBytes: input.maxBackingBytes,
+    signal: input.signal,
+  };
+  reserveGeometryMaterialization(
+    budget,
+    MATERIALIZED_ARRAY_HEADER_BYTES + batch.numRows * MATERIALIZED_ARRAY_SLOT_BYTES,
+    "geometry row array",
+  );
   const geometries: Array<GeoArrowPoint | GeoArrowLineString | GeoArrowPolygon | null> = [];
   let observedKind: GeoArrowGeometryKind | undefined;
   let observedDimensions: GeoArrowDimensions | undefined;
