@@ -194,6 +194,8 @@ describe("First Map copyable workflow core", () => {
     const liveProducer = readFileSync(new URL("../scripts/first-map-live-evidence.mjs", import.meta.url), "utf8");
     expect(liveProducer).toContain(`const sourceEndpoint = ${JSON.stringify(PUBLIC_FIRST_MAP_ENDPOINT)}`);
     expect(liveProducer).toContain('runtime.sourceId !== "1"');
+    expect(liveProducer).toContain('runtime.sourceAttribution !== "maui-parcels"');
+    expect(liveProducer).toContain("!presentation.source?.includes(runtime.sourceAttribution)");
     const fixtureProducer = readFileSync(
       new URL("../examples/maplibre-quickstart/mock-server.mjs", import.meta.url),
       "utf8",
