@@ -169,7 +169,7 @@ async function main() {
       runtime.sourceProtocol !== "geoservices-feature-service" ||
       runtime.sourceId !== "1" ||
       runtime.baseUrl !== sourceEndpoint ||
-      runtime.sourceAttribution !== null ||
+      runtime.sourceAttribution !== "maui-parcels" ||
       typeof runtime.sourceObservedAt !== "string" ||
       runtime.sourceFreshness !== "observed" ||
       !["bypass", "hit", "miss", "refreshed"].includes(runtime.cacheStatus) ||
@@ -180,7 +180,7 @@ async function main() {
       !runtime.planFingerprint?.startsWith("sha256:") ||
       !presentation.popup ||
       presentation.endpoint !== sourceEndpoint ||
-      !presentation.source?.includes("no attribution advertised") ||
+      !presentation.source?.includes(runtime.sourceAttribution) ||
       presentation.freshness !== "SDK observation available" ||
       presentation.cache !== runtime.cacheStatus ||
       !presentation.degradation ||
