@@ -286,6 +286,7 @@ jobs:
            needs.release-please-ci.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       checks: write
       contents: read
       issues: read
@@ -306,6 +307,15 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "20.19.0"
+
+      - name: Emit current Release Please SDK checks
+        working-directory: trusted-policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TRUSTED_POLICY_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
+          node scripts/publish-release-please-ci-checks.mjs
 
       - name: Emit current Release Please disposition check
         working-directory: trusted-policy
