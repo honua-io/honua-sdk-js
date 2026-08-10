@@ -2,7 +2,7 @@ import { HonuaCapabilityNotSupportedError, HonuaHttpError, createHonua, isHonuaE
 import type { ConnectionInspection, HonuaKernel } from "@honua/sdk-js";
 import { maplibreRenderer } from "@honua/sdk-js/runtime";
 
-import type { FirstMapConfig } from "./first-map-config.js";
+import { type FirstMapConfig, firstMapConnectLocator } from "./first-map-config.js";
 import type * as Model from "./first-map-model.js";
 
 export type { FirstMapReady, FirstMapWorkflowResult } from "./first-map-model.js";
@@ -13,14 +13,11 @@ export async function runFirstMapWorkflow<T = Record<string, unknown>>(
 ): Promise<Model.FirstMapWorkflowResult<T>> {
   const honua = createHonua();
   try {
-    const connection = await honua.connect<T>(
-      { url: config.endpoint, protocol: config.protocol },
-      {
-        authorizationScopeFingerprint: "anonymous-public",
-        ...(options.fetchFn ? { clientOptions: { fetchFn: options.fetchFn } } : {}),
-        ...(options.signal ? { signal: options.signal } : {}),
-      },
-    );
+    const connection = await honua.connect<T>(firstMapConnectLocator(config), {
+      authorizationScopeFingerprint: "anonymous-public",
+      ...(options.fetchFn ? { clientOptions: { fetchFn: options.fetchFn } } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
     const inspection = await connection.inspect(options.signal ? { signal: options.signal } : {});
     const sources = inspection.sources.map(({ descriptor }) => sourceChoice(descriptor));
     if (sources.length === 0) return close(honua, unsupported("first-map.no-sources", "No sources were advertised."));
