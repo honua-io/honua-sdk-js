@@ -97,7 +97,6 @@ function initialLaunch(): FirstMapLaunch {
     VITE_HONUA_QUICKSTART_ENDPOINT: import.meta.env.VITE_HONUA_QUICKSTART_ENDPOINT,
     VITE_HONUA_QUICKSTART_PROTOCOL: import.meta.env.VITE_HONUA_QUICKSTART_PROTOCOL,
     VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: import.meta.env.VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT,
-    VITE_HONUA_QUICKSTART_SELECTED_RECORD_ID: import.meta.env.VITE_HONUA_QUICKSTART_SELECTED_RECORD_ID,
     VITE_HONUA_QUICKSTART_WHERE: import.meta.env.VITE_HONUA_QUICKSTART_WHERE,
   };
   const configured = endpointFromEnvironment(env);
@@ -105,7 +104,7 @@ function initialLaunch(): FirstMapLaunch {
   const where =
     readOptional(env, "VITE_HONUA_QUICKSTART_WHERE") ??
     (configured.endpoint === PUBLIC_FIRST_MAP_ENDPOINT ? `id <= ${maxFeatures}` : undefined);
-  const selectedRecordId = readOptional(env, "VITE_HONUA_QUICKSTART_SELECTED_RECORD_ID");
+  const selectedRecordId = configured.live ? undefined : "1";
   const mode: FirstMapMode = configured.live ? "public-live" : "fixture";
   return {
     endpoint: configured.endpoint,
