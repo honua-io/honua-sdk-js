@@ -109,7 +109,7 @@ async function sha256OfEntries(entries) {
 
 export async function browserCorpusFingerprint({
   repoRoot = REPO_ROOT,
-  fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v1"),
+  fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v2"),
 } = {}) {
   const manifestPath = path.join(fixtureRoot, "manifest.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
@@ -128,11 +128,11 @@ export async function browserCorpusFingerprint({
       absolutePath: path.join(repoRoot, logicalPath),
     })),
     {
-      logicalPath: "samples/fixtures/first-map/v1/manifest.json",
+      logicalPath: "samples/fixtures/first-map/v2/manifest.json",
       absolutePath: manifestPath,
     },
     ...fixtureFiles.map((file) => ({
-      logicalPath: `samples/fixtures/first-map/v1/${file}`,
+      logicalPath: `samples/fixtures/first-map/v2/${file}`,
       absolutePath: path.join(fixtureRoot, file),
     })),
   ];
@@ -349,7 +349,7 @@ async function runMapLibreSample(browser, url, screenshotPath) {
       () => performance.now() - (window.__HONUA_BROWSER_BENCH_STARTED__ ?? 0),
     );
     const interaction = await page.evaluate(async () => {
-      const button = document.querySelector('[aria-label="Inspect Harbor response district"]');
+      const button = document.querySelector('[aria-label="Inspect Census Tract 302.01"]');
       if (!(button instanceof HTMLButtonElement)) throw new Error("MapLibre interaction target is missing");
       const startedAt = performance.now();
       const deadline = startedAt + 5_000;
