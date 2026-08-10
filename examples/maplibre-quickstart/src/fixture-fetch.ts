@@ -9,11 +9,15 @@ const jsonResponse = (body: string): Response =>
 
 const loadFixture = (url: string): (() => Promise<string>) => {
   let body: Promise<string> | undefined;
-  return () =>
-    (body ??= fetch(url).then((response) => {
-      if (!response.ok) throw new Error(`First Map fixture asset failed with HTTP ${response.status}.`);
-      return response.text();
-    }));
+  return () => {
+    if (!body) {
+      body = fetch(url).then((response) => {
+        if (!response.ok) throw new Error(`First Map fixture asset failed with HTTP ${response.status}.`);
+        return response.text();
+      });
+    }
+    return body;
+  };
 };
 
 export function createFirstMapFixtureFetch(endpoint: string): typeof fetch {

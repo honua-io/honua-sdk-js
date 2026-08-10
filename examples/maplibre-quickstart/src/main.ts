@@ -6,7 +6,6 @@ import * as maplibregl from "maplibre-gl";
 
 import { PUBLIC_FIRST_MAP_ENDPOINT, SAME_ORIGIN_FIRST_MAP_FIXTURE, resolveFirstMapConfig } from "./first-map-config.js";
 import type { FirstMapMode, FirstMapProtocol } from "./first-map-config.js";
-import { createFirstMapFixtureFetch } from "./fixture-fetch.js";
 import {
   FIRST_MAP_TIMING_BUDGETS_MS,
   collectFirstMapBounds,
@@ -20,6 +19,7 @@ import {
   summarizeFirstMapFeatures,
 } from "./first-map-presentation.js";
 import type { FirstMapFeatureSummary, FirstMapFilterChoice } from "./first-map-presentation.js";
+import { createFirstMapFixtureFetch } from "./fixture-fetch.js";
 import { createQuickstartTelemetry } from "./telemetry.js";
 import { runFirstMapWorkflow } from "./workflow.js";
 import type { FirstMapReady, FirstMapWorkflowResult } from "./workflow.js";
