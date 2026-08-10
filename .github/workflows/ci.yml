@@ -26,6 +26,13 @@ on:
         required: false
         default: false
         type: boolean
+      publish_sample_bundles:
+        description: >-
+          Publish the rolling sample-bundle release after exact post-regeneration
+          trunk validation. Reserved for regenerate-derived-artifacts.yml.
+        required: false
+        default: false
+        type: boolean
       release_pull_request_number:
         description: >-
           Exact Release Please pull request validated by trusted trunk policy.
@@ -661,12 +668,26 @@ jobs:
     # docs/sample-bundles.md), so this job re-runs the build rather than
     # downloading js-sdk's workflow artifact.
     needs: js-sdk
-    if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
+    if: >-
+      ${{ github.ref == 'refs/heads/trunk'
+      && (github.event_name == 'push'
+      || github.event_name == 'workflow_dispatch' && inputs.publish_sample_bundles) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Validate current trunk publication revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current_trunk="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
+          if [[ "$GITHUB_REF" != "refs/heads/trunk" || "$current_trunk" != "$GITHUB_SHA" ]]; then
+            echo "::error::Sample bundles may publish only from the exact current trunk revision."
+            exit 1
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -711,6 +732,11 @@ jobs:
           set -euo pipefail
           repo="${{ github.repository }}"
           sha="${{ github.sha }}"
+          current_trunk="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
+          if [[ "$current_trunk" != "$sha" ]]; then
+            echo "::error::Trunk advanced before sample-bundle publication."
+            exit 1
+          fi
           notes="Reproducible browser bundles for the samples gallery (honua-io/honua-sdk-js#642), built from commit $sha."
           if gh release view sample-bundles-latest -R "$repo" >/dev/null 2>&1; then
             gh release edit sample-bundles-latest -R "$repo" --target "$sha" --notes "$notes"

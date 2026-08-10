@@ -227,6 +227,34 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /current_trunk="\$\(git rev-parse refs\/remotes\/origin\/trunk\)"/u);
     assert.match(workflow, /gh pr merge "\$PR_NUMBER"[\s\S]*--merge[\s\S]*--match-head-commit "\$GENERATED"/u);
     assert.match(workflow, /gh workflow run regenerate-derived-artifacts\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u);
+    assert.match(
+      workflow,
+      /name: Dispatch strict trunk CI and docs validation[\s\S]*gh workflow run ci\.yml[\s\S]*--ref trunk[\s\S]*-f publish_sample_bundles=true/u,
+    );
+    const ciWorkflow = fs
+      .readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
+    assert.match(
+      ciWorkflow,
+      /publish_sample_bundles:\n[\s\S]*?default: false\n[\s\S]*?type: boolean/u,
+    );
+    const sampleBundleRelease = ciWorkflow.slice(ciWorkflow.indexOf("  sample-bundles-release:"));
+    assert.match(
+      sampleBundleRelease,
+      /if: >-\n      \$\{\{ github\.ref == 'refs\/heads\/trunk'\n      && \(github\.event_name == 'push'\n      \|\| github\.event_name == 'workflow_dispatch' && inputs\.publish_sample_bundles\) \}\}/u,
+    );
+    assert.match(sampleBundleRelease, /needs: js-sdk/u);
+    assert.match(sampleBundleRelease, /name: Validate current trunk publication revision/u);
+    assert.match(sampleBundleRelease, /current_trunk" != "\$GITHUB_SHA"/u);
+    assert.match(sampleBundleRelease, /Trunk advanced before sample-bundle publication/u);
+    assert.doesNotMatch(sampleBundleRelease, /release_head_sha/u);
+    const publicationAllowed = (ref, eventName, publishSampleBundles) =>
+      ref === "refs/heads/trunk" &&
+      (eventName === "push" || (eventName === "workflow_dispatch" && publishSampleBundles));
+    assert.equal(publicationAllowed("refs/heads/trunk", "push", false), true);
+    assert.equal(publicationAllowed("refs/heads/trunk", "workflow_dispatch", false), false);
+    assert.equal(publicationAllowed("refs/heads/release-please--branches--trunk", "workflow_dispatch", true), false);
+    assert.equal(publicationAllowed("refs/heads/trunk", "workflow_dispatch", true), true);
     const migrationGeneration = workflow.indexOf("name: Regenerate migration-workbench artifacts");
     const llmsGeneration = workflow.indexOf("name: Regenerate llms.txt and comparison page");
     const comparisonCommand = workflow.indexOf("npm run docs:comparison", llmsGeneration);
