@@ -120,13 +120,16 @@ function initialLaunch(): FirstMapLaunch {
   };
 }
 
+function isPackagedFixtureEndpoint(endpoint: string): boolean {
+  const url = new URL(endpoint);
+  const pathname = url.pathname.replace(/\/+$/, "") || "/";
+  return url.origin === location.origin && pathname.endsWith(FIXTURE_FEATURE_PATH);
+}
+
 function isFixtureEndpoint(endpoint: string): boolean {
   const url = new URL(endpoint);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
-  return (
-    url.origin === location.origin &&
-    (pathname.endsWith(FIXTURE_FEATURE_PATH) || [FIXTURE_FEATURE_PATH, FIXTURE_OGC_PATH].includes(pathname))
-  );
+  return isPackagedFixtureEndpoint(endpoint) || (url.origin === location.origin && pathname === FIXTURE_OGC_PATH);
 }
 
 function safeEndpoint(endpoint: string): string {
@@ -567,7 +570,9 @@ async function bootstrap(): Promise<void> {
       const result = await runFirstMapWorkflow(config, {
         map,
         maplibre: maplibregl,
-        ...(launch.mode === "fixture" ? { fetchFn: createFirstMapFixtureFetch(launch.endpoint) } : {}),
+        ...(launch.mode === "fixture" && isPackagedFixtureEndpoint(launch.endpoint)
+          ? { fetchFn: createFirstMapFixtureFetch(launch.endpoint) }
+          : {}),
         rendererOptions: {
           sourceId: FIRST_MAP_SOURCE_ID,
           layerId: FIRST_MAP_LAYER_ID,
