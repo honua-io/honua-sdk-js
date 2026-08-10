@@ -553,11 +553,6 @@
         "coverage",
         "multidimensional-raster"
       ],
-      "capabilityKeys": [
-        "raster.multidim-coverage",
-        "serve.ogc-api-coverages",
-        "serve.wcs"
-      ],
       "protocols": [
         "ogc-coverages",
         "wcs"
@@ -568,11 +563,11 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
+        "configurationStatus": "not-required",
         "config": [],
         "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
         "attribution": "Honua protocol contract fixture.",
         "freshness": "Versioned with the repository and server contract.",
-        "configurationStatus": "not-required",
         "configClassifications": []
       },
       "evidence": {
@@ -609,7 +604,12 @@
             "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
           }
         ]
-      }
+      },
+      "capabilityKeys": [
+        "raster.multidim-coverage",
+        "serve.ogc-api-coverages",
+        "serve.wcs"
+      ]
     },
     {
       "id": "edit-workflow-demo",
@@ -870,7 +870,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-09T17:25:43.989Z"
+          "expiresAt": "2026-09-10T01:38:59.788Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1118,7 +1118,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-09T17:23:34.102Z"
+          "expiresAt": "2026-09-10T01:36:43.556Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1240,7 +1240,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-09T17:26:07.186Z"
+          "expiresAt": "2026-09-10T01:39:24.801Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -2155,7 +2155,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-09T17:27:08.134Z"
+          "expiresAt": "2026-09-10T01:40:29.946Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
