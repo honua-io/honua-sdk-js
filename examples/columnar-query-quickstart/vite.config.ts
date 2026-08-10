@@ -1,10 +1,16 @@
-import { createSampleViteConfig } from "../_kit/vite.config.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const config = createSampleViteConfig(import.meta.url, {
-  sdkEntrypoints: ["@honua/sdk-js/columnar-workflow"],
+import { defineConfig } from "vite";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+export default defineConfig({
+  root: "examples/columnar-query-quickstart",
+  resolve: {
+    alias: {
+      "@honua/sdk-js/columnar-workflow": path.resolve(repoRoot, "src/columnar-workflow/index.ts"),
+    },
+  },
+  server: { port: 5193, fs: { allow: [repoRoot] } },
 });
-
-export default {
-  ...config,
-  server: { ...config.server, port: 5193 },
-};
