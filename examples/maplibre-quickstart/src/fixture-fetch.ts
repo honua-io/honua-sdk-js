@@ -1,5 +1,5 @@
 import featureCollectionUrl from "../../../samples/fixtures/first-map/v2/features.json?url";
-import layerDefinitionUrl from "../../../samples/fixtures/first-map/v2/layer.json?url";
+import layerDefinitionUrl from "../../../samples/fixtures/first-map/v2/layer.json?url&no-inline";
 
 const jsonResponse = (body: string): Response =>
   new Response(body, {
