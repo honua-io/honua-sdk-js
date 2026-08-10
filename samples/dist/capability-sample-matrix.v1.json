@@ -10,25 +10,25 @@
       "path": "config/support-manifest.v1.json",
       "format": "honua.sdk.support-manifest.v1",
       "schemaVersion": 1,
-      "sha256": "daa6a6cb26c9b13177e2766f3cf9c9d2cf06d86d03e11889b61ec909584f059b"
+      "sha256": "698e2cf969857f9f93528d5e78cd4e902255169ef720f7086dd4324890c94ed4"
     },
     "packageExports": {
       "path": "package.json",
       "package": "@honua/sdk-js",
-      "sha256": "55a42e559e194e13c0fbaac5969f02daa0753530d0317a0de9009bbd9f54c648"
+      "sha256": "5b853fef27c857b1b35f0c7afe1ff72ce7236a271046fbf4bfede2f0b2d6af6f"
     },
     "catalog": {
       "path": "samples/catalog.v2.json",
       "format": "honua.sdk.sample-catalog.v2",
       "schemaVersion": 2,
-      "sha256": "bb0ae2d1c2054e2c98e6748cea991ad9bbb190bad043737e5076db68b9e05717"
+      "sha256": "64a0bcb4cf4f9cec8447781106469fd4ba50aaae954f24de72b8e567cef4e8b2"
     },
     "qualificationEvidence": {
       "root": "samples/evidence",
       "format": "honua.sdk.sample-qualification-evidence.v1",
       "schemaVersion": 1,
       "receiptCount": 36,
-      "sha256": "e828292f7d3781651866b7b027266cbe3d1216417822f29c63937c603a9a7513"
+      "sha256": "1abefc12b15d92ad2a553588b0b7b76d2e16782104cf092bf5f0b34fa36c06f8"
     }
   },
   "statusVocabulary": {
@@ -72,6 +72,7 @@
       "columnar",
       "compatibility",
       "controls",
+      "coverage",
       "custom-elements",
       "direct-connect",
       "discovery",
@@ -93,6 +94,7 @@
       "map",
       "mcp",
       "migration",
+      "multidimensional-raster",
       "node",
       "oauth",
       "offline",
@@ -115,7 +117,6 @@
       "reconciliation",
       "renderer-adapters",
       "replay",
-      "reverse-geocode",
       "route-playback",
       "runtime",
       "safe-editing",
@@ -128,7 +129,6 @@
       "stac",
       "storytelling",
       "strategy-selection",
-      "suggest",
       "temporal",
       "terrain",
       "three-dimensional",
@@ -145,6 +145,7 @@
       "oauth",
       "odata",
       "ogc",
+      "ogc-coverages",
       "ogc-features",
       "ogc-processes",
       "pmtiles",
@@ -152,6 +153,7 @@
       "sse",
       "stac",
       "terrain-rgb",
+      "wcs",
       "wfs",
       "wms",
       "wmts"
@@ -168,6 +170,7 @@
       "maplibre-raster",
       "maplibre-vector",
       "odata",
+      "ogc-coverages",
       "ogc-features",
       "ogc-maps",
       "ogc-processes",
@@ -175,6 +178,7 @@
       "ogc-tiles",
       "pmtiles",
       "stac",
+      "wcs",
       "wfs",
       "wms",
       "wmts"
@@ -223,11 +227,13 @@
       "./auth",
       "./browser",
       "./cli",
+      "./cloud-native-discovery",
       "./cog",
       "./collaboration",
       "./contract",
       "./control-plane",
       "./controls",
+      "./coverages",
       "./deckgl",
       "./diagnostics",
       "./esri-compat",
@@ -287,7 +293,7 @@
           "maplibre-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:7a30dfd916ae68f1762e8dd87347f524b17a484b6d3733f8f6aabdd7abd9985b"
+          "qualification:0965e4dd892f069ec982bdc3a4a38b4936b266d4304084866c2a6e52273abbf3"
         ],
         "selectedSampleId": "maplibre-quickstart"
       }
@@ -308,7 +314,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:20d941a2e515e8c6c21682999823d8aff7d274bc1c96547b893e9d6295629fdc"
+          "qualification:8f4061017c09d68870e3ccdc9d60114ef7fa18d10ae9e64fa37f106c7b9ae7f8"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -363,7 +369,7 @@
           "imagery-cog-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:cb66c76893458db7c2b2b2af6013d086625cb56383befbed07c7ec1d99690350"
+          "qualification:698126e955f42c93e768e12b17c0503e9ccb23ab4182ca714c171d775daf1c79"
         ],
         "selectedSampleId": "imagery-cog-quickstart"
       }
@@ -401,7 +407,7 @@
           "migration-workbench"
         ],
         "evidenceBindingIds": [
-          "qualification:5c27b69b4129300f3e01869a2172dc92c4dd98ae86e2076845d0a6611786c521"
+          "qualification:a7bd7748bd22ab9e80aa916c1efac3a4497cfc7d5701e30baad3a0715aab22ab"
         ],
         "selectedSampleId": "migration-workbench"
       }
@@ -691,6 +697,61 @@
       }
     },
     {
+      "id": "coverages-wcs-basic",
+      "title": "Bounded coverage quickstart",
+      "sourcePath": "examples/coverages-wcs-basic",
+      "track": "recipe",
+      "tasks": [
+        "coverage",
+        "multidimensional-raster"
+      ],
+      "catalogProtocols": [
+        "ogc-coverages",
+        "wcs"
+      ],
+      "protocolIds": [
+        "ogc-coverages",
+        "wcs"
+      ],
+      "supportClaimIds": [
+        "ogc-coverages-standalone",
+        "wcs-standalone"
+      ],
+      "protocolBindings": [
+        {
+          "catalogProtocol": "ogc-coverages",
+          "protocolIds": [
+            "ogc-coverages"
+          ],
+          "supportClaimIds": [
+            "ogc-coverages-standalone"
+          ],
+          "external": false
+        },
+        {
+          "catalogProtocol": "wcs",
+          "protocolIds": [
+            "wcs"
+          ],
+          "supportClaimIds": [
+            "wcs-standalone"
+          ],
+          "external": false
+        }
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "dataMode": "fixture",
+      "authMode": "none",
+      "supportTier": "experimental",
+      "lifecycleState": "active",
+      "qualification": {
+        "state": "experimental",
+        "catalogStatus": "not-a-golden-journey"
+      }
+    },
+    {
       "id": "edit-workflow-demo",
       "title": "Conflict-aware editing workflow",
       "sourcePath": "examples/edit-workflow-demo",
@@ -758,8 +819,7 @@
       "track": "recipe",
       "tasks": [
         "forward-geocode",
-        "reverse-geocode",
-        "suggest"
+        "map"
       ],
       "catalogProtocols": [
         "geoservices"
@@ -789,10 +849,10 @@
       "renderers": [
         "maplibre"
       ],
-      "dataMode": "hybrid",
-      "authMode": "api-key",
+      "dataMode": "fixture",
+      "authMode": "none",
       "supportTier": "supported",
-      "lifecycleState": "rework",
+      "lifecycleState": "active",
       "qualification": {
         "state": "partial",
         "catalogStatus": "not-a-golden-journey"
@@ -928,7 +988,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:cb66c76893458db7c2b2b2af6013d086625cb56383befbed07c7ec1d99690350",
+        "evidenceBindingId": "qualification:698126e955f42c93e768e12b17c0503e9ccb23ab4182ca714c171d775daf1c79",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -947,9 +1007,9 @@
             "source"
           ],
           "sourceRevisions": [
-            "6ae7a041a99534a006df4f85c225861c41a216a6"
+            "c9767970bf539a87209f849c4eaef2a092980461"
           ],
-          "sha256": "6cd3d37632b3713f3295c344b82f6549e0f2d49f47de8d1ad0316c17ad963400"
+          "sha256": "e446405cd23db072f8c8e29b8e9852423203f16980f229a7c80a407619ce9937"
         }
       }
     },
@@ -1008,7 +1068,7 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "First Map: endpoint to inspected MapLibre map",
+      "title": "First Map: Maui parcels in MapLibre",
       "sourcePath": "examples/maplibre-quickstart",
       "track": "golden",
       "journeyId": "first-map",
@@ -1070,7 +1130,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:7a30dfd916ae68f1762e8dd87347f524b17a484b6d3733f8f6aabdd7abd9985b",
+        "evidenceBindingId": "qualification:0965e4dd892f069ec982bdc3a4a38b4936b266d4304084866c2a6e52273abbf3",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -1089,9 +1149,9 @@
             "source"
           ],
           "sourceRevisions": [
-            "6ae7a041a99534a006df4f85c225861c41a216a6"
+            "c9767970bf539a87209f849c4eaef2a092980461"
           ],
-          "sha256": "7e098188e66b15c0f2ea63bad9b662f14053894077d313ebb90681765baa19f1"
+          "sha256": "4764f8b4f1177365d442924a9e8dfaa98198e81fe6dd65d26900ff384275dad0"
         }
       }
     },
@@ -1194,7 +1254,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:5c27b69b4129300f3e01869a2172dc92c4dd98ae86e2076845d0a6611786c521",
+        "evidenceBindingId": "qualification:a7bd7748bd22ab9e80aa916c1efac3a4497cfc7d5701e30baad3a0715aab22ab",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -1213,9 +1273,9 @@
             "source"
           ],
           "sourceRevisions": [
-            "6ae7a041a99534a006df4f85c225861c41a216a6"
+            "c9767970bf539a87209f849c4eaef2a092980461"
           ],
-          "sha256": "03c930d850a35b22f31e16dcd3ec7cc1ae977f8d55173e157264282f00770272"
+          "sha256": "9babd6fb5ae729704f244a12361534b8d2016bc65f59308e76423f9656b93aa8"
         }
       }
     },
@@ -1721,6 +1781,7 @@
         "geoservices-image-service",
         "geoservices-map-service",
         "odata",
+        "ogc-coverages",
         "ogc-features",
         "ogc-maps",
         "ogc-processes",
@@ -1768,7 +1829,8 @@
             "ogc-tiles",
             "ogc-maps",
             "ogc-records",
-            "ogc-processes"
+            "ogc-processes",
+            "ogc-coverages"
           ],
           "supportClaimIds": [],
           "external": false
@@ -1824,7 +1886,7 @@
       "qualification": {
         "state": "qualified",
         "catalogStatus": "qualified",
-        "evidenceBindingId": "qualification:20d941a2e515e8c6c21682999823d8aff7d274bc1c96547b893e9d6295629fdc",
+        "evidenceBindingId": "qualification:8f4061017c09d68870e3ccdc9d60114ef7fa18d10ae9e64fa37f106c7b9ae7f8",
         "evidence": {
           "receiptCount": 9,
           "gates": [
@@ -1843,9 +1905,9 @@
             "source"
           ],
           "sourceRevisions": [
-            "6ae7a041a99534a006df4f85c225861c41a216a6"
+            "c9767970bf539a87209f849c4eaef2a092980461"
           ],
-          "sha256": "fdb5425d8252e2a376316b24fef6500ffa8970bb5f565cffb3bccfb6794c173d"
+          "sha256": "6d949376a0be32333450b0b615e87a4cf0581e063b9c78f8bca7ee17cd3741fb"
         }
       }
     },
@@ -1965,6 +2027,7 @@
         "geoservices-gp-service",
         "geoservices-image-service",
         "geoservices-map-service",
+        "ogc-coverages",
         "ogc-features",
         "ogc-maps",
         "ogc-processes",
@@ -1992,7 +2055,8 @@
             "ogc-tiles",
             "ogc-maps",
             "ogc-records",
-            "ogc-processes"
+            "ogc-processes",
+            "ogc-coverages"
           ],
           "supportClaimIds": [],
           "external": false
@@ -2282,117 +2346,117 @@
   ],
   "evidenceBindings": [
     {
-      "id": "qualification:cb66c76893458db7c2b2b2af6013d086625cb56383befbed07c7ec1d99690350",
+      "id": "qualification:698126e955f42c93e768e12b17c0503e9ccb23ab4182ca714c171d775daf1c79",
       "sampleId": "imagery-cog-quickstart",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/imagery-cog-quickstart",
-        "revision": "6ae7a041a99534a006df4f85c225861c41a216a6",
-        "evidenceNeutralSha256": "312f2204a50196e3914e3f18a2a8cd62881af087bccccff0f840eb70aefe2384",
+        "revision": "c9767970bf539a87209f849c4eaef2a092980461",
+        "evidenceNeutralSha256": "4abde87043a16c939e9ddf0104b7767a95d470325c2f72bb1a2ddc0f17a783ff",
         "receipts": [
           {
             "gate": "accessibility",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/accessibility.v1.json",
-            "receiptSha256": "f7e39b8dd551178d545ba597b6fa2aaf9e54b20b7039c66732a429952d8d1621",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e",
-            "observedAt": "2026-08-09T17:29:03.261Z",
-            "expiresAt": "2026-08-16T17:29:03.261Z",
+            "receiptSha256": "e30407710576def49ea4b071eacbec15c3ebd2b750663ca364cd19bf4ff436bf",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711",
+            "observedAt": "2026-08-10T01:42:26.186Z",
+            "expiresAt": "2026-08-17T01:42:26.186Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e/artifacts/accessibility.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711/artifacts/accessibility.json",
             "reportBytes": 13554,
-            "reportSha256": "7e77fe5cc16e0b829e0204c5c8f00bb9cf527a8d885098c7ae1ad7978f5f054e"
+            "reportSha256": "c9800b858c697ccfe4e09aff3f2cb681201f65d69d2419b9b234d244d42c0d4b"
           },
           {
             "gate": "browser",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/browser.v1.json",
-            "receiptSha256": "d62fa6f7aa9006f39b305b068c154c9f5dd9c2d015584624bfd8f543d21d4001",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e",
-            "observedAt": "2026-08-09T17:29:03.556Z",
-            "expiresAt": "2026-08-16T17:29:03.556Z",
+            "receiptSha256": "728bbfcda14fc63c46005058d1ae28e917f2053b1971d1f547193a5b0a27a3e7",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711",
+            "observedAt": "2026-08-10T01:42:26.506Z",
+            "expiresAt": "2026-08-17T01:42:26.506Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e/artifacts/browser.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711/artifacts/browser.json",
             "reportBytes": 13548,
-            "reportSha256": "51456f02d8e864b99994dd8c1c3381fc62a18f9275d21f18f8bbeed32eaadfbb"
+            "reportSha256": "58d4da386e8401c7583c229502336055e7abe3465c02aa55090c00be30440341"
           },
           {
             "gate": "console",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/console.v1.json",
-            "receiptSha256": "ca58d303930f3520c36b1068abe3df8a67453a70e9a8cf66b67846eb9f3210f5",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e",
-            "observedAt": "2026-08-09T17:29:03.852Z",
-            "expiresAt": "2026-08-16T17:29:03.852Z",
+            "receiptSha256": "ed7145669c7bd3886fb20db0789d5aa55371b918ef96ab15b1269d9f94c6bc24",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711",
+            "observedAt": "2026-08-10T01:42:26.816Z",
+            "expiresAt": "2026-08-17T01:42:26.816Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e/artifacts/console.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711/artifacts/console.json",
             "reportBytes": 13548,
-            "reportSha256": "b7e07786345bbb68de134e2a387ae09bb279a9a49c4dc1b42687abe5e6cb29c6"
+            "reportSha256": "9d935b8f53940d2c9f5b2faaf0694b504ec2f29849f476c952628a686445ddbc"
           },
           {
             "gate": "fixture",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/fixture.v1.json",
-            "receiptSha256": "d27911d06886066255e04a858888e73ffea0bc9ff84bf1cb3f465e61057096d9",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/3466ca59-2957-488f-a99d-fb6357ac8cde",
-            "observedAt": "2026-08-09T17:29:06.824Z",
-            "expiresAt": "2026-08-16T17:29:06.824Z",
+            "receiptSha256": "c42c4d27d2146d37ec539463951e42878c6559dcb18365fb86f16ff4392f5b8b",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/74db6af8-dd8c-4322-be32-0ed69e6b5e0a",
+            "observedAt": "2026-08-10T01:42:30.079Z",
+            "expiresAt": "2026-08-17T01:42:30.079Z",
             "reportKind": "fixture-probe-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/3466ca59-2957-488f-a99d-fb6357ac8cde/artifacts/fixture.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/74db6af8-dd8c-4322-be32-0ed69e6b5e0a/artifacts/fixture.json",
             "reportBytes": 718,
-            "reportSha256": "5147f4135f8c64e1536a88af6df3ce1b528b51d766956b2be830274ea212586f"
+            "reportSha256": "b1f7e1d3f352a2c0674dc3772842311e667746fc1eb065f3f8c1668910471ecd"
           },
           {
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/live.v1.json",
-            "receiptSha256": "e5ef9bdde215691a640723920e0847b398cf6f0b5cb2641e3d866ea0af3545e9",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/199083db-2fcd-4a84-925a-a8fea86a6f4c",
-            "observedAt": "2026-08-09T17:29:46.901Z",
-            "expiresAt": "2026-08-16T17:29:46.901Z",
+            "receiptSha256": "f08d308f92ff9dae6823c5a67c8b65c306ad75fe6aa82f31b64db88dc6810793",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/c0fb827c-f578-4e1f-a5a5-1f2829802530",
+            "observedAt": "2026-08-10T01:43:16.035Z",
+            "expiresAt": "2026-08-17T01:43:16.035Z",
             "reportKind": "live-evidence-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/199083db-2fcd-4a84-925a-a8fea86a6f4c/artifacts/live.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/c0fb827c-f578-4e1f-a5a5-1f2829802530/artifacts/live.json",
             "reportBytes": 10123,
-            "reportSha256": "2bd2acc9235d92fc466b978b9c38f0a9a6a8a41ec5c4f0ca85147bfeae7a63e7"
+            "reportSha256": "20ca902709afcb37179ec4f81fe34668b26ce382023e2e3269fa9a301605ed74"
           },
           {
             "gate": "performance",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/performance.v1.json",
-            "receiptSha256": "513005bc3a572fac3f66ec543c07f23d06182235408d3e9c7af06dd5dc350baf",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e",
-            "observedAt": "2026-08-09T17:29:04.139Z",
-            "expiresAt": "2026-08-16T17:29:04.139Z",
+            "receiptSha256": "551af866a59d497da9b968866759ed622e00a64b6e2886b4bd97bff37603a54c",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711",
+            "observedAt": "2026-08-10T01:42:27.131Z",
+            "expiresAt": "2026-08-17T01:42:27.131Z",
             "reportKind": "performance-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e/artifacts/performance.json",
-            "reportBytes": 1093,
-            "reportSha256": "52577a6b249e0f9ab7fefb530b9111299dc2504c643f90c1ba0e7fad05fd50dc"
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711/artifacts/performance.json",
+            "reportBytes": 1064,
+            "reportSha256": "5e03ac114e6a94568b5a617e79fe074ec8250e38876fe3c8a9a628061ea383ae"
           },
           {
             "gate": "responsive",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/responsive.v1.json",
-            "receiptSha256": "0896a438e679fda35720f400c98d624c5cc8dd6fbd086188fc02dc84328a7393",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e",
-            "observedAt": "2026-08-09T17:29:04.429Z",
-            "expiresAt": "2026-08-16T17:29:04.429Z",
+            "receiptSha256": "5eb77add836984d5393c8c1eced62670e4974c23abd221b20aed35dbbc802b66",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711",
+            "observedAt": "2026-08-10T01:42:27.438Z",
+            "expiresAt": "2026-08-17T01:42:27.438Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e/artifacts/responsive.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711/artifacts/responsive.json",
             "reportBytes": 13551,
-            "reportSha256": "da6c11d6ba8de9d29d9dcc9dbe9eee87cd88cc4bfba87dc7060e46394350e21d"
+            "reportSha256": "229c1493385cef9a1023774acf27a8ad68cd0ea7221037c8935870b10046f3c7"
           },
           {
             "gate": "screenshot",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/screenshot.v1.json",
-            "receiptSha256": "3575f57ab8f6e4633ccac3f88f4c787d7b9c37ce67cb85d8b3cb0a1d907bd5f3",
-            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e",
-            "observedAt": "2026-08-09T17:29:04.721Z",
-            "expiresAt": "2026-08-16T17:29:04.721Z",
+            "receiptSha256": "5a9b916910edd9d35fd6b80dc6f5658eb5d9dba7c6fe9e3b846f9416a289e046",
+            "runRoot": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711",
+            "observedAt": "2026-08-10T01:42:27.736Z",
+            "expiresAt": "2026-08-17T01:42:27.736Z",
             "reportKind": "screenshot-report",
-            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/cc346cd3-ab58-4ff8-a567-3ba3c101e14e/artifacts/screenshot.json",
+            "reportPath": "samples/evidence/imagery-cog-quickstart/runs/5b898508-9d07-4295-add1-39afde327711/artifacts/screenshot.json",
             "reportBytes": 2548,
-            "reportSha256": "ccc7b4a89f45b5dce025516fc855dd068e807e8a4732a2835b8992582193a850"
+            "reportSha256": "f4615d339aa99dc874d7e6e45ab70957f09035a73a5a6b7f0db3bd8b8a69fc88"
           }
         ]
       },
@@ -2400,128 +2464,128 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/imagery-cog-quickstart/receipts/packed-build.v1.json",
-        "receiptSha256": "accf07a376ca77bd1fbaa3b8b63cd0394891ab6439f0010c0af27a9ff99279f0",
-        "runRoot": "samples/evidence/imagery-cog-quickstart/runs/75987323-2dd0-4069-996c-5e4342ed39ed",
-        "observedAt": "2026-08-09T17:29:52.573Z",
-        "expiresAt": "2026-08-16T17:29:52.573Z",
+        "receiptSha256": "e03e91fdd9b05c39f5793632f4dc15966c56242c35d4d95e49e4eb2c5434be28",
+        "runRoot": "samples/evidence/imagery-cog-quickstart/runs/fbc08d52-8917-4759-8b0c-c35a2d1b50f8",
+        "observedAt": "2026-08-10T01:43:22.110Z",
+        "expiresAt": "2026-08-17T01:43:22.110Z",
         "reportKind": "packed-build-report",
-        "reportPath": "samples/evidence/imagery-cog-quickstart/runs/75987323-2dd0-4069-996c-5e4342ed39ed/artifacts/packed-build.json",
+        "reportPath": "samples/evidence/imagery-cog-quickstart/runs/fbc08d52-8917-4759-8b0c-c35a2d1b50f8/artifacts/packed-build.json",
         "reportBytes": 12525,
-        "reportSha256": "f6255d9ea6ec779e220d046c23f18465f37a50ebc23c47e9b72f93895513ba29"
+        "reportSha256": "92adf1f77685dd63e9310c0c79a4301ce6e7e4501e9e2472a1b77a9a9061d73f"
       }
     },
     {
-      "id": "qualification:7a30dfd916ae68f1762e8dd87347f524b17a484b6d3733f8f6aabdd7abd9985b",
+      "id": "qualification:0965e4dd892f069ec982bdc3a4a38b4936b266d4304084866c2a6e52273abbf3",
       "sampleId": "maplibre-quickstart",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/maplibre-quickstart",
-        "revision": "6ae7a041a99534a006df4f85c225861c41a216a6",
-        "evidenceNeutralSha256": "312f2204a50196e3914e3f18a2a8cd62881af087bccccff0f840eb70aefe2384",
+        "revision": "c9767970bf539a87209f849c4eaef2a092980461",
+        "evidenceNeutralSha256": "4abde87043a16c939e9ddf0104b7767a95d470325c2f72bb1a2ddc0f17a783ff",
         "receipts": [
           {
             "gate": "accessibility",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/accessibility.v1.json",
-            "receiptSha256": "daa0c23637e503e286675002cbef8a19815528de2a37ba1cc6e378a06cc2e83f",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353",
-            "observedAt": "2026-08-09T17:27:31.840Z",
-            "expiresAt": "2026-08-16T17:27:31.840Z",
+            "receiptSha256": "15e6217db7b54a96c279f507e64c87cd65b9c7151cbe5785508704fcea2e6770",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a",
+            "observedAt": "2026-08-10T01:40:54.306Z",
+            "expiresAt": "2026-08-17T01:40:54.306Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353/artifacts/accessibility.json",
-            "reportBytes": 10856,
-            "reportSha256": "2270530e98f389cadbdfa54b4fc79e0f7afecb8de39d11094f75c74c0d476b2b"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a/artifacts/accessibility.json",
+            "reportBytes": 10885,
+            "reportSha256": "0214278773e7ab2613409dc03c6aa8a1033c07a15e2bbd27c08120e333b79f3c"
           },
           {
             "gate": "browser",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/browser.v1.json",
-            "receiptSha256": "0eb3f9d2abfc124ab0960e743dbe2cdcf6a4a9c10506661fc32d748ebf0e5479",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353",
-            "observedAt": "2026-08-09T17:27:32.165Z",
-            "expiresAt": "2026-08-16T17:27:32.165Z",
+            "receiptSha256": "68c8e232f04e64c06bf15f246b8b2b66585742b68dba9b698eee9427ac77d8c4",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a",
+            "observedAt": "2026-08-10T01:40:54.579Z",
+            "expiresAt": "2026-08-17T01:40:54.579Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353/artifacts/browser.json",
-            "reportBytes": 10850,
-            "reportSha256": "9279949a1d7b2470941f1da45c813e129df412845035406fa2c6ef99f2639e0c"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a/artifacts/browser.json",
+            "reportBytes": 10879,
+            "reportSha256": "35904d6be3ccafe38832eeb99aacb0b00156417518d2142d60c26ad61894fb6b"
           },
           {
             "gate": "console",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/console.v1.json",
-            "receiptSha256": "877c3c6a0151d14cc05f8923d4bbb18f55f0cbd4f9f9d7092e1df143f6c51f23",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353",
-            "observedAt": "2026-08-09T17:27:32.473Z",
-            "expiresAt": "2026-08-16T17:27:32.473Z",
+            "receiptSha256": "089099a1751fa443c8f1f8c1caea521aec3f2e4162a1a82cc227fa0059d81889",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a",
+            "observedAt": "2026-08-10T01:40:54.840Z",
+            "expiresAt": "2026-08-17T01:40:54.840Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353/artifacts/console.json",
-            "reportBytes": 10850,
-            "reportSha256": "47b835261e0010c234357d7fd139049241e571eb2805675a6767eb3166449c70"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a/artifacts/console.json",
+            "reportBytes": 10879,
+            "reportSha256": "55e6533e8429929d3086bbd865be1e3d7394a0449ec1187ebfaca191c0637a74"
           },
           {
             "gate": "fixture",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/fixture.v1.json",
-            "receiptSha256": "795fe9467d8f08526f6955cc6e70b9715192c15e3379446983d1445a6d0caa51",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/1738c928-ffa5-4c4e-9dbd-d98e07fc7e0f",
-            "observedAt": "2026-08-09T17:27:35.464Z",
-            "expiresAt": "2026-08-16T17:27:35.464Z",
+            "receiptSha256": "ebb287d19688f3ca09dacf04155d1330ffb2623417efef0b0778d208eab9c2fa",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/dc2095d8-79ae-4c9f-bb34-edb74fa88954",
+            "observedAt": "2026-08-10T01:40:57.885Z",
+            "expiresAt": "2026-08-17T01:40:57.885Z",
             "reportKind": "fixture-probe-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/1738c928-ffa5-4c4e-9dbd-d98e07fc7e0f/artifacts/fixture.json",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/dc2095d8-79ae-4c9f-bb34-edb74fa88954/artifacts/fixture.json",
             "reportBytes": 714,
-            "reportSha256": "fc1b11c9b5b6283ff7faeb1f4b40c0041dbd772b2b4a2c9a500d797e3986aafc"
+            "reportSha256": "73e2e2302b52ed1bcd32caf178d6c0c116106b9b0e1ba3135c0d5f4eebff924d"
           },
           {
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/live.v1.json",
-            "receiptSha256": "4307fb3f261d21aa8df6355f3b31b8fdddb250e3bd799a288e043800b41b5991",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/b8f526d4-3865-4f23-ad37-0d3d4e494c22",
-            "observedAt": "2026-08-09T17:27:39.006Z",
-            "expiresAt": "2026-08-16T17:27:39.006Z",
+            "receiptSha256": "1f8166589f2edf598728475ecdc6445120be3627c597416d80c87d4945f55292",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/61df1231-89dc-446e-b8fc-4ea179dc8763",
+            "observedAt": "2026-08-10T01:41:01.895Z",
+            "expiresAt": "2026-08-17T01:41:01.895Z",
             "reportKind": "live-evidence-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/b8f526d4-3865-4f23-ad37-0d3d4e494c22/artifacts/live.json",
-            "reportBytes": 2667,
-            "reportSha256": "333c40cd6df5883804f8da467211ae7e43e08354200b498181b16326ae3bde33"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/61df1231-89dc-446e-b8fc-4ea179dc8763/artifacts/live.json",
+            "reportBytes": 2509,
+            "reportSha256": "5a0d2a68fe5bcb7558a9e62eb7cac46cb0352dccc2749851a7dcd5beaa0212c9"
           },
           {
             "gate": "performance",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/performance.v1.json",
-            "receiptSha256": "ebeeddfa913b910d262604fdfd097ead76f72a9ce1970e27e2fff7c17524cbe0",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353",
-            "observedAt": "2026-08-09T17:27:32.764Z",
-            "expiresAt": "2026-08-16T17:27:32.764Z",
+            "receiptSha256": "91fcac8095fcf485fa4f443155f591dc88993b03130d81795bd68ca0ecf7e78b",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a",
+            "observedAt": "2026-08-10T01:40:55.109Z",
+            "expiresAt": "2026-08-17T01:40:55.109Z",
             "reportKind": "performance-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353/artifacts/performance.json",
-            "reportBytes": 1087,
-            "reportSha256": "43b838baf556edb5de15ea12c349353e61c3726c910fa9359ab6542f0ce3f62e"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a/artifacts/performance.json",
+            "reportBytes": 1098,
+            "reportSha256": "34c818e0b40aa17274664afc64852e49d291550a71cbf96b3ccc31ba53807b72"
           },
           {
             "gate": "responsive",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/responsive.v1.json",
-            "receiptSha256": "47be49e5994bc41b31250432c6f7e21648c68c5b94ade8bcac64902c798a443a",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353",
-            "observedAt": "2026-08-09T17:27:33.072Z",
-            "expiresAt": "2026-08-16T17:27:33.072Z",
+            "receiptSha256": "59d70bca556797e1733d00398b2ca4d76f5206a3d800cba788aaf144fb2c2773",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a",
+            "observedAt": "2026-08-10T01:40:55.376Z",
+            "expiresAt": "2026-08-17T01:40:55.376Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353/artifacts/responsive.json",
-            "reportBytes": 10853,
-            "reportSha256": "53aca6832750c17b5c7a95a2b27554d3b8eb20ebbe5d0fa9f752ce2b792a23b2"
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a/artifacts/responsive.json",
+            "reportBytes": 10882,
+            "reportSha256": "90c9a6143397aad99ed2756a261f5a290ed2fd8322c36520292a5c1dfd8b2a21"
           },
           {
             "gate": "screenshot",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/maplibre-quickstart/receipts/screenshot.v1.json",
-            "receiptSha256": "1d099b049e1f1350012a8209bdd938d082bf3f2248fb528546f4e0206b1b7208",
-            "runRoot": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353",
-            "observedAt": "2026-08-09T17:27:33.354Z",
-            "expiresAt": "2026-08-16T17:27:33.354Z",
+            "receiptSha256": "553ee769259ff28a924b6b4da44149fcc768e7343ff2b47c889bcf3cb3d51eef",
+            "runRoot": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a",
+            "observedAt": "2026-08-10T01:40:55.644Z",
+            "expiresAt": "2026-08-17T01:40:55.644Z",
             "reportKind": "screenshot-report",
-            "reportPath": "samples/evidence/maplibre-quickstart/runs/e130e019-dc74-4e7d-816a-1f15f1a1d353/artifacts/screenshot.json",
+            "reportPath": "samples/evidence/maplibre-quickstart/runs/f4950220-25a9-44cd-aa0d-946d70b4272a/artifacts/screenshot.json",
             "reportBytes": 2532,
-            "reportSha256": "51f3645c34829fc7ba59084518aca26fad8fc1362d2a939fd41ee343b255aa7e"
+            "reportSha256": "6bff587d912f2b186035d66c373a77204a4b6402ec7084183f9f1df97076507c"
           }
         ]
       },
@@ -2529,128 +2593,128 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/maplibre-quickstart/receipts/packed-build.v1.json",
-        "receiptSha256": "7cf37677f122f4c48e70f0bcb7dfccf14ea001687830845dccbdc0274e9899b8",
-        "runRoot": "samples/evidence/maplibre-quickstart/runs/81a4daf7-acbe-46eb-ae1e-f022981245f2",
-        "observedAt": "2026-08-09T17:27:44.737Z",
-        "expiresAt": "2026-08-16T17:27:44.737Z",
+        "receiptSha256": "c0da59f80635ac85e24947fec7d1170d81e8a75098a04b8bacaa363d57a0b737",
+        "runRoot": "samples/evidence/maplibre-quickstart/runs/9f6f5fb9-3e1a-4ed2-9130-5285ace90ff0",
+        "observedAt": "2026-08-10T01:41:07.673Z",
+        "expiresAt": "2026-08-17T01:41:07.673Z",
         "reportKind": "packed-build-report",
-        "reportPath": "samples/evidence/maplibre-quickstart/runs/81a4daf7-acbe-46eb-ae1e-f022981245f2/artifacts/packed-build.json",
+        "reportPath": "samples/evidence/maplibre-quickstart/runs/9f6f5fb9-3e1a-4ed2-9130-5285ace90ff0/artifacts/packed-build.json",
         "reportBytes": 6786,
-        "reportSha256": "bf5b768fc8a5fe51252e8afa1922991907cad7ad07eb6de0752ad87752c0a97c"
+        "reportSha256": "aa0d8b31d3d28df1a5de3330445e4cdcec95c98d6284dd758ca6260a31979b5c"
       }
     },
     {
-      "id": "qualification:5c27b69b4129300f3e01869a2172dc92c4dd98ae86e2076845d0a6611786c521",
+      "id": "qualification:a7bd7748bd22ab9e80aa916c1efac3a4497cfc7d5701e30baad3a0715aab22ab",
       "sampleId": "migration-workbench",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/migration-workbench",
-        "revision": "6ae7a041a99534a006df4f85c225861c41a216a6",
-        "evidenceNeutralSha256": "312f2204a50196e3914e3f18a2a8cd62881af087bccccff0f840eb70aefe2384",
+        "revision": "c9767970bf539a87209f849c4eaef2a092980461",
+        "evidenceNeutralSha256": "4abde87043a16c939e9ddf0104b7767a95d470325c2f72bb1a2ddc0f17a783ff",
         "receipts": [
           {
             "gate": "accessibility",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/accessibility.v1.json",
-            "receiptSha256": "c8faa9816399a8e59bb75873d90eb394c5f3738ee2bd732b8760ee090717b176",
-            "runRoot": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2",
-            "observedAt": "2026-08-09T17:30:04.392Z",
-            "expiresAt": "2026-08-16T17:30:04.392Z",
+            "receiptSha256": "6f420caefe73e8bb6424188ca87729dc086c63cb2ac05ec6e10baa9956cf055b",
+            "runRoot": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a",
+            "observedAt": "2026-08-10T01:43:34.740Z",
+            "expiresAt": "2026-08-17T01:43:34.740Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2/artifacts/accessibility.json",
-            "reportBytes": 10361,
-            "reportSha256": "c7b29fcbcfd09606a4face8ed12827a312525cd4bea8564346b43af474c32318"
+            "reportPath": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a/artifacts/accessibility.json",
+            "reportBytes": 10352,
+            "reportSha256": "467589c354cb39188d1c2fb4b037773974b4263c04ce69583d5e0e6d40abaf22"
           },
           {
             "gate": "browser",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/browser.v1.json",
-            "receiptSha256": "d33da4031a6b1da02f9b8af8b7248050f402b8b1545c8380b94384caaa83f7b6",
-            "runRoot": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2",
-            "observedAt": "2026-08-09T17:30:04.699Z",
-            "expiresAt": "2026-08-16T17:30:04.699Z",
+            "receiptSha256": "cf05565dd0706bf8cdff9eb2ad659bea48e12e23541b34792483b36295898cb5",
+            "runRoot": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a",
+            "observedAt": "2026-08-10T01:43:35.035Z",
+            "expiresAt": "2026-08-17T01:43:35.035Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2/artifacts/browser.json",
-            "reportBytes": 10355,
-            "reportSha256": "cdad426b5a0858685cd193230ece9a7bdcf065718fe3b92976e2082679336ce4"
+            "reportPath": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a/artifacts/browser.json",
+            "reportBytes": 10346,
+            "reportSha256": "1a1015923cd9d8ae2197a2a685f6f01e0639dc5a73f69278e78f9e4277e9c82b"
           },
           {
             "gate": "console",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/console.v1.json",
-            "receiptSha256": "0e4f17fea1a22b397d2629e45c1061ca2b8ce7668194b9c02c866306d74c0448",
-            "runRoot": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2",
-            "observedAt": "2026-08-09T17:30:04.989Z",
-            "expiresAt": "2026-08-16T17:30:04.989Z",
+            "receiptSha256": "a3e76602745e94bc54aca0ab1fafd700aa9d329ce452bf3c5757eda37ed8cbb3",
+            "runRoot": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a",
+            "observedAt": "2026-08-10T01:43:35.348Z",
+            "expiresAt": "2026-08-17T01:43:35.348Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2/artifacts/console.json",
-            "reportBytes": 10355,
-            "reportSha256": "d3d4fb5f97fedd2702e99e9cd045cf14b60d4711fb606d068c6a552bf30c9f52"
+            "reportPath": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a/artifacts/console.json",
+            "reportBytes": 10346,
+            "reportSha256": "a79e5d466263df46c401b9be94013cb896a3eed24651d3f30c2ea265e64dfe5e"
           },
           {
             "gate": "fixture",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/fixture.v1.json",
-            "receiptSha256": "239c4abbf02f2722be611e7fe206eb67f05d82c606bab19fe7d33f64780ed1f1",
-            "runRoot": "samples/evidence/migration-workbench/runs/81cf0099-6345-42f6-8fa3-2141b2876c24",
-            "observedAt": "2026-08-09T17:30:07.385Z",
-            "expiresAt": "2026-08-16T17:30:07.385Z",
+            "receiptSha256": "2092d192b43b1ac51d90f6d78f7d4f505300c3971cdc8f8a1ed66b63deb6b4d4",
+            "runRoot": "samples/evidence/migration-workbench/runs/aa45968e-d1de-4247-bd85-4dbe15d1a162",
+            "observedAt": "2026-08-10T01:43:37.858Z",
+            "expiresAt": "2026-08-17T01:43:37.858Z",
             "reportKind": "fixture-probe-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/81cf0099-6345-42f6-8fa3-2141b2876c24/artifacts/fixture.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/aa45968e-d1de-4247-bd85-4dbe15d1a162/artifacts/fixture.json",
             "reportBytes": 723,
-            "reportSha256": "4ed3e29b9450a9c6bdab7ef99751bfbc1e14cc892998e7b2164eda6cb467a5cd"
+            "reportSha256": "a314de55923bb681a444e9b19eeac6d28bd9613002ddc9d33624bf23f82800f3"
           },
           {
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/live.v1.json",
-            "receiptSha256": "47d1ea8fef136323fb81dff77f94fdfd26ef1aff75c8d6add5ad5bb98e33ae88",
-            "runRoot": "samples/evidence/migration-workbench/runs/b164a3d0-1868-4ae3-b5ae-12f48f36afd6",
-            "observedAt": "2026-08-09T17:30:12.638Z",
-            "expiresAt": "2026-08-16T17:30:12.638Z",
+            "receiptSha256": "7d6d9ef3d7bbc3bb6420c16099680db647f5b00a80d4f3bed4b789eca6aa98a6",
+            "runRoot": "samples/evidence/migration-workbench/runs/34606775-51a3-4ba1-af2c-1d069804b689",
+            "observedAt": "2026-08-10T01:43:43.393Z",
+            "expiresAt": "2026-08-17T01:43:43.393Z",
             "reportKind": "live-evidence-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/b164a3d0-1868-4ae3-b5ae-12f48f36afd6/artifacts/live.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/34606775-51a3-4ba1-af2c-1d069804b689/artifacts/live.json",
             "reportBytes": 2245,
-            "reportSha256": "130bbda51afd09fcde392eea183509e97db8916278f87b3c58399c5c1b94afcd"
+            "reportSha256": "341b9baebccb8247c35950fb94679507c6b1201d5db34e31400b04d9fd7bb131"
           },
           {
             "gate": "performance",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/performance.v1.json",
-            "receiptSha256": "4fc53e1ac6cd1b90e0d2b05725ffc5221c52418062051bba5ab0f7467923e90b",
-            "runRoot": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2",
-            "observedAt": "2026-08-09T17:30:05.288Z",
-            "expiresAt": "2026-08-16T17:30:05.288Z",
+            "receiptSha256": "41ace9904a3d926d8b02c2696ab5ee0f1a497db9caf372c5e963dbe1e92b2d6c",
+            "runRoot": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a",
+            "observedAt": "2026-08-10T01:43:35.668Z",
+            "expiresAt": "2026-08-17T01:43:35.668Z",
             "reportKind": "performance-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2/artifacts/performance.json",
-            "reportBytes": 1107,
-            "reportSha256": "5de1f0f9e1456772ae052cbfe0b05933b209cd44d467a491b34640951e770e11"
+            "reportPath": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a/artifacts/performance.json",
+            "reportBytes": 1093,
+            "reportSha256": "db62198905b0ca30b9debeeacb94ba6fbd8a7392ea623e429b5779d64c5ea126"
           },
           {
             "gate": "responsive",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/responsive.v1.json",
-            "receiptSha256": "3ed2f22221a5f4f7bec5aa1519a52dfc327695e8a991e8c26a76a25f6952f715",
-            "runRoot": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2",
-            "observedAt": "2026-08-09T17:30:05.568Z",
-            "expiresAt": "2026-08-16T17:30:05.568Z",
+            "receiptSha256": "575d3fd78388e74fc5144c022bc617261f3e5bb2a9625dbfb82e8ba93f5d2412",
+            "runRoot": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a",
+            "observedAt": "2026-08-10T01:43:35.966Z",
+            "expiresAt": "2026-08-17T01:43:35.966Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2/artifacts/responsive.json",
-            "reportBytes": 10358,
-            "reportSha256": "5fdd64e178db047d21c0c2c145144dbfb896c0e6970a3e448e772b190e75178e"
+            "reportPath": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a/artifacts/responsive.json",
+            "reportBytes": 10349,
+            "reportSha256": "cfb5441018313a92da604e61e8e85ba0be870fecc06e700fb8d0957b9af1c58b"
           },
           {
             "gate": "screenshot",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/migration-workbench/receipts/screenshot.v1.json",
-            "receiptSha256": "f72e0df25b44c75862434fb44fa0a5048ff25c4c3a34b6d19b2bf34f1b0aaf47",
-            "runRoot": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2",
-            "observedAt": "2026-08-09T17:30:05.858Z",
-            "expiresAt": "2026-08-16T17:30:05.858Z",
+            "receiptSha256": "76e291f65586661e341eeae6ee8df1d646c9829e7c06fa6b25d859082a8192f6",
+            "runRoot": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a",
+            "observedAt": "2026-08-10T01:43:36.287Z",
+            "expiresAt": "2026-08-17T01:43:36.287Z",
             "reportKind": "screenshot-report",
-            "reportPath": "samples/evidence/migration-workbench/runs/ecbf4d4c-a911-4f8b-ba1e-57da144d10f2/artifacts/screenshot.json",
+            "reportPath": "samples/evidence/migration-workbench/runs/b245b4a6-bf3a-49a2-a854-7d8c72f5e38a/artifacts/screenshot.json",
             "reportBytes": 2541,
-            "reportSha256": "0fc2e148d0f33ee7c8509bdec3e214e47a862f8705fd2160bcaa427d12e1c3ac"
+            "reportSha256": "917085ebf39417647743369571407da9af3a46047e375feaa4363864de5c2fff"
           }
         ]
       },
@@ -2658,128 +2722,128 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/migration-workbench/receipts/packed-build.v1.json",
-        "receiptSha256": "a1393f1e076162f9f820cf53e17fbb9f565157a8df25d2fe0dba57121be495e5",
-        "runRoot": "samples/evidence/migration-workbench/runs/e2054647-607c-4480-9221-bf94db8a92c2",
-        "observedAt": "2026-08-09T17:30:17.771Z",
-        "expiresAt": "2026-08-16T17:30:17.771Z",
+        "receiptSha256": "6d27a540b7ac537bfb05873176127b5e1a6d0a3d498c66b352c34dd50c95d09e",
+        "runRoot": "samples/evidence/migration-workbench/runs/fad628a3-54cf-4f4b-9ccc-8c74d03c0156",
+        "observedAt": "2026-08-10T01:43:48.669Z",
+        "expiresAt": "2026-08-17T01:43:48.669Z",
         "reportKind": "packed-build-report",
-        "reportPath": "samples/evidence/migration-workbench/runs/e2054647-607c-4480-9221-bf94db8a92c2/artifacts/packed-build.json",
+        "reportPath": "samples/evidence/migration-workbench/runs/fad628a3-54cf-4f4b-9ccc-8c74d03c0156/artifacts/packed-build.json",
         "reportBytes": 9113,
-        "reportSha256": "d780e434222926100b0e3ffe7283e46962180cf1995a6d2323d006fa62b1b878"
+        "reportSha256": "629a48330adba625f0cf0b9765b1d70b0b92a9f630f3ce1b69c909df4fd7c0fb"
       }
     },
     {
-      "id": "qualification:20d941a2e515e8c6c21682999823d8aff7d274bc1c96547b893e9d6295629fdc",
+      "id": "qualification:8f4061017c09d68870e3ccdc9d60114ef7fa18d10ae9e64fa37f106c7b9ae7f8",
       "sampleId": "service-explorer",
       "source": {
         "repository": "honua-io/honua-sdk-js",
         "path": "examples/service-explorer",
-        "revision": "6ae7a041a99534a006df4f85c225861c41a216a6",
-        "evidenceNeutralSha256": "312f2204a50196e3914e3f18a2a8cd62881af087bccccff0f840eb70aefe2384",
+        "revision": "c9767970bf539a87209f849c4eaef2a092980461",
+        "evidenceNeutralSha256": "4abde87043a16c939e9ddf0104b7767a95d470325c2f72bb1a2ddc0f17a783ff",
         "receipts": [
           {
             "gate": "accessibility",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/accessibility.v1.json",
-            "receiptSha256": "98fc10cd93e9fbc8a94a89ce5b510adb6b13fa95903c64a0f0e6afa324a5015f",
-            "runRoot": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b",
-            "observedAt": "2026-08-09T17:30:28.111Z",
-            "expiresAt": "2026-08-16T17:30:28.111Z",
+            "receiptSha256": "552572262f201dd13bb8b004eef2ceffbc20eb4943a2d96febf4e3229e613c3d",
+            "runRoot": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e",
+            "observedAt": "2026-08-10T01:43:59.489Z",
+            "expiresAt": "2026-08-17T01:43:59.489Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b/artifacts/accessibility.json",
-            "reportBytes": 10249,
-            "reportSha256": "1fa0a60872a35312a393e3b9b6dfd00e6f08d617e58198629018d47ed42c6109"
+            "reportPath": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e/artifacts/accessibility.json",
+            "reportBytes": 10250,
+            "reportSha256": "a3c9b2981e55807ce2b6cd8a1d5fc1f7afb36573d695e4e383995169734a82c1"
           },
           {
             "gate": "browser",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/browser.v1.json",
-            "receiptSha256": "da20c3f6c5e2b77b9c1f910624bb16dadac0e94d85fef29a0ae126478e4a1390",
-            "runRoot": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b",
-            "observedAt": "2026-08-09T17:30:28.421Z",
-            "expiresAt": "2026-08-16T17:30:28.421Z",
+            "receiptSha256": "aab60791880f9d33a3ceabb5351a1075a1dfc888940ce88705a64b9f6afcfdf5",
+            "runRoot": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e",
+            "observedAt": "2026-08-10T01:43:59.784Z",
+            "expiresAt": "2026-08-17T01:43:59.784Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b/artifacts/browser.json",
-            "reportBytes": 10243,
-            "reportSha256": "3affb37c58e83ff28bbc25101114668eb344bd16b6176f73651bfffbfe1f5496"
+            "reportPath": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e/artifacts/browser.json",
+            "reportBytes": 10244,
+            "reportSha256": "f4bf679ce2252d6620f689dec73838cc6733b21c9c9c69921a7112eff0af69d5"
           },
           {
             "gate": "console",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/console.v1.json",
-            "receiptSha256": "45b6198c64b3443168b1d4d186f5b82aae11b5afc9bc75c20b4d2caebbe1ea92",
-            "runRoot": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b",
-            "observedAt": "2026-08-09T17:30:28.724Z",
-            "expiresAt": "2026-08-16T17:30:28.724Z",
+            "receiptSha256": "27a6a3215172c28b42c2883fe157c400b52f63ca360bf86b6c3f980d7d6fa398",
+            "runRoot": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e",
+            "observedAt": "2026-08-10T01:44:00.093Z",
+            "expiresAt": "2026-08-17T01:44:00.093Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b/artifacts/console.json",
-            "reportBytes": 10243,
-            "reportSha256": "779b4a0911583da31951977ad7e6c5912bdc562ecc3d1e0785ebf8ce058c07f0"
+            "reportPath": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e/artifacts/console.json",
+            "reportBytes": 10244,
+            "reportSha256": "5152ed26a84e2919bbaf72a0355cac90b27122b1d2d42eb2f18a10809ee1034a"
           },
           {
             "gate": "fixture",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/fixture.v1.json",
-            "receiptSha256": "43753a5aba56f732182626880294addb60274e14dc480c1812a8873afcaf1cf0",
-            "runRoot": "samples/evidence/service-explorer/runs/e9ea5783-1573-4fb6-81fd-76933b8869b7",
-            "observedAt": "2026-08-09T17:30:31.575Z",
-            "expiresAt": "2026-08-16T17:30:31.575Z",
+            "receiptSha256": "dea021efbe8fe51d5e4a0c122fd77263f183490a95b5740901f328e7787b9dac",
+            "runRoot": "samples/evidence/service-explorer/runs/1a8eb8c4-86e5-4339-a90d-48199071b09d",
+            "observedAt": "2026-08-10T01:44:03.160Z",
+            "expiresAt": "2026-08-17T01:44:03.160Z",
             "reportKind": "fixture-probe-report",
-            "reportPath": "samples/evidence/service-explorer/runs/e9ea5783-1573-4fb6-81fd-76933b8869b7/artifacts/fixture.json",
+            "reportPath": "samples/evidence/service-explorer/runs/1a8eb8c4-86e5-4339-a90d-48199071b09d/artifacts/fixture.json",
             "reportBytes": 717,
-            "reportSha256": "5ab2813ab8a69a84b80f351f61b57d8ed88e6ae2a54b34af182c552bf4614a9f"
+            "reportSha256": "36927809ca295e9ad56366c422042d8236249587550a3aeb72f5fb96cb6552a2"
           },
           {
             "gate": "live",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/live.v1.json",
-            "receiptSha256": "8f144c10af62c411944dd1b917c2b4c6119d8130814628aae4808b85df9e9827",
-            "runRoot": "samples/evidence/service-explorer/runs/6c1b3c27-9dcc-42d8-83a0-3065f0514d05",
-            "observedAt": "2026-08-09T17:31:12.934Z",
-            "expiresAt": "2026-08-16T17:31:12.934Z",
+            "receiptSha256": "a6cd6887e6fd537cd71426253a263214c5cd25a9fc6086ebe7da14db4a6946f7",
+            "runRoot": "samples/evidence/service-explorer/runs/65658e11-1183-441b-929f-89fd717c8e2c",
+            "observedAt": "2026-08-10T01:44:47.627Z",
+            "expiresAt": "2026-08-17T01:44:47.627Z",
             "reportKind": "live-evidence-report",
-            "reportPath": "samples/evidence/service-explorer/runs/6c1b3c27-9dcc-42d8-83a0-3065f0514d05/artifacts/live.json",
-            "reportBytes": 2326,
-            "reportSha256": "83c9b38614a3fe768abd165f949af3ddba87f74304945fd56c0e6ea6f3080127"
+            "reportPath": "samples/evidence/service-explorer/runs/65658e11-1183-441b-929f-89fd717c8e2c/artifacts/live.json",
+            "reportBytes": 2334,
+            "reportSha256": "f744377e1a0c77b7c63e00d4206d8c3400f3bc3f3168b884d374e115523590f1"
           },
           {
             "gate": "performance",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/performance.v1.json",
-            "receiptSha256": "cab79c5c1afe3c4b8473306f4224cc5bcba9ffe5c0102ceb2fe3843aed2be0a3",
-            "runRoot": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b",
-            "observedAt": "2026-08-09T17:30:29.014Z",
-            "expiresAt": "2026-08-16T17:30:29.014Z",
+            "receiptSha256": "fe7b38103eea4757d0579272181e430bff7da75377f9cd8dc889ed5948245526",
+            "runRoot": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e",
+            "observedAt": "2026-08-10T01:44:00.409Z",
+            "expiresAt": "2026-08-17T01:44:00.409Z",
             "reportKind": "performance-report",
-            "reportPath": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b/artifacts/performance.json",
-            "reportBytes": 1118,
-            "reportSha256": "c48ba8b636dd9715872acedfa8e8de3346c61a5ae0350fec2e8f8362f03d1eb4"
+            "reportPath": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e/artifacts/performance.json",
+            "reportBytes": 1087,
+            "reportSha256": "8046f36e354e5cc359fd4396cb9dbb00b6da3683b4211c89e6903b8c1e9a9c83"
           },
           {
             "gate": "responsive",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/responsive.v1.json",
-            "receiptSha256": "0fbbae4e228fe43e5e027ea76754cb80a229189ef51c13885e5782848d4b3d8d",
-            "runRoot": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b",
-            "observedAt": "2026-08-09T17:30:29.303Z",
-            "expiresAt": "2026-08-16T17:30:29.303Z",
+            "receiptSha256": "75c902eb25ada361f85d0686fc19a65efb7224c5f0bfe55356b59e15062bc33a",
+            "runRoot": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e",
+            "observedAt": "2026-08-10T01:44:00.699Z",
+            "expiresAt": "2026-08-17T01:44:00.699Z",
             "reportKind": "playwright-gate-report",
-            "reportPath": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b/artifacts/responsive.json",
-            "reportBytes": 10246,
-            "reportSha256": "cf55910992ec69847e1b128c73cd3dc21c12b2164de3e1020590b05d08e5ceab"
+            "reportPath": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e/artifacts/responsive.json",
+            "reportBytes": 10247,
+            "reportSha256": "cf1b4b000231432bf32e77cc955a500d281732105da53cffe8d719554ae82944"
           },
           {
             "gate": "screenshot",
             "sdkMode": "source",
             "receiptPath": "samples/evidence/service-explorer/receipts/screenshot.v1.json",
-            "receiptSha256": "c8dc601564d73f35af6b988b54a395a3921c1cd19b6c0f46a2e2b204c78ee881",
-            "runRoot": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b",
-            "observedAt": "2026-08-09T17:30:29.579Z",
-            "expiresAt": "2026-08-16T17:30:29.579Z",
+            "receiptSha256": "f91e753fdf427cbee0c70dd7f6777605db3fd69a4bf284bd2ac46257d657ffcb",
+            "runRoot": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e",
+            "observedAt": "2026-08-10T01:44:00.985Z",
+            "expiresAt": "2026-08-17T01:44:00.985Z",
             "reportKind": "screenshot-report",
-            "reportPath": "samples/evidence/service-explorer/runs/107a9a46-0a50-4741-8d42-f3dabe49741b/artifacts/screenshot.json",
+            "reportPath": "samples/evidence/service-explorer/runs/686cf06c-e17c-4a53-a3ff-5f537508486e/artifacts/screenshot.json",
             "reportBytes": 2521,
-            "reportSha256": "2dcf75ed3217114dd484e92205252d6be0e6a3481a214e32d2020a04c2be5d4f"
+            "reportSha256": "9e8a449a7f00c61d1cbc1773836124586238a479df5ea87fb0e05ca78322569b"
           }
         ]
       },
@@ -2787,14 +2851,14 @@
         "gate": "packed-build",
         "sdkMode": "packed",
         "receiptPath": "samples/evidence/service-explorer/receipts/packed-build.v1.json",
-        "receiptSha256": "6c284fd90fa6c7139005f9a358898606565f1d1169bbc6a3367d6ebaa6a87816",
-        "runRoot": "samples/evidence/service-explorer/runs/67e31bed-8d27-4854-a2c8-d7d9d906640c",
-        "observedAt": "2026-08-09T17:31:18.495Z",
-        "expiresAt": "2026-08-16T17:31:18.495Z",
+        "receiptSha256": "5be5351d742a47ecca3f433324fa9df727289dacf467f39125189b878a2f3d8e",
+        "runRoot": "samples/evidence/service-explorer/runs/a88da914-6cfe-460b-9116-54f786e8ea25",
+        "observedAt": "2026-08-10T01:44:53.435Z",
+        "expiresAt": "2026-08-17T01:44:53.435Z",
         "reportKind": "packed-build-report",
-        "reportPath": "samples/evidence/service-explorer/runs/67e31bed-8d27-4854-a2c8-d7d9d906640c/artifacts/packed-build.json",
+        "reportPath": "samples/evidence/service-explorer/runs/a88da914-6cfe-460b-9116-54f786e8ea25/artifacts/packed-build.json",
         "reportBytes": 6186,
-        "reportSha256": "a403488f957be72626c698e703b80a493bb18003c992106e4efd41f8bdcf99ec"
+        "reportSha256": "60332fdd84be4fb521613eed4c003fe0363b665e8743ade533713b059fec5345"
       }
     }
   ],
@@ -5916,7 +5980,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:20d941a2e515e8c6c21682999823d8aff7d274bc1c96547b893e9d6295629fdc"
+          "qualification:8f4061017c09d68870e3ccdc9d60114ef7fa18d10ae9e64fa37f106c7b9ae7f8"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -6074,6 +6138,285 @@
       }
     },
     {
+      "id": "ogc-coverages:applyEdits:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "applyEdits",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:attachments:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "attachments",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:geometry:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "geometry",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:geoprocess:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "geoprocess",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:image:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "image",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:pbf:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "pbf",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:processes:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "processes",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:query:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "query",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [
+          "service-explorer"
+        ],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": [],
+        "selectedSampleId": "service-explorer"
+      }
+    },
+    {
+      "id": "ogc-coverages:queryAggregate:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "queryAggregate",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:queryExtent:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "queryExtent",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:queryObjectIds:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "queryObjectIds",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:queryRelated:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "queryRelated",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:render:protocol-adapter:native",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "render",
+      "authority": "claim",
+      "supportStatus": "experimental",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "coverages-wcs-fixtures"
+      ],
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:spatialAggregate:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "spatialAggregate",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:sql:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "sql",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:stream:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "stream",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "ogc-coverages:tiles:default",
+      "protocolId": "ogc-coverages",
+      "protocolLabel": "OGC API Coverages",
+      "operation": "tiles",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
       "id": "ogc-features:applyEdits:protocol-adapter:native",
       "protocolId": "ogc-features",
       "protocolLabel": "OGC Features",
@@ -6212,7 +6555,7 @@
           "maplibre-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:7a30dfd916ae68f1762e8dd87347f524b17a484b6d3733f8f6aabdd7abd9985b"
+          "qualification:0965e4dd892f069ec982bdc3a4a38b4936b266d4304084866c2a6e52273abbf3"
         ],
         "selectedSampleId": "maplibre-quickstart"
       }
@@ -7640,7 +7983,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:20d941a2e515e8c6c21682999823d8aff7d274bc1c96547b893e9d6295629fdc"
+          "qualification:8f4061017c09d68870e3ccdc9d60114ef7fa18d10ae9e64fa37f106c7b9ae7f8"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -7798,6 +8141,282 @@
       }
     },
     {
+      "id": "wcs:applyEdits:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "applyEdits",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:attachments:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "attachments",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:geometry:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "geometry",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:geoprocess:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "geoprocess",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:image:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "image",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:pbf:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "pbf",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:processes:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "processes",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:query:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "query",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:queryAggregate:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "queryAggregate",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:queryExtent:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "queryExtent",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:queryObjectIds:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "queryObjectIds",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:queryRelated:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "queryRelated",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:render:protocol-adapter:native",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "render",
+      "authority": "claim",
+      "supportStatus": "experimental",
+      "environment": "protocol-adapter",
+      "executionMode": "native",
+      "truthEvidence": [
+        "coverages-wcs-fixtures"
+      ],
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:spatialAggregate:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "spatialAggregate",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:sql:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "sql",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:stream:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "stream",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
+      "id": "wcs:tiles:default",
+      "protocolId": "wcs",
+      "protocolLabel": "WCS 2.0.1",
+      "operation": "tiles",
+      "authority": "default",
+      "supportStatus": "unsupported",
+      "truthEvidence": [],
+      "coverage": {
+        "state": "unsupported",
+        "reason": "SDK support truth marks this cell unsupported or deprecated.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
       "id": "wfs:applyEdits:protocol-adapter:native",
       "protocolId": "wfs",
       "protocolLabel": "WFS",
@@ -7935,7 +8554,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:20d941a2e515e8c6c21682999823d8aff7d274bc1c96547b893e9d6295629fdc"
+          "qualification:8f4061017c09d68870e3ccdc9d60114ef7fa18d10ae9e64fa37f106c7b9ae7f8"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -8230,7 +8849,7 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:20d941a2e515e8c6c21682999823d8aff7d274bc1c96547b893e9d6295629fdc"
+          "qualification:8f4061017c09d68870e3ccdc9d60114ef7fa18d10ae9e64fa37f106c7b9ae7f8"
         ],
         "selectedSampleId": "service-explorer"
       }
@@ -9086,7 +9705,7 @@
           "migration-workbench"
         ],
         "evidenceBindingIds": [
-          "qualification:5c27b69b4129300f3e01869a2172dc92c4dd98ae86e2076845d0a6611786c521"
+          "qualification:a7bd7748bd22ab9e80aa916c1efac3a4497cfc7d5701e30baad3a0715aab22ab"
         ],
         "selectedSampleId": "migration-workbench"
       }
@@ -9129,6 +9748,33 @@
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
         "selectedSampleId": "service-explorer"
+      }
+    },
+    {
+      "id": "ogc-coverages-standalone",
+      "label": "OGC API Coverages discovery and bounded retrieval",
+      "protocolId": "ogc-coverages",
+      "operations": [
+        "discovery",
+        "render"
+      ],
+      "api": "@honua/sdk-js/coverages createCoverageClient(), CoverageSource",
+      "apiEntrypoints": [
+        "./coverages"
+      ],
+      "supportStatus": "experimental",
+      "environment": "standalone",
+      "executionMode": "native",
+      "truthEvidence": [
+        "coverages-wcs-fixtures"
+      ],
+      "candidateEvidence": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -9452,6 +10098,33 @@
       }
     },
     {
+      "id": "wcs-standalone",
+      "label": "WCS 2.0.1 discovery and bounded retrieval",
+      "protocolId": "wcs",
+      "operations": [
+        "discovery",
+        "render"
+      ],
+      "api": "@honua/sdk-js/coverages createWcsClient()",
+      "apiEntrypoints": [
+        "./coverages"
+      ],
+      "supportStatus": "experimental",
+      "environment": "standalone",
+      "executionMode": "native",
+      "truthEvidence": [
+        "coverages-wcs-fixtures"
+      ],
+      "candidateEvidence": [],
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
       "id": "wfs-standalone",
       "label": "WFS 2.0",
       "protocolId": "wfs",
@@ -9770,6 +10443,21 @@
       }
     },
     {
+      "subpath": "./cloud-native-discovery",
+      "supportStatus": "experimental",
+      "targets": {
+        "types": "./dist/src/cloud-native-discovery/index.d.ts",
+        "default": "./dist/src/cloud-native-discovery/index.js"
+      },
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
       "subpath": "./cog",
       "supportStatus": "experimental",
       "targets": {
@@ -9787,7 +10475,7 @@
           "imagery-cog-quickstart"
         ],
         "evidenceBindingIds": [
-          "qualification:cb66c76893458db7c2b2b2af6013d086625cb56383befbed07c7ec1d99690350"
+          "qualification:698126e955f42c93e768e12b17c0503e9ccb23ab4182ca714c171d775daf1c79"
         ],
         "selectedSampleId": "imagery-cog-quickstart"
       }
@@ -9856,6 +10544,21 @@
         "qualifyingSampleIds": [],
         "evidenceBindingIds": [],
         "selectedSampleId": "web-components-basic"
+      }
+    },
+    {
+      "subpath": "./coverages",
+      "supportStatus": "experimental",
+      "targets": {
+        "types": "./dist/src/coverages/index.d.ts",
+        "default": "./dist/src/coverages/index.js"
+      },
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
       }
     },
     {
@@ -10090,6 +10793,7 @@
         "candidateSampleIds": [
           "maplibre-quickstart",
           "service-explorer",
+          "geocoding-quickstart",
           "react-quickstart",
           "temporal-playback",
           "nl-map-control",
@@ -10101,8 +10805,8 @@
           "service-explorer"
         ],
         "evidenceBindingIds": [
-          "qualification:7a30dfd916ae68f1762e8dd87347f524b17a484b6d3733f8f6aabdd7abd9985b",
-          "qualification:20d941a2e515e8c6c21682999823d8aff7d274bc1c96547b893e9d6295629fdc"
+          "qualification:0965e4dd892f069ec982bdc3a4a38b4936b266d4304084866c2a6e52273abbf3",
+          "qualification:8f4061017c09d68870e3ccdc9d60114ef7fa18d10ae9e64fa37f106c7b9ae7f8"
         ],
         "selectedSampleId": "maplibre-quickstart"
       }
@@ -10125,7 +10829,7 @@
           "migration-workbench"
         ],
         "evidenceBindingIds": [
-          "qualification:5c27b69b4129300f3e01869a2172dc92c4dd98ae86e2076845d0a6611786c521"
+          "qualification:a7bd7748bd22ab9e80aa916c1efac3a4497cfc7d5701e30baad3a0715aab22ab"
         ],
         "selectedSampleId": "migration-workbench"
       }
@@ -10658,6 +11362,14 @@
     },
     {
       "targetType": "package-entrypoint",
+      "targetId": "./cloud-native-discovery",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+    },
+    {
+      "targetType": "package-entrypoint",
       "targetId": "./cog",
       "supportStatus": "experimental",
       "coverageState": "experimental",
@@ -10700,6 +11412,14 @@
         "web-components-basic"
       ],
       "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./coverages",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
     },
     {
       "targetType": "package-entrypoint",
@@ -12581,6 +13301,144 @@
     },
     {
       "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:applyEdits:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:attachments:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:geometry:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:geoprocess:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:image:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:pbf:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:processes:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:query:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [
+        "service-explorer"
+      ],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:queryAggregate:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:queryExtent:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:queryObjectIds:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:queryRelated:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:render:protocol-adapter:native",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:spatialAggregate:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:sql:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:stream:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "ogc-coverages:tiles:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
       "targetId": "ogc-features:applyEdits:protocol-adapter:native",
       "supportStatus": "supported",
       "coverageState": "planned",
@@ -13387,6 +14245,142 @@
     },
     {
       "targetType": "protocol-operation",
+      "targetId": "wcs:applyEdits:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:attachments:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:geometry:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:geoprocess:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:image:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:pbf:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:processes:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:query:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:queryAggregate:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:queryExtent:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:queryObjectIds:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:queryRelated:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:render:protocol-adapter:native",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:spatialAggregate:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:sql:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:stream:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
+      "targetId": "wcs:tiles:default",
+      "supportStatus": "unsupported",
+      "coverageState": "unsupported",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth marks this cell unsupported or deprecated."
+    },
+    {
+      "targetType": "protocol-operation",
       "targetId": "wfs:applyEdits:protocol-adapter:native",
       "supportStatus": "supported",
       "coverageState": "planned",
@@ -13900,6 +14894,14 @@
     },
     {
       "targetType": "support-claim",
+      "targetId": "ogc-coverages-standalone",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+    },
+    {
+      "targetType": "support-claim",
       "targetId": "ogc-features-standalone",
       "supportStatus": "supported",
       "coverageState": "partial",
@@ -13985,6 +14987,14 @@
         "service-explorer"
       ],
       "reason": "Executable sample coverage exists without complete current qualification receipts."
+    },
+    {
+      "targetType": "support-claim",
+      "targetId": "wcs-standalone",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
     },
     {
       "targetType": "support-claim",

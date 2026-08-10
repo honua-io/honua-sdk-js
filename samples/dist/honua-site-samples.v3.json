@@ -439,6 +439,63 @@
       "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support."
     },
     {
+      "id": "coverages-wcs-basic",
+      "title": "Bounded coverage quickstart",
+      "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Provide the smallest deterministic OGC API Coverages workflow while WCS/connect discovery matures."
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/coverages-wcs-basic",
+        "docsPath": "examples/coverages-wcs-basic/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "coverage",
+        "multidimensional-raster"
+      ],
+      "capabilityKeys": [
+        "raster.multidim-coverage",
+        "serve.ogc-api-coverages",
+        "serve.wcs"
+      ],
+      "protocols": [
+        "ogc-coverages",
+        "wcs"
+      ],
+      "renderers": [
+        "maplibre"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
+        "attribution": "Honua protocol contract fixture.",
+        "freshness": "Versioned with the repository and server contract.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "Unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors."
+    },
+    {
       "id": "edit-workflow-demo",
       "title": "Conflict-aware editing workflow",
       "summary": "Demonstrates optimistic edits, attachments, conflicts, and safe recovery.",
@@ -502,14 +559,13 @@
     {
       "id": "geocoding-quickstart",
       "title": "Geocoding quickstart",
-      "summary": "Runs forward, reverse, and suggestion workflows with map feedback.",
+      "summary": "Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "supported",
       "lifecycle": {
-        "state": "rework",
-        "reason": "Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion.",
-        "targetRelease": "0.2.0-beta.0"
+        "state": "active",
+        "reason": "Credential-free map-first recipe with a self-contained GeocodeServer fixture route and focused desktop/mobile browser coverage."
       },
       "validationProfile": "browser-recipe",
       "source": {
@@ -523,12 +579,10 @@
       },
       "capabilities": [
         "forward-geocode",
-        "reverse-geocode",
-        "suggest"
+        "map"
       ],
       "capabilityKeys": [
-        "geocoding.forward",
-        "geocoding.reverse"
+        "geocoding.forward"
       ],
       "protocols": [
         "geoservices"
@@ -537,13 +591,12 @@
         "maplibre"
       ],
       "data": {
-        "mode": "hybrid",
-        "authMode": "api-key",
-        "provenance": "Committed gazetteer responses or configured Honua GeocodeServer.",
-        "attribution": "Gazetteer attribution supplied by the endpoint.",
-        "freshness": "Fixture capture metadata or live response time.",
-        "configurationStatus": "legacy-unsafe",
-        "configurationGap": "The browser bundle currently reads Honua API-key and bearer-token variables."
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Repository-owned synthetic Honolulu address response committed at the exact GeocodeServer route used by the SDK.",
+        "attribution": "Honua SDK deterministic sample fixture; no external geocoder attribution is claimed.",
+        "freshness": "Immutable for the built source revision; not presented as current real-world geocoder data.",
+        "configurationStatus": "not-required"
       },
       "evidence": {
         "fixture": {
@@ -551,11 +604,11 @@
           "status": "executed"
         },
         "live": {
-          "mode": "authenticated",
-          "status": "planned"
+          "mode": "unavailable",
+          "status": "not-applicable"
         }
       },
-      "expectedDegradation": "The UI identifies fixture fallback when the live endpoint is unavailable."
+      "expectedDegradation": "A missing or invalid committed fixture route surfaces an explicit unavailable state; the sample never falls through to an ungoverned public geocoder."
     },
     {
       "id": "geoprocessing-job-runner",
@@ -681,7 +734,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-09T17:25:43.989Z"
+          "expiresAt": "2026-09-10T01:38:59.788Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -744,8 +797,8 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "First Map: endpoint to inspected MapLibre map",
-      "summary": "Pastes a public GeoServices or OGC Features endpoint, then connects, explains, queries, mounts, filters, and inspects one bounded result.",
+      "title": "First Map: Maui parcels in MapLibre",
+      "summary": "Starts with a populated, interactive Maui parcel map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
       "sourceKind": "root-example",
       "track": "golden",
       "journeyId": "first-map",
@@ -786,7 +839,7 @@
       "data": {
         "mode": "hybrid",
         "authMode": "anonymous",
-        "provenance": "Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.",
+        "provenance": "Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.",
         "attribution": "Endpoint-advertised attribution is shown and preserved; unavailable attribution is stated explicitly.",
         "freshness": "SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.",
         "configurationStatus": "approved"
@@ -800,7 +853,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-09T17:23:34.102Z"
+          "expiresAt": "2026-09-10T01:36:43.556Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -913,7 +966,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-09T17:26:07.186Z"
+          "expiresAt": "2026-09-10T01:39:24.801Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -1553,7 +1606,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-09T17:27:08.134Z"
+          "expiresAt": "2026-09-10T01:40:29.946Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -2245,6 +2298,8 @@
     },
     "sampleIds": [
       "ai-spatial-app-builder",
+      "coverages-wcs-basic",
+      "geocoding-quickstart",
       "imagery-cog-quickstart",
       "maplibre-quickstart",
       "migration-workbench",
@@ -2262,6 +2317,16 @@
     "published": [
       {
         "id": "ai-spatial-app-builder",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "coverages-wcs-basic",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "geocoding-quickstart",
         "runnability": "standalone",
         "hostFixtureRoutes": []
       },
@@ -2369,11 +2434,6 @@
         "id": "edit-workflow-demo",
         "category": "lifecycle-not-active",
         "reason": "Catalog lifecycle.state is \"replace\" (target 0.2.0-beta.0): The planning and permitting journey now owns the complete metadata-backed search, bounded analysis, edit, attachment, conflict, recovery, and export workflow. Replacement: journey \"planning-permitting\"."
-      },
-      {
-        "id": "geocoding-quickstart",
-        "category": "lifecycle-not-active",
-        "reason": "Catalog lifecycle.state is \"rework\" (target 0.2.0-beta.0): Retain as the focused forward, reverse, and suggestion recipe; move browser credential inputs behind a host-mediated flow before maintained promotion."
       },
       {
         "id": "geoprocessing-job-runner",
