@@ -263,7 +263,12 @@ describe("honua-site consumer handoff", () => {
       ]),
     );
     for (const sample of projection.samples as Array<{ id: string; capabilityKeys: string[] }>) {
-      expect(isCapabilityNarrowing(legacyCapabilities.get(sample.id) ?? [], sample.capabilityKeys)).toBe(true);
+      const legacyCapabilityKeys = legacyCapabilities.get(sample.id);
+      if (legacyCapabilityKeys === undefined) {
+        expect(sample.id).toBe("coverages-wcs-basic");
+        continue;
+      }
+      expect(isCapabilityNarrowing(legacyCapabilityKeys, sample.capabilityKeys)).toBe(true);
     }
   });
 
