@@ -354,6 +354,27 @@ describe("GeoArrow aggregation: spatial grid grouping", () => {
     expect(result.rows.map((row) => row.metrics.idSum)).toEqual([4, 3, 3, 5]);
   });
 
+  it("groups empty Points as null geometry and excludes their coordinate metrics", async () => {
+    const result = await aggregate(
+      pointBatch({
+        points: [[Number.NaN, Number.NaN], [1, 1], null],
+        ids: [1, 2, 3],
+      }),
+      {
+        group: { kind: "grid", cellSize: 10 },
+        metrics: [
+          { name: "features", kind: "count" },
+          { name: "coordinates", kind: "count", column: "x" },
+          { name: "sumX", kind: "sum", column: "x" },
+        ],
+      },
+    );
+
+    expect(result.rows.map((row) => row.key)).toEqual([[0, 0], null]);
+    expect(result.rows[0]!.metrics).toEqual({ features: 1, coordinates: 1, sumX: 1 });
+    expect(result.rows[1]!.metrics).toEqual({ features: 2, coordinates: 0, sumX: null });
+  });
+
   it("honours a rectangular cell size and a shifted origin", async () => {
     const result = await aggregate(
       pointBatch({

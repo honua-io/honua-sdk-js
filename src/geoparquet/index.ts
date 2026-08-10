@@ -195,7 +195,12 @@ export class GeoparquetRuntime {
   }
 
   /** Detect (and memoize) the schema + geometry plan for a source-URL set. */
-  profile(sources: readonly string[], geometryColumnOverride?: string): Promise<SourceProfile> {
+  profile(
+    sources: readonly string[],
+    geometryColumnOverride?: string,
+    options?: DuckDbQueryOptions,
+  ): Promise<SourceProfile> {
+    if (options?.signal) return this.detectProfile(sources, geometryColumnOverride, options);
     const key = JSON.stringify([sources, geometryColumnOverride ?? null]);
     const cached = this.profiles.get(key);
     if (cached) return cached;
@@ -204,21 +209,27 @@ export class GeoparquetRuntime {
     return built;
   }
 
-  private async detectProfile(sources: readonly string[], geometryColumnOverride?: string): Promise<SourceProfile> {
+  private async detectProfile(
+    sources: readonly string[],
+    geometryColumnOverride?: string,
+    options?: DuckDbQueryOptions,
+  ): Promise<SourceProfile> {
     const driver = await this.driver();
-    const describe = (await driver.query(describeSql(sources))) as unknown as DescribeRow[];
+    const describe = (await driver.query(describeSql(sources), options)) as unknown as DescribeRow[];
     let geoJson: string | undefined;
     try {
-      const rows = await driver.query(geoMetadataSql(sources));
+      const rows = await driver.query(geoMetadataSql(sources), options);
       geoJson = consistentGeoMetadata(rows);
     } catch (cause) {
       if (cause instanceof InconsistentGeoMetadataError || sources.length > 1) throw cause;
       geoJson = undefined;
     }
     let rowEstimate: number | undefined;
+    let rowGroupCount: number | undefined;
     try {
-      const rows = await driver.query(rowEstimateSql(sources));
+      const rows = await driver.query(rowEstimateSql(sources), options);
       rowEstimate = toNumber(rows[0]?.row_estimate);
+      rowGroupCount = toNumber(rows[0]?.row_group_count);
     } catch {
       rowEstimate = undefined;
     }
@@ -227,6 +238,7 @@ export class GeoparquetRuntime {
       ...(geoJson ? { geoJson } : {}),
       ...(geometryColumnOverride ? { geometryColumnOverride } : {}),
       ...(rowEstimate !== undefined ? { rowEstimate } : {}),
+      ...(rowGroupCount !== undefined ? { rowGroupCount } : {}),
     });
   }
 
@@ -821,6 +833,10 @@ export interface GeoparquetDescription {
   readonly crs?: string;
   /** Footer-derived row estimate. */
   readonly rowEstimate?: number;
+  /** Dataset bbox from validated GeoParquet metadata. */
+  readonly bbox?: readonly number[];
+  /** Footer-derived Parquet row-group count. */
+  readonly rowGroupCount?: number;
 }
 
 /**
@@ -831,7 +847,7 @@ export interface GeoparquetSourceHandle {
   readonly runtime: GeoparquetRuntime;
   readonly sources: readonly string[];
   /** Schema, geometry column(s), CRS, and row estimate. */
-  describe(): Promise<GeoparquetDescription>;
+  describe(signal?: AbortSignal): Promise<GeoparquetDescription>;
   /** Run arbitrary SQL against the shared DuckDB instance. */
   sql(query: string): Promise<DuckRow[]>;
   /**
@@ -1063,10 +1079,14 @@ export function geoparquetSource<T = Record<string, unknown>>(
   const handle: GeoparquetSourceHandle = {
     runtime,
     sources,
-    async describe() {
-      const driver = await runtime.query(describeSql(sources));
+    async describe(signal) {
+      throwIfQueryAborted(signal);
+      const queryOptions = signal ? { signal } : undefined;
+      const driver = await runtime.query(describeSql(sources), queryOptions);
+      throwIfQueryAborted(signal);
       const describe = driver as unknown as DescribeRow[];
-      const profile = await runtime.profile(sources, geometryColumnOverride);
+      const profile = await runtime.profile(sources, geometryColumnOverride, queryOptions);
+      throwIfQueryAborted(signal);
       return {
         schema: fieldsFromDescribe(describe),
         geometryColumns: profile.geometry ? [profile.geometry.column] : [],
@@ -1075,6 +1095,8 @@ export function geoparquetSource<T = Record<string, unknown>>(
           : { geometryEncoding: profile.geometry.encoding }),
         ...(profile.crs ? { crs: profile.crs } : {}),
         ...(profile.rowEstimate !== undefined ? { rowEstimate: profile.rowEstimate } : {}),
+        ...(profile.geometry?.bbox ? { bbox: profile.geometry.bbox } : {}),
+        ...(profile.rowGroupCount !== undefined ? { rowGroupCount: profile.rowGroupCount } : {}),
       };
     },
     sql(query: string) {

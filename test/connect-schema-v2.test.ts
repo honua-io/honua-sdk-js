@@ -930,6 +930,22 @@ describe("source schema v2 discovery adapters", () => {
       },
     },
     {
+      name: "inverted 2D bbox",
+      geo: {
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "WKB", geometry_types: [], bbox: [2, 0, 1, 1] } },
+      },
+    },
+    {
+      name: "inverted 3D bbox axis",
+      geo: {
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "WKB", geometry_types: [], bbox: [0, 0, 5, 1, 1, 4] } },
+      },
+    },
+    {
       name: "incomplete covering",
       geo: {
         version: "1.1.0",

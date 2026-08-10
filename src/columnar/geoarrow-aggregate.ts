@@ -225,11 +225,13 @@ const TICKS_PER_SECOND: Readonly<Record<string, number>> = Object.freeze({
   nanosecond: 1_000_000_000,
 });
 
-const DIMENSION_ORDER: Readonly<Record<GeoArrowDimensions, readonly string[]>> = Object.freeze({
-  xy: Object.freeze(["x", "y"]),
-  xyz: Object.freeze(["x", "y", "z"]),
-  xym: Object.freeze(["x", "y", "m"]),
-  xyzm: Object.freeze(["x", "y", "z", "m"]),
+type GeoArrowOrdinate = Extract<GeoArrowAggregateNumericColumn, "x" | "y" | "z" | "m">;
+
+const DIMENSION_ORDER: Readonly<Record<GeoArrowDimensions, readonly GeoArrowOrdinate[]>> = Object.freeze({
+  xy: Object.freeze(["x", "y"] as const),
+  xyz: Object.freeze(["x", "y", "z"] as const),
+  xym: Object.freeze(["x", "y", "m"] as const),
+  xyzm: Object.freeze(["x", "y", "z", "m"] as const),
 });
 
 const METRIC_KINDS: ReadonlySet<string> = new Set(["count", "sum", "min", "max", "mean"]);
@@ -436,6 +438,17 @@ function vertexRange(geometry: GeoArrowGeometryBuffers, row: number): readonly [
   if (geometry.kind === "linestring") return [start, end];
   if (end <= start) return [0, 0];
   return [geometry.ringOffsets![start]!, geometry.ringOffsets![end]!];
+}
+
+function isEmptyPointRow(geometry: GeoArrowGeometryBuffers, row: number): boolean {
+  if (geometry.kind !== "point" || !isValidBit(geometry.validity, row)) return false;
+  const dimensions = DIMENSION_ORDER[geometry.dimensions];
+  if (geometry.coordinateLayout === "interleaved") {
+    const values = geometry.coordinates.interleaved!;
+    const base = row * dimensions.length;
+    return dimensions.every((_, index) => Number.isNaN(values[base + index]!));
+  }
+  return dimensions.every((dimension) => Number.isNaN(geometry.coordinates[dimension]![row]!));
 }
 
 /**
@@ -825,6 +838,8 @@ export function createGeoArrowAggregateOperation(
         context.signal.throwIfAborted();
       }
 
+      const emptyPoint = isEmptyPointRow(geometry, row);
+
       // Resolve the group ordinal from packed buffers only.
       let ordinal: number;
       if (groupKind === GROUP_DICTIONARY) {
@@ -871,7 +886,7 @@ export function createGeoArrowAggregateOperation(
         }
       } else {
         const range = vertexRange(geometry, row);
-        if (!isValidBit(geometry.validity, row) || range[1] <= range[0]) {
+        if (!isValidBit(geometry.validity, row) || range[1] <= range[0] || emptyPoint) {
           if (nullKeys === "skip") {
             skippedRows += 1;
             continue;
@@ -903,7 +918,7 @@ export function createGeoArrowAggregateOperation(
 
       for (let index = 0; index < columnCount; index += 1) {
         const reader = readers[index]!;
-        if (!isValidBit(reader.validity, row)) {
+        if (!isValidBit(reader.validity, row) || (reader.type === COLUMN_F64 && emptyPoint)) {
           columnValid[index] = 0;
           continue;
         }

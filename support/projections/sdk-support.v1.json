@@ -838,6 +838,18 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "columnar-workflow-contract",
+      "kind": "fixture",
+      "path": "test/columnar-workflow.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "columnar-workflow-honua-arrow-interop",
+      "kind": "fixture",
+      "path": "test/columnar-workflow-honua-arrow.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "wms-wmts-connect-fixtures",
       "kind": "fixture",
       "path": "test/connect-wms-wmts.test.ts",
@@ -2109,6 +2121,48 @@
       ]
     },
     {
+      "id": "columnar-workflow-direct-geoparquet-client-only",
+      "label": "Bounded direct GeoParquet columnar workflow",
+      "protocol": "geoparquet",
+      "operations": [
+        "query",
+        "queryAggregate",
+        "stream"
+      ],
+      "environment": "client-only",
+      "executionMode": "native",
+      "status": "experimental",
+      "backendNeeded": "None; a range-readable GeoParquet object and optional DuckDB-WASM peer",
+      "api": "@honua/sdk-js/columnar-workflow",
+      "notes": "Inspects and queries a structurally validated GeoParquet source with explicit row, batch, transfer-byte, and backing-memory ceilings; worker, render, table, and download boundaries remain explicit.",
+      "evidence": [
+        "geoparquet-fixtures",
+        "columnar-workflow-contract"
+      ]
+    },
+    {
+      "id": "columnar-workflow-honua-query-results",
+      "label": "Honua Arrow and Parquet feature-query results",
+      "operations": [
+        "query",
+        "stream"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "experimental",
+      "backendNeeded": "Honua Server deployment that advertises Arrow or Parquet FeatureServer query output",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "The f=arrow and f=parquet result formats are Honua FeatureServer extensions. The direct-object equivalent is the separate client-only GeoParquet claim, while this claim intentionally requires a deployment that advertises the response contract."
+      },
+      "api": "@honua/sdk-js/columnar-workflow",
+      "notes": "Builds bounded GET or POST queries through the normal request pipeline. The built-in Arrow decoder is fixture-proven against an exact Honua Server geoarrow.wkb artifact for a Binary/LargeBinary Point/LineString/Polygon XY/XYZ subset plus object-id, UTF-8/dictionary, and timestamp fields. BinaryView, broader Arrow schemas, and all Parquet responses require an injected decoder. No live status is claimed without a demo-manifest target.",
+      "evidence": [
+        "columnar-workflow-contract",
+        "columnar-workflow-honua-arrow-interop"
+      ]
+    },
+    {
       "id": "ogc-tiles-standalone",
       "label": "OGC API Tiles",
       "protocol": "ogc-tiles",
@@ -2791,6 +2845,10 @@
       },
       {
         "subpath": "./geoparquet",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./columnar-workflow",
         "status": "experimental"
       },
       {

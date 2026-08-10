@@ -12,6 +12,7 @@ export type GeoArrowGeometryKind = "point" | "linestring" | "polygon";
 export type GeoArrowDimensions = "xy" | "xyz" | "xym" | "xyzm";
 export type GeoArrowCoordinateLayout = "interleaved" | "separated";
 export type GeoArrowEdges = "planar" | "spherical" | "vincenty" | "thomas" | "andoyer" | "karney";
+export type GeoArrowCrsType = "projjson" | "wkt2:2019" | "authority_code" | "srid";
 export type GeoArrowTimestampUnit = "second" | "millisecond" | "microsecond" | "nanosecond";
 
 /** CRS metadata accepted by GeoArrow: preferably PROJJSON, or an opaque serialized CRS string. */
@@ -29,6 +30,8 @@ export interface GeoArrowGeometryColumnBase {
   /** Both official layouts are supported; separated is the GeoArrow-recommended default. */
   readonly coordinateLayout?: GeoArrowCoordinateLayout;
   readonly crs?: GeoArrowCrs;
+  /** Disambiguates a serialized CRS value; invalid without `crs`. */
+  readonly crsType?: GeoArrowCrsType;
   readonly edges?: GeoArrowEdges;
 }
 
@@ -185,6 +188,7 @@ export interface GeoArrowGeometryBuffers {
   readonly dimensions: GeoArrowDimensions;
   readonly coordinateLayout: GeoArrowCoordinateLayout;
   readonly crs?: GeoArrowCrs;
+  readonly crsType?: GeoArrowCrsType;
   readonly edges: GeoArrowEdges;
   readonly validity?: Uint8Array;
   readonly offsets?: Int32Array;

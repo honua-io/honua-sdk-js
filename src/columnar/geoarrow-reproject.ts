@@ -28,6 +28,10 @@ function reprojectPosition(
   position: GeoArrowPosition,
   project: CreateGeoArrowReprojectOperationOptions["project"],
 ): GeoArrowPosition {
+  // GeoArrow represents an empty Point as an all-NaN position. It has no
+  // coordinates to transform, and passing it to a host projection would either
+  // reject it or turn the sentinel into a non-empty geometry.
+  if (position.every(Number.isNaN)) return position;
   const result = project(position);
   if (!Array.isArray(result) || result.length !== position.length) {
     throw new TypeError("GeoArrow reprojection must preserve coordinate dimensionality.");

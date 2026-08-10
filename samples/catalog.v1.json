@@ -234,6 +234,23 @@
       "validation": ["npm run demo:node-backend:typecheck", "npm run demo:node-backend:smoke"]
     },
     {
+      "id": "columnar-query-quickstart",
+      "title": "Bounded columnar query plan",
+      "summary": "Builds an inspectable Arrow query plan with server pushdown and hard browser resource ceilings before any bytes move.",
+      "tier": "recipe",
+      "supportStatus": "experimental",
+      "disposition": { "decision": "keep", "reason": "Focused inline-code-first entry point for GeoArrow and GeoParquet planning; Overture remains the production-shaped large-data project." },
+      "sourcePath": "examples/columnar-query-quickstart",
+      "docsPath": "examples/columnar-query-quickstart/README.md",
+      "capabilities": ["columnar", "query"],
+      "protocols": ["geoservices"],
+      "renderers": ["none"],
+      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Deterministic in-browser request planning with no data or network access.", "attribution": "No spatial data is loaded or rendered.", "freshness": "Versioned with the SDK query contract." },
+      "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:columnar-query:build"] }, "live": { "status": "not-applicable", "commands": [] } },
+      "expectedDegradation": "The example plans but does not execute because no demo-manifest target currently advertises live Arrow or Parquet output.",
+      "validation": ["npm run demo:columnar-query:typecheck", "npm run demo:columnar-query:build", "npx vitest run test/columnar-workflow.test.ts", "npx vitest run test/columnar-workflow-honua-arrow.test.ts"]
+    },
+    {
       "id": "oauth-signin",
       "title": "OAuth sign-in",
       "summary": "Demonstrates browser authentication and session lifecycle without embedding credentials.",

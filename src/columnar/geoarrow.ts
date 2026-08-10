@@ -8,6 +8,7 @@ import {
   type GeoArrowConversionLimits,
   type GeoArrowCoordinateLayout,
   type GeoArrowCrs,
+  type GeoArrowCrsType,
   type GeoArrowDictionaryBuffers,
   type GeoArrowDimensions,
   type GeoArrowEdges,
@@ -90,6 +91,7 @@ interface NormalizedGeometry {
   readonly dimensions: GeoArrowDimensions;
   readonly coordinateLayout: GeoArrowCoordinateLayout;
   readonly crs?: GeoArrowCrs;
+  readonly crsType?: GeoArrowCrsType;
   readonly edges: GeoArrowEdges;
   readonly values: readonly (GeoArrowPoint | GeoArrowLineString | GeoArrowPolygon | null)[];
   readonly vertices: number;
@@ -209,17 +211,24 @@ function dimensionNames(dimensions: GeoArrowDimensions): readonly ("x" | "y" | "
   }
 }
 
-function normalizePosition(value: unknown, names: readonly string[], label: string): GeoArrowPosition {
+function normalizePosition(
+  value: unknown,
+  names: readonly string[],
+  label: string,
+  allowEmptyPoint = false,
+): GeoArrowPosition {
   const length = arrayLength(value, label);
   const coordinates = value as readonly unknown[];
   if (length !== names.length) {
     fail("invalid-input", `${label} must contain ${names.length} coordinates (${names.join(", ")}).`);
   }
+  const emptyPoint =
+    allowEmptyPoint && coordinates.every((coordinate) => typeof coordinate === "number" && Number.isNaN(coordinate));
   const result: number[] = [];
   for (let index = 0; index < length; index += 1) {
     const coordinate = coordinates[index];
-    if (typeof coordinate !== "number" || !Number.isFinite(coordinate)) {
-      fail("invalid-input", `${label}[${index}] must be a finite number.`);
+    if (typeof coordinate !== "number" || (!emptyPoint && !Number.isFinite(coordinate))) {
+      fail("invalid-input", `${label}[${index}] must be finite, or every ordinate must be NaN for an empty Point.`);
     }
     result.push(coordinate);
   }
@@ -278,7 +287,7 @@ function normalizeGeometry(
     }
     if (input.kind === "point") {
       addVertices(1);
-      values.push(normalizePosition(geometry, names, `geometry.values[${row}]`));
+      values.push(normalizePosition(geometry, names, `geometry.values[${row}]`, true));
       continue;
     }
     const partCount = arrayLength(geometry, `geometry.values[${row}]`);
@@ -319,12 +328,15 @@ function normalizeGeometry(
     values.push(Object.freeze(polygon));
   }
 
+  const crs = input.crs === undefined ? undefined : normalizeCrs(input.crs, limits);
+  const crsType = normalizeCrsType(input.crsType, crs);
   return Object.freeze({
     kind: input.kind,
     field,
     dimensions,
     coordinateLayout,
-    ...(input.crs === undefined ? {} : { crs: normalizeCrs(input.crs, limits) }),
+    ...(crs === undefined ? {} : { crs }),
+    ...(crsType === undefined ? {} : { crsType }),
     edges,
     values: Object.freeze(values),
     vertices,
@@ -512,9 +524,21 @@ function normalizeCrs(crs: GeoArrowCrs, limits: ResolvedLimits): GeoArrowCrs {
   return boundedJson(crs, limits, "geometry.crs").value as GeoArrowCrs;
 }
 
+const GEOARROW_CRS_TYPES: readonly GeoArrowCrsType[] = ["projjson", "wkt2:2019", "authority_code", "srid"];
+
+function normalizeCrsType(crsType: unknown, crs: GeoArrowCrs | undefined): GeoArrowCrsType | undefined {
+  if (crsType === undefined) return undefined;
+  if (typeof crsType !== "string" || !GEOARROW_CRS_TYPES.includes(crsType as GeoArrowCrsType)) {
+    fail("invalid-input", `Unsupported geometry.crsType "${String(crsType)}".`);
+  }
+  if (crs === undefined) fail("invalid-input", "geometry.crsType requires geometry.crs.");
+  return crsType as GeoArrowCrsType;
+}
+
 function extensionMetadata(geometry: NormalizedGeometry, limits: ResolvedLimits): string {
   const metadata: Record<string, unknown> = {};
   if (geometry.crs !== undefined) metadata.crs = geometry.crs;
+  if (geometry.crsType !== undefined) metadata.crs_type = geometry.crsType;
   if (geometry.edges !== "planar") metadata.edges = geometry.edges;
   return boundedJson(metadata, limits, "GeoArrow extension metadata").json;
 }
@@ -964,7 +988,7 @@ function requireMetadata(metadata: Readonly<Record<string, string>> | undefined,
 function parseExtensionMetadata(
   field: ColumnarFieldV1,
   limits: ResolvedLimits,
-): { readonly crs?: GeoArrowCrs; readonly edges: GeoArrowEdges } {
+): { readonly crs?: GeoArrowCrs; readonly crsType?: GeoArrowCrsType; readonly edges: GeoArrowEdges } {
   const fieldMetadataKeys = Object.keys(field.metadata ?? {});
   if (fieldMetadataKeys.some((key) => key !== "ARROW:extension:name" && key !== "ARROW:extension:metadata")) {
     fail("invalid-batch", `Geometry field "${field.name}" contains undeclared extension metadata.`);
@@ -977,10 +1001,11 @@ function parseExtensionMetadata(
     const parsed = JSON.parse(encoded) as unknown;
     const value = boundedJson(parsed, limits, "GeoArrow extension metadata").value as {
       crs?: unknown;
+      crs_type?: unknown;
       edges?: unknown;
     };
     if (typeof value !== "object" || value === null || Array.isArray(value)) throw new Error("not an object");
-    if (Object.keys(value).some((key) => key !== "crs" && key !== "edges")) {
+    if (Object.keys(value).some((key) => key !== "crs" && key !== "crs_type" && key !== "edges")) {
       fail("invalid-batch", "GeoArrow extension metadata contains an undeclared property.");
     }
     const edges = value.edges ?? "planar";
@@ -994,8 +1019,19 @@ function parseExtensionMetadata(
     ) {
       fail("invalid-batch", "GeoArrow extension CRS metadata is malformed.");
     }
+    const crsType = value.crs_type;
+    if (
+      crsType !== undefined &&
+      (typeof crsType !== "string" || !GEOARROW_CRS_TYPES.includes(crsType as GeoArrowCrsType))
+    ) {
+      fail("invalid-batch", `Unsupported GeoArrow crs_type metadata "${String(crsType)}".`);
+    }
+    if (crsType !== undefined && value.crs === undefined) {
+      fail("invalid-batch", "GeoArrow crs_type metadata requires crs metadata.");
+    }
     return Object.freeze({
       ...(value.crs === undefined ? {} : { crs: value.crs as GeoArrowCrs }),
+      ...(crsType === undefined ? {} : { crsType: crsType as GeoArrowCrsType }),
       edges: edges as GeoArrowEdges,
     });
   } catch (cause) {
@@ -1247,17 +1283,48 @@ function inspectGeometry(
     });
   }
   if (scope === "full") {
-    for (const view of Object.values(coordinates)) {
-      if (!view) continue;
-      // Indexed rather than iterated. `for...of` over a typed array pays the
-      // iterator protocol per element, and this is the only unbounded loop a
-      // full inspection runs: it visits every coordinate of every column, on
-      // every inspection, including the one each realtime patch application
-      // performs (#941). Against a million-row batch the iterator form is the
-      // dominant cost of applying a patch; the indexed form checks exactly the
-      // same values.
-      for (let index = 0; index < view.length; index += 1) {
-        if (!Number.isFinite(view[index]!)) fail("invalid-batch", "Coordinate buffers must contain finite values.");
+    if (kind === "point") {
+      let allCoordinatesFinite = true;
+      coordinateScan: for (const view of Object.values(coordinates)) {
+        if (!view) continue;
+        for (let index = 0; index < view.length; index += 1) {
+          if (!Number.isFinite(view[index]!)) {
+            allCoordinatesFinite = false;
+            break coordinateScan;
+          }
+        }
+      }
+      if (!allCoordinatesFinite) {
+        for (let row = 0; row < batch.rowCount; row += 1) {
+          if (!isValid(validity, row)) continue;
+          let allNaN = true;
+          let allFinite = true;
+          for (let dimension = 0; dimension < names.length; dimension += 1) {
+            const coordinate =
+              coordinateLayout === "interleaved"
+                ? coordinates.interleaved![row * names.length + dimension]!
+                : coordinates[names[dimension]!]![row]!;
+            allNaN &&= Number.isNaN(coordinate);
+            allFinite &&= Number.isFinite(coordinate);
+          }
+          if (!allNaN && !allFinite) {
+            fail("invalid-batch", "Point coordinates must be finite, or all NaN for an empty Point.");
+          }
+        }
+      }
+    } else {
+      for (const view of Object.values(coordinates)) {
+        if (!view) continue;
+        // Indexed rather than iterated. `for...of` over a typed array pays the
+        // iterator protocol per element, and this is the only unbounded loop a
+        // full inspection runs: it visits every coordinate of every column, on
+        // every inspection, including the one each realtime patch application
+        // performs (#941). Against a million-row batch the iterator form is the
+        // dominant cost of applying a patch; the indexed form checks exactly the
+        // same values.
+        for (let index = 0; index < view.length; index += 1) {
+          if (!Number.isFinite(view[index]!)) fail("invalid-batch", "Coordinate buffers must contain finite values.");
+        }
       }
     }
   }
