@@ -8,7 +8,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-09 at commit `c382f303`._
+_Generated 2026-08-10 at commit `fa42690e`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -51,7 +51,7 @@ _Generated 2026-08-09 at commit `c382f303`._
 | tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 613.5 KiB | 627.9 KiB | 163.5 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.4 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 15.0 KiB | 15.5 KiB | 4.2 KiB | 4.5 KiB |
-| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 14.8 KiB | 14.6 KiB | 3.2 KiB | 3.1 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 14.8 KiB | 16.3 KiB | 3.2 KiB | 3.5 KiB |
 | tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 715.7 KiB | 717.1 KiB | 192.4 KiB | 210.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 253.8 KiB | 267.0 KiB | 65.0 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
