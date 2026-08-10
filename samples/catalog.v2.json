@@ -553,11 +553,6 @@
         "coverage",
         "multidimensional-raster"
       ],
-      "capabilityKeys": [
-        "raster.multidim-coverage",
-        "serve.ogc-api-coverages",
-        "serve.wcs"
-      ],
       "protocols": [
         "ogc-coverages",
         "wcs"
@@ -568,11 +563,11 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
+        "configurationStatus": "not-required",
         "config": [],
         "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
         "attribution": "Honua protocol contract fixture.",
         "freshness": "Versioned with the repository and server contract.",
-        "configurationStatus": "not-required",
         "configClassifications": []
       },
       "evidence": {
@@ -609,7 +604,12 @@
             "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
           }
         ]
-      }
+      },
+      "capabilityKeys": [
+        "raster.multidim-coverage",
+        "serve.ogc-api-coverages",
+        "serve.wcs"
+      ]
     },
     {
       "id": "edit-workflow-demo",
