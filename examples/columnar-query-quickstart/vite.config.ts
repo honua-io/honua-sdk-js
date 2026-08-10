@@ -1,6 +1,10 @@
-import { defineConfig } from "vite";
+import { createSampleViteConfig } from "../_kit/vite.config.js";
 
-export default defineConfig({
-  root: "examples/columnar-query-quickstart",
-  server: { port: 5193 },
+const config = createSampleViteConfig(import.meta.url, {
+  sdkEntrypoints: ["@honua/sdk-js/columnar-workflow"],
 });
+
+export default {
+  ...config,
+  server: { ...config.server, port: 5193 },
+};
