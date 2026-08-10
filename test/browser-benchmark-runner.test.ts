@@ -46,17 +46,17 @@ function scenario(firstVisibleMs: readonly number[], interactionLatencyMs: reado
 describe("browser benchmark budget evaluator", () => {
   it("fingerprints the versioned fixture pack actually served by the browser scenario", async () => {
     const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-browser-corpus-"));
-    const fixtureRoot = path.join(temporaryRoot, "first-map", "v1");
-    fs.cpSync(path.join(repoRoot, "samples/fixtures/first-map/v1"), fixtureRoot, { recursive: true });
+    const fixtureRoot = path.join(temporaryRoot, "first-map", "v2");
+    fs.cpSync(path.join(repoRoot, "samples/fixtures/first-map/v2"), fixtureRoot, { recursive: true });
     try {
       const before = await browserCorpusFingerprint({ repoRoot, fixtureRoot });
       const featuresPath = path.join(fixtureRoot, "features.json");
       fs.appendFileSync(featuresPath, "\n");
       const after = await browserCorpusFingerprint({ repoRoot, fixtureRoot });
 
-      expect(before.files).toContain("samples/fixtures/first-map/v1/manifest.json");
-      expect(before.files).toContain("samples/fixtures/first-map/v1/features.json");
-      expect(before.files).toContain("samples/fixtures/first-map/v1/layer.json");
+      expect(before.files).toContain("samples/fixtures/first-map/v2/manifest.json");
+      expect(before.files).toContain("samples/fixtures/first-map/v2/features.json");
+      expect(before.files).toContain("samples/fixtures/first-map/v2/layer.json");
       expect(before.files.some((file) => file.startsWith("test/fixtures/"))).toBe(false);
       expect(after.sha256).not.toBe(before.sha256);
     } finally {
@@ -74,7 +74,7 @@ describe("browser benchmark budget evaluator", () => {
         fs.copyFileSync(path.join(repoRoot, relativePath), destination);
       }
 
-      const fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v1");
+      const fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v2");
       const before = await browserCorpusFingerprint({ repoRoot: sourceRoot, fixtureRoot });
       const producer = "samples/scenarios/handlers/first-map.mjs";
       fs.appendFileSync(path.join(sourceRoot, producer), "\n");
@@ -111,7 +111,7 @@ describe("browser benchmark budget evaluator", () => {
         fs.mkdirSync(path.dirname(destination), { recursive: true });
         fs.copyFileSync(path.join(repoRoot, relativePath), destination);
       }
-      const fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v1");
+      const fixtureRoot = path.join(repoRoot, "samples/fixtures/first-map/v2");
 
       const corpusBefore = await browserCorpusFingerprint({ repoRoot: sourceRoot, fixtureRoot });
       const codeBefore = await codeUnderTestFingerprint({ repoRoot: sourceRoot });

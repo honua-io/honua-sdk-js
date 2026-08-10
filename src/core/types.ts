@@ -1199,6 +1199,8 @@ export interface HonuaLayerMetadata {
   /** Whether GeoServices coordinates include a measure ordinate. */
   hasM?: boolean;
   description?: string;
+  /** Attribution text advertised by the GeoServices layer. */
+  copyrightText?: string;
   fields?: HonuaFieldInfo[];
   objectIdField?: string;
   globalIdField?: string;

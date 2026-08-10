@@ -30,8 +30,8 @@ Labels: `fixture` · `public-live`
 - Compile check: `npm run demo:quickstart:typecheck`
 - Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.
-- Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
+- Provenance: Governed first-map/v2 fixture derived from the exact SHA-256-pinned 2025 U.S. Census Bureau TIGER/Line Hawaii tract archive, or the separate manifest-advertised anonymous live layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1; the live lane is not represented as Census-governed.
+- Freshness: The immutable fixture records its 2025-01-01 source vintage; live SDK observation time and cache status are shown separately.
 - Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
 - Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
 - Supported API imports: `@honua/sdk-js` (`createHonua`); `@honua/sdk-js/runtime` (`maplibreRenderer`)
@@ -91,8 +91,8 @@ Labels: `fixture` · `public-live`
 - Compile check: `npm run demo:quickstart:typecheck`
 - Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.
-- Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
+- Provenance: Governed first-map/v2 fixture derived from the exact SHA-256-pinned 2025 U.S. Census Bureau TIGER/Line Hawaii tract archive, or the separate manifest-advertised anonymous live layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1; the live lane is not represented as Census-governed.
+- Freshness: The immutable fixture records its 2025-01-01 source vintage; live SDK observation time and cache status are shown separately.
 - Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
 - Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
 - Supported API imports: `@honua/sdk-js` (`createHonua`); `@honua/sdk-js/runtime` (`maplibreRenderer`)

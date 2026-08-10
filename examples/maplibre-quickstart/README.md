@@ -45,7 +45,9 @@ Open the printed `quickstartMockUrl`. The fixture lane is deterministic and self
 
 The fixture is clearly labeled **Fixture replay**, uses no authentication, reports committed source provenance, and
 does not make external network requests. The versioned fixture pack lives in
-[`samples/fixtures/first-map/v1`](../../samples/fixtures/first-map/v1).
+[`samples/fixtures/first-map/v2`](../../samples/fixtures/first-map/v2). It contains all 48 Maui County 2025 census
+tracts derived without simplification from the exact SHA-256-pinned Census TIGER/Line archive. The harness binds the
+query limit and initial selected record to the governed fixture manifest rather than duplicating those values in UI code.
 
 Required CI measures the path from a clean `npm ci` through the first usable fixture map and enforces a 300-second
 ceiling. The browser shell also reports narrower monotonic budgets: 10,000 ms to its first usable fixture frame, 100 ms
@@ -59,6 +61,9 @@ not claims about a first-time human session or public-network latency.
 `demo.honua.io` service directory:
 
 `https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1`
+
+That public-live canary is a separate source and is not represented as Census-governed. Its endpoint-advertised
+attribution and observation time remain visible in the same evidence drawer.
 
 Paste any other anonymous, CORS-enabled GeoServices FeatureServer layer or OGC API Features landing-page URL into the
 form. The same path can also be preconfigured for development:

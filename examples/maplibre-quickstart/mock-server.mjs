@@ -2,19 +2,39 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { startSampleFixtureHarness } from "../../samples/scenarios/index.mjs";
+import { loadFixturePack, startSampleFixtureHarness } from "../../samples/scenarios/index.mjs";
 import { createFixtureBuildEnvironment } from "../../scripts/lib/fixture-build-environment.mjs";
 import { runNpmScriptSync } from "../../scripts/lib/npm-cli.mjs";
 
 const exampleRoot = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(exampleRoot, "../..");
 const distRoot = path.resolve(exampleRoot, "dist");
+const FIRST_MAP_FIXTURE_VERSION = "v2";
+const firstMapFixture = loadFixturePack("first-map", FIRST_MAP_FIXTURE_VERSION);
+const fixtureFeatureCount = firstMapFixture.manifest.schema.featureCount;
+const fixtureSelectedRecordId = firstMapFixture.manifest.schema.selectedRecordId;
+
+if (!Number.isSafeInteger(fixtureFeatureCount) || fixtureFeatureCount < 1) {
+  throw new Error("First Map fixture featureCount must be a positive safe integer.");
+}
+if (
+  (typeof fixtureSelectedRecordId !== "string" && !Number.isSafeInteger(fixtureSelectedRecordId)) ||
+  String(fixtureSelectedRecordId).length === 0
+) {
+  throw new Error("First Map fixture selectedRecordId must identify one governed record.");
+}
+
+export const FIRST_MAP_FIXTURE_METADATA = Object.freeze({
+  version: FIRST_MAP_FIXTURE_VERSION,
+  featureCount: fixtureFeatureCount,
+  selectedRecordId: String(fixtureSelectedRecordId),
+});
 
 export const FIXTURE_BUILD_ENV = {
   VITE_HONUA_QUICKSTART_ENDPOINT: "honua:first-map-fixture",
   VITE_HONUA_QUICKSTART_PROTOCOL: "auto",
   VITE_HONUA_QUICKSTART_WHERE: "1=1",
-  VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: "25",
+  VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: "48",
   VITE_HONUA_QUICKSTART_BASEMAP_STYLE: "/__honua-quickstart__/basemap-style.json",
 };
 
@@ -39,6 +59,7 @@ export async function startQuickstartFixtureServer({ build = true, buildTimeoutM
   if (build) buildDemoIfNeeded(buildTimeoutMs);
   return startSampleFixtureHarness({
     sampleId: "first-map",
+    fixturePackVersion: FIRST_MAP_FIXTURE_METADATA.version,
     staticRoot: distRoot,
   });
 }

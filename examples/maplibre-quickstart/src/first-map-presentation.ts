@@ -23,6 +23,7 @@ export interface FirstMapFeatureSummary {
 export interface FirstMapFilterChoice {
   readonly id: string;
   readonly field: string;
+  readonly fieldLabel: string;
   readonly value: FilterValue;
   readonly label: string;
 }
@@ -40,11 +41,21 @@ export const FIRST_MAP_TIMING_BUDGETS_MS = Object.freeze({
   cleanup: 1_000,
 });
 
-const TITLE_FIELDS = ["NAME", "TITLE", "name", "title", "LABEL", "label", "TMK", "tmk_txt"];
+const TITLE_FIELDS = ["NAMELSAD", "NAME", "TITLE", "name", "title", "LABEL", "label", "TMK", "tmk_txt"];
 const SUBTITLE_FIELDS = ["STATUS", "CATEGORY", "status", "category", "TYPE", "type", "ZONE", "zone"];
 const ID_FIELDS = ["OBJECTID", "objectid", "FID", "fid", "ID", "id"];
-const MAX_FILTER_FIELDS = 12;
+const FILTER_FIELD_PRIORITY = ["NAMELSAD", "STATUS", "CATEGORY", "TYPE", "ZONE", "status", "category", "type", "zone"];
+const TECHNICAL_FILTER_FIELDS = new Set([...ID_FIELDS, "GEOID", "geoid", "ALAND", "AWATER"]);
+const FILTER_FIELD_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  NAMELSAD: "Census tract",
+  STATUS: "Status",
+  CATEGORY: "Category",
+  TYPE: "Type",
+  ZONE: "Zone",
+});
+const MAX_FILTER_FIELDS = 3;
 const MAX_FILTER_VALUES_PER_FIELD = 50;
+const MAX_FILTER_CHOICES = 60;
 
 export function summarizeFirstMapFeatures(features: readonly FirstMapFeature[]): FirstMapFeatureSummary[] {
   return features.map((feature, index) => {
@@ -53,7 +64,7 @@ export function summarizeFirstMapFeatures(features: readonly FirstMapFeature[]):
     return {
       id: readIdentifier(attributes, index),
       title: readDisplayValue(attributes, TITLE_FIELDS) ?? `Feature ${index + 1}`,
-      subtitle: readDisplayValue(attributes, SUBTITLE_FIELDS) ?? describeGeometry(feature.geometry),
+      subtitle: featureSubtitle(attributes) ?? describeGeometry(feature.geometry),
       geometryKind: geometryKind(feature.geometry),
       attributes,
       ...(bounds
@@ -96,16 +107,46 @@ export function createFirstMapFilterChoices(summaries: readonly FirstMapFeatureS
 
   const choices: FirstMapFilterChoice[] = [];
   const selectableFields = [...fields]
-    .filter(([, values]) => values.size > 0 && values.size <= MAX_FILTER_VALUES_PER_FIELD)
-    .sort(([left], [right]) => left.localeCompare(right))
+    .filter(
+      ([field, values]) =>
+        !TECHNICAL_FILTER_FIELDS.has(field) &&
+        values.size > 0 &&
+        values.size <= MAX_FILTER_VALUES_PER_FIELD &&
+        (FILTER_FIELD_PRIORITY.includes(field) || values.size <= 12),
+    )
+    .sort(([left, leftValues], [right, rightValues]) => {
+      const leftPriority = FILTER_FIELD_PRIORITY.indexOf(left);
+      const rightPriority = FILTER_FIELD_PRIORITY.indexOf(right);
+      if (leftPriority >= 0 || rightPriority >= 0) {
+        if (leftPriority < 0) return 1;
+        if (rightPriority < 0) return -1;
+        if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+      }
+      return leftValues.size - rightValues.size || left.localeCompare(right);
+    })
     .slice(0, MAX_FILTER_FIELDS);
   for (const [field, values] of selectableFields) {
     const sortedValues = [...values.values()].sort((left, right) => String(left).localeCompare(String(right)));
+    if (choices.length > 0 && choices.length + sortedValues.length > MAX_FILTER_CHOICES) continue;
+    const fieldLabel = FILTER_FIELD_LABELS[field] ?? humanizeField(field);
     for (const value of sortedValues) {
-      choices.push({ id: String(choices.length), field, value, label: `${field}: ${String(value)}` });
+      choices.push({ id: String(choices.length), field, fieldLabel, value, label: String(value) });
     }
   }
   return choices;
+}
+
+function featureSubtitle(attributes: Readonly<Record<string, unknown>>): string | undefined {
+  const geoid = readDisplayValue(attributes, ["GEOID", "geoid"]);
+  return geoid ? `GEOID ${geoid}` : readDisplayValue(attributes, SUBTITLE_FIELDS);
+}
+
+function humanizeField(field: string): string {
+  return field
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .replace(/^./, (letter) => letter.toUpperCase());
 }
 
 export function filterFirstMapFeatures(

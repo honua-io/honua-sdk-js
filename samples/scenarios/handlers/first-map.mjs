@@ -10,9 +10,6 @@ import { fixtureHeaders, fixtureResponseHeaders, sendJson, sendText } from "../h
 
 const SERVICE_ROOT = "/rest/services/natural-earth/FeatureServer/0";
 const OGC_ROOT = "/ogc/features";
-const OGC_COLLECTION_ID = "operations-areas";
-const OGC_COLLECTION_ROOT = `${OGC_ROOT}/collections/${OGC_COLLECTION_ID}`;
-const OGC_ITEMS_ROOT = `${OGC_COLLECTION_ROOT}/items`;
 const OGC_CRS84 = "http://www.opengis.net/def/crs/OGC/1.3/CRS84";
 const OGC_GEOJSON_CONTENT_TYPE = "application/geo+json; charset=utf-8";
 const OGC_OPENAPI_CONTENT_TYPE = "application/vnd.oai.openapi+json;version=3.0; charset=utf-8";
@@ -277,12 +274,12 @@ function overflowGeoServicesResponse(url, baseline) {
   };
 }
 
-function geoServicesResponse(url, baseline) {
+function geoServicesResponse(url, baseline, maximumRecordCount) {
   if (url.searchParams.getAll("resultOffset").length > 1 || url.searchParams.getAll("resultRecordCount").length > 1) {
     throw Object.assign(new Error("GeoServices pagination parameters may appear only once."), { status: 400 });
   }
   const offset = decimalParameter(url, "resultOffset", 0, 10_000);
-  const requested = decimalParameter(url, "resultRecordCount", 25, 25);
+  const requested = decimalParameter(url, "resultRecordCount", maximumRecordCount, maximumRecordCount);
   if (requested < 1) throw Object.assign(new Error("resultRecordCount must be greater than zero."), { status: 400 });
   const features = baseline.features.slice(offset, offset + requested);
   return {
@@ -364,7 +361,7 @@ function parseRfc3339(value) {
   return parsed;
 }
 
-function validateGeoServicesQuery(run, url) {
+function validateGeoServicesQuery(run, url, maximumRecordCount) {
   if (
     url.searchParams.getAll("cursor").length > 1 ||
     url.searchParams.getAll("resultOffset").length > 1 ||
@@ -397,8 +394,9 @@ function validateGeoServicesQuery(run, url) {
   } else {
     decimalParameter(url, "resultOffset", 0, 10_000);
   }
-  const maximum = run.scenario === "paginated" ? 2 : run.scenario === "overflow" ? 10_000 : 25;
-  const fallback = run.scenario === "paginated" ? 1 : run.scenario === "overflow" ? OVERFLOW_PAGE_SIZE : 25;
+  const maximum = run.scenario === "paginated" ? 2 : run.scenario === "overflow" ? 10_000 : maximumRecordCount;
+  const fallback =
+    run.scenario === "paginated" ? 1 : run.scenario === "overflow" ? OVERFLOW_PAGE_SIZE : maximumRecordCount;
   if (decimalParameter(url, "resultRecordCount", fallback, maximum) < 1) {
     throw Object.assign(new Error("resultRecordCount must be greater than zero."), { status: 400 });
   }
@@ -455,7 +453,7 @@ function intersectsBbox(feature, bbox) {
   return longitudeIntersects && featureNorth >= bbox.south && featureSouth <= bbox.north;
 }
 
-function ogcItemsPage(run, url, baseline) {
+function ogcItemsPage(run, url, baseline, itemsRoot) {
   assertOgcQueryParameters(url, ["bbox", "datetime", "f", "limit", "offset", "run"], "OGC items");
   assertOgcResponseFormat(url, ["json", "geojson"], "OGC items");
   const formatValue = url.searchParams.get("f");
@@ -481,7 +479,7 @@ function ogcItemsPage(run, url, baseline) {
   ];
   const links = [
     {
-      href: fixtureHref(run, OGC_ITEMS_ROOT, selection),
+      href: fixtureHref(run, itemsRoot, selection),
       rel: "self",
       type: "application/geo+json",
       title: "Collection items",
@@ -495,7 +493,7 @@ function ogcItemsPage(run, url, baseline) {
     links.push({
       href: fixtureHref(
         run,
-        OGC_ITEMS_ROOT,
+        itemsRoot,
         selection.map(([name, value]) => [name, name === "offset" ? nextOffset : value]),
       ),
       rel: "next",
@@ -683,12 +681,21 @@ export function createFirstMapHandler(pack) {
   const ogcConformance = pack.data[pack.manifest.schema.files.ogcConformance];
   const ogcCollection = pack.data[pack.manifest.schema.files.ogcCollection];
   const ogcItems = pack.data[pack.manifest.schema.files.ogcItems];
+  const maximumRecordCount = pack.manifest.schema.featureCount;
+  const ogcCollectionId = ogcCollection?.id;
+  if (typeof ogcCollectionId !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(ogcCollectionId)) {
+    throw new Error("First Map fixture OGC collection id must be a safe lowercase identifier.");
+  }
+  const ogcCollectionRoot = `${OGC_ROOT}/collections/${ogcCollectionId}`;
+  const ogcItemsRoot = `${ogcCollectionRoot}/items`;
   const basemap = {
     version: 8,
     sources: {},
     layers: [{ id: "background", type: "background", paint: { "background-color": "#efe6d1" } }],
   };
-  const editableRecordId = pack.manifest.schema.editableRecordId;
+  const editableRecordId = Number.isSafeInteger(pack.manifest.schema.editableRecordId)
+    ? pack.manifest.schema.editableRecordId
+    : undefined;
 
   return Object.freeze({
     id: "first-map",
@@ -697,7 +704,7 @@ export function createFirstMapHandler(pack) {
         throttleRemaining: 1,
         cursorGeneration: run.ids.next("cursor"),
         issuedPageCursors: new Set(),
-        revisions: new Map([[editableRecordId, 1]]),
+        revisions: editableRecordId === undefined ? new Map() : new Map([[editableRecordId, 1]]),
         idempotency: new Map(),
         featureOverrides: new Map(),
       };
@@ -713,6 +720,9 @@ export function createFirstMapHandler(pack) {
     handleAction({ action, body, run }) {
       if (action !== "edit") {
         return { status: 404, body: { error: { code: "FIXTURE_ACTION_NOT_FOUND" } } };
+      }
+      if (editableRecordId === undefined) {
+        return { status: 405, body: { error: { code: "FIXTURE_EDIT_UNAVAILABLE" } } };
       }
       return applyFixtureEdit(run, body, editableRecordId);
     },
@@ -767,14 +777,14 @@ export function createFirstMapHandler(pack) {
         sendScenarioOgcJson(req, res, run, "ogc-collections", response);
         return true;
       }
-      if (req.method === "GET" && url.pathname === OGC_COLLECTION_ROOT) {
+      if (req.method === "GET" && url.pathname === ogcCollectionRoot) {
         assertOgcQueryParameters(url, ["f", "run"], "OGC collection");
         assertOgcResponseFormat(url, ["json"], "OGC collection");
         sendScenarioOgcJson(req, res, run, "ogc-collection", collectionForRun(ogcCollection, run));
         return true;
       }
-      if (req.method === "GET" && url.pathname === OGC_ITEMS_ROOT) {
-        const response = ogcItemsPage(run, url, applyOgcFeatureOverrides(clone(ogcItems), run));
+      if (req.method === "GET" && url.pathname === ogcItemsRoot) {
+        const response = ogcItemsPage(run, url, applyOgcFeatureOverrides(clone(ogcItems), run), ogcItemsRoot);
         if (sendQueryScenarioFailure(res, run, "ogc-features")) return true;
         if (run.scenario === "range") {
           sendByteRange(req, res, response, ogcHeaders(run, "ogc-items", response), OGC_GEOJSON_CONTENT_TYPE);
@@ -783,7 +793,7 @@ export function createFirstMapHandler(pack) {
         sendScenarioOgcJson(req, res, run, "ogc-items", response, OGC_GEOJSON_CONTENT_TYPE);
         return true;
       }
-      const ogcItemMatch = new RegExp(`^${OGC_ITEMS_ROOT}/([^/]+)$`).exec(url.pathname);
+      const ogcItemMatch = new RegExp(`^${ogcItemsRoot}/([^/]+)$`).exec(url.pathname);
       if (req.method === "GET" && ogcItemMatch) {
         assertOgcQueryParameters(url, ["f", "run"], "OGC feature");
         assertOgcResponseFormat(url, ["json", "geojson"], "OGC feature");
@@ -804,13 +814,13 @@ export function createFirstMapHandler(pack) {
           ...candidate,
           links: [
             {
-              href: fixtureHref(run, `${OGC_ITEMS_ROOT}/${featureId}`),
+              href: fixtureHref(run, `${ogcItemsRoot}/${featureId}`),
               rel: "self",
               type: "application/geo+json",
               title: "This feature",
             },
             {
-              href: fixtureHref(run, OGC_COLLECTION_ROOT),
+              href: fixtureHref(run, ogcCollectionRoot),
               rel: "collection",
               type: "application/json",
               title: "Collection metadata",
@@ -830,7 +840,7 @@ export function createFirstMapHandler(pack) {
       }
       if (url.pathname !== `${SERVICE_ROOT}/query` || req.method !== "GET") return false;
 
-      validateGeoServicesQuery(run, url);
+      validateGeoServicesQuery(run, url, maximumRecordCount);
       if (sendQueryScenarioFailure(res, run, "geoservices-feature-service")) return true;
 
       const response = applyFeatureOverrides(clone(features), run);
@@ -843,7 +853,7 @@ export function createFirstMapHandler(pack) {
         sendScenarioJson(req, res, run, "geoservices-query", overflowGeoServicesResponse(url, response));
         return true;
       }
-      const pagedResponse = geoServicesResponse(url, response);
+      const pagedResponse = geoServicesResponse(url, response, maximumRecordCount);
       if (run.scenario === "range") {
         sendByteRange(req, res, pagedResponse, scenarioHeaders(run, "geoservices-query", pagedResponse));
         return true;

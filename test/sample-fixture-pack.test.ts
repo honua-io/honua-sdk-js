@@ -319,7 +319,7 @@ describe("versioned sample fixture packs", () => {
     expect(provenance.transformation).toMatch(/relationship updates/i);
 
     const quickstartReadme = fs.readFileSync(path.join(projectRoot, "examples/maplibre-quickstart/README.md"), "utf8");
-    expect(quickstartReadme).toContain("../../samples/fixtures/first-map/v1");
+    expect(quickstartReadme).toContain("../../samples/fixtures/first-map/v2");
     expect(quickstartReadme).not.toContain("../../test/fixtures/honua-quickstart-demo");
   });
 
