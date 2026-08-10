@@ -31,6 +31,21 @@ export interface FirstMapConfigInput<T = Record<string, unknown>> {
 export const DEFAULT_FIRST_MAP_MAX_FEATURES = 5_000;
 export const MAX_FIRST_MAP_FEATURES = 10_000;
 
+/** Keep canonical OGC collection URLs in the form while connecting through their service root plus collection scope. */
+export function firstMapConnectLocator(config: Pick<FirstMapConfig, "endpoint" | "protocol">) {
+  if (config.protocol !== "ogc-features") return { url: config.endpoint, protocol: config.protocol };
+  const parsed = new URL(config.endpoint);
+  const marker = parsed.pathname.toLowerCase().indexOf("/collections/");
+  if (marker < 0) return { url: config.endpoint, protocol: config.protocol };
+  const collectionId = parsed.pathname.slice(marker + "/collections/".length).split("/")[0];
+  if (!collectionId) return { url: config.endpoint, protocol: config.protocol };
+  return {
+    url: `${parsed.origin}${parsed.pathname.slice(0, marker)}`,
+    protocol: config.protocol,
+    collectionId,
+  };
+}
+
 /** Switch only the known same-origin fixture endpoint when its protocol control changes. */
 export function endpointForFirstMapProtocol(
   endpoint: string,

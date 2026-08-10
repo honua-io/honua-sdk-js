@@ -112,10 +112,9 @@ describe("First Map copyable workflow core", () => {
     const map = new FirstMapTestMap();
     const result = await runFirstMapWorkflow(
       resolveFirstMapConfig({
-        endpoint: `${harness.origin}/ogc/features`,
+        endpoint: `${harness.origin}${FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH}`,
         mode: "fixture",
         protocol: "ogc-features",
-        sourceId: fixtureCollectionId,
         maxFeatures: fixtureFeatureCount,
       }),
       { map },
@@ -124,7 +123,7 @@ describe("First Map copyable workflow core", () => {
     expect(result.state, JSON.stringify(result)).toBe("ready");
     if (result.state !== "ready") return;
     expect(result.view).toMatchObject({
-      connection: { protocol: "ogc-features" },
+      connection: { endpoint: `${harness.origin}/ogc/features`, protocol: "ogc-features" },
       source: { id: fixtureCollectionId, capabilities: expect.arrayContaining(["query"]) },
     });
     expect(result.plan.steps[0]).toMatchObject({
@@ -252,9 +251,7 @@ describe("First Map copyable workflow core", () => {
     expect(endpointForFirstMapProtocol(`${origin}/custom/FeatureServer/0`, "ogc-features", origin)).toBe(
       `${origin}/custom/FeatureServer/0`,
     );
-    expect(endpointForFirstMapProtocol(geoservices, "ogc-features", "https://other.example.test")).toBe(
-      geoservices,
-    );
+    expect(endpointForFirstMapProtocol(geoservices, "ogc-features", "https://other.example.test")).toBe(geoservices);
   });
 
   it("mechanically keeps the published-SDK workflow within 120 non-comment lines", () => {

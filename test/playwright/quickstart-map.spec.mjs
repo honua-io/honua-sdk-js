@@ -19,7 +19,10 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
   const failedRequiredRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    if (message.type() === "error") {
+      const sourceUrl = message.location().url;
+      consoleErrors.push(sourceUrl ? `${message.text()} (${sourceUrl})` : message.text());
+    }
   });
   page.on("response", (response) => {
     const url = new URL(response.url());

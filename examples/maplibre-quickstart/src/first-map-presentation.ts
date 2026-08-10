@@ -388,7 +388,7 @@ function polygonInteriorPoint(value: Polygon | undefined): Position | undefined 
     for (let index = 0; index < outer.length; index += 1) {
       const current = outer[index];
       const next = outer[(index + 1) % outer.length];
-      if (!current || !next || (current[1] > y) === (next[1] > y)) continue;
+      if (!current || !next || current[1] > y === next[1] > y) continue;
       intersections.push(current[0] + ((y - current[1]) * (next[0] - current[0])) / (next[1] - current[1]));
     }
     intersections.sort((left, right) => left - right);
@@ -436,7 +436,7 @@ function pointInRing(candidate: Position | undefined, value: Ring): boolean {
     const prior = value[previous];
     if (!current || !prior) continue;
     const crosses =
-      (current[1] > candidate[1]) !== (prior[1] > candidate[1]) &&
+      current[1] > candidate[1] !== prior[1] > candidate[1] &&
       candidate[0] < ((prior[0] - current[0]) * (candidate[1] - current[1])) / (prior[1] - current[1]) + current[0];
     if (crosses) inside = !inside;
   }
