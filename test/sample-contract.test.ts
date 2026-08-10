@@ -225,10 +225,10 @@ describe("sample publication contract", () => {
     const packageJson = await readJson("package.json");
 
     await expect(validateCatalog(catalog, packageJson, validationTime)).resolves.toBeUndefined();
-    expect(catalog.samples).toHaveLength(34);
+    expect(catalog.samples).toHaveLength(35);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "root-example"),
-    ).toHaveLength(30);
+    ).toHaveLength(31);
     expect(
       catalog.samples.filter((sample: { sourceKind: string }) => sample.sourceKind === "docs-example"),
     ).toHaveLength(4);
