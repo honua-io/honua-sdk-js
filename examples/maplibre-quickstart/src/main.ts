@@ -4,7 +4,14 @@ import "../../_kit/design/index.css";
 
 import * as maplibregl from "maplibre-gl";
 
-import { PUBLIC_FIRST_MAP_ENDPOINT, SAME_ORIGIN_FIRST_MAP_FIXTURE, resolveFirstMapConfig } from "./first-map-config.js";
+import {
+  FIRST_MAP_FIXTURE_GEOSERVICES_PATH,
+  FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH,
+  PUBLIC_FIRST_MAP_ENDPOINT,
+  SAME_ORIGIN_FIRST_MAP_FIXTURE,
+  endpointForFirstMapProtocol,
+  resolveFirstMapConfig,
+} from "./first-map-config.js";
 import type { FirstMapMode, FirstMapProtocol } from "./first-map-config.js";
 import {
   FIRST_MAP_TIMING_BUDGETS_MS,
@@ -47,8 +54,7 @@ const FIXTURE_BASEMAP_LAYER_ID = "background";
 
 const FIRST_MAP_SOURCE_ID = "first-map-features";
 const FIRST_MAP_LAYER_ID = "first-map-feature";
-const FIXTURE_FEATURE_PATH = "/rest/services/natural-earth/FeatureServer/0";
-const FIXTURE_OGC_PATH = "/ogc/features";
+const FIXTURE_OGC_ROOT_PATH = "/ogc/features";
 const FIXTURE_BASEMAP_STYLE = "__honua-quickstart__/basemap-style.json";
 const PUBLIC_BASEMAP_STYLE = FIXTURE_BASEMAP_STYLE;
 
@@ -86,7 +92,7 @@ function readProtocol(value: string | undefined): FirstMapProtocol {
 function endpointFromEnvironment(env: Record<string, string | undefined>): { endpoint: string; live: boolean } {
   const direct = readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT");
   if (direct === SAME_ORIGIN_FIRST_MAP_FIXTURE) {
-    return { endpoint: new URL(`.${FIXTURE_FEATURE_PATH}/`, location.href).href, live: false };
+    return { endpoint: new URL(`.${FIRST_MAP_FIXTURE_GEOSERVICES_PATH}/`, location.href).href, live: false };
   }
   if (direct) return { endpoint: direct, live: true };
   return { endpoint: PUBLIC_FIRST_MAP_ENDPOINT, live: true };
@@ -123,13 +129,17 @@ function initialLaunch(): FirstMapLaunch {
 function isPackagedFixtureEndpoint(endpoint: string): boolean {
   const url = new URL(endpoint);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
-  return url.origin === location.origin && pathname.endsWith(FIXTURE_FEATURE_PATH);
+  return url.origin === location.origin && pathname.endsWith(FIRST_MAP_FIXTURE_GEOSERVICES_PATH);
 }
 
 function isFixtureEndpoint(endpoint: string): boolean {
   const url = new URL(endpoint);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
-  return isPackagedFixtureEndpoint(endpoint) || (url.origin === location.origin && pathname === FIXTURE_OGC_PATH);
+  return (
+    isPackagedFixtureEndpoint(endpoint) ||
+    (url.origin === location.origin &&
+      (pathname === FIXTURE_OGC_ROOT_PATH || pathname === FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH))
+  );
 }
 
 function safeEndpoint(endpoint: string): string {
@@ -639,7 +649,6 @@ async function bootstrap(): Promise<void> {
             closeButton: true,
             closeOnClick: false,
             maxWidth: "320px",
-            offset: matchMedia("(min-width: 60.001rem)").matches ? ([-180, 0] as [number, number]) : 0,
           })
             .setLngLat([lngLat[0], lngLat[1]])
             .setDOMContent(createPopupContent(summary))
@@ -845,6 +854,14 @@ async function bootstrap(): Promise<void> {
       form.removeAttribute("aria-busy");
     }
   }
+
+  protocolSelect.addEventListener("change", () => {
+    endpointInput.value = endpointForFirstMapProtocol(
+      endpointInput.value.trim(),
+      readProtocol(protocolSelect.value),
+      location.origin,
+    );
+  });
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();

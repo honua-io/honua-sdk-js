@@ -5,6 +5,10 @@ export type FirstMapProtocol = Extract<ConnectProtocolHint, "auto" | "geoservice
 
 export const PUBLIC_FIRST_MAP_ENDPOINT = "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
 export const SAME_ORIGIN_FIRST_MAP_FIXTURE = "honua:first-map-fixture";
+export const FIRST_MAP_FIXTURE_GEOSERVICES_PATH = "/rest/services/natural-earth/FeatureServer/0";
+export const FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH = "/ogc/features/collections/maui-census-tracts-2025";
+
+const FIRST_MAP_FIXTURE_OGC_ROOT_PATH = "/ogc/features";
 
 export interface FirstMapConfig<T = Record<string, unknown>> {
   readonly endpoint: string;
@@ -26,6 +30,39 @@ export interface FirstMapConfigInput<T = Record<string, unknown>> {
 
 export const DEFAULT_FIRST_MAP_MAX_FEATURES = 5_000;
 export const MAX_FIRST_MAP_FEATURES = 10_000;
+
+/** Switch only the known same-origin fixture endpoint when its protocol control changes. */
+export function endpointForFirstMapProtocol(
+  endpoint: string,
+  protocol: FirstMapProtocol,
+  fixtureOrigin: string,
+): string {
+  if (protocol === "auto") return endpoint;
+  let current: URL;
+  let origin: URL;
+  try {
+    current = new URL(endpoint);
+    origin = new URL(fixtureOrigin);
+  } catch {
+    return endpoint;
+  }
+  const pathname = current.pathname.replace(/\/+$/, "") || "/";
+  if (
+    current.origin !== origin.origin ||
+    current.search ||
+    current.hash ||
+    ![
+      FIRST_MAP_FIXTURE_GEOSERVICES_PATH,
+      FIRST_MAP_FIXTURE_OGC_ROOT_PATH,
+      FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH,
+    ].includes(pathname)
+  ) {
+    return endpoint;
+  }
+  const targetPath =
+    protocol === "ogc-features" ? FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH : FIRST_MAP_FIXTURE_GEOSERVICES_PATH;
+  return new URL(targetPath, `${origin.origin}/`).href;
+}
 
 export function resolveFirstMapConfig<T = Record<string, unknown>>(input: FirstMapConfigInput<T>): FirstMapConfig<T> {
   const endpoint = normalizePublicEndpoint(input.endpoint);

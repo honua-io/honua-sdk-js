@@ -96,6 +96,39 @@ describe("First Map presentation contract", () => {
     });
   });
 
+  it("anchors programmatic MultiPolygon selection inside its largest surface", () => {
+    const [summary] = summarizeFirstMapFeatures([
+      {
+        attributes: { OBJECTID: 3, NAMELSAD: "Census Tract 316.01" },
+        geometry: {
+          type: "MultiPolygon",
+          coordinates: [
+            [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1],
+                [0, 0],
+              ],
+            ],
+            [
+              [
+                [10, 0],
+                [14, 0],
+                [14, 4],
+                [10, 4],
+                [10, 0],
+              ],
+            ],
+          ],
+        },
+      },
+    ]);
+
+    expect(summary?.center).toEqual([12, 2]);
+  });
+
   it("drives table and MapLibre filters from the same deterministic choice", () => {
     const summaries = summarizeFirstMapFeatures(features);
     const choices = createFirstMapFilterChoices(summaries);

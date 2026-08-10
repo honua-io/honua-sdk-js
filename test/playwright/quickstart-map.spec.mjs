@@ -111,6 +111,50 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     );
     expect(undersizedAuthoredTargets).toEqual([]);
 
+    const clickedFeature = await page.evaluate(() => {
+      const map = window.__HONUA_QUICKSTART_MAP__;
+      const layers = window.__HONUA_QUICKSTART_RUNTIME__?.layerIds;
+      if (!map || !layers?.length) throw new Error("First Map click regression requires the mounted map layers.");
+      const rect = map.getCanvas().getBoundingClientRect();
+      for (let y = 12; y < rect.height - 12; y += 8) {
+        for (let x = 12; x < rect.width - 12; x += 8) {
+          const target = document.elementFromPoint(rect.left + x, rect.top + y);
+          if (!(target instanceof Element) || !target.closest("#map")) continue;
+          const [feature] = map.queryRenderedFeatures([x, y], { layers });
+          if (!feature) continue;
+          const lngLat = map.unproject([x, y]);
+          return {
+            clientX: rect.left + x,
+            clientY: rect.top + y,
+            lng: lngLat.lng,
+            lat: lngLat.lat,
+            featureId: String(feature.id ?? feature.properties?.OBJECTID ?? ""),
+          };
+        }
+      }
+      throw new Error("No unobscured rendered First Map feature was available for the click regression.");
+    });
+    await page.mouse.click(clickedFeature.clientX, clickedFeature.clientY);
+    await expect(page.locator(".maplibregl-popup")).toBeVisible();
+    await expect.poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.selectedFeatureId)).toBe(
+      clickedFeature.featureId,
+    );
+    const clickAnchorDistance = await page.evaluate(({ clientX, clientY, lng, lat }) => {
+      const map = window.__HONUA_QUICKSTART_MAP__;
+      const tip = document.querySelector(".maplibregl-popup-tip");
+      if (!map || !(tip instanceof HTMLElement)) throw new Error("First Map popup tip was not rendered.");
+      const projected = map.project([lng, lat]);
+      const canvas = map.getCanvas().getBoundingClientRect();
+      if (Math.hypot(canvas.left + projected.x - clientX, canvas.top + projected.y - clientY) > 1) {
+        throw new Error("Map click coordinate no longer projects to the captured event point.");
+      }
+      const rect = tip.getBoundingClientRect();
+      const dx = clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0;
+      const dy = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+      return Math.hypot(dx, dy);
+    }, clickedFeature);
+    expect(clickAnchorDistance).toBeLessThanOrEqual(8);
+
     await expect(page.locator("#linked-visible-count")).toHaveText("48");
     await expect(page.locator("#attribute-filter optgroup")).toHaveCount(1);
     await expect(page.locator("#attribute-filter optgroup")).toHaveAttribute("label", "Census tract");
@@ -148,13 +192,28 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await expect(page.locator("#workflow-code")).toContainText("runFirstMapWorkflow");
     await expect(page.locator("#workflow-code")).toContainText('result.state !== "ready"');
 
-    await page.locator("#endpoint-url").fill(`${fixtureOrigin}/ogc/features`);
     await page.locator("#endpoint-protocol").selectOption("ogc-features");
+    await expect(page.locator("#endpoint-url")).toHaveValue(
+      `${fixtureOrigin}/ogc/features/collections/maui-census-tracts-2025`,
+    );
     await page.locator("#load-endpoint-button").click();
     await expect(page.locator("#evidence-source")).toHaveText(/ogc-features.*maui-census-tracts-2025/);
     await expect(page.locator("#map-overlay")).toHaveAttribute("data-state", "ready");
     await expect(page.locator("#status-feature-count")).toHaveText("48 accepted");
     await expect(page.locator("#workflow-code")).toContainText('"protocol": "ogc-features"');
+
+    await page.locator("#endpoint-protocol").selectOption("geoservices-feature-service");
+    await expect(page.locator("#endpoint-url")).toHaveValue(
+      `${fixtureOrigin}/rest/services/natural-earth/FeatureServer/0`,
+    );
+    await page.locator("#load-endpoint-button").click();
+    await expect(page.locator("#evidence-source")).toHaveText(/geoservices-feature-service.*0/);
+    await expect(page.locator("#map-overlay")).toHaveAttribute("data-state", "ready");
+
+    const customEndpoint = `${fixtureOrigin}/custom/FeatureServer/0`;
+    await page.locator("#endpoint-url").fill(customEndpoint);
+    await page.locator("#endpoint-protocol").selectOption("ogc-features");
+    await expect(page.locator("#endpoint-url")).toHaveValue(customEndpoint);
 
     const runtimeReady = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true);
     await attestBrowserQuality({

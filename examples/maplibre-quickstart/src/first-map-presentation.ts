@@ -61,6 +61,7 @@ export function summarizeFirstMapFeatures(features: readonly FirstMapFeature[]):
   return features.map((feature, index) => {
     const attributes = asRecord(feature.attributes);
     const bounds = geometryBounds(feature.geometry);
+    const center = geometryAnchor(feature.geometry, bounds);
     return {
       id: readIdentifier(attributes, index),
       title: readDisplayValue(attributes, TITLE_FIELDS) ?? `Feature ${index + 1}`,
@@ -70,7 +71,7 @@ export function summarizeFirstMapFeatures(features: readonly FirstMapFeature[]):
       ...(bounds
         ? {
             bounds,
-            center: [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2] as const,
+            ...(center ? { center } : {}),
           }
         : {}),
     };
@@ -298,6 +299,148 @@ function geometryBounds(geometry: unknown): FirstMapBounds | undefined {
   }
   const coordinates = record.coordinates ?? record.points ?? record.paths ?? record.rings;
   return scanCoordinates(coordinates);
+}
+
+type Position = readonly [number, number];
+type Ring = readonly Position[];
+type Polygon = readonly Ring[];
+
+function geometryAnchor(geometry: unknown, bounds: FirstMapBounds | undefined): Position | undefined {
+  const record = asRecord(geometry);
+  if (isFiniteNumber(record.x) && isFiniteNumber(record.y)) return [record.x, record.y];
+  if (record.type === "Point") return position(record.coordinates);
+  if (record.type === "MultiPoint") return positions(record.coordinates)[0];
+  if (record.type === "Polygon") return polygonInteriorPoint(polygon(record.coordinates));
+  if (record.type === "MultiPolygon") {
+    const candidates = Array.isArray(record.coordinates)
+      ? record.coordinates.map((value) => polygon(value)).filter((value): value is Polygon => Boolean(value))
+      : [];
+    const largest = candidates.sort((left, right) => polygonArea(right) - polygonArea(left))[0];
+    const anchor = polygonInteriorPoint(largest);
+    if (anchor) return anchor;
+  }
+  if ("rings" in record) {
+    const rings = Array.isArray(record.rings)
+      ? record.rings.map((value) => ring(value)).filter((value): value is Ring => Boolean(value))
+      : [];
+    const outer = [...rings].sort((left, right) => Math.abs(ringArea(right)) - Math.abs(ringArea(left)))[0];
+    if (outer) {
+      const holes = rings.filter((candidate) => candidate !== outer && pointInRing(candidate[0], outer));
+      const anchor = polygonInteriorPoint([outer, ...holes]);
+      if (anchor) return anchor;
+    }
+  }
+  return bounds ? [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2] : undefined;
+}
+
+function polygon(value: unknown): Polygon | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const rings = value.map((candidate) => ring(candidate)).filter((candidate): candidate is Ring => Boolean(candidate));
+  return rings.length > 0 ? rings : undefined;
+}
+
+function ring(value: unknown): Ring | undefined {
+  const result = positions(value);
+  return result.length >= 3 ? result : undefined;
+}
+
+function positions(value: unknown): Position[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((candidate) => position(candidate)).filter((candidate): candidate is Position => Boolean(candidate));
+}
+
+function position(value: unknown): Position | undefined {
+  return Array.isArray(value) && isFiniteNumber(value[0]) && isFiniteNumber(value[1])
+    ? [value[0], value[1]]
+    : undefined;
+}
+
+function polygonArea(value: Polygon): number {
+  return Math.abs(ringArea(value[0]));
+}
+
+function ringArea(value: Ring | undefined): number {
+  if (!value || value.length < 3) return 0;
+  let twiceArea = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const current = value[index];
+    const next = value[(index + 1) % value.length];
+    if (current && next) twiceArea += current[0] * next[1] - next[0] * current[1];
+  }
+  return twiceArea / 2;
+}
+
+function polygonInteriorPoint(value: Polygon | undefined): Position | undefined {
+  const outer = value?.[0];
+  if (!value || !outer || outer.length < 3 || Math.abs(ringArea(outer)) < Number.EPSILON) return undefined;
+  const centroid = ringCentroid(outer);
+  if (centroid && pointInPolygon(centroid, value)) return centroid;
+  const bounds = scanCoordinates(outer);
+  if (!bounds) return undefined;
+  const center: Position = [(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2];
+  if (pointInPolygon(center, value)) return center;
+
+  const height = bounds.maxY - bounds.minY;
+  let best: { readonly point: Position; readonly width: number } | undefined;
+  for (let step = 1; step < 32; step += 1) {
+    const y = bounds.minY + (height * step) / 32;
+    const intersections: number[] = [];
+    for (let index = 0; index < outer.length; index += 1) {
+      const current = outer[index];
+      const next = outer[(index + 1) % outer.length];
+      if (!current || !next || (current[1] > y) === (next[1] > y)) continue;
+      intersections.push(current[0] + ((y - current[1]) * (next[0] - current[0])) / (next[1] - current[1]));
+    }
+    intersections.sort((left, right) => left - right);
+    for (let index = 0; index + 1 < intersections.length; index += 2) {
+      const left = intersections[index];
+      const right = intersections[index + 1];
+      if (left === undefined || right === undefined || right <= left) continue;
+      for (const fraction of [0.5, 0.25, 0.75]) {
+        const candidate: Position = [left + (right - left) * fraction, y];
+        if (pointInPolygon(candidate, value) && (!best || right - left > best.width)) {
+          best = { point: candidate, width: right - left };
+        }
+      }
+    }
+  }
+  return best?.point;
+}
+
+function ringCentroid(value: Ring): Position | undefined {
+  let twiceArea = 0;
+  let x = 0;
+  let y = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const current = value[index];
+    const next = value[(index + 1) % value.length];
+    if (!current || !next) continue;
+    const cross = current[0] * next[1] - next[0] * current[1];
+    twiceArea += cross;
+    x += (current[0] + next[0]) * cross;
+    y += (current[1] + next[1]) * cross;
+  }
+  return Math.abs(twiceArea) < Number.EPSILON ? undefined : [x / (3 * twiceArea), y / (3 * twiceArea)];
+}
+
+function pointInPolygon(candidate: Position, value: Polygon): boolean {
+  const [outer, ...holes] = value;
+  return Boolean(outer && pointInRing(candidate, outer) && !holes.some((hole) => pointInRing(candidate, hole)));
+}
+
+function pointInRing(candidate: Position | undefined, value: Ring): boolean {
+  if (!candidate) return false;
+  let inside = false;
+  for (let index = 0, previous = value.length - 1; index < value.length; previous = index, index += 1) {
+    const current = value[index];
+    const prior = value[previous];
+    if (!current || !prior) continue;
+    const crosses =
+      (current[1] > candidate[1]) !== (prior[1] > candidate[1]) &&
+      candidate[0] < ((prior[0] - current[0]) * (candidate[1] - current[1])) / (prior[1] - current[1]) + current[0];
+    if (crosses) inside = !inside;
+  }
+  return inside;
 }
 
 function scanCoordinates(value: unknown, current?: FirstMapBounds): FirstMapBounds | undefined {

@@ -3,9 +3,12 @@ import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  FIRST_MAP_FIXTURE_GEOSERVICES_PATH,
+  FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH,
   MAX_FIRST_MAP_FEATURES,
   PUBLIC_FIRST_MAP_ENDPOINT,
   SAME_ORIGIN_FIRST_MAP_FIXTURE,
+  endpointForFirstMapProtocol,
   resolveFirstMapConfig,
 } from "../examples/maplibre-quickstart/src/first-map-config.js";
 import { runFirstMapWorkflow } from "../examples/maplibre-quickstart/src/workflow.js";
@@ -237,6 +240,21 @@ describe("First Map copyable workflow core", () => {
       query: { pagination: { limit: 100 }, returnGeometry: false },
     });
     expect(config.query).toMatchObject({ pagination: { limit: 10 }, returnGeometry: true });
+  });
+
+  it("switches only canonical same-origin fixture endpoints with the protocol control", () => {
+    const origin = "https://samples.example.test";
+    const geoservices = `${origin}${FIRST_MAP_FIXTURE_GEOSERVICES_PATH}`;
+    const ogcCollection = `${origin}${FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH}`;
+
+    expect(endpointForFirstMapProtocol(geoservices, "ogc-features", origin)).toBe(ogcCollection);
+    expect(endpointForFirstMapProtocol(ogcCollection, "geoservices-feature-service", origin)).toBe(geoservices);
+    expect(endpointForFirstMapProtocol(`${origin}/custom/FeatureServer/0`, "ogc-features", origin)).toBe(
+      `${origin}/custom/FeatureServer/0`,
+    );
+    expect(endpointForFirstMapProtocol(geoservices, "ogc-features", "https://other.example.test")).toBe(
+      geoservices,
+    );
   });
 
   it("mechanically keeps the published-SDK workflow within 120 non-comment lines", () => {
