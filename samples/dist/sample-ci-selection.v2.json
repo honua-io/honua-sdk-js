@@ -110,6 +110,7 @@
         "liveEvidence": false
       },
       "sampleIds": [
+        "columnar-query-quickstart",
         "coverages-wcs-basic",
         "edit-workflow-demo",
         "geocoding-quickstart",
@@ -381,6 +382,48 @@
       "liveEvidence": {
         "mode": "authenticated",
         "status": "planned"
+      }
+    },
+    {
+      "id": "columnar-query-quickstart",
+      "sourcePath": "examples/columnar-query-quickstart",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:columnar-query:typecheck",
+            "npm run demo:columnar-query:build",
+            "npx vitest run test/columnar-workflow.test.ts",
+            "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:columnar-query:build"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
       }
     },
     {
