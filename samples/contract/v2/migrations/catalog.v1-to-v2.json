@@ -333,7 +333,7 @@
           "npm run evidence:cog:live"
         ],
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-09-14T08:58:14.355Z"
+        "expiresAt": "2026-09-09T17:25:43.989Z"
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
       "validation": [
@@ -366,13 +366,13 @@
       "validationProfile": "golden-browser",
       "lifecycle": {
         "state": "active",
-        "reason": "Qualified First Map journey with a governed 2025 Census TIGER/Line fixture, plus immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and separate anonymous live receipts."
+        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
       },
       "live": {
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-09-14T08:56:38.971Z"
+        "expiresAt": "2026-09-09T17:23:34.102Z"
       }
     },
     "mcp-gis-assistant": {
@@ -405,7 +405,7 @@
           "npm run evidence:migration-workbench:live"
         ],
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-09-14T08:58:35.557Z"
+        "expiresAt": "2026-09-09T17:26:07.186Z"
       }
     },
     "nl-map-control": {
@@ -414,7 +414,22 @@
     },
     "columnar-query-quickstart": {
       "track": "recipe",
-      "validationProfile": "browser-recipe"
+      "validationProfile": "browser-recipe",
+      "playground": {
+        "projectPath": "playgrounds/columnar-query-quickstart",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          }
+        ]
+      }
     },
     "node-backend-quickstart": {
       "track": "recipe",
@@ -536,7 +551,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-09-14T08:59:28.376Z"
+        "expiresAt": "2026-09-09T17:27:08.134Z"
       },
       "validation": [
         "npm run demo:service-explorer:typecheck",
@@ -588,6 +603,21 @@
       "lifecycle": {
         "state": "active",
         "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
+      },
+      "playground": {
+        "projectPath": "playgrounds/stac-imagery-browser",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
+          }
+        ]
       }
     },
     "storytelling-25d-map": {
@@ -718,13 +748,13 @@
     {
       "id": "coverages-wcs-basic",
       "title": "Bounded coverage quickstart",
-      "summary": "Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff.",
+      "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Provide browser-qualified deterministic Coverages/WCS evidence while anonymous live canaries and connect discovery remain open."
+        "reason": "Provide the smallest deterministic OGC API Coverages workflow while WCS/connect discovery matures."
       },
       "sourcePath": "examples/coverages-wcs-basic",
       "docsPath": "examples/coverages-wcs-basic/README.md",
@@ -744,7 +774,7 @@
         "authMode": "none",
         "configurationStatus": "not-required",
         "config": [],
-        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a digest-pinned 320 x 220 fixture PNG, fail-closed in-memory transport, and MapLibre browser proof.",
+        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
         "attribution": "Honua protocol contract fixture.",
         "freshness": "Versioned with the repository and server contract."
       },
@@ -753,23 +783,36 @@
           "mode": "fixture",
           "status": "executed",
           "commands": [
-            "npm run demo:coverages-wcs:build",
-            "npm run test:playwright:coverages-wcs"
+            "npm run demo:coverages-wcs:build"
           ]
         },
         "live": {
-          "mode": "public-live",
-          "status": "planned",
+          "mode": "unavailable",
+          "status": "not-applicable",
           "commands": []
         }
       },
-      "expectedDegradation": "Aborted superseded requests, invalid OGC properties, and invalid WCS range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
+      "expectedDegradation": "Unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:coverages-wcs:typecheck",
-        "npm run demo:coverages-wcs:build",
-        "npm run test:playwright:coverages-wcs"
-      ]
+        "npm run demo:coverages-wcs:build"
+      ],
+      "playground": {
+        "projectPath": "playgrounds/coverages-wcs-basic",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
+          }
+        ]
+      }
     },
     {
       "id": "cesium-route-playback",

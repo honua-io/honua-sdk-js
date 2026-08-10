@@ -93,33 +93,12 @@ describe("playground smoke decisions", () => {
     }
   });
 
-  it("keeps the unreleased columnar importer in internal source-mode evidence", () => {
-    const source = ["fixture.ts", "workflow.ts", "main.ts"]
-      .map((file) => fs.readFileSync(path.join(ROOT, "examples/columnar-query-quickstart/src", file), "utf8"))
-      .join("\n");
-    const renderedCore = fs.readFileSync(
-      path.join(ROOT, "examples/columnar-query-quickstart/index.html"),
-      "utf8",
-    );
-    const exclusion = artifact.excluded.find((entry) => entry.sampleId === "columnar-query-quickstart");
-    assert.equal(exclusion.category, "unreleased-sdk-surface");
-    assert.ok(!publishedIds.includes("columnar-query-quickstart"));
-    assert.ok(source.includes("HONUA_ARROW_FIXTURE_BYTES = 4_160"));
-    assert.ok(source.includes('importModule: () => import("apache-arrow")'));
-    assert.ok(source.includes('fixtureTransport: "in-memory exact server artifact; no live endpoint claimed"'));
-    assert.ok(!renderedCore.includes("geometryKind:"));
-    assert.ok(renderedCore.includes("66a9d34496c6f6a03dd571957062f773bfef7f0a"));
-    assert.ok(renderedCore.includes("da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52"));
-  });
-
-  it("keeps the unreleased Coverages importer in internal source-mode evidence", () => {
-    const source = fs.readFileSync(path.join(ROOT, "examples/coverages-wcs-basic/src/main.ts"), "utf8");
-    const exclusion = artifact.excluded.find((entry) => entry.sampleId === "coverages-wcs-basic");
-    assert.equal(exclusion.category, "unreleased-sdk-surface");
-    assert.ok(!publishedIds.includes("coverages-wcs-basic"));
-    assert.ok(source.includes('from "@honua/sdk-js/coverages"'));
-    assert.ok(source.includes("createCoverageClient(client)"));
-    assert.ok(source.includes("createWcsClient(client"));
+  it("keeps the columnar quickstart planning-only and network-free at boot", () => {
+    const journey = PLAYGROUND_SMOKE_JOURNEYS.get("columnar-query-quickstart");
+    const source = playgroundSource("columnar-query-quickstart");
+    assert.match(journey.rendersNoMap, /planning-only/);
+    assert.match(journey.noBootFeatures, /without loading data or making a network request/);
+    assert.ok(source.includes('note: "Planning is deterministic and performs no network request."'));
   });
 
   it("answers, for every playground, whether anything is asserted about its data", () => {
@@ -158,7 +137,7 @@ describe("playground smoke expectations", () => {
   });
 
   it("falls back to the declared floor when the sample publishes its own count", () => {
-    const journey = { features: { field: "featureCount", atLeast: 1 } };
+    const journey = PLAYGROUND_SMOKE_JOURNEYS.get("stac-imagery-browser");
     assert.deepEqual(expectedFeatures(journey, undefined), { count: 1, expectation: "atLeast" });
   });
 
