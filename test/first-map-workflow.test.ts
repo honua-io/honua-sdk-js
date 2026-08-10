@@ -245,12 +245,28 @@ describe("First Map copyable workflow core", () => {
     const origin = "https://samples.example.test";
     const geoservices = `${origin}${FIRST_MAP_FIXTURE_GEOSERVICES_PATH}`;
     const ogcCollection = `${origin}${FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH}`;
+    const publishedBase = `${origin}/sdk/maplibre-quickstart/app/`;
+    const publishedGeoservices = `${publishedBase}${FIRST_MAP_FIXTURE_GEOSERVICES_PATH.slice(1)}/`;
+    const publishedOgcCollection = `${publishedBase}${FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH.slice(1)}`;
 
     expect(endpointForFirstMapProtocol(geoservices, "ogc-features", origin)).toBe(ogcCollection);
     expect(endpointForFirstMapProtocol(ogcCollection, "geoservices-feature-service", origin)).toBe(geoservices);
+    expect(endpointForFirstMapProtocol(publishedGeoservices, "ogc-features", `${publishedBase}index.html`)).toBe(
+      publishedOgcCollection,
+    );
+    expect(
+      endpointForFirstMapProtocol(publishedOgcCollection, "geoservices-feature-service", `${publishedBase}index.html`),
+    ).toBe(publishedGeoservices.slice(0, -1));
     expect(endpointForFirstMapProtocol(`${origin}/custom/FeatureServer/0`, "ogc-features", origin)).toBe(
       `${origin}/custom/FeatureServer/0`,
     );
+    expect(
+      endpointForFirstMapProtocol(
+        `${publishedBase}custom/FeatureServer/0/`,
+        "ogc-features",
+        `${publishedBase}index.html`,
+      ),
+    ).toBe(`${publishedBase}custom/FeatureServer/0/`);
     expect(endpointForFirstMapProtocol(geoservices, "ogc-features", "https://other.example.test")).toBe(geoservices);
   });
 

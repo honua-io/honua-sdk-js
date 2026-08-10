@@ -859,7 +859,7 @@ async function bootstrap(): Promise<void> {
     endpointInput.value = endpointForFirstMapProtocol(
       endpointInput.value.trim(),
       readProtocol(protocolSelect.value),
-      location.origin,
+      location.href,
     );
   });
 
