@@ -153,12 +153,14 @@ async function discoverLayer(
     source: layerUrl(target, metadata.id),
     observedAt: retrievedAt,
   });
+  const attribution = metadata.copyrightText?.trim();
 
   return Object.freeze({
     id: String(metadata.id),
     locator: Object.freeze({ url: target.clientBaseUrl, serviceId, layerId: metadata.id }),
     title: metadata.name,
     ...(metadata.description ? { description: metadata.description } : {}),
+    ...(attribution ? { attribution } : {}),
     ...(schema ? { schema } : {}),
     ...(schemaV2 ? { schemaV2 } : {}),
     evidence,

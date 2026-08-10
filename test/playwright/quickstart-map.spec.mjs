@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { startQuickstartFixtureServer } from "../../examples/maplibre-quickstart/mock-server.mjs";
+import {
+  FIRST_MAP_FIXTURE_METADATA,
+  startQuickstartFixtureServer,
+} from "../../examples/maplibre-quickstart/mock-server.mjs";
 import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from "./sample-gate-assertions.mjs";
 
 const SAMPLE_ID = "maplibre-quickstart";
@@ -60,11 +63,11 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     }
 
     await expect(page.locator("#status-compatibility")).toHaveText(/geoservices-feature-service/);
-    await expect(page.locator("#status-feature-count")).toHaveText("3 accepted");
+    await expect(page.locator("#status-feature-count")).toHaveText("48 accepted");
     await expect(page.locator("#status-geometry-types")).toHaveText("polygon");
     await expect(page.locator("#evidence-auth")).toHaveText("anonymous public");
     await expect(page.locator("#evidence-freshness")).toContainText("SDK observation available");
-    await expect(page.locator("#evidence-data-version")).toContainText("3 accepted feature(s)");
+    await expect(page.locator("#evidence-data-version")).toContainText("48 accepted feature(s)");
     await expect(page.locator("#evidence-degradation")).toContainText("exact accepted plan");
     await expect(page.locator("#evidence-timing")).toHaveText(/\d+ ms \/ 10000 ms/);
     await expect(page.locator("#capability-list")).toContainText("query");
@@ -81,14 +84,19 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     expect(runtime?.firstMapBudgetMet).toBe(true);
     expect(runtime?.authorizationMode).toBe("anonymous");
     expect(runtime?.sourceId).toBe("0");
+    expect(runtime?.sourceAttribution).toBe("Source: U.S. Census Bureau, 2025 TIGER/Line Shapefiles.");
     expect(runtime?.cacheStatus).toMatch(/^(bypass|hit|miss|refreshed)$/);
 
-    await expect(page.getByTestId("first-map-result-legend")).toContainText("3 mapped features");
+    await expect(page.getByTestId("first-map-result-legend")).toContainText("48 mapped features");
     await expect(page.locator("#result-provenance")).toHaveText(
       `${fixtureOrigin}/rest/services/natural-earth/FeatureServer/0`,
     );
-    await expect(page.locator("#selected-feature-title")).toHaveText("Civic center service zone");
-    await expect(page.locator('[data-feature-id="1"]')).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#selected-feature-title")).toHaveText("Census Tract 301");
+    await expect(page.locator("#selected-feature-subtitle")).toHaveText("GEOID 15009030100");
+    await expect(page.locator(`[data-feature-id="${FIRST_MAP_FIXTURE_METADATA.selectedRecordId}"]`)).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await expect(page.locator("#map-overlay")).toHaveAttribute("data-state", "ready");
     await expect(page.locator("#status-error")).toHaveText("None");
     expect(failedRequiredRequests).toEqual([]);
@@ -103,28 +111,30 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     );
     expect(undersizedAuthoredTargets).toEqual([]);
 
-    await expect(page.locator("#linked-visible-count")).toHaveText("3");
-    await page.locator("#attribute-filter").selectOption({ label: "STATUS: Ready" });
+    await expect(page.locator("#linked-visible-count")).toHaveText("48");
+    await expect(page.locator("#attribute-filter optgroup")).toHaveCount(1);
+    await expect(page.locator("#attribute-filter optgroup")).toHaveAttribute("label", "Census tract");
+    await page.locator("#attribute-filter").selectOption({ label: "Census Tract 302.01" });
     await expect(page.locator("#linked-visible-count")).toHaveText("1");
     await expect(page.locator("#map-visible-count")).toHaveText("1 visible");
-    await expect(page.locator("#feature-list")).toContainText("Kakaako utility corridor");
-    await expect(page.locator("#feature-list")).not.toContainText("Harbor response district");
+    await expect(page.locator("#feature-list")).toContainText("Census Tract 302.01");
+    await expect(page.locator("#feature-list")).not.toContainText("Census Tract 301");
     await expect(page.locator("#linked-query-projection")).toContainText('"scope": "mounted bounded result"');
-    await expect(page.locator("#linked-query-projection")).toContainText('"field": "STATUS"');
+    await expect(page.locator("#linked-query-projection")).toContainText('"field": "NAMELSAD"');
     const filterTiming = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__);
     expect(filterTiming?.interactionBudgetMet).toBe(true);
     expect(filterTiming?.interactionDurationMs).toBeLessThanOrEqual(100);
     await page.locator("#clear-filter-button").click();
-    await expect(page.locator("#linked-visible-count")).toHaveText("3");
+    await expect(page.locator("#linked-visible-count")).toHaveText("48");
 
-    const inspect = page.getByRole("button", { name: "Inspect Harbor response district" });
+    const inspect = page.getByRole("button", { name: "Inspect Census Tract 302.01" });
     await inspect.focus();
     await expect(inspect).toBeFocused();
     await inspect.press("Enter");
-    await expect(page.locator("#selected-feature-title")).toHaveText("Harbor response district");
-    await expect(page.locator("#result-interaction")).toHaveText("Selected Harbor response district");
+    await expect(page.locator("#selected-feature-title")).toHaveText("Census Tract 302.01");
+    await expect(page.locator("#result-interaction")).toHaveText("Selected Census Tract 302.01");
     await expect(inspect).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".maplibregl-popup")).toContainText("Harbor response district");
+    await expect(page.locator(".maplibregl-popup")).toContainText("Census Tract 302.01");
     await expect
       .poll(async () => page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.selectedFeatureId))
       .toBe("2");
@@ -141,9 +151,9 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await page.locator("#endpoint-url").fill(`${fixtureOrigin}/ogc/features`);
     await page.locator("#endpoint-protocol").selectOption("ogc-features");
     await page.locator("#load-endpoint-button").click();
-    await expect(page.locator("#evidence-source")).toContainText("ogc-features · operations-areas");
+    await expect(page.locator("#evidence-source")).toHaveText(/ogc-features.*maui-census-tracts-2025/);
     await expect(page.locator("#map-overlay")).toHaveAttribute("data-state", "ready");
-    await expect(page.locator("#status-feature-count")).toHaveText("3 accepted");
+    await expect(page.locator("#status-feature-count")).toHaveText("48 accepted");
     await expect(page.locator("#workflow-code")).toContainText('"protocol": "ogc-features"');
 
     const runtimeReady = await page.evaluate(() => window.__HONUA_QUICKSTART_RUNTIME__?.journeyComplete === true);

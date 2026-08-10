@@ -741,6 +741,7 @@ describe("connect", () => {
           {
             id: 0,
             name: "Parcels",
+            copyrightText: "County open data",
             capabilities: "Query,Create,Update,Delete",
             hasAttachments: true,
             supportsStatistics: true,
@@ -791,6 +792,7 @@ describe("connect", () => {
         layerId: 0,
       },
       schema: { primaryKey: "OBJECTID" },
+      attribution: "County open data",
     });
     expect([...connection.inspection.sources[0]!.descriptor.capabilities]).toEqual(
       expect.arrayContaining([

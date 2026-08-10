@@ -12,8 +12,11 @@ import { runFirstMapWorkflow } from "../examples/maplibre-quickstart/src/workflo
 import { type SampleFixtureHarness, loadFixturePack, startSampleFixtureHarness } from "../samples/scenarios/index.mjs";
 import { FirstMapTestMap } from "./helpers/first-map-test-map.js";
 
-const fixturePack = loadFixturePack("first-map");
+const fixturePack = loadFixturePack("first-map", "v2");
 const fixtureFiles = fixturePack.manifest.schema.files as Record<string, string>;
+const fixtureFeatureCount = fixturePack.manifest.schema.featureCount;
+const fixtureSelectedRecordId = fixturePack.manifest.schema.selectedRecordId;
+const fixtureCollectionId = (fixturePack.data[fixtureFiles.ogcCollection!] as { id: string }).id;
 
 function fixture<T>(role: string): T {
   return structuredClone(fixturePack.data[fixtureFiles[role]!]) as T;
@@ -46,7 +49,7 @@ describe("First Map copyable workflow core", () => {
   let harness: SampleFixtureHarness;
 
   beforeAll(async () => {
-    harness = await startSampleFixtureHarness({ sampleId: "first-map" });
+    harness = await startSampleFixtureHarness({ sampleId: "first-map", fixturePackVersion: "v2" });
   });
 
   afterAll(async () => {
@@ -59,7 +62,7 @@ describe("First Map copyable workflow core", () => {
       resolveFirstMapConfig({
         endpoint: `${harness.origin}/rest/services/natural-earth/FeatureServer/0`,
         mode: "fixture",
-        maxFeatures: 3,
+        maxFeatures: fixtureFeatureCount,
       }),
       { map },
     );
@@ -70,17 +73,22 @@ describe("First Map copyable workflow core", () => {
       mode: "fixture",
       connection: { protocol: "geoservices-feature-service", cacheStatus: "miss" },
       source: { id: "0", capabilities: expect.arrayContaining(["query"]) },
-      maxFeatures: 3,
+      maxFeatures: fixtureFeatureCount,
     });
     expect(result.plan.steps[0]).toMatchObject({
       engine: "remote",
-      compiled: { compiler: "geoservices-rest-query-v1", resultRecordCount: 3 },
+      compiled: { compiler: "geoservices-rest-query-v1", resultRecordCount: fixtureFeatureCount },
     });
-    expect(result.query.features).toHaveLength(3);
+    expect(result.query.features).toHaveLength(fixtureFeatureCount);
+    expect(result.query.features[0]).toMatchObject({
+      attributes: { OBJECTID: fixtureSelectedRecordId, GEOID: "15009030100", NAMELSAD: "Census Tract 301" },
+      geometry: { rings: expect.any(Array) },
+    });
+    expect(result.view.source.attribution).toBe("Source: U.S. Census Bureau, 2025 TIGER/Line Shapefiles.");
     expect(result.query.execution.plan.fingerprint).toBe(result.plan.fingerprint);
     expect(result.query.execution.terminal).toEqual({
       state: "completed",
-      featureCount: 3,
+      featureCount: fixtureFeatureCount,
       exceededTransferLimit: false,
     });
     expect(result.mounted.raw("maplibre")).toBe(map);
@@ -104,8 +112,8 @@ describe("First Map copyable workflow core", () => {
         endpoint: `${harness.origin}/ogc/features`,
         mode: "fixture",
         protocol: "ogc-features",
-        sourceId: "operations-areas",
-        maxFeatures: 3,
+        sourceId: fixtureCollectionId,
+        maxFeatures: fixtureFeatureCount,
       }),
       { map },
     );
@@ -114,13 +122,21 @@ describe("First Map copyable workflow core", () => {
     if (result.state !== "ready") return;
     expect(result.view).toMatchObject({
       connection: { protocol: "ogc-features" },
-      source: { id: "operations-areas", capabilities: expect.arrayContaining(["query"]) },
+      source: { id: fixtureCollectionId, capabilities: expect.arrayContaining(["query"]) },
     });
     expect(result.plan.steps[0]).toMatchObject({
       engine: "remote",
-      compiled: { compiler: "ogc-api-features-query-v1", collectionId: "operations-areas", limit: 3 },
+      compiled: {
+        compiler: "ogc-api-features-query-v1",
+        collectionId: fixtureCollectionId,
+        limit: fixtureFeatureCount,
+      },
     });
-    expect(result.query.features).toHaveLength(3);
+    expect(result.query.features).toHaveLength(fixtureFeatureCount);
+    expect(result.query.features[0]).toMatchObject({
+      attributes: { OBJECTID: fixtureSelectedRecordId, GEOID: "15009030100", NAMELSAD: "Census Tract 301" },
+      geometry: { type: "MultiPolygon" },
+    });
     expect(result.query.execution.plan.fingerprint).toBe(result.plan.fingerprint);
     expect(result.mounted.diagnostics).toContainEqual(expect.objectContaining({ strategy: "geojson-query" }));
     await result.dispose();
@@ -129,6 +145,7 @@ describe("First Map copyable workflow core", () => {
   it("returns an explicit overflow state before mounting truncated data", async () => {
     const overflow = await startSampleFixtureHarness({
       sampleId: "first-map",
+      fixturePackVersion: "v1",
       defaultRunId: "overflow",
       defaultScenario: "overflow",
     });
@@ -157,6 +174,7 @@ describe("First Map copyable workflow core", () => {
   it("preserves unsupported capability and explicit source-selection states", async () => {
     const unsupported = await startSampleFixtureHarness({
       sampleId: "first-map",
+      fixturePackVersion: "v1",
       defaultRunId: "unsupported",
       defaultScenario: "unsupported",
     });
@@ -184,7 +202,7 @@ describe("First Map copyable workflow core", () => {
     expect(ambiguous).toMatchObject({
       state: "source-selection-required",
       reason: "ambiguous",
-      sources: [{ id: "operations-areas" }, { id: "response-zones" }],
+      sources: [{ id: fixtureCollectionId }, { id: "response-zones" }],
     });
   });
 

@@ -244,6 +244,7 @@ export interface ConnectDiscoverySourceSnapshot {
   readonly locator: SourceLocator;
   readonly title?: string;
   readonly description?: string;
+  readonly attribution?: string;
   readonly crs?: readonly string[];
   readonly extent?: ConnectDiscoveryExtent;
   readonly schema?: SourceSchema;
@@ -603,7 +604,11 @@ export async function connectWithSourceSchemaProjection(
           : source.schemaV2
             ? { schemaV2State: { state: "known" as const, fingerprint: source.schemaV2.fingerprint } }
             : {}),
-        ...(source.title ? { attribution: source.title } : {}),
+        ...(source.attribution
+          ? { attribution: source.attribution }
+          : source.title
+            ? { attribution: source.title }
+            : {}),
       };
       const discovered = inspectDiscoveredSource(descriptor, resolution);
       const projectedDescriptor = sourceCapabilityProjection
@@ -1845,6 +1850,7 @@ async function validateSnapshot(
       locator: freezeCachedLocator(source.locator, stacPolicy),
       ...(source.title ? { title: source.title } : {}),
       ...(source.description ? { description: source.description } : {}),
+      ...(source.attribution ? { attribution: source.attribution } : {}),
       ...(source.crs ? { crs: immutableStrings(source.crs, "Cached source crs") } : {}),
       ...(extent ? { extent } : {}),
       ...(metadata ? { metadata } : {}),

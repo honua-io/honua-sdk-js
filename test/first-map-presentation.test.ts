@@ -55,31 +55,53 @@ describe("First Map presentation contract", () => {
     });
   });
 
-  it("gives the governed Maui parcel result a stable human-readable label", () => {
-    const [parcel] = summarizeFirstMapFeatures([
+  it("gives the governed Maui census tract a stable human-readable label", () => {
+    const [tract] = summarizeFirstMapFeatures([
       {
-        attributes: { id: 42, tmk_txt: "2-3-8-004-017", zone: "R-2", taxacres: 0.31 },
+        attributes: {
+          OBJECTID: 1,
+          GEOID: "15009030100",
+          NAME: "301",
+          NAMELSAD: "Census Tract 301",
+          ALAND: 555_261_920,
+          AWATER: 25_398_370,
+        },
         geometry: {
-          rings: [
+          type: "MultiPolygon",
+          coordinates: [
             [
-              [-156.48, 20.89],
-              [-156.47, 20.9],
-              [-156.48, 20.89],
+              [
+                [-156.48, 20.89],
+                [-156.47, 20.9],
+                [-156.48, 20.89],
+              ],
+            ],
+            [
+              [
+                [-156.46, 20.88],
+                [-156.45, 20.89],
+                [-156.46, 20.88],
+              ],
             ],
           ],
         },
       },
     ]);
 
-    expect(parcel).toMatchObject({ id: "42", title: "2-3-8-004-017", subtitle: "R-2", geometryKind: "polygon" });
+    expect(tract).toMatchObject({
+      id: "1",
+      title: "Census Tract 301",
+      subtitle: "GEOID 15009030100",
+      geometryKind: "polygon",
+    });
   });
 
   it("drives table and MapLibre filters from the same deterministic choice", () => {
     const summaries = summarizeFirstMapFeatures(features);
     const choices = createFirstMapFilterChoices(summaries);
-    const ready = choices.find(({ label }) => label === "STATUS: Ready");
+    const ready = choices.find(({ field, value }) => field === "STATUS" && value === "Ready");
 
-    expect(ready).toBeDefined();
+    expect(ready).toMatchObject({ fieldLabel: "Status", label: "Ready" });
     expect(filterFirstMapFeatures(summaries, ready).map(({ id }) => id)).toEqual(["2"]);
     expect(combineFirstMapLayerFilter(["==", ["geometry-type"], "Polygon"], ready)).toEqual([
       "all",

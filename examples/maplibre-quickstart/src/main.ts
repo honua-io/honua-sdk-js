@@ -57,6 +57,7 @@ interface FirstMapLaunch {
   readonly protocol: FirstMapProtocol;
   readonly maxFeatures: number;
   readonly basemapStyle: string;
+  readonly selectedRecordId?: string;
   readonly where?: string;
 }
 
@@ -96,6 +97,7 @@ function initialLaunch(): FirstMapLaunch {
     VITE_HONUA_QUICKSTART_ENDPOINT: import.meta.env.VITE_HONUA_QUICKSTART_ENDPOINT,
     VITE_HONUA_QUICKSTART_PROTOCOL: import.meta.env.VITE_HONUA_QUICKSTART_PROTOCOL,
     VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: import.meta.env.VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT,
+    VITE_HONUA_QUICKSTART_SELECTED_RECORD_ID: import.meta.env.VITE_HONUA_QUICKSTART_SELECTED_RECORD_ID,
     VITE_HONUA_QUICKSTART_WHERE: import.meta.env.VITE_HONUA_QUICKSTART_WHERE,
   };
   const configured = endpointFromEnvironment(env);
@@ -103,6 +105,7 @@ function initialLaunch(): FirstMapLaunch {
   const where =
     readOptional(env, "VITE_HONUA_QUICKSTART_WHERE") ??
     (configured.endpoint === PUBLIC_FIRST_MAP_ENDPOINT ? `id <= ${maxFeatures}` : undefined);
+  const selectedRecordId = readOptional(env, "VITE_HONUA_QUICKSTART_SELECTED_RECORD_ID");
   const mode: FirstMapMode = configured.live ? "public-live" : "fixture";
   return {
     endpoint: configured.endpoint,
@@ -112,6 +115,7 @@ function initialLaunch(): FirstMapLaunch {
     basemapStyle:
       readOptional(env, "VITE_HONUA_QUICKSTART_BASEMAP_STYLE") ??
       (mode === "fixture" ? FIXTURE_BASEMAP_STYLE : PUBLIC_BASEMAP_STYLE),
+    ...(selectedRecordId ? { selectedRecordId } : {}),
     ...(where ? { where } : {}),
   };
 }
@@ -300,7 +304,7 @@ function renderFilterOptions(select: HTMLSelectElement, choices: readonly FirstM
     if (choice.field !== field) {
       field = choice.field;
       group = document.createElement("optgroup");
-      group.label = field;
+      group.label = choice.fieldLabel;
       select.append(group);
     }
     group?.append(new Option(choice.label, choice.id));
@@ -665,7 +669,7 @@ async function bootstrap(): Promise<void> {
         }
         setText("#linked-visible-count", String(visible.length));
         setText("#map-visible-count", `${visible.length} visible`);
-        setText("#linked-filter-state", choice?.field ?? "None");
+        setText("#linked-filter-state", choice?.fieldLabel ?? "None");
         setText("#map-filter-count", choice ? "1 filter" : "0 filters");
         getElement<HTMLElement>("#linked-query-projection").textContent = JSON.stringify(
           {
@@ -735,7 +739,12 @@ async function bootstrap(): Promise<void> {
       }
 
       applyFilter(undefined);
-      const firstFeature = summaries[0];
+      const firstFeature = launch.selectedRecordId
+        ? summaries.find(({ id }) => id === launch.selectedRecordId)
+        : summaries[0];
+      if (launch.selectedRecordId && !firstFeature) {
+        throw new Error(`Selected fixture record ${launch.selectedRecordId} was not returned by the bounded query.`);
+      }
       if (firstFeature) selectFeature(firstFeature);
       overlay.dataset.state = "ready";
       overlayTitle.textContent = "First Map ready";
