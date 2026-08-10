@@ -254,7 +254,7 @@ describe("honua-site consumer handoff", () => {
     expect([...legacySamplesById.keys()].filter((id) => !currentSamplesById.has(id))).toEqual([]);
     const additiveIds = [...currentSamplesById.keys()].filter((id) => !legacySamplesById.has(id));
     const permittedV3OnlyIds = new Set(["columnar-query-quickstart", "coverages-wcs-basic"]);
-    expect(additiveIds.filter((id) => !permittedV3OnlyIds.has(id))).toEqual([]);
+    expect(additiveIds.filter((id) => typeof id !== "string" || !permittedV3OnlyIds.has(id))).toEqual([]);
     expect(additiveIds.length).toBeLessThanOrEqual(permittedV3OnlyIds.size);
     expect(projection.routes).toEqual(legacyProjection.routes);
     const legacyCapabilities = new Map<string, string[]>(
