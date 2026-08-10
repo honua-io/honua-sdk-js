@@ -407,6 +407,7 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "25d",
   "ai-spatial-builder",
   "app-bootstrap",
+  "columnar-query",
   "coverages-wcs",
   "edit-workflow",
   "geocoding",
@@ -7041,7 +7042,7 @@ async function validateSiteConsumerArtifactInput(reference, label, archivedArtif
  * Two layers, and only the second is load-bearing. `$id`, `format`, and
  * `schemaVersion` catch a reference pointed at the wrong or a renamed schema, but a
  * schema under inspection declares them about itself, so they cannot detect a schema
- * edited in place while keeping its version — the exact no-version-bump case. The
+ * edited in place while keeping its version â€” the exact no-version-bump case. The
  * recomputed byte digest can, so it fails publication whether the edit weakened a
  * constraint or only reformatted the file.
  *
@@ -7569,7 +7570,7 @@ function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = [])
     "",
     "This inventory is generated from [`samples/catalog.v2.json`](../../samples/catalog.v2.json). Do not edit it by hand.",
     "",
-    `Catalog contract: \`${catalog.format}\` · SDK: \`${packageJson.name}\` (effective version derived from \`package.json\`) · ${catalog.samples.length} executable examples`,
+    `Catalog contract: \`${catalog.format}\` Â· SDK: \`${packageJson.name}\` (effective version derived from \`package.json\`) Â· ${catalog.samples.length} executable examples`,
     "",
     "## Golden journey readiness",
     "",
