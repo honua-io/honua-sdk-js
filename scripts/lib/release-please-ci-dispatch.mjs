@@ -178,6 +178,42 @@ async function waitForExactRunCompletion(input, expected, initialRun, request, w
   throw new Error(`Canonical CI run ${initialRun.id} did not complete after ${attempts} attempts.`);
 }
 
+/** Resolve terminal-success canonical CI without granting dispatch authority. */
+export async function loadSuccessfulReleasePleaseCi(input, request = githubRequest) {
+  const repository = String(input?.repository ?? "");
+  const trustedPolicySha = String(input?.trustedPolicySha ?? "");
+  if (!REPOSITORY_PATTERN.test(repository)) throw new Error("A valid repository owner/name pair is required.");
+  assertSha(trustedPolicySha, "Trusted policy revision");
+
+  const current = await loadExactReleasePleasePullRequest(repository, trustedPolicySha, request);
+  const expected = {
+    repository,
+    pullRequestNumber: current.pullRequestNumber,
+    headSha: current.headSha,
+    runTitle: releasePleaseCiRunTitle(current.pullRequestNumber, current.headSha),
+  };
+  await assertReleaseBranchHead(repository, expected.headSha, request);
+  const run = reusableExactRun(await listCiWorkflowRuns(repository, request), expected);
+  if (!run) {
+    throw new Error(`No canonical CI run resolved for exact Release Please head ${expected.headSha}.`);
+  }
+  if (run.status !== "completed" || run.conclusion !== "success") {
+    throw new Error(
+      `Canonical CI must be terminal success before check publication; run ${run.id} is ${run.status}/${run.conclusion ?? "none"}.`,
+    );
+  }
+  await verifyStillCurrent({ repository, trustedPolicySha }, expected, request);
+  return {
+    repository,
+    pullRequestNumber: expected.pullRequestNumber,
+    headSha: expected.headSha,
+    trustedPolicySha,
+    workflowRunId: run.id,
+    workflowRunUrl: run.url,
+    workflowRunConclusion: run.conclusion,
+  };
+}
+
 /** Dispatch read-only canonical CI against the exact current Release Please head. */
 export async function dispatchReleasePleaseCi(input, request = githubRequest, wait = setTimeout) {
   const repository = String(input?.repository ?? "");

@@ -92,6 +92,9 @@ jobs:
       - name: Test Release Please CI dispatch policy
         run: node --test test/scripts/release-please-ci-dispatch.test.mjs
 
+      - name: Test Release Please CI check publication policy
+        run: node --test test/scripts/release-please-ci-checks.test.mjs
+
       - name: Test backlog dependency reconciliation policy
         run: node --test test/scripts/backlog-dependencies.test.mjs
 
@@ -214,6 +217,9 @@ jobs:
 
       - name: Test Release Please CI dispatch policy
         run: node --test test/scripts/release-please-ci-dispatch.test.mjs
+
+      - name: Test Release Please CI check publication policy
+        run: node --test test/scripts/release-please-ci-checks.test.mjs
 
       - name: Test backlog dependency reconciliation policy
         run: node --test test/scripts/backlog-dependencies.test.mjs
