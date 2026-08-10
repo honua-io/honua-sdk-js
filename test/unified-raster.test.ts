@@ -251,6 +251,25 @@ describe("unified raster session", () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 
+  it("normalizes invalid ImageServer base URLs with adversarial slash runs", async () => {
+    const slashRun = "/".repeat(100_000);
+    const baseUrl = `${slashRun}fixture`;
+    const client = new HonuaClient({ baseUrl: "https://client.example" });
+    Object.defineProperty(client, "serverBaseUrl", { value: baseUrl });
+
+    const session = await openRasterSession(
+      {
+        kind: "image-server",
+        id: "adversarial-base-url",
+        baseUrl: `${baseUrl}///`,
+        serviceId: "Imagery/Adversarial",
+      },
+      { client },
+    );
+
+    await session.dispose();
+  });
+
   it("maps nearest-neighbor resampling to the ImageServer wire value", async () => {
     let requested = "";
     const session = await openRasterSession(
