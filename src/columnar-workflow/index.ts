@@ -327,6 +327,12 @@ const validateQuery = (
   if (query.offset !== undefined && (!Number.isSafeInteger(query.offset) || query.offset < 0)) {
     throw new ColumnarWorkflowError("INVALID_QUERY", "offset must be a non-negative safe integer.");
   }
+  if (query.returnGeometry === false) {
+    throw new ColumnarWorkflowError(
+      "INVALID_QUERY",
+      "returnGeometry: false is not supported because bounded columnar batches require one geometry field.",
+    );
+  }
   if (source.kind === "direct-geoparquet" && query.columns?.length) {
     throw new ColumnarWorkflowError(
       "INVALID_QUERY",

@@ -466,6 +466,17 @@ test("validates every configured budget before exposing a session", () => {
   }
 });
 
+test("rejects geometry-free queries before planning a columnar request", () => {
+  const session = openColumnarSession(serverSource);
+  assert.throws(
+    () => session.plan({ limit: 1, returnGeometry: false }),
+    (error: unknown) =>
+      error instanceof ColumnarWorkflowError &&
+      error.code === "INVALID_QUERY" &&
+      error.message.includes("require one geometry field"),
+  );
+});
+
 test("bounds the default direct GeoParquet network read before DuckDB can scan it", async () => {
   let cancelled = false;
   const session = openColumnarSession(directSource, {

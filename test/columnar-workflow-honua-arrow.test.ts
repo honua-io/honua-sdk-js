@@ -279,25 +279,27 @@ test("preserves bounded GeoArrow CRS and edges metadata across Binary and LargeB
   }
 });
 
-test("requires declared CRS metadata when WKB values mix embedded and missing SRIDs", async () => {
+test("ignores embedded EWKB SRIDs and preserves only declared GeoArrow CRS metadata", async () => {
   const geometries = [
     pointWkb([1, 2, 3], { littleEndian: false, dimensions: "xyz" }),
-    pointWkb([4, 5, 6], { dimensions: "xyz", flavor: "ewkb", srid: 4326 }),
+    pointWkb([4, 5, 6], { dimensions: "xyz", flavor: "ewkb", srid: 3857 }),
   ];
-  await assert.rejects(() => decodeSynthetic(geometries), /mix embedded and missing SRIDs/);
+  const undeclared = await decodeSynthetic(geometries);
+  assert.equal(inspectGeoArrowBatch(undeclared).geometry.crs, undefined);
+  assert.equal(inspectGeoArrowBatch(undeclared).geometry.crsType, undefined);
 
-  const batch = await decodeSynthetic(geometries, {
+  const declared = await decodeSynthetic(geometries, {
     extensionMetadata: { crs: "EPSG:4326", crs_type: "authority_code" },
   });
   assert.deepEqual(
-    decodeGeoArrowBatch(batch).rows.map(({ geometry }) => geometry),
+    decodeGeoArrowBatch(declared).rows.map(({ geometry }) => geometry),
     [
       [1, 2, 3],
       [4, 5, 6],
     ],
   );
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crs, "EPSG:4326");
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, "authority_code");
+  assert.equal(inspectGeoArrowBatch(declared).geometry.crs, "EPSG:4326");
+  assert.equal(inspectGeoArrowBatch(declared).geometry.crsType, "authority_code");
 });
 
 test("preserves null and empty Point, LineString, and Polygon semantics", async () => {
@@ -490,7 +492,7 @@ test("cancels an unbounded response stream as soon as the transfer ceiling is cr
   assert.ok(pulls < 10);
 });
 
-test("propagates an embedded EWKB SRID instead of mislabeling its coordinates", () => {
+test("ignores an embedded EWKB SRID when extension metadata does not declare a CRS", () => {
   const ewkb = new Uint8Array(25);
   const view = new DataView(ewkb.buffer);
   view.setUint8(0, 1);
@@ -517,6 +519,6 @@ test("propagates an embedded EWKB SRID instead of mislabeling its coordinates", 
     maxRows: 1,
     maxBackingBytes: 1024,
   });
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crs, "EPSG:3857");
-  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, "authority_code");
+  assert.equal(inspectGeoArrowBatch(batch).geometry.crs, undefined);
+  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, undefined);
 });
