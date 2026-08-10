@@ -1030,15 +1030,15 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "First Map: Maui parcels in MapLibre",
-      "summary": "Starts with a populated, interactive Maui parcel map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
+      "title": "First Map: Maui census tracts in MapLibre",
+      "summary": "Starts with all 48 governed Maui County census tracts on an interactive map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
       "sourceKind": "root-example",
       "track": "golden",
       "journeyId": "first-map",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
+        "reason": "Qualified First Map journey with a governed 2025 Census TIGER/Line fixture, plus immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and separate anonymous live receipts."
       },
       "sourcePath": "examples/maplibre-quickstart",
       "docsPath": "examples/maplibre-quickstart/README.md",
@@ -1071,9 +1071,9 @@
           "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
           "VITE_HONUA_QUICKSTART_WHERE"
         ],
-        "provenance": "Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.",
-        "attribution": "Endpoint-advertised attribution is shown and preserved; unavailable attribution is stated explicitly.",
-        "freshness": "SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.",
+        "provenance": "Governed first-map/v2 fixture derived from the exact SHA-256-pinned 2025 U.S. Census Bureau TIGER/Line Hawaii tract archive, or the separate manifest-advertised anonymous live layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1; the live lane is not represented as Census-governed.",
+        "attribution": "The fixture preserves the U.S. Census Bureau citation and disclaimer; live sources preserve endpoint-advertised attribution, and unavailable attribution is stated explicitly.",
+        "freshness": "The immutable fixture records its 2025-01-01 source vintage; live SDK observation time and cache status are shown separately.",
         "configurationStatus": "approved",
         "configClassifications": [
           {
