@@ -90,7 +90,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.4-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 16 experimental subpaths may change before 1.0, and
+by an API-surface gate; 18 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -176,7 +176,7 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 23 of the 28 generated support
+**Two deployment tiers, named up front.** 25 of the 30 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
 5 are `server-attach` and execute only after attaching to a Honua Server facade;
@@ -310,17 +310,17 @@ generated from that measurement, tree-shake guards included:
 | Entrypoint (gzip) | Size |
 | --- | ---: |
 | `@honua/sdk-js/expr` | 2.4 KiB |
-| `@honua/sdk-js/geocoding` | 7.6 KiB |
+| `@honua/sdk-js/geocoding` | 7.7 KiB |
 | `@honua/sdk-js/webmap` | 7.6 KiB |
-| `@honua/sdk-js/style` | 15.9 KiB |
-| `@honua/sdk-js/map` | 51.3 KiB |
-| `@honua/sdk-js` (root) | 201.5 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 61.7 KiB |
-| `{ connect }` from the root (tree-shake guard) | 163.4 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 192.3 KiB |
+| `@honua/sdk-js/style` | 16.0 KiB |
+| `@honua/sdk-js/map` | 51.4 KiB |
+| `@honua/sdk-js` (root) | 201.9 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 61.8 KiB |
+| `{ connect }` from the root (tree-shake guard) | 163.5 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 192.4 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 163.4 KiB gzip and `{ createHonua }` 192.3 KiB against the 201.5 KiB root, so size-sensitive
+alone costs 163.5 KiB gzip and `{ createHonua }` 192.4 KiB against the 201.9 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -627,9 +627,9 @@ correctly use this SDK:
     The agent surface's security posture is documented in the
     [agent-safety threat model](./docs/agent-safety-threat-model.md).
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
-    `/nl-map-control`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/plugin`, `/deckgl`,
-    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/kepler`, `/analytics`, `/analytics/uplot`,
-    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 16 experimental subpaths in total.
+    `/nl-map-control`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
+    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/coverages`, `/kepler`, `/analytics`, `/analytics/uplot`,
+    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 18 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
@@ -744,7 +744,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 16 experimental,
+It projects 22 supported (documented below as stable), 18 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -805,11 +805,13 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | Subpath | What it gives you |
 |---------|-------------------|
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
+| `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet/WMS/WMTS normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
 | `@honua/sdk-js/source-capabilities` | SourceSchemaV2-bound static evidence/CRS validation plus lightweight claimed/observed/effective evaluation, current-source cache checks, bounded strict transport, and dynamic policy/peer/authorization gates; serialized caller data remains potentially sensitive ([guide](./docs/source-capabilities.md)). |
 | `@honua/sdk-js/source-capability-discovery` | Focused GeoServices/OData/WMS/WMTS `connectWithSourceCapabilities()` integration with canonical descriptor replay binding and fresh policy/environment/peer/authorization evaluation. |
+| `@honua/sdk-js/cloud-native-discovery` | Normalized, bounded capability discovery for COG, STAC, PMTiles, GeoParquet, Zarr, and NetCDF sources, with explicit client/server/end-to-end maturity and no executable claims for metadata-only formats. |
 | `@honua/sdk-js/plugin` | Versioned, data-only plugin manifests plus deterministic compatibility and authority-boundary certification reports. |
 | `@honua/sdk-js/pmtiles-protocol-plugin.js` | The first-party PMTiles `ProtocolModule` packaged as a certifiable `HonuaPluginFactory<"protocol">` — the manifest-advertised plugin entrypoint, resolvable as a package export. |
 | `@honua/sdk-js/deckgl` | Bounded, zero-copy typed-array projection into an optional deck.gl peer, with stable picking identity and deterministic disposal. |
@@ -1318,7 +1320,7 @@ Labels: `fixture` · `public-live`
 - Compile check: `npm run demo:quickstart:typecheck`
 - Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
+- Provenance: Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.
 - Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
 - Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
 - Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
@@ -1379,7 +1381,7 @@ Labels: `fixture` · `public-live`
 - Compile check: `npm run demo:quickstart:typecheck`
 - Sample contract: `golden` · `supported` · `active`
 - Data and auth: `hybrid` · `anonymous`
-- Provenance: Versioned First Map fixture scenarios or one configured anonymous public endpoint, with protocol and source identity recorded at runtime.
+- Provenance: Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.
 - Freshness: SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.
 - Catalog degradation: Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.
 - Live sample: [sample-expr-builder.html](https://honua.io/sample-expr-builder.html) · [demo.html](https://honua.io/demo.html)
@@ -1709,19 +1711,19 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-09 at commit `c86e3e83`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-10 at commit `f3cae8d8`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 750.3 KiB | 201.5 KiB |
-| Importing only `HonuaClient` (tree-shake guard) | 238.6 KiB | 61.7 KiB |
-| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 43.8 KiB | 13.4 KiB |
-| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 366.0 KiB | 98.7 KiB |
-| ArcGIS compatibility layer (drop-in migration surface) | 1020.0 KiB | 255.5 KiB |
-| Geocoding client | 26.9 KiB | 7.6 KiB |
-| Routing client | 20.6 KiB | 6.3 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 751.9 KiB | 201.9 KiB |
+| Importing only `HonuaClient` (tree-shake guard) | 239.2 KiB | 61.8 KiB |
+| Data→map bridge only: `mountSourceToMapLibre` from `/map` | 44.4 KiB | 13.5 KiB |
+| Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 366.6 KiB | 98.8 KiB |
+| ArcGIS compatibility layer (drop-in migration surface) | 1020.6 KiB | 255.6 KiB |
+| Geocoding client | 27.5 KiB | 7.7 KiB |
+| Routing client | 21.1 KiB | 6.4 KiB |
 
 For context, the rendering engine itself — `maplibre-gl` 6.0.0, measured locally from
 this repo's pinned production distribution graph (`dist/maplibre-gl.mjs`, `dist/maplibre-gl-shared.mjs`, `dist/maplibre-gl-worker.mjs`) — is 1036.3 KiB minified / **273.8 KiB gzip**.
@@ -1731,8 +1733,8 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 750.3 KiB ≈ **1.74 MB**.
-- **Gzip:** engine 273.8 KiB + Honua root 201.5 KiB ≈ **0.46 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 751.9 KiB ≈ **1.75 MB**.
+- **Gzip:** engine 273.8 KiB + Honua root 201.9 KiB ≈ **0.46 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
 which is the only arithmetic this page performs.
@@ -9078,25 +9080,25 @@ a Honua Server attach; every other protocol below answers against an endpoint yo
 already run. The per-capability line lives in the generated
 [capability tiers](./standalone-capability-matrix.md#capability-tiers) table.
 
-| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — |
-| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | — | ◇ | — | — | — |
-| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — |
-| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — |
-| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — | — | — | — | — |
-| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — |
-| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | — |
-| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ◇ | — | — | — |
-| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
-| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| Capability | gRPC | GS Feature | GS Map | GS Image | GS Geometry | GS GP | OGC Features | OGC Tiles | OGC Maps | OGC Records | STAC | WFS | WMS | WMTS | OData | PMTiles | GeoParquet | MapLibre vector | MapLibre raster | MapLibre GeoJSON | OGC API Coverages | WCS 2.0.1 |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `query` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | ✓ | — | ✓ | — | ◇ | — | — | — | — | — |
+| `queryAggregate` | ✓ | ✓ | ✓ | — | — | — | ◐ | — | — | — | — | — | — | — | — | — | ◇ | — | — | — | — | — |
+| `spatialAggregate` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `queryExtent` | ✓ | ✓ | ✓ | ✓ | — | — | ◐ | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — |
+| `queryObjectIds` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| `queryRelated` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `applyEdits` | ✓ | ✓ | — | — | — | — | ✓ | — | — | — | — | ✓ | — | — | ✓ | — | — | — | — | — | — | — |
+| `attachments` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `render` | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | — | — | ✓ | ✓ | — | ◇ | ◇ |
+| `tiles` | — | ◐ | ✓ | ✓ | — | — | — | ✓ | — | — | — | — | ✓ | ✓ | — | ✓ | — | ✓ | ✓ | — | — | — |
+| `sql` | — | ✓ | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `stream` | ✓ | ✓ | ✓ | — | — | — | ✓ | — | — | ✓ | ✓ | ✓ | — | — | ✓ | — | ◇ | — | — | — | — | — |
+| `pbf` | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `image` | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `geometry` | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `geoprocess` | — | — | — | — | — | ✓ | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
+| `processes` | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |
 
 ### Generated claim evidence
 
@@ -9140,6 +9142,8 @@ policy in the manifest.
 | `maplibre-vector` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-automatic-source-fixtures](../test/automatic-source-strategy.test.ts) |
 | `maplibre-raster` | `render` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts)<br>[integration: maplibre-automatic-browser](../test/playwright/automatic-source-workflow.spec.mjs)<br>[fixture: maplibre-peer-major-matrix](../test/maplibre-peer-major-compat.test.ts)<br>[integration: maplibre-peer-major-browser](../test/playwright/migration-browser-maplibre.spec.mjs) |
 | `maplibre-raster` | `tiles` | `supported` | `client-only` | `native` | [fixture: maplibre-raster-source-fixtures](../test/raster-source-strategy.test.ts) |
+| `ogc-coverages` | `render` | `experimental` | `protocol-adapter` | `native` | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) |
+| `wcs` | `render` | `experimental` | `protocol-adapter` | `native` | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) |
 
 ### Generated discovery disposition inventory
 
@@ -9171,6 +9175,8 @@ The standalone machine projection is
 | Protocol | `maplibre-vector` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
 | Protocol | `maplibre-raster` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
 | Protocol | `maplibre-geojson` | `renderer-native` | `not-applicable` | `@honua/sdk-js/runtime` |
+| Protocol | `ogc-coverages` | `operation-only` | `not-applicable` | `@honua/sdk-js/coverages` |
+| Protocol | `wcs` | `operation-only` | `not-applicable` | `@honua/sdk-js/coverages` |
 | Static format | `static-stac` | `source-backed` | `explicit-only` | `connect({ protocol: 'stac' })` |
 | Static format | `pmtiles` | `source-backed` | `structural-marker` | `connect({ protocol: 'pmtiles' })` |
 | Static format | `geoparquet` | `source-backed` | `explicit-only` | `connect({ protocol: 'geoparquet' })` |
@@ -9245,6 +9251,8 @@ evidence; observed evidence only ever narrows them.
 | `maplibre-vector` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
 | `maplibre-raster` | — | — | — | Renderer-side descriptor strategy; no Source.query path. |
 | `maplibre-geojson` | — | — | — | Reserved identifier with no query path. |
+| `ogc-coverages` | — | — | `source-dimension` | Coverage axes and datetime are explicit subset dimensions, not feature predicates. |
+| `wcs` | — | — | `source-dimension` | WCS SUBSET/DATETIME dimensions are explicit coverage constraints. |
 <!-- support-manifest:filter-matrix:end -->
 
 ## Notes by protocol
@@ -10018,7 +10026,7 @@ environment cannot enter the vocabulary untiered.
 
 | Tier | Honua Server | Environments | Claims | What it means |
 | --- | :-: | --- | :-: | --- |
-| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 23 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
+| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 25 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
 | **Server attach** (`server-attach`) | required | `honua-facade` | 5 | Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent. |
 
 ### Server-attach capabilities and their open-endpoint path
@@ -10103,6 +10111,8 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | GeoParquet asset discovery | `open-endpoint` | `experimental` | `client-only` | `discovery` | None; caller provides a GeoParquet profiler | connect({ protocol: 'geoparquet', geoparquet: { profiler } }) | [fixture: geoparquet-connect-fixtures](../test/connect-geoparquet.test.ts) | Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver. |
 | OGC API Tiles | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
 | OGC API Maps | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
+| OGC API Coverages discovery and bounded retrieval | `open-endpoint` | `experimental` | `standalone` | `native` | Any compatible OGC API Coverages server | @honua/sdk-js/coverages createCoverageClient(), CoverageSource | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) | Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. |
+| WCS 2.0.1 discovery and bounded retrieval | `open-endpoint` | `experimental` | `standalone` | `native` | Any compatible WCS 2.0.1 KVP endpoint | @honua/sdk-js/coverages createWcsClient() | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) | Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. |
 | OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
 | Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, every declared imagery protocol (url-template, WMS, WMTS, single-tile, and both ArcGIS endpoint shapes) with the request each provider puts on the wire, glTF/GLB models, 3D-Tiles tilesets including a .pnts point cloud and the honua_style sidecar, the fail-closed rows for an undeclared imagery protocol and an unmaterialized model format, and a documented final-canvas GC floor whose listener budget is itself proven by an injected per-cycle leak (#928, #1055). Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table. |
 | OGC API Processes discovery | `open-endpoint` | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
@@ -10616,12 +10626,21 @@ classification is conservatively non-retryable.
 | `core.job-failed` | `core` | `protocol` | no | Remote job reached a failed terminal state |
 | `core.wms-capabilities-parse` | `core` | `protocol` | no | WMS capabilities document is invalid |
 | `core.wmts-capabilities-parse` | `core` | `protocol` | no | WMTS capabilities document is invalid |
+| `core.coverage.invalid-request` | `core` | `validation` | no | Coverage request is invalid |
+| `core.coverage.invalid-response` | `core` | `protocol` | no | Coverage response is invalid |
+| `core.coverage.response-too-large` | `core` | `validation` | no | Coverage response exceeds its byte limit |
+| `core.coverage.unsupported-format` | `core` | `capability` | no | Coverage format is unsupported |
+| `core.coverage.service-error` | `core` | `protocol` | no | Coverage service rejected the request |
+| `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
 | `discovery.ambiguous-protocol` | `discovery` | `validation` | no | Multiple protocols match the endpoint |
 | `discovery.ambiguous-source` | `discovery` | `validation` | no | Multiple sources match the selection |
+| `discovery.invalid-cloud-native-input` | `discovery` | `validation` | no | Cloud-native discovery input is invalid or ambiguous |
+| `discovery.invalid-cloud-native-manifest` | `discovery` | `validation` | no | Cloud-native deployment manifest is invalid |
 | `discovery.invalid-endpoint` | `discovery` | `validation` | no | Discovery endpoint is invalid |
 | `discovery.invalid-cache-identity` | `discovery` | `validation` | no | Discovery cache identity is invalid |
 | `discovery.invalid-discovery-cache` | `discovery` | `validation` | no | Discovery cache entry is invalid |
 | `discovery.invalid-capability` | `discovery` | `validation` | no | Discovered capability evidence is invalid |
+| `discovery.cloud-native-operation-unavailable` | `discovery` | `capability` | no | Cloud-native source operation is unavailable at its declared maturity |
 | `discovery.unsupported-protocol` | `discovery` | `capability` | no | Endpoint protocol is unsupported |
 | `discovery.protocol-mismatch` | `discovery` | `validation` | no | Endpoint protocol conflicts with its hint |
 | `query.planning.invalid-query` | `query` | `validation` | no | Query is invalid |
@@ -11623,54 +11642,54 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-09 at commit `c86e3e83`._
+_Generated 2026-08-10 at commit `f3cae8d8`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 750.3 KiB | 753.9 KiB | 201.5 KiB | 211.8 KiB |
-| `/honua` | 913.0 KiB | 937.2 KiB | 245.9 KiB | 251.0 KiB |
-| `/contract` | 366.0 KiB | 400.6 KiB | 98.7 KiB | 108.0 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 887.2 KiB | 925.5 KiB | 200.4 KiB | 206.0 KiB |
-| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.7 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 921.1 KiB | 961.8 KiB | 209.6 KiB | 215.6 KiB |
-| `/plugin` (registry + certification, no heavy peers) | 65.4 KiB | 69.2 KiB | 19.9 KiB | 21.9 KiB |
-| `/agent-tools` | 35.1 KiB | 38.2 KiB | 10.0 KiB | 10.9 KiB |
-| `/agent-safety` | 66.9 KiB | 73.2 KiB | 18.7 KiB | 20.5 KiB |
-| `/nl-map-control` | 76.8 KiB | 84.5 KiB | 22.8 KiB | 25.3 KiB |
-| `/runtime` | 605.2 KiB | 612.2 KiB | 163.7 KiB | 163.9 KiB |
-| `/realtime` | 78.8 KiB | 86.2 KiB | 22.8 KiB | 25.0 KiB |
-| `/offline` | 169.2 KiB | 186.2 KiB | 45.2 KiB | 49.7 KiB |
-| `/query-planner` (worker runtime injected) | 762.7 KiB | 778.7 KiB | 172.6 KiB | 182.9 KiB |
-| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 166.9 KiB | 183.6 KiB | 50.8 KiB | 55.8 KiB |
-| `/esri-compat` | 1020.0 KiB | 1026.2 KiB | 255.5 KiB | 280.9 KiB |
+| `.` (root) | 751.9 KiB | 753.9 KiB | 201.9 KiB | 211.8 KiB |
+| `/honua` | 914.6 KiB | 937.2 KiB | 246.2 KiB | 251.0 KiB |
+| `/contract` | 366.6 KiB | 400.6 KiB | 98.8 KiB | 108.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 887.8 KiB | 925.5 KiB | 200.5 KiB | 206.0 KiB |
+| `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.8 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 921.8 KiB | 961.8 KiB | 209.7 KiB | 215.6 KiB |
+| `/plugin` (registry + certification, no heavy peers) | 66.0 KiB | 69.2 KiB | 20.0 KiB | 21.9 KiB |
+| `/agent-tools` | 35.7 KiB | 38.2 KiB | 10.1 KiB | 10.9 KiB |
+| `/agent-safety` | 67.5 KiB | 73.2 KiB | 18.8 KiB | 20.5 KiB |
+| `/nl-map-control` | 77.4 KiB | 84.5 KiB | 22.9 KiB | 25.3 KiB |
+| `/runtime` | 605.8 KiB | 612.2 KiB | 163.8 KiB | 163.9 KiB |
+| `/realtime` | 79.3 KiB | 86.2 KiB | 22.9 KiB | 25.0 KiB |
+| `/offline` | 169.9 KiB | 186.2 KiB | 45.3 KiB | 49.7 KiB |
+| `/query-planner` (worker runtime injected) | 763.3 KiB | 778.7 KiB | 172.7 KiB | 182.9 KiB |
+| `/scene-workspace` (MapLibre/Cesium external — optional peers) | 167.5 KiB | 183.6 KiB | 50.9 KiB | 55.8 KiB |
+| `/esri-compat` | 1020.6 KiB | 1026.2 KiB | 255.6 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
 | `/webmap` | 24.8 KiB | 27.3 KiB | 7.6 KiB | 8.3 KiB |
-| `/geocoding` | 26.9 KiB | 31.6 KiB | 7.6 KiB | 9.1 KiB |
-| `/routing` | 20.6 KiB | 24.6 KiB | 6.3 KiB | 7.6 KiB |
-| `/auth` | 26.0 KiB | 30.6 KiB | 7.3 KiB | 8.7 KiB |
-| `/style` | 62.8 KiB | 69.0 KiB | 15.9 KiB | 17.2 KiB |
-| `/map` | 181.1 KiB | 198.2 KiB | 51.3 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 142.8 KiB | 154.9 KiB | 43.0 KiB | 46.6 KiB |
+| `/geocoding` | 27.5 KiB | 31.6 KiB | 7.7 KiB | 9.1 KiB |
+| `/routing` | 21.1 KiB | 24.6 KiB | 6.4 KiB | 7.6 KiB |
+| `/auth` | 26.6 KiB | 30.6 KiB | 7.4 KiB | 8.7 KiB |
+| `/style` | 63.4 KiB | 69.0 KiB | 16.0 KiB | 17.2 KiB |
+| `/map` | 181.6 KiB | 198.2 KiB | 51.4 KiB | 56.2 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 143.4 KiB | 154.9 KiB | 43.1 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 65.3 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.2 KiB | 1037.6 KiB | 271.7 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1087.8 KiB | 1120.1 KiB | 295.1 KiB | 321.9 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.8 KiB | 1037.6 KiB | 271.8 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1088.5 KiB | 1120.1 KiB | 295.2 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
-| `/react` (react/react-dom external) | 541.1 KiB | 562.6 KiB | 145.6 KiB | 150.2 KiB |
+| `/react` (react/react-dom external) | 541.7 KiB | 562.6 KiB | 145.7 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 750.9 KiB | 754.5 KiB | 201.9 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 749.6 KiB | 753.1 KiB | 201.5 KiB | 221.7 KiB |
-| tree-shake guard (`{ HonuaClient }` only) | 238.6 KiB | 254.0 KiB | 61.7 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 612.9 KiB | 627.9 KiB | 163.4 KiB | 166.9 KiB |
-| tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.3 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
-| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 14.5 KiB | 15.5 KiB | 4.1 KiB | 4.1 KiB |
-| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 13.9 KiB | 14.6 KiB | 3.0 KiB | 3.1 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 715.0 KiB | 717.1 KiB | 192.3 KiB | 210.6 KiB |
-| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 253.2 KiB | 267.0 KiB | 64.9 KiB | 68.1 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 752.5 KiB | 754.5 KiB | 202.2 KiB | 222.1 KiB |
+| browser ESM (`./browser`) | 751.2 KiB | 753.1 KiB | 201.9 KiB | 221.7 KiB |
+| tree-shake guard (`{ HonuaClient }` only) | 239.2 KiB | 254.0 KiB | 61.8 KiB | 63.6 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 613.5 KiB | 627.9 KiB | 163.5 KiB | 166.9 KiB |
+| tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.4 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
+| tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 15.0 KiB | 15.5 KiB | 4.2 KiB | 4.5 KiB |
+| explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 14.8 KiB | 16.3 KiB | 3.2 KiB | 3.5 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 715.7 KiB | 717.1 KiB | 192.4 KiB | 210.6 KiB |
+| tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 253.8 KiB | 267.0 KiB | 65.0 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
-| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 43.8 KiB | 44.7 KiB | 13.4 KiB | 14.0 KiB |
+| tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 44.4 KiB | 44.7 KiB | 13.5 KiB | 14.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
 
