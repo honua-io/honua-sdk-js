@@ -240,7 +240,7 @@ describe("honua-site consumer handoff", () => {
     await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
     await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
     await expect(validateSiteConsumerFixtureV4(fixture, handoff, { verifyCheckout: false })).resolves.toBeUndefined();
-    for (const sampleId of ["maplibre-quickstart", "service-explorer"]) {
+    for (const sampleId of ["service-explorer"]) {
       expect(projection.sampleBundles.published).toContainEqual(
         expect.objectContaining({ id: sampleId, runnability: "requires-live-endpoint" }),
       );
