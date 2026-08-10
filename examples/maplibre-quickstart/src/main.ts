@@ -19,6 +19,7 @@ import {
   summarizeFirstMapFeatures,
 } from "./first-map-presentation.js";
 import type { FirstMapFeatureSummary, FirstMapFilterChoice } from "./first-map-presentation.js";
+import { createFirstMapFixtureFetch } from "./fixture-fetch.js";
 import { createQuickstartTelemetry } from "./telemetry.js";
 import { runFirstMapWorkflow } from "./workflow.js";
 import type { FirstMapReady, FirstMapWorkflowResult } from "./workflow.js";
@@ -85,7 +86,7 @@ function readProtocol(value: string | undefined): FirstMapProtocol {
 function endpointFromEnvironment(env: Record<string, string | undefined>): { endpoint: string; live: boolean } {
   const direct = readOptional(env, "VITE_HONUA_QUICKSTART_ENDPOINT");
   if (direct === SAME_ORIGIN_FIRST_MAP_FIXTURE) {
-    return { endpoint: `${location.origin}${FIXTURE_FEATURE_PATH}`, live: false };
+    return { endpoint: new URL(`.${FIXTURE_FEATURE_PATH}/`, location.href).href, live: false };
   }
   if (direct) return { endpoint: direct, live: true };
   return { endpoint: PUBLIC_FIRST_MAP_ENDPOINT, live: true };
@@ -119,10 +120,16 @@ function initialLaunch(): FirstMapLaunch {
   };
 }
 
+function isPackagedFixtureEndpoint(endpoint: string): boolean {
+  const url = new URL(endpoint);
+  const pathname = url.pathname.replace(/\/+$/, "") || "/";
+  return url.origin === location.origin && pathname.endsWith(FIXTURE_FEATURE_PATH);
+}
+
 function isFixtureEndpoint(endpoint: string): boolean {
   const url = new URL(endpoint);
   const pathname = url.pathname.replace(/\/+$/, "") || "/";
-  return url.origin === location.origin && [FIXTURE_FEATURE_PATH, FIXTURE_OGC_PATH].includes(pathname);
+  return isPackagedFixtureEndpoint(endpoint) || (url.origin === location.origin && pathname === FIXTURE_OGC_PATH);
 }
 
 function safeEndpoint(endpoint: string): string {
@@ -563,6 +570,9 @@ async function bootstrap(): Promise<void> {
       const result = await runFirstMapWorkflow(config, {
         map,
         maplibre: maplibregl,
+        ...(launch.mode === "fixture" && isPackagedFixtureEndpoint(launch.endpoint)
+          ? { fetchFn: createFirstMapFixtureFetch(launch.endpoint) }
+          : {}),
         rendererOptions: {
           sourceId: FIRST_MAP_SOURCE_ID,
           layerId: FIRST_MAP_LAYER_ID,

@@ -1002,13 +1002,11 @@ describe("sample publication contract", () => {
       schemaVersion: 2,
       publication: { manifestAsset: "sample-bundles.v2.json" },
     });
-    for (const sampleId of ["maplibre-quickstart", "service-explorer"]) {
-      expect(projection.sampleBundles.published).toContainEqual(
-        expect.objectContaining({ id: sampleId, runnability: "requires-live-endpoint" }),
-      );
-      expect(projection.sampleBundles.published).not.toContainEqual(
-        expect.objectContaining({ id: sampleId, runnability: "standalone" }),
-      );
+    for (const [sampleId, runnability] of [
+      ["maplibre-quickstart", "standalone"],
+      ["service-explorer", "requires-live-endpoint"],
+    ] as const) {
+      expect(projection.sampleBundles.published).toContainEqual(expect.objectContaining({ id: sampleId, runnability }));
     }
     for (const sample of catalog.samples) {
       const projected = projection.samples.find((candidate: { id: string }) => candidate.id === sample.id);

@@ -120,17 +120,6 @@ export const RUNNABILITY_BY_HOSTING = new Map([
  */
 export const PUBLISHED_LIVE_SAMPLE_POLICY = new Map([
   [
-    "maplibre-quickstart",
-    {
-      allowedOrigins: ["https://demo.honua.io"],
-      semanticProbe: {
-        url: "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1/query?where=id%20%3C%3D%2025&outFields=*&returnGeometry=true&f=geojson",
-        kind: "geojson-feature-collection",
-        minimumFeatures: 1,
-      },
-    },
-  ],
-  [
     "service-explorer",
     {
       allowedOrigins: ["https://demo.pygeoapi.io"],
@@ -293,10 +282,10 @@ export const SAMPLE_BUNDLE_AUDIT = [
   },
   {
     id: "maplibre-quickstart",
-    runtimeHosting: "external-live-endpoint",
+    runtimeHosting: "self-contained",
     buildScript: "demo:quickstart:build",
     auditedVia:
-      "scripts/build-sample-bundles.mjs sampleBuildEnv and PUBLISHED_LIVE_SAMPLE_POLICY: the published bundle receives the exact https://demo.honua.io FeatureServer endpoint and a same-bundle basemap while ambient browser configuration remains stripped; the source app keeps its deterministic same-origin fixture default.",
+      "examples/maplibre-quickstart/vite.config.ts emits the governed first-map/v2 layer and query responses at bundle-relative extensionless routes; examples/maplibre-quickstart/src/main.ts resolves the fixture sentinel relative to the app subpath; and sampleBuildEnv pins that sentinel, GeoServices protocol, all 48 records, and the same-bundle basemap.",
   },
   {
     id: "migration-workbench",
@@ -813,16 +802,21 @@ async function hashDirectory(root) {
 
 /** Strip every `VITE_*` variable so each build only ever sees the sample's
  * own committed fixture-mode default — never an ambient live override. */
+const FIRST_MAP_STANDALONE_CONFIG = Object.freeze({
+  VITE_HONUA_QUICKSTART_ENDPOINT: "honua:first-map-fixture",
+  VITE_HONUA_QUICKSTART_PROTOCOL: "geoservices-feature-service",
+  VITE_HONUA_QUICKSTART_WHERE: "1=1",
+  VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT: "48",
+  VITE_HONUA_QUICKSTART_BASEMAP_STYLE: "./__honua-quickstart__/basemap-style.json",
+});
+
 function sampleBuildEnv(sampleId) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) {
     if (key.startsWith("VITE_")) delete env[key];
   }
   if (sampleId === "maplibre-quickstart") {
-    env.VITE_HONUA_QUICKSTART_ENDPOINT =
-      "https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1";
-    env.VITE_HONUA_QUICKSTART_WHERE = "id <= 25";
-    env.VITE_HONUA_QUICKSTART_BASEMAP_STYLE = "./__honua-quickstart__/basemap-style.json";
+    Object.assign(env, FIRST_MAP_STANDALONE_CONFIG);
   }
   if (sampleId === "realtime-incident-dashboard") {
     env.VITE_HONUA_INCIDENT_TRANSPORT = "replay";
@@ -890,7 +884,12 @@ async function buildSample(
     `${id}: copied bundle is missing index.html`,
   );
 
-  const configDefaults = Object.fromEntries(browserPublicConfigNames(catalogEntry).map((name) => [name, null]));
+  const configDefaults = Object.fromEntries(
+    browserPublicConfigNames(catalogEntry).map((name) => [
+      name,
+      id === "maplibre-quickstart" ? (FIRST_MAP_STANDALONE_CONFIG[name] ?? null) : null,
+    ]),
+  );
 
   return {
     id,
