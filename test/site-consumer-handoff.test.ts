@@ -253,8 +253,9 @@ describe("honua-site consumer handoff", () => {
     expect(currentSamplesById.size).toBe(projection.samples.length);
     expect([...legacySamplesById.keys()].filter((id) => !currentSamplesById.has(id))).toEqual([]);
     const additiveIds = [...currentSamplesById.keys()].filter((id) => !legacySamplesById.has(id));
-    expect(additiveIds.every((id) => id === "coverages-wcs-basic")).toBe(true);
-    expect(additiveIds.length).toBeLessThanOrEqual(1);
+    const permittedV3OnlyIds = new Set(["columnar-query-quickstart", "coverages-wcs-basic"]);
+    expect(additiveIds.filter((id) => !permittedV3OnlyIds.has(id))).toEqual([]);
+    expect(additiveIds.length).toBeLessThanOrEqual(permittedV3OnlyIds.size);
     expect(projection.routes).toEqual(legacyProjection.routes);
     const legacyCapabilities = new Map<string, string[]>(
       legacyProjection.samples.map((sample: { id: string; capabilityKeys: string[] }): [string, string[]] => [
@@ -265,7 +266,7 @@ describe("honua-site consumer handoff", () => {
     for (const sample of projection.samples as Array<{ id: string; capabilityKeys: string[] }>) {
       const legacyCapabilityKeys = legacyCapabilities.get(sample.id);
       if (legacyCapabilityKeys === undefined) {
-        expect(sample.id).toBe("coverages-wcs-basic");
+        expect(permittedV3OnlyIds.has(sample.id)).toBe(true);
         continue;
       }
       expect(isCapabilityNarrowing(legacyCapabilityKeys, sample.capabilityKeys)).toBe(true);
