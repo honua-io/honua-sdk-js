@@ -537,6 +537,78 @@
       ]
     },
     {
+      "id": "columnar-query-quickstart",
+      "title": "Bounded columnar query plan",
+      "summary": "Builds an inspectable Arrow query plan with server pushdown and hard browser resource ceilings before any bytes move.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Focused inline-code-first entry point for GeoArrow and GeoParquet planning; Overture remains the production-shaped large-data project."
+      },
+      "sourcePath": "examples/columnar-query-quickstart",
+      "docsPath": "examples/columnar-query-quickstart/README.md",
+      "playground": {
+        "projectPath": "playgrounds/columnar-query-quickstart",
+        "providers": [
+          {
+            "id": "stackblitz",
+            "title": "StackBlitz",
+            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          },
+          {
+            "id": "codesandbox",
+            "title": "CodeSandbox",
+            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
+          }
+        ]
+      },
+      "capabilities": [
+        "columnar",
+        "query"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "config": [],
+        "provenance": "Deterministic in-browser request planning with no data or network access.",
+        "attribution": "No spatial data is loaded or rendered.",
+        "freshness": "Versioned with the SDK query contract.",
+        "configurationStatus": "not-required",
+        "configClassifications": []
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": [
+            "npm run demo:columnar-query:build"
+          ]
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable",
+          "commands": []
+        }
+      },
+      "expectedDegradation": "The example plans but does not execute because no demo-manifest target currently advertises live Arrow or Parquet output.",
+      "validationProfile": "browser-recipe",
+      "validation": [
+        "npm run demo:columnar-query:typecheck",
+        "npm run demo:columnar-query:build",
+        "npx vitest run test/columnar-workflow.test.ts",
+        "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
+      ]
+    },
+    {
       "id": "coverages-wcs-basic",
       "title": "Bounded coverage quickstart",
       "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",

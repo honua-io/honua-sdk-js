@@ -155,23 +155,22 @@ describe("capability-to-sample matrix contract", () => {
         inputs.qualificationEvidence,
       ),
     ).toEqual(matrix);
-    expect(matrix.samples).toHaveLength(34);
+    expect(matrix.samples).toHaveLength(35);
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
-    // 30 = 25 pre-existing support claims + the gRPC and direct-PMTiles
-    // connect() discovery claims registered in issues #554 and #820
-    // + the Cesium 3D scene workspace claim promoted to beta in issue #931
-    // + the OGC API Coverages and WCS standalone claims from issue #1115.
-    expect(matrix.supportClaims).toHaveLength(30);
-    // 58 = 52 pre-existing exports + "./pmtiles-protocol-plugin.js" (the
+    // 32 = 30 pre-existing support claims + the client-only direct GeoParquet
+    // and Honua Arrow/Parquet columnar workflow claims.
+    expect(matrix.supportClaims).toHaveLength(32);
+    // 59 = 58 pre-existing exports + the bounded columnar workflow contract.
     // manifest-advertised PMTiles plugin entrypoint published in issue #671)
     // + "./analytics" and "./analytics/uplot" (the linked-analytics contract
     // and its reference third-party chart adapter, issue #682)
     // + "./kepler" (the optional Kepler.gl workspace bridge from issue #684)
     // + "./coverages" (the coverage/WCS clients from issue #1115)
-    // + "./cloud-native-discovery" (the normalized source discovery facade).
-    expect(matrix.packageEntrypoints).toHaveLength(58);
+    // + "./cloud-native-discovery" (the normalized source discovery facade)
+    // + "./columnar-workflow" (the bounded columnar workflow contract).
+    expect(matrix.packageEntrypoints).toHaveLength(59);
     // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
     // service-explorer are the four real, evidence-backed qualified samples
     // (the Imagery and Terrain, First Map, ArcGIS Migration Workbench, and
