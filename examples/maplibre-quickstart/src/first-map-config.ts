@@ -50,33 +50,29 @@ export function firstMapConnectLocator(config: Pick<FirstMapConfig, "endpoint" |
 export function endpointForFirstMapProtocol(
   endpoint: string,
   protocol: FirstMapProtocol,
-  fixtureOrigin: string,
+  fixtureBaseUrl: string,
 ): string {
   if (protocol === "auto") return endpoint;
   let current: URL;
-  let origin: URL;
+  let fixtureBase: URL;
   try {
     current = new URL(endpoint);
-    origin = new URL(fixtureOrigin);
+    fixtureBase = new URL(".", fixtureBaseUrl);
   } catch {
     return endpoint;
   }
-  const pathname = current.pathname.replace(/\/+$/, "") || "/";
-  if (
-    current.origin !== origin.origin ||
-    current.search ||
-    current.hash ||
-    ![
-      FIRST_MAP_FIXTURE_GEOSERVICES_PATH,
-      FIRST_MAP_FIXTURE_OGC_ROOT_PATH,
-      FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH,
-    ].includes(pathname)
-  ) {
+  const endpointIdentity = (value: URL) => `${value.origin}${value.pathname.replace(/\/+$/, "") || "/"}`;
+  const canonicalFixtureIdentities = [
+    FIRST_MAP_FIXTURE_GEOSERVICES_PATH,
+    FIRST_MAP_FIXTURE_OGC_ROOT_PATH,
+    FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH,
+  ].map((path) => endpointIdentity(new URL(`.${path}`, fixtureBase)));
+  if (current.search || current.hash || !canonicalFixtureIdentities.includes(endpointIdentity(current))) {
     return endpoint;
   }
   const targetPath =
     protocol === "ogc-features" ? FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH : FIRST_MAP_FIXTURE_GEOSERVICES_PATH;
-  return new URL(targetPath, `${origin.origin}/`).href;
+  return new URL(`.${targetPath}`, fixtureBase).href;
 }
 
 export function resolveFirstMapConfig<T = Record<string, unknown>>(input: FirstMapConfigInput<T>): FirstMapConfig<T> {

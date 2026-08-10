@@ -33,6 +33,8 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
 
   const fixtureServer = await startQuickstartFixtureServer();
   const fixtureOrigin = new URL(fixtureServer.url).origin;
+  const publishedAppPath = "/sdk/maplibre-quickstart/app";
+  const publishedAppUrl = `${fixtureOrigin}${publishedAppPath}/`;
   let fixtureClosed = false;
   await context.route("**/*", async (route) => {
     const requestUrl = new URL(route.request().url());
@@ -41,12 +43,21 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
       await route.abort("blockedbyclient");
       return;
     }
+    if (
+      requestUrl.origin === fixtureOrigin &&
+      (requestUrl.pathname === publishedAppPath || requestUrl.pathname.startsWith(`${publishedAppPath}/`))
+    ) {
+      const fixtureUrl = new URL(requestUrl);
+      fixtureUrl.pathname = requestUrl.pathname.slice(publishedAppPath.length) || "/";
+      await route.continue({ url: fixtureUrl.href });
+      return;
+    }
     await route.continue();
   });
 
   try {
     await page.setViewportSize({ width: 1280, height: 720 });
-    const navigation = await page.goto(fixtureServer.url);
+    const navigation = await page.goto(publishedAppUrl);
     expect(navigation?.headers()["content-security-policy"]).toContain("connect-src 'self'");
     if (browserName === "chromium") {
       await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: fixtureOrigin });
@@ -92,7 +103,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
 
     await expect(page.getByTestId("first-map-result-legend")).toContainText("48 mapped features");
     await expect(page.locator("#result-provenance")).toHaveText(
-      `${fixtureOrigin}/rest/services/natural-earth/FeatureServer/0`,
+      `${publishedAppUrl}rest/services/natural-earth/FeatureServer/0`,
     );
     await expect(page.locator("#selected-feature-title")).toHaveText("Census Tract 301");
     await expect(page.locator("#selected-feature-subtitle")).toHaveText("GEOID 15009030100");
@@ -195,9 +206,12 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await expect(page.locator("#workflow-code")).toContainText("runFirstMapWorkflow");
     await expect(page.locator("#workflow-code")).toContainText('result.state !== "ready"');
 
+    await expect(page.locator("#endpoint-url")).toHaveValue(
+      `${publishedAppUrl}rest/services/natural-earth/FeatureServer/0/`,
+    );
     await page.locator("#endpoint-protocol").selectOption("ogc-features");
     await expect(page.locator("#endpoint-url")).toHaveValue(
-      `${fixtureOrigin}/ogc/features/collections/maui-census-tracts-2025`,
+      `${publishedAppUrl}ogc/features/collections/maui-census-tracts-2025`,
     );
     await page.locator("#load-endpoint-button").click();
     await expect(page.locator("#evidence-source")).toHaveText(/ogc-features.*maui-census-tracts-2025/);
@@ -207,13 +221,13 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
 
     await page.locator("#endpoint-protocol").selectOption("geoservices-feature-service");
     await expect(page.locator("#endpoint-url")).toHaveValue(
-      `${fixtureOrigin}/rest/services/natural-earth/FeatureServer/0`,
+      `${publishedAppUrl}rest/services/natural-earth/FeatureServer/0`,
     );
     await page.locator("#load-endpoint-button").click();
     await expect(page.locator("#evidence-source")).toHaveText(/geoservices-feature-service.*0/);
     await expect(page.locator("#map-overlay")).toHaveAttribute("data-state", "ready");
 
-    const customEndpoint = `${fixtureOrigin}/custom/FeatureServer/0`;
+    const customEndpoint = `${publishedAppUrl}custom/FeatureServer/0`;
     await page.locator("#endpoint-url").fill(customEndpoint);
     await page.locator("#endpoint-protocol").selectOption("ogc-features");
     await expect(page.locator("#endpoint-url")).toHaveValue(customEndpoint);
