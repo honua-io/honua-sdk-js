@@ -59,7 +59,7 @@ async function loadRequiredJobs(run, request) {
     if (
       job.run_id !== run.workflowRunId ||
       job.run_attempt !== 1 ||
-      job.workflow_name !== "SDK CI" ||
+      job.workflow_name !== run.workflowRunTitle ||
       job.head_sha !== run.headSha ||
       job.status !== "completed" ||
       job.conclusion !== "success"

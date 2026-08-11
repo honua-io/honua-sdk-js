@@ -95,7 +95,7 @@ function requiredJob(name, id, overrides = {}) {
     run_attempt: 1,
     name,
     head_sha: fixture.headSha,
-    workflow_name: "SDK CI",
+    workflow_name: releasePleaseCiRunTitle(fixture.pullRequestNumber, fixture.headSha),
     status: "completed",
     conclusion: "success",
     html_url: `https://github.com/${repository}/actions/runs/9001/job/${id}`,
@@ -200,6 +200,11 @@ describe("trusted Release Please required-check publication", () => {
 
     assert.equal(result.status, "published");
     assert.equal(result.headSha, fixture.headSha);
+    assert.equal(
+      result.workflowRunTitle,
+      releasePleaseCiRunTitle(fixture.pullRequestNumber, fixture.headSha),
+    );
+    assert.equal(result.workflowRunPath, CI_WORKFLOW_PATH);
     assert.deepEqual(result.checks.map(({ name }) => name), REQUIRED_RELEASE_PLEASE_CI_CHECKS);
     assert.equal(testHarness.created.length, 2);
     for (const [index, check] of testHarness.created.entries()) {
@@ -234,6 +239,45 @@ describe("trusted Release Please required-check publication", () => {
       /No canonical CI run resolved/u,
     );
     assert.equal(wrongWorkflow.created.length, 0);
+
+    const wrongOrigin = harness({
+      run: workflowRun({ head_repository: { full_name: "attacker/honua-sdk-js" } }),
+    });
+    await assert.rejects(
+      publishReleasePleaseCiChecks(publishOptions(), wrongOrigin.request),
+      /No canonical CI run resolved/u,
+    );
+    assert.equal(wrongOrigin.created.length, 0);
+
+    const wrongHead = harness({ run: workflowRun({ head_sha: "f".repeat(40) }) });
+    await assert.rejects(
+      publishReleasePleaseCiChecks(publishOptions(), wrongHead.request),
+      /No canonical CI run resolved/u,
+    );
+    assert.equal(wrongHead.created.length, 0);
+  });
+
+  it("rejects jobs outside the exact dynamic canonical run title or head", async () => {
+    const wrongWorkflowName = harness({
+      jobs: [
+        requiredJob("JS SDK", 9101, { workflow_name: "SDK CI" }),
+        requiredJob("MCP SDK", 9102),
+      ],
+    });
+    await assert.rejects(
+      publishReleasePleaseCiChecks(publishOptions(), wrongWorkflowName.request),
+      /terminal success for the exact canonical CI run and head/u,
+    );
+    assert.equal(wrongWorkflowName.created.length, 0);
+
+    const wrongHead = harness({
+      jobs: [requiredJob("JS SDK", 9101), requiredJob("MCP SDK", 9102, { head_sha: "f".repeat(40) })],
+    });
+    await assert.rejects(
+      publishReleasePleaseCiChecks(publishOptions(), wrongHead.request),
+      /terminal success for the exact canonical CI run and head/u,
+    );
+    assert.equal(wrongHead.created.length, 0);
   });
 
   it("rejects missing, duplicate, skipped, and failed required jobs", async () => {

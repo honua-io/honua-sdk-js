@@ -210,6 +210,8 @@ export async function loadSuccessfulReleasePleaseCi(input, request = githubReque
     trustedPolicySha,
     workflowRunId: run.id,
     workflowRunUrl: run.url,
+    workflowRunTitle: expected.runTitle,
+    workflowRunPath: CI_WORKFLOW_PATH,
     workflowRunConclusion: run.conclusion,
   };
 }
