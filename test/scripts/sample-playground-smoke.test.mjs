@@ -93,12 +93,14 @@ describe("playground smoke decisions", () => {
     }
   });
 
-  it("keeps the columnar quickstart planning-only and network-free at boot", () => {
+  it("holds the columnar quickstart to its mapped exact-Arrow fixture contract", () => {
     const journey = PLAYGROUND_SMOKE_JOURNEYS.get("columnar-query-quickstart");
     const source = playgroundSource("columnar-query-quickstart");
-    assert.match(journey.rendersNoMap, /planning-only/);
-    assert.match(journey.noBootFeatures, /without loading data or making a network request/);
-    assert.ok(source.includes('note: "Planning is deterministic and performs no network request."'));
+    assert.equal(journey.canvasSelector, ".maplibregl-canvas");
+    assert.deepEqual(journey.features, { field: "featureCount", atLeast: 1 });
+    assert.ok(source.includes("HONUA_ARROW_FIXTURE_BYTES = 1_336"));
+    assert.ok(source.includes('importModule: () => import("apache-arrow")'));
+    assert.ok(source.includes('fixtureTransport: "in-memory exact server artifact; no live endpoint claimed"'));
   });
 
   it("answers, for every playground, whether anything is asserted about its data", () => {

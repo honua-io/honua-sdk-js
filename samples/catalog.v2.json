@@ -538,14 +538,14 @@
     },
     {
       "id": "columnar-query-quickstart",
-      "title": "Bounded columnar query plan",
-      "summary": "Builds an inspectable Arrow query plan with server pushdown and hard browser resource ceilings before any bytes move.",
+      "title": "Map a bounded Arrow result",
+      "summary": "Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Focused inline-code-first entry point for GeoArrow and GeoParquet planning; Overture remains the production-shaped large-data project."
+        "reason": "Map-first fixture workflow for exact Honua Arrow interoperability; Overture remains the complete production-shaped browser GeoParquet project."
       },
       "sourcePath": "examples/columnar-query-quickstart",
       "docsPath": "examples/columnar-query-quickstart/README.md",
@@ -565,7 +565,9 @@
         ]
       },
       "capabilities": [
+        "cancellation",
         "columnar",
+        "map",
         "query"
       ],
       "capabilityKeys": [],
@@ -573,15 +575,15 @@
         "geoservices"
       ],
       "renderers": [
-        "none"
+        "maplibre"
       ],
       "data": {
         "mode": "fixture",
         "authMode": "none",
         "config": [],
-        "provenance": "Deterministic in-browser request planning with no data or network access.",
-        "attribution": "No spatial data is loaded or rendered.",
-        "freshness": "Versioned with the SDK query contract.",
+        "provenance": "Base64 text embedding of the exact 1,336-byte Honua Server geoarrow.wkb fixture produced by commit fd1c651efa7078c269742152a2777298e3b1c4d4 and pinned by SHA-256.",
+        "attribution": "Honua Server interoperability fixture; application-pinned WGS84 display convention is not inferred from Arrow CRS metadata.",
+        "freshness": "Fixture producer commit, schema contract, byte length, and SHA-256 are release-gated.",
         "configurationStatus": "not-required",
         "configClassifications": []
       },
@@ -590,7 +592,9 @@
           "mode": "fixture",
           "status": "executed",
           "commands": [
-            "npm run demo:columnar-query:build"
+            "npm run demo:columnar-query:build",
+            "npx vitest run test/columnar-query-quickstart.test.ts",
+            "npm run test:playwright:columnar-query"
           ]
         },
         "live": {
@@ -599,11 +603,13 @@
           "commands": []
         }
       },
-      "expectedDegradation": "The example plans but does not execute because no demo-manifest target currently advertises live Arrow or Parquet output.",
+      "expectedDegradation": "No public live Arrow or Parquet endpoint is claimed. Cancellation and row, batch, transfer, backing-memory, schema, geometry, or CRS violations stop explicitly; unsupported layouts never fall back to full materialization.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:columnar-query:typecheck",
         "npm run demo:columnar-query:build",
+        "npx vitest run test/columnar-query-quickstart.test.ts",
+        "npm run test:playwright:columnar-query",
         "npx vitest run test/columnar-workflow.test.ts",
         "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
       ]

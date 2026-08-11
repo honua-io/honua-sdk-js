@@ -61,10 +61,10 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
   [
     "columnar-query-quickstart",
     {
-      rendersNoMap: "A planning-only query surface: it renders an inspectable request plan and mounts no map.",
+      canvasSelector: ".maplibregl-canvas",
       state: "__HONUA_COLUMNAR_QUERY_QUICKSTART__",
       readyField: "ready",
-      noBootFeatures: "It deliberately plans without loading data or making a network request.",
+      features: { field: "featureCount", atLeast: 1 },
     },
   ],
   [

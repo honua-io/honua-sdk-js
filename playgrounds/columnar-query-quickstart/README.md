@@ -1,8 +1,8 @@
-# Bounded columnar query plan — zero-install playground
+# Map a bounded Arrow result — zero-install playground
 
 <!-- Generated from examples/columnar-query-quickstart by scripts/sample-playgrounds.mjs. Do not edit by hand. -->
 
-Builds an inspectable Arrow query plan with server pushdown and hard browser resource ceilings before any bytes move.
+Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff.
 
 - [Open in StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart)
 - [Open in CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart)

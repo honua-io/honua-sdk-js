@@ -1,11 +1,50 @@
-# Bounded columnar query plan
+# Map a bounded Arrow result
 
-This atomic example builds and displays a typed `f=arrow` FeatureServer plan without making a network request. It teaches projection, bbox, filter, ordering, row limits, and resource ceilings before decoding or rendering.
+This map-first example executes a real `f=arrow` workflow without claiming a live service that does not exist. The SDK plans a canonical FeatureServer request, an in-memory fixture transport returns the byte-exact Honua Server Arrow artifact, and the built-in decoder emits one bounded GeoArrow batch for MapLibre.
 
-It intentionally uses `example.invalid`: no demo-manifest target currently proves live Arrow or Parquet server output. A separate SDK interoperability test decodes an exact Honua Server `geoarrow.wkb` IPC artifact, but that fixture is not a network canary and does not make this planning-only example live.
+The fixture is the 1,336-byte artifact produced by Honua Server commit `fd1c651efa7078c269742152a2777298e3b1c4d4`, with SHA-256 `c5d9c789171970b19ca9c54d5eda97f045f28adf66324f949c14813e8f90d001`. The base64 text in `src/fixture.ts` is checked against the canonical binary in `test/fixtures/columnar/` by `test/columnar-query-quickstart.test.ts`.
+
+## What the example proves
+
+- Projection, comparison filter, CRS84 bbox, ordering, and a 25-row limit are present in the canonical server request before execution.
+- The response crosses the real SDK transfer, row, batch, backing-memory, and cancellation gates.
+- The built-in GeoArrow 0.2 WKB bridge decodes the exact server response and the table handoff maps it without materializing an unbounded dataset.
+- Runtime evidence reports rows, batches, admitted payload bytes, elapsed time, peak backing bytes, and governing ceilings.
+- Cancellation stops before a batch is admitted and a subsequent run succeeds without stale output.
+
+```ts doc-test=skip reason="Browser application excerpt; source, columns, bbox, signal, mapRows, and showEvidence are defined by the runnable project."
+const session = openColumnarSession(source, {
+  decodeServerResponse: createApacheArrowResponseDecoder({
+    geometryKind: "point",
+    importModule: () => import("apache-arrow"),
+  }),
+  budgets: {
+    maxRows: 25,
+    maxBatches: 2,
+    maxTransferBytes: 16 * 1024,
+    maxBackingBytes: 64 * 1024,
+  },
+});
+
+for await (const result of session.stream({ columns, bbox, limit: 25, signal })) {
+  mapRows(session.table(result.batch, 25).rows);
+  showEvidence(result.evidence);
+}
+```
+
+## Truth boundary
+
+This is fixture-only interoperability evidence. No `demo-manifest` target currently proves a deployed Honua endpoint serving Arrow or Parquet. The Arrow metadata does not declare a CRS; the application explicitly pins the known fixture coordinates to WGS84 for display and does not infer CRS84 in the decoder.
+
+The built-in bridge remains intentionally bounded to the documented Binary/LargeBinary Point, LineString, or Polygon WKB subset plus one feature-id, dictionary/text, and timestamp field. It rejects BinaryView, multi-geometries, GeometryCollection, M/ZM coordinates, ambiguous or additional fields, and Parquet responses unless the application supplies a decoder.
+
+For browser-side GeoParquet analysis against a large direct object, use the complete [Overture Columnar Lab](../overture-geoparquet/README.md), or [open its full project on GitHub](https://github.com/honua-io/honua-sdk-js/tree/trunk/examples/overture-geoparquet). The task walkthrough is [Choose server pushdown or bounded browser execution](../../docs/walkthroughs/server-or-browser-columnar.md).
 
 ```bash
 npm run demo:columnar-query
+npm run demo:columnar-query:typecheck
+npx vitest run test/columnar-query-quickstart.test.ts
+npm run test:playwright:columnar-query
 ```
 
 <!-- sample-playground:start -->

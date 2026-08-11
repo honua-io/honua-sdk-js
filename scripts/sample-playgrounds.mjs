@@ -106,6 +106,7 @@ const PINNED_DEPENDENCIES = Object.freeze({
   // (`packages/create-honua-app/templates/*/src/maplibre-worker.ts`), so a
   // reader who scaffolds and a reader who opens a playground get one renderer.
   "maplibre-gl": "6.1.0",
+  "apache-arrow": "17.0.0",
   "@bufbuild/protobuf": "2.13.0",
   "@connectrpc/connect": "2.1.2",
   "@connectrpc/connect-web": "2.1.2",
@@ -142,7 +143,9 @@ const PINNED_DEPENDENCIES = Object.freeze({
  * initialises, which is a worse link than none. Each entry is the peer set one
  * sample's own README already names as required for its lane.
  */
-const SAMPLE_RUNTIME_PEERS = new Map([["sketch-editing", ["terra-draw", "terra-draw-maplibre-gl-adapter"]]]);
+const SAMPLE_RUNTIME_PEERS = new Map([
+  ["sketch-editing", ["terra-draw", "terra-draw-maplibre-gl-adapter"]],
+]);
 
 /**
  * Type packages a pinned runtime dependency needs before the generated project
