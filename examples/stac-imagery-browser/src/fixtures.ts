@@ -21,6 +21,7 @@ export interface StacFixtureEnvironment {
 }
 
 export interface StacFixtureOptions {
+  readonly assetDelayMs?: number;
   readonly pageDelayMs?: number;
   readonly pages?: readonly (readonly HonuaStacItemResponse[])[];
 }
@@ -80,13 +81,16 @@ export function createStacFixtureEnvironment(
     traceScopes.set(entry, scope);
   };
   const pages = options.pages ?? [MAUI_ITEMS.slice(0, 2), MAUI_ITEMS.slice(2)];
-  const fetchAsset = createFixtureFetch(recordTrace, resolveTraceScope, options.pageDelayMs ?? 80, pages);
+  const assetDelayMs = options.assetDelayMs ?? 0;
+  const fetchAsset = createFixtureFetch(recordTrace, resolveTraceScope, assetDelayMs, options.pageDelayMs ?? 80, pages);
   const stac = createClient({
     baseUrl: FIXTURE_STAC_ROOT,
     clientOptions: { fetchFn: fetchAsset },
     refreshAssetUrl: async ({ assetKey, asset, signal }) => {
+      const traceScope = resolveTraceScope(signal);
+      await abortableDelay(assetDelayMs, signal, recordTrace, traceScope, new URL(asset.href, FIXTURE_STAC_ROOT));
       if (signal?.aborted) throw new DOMException("aborted", "AbortError");
-      recordTrace({ stage: "sign", method: "SIGN", url: asset.href, assetKey }, resolveTraceScope(signal));
+      recordTrace({ stage: "sign", method: "SIGN", url: asset.href, assetKey }, traceScope);
       return `${asset.href}${asset.href.includes("?") ? "&" : "?"}signed=fixture`;
     },
   });
@@ -117,6 +121,7 @@ export function createStacFixtureEnvironment(
 function createFixtureFetch(
   recordTrace: (entry: StacFixtureTrace, scope?: number) => void,
   resolveTraceScope: (signal: AbortSignal | null | undefined) => number,
+  assetDelayMs: number,
   pageDelayMs: number,
   pages: readonly (readonly HonuaStacItemResponse[])[],
 ): typeof fetch {
@@ -186,6 +191,7 @@ function createFixtureFetch(
     }
 
     if (url.pathname.includes("/assets/") && url.pathname.endsWith(".svg")) {
+      await abortableDelay(assetDelayMs, signal, recordTrace, traceScope, url);
       return new Response(previewSvg(url.pathname), {
         status: 200,
         headers: { "content-type": "image/svg+xml; charset=utf-8" },

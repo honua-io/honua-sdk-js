@@ -22,7 +22,7 @@ declare global {
   }
 }
 
-const environment = createStacFixtureEnvironment(createDynamicStacClient, { pageDelayMs: 80 });
+const environment = createStacFixtureEnvironment(createDynamicStacClient, { assetDelayMs: 80, pageDelayMs: 80 });
 let searchMethod: StacSearchMethod = "POST";
 let searchGeneration = 0;
 let abortController: AbortController | undefined;
@@ -176,9 +176,13 @@ function clearAssetPreview(): void {
   image.hidden = true;
 }
 
-async function renderAssetPreview(asset: DynamicStacAssetDescriptor, generation: number): Promise<void> {
+async function renderAssetPreview(
+  asset: DynamicStacAssetDescriptor,
+  generation: number,
+  controller: AbortController,
+): Promise<void> {
   if (asset.format !== "raster") return;
-  const response = await environment.fetchAsset(asset.href);
+  const response = await environment.fetchAsset(asset.href, { signal: controller.signal });
   if (!response.ok) throw new Error(`Preview request failed with ${response.status}.`);
   const objectUrl = URL.createObjectURL(await response.blob());
   if (generation !== searchGeneration) {
@@ -195,6 +199,8 @@ async function renderAssetPreview(asset: DynamicStacAssetDescriptor, generation:
 
 async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> {
   const generation = searchGeneration;
+  const controller = abortController;
+  if (!controller) return;
   const item = items.find((candidate) => String(candidate.id) === itemId);
   if (!item) return;
   selectedItem = item;
@@ -203,17 +209,18 @@ async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> 
     candidates = await environment.stac.assets(item, {
       assetKeys: [assetKey],
       formats: ["cog", "pmtiles", "geoparquet", "raster"],
+      signal: controller.signal,
     });
   } catch (error) {
-    if (generation !== searchGeneration) return;
+    if (generation !== searchGeneration || controller.signal.aborted) return;
     throw error;
   }
   if (generation !== searchGeneration) return;
   selectedAsset = candidates[0];
   try {
-    if (selectedAsset) await renderAssetPreview(selectedAsset, generation);
+    if (selectedAsset) await renderAssetPreview(selectedAsset, generation, controller);
   } catch (error) {
-    if (generation !== searchGeneration) return;
+    if (generation !== searchGeneration || controller.signal.aborted) return;
     throw error;
   }
   if (generation !== searchGeneration) return;
