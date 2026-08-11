@@ -81,6 +81,16 @@ function metadataFor(assetUrl: string): CogDecodedMetadata {
     };
   }
   if (key === "unsupported-format") return { ...WGS84_METADATA, format: "geotiff" };
+  if (key === "missing-nodata") {
+    return {
+      ...WGS84_METADATA,
+      bands: WGS84_METADATA.bands.map((band, index) => {
+        if (index !== 0) return band;
+        const { nodata: _nodata, ...missingNodata } = band;
+        return missingNodata;
+      }),
+    };
+  }
   return WGS84_METADATA;
 }
 

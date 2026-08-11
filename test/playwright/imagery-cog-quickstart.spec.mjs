@@ -107,7 +107,7 @@ test(
         directCog: {
           phase: "ready",
           selectedAssetKey: "cog",
-          candidateCount: 7,
+          candidateCount: 9,
           decoderModuleLoads: 1,
           decoderLoads: 1,
           decoderDisposals: 0,
@@ -164,12 +164,17 @@ test(
       await expect(page.getByRole("heading", { level: 1, name: "Imagery and Terrain" })).toBeVisible();
       await expect(page.getByTestId("honua-sample-mode")).toHaveText(/^(source|packed) SDK$/u);
       await expect(page.locator("#search-status")).toContainText("HonuaClient.stac().search");
-      await expect(page.locator("#scene-results")).toContainText("Oahu south shore clear pass");
+      await expect(page.locator("#scene-results")).toContainText("Deterministic Oahu natural-color fixture");
       await expect(page.locator("#inspection-content")).toHaveAttribute("data-status", "ready");
       await expect(page.locator("#inspection-content")).toContainText("bytes 0-63/");
-      await expect(page.locator("#inspection-content")).toContainText('"oahu-range-fixture-v1"');
-      await expect(page.locator("#inspection-content")).toContainText("CC-BY-4.0 fixture terms");
-      await expect(page.locator("#attribution-state")).toContainText("Copernicus Sentinel");
+      await expect(page.locator("#inspection-content")).toContainText(
+        '"sha256-59ba6110a96c0aba2ab5f5ee27b0eed6ec436956df27bb6312b94573f35190bd"',
+      );
+      await expect(page.locator("#inspection-content")).toContainText(
+        "122059ba6110a96c0aba2ab5f5ee27b0eed6ec436956df27bb6312b94573f35190bd",
+      );
+      await expect(page.locator("#inspection-content")).toContainText("CC0-1.0");
+      await expect(page.locator("#attribution-state")).toContainText("Honua SDK fixture generator");
       await expect(page.locator("#direct-cog-status")).toContainText("ready");
       await expect(page.locator("#direct-cog-inspection")).toContainText("256×192");
       await expect(page.locator("#direct-cog-provenance")).toContainText("oahu-natural-color-fixture-v1/cog");
@@ -190,24 +195,25 @@ test(
 
       const unsupportedCases = [
         ["credential-cog", "credentials", "credentials"],
+        ["userinfo-cog", "credentials", "credentials"],
         ["cors-cog", "cors", "cors-unavailable"],
         ["no-range-cog", "range", "range-unsupported"],
-        ["oversized-cog", "range", "range"],
-        ["chunked-oversized-cog", "range", "range"],
+        ["oversized-cog", "range", "invalid-range-response"],
+        ["chunked-oversized-cog", "range", "range-overflow"],
         ["unsupported-crs", "crs", "unsupported-crs"],
-        ["unsupported-format", "format", "unsupported-format"],
-        ["missing-nodata", "nodata", "nodata"],
+        ["unsupported-format", "format", "format"],
+        ["missing-nodata", "nodata", "unsupported-nodata"],
       ];
       for (const [assetKey, code, directCode] of unsupportedCases) {
         const outcome = await page.evaluate((key) => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.selectAsset(key), assetKey);
         expect(outcome).toMatchObject({
           status: "unsupported",
           code,
-          identity: { assetKey, itemId: "S2A_20260412T211901_OAHU_RANGE_01" },
+          identity: { assetKey, itemId: "oahu-natural-color-fixture-v1" },
         });
         await expect(page.locator("#inspection-content")).toHaveAttribute("data-status", "unsupported");
         await expect(page.locator("#inspection-content")).toContainText(code);
-        await expect(page.locator("#inspection-content")).toContainText("S2A_20260412T211901_OAHU_RANGE_01");
+        await expect(page.locator("#inspection-content")).toContainText("oahu-natural-color-fixture-v1");
         await expect(page.locator("#asset-switch-state")).toContainText("WMS remains available");
         expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.activeLayerCount)).toBe(1);
         await expect(page.locator("#direct-cog-status")).toContainText(directCode);
@@ -396,23 +402,18 @@ test(
         },
       );
 
-      const emptyStacSearch = (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            type: "FeatureCollection",
-            features: [],
-            numberMatched: 0,
-            numberReturned: 0,
-            links: [],
-          }),
-        });
-      const stacSearchPattern = /\/stac\/search(?:\?|$)/u;
+      const selectFixtureCollection = (value) =>
+        page.locator("#collection-input").evaluate((element, collection) => {
+          if (!(element instanceof HTMLSelectElement)) throw new Error("Collection input is unavailable");
+          if (![...element.options].some((option) => option.value === collection)) {
+            element.add(new Option(collection, collection));
+          }
+          element.value = collection;
+        }, value);
       const releasesBeforeEmptySearch = await page.evaluate(
         () => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources,
       );
-      await page.route(stacSearchPattern, emptyStacSearch);
+      await selectFixtureCollection("empty-fixture");
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
       await expect(page.locator("#search-status")).toContainText("No scenes matched");
       await expect(page.locator("#inspection-content")).not.toHaveAttribute("data-status", "ready");
@@ -440,17 +441,15 @@ test(
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources)).toBe(
         releasesBeforeEmptySearch + 2,
       );
-      await page.unroute(stacSearchPattern, emptyStacSearch);
+      await selectFixtureCollection("sentinel-2-l2a");
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
       await expect(page.locator("#inspection-content")).toHaveAttribute("data-status", "ready");
 
-      const failStacSearch = (route) =>
-        route.fulfill({ status: 200, contentType: "application/json", body: '{"type":"FeatureCollection"' });
-      await page.route(stacSearchPattern, failStacSearch);
+      await selectFixtureCollection("malformed-fixture");
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(false);
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.ready)).toBe(false);
       await expect(page.locator("#search-status")).toContainText("STAC search failed");
-      await page.unroute(stacSearchPattern, failStacSearch);
+      await selectFixtureCollection("sentinel-2-l2a");
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.ready)).toBe(true);
 

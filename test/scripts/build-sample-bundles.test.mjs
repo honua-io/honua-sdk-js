@@ -74,6 +74,15 @@ test("the imagery COG fixture pins a tiled EPSG:4326 overview and exact chunk di
   );
   assert.ok(generated.manifest.asset.levels[1].bytes < generated.manifest.asset.bytes / 4);
   assert.equal(createHash("sha256").update(generated.assetBytes).digest("hex"), generated.manifest.asset.sha256);
+  const firstIfdOffset = generated.assetBytes.readUInt32LE(4);
+  const firstIfdEntries = generated.assetBytes.readUInt16LE(firstIfdOffset);
+  const overviewIfdOffset = generated.assetBytes.readUInt32LE(firstIfdOffset + 2 + firstIfdEntries * 12);
+  const tags = (offset) => {
+    const count = generated.assetBytes.readUInt16LE(offset);
+    return Array.from({ length: count }, (_, index) => generated.assetBytes.readUInt16LE(offset + 2 + index * 12));
+  };
+  assert.ok(tags(firstIfdOffset).includes(34735));
+  assert.ok(!tags(overviewIfdOffset).some((tag) => [33550, 33922, 34735].includes(tag)));
   for (const chunk of generated.chunks) {
     assert.ok(chunk.bytes.byteLength <= 64 * 1024);
     assert.equal(createHash("sha256").update(chunk.bytes).digest("hex"), chunk.sha256);
@@ -87,7 +96,7 @@ test("the imagery COG fixture publishes a virtual href instead of a complete obj
   const asset = generated.item.assets.cog;
   assert.equal(asset.href, "./assets/oahu-natural-color-v1.tif");
   assert.equal(asset["file:size"], generated.assetBytes.byteLength);
-  assert.equal(asset["checksum:multihash"], `sha256:${generated.manifest.asset.sha256}`);
+  assert.equal(asset["file:checksum"], `1220${generated.manifest.asset.sha256}`);
   assert.equal(
     generated.chunks.reduce((total, chunk) => total + chunk.bytes.length, 0),
     generated.assetBytes.length,
@@ -95,6 +104,20 @@ test("the imagery COG fixture publishes a virtual href instead of a complete obj
   assert.ok(
     generated.chunks.reduce((total, chunk) => total + chunk.storedBytes.length, 0) < generated.assetBytes.length / 2,
   );
+});
+
+test("the committed imagery COG fixture is byte-identical to the canonical generator", () => {
+  const generated = buildFixtureCogAssets();
+  const fixtureRoot = path.join(ROOT, "examples/imagery-cog-quickstart/public/fixtures/cog");
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fixtureRoot, "manifest.json"), "utf8")), generated.manifest);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fixtureRoot, "item.json"), "utf8")), generated.item);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fixtureRoot, "search.json"), "utf8")), generated.search);
+  for (const chunk of generated.chunks) {
+    assert.deepEqual(fs.readFileSync(path.join(fixtureRoot, chunk.path)), chunk.storedBytes);
+  }
+  for (const fixture of generated.renderFixtures) {
+    assert.deepEqual(fs.readFileSync(path.join(fixtureRoot, fixture.metadata.path)), fixture.bytes);
+  }
 });
 
 test("the imagery COG fixture pins licensed imagery comparison and Terrain-RGB PNGs", () => {

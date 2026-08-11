@@ -712,7 +712,11 @@ function parseAssetMetadata(
     bands,
     footprint: footprint(item),
     provenance: {
-      provider: readString(properties, "honua:provider") ?? readString(properties, "platform") ?? "Unknown provider",
+      provider:
+        readProviderName(properties) ??
+        readString(properties, "honua:provider") ??
+        readString(properties, "platform") ??
+        "Unknown provider",
       attribution: readString(properties, "honua:attribution") ?? "Attribution not supplied",
       license: readString(properties, "honua:license") ?? readString(properties, "license") ?? "License not supplied",
       ...(typeof checksum === "string" ? { checksum } : {}),
@@ -1043,6 +1047,17 @@ function abortError(reason: unknown): DOMException {
 function readString(properties: Record<string, unknown>, key: string): string | undefined {
   const value = properties[key];
   return typeof value === "string" ? value : undefined;
+}
+
+function readProviderName(properties: Record<string, unknown>): string | undefined {
+  const providers = properties.providers;
+  if (!Array.isArray(providers)) return undefined;
+  for (const provider of providers) {
+    if (typeof provider !== "object" || provider === null) continue;
+    const name = (provider as { name?: unknown }).name;
+    if (typeof name === "string" && name.trim().length > 0) return name;
+  }
+  return undefined;
 }
 
 function readNumber(properties: Record<string, unknown>, key: string): number | undefined {

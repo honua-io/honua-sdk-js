@@ -160,6 +160,21 @@ async function smokeSample(browser, origin, sample) {
       const proof = await page.evaluate(async () => {
         const runtime = window.__HONUA_IMAGERY_TERRAIN_RUNTIME__;
         if (!runtime?.ready) throw new Error("Imagery COG runtime did not become ready.");
+        const degraded = [];
+        for (const key of [
+          "credential-cog",
+          "userinfo-cog",
+          "cors-cog",
+          "no-range-cog",
+          "oversized-cog",
+          "chunked-oversized-cog",
+          "unsupported-crs",
+          "unsupported-format",
+          "missing-nodata",
+        ]) {
+          degraded.push({ key, outcome: await runtime.selectAsset(key), directCog: runtime.directCog });
+        }
+        await runtime.selectAsset("cog");
         runtime.setComparison(43);
         runtime.setTerrainEnabled(true);
         const elevation = await runtime.lookupAt(-157.9, 21.35);
@@ -174,16 +189,33 @@ async function smokeSample(browser, origin, sample) {
           directCog: runtime.directCog,
           fixtureTransport: runtime.fixtureTransport,
           fixtureImageSources: runtime.fixtureImageSources,
+          degraded,
         };
       });
-      if (!proof.ready || !proof.terrainEnabled || proof.activeLayerCount !== 3)
+      if (!proof.ready || !proof.terrainEnabled || proof.activeLayerCount !== 4)
         failures.push(
-          `imagery COG journey did not retain comparison plus terrain layers: ${JSON.stringify({ ready: proof.ready, terrainEnabled: proof.terrainEnabled, activeLayerCount: proof.activeLayerCount })}`,
+          `imagery COG journey did not retain WMS, ImageServer, direct COG, and terrain layers: ${JSON.stringify({ ready: proof.ready, terrainEnabled: proof.terrainEnabled, activeLayerCount: proof.activeLayerCount })}`,
         );
       if (proof.elevation?.status !== "ready" || proof.elevation.elevationMeters !== 900)
         failures.push("imagery COG point elevation fixture did not return the exact 900 m receipt");
       if (proof.profile?.status !== "ready" || proof.profile.profile.samples.length !== 4)
         failures.push("imagery COG profile fixture did not return four samples");
+      const expectedDegraded = new Map([
+        ["credential-cog", "credentials"],
+        ["userinfo-cog", "credentials"],
+        ["cors-cog", "cors"],
+        ["no-range-cog", "range"],
+        ["oversized-cog", "range"],
+        ["chunked-oversized-cog", "range"],
+        ["unsupported-crs", "crs"],
+        ["unsupported-format", "format"],
+        ["missing-nodata", "nodata"],
+      ]);
+      for (const result of proof.degraded) {
+        if (result.outcome?.status !== "unsupported" || result.outcome.code !== expectedDegraded.get(result.key)) {
+          failures.push(`imagery COG degraded fixture did not fail closed: ${JSON.stringify(result)}`);
+        }
+      }
       if (
         proof.directCog.phase !== "ready" ||
         proof.directCog.transfer.requests !== 3 ||

@@ -67,9 +67,9 @@ function writeIfd(buffer, ifdOffset, nextIfdOffset, image, reduced) {
   };
   const bits = reserve(6);
   const sampleFormat = reserve(6);
-  const scale = reserve(24, 8);
-  const tiepoint = reserve(48, 8);
-  const geokeys = reserve(40);
+  const scale = reduced ? undefined : reserve(24, 8);
+  const tiepoint = reduced ? undefined : reserve(48, 8);
+  const geokeys = reduced ? undefined : reserve(40);
   const nodata = reserve(2);
   const tileCount = image.tileColumns * image.tileRows;
   const offsets = reserve(tileCount * 4, 4);
@@ -88,9 +88,11 @@ function writeIfd(buffer, ifdOffset, nextIfdOffset, image, reduced) {
   add(324, 4, tileCount, offsets);
   add(325, 4, tileCount, counts);
   add(339, 3, 3, sampleFormat);
-  add(33550, 12, 3, scale);
-  add(33922, 12, 6, tiepoint);
-  add(34735, 3, 20, geokeys);
+  if (!reduced) {
+    add(33550, 12, 3, scale);
+    add(33922, 12, 6, tiepoint);
+    add(34735, 3, 20, geokeys);
+  }
   add(42113, 2, 2, nodata);
   entries.sort((a, b) => a.tag - b.tag);
   buffer.writeUInt16LE(entries.length, ifdOffset);
@@ -107,13 +109,15 @@ function writeIfd(buffer, ifdOffset, nextIfdOffset, image, reduced) {
     buffer.writeUInt16LE(8, bits + index * 2);
     buffer.writeUInt16LE(1, sampleFormat + index * 2);
   }
-  [(BBOX[2] - BBOX[0]) / image.width, (BBOX[3] - BBOX[1]) / image.height, 0].forEach((value, index) =>
-    buffer.writeDoubleLE(value, scale + index * 8),
-  );
-  [0, 0, 0, BBOX[0], BBOX[3], 0].forEach((value, index) => buffer.writeDoubleLE(value, tiepoint + index * 8));
-  [1, 1, 0, 4, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326, 2054, 0, 1, 9102].forEach((value, index) =>
-    buffer.writeUInt16LE(value, geokeys + index * 2),
-  );
+  if (!reduced) {
+    [(BBOX[2] - BBOX[0]) / image.width, (BBOX[3] - BBOX[1]) / image.height, 0].forEach((value, index) =>
+      buffer.writeDoubleLE(value, scale + index * 8),
+    );
+    [0, 0, 0, BBOX[0], BBOX[3], 0].forEach((value, index) => buffer.writeDoubleLE(value, tiepoint + index * 8));
+    [1, 1, 0, 4, 1024, 0, 1, 2, 1025, 0, 1, 1, 2048, 0, 1, 4326, 2054, 0, 1, 9102].forEach((value, index) =>
+      buffer.writeUInt16LE(value, geokeys + index * 2),
+    );
+  }
   buffer.write("0\0", nodata, "ascii");
   for (let index = 0; index < tileCount; index += 1) {
     buffer.writeUInt32LE(image.dataOffset + index * image.tileBytes, offsets + index * 4);
@@ -286,6 +290,12 @@ export function buildFixtureCogAssets() {
     })),
     renderFixtures: renderFixtures.map((fixture) => fixture.metadata),
   };
+  const checksum = `1220${digest}`;
+  const cogRasterBands = [
+    { name: "red", common_name: "red", data_type: "uint8", nodata: 0 },
+    { name: "green", common_name: "green", data_type: "uint8", nodata: 0 },
+    { name: "blue", common_name: "blue", data_type: "uint8", nodata: 0 },
+  ];
   const assets = {
     cog: {
       href: `./${manifest.asset.path}`,
@@ -293,14 +303,78 @@ export function buildFixtureCogAssets() {
       roles: ["data"],
       title: "Deterministic Oahu natural-color COG fixture",
       "file:size": manifest.asset.bytes,
-      "checksum:multihash": `sha256:${digest}`,
+      "file:checksum": checksum,
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
+    "cog-alt": { href: "./assets/cog-alt", type: manifest.asset.mediaType, roles: ["data"], "proj:code": "EPSG:4326", "raster:bands": cogRasterBands },
+    "slow-cog": { href: "./assets/slow-cog", type: manifest.asset.mediaType, roles: ["data"], "proj:code": "EPSG:4326", "raster:bands": cogRasterBands },
+    "no-range-cog": {
+      href: "./assets/no-range-cog",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
+    "cors-cog": {
+      href: "https://fixture-cors.invalid/cors-cog",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
+    "oversized-cog": {
+      href: "./assets/oversized-cog",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
+    "chunked-oversized-cog": {
+      href: "./assets/chunked-oversized-cog",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
+    "credential-cog": {
+      href: "./assets/credential-cog?token=fixture-super-secret",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
+    "userinfo-cog": {
+      href: "https://fixture-user:fixture-password@fixture-credentials.invalid/userinfo-cog",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
+    "unsupported-crs": {
+      href: "./assets/unsupported-crs",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:32604",
+      "raster:bands": cogRasterBands,
+    },
+    "unsupported-format": { href: "./assets/unsupported-format", type: "application/x-netcdf", roles: ["data"] },
+    "missing-nodata": {
+      href: "./assets/missing-nodata",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": [{ name: "red", data_type: "uint16", spatial_resolution: 10 }],
     },
   };
-  for (const key of ["cog-alt", "slow-cog", "no-range-cog", "cors-cog", "unsupported-crs", "unsupported-format"])
-    assets[key] = { href: `./assets/${key}`, type: manifest.asset.mediaType, roles: ["data"] };
   const item = {
     type: "Feature",
     stac_version: "1.0.0",
+    stac_extensions: [
+      "https://stac-extensions.github.io/file/v2.1.0/schema.json",
+      "https://stac-extensions.github.io/projection/v1.1.0/schema.json",
+      "https://stac-extensions.github.io/raster/v1.1.0/schema.json",
+    ],
     id: "oahu-natural-color-fixture-v1",
     bbox: [...BBOX],
     geometry: {
@@ -316,8 +390,11 @@ export function buildFixtureCogAssets() {
       ],
     },
     properties: {
+      title: "Deterministic Oahu natural-color fixture",
+      description: "Synthetic georeferenced RGB imagery generated by the Honua SDK fixture generator.",
       datetime: "2024-01-01T00:00:00Z",
       license: "CC0-1.0",
+      providers: [{ name: "Honua SDK fixture generator", roles: ["producer"] }],
       "proj:epsg": 4326,
       "proj:shape": [HEIGHT, WIDTH],
       "proj:bbox": [...BBOX],

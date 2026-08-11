@@ -142,7 +142,9 @@ const config = resolveImageryCogConfig({
   VITE_HONUA_IMAGERY_BASE_URL: import.meta.env.VITE_HONUA_IMAGERY_BASE_URL,
 });
 const cleanup = new SampleCleanupRegistry();
-const client = new HonuaClient(clientOptionsFromImageryConfig(config));
+const clientOptions = clientOptionsFromImageryConfig(config);
+const appFetch = clientOptions.fetchFn;
+const client = new HonuaClient(clientOptions);
 const dataset = createDefaultImageryDataset();
 const journey = new ImageryTerrainJourney({ client });
 if (config.mode === "fixture-safe") {
@@ -150,6 +152,7 @@ if (config.mode === "fixture-safe") {
     registerFixtureMapProtocol({
       maplibre: maplibregl,
       fixtureRootUrl: new URL("./fixtures/cog/", globalThis.location.href),
+      fetchImpl: appFetch,
     }),
   );
 }
@@ -417,7 +420,7 @@ const directCogFetch: typeof fetch = async (input, init) => {
   ) {
     throw new TypeError("Fixture CORS policy blocked the direct asset range request.");
   }
-  return fetch(request);
+  return appFetch(request);
 };
 
 async function selectDirectCogAsset(assetKey: string): Promise<void> {
@@ -585,7 +588,7 @@ async function initializeDirectCog(signal: AbortSignal): Promise<boolean> {
       endpoint,
       protocol: "stac",
       authorizationScopeFingerprint: "anonymous",
-      clientOptions: { fetchFn: fetch },
+      clientOptions: { fetchFn: appFetch },
       signal,
     });
     if (signal.aborted || generation !== directGeneration || disposed) return false;
