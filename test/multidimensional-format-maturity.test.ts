@@ -49,6 +49,23 @@ const zarrBlockerIds = [
   "zarr-bounded-sdk-client",
   "zarr-sample-publication",
 ];
+const governedFormatPattern = /(?:^|[^a-z0-9])(?:zarr|netcdf4?|hdf5|grib2?)(?:$|[^a-z0-9])/iu;
+
+function governedFormatRecords(
+  records: Array<Record<string, unknown>>,
+  identityFields: string[],
+): Array<Record<string, unknown>> {
+  return records.filter((record) => {
+    const identity = identityFields
+      .flatMap((field) => {
+        const value = record[field];
+        return Array.isArray(value) ? value : [value];
+      })
+      .filter((value): value is string => typeof value === "string")
+      .join(" ");
+    return governedFormatPattern.test(identity);
+  });
+}
 
 function expectValid(value: unknown): void {
   const valid = validate(value);
@@ -195,19 +212,46 @@ describe("internal multidimensional format maturity contract", () => {
   it("adds no public export, support truth, coverage claim, or runnable sample", () => {
     const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     const publicSurface = fs.readFileSync(new URL("../config/public-surface.json", import.meta.url), "utf8");
-    const supportManifest = fs.readFileSync(new URL("../config/support-manifest.v1.json", import.meta.url), "utf8");
-    const coverage = fs.readFileSync(new URL("../config/sdk-coverage.v1.json", import.meta.url), "utf8");
+    const supportManifest = JSON.parse(
+      fs.readFileSync(new URL("../config/support-manifest.v1.json", import.meta.url), "utf8"),
+    );
+    const coverage = JSON.parse(fs.readFileSync(new URL("../config/sdk-coverage.v1.json", import.meta.url), "utf8"));
+    const sampleCatalog = JSON.parse(fs.readFileSync(new URL("../samples/catalog.v2.json", import.meta.url), "utf8"));
+    const playgroundInventory = JSON.parse(
+      fs.readFileSync(new URL("../samples/dist/sample-playgrounds.v1.json", import.meta.url), "utf8"),
+    );
     const exampleNames = fs.readdirSync(new URL("../examples", import.meta.url));
     expect(Object.keys(packageJson.exports)).not.toEqual(
       expect.arrayContaining(["./zarr", "./netcdf", "./hdf5", "./multidimensional"]),
     );
     expect(publicSurface).not.toMatch(/"\.\/(?:zarr|netcdf|hdf5|multidimensional)"/iu);
-    for (const governedPublicText of [supportManifest, coverage]) {
-      expect(governedPublicText).not.toMatch(/@honua\/sdk-js\/(?:zarr|netcdf|hdf5|multidimensional)/iu);
-    }
-    expect(exampleNames).not.toEqual(
-      expect.arrayContaining(["zarr", "zarr-basic", "netcdf", "hdf5", "multidimensional"]),
-    );
+    expect(governedFormatRecords(supportManifest.supportClaims, ["id", "label", "protocol", "api"])).toEqual([]);
+    expect(governedFormatRecords(coverage.capabilities, ["key", "entrypoints"])).toEqual([]);
+    expect(
+      governedFormatRecords(sampleCatalog.samples, [
+        "id",
+        "title",
+        "sourcePath",
+        "docsPath",
+        "protocols",
+        "capabilities",
+        "capabilityKeys",
+      ]),
+    ).toEqual([]);
+    expect(governedFormatRecords(playgroundInventory.playgrounds, ["sampleId", "projectPath"])).toEqual([]);
+    expect(exampleNames.filter((name) => governedFormatPattern.test(name))).toEqual([]);
+    expect(
+      governedFormatRecords(
+        [{ id: "zarr-standalone", status: "supported", api: "ZarrClient" }],
+        ["id", "label", "protocol", "api"],
+      ),
+    ).toHaveLength(1);
+    expect(
+      governedFormatRecords(
+        [{ id: "zarr-viewer", sourcePath: "examples/zarr-viewer" }],
+        ["id", "title", "sourcePath", "docsPath", "protocols", "capabilities", "capabilityKeys"],
+      ),
+    ).toHaveLength(1);
   });
 
   it("keeps architecture guidance searchable and aligned to every blocker", () => {
