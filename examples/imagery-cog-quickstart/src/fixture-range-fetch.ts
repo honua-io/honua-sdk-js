@@ -96,8 +96,20 @@ function item() {
       "proj:code": "EPSG:4326",
       "raster:bands": cogRasterBands,
     },
-    "cog-alt": { href: "./assets/cog-alt", type: manifest.asset.mediaType, roles: ["data"], "proj:code": "EPSG:4326", "raster:bands": cogRasterBands },
-    "slow-cog": { href: "./assets/slow-cog", type: manifest.asset.mediaType, roles: ["data"], "proj:code": "EPSG:4326", "raster:bands": cogRasterBands },
+    "cog-alt": {
+      href: "./assets/cog-alt",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
+    "slow-cog": {
+      href: "./assets/slow-cog",
+      type: manifest.asset.mediaType,
+      roles: ["data"],
+      "proj:code": "EPSG:4326",
+      "raster:bands": cogRasterBands,
+    },
     "no-range-cog": {
       href: "./assets/no-range-cog",
       type: manifest.asset.mediaType,
@@ -222,9 +234,11 @@ export function validateFixtureChunkLayout(candidate: FixtureCogManifest): void 
     if (chunk.offset > expectedOffset) throw new Error(`fixture.manifest: gap before ${chunk.path}.`);
     if (chunk.offset < expectedOffset) throw new Error(`fixture.manifest: overlap at ${chunk.path}.`);
     expectedOffset += chunk.bytes;
-    if (expectedOffset > candidate.asset.bytes) throw new Error(`fixture.manifest: ${chunk.path} exceeds asset bounds.`);
+    if (expectedOffset > candidate.asset.bytes)
+      throw new Error(`fixture.manifest: ${chunk.path} exceeds asset bounds.`);
   }
-  if (expectedOffset !== candidate.asset.bytes) throw new Error("fixture.manifest: chunks do not cover the asset exactly.");
+  if (expectedOffset !== candidate.asset.bytes)
+    throw new Error("fixture.manifest: chunks do not cover the asset exactly.");
 }
 
 validateFixtureChunkLayout(manifest);
@@ -303,10 +317,7 @@ export function createFixtureCogFetch({
       "chunked-oversized-cog",
       "unsupported-crs",
       "missing-nodata",
-    ].map((key) => [
-      new URL(`assets/${key}`, fixtureRootUrl).href,
-      key,
-    ]),
+    ].map((key) => [new URL(`assets/${key}`, fixtureRootUrl).href, key]),
   );
   const identity = (url: URL, pathname: string) =>
     url.origin === appRootUrl.origin && url.pathname === new URL(pathname, appRootUrl).pathname;
@@ -504,7 +515,8 @@ export function createFixtureCogFetch({
       output.set(bytes.subarray(copyStart - chunk.offset, copyEnd - chunk.offset), copyStart - start);
       coveredBytes += copyEnd - copyStart;
     }
-    if (coveredBytes !== length) throw new Error(`fixture.manifest: requested range covered ${coveredBytes} of ${length} bytes.`);
+    if (coveredBytes !== length)
+      throw new Error(`fixture.manifest: requested range covered ${coveredBytes} of ${length} bytes.`);
     if (degradedAssetKey === "oversized-cog" || degradedAssetKey === "chunked-oversized-cog") {
       const oversized = new Uint8Array(length + 32);
       oversized.set(output);

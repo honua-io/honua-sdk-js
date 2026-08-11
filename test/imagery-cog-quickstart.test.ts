@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
+import { describe, expect, it } from "vitest";
 
 import { HonuaImageService } from "@honua/sdk-js/honua";
 import {
@@ -86,8 +86,7 @@ describe("Imagery and COG Quickstart sample", () => {
       fixtureRootUrl: new URL("https://samples.honua.test/arbitrary/mount/fixtures/cog/"),
       fetchImpl: fetchImpl as typeof fetch,
     });
-    const assetUrl =
-      "https://samples.honua.test/arbitrary/mount/fixtures/cog/assets/oahu-natural-color-v1.tif";
+    const assetUrl = "https://samples.honua.test/arbitrary/mount/fixtures/cog/assets/oahu-natural-color-v1.tif";
     const forwardedRequests = [
       new Request(assetUrl.replace("samples.honua.test", "foreign.example.test"), { method: "GET" }),
       new Request(assetUrl.replace("/fixtures/cog/", "/lookalike/fixtures/cog/"), { method: "GET" }),
