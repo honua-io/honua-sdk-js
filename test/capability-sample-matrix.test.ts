@@ -164,6 +164,10 @@ describe("capability-to-sample matrix contract", () => {
     expect(matrix.supportClaims).toHaveLength(35);
     // 62 = 59 existing package entrypoints + the experimental STAC, raster, and PMTiles facades.
     expect(matrix.packageEntrypoints).toHaveLength(62);
+    expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./pmtiles")).toMatchObject({
+      subpath: "./pmtiles",
+      supportStatus: "experimental",
+    });
     // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
     // service-explorer are the four real, evidence-backed qualified samples
     // (the Imagery and Terrain, First Map, ArcGIS Migration Workbench, and
