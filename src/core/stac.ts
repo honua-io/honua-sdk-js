@@ -51,6 +51,7 @@ export class HonuaStacSearch {
   public readonly client: HonuaClient;
   private readonly basePath: string | undefined;
   private postSearchProbe: Promise<boolean> | undefined;
+  private postSearchSupported: boolean | undefined;
   /**
    * Verified state of the POST search path: `undefined` until the first POST
    * attempt, `true` once one succeeded, `false` once one failed (a wrong
@@ -109,13 +110,16 @@ export class HonuaStacSearch {
   private async dispatchSearch(request: StacSearchRequest): Promise<HonuaStacItemCollectionResponse> {
     const wire = this.withBase(request);
     if (wire.usePost !== true) return this.client.searchStac(wire);
-    if (this.postSearchUsable === false) return this.client.searchStac({ ...wire, usePost: false });
+    const allowPostFallback = request.allowPostFallback !== false;
+    if (this.postSearchUsable === false && allowPostFallback) {
+      return this.client.searchStac({ ...wire, usePost: false });
+    }
     try {
       const response = await this.client.searchStac(wire);
       this.postSearchUsable = true;
       return response;
     } catch (error) {
-      if (this.postSearchUsable !== undefined || request.signal?.aborted === true) throw error;
+      if (!allowPostFallback || this.postSearchUsable !== undefined || request.signal?.aborted === true) throw error;
       this.postSearchUsable = false;
       return this.client.searchStac({ ...wire, usePost: false });
     }
@@ -132,20 +136,29 @@ export class HonuaStacSearch {
    * `false` when the landing page is unreachable or advertises no POST
    * search link, so callers fall back to the universally supported `GET`.
    */
-  public async supportsPostSearch(): Promise<boolean> {
+  public async supportsPostSearch(signal?: AbortSignal): Promise<boolean> {
+    if (this.postSearchSupported !== undefined) return this.postSearchSupported;
+    if (signal) {
+      const supported = await this.probePostSearch(signal);
+      this.postSearchSupported = supported;
+      return supported;
+    }
     this.postSearchProbe ??= this.probePostSearch();
-    return this.postSearchProbe;
+    const supported = await this.postSearchProbe;
+    this.postSearchSupported = supported;
+    return supported;
   }
 
-  private async probePostSearch(): Promise<boolean> {
+  private async probePostSearch(signal?: AbortSignal): Promise<boolean> {
     try {
-      const landing = await this.landing();
+      const landing = await this.landing({ signal });
       for (const link of landing.links ?? []) {
         if (link.rel !== "search") continue;
         if (typeof link.method === "string" && link.method.toUpperCase() === "POST") return true;
       }
       return false;
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) throw error;
       // Landing page unreachable / not a STAC document: stay on GET rather
       // than failing the search the caller actually asked for.
       return false;
@@ -398,14 +411,23 @@ function serializeStacSearchParams(request: StacSearchRequest): URLSearchParams 
   if (request.intersects !== undefined) params.set("intersects", JSON.stringify(request.intersects));
   const fields = stacFieldsCsv(request.fields);
   if (fields !== undefined) params.set("fields", fields);
-  if (request.filter !== undefined) params.set("filter", request.filter);
+  if (request.filter !== undefined) {
+    params.set("filter", typeof request.filter === "string" ? request.filter : JSON.stringify(request.filter));
+  }
   if (request.filterLang !== undefined) params.set("filter-lang", request.filterLang);
   if (request.limit !== undefined) params.set("limit", String(request.limit));
   // honua-server uses numeric `offset` paging on GET. `next` is kept as
   // optional support for STAC servers that advertise an opaque token.
   if (request.offset !== undefined) params.set("offset", String(request.offset));
   if (request.next !== undefined) params.set("next", request.next);
-  if (request.sortby !== undefined) params.set("sortby", request.sortby);
+  if (request.sortby !== undefined) {
+    params.set(
+      "sortby",
+      typeof request.sortby === "string"
+        ? request.sortby
+        : request.sortby.map((sort) => `${sort.direction === "desc" ? "-" : "+"}${sort.field}`).join(","),
+    );
+  }
   // An opaque continuation captured from a `rel=next` href wins over the
   // locally derived paging params: the server stated exactly how to ask for
   // the next page (token cursors carry state the client cannot reconstruct).

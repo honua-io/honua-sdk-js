@@ -1,6 +1,6 @@
 # Honua STAC Imagery Catalog Browser
 
-Fixture-backed sample app for discovering imagery through a Honua Cloud-oriented STAC workflow.
+Fixture-backed Example for one job: search a bounded STAC catalog and select a renderable imagery asset.
 
 The sample demonstrates:
 
@@ -10,6 +10,15 @@ The sample demonstrates:
 - Footprint preview and item metadata inspection.
 - Supported renderable tile or thumbnail preview projection.
 - Clear unsupported messaging for raster analysis and coverage export.
+
+The focused SDK path is [`src/dynamic-stac-example.ts`](./src/dynamic-stac-example.ts). It searches Maui by bounds and
+time with POST + CQL2 JSON, selects a typed visual/data asset, and returns the connector handoff used by a renderer.
+The sample's default UI remains deterministic and fixture-backed; replace its injected `fetchFn` with the browser's
+fetch only when targeting a pinned deployment under your control.
+
+Use the [search STAC and open an asset walkthrough](../../docs/walkthroughs/search-stac-and-open-assets.md) for catalog discovery,
+pagination, signing, maturity decisions, and the real PMTiles and columnar execution entrypoints. Those concerns stay out of this
+Example so its source remains small enough to understand in one view.
 
 The default app uses deterministic fixtures and performs no external network calls. A live Honua Cloud-backed catalog can reuse the same model shape once credentials and STAC service wiring are supplied by the host application.
 
