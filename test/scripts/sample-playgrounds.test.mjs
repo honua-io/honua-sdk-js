@@ -128,6 +128,19 @@ describe("playground eligibility", () => {
     assert.equal(released.qualified, true);
   });
 
+  it("keeps the unreleased Coverages importer source-mode only until the public SDK pin advances", () => {
+    const sample = sampleById("coverages-wcs-basic");
+    const current = evaluateSamplePlaygroundEligibility(sample, context());
+    assert.equal(current.qualified, false);
+    assert.equal(current.category, "unreleased-sdk-surface");
+    assert.match(current.detail, /@honua\/sdk-js\/coverages/);
+    assert.match(current.detail, /@honua\/sdk-js@0\.1\.4-beta\.0/);
+    assert.deepEqual(UNRELEASED_PLAYGROUND_SDK_SURFACES.get(sample.id).unavailableVersions, ["0.1.4-beta.0"]);
+
+    const released = evaluateSamplePlaygroundEligibility(sample, context({ sdkVersion: "0.1.5-beta.0" }));
+    assert.equal(released.qualified, true);
+  });
+
   it("refuses a sample with no audited hosting verdict", () => {
     const sample = catalog.samples.find((entry) => entry.id === "temporal-playback");
     const decision = evaluateSamplePlaygroundEligibility(sample, context({ audit: new Map() }));

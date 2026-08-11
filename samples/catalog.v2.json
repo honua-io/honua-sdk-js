@@ -648,28 +648,13 @@
           "commands": []
         }
       },
-      "expectedDegradation": "Aborted superseded requests and invalid WCS range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
+      "expectedDegradation": "Aborted superseded requests, invalid OGC properties, and invalid WCS range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:coverages-wcs:typecheck",
         "npm run demo:coverages-wcs:build",
         "npm run test:playwright:coverages-wcs"
       ],
-      "playground": {
-        "projectPath": "playgrounds/coverages-wcs-basic",
-        "providers": [
-          {
-            "id": "stackblitz",
-            "title": "StackBlitz",
-            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
-          },
-          {
-            "id": "codesandbox",
-            "title": "CodeSandbox",
-            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
-          }
-        ]
-      },
       "capabilityKeys": [
         "raster.multidim-coverage",
         "serve.ogc-api-coverages",

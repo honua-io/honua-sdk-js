@@ -11,6 +11,7 @@ export const COVERAGE_FIXTURE_CONTRACT = {
   axes: { latitude: "Lat", longitude: "Long" } as const,
   band: "elevation",
   cancellationBand: "quality",
+  degradationBand: "not-a-band",
   width: 320,
   height: 220,
   cancellationSize: 64,
@@ -185,8 +186,9 @@ async function verifyPinnedImage(): Promise<void> {
   return verifiedImage;
 }
 
-function json(body: unknown): Response {
+function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
+    status,
     headers: { "content-type": "application/json" },
   });
 }
@@ -265,6 +267,22 @@ function wcsCoverageQuery(band: string, size: number): readonly (readonly [strin
   ];
 }
 
+function recordFixtureRequest(url: URL): void {
+  fixtureRequestLog.push({
+    protocol: url.pathname.endsWith("/wcs") ? "wcs" : "ogc-coverages",
+    operation:
+      url.searchParams.get("REQUEST") ??
+      (url.pathname.endsWith("/coverage")
+        ? "GetCoverage"
+        : url.pathname.endsWith("/schema")
+          ? "RangeType"
+          : url.pathname.endsWith("/collections")
+            ? "Collections"
+            : "Collection"),
+    url: url.toString(),
+  });
+}
+
 async function delayedAbortable(request: Request): Promise<Response> {
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(resolve, 80);
@@ -290,8 +308,19 @@ export function createPinnedFixtureFetch(options: { readonly maxResponseBytes: n
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init);
     const url = new URL(request.url);
-    const { band, bbox, bboxCrs, cancellationBand, cancellationSize, collectionId, coverageId, format, height, width } =
-      COVERAGE_FIXTURE_CONTRACT;
+    const {
+      band,
+      bbox,
+      bboxCrs,
+      cancellationBand,
+      cancellationSize,
+      collectionId,
+      coverageId,
+      degradationBand,
+      format,
+      height,
+      width,
+    } = COVERAGE_FIXTURE_CONTRACT;
 
     if (request.method !== "GET") fail(request, "only GET is allowed");
     if (url.origin !== FIXTURE_ORIGIN) fail(request, `origin must equal ${FIXTURE_ORIGIN}`);
@@ -300,14 +329,17 @@ export function createPinnedFixtureFetch(options: { readonly maxResponseBytes: n
     if (url.pathname === "/ogc/coverages/collections") {
       assertNoQuery(request, url);
       assertHeader(request, "application/json");
+      recordFixtureRequest(url);
       response = json({ collections: [collection], links: [] });
     } else if (url.pathname === `/ogc/coverages/collections/${collectionId}`) {
       assertNoQuery(request, url);
       assertHeader(request, "application/json");
+      recordFixtureRequest(url);
       response = json(collection);
     } else if (url.pathname === `/ogc/coverages/collections/${collectionId}/schema`) {
       assertNoQuery(request, url);
       assertHeader(request, "application/json");
+      recordFixtureRequest(url);
       response = json(schema);
     } else if (url.pathname === `/ogc/coverages/collections/${collectionId}/coverage`) {
       assertHeader(request, format);
@@ -327,10 +359,25 @@ export function createPinnedFixtureFetch(options: { readonly maxResponseBytes: n
         ["scale-size", `x(${cancellationSize}),y(${cancellationSize})`],
         ["f", "png"],
       ] as const;
-      const isCancellation = url.searchParams.get("properties") === cancellationBand;
-      assertQuery(request, url, isCancellation ? cancellation : primary);
-      await verifyPinnedImage();
-      response = isCancellation ? await delayedAbortable(request) : pngResponse();
+      const degradation = [
+        ["bbox", bbox.join(",")],
+        ["bbox-crs", bboxCrs],
+        ["crs", bboxCrs],
+        ["properties", degradationBand],
+        ["scale-size", `x(${cancellationSize}),y(${cancellationSize})`],
+        ["f", "png"],
+      ] as const;
+      const requestedBand = url.searchParams.get("properties");
+      const isCancellation = requestedBand === cancellationBand;
+      const isDegradation = requestedBand === degradationBand;
+      assertQuery(request, url, isCancellation ? cancellation : isDegradation ? degradation : primary);
+      recordFixtureRequest(url);
+      if (isDegradation) {
+        response = json({ code: "InvalidParameterValue", description: `Unknown property ${degradationBand}` }, 400);
+      } else {
+        await verifyPinnedImage();
+        response = isCancellation ? await delayedAbortable(request) : pngResponse();
+      }
     } else if (url.pathname === `/ogc/services/${collectionId}/wcs`) {
       const operation = url.searchParams.get("REQUEST");
       if (operation === "GetCapabilities") {
@@ -340,28 +387,35 @@ export function createPinnedFixtureFetch(options: { readonly maxResponseBytes: n
           ["ACCEPTVERSIONS", "2.0.1"],
           ["ACCEPTFORMATS", "application/xml"],
         ]);
+        recordFixtureRequest(url);
         response = xml(capabilitiesXml);
       } else if (operation === "DescribeCoverage") {
         assertHeader(request, "application/xml,text/xml;q=0.9");
         assertQuery(request, url, [...wcsBase("DescribeCoverage"), ["COVERAGEID", coverageId]]);
+        recordFixtureRequest(url);
         response = xml(describeCoverageXml);
       } else if (operation === "GetCoverage") {
         assertHeader(request, format);
         const requestedBand = url.searchParams.get("RANGESUBSET") ?? "";
-        const invalidBand = requestedBand === "not-a-band";
+        const invalidBand = requestedBand === degradationBand;
+        const isCancellation = requestedBand === cancellationBand;
         assertQuery(
           request,
           url,
-          wcsCoverageQuery(invalidBand ? "not-a-band" : band, invalidBand ? cancellationSize : height),
+          wcsCoverageQuery(
+            invalidBand ? degradationBand : isCancellation ? cancellationBand : band,
+            invalidBand || isCancellation ? cancellationSize : height,
+          ),
         );
+        recordFixtureRequest(url);
         if (invalidBand) {
           response = xml(
-            `<?xml version="1.0"?><ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/2.0" version="2.0.1"><ows:Exception exceptionCode="InvalidParameterValue" locator="RANGESUBSET"><ows:ExceptionText>Unknown range component not-a-band</ows:ExceptionText></ows:Exception></ows:ExceptionReport>`,
+            `<?xml version="1.0"?><ows:ExceptionReport xmlns:ows="http://www.opengis.net/ows/2.0" version="2.0.1"><ows:Exception exceptionCode="InvalidParameterValue" locator="RANGESUBSET"><ows:ExceptionText>Unknown range component ${degradationBand}</ows:ExceptionText></ows:Exception></ows:ExceptionReport>`,
             400,
           );
         } else {
           await verifyPinnedImage();
-          response = pngResponse();
+          response = isCancellation ? await delayedAbortable(request) : pngResponse();
         }
       } else {
         fail(request, "unsupported WCS REQUEST");
@@ -370,19 +424,6 @@ export function createPinnedFixtureFetch(options: { readonly maxResponseBytes: n
       fail(request, "route, collection ID, or coverage ID is outside the pinned contract");
     }
 
-    fixtureRequestLog.push({
-      protocol: url.pathname.endsWith("/wcs") ? "wcs" : "ogc-coverages",
-      operation:
-        url.searchParams.get("REQUEST") ??
-        (url.pathname.endsWith("/coverage")
-          ? "GetCoverage"
-          : url.pathname.endsWith("/schema")
-            ? "RangeType"
-            : url.pathname.endsWith("/collections")
-              ? "Collections"
-              : "Collection"),
-      url: url.toString(),
-    });
     return response;
   };
 }

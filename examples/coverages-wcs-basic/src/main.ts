@@ -4,6 +4,7 @@ import "../../shared/maplibre-vite-worker.js";
 import {
   type CoverageMapLibreImage,
   type CoverageResult,
+  HonuaCoverageServiceError,
   HonuaWcsExceptionError,
   coverageToMapLibreImage,
   createCoverageClient,
@@ -281,21 +282,12 @@ async function proveCancellation(): Promise<{
   readonly activeProtocol: CoverageProtocol;
 }> {
   const activeProtocol = requireActiveProtocol();
-  setText("safety-status", "Requesting the quality band, then aborting it before the fixture responds...");
+  setText(
+    "safety-status",
+    `Requesting the ${activeProtocol.toUpperCase()} quality band, then aborting it before the fixture responds...`,
+  );
   const controller = new AbortController();
-  const pending = source.coverage({
-    bbox,
-    bboxCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
-    outputCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
-    properties: [COVERAGE_FIXTURE_CONTRACT.cancellationBand],
-    scaleSize: {
-      width: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
-      height: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
-    },
-    format: COVERAGE_FIXTURE_CONTRACT.format,
-    maxResponseBytes: byteCeiling,
-    signal: controller.signal,
-  });
+  const pending = requestCancellableCoverage(activeProtocol, controller.signal);
   await new Promise((resolve) => setTimeout(resolve, 20));
   controller.abort("Superseded fixture request");
   try {
@@ -316,35 +308,100 @@ async function proveDegradation(): Promise<{
   readonly activeProtocol: CoverageProtocol;
 }> {
   const activeProtocol = requireActiveProtocol();
-  setText("safety-status", "Asking WCS for rangeSubset=not-a-band...");
+  setText(
+    "safety-status",
+    `Asking ${activeProtocol.toUpperCase()} for ${COVERAGE_FIXTURE_CONTRACT.degradationBand}...`,
+  );
   try {
-    await wcs.getCoverage(COVERAGE_FIXTURE_CONTRACT.coverageId, {
-      subsets: [
-        { axis: COVERAGE_FIXTURE_CONTRACT.axes.latitude, low: bbox[1], high: bbox[3] },
-        { axis: COVERAGE_FIXTURE_CONTRACT.axes.longitude, low: bbox[0], high: bbox[2] },
-      ],
-      subsettingCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
-      outputCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
-      rangeSubset: ["not-a-band"],
-      scaleSize: {
-        [COVERAGE_FIXTURE_CONTRACT.axes.latitude]: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
-        [COVERAGE_FIXTURE_CONTRACT.axes.longitude]: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
-      },
-      format: COVERAGE_FIXTURE_CONTRACT.format,
-      maxResponseBytes: byteCeiling,
-    });
+    await requestInvalidBand(activeProtocol);
     throw new Error("Degradation proof unexpectedly completed.");
   } catch (error) {
-    if (!(error instanceof HonuaWcsExceptionError)) throw error;
+    const code = degradationCode(activeProtocol, error);
     demoState.degradationCount += 1;
     demoState.phase = "degraded";
     refreshRequestEvidence();
     setText(
       "safety-status",
-      `${error.exceptionCode}: WCS rejected the unknown band. The ${activeProtocol.toUpperCase()} elevation raster remains visible.`,
+      `${code}: ${activeProtocol.toUpperCase()} rejected the unknown band. The ${activeProtocol.toUpperCase()} elevation raster remains visible.`,
     );
-    return { status: "degraded", code: error.exceptionCode, activeProtocol };
+    return { status: "degraded", code, activeProtocol };
   }
+}
+
+function requestCancellableCoverage(protocol: CoverageProtocol, signal: AbortSignal): Promise<CoverageResult> {
+  if (protocol === "ogc") {
+    return source.coverage({
+      bbox,
+      bboxCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
+      outputCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
+      properties: [COVERAGE_FIXTURE_CONTRACT.cancellationBand],
+      scaleSize: {
+        width: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+        height: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+      },
+      format: COVERAGE_FIXTURE_CONTRACT.format,
+      maxResponseBytes: byteCeiling,
+      signal,
+    });
+  }
+  return wcs.getCoverage(COVERAGE_FIXTURE_CONTRACT.coverageId, {
+    subsets: [
+      { axis: COVERAGE_FIXTURE_CONTRACT.axes.latitude, low: bbox[1], high: bbox[3] },
+      { axis: COVERAGE_FIXTURE_CONTRACT.axes.longitude, low: bbox[0], high: bbox[2] },
+    ],
+    subsettingCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
+    outputCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
+    rangeSubset: [COVERAGE_FIXTURE_CONTRACT.cancellationBand],
+    scaleSize: {
+      [COVERAGE_FIXTURE_CONTRACT.axes.latitude]: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+      [COVERAGE_FIXTURE_CONTRACT.axes.longitude]: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+    },
+    format: COVERAGE_FIXTURE_CONTRACT.format,
+    maxResponseBytes: byteCeiling,
+    signal,
+  });
+}
+
+function requestInvalidBand(protocol: CoverageProtocol): Promise<CoverageResult> {
+  if (protocol === "ogc") {
+    return source.coverage({
+      bbox,
+      bboxCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
+      outputCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
+      properties: [COVERAGE_FIXTURE_CONTRACT.degradationBand],
+      scaleSize: {
+        width: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+        height: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+      },
+      format: COVERAGE_FIXTURE_CONTRACT.format,
+      maxResponseBytes: byteCeiling,
+    });
+  }
+  return wcs.getCoverage(COVERAGE_FIXTURE_CONTRACT.coverageId, {
+    subsets: [
+      { axis: COVERAGE_FIXTURE_CONTRACT.axes.latitude, low: bbox[1], high: bbox[3] },
+      { axis: COVERAGE_FIXTURE_CONTRACT.axes.longitude, low: bbox[0], high: bbox[2] },
+    ],
+    subsettingCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
+    outputCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
+    rangeSubset: [COVERAGE_FIXTURE_CONTRACT.degradationBand],
+    scaleSize: {
+      [COVERAGE_FIXTURE_CONTRACT.axes.latitude]: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+      [COVERAGE_FIXTURE_CONTRACT.axes.longitude]: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+    },
+    format: COVERAGE_FIXTURE_CONTRACT.format,
+    maxResponseBytes: byteCeiling,
+  });
+}
+
+function degradationCode(protocol: CoverageProtocol, error: unknown): string {
+  if (protocol === "wcs" && error instanceof HonuaWcsExceptionError) return error.exceptionCode;
+  if (protocol === "ogc" && error instanceof HonuaCoverageServiceError && error.statusCode === 400) {
+    const bodyCode =
+      typeof error.body === "object" && error.body !== null ? Reflect.get(error.body, "code") : undefined;
+    return typeof bodyCode === "string" ? bodyCode : error.code;
+  }
+  throw error;
 }
 
 function refreshRequestEvidence(): void {

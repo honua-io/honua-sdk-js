@@ -206,6 +206,31 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
     await expect(page.locator("#wcs")).toContainText("2.0.1 / Lat x Long / elevation, quality");
     expect(await page.evaluate(() => Boolean(window.__honuaMaps?.[0]?.getSource("ogc-elevation")))).toBe(true);
 
+    await page.getByRole("button", { name: "Prove cancellation" }).click();
+    await expect(page.locator("#safety-status")).toContainText("Cancelled safely");
+    expect(await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.cancellationCount)).toBe(1);
+    expect(await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.activeProtocol)).toBe("ogc");
+    const ogcCancellation = new URL(
+      await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.requests.at(-1) ?? ""),
+    );
+    expect(ogcCancellation.pathname).toBe("/ogc/coverages/collections/7/coverage");
+    expect(ogcCancellation.searchParams.get("properties")).toBe("quality");
+
+    await page.getByRole("button", { name: "Prove degradation" }).click();
+    await expect(page.locator("#safety-status")).toContainText("InvalidParameterValue");
+    expect(
+      await page.evaluate(() => ({
+        phase: window.__HONUA_COVERAGES_WCS__?.phase,
+        degradations: window.__HONUA_COVERAGES_WCS__?.degradationCount,
+        protocol: window.__HONUA_COVERAGES_WCS__?.activeProtocol,
+        sourceMounted: Boolean(window.__honuaMaps?.[0]?.getSource("ogc-elevation")),
+      })),
+    ).toEqual({ phase: "degraded", degradations: 1, protocol: "ogc", sourceMounted: true });
+    const ogcDegradation = new URL(
+      await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.requests.at(-1) ?? ""),
+    );
+    expect(ogcDegradation.searchParams.get("properties")).toBe("not-a-band");
+
     await page.getByRole("button", { name: "WCS 2.0.1" }).click();
     await expect(page.locator("#active-protocol")).toHaveText("WCS image source");
     expect(
@@ -219,10 +244,15 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
 
     await page.getByRole("button", { name: "Prove cancellation" }).click();
     await expect(page.locator("#safety-status")).toContainText("Cancelled safely");
-    expect(await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.cancellationCount)).toBe(1);
+    expect(await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.cancellationCount)).toBe(2);
     expect(await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.activeProtocol)).toBe("wcs");
+    const wcsCancellation = new URL(
+      await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.requests.at(-1) ?? ""),
+    );
+    expect(wcsCancellation.searchParams.get("REQUEST")).toBe("GetCoverage");
+    expect(wcsCancellation.searchParams.get("RANGESUBSET")).toBe("quality");
 
-    await page.getByRole("button", { name: "Prove degraded WCS" }).click();
+    await page.getByRole("button", { name: "Prove degradation" }).click();
     await expect(page.locator("#safety-status")).toContainText("InvalidParameterValue");
     expect(
       await page.evaluate(() => ({
@@ -231,7 +261,11 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
         protocol: window.__HONUA_COVERAGES_WCS__?.activeProtocol,
         sourceMounted: Boolean(window.__honuaMaps?.[0]?.getSource("wcs-elevation")),
       })),
-    ).toEqual({ phase: "degraded", degradations: 1, protocol: "wcs", sourceMounted: true });
+    ).toEqual({ phase: "degraded", degradations: 2, protocol: "wcs", sourceMounted: true });
+    const wcsDegradation = new URL(
+      await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.requests.at(-1) ?? ""),
+    );
+    expect(wcsDegradation.searchParams.get("RANGESUBSET")).toBe("not-a-band");
 
     const runtimeReady = await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.ready === true);
     await attestBrowserQuality({

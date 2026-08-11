@@ -59,12 +59,12 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
     },
   ],
   [
-    "coverages-wcs-basic",
+    "columnar-query-quickstart",
     {
-      canvasSelector: ".maplibregl-canvas",
-      state: "__HONUA_COVERAGES_WCS__",
+      rendersNoMap: "A planning-only query surface: it renders an inspectable request plan and mounts no map.",
+      state: "__HONUA_COLUMNAR_QUERY_QUICKSTART__",
       readyField: "ready",
-      noBootFeatures: "It renders fixture-backed OGC API Coverages and WCS responses rather than vector features.",
+      noBootFeatures: "It deliberately plans without loading data or making a network request.",
     },
   ],
   [

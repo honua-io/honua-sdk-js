@@ -11,6 +11,7 @@ import {
   FIXTURE_ORIGIN,
   createPinnedCoveragePng,
   createPinnedFixtureFetch,
+  fixtureRequestLog,
 } from "../examples/coverages-wcs-basic/src/pinned-fixtures.js";
 
 const sampleRoot = path.resolve("examples/coverages-wcs-basic");
@@ -98,14 +99,14 @@ describe("Coverage and WCS sample", () => {
       new Request(imageRequest(ogcPath, ogcPairs), { method: "POST" }),
       imageRequest("/ogc/coverages/collections/8/coverage", ogcPairs),
       imageRequest(ogcPath, mutate(ogcPairs, "bbox", "-158,21,-157,22")),
-      imageRequest(ogcPath, mutate(ogcPairs, "properties", "quality")),
+      imageRequest(ogcPath, mutate(ogcPairs, "properties", "other-band")),
       imageRequest(ogcPath, mutate(ogcPairs, "scale-size", "x(64),y(64)")),
       imageRequest(ogcPath, mutate(ogcPairs, "crs", "EPSG:3857")),
       imageRequest(ogcPath, mutate(ogcPairs, "f", "jpeg")),
       imageRequest("/ogc/services/8/wcs", wcsPairs),
       imageRequest(wcsPath, mutate(wcsPairs, "COVERAGEID", "8")),
       imageRequest(wcsPath, mutate(wcsPairs, "SUBSET", "Lat(21.2,21.6)")),
-      imageRequest(wcsPath, mutate(wcsPairs, "RANGESUBSET", "quality")),
+      imageRequest(wcsPath, mutate(wcsPairs, "RANGESUBSET", "other-band")),
       imageRequest(wcsPath, mutate(wcsPairs, "SCALESIZE", "Lat(64),Long(64)")),
       imageRequest(wcsPath, mutate(wcsPairs, "OUTPUTCRS", "EPSG:3857")),
       imageRequest(wcsPath, mutate(wcsPairs, "FORMAT", "image/tiff")),
@@ -116,6 +117,73 @@ describe("Coverage and WCS sample", () => {
     expect(() =>
       createPinnedFixtureFetch({ maxResponseBytes: COVERAGE_FIXTURE_CONTRACT.maxResponseBytes - 1 }),
     ).toThrow("rejected response ceiling");
+  });
+
+  it("records exact OGC and WCS cancellation attempts before their aborted responses settle", async () => {
+    const fetchFn = createPinnedFixtureFetch({
+      maxResponseBytes: COVERAGE_FIXTURE_CONTRACT.maxResponseBytes,
+    });
+    const start = fixtureRequestLog.length;
+    const requests = [
+      imageRequest(
+        `/ogc/coverages/collections/${COVERAGE_FIXTURE_CONTRACT.collectionId}/coverage`,
+        mutate(
+          mutate(ogcPairs, "properties", COVERAGE_FIXTURE_CONTRACT.cancellationBand),
+          "scale-size",
+          `x(${COVERAGE_FIXTURE_CONTRACT.cancellationSize}),y(${COVERAGE_FIXTURE_CONTRACT.cancellationSize})`,
+        ),
+      ),
+      imageRequest(
+        `/ogc/services/${COVERAGE_FIXTURE_CONTRACT.collectionId}/wcs`,
+        mutate(
+          mutate(wcsPairs, "RANGESUBSET", COVERAGE_FIXTURE_CONTRACT.cancellationBand),
+          "SCALESIZE",
+          `Lat(${COVERAGE_FIXTURE_CONTRACT.cancellationSize}),Long(${COVERAGE_FIXTURE_CONTRACT.cancellationSize})`,
+        ),
+      ),
+    ];
+    for (const request of requests) {
+      const controller = new AbortController();
+      const pending = fetchFn(new Request(request, { signal: controller.signal }));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(fixtureRequestLog.length).toBeGreaterThan(start);
+      controller.abort();
+      await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    }
+    const recorded = fixtureRequestLog.slice(start).map((entry) => new URL(entry.url));
+    expect(recorded).toHaveLength(2);
+    expect(recorded[0]?.searchParams.get("properties")).toBe(COVERAGE_FIXTURE_CONTRACT.cancellationBand);
+    expect(recorded[1]?.searchParams.get("RANGESUBSET")).toBe(COVERAGE_FIXTURE_CONTRACT.cancellationBand);
+  });
+
+  it("returns structured degradation responses for the exact unknown band on both protocols", async () => {
+    const fetchFn = createPinnedFixtureFetch({
+      maxResponseBytes: COVERAGE_FIXTURE_CONTRACT.maxResponseBytes,
+    });
+    const ogc = await fetchFn(
+      imageRequest(
+        `/ogc/coverages/collections/${COVERAGE_FIXTURE_CONTRACT.collectionId}/coverage`,
+        mutate(
+          mutate(ogcPairs, "properties", COVERAGE_FIXTURE_CONTRACT.degradationBand),
+          "scale-size",
+          `x(${COVERAGE_FIXTURE_CONTRACT.cancellationSize}),y(${COVERAGE_FIXTURE_CONTRACT.cancellationSize})`,
+        ),
+      ),
+    );
+    const wcs = await fetchFn(
+      imageRequest(
+        `/ogc/services/${COVERAGE_FIXTURE_CONTRACT.collectionId}/wcs`,
+        mutate(
+          mutate(wcsPairs, "RANGESUBSET", COVERAGE_FIXTURE_CONTRACT.degradationBand),
+          "SCALESIZE",
+          `Lat(${COVERAGE_FIXTURE_CONTRACT.cancellationSize}),Long(${COVERAGE_FIXTURE_CONTRACT.cancellationSize})`,
+        ),
+      ),
+    );
+    expect(ogc.status).toBe(400);
+    expect(await ogc.json()).toMatchObject({ code: "InvalidParameterValue" });
+    expect(wcs.status).toBe(400);
+    expect(await wcs.text()).toContain('exceptionCode="InvalidParameterValue"');
   });
 
   it("exercises both real clients, byte-derived evidence, and the shared MapLibre handoff", () => {
@@ -140,7 +208,7 @@ describe("Coverage and WCS sample", () => {
     expect(main).toContain("COVERAGE_FIXTURE_CONTRACT.width");
     expect(main).toContain("COVERAGE_FIXTURE_CONTRACT.maxResponseBytes");
     expect(main).toContain('controller.abort("Superseded fixture request")');
-    expect(main).toContain('rangeSubset: ["not-a-band"]');
+    expect(main).toContain("COVERAGE_FIXTURE_CONTRACT.degradationBand");
     expect(main).toContain("releaseActiveProjection();");
     expect(main).toContain("map.remove();");
     expect(fixtures).toContain("only GET is allowed");
