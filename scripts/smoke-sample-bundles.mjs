@@ -269,13 +269,13 @@ async function smokeSample(browser, origin, sample) {
         if (![...observedRequests].some((pathname) => pathname.endsWith(`/fixtures/cog/tiles/${fixture}`)))
           failures.push(`imagery COG map fixture was not loaded: ${fixture}`);
       }
-      for (const fixture of ["wms-natural-color.png", "image-server-natural-color.png"]) {
-        const href = [...requestedUrls].find((candidate) =>
-          new URL(candidate).pathname.endsWith(`/fixtures/cog/tiles/${fixture}`),
-        );
-        if (!href || requestCounts.get(href) !== 1)
-          failures.push(`imagery COG image fixture was not loaded exactly once: ${fixture}`);
-      }
+    for (const fixture of ["wms-natural-color.png", "image-server-natural-color.png"]) {
+      const href = [...requestedUrls].find((candidate) =>
+        new URL(candidate).pathname.endsWith(`/fixtures/cog/tiles/${fixture}`),
+      );
+      if (!href || requestCounts.get(href) !== 1)
+        failures.push(`imagery COG image fixture was not loaded exactly once: ${fixture}`);
+    }
       const evidence = await page.locator("#direct-cog-render").innerText();
       if (
         !/Natural-color legend/u.test(evidence) ||
