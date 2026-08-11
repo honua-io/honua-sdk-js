@@ -49,7 +49,7 @@ const zarrBlockerIds = [
   "zarr-bounded-sdk-client",
   "zarr-sample-publication",
 ];
-const governedFormatPattern = /(?:^|[^a-z0-9])(?:zarr|netcdf4?|hdf5|grib2?)(?:$|[^a-z0-9])/iu;
+const governedFormatPattern = /(?:^|[^a-z0-9])(?:zarr|netcdf4?|hdf5|grib2?)/iu;
 
 function governedFormatRecords(
   records: Array<Record<string, unknown>>,
@@ -239,10 +239,10 @@ describe("internal multidimensional format maturity contract", () => {
       ]),
     ).toEqual([]);
     expect(governedFormatRecords(playgroundInventory.playgrounds, ["sampleId", "projectPath"])).toEqual([]);
-    expect(exampleNames.filter((name) => governedFormatPattern.test(name))).toEqual([]);
+    expect(exampleNames.filter((name) => name === "multidimensional" || governedFormatPattern.test(name))).toEqual([]);
     expect(
       governedFormatRecords(
-        [{ id: "zarr-standalone", status: "supported", api: "ZarrClient" }],
+        [{ id: "blocked-client", status: "supported", api: "@honua/sdk-js/ZarrClient" }],
         ["id", "label", "protocol", "api"],
       ),
     ).toHaveLength(1);
