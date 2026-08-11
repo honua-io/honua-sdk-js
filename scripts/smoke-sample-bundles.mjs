@@ -98,6 +98,7 @@ async function smokeSample(browser, origin, sample) {
   const failures = [];
   const observedRequests = new Set();
   const requestedUrls = new Set();
+  const requestCounts = new Map();
   const livePolicy = PUBLISHED_LIVE_SAMPLE_POLICY.get(sample.id);
   const allowedOrigins = new Set(livePolicy?.allowedOrigins ?? []);
   const liveProbe = await runSemanticLiveProbe(sample.id, livePolicy);
@@ -106,7 +107,10 @@ async function smokeSample(browser, origin, sample) {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
   page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
-  page.on("request", (request) => requestedUrls.add(request.url()));
+  page.on("request", (request) => {
+    requestedUrls.add(request.url());
+    requestCounts.set(request.url(), (requestCounts.get(request.url()) ?? 0) + 1);
+  });
   page.on("requestfailed", (request) => {
     const errorText = request.failure()?.errorText ?? "";
     // Chromium reports the DuckDB-WASM feature-selection cancellation as an
@@ -169,6 +173,7 @@ async function smokeSample(browser, origin, sample) {
           profile,
           directCog: runtime.directCog,
           fixtureTransport: runtime.fixtureTransport,
+          fixtureImageSources: runtime.fixtureImageSources,
         };
       });
       if (!proof.ready || !proof.terrainEnabled || proof.activeLayerCount !== 3)
@@ -197,6 +202,19 @@ async function smokeSample(browser, origin, sample) {
         if (!proof.fixtureTransport.serviceRequests.includes(identity))
           failures.push(`imagery COG fixture identity was not exercised: ${identity}`);
       }
+      const expectedImageCoordinates = [
+        [-158.22, 21.64],
+        [-157.66, 21.64],
+        [-157.66, 21.21],
+        [-158.22, 21.21],
+      ];
+      if (
+        proof.fixtureImageSources.length !== 2 ||
+        proof.fixtureImageSources.some(
+          (source) => JSON.stringify(source.coordinates) !== JSON.stringify(expectedImageCoordinates),
+        )
+      )
+        failures.push("imagery COG image sources are not bound to the exact Oahu bbox");
       const requiredMapFixtures = [
         "wms-natural-color.png",
         "image-server-natural-color.png",
@@ -205,6 +223,13 @@ async function smokeSample(browser, origin, sample) {
       for (const fixture of requiredMapFixtures) {
         if (![...observedRequests].some((pathname) => pathname.endsWith(`/fixtures/cog/tiles/${fixture}`)))
           failures.push(`imagery COG map fixture was not loaded: ${fixture}`);
+      }
+      for (const fixture of ["wms-natural-color.png", "image-server-natural-color.png"]) {
+        const href = [...requestedUrls].find((candidate) =>
+          new URL(candidate).pathname.endsWith(`/fixtures/cog/tiles/${fixture}`),
+        );
+        if (!href || requestCounts.get(href) !== 1)
+          failures.push(`imagery COG image fixture was not loaded exactly once: ${fixture}`);
       }
       const evidence = await page.locator("#direct-cog-render").innerText();
       if (

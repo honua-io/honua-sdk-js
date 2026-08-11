@@ -15,6 +15,9 @@ interface RenderFixture {
 }
 
 interface FixtureMapManifest {
+  asset: {
+    bbox: [number, number, number, number];
+  };
   renderFixtures: RenderFixture[];
 }
 
@@ -34,8 +37,31 @@ async function verify(bytes: Uint8Array, expected: string): Promise<void> {
 }
 
 export function fixtureRasterTileUrl(id: string): string {
-  if (!fixtures.has(id)) throw new Error(`fixture.protocol: unknown render fixture ${id}.`);
+  if (id !== "terrain-rgb" || !fixtures.has(id))
+    throw new Error(`fixture.protocol: unsupported raster tile fixture ${id}.`);
   return `${PROTOCOL}://${id}/{z}/{x}/{y}`;
+}
+
+export interface FixtureImageSourceDefinition {
+  type: "image";
+  url: string;
+  coordinates: [[number, number], [number, number], [number, number], [number, number]];
+}
+
+export function fixtureImageSource(id: string, fixtureRootUrl: URL): FixtureImageSourceDefinition {
+  const fixture = fixtures.get(id);
+  if (!fixture || id === "terrain-rgb") throw new Error(`fixture.image-source: unsupported imagery fixture ${id}.`);
+  const [west, south, east, north] = manifest.asset.bbox;
+  return {
+    type: "image",
+    url: new URL(fixture.path, fixtureRootUrl).href,
+    coordinates: [
+      [west, north],
+      [east, north],
+      [east, south],
+      [west, south],
+    ],
+  };
 }
 
 export function registerFixtureMapProtocol({
@@ -51,7 +77,7 @@ export function registerFixtureMapProtocol({
   const handler: AddProtocolAction = async (request, abortController) => {
     const url = new URL(request.url);
     const fixture = fixtures.get(url.hostname);
-    if (url.protocol !== `${PROTOCOL}:` || !fixture || !/^\/\d+\/\d+\/\d+$/u.test(url.pathname))
+    if (url.protocol !== `${PROTOCOL}:` || fixture?.id !== "terrain-rgb" || !/^\/\d+\/\d+\/\d+$/u.test(url.pathname))
       throw new Error(`fixture.protocol: unsupported tile identity ${request.url}.`);
     let bytes = cache.get(fixture.id);
     if (!bytes) {

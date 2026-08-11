@@ -94,6 +94,7 @@ test(
           tileTemplates: runtime?.tileTemplates,
           resources: runtime?.resources,
           directCog: runtime?.directCog,
+          fixtureImageSources: runtime?.fixtureImageSources,
         };
       });
       expect(runtimeIdentity).toMatchObject({
@@ -115,6 +116,26 @@ test(
           render: { state: "ready", mounted: true, lastRender: { transfer: { requests: 3 } } },
           transfer: { requests: 3, bytesFetched: 28672 },
         },
+        fixtureImageSources: [
+          {
+            url: `${fixtureOrigin}/fixtures/cog/tiles/wms-natural-color.png`,
+            coordinates: [
+              [-158.22, 21.64],
+              [-157.66, 21.64],
+              [-157.66, 21.21],
+              [-158.22, 21.21],
+            ],
+          },
+          {
+            url: `${fixtureOrigin}/fixtures/cog/tiles/image-server-natural-color.png`,
+            coordinates: [
+              [-158.22, 21.64],
+              [-157.66, 21.64],
+              [-157.66, 21.21],
+              [-158.22, 21.21],
+            ],
+          },
+        ],
       });
       expect(
         runtimeIdentity.directCog.transfer.ranges.every(
@@ -137,6 +158,8 @@ test(
             "/fixtures/cog/tiles/wms-natural-color.png",
           ].sort(),
         );
+      expect(bundleMapFixtureRequests.filter((path) => path.endsWith("/wms-natural-color.png"))).toHaveLength(1);
+      expect(bundleMapFixtureRequests.filter((path) => path.endsWith("/image-server-natural-color.png"))).toHaveLength(1);
 
       await expect(page.getByRole("heading", { level: 1, name: "Imagery and Terrain" })).toBeVisible();
       await expect(page.getByTestId("honua-sample-mode")).toHaveText(/^(source|packed) SDK$/u);

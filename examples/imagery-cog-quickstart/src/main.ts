@@ -21,7 +21,12 @@ import type { GeoJSONSource, MapMouseEvent } from "maplibre-gl";
 import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
 import { mountSamplePresentation } from "../../_kit/presentation.js";
 import { clientOptionsFromImageryConfig, resolveImageryCogConfig } from "./config.js";
-import { fixtureRasterTileUrl, registerFixtureMapProtocol } from "./fixture-map-protocol.js";
+import {
+  type FixtureImageSourceDefinition,
+  fixtureImageSource,
+  fixtureRasterTileUrl,
+  registerFixtureMapProtocol,
+} from "./fixture-map-protocol.js";
 import { fixtureCogTransportSnapshot } from "./fixture-range-fetch.js";
 import {
   type ElevationLookupOutcome,
@@ -110,6 +115,7 @@ interface ImageryTerrainBrowserRuntime {
   readonly resources: ReturnType<ImageryTerrainJourney["resources"]>;
   readonly directCog: DirectCogEvidence;
   readonly fixtureTransport: ReturnType<typeof fixtureCogTransportSnapshot>;
+  readonly fixtureImageSources: readonly (FixtureImageSourceDefinition & { sourceId: string })[];
   search(): Promise<boolean>;
   selectAsset(assetKey: string): Promise<RasterAssetInspectionOutcome | undefined>;
   selectCogAsset(assetKey: string): Promise<void>;
@@ -174,6 +180,7 @@ let cancellationCount = 0;
 let releasedRasterResources = 0;
 let interactionCount = 0;
 let disposePromise: Promise<void> | undefined;
+const fixtureImageSources: Array<FixtureImageSourceDefinition & { sourceId: string }> = [];
 
 const presentation = mountSamplePresentation({
   sampleId: "imagery-cog-quickstart",
@@ -918,30 +925,40 @@ function renderFidelity(): void {
 }
 
 function addImageryLayers(plan: ImageryRenderPlan): void {
+  const fixtureRootUrl = new URL("./fixtures/cog/", globalThis.location.href);
+  const fixtureImageServerSourceId = plan.layers.find(
+    (state) => state.layer.accessPath === "image-server-tile",
+  )?.mapSourceId;
   for (const state of plan.layers) {
-    if (!map.getSource(state.mapSourceId)) {
-      map.addSource(state.mapSourceId, {
-        type: "raster",
-        tiles:
-          config.mode === "fixture-safe"
-            ? [
-                fixtureRasterTileUrl(
-                  state.layer.accessPath === "wms-getmap" ? "wms-natural-color" : "image-server-natural-color",
-                ),
-              ]
-            : [...state.sourceSpec.tiles],
-        tileSize: state.sourceSpec.tileSize,
-        ...(state.sourceSpec.scheme ? { scheme: state.sourceSpec.scheme } : {}),
-        ...(state.sourceSpec.minzoom !== undefined ? { minzoom: state.sourceSpec.minzoom } : {}),
-        ...(state.sourceSpec.maxzoom !== undefined ? { maxzoom: state.sourceSpec.maxzoom } : {}),
-        ...(state.sourceSpec.attribution ? { attribution: state.sourceSpec.attribution } : {}),
-      });
+    const sourceId =
+      config.mode === "fixture-safe" && state.layer.accessPath === "image-server-export"
+        ? (fixtureImageServerSourceId ?? state.mapSourceId)
+        : state.mapSourceId;
+    if (!map.getSource(sourceId)) {
+      if (config.mode === "fixture-safe") {
+        const source = fixtureImageSource(
+          state.layer.accessPath === "wms-getmap" ? "wms-natural-color" : "image-server-natural-color",
+          fixtureRootUrl,
+        );
+        fixtureImageSources.push({ sourceId, ...source });
+        map.addSource(sourceId, source);
+      } else {
+        map.addSource(sourceId, {
+          type: "raster",
+          tiles: [...state.sourceSpec.tiles],
+          tileSize: state.sourceSpec.tileSize,
+          ...(state.sourceSpec.scheme ? { scheme: state.sourceSpec.scheme } : {}),
+          ...(state.sourceSpec.minzoom !== undefined ? { minzoom: state.sourceSpec.minzoom } : {}),
+          ...(state.sourceSpec.maxzoom !== undefined ? { maxzoom: state.sourceSpec.maxzoom } : {}),
+          ...(state.sourceSpec.attribution ? { attribution: state.sourceSpec.attribution } : {}),
+        });
+      }
     }
     if (!map.getLayer(state.mapLayerId)) {
       map.addLayer({
         id: state.mapLayerId,
         type: "raster",
-        source: state.mapSourceId,
+        source: sourceId,
         layout: { visibility: state.visible ? "visible" : "none" },
         paint: { "raster-opacity": state.opacity },
       });
@@ -1390,6 +1407,9 @@ const runtime: ImageryTerrainBrowserRuntime = {
   },
   get fixtureTransport() {
     return fixtureCogTransportSnapshot();
+  },
+  get fixtureImageSources() {
+    return structuredClone(fixtureImageSources);
   },
   search: runSearch,
   selectAsset: inspectAsset,

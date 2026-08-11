@@ -6,6 +6,7 @@ import {
   resolveImageryCogConfig,
 } from "../examples/imagery-cog-quickstart/src/config.js";
 import {
+  fixtureImageSource,
   fixtureMapManifest,
   fixtureRasterTileUrl,
 } from "../examples/imagery-cog-quickstart/src/fixture-map-protocol.js";
@@ -184,8 +185,21 @@ describe("Imagery and COG Quickstart sample", () => {
       "image-server-natural-color",
       "terrain-rgb",
     ]);
-    expect(fixtureRasterTileUrl("wms-natural-color")).toBe("honua-cog-fixture://wms-natural-color/{z}/{x}/{y}");
-    expect(() => fixtureRasterTileUrl("lookalike")).toThrow(/unknown render fixture/u);
+    expect(fixtureRasterTileUrl("terrain-rgb")).toBe("honua-cog-fixture://terrain-rgb/{z}/{x}/{y}");
+    expect(() => fixtureRasterTileUrl("wms-natural-color")).toThrow(/unsupported raster tile fixture/u);
+    expect(fixtureImageSource("wms-natural-color", new URL("https://samples.test/sdk/cog/fixtures/cog/"))).toEqual({
+      type: "image",
+      url: "https://samples.test/sdk/cog/fixtures/cog/tiles/wms-natural-color.png",
+      coordinates: [
+        [-158.22, 21.64],
+        [-157.66, 21.64],
+        [-157.66, 21.21],
+        [-158.22, 21.21],
+      ],
+    });
+    expect(() => fixtureImageSource("terrain-rgb", new URL("https://samples.test/"))).toThrow(
+      /unsupported imagery fixture/u,
+    );
   });
 
   it("projects WMS and COG-backed ImageServer layers into MapLibre raster sources", () => {
