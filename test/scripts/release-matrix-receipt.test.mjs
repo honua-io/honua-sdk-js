@@ -17,7 +17,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -571,22 +571,25 @@ test("the seal CLI refuses to run outside the release matrix", async () => {
   }
 });
 
-async function goldenEvidenceCopy(catalog, label) {
+async function isolatedReleaseMatrixEvidence(label) {
   const directory = await mkdtemp(path.join(os.tmpdir(), label));
   const receiptRoot = path.join(directory, "evidence");
-  // Copy exactly the catalog-qualified golden samples rather than the whole
-  // evidence root: the strict inventory requires that exact set, and sibling
-  // suites create and remove their own adversary sample directories
-  // concurrently, which would race a whole-tree copy.
-  for (const journey of catalog.goldenJourneys.filter((candidate) => candidate.status === "qualified")) {
-    await cp(
-      path.join(projectRoot, "samples/evidence", journey.candidateSampleId),
-      path.join(receiptRoot, journey.candidateSampleId),
-      { recursive: true },
-    );
-  }
+  // These tests bootstrap-exempt the ordinary qualification receipt set and
+  // exercise only the independently enforced release-matrix sidecar. Build an
+  // empty sample root rather than copying canonical receipts/runs: regeneration
+  // legitimately rolls those run directories forward and prunes the old IDs.
+  await mkdir(path.join(receiptRoot, sampleId), { recursive: true });
   return { directory, receiptRoot };
 }
+
+test("release-matrix fault injection is independent of canonical evidence rollover", async () => {
+  const { directory, receiptRoot } = await isolatedReleaseMatrixEvidence("honua-release-matrix-rollover-");
+  try {
+    assert.deepEqual(await readdir(path.join(receiptRoot, sampleId)), []);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 function qualifiedGoldenSampleIds(catalog) {
   return catalog.goldenJourneys
@@ -606,7 +609,7 @@ for (const derivedRelax of [false, true]) {
   test(`a failing release-matrix receipt turns golden qualification validation red (derived relax: ${derivedRelax})`, async () => {
     const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
     const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-    const { directory, receiptRoot } = await goldenEvidenceCopy(catalog, "honua-release-matrix-evidence-");
+    const { directory, receiptRoot } = await isolatedReleaseMatrixEvidence("honua-release-matrix-evidence-");
     const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
     const options = {
       receiptRoot,
@@ -679,7 +682,7 @@ for (const derivedRelax of [false, true]) {
   test(`deleting an established release-matrix receipt turns golden qualification validation red (derived relax: ${derivedRelax})`, async () => {
     const catalog = JSON.parse(await readFile(path.join(projectRoot, "samples/catalog.v2.json"), "utf8"));
     const packageJson = JSON.parse(await readFile(path.join(projectRoot, "package.json"), "utf8"));
-    const { directory, receiptRoot } = await goldenEvidenceCopy(catalog, "honua-release-matrix-laundering-");
+    const { directory, receiptRoot } = await isolatedReleaseMatrixEvidence("honua-release-matrix-laundering-");
     try {
       const injected = path.join(receiptRoot, sampleId, "release-matrix.v1.json");
       const established = {
