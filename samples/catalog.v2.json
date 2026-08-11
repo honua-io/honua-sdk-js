@@ -602,13 +602,13 @@
     {
       "id": "coverages-wcs-basic",
       "title": "Bounded coverage quickstart",
-      "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",
+      "summary": "Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Provide the smallest deterministic OGC API Coverages workflow while WCS/connect discovery matures."
+        "reason": "Provide browser-qualified deterministic Coverages/WCS evidence while anonymous live canaries and connect discovery remain open."
       },
       "sourcePath": "examples/coverages-wcs-basic",
       "docsPath": "examples/coverages-wcs-basic/README.md",
@@ -628,7 +628,7 @@
         "authMode": "none",
         "configurationStatus": "not-required",
         "config": [],
-        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
+        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a 64 x 48 fixture PNG, strict in-memory transport, and MapLibre browser proof.",
         "attribution": "Honua protocol contract fixture.",
         "freshness": "Versioned with the repository and server contract.",
         "configClassifications": []
@@ -638,7 +638,8 @@
           "mode": "fixture",
           "status": "executed",
           "commands": [
-            "npm run demo:coverages-wcs:build"
+            "npm run demo:coverages-wcs:build",
+            "npm run test:playwright:coverages-wcs"
           ]
         },
         "live": {
@@ -647,11 +648,12 @@
           "commands": []
         }
       },
-      "expectedDegradation": "Unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
+      "expectedDegradation": "Aborted superseded requests and invalid WCS range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:coverages-wcs:typecheck",
-        "npm run demo:coverages-wcs:build"
+        "npm run demo:coverages-wcs:build",
+        "npm run test:playwright:coverages-wcs"
       ],
       "playground": {
         "projectPath": "playgrounds/coverages-wcs-basic",

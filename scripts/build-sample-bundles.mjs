@@ -230,7 +230,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:coverages-wcs:build",
     auditedVia:
-      "examples/coverages-wcs-basic/src/main.ts injects ./pinned-fixtures.js as HonuaClient.fetchFn; that bundled module answers OGC API Coverages and WCS metadata plus coverage requests from in-memory JSON/XML/PNG fixtures, so the default build issues no network request.",
+      "examples/coverages-wcs-basic/src/main.ts injects ./pinned-fixtures.js as HonuaClient.fetchFn and mounts its bounded PNG through an inline-style MapLibre image source; the strict bundled transport answers OGC API Coverages and WCS metadata plus coverage requests from in-memory JSON/XML/PNG fixtures and rejects every unexpected origin, so the default build issues no external request.",
   },
   {
     id: "ai-spatial-app-builder",

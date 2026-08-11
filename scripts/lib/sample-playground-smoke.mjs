@@ -61,10 +61,10 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
   [
     "coverages-wcs-basic",
     {
-      rendersNoMap: "A fixture-backed bounded coverage image preview mounts no interactive map.",
+      canvasSelector: ".maplibregl-canvas",
       state: "__HONUA_COVERAGES_WCS__",
       readyField: "ready",
-      noBootFeatures: "It renders one raster coverage response rather than a vector feature collection.",
+      noBootFeatures: "It renders fixture-backed OGC API Coverages and WCS responses rather than vector features.",
     },
   ],
   [

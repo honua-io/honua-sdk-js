@@ -2,7 +2,7 @@
 
 <!-- Generated from examples/coverages-wcs-basic by scripts/sample-playgrounds.mjs. Do not edit by hand. -->
 
-Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.
+Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff.
 
 - [Open in StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic)
 - [Open in CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic)
