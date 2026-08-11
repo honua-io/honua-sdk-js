@@ -110,6 +110,7 @@
         "liveEvidence": false
       },
       "sampleIds": [
+        "columnar-query-quickstart",
         "coverages-wcs-basic",
         "edit-workflow-demo",
         "geocoding-quickstart",
@@ -384,6 +385,48 @@
       }
     },
     {
+      "id": "columnar-query-quickstart",
+      "sourcePath": "examples/columnar-query-quickstart",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "validationProfile": "browser-recipe",
+      "gates": {
+        "packedBuild": true,
+        "browser": true,
+        "accessibility": true,
+        "console": true,
+        "responsive": true,
+        "screenshot": false,
+        "performance": false,
+        "liveEvidence": false
+      },
+      "commandPlan": {
+        "validation": {
+          "execution": "automatic",
+          "commands": [
+            "npm run demo:columnar-query:typecheck",
+            "npm run demo:columnar-query:build",
+            "npx vitest run test/columnar-workflow.test.ts",
+            "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
+          ]
+        },
+        "fixtureEvidence": {
+          "execution": "orchestrated",
+          "commands": [
+            "npm run demo:columnar-query:build"
+          ]
+        },
+        "liveEvidence": {
+          "execution": "scheduled-only",
+          "commands": []
+        }
+      },
+      "liveEvidence": {
+        "mode": "unavailable",
+        "status": "not-applicable"
+      }
+    },
+    {
       "id": "coverages-wcs-basic",
       "sourcePath": "examples/coverages-wcs-basic",
       "track": "recipe",
@@ -594,7 +637,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-09-10T19:00:25.178Z"
+        "expiresAt": "2026-09-11T00:50:39.412Z"
       }
     },
     {
@@ -680,7 +723,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-09-10T18:58:09.006Z"
+        "expiresAt": "2026-09-11T00:48:31.934Z"
       }
     },
     {
@@ -766,7 +809,7 @@
         "mode": "demo-live",
         "status": "executed",
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-09-10T19:00:49.528Z"
+        "expiresAt": "2026-09-11T00:51:04.132Z"
       }
     },
     {
@@ -1231,7 +1274,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-09-10T19:01:53.078Z"
+        "expiresAt": "2026-09-11T00:52:06.328Z"
       }
     },
     {

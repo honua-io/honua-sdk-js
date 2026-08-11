@@ -439,6 +439,58 @@
       "expectedDegradation": "Terrain, source Z, and 3D contract gaps are reported rather than promoted as production support."
     },
     {
+      "id": "columnar-query-quickstart",
+      "title": "Bounded columnar query plan",
+      "summary": "Builds an inspectable Arrow query plan with server pushdown and hard browser resource ceilings before any bytes move.",
+      "sourceKind": "root-example",
+      "track": "recipe",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Focused inline-code-first entry point for GeoArrow and GeoParquet planning; Overture remains the production-shaped large-data project."
+      },
+      "validationProfile": "browser-recipe",
+      "source": {
+        "repository": "honua-io/honua-sdk-js",
+        "path": "examples/columnar-query-quickstart",
+        "docsPath": "examples/columnar-query-quickstart/README.md"
+      },
+      "sdk": {
+        "package": "@honua/sdk-js",
+        "version": "0.1.4-beta.0"
+      },
+      "capabilities": [
+        "columnar",
+        "query"
+      ],
+      "capabilityKeys": [],
+      "protocols": [
+        "geoservices"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "fixture",
+        "authMode": "none",
+        "provenance": "Deterministic in-browser request planning with no data or network access.",
+        "attribution": "No spatial data is loaded or rendered.",
+        "freshness": "Versioned with the SDK query contract.",
+        "configurationStatus": "not-required"
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed"
+        },
+        "live": {
+          "mode": "unavailable",
+          "status": "not-applicable"
+        }
+      },
+      "expectedDegradation": "The example plans but does not execute because no demo-manifest target currently advertises live Arrow or Parquet output."
+    },
+    {
       "id": "coverages-wcs-basic",
       "title": "Bounded coverage quickstart",
       "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",
@@ -734,7 +786,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-10T19:00:25.178Z"
+          "expiresAt": "2026-09-11T00:50:39.412Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -853,7 +905,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-10T18:58:09.006Z"
+          "expiresAt": "2026-09-11T00:48:31.934Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -966,7 +1018,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-10T19:00:49.528Z"
+          "expiresAt": "2026-09-11T00:51:04.132Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -1606,7 +1658,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-10T19:01:53.078Z"
+          "expiresAt": "2026-09-11T00:52:06.328Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -2298,6 +2350,7 @@
     },
     "sampleIds": [
       "ai-spatial-app-builder",
+      "columnar-query-quickstart",
       "coverages-wcs-basic",
       "geocoding-quickstart",
       "imagery-cog-quickstart",
@@ -2317,6 +2370,11 @@
     "published": [
       {
         "id": "ai-spatial-app-builder",
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
+      },
+      {
+        "id": "columnar-query-quickstart",
         "runnability": "standalone",
         "hostFixtureRoutes": []
       },

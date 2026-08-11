@@ -90,7 +90,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.4-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 18 experimental subpaths may change before 1.0, and
+by an API-surface gate; 19 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -176,10 +176,10 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 25 of the 30 generated support
+**Two deployment tiers, named up front.** 26 of the 32 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
-5 are `server-attach` and execute only after attaching to a Honua Server facade;
+6 are `server-attach` and execute only after attaching to a Honua Server facade;
 1 of those link a roadmap issue for an open-endpoint path and the rest state why the
 server dependency is inherent, in the generated
 [capability tiers table](./docs/standalone-capability-matrix.md#capability-tiers).
@@ -480,7 +480,7 @@ never uploads. See [`docs/diagnostic-bundles.md`](./docs/diagnostic-bundles.md).
 ## What you can build
 
 <!-- sample-catalog:start -->
-The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 34 executable examples: 4 qualified golden samples, 12 recipes, 15 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
+The versioned [SDK sample catalog](./docs/generated/sample-catalog.md) tracks all 35 executable examples: 4 qualified golden samples, 13 recipes, 15 labs, and 3 fixtures. Seven journey IDs are reserved; 3 remain explicitly planned candidates. The catalog is the source of truth for track, support, lifecycle, fixture/live evidence, quality profiles, and the honua.io projection.
 <!-- sample-catalog:end -->
 
 Linking to Honua from a plugin directory or ecosystem list? Point at
@@ -744,7 +744,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 18 experimental,
+It projects 22 supported (documented below as stable), 19 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -807,6 +807,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/cog` | Evidence-bound static-STAC COG inspection, bounded overview/window reads, and an opt-in viewport-driven MapLibre image source through caller-injected decoder/renderer peers; neither peer enters the root graph ([guide](./docs/cog.md)). |
 | `@honua/sdk-js/coverages` | Bounded OGC API Coverages and WCS 2.0.1 discovery, domain/range metadata, subset downloads, typed OWS errors, and an opt-in MapLibre image projection ([guide](./docs/features/coverages-wcs.md)). |
 | `@honua/sdk-js/geoparquet` | GeoParquet / DuckDB-WASM–backed protocol-neutral `Source`; the optional DuckDB peer loads lazily. |
+| `@honua/sdk-js/columnar-workflow` | Bounded GeoParquet inspection and query planning plus Honua Arrow and Parquet feature-query workflows, with explicit decoder, memory, transfer, and handoff limits ([guide](./docs/columnar-workflow-capability-matrix.md)). |
 | `@honua/sdk-js/query-planner` | Deterministic query IR, side-effect-free explain plans, GeoServices compilation, and explicitly bounded local execution. |
 | `@honua/sdk-js/source-schema` | Focused experimental SourceSchemaV2 validation, GeoServices/OData/GeoParquet/WMS/WMTS normalization, and one-pass opt-in `connectWithSourceSchemaV2()` discovery. |
 | `@honua/sdk-js/source-capabilities` | SourceSchemaV2-bound static evidence/CRS validation plus lightweight claimed/observed/effective evaluation, current-source cache checks, bounded strict transport, and dynamic policy/peer/authorization gates; serialized caller data remains potentially sensitive ([guide](./docs/source-capabilities.md)). |
@@ -1105,7 +1106,7 @@ current API reference without following the migration notes.
 
 This inventory is generated from [`samples/catalog.v2.json`](../../samples/catalog.v2.json). Do not edit it by hand.
 
-Catalog contract: `honua.sdk.sample-catalog.v2` · SDK: `@honua/sdk-js` (effective version derived from `package.json`) · 34 executable examples
+Catalog contract: `honua.sdk.sample-catalog.v2` Â· SDK: `@honua/sdk-js` (effective version derived from `package.json`) Â· 35 executable examples
 
 ## Golden journey readiness
 
@@ -1130,6 +1131,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="arcgis-source-app"></a>[`arcgis-source-app`](../../examples/arcgis-source-app/README.md) | fixture | - | internal | active | internal-fixture | fixture | not-required | Provides the ArcGIS JavaScript source application used by the migration end-to-end harness. |
 | <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
+| <a id="columnar-query-quickstart"></a>[`columnar-query-quickstart`](../../examples/columnar-query-quickstart/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Builds an inspectable Arrow query plan with server pushdown and hard browser resource ceilings before any bytes move. |
 | <a id="coverages-wcs-basic"></a>[`coverages-wcs-basic`](../../examples/coverages-wcs-basic/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Discovers coverage axes and range fields, then renders one byte-bounded PNG subset. |
 | <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | replace | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view. |
@@ -1712,7 +1714,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-10 at commit `7b122c42`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-11 at commit `a64e6dfc`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -10027,8 +10029,8 @@ environment cannot enter the vocabulary untiered.
 
 | Tier | Honua Server | Environments | Claims | What it means |
 | --- | :-: | --- | :-: | --- |
-| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 25 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
-| **Server attach** (`server-attach`) | required | `honua-facade` | 5 | Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent. |
+| **Open endpoint** (`open-endpoint`) | not required | `build-time`, `client-only`, `protocol-adapter`, `standalone` | 26 | Works against any standards-speaking endpoint you already run, or entirely inside the client and build. Zero Honua infrastructure, no Honua account. |
+| **Server attach** (`server-attach`) | required | `honua-facade` | 6 | Executes only after attaching to a Honua Server facade. Every claim in this tier names either a roadmap issue for an open-endpoint path or the reason the server dependency is inherent. |
 
 ### Server-attach capabilities and their open-endpoint path
 
@@ -10040,6 +10042,7 @@ all, so there is nothing to implement against.
 | Capability | Status | Open-endpoint path | Why it attaches to a server |
 | --- | --- | --- | --- |
 | Honua gRPC FeatureServer discovery | `supported` | Inherent — none possible | The Honua gRPC FeatureService is Honua Server's own wire protocol, so there is no third-party endpoint to speak it to. The open-endpoint path to the same reads is the GeoServices, OGC API Features, WFS, STAC, and OData discovery claims, which return the identical Dataset/Source/Query/Result contract. |
+| Honua Arrow and Parquet feature-query results | `experimental` | Inherent — none possible | The f=arrow and f=parquet result formats are Honua FeatureServer extensions. The direct-object equivalent is the separate client-only GeoParquet claim, while this claim intentionally requires a deployment that advertises the response contract. |
 | Server compatibility gate | `facade-required` | Inherent — none possible | The gate reads Honua Server's own administrative capabilities contract; a third-party endpoint publishes nothing equivalent to check. Open-endpoint reads skip the gate entirely rather than degrade. |
 | Authored MapPackage runtime | `facade-required` | Inherent — none possible | A MapPackage is a server-authored artifact by design: the styles, layer order, and metadata are produced by Honua Server's authoring surface, so loading one presupposes a server that authored it. The open-endpoint equivalent is connect() plus mountSource(), which styles a raw endpoint with no MapPackage. |
 | Realtime subscriptions | `facade-required` | Roadmap: [#393](https://github.com/honua-io/honua-sdk-js/issues/393) | Subscriptions bind to the transports Honua Server advertises today, but OData delta and other standards feeds are open-endpoint transports; the unified snapshot-plus-delta epic owns adapting them to the same cursor contract. |
@@ -10110,6 +10113,8 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | OData v4 | `open-endpoint` | `supported` | `standalone` | `discovery` | Any OData v4 service | connect(), Source, HonuaOdataEntitySet | [fixture: odata-fixtures](../test/contract/odata-backend-agnostic.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Reads $metadata, intersects advertised capabilities, and uses the raw service root. |
 | PMTiles direct asset discovery | `open-endpoint` | `supported` | `client-only` | `discovery` | Any static host with exact HTTP Range and readable CORS headers | connect({ protocol: 'pmtiles' }), Source.protocol('pmtiles') | [fixture: pmtiles-connect-fixtures](../test/connect-pmtiles.test.ts)<br>[fixture: pmtiles-fixtures](../test/pmtiles-contract.test.ts) | Reads only a bounded PMTiles v3 header and metadata range through the authenticated client pipeline; pmtiles:// is the sole direct auto marker, while filename-only and spoofed inputs fail closed without alternate-protocol probing. |
 | GeoParquet asset discovery | `open-endpoint` | `experimental` | `client-only` | `discovery` | None; caller provides a GeoParquet profiler | connect({ protocol: 'geoparquet', geoparquet: { profiler } }) | [fixture: geoparquet-connect-fixtures](../test/connect-geoparquet.test.ts) | Profiles one or more assets and returns reviewed Source descriptors; query execution remains injected through the optional GeoParquet resolver. |
+| Bounded direct GeoParquet columnar workflow | `open-endpoint` | `experimental` | `client-only` | `native` | None; a range-readable GeoParquet object and optional DuckDB-WASM peer | @honua/sdk-js/columnar-workflow | [fixture: geoparquet-fixtures](../test/geoparquet-source.test.ts)<br>[fixture: columnar-workflow-contract](../test/columnar-workflow.test.ts) | Inspects and queries a structurally validated GeoParquet source with explicit row, batch, transfer-byte, and backing-memory ceilings; worker, render, table, and download boundaries remain explicit. |
+| Honua Arrow and Parquet feature-query results | `server-attach` | `experimental` | `honua-facade` | `facade` | Honua Server deployment that advertises Arrow or Parquet FeatureServer query output | @honua/sdk-js/columnar-workflow | [fixture: columnar-workflow-contract](../test/columnar-workflow.test.ts)<br>[fixture: columnar-workflow-honua-arrow-interop](../test/columnar-workflow-honua-arrow.test.ts) | Builds bounded GET or POST queries through the normal request pipeline. The built-in Arrow decoder is fixture-proven against an exact Honua Server geoarrow.wkb artifact for a Binary/LargeBinary Point/LineString/Polygon XY/XYZ subset plus object-id, UTF-8/dictionary, and timestamp fields. BinaryView, broader Arrow schemas, and all Parquet responses require an injected decoder. No live status is claimed without a demo-manifest target. |
 | OGC API Tiles | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Tiles server | connect(), Source protocol ogc-tiles | [fixture: ogc-tiles-fixtures](../test/connect-ogc-tiles.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers raw landing, conformance, collection, tileset, and tile links; does not rewrite them to /ogc/tiles. Fixture-proven with scheduled anonymous live verification of one bounded vector tile. |
 | OGC API Maps | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Maps server | connect(), Source protocol ogc-maps | [fixture: ogc-maps-fixtures](../test/connect-ogc-maps.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and renders from the raw map path advertised by the service; does not require /ogc/maps. Fixture-proven with scheduled anonymous live verification of one bounded PNG render. |
 | OGC API Coverages discovery and bounded retrieval | `open-endpoint` | `experimental` | `standalone` | `native` | Any compatible OGC API Coverages server | @honua/sdk-js/coverages createCoverageClient(), CoverageSource | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts) | Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. |
@@ -11643,7 +11648,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-10 at commit `7b122c42`._
+_Generated 2026-08-11 at commit `a64e6dfc`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
@@ -11660,7 +11665,7 @@ _Generated 2026-08-10 at commit `7b122c42`._
 | `/runtime` | 605.8 KiB | 612.2 KiB | 163.8 KiB | 163.9 KiB |
 | `/realtime` | 79.3 KiB | 86.2 KiB | 22.9 KiB | 25.0 KiB |
 | `/offline` | 169.9 KiB | 186.2 KiB | 45.3 KiB | 49.7 KiB |
-| `/query-planner` (worker runtime injected) | 763.3 KiB | 778.7 KiB | 172.7 KiB | 182.9 KiB |
+| `/query-planner` (worker runtime injected) | 764.8 KiB | 778.7 KiB | 173.3 KiB | 182.9 KiB |
 | `/scene-workspace` (MapLibre/Cesium external — optional peers) | 167.5 KiB | 183.6 KiB | 50.9 KiB | 55.8 KiB |
 | `/esri-compat` | 1020.6 KiB | 1026.2 KiB | 255.6 KiB | 280.9 KiB |
 | `/expr` | 7.7 KiB | 8.4 KiB | 2.4 KiB | 2.7 KiB |
@@ -11670,9 +11675,9 @@ _Generated 2026-08-10 at commit `7b122c42`._
 | `/auth` | 26.6 KiB | 30.6 KiB | 7.4 KiB | 8.7 KiB |
 | `/style` | 63.4 KiB | 69.0 KiB | 16.0 KiB | 17.2 KiB |
 | `/map` | 181.6 KiB | 198.2 KiB | 51.4 KiB | 56.2 KiB |
-| `/geoparquet` (duckdb-wasm external — lazy peer) | 143.4 KiB | 154.9 KiB | 43.1 KiB | 46.6 KiB |
+| `/geoparquet` (duckdb-wasm external — lazy peer) | 145.6 KiB | 154.9 KiB | 43.8 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/deckgl` (deck.gl external — lazy peer) | 65.3 KiB | 68.3 KiB | 17.4 KiB | 18.3 KiB |
+| `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1011.8 KiB | 1037.6 KiB | 271.8 KiB | 277.9 KiB |
 | `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1088.5 KiB | 1120.1 KiB | 295.2 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
