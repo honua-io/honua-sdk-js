@@ -159,11 +159,11 @@ describe("capability-to-sample matrix contract", () => {
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
-    // 34 = 30 pre-existing claims + two columnar workflow claims
-    // + the dynamic STAC workflow and direct COG raster claims.
+    // 35 = 30 pre-existing claims + two columnar workflow claims
+    // + the dynamic STAC workflow, direct COG raster, and managed PMTiles claims.
     expect(matrix.supportClaims).toHaveLength(35);
-    // 61 = 59 existing package entrypoints + the experimental STAC and raster facades.
-    expect(matrix.packageEntrypoints).toHaveLength(61);
+    // 62 = 59 existing package entrypoints + the experimental STAC, raster, and PMTiles facades.
+    expect(matrix.packageEntrypoints).toHaveLength(62);
     // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
     // service-explorer are the four real, evidence-backed qualified samples
     // (the Imagery and Terrain, First Map, ArcGIS Migration Workbench, and
