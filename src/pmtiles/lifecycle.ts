@@ -821,11 +821,7 @@ function integer(record: Readonly<Record<string, unknown>>, name: string): numbe
   return value;
 }
 
-function nonNegativeResponseInteger(
-  record: Readonly<Record<string, unknown>>,
-  name: string,
-  maximum: number,
-): number {
+function nonNegativeResponseInteger(record: Readonly<Record<string, unknown>>, name: string, maximum: number): number {
   const value = required(record, name);
   if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > maximum) {
     throw error("invalid-response", `${name} must be a non-negative safe integer no greater than ${maximum}.`);
@@ -833,11 +829,7 @@ function nonNegativeResponseInteger(
   return value;
 }
 
-function positiveResponseInteger(
-  record: Readonly<Record<string, unknown>>,
-  name: string,
-  maximum: number,
-): number {
+function positiveResponseInteger(record: Readonly<Record<string, unknown>>, name: string, maximum: number): number {
   const value = nonNegativeResponseInteger(record, name, maximum);
   if (value === 0) throw error("invalid-response", `${name} must be a positive safe integer.`);
   return value;
