@@ -2,7 +2,7 @@
 
 <!-- Generated from examples/stac-imagery-browser by scripts/sample-playgrounds.mjs. Do not edit by hand. -->
 
-Discovers STAC collections and previews supported imagery assets.
+Searches Maui imagery by bounds and time, renders a selected preview, and exposes typed cloud-native handoffs.
 
 - [Open in StackBlitz](https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser)
 - [Open in CodeSandbox](https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser)

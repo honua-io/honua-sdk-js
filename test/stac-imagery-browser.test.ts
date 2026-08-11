@@ -23,7 +23,7 @@ describe("STAC imagery browser product evidence", () => {
   });
 
   it.each(["GET", "POST"] as const)("pages a %s search through a relative next link", async (method) => {
-    const fixture = createStacFixtureEnvironment(createDynamicStacClient, 0);
+    const fixture = createStacFixtureEnvironment(createDynamicStacClient, { pageDelayMs: 0 });
     const ids: Array<string | number> = [];
 
     for await (const item of fixture.stac.items({
@@ -45,7 +45,7 @@ describe("STAC imagery browser product evidence", () => {
   });
 
   it("selects an asset without extension declarations and filters before signing", async () => {
-    const fixture = createStacFixtureEnvironment(createDynamicStacClient, 0);
+    const fixture = createStacFixtureEnvironment(createDynamicStacClient, { pageDelayMs: 0 });
     const item = MAUI_ITEMS[0];
 
     expect(item?.stac_extensions).toBeUndefined();
@@ -64,7 +64,7 @@ describe("STAC imagery browser product evidence", () => {
   });
 
   it("cancels a pending relative page request", async () => {
-    const fixture = createStacFixtureEnvironment(createDynamicStacClient, 250);
+    const fixture = createStacFixtureEnvironment(createDynamicStacClient, { pageDelayMs: 250 });
     const controller = new AbortController();
     const pages = fixture.stac.pages({
       ...mauiSearchRequest("POST", controller.signal),
@@ -81,5 +81,35 @@ describe("STAC imagery browser product evidence", () => {
 
     await expect(pending).rejects.toBeInstanceOf(HonuaAbortError);
     expect(fixture.trace.some((entry) => entry.stage === "cancel" && entry.method === "ABORT")).toBe(true);
+  });
+
+  it("uses iterator truth for a partial page with next and a full final page", async () => {
+    const partialWithNext = createStacFixtureEnvironment(createDynamicStacClient, {
+      pageDelayMs: 0,
+      pages: [[MAUI_ITEMS[0]!], [MAUI_ITEMS[1]!, MAUI_ITEMS[2]!]],
+    }).stac.pages({ ...mauiSearchRequest("GET"), pageSize: 2, maxPages: 3 });
+
+    expect(await partialWithNext.next()).toMatchObject({ done: false, value: [{ id: MAUI_ITEMS[0]?.id }] });
+    expect(await partialWithNext.next()).toMatchObject({
+      done: false,
+      value: [{ id: MAUI_ITEMS[1]?.id }, { id: MAUI_ITEMS[2]?.id }],
+    });
+    expect((await partialWithNext.next()).done).toBe(true);
+
+    const fullFinal = createStacFixtureEnvironment(createDynamicStacClient, {
+      pageDelayMs: 0,
+      pages: [[MAUI_ITEMS[0]!, MAUI_ITEMS[1]!]],
+    }).stac.pages({ ...mauiSearchRequest("POST"), pageSize: 2, maxPages: 2 });
+
+    expect(await fullFinal.next()).toMatchObject({ done: false, value: [{}, {}] });
+    expect((await fullFinal.next()).done).toBe(true);
+  });
+
+  it("keeps each Sentinel platform truthful", () => {
+    expect(MAUI_ITEMS.map((item) => [item.id, item.properties?.platform])).toEqual([
+      ["S2B_MAUI_20260502_WEST", "sentinel-2b"],
+      ["S2A_MAUI_20260424_CENTRAL", "sentinel-2a"],
+      ["S2B_MAUI_20260418_EAST", "sentinel-2b"],
+    ]);
   });
 });

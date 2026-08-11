@@ -21,7 +21,7 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
 
     await expect(page.getByRole("heading", { name: "Find the clearest recent view of Maui." })).toBeVisible();
     await expect(page.locator("#method-state")).toHaveText("POST Item Search");
-    await expect(page.locator("#page-state")).toContainText("2 loaded / more available");
+    await expect(page.locator("#page-state")).toContainText("2 loaded / ready for next page");
     await expect(page.locator("#result-list")).toContainText("West Maui cloud break");
     await expect(page.locator("#item-metadata")).toContainText("None required");
     await expect(page.locator("#asset-preview")).toBeVisible();
@@ -30,7 +30,7 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
     await expect(page.locator("#network-log")).toContainText("SIGN");
 
     await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.loadNext());
-    await expect(page.locator("#page-state")).toContainText("3 loaded / complete");
+    await expect(page.locator("#page-state")).toContainText("3 loaded / ready for next page");
     await expect(page.locator("#result-list")).toContainText("Haleakala east slope");
     expect(
       await page.evaluate(() =>
@@ -42,6 +42,8 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
       { method: "POST", pathname: "/v1/search" },
       { method: "POST", pathname: "/v1/search" },
     ]);
+    await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.loadNext());
+    await expect(page.locator("#page-state")).toContainText("3 loaded / complete");
 
     await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.search("GET"));
     await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.loadNext());
@@ -52,6 +54,37 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
           .map((entry) => entry.method),
       ),
     ).toEqual(["GET", "GET"]);
+
+    await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.search("POST"));
+    const overlap = await page.evaluate(async () => {
+      const image = document.querySelector("#asset-preview");
+      const oldPreview = image?.getAttribute("src");
+      const oldPage = window.__HONUA_STAC_BROWSER__?.loadNext();
+      const newSearch = window.__HONUA_STAC_BROWSER__?.search("GET");
+      const previewCleared = image?.hidden === true && !image.hasAttribute("src");
+      await newSearch;
+      await oldPage;
+      return {
+        previewCleared,
+        oldPreview,
+        newPreview: image?.getAttribute("src"),
+        loadedCount: window.__HONUA_STAC_BROWSER__?.loadedCount,
+        status: window.__HONUA_STAC_BROWSER__?.paginationStatus,
+        selectedItemId: window.__HONUA_STAC_BROWSER__?.selectedItemId,
+        searchMethods: window.__HONUA_STAC_BROWSER__?.trace
+          .filter((entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith("/search"))
+          .map((entry) => entry.method),
+      };
+    });
+    expect(overlap).toMatchObject({
+      previewCleared: true,
+      loadedCount: 2,
+      status: "ready for next page",
+      selectedItemId: "S2B_MAUI_20260502_WEST",
+      searchMethods: ["GET"],
+    });
+    expect(overlap.newPreview).toMatch(/^blob:/);
+    expect(overlap.newPreview).not.toBe(overlap.oldPreview);
 
     await page.evaluate(async () => {
       await window.__HONUA_STAC_BROWSER__?.search("POST");
