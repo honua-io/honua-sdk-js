@@ -5,9 +5,7 @@
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@honua/sdk-js/stac": ["../../src/stac/index.ts"],
-      "@honua/sdk-js/app-workspace": ["../../src/app-workspace/index.ts"],
-      "@honua/sdk-js/exploration": ["../../src/exploration/index.ts"]
+      "@honua/sdk-js/stac": ["../../src/stac/index.ts"]
     }
   },
   "include": ["src/**/*.ts", "vite.config.ts"]

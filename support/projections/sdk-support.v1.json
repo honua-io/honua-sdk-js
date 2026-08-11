@@ -805,6 +805,18 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "stac-browser-product-fixtures",
+      "kind": "fixture",
+      "path": "test/stac-imagery-browser.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "stac-browser-product-playwright",
+      "kind": "integration",
+      "path": "test/playwright/stac-imagery-browser.spec.mjs",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "wfs-fixtures",
       "kind": "fixture",
       "path": "test/contract/wfs-backend-agnostic.test.ts",
@@ -2118,7 +2130,9 @@
       "api": "@honua/sdk-js/stac",
       "notes": "Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable.",
       "evidence": [
-        "stac-workflow-fixtures"
+        "stac-workflow-fixtures",
+        "stac-browser-product-fixtures",
+        "stac-browser-product-playwright"
       ]
     },
     {

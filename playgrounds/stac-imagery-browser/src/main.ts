@@ -1,34 +1,58 @@
-import {
-  cancelStacPagination,
-  collectionCacheSummary,
-  createStacBrowserSession,
-  loadNextStacPage,
-  selectStacAsset,
-  updateStacFilters,
-} from "./model.js";
-import type { StacSearchFilters } from "./types.js";
+import type { DynamicStacAssetDescriptor, HonuaStacItemResponse, StacSearchMethod } from "@honua/sdk-js/stac";
+import { createDynamicStacClient } from "@honua/sdk-js/stac";
+
+import { MAUI_BOUNDS, MAUI_DATETIME, mauiSearchRequest } from "./dynamic-stac-example.js";
+import { createStacFixtureEnvironment } from "./fixtures.js";
 
 import "./styles.css";
 
 declare global {
   interface Window {
     __HONUA_STAC_BROWSER__?: {
-      ready: boolean;
-      loadNext(): void;
+      readonly ready: boolean;
+      readonly loadedCount: number;
+      readonly paginationStatus: string;
+      readonly selectedItemId?: string;
+      readonly trace: readonly { stage: string; method: string; url: string; assetKey?: string }[];
+      search(method: "GET" | "POST"): Promise<void>;
+      loadNext(): Promise<void>;
       cancelPagination(): void;
-      selectAsset(itemId: string, assetKey?: string): void;
-      loadedCount: number;
-      projectionMessage?: string;
+      selectAsset(itemId: string, assetKey?: string): Promise<void>;
     };
   }
 }
 
-let session = createStacBrowserSession();
+const environment = createStacFixtureEnvironment(createDynamicStacClient);
+let searchMethod: StacSearchMethod = "POST";
+let abortController: AbortController | undefined;
+let pageIterator: AsyncGenerator<readonly HonuaStacItemResponse[]> | undefined;
+let items: HonuaStacItemResponse[] = [];
+let paginationStatus = "idle";
+let selectedItem: HonuaStacItemResponse | undefined;
+let selectedAsset: DynamicStacAssetDescriptor | undefined;
+let previewObjectUrl: string | undefined;
+let ready = false;
 
-function getElement<T extends Element>(selector: string): T {
-  const element = document.querySelector<T>(selector);
-  if (!element) throw new Error(`Missing required element: ${selector}`);
-  return element;
+const HANDOFFS = [
+  { format: "COG", packageExport: "@honua/sdk-js/cog", href: "../../docs/walkthroughs/stac-to-cog-raster.md" },
+  { format: "PMTiles", packageExport: "@honua/sdk-js/contract", href: "../../docs/pmtiles.md" },
+  {
+    format: "GeoParquet",
+    packageExport: "@honua/sdk-js/columnar-workflow",
+    href: "../../docs/walkthroughs/server-or-browser-columnar.md",
+  },
+  {
+    format: "Unified raster",
+    packageExport: "@honua/sdk-js/raster",
+    href: "../../docs/walkthroughs/stac-to-cog-raster.md",
+  },
+  { format: "Browser preview", packageExport: "@honua/sdk-js/runtime", href: "../../docs/browser-bundle.md" },
+] as const;
+
+function element<T extends Element>(selector: string): T {
+  const target = document.querySelector<T>(selector);
+  if (!target) throw new Error(`Missing required element: ${selector}`);
+  return target;
 }
 
 function escapeHtml(value: unknown): string {
@@ -40,201 +64,213 @@ function escapeHtml(value: unknown): string {
     .replaceAll("'", "&#39;");
 }
 
+function property(item: HonuaStacItemResponse, key: string): unknown {
+  return item.properties && typeof item.properties === "object" ? item.properties[key] : undefined;
+}
+
+function title(item: HonuaStacItemResponse): string {
+  return String(property(item, "title") ?? item.id);
+}
+
+function bbox(item: HonuaStacItemResponse): readonly number[] {
+  return Array.isArray(item.bbox) ? item.bbox : MAUI_BOUNDS;
+}
+
 function render(): void {
-  renderStatus();
-  renderFilters();
-  renderCollections();
+  element<HTMLElement>("#method-state").textContent = `${searchMethod} Item Search`;
+  element<HTMLElement>("#page-state").textContent = `${items.length} loaded / ${paginationStatus}`;
+  element<HTMLElement>("#selected-state").textContent = selectedItem
+    ? `Selected ${selectedItem.id}`
+    : "Nothing selected";
+  element<HTMLSelectElement>("#search-method").value = searchMethod;
+  element<HTMLButtonElement>("#load-next").disabled = paginationStatus !== "more available";
+  element<HTMLButtonElement>("#cancel-pagination").disabled = paginationStatus !== "loading";
   renderResults();
-  renderFootprint();
-  renderInspector();
-}
-
-function renderStatus(): void {
-  getElement<HTMLElement>("#mode-state").textContent = "Fixture safe mode";
-  getElement<HTMLElement>("#cache-state").textContent = collectionCacheSummary(session.dataset);
-  getElement<HTMLElement>("#capability-state").textContent =
-    `STAC ${session.dataset.capabilities.stacSearch}, tiles ${session.dataset.capabilities.tilePreview}, raster ${session.dataset.capabilities.rasterAnalysis}`;
-  getElement<HTMLElement>("#page-state").textContent =
-    `${session.loadedItems.length}/${session.totalMatched} loaded, ${session.paginationStatus}`;
-}
-
-function renderFilters(): void {
-  getElement<HTMLInputElement>("#collection").value = session.filters.collectionId;
-  getElement<HTMLInputElement>("#start-date").value = session.filters.startDate;
-  getElement<HTMLInputElement>("#end-date").value = session.filters.endDate;
-  getElement<HTMLInputElement>("#cloud-cover").value = String(session.filters.maxCloudCover);
-  getElement<HTMLElement>("#cloud-value").textContent = `${session.filters.maxCloudCover}%`;
-  getElement<HTMLInputElement>("#asset-type").value = session.filters.assetType;
-  getElement<HTMLInputElement>("#aoi").value = [
-    session.filters.aoi.xmin,
-    session.filters.aoi.ymin,
-    session.filters.aoi.xmax,
-    session.filters.aoi.ymax,
-  ].join(",");
-}
-
-function renderCollections(): void {
-  getElement<HTMLElement>("#collection-list").innerHTML = session.dataset.collections
-    .map(
-      (collection) => `
-        <li data-cache="${collection.cache.status}">
-          <strong>${escapeHtml(collection.title)}</strong>
-          <span>${escapeHtml(collection.id)} / ${escapeHtml(collection.cache.status)} / ${collection.cache.schemaCached ? "schema cached" : "schema pending"}</span>
-        </li>
-      `,
-    )
-    .join("");
+  renderSelection();
+  renderTrace();
 }
 
 function renderResults(): void {
-  getElement<HTMLElement>("#result-list").innerHTML = session.loadedItems
+  element<HTMLElement>("#result-list").innerHTML = items
     .map(
-      (item) => `
-        <li data-active="${item.id === session.activeItem?.id}">
-          <button type="button" data-item="${escapeHtml(item.id)}" data-asset="visual">
-            <strong>${escapeHtml(item.title)}</strong>
-            <span>${escapeHtml(item.datetime.slice(0, 10))} / ${item.cloudCover}% cloud / ${escapeHtml(item.platform)}</span>
+      (item, index) => `
+        <li data-active="${item.id === selectedItem?.id}">
+          <button type="button" data-result-id="${escapeHtml(item.id)}">
+            <span class="result-index">${String(index + 1).padStart(2, "0")}</span>
+            <span><strong>${escapeHtml(title(item))}</strong><small>${escapeHtml(property(item, "datetime"))} / ${escapeHtml(property(item, "eo:cloud_cover"))}% cloud</small></span>
           </button>
-        </li>
-      `,
+        </li>`,
     )
     .join("");
-
-  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-item]")) {
-    button.addEventListener("click", () => {
-      session = selectStacAsset(session, button.dataset.item ?? "", button.dataset.asset ?? "visual");
-      render();
-    });
+  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-result-id]")) {
+    button.addEventListener("click", () => void selectAsset(button.dataset.resultId ?? "", "preview"));
   }
-
-  getElement<HTMLButtonElement>("#load-next").disabled =
-    session.paginationStatus === "complete" || session.paginationStatus === "cancelled";
-  getElement<HTMLButtonElement>("#cancel-pagination").disabled =
-    session.paginationStatus === "complete" || session.paginationStatus === "cancelled";
 }
 
-function renderFootprint(): void {
-  const item = session.activeItem;
-  const map = getElement<HTMLElement>("#footprint-map");
+function renderSelection(): void {
+  const item = selectedItem;
+  const asset = selectedAsset;
+  const metadata = element<HTMLElement>("#item-metadata");
+  const assets = element<HTMLElement>("#asset-list");
   if (!item) {
-    map.innerHTML = "<p>No footprint selected.</p>";
+    metadata.innerHTML = "<p>Run the bounded search to inspect a result.</p>";
+    assets.innerHTML = "";
     return;
   }
-  const points = item.footprint
-    .map(([x, y]) => {
-      const px = ((x - item.bbox.xmin) / (item.bbox.xmax - item.bbox.xmin || 1)) * 78 + 10;
-      const py = 90 - ((y - item.bbox.ymin) / (item.bbox.ymax - item.bbox.ymin || 1)) * 78;
-      return `${px},${py}`;
-    })
-    .join(" ");
-  map.innerHTML = `
-    <svg viewBox="0 0 100 100" role="img" aria-label="Selected item footprint">
-      <rect x="8" y="8" width="84" height="84"></rect>
-      <polyline points="${escapeHtml(points)}"></polyline>
-      <circle cx="50" cy="50" r="3"></circle>
-    </svg>
-  `;
-}
 
-function renderInspector(): void {
-  const item = session.activeItem;
-  const projection = session.projection;
-  getElement<HTMLElement>("#item-metadata").innerHTML = item
-    ? `
-      <dl>
-        <dt>Item</dt><dd>${escapeHtml(item.id)}</dd>
-        <dt>Collection</dt><dd>${escapeHtml(item.collectionId)}</dd>
-        <dt>Datetime</dt><dd>${escapeHtml(item.datetime)}</dd>
-        <dt>Cloud cover</dt><dd>${item.cloudCover}%</dd>
-      </dl>
-    `
-    : "<p>No item selected.</p>";
+  metadata.innerHTML = `
+    <p class="kicker">Selected record</p>
+    <h2>${escapeHtml(title(item))}</h2>
+    <dl>
+      <dt>Item ID</dt><dd>${escapeHtml(item.id)}</dd>
+      <dt>Captured</dt><dd>${escapeHtml(property(item, "datetime"))}</dd>
+      <dt>Cloud</dt><dd>${escapeHtml(property(item, "eo:cloud_cover"))}%</dd>
+      <dt>Bounds</dt><dd>${bbox(item)
+        .map((value) => Number(value).toFixed(2))
+        .join(", ")}</dd>
+      <dt>Extensions</dt><dd>${item.stac_extensions?.length ? escapeHtml(item.stac_extensions.join(", ")) : "None required"}</dd>
+    </dl>`;
 
-  getElement<HTMLElement>("#asset-list").innerHTML = item
-    ? item.assets
-        .map(
-          (asset) => `
-            <li data-support="${asset.support}">
-              <button type="button" data-item="${escapeHtml(item.id)}" data-asset-key="${escapeHtml(asset.key)}">
-                <strong>${escapeHtml(asset.title)}</strong>
-                <span>${escapeHtml(asset.type)} / ${escapeHtml(asset.support)}</span>
-              </button>
-            </li>
-          `,
-        )
-        .join("")
-    : "";
-
+  assets.innerHTML = Object.entries(item.assets ?? {})
+    .map(
+      ([key, candidate]) => `
+        <li data-active="${key === asset?.key}">
+          <button type="button" data-asset-key="${escapeHtml(key)}" data-item-id="${escapeHtml(item.id)}">
+            <strong>${escapeHtml(candidate.title ?? key)}</strong>
+            <small>${escapeHtml(candidate.type ?? "media type not advertised")}</small>
+          </button>
+        </li>`,
+    )
+    .join("");
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-asset-key]")) {
-    button.addEventListener("click", () => {
-      session = selectStacAsset(session, button.dataset.item ?? "", button.dataset.assetKey ?? "visual");
-      render();
-    });
+    button.addEventListener(
+      "click",
+      () => void selectAsset(button.dataset.itemId ?? "", button.dataset.assetKey ?? "preview"),
+    );
   }
 
-  const preview = getElement<HTMLElement>("#preview-state");
-  if (!projection) {
-    preview.textContent = "No selected asset.";
-  } else {
-    preview.dataset.renderable = String(projection.renderable);
-    preview.textContent = projection.message;
+  const handoff = element<HTMLElement>("#handoff-state");
+  handoff.textContent = asset?.handoff
+    ? `${asset.format} is ready for ${asset.handoff.packageExport}`
+    : "This asset is discoverable, but it has no executable SDK handoff.";
+  handoff.dataset.supported = String(asset?.handoff !== undefined);
+}
+
+function renderTrace(): void {
+  element<HTMLElement>("#network-log").textContent = environment.trace
+    .map((entry) => {
+      const url = new URL(entry.url, "https://fixture.invalid");
+      const detail = entry.assetKey ? ` ${entry.assetKey}` : "";
+      return `${entry.method.padEnd(5)} ${url.pathname}${url.search}${detail}`;
+    })
+    .join("\n");
+}
+
+async function renderAssetPreview(asset: DynamicStacAssetDescriptor): Promise<void> {
+  if (asset.format !== "raster") return;
+  const response = await environment.fetchAsset(asset.href);
+  if (!response.ok) throw new Error(`Preview request failed with ${response.status}.`);
+  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+  previewObjectUrl = URL.createObjectURL(await response.blob());
+  const image = element<HTMLImageElement>("#asset-preview");
+  image.src = previewObjectUrl;
+  image.alt = `${selectedItem ? title(selectedItem) : "Maui"} selected imagery asset`;
+  image.hidden = false;
+}
+
+async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> {
+  const item = items.find((candidate) => String(candidate.id) === itemId);
+  if (!item) return;
+  selectedItem = item;
+  const candidates = await environment.stac.assets(item, {
+    assetKeys: [assetKey],
+    formats: ["cog", "pmtiles", "geoparquet", "raster"],
+  });
+  selectedAsset = candidates[0];
+  if (selectedAsset) await renderAssetPreview(selectedAsset);
+  render();
+}
+
+async function loadNext(): Promise<void> {
+  if (!pageIterator || paginationStatus === "complete" || paginationStatus === "cancelled") return;
+  paginationStatus = "loading";
+  render();
+  try {
+    const next = await pageIterator.next();
+    if (next.done) {
+      paginationStatus = "complete";
+    } else {
+      items.push(...next.value);
+      paginationStatus = next.value.length < 2 ? "complete" : "more available";
+      if (!selectedItem && items[0]) await selectAsset(String(items[0].id), "preview");
+    }
+  } catch (error) {
+    if (abortController?.signal.aborted) paginationStatus = "cancelled";
+    else throw error;
   }
+  render();
 }
 
-function filtersFromForm(): StacSearchFilters {
-  const [xmin, ymin, xmax, ymax] = getElement<HTMLInputElement>("#aoi")
-    .value.split(",")
-    .map((value) => Number(value.trim()));
-  return {
-    aoi: { xmin, ymin, xmax, ymax },
-    startDate: getElement<HTMLInputElement>("#start-date").value,
-    endDate: getElement<HTMLInputElement>("#end-date").value,
-    collectionId: getElement<HTMLInputElement>("#collection").value,
-    maxCloudCover: Number(getElement<HTMLInputElement>("#cloud-cover").value),
-    assetType: getElement<HTMLInputElement>("#asset-type").value,
-  };
+function cancelPagination(): void {
+  abortController?.abort();
+  paginationStatus = "cancelled";
+  render();
 }
 
-getElement<HTMLFormElement>("#search-form").addEventListener("submit", (event) => {
+async function runSearch(method: "GET" | "POST"): Promise<void> {
+  abortController?.abort();
+  abortController = new AbortController();
+  searchMethod = method;
+  items = [];
+  selectedItem = undefined;
+  selectedAsset = undefined;
+  paginationStatus = "idle";
+  environment.resetTrace();
+  pageIterator = environment.stac.pages({
+    ...mauiSearchRequest(method, abortController.signal),
+    pageSize: 2,
+    maxPages: 3,
+    prefetchPages: 0,
+  });
+  await loadNext();
+}
+
+element<HTMLFormElement>("#search-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  session = updateStacFilters(session, filtersFromForm());
-  render();
+  void runSearch(element<HTMLSelectElement>("#search-method").value as "GET" | "POST");
 });
+element<HTMLButtonElement>("#load-next").addEventListener("click", () => void loadNext());
+element<HTMLButtonElement>("#cancel-pagination").addEventListener("click", cancelPagination);
 
-getElement<HTMLButtonElement>("#load-next").addEventListener("click", () => {
-  session = loadNextStacPage(session);
-  render();
-});
+element<HTMLElement>("#handoff-list").innerHTML = HANDOFFS.map(
+  (handoff) =>
+    `<li><a href="${handoff.href}"><strong>${handoff.format}</strong><code>${handoff.packageExport}</code></a></li>`,
+).join("");
+element<HTMLElement>("#query-bounds").textContent = MAUI_BOUNDS.join(", ");
+element<HTMLElement>("#query-time").textContent = MAUI_DATETIME;
 
-getElement<HTMLButtonElement>("#cancel-pagination").addEventListener("click", () => {
-  session = cancelStacPagination(session);
-  render();
-});
-
-getElement<HTMLInputElement>("#cloud-cover").addEventListener("input", () => {
-  getElement<HTMLElement>("#cloud-value").textContent = `${getElement<HTMLInputElement>("#cloud-cover").value}%`;
-});
-
+await environment.stac.catalog();
+await runSearch("POST");
+ready = true;
 window.__HONUA_STAC_BROWSER__ = {
-  ready: true,
-  loadNext() {
-    session = loadNextStacPage(session);
-    render();
-  },
-  cancelPagination() {
-    session = cancelStacPagination(session);
-    render();
-  },
-  selectAsset(itemId: string, assetKey = "visual") {
-    session = selectStacAsset(session, itemId, assetKey);
-    render();
+  get ready() {
+    return ready;
   },
   get loadedCount() {
-    return session.loadedItems.length;
+    return items.length;
   },
-  get projectionMessage() {
-    return session.projection?.message;
+  get paginationStatus() {
+    return paginationStatus;
   },
+  get selectedItemId() {
+    return selectedItem ? String(selectedItem.id) : undefined;
+  },
+  get trace() {
+    return environment.trace;
+  },
+  search: runSearch,
+  loadNext,
+  cancelPagination,
+  selectAsset,
 };
-
 render();

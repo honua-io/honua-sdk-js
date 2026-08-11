@@ -446,6 +446,8 @@
       "evidence": [
         "scripts/live-conformance-evidence.mjs",
         "test/contract/stac-backend-agnostic.test.ts",
+        "test/playwright/stac-imagery-browser.spec.mjs",
+        "test/stac-imagery-browser.test.ts",
         "test/stac-workflow.test.ts"
       ],
       "source": "support-manifest",
