@@ -575,6 +575,7 @@ export function reviewedLiveProducer(command: string):
       dependencies?: Record<string, string>;
     }
   | undefined;
+export function reviewedValidationCommand(command: string, packageJson: Record<string, unknown>): boolean;
 export function buildBrowserArtifactManifest(options: {
   artifacts: Array<{ path: string; entrypoint: string; mediaType?: string }>;
   gitCommit: string;

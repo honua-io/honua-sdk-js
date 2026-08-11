@@ -31,6 +31,7 @@ import {
   parseJsonDocument,
   refreshOverlayLiveExpiry,
   reviewedLiveProducer,
+  reviewedValidationCommand,
   validateCatalog,
   validateCiSelection,
   validateEvidenceEnvelope,
@@ -2132,6 +2133,20 @@ runNpmScriptSync("demo:wrong:build", {
         validateCatalog(await readJson("samples/catalog.v2.json"), driftedDependencyPackage, validationTime),
       ).rejects.toThrow("scheduled live command is not in the reviewed bounded producer registry");
     }
+  });
+
+  it("admits only the reviewed bounded PMTiles managed typecheck", async () => {
+    const packageJson = await readJson("package.json");
+    const catalog = await readJson("samples/catalog.v2.json");
+    const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "pmtiles-managed-lifecycle");
+    const command = "npm run demo:pmtiles-managed:typecheck";
+
+    expect(sample.validation).toContain(command);
+    expect(reviewedValidationCommand(command, packageJson)).toBe(true);
+
+    const unboundedPackage = structuredClone(packageJson);
+    unboundedPackage.scripts["demo:pmtiles-managed:typecheck"] = "tsc";
+    expect(reviewedValidationCommand(command, unboundedPackage)).toBe(false);
   });
 
   it("keeps candidates non-golden until the full qualification contract is satisfied", async () => {

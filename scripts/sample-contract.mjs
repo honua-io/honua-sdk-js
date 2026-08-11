@@ -420,6 +420,7 @@ const REVIEWED_BUILD_TYPECHECK_DEMOS = [
   "oauth-signin",
   "overture",
   "planning-workbench",
+  "pmtiles-managed",
   "pmtiles-static",
   "quickstart",
   "react-quickstart",
@@ -676,6 +677,10 @@ function isBoundedValidationCommand(parsed, packageJson) {
     segments.length > 0 &&
     segments.every((segment) => BOUNDED_VALIDATION_SEGMENTS.some((pattern) => pattern.test(segment)))
   );
+}
+
+export function reviewedValidationCommand(command, packageJson) {
+  return isBoundedValidationCommand(parseCatalogCommand(command), packageJson);
 }
 
 function normalizeCredentialQueryParameter(name) {
