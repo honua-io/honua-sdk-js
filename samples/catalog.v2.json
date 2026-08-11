@@ -1937,7 +1937,7 @@
         }
       },
       "expectedDegradation": "Missing admin auth, invalid contract responses, failed jobs, expired signed URLs, and unsupported deletion stop with typed errors; no browser credential or live claim is emitted.",
-      "validationProfile": "headless-lab",
+      "validationProfile": "headless-recipe",
       "validation": [
         "npm run demo:pmtiles-managed:typecheck",
         "npx vitest run test/pmtiles-lifecycle.test.ts"

@@ -572,13 +572,16 @@ function publishedDescriptor(
       : artifact.urlStrategy === "PublicUrl"
         ? "published-public-archive"
         : "published-signed-archive";
-  const archiveUrl = httpUrl(artifact.accessUrl, baseUrl, "accessUrl");
+  const archiveUrl =
+    artifact.urlStrategy === "RangeProxy"
+      ? validatedServerRoute(
+          artifact.accessUrl,
+          baseUrl,
+          `/api/v1/tiles/pmtiles/${encodeURIComponent(artifact.artifactId)}`,
+          "absolute",
+        )
+      : httpUrl(artifact.accessUrl, baseUrl, "accessUrl", "invalid-response");
   if (artifact.urlStrategy === "RangeProxy") {
-    validatedServerRoute(
-      artifact.accessUrl,
-      baseUrl,
-      `/api/v1/tiles/pmtiles/${encodeURIComponent(artifact.artifactId)}`,
-    );
     if (artifact.accessUrlExpiresAt) throw error("invalid-response", "RangeProxy access must not expire.");
   }
   if (artifact.urlStrategy === "PublicUrl" && artifact.accessUrlExpiresAt) {
@@ -620,6 +623,14 @@ function directDescriptor(
   if (expiresAt && !Number.isFinite(Date.parse(expiresAt))) {
     throw error("invalid-request", "directAccessUrlExpiresAt must be a timestamp.");
   }
+  if (expiresAt && Date.parse(expiresAt) <= (options.now ?? new Date()).getTime()) {
+    throw error("access-url-expired", "directAccessUrlExpiresAt has expired.");
+  }
+  const minZoom = options.directMinZoom === undefined ? undefined : zoom(options.directMinZoom, "directMinZoom");
+  const maxZoom = options.directMaxZoom === undefined ? undefined : zoom(options.directMaxZoom, "directMaxZoom");
+  if (minZoom !== undefined && maxZoom !== undefined && minZoom > maxZoom) {
+    throw error("invalid-request", "directMinZoom exceeds directMaxZoom.");
+  }
   return rendererDescriptor({
     archiveUrl: httpUrl(url, undefined, "directArchiveUrl"),
     delivery: "direct-archive",
@@ -632,8 +643,8 @@ function directDescriptor(
     access: expiresAt
       ? sourceAccess("signed-url", "expires", options.directCacheValidator, expiresAt)
       : sourceAccess("http-validator", "caller-controlled", options.directCacheValidator),
-    ...(options.directMinZoom === undefined ? {} : { minZoom: zoom(options.directMinZoom, "directMinZoom") }),
-    ...(options.directMaxZoom === undefined ? {} : { maxZoom: zoom(options.directMaxZoom, "directMaxZoom") }),
+    ...(minZoom === undefined ? {} : { minZoom }),
+    ...(maxZoom === undefined ? {} : { maxZoom }),
     ...(options.directBounds ? { bounds: bounds(options.directBounds, "directBounds", "invalid-request") } : {}),
     fallbackReason,
   });
@@ -844,15 +855,20 @@ function bounds(
   return Object.freeze([...result]) as readonly [number, number, number, number];
 }
 
-function httpUrl(value: string, base: string | undefined, label: string): string {
+function httpUrl(
+  value: string,
+  base: string | undefined,
+  label: string,
+  code: HonuaPmtilesLifecycleErrorCode = "invalid-request",
+): string {
   let parsed: URL;
   try {
     parsed = base ? new URL(value, base) : new URL(value);
   } catch (cause) {
-    throw error("invalid-request", `${label} must be an HTTP(S) URL.`, undefined, { cause });
+    throw error(code, `${label} must be an HTTP(S) URL.`, undefined, { cause });
   }
   if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password || parsed.hash) {
-    throw error("invalid-request", `${label} must be a credential-free HTTP(S) URL.`);
+    throw error(code, `${label} must be a credential-free HTTP(S) URL.`);
   }
   return parsed.toString();
 }
@@ -890,14 +906,19 @@ function sourceAccess(
   });
 }
 
-function validatedServerRoute(value: string, baseUrl: string, expectedPath: string): string {
+function validatedServerRoute(
+  value: string,
+  baseUrl: string,
+  expectedPath: string,
+  result: "path" | "absolute" = "path",
+): string {
   const syntheticOrigin = "http://honua.invalid";
   let actual: URL;
   let expected: URL;
   try {
     const base = new URL(baseUrl, syntheticOrigin);
-    actual = new URL(value, base);
-    expected = new URL(expectedPath, base);
+    actual = resolveServerRoute(value, base);
+    expected = resolveServerRoute(expectedPath, base);
   } catch (cause) {
     throw error("invalid-response", "PMTiles server route is not a valid URL.", undefined, { cause });
   }
@@ -909,7 +930,18 @@ function validatedServerRoute(value: string, baseUrl: string, expectedPath: stri
   ) {
     throw error("invalid-response", "PMTiles server route does not match the requested job or artifact.");
   }
-  return actual.pathname;
+  return result === "absolute" ? actual.toString() : actual.pathname;
+}
+
+function resolveServerRoute(value: string, base: URL): URL {
+  try {
+    return new URL(value);
+  } catch {
+    const basePath = base.pathname.replace(/\/+$/, "");
+    const valuePath = value.startsWith("/") ? value : `/${value}`;
+    const alreadyPrefixed = basePath !== "" && (valuePath === basePath || valuePath.startsWith(`${basePath}/`));
+    return new URL(alreadyPrefixed ? valuePath : `${basePath}${valuePath}`, base.origin);
+  }
 }
 
 function identifier(value: string, label: string): string {
