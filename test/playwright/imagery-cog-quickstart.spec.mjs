@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { fileURLToPath } from "node:url";
 
 import { startImageryCogFixtureServer } from "../../examples/imagery-cog-quickstart/mock-server.mjs";
 import { SAMPLE_PERFORMANCE_BUDGET_MS } from "../../scripts/lib/sample-gates.mjs";
 import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from "./sample-gate-assertions.mjs";
 
 const SAMPLE_ID = "imagery-cog-quickstart";
+const SCREENSHOT_STYLE_PATH = fileURLToPath(new URL("./imagery-cog-screenshot.css", import.meta.url));
 const VIEWPORTS = [
   { width: 1280, height: 720 },
   { width: 390, height: 844 },
@@ -387,11 +389,13 @@ test(
         animations: "disabled",
         caret: "hide",
         maxDiffPixelRatio: 0.015,
+        stylePath: SCREENSHOT_STYLE_PATH,
       });
       await expect(page.locator(".map-stage")).toHaveScreenshot("imagery-cog-render.png", {
         animations: "disabled",
         caret: "hide",
         maxDiffPixelRatio: 0.015,
+        stylePath: SCREENSHOT_STYLE_PATH,
       });
       await expect(page.locator("#direct-cog-status").locator("xpath=ancestor::section[1]")).toHaveScreenshot(
         "imagery-cog-evidence.png",
@@ -399,6 +403,7 @@ test(
           animations: "disabled",
           caret: "hide",
           maxDiffPixelRatio: 0.015,
+          stylePath: SCREENSHOT_STYLE_PATH,
         },
       );
 
