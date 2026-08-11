@@ -766,6 +766,12 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "unified-raster-fixtures",
+      "kind": "fixture",
+      "path": "test/unified-raster.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "ogc-records-fixtures",
       "kind": "fixture",
       "path": "test/connect-ogc.test.ts",
@@ -1868,12 +1874,31 @@
       "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server or ArcGIS Online endpoint",
-      "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol()",
-      "notes": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor.",
+      "api": "connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol(), @honua/sdk-js/raster",
+      "notes": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; the experimental raster facade adds bounded bbox rendering, explicit one-based band selection, identify, and presentation handoffs without inventing statistics endpoints.",
       "evidence": [
         "geoservices-discovery-fixtures",
         "geoservices-conformance",
-        "image-service-integration"
+        "image-service-integration",
+        "unified-raster-fixtures"
+      ]
+    },
+    {
+      "id": "unified-raster-direct-cog-client-only",
+      "label": "Unified bounded direct COG operations",
+      "operations": [
+        "discovery",
+        "render",
+        "image"
+      ],
+      "environment": "client-only",
+      "executionMode": "native",
+      "status": "experimental",
+      "backendNeeded": "A static host with exact HTTP Range and readable CORS headers plus a caller-injected structural COG decoder",
+      "api": "@honua/sdk-js/raster",
+      "notes": "Consumes the dynamic STAC COG handoff or an explicit COG media type, structurally validates the object, enforces byte/range/pixel budgets, and provides bounded windows, one-based bands, statistics, histograms, value inspection, progress, cancellation, and MapLibre mounting.",
+      "evidence": [
+        "unified-raster-fixtures"
       ]
     },
     {
@@ -2238,10 +2263,11 @@
       "executionMode": "native",
       "status": "experimental",
       "backendNeeded": "Any compatible OGC API Coverages server",
-      "api": "@honua/sdk-js/coverages createCoverageClient(), CoverageSource",
-      "notes": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline.",
+      "api": "@honua/sdk-js/coverages createCoverageClient(), CoverageSource, @honua/sdk-js/raster",
+      "notes": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. The experimental raster facade maps bounded bbox windows, output size, CRS, and named range fields onto the same client.",
       "evidence": [
-        "coverages-wcs-fixtures"
+        "coverages-wcs-fixtures",
+        "unified-raster-fixtures"
       ]
     },
     {
@@ -2256,10 +2282,11 @@
       "executionMode": "native",
       "status": "experimental",
       "backendNeeded": "Any compatible WCS 2.0.1 KVP endpoint",
-      "api": "@honua/sdk-js/coverages createWcsClient()",
-      "notes": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions.",
+      "api": "@honua/sdk-js/coverages createWcsClient(), @honua/sdk-js/raster",
+      "notes": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. The experimental raster facade validates advertised scale-axis labels before mapping bounded bbox windows and named range fields.",
       "evidence": [
-        "coverages-wcs-fixtures"
+        "coverages-wcs-fixtures",
+        "unified-raster-fixtures"
       ]
     },
     {
@@ -2866,6 +2893,10 @@
       },
       {
         "subpath": "./stac",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./raster",
         "status": "experimental"
       },
       {
