@@ -11,6 +11,7 @@
  * @packageDocumentation
  */
 
+import type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
 import { type StacCogAssetSession, mountStacCogAssetToMapLibre, openStacCogAsset } from "../cog/index.js";
 import type {
   CogBand,
@@ -27,7 +28,6 @@ import type {
   StacCogAssetToMapLibreMap,
 } from "../cog/index.js";
 import type { StacAssetCandidate } from "../connect-stac-static.js";
-import type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
 import { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import type {
@@ -454,7 +454,8 @@ export class UnifiedRasterSession {
       if (!options.decoderFactory) {
         throw new HonuaCapabilityNotSupportedError("cog-decoder", "direct-cog", source.id);
       }
-      const candidate = "candidate" in source && source.candidate ? dynamicStacCandidate(source) : directCandidate(source);
+      const candidate =
+        "candidate" in source && source.candidate ? dynamicStacCandidate(source) : directCandidate(source);
       const cacheMode = options.cache?.mode ?? "default";
       this.cog = openStacCogAsset(candidate, {
         decoderFactory: options.decoderFactory,
@@ -785,9 +786,13 @@ export class UnifiedRasterSession {
   }
 
   private coverageImage(result: RasterCoverageImageResult): CoverageMapLibreImage {
-    const image = coverageToMapLibreImage(result.response, wgs84Bbox(result.request, this.source.kind, this.source.id), {
-      sourceId: `${this.source.id}-coverage`,
-    });
+    const image = coverageToMapLibreImage(
+      result.response,
+      wgs84Bbox(result.request, this.source.kind, this.source.id),
+      {
+        sourceId: `${this.source.id}-coverage`,
+      },
+    );
     this.coverageImages.add(image);
     return image;
   }
@@ -858,14 +863,14 @@ function dynamicStacCandidate(source: DirectCogCandidateSource): StacAssetCandid
     mediaType: descriptor.mediaType,
     roles: descriptor.roles,
     metadata: {},
-    evidence: descriptor.mediaType
-      ? [{ kind: "media-type", value: descriptor.mediaType, supports: ["cog"] }]
-      : [],
+    evidence: descriptor.mediaType ? [{ kind: "media-type", value: descriptor.mediaType, supports: ["cog"] }] : [],
     provenance: [],
   };
 }
 
-function requireDynamicCogHandoff(source: DirectCogCandidateSource): Extract<DynamicStacAssetDescriptor["handoff"], { kind: "cog" }> {
+function requireDynamicCogHandoff(
+  source: DirectCogCandidateSource,
+): Extract<DynamicStacAssetDescriptor["handoff"], { kind: "cog" }> {
   const { candidate } = source;
   if (
     candidate.format !== "cog" ||
