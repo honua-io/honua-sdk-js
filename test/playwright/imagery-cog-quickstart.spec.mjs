@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { fileURLToPath } from "node:url";
 
 import { startImageryCogFixtureServer } from "../../examples/imagery-cog-quickstart/mock-server.mjs";
 import { SAMPLE_PERFORMANCE_BUDGET_MS } from "../../scripts/lib/sample-gates.mjs";
 import { attestBrowserQuality, attestClosedFixture, finalizeSampleConsole } from "./sample-gate-assertions.mjs";
 
 const SAMPLE_ID = "imagery-cog-quickstart";
+const SCREENSHOT_STYLE_PATH = fileURLToPath(new URL("./imagery-cog-screenshot.css", import.meta.url));
 const VIEWPORTS = [
   { width: 1280, height: 720 },
   { width: 390, height: 844 },
@@ -35,12 +37,23 @@ test(
     const failedRequests = [];
     const errorResponses = [];
     const wmsGetMapRequests = [];
+    const bundleMapFixtureRequests = [];
+    const cogChunkRequests = [];
+    const completeCogObjectRequests = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
     page.on("requestfailed", (request) => {
       failedRequests.push({ href: request.url(), error: request.failure()?.errorText ?? "unknown" });
+    });
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.includes("/fixtures/cog/chunks/")) cogChunkRequests.push(url.pathname);
+      if (url.pathname.endsWith("/fixtures/cog/assets/oahu-natural-color-v1.tif")) {
+        completeCogObjectRequests.push({ href: url.href, range: request.headers().range ?? null });
+      }
+      if (url.pathname.includes("/fixtures/cog/tiles/")) bundleMapFixtureRequests.push(url.pathname);
     });
     page.on("response", (response) => {
       if (response.status() >= 400) errorResponses.push({ href: response.url(), status: response.status() });
@@ -83,6 +96,7 @@ test(
           tileTemplates: runtime?.tileTemplates,
           resources: runtime?.resources,
           directCog: runtime?.directCog,
+          fixtureImageSources: runtime?.fixtureImageSources,
         };
       });
       expect(runtimeIdentity).toMatchObject({
@@ -95,19 +109,39 @@ test(
         directCog: {
           phase: "ready",
           selectedAssetKey: "cog",
-          candidateCount: 7,
+          candidateCount: 9,
           decoderModuleLoads: 1,
           decoderLoads: 1,
           decoderDisposals: 0,
           mapSourceMounted: true,
           mapLayerMounted: true,
-          render: { state: "ready", mounted: true, lastRender: { transfer: { requests: 4 } } },
-          transfer: { requests: 4, bytesFetched: 288 },
+          render: { state: "ready", mounted: true, lastRender: { transfer: { requests: 3 } } },
+          transfer: { requests: 3, bytesFetched: 28672 },
         },
+        fixtureImageSources: [
+          {
+            url: `${fixtureOrigin}/fixtures/cog/tiles/wms-natural-color.png`,
+            coordinates: [
+              [-158.22, 21.64],
+              [-157.66, 21.64],
+              [-157.66, 21.21],
+              [-158.22, 21.21],
+            ],
+          },
+          {
+            url: `${fixtureOrigin}/fixtures/cog/tiles/image-server-natural-color.png`,
+            coordinates: [
+              [-158.22, 21.64],
+              [-157.66, 21.64],
+              [-157.66, 21.21],
+              [-158.22, 21.21],
+            ],
+          },
+        ],
       });
       expect(
         runtimeIdentity.directCog.transfer.ranges.every(
-          (range) => range.outcome === "success" && range.length < 1024,
+          (range) => range.outcome === "success" && range.length <= 64 * 1024,
         ),
       ).toBe(true);
       expect(runtimeIdentity.tileTemplates.some((template) => template.includes("REQUEST=GetMap"))).toBe(true);
@@ -117,31 +151,45 @@ test(
       expect(
         runtimeIdentity.tileTemplates.some((template) => template.includes("/OahuTerrain/ImageServer/tile/{z}/{y}/{x}")),
       ).toBe(true);
-      await expect.poll(() => wmsGetMapRequests.length).toBeGreaterThan(0);
-      for (const href of wmsGetMapRequests) {
-        const requestUrl = new URL(href);
-        const bbox = requestUrl.searchParams.get("BBOX")?.split(",").map(Number);
-        expect(bbox).toHaveLength(4);
-        expect(bbox?.every(Number.isFinite)).toBe(true);
-        expect(requestUrl.searchParams.get("WIDTH")).toBe("256");
-        expect(requestUrl.searchParams.get("HEIGHT")).toBe("256");
-        expect(href).not.toMatch(/%7B|%7D|\{|\}/iu);
-      }
+      expect(wmsGetMapRequests).toEqual([]);
+      await expect
+        .poll(() => [...new Set(bundleMapFixtureRequests)].sort())
+        .toEqual(
+          [
+            "/fixtures/cog/tiles/image-server-natural-color.png",
+            "/fixtures/cog/tiles/wms-natural-color.png",
+          ].sort(),
+        );
+      expect(bundleMapFixtureRequests.filter((path) => path.endsWith("/wms-natural-color.png"))).toHaveLength(1);
+      expect(bundleMapFixtureRequests.filter((path) => path.endsWith("/image-server-natural-color.png"))).toHaveLength(1);
 
       await expect(page.getByRole("heading", { level: 1, name: "Imagery and Terrain" })).toBeVisible();
       await expect(page.getByTestId("honua-sample-mode")).toHaveText(/^(source|packed) SDK$/u);
       await expect(page.locator("#search-status")).toContainText("HonuaClient.stac().search");
-      await expect(page.locator("#scene-results")).toContainText("Oahu south shore clear pass");
+      await expect(page.locator("#scene-results")).toContainText("Synthetic Oahu RGB fixture");
       await expect(page.locator("#inspection-content")).toHaveAttribute("data-status", "ready");
       await expect(page.locator("#inspection-content")).toContainText("bytes 0-63/");
-      await expect(page.locator("#inspection-content")).toContainText('"oahu-range-fixture-v1"');
-      await expect(page.locator("#inspection-content")).toContainText("CC-BY-4.0 fixture terms");
-      await expect(page.locator("#attribution-state")).toContainText("Copernicus Sentinel");
+      await expect(page.locator("#inspection-content")).toContainText(
+        '"sha256-59ba6110a96c0aba2ab5f5ee27b0eed6ec436956df27bb6312b94573f35190bd"',
+      );
+      await expect(page.locator("#inspection-content")).toContainText(
+        "122059ba6110a96c0aba2ab5f5ee27b0eed6ec436956df27bb6312b94573f35190bd",
+      );
+      await expect(page.locator("#inspection-content")).toContainText("CC0-1.0");
+      await expect(page.locator("#attribution-state")).toContainText("Honua SDK fixture generator");
       await expect(page.locator("#direct-cog-status")).toContainText("ready");
       await expect(page.locator("#direct-cog-inspection")).toContainText("256×192");
-      await expect(page.locator("#direct-cog-provenance")).toContainText("S2A_20260412T211901_OAHU_RANGE_01/cog");
-      await expect(page.locator("#direct-cog-transfer-summary")).toContainText("288 bytes across 4 exact range request");
-      await expect(page.locator("#direct-cog-ranges li")).toHaveCount(4);
+      await expect(page.locator("#direct-cog-provenance")).toContainText("oahu-natural-color-fixture-v1/cog");
+      await expect(page.locator("#direct-cog-provenance")).toContainText(
+        "image/tiff;application=geotiff;profile=cloud-optimized",
+      );
+      await expect(page.locator("#direct-cog-transfer-summary")).toContainText("28672 bytes across 3 exact range request");
+      await expect(page.locator("#direct-cog-ranges li")).toHaveCount(3);
+      await expect(page.locator(".cog-legend")).toContainText("Vegetation");
+      await expect(page.locator("#direct-cog-pixel")).toHaveAttribute("data-ready", "true");
+      await expect(page.locator("#direct-cog-pixel")).toContainText("Bounded pixel inspection: RGB");
+      expect(new Set(cogChunkRequests).size).toBe(2);
+      expect(completeCogObjectRequests).toEqual([]);
       await expect(page.locator("#fidelity-list")).toContainText("classified STAC COG is decoded through bounded reads");
       await expect(page.locator("#fidelity-list")).toContainText("exact MapLibre bbox token");
       await expect(page.locator("#fidelity-list")).toContainText("Cesium production is intentionally excluded");
@@ -149,24 +197,25 @@ test(
 
       const unsupportedCases = [
         ["credential-cog", "credentials", "credentials"],
+        ["userinfo-cog", "credentials", "credentials"],
         ["cors-cog", "cors", "cors-unavailable"],
         ["no-range-cog", "range", "range-unsupported"],
-        ["oversized-cog", "range", "range"],
-        ["chunked-oversized-cog", "range", "range"],
+        ["oversized-cog", "range", "invalid-range-response"],
+        ["chunked-oversized-cog", "range", "range-overflow"],
         ["unsupported-crs", "crs", "unsupported-crs"],
-        ["unsupported-format", "format", "unsupported-format"],
-        ["missing-nodata", "nodata", "nodata"],
+        ["unsupported-format", "format", "format"],
+        ["missing-nodata", "nodata", "unsupported-nodata"],
       ];
       for (const [assetKey, code, directCode] of unsupportedCases) {
         const outcome = await page.evaluate((key) => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.selectAsset(key), assetKey);
         expect(outcome).toMatchObject({
           status: "unsupported",
           code,
-          identity: { assetKey, itemId: "S2A_20260412T211901_OAHU_RANGE_01" },
+          identity: { assetKey, itemId: "oahu-natural-color-fixture-v1" },
         });
         await expect(page.locator("#inspection-content")).toHaveAttribute("data-status", "unsupported");
         await expect(page.locator("#inspection-content")).toContainText(code);
-        await expect(page.locator("#inspection-content")).toContainText("S2A_20260412T211901_OAHU_RANGE_01");
+        await expect(page.locator("#inspection-content")).toContainText("oahu-natural-color-fixture-v1");
         await expect(page.locator("#asset-switch-state")).toContainText("WMS remains available");
         expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.activeLayerCount)).toBe(1);
         await expect(page.locator("#direct-cog-status")).toContainText(directCode);
@@ -242,6 +291,7 @@ test(
       await expect(terrainToggle).toBeChecked();
       await expect.poll(async () => page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.terrainEnabled)).toBe(true);
       await expect(page.locator("#fidelity-list")).toContainText("enabled at 1.25× exaggeration");
+      await expect.poll(() => bundleMapFixtureRequests.some((path) => path.endsWith("/terrain-rgb.png"))).toBe(true);
 
       const invalidElevation = await page.evaluate(() =>
         window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.lookupAt(181, 91),
@@ -339,25 +389,36 @@ test(
         animations: "disabled",
         caret: "hide",
         maxDiffPixelRatio: 0.015,
+        stylePath: SCREENSHOT_STYLE_PATH,
       });
+      await expect(page.locator(".map-stage")).toHaveScreenshot("imagery-cog-render.png", {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: 0.015,
+        stylePath: SCREENSHOT_STYLE_PATH,
+      });
+      await expect(page.locator("#direct-cog-status").locator("xpath=ancestor::section[1]")).toHaveScreenshot(
+        "imagery-cog-evidence.png",
+        {
+          animations: "disabled",
+          caret: "hide",
+          maxDiffPixelRatio: 0.015,
+          stylePath: SCREENSHOT_STYLE_PATH,
+        },
+      );
 
-      const emptyStacSearch = (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            type: "FeatureCollection",
-            features: [],
-            numberMatched: 0,
-            numberReturned: 0,
-            links: [],
-          }),
-        });
-      const stacSearchPattern = /\/stac\/search(?:\?|$)/u;
+      const selectFixtureCollection = (value) =>
+        page.locator("#collection-input").evaluate((element, collection) => {
+          if (!(element instanceof HTMLSelectElement)) throw new Error("Collection input is unavailable");
+          if (![...element.options].some((option) => option.value === collection)) {
+            element.add(new Option(collection, collection));
+          }
+          element.value = collection;
+        }, value);
       const releasesBeforeEmptySearch = await page.evaluate(
         () => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources,
       );
-      await page.route(stacSearchPattern, emptyStacSearch);
+      await selectFixtureCollection("empty-fixture");
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
       await expect(page.locator("#search-status")).toContainText("No scenes matched");
       await expect(page.locator("#inspection-content")).not.toHaveAttribute("data-status", "ready");
@@ -385,17 +446,15 @@ test(
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.releasedRasterResources)).toBe(
         releasesBeforeEmptySearch + 2,
       );
-      await page.unroute(stacSearchPattern, emptyStacSearch);
+      await selectFixtureCollection("sentinel-2-l2a");
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
       await expect(page.locator("#inspection-content")).toHaveAttribute("data-status", "ready");
 
-      const failStacSearch = (route) =>
-        route.fulfill({ status: 200, contentType: "application/json", body: '{"type":"FeatureCollection"' });
-      await page.route(stacSearchPattern, failStacSearch);
+      await selectFixtureCollection("malformed-fixture");
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(false);
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.ready)).toBe(false);
       await expect(page.locator("#search-status")).toContainText("STAC search failed");
-      await page.unroute(stacSearchPattern, failStacSearch);
+      await selectFixtureCollection("sentinel-2-l2a");
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.search())).toBe(true);
       expect(await page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.ready)).toBe(true);
 

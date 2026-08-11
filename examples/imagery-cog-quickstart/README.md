@@ -133,3 +133,31 @@ evidence, not a committed golden receipt: gallery qualification remains planned
 until reviewed receipts satisfy every required gate. Older WMS, Terrain-RGB,
 and 2.5D publication routes converge here; the small STAC browser remains a
 focused credential-free recipe.
+
+## Public standalone COG fixture
+
+The default build is deployable without Honua demo infrastructure. It ships a deterministic CC0-1.0 tiled EPSG:4326 GeoTIFF as SHA-256-pinned 64 KiB chunks. The bundle-local adapter accepts bounded `Range` requests, verifies every fetched chunk, returns `206`, and rejects complete-object downloads. The rendered natural-color overview, transfer ledger, legend, and sampled RGB value provide visible rendering and pixel-inspection evidence. Unsupported CRS, non-COG formats, absent range support, and unsupported statistics remain fail closed.
+
+```ts doc-test=compile
+import {
+  mountStacCogAssetToMapLibre,
+  openStacCogAsset,
+  type CogDecoderFactory,
+  type StacCogAssetToMapLibreMap,
+} from "@honua/sdk-js/cog";
+
+declare const candidate: Parameters<typeof openStacCogAsset>[0];
+declare const decoderFactory: CogDecoderFactory;
+declare const map: StacCogAssetToMapLibreMap;
+
+const session = openStacCogAsset(candidate, { decoderFactory });
+const inspection = await session.inspect();
+const pixels = await session.readWindow({
+  x: 8, y: 8, width: 16, height: 16, bands: [1, 2, 3],
+  sampling: { width: 8, height: 8, overviewDecimation: 4, resampling: "nearest" },
+});
+const mounted = mountStacCogAssetToMapLibre(map, session, { sourceId: "direct-cog" });
+await mounted.ready;
+```
+
+[Open the complete project](./)

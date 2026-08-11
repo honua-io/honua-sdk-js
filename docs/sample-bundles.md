@@ -273,7 +273,7 @@ published set from 8 to 13. Five entries were promoted:
 | `ai-spatial-app-builder` | `standalone` | Excluded as `agent-shaped` -- a presentation preference, not an eligibility fact. `src/main.ts` imports only `./safe-agent.js` and issues no `fetch`/`EventSource`/`WebSocket`; both config names are server-only, so no host-model lane is reachable from a bundle. |
 | `service-explorer` | `requires-live-endpoint` | Its published, non-localhost default is `https://demo.pygeoapi.io/master`; the bundle is admitted only through the exact-origin live policy and semantic `lakes` FeatureCollection smoke. Local source tests retain `${origin}/fixtures/ogc`. |
 | `planning-permitting-workbench` | `requires-host-fixture-service` | Was `audit-pending`. Catalog declares no config surface at all (`configurationStatus: not-required`, `authMode: none`); the default addresses `${origin}/rest/services/Maui/Planning/FeatureServer`. |
-| `imagery-cog-quickstart` | `requires-host-fixture-service` | Was `requires-live-backend`. With `VITE_HONUA_IMAGERY_BASE_URL` unset, `resolveImageryCogConfig` resolves mode `fixture-safe` against the document origin, and `normalizeBaseUrl` rejects any cross-origin, query-bearing, or credential-bearing override. |
+| `imagery-cog-quickstart` | `standalone` | Was `requires-live-backend`. With `VITE_HONUA_IMAGERY_BASE_URL` unset, exact-identity bundle adapters serve STAC, WMS/ImageServer metadata, elevation, imagery tiles, Terrain-RGB, and the bounded direct COG. A configured same-origin proxy retains the live service path. |
 | `react-quickstart` | `requires-host-fixture-service` | Was `requires-api-key`. No `VITE_HONUA_REACT_*` name is catalog-classified as a credential and its `mock-server.mjs` asserts no authorization header, so the catalog's `api-key` `authMode` describes a live lane a bundle cannot reach. |
 
 Two exclusions were re-derived with more accurate reasons:
@@ -454,3 +454,7 @@ generation emits the additive v3 projection, v2 handoff, and v4 fixture.
   total). The five samples #656 added contribute roughly 6.9 MB combined
   (167 KiB to 2.1 MB each), so the size callout above is still the only
   budget concern.
+
+### Self-contained COG fixture
+
+`imagery-cog-quickstart` emits an exact synthetic CC0-1.0 tiled GeoTIFF as digest-pinned logical 64 KiB chunks. Each chunk also carries an independent digest for its lossless raw-deflate storage; the browser verifies storage, inflates only fetched chunks, verifies the logical bytes, and reconstructs only requested ranges as HTTP-compatible `206` responses. Missing or oversized ranges are rejected and no complete-object route is published. Three generated CC0-1.0 PNGs are independently digest-pinned: WMS and ImageServer use one georeferenced MapLibre image source each over the exact Oahu bbox, while Terrain-RGB alone uses the bounded fixture protocol required by `raster-dem`. Exact same-origin metadata and elevation identities are served in fixture mode only; the pure-static bundle smoke exercises comparison, terrain, point/profile, direct COG legend/pixel/range evidence, and rejects repeated imagery loads plus escaped/off-origin/4xx traffic. No host fixture service is required.

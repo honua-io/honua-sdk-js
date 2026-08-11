@@ -22,6 +22,13 @@ import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
 import { mountSamplePresentation } from "../../_kit/presentation.js";
 import { clientOptionsFromImageryConfig, resolveImageryCogConfig } from "./config.js";
 import {
+  type FixtureImageSourceDefinition,
+  fixtureImageSource,
+  fixtureRasterTileUrl,
+  registerFixtureMapProtocol,
+} from "./fixture-map-protocol.js";
+import { fixtureCogTransportSnapshot } from "./fixture-range-fetch.js";
+import {
   type ElevationLookupOutcome,
   type ElevationProfileOutcome,
   ImageryTerrainJourney,
@@ -43,6 +50,7 @@ import type { ImageryRenderPlan } from "./types.js";
 import "../../_kit/design/index.css";
 import "../../_kit/presentation.css";
 import "./styles.css";
+import "./cog-public.css";
 
 declare const __HONUA_SDK_VERSION__: string;
 
@@ -106,6 +114,8 @@ interface ImageryTerrainBrowserRuntime {
   readonly interactionCount: number;
   readonly resources: ReturnType<ImageryTerrainJourney["resources"]>;
   readonly directCog: DirectCogEvidence;
+  readonly fixtureTransport: ReturnType<typeof fixtureCogTransportSnapshot>;
+  readonly fixtureImageSources: readonly (FixtureImageSourceDefinition & { sourceId: string })[];
   search(): Promise<boolean>;
   selectAsset(assetKey: string): Promise<RasterAssetInspectionOutcome | undefined>;
   selectCogAsset(assetKey: string): Promise<void>;
@@ -131,10 +141,21 @@ declare global {
 const config = resolveImageryCogConfig({
   VITE_HONUA_IMAGERY_BASE_URL: import.meta.env.VITE_HONUA_IMAGERY_BASE_URL,
 });
-const client = new HonuaClient(clientOptionsFromImageryConfig(config));
+const cleanup = new SampleCleanupRegistry();
+const clientOptions = clientOptionsFromImageryConfig(config);
+const appFetch = clientOptions.fetchFn;
+const client = new HonuaClient(clientOptions);
 const dataset = createDefaultImageryDataset();
 const journey = new ImageryTerrainJourney({ client });
-const cleanup = new SampleCleanupRegistry();
+if (config.mode === "fixture-safe") {
+  cleanup.add(
+    registerFixtureMapProtocol({
+      maplibre: maplibregl,
+      fixtureRootUrl: new URL("./fixtures/cog/", globalThis.location.href),
+      fetchImpl: appFetch,
+    }),
+  );
+}
 const bootstrapController = new AbortController();
 let renderPlan = createImageryRenderPlan(dataset, client);
 let searchReceipt: ImageryTerrainSearchReceipt | undefined;
@@ -162,6 +183,7 @@ let cancellationCount = 0;
 let releasedRasterResources = 0;
 let interactionCount = 0;
 let disposePromise: Promise<void> | undefined;
+const fixtureImageSources: Array<FixtureImageSourceDefinition & { sourceId: string }> = [];
 
 const presentation = mountSamplePresentation({
   sampleId: "imagery-cog-quickstart",
@@ -398,7 +420,7 @@ const directCogFetch: typeof fetch = async (input, init) => {
   ) {
     throw new TypeError("Fixture CORS policy blocked the direct asset range request.");
   }
-  return fetch(request);
+  return appFetch(request);
 };
 
 async function selectDirectCogAsset(assetKey: string): Promise<void> {
@@ -450,7 +472,7 @@ async function selectDirectCogAsset(assetKey: string): Promise<void> {
         width: 16,
         height: 16,
         bands: [1, 2, 3],
-        sampling: { width: 8, height: 8, overviewDecimation: 2, resampling: "bilinear" },
+        sampling: { width: 8, height: 8, overviewDecimation: 4, resampling: "bilinear" },
       },
       { signal: resources.controller.signal },
     );
@@ -555,7 +577,7 @@ async function initializeDirectCog(signal: AbortSignal): Promise<boolean> {
   }
   const endpoint =
     config.mode === "fixture-safe"
-      ? new URL("/fixtures/cog/item.json", window.location.href).href
+      ? new URL("./fixtures/cog/item.json", window.location.href).href
       : new URL(
           `stac/collections/${encodeURIComponent(scene.collectionId)}/items/${encodeURIComponent(scene.id)}`,
           `${config.honuaBaseUrl}/`,
@@ -566,7 +588,7 @@ async function initializeDirectCog(signal: AbortSignal): Promise<boolean> {
       endpoint,
       protocol: "stac",
       authorizationScopeFingerprint: "anonymous",
-      clientOptions: { fetchFn: fetch },
+      clientOptions: { fetchFn: appFetch },
       signal,
     });
     if (signal.aborted || generation !== directGeneration || disposed) return false;
@@ -906,23 +928,40 @@ function renderFidelity(): void {
 }
 
 function addImageryLayers(plan: ImageryRenderPlan): void {
+  const fixtureRootUrl = new URL("./fixtures/cog/", globalThis.location.href);
+  const fixtureImageServerSourceId = plan.layers.find(
+    (state) => state.layer.accessPath === "image-server-tile",
+  )?.mapSourceId;
   for (const state of plan.layers) {
-    if (!map.getSource(state.mapSourceId)) {
-      map.addSource(state.mapSourceId, {
-        type: "raster",
-        tiles: [...state.sourceSpec.tiles],
-        tileSize: state.sourceSpec.tileSize,
-        ...(state.sourceSpec.scheme ? { scheme: state.sourceSpec.scheme } : {}),
-        ...(state.sourceSpec.minzoom !== undefined ? { minzoom: state.sourceSpec.minzoom } : {}),
-        ...(state.sourceSpec.maxzoom !== undefined ? { maxzoom: state.sourceSpec.maxzoom } : {}),
-        ...(state.sourceSpec.attribution ? { attribution: state.sourceSpec.attribution } : {}),
-      });
+    const sourceId =
+      config.mode === "fixture-safe" && state.layer.accessPath === "image-server-export"
+        ? (fixtureImageServerSourceId ?? state.mapSourceId)
+        : state.mapSourceId;
+    if (!map.getSource(sourceId)) {
+      if (config.mode === "fixture-safe") {
+        const source = fixtureImageSource(
+          state.layer.accessPath === "wms-getmap" ? "wms-natural-color" : "image-server-natural-color",
+          fixtureRootUrl,
+        );
+        fixtureImageSources.push({ sourceId, ...source });
+        map.addSource(sourceId, source);
+      } else {
+        map.addSource(sourceId, {
+          type: "raster",
+          tiles: [...state.sourceSpec.tiles],
+          tileSize: state.sourceSpec.tileSize,
+          ...(state.sourceSpec.scheme ? { scheme: state.sourceSpec.scheme } : {}),
+          ...(state.sourceSpec.minzoom !== undefined ? { minzoom: state.sourceSpec.minzoom } : {}),
+          ...(state.sourceSpec.maxzoom !== undefined ? { maxzoom: state.sourceSpec.maxzoom } : {}),
+          ...(state.sourceSpec.attribution ? { attribution: state.sourceSpec.attribution } : {}),
+        });
+      }
     }
     if (!map.getLayer(state.mapLayerId)) {
       map.addLayer({
         id: state.mapLayerId,
         type: "raster",
-        source: state.mapSourceId,
+        source: sourceId,
         layout: { visibility: state.visible ? "visible" : "none" },
         paint: { "raster-opacity": state.opacity },
       });
@@ -935,7 +974,11 @@ function addTerrainAndAnalysisLayers(): void {
   if (!map.getSource(TERRAIN_SOURCE_ID)) {
     map.addSource(TERRAIN_SOURCE_ID, {
       type: "raster-dem",
-      tiles: [buildImageServerTileUrlTemplate(service, "png")],
+      tiles: [
+        config.mode === "fixture-safe"
+          ? fixtureRasterTileUrl("terrain-rgb")
+          : buildImageServerTileUrlTemplate(service, "png"),
+      ],
       tileSize: 256,
       encoding: "mapbox",
       minzoom: 6,
@@ -1085,7 +1128,7 @@ async function runSearch(): Promise<boolean> {
       "#search-status",
       receipt.scenes.length === 0
         ? "No scenes matched the current area, dates, and cloud threshold."
-        : `${receipt.numberMatched} scene matched · ${receipt.scenes.length} loaded through ${receipt.sdkSurface}.`,
+        : `${receipt.numberMatched} scene matched · ${receipt.scenes.length} loaded via ${receipt.sdkSurface}.`,
     );
     render();
     if (selectedItemId && selectedAssetKey) {
@@ -1364,6 +1407,12 @@ const runtime: ImageryTerrainBrowserRuntime = {
   },
   get directCog() {
     return directEvidence;
+  },
+  get fixtureTransport() {
+    return fixtureCogTransportSnapshot();
+  },
+  get fixtureImageSources() {
+    return structuredClone(fixtureImageSources);
   },
   search: runSearch,
   selectAsset: inspectAsset,

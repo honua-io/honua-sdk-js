@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { startImageryCogFixtureServer } from "../../examples/imagery-cog-quickstart/mock-server.mjs";
+import { buildFixtureCogAssets } from "../../examples/imagery-cog-quickstart/fixture-cog-assets.mjs";
 import {
   browserExposedCredentials,
   browserPublicConfigNames,
@@ -61,6 +62,79 @@ function fakeSample(id, overrides = {}) {
 function fakeAudit(id, overrides = {}) {
   return { id, runtimeHosting: "self-contained", buildScript: `demo:${id}:build`, auditedVia: "test fixture", ...overrides };
 }
+
+test("the imagery COG fixture pins a tiled EPSG:4326 overview and exact chunk digests", () => {
+  const generated = buildFixtureCogAssets();
+  assert.deepEqual(generated.assetBytes.subarray(0, 4), Buffer.from([0x49, 0x49, 42, 0]));
+  assert.equal(generated.manifest.asset.crs, "EPSG:4326");
+  assert.equal(generated.manifest.asset.license, "CC0-1.0");
+  assert.deepEqual(
+    generated.manifest.asset.levels.map((level) => level.decimation),
+    [1, 4],
+  );
+  assert.ok(generated.manifest.asset.levels[1].bytes < generated.manifest.asset.bytes / 4);
+  assert.equal(createHash("sha256").update(generated.assetBytes).digest("hex"), generated.manifest.asset.sha256);
+  const firstIfdOffset = generated.assetBytes.readUInt32LE(4);
+  const firstIfdEntries = generated.assetBytes.readUInt16LE(firstIfdOffset);
+  const overviewIfdOffset = generated.assetBytes.readUInt32LE(firstIfdOffset + 2 + firstIfdEntries * 12);
+  const tags = (offset) => {
+    const count = generated.assetBytes.readUInt16LE(offset);
+    return Array.from({ length: count }, (_, index) => generated.assetBytes.readUInt16LE(offset + 2 + index * 12));
+  };
+  assert.ok(tags(firstIfdOffset).includes(34735));
+  assert.ok(!tags(overviewIfdOffset).some((tag) => [33550, 33922, 34735].includes(tag)));
+  for (const chunk of generated.chunks) {
+    assert.ok(chunk.bytes.byteLength <= 64 * 1024);
+    assert.equal(createHash("sha256").update(chunk.bytes).digest("hex"), chunk.sha256);
+    assert.equal(createHash("sha256").update(chunk.storedBytes).digest("hex"), chunk.storedSha256);
+    assert.ok(chunk.storedBytes.byteLength < chunk.bytes.byteLength);
+  }
+});
+
+test("the imagery COG fixture publishes a virtual href instead of a complete object", () => {
+  const generated = buildFixtureCogAssets();
+  const asset = generated.item.assets.cog;
+  assert.equal(asset.href, "./assets/oahu-natural-color-v1.tif");
+  assert.equal(asset["file:size"], generated.assetBytes.byteLength);
+  assert.equal(asset["file:checksum"], `1220${generated.manifest.asset.sha256}`);
+  assert.equal(
+    generated.chunks.reduce((total, chunk) => total + chunk.bytes.length, 0),
+    generated.assetBytes.length,
+  );
+  assert.ok(
+    generated.chunks.reduce((total, chunk) => total + chunk.storedBytes.length, 0) < generated.assetBytes.length / 2,
+  );
+});
+
+test("the committed imagery COG fixture is byte-identical to the canonical generator", () => {
+  const generated = buildFixtureCogAssets();
+  const fixtureRoot = path.join(ROOT, "examples/imagery-cog-quickstart/public/fixtures/cog");
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fixtureRoot, "manifest.json"), "utf8")), generated.manifest);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fixtureRoot, "item.json"), "utf8")), generated.item);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fixtureRoot, "search.json"), "utf8")), generated.search);
+  for (const chunk of generated.chunks) {
+    assert.deepEqual(fs.readFileSync(path.join(fixtureRoot, chunk.path)), chunk.storedBytes);
+  }
+  for (const fixture of generated.renderFixtures) {
+    assert.deepEqual(fs.readFileSync(path.join(fixtureRoot, fixture.metadata.path)), fixture.bytes);
+  }
+});
+
+test("the imagery COG fixture pins licensed imagery comparison and Terrain-RGB PNGs", () => {
+  const generated = buildFixtureCogAssets();
+  assert.deepEqual(
+    generated.manifest.renderFixtures.map((fixture) => fixture.id),
+    ["wms-natural-color", "image-server-natural-color", "terrain-rgb"],
+  );
+  for (const fixture of generated.renderFixtures) {
+    assert.equal(fixture.metadata.license, "CC0-1.0");
+    assert.equal(fixture.metadata.mediaType, "image/png");
+    assert.equal(fixture.metadata.width, 256);
+    assert.equal(fixture.metadata.height, 256);
+    assert.equal(createHash("sha256").update(fixture.bytes).digest("hex"), fixture.metadata.sha256);
+    assert.equal(fixture.bytes.byteLength, fixture.metadata.bytes);
+  }
+});
 
 test("every catalog sample gets exactly one publish-or-exclude decision (#656 REQ-001)", () => {
   const decisions = deriveSampleBundleDecisions(catalog);
@@ -243,7 +317,6 @@ test("published bundles declare the prerequisites implied by runnability (#656 R
   // the bundle does not contain must never be presented as standalone.
   const byId = new Map(published.map((entry) => [entry.id, entry]));
   for (const id of [
-    "imagery-cog-quickstart",
     "planning-permitting-workbench",
     "react-quickstart",
   ]) {
@@ -251,53 +324,14 @@ test("published bundles declare the prerequisites implied by runnability (#656 R
   }
 });
 
-test("declared hostFixtureRoutes cover the asset URLs the imagery-cog journey follows", async () => {
-  // Regression for a route set that looked complete but wasn't: declaring the
-  // STAC item route alone left every asset read uncovered, because the item's
-  // assets carry relative hrefs that resolve against the item URL. A host
-  // provisioning exactly the declared prerequisites would still have 404'd.
-  // Drive the sample's real fixture server so this cannot rot if the fixture
-  // changes shape.
-  const declared = INCLUDED_SAMPLES.find((sample) => sample.id === "imagery-cog-quickstart")?.hostFixtureRoutes;
-  assert.ok(declared?.length, "imagery-cog-quickstart should declare host fixture routes");
-
-  const fixture = await startImageryCogFixtureServer({ build: false });
-  try {
-    const itemPath = "/fixtures/cog/item.json";
-    assert.ok(
-      routeCoveredByHostFixtureRoutes(itemPath, declared),
-      `${itemPath} must itself be covered by the declared routes`,
-    );
-
-    const itemUrl = new URL(itemPath, fixture.url);
-    const response = await fetch(itemUrl);
-    assert.equal(response.status, 200, "the declared STAC item route must serve the fixture item");
-    const item = await response.json();
-
-    const hrefs = Object.values(item.assets ?? {}).map((asset) => asset.href);
-    assert.ok(hrefs.length > 0, "the fixture item should declare assets to follow");
-    assert.ok(
-      hrefs.some((href) => href.startsWith("./")),
-      "this regression only has teeth while the fixture uses relative asset hrefs",
-    );
-
-    for (const href of hrefs) {
-      // STAC resolves an asset href against the item's own URL.
-      const resolved = new URL(href, itemUrl);
-      assert.ok(
-        routeCoveredByHostFixtureRoutes(resolved.pathname, declared),
-        `${resolved.pathname} is requested by the journey but is not covered by any declared hostFixtureRoutes entry`,
-      );
-      const assetResponse = await fetch(resolved, { method: "HEAD" });
-      assert.equal(
-        assetResponse.status,
-        200,
-        `${resolved.pathname} must actually be served by the fixture host, or the declared route is fiction`,
-      );
-    }
-  } finally {
-    await fixture.close();
-  }
+test("imagery-cog publishes as standalone with no fictional host routes", () => {
+  const sample = INCLUDED_SAMPLES.find((candidate) => candidate.id === "imagery-cog-quickstart");
+  assert.equal(sample?.runtimeHosting, "self-contained");
+  assert.deepEqual(sample?.hostFixtureRoutes ?? [], []);
+  assert.match(
+    SAMPLE_BUNDLE_AUDIT.find((record) => record.id === "imagery-cog-quickstart")?.auditedVia ?? "",
+    /SHA-256-pinned logical 64 KiB chunks with independently pinned lossless storage and licensed PNG map fixtures/,
+  );
 });
 
 test("routeCoveredByHostFixtureRoutes matches whole path segments, not bare string prefixes", () => {

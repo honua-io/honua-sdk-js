@@ -1,0 +1,12 @@
+@font-face { font-family: "Honua COG Receipt Mono"; src: local("Cascadia Code"), local("DejaVu Sans Mono"); font-display: block; }
+@font-face { font-family: "Honua COG Pixel Mono"; src: local(Consolas), local("DejaVu Sans Mono"); font-display: block; }
+.cog-legend { display: flex; flex-wrap: wrap; gap: 0.55rem 0.9rem; align-items: center; margin-top: 0.75rem; font-size: 0.78rem; }
+.cog-legend span { display: inline-flex; gap: 0.32rem; align-items: center; }
+.cog-swatch { width: 0.75rem; height: 0.75rem; border: 1px solid rgb(255 255 255 / 45%); border-radius: 2px; }
+.cog-swatch-ocean { background: #176fa4; }
+.cog-swatch-coast { background: #d2c484; }
+.cog-swatch-vegetation { background: #369043; }
+.cog-swatch-urban { background: #929086; }
+#direct-cog-render { --hn-font-mono: "Honua COG Receipt Mono", monospace; }
+.direct-cog-facts > div { align-items: start; }
+.pixel-evidence { margin: 0.65rem 0 0; color: var(--text-muted); font-family: "Honua COG Pixel Mono", monospace; font-size: 0.76rem; }
