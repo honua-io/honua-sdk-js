@@ -291,7 +291,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:columnar-query:build",
     auditedVia:
-      "examples/columnar-query-quickstart/src/main.ts constructs and renders a deterministic request plan against example.invalid; it never executes session.stream(), calls fetch, loads data, or references external assets.",
+      "examples/columnar-query-quickstart/src/fixture.ts embeds the exact 1,336-byte Honua Server Arrow response as base64; src/workflow.ts feeds those bytes through its injected fetchFn into createApacheArrowResponseDecoder with apache-arrow bundled by Vite, so session.stream() executes entirely in memory and issues no off-origin request.",
   },
   {
     id: "node-backend-quickstart",
@@ -392,6 +392,27 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/temporal-playback/src/main.ts mounts an inline MapLibre style over in-module fixture frames; the sample issues no fetch.",
   },
 ];
+
+/**
+ * Product assertions that the pure-static published bundle smoke must prove.
+ * These are kept beside the hosting audit so a self-contained verdict cannot
+ * outlive the map/data behavior that made the sample publishable.
+ */
+export const SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS = new Map([
+  [
+    "columnar-query-quickstart",
+    {
+      state: "__HONUA_COLUMNAR_QUERY_QUICKSTART__",
+      readyField: "ready",
+      resultSelector: "#map-state",
+      resultAttribute: "data-state",
+      resultValue: "ready",
+      canvasSelector: ".maplibregl-canvas",
+      sourceFeatureCountMethod: "sourceFeatureCount",
+      markerSelector: ".maplibregl-marker",
+    },
+  ],
+]);
 
 /**
  * Whether a same-origin request path is satisfied by a bundle's declared

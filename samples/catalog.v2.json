@@ -549,21 +549,6 @@
       },
       "sourcePath": "examples/columnar-query-quickstart",
       "docsPath": "examples/columnar-query-quickstart/README.md",
-      "playground": {
-        "projectPath": "playgrounds/columnar-query-quickstart",
-        "providers": [
-          {
-            "id": "stackblitz",
-            "title": "StackBlitz",
-            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
-          },
-          {
-            "id": "codesandbox",
-            "title": "CodeSandbox",
-            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/columnar-query-quickstart"
-          }
-        ]
-      },
       "capabilities": [
         "cancellation",
         "columnar",

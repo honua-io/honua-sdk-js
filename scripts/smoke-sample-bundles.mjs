@@ -8,7 +8,10 @@ import { fileURLToPath } from "node:url";
 
 import { chromium } from "@playwright/test";
 
-import { PUBLISHED_LIVE_SAMPLE_POLICY } from "./build-sample-bundles.mjs";
+import {
+  PUBLISHED_LIVE_SAMPLE_POLICY,
+  SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS,
+} from "./build-sample-bundles.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const bundleRoot = path.join(projectRoot, ".artifacts", "sample-bundles");
@@ -99,6 +102,8 @@ async function smokeSample(browser, origin, sample) {
   const observedRequests = new Set();
   const requestedUrls = new Set();
   const requestCounts = new Map();
+  const offOriginRequests = new Set();
+  const clientErrorResponses = new Set();
   const livePolicy = PUBLISHED_LIVE_SAMPLE_POLICY.get(sample.id);
   const allowedOrigins = new Set(livePolicy?.allowedOrigins ?? []);
   const liveProbe = await runSemanticLiveProbe(sample.id, livePolicy);
@@ -110,6 +115,10 @@ async function smokeSample(browser, origin, sample) {
   page.on("request", (request) => {
     requestedUrls.add(request.url());
     requestCounts.set(request.url(), (requestCounts.get(request.url()) ?? 0) + 1);
+    const url = new URL(request.url());
+    if (["http:", "https:"].includes(url.protocol) && url.origin !== origin && !allowedOrigins.has(url.origin)) {
+      offOriginRequests.add(`${request.method()} ${request.url()}`);
+    }
   });
   page.on("requestfailed", (request) => {
     const errorText = request.failure()?.errorText ?? "";
@@ -132,11 +141,15 @@ async function smokeSample(browser, origin, sample) {
     if (response.status() >= 400 && url.pathname !== "/favicon.ico") {
       failures.push(`response: ${response.status()} ${response.request().method()} ${response.url()}`);
     }
+    if (response.status() >= 400 && response.status() < 500) {
+      clientErrorResponses.add(`${response.status()} ${response.request().method()} ${response.url()}`);
+    }
     observedRequests.add(url.pathname);
   });
 
   let title = "";
   let screenshot = null;
+  let staticJourney = null;
   try {
     const response = await page.goto(`${origin}/sdk/${sample.id}/app/`, {
       waitUntil: "domcontentloaded",
@@ -279,8 +292,16 @@ async function smokeSample(browser, origin, sample) {
           failures.push(`imagery COG request escaped the published app root: ${href}`);
       }
     }
+    staticJourney = await assertStaticJourney(page, sample, failures);
   } catch (error) {
     failures.push(`navigation: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (offOriginRequests.size > 0) {
+    failures.push(`off-origin requests: ${[...offOriginRequests].join(", ")}`);
+  }
+  if (clientErrorResponses.size > 0) {
+    failures.push(`4xx responses: ${[...clientErrorResponses].join(", ")}`);
   }
 
   const uniqueFailures = [...new Set(failures)];
@@ -294,10 +315,45 @@ async function smokeSample(browser, origin, sample) {
     title,
     passed: uniqueFailures.length === 0,
     requestCount: observedRequests.size,
+    network: {
+      offOriginRequestCount: offOriginRequests.size,
+      clientErrorResponseCount: clientErrorResponses.size,
+    },
+    staticJourney,
     liveProbe,
     failures: uniqueFailures,
     screenshot,
   };
+}
+
+async function assertStaticJourney(page, sample, failures) {
+  const journey = SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS.get(sample.id);
+  if (!journey) return null;
+  await page.waitForFunction(
+    ({ state, readyField }) => Boolean(window[state]?.[readyField]),
+    { state: journey.state, readyField: journey.readyField },
+    { timeout: 10_000 },
+  );
+  const runtimeReady = await page.evaluate(
+    ({ state, readyField }) => Boolean(window[state]?.[readyField]),
+    { state: journey.state, readyField: journey.readyField },
+  );
+  const resultState = await page.locator(journey.resultSelector).getAttribute(journey.resultAttribute);
+  const canvasCount = await page.locator(journey.canvasSelector).count();
+  const markerCount = await page.locator(journey.markerSelector).count();
+  const sourceFeatureCount = await page.evaluate(
+    ({ state, method }) => {
+      const runtime = window[state];
+      return typeof runtime?.[method] === "function" ? runtime[method]() : 0;
+    },
+    { state: journey.state, method: journey.sourceFeatureCountMethod },
+  );
+  const resultReady = runtimeReady && resultState === journey.resultValue;
+  if (!resultReady) failures.push(`${sample.id}: result did not reach ${journey.resultValue}`);
+  if (canvasCount < 1) failures.push(`${sample.id}: MapLibre canvas is missing`);
+  if (sourceFeatureCount < 1) failures.push(`${sample.id}: MapLibre source has no rendered feature`);
+  if (markerCount < 1) failures.push(`${sample.id}: result marker is missing`);
+  return { resultReady, canvasCount, sourceFeatureCount, markerCount };
 }
 
 async function runSemanticLiveProbe(sampleId, policy) {

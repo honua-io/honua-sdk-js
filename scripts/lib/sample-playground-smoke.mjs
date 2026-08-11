@@ -59,15 +59,6 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
     },
   ],
   [
-    "columnar-query-quickstart",
-    {
-      canvasSelector: ".maplibregl-canvas",
-      state: "__HONUA_COLUMNAR_QUERY_QUICKSTART__",
-      readyField: "ready",
-      features: { field: "featureCount", atLeast: 1 },
-    },
-  ],
-  [
     "coverages-wcs-basic",
     {
       rendersNoMap: "A fixture-backed bounded coverage image preview mounts no interactive map.",

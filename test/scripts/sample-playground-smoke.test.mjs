@@ -93,11 +93,13 @@ describe("playground smoke decisions", () => {
     }
   });
 
-  it("holds the columnar quickstart to its mapped exact-Arrow fixture contract", () => {
-    const journey = PLAYGROUND_SMOKE_JOURNEYS.get("columnar-query-quickstart");
-    const source = playgroundSource("columnar-query-quickstart");
-    assert.equal(journey.canvasSelector, ".maplibregl-canvas");
-    assert.deepEqual(journey.features, { field: "featureCount", atLeast: 1 });
+  it("keeps the unreleased columnar importer in internal source-mode evidence", () => {
+    const source = ["fixture.ts", "workflow.ts", "main.ts"]
+      .map((file) => fs.readFileSync(path.join(ROOT, "examples/columnar-query-quickstart/src", file), "utf8"))
+      .join("\n");
+    const exclusion = artifact.excluded.find((entry) => entry.sampleId === "columnar-query-quickstart");
+    assert.equal(exclusion.category, "unreleased-sdk-surface");
+    assert.ok(!publishedIds.includes("columnar-query-quickstart"));
     assert.ok(source.includes("HONUA_ARROW_FIXTURE_BYTES = 1_336"));
     assert.ok(source.includes('importModule: () => import("apache-arrow")'));
     assert.ok(source.includes('fixtureTransport: "in-memory exact server artifact; no live endpoint claimed"'));

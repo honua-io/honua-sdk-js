@@ -79,6 +79,7 @@ export const PLAYGROUND_EXCLUSION_CATEGORIES = [
   "shared-repository-source",
   "repository-vite-kit",
   "unpublished-entrypoint",
+  "unreleased-sdk-surface",
   "unpinned-dependency",
   "binary-asset",
   "browser-configuration",
@@ -86,6 +87,21 @@ export const PLAYGROUND_EXCLUSION_CATEGORIES = [
 
 /** Catalog support tiers that may never gain a new public runnable surface (mirrors #656). */
 const INELIGIBLE_SUPPORT_TIERS = new Set(["internal", "deprecated"]);
+
+/**
+ * Source changes that are valid in this checkout but absent from a currently
+ * pinned public SDK release. These samples remain internal source-mode evidence
+ * until the template pin advances and the generator re-evaluates them.
+ */
+export const UNRELEASED_PLAYGROUND_SDK_SURFACES = new Map([
+  [
+    "columnar-query-quickstart",
+    {
+      unavailableVersions: ["0.1.4-beta.0"],
+      surface: "createApacheArrowResponseDecoder({ importModule })",
+    },
+  ],
+]);
 
 /**
  * Published versions a generated playground may depend on. A sample whose
@@ -439,6 +455,14 @@ export function evaluateSamplePlaygroundEligibility(sample, context) {
   }
   const audit = context.audit.get(sample.id);
   if (!audit) return exclude("audit-pending", "No audited runtime-hosting verdict for this active sample.");
+  const unreleasedSurface = UNRELEASED_PLAYGROUND_SDK_SURFACES.get(sample.id);
+  if (unreleasedSurface?.unavailableVersions.includes(context.sdkVersion)) {
+    return exclude(
+      "unreleased-sdk-surface",
+      `${unreleasedSurface.surface} is not published by ${SDK_PACKAGE}@${context.sdkVersion}; ` +
+        "the repository sample remains source-mode evidence until a post-merge SDK release is pinned and regenerated.",
+    );
+  }
   // Data first: a project that cannot answer its own requests is not a
   // playground, whatever else is true of its source.
   const resolveOrigin = context.resolveFixtureOrigin ?? resolveFixtureOrigin;

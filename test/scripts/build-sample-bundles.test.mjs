@@ -24,6 +24,7 @@ import {
   RUNNABILITY_BY_HOSTING,
   RUNTIME_HOSTING_KINDS,
   SAMPLE_BUNDLE_AUDIT,
+  SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS,
   validateSampleBundleManifest,
   verifySampleBundleAudit,
 } from "../../scripts/build-sample-bundles.mjs";
@@ -365,6 +366,26 @@ test("overture-geoparquet is bundled through the existing prepare+build script c
   assert.ok(overture, "overture-geoparquet should be a published sample (#656)");
   assert.equal(overture.buildScript, "demo:overture:build");
   assert.equal(overture.runnability, "standalone");
+});
+
+test("columnar publication binds exact embedded Arrow execution to a pure-static map smoke", () => {
+  const audit = SAMPLE_BUNDLE_AUDIT.find((entry) => entry.id === "columnar-query-quickstart");
+  assert.equal(audit.runtimeHosting, "self-contained");
+  assert.match(audit.auditedVia, /exact 1,336-byte Honua Server Arrow response/);
+  assert.match(audit.auditedVia, /injected fetchFn/);
+  assert.match(audit.auditedVia, /createApacheArrowResponseDecoder with apache-arrow bundled by Vite/);
+  assert.match(audit.auditedVia, /issues no off-origin request/);
+
+  assert.deepEqual(SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS.get("columnar-query-quickstart"), {
+    state: "__HONUA_COLUMNAR_QUERY_QUICKSTART__",
+    readyField: "ready",
+    resultSelector: "#map-state",
+    resultAttribute: "data-state",
+    resultValue: "ready",
+    canvasSelector: ".maplibregl-canvas",
+    sourceFeatureCountMethod: "sourceFeatureCount",
+    markerSelector: ".maplibregl-marker",
+  });
 });
 
 test("every computed exclusion category is declared in EXCLUDED_SAMPLE_CATEGORIES", () => {
