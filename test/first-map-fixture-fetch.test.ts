@@ -36,16 +36,20 @@ describe("First Map packaged fixture fetch", () => {
     await expect(fixtureFetch(`${root}/api?f=json`).then((response) => response.json())).resolves.toMatchObject({
       openapi: "3.0.3",
     });
-    await expect(fixtureFetch(`${root}/conformance?f=json`).then((response) => response.json())).resolves.toMatchObject({
-      conformsTo: ["core"],
-    });
+    await expect(fixtureFetch(`${root}/conformance?f=json`).then((response) => response.json())).resolves.toMatchObject(
+      {
+        conformsTo: ["core"],
+      },
+    );
     await expect(fixtureFetch(`${root}/collections?f=json`).then((response) => response.json())).resolves.toEqual({
       collections: [{ id: "maui-census-tracts-2025" }],
     });
     await expect(fixtureFetch(`${collection}?f=json`).then((response) => response.json())).resolves.toMatchObject({
       id: "maui-census-tracts-2025",
     });
-    await expect(fixtureFetch(`${collection}/items?limit=48`).then((response) => response.json())).resolves.toMatchObject({
+    await expect(
+      fixtureFetch(`${collection}/items?limit=48`).then((response) => response.json()),
+    ).resolves.toMatchObject({
       type: "FeatureCollection",
       features: [{ id: 1 }],
     });

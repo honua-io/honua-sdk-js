@@ -132,11 +132,9 @@ function isPackagedFixtureEndpoint(endpoint: string): boolean {
   const fixtureBase = new URL(".", location.href);
   const endpointIdentity = (value: URL) => `${value.origin}${value.pathname.replace(/\/+$/, "") || "/"}`;
   const identity = endpointIdentity(url);
-  return [
-    FIRST_MAP_FIXTURE_GEOSERVICES_PATH,
-    FIXTURE_OGC_ROOT_PATH,
-    FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH,
-  ].some((path) => identity === endpointIdentity(new URL(`.${path}`, fixtureBase)));
+  return [FIRST_MAP_FIXTURE_GEOSERVICES_PATH, FIXTURE_OGC_ROOT_PATH, FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH].some(
+    (path) => identity === endpointIdentity(new URL(`.${path}`, fixtureBase)),
+  );
 }
 
 function isFixtureEndpoint(endpoint: string): boolean {
