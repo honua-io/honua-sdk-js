@@ -360,26 +360,7 @@ jobs:
 
       - name: Reproduce COG visual failure for artifact capture
         if: failure()
-        run: |
-          mkdir -p .tmp/cog-packed-capture
-          (
-            for attempt in $(seq 1 1200); do
-              actual=$(find .tmp/sample-runner -path '*imagery-cog-evidence-actual.png' -print -quit 2>/dev/null)
-              diff=$(find .tmp/sample-runner -path '*imagery-cog-evidence-diff.png' -print -quit 2>/dev/null)
-              if [[ -n "${actual}" ]]; then
-                cp "${actual}" .tmp/cog-packed-capture/imagery-cog-evidence-packed-actual.png
-                if [[ -n "${diff}" ]]; then
-                  cp "${diff}" .tmp/cog-packed-capture/imagery-cog-evidence-packed-diff.png
-                fi
-                exit 0
-              fi
-              sleep 0.25
-            done
-            exit 1
-          ) &
-          watcher=$!
-          npm run samples:run -- verify --kit --sdk-mode packed || true
-          wait "${watcher}"
+        run: npm run test:playwright:imagery-cog || true
 
       - name: Upload COG Playwright visual failure evidence
         if: failure()
@@ -387,7 +368,8 @@ jobs:
         with:
           name: cog-playwright-visual-failure
           path: |
-            .tmp/cog-packed-capture/*.png
+            .tmp/playwright-output/imagery-cog-quickstart-*/imagery-cog-*-actual.png
+            .tmp/playwright-output/imagery-cog-quickstart-*/imagery-cog-*-diff.png
           if-no-files-found: error
           include-hidden-files: true
 
