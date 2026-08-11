@@ -679,10 +679,6 @@ function isBoundedValidationCommand(parsed, packageJson) {
   );
 }
 
-export function reviewedValidationCommand(command, packageJson) {
-  return isBoundedValidationCommand(parseCatalogCommand(command), packageJson);
-}
-
 function normalizeCredentialQueryParameter(name) {
   return name
     .normalize("NFKC")
