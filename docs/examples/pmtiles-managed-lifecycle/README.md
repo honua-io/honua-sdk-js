@@ -37,6 +37,6 @@ are replaced atomically by a later publish of the same layer/matrix.
 | Signed source is expired | Publish again to rotate the URL; the SDK refuses an expired descriptor. |
 | Browser range request fails | Expose `Content-Range`, `Content-Length`, `Accept-Ranges`, ETag, and last-modified headers. |
 
-Complete project: [examples/pmtiles-managed-lifecycle](https://github.com/honua-io/honua-sdk-js/tree/trunk/examples/pmtiles-managed-lifecycle)
+Complete Walkthrough: [docs/examples/pmtiles-managed-lifecycle](https://github.com/honua-io/honua-sdk-js/tree/trunk/docs/examples/pmtiles-managed-lifecycle)
 
 API details: [PMTiles lifecycle guide](../../docs/pmtiles-lifecycle.md).

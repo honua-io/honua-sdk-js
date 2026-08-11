@@ -80,4 +80,4 @@ All renderer descriptors state that byte ranges are required. `archiveUrl` is re
 
 `job.cancel()` requests a server transition. `job.dispose()` only clears client listeners and does not claim to cancel or delete server work. Temporary archives expire under server retention. Durable artifacts are replaced by publishing the same service/layer/matrix key. Because Honua exposes no artifact DELETE route, `assertPmtilesManualCleanupSupported()` fails for every managed descriptor.
 
-The complete server-side project, expected receipt, and troubleshooting steps are in [`examples/pmtiles-managed-lifecycle`](../examples/pmtiles-managed-lifecycle/README.md).
+The complete server-side project, expected receipt, and troubleshooting steps are in the contract-only [`docs/examples/pmtiles-managed-lifecycle`](examples/pmtiles-managed-lifecycle/README.md) Walkthrough.

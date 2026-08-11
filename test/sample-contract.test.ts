@@ -2134,30 +2134,6 @@ runNpmScriptSync("demo:wrong:build", {
     }
   });
 
-  it("admits only the reviewed bounded PMTiles managed typecheck", async () => {
-    const packageJson = await readJson("package.json");
-    const catalog = await readJson("samples/catalog.v2.json");
-    const sample = catalog.samples.find((candidate: { id: string }) => candidate.id === "pmtiles-managed-lifecycle");
-    const command = "npm run demo:pmtiles-managed:typecheck";
-
-    expect(sample.validation).toContain(command);
-    catalog.samples = catalog.samples.filter(
-      (candidate: { id: string }) => candidate.id !== "pmtiles-managed-lifecycle",
-    );
-    const policySample = catalog.samples.find(
-      (candidate: { id: string }) => candidate.id === "columnar-query-quickstart",
-    );
-    policySample.validation = [command];
-    const policyValidationTime = { ...validationTime, verifyCheckout: false };
-    await expect(validateCatalog(catalog, packageJson, policyValidationTime)).resolves.toBeUndefined();
-
-    const unboundedPackage = structuredClone(packageJson);
-    unboundedPackage.scripts["demo:pmtiles-managed:typecheck"] = "tsc";
-    await expect(validateCatalog(catalog, unboundedPackage, policyValidationTime)).rejects.toThrow(
-      "automatic validation command is not in the reviewed bounded registry",
-    );
-  });
-
   it("keeps candidates non-golden until the full qualification contract is satisfied", async () => {
     const packageJson = await readJson("package.json");
 

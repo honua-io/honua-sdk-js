@@ -7,12 +7,20 @@
     "noEmit": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@honua/sdk-js/honua": ["../../src/honua.ts"],
-      "@honua/sdk-js/pmtiles": ["../../src/pmtiles/index.ts"]
+      "@honua/sdk-js/honua": [
+        "../../../src/honua.ts"
+      ],
+      "@honua/sdk-js/pmtiles": [
+        "../../../src/pmtiles/index.ts"
+      ]
     }
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts"
+  ]
 }
