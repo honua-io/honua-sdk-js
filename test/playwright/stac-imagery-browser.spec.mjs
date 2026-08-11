@@ -86,6 +86,39 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
     expect(overlap.newPreview).toMatch(/^blob:/);
     expect(overlap.newPreview).not.toBe(overlap.oldPreview);
 
+    const assetOverlap = await page.evaluate(async () => {
+      const image = document.querySelector("#asset-preview");
+      const oldPreview = image?.getAttribute("src");
+      const oldSelection = window.__HONUA_STAC_BROWSER__?.selectAsset("S2B_MAUI_20260502_WEST", "preview");
+      const newSearch = window.__HONUA_STAC_BROWSER__?.search("POST");
+      const previewCleared = image?.hidden === true && !image.hasAttribute("src");
+      await newSearch;
+      await oldSelection;
+      const trace = window.__HONUA_STAC_BROWSER__?.trace ?? [];
+      return {
+        previewCleared,
+        oldPreview,
+        newPreview: image?.getAttribute("src"),
+        selectedItemId: window.__HONUA_STAC_BROWSER__?.selectedItemId,
+        searchMethods: trace
+          .filter((entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith("/search"))
+          .map((entry) => entry.method),
+        signCount: trace.filter((entry) => entry.stage === "sign").length,
+        previewRequestCount: trace.filter(
+          (entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".svg"),
+        ).length,
+      };
+    });
+    expect(assetOverlap).toMatchObject({
+      previewCleared: true,
+      selectedItemId: "S2B_MAUI_20260502_WEST",
+      searchMethods: ["POST"],
+      signCount: 1,
+      previewRequestCount: 1,
+    });
+    expect(assetOverlap.newPreview).toMatch(/^blob:/);
+    expect(assetOverlap.newPreview).not.toBe(assetOverlap.oldPreview);
+
     await page.evaluate(async () => {
       await window.__HONUA_STAC_BROWSER__?.search("POST");
       const pending = window.__HONUA_STAC_BROWSER__?.loadNext();
@@ -98,6 +131,7 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
       true,
     );
 
+    await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.search("POST"));
     const signedBefore = await page.evaluate(
       () => window.__HONUA_STAC_BROWSER__?.trace.filter((entry) => entry.stage === "sign").length,
     );
