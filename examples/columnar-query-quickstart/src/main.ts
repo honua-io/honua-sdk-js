@@ -38,6 +38,7 @@ interface ColumnarQuickstartRuntime {
   lastRows: readonly MappedRow[];
   run(): Promise<RunOutcome>;
   cancel(): void;
+  sourceFeatureCount(): number;
   dispose(): Promise<void>;
 }
 
@@ -155,6 +156,7 @@ const runtime: ColumnarQuickstartRuntime = {
   lastRows: [],
   run,
   cancel,
+  sourceFeatureCount,
   dispose,
 };
 window.__HONUA_COLUMNAR_QUERY_QUICKSTART__ = runtime;
@@ -183,6 +185,29 @@ function setRunning(running: boolean): void {
   runtime.running = running;
   element<HTMLButtonElement>("#run-query").disabled = running;
   element<HTMLButtonElement>("#cancel-query").disabled = !running;
+}
+
+function sourceFeatureCount(): number {
+  if (!map.getSource("columnar-results")) return 0;
+  return map.querySourceFeatures("columnar-results").length;
+}
+
+function clearResultPresentation(): void {
+  runtime.lastRows = [];
+  runtime.featureCount = 0;
+  delete runtime.lastEvidence;
+  delete runtime.lastRequest;
+  activeMarker?.remove();
+  activeMarker = undefined;
+  const source = map.getSource("columnar-results") as GeoJSONSource | undefined;
+  source?.setData({ type: "FeatureCollection", features: [] });
+  setText("#metric-rows", "-");
+  setText("#metric-transfer", "-");
+  setText("#metric-backing", "-");
+  setText("#metric-elapsed", "-");
+  setText("#result-title", "Waiting for one bounded batch");
+  setText("#result-id", "-");
+  setText("#result-coordinate", "-");
 }
 
 function renderRows(rows: readonly MappedRow[]): void {
@@ -216,6 +241,7 @@ async function run(): Promise<RunOutcome> {
   activeAbort = controller;
   runtime.ready = false;
   runtime.status = "loading";
+  clearResultPresentation();
   setRunning(true);
   setText("#status", "Executing the bounded f=arrow request...");
   const stateChip = element<HTMLElement>("#map-state");

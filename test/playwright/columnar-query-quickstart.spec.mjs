@@ -39,6 +39,9 @@ test("maps the exact bounded Arrow fixture and proves cancellation and resource 
     await expect(page.locator(".result-label")).toHaveText("Honolulu Harbor");
     await expect(page.locator("#result-coordinate")).toHaveText("-157.8583, 21.3069");
     await expect(page.locator("#map-state")).toHaveAttribute("data-state", "ready");
+    await expect
+      .poll(() => page.evaluate(() => window.__HONUA_COLUMNAR_QUERY_QUICKSTART__?.sourceFeatureCount()))
+      .toBeGreaterThan(0);
 
     const firstRun = await page.evaluate(() => {
       const runtime = window.__HONUA_COLUMNAR_QUERY_QUICKSTART__;
@@ -76,11 +79,37 @@ test("maps the exact bounded Arrow fixture and proves cancellation and resource 
     });
     expect(cancelled).toEqual({ status: "cancelled", rows: 0 });
     await expect(page.locator("#map-state")).toHaveAttribute("data-state", "cancelled");
-    expect(await page.evaluate(() => window.__HONUA_COLUMNAR_QUERY_QUICKSTART__?.cancelledRuns)).toBe(1);
+    const cancelledState = await page.evaluate(() => {
+      const runtime = window.__HONUA_COLUMNAR_QUERY_QUICKSTART__;
+      return {
+        cancelledRuns: runtime?.cancelledRuns,
+        featureCount: runtime?.featureCount,
+        lastRows: runtime?.lastRows,
+        lastEvidence: runtime?.lastEvidence ?? null,
+        lastRequest: runtime?.lastRequest ?? null,
+      };
+    });
+    expect(cancelledState).toEqual({
+      cancelledRuns: 1,
+      featureCount: 0,
+      lastRows: [],
+      lastEvidence: null,
+      lastRequest: null,
+    });
+    await expect(page.locator(".result-label")).toHaveCount(0);
+    await expect(page.locator("#result-title")).toHaveText("Waiting for one bounded batch");
+    await expect(page.locator("#metric-rows")).toHaveText("-");
+    await expect
+      .poll(() => page.evaluate(() => window.__HONUA_COLUMNAR_QUERY_QUICKSTART__?.sourceFeatureCount()))
+      .toBe(0);
 
     const recovered = await page.evaluate(() => window.__HONUA_COLUMNAR_QUERY_QUICKSTART__?.run());
     expect(recovered).toEqual({ status: "ready", rows: 1 });
     await expect(page.locator("#map-state")).toHaveAttribute("data-state", "ready");
+    await expect(page.locator(".result-label")).toHaveText("Honolulu Harbor");
+    await expect
+      .poll(() => page.evaluate(() => window.__HONUA_COLUMNAR_QUERY_QUICKSTART__?.sourceFeatureCount()))
+      .toBeGreaterThan(0);
     expect(await page.evaluate(() => window.__HONUA_COLUMNAR_QUERY_QUICKSTART__?.completedRuns)).toBe(2);
 
     await page.setViewportSize({ width: 390, height: 844 });
