@@ -96,7 +96,7 @@
   "/scene-workspace was reset for the shipped MapLibre and Cesium state-sync ports (#1049): the documented 2D/3D camera correspondence, the shared port core (echo suppression, bounded convergence, disposal-safe listeners, degradation reporting), the live 2D camera/selection/filter/time/detail bindings, and the live globe camera/selection/entity-visibility/clock bindings measured 150,950 minified / 45,737 gzip bytes on their own, so both ceilings were set to that actual plus ~10%. Re-measured on the tree merged with #1048's Cesium clock binding, #1052's planner-selected columnar execution, #1054's offline-store trust, and #1051's precision/asset metadata, the entrypoint is 164,659 minified / 49,971 gzip. That sits inside the ceilings this work set, so they are recorded rather than widened again — the headroom is thin, and the next change that actually exceeds them should reset against its own measurement. No new dependency enters the entrypoint's static graph — both renderers stay duck-typed and CesiumJS is still reached only through a lazy dynamic import — and root, /honua, and browser ceilings are unchanged because the scene surface remains subpath-only.",
   "/offline was reset for the replica conflict policy contract and reviewed conflict resolutions (#1047). replayOfflineEditPass now accepts a ReplicaConflictPolicy and classifies every member of the shipped union — manual and server-wins are carried out from queue-side state, client-wins and last-writer-wins are refused by name — and the durable queue gained a reviewed-resolution transition (a conflict-resolved audit event, the requeue-or-abandon disposition, the unacknowledged-by-server marker, persisted-record validation for the new outcome, and credential screening of the reviewer-authored strings on the way in and on the way back out), with recordOfflineConflictResolution taking a SyncConflictResolution unchanged and the projection publishing the closed conflict. Trunk measured 162,099 minified / 43,827 gzip before this change and 173,311 / 46,255 after, so both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the graph — the replica-sync coupling stays type-only, so no dist/src/offline/*.js imports anything from src/replica-sync — and /offline remains subpath-only, so root, /honua, and browser barrels are unchanged.",
   "/scene-workspace was reset for the entity refresh diff and the single-owner scene mount (#1050) — the thin headroom #1049 flagged is what this change spent. refresh() no longer discards the snapshot: it diffs on identity (the projected entity id qualified by geometry kind) plus an order-independent per-facet configuration fingerprint, reuses a byte-identical feature's live Entity untouched, writes only the changed facets of a changed feature onto the Entity it already has, replaces on a geometry-kind change or an unfingerprintable feature, releases departures last so a failure cannot leave a hole, and reports every crossing through a CesiumEntityRebuildBoundary vocabulary. mountCesiumScene adds the owner that composes the entity mount with the primitive mount behind one dispose(). Measured 170,924 minified / 51,989 gzip bytes; both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the static graph — the owner delegates to the two existing mounts, the fingerprint reuses the planner's canonicalization the entity path already imported, and CesiumJS is still reached only through a lazy dynamic import — and root, /honua, and browser ceilings are unchanged because the scene surface remains subpath-only.",
-  "/pmtiles gained its first dedicated guard with #1118: authenticated bounded connect inspection plus the typed managed lifecycle measure 647,868 minified / 174,217 gzip bytes. The full subpath honestly carries the canonical connect dispatcher for auth/cache parity, while tree-shake:pmtiles-lifecycle isolates managed lifecycle at 32,718 / 9,293 and forbids generic discovery/render/plugin/runtime inputs. The five existing exceeded metrics are tiny shared compact error-classification growth from the new typed PMTiles error family; exact metafile audit found no managed lifecycle retention in root, /runtime, browser-esm, error-leaf, or map-source-workflow. Only exceeded existing metrics reset; every changed or new ceiling is exact current actual plus 10%."
+  "/pmtiles gained its first dedicated guard with #1118 and was then narrowed before promotion: the authenticated bounded inspector now shares PMTiles-specific endpoint, identity, hostile-cache validation, and HonuaClient.pipelineFetch range orchestration with generic connect() without retaining dist/src/connect.js. The corrected public subpath measures 339,031 minified / 91,910 gzip bytes, down from the rejected 647,868 / 174,217 dispatcher-backed graph; its ceilings were lowered to exact actual plus 10%. tree-shake:pmtiles-lifecycle remains isolated at 32,718 / 9,293 and forbids generic discovery/render/plugin/runtime inputs. Factoring the shared focused validator adds 3,748 minified bytes to browser-iife and 3,458 to tree-shake:root-createHonua; only those exceeded minified metrics were reset to exact actual plus 10%, while their gzip ceilings and every other shared ceiling remain unchanged."
  ],
  "entrypoints": {
   ".": {
@@ -224,7 +224,7 @@
    "gzip": 4328
   },
   "browser-iife": {
-   "min": 772626,
+   "min": 854012,
    "gzip": 227405
   },
   "browser-esm": {
@@ -244,7 +244,7 @@
    "gzip": 6372
   },
   "tree-shake:root-createHonua": {
-   "min": 734290,
+   "min": 811523,
    "gzip": 215690
   },
   "/react": {
@@ -284,8 +284,8 @@
    "gzip": 3556
   },
   "/pmtiles": {
-   "min": 712655,
-   "gzip": 191639
+   "min": 372935,
+   "gzip": 101102
   },
   "tree-shake:pmtiles-lifecycle": {
    "min": 35990,

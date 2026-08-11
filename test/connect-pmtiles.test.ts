@@ -12,6 +12,7 @@ import {
   HonuaDiscoveryError,
   HonuaTimeoutError,
 } from "../src/core/errors.js";
+import { inspectPmtilesArchive } from "../src/pmtiles/index.js";
 
 const ASSET_URL = "https://assets.example.test/maps/basemap.pmtiles";
 const ETAG = '"pmtiles-fixture-v1"';
@@ -222,6 +223,61 @@ interface MutablePmtilesSnapshot {
 }
 
 describe("connect() / PMTiles static discovery", () => {
+  it("shares cache identity, metadata, and fail-closed validation with the focused PMTiles inspector", async () => {
+    const cache = memoryCache();
+    const directFetch = rangeFetch();
+    const connection = await connect({
+      endpoint: ASSET_URL,
+      protocol: "pmtiles",
+      authorizationScopeFingerprint: "tenant-parity",
+      clientOptions: { fetchFn: directFetch.fetchFn },
+      cache,
+    });
+    const focusedFetch = vi.fn<typeof fetch>();
+    const focused = await inspectPmtilesArchive({
+      endpoint: ASSET_URL,
+      authorizationScopeFingerprint: "tenant-parity",
+      clientOptions: { fetchFn: focusedFetch },
+      cache,
+    });
+    expect(focused.cacheStatus).toBe("hit");
+    expect(focused.endpoint).toBe(connection.inspection.endpoint);
+    expect(focused.metadata).toEqual(connection.inspection.sources[0]?.metadata?.pmtiles);
+    expect(focusedFetch).not.toHaveBeenCalled();
+
+    const honest = [...cache.entries.values()][0]!;
+    const invalidCache = (): ConnectDiscoveryCache => ({
+      get: () => {
+        const snapshot = structuredClone(honest) as unknown as MutablePmtilesSnapshot;
+        snapshot.sources[0]!.metadata!.pmtiles!.transfer.ranges[0]!.contentRange = "not-a-range";
+        return snapshot as unknown as ConnectDiscoverySnapshot;
+      },
+      set: () => {
+        throw new Error("invalid PMTiles cache must not be rewritten");
+      },
+    });
+    const genericError = await connect({
+      endpoint: ASSET_URL,
+      protocol: "pmtiles",
+      authorizationScopeFingerprint: "tenant-parity",
+      clientOptions: { fetchFn: vi.fn() },
+      cache: invalidCache(),
+    }).catch((cause: unknown) => cause);
+    const focusedError = await inspectPmtilesArchive({
+      endpoint: ASSET_URL,
+      authorizationScopeFingerprint: "tenant-parity",
+      clientOptions: { fetchFn: vi.fn() },
+      cache: invalidCache(),
+    }).catch((cause: unknown) => cause);
+    expect(genericError).toBeInstanceOf(HonuaDiscoveryError);
+    if (!(genericError instanceof HonuaDiscoveryError)) throw genericError;
+    expect(focusedError).toMatchObject({
+      name: genericError.name,
+      code: genericError.code,
+      message: genericError.message,
+    });
+  });
+
   it("discovers an explicit archive through the authenticated bounded pipeline and reuses its review", async () => {
     const { fetchFn, calls } = rangeFetch();
     const controller = new AbortController();

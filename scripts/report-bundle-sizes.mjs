@@ -119,6 +119,7 @@ const COMPONENT_KIT_FORBIDDEN_INPUTS = [
 ];
 
 const PMTILES_FORBIDDEN_INPUTS = [
+  "dist/src/connect.js",
   "dist/src/cog/",
   "dist/src/map/",
   "dist/src/plugin/",
