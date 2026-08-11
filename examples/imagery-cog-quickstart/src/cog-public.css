@@ -5,4 +5,5 @@
 .cog-swatch-coast { background: #d2c484; }
 .cog-swatch-vegetation { background: #369043; }
 .cog-swatch-urban { background: #929086; }
-.pixel-evidence { margin: 0.65rem 0 0; color: var(--text-muted); font-family: "IBM Plex Mono", monospace; font-size: 0.76rem; }
+#direct-cog-render { --hn-font-mono: "DejaVu Sans Mono", monospace; }
+.pixel-evidence { margin: 0.65rem 0 0; color: var(--text-muted); font-family: var(--hn-font-mono); font-size: 0.76rem; }
