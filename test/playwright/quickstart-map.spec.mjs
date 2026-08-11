@@ -17,6 +17,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
   const consoleErrors = [];
   const externalRequests = [];
   const failedRequiredRequests = [];
+  const escapedPublishedOgcRequests = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -40,6 +41,14 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     const requestUrl = new URL(route.request().url());
     if (/^https?:$/.test(requestUrl.protocol) && requestUrl.origin !== fixtureOrigin) {
       externalRequests.push(route.request().url());
+      await route.abort("blockedbyclient");
+      return;
+    }
+    if (
+      requestUrl.origin === fixtureOrigin &&
+      requestUrl.pathname.startsWith(`${publishedAppPath}/ogc/features`)
+    ) {
+      escapedPublishedOgcRequests.push(route.request().url());
       await route.abort("blockedbyclient");
       return;
     }
@@ -218,6 +227,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await expect(page.locator("#map-overlay")).toHaveAttribute("data-state", "ready");
     await expect(page.locator("#status-feature-count")).toHaveText("48 accepted");
     await expect(page.locator("#workflow-code")).toContainText('"protocol": "ogc-features"');
+    expect(escapedPublishedOgcRequests).toEqual([]);
 
     await page.locator("#endpoint-protocol").selectOption("geoservices-feature-service");
     await expect(page.locator("#endpoint-url")).toHaveValue(
@@ -262,6 +272,7 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(0);
     expect(externalRequests).toEqual([]);
     expect(failedRequiredRequests).toEqual([]);
+    expect(escapedPublishedOgcRequests).toEqual([]);
   } finally {
     if (!page.isClosed()) await page.evaluate(async () => await window.__HONUA_QUICKSTART_DISPOSE__?.());
     await fixtureServer.close();
@@ -271,5 +282,6 @@ test("First Map proves the canonical fixture journey in source or packed mode", 
     expect(fixtureClosed).toBe(true);
     expect(externalRequests).toEqual([]);
     expect(failedRequiredRequests).toEqual([]);
+    expect(escapedPublishedOgcRequests).toEqual([]);
   }
 });
