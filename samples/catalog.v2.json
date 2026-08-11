@@ -628,7 +628,7 @@
         "authMode": "none",
         "configurationStatus": "not-required",
         "config": [],
-        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a 64 x 48 fixture PNG, strict in-memory transport, and MapLibre browser proof.",
+        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a digest-pinned 320 x 220 fixture PNG, fail-closed in-memory transport, and MapLibre browser proof.",
         "attribution": "Honua protocol contract fixture.",
         "freshness": "Versioned with the repository and server contract.",
         "configClassifications": []
@@ -643,8 +643,8 @@
           ]
         },
         "live": {
-          "mode": "unavailable",
-          "status": "not-applicable",
+          "mode": "public-live",
+          "status": "planned",
           "commands": []
         }
       },

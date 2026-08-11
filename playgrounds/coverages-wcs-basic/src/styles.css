@@ -88,8 +88,10 @@ h2 { margin: 0; font-size: clamp(1.75rem, 3vw, 2.4rem); letter-spacing: -0.035em
 }
 .legend-title { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; font-size: 0.72rem; }
 .legend-title span { color: #526b62; }
-.legend-ramp { height: 12px; border: 1px solid var(--ink); background: linear-gradient(90deg, #124143, #21705e, #7a9b54, #ddae52, #eee1b5); }
+.legend-ramp { display: flex; height: 12px; border: 1px solid var(--ink); }
+.legend-ramp span { flex: 1; }
 .legend-labels { display: flex; justify-content: space-between; margin-top: 5px; font: 0.62rem "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+.legend-labels span:not(:first-child, :last-child) { display: none; }
 .evidence-panel { padding: 30px; background: #f5f0e1; }
 .protocol-switch { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 28px; }
 .protocol-switch button, .safety-actions button {

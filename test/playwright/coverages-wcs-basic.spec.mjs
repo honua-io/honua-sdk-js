@@ -27,8 +27,12 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
   const externalRequests = [];
   const failedRequests = [];
   const errorResponses = [];
+  const websocketEvents = [];
+  const dedicatedWorkerUrls = [];
 
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("websocket", (socket) => websocketEvents.push(socket.url()));
+  page.on("worker", (worker) => dedicatedWorkerUrls.push(worker.url()));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
@@ -44,6 +48,90 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
       return;
     }
     await route.continue();
+  });
+  await page.addInitScript(() => {
+    const telemetry = {
+      createdObjectUrls: [],
+      revokedObjectUrls: [],
+      workers: [],
+      websockets: [],
+      eventSources: [],
+      sharedWorkers: [],
+      beacons: [],
+      peerConnections: 0,
+      webTransports: [],
+    };
+    window.__HONUA_NETWORK_CHANNELS__ = telemetry;
+
+    const createObjectURL = URL.createObjectURL.bind(URL);
+    const revokeObjectURL = URL.revokeObjectURL.bind(URL);
+    URL.createObjectURL = (value) => {
+      const url = createObjectURL(value);
+      telemetry.createdObjectUrls.push(url);
+      return url;
+    };
+    URL.revokeObjectURL = (url) => {
+      telemetry.revokedObjectUrls.push(String(url));
+      revokeObjectURL(url);
+    };
+
+    const NativeWorker = window.Worker;
+    window.Worker = class ObservedWorker extends NativeWorker {
+      constructor(url, options) {
+        super(url, options);
+        telemetry.workers.push(String(url));
+      }
+    };
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = class ObservedWebSocket extends NativeWebSocket {
+      constructor(url, protocols) {
+        super(url, protocols);
+        telemetry.websockets.push(String(url));
+      }
+    };
+    if (window.EventSource) {
+      const NativeEventSource = window.EventSource;
+      window.EventSource = class ObservedEventSource extends NativeEventSource {
+        constructor(url, options) {
+          super(url, options);
+          telemetry.eventSources.push(String(url));
+        }
+      };
+    }
+    if (window.SharedWorker) {
+      const NativeSharedWorker = window.SharedWorker;
+      window.SharedWorker = class ObservedSharedWorker extends NativeSharedWorker {
+        constructor(url, options) {
+          super(url, options);
+          telemetry.sharedWorkers.push(String(url));
+        }
+      };
+    }
+    const sendBeacon = navigator.sendBeacon?.bind(navigator);
+    if (sendBeacon) {
+      navigator.sendBeacon = (url, data) => {
+        telemetry.beacons.push(String(url));
+        return sendBeacon(url, data);
+      };
+    }
+    if (window.RTCPeerConnection) {
+      const NativePeerConnection = window.RTCPeerConnection;
+      window.RTCPeerConnection = class ObservedPeerConnection extends NativePeerConnection {
+        constructor(configuration) {
+          super(configuration);
+          telemetry.peerConnections += 1;
+        }
+      };
+    }
+    if (window.WebTransport) {
+      const NativeWebTransport = window.WebTransport;
+      window.WebTransport = class ObservedWebTransport extends NativeWebTransport {
+        constructor(url, options) {
+          super(url, options);
+          telemetry.webTransports.push(String(url));
+        }
+      };
+    }
   });
 
   try {
@@ -66,6 +154,11 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
           ogcBytes: runtime?.ogcByteLength,
           wcsBytes: runtime?.wcsByteLength,
           requestCount: runtime?.requestCount,
+          imageWidth: runtime?.imageWidth,
+          imageHeight: runtime?.imageHeight,
+          digest: runtime?.fixtureDigest,
+          centerPixelValue: runtime?.centerPixelValue,
+          centerPixelColor: runtime?.centerPixelColor,
           error: runtime?.error,
         };
       }),
@@ -76,9 +169,14 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
       collectionId: "7",
       selectedBand: "elevation",
       sourceId: "ogc-elevation",
-      ogcBytes: 494,
-      wcsBytes: 494,
+      ogcBytes: 281908,
+      wcsBytes: 281908,
       requestCount: 8,
+      imageWidth: 320,
+      imageHeight: 220,
+      digest: "8c7b5b3f8bd31bca2df07c4a70254d75e70d63838c2f77e033def3c1b8d2acff",
+      centerPixelValue: 450,
+      centerPixelColor: [221, 174, 82],
       error: null,
     });
 
@@ -101,7 +199,8 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
 
     await expect(page.locator(".maplibregl-canvas")).toHaveCount(1);
     await expect(page.locator(".legend")).toContainText("elevation");
-    await expect(page.locator("#pixel-value")).toHaveText("412 m");
+    await expect(page.locator("#pixel-value")).toHaveText("450 m");
+    await expect(page.locator("#legend-labels")).toContainText("450 m");
     await expect(page.locator("#collection")).toContainText("7 / Oahu elevation");
     await expect(page.locator("#range")).toContainText("Elevation, Quality mask");
     await expect(page.locator("#wcs")).toContainText("2.0.1 / Lat x Long / elevation, quality");
@@ -149,6 +248,52 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
       workflowSelectors: ["#map", ".evidence-panel", "#resilience"],
     });
 
+    const disposal = await page.evaluate(() => {
+      const runtime = window.__HONUA_COVERAGES_WCS__;
+      const activeObjectUrl = runtime?.activeObjectUrl ?? null;
+      runtime?.dispose();
+      return {
+        activeObjectUrl,
+        disposed: runtime?.disposed,
+        ready: runtime?.ready,
+        sourceId: runtime?.mapSourceId,
+        activeObjectUrlAfter: runtime?.activeObjectUrl,
+        sourceCleanupVerified: runtime?.sourceCleanupVerified,
+        mapRemoved: runtime?.mapRemoved,
+        maps: window.__honuaMaps?.length,
+        canvasCount: document.querySelectorAll(".maplibregl-canvas").length,
+        runtimeRevoked: runtime?.revokedObjectUrls ?? [],
+        channels: window.__HONUA_NETWORK_CHANNELS__,
+      };
+    });
+    expect(disposal.activeObjectUrl).toMatch(/^blob:/u);
+    expect(disposal).toMatchObject({
+      disposed: true,
+      ready: false,
+      sourceId: null,
+      activeObjectUrlAfter: null,
+      sourceCleanupVerified: true,
+      mapRemoved: true,
+      maps: 0,
+      canvasCount: 0,
+    });
+    expect(disposal.runtimeRevoked).toContain(disposal.activeObjectUrl);
+    expect(disposal.channels.createdObjectUrls).toContain(disposal.activeObjectUrl);
+    expect(disposal.channels.revokedObjectUrls).toContain(disposal.activeObjectUrl);
+    expect(disposal.channels.websockets).toEqual([]);
+    expect(disposal.channels.eventSources).toEqual([]);
+    expect(disposal.channels.sharedWorkers).toEqual([]);
+    expect(disposal.channels.beacons).toEqual([]);
+    expect(disposal.channels.peerConnections).toBe(0);
+    expect(disposal.channels.webTransports).toEqual([]);
+    expect(websocketEvents).toEqual([]);
+    expect(
+      [...dedicatedWorkerUrls, ...disposal.channels.workers].every((url) => {
+        if (url.startsWith("blob:") || url.startsWith("data:")) return true;
+        return new URL(url, serverUrl).origin === fixtureOrigin;
+      }),
+    ).toBe(true);
+
     expect(externalRequests).toEqual([]);
     expect(failedRequests).toEqual([]);
     expect(errorResponses).toEqual([]);
@@ -156,6 +301,14 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
       provider: "examples/coverages-wcs-basic/src/pinned-fixtures.ts",
       transport: "in-memory-fetch",
       escapedRequests: externalRequests.length,
+      escapedNonHttpChannels:
+        websocketEvents.length +
+        disposal.channels.websockets.length +
+        disposal.channels.eventSources.length +
+        disposal.channels.sharedWorkers.length +
+        disposal.channels.beacons.length +
+        disposal.channels.peerConnections +
+        disposal.channels.webTransports.length,
       requestCount: await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.requestCount),
     });
   } finally {

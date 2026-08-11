@@ -40,13 +40,13 @@
             <div>
               <small>Center pixel / fixture truth</small>
               <strong id="pixel-value">Loading...</strong>
-              <span id="pixel-coordinate">-158.0000, 21.4000</span>
+              <span id="pixel-coordinate">Derived from returned bytes</span>
             </div>
           </div>
           <div class="legend" aria-label="Elevation color legend">
             <div class="legend-title"><span>Named band</span><strong>elevation</strong></div>
-            <div class="legend-ramp" aria-hidden="true"></div>
-            <div class="legend-labels"><span>0 m</span><span>300 m</span><span>600 m</span></div>
+            <div id="legend-ramp" class="legend-ramp" aria-hidden="true"></div>
+            <div id="legend-labels" class="legend-labels"></div>
           </div>
         </div>
 
@@ -93,9 +93,9 @@
       <details class="implementation" data-testid="honua-sample-evidence">
         <summary>Implementation evidence</summary>
         <div class="implementation-grid">
-          <p><strong>Fixture</strong><span id="fixture-version">Loading...</span></p>
+          <p><strong>Fixture + digest</strong><span id="fixture-version">Loading...</span></p>
           <p><strong>Bounds</strong><span>bbox + 320 x 220 + 1 MiB ceiling</span></p>
-          <p><strong>Transport</strong><span>Injected fixtureFetch; no browser network fallback</span></p>
+          <p><strong>Transport</strong><span>Fail-closed injected fetch; no browser network fallback</span></p>
           <p><strong>Maturity</strong><span>Experimental until anonymous live canaries exist</span></p>
         </div>
       </details>

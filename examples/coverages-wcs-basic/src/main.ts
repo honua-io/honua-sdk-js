@@ -12,7 +12,15 @@ import {
 import { HonuaClient } from "@honua/sdk-js/honua";
 import * as maplibregl from "maplibre-gl";
 
-import { CENTER_PIXEL, FIXTURE_ORIGIN, FIXTURE_VERSION, fixtureFetch, fixtureRequestLog } from "./pinned-fixtures.js";
+import {
+  COVERAGE_FIXTURE_CONTRACT,
+  ELEVATION_LEGEND,
+  FIXTURE_IMAGE_SHA256,
+  FIXTURE_ORIGIN,
+  FIXTURE_VERSION,
+  createPinnedFixtureFetch,
+  fixtureRequestLog,
+} from "./pinned-fixtures.js";
 import "./styles.css";
 
 type CoverageProtocol = "ogc" | "wcs";
@@ -25,6 +33,15 @@ interface CoverageDemoState {
   collectionId: string | null;
   selectedBand: string;
   mapSourceId: string | null;
+  activeObjectUrl: string | null;
+  revokedObjectUrls: readonly string[];
+  mapRemoved: boolean;
+  sourceCleanupVerified: boolean;
+  imageWidth: number | null;
+  imageHeight: number | null;
+  fixtureDigest: string;
+  centerPixelValue: number | null;
+  centerPixelColor: readonly number[] | null;
   ogcRequestUrl: string | null;
   wcsRequestUrl: string | null;
   ogcByteLength: number | null;
@@ -51,13 +68,18 @@ declare global {
   }
 }
 
-const bbox = [-158.1, 21.3, -157.9, 21.5] as const;
-const byteCeiling = 1024 * 1024;
-const selectedBand = "elevation";
-const client = new HonuaClient({ baseUrl: FIXTURE_ORIGIN, fetchFn: fixtureFetch });
+const bbox = COVERAGE_FIXTURE_CONTRACT.bbox;
+const byteCeiling = COVERAGE_FIXTURE_CONTRACT.maxResponseBytes;
+const selectedBand = COVERAGE_FIXTURE_CONTRACT.band;
+const client = new HonuaClient({
+  baseUrl: FIXTURE_ORIGIN,
+  fetchFn: createPinnedFixtureFetch({ maxResponseBytes: byteCeiling }),
+});
 const coverages = createCoverageClient(client);
-const source = coverages.source("7");
-const wcs = createWcsClient(client, { basePath: "/ogc/services/7/wcs" });
+const source = coverages.source(COVERAGE_FIXTURE_CONTRACT.collectionId);
+const wcs = createWcsClient(client, {
+  basePath: `/ogc/services/${COVERAGE_FIXTURE_CONTRACT.collectionId}/wcs`,
+});
 const bootController = new AbortController();
 const coverageResults = new Map<CoverageProtocol, CoverageResult>();
 let activeProjection: CoverageMapLibreImage | undefined;
@@ -87,6 +109,15 @@ const demoState: CoverageDemoState = {
   collectionId: null,
   selectedBand,
   mapSourceId: null,
+  activeObjectUrl: null,
+  revokedObjectUrls: [],
+  mapRemoved: false,
+  sourceCleanupVerified: false,
+  imageWidth: null,
+  imageHeight: null,
+  fixtureDigest: FIXTURE_IMAGE_SHA256,
+  centerPixelValue: null,
+  centerPixelColor: null,
   ogcRequestUrl: null,
   wcsRequestUrl: null,
   ogcByteLength: null,
@@ -127,26 +158,32 @@ async function main(): Promise<void> {
       source.rangeType({ signal }),
       source.coverage({
         bbox,
-        bboxCrs: "EPSG:4326",
-        outputCrs: "EPSG:4326",
+        bboxCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
+        outputCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
         properties: [selectedBand],
-        scaleSize: { width: 320, height: 220 },
-        format: "image/png",
+        scaleSize: {
+          width: COVERAGE_FIXTURE_CONTRACT.width,
+          height: COVERAGE_FIXTURE_CONTRACT.height,
+        },
+        format: COVERAGE_FIXTURE_CONTRACT.format,
         maxResponseBytes: byteCeiling,
         signal,
       }),
       wcs.capabilities({ acceptVersions: ["2.0.1"], acceptFormats: ["application/xml"], signal }),
-      wcs.describeCoverage(["7"], { signal }),
-      wcs.getCoverage("7", {
+      wcs.describeCoverage([COVERAGE_FIXTURE_CONTRACT.coverageId], { signal }),
+      wcs.getCoverage(COVERAGE_FIXTURE_CONTRACT.coverageId, {
         subsets: [
-          { axis: "Lat", low: bbox[1], high: bbox[3] },
-          { axis: "Long", low: bbox[0], high: bbox[2] },
+          { axis: COVERAGE_FIXTURE_CONTRACT.axes.latitude, low: bbox[1], high: bbox[3] },
+          { axis: COVERAGE_FIXTURE_CONTRACT.axes.longitude, low: bbox[0], high: bbox[2] },
         ],
-        subsettingCrs: "http://www.opengis.net/def/crs/EPSG/0/4326",
-        outputCrs: "http://www.opengis.net/def/crs/EPSG/0/4326",
+        subsettingCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
+        outputCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
         rangeSubset: [selectedBand],
-        scaleSize: { Lat: 220, Long: 320 },
-        format: "image/png",
+        scaleSize: {
+          [COVERAGE_FIXTURE_CONTRACT.axes.latitude]: COVERAGE_FIXTURE_CONTRACT.height,
+          [COVERAGE_FIXTURE_CONTRACT.axes.longitude]: COVERAGE_FIXTURE_CONTRACT.width,
+        },
+        format: COVERAGE_FIXTURE_CONTRACT.format,
         maxResponseBytes: byteCeiling,
         signal,
       }),
@@ -165,6 +202,12 @@ async function main(): Promise<void> {
   if (!wcsDescription.fields.some((field) => field.name === selectedBand)) {
     throw new Error("Pinned WCS range metadata did not include the elevation band.");
   }
+  if (!equalBytes(ogcCoverage.bytes, wcsCoverage.bytes)) {
+    throw new Error("OGC API Coverages and WCS fixture bytes diverged.");
+  }
+
+  const pixel = await inspectCenterPixel(ogcCoverage);
+  renderLegend();
 
   coverageResults.set("ogc", ogcCoverage);
   coverageResults.set("wcs", wcsCoverage);
@@ -180,8 +223,8 @@ async function main(): Promise<void> {
       .map((field) => field.name)
       .join(", ")}`,
   );
-  setText("pixel-value", `${CENTER_PIXEL.value} ${CENTER_PIXEL.unit}`);
-  setText("pixel-coordinate", CENTER_PIXEL.coordinate.map((value) => value.toFixed(4)).join(", "));
+  setText("pixel-value", `${pixel.value} m`);
+  setText("pixel-coordinate", `${((bbox[0] + bbox[2]) / 2).toFixed(4)}, ${((bbox[1] + bbox[3]) / 2).toFixed(4)}`);
   setText("fixture-version", FIXTURE_VERSION);
   setText("ogc-request", compactRequest(ogcCoverage.requestUrl));
   setText("wcs-request", compactRequest(wcsCoverage.requestUrl));
@@ -191,6 +234,10 @@ async function main(): Promise<void> {
   demoState.wcsRequestUrl = wcsCoverage.requestUrl;
   demoState.ogcByteLength = ogcCoverage.bytes.byteLength;
   demoState.wcsByteLength = wcsCoverage.bytes.byteLength;
+  demoState.imageWidth = pixel.width;
+  demoState.imageHeight = pixel.height;
+  demoState.centerPixelValue = pixel.value;
+  demoState.centerPixelColor = pixel.color;
   refreshRequestEvidence();
   demoState.phase = "ready";
   demoState.ready = true;
@@ -200,19 +247,16 @@ async function main(): Promise<void> {
 function selectProtocol(protocol: CoverageProtocol): void {
   if (demoState.disposed) return;
   const coverage = coverageResults.get(protocol);
-  if (!coverage || !map.loaded()) return;
+  if (!coverage) return;
 
-  if (activeProjection) {
-    if (map.getLayer(activeProjection.layer.id)) map.removeLayer(activeProjection.layer.id);
-    if (map.getSource(activeProjection.sourceId)) map.removeSource(activeProjection.sourceId);
-    activeProjection.dispose();
-  }
+  releaseActiveProjection();
 
   activeProjection = coverageToMapLibreImage(coverage, bbox, {
     sourceId: `${protocol}-elevation`,
     layerId: `${protocol}-elevation-raster`,
   });
-  map.addSource(activeProjection.sourceId, activeProjection.source as maplibregl.ImageSourceSpecification);
+  const imageSource = activeProjection.source as maplibregl.ImageSourceSpecification;
+  map.addSource(activeProjection.sourceId, imageSource);
   map.addLayer({ ...activeProjection.layer });
   map.fitBounds(
     [
@@ -224,6 +268,7 @@ function selectProtocol(protocol: CoverageProtocol): void {
 
   demoState.activeProtocol = protocol;
   demoState.mapSourceId = activeProjection.sourceId;
+  demoState.activeObjectUrl = imageSource.url;
   setText("active-protocol", protocol === "ogc" ? "OGC API image source" : "WCS image source");
   setText("response", `${coverage.bytes.byteLength.toLocaleString()} bytes / ${coverage.contentType}`);
   for (const button of document.querySelectorAll<HTMLButtonElement>("[data-protocol]")) {
@@ -240,9 +285,14 @@ async function proveCancellation(): Promise<{
   const controller = new AbortController();
   const pending = source.coverage({
     bbox,
-    properties: ["quality"],
-    scaleSize: { width: 64, height: 64 },
-    format: "image/png",
+    bboxCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
+    outputCrs: COVERAGE_FIXTURE_CONTRACT.bboxCrs,
+    properties: [COVERAGE_FIXTURE_CONTRACT.cancellationBand],
+    scaleSize: {
+      width: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+      height: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+    },
+    format: COVERAGE_FIXTURE_CONTRACT.format,
     maxResponseBytes: byteCeiling,
     signal: controller.signal,
   });
@@ -268,14 +318,19 @@ async function proveDegradation(): Promise<{
   const activeProtocol = requireActiveProtocol();
   setText("safety-status", "Asking WCS for rangeSubset=not-a-band...");
   try {
-    await wcs.getCoverage("7", {
+    await wcs.getCoverage(COVERAGE_FIXTURE_CONTRACT.coverageId, {
       subsets: [
-        { axis: "Lat", low: bbox[1], high: bbox[3] },
-        { axis: "Long", low: bbox[0], high: bbox[2] },
+        { axis: COVERAGE_FIXTURE_CONTRACT.axes.latitude, low: bbox[1], high: bbox[3] },
+        { axis: COVERAGE_FIXTURE_CONTRACT.axes.longitude, low: bbox[0], high: bbox[2] },
       ],
+      subsettingCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
+      outputCrs: COVERAGE_FIXTURE_CONTRACT.wcsCrs,
       rangeSubset: ["not-a-band"],
-      scaleSize: { Lat: 64, Long: 64 },
-      format: "image/png",
+      scaleSize: {
+        [COVERAGE_FIXTURE_CONTRACT.axes.latitude]: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+        [COVERAGE_FIXTURE_CONTRACT.axes.longitude]: COVERAGE_FIXTURE_CONTRACT.cancellationSize,
+      },
+      format: COVERAGE_FIXTURE_CONTRACT.format,
       maxResponseBytes: byteCeiling,
     });
     throw new Error("Degradation proof unexpectedly completed.");
@@ -318,14 +373,86 @@ function setText(id: string, value: string): void {
   if (element) element.textContent = value;
 }
 
+function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
+}
+
+async function inspectCenterPixel(coverage: CoverageResult): Promise<{
+  readonly width: number;
+  readonly height: number;
+  readonly value: number;
+  readonly color: readonly number[];
+}> {
+  const bytes = Uint8Array.from(coverage.bytes);
+  const bitmap = await createImageBitmap(new Blob([bytes.buffer], { type: coverage.contentType }));
+  try {
+    if (bitmap.width !== COVERAGE_FIXTURE_CONTRACT.width || bitmap.height !== COVERAGE_FIXTURE_CONTRACT.height) {
+      throw new Error(`Pinned image dimensions drifted to ${bitmap.width} x ${bitmap.height}.`);
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Canvas pixel inspection is unavailable.");
+    context.drawImage(bitmap, 0, 0);
+    const pixel = context.getImageData(Math.floor(bitmap.width / 2), Math.floor(bitmap.height / 2), 1, 1).data;
+    const match = ELEVATION_LEGEND.find(
+      (entry) => entry.color[0] === pixel[0] && entry.color[1] === pixel[1] && entry.color[2] === pixel[2],
+    );
+    if (!match || pixel[3] !== 255) {
+      throw new Error(`Center pixel does not match the explicit elevation legend: ${[...pixel].join(",")}`);
+    }
+    document
+      .querySelector<HTMLElement>(".pixel-dot")
+      ?.style.setProperty("background", `rgb(${match.color.join(", ")})`);
+    return { width: bitmap.width, height: bitmap.height, value: match.value, color: [...match.color] };
+  } finally {
+    bitmap.close();
+  }
+}
+
+function renderLegend(): void {
+  const ramp = document.getElementById("legend-ramp");
+  const labels = document.getElementById("legend-labels");
+  if (!ramp || !labels) return;
+  ramp.replaceChildren(
+    ...ELEVATION_LEGEND.map((entry) => {
+      const swatch = document.createElement("span");
+      swatch.style.background = `rgb(${entry.color.join(", ")})`;
+      return swatch;
+    }),
+  );
+  labels.replaceChildren(
+    ...ELEVATION_LEGEND.map((entry) => {
+      const label = document.createElement("span");
+      label.textContent = `${entry.value} m`;
+      return label;
+    }),
+  );
+}
+
+function releaseActiveProjection(): void {
+  if (!activeProjection) return;
+  const objectUrl = demoState.activeObjectUrl;
+  const sourceId = activeProjection.sourceId;
+  if (map.getLayer(activeProjection.layer.id)) map.removeLayer(activeProjection.layer.id);
+  if (map.getSource(sourceId)) map.removeSource(sourceId);
+  demoState.sourceCleanupVerified = !map.getSource(sourceId);
+  activeProjection.dispose();
+  activeProjection = undefined;
+  demoState.mapSourceId = null;
+  demoState.activeObjectUrl = null;
+  if (objectUrl) demoState.revokedObjectUrls = [...demoState.revokedObjectUrls, objectUrl];
+}
+
 function dispose(): void {
   if (demoState.disposed) return;
   demoState.disposed = true;
   demoState.ready = false;
   bootController.abort("Coverage sample disposed");
-  activeProjection?.dispose();
-  activeProjection = undefined;
+  releaseActiveProjection();
   map.remove();
+  demoState.mapRemoved = true;
   window.__honuaMaps = [];
   setInteractive(false);
 }
