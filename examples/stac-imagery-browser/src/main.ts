@@ -22,8 +22,9 @@ declare global {
   }
 }
 
-const environment = createStacFixtureEnvironment(createDynamicStacClient);
+const environment = createStacFixtureEnvironment(createDynamicStacClient, { pageDelayMs: 80 });
 let searchMethod: StacSearchMethod = "POST";
+let searchGeneration = 0;
 let abortController: AbortController | undefined;
 let pageIterator: AsyncGenerator<readonly HonuaStacItemResponse[]> | undefined;
 let items: HonuaStacItemResponse[] = [];
@@ -83,7 +84,7 @@ function render(): void {
     ? `Selected ${selectedItem.id}`
     : "Nothing selected";
   element<HTMLSelectElement>("#search-method").value = searchMethod;
-  element<HTMLButtonElement>("#load-next").disabled = paginationStatus !== "more available";
+  element<HTMLButtonElement>("#load-next").disabled = paginationStatus !== "ready for next page";
   element<HTMLButtonElement>("#cancel-pagination").disabled = paginationStatus !== "loading";
   renderResults();
   renderSelection();
@@ -157,7 +158,8 @@ function renderSelection(): void {
 }
 
 function renderTrace(): void {
-  element<HTMLElement>("#network-log").textContent = environment.trace
+  element<HTMLElement>("#network-log").textContent = environment
+    .traceForScope(searchGeneration)
     .map((entry) => {
       const url = new URL(entry.url, "https://fixture.invalid");
       const detail = entry.assetKey ? ` ${entry.assetKey}` : "";
@@ -166,12 +168,25 @@ function renderTrace(): void {
     .join("\n");
 }
 
-async function renderAssetPreview(asset: DynamicStacAssetDescriptor): Promise<void> {
+function clearAssetPreview(): void {
+  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+  previewObjectUrl = undefined;
+  const image = element<HTMLImageElement>("#asset-preview");
+  image.removeAttribute("src");
+  image.hidden = true;
+}
+
+async function renderAssetPreview(asset: DynamicStacAssetDescriptor, generation: number): Promise<void> {
   if (asset.format !== "raster") return;
   const response = await environment.fetchAsset(asset.href);
   if (!response.ok) throw new Error(`Preview request failed with ${response.status}.`);
-  if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
-  previewObjectUrl = URL.createObjectURL(await response.blob());
+  const objectUrl = URL.createObjectURL(await response.blob());
+  if (generation !== searchGeneration) {
+    URL.revokeObjectURL(objectUrl);
+    return;
+  }
+  clearAssetPreview();
+  previewObjectUrl = objectUrl;
   const image = element<HTMLImageElement>("#asset-preview");
   image.src = previewObjectUrl;
   image.alt = `${selectedItem ? title(selectedItem) : "Maui"} selected imagery asset`;
@@ -179,35 +194,64 @@ async function renderAssetPreview(asset: DynamicStacAssetDescriptor): Promise<vo
 }
 
 async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> {
+  const generation = searchGeneration;
   const item = items.find((candidate) => String(candidate.id) === itemId);
   if (!item) return;
   selectedItem = item;
-  const candidates = await environment.stac.assets(item, {
-    assetKeys: [assetKey],
-    formats: ["cog", "pmtiles", "geoparquet", "raster"],
-  });
+  let candidates: readonly DynamicStacAssetDescriptor[];
+  try {
+    candidates = await environment.stac.assets(item, {
+      assetKeys: [assetKey],
+      formats: ["cog", "pmtiles", "geoparquet", "raster"],
+    });
+  } catch (error) {
+    if (generation !== searchGeneration) return;
+    throw error;
+  }
+  if (generation !== searchGeneration) return;
   selectedAsset = candidates[0];
-  if (selectedAsset) await renderAssetPreview(selectedAsset);
+  try {
+    if (selectedAsset) await renderAssetPreview(selectedAsset, generation);
+  } catch (error) {
+    if (generation !== searchGeneration) return;
+    throw error;
+  }
+  if (generation !== searchGeneration) return;
   render();
 }
 
 async function loadNext(): Promise<void> {
-  if (!pageIterator || paginationStatus === "complete" || paginationStatus === "cancelled") return;
+  const generation = searchGeneration;
+  const iterator = pageIterator;
+  const controller = abortController;
+  if (!iterator || !controller || paginationStatus === "complete" || paginationStatus === "cancelled") return;
+  await loadNextForGeneration(generation, iterator, controller);
+}
+
+async function loadNextForGeneration(
+  generation: number,
+  iterator: AsyncGenerator<readonly HonuaStacItemResponse[]>,
+  controller: AbortController,
+): Promise<void> {
+  if (generation !== searchGeneration) return;
   paginationStatus = "loading";
   render();
   try {
-    const next = await pageIterator.next();
+    const next = await iterator.next();
+    if (generation !== searchGeneration) return;
     if (next.done) {
       paginationStatus = "complete";
     } else {
       items.push(...next.value);
-      paginationStatus = next.value.length < 2 ? "complete" : "more available";
+      paginationStatus = "ready for next page";
       if (!selectedItem && items[0]) await selectAsset(String(items[0].id), "preview");
     }
   } catch (error) {
-    if (abortController?.signal.aborted) paginationStatus = "cancelled";
+    if (generation !== searchGeneration) return;
+    if (controller.signal.aborted) paginationStatus = "cancelled";
     else throw error;
   }
+  if (generation !== searchGeneration) return;
   render();
 }
 
@@ -218,21 +262,27 @@ function cancelPagination(): void {
 }
 
 async function runSearch(method: "GET" | "POST"): Promise<void> {
+  const generation = searchGeneration + 1;
+  searchGeneration = generation;
   abortController?.abort();
-  abortController = new AbortController();
+  const controller = new AbortController();
   searchMethod = method;
+  clearAssetPreview();
   items = [];
   selectedItem = undefined;
   selectedAsset = undefined;
   paginationStatus = "idle";
   environment.resetTrace();
-  pageIterator = environment.stac.pages({
-    ...mauiSearchRequest(method, abortController.signal),
+  environment.setTraceScope(controller.signal, generation);
+  const iterator = environment.stac.pages({
+    ...mauiSearchRequest(method, controller.signal),
     pageSize: 2,
     maxPages: 3,
     prefetchPages: 0,
   });
-  await loadNext();
+  abortController = controller;
+  pageIterator = iterator;
+  await loadNextForGeneration(generation, iterator, controller);
 }
 
 element<HTMLFormElement>("#search-form").addEventListener("submit", (event) => {
@@ -266,7 +316,7 @@ window.__HONUA_STAC_BROWSER__ = {
     return selectedItem ? String(selectedItem.id) : undefined;
   },
   get trace() {
-    return environment.trace;
+    return environment.traceForScope(searchGeneration);
   },
   search: runSearch,
   loadNext,

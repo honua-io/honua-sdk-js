@@ -16,6 +16,13 @@ export interface StacFixtureEnvironment {
   readonly trace: StacFixtureTrace[];
   readonly fetchAsset: typeof fetch;
   resetTrace(): void;
+  setTraceScope(signal: AbortSignal, scope: number): void;
+  traceForScope(scope: number): StacFixtureTrace[];
+}
+
+export interface StacFixtureOptions {
+  readonly pageDelayMs?: number;
+  readonly pages?: readonly (readonly HonuaStacItemResponse[])[];
 }
 
 const BOUNDS = {
@@ -30,6 +37,7 @@ export const MAUI_ITEMS: readonly HonuaStacItemResponse[] = [
     title: "West Maui cloud break",
     datetime: "2026-05-02T21:20:29Z",
     cloudCover: 7,
+    platform: "sentinel-2b",
     bbox: BOUNDS.west,
     preview: "west-maui-preview.svg",
   }),
@@ -38,6 +46,7 @@ export const MAUI_ITEMS: readonly HonuaStacItemResponse[] = [
     title: "Central Maui clear pass",
     datetime: "2026-04-24T21:18:54Z",
     cloudCover: 12,
+    platform: "sentinel-2a",
     bbox: BOUNDS.central,
     preview: "central-maui-preview.svg",
   }),
@@ -46,6 +55,7 @@ export const MAUI_ITEMS: readonly HonuaStacItemResponse[] = [
     title: "Haleakala east slope",
     datetime: "2026-04-18T21:20:29Z",
     cloudCover: 18,
+    platform: "sentinel-2b",
     bbox: BOUNDS.east,
     preview: "east-maui-preview.svg",
   }),
@@ -53,16 +63,30 @@ export const MAUI_ITEMS: readonly HonuaStacItemResponse[] = [
 
 export function createStacFixtureEnvironment(
   createClient: (options: DynamicStacClientOptions) => DynamicStacClient,
-  pageDelayMs = 80,
+  options: StacFixtureOptions = {},
 ): StacFixtureEnvironment {
   const trace: StacFixtureTrace[] = [];
-  const fetchAsset = createFixtureFetch(trace, pageDelayMs);
+  const traceScopes = new WeakMap<StacFixtureTrace, number>();
+  const signalScopes = new WeakMap<AbortSignal, number>();
+  let activeTraceScope = 0;
+  let lastAbortedTraceScope = 0;
+  const resolveTraceScope = (signal: AbortSignal | null | undefined): number => {
+    const mappedScope = signal ? signalScopes.get(signal) : undefined;
+    if (mappedScope !== undefined) return mappedScope;
+    return signal?.aborted ? lastAbortedTraceScope : activeTraceScope;
+  };
+  const recordTrace = (entry: StacFixtureTrace, scope = activeTraceScope): void => {
+    trace.push(entry);
+    traceScopes.set(entry, scope);
+  };
+  const pages = options.pages ?? [MAUI_ITEMS.slice(0, 2), MAUI_ITEMS.slice(2)];
+  const fetchAsset = createFixtureFetch(recordTrace, resolveTraceScope, options.pageDelayMs ?? 80, pages);
   const stac = createClient({
     baseUrl: FIXTURE_STAC_ROOT,
     clientOptions: { fetchFn: fetchAsset },
     refreshAssetUrl: async ({ assetKey, asset, signal }) => {
       if (signal?.aborted) throw new DOMException("aborted", "AbortError");
-      trace.push({ stage: "sign", method: "SIGN", url: asset.href, assetKey });
+      recordTrace({ stage: "sign", method: "SIGN", url: asset.href, assetKey }, resolveTraceScope(signal));
       return `${asset.href}${asset.href.includes("?") ? "&" : "?"}signed=fixture`;
     },
   });
@@ -73,16 +97,37 @@ export function createStacFixtureEnvironment(
     resetTrace() {
       trace.length = 0;
     },
+    setTraceScope(signal, scope) {
+      activeTraceScope = scope;
+      signalScopes.set(signal, scope);
+      signal.addEventListener(
+        "abort",
+        () => {
+          lastAbortedTraceScope = scope;
+        },
+        { once: true },
+      );
+    },
+    traceForScope(scope) {
+      return trace.filter((entry) => traceScopes.get(entry) === scope);
+    },
   };
 }
 
-function createFixtureFetch(trace: StacFixtureTrace[], pageDelayMs: number): typeof fetch {
+function createFixtureFetch(
+  recordTrace: (entry: StacFixtureTrace, scope?: number) => void,
+  resolveTraceScope: (signal: AbortSignal | null | undefined) => number,
+  pageDelayMs: number,
+  pages: readonly (readonly HonuaStacItemResponse[])[],
+): typeof fetch {
   return async (input, init) => {
     const request = input instanceof Request ? input : undefined;
     const url = new URL(request?.url ?? input.toString());
     const method = (init?.method ?? request?.method ?? "GET").toUpperCase() as "GET" | "POST";
     const body = parseBody(init?.body);
-    trace.push({ stage: "request", method, url: url.href, ...(body ? { body } : {}) });
+    const signal = init?.signal ?? request?.signal;
+    const traceScope = resolveTraceScope(signal);
+    recordTrace({ stage: "request", method, url: url.href, ...(body ? { body } : {}) }, traceScope);
 
     if (url.pathname.endsWith("/v1") || url.pathname.endsWith("/v1/")) {
       return Response.json({
@@ -120,17 +165,23 @@ function createFixtureFetch(trace: StacFixtureTrace[], pageDelayMs: number): typ
 
     if (url.pathname.endsWith("/search")) {
       const token = method === "POST" ? body?.token : url.searchParams.get("token");
-      if (token === "maui-page-2") await abortableDelay(pageDelayMs, init?.signal ?? request?.signal, trace, url);
-      const secondPage = token === "maui-page-2";
+      const pageIndex =
+        typeof token === "string" && /^maui-page-[2-9][0-9]*$/u.test(token)
+          ? Number.parseInt(token.slice("maui-page-".length), 10) - 1
+          : 0;
+      if (pageIndex > 0) await abortableDelay(pageDelayMs, signal, recordTrace, traceScope, url);
+      const features = pages[pageIndex] ?? [];
+      const hasNext = pageIndex + 1 < pages.length;
+      const nextToken = `maui-page-${pageIndex + 2}`;
       return Response.json({
         type: "FeatureCollection",
-        features: secondPage ? [MAUI_ITEMS[2]] : MAUI_ITEMS.slice(0, 2),
-        links: secondPage
+        features,
+        links: !hasNext
           ? []
           : method === "POST"
-            ? [{ rel: "next", href: "./search", method: "POST", body: { token: "maui-page-2" }, merge: true }]
-            : [{ rel: "next", href: "./search?token=maui-page-2", method: "GET" }],
-        context: { matched: MAUI_ITEMS.length, returned: secondPage ? 1 : 2 },
+            ? [{ rel: "next", href: "./search", method: "POST", body: { token: nextToken }, merge: true }]
+            : [{ rel: "next", href: `./search?token=${nextToken}`, method: "GET" }],
+        context: { matched: pages.reduce((total, page) => total + page.length, 0), returned: features.length },
       });
     }
 
@@ -150,6 +201,7 @@ function mauiItem(input: {
   readonly title: string;
   readonly datetime: string;
   readonly cloudCover: number;
+  readonly platform: "sentinel-2a" | "sentinel-2b";
   readonly bbox: readonly [number, number, number, number];
   readonly preview: string;
 }): HonuaStacItemResponse {
@@ -175,7 +227,7 @@ function mauiItem(input: {
       title: input.title,
       datetime: input.datetime,
       "eo:cloud_cover": input.cloudCover,
-      platform: "sentinel-2b",
+      platform: input.platform,
       "proj:epsg": 32604,
     },
     links: [{ rel: "self", href: `./collections/${MAUI_COLLECTION_ID}/items/${input.id}` }],
@@ -229,7 +281,8 @@ function parseBody(body: BodyInit | null | undefined): Record<string, unknown> |
 async function abortableDelay(
   delayMs: number,
   signal: AbortSignal | null | undefined,
-  trace: StacFixtureTrace[],
+  recordTrace: (entry: StacFixtureTrace, scope?: number) => void,
+  traceScope: number,
   url: URL,
 ): Promise<void> {
   if (delayMs <= 0) return;
@@ -237,7 +290,7 @@ async function abortableDelay(
     const timer = setTimeout(resolve, delayMs);
     const abort = () => {
       clearTimeout(timer);
-      trace.push({ stage: "cancel", method: "ABORT", url: url.href });
+      recordTrace({ stage: "cancel", method: "ABORT", url: url.href }, traceScope);
       reject(new DOMException("aborted", "AbortError"));
     };
     if (signal?.aborted) abort();

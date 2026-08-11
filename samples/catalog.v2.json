@@ -2574,14 +2574,12 @@
         "cog",
         "geoparquet",
         "imagery",
-        "pmtiles",
         "raster",
         "stac"
       ],
       "capabilityKeys": [
         "raster.cloud-cog-serving",
-        "serve.stac",
-        "serve.vector-tiles"
+        "serve.stac"
       ],
       "protocols": [
         "stac"
