@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.5-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.4-beta.0...mcp-server-v0.1.5-beta.0) (2026-08-11)
+
+
+### Bug Fixes
+
+* **security:** remediate SDK scanning alerts ([#1174](https://github.com/honua-io/honua-sdk-js/issues/1174)) ([1a173b1](https://github.com/honua-io/honua-sdk-js/commit/1a173b1b2dcca6f849c6306769c92b0b336615b3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @honua/sdk-js bumped from file:.. to 0.1.5-beta.0
+  * peerDependencies
+    * @honua/sdk-js bumped from ^0.1.4-beta.0 to ^0.1.5-beta.0
+
 ## [0.1.4-beta.0](https://github.com/honua-io/honua-sdk-js/compare/mcp-server-v0.1.3-beta.0...mcp-server-v0.1.4-beta.0) (2026-08-05)
 
 
