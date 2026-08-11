@@ -128,7 +128,7 @@ export interface StacRasterBandDescriptor {
 
 export type StacAssetHandoff =
   | { readonly kind: "cog"; readonly href: string; readonly packageExport: "@honua/sdk-js/cog" }
-  | { readonly kind: "pmtiles"; readonly href: string; readonly packageExport: "@honua/sdk-js/pmtiles" }
+  | { readonly kind: "pmtiles"; readonly href: string; readonly packageExport: "@honua/sdk-js/contract" }
   | {
       readonly kind: "geoparquet";
       readonly href: string;
@@ -377,7 +377,7 @@ function describeAsset(
     case "cog":
       return { ...base, handoff: { kind: "cog", href, packageExport: "@honua/sdk-js/cog" } };
     case "pmtiles":
-      return { ...base, handoff: { kind: "pmtiles", href, packageExport: "@honua/sdk-js/pmtiles" } };
+      return { ...base, handoff: { kind: "pmtiles", href, packageExport: "@honua/sdk-js/contract" } };
     case "geoparquet":
       return {
         ...base,
