@@ -164,7 +164,7 @@ test(
       await expect(page.getByRole("heading", { level: 1, name: "Imagery and Terrain" })).toBeVisible();
       await expect(page.getByTestId("honua-sample-mode")).toHaveText(/^(source|packed) SDK$/u);
       await expect(page.locator("#search-status")).toContainText("HonuaClient.stac().search");
-      await expect(page.locator("#scene-results")).toContainText("Deterministic Oahu natural-color fixture");
+      await expect(page.locator("#scene-results")).toContainText("Synthetic Oahu RGB fixture");
       await expect(page.locator("#inspection-content")).toHaveAttribute("data-status", "ready");
       await expect(page.locator("#inspection-content")).toContainText("bytes 0-63/");
       await expect(page.locator("#inspection-content")).toContainText(
