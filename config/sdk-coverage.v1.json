@@ -312,6 +312,7 @@
       "status": "partial",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
+        "@honua/sdk-js/raster",
         "HonuaClient.imageService",
         "Source.protocol()",
         "connect()",
@@ -320,10 +321,11 @@
       "evidence": [
         "test/contract/geoservices-conformance.test.ts",
         "test/geoservices-discovery.test.ts",
-        "test/integration/surfaces/image-server.integration.ts"
+        "test/integration/surfaces/image-server.integration.ts",
+        "test/unified-raster.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; export-only imagery remains an operation descriptor."
+      "note": "Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; the experimental raster facade adds bounded bbox rendering, explicit one-based band selection, identify, and presentation handoffs without inventing statistics endpoints."
     },
     {
       "key": "serve.geoservices-mapserver",
@@ -363,13 +365,15 @@
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
         "@honua/sdk-js/coverages createCoverageClient()",
+        "@honua/sdk-js/raster",
         "CoverageSource"
       ],
       "evidence": [
-        "test/coverages-wcs.test.ts"
+        "test/coverages-wcs.test.ts",
+        "test/unified-raster.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline."
+      "note": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. The experimental raster facade maps bounded bbox windows, output size, CRS, and named range fields onto the same client."
     },
     {
       "key": "serve.ogc-api-features",
@@ -466,13 +470,15 @@
       "status": "partial",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
-        "@honua/sdk-js/coverages createWcsClient()"
+        "@honua/sdk-js/coverages createWcsClient()",
+        "@honua/sdk-js/raster"
       ],
       "evidence": [
-        "test/coverages-wcs.test.ts"
+        "test/coverages-wcs.test.ts",
+        "test/unified-raster.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions."
+      "note": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. The experimental raster facade validates advertised scale-axis labels before mapping bounded bbox windows and named range fields."
     },
     {
       "key": "serve.wfs",
