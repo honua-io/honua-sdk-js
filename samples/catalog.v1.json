@@ -429,7 +429,7 @@
       "disposition": { "decision": "merge", "reason": "Retain as the dynamic STAC Walkthrough, with one atomic bounded-search Example kept in the project source." },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
-      "capabilities": ["cancellation", "cog", "geoparquet", "imagery", "raster", "stac"],
+      "capabilities": ["cancellation", "cog", "geoparquet", "imagery", "pmtiles", "raster", "stac"],
       "protocols": ["stac"],
       "renderers": ["maplibre"],
       "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed deterministic Maui STAC API responses and preview bytes; no live service claim.", "attribution": "Honua synthetic Maui product-evidence fixture.", "freshness": "Pinned April-May 2026 fixture observations." },

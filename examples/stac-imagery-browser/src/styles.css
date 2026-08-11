@@ -224,13 +224,25 @@ form button {
   max-width: 42rem;
 }
 
-#asset-preview {
+#imagery-map {
   aspect-ratio: 16 / 9;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  display: block;
   margin: 1.5rem 0;
-  object-fit: cover;
+  min-height: 22rem;
+  overflow: hidden;
   width: 100%;
+}
+
+#asset-preview {
+  aspect-ratio: 16 / 9;
+  border: 2px solid rgba(255, 255, 255, 0.76);
+  box-shadow: 0 0.75rem 2rem rgba(4, 30, 35, 0.36);
+  display: block;
+  margin: -8rem 1rem 2rem auto;
+  object-fit: cover;
+  position: relative;
+  width: min(42%, 18rem);
+  z-index: 2;
 }
 
 #result-list,
@@ -399,6 +411,15 @@ pre {
   .detail-panel {
     grid-column: 1 / -1;
     margin-top: 1rem;
+  }
+
+  #imagery-map {
+    min-height: 18rem;
+  }
+
+  #asset-preview {
+    margin-top: -5.5rem;
+    width: min(52%, 15rem);
   }
 
   form,

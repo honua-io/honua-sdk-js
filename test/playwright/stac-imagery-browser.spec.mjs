@@ -26,6 +26,27 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
     await expect(page.locator("#item-metadata")).toContainText("None required");
     await expect(page.locator("#asset-preview")).toBeVisible();
     await expect(page.locator("#asset-preview")).toHaveAttribute("src", /^blob:/);
+    await expect(page.locator("#imagery-map canvas")).toBeVisible();
+    expect(
+      await page.evaluate(() => ({
+        mapReady: window.__HONUA_STAC_BROWSER__?.mapReady,
+        imageSource: window.__HONUA_STAC_BROWSER__?.mapImageSourceActive,
+        footprintSource: window.__HONUA_STAC_BROWSER__?.mapFootprintSourceActive,
+        mappedItemId: window.__HONUA_STAC_BROWSER__?.mappedItemId,
+        coordinates: window.__HONUA_STAC_BROWSER__?.mappedCoordinates,
+      })),
+    ).toEqual({
+      mapReady: true,
+      imageSource: true,
+      footprintSource: true,
+      mappedItemId: "S2B_MAUI_20260502_WEST",
+      coordinates: [
+        [-156.72, 20.99],
+        [-156.33, 20.99],
+        [-156.33, 20.69],
+        [-156.72, 20.69],
+      ],
+    });
     await expect(page.locator("#network-log")).toContainText("POST  /v1/search");
     await expect(page.locator("#network-log")).toContainText("SIGN");
 
@@ -62,10 +83,12 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
       const oldPage = window.__HONUA_STAC_BROWSER__?.loadNext();
       const newSearch = window.__HONUA_STAC_BROWSER__?.search("GET");
       const previewCleared = image?.hidden === true && !image.hasAttribute("src");
+      const mapCleared = window.__HONUA_STAC_BROWSER__?.mapImageSourceActive === false;
       await newSearch;
       await oldPage;
       return {
         previewCleared,
+        mapCleared,
         oldPreview,
         newPreview: image?.getAttribute("src"),
         loadedCount: window.__HONUA_STAC_BROWSER__?.loadedCount,
@@ -78,6 +101,7 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
     });
     expect(overlap).toMatchObject({
       previewCleared: true,
+      mapCleared: true,
       loadedCount: 2,
       status: "ready for next page",
       selectedItemId: "S2B_MAUI_20260502_WEST",
@@ -92,11 +116,13 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
       const oldSelection = window.__HONUA_STAC_BROWSER__?.selectAsset("S2B_MAUI_20260502_WEST", "preview");
       const newSearch = window.__HONUA_STAC_BROWSER__?.search("POST");
       const previewCleared = image?.hidden === true && !image.hasAttribute("src");
+      const mapCleared = window.__HONUA_STAC_BROWSER__?.mapImageSourceActive === false;
       await newSearch;
       await oldSelection;
       const trace = window.__HONUA_STAC_BROWSER__?.trace ?? [];
       return {
         previewCleared,
+        mapCleared,
         oldPreview,
         newPreview: image?.getAttribute("src"),
         selectedItemId: window.__HONUA_STAC_BROWSER__?.selectedItemId,
@@ -105,16 +131,21 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
           .map((entry) => entry.method),
         signCount: trace.filter((entry) => entry.stage === "sign").length,
         previewRequestCount: trace.filter(
-          (entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".svg"),
+          (entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".png"),
         ).length,
+        imageSource: window.__HONUA_STAC_BROWSER__?.mapImageSourceActive,
+        footprintSource: window.__HONUA_STAC_BROWSER__?.mapFootprintSourceActive,
       };
     });
     expect(assetOverlap).toMatchObject({
       previewCleared: true,
+      mapCleared: true,
       selectedItemId: "S2B_MAUI_20260502_WEST",
       searchMethods: ["POST"],
       signCount: 1,
       previewRequestCount: 1,
+      imageSource: true,
+      footprintSource: true,
     });
     expect(assetOverlap.newPreview).toMatch(/^blob:/);
     expect(assetOverlap.newPreview).not.toBe(assetOverlap.oldPreview);
@@ -127,6 +158,13 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
       await pending;
     });
     await expect(page.locator("#page-state")).toContainText("cancelled");
+    expect(
+      await page.evaluate(
+        () =>
+          window.__HONUA_STAC_BROWSER__?.mapImageSourceActive === false &&
+          window.__HONUA_STAC_BROWSER__?.mapFootprintSourceActive === false,
+      ),
+    ).toBe(true);
     expect(await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.trace.some((entry) => entry.stage === "cancel"))).toBe(
       true,
     );

@@ -40,7 +40,7 @@ export const MAUI_ITEMS: readonly HonuaStacItemResponse[] = [
     cloudCover: 7,
     platform: "sentinel-2b",
     bbox: BOUNDS.west,
-    preview: "west-maui-preview.svg",
+    preview: "west-maui-preview.png",
   }),
   mauiItem({
     id: "S2A_MAUI_20260424_CENTRAL",
@@ -49,7 +49,7 @@ export const MAUI_ITEMS: readonly HonuaStacItemResponse[] = [
     cloudCover: 12,
     platform: "sentinel-2a",
     bbox: BOUNDS.central,
-    preview: "central-maui-preview.svg",
+    preview: "central-maui-preview.png",
   }),
   mauiItem({
     id: "S2B_MAUI_20260418_EAST",
@@ -58,7 +58,7 @@ export const MAUI_ITEMS: readonly HonuaStacItemResponse[] = [
     cloudCover: 18,
     platform: "sentinel-2b",
     bbox: BOUNDS.east,
-    preview: "east-maui-preview.svg",
+    preview: "east-maui-preview.png",
   }),
 ];
 
@@ -190,11 +190,11 @@ function createFixtureFetch(
       });
     }
 
-    if (url.pathname.includes("/assets/") && url.pathname.endsWith(".svg")) {
+    if (url.pathname.includes("/assets/") && url.pathname.endsWith(".png")) {
       await abortableDelay(assetDelayMs, signal, recordTrace, traceScope, url);
-      return new Response(previewSvg(url.pathname), {
+      return new Response(previewPng(), {
         status: 200,
-        headers: { "content-type": "image/svg+xml; charset=utf-8" },
+        headers: { "content-type": "image/png" },
       });
     }
 
@@ -240,7 +240,7 @@ function mauiItem(input: {
     assets: {
       preview: {
         href: `./assets/${input.preview}`,
-        type: "image/svg+xml",
+        type: "image/png",
         title: "Maui visual preview",
         roles: ["visual"],
       },
@@ -304,13 +304,8 @@ async function abortableDelay(
   });
 }
 
-function previewSvg(pathname: string): string {
-  const accent = pathname.includes("west") ? "#f4b942" : pathname.includes("central") ? "#e77728" : "#8ac6a1";
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-label="Selected Maui imagery preview">
-  <defs><linearGradient id="ocean" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#073b4c"/><stop offset="1" stop-color="#1d7f78"/></linearGradient><filter id="grain"><feTurbulence baseFrequency=".7" numOctaves="2" seed="7" result="n"/><feBlend in="SourceGraphic" in2="n" mode="soft-light"/></filter></defs>
-  <rect width="960" height="540" fill="url(#ocean)"/>
-  <path d="M86 318c72-95 151-135 239-109 70 21 85 80 156 67 66-13 79-94 165-119 84-25 175 11 228 104-81 10-122 54-183 91-74 45-136 56-226 35-115-27-204-20-379-69z" fill="${accent}" filter="url(#grain)"/>
-  <path d="M319 209c39 32 63 65 72 103M646 158c-29 59-55 109-96 153" fill="none" stroke="#fff7dc" stroke-opacity=".55" stroke-width="9"/>
-  <circle cx="480" cy="287" r="8" fill="#fff7dc"/><text x="502" y="296" fill="#fff7dc" font-family="Georgia,serif" font-size="30">Maui</text>
-</svg>`;
+function previewPng(): Uint8Array<ArrayBuffer> {
+  const encoded =
+    "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAADCSURBVChTBcGhrcUgAEBRZmADNmADNkDgwTzzQqipoAIMCEwTUlODeeaHNe8/R0gXUO6Ddl+MO7DuxLuL5CrFNYQMH1T4osOBCSc2XPhQSaFRwkDI+EXFAx1PTLywseJjI8VBiTdC5gOVT3S+MLlic8PnQco3JT8I2U9Uv9C9YnrD9oHvN6k/lP4i5LxQs6Jnw8yBnTd+PqT5UuZCyFVRq6HXwKwbux78eklrUdYPIXdD7YHeN2Y/2P3i9yLtH2X/8Q8IkZChO6EkQgAAAABJRU5ErkJggg==";
+  return Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
 }
