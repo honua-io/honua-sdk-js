@@ -260,25 +260,10 @@ export const SAMPLE_BUNDLE_AUDIT = [
   },
   {
     id: "imagery-cog-quickstart",
-    runtimeHosting: "same-origin-fixture-service",
+    runtimeHosting: "self-contained",
     buildScript: "demo:imagery-cog:build",
-    hostFixtureRoutes: [
-      "/api/v1/terrain/OahuTerrain/elevation/value",
-      // The whole `/fixtures/cog/` prefix, not just `item.json`: the item's
-      // STAC assets carry relative hrefs (`./assets/<key>`) that the SDK's
-      // stac-static inspection resolves against the item URL, so the bundle
-      // then requests `/fixtures/cog/assets/<key>`. Declaring only the item
-      // route left a host provisioning exactly the stated prerequisites
-      // 404ing on every asset read.
-      "/fixtures/cog/",
-      "/fixtures/imagery/cog/",
-      "/rest/services/OahuCog/ImageServer",
-      "/rest/services/OahuImagery/MapServer/WMS",
-      "/rest/services/OahuTerrain/ImageServer",
-      "/stac/search",
-    ],
     auditedVia:
-      "examples/imagery-cog-quickstart/src/config.ts resolveImageryCogConfig: with VITE_HONUA_IMAGERY_BASE_URL unset it resolves mode \"fixture-safe\" against the document origin, and normalizeBaseUrl rejects any cross-origin, query-bearing, or credential-bearing override, so the bundle can only ever address the same-origin fixture routes in examples/imagery-cog-quickstart/mock-server.mjs.",
+      "The default bundle contains a deterministic CC0-1.0 tiled EPSG:4326 GeoTIFF split into SHA-256-pinned 64 KiB chunks. Its browser adapter reconstructs only bounded 206 virtual ranges, rejects complete-object GETs, and requires no host fixture routes; configured same-origin Honua service mode remains explicit opt-in.",
   },
   {
     id: "maplibre-quickstart",

@@ -43,6 +43,7 @@ import type { ImageryRenderPlan } from "./types.js";
 import "../../_kit/design/index.css";
 import "../../_kit/presentation.css";
 import "./styles.css";
+import "./cog-public.css";
 
 declare const __HONUA_SDK_VERSION__: string;
 
@@ -450,7 +451,7 @@ async function selectDirectCogAsset(assetKey: string): Promise<void> {
         width: 16,
         height: 16,
         bands: [1, 2, 3],
-        sampling: { width: 8, height: 8, overviewDecimation: 2, resampling: "bilinear" },
+        sampling: { width: 8, height: 8, overviewDecimation: 4, resampling: "bilinear" },
       },
       { signal: resources.controller.signal },
     );

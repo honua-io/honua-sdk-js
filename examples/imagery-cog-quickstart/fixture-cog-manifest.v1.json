@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "format": "honua.sdk.fixture-cog.v1",
+  "asset": {
+    "path": "assets/oahu-natural-color-v1.tif",
+    "mediaType": "image/tiff; application=geotiff; profile=cloud-optimized",
+    "bytes": 163840,
+    "sha256": "0c1e58973feff6e7d871b35cb015e13aa1fbbebd3c26d35e5ce8bb848ec8e511",
+    "etag": "\"sha256-0c1e58973feff6e7d871b35cb015e13aa1fbbebd3c26d35e5ce8bb848ec8e511\"",
+    "license": "CC0-1.0",
+    "width": 256,
+    "height": 192,
+    "crs": "EPSG:4326",
+    "bbox": [
+      -158.22,
+      21.21,
+      -157.66,
+      21.64
+    ],
+    "chunkBytes": 65536,
+    "levels": [
+      {
+        "width": 256,
+        "height": 192,
+        "decimation": 1,
+        "tileWidth": 64,
+        "tileHeight": 64,
+        "tileColumns": 4,
+        "tileRows": 3,
+        "tileBytes": 12288,
+        "dataOffset": 4096,
+        "bytes": 147456
+      },
+      {
+        "width": 64,
+        "height": 48,
+        "decimation": 4,
+        "tileWidth": 64,
+        "tileHeight": 64,
+        "tileColumns": 1,
+        "tileRows": 1,
+        "tileBytes": 12288,
+        "dataOffset": 151552,
+        "bytes": 12288
+      }
+    ]
+  },
+  "chunks": [
+    {
+      "path": "chunks/0000.bin",
+      "offset": 0,
+      "bytes": 65536,
+      "sha256": "0c728d9dcf7e738ad61e93e80c653296c66ceb0212d8dcf7416c4faac89db368"
+    },
+    {
+      "path": "chunks/0001.bin",
+      "offset": 65536,
+      "bytes": 65536,
+      "sha256": "a765fa2c940d26bbbee5b0355a2e038239a7d54c5488522d9a10e5d7d7287cb8"
+    },
+    {
+      "path": "chunks/0002.bin",
+      "offset": 131072,
+      "bytes": 32768,
+      "sha256": "5f3df38a0012c98f2ef0a2a0498626b4bd7434329ae5e9453a0a9ba31d75253e"
+    }
+  ]
+}

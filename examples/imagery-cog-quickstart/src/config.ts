@@ -1,53 +1,31 @@
-import type { HonuaClientOptions } from "@honua/sdk-js/honua";
+import { createFixtureCogFetch } from "./fixture-range-fetch.js";
 
-export interface ImageryCogConfig {
-  readonly honuaBaseUrl: string;
-  readonly mode: "fixture-safe" | "live";
-}
+export interface ImageryCogConfig { honuaBaseUrl: string; mode: "fixture-safe" | "live" }
+type ImageryCogEnvironment = Record<string, string | boolean | undefined>;
 
-const MAX_BASE_URL_LENGTH = 2_048;
-
-function readOptional(env: Record<string, string | undefined>, key: string): string | undefined {
-  const value = env[key]?.trim();
-  return value && value.length > 0 ? value : undefined;
-}
-
-function normalizeBaseUrl(value: string, fallbackOrigin: string): string {
-  if (value.length > MAX_BASE_URL_LENGTH || fallbackOrigin.length > MAX_BASE_URL_LENGTH) {
-    throw new Error(`Honua base URLs must not exceed ${MAX_BASE_URL_LENGTH} characters.`);
-  }
-  const fallback = new URL(fallbackOrigin);
-  if (!["http:", "https:"].includes(fallback.protocol) || fallback.username || fallback.password) {
-    throw new Error("The browser fallback origin must be an HTTP(S) origin without embedded credentials.");
-  }
-  const resolved = new URL(value, fallback);
-  if (!["http:", "https:"].includes(resolved.protocol) || resolved.origin !== fallback.origin) {
-    throw new Error(
-      "VITE_HONUA_IMAGERY_BASE_URL must use the browser origin; expose authenticated Honua through a same-origin proxy or session.",
-    );
+export function resolveImageryCogConfig(environment: ImageryCogEnvironment, fallbackOrigin = globalThis.location?.origin ?? "http://127.0.0.1"): ImageryCogConfig {
+  const configured = typeof environment.VITE_HONUA_IMAGERY_BASE_URL === "string"
+    ? environment.VITE_HONUA_IMAGERY_BASE_URL.trim()
+    : "";
+  if (!configured) return { honuaBaseUrl: fallbackOrigin, mode: "fixture-safe" };
+  const resolved = new URL(configured, fallbackOrigin);
+  if (resolved.origin !== new URL(fallbackOrigin).origin) {
+    throw new Error("VITE_HONUA_IMAGERY_BASE_URL must resolve through a same-origin proxy.");
   }
   if (resolved.username || resolved.password || resolved.search || resolved.hash) {
-    throw new Error(
-      "VITE_HONUA_IMAGERY_BASE_URL must be a credential-free path without URL userinfo, query parameters, or fragments.",
-    );
+    throw new Error("VITE_HONUA_IMAGERY_BASE_URL must be a credential-free path without query parameters or fragments.");
   }
-  return resolved.toString().replace(/\/+$/, "");
+  if (resolved.pathname.length > 2_048) {
+    throw new Error("VITE_HONUA_IMAGERY_BASE_URL paths must not exceed 2048 characters.");
+  }
+  return { honuaBaseUrl: resolved.href.replace(/\/$/, ""), mode: "live" };
 }
 
-export function resolveImageryCogConfig(
-  env: Record<string, string | undefined>,
-  fallbackOrigin = globalThis.location?.origin ?? "http://127.0.0.1",
-): ImageryCogConfig {
-  const configured = readOptional(env, "VITE_HONUA_IMAGERY_BASE_URL");
-  return {
-    honuaBaseUrl: normalizeBaseUrl(configured ?? fallbackOrigin, fallbackOrigin),
-    mode: configured ? "live" : "fixture-safe",
-  };
-}
-
-export function clientOptionsFromImageryConfig(config: ImageryCogConfig): HonuaClientOptions {
-  return {
-    baseUrl: config.honuaBaseUrl,
-    fetchFn: globalThis.fetch.bind(globalThis),
-  };
+export function clientOptionsFromImageryConfig(config: ImageryCogConfig): { baseUrl: string; fetchFn: typeof fetch } {
+  if (config.mode === "live") return { baseUrl: config.honuaBaseUrl, fetchFn: globalThis.fetch.bind(globalThis) };
+  const originalFetch = globalThis.fetch.bind(globalThis);
+  const fixtureRootUrl = new URL("./fixtures/cog/", globalThis.location?.href ?? `${config.honuaBaseUrl}/`);
+  const fetchFn = createFixtureCogFetch({ fixtureRootUrl, fetchImpl: originalFetch });
+  if (typeof window !== "undefined") globalThis.fetch = fetchFn;
+  return { baseUrl: config.honuaBaseUrl, fetchFn };
 }

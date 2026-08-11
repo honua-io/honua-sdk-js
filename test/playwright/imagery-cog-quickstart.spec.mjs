@@ -35,12 +35,21 @@ test(
     const failedRequests = [];
     const errorResponses = [];
     const wmsGetMapRequests = [];
+    const cogChunkRequests = [];
+    const completeCogObjectRequests = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
     });
     page.on("requestfailed", (request) => {
       failedRequests.push({ href: request.url(), error: request.failure()?.errorText ?? "unknown" });
+    });
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.includes("/fixtures/cog/chunks/")) cogChunkRequests.push(url.pathname);
+      if (url.pathname.endsWith("/fixtures/cog/assets/oahu-natural-color-v1.tif")) {
+        completeCogObjectRequests.push({ href: url.href, range: request.headers().range ?? null });
+      }
     });
     page.on("response", (response) => {
       if (response.status() >= 400) errorResponses.push({ href: response.url(), status: response.status() });
@@ -101,13 +110,13 @@ test(
           decoderDisposals: 0,
           mapSourceMounted: true,
           mapLayerMounted: true,
-          render: { state: "ready", mounted: true, lastRender: { transfer: { requests: 4 } } },
-          transfer: { requests: 4, bytesFetched: 288 },
+          render: { state: "ready", mounted: true, lastRender: { transfer: { requests: 3 } } },
+          transfer: { requests: 3, bytesFetched: 28672 },
         },
       });
       expect(
         runtimeIdentity.directCog.transfer.ranges.every(
-          (range) => range.outcome === "success" && range.length < 1024,
+          (range) => range.outcome === "success" && range.length <= 64 * 1024,
         ),
       ).toBe(true);
       expect(runtimeIdentity.tileTemplates.some((template) => template.includes("REQUEST=GetMap"))).toBe(true);
@@ -139,9 +148,17 @@ test(
       await expect(page.locator("#attribution-state")).toContainText("Copernicus Sentinel");
       await expect(page.locator("#direct-cog-status")).toContainText("ready");
       await expect(page.locator("#direct-cog-inspection")).toContainText("256×192");
-      await expect(page.locator("#direct-cog-provenance")).toContainText("S2A_20260412T211901_OAHU_RANGE_01/cog");
-      await expect(page.locator("#direct-cog-transfer-summary")).toContainText("288 bytes across 4 exact range request");
-      await expect(page.locator("#direct-cog-ranges li")).toHaveCount(4);
+      await expect(page.locator("#direct-cog-provenance")).toContainText("oahu-natural-color-fixture-v1/cog");
+      await expect(page.locator("#direct-cog-provenance")).toContainText(
+        "image/tiff;application=geotiff;profile=cloud-optimized",
+      );
+      await expect(page.locator("#direct-cog-transfer-summary")).toContainText("28672 bytes across 3 exact range request");
+      await expect(page.locator("#direct-cog-ranges li")).toHaveCount(3);
+      await expect(page.locator(".cog-legend")).toContainText("Vegetation");
+      await expect(page.locator("#direct-cog-pixel")).toHaveAttribute("data-ready", "true");
+      await expect(page.locator("#direct-cog-pixel")).toContainText("Bounded pixel inspection: RGB");
+      expect(new Set(cogChunkRequests).size).toBe(2);
+      expect(completeCogObjectRequests).toEqual([]);
       await expect(page.locator("#fidelity-list")).toContainText("classified STAC COG is decoded through bounded reads");
       await expect(page.locator("#fidelity-list")).toContainText("exact MapLibre bbox token");
       await expect(page.locator("#fidelity-list")).toContainText("Cesium production is intentionally excluded");
@@ -340,6 +357,19 @@ test(
         caret: "hide",
         maxDiffPixelRatio: 0.015,
       });
+      await expect(page.locator(".map-stage")).toHaveScreenshot("imagery-cog-render.png", {
+        animations: "disabled",
+        caret: "hide",
+        maxDiffPixelRatio: 0.015,
+      });
+      await expect(page.locator("#direct-cog-status").locator("xpath=ancestor::section[1]")).toHaveScreenshot(
+        "imagery-cog-evidence.png",
+        {
+          animations: "disabled",
+          caret: "hide",
+          maxDiffPixelRatio: 0.015,
+        },
+      );
 
       const emptyStacSearch = (route) =>
         route.fulfill({

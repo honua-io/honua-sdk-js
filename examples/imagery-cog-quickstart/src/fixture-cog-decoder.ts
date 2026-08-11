@@ -1,5 +1,7 @@
 import type { CogDecodedMetadata, CogDecoder, CogDecoderFactory, CogWindowRequest } from "@honua/sdk-js/cog";
 
+import fixtureManifest from "../fixture-cog-manifest.v1.json";
+
 export interface FixtureCogDecoderTelemetry {
   created(assetUrl: string): void;
   disposed(assetUrl: string): void;
@@ -32,12 +34,41 @@ const WGS84_METADATA: CogDecodedMetadata = {
   overviewDecimations: [2, 4, 8],
 };
 
+const GENERATED_METADATA: CogDecodedMetadata = {
+  format: "cog",
+  width: fixtureManifest.asset.width,
+  height: fixtureManifest.asset.height,
+  crs: { kind: "known", authority: "EPSG", code: "4326", name: "WGS 84" },
+  bands: [
+    { index: 1, dataType: "uint8", name: "red", colorInterpretation: "red", nodata: 0 },
+    { index: 2, dataType: "uint8", name: "green", colorInterpretation: "green", nodata: 0 },
+    { index: 3, dataType: "uint8", name: "blue", colorInterpretation: "blue", nodata: 0 },
+  ],
+  resolution: {
+    x: (fixtureManifest.asset.bbox[2] - fixtureManifest.asset.bbox[0]) / fixtureManifest.asset.width,
+    y: (fixtureManifest.asset.bbox[3] - fixtureManifest.asset.bbox[1]) / fixtureManifest.asset.height,
+    unit: "degree",
+  },
+  footprint: {
+    type: "Polygon",
+    coordinates: [[
+      [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[1]],
+      [fixtureManifest.asset.bbox[2], fixtureManifest.asset.bbox[1]],
+      [fixtureManifest.asset.bbox[2], fixtureManifest.asset.bbox[3]],
+      [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[3]],
+      [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[1]],
+    ]],
+  },
+  overviewDecimations: [4],
+};
+
 function assetKey(assetUrl: string): string {
   return new URL(assetUrl).pathname.split("/").at(-1) ?? "cog";
 }
 
 function metadataFor(assetUrl: string): CogDecodedMetadata {
   const key = assetKey(assetUrl);
+  if (key === fixtureManifest.asset.path.split("/").at(-1)) return GENERATED_METADATA;
   if (key === "unsupported-crs") {
     return {
       ...WGS84_METADATA,
@@ -49,6 +80,53 @@ function metadataFor(assetUrl: string): CogDecodedMetadata {
   }
   if (key === "unsupported-format") return { ...WGS84_METADATA, format: "geotiff" };
   return WGS84_METADATA;
+}
+
+function isGeneratedFixture(assetUrl: string): boolean {
+  return assetKey(assetUrl) === fixtureManifest.asset.path.split("/").at(-1);
+}
+
+function generatedLevel(request: CogWindowRequest) {
+  return fixtureManifest.asset.levels[1]!;
+}
+
+async function generatedWindow(
+  request: CogWindowRequest,
+  readRange: (range: { offset: number; length: number }) => Promise<Uint8Array>,
+) {
+  const image = generatedLevel(request);
+  const width = request.sampling?.width ?? request.width;
+  const height = request.sampling?.height ?? request.height;
+  const output = (request.bands ?? [1, 2, 3]).map((band) => ({ band, values: new Uint8Array(width * height) }));
+  const required = new Set<number>();
+  const locate = (x: number, y: number) => {
+    const sourceX = Math.min(fixtureManifest.asset.width - 1, Math.floor(request.x + ((x + 0.5) * request.width) / width));
+    const sourceY = Math.min(fixtureManifest.asset.height - 1, Math.floor(request.y + ((y + 0.5) * request.height) / height));
+    return { x: Math.floor(sourceX / image.decimation), y: Math.floor(sourceY / image.decimation) };
+  };
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    const point = locate(x, y);
+    required.add(Math.floor(point.y / image.tileHeight) * image.tileColumns + Math.floor(point.x / image.tileWidth));
+  }
+  const tiles = new Map<number, Uint8Array>();
+  await Promise.all(Array.from(required, async (tileIndex) => {
+    const bytes = await readRange({ offset: image.dataOffset + tileIndex * image.tileBytes, length: image.tileBytes });
+    tiles.set(tileIndex, bytes);
+  }));
+  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
+    const point = locate(x, y);
+    const tileX = Math.floor(point.x / image.tileWidth), tileY = Math.floor(point.y / image.tileHeight);
+    const tile = tiles.get(tileY * image.tileColumns + tileX)!;
+    const offset = ((point.y % image.tileHeight) * image.tileWidth + (point.x % image.tileWidth)) * 3;
+    for (const band of output) band.values[y * width + x] = tile[offset + band.band - 1] ?? 0;
+  }
+  const values = output.map((band) => band.values[Math.floor(band.values.length / 2)] ?? 0);
+  const target = document.querySelector<HTMLElement>("#direct-cog-pixel");
+  if (target) {
+    target.textContent = `Bounded pixel inspection: RGB ${values.join(" / ")} from ${width} × ${height} sampled pixels.`;
+    target.dataset.ready = "true";
+  }
+  return { width, height, bands: output };
 }
 
 function abortError(): DOMException {
@@ -143,8 +221,14 @@ export function createFixtureCogDecoderFactory(telemetry: FixtureCogDecoderTelem
       async inspect({ readRange, signal }) {
         try {
           if (assetKey(assetUrl) === "slow-cog") await pause(450, signal);
-          await readRange({ offset: 0, length: 64 });
-          await readRange({ offset: 1024, length: 32 });
+          const header = new Uint8Array(await readRange({ offset: 0, length: isGeneratedFixture(assetUrl) ? 4096 : 64 }));
+          if (isGeneratedFixture(assetUrl)) {
+            if (header[0] !== 0x49 || header[1] !== 0x49 || header[2] !== 42 || header[3] !== 0) {
+              throw new Error("decoder.unsupported-format: fixture is not a little-endian TIFF.");
+            }
+          } else {
+            await readRange({ offset: 1024, length: 32 });
+          }
           return metadataFor(assetUrl);
         } catch (error) {
           if (signal.aborted) telemetry.aborted(assetUrl);
@@ -154,6 +238,11 @@ export function createFixtureCogDecoderFactory(telemetry: FixtureCogDecoderTelem
       async readWindow(request, { readRange, signal }) {
         try {
           if (assetKey(assetUrl) === "slow-cog") await pause(250, signal);
+          if (isGeneratedFixture(assetUrl)) {
+            const result = await generatedWindow(request, readRange);
+            if (signal.aborted) throw abortError();
+            return result;
+          }
           await readRange({ offset: 2048 + request.x + request.y, length: 96 });
           if (signal.aborted) throw abortError();
           const bands = request.bands ?? [1, 2, 3];

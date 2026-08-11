@@ -4,7 +4,6 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { startImageryCogFixtureServer } from "../../examples/imagery-cog-quickstart/mock-server.mjs";
 import {
   browserExposedCredentials,
   browserPublicConfigNames,
@@ -243,7 +242,6 @@ test("published bundles declare the prerequisites implied by runnability (#656 R
   // the bundle does not contain must never be presented as standalone.
   const byId = new Map(published.map((entry) => [entry.id, entry]));
   for (const id of [
-    "imagery-cog-quickstart",
     "planning-permitting-workbench",
     "react-quickstart",
   ]) {
@@ -251,53 +249,14 @@ test("published bundles declare the prerequisites implied by runnability (#656 R
   }
 });
 
-test("declared hostFixtureRoutes cover the asset URLs the imagery-cog journey follows", async () => {
-  // Regression for a route set that looked complete but wasn't: declaring the
-  // STAC item route alone left every asset read uncovered, because the item's
-  // assets carry relative hrefs that resolve against the item URL. A host
-  // provisioning exactly the declared prerequisites would still have 404'd.
-  // Drive the sample's real fixture server so this cannot rot if the fixture
-  // changes shape.
-  const declared = INCLUDED_SAMPLES.find((sample) => sample.id === "imagery-cog-quickstart")?.hostFixtureRoutes;
-  assert.ok(declared?.length, "imagery-cog-quickstart should declare host fixture routes");
-
-  const fixture = await startImageryCogFixtureServer({ build: false });
-  try {
-    const itemPath = "/fixtures/cog/item.json";
-    assert.ok(
-      routeCoveredByHostFixtureRoutes(itemPath, declared),
-      `${itemPath} must itself be covered by the declared routes`,
-    );
-
-    const itemUrl = new URL(itemPath, fixture.url);
-    const response = await fetch(itemUrl);
-    assert.equal(response.status, 200, "the declared STAC item route must serve the fixture item");
-    const item = await response.json();
-
-    const hrefs = Object.values(item.assets ?? {}).map((asset) => asset.href);
-    assert.ok(hrefs.length > 0, "the fixture item should declare assets to follow");
-    assert.ok(
-      hrefs.some((href) => href.startsWith("./")),
-      "this regression only has teeth while the fixture uses relative asset hrefs",
-    );
-
-    for (const href of hrefs) {
-      // STAC resolves an asset href against the item's own URL.
-      const resolved = new URL(href, itemUrl);
-      assert.ok(
-        routeCoveredByHostFixtureRoutes(resolved.pathname, declared),
-        `${resolved.pathname} is requested by the journey but is not covered by any declared hostFixtureRoutes entry`,
-      );
-      const assetResponse = await fetch(resolved, { method: "HEAD" });
-      assert.equal(
-        assetResponse.status,
-        200,
-        `${resolved.pathname} must actually be served by the fixture host, or the declared route is fiction`,
-      );
-    }
-  } finally {
-    await fixture.close();
-  }
+test("imagery-cog publishes as standalone with no fictional host routes", () => {
+  const sample = INCLUDED_SAMPLES.find((candidate) => candidate.id === "imagery-cog-quickstart");
+  assert.equal(sample?.runtimeHosting, "self-contained");
+  assert.deepEqual(sample?.hostFixtureRoutes ?? [], []);
+  assert.match(
+    SAMPLE_BUNDLE_AUDIT.find((record) => record.id === "imagery-cog-quickstart")?.auditedVia ?? "",
+    /SHA-256-pinned 64 KiB chunks/,
+  );
 });
 
 test("routeCoveredByHostFixtureRoutes matches whole path segments, not bare string prefixes", () => {
