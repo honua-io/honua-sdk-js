@@ -31,8 +31,9 @@ export function resolveImageryCogConfig(
 export function clientOptionsFromImageryConfig(config: ImageryCogConfig): { baseUrl: string; fetchFn: typeof fetch } {
   if (config.mode === "live") return { baseUrl: config.honuaBaseUrl, fetchFn: globalThis.fetch.bind(globalThis) };
   const originalFetch = globalThis.fetch.bind(globalThis);
+  const appRootUrl = new URL(config.honuaBaseUrl.endsWith("/") ? config.honuaBaseUrl : `${config.honuaBaseUrl}/`);
   const fixtureRootUrl = new URL("./fixtures/cog/", globalThis.location?.href ?? `${config.honuaBaseUrl}/`);
-  const fetchFn = createFixtureCogFetch({ fixtureRootUrl, fetchImpl: originalFetch });
+  const fetchFn = createFixtureCogFetch({ appRootUrl, fixtureRootUrl, fetchImpl: originalFetch });
   if (typeof window !== "undefined") globalThis.fetch = fetchFn;
   return { baseUrl: config.honuaBaseUrl, fetchFn };
 }

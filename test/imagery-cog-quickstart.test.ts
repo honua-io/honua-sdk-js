@@ -5,6 +5,7 @@ import {
   clientOptionsFromImageryConfig,
   resolveImageryCogConfig,
 } from "../examples/imagery-cog-quickstart/src/config.js";
+import { createFixtureCogFetch } from "../examples/imagery-cog-quickstart/src/fixture-range-fetch.js";
 import { createFixtureImageryCogDataset } from "../examples/imagery-cog-quickstart/src/fixtures.js";
 import {
   activeImageryLayerCount,
@@ -57,6 +58,43 @@ describe("Imagery and COG Quickstart sample", () => {
         "https://demo.honua.test",
       ),
     ).toThrow(/2048 characters/u);
+  });
+
+  it("intercepts only exact same-origin fixture identities and supported asset methods", async () => {
+    const forwarded: Array<{ method: string; url: string }> = [];
+    const fetchImpl = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request && init === undefined ? input : new Request(input, init);
+      forwarded.push({ method: request.method, url: request.url });
+      return new Response("forwarded", { headers: { "x-forwarded": "true" } });
+    };
+    const fetchFn = createFixtureCogFetch({
+      appRootUrl: new URL("https://samples.honua.test/"),
+      fixtureRootUrl: new URL("https://samples.honua.test/sdk/imagery-cog-quickstart/fixtures/cog/"),
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    const assetUrl =
+      "https://samples.honua.test/sdk/imagery-cog-quickstart/fixtures/cog/assets/oahu-natural-color-v1.tif";
+    const forwardedRequests = [
+      new Request(assetUrl.replace("samples.honua.test", "foreign.example.test"), { method: "GET" }),
+      new Request(assetUrl.replace("/sdk/", "/lookalike/sdk/"), { method: "GET" }),
+      new Request(assetUrl, { method: "POST" }),
+    ];
+
+    for (const request of forwardedRequests) {
+      const response = await fetchFn(request);
+      expect(response.headers.get("x-forwarded")).toBe("true");
+    }
+    expect(forwarded).toEqual(forwardedRequests.map(({ method, url }) => ({ method, url })));
+
+    const fixtureHead = await fetchFn(assetUrl, { method: "HEAD" });
+    expect(fixtureHead.headers.get("accept-ranges")).toBe("bytes");
+    expect(forwarded).toHaveLength(3);
+    const search = await fetchFn("https://samples.honua.test/stac/search", { method: "POST" });
+    expect(await search.json()).toMatchObject({
+      type: "FeatureCollection",
+      features: [{ id: "oahu-natural-color-fixture-v1" }],
+    });
+    expect(forwarded).toHaveLength(3);
   });
 
   it("projects WMS and COG-backed ImageServer layers into MapLibre raster sources", () => {

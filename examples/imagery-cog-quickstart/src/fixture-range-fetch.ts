@@ -93,17 +93,21 @@ export const fixtureCogTransportSnapshot = (): FixtureCogTransportSnapshot => ({
   verifiedChunks: cache.size,
 });
 export function createFixtureCogFetch({
+  appRootUrl,
   fixtureRootUrl,
   fetchImpl = globalThis.fetch.bind(globalThis),
-}: { fixtureRootUrl: URL; fetchImpl?: typeof fetch }): typeof fetch {
+}: { appRootUrl: URL; fixtureRootUrl: URL; fetchImpl?: typeof fetch }): typeof fetch {
+  const stacSearchUrl = new URL("stac/search", appRootUrl).href;
+  const fixtureItemUrl = new URL("item.json", fixtureRootUrl).href;
+  const fixtureAssetUrl = new URL(manifest.asset.path, fixtureRootUrl).href;
   return (async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = input instanceof Request && init === undefined ? input : new Request(input, init);
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
-    if (method === "GET" && url.pathname.endsWith("/fixtures/cog/item.json")) return json(item());
-    if (method === "POST" && url.pathname.endsWith("/stac/search"))
+    if (method === "GET" && url.href === fixtureItemUrl) return json(item());
+    if (method === "POST" && url.href === stacSearchUrl)
       return json({ type: "FeatureCollection", features: [item()], links: [] });
-    if (!url.pathname.endsWith(`/fixtures/cog/${manifest.asset.path}`)) return fetchImpl(request);
+    if (url.href !== fixtureAssetUrl || (method !== "GET" && method !== "HEAD")) return fetchImpl(request);
     if (method === "HEAD")
       return new Response(null, {
         headers: {
