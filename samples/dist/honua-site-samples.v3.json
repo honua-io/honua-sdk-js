@@ -786,7 +786,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-11T16:06:26.836Z"
+          "expiresAt": "2026-09-11T23:49:40.410Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -905,7 +905,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-11T16:04:09.567Z"
+          "expiresAt": "2026-09-11T23:47:43.262Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -1018,7 +1018,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-11T16:06:51.499Z"
+          "expiresAt": "2026-09-11T23:50:03.804Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -1658,7 +1658,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-11T16:07:57.649Z"
+          "expiresAt": "2026-09-11T23:51:02.973Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
@@ -2390,16 +2390,8 @@
       },
       {
         "id": "imagery-cog-quickstart",
-        "runnability": "requires-host-fixture-service",
-        "hostFixtureRoutes": [
-          "/api/v1/terrain/OahuTerrain/elevation/value",
-          "/fixtures/cog/",
-          "/fixtures/imagery/cog/",
-          "/rest/services/OahuCog/ImageServer",
-          "/rest/services/OahuImagery/MapServer/WMS",
-          "/rest/services/OahuTerrain/ImageServer",
-          "/stac/search"
-        ]
+        "runnability": "standalone",
+        "hostFixtureRoutes": []
       },
       {
         "id": "maplibre-quickstart",
