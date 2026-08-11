@@ -1828,6 +1828,122 @@
       ]
     },
     {
+      "id": "pmtiles-managed-lifecycle",
+      "title": "Publish a layer as PMTiles",
+      "summary": "Submits, monitors, cancels, and registers a durable PMTiles publish from a server-side process.",
+      "sourceKind": "root-example",
+      "track": "lab",
+      "supportTier": "experimental",
+      "lifecycle": {
+        "state": "active",
+        "reason": "Keep the managed control-plane workflow separate from the direct browser example and contract-only until a pinned live canary exists."
+      },
+      "sourcePath": "examples/pmtiles-managed-lifecycle",
+      "docsPath": "examples/pmtiles-managed-lifecycle/README.md",
+      "capabilities": [
+        "pmtiles",
+        "publishing",
+        "vector-tiles"
+      ],
+      "capabilityKeys": [
+        "serve.vector-tiles"
+      ],
+      "protocols": [
+        "pmtiles"
+      ],
+      "renderers": [
+        "none"
+      ],
+      "data": {
+        "mode": "hybrid",
+        "authMode": "api-key",
+        "config": [
+          "HONUA_ADMIN_API_KEY",
+          "HONUA_ADMIN_TOKEN",
+          "HONUA_BASE_URL",
+          "HONUA_LAYER_ID",
+          "HONUA_MAX_TILES",
+          "HONUA_MAX_ZOOM",
+          "HONUA_MIN_ZOOM",
+          "HONUA_SERVICE_ID",
+          "HONUA_TILE_MATRIX_SET_ID"
+        ],
+        "provenance": "Versioned Honua Server tile-operations contract exercised by deterministic client fixtures; no public live publish target is claimed.",
+        "attribution": "Published tile attribution comes from the source layer and deployment policy.",
+        "freshness": "Contract fixture is release-gated; live freshness is unavailable until a pinned canary exists.",
+        "configurationStatus": "approved",
+        "configClassifications": [
+          {
+            "name": "HONUA_ADMIN_API_KEY",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_ADMIN_TOKEN",
+            "exposure": "server-only",
+            "valueKind": "credential",
+            "credentialScope": "secret"
+          },
+          {
+            "name": "HONUA_BASE_URL",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_LAYER_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_MAX_TILES",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_MAX_ZOOM",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_MIN_ZOOM",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_SERVICE_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          },
+          {
+            "name": "HONUA_TILE_MATRIX_SET_ID",
+            "exposure": "server-only",
+            "valueKind": "non-secret"
+          }
+        ]
+      },
+      "evidence": {
+        "fixture": {
+          "mode": "fixture",
+          "status": "executed",
+          "commands": [
+            "npx vitest run test/pmtiles-lifecycle.test.ts"
+          ]
+        },
+        "live": {
+          "mode": "authenticated",
+          "status": "planned",
+          "commands": []
+        }
+      },
+      "expectedDegradation": "Missing admin auth, invalid contract responses, failed jobs, expired signed URLs, and unsupported deletion stop with typed errors; no browser credential or live claim is emitted.",
+      "validationProfile": "headless-lab",
+      "validation": [
+        "npm run demo:pmtiles-managed:typecheck",
+        "npx vitest run test/pmtiles-lifecycle.test.ts"
+      ]
+    },
+    {
       "id": "pmtiles-static",
       "title": "PMTiles static map",
       "summary": "Loads a static PMTiles archive without a Honua server.",

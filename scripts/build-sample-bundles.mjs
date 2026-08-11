@@ -336,6 +336,12 @@ export const SAMPLE_BUNDLE_AUDIT = [
       "examples/planning-permitting-workbench/src/main.ts passes baseUrl: window.location.origin into the journey, which addresses `${baseUrl}/rest/services/Maui/Planning/FeatureServer/{0,1}` (src/journey.ts PLANNING_SERVICE_PATH); normalizeFixtureOrigin rejects any non-origin or credential-bearing base, and the catalog declares no config surface at all (configurationStatus not-required, authMode none).",
   },
   {
+    id: "pmtiles-managed-lifecycle",
+    runtimeHosting: "server-side-app",
+    auditedVia:
+      "examples/pmtiles-managed-lifecycle has no vite.config.ts; it is a Node-only authenticated contract walkthrough whose catalog entry declares renderers [none], validationProfile headless-lab, and an entirely server-only configuration surface.",
+  },
+  {
     id: "pmtiles-static",
     runtimeHosting: "self-contained",
     buildScript: "demo:pmtiles-static:build",

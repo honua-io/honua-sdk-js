@@ -223,6 +223,11 @@
       "detail": "Audited runtimeHosting is same-origin-fixture-service and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
     },
     {
+      "sampleId": "pmtiles-managed-lifecycle",
+      "category": "requires-data-origin",
+      "detail": "Audited runtimeHosting is server-side-app and no reviewed fixture origin is declared, so a generated playground would have no data to serve."
+    },
+    {
       "sampleId": "pmtiles-static",
       "category": "binary-asset",
       "detail": "Needs committed non-source assets: public/basemap.pmtiles, public/overlay.pmtiles."
