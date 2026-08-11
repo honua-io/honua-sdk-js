@@ -604,7 +604,7 @@
     "test:playwright:imagery-cog": "playwright test test/playwright/imagery-cog-quickstart.spec.mjs",
     "test:playwright:geocoding": "playwright test test/playwright/geocoding-quickstart.spec.mjs",
     "test:playwright:terrain-elevation": "playwright test test/playwright/terrain-rgb-elevation.spec.mjs",
-    "test:playwright:coverages-wcs": "npm run demo:coverages-wcs:build --silent && playwright test test/playwright/coverages-wcs-basic.spec.mjs",
+    "test:playwright:coverages-wcs": "vite build --config examples/coverages-wcs-basic/vite.config.ts && playwright test test/playwright/coverages-wcs-basic.spec.mjs",
     "test:playwright:edit-workflow": "playwright test test/playwright/edit-workflow-demo.spec.mjs",
     "test:playwright:sketch-editing": "playwright test test/playwright/sketch-editing.spec.mjs",
     "test:playwright:planning-workbench": "playwright test test/playwright/planning-permitting-workbench.spec.mjs",
