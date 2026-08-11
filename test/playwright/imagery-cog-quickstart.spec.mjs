@@ -35,6 +35,7 @@ test(
     const failedRequests = [];
     const errorResponses = [];
     const wmsGetMapRequests = [];
+    const bundleMapFixtureRequests = [];
     const cogChunkRequests = [];
     const completeCogObjectRequests = [];
     page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -50,6 +51,7 @@ test(
       if (url.pathname.endsWith("/fixtures/cog/assets/oahu-natural-color-v1.tif")) {
         completeCogObjectRequests.push({ href: url.href, range: request.headers().range ?? null });
       }
+      if (url.pathname.includes("/fixtures/cog/tiles/")) bundleMapFixtureRequests.push(url.pathname);
     });
     page.on("response", (response) => {
       if (response.status() >= 400) errorResponses.push({ href: response.url(), status: response.status() });
@@ -126,16 +128,15 @@ test(
       expect(
         runtimeIdentity.tileTemplates.some((template) => template.includes("/OahuTerrain/ImageServer/tile/{z}/{y}/{x}")),
       ).toBe(true);
-      await expect.poll(() => wmsGetMapRequests.length).toBeGreaterThan(0);
-      for (const href of wmsGetMapRequests) {
-        const requestUrl = new URL(href);
-        const bbox = requestUrl.searchParams.get("BBOX")?.split(",").map(Number);
-        expect(bbox).toHaveLength(4);
-        expect(bbox?.every(Number.isFinite)).toBe(true);
-        expect(requestUrl.searchParams.get("WIDTH")).toBe("256");
-        expect(requestUrl.searchParams.get("HEIGHT")).toBe("256");
-        expect(href).not.toMatch(/%7B|%7D|\{|\}/iu);
-      }
+      expect(wmsGetMapRequests).toEqual([]);
+      await expect
+        .poll(() => [...new Set(bundleMapFixtureRequests)].sort())
+        .toEqual(
+          [
+            "/fixtures/cog/tiles/image-server-natural-color.png",
+            "/fixtures/cog/tiles/wms-natural-color.png",
+          ].sort(),
+        );
 
       await expect(page.getByRole("heading", { level: 1, name: "Imagery and Terrain" })).toBeVisible();
       await expect(page.getByTestId("honua-sample-mode")).toHaveText(/^(source|packed) SDK$/u);
@@ -259,6 +260,7 @@ test(
       await expect(terrainToggle).toBeChecked();
       await expect.poll(async () => page.evaluate(() => window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.terrainEnabled)).toBe(true);
       await expect(page.locator("#fidelity-list")).toContainText("enabled at 1.25× exaggeration");
+      await expect.poll(() => bundleMapFixtureRequests.some((path) => path.endsWith("/terrain-rgb.png"))).toBe(true);
 
       const invalidElevation = await page.evaluate(() =>
         window.__HONUA_IMAGERY_TERRAIN_RUNTIME__?.lookupAt(181, 91),

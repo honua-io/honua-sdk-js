@@ -77,6 +77,8 @@ test("the imagery COG fixture pins a tiled EPSG:4326 overview and exact chunk di
   for (const chunk of generated.chunks) {
     assert.ok(chunk.bytes.byteLength <= 64 * 1024);
     assert.equal(createHash("sha256").update(chunk.bytes).digest("hex"), chunk.sha256);
+    assert.equal(createHash("sha256").update(chunk.storedBytes).digest("hex"), chunk.storedSha256);
+    assert.ok(chunk.storedBytes.byteLength < chunk.bytes.byteLength);
   }
 });
 
@@ -90,6 +92,25 @@ test("the imagery COG fixture publishes a virtual href instead of a complete obj
     generated.chunks.reduce((total, chunk) => total + chunk.bytes.length, 0),
     generated.assetBytes.length,
   );
+  assert.ok(
+    generated.chunks.reduce((total, chunk) => total + chunk.storedBytes.length, 0) < generated.assetBytes.length / 2,
+  );
+});
+
+test("the imagery COG fixture pins licensed imagery comparison and Terrain-RGB PNGs", () => {
+  const generated = buildFixtureCogAssets();
+  assert.deepEqual(
+    generated.manifest.renderFixtures.map((fixture) => fixture.id),
+    ["wms-natural-color", "image-server-natural-color", "terrain-rgb"],
+  );
+  for (const fixture of generated.renderFixtures) {
+    assert.equal(fixture.metadata.license, "CC0-1.0");
+    assert.equal(fixture.metadata.mediaType, "image/png");
+    assert.equal(fixture.metadata.width, 256);
+    assert.equal(fixture.metadata.height, 256);
+    assert.equal(createHash("sha256").update(fixture.bytes).digest("hex"), fixture.metadata.sha256);
+    assert.equal(fixture.bytes.byteLength, fixture.metadata.bytes);
+  }
 });
 
 test("every catalog sample gets exactly one publish-or-exclude decision (#656 REQ-001)", () => {
@@ -286,7 +307,7 @@ test("imagery-cog publishes as standalone with no fictional host routes", () => 
   assert.deepEqual(sample?.hostFixtureRoutes ?? [], []);
   assert.match(
     SAMPLE_BUNDLE_AUDIT.find((record) => record.id === "imagery-cog-quickstart")?.auditedVia ?? "",
-    /SHA-256-pinned 64 KiB chunks/,
+    /SHA-256-pinned logical 64 KiB chunks with independently pinned lossless storage and licensed PNG map fixtures/,
   );
 });
 

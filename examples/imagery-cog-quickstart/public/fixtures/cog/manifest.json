@@ -50,19 +50,69 @@
       "path": "chunks/0000.bin",
       "offset": 0,
       "bytes": 65536,
-      "sha256": "0c728d9dcf7e738ad61e93e80c653296c66ceb0212d8dcf7416c4faac89db368"
+      "sha256": "0c728d9dcf7e738ad61e93e80c653296c66ceb0212d8dcf7416c4faac89db368",
+      "storage": {
+        "encoding": "deflate-raw",
+        "bytes": 5689,
+        "sha256": "8427c5de96add174a64f771bb08da8afdb390efc9ab22146069b515d5166cc68"
+      }
     },
     {
       "path": "chunks/0001.bin",
       "offset": 65536,
       "bytes": 65536,
-      "sha256": "a765fa2c940d26bbbee5b0355a2e038239a7d54c5488522d9a10e5d7d7287cb8"
+      "sha256": "a765fa2c940d26bbbee5b0355a2e038239a7d54c5488522d9a10e5d7d7287cb8",
+      "storage": {
+        "encoding": "deflate-raw",
+        "bytes": 12376,
+        "sha256": "73b3f20c8a1b0078c270f9f57812709a6f2f1746ca35edace22adf17e2b38849"
+      }
     },
     {
       "path": "chunks/0002.bin",
       "offset": 131072,
       "bytes": 32768,
-      "sha256": "5f3df38a0012c98f2ef0a2a0498626b4bd7434329ae5e9453a0a9ba31d75253e"
+      "sha256": "5f3df38a0012c98f2ef0a2a0498626b4bd7434329ae5e9453a0a9ba31d75253e",
+      "storage": {
+        "encoding": "deflate-raw",
+        "bytes": 2799,
+        "sha256": "c982f82cb84a5d80e2b03d741ff4ab2ce1bde928f6d7c670e234ae0e091e2205"
+      }
+    }
+  ],
+  "renderFixtures": [
+    {
+      "id": "wms-natural-color",
+      "path": "tiles/wms-natural-color.png",
+      "mediaType": "image/png",
+      "bytes": 1796,
+      "sha256": "6a5c3696a9b030e4275baece68310d50bec821f8c88e9db8ad2c64b65e3848ad",
+      "license": "CC0-1.0",
+      "width": 256,
+      "height": 256,
+      "purpose": "WMS natural-color MapLibre tile"
+    },
+    {
+      "id": "image-server-natural-color",
+      "path": "tiles/image-server-natural-color.png",
+      "mediaType": "image/png",
+      "bytes": 1767,
+      "sha256": "6eb6d3e2da86cbb2e0446d0877f1442a84e6e62861ed1da5036ec84446754585",
+      "license": "CC0-1.0",
+      "width": 256,
+      "height": 256,
+      "purpose": "ImageServer natural-color MapLibre tile and export preview"
+    },
+    {
+      "id": "terrain-rgb",
+      "path": "tiles/terrain-rgb.png",
+      "mediaType": "image/png",
+      "bytes": 1850,
+      "sha256": "ae5fb63aa2253af46ccf05016ea19c821e3e49b3c775f0496e639d38b206b008",
+      "license": "CC0-1.0",
+      "width": 256,
+      "height": 256,
+      "purpose": "Mapbox Terrain-RGB elevation tile"
     }
   ]
 }

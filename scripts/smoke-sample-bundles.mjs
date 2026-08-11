@@ -97,6 +97,7 @@ async function smokeSample(browser, origin, sample) {
   const page = await browser.newPage();
   const failures = [];
   const observedRequests = new Set();
+  const requestedUrls = new Set();
   const livePolicy = PUBLISHED_LIVE_SAMPLE_POLICY.get(sample.id);
   const allowedOrigins = new Set(livePolicy?.allowedOrigins ?? []);
   const liveProbe = await runSemanticLiveProbe(sample.id, livePolicy);
@@ -105,6 +106,7 @@ async function smokeSample(browser, origin, sample) {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
   page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
+  page.on("request", (request) => requestedUrls.add(request.url()));
   page.on("requestfailed", (request) => {
     const errorText = request.failure()?.errorText ?? "";
     // Chromium reports the DuckDB-WASM feature-selection cancellation as an
@@ -149,6 +151,76 @@ async function smokeSample(browser, origin, sample) {
     if (!body.trim()) failures.push("document body is empty");
     for (const signal of ["Demo error:", "Unable to load /", "no runnable build published yet"]) {
       if (body.includes(signal)) failures.push(`visible failure signal: ${signal}`);
+    }
+    if (sample.id === "imagery-cog-quickstart") {
+      const proof = await page.evaluate(async () => {
+        const runtime = window.__HONUA_IMAGERY_TERRAIN_RUNTIME__;
+        if (!runtime?.ready) throw new Error("Imagery COG runtime did not become ready.");
+        runtime.setComparison(43);
+        runtime.setTerrainEnabled(true);
+        const elevation = await runtime.lookupAt(-157.9, 21.35);
+        const profile = await runtime.runFixtureProfile();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return {
+          ready: runtime.ready,
+          activeLayerCount: runtime.activeLayerCount,
+          terrainEnabled: runtime.terrainEnabled,
+          elevation,
+          profile,
+          directCog: runtime.directCog,
+          fixtureTransport: runtime.fixtureTransport,
+        };
+      });
+      if (!proof.ready || !proof.terrainEnabled || proof.activeLayerCount !== 3)
+        failures.push(
+          `imagery COG journey did not retain comparison plus terrain layers: ${JSON.stringify({ ready: proof.ready, terrainEnabled: proof.terrainEnabled, activeLayerCount: proof.activeLayerCount })}`,
+        );
+      if (proof.elevation?.status !== "ready" || proof.elevation.elevationMeters !== 900)
+        failures.push("imagery COG point elevation fixture did not return the exact 900 m receipt");
+      if (proof.profile?.status !== "ready" || proof.profile.profile.samples.length !== 4)
+        failures.push("imagery COG profile fixture did not return four samples");
+      if (
+        proof.directCog.phase !== "ready" ||
+        proof.directCog.transfer.requests !== 3 ||
+        proof.directCog.transfer.bytesFetched !== 28_672 ||
+        proof.directCog.transfer.ranges.some((range) => range.length > 64 * 1024)
+      )
+        failures.push("imagery COG bounded range receipt is incomplete or exceeds the 64 KiB ceiling");
+      for (const identity of [
+        "stac-search",
+        "wms-capabilities",
+        "image-server-metadata",
+        "image-server-legend",
+        "image-server-export",
+        "elevation-value",
+      ]) {
+        if (!proof.fixtureTransport.serviceRequests.includes(identity))
+          failures.push(`imagery COG fixture identity was not exercised: ${identity}`);
+      }
+      const requiredMapFixtures = [
+        "wms-natural-color.png",
+        "image-server-natural-color.png",
+        "terrain-rgb.png",
+      ];
+      for (const fixture of requiredMapFixtures) {
+        if (![...observedRequests].some((pathname) => pathname.endsWith(`/fixtures/cog/tiles/${fixture}`)))
+          failures.push(`imagery COG map fixture was not loaded: ${fixture}`);
+      }
+      const evidence = await page.locator("#direct-cog-render").innerText();
+      if (
+        !/Natural-color legend/u.test(evidence) ||
+        !/RGB 22 \/ 91 \/ 164/u.test(evidence) ||
+        !/28672 bytes across 3 exact range request/u.test(evidence)
+      )
+        failures.push(`imagery COG visible legend, pixel, or range evidence is incomplete: ${evidence}`);
+      if ((await page.locator("#comparison-value").innerText()) !== "43% direct COG over published imagery")
+        failures.push("imagery COG comparison control did not retain the exact 43% public receipt");
+      const appPrefix = `/sdk/${sample.id}/app/`;
+      for (const href of requestedUrls) {
+        const url = new URL(href);
+        if (url.origin !== origin || (!url.pathname.startsWith(appPrefix) && url.pathname !== "/favicon.ico"))
+          failures.push(`imagery COG request escaped the published app root: ${href}`);
+      }
     }
   } catch (error) {
     failures.push(`navigation: ${error instanceof Error ? error.message : String(error)}`);

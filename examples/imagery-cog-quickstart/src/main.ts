@@ -21,6 +21,8 @@ import type { GeoJSONSource, MapMouseEvent } from "maplibre-gl";
 import { SampleCleanupRegistry } from "../../_kit/cleanup.js";
 import { mountSamplePresentation } from "../../_kit/presentation.js";
 import { clientOptionsFromImageryConfig, resolveImageryCogConfig } from "./config.js";
+import { fixtureRasterTileUrl, registerFixtureMapProtocol } from "./fixture-map-protocol.js";
+import { fixtureCogTransportSnapshot } from "./fixture-range-fetch.js";
 import {
   type ElevationLookupOutcome,
   type ElevationProfileOutcome,
@@ -107,6 +109,7 @@ interface ImageryTerrainBrowserRuntime {
   readonly interactionCount: number;
   readonly resources: ReturnType<ImageryTerrainJourney["resources"]>;
   readonly directCog: DirectCogEvidence;
+  readonly fixtureTransport: ReturnType<typeof fixtureCogTransportSnapshot>;
   search(): Promise<boolean>;
   selectAsset(assetKey: string): Promise<RasterAssetInspectionOutcome | undefined>;
   selectCogAsset(assetKey: string): Promise<void>;
@@ -132,10 +135,18 @@ declare global {
 const config = resolveImageryCogConfig({
   VITE_HONUA_IMAGERY_BASE_URL: import.meta.env.VITE_HONUA_IMAGERY_BASE_URL,
 });
+const cleanup = new SampleCleanupRegistry();
 const client = new HonuaClient(clientOptionsFromImageryConfig(config));
 const dataset = createDefaultImageryDataset();
 const journey = new ImageryTerrainJourney({ client });
-const cleanup = new SampleCleanupRegistry();
+if (config.mode === "fixture-safe") {
+  cleanup.add(
+    registerFixtureMapProtocol({
+      maplibre: maplibregl,
+      fixtureRootUrl: new URL("./fixtures/cog/", globalThis.location.href),
+    }),
+  );
+}
 const bootstrapController = new AbortController();
 let renderPlan = createImageryRenderPlan(dataset, client);
 let searchReceipt: ImageryTerrainSearchReceipt | undefined;
@@ -556,7 +567,7 @@ async function initializeDirectCog(signal: AbortSignal): Promise<boolean> {
   }
   const endpoint =
     config.mode === "fixture-safe"
-      ? new URL("/fixtures/cog/item.json", window.location.href).href
+      ? new URL("./fixtures/cog/item.json", window.location.href).href
       : new URL(
           `stac/collections/${encodeURIComponent(scene.collectionId)}/items/${encodeURIComponent(scene.id)}`,
           `${config.honuaBaseUrl}/`,
@@ -911,7 +922,14 @@ function addImageryLayers(plan: ImageryRenderPlan): void {
     if (!map.getSource(state.mapSourceId)) {
       map.addSource(state.mapSourceId, {
         type: "raster",
-        tiles: [...state.sourceSpec.tiles],
+        tiles:
+          config.mode === "fixture-safe"
+            ? [
+                fixtureRasterTileUrl(
+                  state.layer.accessPath === "wms-getmap" ? "wms-natural-color" : "image-server-natural-color",
+                ),
+              ]
+            : [...state.sourceSpec.tiles],
         tileSize: state.sourceSpec.tileSize,
         ...(state.sourceSpec.scheme ? { scheme: state.sourceSpec.scheme } : {}),
         ...(state.sourceSpec.minzoom !== undefined ? { minzoom: state.sourceSpec.minzoom } : {}),
@@ -936,7 +954,11 @@ function addTerrainAndAnalysisLayers(): void {
   if (!map.getSource(TERRAIN_SOURCE_ID)) {
     map.addSource(TERRAIN_SOURCE_ID, {
       type: "raster-dem",
-      tiles: [buildImageServerTileUrlTemplate(service, "png")],
+      tiles: [
+        config.mode === "fixture-safe"
+          ? fixtureRasterTileUrl("terrain-rgb")
+          : buildImageServerTileUrlTemplate(service, "png"),
+      ],
       tileSize: 256,
       encoding: "mapbox",
       minzoom: 6,
@@ -1365,6 +1387,9 @@ const runtime: ImageryTerrainBrowserRuntime = {
   },
   get directCog() {
     return directEvidence;
+  },
+  get fixtureTransport() {
+    return fixtureCogTransportSnapshot();
   },
   search: runSearch,
   selectAsset: inspectAsset,

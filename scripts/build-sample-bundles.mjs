@@ -263,7 +263,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:imagery-cog:build",
     auditedVia:
-      "The default bundle contains a deterministic CC0-1.0 tiled EPSG:4326 GeoTIFF split into SHA-256-pinned 64 KiB chunks. Its browser adapter reconstructs only bounded 206 virtual ranges, rejects complete-object GETs, and requires no host fixture routes; configured same-origin Honua service mode remains explicit opt-in.",
+      "The default bundle contains a deterministic CC0-1.0 tiled EPSG:4326 GeoTIFF split into SHA-256-pinned logical 64 KiB chunks with independently pinned lossless storage and licensed PNG map fixtures. Exact-identity fixture transport serves STAC, WMS/ImageServer metadata, export, and elevation; fixture-only MapLibre protocol URLs serve imagery and Terrain-RGB while configured same-origin Honua service mode remains unchanged. Pure-static bundle smoke exercises the complete journey with no host fixture routes.",
   },
   {
     id: "maplibre-quickstart",

@@ -5,7 +5,14 @@ import {
   clientOptionsFromImageryConfig,
   resolveImageryCogConfig,
 } from "../examples/imagery-cog-quickstart/src/config.js";
-import { createFixtureCogFetch } from "../examples/imagery-cog-quickstart/src/fixture-range-fetch.js";
+import {
+  fixtureMapManifest,
+  fixtureRasterTileUrl,
+} from "../examples/imagery-cog-quickstart/src/fixture-map-protocol.js";
+import {
+  createFixtureCogFetch,
+  fixtureCogTransportSnapshot,
+} from "../examples/imagery-cog-quickstart/src/fixture-range-fetch.js";
 import { createFixtureImageryCogDataset } from "../examples/imagery-cog-quickstart/src/fixtures.js";
 import {
   activeImageryLayerCount,
@@ -69,11 +76,11 @@ describe("Imagery and COG Quickstart sample", () => {
     };
     const fetchFn = createFixtureCogFetch({
       appRootUrl: new URL("https://samples.honua.test/"),
-      fixtureRootUrl: new URL("https://samples.honua.test/sdk/imagery-cog-quickstart/fixtures/cog/"),
+      fixtureRootUrl: new URL("https://samples.honua.test/sdk/imagery-cog-quickstart/app/fixtures/cog/"),
       fetchImpl: fetchImpl as typeof fetch,
     });
     const assetUrl =
-      "https://samples.honua.test/sdk/imagery-cog-quickstart/fixtures/cog/assets/oahu-natural-color-v1.tif";
+      "https://samples.honua.test/sdk/imagery-cog-quickstart/app/fixtures/cog/assets/oahu-natural-color-v1.tif";
     const forwardedRequests = [
       new Request(assetUrl.replace("samples.honua.test", "foreign.example.test"), { method: "GET" }),
       new Request(assetUrl.replace("/sdk/", "/lookalike/sdk/"), { method: "GET" }),
@@ -88,6 +95,15 @@ describe("Imagery and COG Quickstart sample", () => {
 
     const fixtureHead = await fetchFn(assetUrl, { method: "HEAD" });
     expect(fixtureHead.headers.get("accept-ranges")).toBe("bytes");
+    const degradedHead = await fetchFn(assetUrl.replace("oahu-natural-color-v1.tif", "unsupported-crs"), {
+      method: "HEAD",
+    });
+    expect(degradedHead.headers.get("accept-ranges")).toBe("bytes");
+    const noRange = await fetchFn(assetUrl.replace("oahu-natural-color-v1.tif", "no-range-cog"), {
+      headers: { range: "bytes=0-63" },
+    });
+    expect(noRange.status).toBe(200);
+    expect(noRange.headers.get("accept-ranges")).toBeNull();
     expect(forwarded).toHaveLength(3);
     const search = await fetchFn("https://samples.honua.test/stac/search", { method: "POST" });
     expect(await search.json()).toMatchObject({
@@ -95,6 +111,81 @@ describe("Imagery and COG Quickstart sample", () => {
       features: [{ id: "oahu-natural-color-fixture-v1" }],
     });
     expect(forwarded).toHaveLength(3);
+  });
+
+  it("serves only exact bundle-local WMS, ImageServer, and elevation identities", async () => {
+    const forwarded: string[] = [];
+    const fetchFn = createFixtureCogFetch({
+      appRootUrl: new URL("https://samples.honua.test/"),
+      fixtureRootUrl: new URL("https://samples.honua.test/sdk/imagery-cog-quickstart/app/fixtures/cog/"),
+      fetchImpl: (async (input: RequestInfo | URL) => {
+        forwarded.push(input instanceof Request ? input.url : String(input));
+        return new Response("forwarded", { headers: { "x-forwarded": "true" } });
+      }) as typeof fetch,
+    });
+
+    const capabilities = await fetchFn(
+      "https://samples.honua.test/rest/services/OahuImagery/MapServer/WMS?SERVICE=WMS&REQUEST=GetCapabilities",
+    );
+    expect(await capabilities.text()).toContain("Oahu Honua Imagery WMS");
+    expect(
+      await (
+        await fetchFn(
+          "https://samples.honua.test/stac/search?bbox=-158.18%2C21.22%2C-157.7%2C21.58&datetime=2026-04-01T00%3A00%3A00Z%2F2026-05-05T23%3A59%3A59Z&collections=sentinel-2-l2a&filter=%22eo%3Acloud_cover%22%20%3C%3D%2020&filter-lang=cql2-text&limit=20",
+        )
+      ).json(),
+    ).toMatchObject({ features: [{ id: "oahu-natural-color-fixture-v1" }] });
+    expect(
+      await (await fetchFn("https://samples.honua.test/rest/services/OahuCog/ImageServer?f=json")).json(),
+    ).toMatchObject({
+      layers: [{ name: "oahu_sentinel2_cog" }],
+    });
+    expect(
+      await (await fetchFn("https://samples.honua.test/rest/services/OahuCog/ImageServer/legend?f=json")).json(),
+    ).toMatchObject({ layers: [{ legend: [{ label: "Sentinel-2 visual" }] }] });
+    expect(
+      await (await fetchFn("https://samples.honua.test/rest/services/OahuCog/ImageServer/exportImage?f=json")).json(),
+    ).toMatchObject({ href: expect.stringContaining("/fixtures/cog/tiles/image-server-natural-color.png") });
+    expect(
+      await (
+        await fetchFn(
+          "https://samples.honua.test/api/v1/terrain/OahuTerrain/elevation/value?longitude=-157.9&latitude=21.35",
+        )
+      ).json(),
+    ).toMatchObject({ elevationMeters: 900, verticalDatum: "EGM96" });
+
+    for (const url of [
+      "https://foreign.example.test/rest/services/OahuCog/ImageServer?f=json",
+      "https://samples.honua.test/lookalike/rest/services/OahuCog/ImageServer?f=json",
+    ]) {
+      expect((await fetchFn(url)).headers.get("x-forwarded")).toBe("true");
+    }
+    expect(
+      (await fetchFn("https://samples.honua.test/rest/services/OahuCog/ImageServer", { method: "POST" })).headers.get(
+        "x-forwarded",
+      ),
+    ).toBe("true");
+    expect(forwarded).toHaveLength(3);
+    expect(fixtureCogTransportSnapshot().serviceRequests).toEqual(
+      expect.arrayContaining([
+        "wms-capabilities",
+        "stac-search",
+        "image-server-metadata",
+        "image-server-legend",
+        "image-server-export",
+        "elevation-value",
+      ]),
+    );
+  });
+
+  it("publishes exact fixture-only MapLibre protocol identities", () => {
+    expect(fixtureMapManifest.renderFixtures.map((fixture) => fixture.id)).toEqual([
+      "wms-natural-color",
+      "image-server-natural-color",
+      "terrain-rgb",
+    ]);
+    expect(fixtureRasterTileUrl("wms-natural-color")).toBe("honua-cog-fixture://wms-natural-color/{z}/{x}/{y}");
+    expect(() => fixtureRasterTileUrl("lookalike")).toThrow(/unknown render fixture/u);
   });
 
   it("projects WMS and COG-backed ImageServer layers into MapLibre raster sources", () => {
