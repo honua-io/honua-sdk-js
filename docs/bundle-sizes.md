@@ -37,7 +37,7 @@ _Generated 2026-08-11 at commit `ab22b85f`._
 | `/map` | 182.2 KiB | 198.2 KiB | 51.5 KiB | 56.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 146.1 KiB | 154.9 KiB | 43.9 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 331.1 KiB | 364.2 KiB | 89.3 KiB | 98.7 KiB |
+| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 332.7 KiB | 364.2 KiB | 89.7 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
 | `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1012.8 KiB | 1037.6 KiB | 272.1 KiB | 277.9 KiB |
 | `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1089.4 KiB | 1120.1 KiB | 295.5 KiB | 321.9 KiB |
@@ -57,6 +57,6 @@ _Generated 2026-08-11 at commit `ab22b85f`._
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 254.7 KiB | 267.0 KiB | 65.2 KiB | 68.1 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 44.9 KiB | 49.4 KiB | 13.6 KiB | 14.0 KiB |
-| tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 32.0 KiB | 35.1 KiB | 9.1 KiB | 10.0 KiB |
+| tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded) | 33.5 KiB | 35.1 KiB | 9.5 KiB | 10.0 KiB |
 | tree-shake guard (`{ bindTerraDrawSketch }` from `/runtime`, terra-draw external) | 3.3 KiB | 3.3 KiB | 1.5 KiB | 1.5 KiB |
 | tree-shake guard (`/analytics` contract + default presentation, chart adapters/peers excluded) | 27.4 KiB | 30.2 KiB | 9.0 KiB | 9.2 KiB |
