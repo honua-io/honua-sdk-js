@@ -159,18 +159,11 @@ describe("capability-to-sample matrix contract", () => {
     expect(matrix.protocolOperations).toHaveLength(
       inputs.supportTruth.protocols.length * inputs.supportTruth.protocolOperations.length,
     );
-    // 32 = 30 pre-existing support claims + the client-only direct GeoParquet
-    // and Honua Arrow/Parquet columnar workflow claims.
-    expect(matrix.supportClaims).toHaveLength(32);
-    // 59 = 58 pre-existing exports + the bounded columnar workflow contract.
-    // manifest-advertised PMTiles plugin entrypoint published in issue #671)
-    // + "./analytics" and "./analytics/uplot" (the linked-analytics contract
-    // and its reference third-party chart adapter, issue #682)
-    // + "./kepler" (the optional Kepler.gl workspace bridge from issue #684)
-    // + "./coverages" (the coverage/WCS clients from issue #1115)
-    // + "./cloud-native-discovery" (the normalized source discovery facade)
-    // + "./columnar-workflow" (the bounded columnar workflow contract).
-    expect(matrix.packageEntrypoints).toHaveLength(59);
+    // 33 = 30 pre-existing claims + two columnar workflow claims
+    // + the separate experimental dynamic STAC workflow claim.
+    expect(matrix.supportClaims).toHaveLength(33);
+    // 60 = 59 existing package entrypoints + the experimental STAC task facade.
+    expect(matrix.packageEntrypoints).toHaveLength(60);
     // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
     // service-explorer are the four real, evidence-backed qualified samples
     // (the Imagery and Terrain, First Map, ArcGIS Migration Workbench, and
