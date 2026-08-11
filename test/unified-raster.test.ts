@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { CogDecodedMetadata, CogDecoderFactory, CogNoDataValue } from "../src/cog/index.js";
@@ -9,7 +11,7 @@ import {
   openRasterSession,
   planRasterOperation,
 } from "../src/raster/index.js";
-import type { RasterCoverageExecutor, RasterStyle } from "../src/raster/index.js";
+import type { RasterStyle } from "../src/raster/index.js";
 
 const metadata: CogDecodedMetadata = {
   format: "cog",
@@ -74,6 +76,38 @@ function decoder(
       };
     },
   });
+}
+
+function coverageFixture(name: string): string {
+  return readFileSync(new URL(`fixtures/coverages/${name}`, import.meta.url), "utf8");
+}
+
+function rasterCoverageFetch(requests: URL[]): typeof fetch {
+  return vi.fn(async (input, init) => {
+    const request = new Request(input, init);
+    const url = new URL(request.url);
+    requests.push(url);
+    if (url.pathname === "/ogc/coverages/collections/7") {
+      return new Response(coverageFixture("collection.json"), { headers: { "Content-Type": "application/json" } });
+    }
+    if (url.pathname === "/ogc/coverages/collections/7/schema") {
+      return new Response(coverageFixture("schema.json"), { headers: { "Content-Type": "application/json" } });
+    }
+    if (url.pathname === "/ogc/coverages/collections/7/coverage") {
+      return new Response(new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), {
+        headers: { "Content-Type": "image/png" },
+      });
+    }
+    if (url.pathname === "/ogc/services/7/wcs" && url.searchParams.get("REQUEST") === "DescribeCoverage") {
+      return new Response(coverageFixture("wcs-description.xml"), { headers: { "Content-Type": "application/xml" } });
+    }
+    if (url.pathname === "/ogc/services/7/wcs" && url.searchParams.get("REQUEST") === "GetCoverage") {
+      return new Response(new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), {
+        headers: { "Content-Type": "image/png" },
+      });
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
 }
 
 describe("unified raster session", () => {
@@ -230,6 +264,7 @@ describe("unified raster session", () => {
     expect(requests[0]).toContain("https://honua.example/arcgis/rest/services/Imagery/Oahu/ImageServer/exportImage");
     const requestUrl = new URL(requests[0] ?? "");
     expect(requestUrl.searchParams.get("size")).toBe("256,128");
+    expect(requestUrl.searchParams.get("bandIds")).toBe("2,1,0");
     expect(requestUrl.searchParams.get("interpolation")).toBe("RSP_BilinearInterpolation");
   });
 
@@ -431,44 +466,132 @@ describe("unified raster session", () => {
     expect(session.toDeckGlBitmap(result).bounds).toEqual([-158.1, 21.2, -157.7, 21.6]);
   });
 
-  it("keeps coverage execution and future formats explicit", () => {
-    const coverage = { kind: "ogc-coverage", id: "temperature", endpoint: "https://coverage.example/subset" } as const;
-    expect(planRasterOperation(coverage, "read-window")).toMatchObject({ mode: "unavailable", bounded: true });
-    expect(UNIFIED_RASTER_CAPABILITY_MATRIX["ogc-coverage"]).toMatchObject({
-      client: "metadata-only",
-      endToEnd: "unavailable",
-    });
-    expect(RASTER_FORMAT_MATURITY).toMatchObject({ zarr: "metadata-only", netcdf: "metadata-only" });
+  it("consumes a dynamic STAC COG handoff without weakening structural validation", async () => {
+    const ranges: string[] = [];
+    const session = await openRasterSession(
+      {
+        kind: "cog",
+        id: "dynamic-stac-cog",
+        candidate: {
+          itemId: "oahu-item",
+          key: "visual",
+          href: "https://assets.example/dynamic-stac-cog",
+          mediaType: "image/tiff; application=geotiff; profile=cloud-optimized",
+          roles: ["visual"],
+          format: "cog",
+          maturity: "experimental",
+          projection: {},
+          bands: [],
+          evidence: ["media-type:image/tiff; application=geotiff; profile=cloud-optimized"],
+          handoff: {
+            kind: "cog",
+            href: "https://assets.example/dynamic-stac-cog",
+            packageExport: "@honua/sdk-js/cog",
+          },
+        },
+      },
+      { decoderFactory: decoder(), clientOptions: { fetchFn: boundedFetch(ranges) } },
+    );
+
+    expect(ranges).toEqual(["bytes=0-31"]);
+    await session.dispose();
   });
 
-  it("plans only methods actually admitted by an injected Coverage/WCS executor", () => {
-    const coverage = { kind: "wcs", id: "temperature", endpoint: "https://coverage.example/wcs" } as const;
-    const executor: RasterCoverageExecutor = {
-      async inspect(source) {
-        return { source, structurallyValidated: false };
-      },
-      async readWindow() {
-        throw new Error("not executed by planning");
-      },
-    };
+  it("uses the real bounded OGC API Coverages client with named range fields", async () => {
+    const requests: URL[] = [];
+    const source = {
+      kind: "ogc-coverage",
+      id: "temperature",
+      endpoint: "https://coverage.example/ogc/coverages",
+      collectionId: "7",
+    } as const;
+    const session = await openRasterSession(source, { clientOptions: { fetchFn: rasterCoverageFetch(requests) } });
 
-    expect(planRasterOperation(coverage, "inspect", { coverageExecutor: executor }).mode).toBe("server-operation");
-    expect(planRasterOperation(coverage, "read-window", { coverageExecutor: executor }).mode).toBe("server-operation");
-    for (const operation of ["statistics", "histogram", "render", "inspect-value"] as const) {
-      expect(planRasterOperation(coverage, operation, { coverageExecutor: executor })).toMatchObject({
-        mode: "unavailable",
-        reason: "The supplied Coverage/WCS executor does not admit this operation.",
-      });
-    }
+    expect(planRasterOperation(source, "read-window")).toMatchObject({ mode: "server-operation", bounded: true });
+    expect(await session.inspect()).toMatchObject({
+      metadata: { domainSet: { collectionId: "7" }, rangeType: { collectionId: "7" } },
+    });
+    const result = await session.readWindow({
+      space: "bbox",
+      bbox: [-158.1, 21.3, -157.9, 21.5],
+      width: 256,
+      height: 128,
+      spatialReference: 4326,
+      rangeFields: ["elevation", "quality"],
+    });
 
-    const valueExecutor: RasterCoverageExecutor = {
-      ...executor,
-      async inspectValue() {
-        return { kind: "decoded-value", values: [] };
+    expect(result).toMatchObject({ kind: "coverage-image", width: 256, height: 128 });
+    const requested = requests.find((url) => url.pathname.endsWith("/coverage"));
+    expect(requested?.searchParams.get("bbox-crs")).toBe("EPSG:4326");
+    expect(requested?.searchParams.get("properties")).toBe("elevation,quality");
+    expect(requested?.searchParams.get("scale-size")).toBe("x(256),y(128)");
+  });
+
+  it("uses advertised WCS axes for exact bounded output sizing", async () => {
+    const requests: URL[] = [];
+    const source = {
+      kind: "wcs",
+      id: "temperature-wcs",
+      endpoint: "https://coverage.example/ogc/services/7/wcs",
+      coverageId: "7",
+      scaleAxes: { width: "Long", height: "Lat" },
+    } as const;
+    const session = await openRasterSession(source, { clientOptions: { fetchFn: rasterCoverageFetch(requests) } });
+    const result = await session.readWindow({
+      space: "bbox",
+      bbox: [-158.1, 21.3, -157.9, 21.5],
+      width: 256,
+      height: 128,
+      spatialReference: "EPSG:4326",
+      rangeFields: ["elevation"],
+    });
+
+    expect(result).toMatchObject({ kind: "coverage-image", width: 256, height: 128 });
+    const requested = requests.find((url) => url.searchParams.get("REQUEST") === "GetCoverage");
+    expect(requested?.searchParams.get("SCALESIZE")).toBe("Lat(128),Long(256)");
+    expect(requested?.searchParams.get("RANGESUBSET")).toBe("elevation");
+  });
+
+  it("keeps unsupported coverage fields and future formats fail-closed", async () => {
+    const requests: URL[] = [];
+    const session = await openRasterSession(
+      {
+        kind: "ogc-coverage",
+        id: "temperature",
+        endpoint: "https://coverage.example/ogc/coverages",
+        collectionId: "7",
       },
-    };
-    expect(planRasterOperation(coverage, "inspect-value", { coverageExecutor: valueExecutor }).mode).toBe(
-      "server-operation",
+      { clientOptions: { fetchFn: rasterCoverageFetch(requests) } },
     );
+    await expect(
+      session.readWindow({
+        space: "bbox",
+        bbox: [-158.1, 21.3, -157.9, 21.5],
+        width: 32,
+        height: 32,
+        bands: [1],
+      }),
+    ).rejects.toMatchObject({ capability: "named-range-fields", protocol: "ogc-coverage" });
+    expect(requests).toHaveLength(0);
+    expect(UNIFIED_RASTER_CAPABILITY_MATRIX["ogc-coverage"]).toMatchObject({
+      client: "experimental",
+      endToEnd: "experimental",
+    });
+    expect(RASTER_FORMAT_MATURITY).toMatchObject({ zarr: "unavailable", netcdf: "unavailable" });
+  });
+
+  it("fails closed when a style has no legend implementation", async () => {
+    const session = await openRasterSession(
+      directCogSource({
+        id: "legend-cog",
+        url: "https://assets.example/legend",
+        mediaType: "image/tiff; application=geotiff; profile=cloud-optimized",
+      }),
+      { decoderFactory: decoder(), clientOptions: { fetchFn: boundedFetch([]) } },
+    );
+    expect(() => session.legend({ kind: "stretch", method: "min-max" })).toThrowError(
+      expect.objectContaining({ capability: "legend" }),
+    );
+    await session.dispose();
   });
 });

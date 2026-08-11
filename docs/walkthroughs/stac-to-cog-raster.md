@@ -8,13 +8,14 @@ the walkthrough makes no live, unversioned catalog request.
 
 ## 1. Keep the STAC evidence
 
-Pass the evidence-classified `StacAssetCandidate` from discovery into the
-raster descriptor. Do not reduce the candidate to a `.tif` URL: a suffix is not
-proof that the internal TIFF layout is cloud optimized.
+Pass the `DynamicStacAssetDescriptor` returned by `@honua/sdk-js/stac` into the
+raster descriptor. The descriptor must carry an executable COG handoff; a
+`.tif` suffix is not proof that the internal TIFF layout is cloud optimized.
 
 ```ts doc-test=skip reason="continues a caller-owned STAC candidate, decoder factory, and cancellation signal"
+const candidate = await stac.selectAsset(item, { formats: ["cog"], roles: ["visual", "data"] });
 const raster = await openRasterSession(
-  { kind: "cog", id: candidate.id, candidate },
+  { kind: "cog", id: `${candidate.itemId}:${candidate.key}`, candidate },
   { decoderFactory, decoderExecution: "worker", signal },
 );
 ```
@@ -92,7 +93,8 @@ retry, cancellation, and interceptor pipeline.
 - `unsupported-format`: the decoder found a TIFF that is not structurally cloud optimized. Publish a COG; do not bypass the check with a filename.
 - `range-unsupported` or `whole-file-disallowed`: configure the host for exact byte ranges and readable CORS range headers.
 - `byte-limit-exceeded`: reduce the window, select an overview, or raise a reviewed transfer budget explicitly.
-- `core.capability-not-supported` for Coverage/WCS: provide an executor derived from advertised operation links. The SDK deliberately does not guess a service URL.
+- `core.capability-not-supported` for Coverage/WCS: provide the exact service root/KVP endpoint, a bounded bbox, and named range fields. The SDK deliberately does not guess paths or range names.
 - Unsupported codec from the decoder: load a decoder build containing the codec, or use the server-rendered subset path.
 
-The complete focused project is [`examples/raster-quickstart`](../../examples/raster-quickstart/README.md).
+The snippets stay deliberately walkthrough-scoped; the repository does not
+publish an incomplete raster gallery sample as a runnable Example.

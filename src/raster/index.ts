@@ -1,12 +1,11 @@
 /**
  * `@honua/sdk-js/raster` - one bounded raster workflow across direct COG,
- * ImageServer, and explicitly adapted OGC coverage services.
+ * ImageServer, OGC API Coverages, and WCS 2.0.1 services.
  *
  * Direct COG sessions are returned only after the injected decoder has
  * structurally identified a Cloud Optimized GeoTIFF. A filename suffix is
- * never treated as conformance evidence. Coverage/WCS descriptors are useful
- * for planning immediately, but execution stays fail-closed until a caller
- * supplies an adapter for an advertised operation URL.
+ * never treated as conformance evidence. Coverage/WCS execution reuses the
+ * bounded protocol clients and exact service paths from `@honua/sdk-js/coverages`.
  *
  * @experimental
  * @packageDocumentation
@@ -28,6 +27,7 @@ import type {
   StacCogAssetToMapLibreMap,
 } from "../cog/index.js";
 import type { StacAssetCandidate } from "../connect-stac-static.js";
+import type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
 import { HonuaClient } from "../core/client.js";
 import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import type {
@@ -36,9 +36,12 @@ import type {
   HonuaIdentifyResponse,
   HonuaServiceMetadata,
 } from "../core/types.js";
+import { coverageToMapLibreImage, createCoverageClient, createWcsClient } from "../coverages/index.js";
+import type { CoverageMapLibreImage, CoverageResult } from "../coverages/index.js";
+import type { DynamicStacAssetDescriptor } from "../stac/index.js";
 
 export type RasterSourceKind = "cog" | "image-server" | "ogc-coverage" | "wcs";
-export type RasterMaturity = "supported" | "experimental" | "metadata-only" | "unavailable";
+export type RasterMaturity = CloudNativeMaturity;
 export type RasterOperation = "inspect" | "read-window" | "statistics" | "histogram" | "inspect-value" | "render";
 export type RasterExecutionMode = "browser-range" | "worker-decode" | "server-operation" | "unavailable";
 
@@ -74,33 +77,33 @@ export const UNIFIED_RASTER_CAPABILITY_MATRIX: Readonly<Record<RasterSourceKind,
   },
   "ogc-coverage": {
     source: "ogc-coverage",
-    client: "metadata-only",
+    client: "experimental",
     server: "experimental",
-    endToEnd: "unavailable",
-    operations: ["inspect"],
-    note: "Descriptor and plan only unless an advertised-link coverage executor is supplied.",
+    endToEnd: "experimental",
+    operations: ["inspect", "read-window", "render"],
+    note: "Uses the bounded OGC API Coverages client at the caller-provided service root.",
   },
   wcs: {
     source: "wcs",
-    client: "metadata-only",
+    client: "experimental",
     server: "experimental",
-    endToEnd: "unavailable",
-    operations: ["inspect"],
-    note: "Descriptor and plan only unless a capabilities-derived WCS executor is supplied.",
+    endToEnd: "experimental",
+    operations: ["inspect", "read-window", "render"],
+    note: "Uses the bounded WCS 2.0.1 client at the caller-provided KVP endpoint.",
   },
 };
 
 /** Vocabulary reserved for later cloud-native discovery; these rows are not executable here. */
 export const RASTER_FORMAT_MATURITY = {
   cog: "experimental",
-  zarr: "metadata-only",
-  netcdf: "metadata-only",
+  zarr: "unavailable",
+  netcdf: "unavailable",
 } as const satisfies Readonly<Record<"cog" | "zarr" | "netcdf", RasterMaturity>>;
 
 export interface DirectCogCandidateSource {
   readonly kind: "cog";
   readonly id: string;
-  readonly candidate: StacAssetCandidate;
+  readonly candidate: DynamicStacAssetDescriptor;
   readonly url?: never;
   readonly mediaType?: never;
 }
@@ -124,14 +127,25 @@ export interface ImageServerRasterSource {
   readonly deployment?: "honua" | "arcgis";
 }
 
-export interface CoverageRasterSource {
-  readonly kind: "ogc-coverage" | "wcs";
+export interface OgcCoverageRasterSource {
+  readonly kind: "ogc-coverage";
   readonly id: string;
-  /** Capabilities-advertised operation URL; the SDK never appends a guessed endpoint. */
+  /** Exact OGC API Coverages service root; the SDK never guesses one. */
   readonly endpoint: string;
-  readonly coverageId?: string;
+  readonly collectionId: string;
 }
 
+export interface WcsRasterSource {
+  readonly kind: "wcs";
+  readonly id: string;
+  /** Exact capabilities-derived WCS KVP endpoint. */
+  readonly endpoint: string;
+  readonly coverageId: string;
+  /** Advertised horizontal and vertical axis labels used for exact output sizing. */
+  readonly scaleAxes: { readonly width: string; readonly height: string };
+}
+
+export type CoverageRasterSource = OgcCoverageRasterSource | WcsRasterSource;
 export type RasterSourceDescriptor = DirectCogRasterSource | ImageServerRasterSource | CoverageRasterSource;
 
 export interface RasterCachePolicy {
@@ -223,7 +237,10 @@ export type RasterStyle =
   | RasterMultibandStyle;
 
 export type RasterWindowRequest = (RasterPixelWindow | RasterBoundingBoxWindow) & {
+  /** One-based numeric band indexes. Coverage/WCS range fields are named separately. */
   readonly bands?: readonly number[];
+  /** Protocol range/property names for OGC API Coverages and WCS. */
+  readonly rangeFields?: readonly string[];
   readonly noData?: number;
   readonly resampling?: "nearest" | "bilinear";
   readonly style?: RasterStyle;
@@ -258,7 +275,15 @@ export interface RasterServerImageResult {
   readonly response: HonuaExportMapResponse;
 }
 
-export type RasterWindowResult = RasterDecodedWindowResult | RasterServerImageResult;
+export interface RasterCoverageImageResult {
+  readonly kind: "coverage-image";
+  readonly request: RasterWindowRequest;
+  readonly width: number;
+  readonly height: number;
+  readonly response: CoverageResult;
+}
+
+export type RasterWindowResult = RasterDecodedWindowResult | RasterServerImageResult | RasterCoverageImageResult;
 
 export interface RasterHistogramBin {
   readonly min: number;
@@ -313,25 +338,6 @@ export interface RasterDeckGlBitmapDescriptor {
   readonly bounds: readonly [number, number, number, number];
 }
 
-export interface RasterCoverageExecutionContext {
-  readonly signal?: AbortSignal;
-  readonly client: HonuaClient;
-}
-
-export interface RasterCoverageExecutor {
-  inspect(source: CoverageRasterSource, context: RasterCoverageExecutionContext): Promise<RasterInspection>;
-  readWindow(
-    source: CoverageRasterSource,
-    request: RasterWindowRequest,
-    context: RasterCoverageExecutionContext,
-  ): Promise<RasterWindowResult>;
-  inspectValue?(
-    source: CoverageRasterSource,
-    request: RasterPixelValueRequest,
-    context: RasterCoverageExecutionContext,
-  ): Promise<RasterPixelValueResult>;
-}
-
 export type RasterClientOptions = Omit<HonuaClientOptions, "baseUrl">;
 
 export interface OpenRasterSessionOptions {
@@ -341,7 +347,6 @@ export interface OpenRasterSessionOptions {
   readonly cache?: RasterCachePolicy;
   readonly client?: HonuaClient;
   readonly clientOptions?: RasterClientOptions;
-  readonly coverageExecutor?: RasterCoverageExecutor;
   readonly onProgress?: (event: RasterProgressEvent) => void;
   readonly signal?: AbortSignal;
 }
@@ -365,7 +370,7 @@ export function directCogSource(input: {
 export function planRasterOperation(
   source: RasterSourceDescriptor,
   operation: RasterOperation,
-  options: Pick<OpenRasterSessionOptions, "cache" | "decoderExecution" | "coverageExecutor"> = {},
+  options: Pick<OpenRasterSessionOptions, "cache" | "decoderExecution"> = {},
 ): RasterExecutionPlan {
   const cache = options.cache ?? DEFAULT_CACHE_POLICY;
   const capability = UNIFIED_RASTER_CAPABILITY_MATRIX[source.kind];
@@ -401,25 +406,19 @@ export function planRasterOperation(
         : "ImageServer statistics and histogram endpoints are not claimed by this facade.",
     };
   }
-  const adapted =
-    Boolean(options.coverageExecutor) &&
-    (operation === "inspect" ||
-      operation === "read-window" ||
-      (operation === "inspect-value" && typeof options.coverageExecutor?.inspectValue === "function"));
+  const supported = capability.operations.includes(operation);
   return {
     sourceId: source.id,
     sourceKind: source.kind,
     operation,
-    mode: adapted ? "server-operation" : "unavailable",
+    mode: supported ? "server-operation" : "unavailable",
     bounded: operation === "read-window" || operation === "render" || operation === "inspect-value",
-    decoder: adapted ? "server" : "none",
+    decoder: supported ? "server" : "none",
     cache,
     capability,
-    reason: adapted
-      ? "A caller-supplied executor owns the capabilities-advertised operation URL."
-      : options.coverageExecutor
-        ? "The supplied Coverage/WCS executor does not admit this operation."
-        : "No built-in Coverage/WCS transport is claimed; supply an advertised-link executor.",
+    reason: supported
+      ? "The bounded Coverage/WCS client uses the caller-provided service path without URL guessing."
+      : "The Coverage/WCS raster facade does not implement this operation.",
   };
 }
 
@@ -428,6 +427,9 @@ export class UnifiedRasterSession {
   private readonly options: OpenRasterSessionOptions;
   private readonly client: HonuaClient;
   private readonly cog?: StacCogAssetSession;
+  private readonly coverageClient?: ReturnType<typeof createCoverageClient>;
+  private readonly wcsClient?: ReturnType<typeof createWcsClient>;
+  private readonly coverageImages = new Set<CoverageMapLibreImage>();
   private disposed = false;
 
   /** @internal Use openRasterSession so direct COGs pass structural inspection before exposure. */
@@ -442,11 +444,17 @@ export class UnifiedRasterSession {
     }
     this.client = options.client ?? new HonuaClient({ ...options.clientOptions, baseUrl: clientBaseUrl });
 
+    if (source.kind === "ogc-coverage") {
+      this.coverageClient = createCoverageClient(this.client, { basePath: source.endpoint });
+    } else if (source.kind === "wcs") {
+      this.wcsClient = createWcsClient(this.client, { basePath: source.endpoint });
+    }
+
     if (source.kind === "cog") {
       if (!options.decoderFactory) {
         throw new HonuaCapabilityNotSupportedError("cog-decoder", "direct-cog", source.id);
       }
-      const candidate = "candidate" in source && source.candidate ? source.candidate : directCandidate(source);
+      const candidate = "candidate" in source && source.candidate ? dynamicStacCandidate(source) : directCandidate(source);
       const cacheMode = options.cache?.mode ?? "default";
       this.cog = openStacCogAsset(candidate, {
         decoderFactory: options.decoderFactory,
@@ -488,10 +496,24 @@ export class UnifiedRasterSession {
       this.progress("inspect", "completed");
       return { source: this.source, metadata, structurallyValidated: false };
     }
-    const executor = this.requireCoverageExecutor("inspect");
-    const result = await executor.inspect(this.source, { signal: options.signal, client: this.client });
+    if (this.source.kind === "ogc-coverage") {
+      const [collection, domainSet, rangeType] = await Promise.all([
+        this.requireCoverageClient().collection(this.source.collectionId, { signal: options.signal }),
+        this.requireCoverageClient().domainSet(this.source.collectionId, { signal: options.signal }),
+        this.requireCoverageClient().rangeType(this.source.collectionId, { signal: options.signal }),
+      ]);
+      this.progress("inspect", "completed");
+      return { source: this.source, metadata: { collection, domainSet, rangeType }, structurallyValidated: false };
+    }
+    const descriptions = await this.requireWcsClient().describeCoverage([this.source.coverageId], {
+      signal: options.signal,
+    });
+    const description = descriptions[0];
+    if (!description) {
+      throw new HonuaCapabilityNotSupportedError("coverage-description", "wcs", this.source.id);
+    }
     this.progress("inspect", "completed");
-    return result;
+    return { source: this.source, metadata: description, structurallyValidated: false };
   }
 
   async readWindow(request: RasterWindowRequest, options: CogOperationOptions = {}): Promise<RasterWindowResult> {
@@ -499,6 +521,9 @@ export class UnifiedRasterSession {
     validateBoundedWindow(request);
     this.progress("read-window", "started");
     if (this.source.kind === "cog") {
+      if (request.rangeFields !== undefined) {
+        throw new HonuaCapabilityNotSupportedError("named-range-fields", "direct-cog", this.source.id);
+      }
       if (request.style !== undefined) {
         throw new HonuaCapabilityNotSupportedError("styled-window", "direct-cog", this.source.id);
       }
@@ -511,7 +536,7 @@ export class UnifiedRasterSession {
         y: request.y,
         width: request.width,
         height: request.height,
-        bands: request.bands,
+        bands: oneBasedBands(request.bands, "direct-cog", this.source.id),
         sampling: outputSize
           ? {
               width: outputSize[0],
@@ -533,6 +558,9 @@ export class UnifiedRasterSession {
       };
     }
     if (this.source.kind === "image-server") {
+      if (request.rangeFields !== undefined) {
+        throw new HonuaCapabilityNotSupportedError("named-range-fields", "image-server", this.source.id);
+      }
       if (request.space !== "bbox") {
         throw new HonuaCapabilityNotSupportedError("bbox-window", "image-server", this.source.id);
       }
@@ -541,7 +569,7 @@ export class UnifiedRasterSession {
         size: [request.width, request.height],
         bboxSr: request.spatialReference,
         imageSr: request.spatialReference,
-        bandIds: request.bands,
+        bandIds: imageServerBandIds(request.bands, this.source.id),
         noData: request.noData,
         interpolation: imageServerInterpolation(request.resampling),
         renderingRule: imageServerRenderingRule(request.style),
@@ -561,10 +589,37 @@ export class UnifiedRasterSession {
         response,
       };
     }
-    const executor = this.requireCoverageExecutor("read-window");
-    const result = await executor.readWindow(this.source, request, { signal: options.signal, client: this.client });
+    assertCoverageWindowRequest(request, this.source);
+    const crs = coverageCrs(request.spatialReference);
+    let response: CoverageResult;
+    if (this.source.kind === "ogc-coverage") {
+      response = await this.requireCoverageClient().getCoverage(this.source.collectionId, {
+        bbox: request.bbox,
+        ...(crs ? { bboxCrs: crs, outputCrs: crs } : {}),
+        ...(request.rangeFields ? { properties: request.rangeFields } : {}),
+        scaleSize: { width: request.width, height: request.height },
+        format: "image/png",
+        signal: options.signal,
+      });
+    } else {
+      const descriptions = await this.requireWcsClient().describeCoverage([this.source.coverageId], {
+        signal: options.signal,
+      });
+      const description = descriptions[0];
+      if (!description) {
+        throw new HonuaCapabilityNotSupportedError("coverage-description", "wcs", this.source.id);
+      }
+      response = await this.requireWcsClient().getCoverage(this.source.coverageId, {
+        bbox: request.bbox,
+        ...(crs ? { bboxCrs: crs, subsettingCrs: crs, outputCrs: crs } : {}),
+        ...(request.rangeFields ? { rangeSubset: request.rangeFields } : {}),
+        scaleSize: wcsScaleSize(description.axisLabels, this.source.scaleAxes, request, this.source.id),
+        format: "image/png",
+        signal: options.signal,
+      });
+    }
     this.progress("read-window", "completed");
-    return result;
+    return { kind: "coverage-image", request, width: request.width, height: request.height, response };
   }
 
   async statistics(
@@ -644,13 +699,7 @@ export class UnifiedRasterSession {
       this.progress("inspect-value", "completed");
       return { kind: "server-identify", response };
     }
-    const executor = this.requireCoverageExecutor("inspect-value");
-    if (!executor.inspectValue) {
-      throw new HonuaCapabilityNotSupportedError("inspect-value", this.source.kind, this.source.id);
-    }
-    const result = await executor.inspectValue(this.source, request, { signal: options.signal, client: this.client });
-    this.progress("inspect-value", "completed");
-    return result;
+    throw new HonuaCapabilityNotSupportedError("inspect-value", this.source.kind, this.source.id);
   }
 
   mountMapLibre(
@@ -665,6 +714,12 @@ export class UnifiedRasterSession {
   }
 
   toMapLibreImageSource(result: RasterWindowResult, coordinates?: CogMapLibreCoordinates): RasterMapLibreImageSource {
+    if (result.kind === "coverage-image") {
+      if (coordinates !== undefined) {
+        throw new HonuaCapabilityNotSupportedError("custom-coverage-coordinates", this.source.kind, this.source.id);
+      }
+      return this.coverageImage(result).source;
+    }
     if (result.kind !== "server-image") {
       throw new HonuaCapabilityNotSupportedError("encoded-image", this.source.kind, this.source.id);
     }
@@ -678,18 +733,21 @@ export class UnifiedRasterSession {
   }
 
   toDeckGlBitmap(result: RasterWindowResult): RasterDeckGlBitmapDescriptor {
-    if (result.kind !== "server-image" || result.request.space !== "bbox") {
+    if (result.kind === "decoded-window" || result.request.space !== "bbox") {
       throw new HonuaCapabilityNotSupportedError("encoded-bitmap", this.source.kind, this.source.id);
     }
+    const image = result.kind === "coverage-image" ? this.coverageImage(result).source.url : result.href;
     return {
       type: "BitmapLayer",
-      image: result.href,
+      image,
       bounds: wgs84Bbox(result.request, this.source.kind, this.source.id),
     };
   }
 
   legend(style: RasterStyle): readonly RasterLegendEntry[] {
-    if (style.kind !== "colormap") return [];
+    if (style.kind !== "colormap") {
+      throw new HonuaCapabilityNotSupportedError("legend", this.source.kind, this.source.id);
+    }
     return style.stops.map((stop) => ({
       label: stop.label ?? String(stop.value),
       value: stop.value,
@@ -704,6 +762,8 @@ export class UnifiedRasterSession {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    for (const image of this.coverageImages) image.dispose();
+    this.coverageImages.clear();
     await this.cog?.dispose();
   }
 
@@ -712,10 +772,24 @@ export class UnifiedRasterSession {
     return this.cog;
   }
 
-  private requireCoverageExecutor(operation: RasterOperation): RasterCoverageExecutor {
-    const executor = this.options.coverageExecutor;
-    if (!executor) throw new HonuaCapabilityNotSupportedError(operation, this.source.kind, this.source.id);
-    return executor;
+  private requireCoverageClient(): ReturnType<typeof createCoverageClient> {
+    if (!this.coverageClient) {
+      throw new HonuaCapabilityNotSupportedError("coverage-client", this.source.kind, this.source.id);
+    }
+    return this.coverageClient;
+  }
+
+  private requireWcsClient(): ReturnType<typeof createWcsClient> {
+    if (!this.wcsClient) throw new HonuaCapabilityNotSupportedError("wcs-client", this.source.kind, this.source.id);
+    return this.wcsClient;
+  }
+
+  private coverageImage(result: RasterCoverageImageResult): CoverageMapLibreImage {
+    const image = coverageToMapLibreImage(result.response, wgs84Bbox(result.request, this.source.kind, this.source.id), {
+      sourceId: `${this.source.id}-coverage`,
+    });
+    this.coverageImages.add(image);
+    return image;
   }
 
   private progress(
@@ -761,9 +835,47 @@ export async function openRasterSession(
 }
 
 function cogUrl(source: DirectCogRasterSource): string {
-  if ("candidate" in source && source.candidate?.href) return source.candidate.href;
+  const sourceId = source.id;
+  if ("candidate" in source && source.candidate) return requireDynamicCogHandoff(source).href;
   if (typeof source.url === "string") return source.url;
-  throw new HonuaCapabilityNotSupportedError("safe-asset-url", "direct-cog", source.id);
+  throw new HonuaCapabilityNotSupportedError("safe-asset-url", "direct-cog", sourceId);
+}
+
+function dynamicStacCandidate(source: DirectCogCandidateSource): StacAssetCandidate {
+  const descriptor = source.candidate;
+  const handoff = requireDynamicCogHandoff(source);
+  return {
+    id: `${descriptor.itemId}:${descriptor.key}`,
+    state: "classified",
+    kind: "cog",
+    confidence: "high",
+    documentUrl: descriptor.href,
+    objectType: "item",
+    objectId: descriptor.itemId,
+    itemId: descriptor.itemId,
+    assetKey: descriptor.key,
+    href: handoff.href,
+    mediaType: descriptor.mediaType,
+    roles: descriptor.roles,
+    metadata: {},
+    evidence: descriptor.mediaType
+      ? [{ kind: "media-type", value: descriptor.mediaType, supports: ["cog"] }]
+      : [],
+    provenance: [],
+  };
+}
+
+function requireDynamicCogHandoff(source: DirectCogCandidateSource): Extract<DynamicStacAssetDescriptor["handoff"], { kind: "cog" }> {
+  const { candidate } = source;
+  if (
+    candidate.format !== "cog" ||
+    candidate.maturity === "metadata-only" ||
+    candidate.maturity === "unavailable" ||
+    candidate.handoff?.kind !== "cog"
+  ) {
+    throw new HonuaCapabilityNotSupportedError("stac-cog-handoff", "stac", source.id);
+  }
+  return candidate.handoff;
 }
 
 function directCandidate(source: DirectCogUrlSource): StacAssetCandidate {
@@ -824,6 +936,71 @@ function validateBoundedWindow(request: RasterWindowRequest): void {
   ) {
     throw new HonuaCapabilityNotSupportedError("ordered-finite-bbox", "server-raster");
   }
+}
+
+function oneBasedBands(
+  bands: readonly number[] | undefined,
+  protocol: RasterSourceKind | "direct-cog",
+  sourceId: string,
+): readonly number[] | undefined {
+  if (bands === undefined) return undefined;
+  if (bands.length === 0 || bands.some((band) => !Number.isInteger(band) || band < 1)) {
+    throw new HonuaCapabilityNotSupportedError("one-based-band-selection", protocol, sourceId);
+  }
+  return bands;
+}
+
+function imageServerBandIds(bands: readonly number[] | undefined, sourceId: string): readonly number[] | undefined {
+  return oneBasedBands(bands, "image-server", sourceId)?.map((band) => band - 1);
+}
+
+function assertCoverageWindowRequest(
+  request: RasterWindowRequest,
+  source: CoverageRasterSource,
+): asserts request is RasterBoundingBoxWindow & RasterWindowRequest {
+  if (request.space !== "bbox") {
+    throw new HonuaCapabilityNotSupportedError("bbox-window", source.kind, source.id);
+  }
+  if (request.bands !== undefined) {
+    throw new HonuaCapabilityNotSupportedError("named-range-fields", source.kind, source.id);
+  }
+  if (request.rangeFields?.length === 0 || request.rangeFields?.some((field) => field.trim().length === 0)) {
+    throw new HonuaCapabilityNotSupportedError("non-empty-range-fields", source.kind, source.id);
+  }
+  if (request.noData !== undefined) {
+    throw new HonuaCapabilityNotSupportedError("request-nodata", source.kind, source.id);
+  }
+  if (request.style !== undefined) {
+    throw new HonuaCapabilityNotSupportedError("styled-window", source.kind, source.id);
+  }
+  if (request.resampling !== undefined) {
+    throw new HonuaCapabilityNotSupportedError("resampled-window", source.kind, source.id);
+  }
+}
+
+function coverageCrs(spatialReference: string | number | undefined): string | undefined {
+  if (typeof spatialReference === "number") return `EPSG:${spatialReference}`;
+  return spatialReference;
+}
+
+function wcsScaleSize(
+  advertisedAxes: readonly string[],
+  scaleAxes: WcsRasterSource["scaleAxes"],
+  request: RasterBoundingBoxWindow,
+  sourceId: string,
+): Readonly<Record<string, number>> {
+  if (scaleAxes.width === scaleAxes.height) {
+    throw new HonuaCapabilityNotSupportedError("distinct-wcs-scale-axes", "wcs", sourceId);
+  }
+  const selected = new Set([scaleAxes.width, scaleAxes.height]);
+  if (!advertisedAxes.includes(scaleAxes.width) || !advertisedAxes.includes(scaleAxes.height)) {
+    throw new HonuaCapabilityNotSupportedError("advertised-wcs-scale-axes", "wcs", sourceId);
+  }
+  return Object.fromEntries(
+    advertisedAxes
+      .filter((axis) => selected.has(axis))
+      .map((axis) => [axis, axis === scaleAxes.width ? request.width : request.height]),
+  );
 }
 
 function normalizeHistogramBins(value: number | undefined): number {

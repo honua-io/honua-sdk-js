@@ -8,12 +8,11 @@ injected adapter.
 | --- | --- | --- | --- | --- |
 | Direct COG | Experimental | Unavailable | Experimental | Structural inspect, bounded pixel window, bands, no-data statistics, histogram, value inspect, MapLibre mount |
 | ImageServer | Supported | Supported | Supported | Metadata, bounded bbox render, bands, rendering rule, identify, MapLibre/deck.gl image handoff |
-| OGC API Coverages | Metadata only | Experimental | Unavailable | Descriptor/plan; execution requires an advertised-link executor |
-| WCS | Metadata only | Experimental | Unavailable | Descriptor/plan; execution requires a capabilities-derived executor |
-| Zarr | Metadata only | Varies | Unavailable | No executable adapter in this issue |
-| NetCDF | Metadata only | Varies | Unavailable | No executable adapter in this issue |
+| OGC API Coverages | Experimental | Experimental | Experimental | Collection/domain/range metadata, bounded bbox retrieval, named range fields, MapLibre/deck.gl image handoff |
+| WCS | Experimental | Experimental | Experimental | DescribeCoverage, bounded bbox retrieval, named range fields, advertised-axis scaling, MapLibre/deck.gl image handoff |
+| Zarr | Unavailable | Varies | Unavailable | No executable adapter in this issue |
+| NetCDF | Unavailable | Varies | Unavailable | No executable adapter in this issue |
 
-`UNIFIED_RASTER_CAPABILITY_MATRIX` and `RASTER_FORMAT_MATURITY` are the public,
-machine-readable forms of this table. Application-supplied coverage adapters do
-not mutate the built-in support claim.
-
+`UNIFIED_RASTER_CAPABILITY_MATRIX` and `RASTER_FORMAT_MATURITY` use the canonical
+`CloudNativeMaturity` vocabulary. Coverage/WCS operations reuse the bounded
+clients from `@honua/sdk-js/coverages`; unsupported facade fields fail closed.

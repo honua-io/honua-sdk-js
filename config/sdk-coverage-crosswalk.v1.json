@@ -82,10 +82,6 @@
     "unified-raster-direct-cog-client-only": {
       "internalOnly": true,
       "reason": "Client-side bounded COG inspection and rendering; it consumes object storage ranges and does not provide the raster.cloud-cog-serving server capability."
-    },
-    "unified-raster-coverage-descriptors": {
-      "internalOnly": true,
-      "reason": "Client-side OGC Coverage/WCS descriptor planning with a caller-injected executor; it does not claim a Honua server coverage endpoint capability."
     }
   },
   "extras": {
