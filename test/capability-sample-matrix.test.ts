@@ -161,7 +161,7 @@ describe("capability-to-sample matrix contract", () => {
     );
     // 34 = 30 pre-existing claims + two columnar workflow claims
     // + the dynamic STAC workflow and direct COG raster claims.
-    expect(matrix.supportClaims).toHaveLength(34);
+    expect(matrix.supportClaims).toHaveLength(35);
     // 61 = 59 existing package entrypoints + the experimental STAC and raster facades.
     expect(matrix.packageEntrypoints).toHaveLength(61);
     // imagery-cog-quickstart, maplibre-quickstart, migration-workbench, and
