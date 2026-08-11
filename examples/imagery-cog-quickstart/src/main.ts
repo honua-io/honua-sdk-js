@@ -1128,7 +1128,7 @@ async function runSearch(): Promise<boolean> {
       "#search-status",
       receipt.scenes.length === 0
         ? "No scenes matched the current area, dates, and cloud threshold."
-        : `${receipt.numberMatched} scene matched · ${receipt.scenes.length} loaded through ${receipt.sdkSurface}.`,
+        : `${receipt.numberMatched} scene matched · ${receipt.scenes.length} loaded via ${receipt.sdkSurface}.`,
     );
     render();
     if (selectedItemId && selectedAssetKey) {
