@@ -493,6 +493,7 @@
     "demo:imagery-cog:mock": "node examples/imagery-cog-quickstart/mock-server.mjs",
     "demo:imagery-cog:typecheck": "tsc -p examples/imagery-cog-quickstart/tsconfig.json --noEmit",
     "evidence:cog:live": "npm run build --silent && node scripts/cog-live-evidence.mjs --output test-results/cog-live-evidence.json --strict",
+    "evidence:pmtiles:live": "npm run build --silent && node scripts/pmtiles-live-evidence.mjs --output test-results/pmtiles-live-evidence.json --strict",
     "evidence:planning:live": "npm run build --silent && node scripts/planning-live-evidence.mjs --output test-results/planning-live-evidence.json --strict",
     "evidence:live-conformance": "npm run build --silent && node scripts/live-conformance-evidence.mjs --output test-results/live-conformance-evidence.json --strict",
     "evidence:realtime:fixture": "npm run build --silent && node scripts/realtime-conformance-evidence.mjs --lane fixture --output test-results/realtime-fixture-conformance-evidence.json --strict",

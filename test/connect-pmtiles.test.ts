@@ -245,6 +245,26 @@ describe("connect() / PMTiles static discovery", () => {
     expect(focused.metadata).toEqual(connection.inspection.sources[0]?.metadata?.pmtiles);
     expect(focusedFetch).not.toHaveBeenCalled();
 
+    const reverseCache = memoryCache();
+    const focusedPrimeFetch = rangeFetch();
+    const focusedPrime = await inspectPmtilesArchive({
+      endpoint: ASSET_URL,
+      authorizationScopeFingerprint: "tenant-reverse-parity",
+      clientOptions: { fetchFn: focusedPrimeFetch.fetchFn },
+      cache: reverseCache,
+    });
+    const genericReplayFetch = vi.fn<typeof fetch>();
+    const genericReplay = await connect({
+      endpoint: ASSET_URL,
+      protocol: "pmtiles",
+      authorizationScopeFingerprint: "tenant-reverse-parity",
+      clientOptions: { fetchFn: genericReplayFetch },
+      cache: reverseCache,
+    });
+    expect(genericReplay.inspection.cacheStatus).toBe("hit");
+    expect(genericReplay.inspection.sources[0]?.metadata?.pmtiles).toEqual(focusedPrime.metadata);
+    expect(genericReplayFetch).not.toHaveBeenCalled();
+
     const honest = [...cache.entries.values()][0]!;
     const invalidCache = (): ConnectDiscoveryCache => ({
       get: () => {
@@ -276,6 +296,70 @@ describe("connect() / PMTiles static discovery", () => {
       code: genericError.code,
       message: genericError.message,
     });
+  });
+
+  it("fails closed identically for hostile cache proxies, accessors, and adapter failures", async () => {
+    const cases: ReadonlyArray<readonly [string, () => unknown]> = [
+      [
+        "proxy",
+        () =>
+          new Proxy(
+            {},
+            {
+              ownKeys() {
+                throw new Error("hostile ownKeys trap");
+              },
+            },
+          ),
+      ],
+      [
+        "accessor",
+        () =>
+          Object.defineProperty({}, "version", {
+            enumerable: true,
+            get() {
+              throw new Error("hostile cache getter");
+            },
+          }),
+      ],
+      [
+        "adapter",
+        () => {
+          throw new Error("cache adapter failure");
+        },
+      ],
+    ];
+
+    for (const [label, cachedValue] of cases) {
+      const cache = (): ConnectDiscoveryCache => ({
+        get: () => cachedValue() as ConnectDiscoverySnapshot,
+        set: () => {
+          throw new Error(`${label} cache data must not be rewritten`);
+        },
+      });
+      const genericFetch = vi.fn<typeof fetch>();
+      const focusedFetch = vi.fn<typeof fetch>();
+      const genericError = await connect({
+        endpoint: ASSET_URL,
+        protocol: "pmtiles",
+        authorizationScopeFingerprint: `hostile-${label}`,
+        clientOptions: { fetchFn: genericFetch },
+        cache: cache(),
+      }).catch((cause: unknown) => cause);
+      const focusedError = await inspectPmtilesArchive({
+        endpoint: ASSET_URL,
+        authorizationScopeFingerprint: `hostile-${label}`,
+        clientOptions: { fetchFn: focusedFetch },
+        cache: cache(),
+      }).catch((cause: unknown) => cause);
+      expect(focusedError).toMatchObject({
+        name: (genericError as Error).name,
+        message: (genericError as Error).message,
+        ...((genericError as { code?: string }).code ? { code: (genericError as { code: string }).code } : {}),
+      });
+      expect(genericFetch).not.toHaveBeenCalled();
+      expect(focusedFetch).not.toHaveBeenCalled();
+    }
   });
 
   it("discovers an explicit archive through the authenticated bounded pipeline and reuses its review", async () => {
@@ -1107,7 +1191,7 @@ describe("connect() / PMTiles static discovery", () => {
     expect(decompressionPolicy.calls).toHaveLength(1);
   });
 
-  it("rejects tampered cached range, validator, policy, and archive metadata evidence", async () => {
+  it("rejects the full cache-tamper table identically through generic and focused inspection", async () => {
     const primedCache = memoryCache();
     const primingFetch = rangeFetch(fixtureWithMetadataAt(20_000));
     await connect({
@@ -1123,8 +1207,7 @@ describe("connect() / PMTiles static discovery", () => {
       mutate: (snapshot: MutablePmtilesSnapshot) => void,
       pmtiles?: ConnectOptions["pmtiles"],
     ) => {
-      const fetchFn = vi.fn<typeof fetch>();
-      const cache: ConnectDiscoveryCache = {
+      const cache = (): ConnectDiscoveryCache => ({
         get(identity) {
           const snapshot = structuredClone(honest) as unknown as MutablePmtilesSnapshot;
           snapshot.identityKey = identity.key;
@@ -1134,18 +1217,33 @@ describe("connect() / PMTiles static discovery", () => {
         set() {
           throw new Error("invalid cached PMTiles evidence must not be rewritten");
         },
-      };
-      await expect(
-        connect({
-          endpoint: ASSET_URL,
-          protocol: "pmtiles",
-          authorizationScopeFingerprint: "tenant-a",
-          clientOptions: { fetchFn },
-          cache,
-          ...(pmtiles ? { pmtiles } : {}),
-        }),
-      ).rejects.toMatchObject({ code: "invalid-discovery-cache" });
-      expect(fetchFn).not.toHaveBeenCalled();
+      });
+      const genericFetch = vi.fn<typeof fetch>();
+      const focusedFetch = vi.fn<typeof fetch>();
+      const genericError = await connect({
+        endpoint: ASSET_URL,
+        protocol: "pmtiles",
+        authorizationScopeFingerprint: "tenant-a",
+        clientOptions: { fetchFn: genericFetch },
+        cache: cache(),
+        ...(pmtiles ? { pmtiles } : {}),
+      }).catch((cause: unknown) => cause);
+      const focusedError = await inspectPmtilesArchive({
+        endpoint: ASSET_URL,
+        authorizationScopeFingerprint: "tenant-a",
+        clientOptions: { fetchFn: focusedFetch },
+        cache: cache(),
+        ...(pmtiles?.limits ? { limits: pmtiles.limits } : {}),
+      }).catch((cause: unknown) => cause);
+      expect(genericError).toBeInstanceOf(HonuaDiscoveryError);
+      if (!(genericError instanceof HonuaDiscoveryError)) throw genericError;
+      expect(focusedError).toMatchObject({
+        name: genericError.name,
+        code: genericError.code,
+        message: genericError.message,
+      });
+      expect(genericFetch).not.toHaveBeenCalled();
+      expect(focusedFetch).not.toHaveBeenCalled();
     };
 
     await expectRejected((snapshot) => {

@@ -1,0 +1,39 @@
+name: Direct PMTiles Live Evidence
+
+# Scheduled/manual anonymous proof of the public manifest-to-PMTiles inspection
+# path. Pull-request CI remains deterministic and network-independent. This
+# lane does not exercise or qualify the authenticated managed publication flow.
+on:
+  schedule:
+    - cron: "40 7 * * 2" # Tuesdays 07:40 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "20.19.0"
+  HONUA_PMTILES_LIVE_ENABLED: "true"
+
+jobs:
+  public-manifest-pmtiles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Inspect manifest-resolved public PMTiles through the SDK
+        run: npm run evidence:pmtiles:live
+      - name: Publish bounded direct-inspection evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: direct-pmtiles-live-evidence
+          path: test-results/pmtiles-live-evidence.json
+          if-no-files-found: error
+          retention-days: 30
