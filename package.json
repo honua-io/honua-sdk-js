@@ -268,6 +268,10 @@
       "types": "./dist/src/columnar-workflow/index.d.ts",
       "default": "./dist/src/columnar-workflow/index.js"
     },
+    "./stac": {
+      "types": "./dist/src/stac/index.d.ts",
+      "default": "./dist/src/stac/index.js"
+    },
     "./cog": {
       "types": "./dist/src/cog/index.d.ts",
       "default": "./dist/src/cog/index.js"

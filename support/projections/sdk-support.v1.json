@@ -790,6 +790,12 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "stac-workflow-fixtures",
+      "kind": "fixture",
+      "path": "test/stac-workflow.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "wfs-fixtures",
       "kind": "fixture",
       "path": "test/contract/wfs-backend-agnostic.test.ts",
@@ -2063,6 +2069,25 @@
       ]
     },
     {
+      "id": "dynamic-stac-workflow-client-only",
+      "label": "Dynamic STAC search and cloud-native asset selection",
+      "protocol": "stac",
+      "operations": [
+        "discovery",
+        "query",
+        "stream"
+      ],
+      "environment": "client-only",
+      "executionMode": "native",
+      "status": "experimental",
+      "backendNeeded": "Any STAC API; executable assets additionally require the compatible PMTiles, COG, columnar, or runtime client surface",
+      "api": "@honua/sdk-js/stac",
+      "notes": "Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable.",
+      "evidence": [
+        "stac-workflow-fixtures"
+      ]
+    },
+    {
       "id": "odata-standalone",
       "label": "OData v4",
       "protocol": "odata",
@@ -2837,6 +2862,10 @@
       },
       {
         "subpath": "./cog",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./stac",
         "status": "experimental"
       },
       {

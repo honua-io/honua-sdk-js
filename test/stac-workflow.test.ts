@@ -288,7 +288,7 @@ describe("dynamic STAC workflows", () => {
     expect(assets.find((asset) => asset.key === "tiles")?.handoff).toEqual({
       kind: "pmtiles",
       href: "https://stac.example.test/v1/collections/sentinel-2-l2a/items/maui.pmtiles",
-      packageExport: "@honua/sdk-js/pmtiles",
+      packageExport: "@honua/sdk-js/contract",
     });
     expect(assets.find((asset) => asset.key === "parcels")?.handoff).toEqual({
       kind: "geoparquet",
