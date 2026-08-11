@@ -80,7 +80,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.4-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 19 experimental subpaths may change before 1.0, and
+by an API-surface gate; 20 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -166,7 +166,7 @@ with a dated, primary-sourced evidence record; a measurement of a superseded rel
 labelled historical and is barred, in code, from supporting a current claim.
 
 <!-- support-manifest:standalone:start -->
-**Two deployment tiers, named up front.** 26 of the 32 generated support
+**Two deployment tiers, named up front.** 27 of the 33 generated support
 claims are `open-endpoint`: they run against standards-speaking endpoints you already
 have, or entirely in the client and build — no Honua account, no Honua Server.
 6 are `server-attach` and execute only after attaching to a Honua Server facade;

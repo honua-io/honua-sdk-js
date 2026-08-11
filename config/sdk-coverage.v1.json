@@ -432,7 +432,7 @@
     },
     {
       "key": "serve.stac",
-      "status": "covered",
+      "status": "partial",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
         "@honua/sdk-js/stac",
@@ -444,7 +444,8 @@
         "test/contract/stac-backend-agnostic.test.ts",
         "test/stac-workflow.test.ts"
       ],
-      "source": "support-manifest"
+      "source": "support-manifest",
+      "note": "Searches a raw STAC API or walks static catalog links with client-side filtering. Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable."
     },
     {
       "key": "serve.vector-tiles",
