@@ -5,6 +5,7 @@
  * @packageDocumentation
  */
 
+import type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
 import { HonuaClient } from "../core/client.js";
 import { HonuaAbortError, HonuaCapabilityNotSupportedError, HonuaDiscoveryError } from "../core/errors.js";
 import { HonuaStacSearch } from "../core/stac.js";
@@ -19,6 +20,7 @@ import type {
   HonuaStacLandingResponse,
   StacSearchRequest,
 } from "../core/types.js";
+export type { CloudNativeMaturity } from "../cloud-native-discovery/index.js";
 
 export type {
   HonuaOgcCollectionMetadata,
@@ -45,7 +47,6 @@ export const DYNAMIC_STAC_CAPABILITY_STATUS = Object.freeze({
 
 export type StacSearchMethod = "GET" | "POST" | "auto";
 export type StacAssetFormat = "cog" | "pmtiles" | "geoparquet" | "geoarrow" | "raster" | "unsupported";
-export type StacAssetMaturity = "supported" | "experimental" | "metadata-only" | "unavailable";
 export type StacKnownAssetRole = "data" | "visual" | "thumbnail" | "overview" | "metadata";
 export type StacAssetRole = StacKnownAssetRole | (string & {});
 export type StacCommonBandName =
@@ -127,11 +128,11 @@ export interface StacRasterBandDescriptor {
 
 export type StacAssetHandoff =
   | { readonly kind: "cog"; readonly href: string; readonly packageExport: "@honua/sdk-js/cog" }
-  | { readonly kind: "pmtiles"; readonly href: string; readonly packageExport: "@honua/sdk-js" }
+  | { readonly kind: "pmtiles"; readonly href: string; readonly packageExport: "@honua/sdk-js/contract" }
   | {
       readonly kind: "geoparquet";
       readonly href: string;
-      readonly packageExport: "@honua/sdk-js/geoparquet";
+      readonly packageExport: "@honua/sdk-js/columnar-workflow";
       readonly geoArrowEncoding: boolean;
     }
   | { readonly kind: "raster"; readonly href: string; readonly packageExport: "@honua/sdk-js/runtime" };
@@ -145,7 +146,7 @@ export interface DynamicStacAssetDescriptor {
   readonly mediaType?: string;
   readonly roles: readonly StacAssetRole[];
   readonly format: StacAssetFormat;
-  readonly maturity: StacAssetMaturity;
+  readonly maturity: CloudNativeMaturity;
   readonly projection: StacProjectionMetadata;
   readonly bands: readonly StacRasterBandDescriptor[];
   readonly evidence: readonly string[];
@@ -266,6 +267,14 @@ export class DynamicStacClient {
       if (options.assetKeys && !options.assetKeys.includes(key)) continue;
       const roles = normalizeRoles(asset.roles);
       if (options.roles && !options.roles.some((role) => roles.includes(role))) continue;
+      const originalHref = normalizeHttpUrl(
+        new URL(asset.href, itemBaseUrl(item, this.resolutionBaseUrl)).href,
+        `STAC asset ${key}`,
+      );
+      const descriptor = describeAsset(item, key, asset, originalHref, roles);
+      if (options.formats && !options.formats.includes(descriptor.format as Exclude<StacAssetFormat, "unsupported">)) {
+        continue;
+      }
       const refreshed = await (options.refreshAssetUrl ?? this.refreshAssetUrl)?.({
         item,
         assetKey: key,
@@ -273,16 +282,16 @@ export class DynamicStacClient {
         ...(options.signal ? { signal: options.signal } : {}),
       });
       if (options.signal?.aborted) throw new HonuaAbortError();
-      const rawHref = typeof refreshed === "string" ? refreshed : (refreshed?.href ?? asset.href);
+      const rawHref = typeof refreshed === "string" ? refreshed : (refreshed?.href ?? originalHref);
       const href = normalizeHttpUrl(
         new URL(rawHref, itemBaseUrl(item, this.resolutionBaseUrl)).href,
         `STAC asset ${key}`,
       );
-      const descriptor = describeAsset(item, key, asset, href, roles);
-      if (options.formats && !options.formats.includes(descriptor.format as Exclude<StacAssetFormat, "unsupported">)) {
-        continue;
-      }
-      out.push(descriptor);
+      out.push({
+        ...descriptor,
+        href,
+        ...(descriptor.handoff ? { handoff: { ...descriptor.handoff, href } } : {}),
+      });
     }
     return out;
   }
@@ -340,7 +349,7 @@ function describeAsset(
   else if (mediaType?.includes("geoparquet") || mediaType?.includes("parquet") || path.endsWith(".parquet")) {
     format = mediaType?.includes("arrow") ? "geoarrow" : "geoparquet";
   } else if (mediaType?.includes("arrow") || path.endsWith(".arrow") || path.endsWith(".feather")) format = "geoarrow";
-  else if (mediaType?.includes("cloud-optimized") || mediaType?.includes("profile=cloud-optimized")) {
+  else if (mediaType?.startsWith("image/tiff") && mediaTypeParameterEquals(mediaType, "profile", "cloud-optimized")) {
     format = "cog";
   } else if (mediaType?.startsWith("image/") && !mediaType.includes("tiff")) format = "raster";
   if (asset.type) evidence.push(`media-type:${asset.type}`);
@@ -368,14 +377,14 @@ function describeAsset(
     case "cog":
       return { ...base, handoff: { kind: "cog", href, packageExport: "@honua/sdk-js/cog" } };
     case "pmtiles":
-      return { ...base, handoff: { kind: "pmtiles", href, packageExport: "@honua/sdk-js" } };
+      return { ...base, handoff: { kind: "pmtiles", href, packageExport: "@honua/sdk-js/contract" } };
     case "geoparquet":
       return {
         ...base,
         handoff: {
           kind: "geoparquet",
           href,
-          packageExport: "@honua/sdk-js/geoparquet",
+          packageExport: "@honua/sdk-js/columnar-workflow",
           geoArrowEncoding: mediaType?.includes("arrow") === true,
         },
       };
@@ -419,6 +428,23 @@ function itemBaseUrl(item: HonuaStacItemResponse, fallback: string): string {
 
 function normalizeRoles(roles: readonly string[] | undefined): readonly StacAssetRole[] {
   return (roles ?? []).filter((role): role is StacAssetRole => typeof role === "string" && role.length > 0);
+}
+
+function mediaTypeParameterEquals(mediaType: string, name: string, expectedValue: string): boolean {
+  for (const rawParameter of mediaType.split(";").slice(1)) {
+    const separator = rawParameter.indexOf("=");
+    if (separator < 0) continue;
+    const parameterName = rawParameter.slice(0, separator).trim().toLowerCase();
+    if (parameterName !== name) continue;
+    const rawValue = rawParameter.slice(separator + 1).trim();
+    const value =
+      rawValue.length >= 2 &&
+      ((rawValue.startsWith('"') && rawValue.endsWith('"')) || (rawValue.startsWith("'") && rawValue.endsWith("'")))
+        ? rawValue.slice(1, -1)
+        : rawValue;
+    return value.toLowerCase() === expectedValue;
+  }
+  return false;
 }
 
 function boundedInteger(value: number, minimum: number, maximum: number, name: string): number {
@@ -498,4 +524,4 @@ const ASSET_MATURITY = {
   geoarrow: "metadata-only",
   raster: "supported",
   unsupported: "unavailable",
-} as const satisfies Record<StacAssetFormat, StacAssetMaturity>;
+} as const satisfies Record<StacAssetFormat, CloudNativeMaturity>;

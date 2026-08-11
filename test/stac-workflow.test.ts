@@ -247,6 +247,57 @@ describe("dynamic STAC workflows", () => {
     expect((await stac.assets(unsupported))[0]).toMatchObject({ format: "unsupported", maturity: "unavailable" });
   });
 
+  it("filters asset formats before refreshing signed URLs", async () => {
+    const refreshAssetUrl = vi.fn(async ({ assetKey }: { assetKey: string }) => {
+      if (assetKey === "tiles") throw new Error("excluded PMTiles asset must not be signed");
+      return `https://signed.example.test/${assetKey}.tif?token=new`;
+    });
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1", refreshAssetUrl });
+    const item: HonuaStacItemResponse = {
+      ...MAUI_ITEM,
+      assets: {
+        tiles: { href: "./maui.pmtiles", type: "application/vnd.pmtiles", roles: ["data"] },
+        visual: {
+          href: "./maui.tif",
+          type: "image/tiff; application=geotiff; profile=cloud-optimized",
+          roles: ["visual", "data"],
+        },
+      },
+    };
+
+    const assets = await stac.assets(item, { formats: ["cog"] });
+
+    expect(assets).toHaveLength(1);
+    expect(assets[0]).toMatchObject({ key: "visual", format: "cog" });
+    expect(refreshAssetUrl).toHaveBeenCalledOnce();
+    expect(refreshAssetUrl.mock.calls[0]?.[0].assetKey).toBe("visual");
+  });
+
+  it("uses the canonical PMTiles and columnar workflow handoffs", async () => {
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1" });
+    const item: HonuaStacItemResponse = {
+      ...MAUI_ITEM,
+      assets: {
+        tiles: { href: "./maui.pmtiles", type: "application/vnd.pmtiles", roles: ["data"] },
+        parcels: { href: "./maui.parquet", type: "application/vnd.apache.parquet", roles: ["data"] },
+      },
+    };
+
+    const assets = await stac.assets(item);
+
+    expect(assets.find((asset) => asset.key === "tiles")?.handoff).toEqual({
+      kind: "pmtiles",
+      href: "https://stac.example.test/v1/collections/sentinel-2-l2a/items/maui.pmtiles",
+      packageExport: "@honua/sdk-js/contract",
+    });
+    expect(assets.find((asset) => asset.key === "parcels")?.handoff).toEqual({
+      kind: "geoparquet",
+      href: "https://stac.example.test/v1/collections/sentinel-2-l2a/items/maui.parquet",
+      packageExport: "@honua/sdk-js/columnar-workflow",
+      geoArrowEncoding: false,
+    });
+  });
+
   it("does not treat projection or raster metadata as proof of a COG", async () => {
     const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1" });
     const ordinaryTiff: HonuaStacItemResponse = {
@@ -266,6 +317,25 @@ describe("dynamic STAC workflows", () => {
     expect(descriptor).toMatchObject({ format: "unsupported", maturity: "unavailable" });
     expect(descriptor?.handoff).toBeUndefined();
     await expect(stac.selectAsset(ordinaryTiff)).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+  });
+
+  it("requires an exact cloud-optimized media profile for COG handoff", async () => {
+    const stac = createDynamicStacClient({ baseUrl: "https://stac.example.test/v1" });
+    const item: HonuaStacItemResponse = {
+      ...MAUI_ITEM,
+      assets: {
+        impostor: {
+          href: "./impostor.tif",
+          type: "image/tiff; application=geotiff; profile=not-cloud-optimized",
+          roles: ["data"],
+        },
+      },
+    };
+
+    const descriptor = (await stac.assets(item))[0];
+
+    expect(descriptor).toMatchObject({ format: "unsupported", maturity: "unavailable" });
+    expect(descriptor?.handoff).toBeUndefined();
   });
 
   it("propagates AbortSignal through search and signed URL refresh", async () => {
