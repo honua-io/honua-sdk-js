@@ -8,6 +8,8 @@ import { HonuaAbortError } from "../core/errors.js";
 const JOBS_PATH = "/api/v1/admin/tile-operations/jobs";
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const ARCHIVE_RETENTION_HOURS = 24;
+const MAX_SERVER_INT32 = 2_147_483_647;
+const MAX_SAFE_SERVER_INT64 = Number.MAX_SAFE_INTEGER;
 
 export type HonuaPmtilesLifecycleErrorCode =
   | "invalid-request"
@@ -518,10 +520,10 @@ function parseProgress(value: unknown): PmtilesJobProgress {
   const record = object(value, "job status");
   const operation = enumeration(record, "operation", ["archive", "publish"] as const);
   const status = statusValue(required(record, "status"));
-  const totalTiles = nonNegativeNumber(record, "totalTiles");
-  const processedTiles = nonNegativeNumber(record, "processedTiles");
-  const successfulTiles = nonNegativeNumber(record, "successfulTiles");
-  const failedTiles = nonNegativeNumber(record, "failedTiles");
+  const totalTiles = nonNegativeResponseInteger(record, "totalTiles", MAX_SAFE_SERVER_INT64);
+  const processedTiles = nonNegativeResponseInteger(record, "processedTiles", MAX_SAFE_SERVER_INT64);
+  const successfulTiles = nonNegativeResponseInteger(record, "successfulTiles", MAX_SAFE_SERVER_INT64);
+  const failedTiles = nonNegativeResponseInteger(record, "failedTiles", MAX_SAFE_SERVER_INT64);
   if (processedTiles > totalTiles || successfulTiles + failedTiles > processedTiles) {
     throw error("invalid-response", "PMTiles progress counters are inconsistent.");
   }
@@ -531,7 +533,7 @@ function parseProgress(value: unknown): PmtilesJobProgress {
     jobId: responseRouteIdentifier(record, "jobId"),
     operation,
     ...optionalStringField(record, "serviceId"),
-    ...optionalIntegerField(record, "layerId"),
+    ...optionalNonNegativeResponseIntegerField(record, "layerId", MAX_SERVER_INT32),
     ...optionalStringField(record, "tileMatrixSetId"),
     status,
     totalTiles,
@@ -539,7 +541,7 @@ function parseProgress(value: unknown): PmtilesJobProgress {
     successfulTiles,
     failedTiles,
     ...(totalTiles > 0 ? { percentComplete: Math.min(100, (processedTiles / totalTiles) * 100) } : {}),
-    archiveSizeBytes: nonNegativeNumber(record, "archiveSizeBytes"),
+    archiveSizeBytes: nonNegativeResponseInteger(record, "archiveSizeBytes", MAX_SAFE_SERVER_INT64),
     ...optionalStringField(record, "archiveFileId"),
     ...optionalStringField(record, "downloadUrl"),
     ...(publishedArtifact ? { publishedArtifact } : {}),
@@ -572,7 +574,7 @@ function parseArtifact(value: unknown): PmtilesPublishedArtifact {
     bucket: string(record, "bucket"),
     objectKey: string(record, "objectKey"),
     contentType,
-    sizeBytes: positiveNumber(record, "sizeBytes"),
+    sizeBytes: positiveResponseInteger(record, "sizeBytes", MAX_SAFE_SERVER_INT64),
     urlStrategy: urlStrategy(record),
     accessUrl: string(record, "accessUrl"),
     ...optionalTimestampField(record, "accessUrlExpiresAt"),
@@ -582,7 +584,7 @@ function parseArtifact(value: unknown): PmtilesPublishedArtifact {
     ...(rawBounds === undefined || rawBounds === null
       ? {}
       : { bounds: bounds(rawBounds, "bounds", "invalid-response") }),
-    ...optionalIntegerField(record, "layerId"),
+    ...optionalNonNegativeResponseIntegerField(record, "layerId", MAX_SERVER_INT32),
     ...optionalStringField(record, "serviceId"),
     ...optionalStringField(record, "tileMatrixSetId"),
   });
@@ -819,16 +821,25 @@ function integer(record: Readonly<Record<string, unknown>>, name: string): numbe
   return value;
 }
 
-function nonNegativeNumber(record: Readonly<Record<string, unknown>>, name: string): number {
+function nonNegativeResponseInteger(
+  record: Readonly<Record<string, unknown>>,
+  name: string,
+  maximum: number,
+): number {
   const value = required(record, name);
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
-    throw error("invalid-response", `${name} must be non-negative.`);
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > maximum) {
+    throw error("invalid-response", `${name} must be a non-negative safe integer no greater than ${maximum}.`);
+  }
   return value;
 }
 
-function positiveNumber(record: Readonly<Record<string, unknown>>, name: string): number {
-  const value = nonNegativeNumber(record, name);
-  if (value === 0) throw error("invalid-response", `${name} must be positive.`);
+function positiveResponseInteger(
+  record: Readonly<Record<string, unknown>>,
+  name: string,
+  maximum: number,
+): number {
+  const value = nonNegativeResponseInteger(record, name, maximum);
+  if (value === 0) throw error("invalid-response", `${name} must be a positive safe integer.`);
   return value;
 }
 
@@ -850,11 +861,16 @@ function optionalStringField(record: Readonly<Record<string, unknown>>, name: st
   return { [name]: value };
 }
 
-function optionalIntegerField(record: Readonly<Record<string, unknown>>, name: string): Record<string, number> {
+function optionalNonNegativeResponseIntegerField(
+  record: Readonly<Record<string, unknown>>,
+  name: string,
+  maximum: number,
+): Record<string, number> {
   const value = optional(record, name);
   if (value === undefined || value === null) return {};
-  if (typeof value !== "number" || !Number.isSafeInteger(value))
-    throw error("invalid-response", `${name} must be an integer.`);
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0 || value > maximum) {
+    throw error("invalid-response", `${name} must be a non-negative safe integer no greater than ${maximum}.`);
+  }
   return { [name]: value };
 }
 

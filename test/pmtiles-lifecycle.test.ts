@@ -337,6 +337,47 @@ describe("PMTiles direct inspection and managed lifecycle", () => {
     await expect(badCounters.getJob("job-1")).rejects.toMatchObject({ lifecycleCode: "invalid-response" });
   });
 
+  it("rejects fractional, unsafe, and negative response counters, byte sizes, and layer IDs", async () => {
+    const invalidProgress: ReadonlyArray<readonly [string, Record<string, unknown>]> = [
+      ["fractional tile count", { totalTiles: 10.5 }],
+      ["unsafe tile count", { totalTiles: Number.MAX_SAFE_INTEGER + 1 }],
+      ["negative tile count", { failedTiles: -1 }],
+      ["fractional archive size", { archiveSizeBytes: 0.5 }],
+      ["unsafe archive size", { archiveSizeBytes: Number.MAX_SAFE_INTEGER + 1 }],
+      ["negative layer id", { layerId: -1 }],
+      ["out-of-range layer id", { layerId: 2_147_483_648 }],
+    ];
+    for (const [label, overrides] of invalidProgress) {
+      const lifecycle = createHonuaPmtilesLifecycle(
+        new HonuaClient({ baseUrl: BASE_URL, fetchFn: async () => Response.json(progress(1, overrides)) }),
+      );
+      await expect(lifecycle.getJob("job-1"), label).rejects.toMatchObject({ lifecycleCode: "invalid-response" });
+    }
+
+    for (const [label, overrides] of [
+      ["fractional artifact size", { sizeBytes: 0.5 }],
+      ["unsafe artifact size", { sizeBytes: Number.MAX_SAFE_INTEGER + 1 }],
+      ["negative artifact layer id", { layerId: -1 }],
+      ["out-of-range artifact layer id", { layerId: 2_147_483_648 }],
+    ] as const) {
+      expect(
+        () =>
+          registerPmtilesSource({
+            honuaBaseUrl: BASE_URL,
+            publishedArtifact: artifact(overrides) as never,
+          }),
+        label,
+      ).toThrowError(expect.objectContaining({ lifecycleCode: "invalid-response" }));
+    }
+
+    const requestFetch = vi.fn<typeof fetch>();
+    const requestLifecycle = createHonuaPmtilesLifecycle(new HonuaClient({ baseUrl: BASE_URL, fetchFn: requestFetch }));
+    await expect(requestLifecycle.submitPublish({ layerId: -1 })).rejects.toMatchObject({
+      lifecycleCode: "invalid-request",
+    });
+    expect(requestFetch).not.toHaveBeenCalled();
+  });
+
   it("rejects noncanonical job and artifact route identifiers before URL resolution", async () => {
     const fetchFn = vi.fn<typeof fetch>();
     const lifecycle = createHonuaPmtilesLifecycle(new HonuaClient({ baseUrl: BASE_URL, fetchFn }));
