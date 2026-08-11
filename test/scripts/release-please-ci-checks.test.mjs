@@ -110,6 +110,7 @@ function harness({
   run = workflowRun(),
   jobs = [requiredJob("JS SDK", 9101), requiredJob("MCP SDK", 9102)],
   createdApp = { id: GITHUB_ACTIONS_APP_ID, slug: "github-actions" },
+  createdDetailsUrl = (id) => `https://github.com/${repository}/runs/${id}`,
   rollup = "visible",
 } = {}) {
   const calls = [];
@@ -162,7 +163,8 @@ function harness({
     if (pathname.endsWith("/actions/runs/9001/jobs")) return { total_count: jobs.length, jobs };
     if (pathname.endsWith("/check-runs") && options.method === "POST") {
       const body = JSON.parse(options.body);
-      const check = { id: 9200 + created.length, ...body, app: createdApp };
+      const id = 9200 + created.length;
+      const check = { id, ...body, details_url: createdDetailsUrl(id), app: createdApp };
       created.push(check);
       return check;
     }
@@ -214,7 +216,12 @@ describe("trusted Release Please required-check publication", () => {
       assert.equal(check.conclusion, "success");
       assert.equal(check.external_id, `release-please-ci:9001:${9101 + index}`);
       assert.match(check.output.summary, new RegExp(`Canonical job: ${expectedName}`, "u"));
+      assert.match(
+        check.output.summary,
+        new RegExp(`actions/runs/9001/job/${9101 + index}`, "u"),
+      );
       assert.match(check.output.summary, new RegExp(fixture.baseSha, "u"));
+      assert.equal(result.checks[index].detailsUrl, `https://github.com/${repository}/runs/${9200 + index}`);
     }
   });
 
@@ -304,6 +311,22 @@ describe("trusted Release Please required-check publication", () => {
       publishReleasePleaseCiChecks(publishOptions(), testHarness.request),
       /trusted provenance/u,
     );
+  });
+
+  it("rejects returned created-check URLs for the wrong repository or check id", async () => {
+    const cases = [
+      ["wrong repository", (id) => `https://github.com/attacker/honua-sdk-js/runs/${id}`],
+      ["wrong check id", (id) => `https://github.com/${repository}/runs/${id + 1}`],
+    ];
+    for (const [label, createdDetailsUrl] of cases) {
+      const testHarness = harness({ createdDetailsUrl });
+      await assert.rejects(
+        publishReleasePleaseCiChecks(publishOptions(), testHarness.request),
+        /created source-bound check 9200 with an invalid URL/u,
+        label,
+      );
+      assert.equal(testHarness.created.length, 1, label);
+    }
   });
 
   it("fails when GitHub omits the created checks from the PR rollup", async () => {

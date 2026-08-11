@@ -34,6 +34,21 @@ function assertCheckRunUrl(repository, jobId, value) {
   }
 }
 
+function exactCreatedCheckUrl(repository, checkId, value) {
+  const url = new URL(String(value ?? ""));
+  const expected = `/${repository}/runs/${checkId}`.toLowerCase();
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "github.com" ||
+    url.pathname.toLowerCase() !== expected ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(`GitHub created source-bound check ${checkId} with an invalid URL.`);
+  }
+  return url.toString();
+}
+
 async function loadRequiredJobs(run, request) {
   const url = new URL(`${apiRoot()}/repos/${run.repository}/actions/runs/${run.workflowRunId}/jobs`);
   url.searchParams.set("filter", "latest");
@@ -78,6 +93,7 @@ async function loadRequiredJobs(run, request) {
 function checkSummary(run, job) {
   return [
     `Canonical job: ${job.name}.`,
+    `Canonical job URL: ${job.url}.`,
     `Validated current Release Please pull request: ${run.repository}#${run.pullRequestNumber}.`,
     `Exact release head: ${run.headSha}.`,
     `Canonical workflow run: ${run.workflowRunId}.`,
@@ -111,14 +127,17 @@ async function createSourceBoundCheck(run, job, request) {
     created?.head_sha !== run.headSha ||
     created?.status !== "completed" ||
     created?.conclusion !== "success" ||
-    created?.details_url !== job.url ||
     created?.external_id !== body.external_id ||
     created?.app?.id !== GITHUB_ACTIONS_APP_ID ||
     created?.app?.slug !== "github-actions"
   ) {
     throw new Error(`GitHub did not create the source-bound ${job.name} check with trusted provenance.`);
   }
-  return { id: created.id, name: job.name, detailsUrl: job.url };
+  return {
+    id: created.id,
+    name: job.name,
+    detailsUrl: exactCreatedCheckUrl(run.repository, created.id, created.details_url),
+  };
 }
 
 const ROLLUP_QUERY = `
