@@ -10,6 +10,7 @@ import {
 
 const MANIFEST_URL = "https://demo.honua.io/demo-services.v1.json";
 const ARCHIVE_URL = "https://demo.honua.io/api/v1/tiles/pmtiles/maui-basemap";
+const SOURCE_REVISION = "a".repeat(40);
 
 function manifest(path = "/api/v1/tiles/pmtiles/maui-basemap") {
   return {
@@ -40,7 +41,12 @@ describe("scheduled direct PMTiles evidence", () => {
 
   it("returns a scoped skipped receipt without touching the network", async () => {
     const fetchFn = vi.fn<typeof fetch>();
-    const evidence = await runPmtilesLiveEvidence({ enabled: false, fetchFn, observedAt: "2026-08-11T00:00:00.000Z" });
+    const evidence = await runPmtilesLiveEvidence({
+      enabled: false,
+      fetchFn,
+      observedAt: "2026-08-11T00:00:00.000Z",
+      sourceRevision: SOURCE_REVISION,
+    });
 
     expect(fetchFn).not.toHaveBeenCalled();
     expect(evidence).toMatchObject({
@@ -48,6 +54,7 @@ describe("scheduled direct PMTiles evidence", () => {
       status: "skipped",
       lane: "scheduled-only",
       authMode: "anonymous",
+      sdk: { package: "@honua/sdk-js", gitCommit: SOURCE_REVISION },
       scope: { directInspection: true, managedPublicationLifecycle: false },
     });
   });
@@ -80,10 +87,12 @@ describe("scheduled direct PMTiles evidence", () => {
       enabled: true,
       fetchFn,
       observedAt: "2026-08-11T00:00:00.000Z",
+      sourceRevision: SOURCE_REVISION,
     });
 
     expect(evidence).toMatchObject({
       status: "executed",
+      sdk: { package: "@honua/sdk-js", gitCommit: SOURCE_REVISION },
       manifest: { url: MANIFEST_URL, format: "honua.demo-services.v1", schemaVersion: "1.1.0" },
       service: { id: "maui-basemap", archiveId: "maui-basemap", archiveUrl: ARCHIVE_URL },
       inspection: {
@@ -104,6 +113,12 @@ describe("scheduled direct PMTiles evidence", () => {
   it("rejects a manifest path that can escape the public deployment origin", () => {
     expect(() => resolvePmtilesArchive(manifest("https://attacker.test/archive.pmtiles"), MANIFEST_URL)).toThrow(
       "root-relative",
+    );
+  });
+
+  it("fails closed when the SDK revision is not an exact commit", async () => {
+    await expect(runPmtilesLiveEvidence({ enabled: false, sourceRevision: "main" })).rejects.toThrow(
+      "full 40-character SDK revision",
     );
   });
 });

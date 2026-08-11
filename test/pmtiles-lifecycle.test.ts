@@ -257,6 +257,57 @@ describe("PMTiles direct inspection and managed lifecycle", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  it("aborts an in-flight poll at the wait deadline and preserves caller-abort classification", async () => {
+    const stalledJob = async () => {
+      let requestCount = 0;
+      let pollSignal: AbortSignal | undefined;
+      const lifecycle = createHonuaPmtilesLifecycle(
+        new HonuaClient({
+          baseUrl: BASE_URL,
+          fetchFn: async (_input, init) => {
+            requestCount += 1;
+            if (requestCount === 1) {
+              return Response.json(
+                {
+                  jobId: "job-stalled",
+                  message: "queued",
+                  statusUrl: "/api/v1/admin/tile-operations/jobs/job-stalled",
+                  cancelUrl: "/api/v1/admin/tile-operations/jobs/job-stalled/cancel",
+                },
+                { status: 202 },
+              );
+            }
+            pollSignal = init?.signal ?? undefined;
+            return await new Promise<Response>((_resolve, reject) => {
+              const signal = init?.signal;
+              const aborted = () => reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+              if (signal?.aborted) aborted();
+              else signal?.addEventListener("abort", aborted, { once: true });
+            });
+          },
+        }),
+      );
+      return { job: await lifecycle.submitPublish({ layerId: 7 }), pollSignal: () => pollSignal };
+    };
+
+    const deadline = await stalledJob();
+    await expect(deadline.job.wait({ deadlineMs: 20, maxAttempts: 2 })).rejects.toMatchObject({
+      lifecycleCode: "job-poll-timeout",
+    });
+    expect(deadline.pollSignal()?.aborted).toBe(true);
+
+    const caller = await stalledJob();
+    const controller = new AbortController();
+    const abort = setTimeout(() => controller.abort(), 20);
+    try {
+      await expect(caller.job.wait({ deadlineMs: 10_000, signal: controller.signal })).rejects.toMatchObject({
+        name: "HonuaAbortError",
+      });
+    } finally {
+      clearTimeout(abort);
+    }
+  });
+
   it("rejects mismatched receipt routes, job identities, and progress counters", async () => {
     const badReceipt = createHonuaPmtilesLifecycle(
       new HonuaClient({
@@ -286,6 +337,37 @@ describe("PMTiles direct inspection and managed lifecycle", () => {
     await expect(badCounters.getJob("job-1")).rejects.toMatchObject({ lifecycleCode: "invalid-response" });
   });
 
+  it("rejects noncanonical job and artifact route identifiers before URL resolution", async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    const lifecycle = createHonuaPmtilesLifecycle(new HonuaClient({ baseUrl: BASE_URL, fetchFn }));
+    await expect(lifecycle.getJob("..")).rejects.toMatchObject({ lifecycleCode: "invalid-request" });
+    await expect(lifecycle.cancelJob(" job-1 ")).rejects.toMatchObject({ lifecycleCode: "invalid-request" });
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    const badReceipt = createHonuaPmtilesLifecycle(
+      new HonuaClient({
+        baseUrl: BASE_URL,
+        fetchFn: async () =>
+          Response.json(
+            {
+              jobId: "..",
+              message: "queued",
+              statusUrl: "/api/v1/admin/tile-operations",
+              cancelUrl: "/api/v1/admin/tile-operations/cancel",
+            },
+            { status: 202 },
+          ),
+      }),
+    );
+    await expect(badReceipt.submitPublish({ layerId: 7 })).rejects.toMatchObject({ lifecycleCode: "invalid-response" });
+    expect(() =>
+      registerPmtilesSource({
+        honuaBaseUrl: BASE_URL,
+        publishedArtifact: artifact({ artifactId: ".." }) as never,
+      }),
+    ).toThrowError(expect.objectContaining({ lifecycleCode: "invalid-response" }));
+  });
+
   it("fails closed on oversized or malformed response framing", async () => {
     const oversized = createHonuaPmtilesLifecycle(
       new HonuaClient({
@@ -303,6 +385,15 @@ describe("PMTiles direct inspection and managed lifecycle", () => {
       }),
     );
     await expect(malformedLength.getJob("job-1")).rejects.toMatchObject({ lifecycleCode: "response-too-large" });
+
+    const oversizedError = createHonuaPmtilesLifecycle(
+      new HonuaClient({
+        baseUrl: BASE_URL,
+        fetchFn: async () => new Response("x".repeat(65), { status: 500, headers: { "Content-Length": "65" } }),
+      }),
+      { maxResponseBytes: 64 },
+    );
+    await expect(oversizedError.getJob("job-1")).rejects.toMatchObject({ lifecycleCode: "response-too-large" });
   });
 
   it("models signed URL refresh and explicit direct fallback without leaking maturity", () => {

@@ -6,6 +6,11 @@ export interface PmtilesLiveEvidenceEnvelope {
   readonly observedAt: string;
   readonly lane: "scheduled-only";
   readonly authMode: "anonymous";
+  readonly sdk: {
+    readonly package: string;
+    readonly version: string;
+    readonly gitCommit: string;
+  };
   readonly scope: {
     readonly directInspection: true;
     readonly managedPublicationLifecycle: false;
@@ -36,5 +41,6 @@ export function runPmtilesLiveEvidence(options?: {
   readonly fetchFn?: typeof fetch;
   readonly manifestUrl?: string;
   readonly serviceId?: string;
+  readonly sourceRevision?: string;
   readonly timeoutMs?: number;
 }): Promise<PmtilesLiveEvidenceEnvelope>;

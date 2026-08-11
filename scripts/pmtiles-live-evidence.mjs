@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,7 @@ const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_RANGE_BYTES = 512 * 1024;
 const MAX_TOTAL_BYTES = 1024 * 1024;
 const NETWORK_GATES = ["HONUA_PMTILES_LIVE_ENABLED"];
+const SDK_PACKAGE = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -153,7 +155,16 @@ function strongEtag(value) {
   return typeof value === "string" && !value.startsWith("W/") && /^"(?:[^"\\]|\\.)+"$/.test(value);
 }
 
-function skippedEvidence(observedAt, manifestUrl, reason) {
+function sdkEvidence(sourceRevision) {
+  let gitCommit = sourceRevision ?? process.env.HONUA_SAMPLE_SOURCE_REVISION ?? process.env.GITHUB_SHA;
+  if (gitCommit === undefined) {
+    gitCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: PROJECT_ROOT, encoding: "utf8" }).trim();
+  }
+  invariant(/^[a-f0-9]{40}$/.test(gitCommit), "PMTiles live evidence requires a full 40-character SDK revision");
+  return Object.freeze({ package: SDK_PACKAGE.name, version: SDK_PACKAGE.version, gitCommit });
+}
+
+function skippedEvidence(observedAt, manifestUrl, reason, sdk) {
   return Object.freeze({
     format: "honua.sdk.pmtiles-direct-live-evidence.v1",
     schemaVersion: 1,
@@ -162,6 +173,7 @@ function skippedEvidence(observedAt, manifestUrl, reason) {
     observedAt,
     lane: "scheduled-only",
     authMode: "anonymous",
+    sdk,
     manifest: { url: manifestUrl },
     scope: { directInspection: true, managedPublicationLifecycle: false },
     networkGates: NETWORK_GATES,
@@ -171,9 +183,15 @@ function skippedEvidence(observedAt, manifestUrl, reason) {
 export async function runPmtilesLiveEvidence(options = {}) {
   const observedAt = options.observedAt ?? new Date().toISOString();
   const manifestUrl = options.manifestUrl ?? DEFAULT_MANIFEST_URL;
+  const sdk = sdkEvidence(options.sourceRevision);
   const enabled = options.enabled ?? isPmtilesLiveEvidenceEnabled();
   if (!enabled) {
-    return skippedEvidence(observedAt, manifestUrl, "Live PMTiles evidence is disabled outside its scheduled/manual lane.");
+    return skippedEvidence(
+      observedAt,
+      manifestUrl,
+      "Live PMTiles evidence is disabled outside its scheduled/manual lane.",
+      sdk,
+    );
   }
 
   const fetchFn = options.fetchFn ?? fetch;
@@ -241,6 +259,7 @@ export async function runPmtilesLiveEvidence(options = {}) {
       observedAt,
       lane: "scheduled-only",
       authMode: "anonymous",
+      sdk,
       timing: { totalMs: performance.now() - started },
       manifest: { url: resolved.manifestUrl, sha256: fetched.sha256, bytes: fetched.bytes, format: resolved.manifestFormat, schemaVersion: resolved.manifestSchemaVersion },
       service: { id: resolved.serviceId, archiveId: resolved.archiveId, archiveUrl: resolved.archiveUrl },
@@ -276,6 +295,7 @@ export async function runPmtilesLiveEvidence(options = {}) {
       observedAt,
       lane: "scheduled-only",
       authMode: "anonymous",
+      sdk,
       timing: { totalMs: performance.now() - started },
       manifest: { url: manifestUrl },
       ...(resolved ? { service: { id: resolved.serviceId, archiveId: resolved.archiveId, archiveUrl: resolved.archiveUrl } } : {}),

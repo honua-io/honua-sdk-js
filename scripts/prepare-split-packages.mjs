@@ -147,6 +147,16 @@ function createSdkPackage() {
   copyFile(path.join(DIST_SRC_ROOT, "connect-geoparquet.d.ts"), path.join(packageRoot, "connect-geoparquet.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-pmtiles.js"), path.join(packageRoot, "connect-pmtiles.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-pmtiles.d.ts"), path.join(packageRoot, "connect-pmtiles.d.ts"));
+  for (const moduleName of [
+    "connect-cache-data",
+    "connect-constants",
+    "connect-endpoint",
+    "connect-pmtiles-cache-validation",
+    "connect-pmtiles-inspection",
+  ]) {
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.js`), path.join(packageRoot, `${moduleName}.js`));
+    copyFile(path.join(DIST_SRC_ROOT, `${moduleName}.d.ts`), path.join(packageRoot, `${moduleName}.d.ts`));
+  }
   copyFile(path.join(DIST_SRC_ROOT, "connect-grpc.js"), path.join(packageRoot, "connect-grpc.js"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-grpc.d.ts"), path.join(packageRoot, "connect-grpc.d.ts"));
   copyFile(path.join(DIST_SRC_ROOT, "connect-stac-static.js"), path.join(packageRoot, "connect-stac-static.js"));

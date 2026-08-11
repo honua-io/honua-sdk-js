@@ -257,20 +257,45 @@ export class HonuaPmtilesJob {
   public async wait(options: PmtilesJobWaitOptions = {}): Promise<PmtilesJobProgress> {
     const attempts = positiveInteger(options.maxAttempts ?? 600, "maxAttempts");
     const interval = nonNegativeInteger(options.pollIntervalMs ?? 1_000, "pollIntervalMs");
-    const deadline = Date.now() + nonNegativeInteger(options.deadlineMs ?? 600_000, "deadlineMs");
-    for (let attempt = 1; attempt <= attempts; attempt += 1) {
-      throwIfAborted(options.signal);
-      if (Date.now() > deadline) {
-        throw error("job-poll-timeout", `PMTiles job ${this.id} exceeded its deadline.`, { reason: "deadline" });
+    const deadlineMs = nonNegativeInteger(options.deadlineMs ?? 600_000, "deadlineMs");
+    const deadline = Math.min(Number.MAX_SAFE_INTEGER, Date.now() + deadlineMs);
+    const deadlineSignal = createDeadlineSignal(deadline);
+    const waitSignal = combineAbortSignals(options.signal, deadlineSignal.signal);
+    try {
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        throwIfAborted(waitSignal.signal);
+        if (Date.now() >= deadline) {
+          throw error("job-poll-timeout", `PMTiles job ${this.id} exceeded its deadline.`, { reason: "deadline" });
+        }
+        const progress = await this.poll({ signal: waitSignal.signal });
+        throwIfAborted(waitSignal.signal);
+        if (Date.now() >= deadline) {
+          throw error("job-poll-timeout", `PMTiles job ${this.id} exceeded its deadline.`, { reason: "deadline" });
+        }
+        if (isPmtilesJobTerminal(progress.status)) return progress;
+        if (attempt < attempts) {
+          await delay(Math.min(interval, Math.max(0, deadline - Date.now())), waitSignal.signal);
+        }
       }
-      const progress = await this.poll(options);
-      if (isPmtilesJobTerminal(progress.status)) return progress;
-      if (attempt < attempts) await delay(Math.min(interval, Math.max(0, deadline - Date.now())), options.signal);
+      throw error("job-poll-timeout", `PMTiles job ${this.id} exceeded its attempt limit.`, {
+        reason: "max-attempts",
+        attempts,
+      });
+    } catch (cause) {
+      if (options.signal?.aborted) throw new HonuaAbortError("PMTiles lifecycle polling was aborted.");
+      if (deadlineSignal.signal.aborted || Date.now() >= deadline) {
+        throw error(
+          "job-poll-timeout",
+          `PMTiles job ${this.id} exceeded its deadline.`,
+          { reason: "deadline" },
+          { cause },
+        );
+      }
+      throw cause;
+    } finally {
+      waitSignal.dispose();
+      deadlineSignal.dispose();
     }
-    throw error("job-poll-timeout", `PMTiles job ${this.id} exceeded its attempt limit.`, {
-      reason: "max-attempts",
-      attempts,
-    });
   }
 
   public cancel(options: PmtilesRequestOptions = {}): Promise<PmtilesJobCancellation> {
@@ -305,7 +330,7 @@ export class HonuaPmtilesLifecycle {
   }
 
   public async getJob(jobId: string, options: PmtilesRequestOptions = {}): Promise<PmtilesJobProgress> {
-    const id = identifier(jobId, "jobId");
+    const id = routeIdentifier(jobId, "jobId", "invalid-request");
     const value = await this.#json("GET", `${JOBS_PATH}/${encodeURIComponent(id)}`, undefined, options);
     const progress = parseProgress(value);
     if (progress.jobId !== id) throw error("invalid-response", "PMTiles status response changed jobId.");
@@ -313,12 +338,12 @@ export class HonuaPmtilesLifecycle {
   }
 
   public async cancelJob(jobId: string, options: PmtilesRequestOptions = {}): Promise<PmtilesJobCancellation> {
-    const id = identifier(jobId, "jobId");
+    const id = routeIdentifier(jobId, "jobId", "invalid-request");
     const record = object(
       await this.#json("POST", `${JOBS_PATH}/${encodeURIComponent(id)}/cancel`, undefined, options),
       "cancel receipt",
     );
-    const responseJobId = string(record, "jobId");
+    const responseJobId = responseRouteIdentifier(record, "jobId");
     if (responseJobId !== id) throw error("invalid-response", "PMTiles cancellation response changed jobId.");
     return Object.freeze({ jobId: responseJobId, message: string(record, "message") });
   }
@@ -336,7 +361,7 @@ export class HonuaPmtilesLifecycle {
       await this.#json("POST", JOBS_PATH, normalizeRequest(operation, request), options, [202]),
       "start receipt",
     );
-    const jobId = string(record, "jobId");
+    const jobId = responseRouteIdentifier(record, "jobId");
     const expectedStatusUrl = `${JOBS_PATH}/${encodeURIComponent(jobId)}`;
     const expectedCancelUrl = `${expectedStatusUrl}/cancel`;
     const statusUrl = validatedServerRoute(string(record, "statusUrl"), this.client.serverBaseUrl, expectedStatusUrl);
@@ -373,6 +398,8 @@ export class HonuaPmtilesLifecycle {
       {
         ...(okStatuses ? { okStatuses } : {}),
         redirect: "error",
+        errorBody: async (response, signal) =>
+          parseBoundedErrorBody(await bounded(response, this.#maxResponseBytes, signal)),
         prepareResponse: async (response, signal) => {
           admitted = await bounded(response, this.#maxResponseBytes, signal);
           return new Response(admitted.slice().buffer as ArrayBuffer, {
@@ -501,7 +528,7 @@ function parseProgress(value: unknown): PmtilesJobProgress {
   const rawArtifact = optional(record, "publishedArtifact");
   const publishedArtifact = rawArtifact === undefined || rawArtifact === null ? undefined : parseArtifact(rawArtifact);
   const result: PmtilesJobProgress = Object.freeze({
-    jobId: string(record, "jobId"),
+    jobId: responseRouteIdentifier(record, "jobId"),
     operation,
     ...optionalStringField(record, "serviceId"),
     ...optionalIntegerField(record, "layerId"),
@@ -540,7 +567,7 @@ function parseArtifact(value: unknown): PmtilesPublishedArtifact {
   if (minZoom > maxZoom) throw error("invalid-response", "Published minZoom exceeds maxZoom.");
   const rawBounds = optional(record, "bounds");
   return Object.freeze({
-    artifactId: string(record, "artifactId"),
+    artifactId: responseRouteIdentifier(record, "artifactId"),
     storageProvider: storageProvider(record),
     bucket: string(record, "bucket"),
     objectKey: string(record, "objectKey"),
@@ -725,6 +752,16 @@ async function bounded(response: Response, maximum: number, signal?: AbortSignal
   return output;
 }
 
+function parseBoundedErrorBody(bytes: Uint8Array): unknown {
+  const text = new TextDecoder().decode(bytes);
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return { raw: text };
+  }
+}
+
 function statusValue(value: unknown): PmtilesJobStatus {
   const numeric: Record<number, PmtilesJobStatus> = {
     0: "queued",
@@ -769,6 +806,10 @@ function string(record: Readonly<Record<string, unknown>>, name: string): string
   if (typeof value !== "string" || !value.trim())
     throw error("invalid-response", `${name} must be a non-empty string.`);
   return value;
+}
+
+function responseRouteIdentifier(record: Readonly<Record<string, unknown>>, name: string): string {
+  return routeIdentifier(string(record, name), name, "invalid-response");
 }
 
 function integer(record: Readonly<Record<string, unknown>>, name: string): number {
@@ -949,6 +990,20 @@ function identifier(value: string, label: string): string {
   return value.trim();
 }
 
+function routeIdentifier(value: string, label: string, code: HonuaPmtilesLifecycleErrorCode): string {
+  if (
+    typeof value !== "string" ||
+    !value ||
+    value.trim() !== value ||
+    value === "." ||
+    value === ".." ||
+    !/^[A-Za-z0-9._~-]+$/.test(value)
+  ) {
+    throw error(code, `${label} must be a canonical URL path-segment identifier.`);
+  }
+  return value;
+}
+
 function positiveInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value <= 0)
     throw error("invalid-request", `${label} must be a positive integer.`);
@@ -987,6 +1042,47 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
     }
     signal?.addEventListener("abort", aborted, { once: true });
   });
+}
+
+function createDeadlineSignal(deadline: number): { readonly signal: AbortSignal; dispose(): void } {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = (): void => {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      controller.abort();
+      return;
+    }
+    timer = setTimeout(arm, Math.min(remaining, 2_147_483_647));
+  };
+  arm();
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      if (timer !== undefined) clearTimeout(timer);
+    },
+  };
+}
+
+function combineAbortSignals(
+  callerSignal: AbortSignal | undefined,
+  deadlineSignal: AbortSignal,
+): { readonly signal: AbortSignal; dispose(): void } {
+  if (!callerSignal) return { signal: deadlineSignal, dispose: () => undefined };
+  const controller = new AbortController();
+  const abort = (): void => controller.abort();
+  if (callerSignal.aborted || deadlineSignal.aborted) controller.abort();
+  else {
+    callerSignal.addEventListener("abort", abort, { once: true });
+    deadlineSignal.addEventListener("abort", abort, { once: true });
+  }
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      callerSignal.removeEventListener("abort", abort);
+      deadlineSignal.removeEventListener("abort", abort);
+    },
+  };
 }
 
 function error(

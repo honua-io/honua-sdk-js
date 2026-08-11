@@ -14,6 +14,7 @@ permissions:
 env:
   NODE_VERSION: "20.19.0"
   HONUA_PMTILES_LIVE_ENABLED: "true"
+  HONUA_SAMPLE_SOURCE_REVISION: ${{ github.sha }}
 
 jobs:
   public-manifest-pmtiles:
