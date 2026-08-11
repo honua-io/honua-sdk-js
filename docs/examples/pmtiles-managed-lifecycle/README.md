@@ -39,4 +39,4 @@ are replaced atomically by a later publish of the same layer/matrix.
 
 Complete Walkthrough: [docs/examples/pmtiles-managed-lifecycle](https://github.com/honua-io/honua-sdk-js/tree/trunk/docs/examples/pmtiles-managed-lifecycle)
 
-API details: [PMTiles lifecycle guide](../../docs/pmtiles-lifecycle.md).
+API details: [PMTiles lifecycle guide](../../pmtiles-lifecycle.md).
