@@ -358,6 +358,21 @@ jobs:
           npm run samples:run -- verify --kit --sdk-mode source
           npm run samples:run -- verify --kit --sdk-mode packed
 
+      - name: Reproduce COG visual failure for artifact capture
+        if: failure()
+        run: npm run test:playwright:imagery-cog || true
+
+      - name: Upload COG Playwright visual failure evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cog-playwright-visual-failure
+          path: |
+            .tmp/playwright-output/imagery-cog-quickstart-*/imagery-cog-*-actual.png
+            .tmp/playwright-output/imagery-cog-quickstart-*/imagery-cog-*-diff.png
+          if-no-files-found: error
+          include-hidden-files: true
+
       - name: Compile learning-path examples
         run: npm run docs:learning:typecheck
 
