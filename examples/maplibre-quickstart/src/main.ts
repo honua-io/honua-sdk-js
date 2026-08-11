@@ -128,18 +128,19 @@ function initialLaunch(): FirstMapLaunch {
 
 function isPackagedFixtureEndpoint(endpoint: string): boolean {
   const url = new URL(endpoint);
-  const pathname = url.pathname.replace(/\/+$/, "") || "/";
-  return url.origin === location.origin && pathname.endsWith(FIRST_MAP_FIXTURE_GEOSERVICES_PATH);
+  if (url.search || url.hash) return false;
+  const fixtureBase = new URL(".", location.href);
+  const endpointIdentity = (value: URL) => `${value.origin}${value.pathname.replace(/\/+$/, "") || "/"}`;
+  const identity = endpointIdentity(url);
+  return [
+    FIRST_MAP_FIXTURE_GEOSERVICES_PATH,
+    FIXTURE_OGC_ROOT_PATH,
+    FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH,
+  ].some((path) => identity === endpointIdentity(new URL(`.${path}`, fixtureBase)));
 }
 
 function isFixtureEndpoint(endpoint: string): boolean {
-  const url = new URL(endpoint);
-  const pathname = url.pathname.replace(/\/+$/, "") || "/";
-  return (
-    isPackagedFixtureEndpoint(endpoint) ||
-    (url.origin === location.origin &&
-      (pathname === FIXTURE_OGC_ROOT_PATH || pathname === FIRST_MAP_FIXTURE_OGC_COLLECTION_PATH))
-  );
+  return isPackagedFixtureEndpoint(endpoint);
 }
 
 function safeEndpoint(endpoint: string): string {
