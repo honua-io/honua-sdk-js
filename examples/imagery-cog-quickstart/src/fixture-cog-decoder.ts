@@ -51,13 +51,15 @@ const GENERATED_METADATA: CogDecodedMetadata = {
   },
   footprint: {
     type: "Polygon",
-    coordinates: [[
-      [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[1]],
-      [fixtureManifest.asset.bbox[2], fixtureManifest.asset.bbox[1]],
-      [fixtureManifest.asset.bbox[2], fixtureManifest.asset.bbox[3]],
-      [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[3]],
-      [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[1]],
-    ]],
+    coordinates: [
+      [
+        [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[1]],
+        [fixtureManifest.asset.bbox[2], fixtureManifest.asset.bbox[1]],
+        [fixtureManifest.asset.bbox[2], fixtureManifest.asset.bbox[3]],
+        [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[3]],
+        [fixtureManifest.asset.bbox[0], fixtureManifest.asset.bbox[1]],
+      ],
+    ],
   },
   overviewDecimations: [4],
 };
@@ -86,7 +88,7 @@ function isGeneratedFixture(assetUrl: string): boolean {
   return assetKey(assetUrl) === fixtureManifest.asset.path.split("/").at(-1);
 }
 
-function generatedLevel(request: CogWindowRequest) {
+function generatedLevel() {
   return fixtureManifest.asset.levels[1]!;
 }
 
@@ -94,32 +96,46 @@ async function generatedWindow(
   request: CogWindowRequest,
   readRange: (range: { offset: number; length: number }) => Promise<Uint8Array>,
 ) {
-  const image = generatedLevel(request);
+  const image = generatedLevel();
   const width = request.sampling?.width ?? request.width;
   const height = request.sampling?.height ?? request.height;
   const output = (request.bands ?? [1, 2, 3]).map((band) => ({ band, values: new Uint8Array(width * height) }));
   const required = new Set<number>();
   const locate = (x: number, y: number) => {
-    const sourceX = Math.min(fixtureManifest.asset.width - 1, Math.floor(request.x + ((x + 0.5) * request.width) / width));
-    const sourceY = Math.min(fixtureManifest.asset.height - 1, Math.floor(request.y + ((y + 0.5) * request.height) / height));
+    const sourceX = Math.min(
+      fixtureManifest.asset.width - 1,
+      Math.floor(request.x + ((x + 0.5) * request.width) / width),
+    );
+    const sourceY = Math.min(
+      fixtureManifest.asset.height - 1,
+      Math.floor(request.y + ((y + 0.5) * request.height) / height),
+    );
     return { x: Math.floor(sourceX / image.decimation), y: Math.floor(sourceY / image.decimation) };
   };
-  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-    const point = locate(x, y);
-    required.add(Math.floor(point.y / image.tileHeight) * image.tileColumns + Math.floor(point.x / image.tileWidth));
-  }
+  for (let y = 0; y < height; y += 1)
+    for (let x = 0; x < width; x += 1) {
+      const point = locate(x, y);
+      required.add(Math.floor(point.y / image.tileHeight) * image.tileColumns + Math.floor(point.x / image.tileWidth));
+    }
   const tiles = new Map<number, Uint8Array>();
-  await Promise.all(Array.from(required, async (tileIndex) => {
-    const bytes = await readRange({ offset: image.dataOffset + tileIndex * image.tileBytes, length: image.tileBytes });
-    tiles.set(tileIndex, bytes);
-  }));
-  for (let y = 0; y < height; y += 1) for (let x = 0; x < width; x += 1) {
-    const point = locate(x, y);
-    const tileX = Math.floor(point.x / image.tileWidth), tileY = Math.floor(point.y / image.tileHeight);
-    const tile = tiles.get(tileY * image.tileColumns + tileX)!;
-    const offset = ((point.y % image.tileHeight) * image.tileWidth + (point.x % image.tileWidth)) * 3;
-    for (const band of output) band.values[y * width + x] = tile[offset + band.band - 1] ?? 0;
-  }
+  await Promise.all(
+    Array.from(required, async (tileIndex) => {
+      const bytes = await readRange({
+        offset: image.dataOffset + tileIndex * image.tileBytes,
+        length: image.tileBytes,
+      });
+      tiles.set(tileIndex, bytes);
+    }),
+  );
+  for (let y = 0; y < height; y += 1)
+    for (let x = 0; x < width; x += 1) {
+      const point = locate(x, y);
+      const tileX = Math.floor(point.x / image.tileWidth);
+      const tileY = Math.floor(point.y / image.tileHeight);
+      const tile = tiles.get(tileY * image.tileColumns + tileX)!;
+      const offset = ((point.y % image.tileHeight) * image.tileWidth + (point.x % image.tileWidth)) * 3;
+      for (const band of output) band.values[y * width + x] = tile[offset + band.band - 1] ?? 0;
+    }
   const values = output.map((band) => band.values[Math.floor(band.values.length / 2)] ?? 0);
   const target = document.querySelector<HTMLElement>("#direct-cog-pixel");
   if (target) {
@@ -221,7 +237,9 @@ export function createFixtureCogDecoderFactory(telemetry: FixtureCogDecoderTelem
       async inspect({ readRange, signal }) {
         try {
           if (assetKey(assetUrl) === "slow-cog") await pause(450, signal);
-          const header = new Uint8Array(await readRange({ offset: 0, length: isGeneratedFixture(assetUrl) ? 4096 : 64 }));
+          const header = new Uint8Array(
+            await readRange({ offset: 0, length: isGeneratedFixture(assetUrl) ? 4096 : 64 }),
+          );
           if (isGeneratedFixture(assetUrl)) {
             if (header[0] !== 0x49 || header[1] !== 0x49 || header[2] !== 42 || header[3] !== 0) {
               throw new Error("decoder.unsupported-format: fixture is not a little-endian TIFF.");

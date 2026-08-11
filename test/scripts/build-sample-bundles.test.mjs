@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { buildFixtureCogAssets } from "../../examples/imagery-cog-quickstart/fixture-cog-assets.mjs";
 import {
   browserExposedCredentials,
   browserPublicConfigNames,
@@ -60,6 +62,35 @@ function fakeSample(id, overrides = {}) {
 function fakeAudit(id, overrides = {}) {
   return { id, runtimeHosting: "self-contained", buildScript: `demo:${id}:build`, auditedVia: "test fixture", ...overrides };
 }
+
+test("the imagery COG fixture pins a tiled EPSG:4326 overview and exact chunk digests", () => {
+  const generated = buildFixtureCogAssets();
+  assert.deepEqual(generated.assetBytes.subarray(0, 4), Buffer.from([0x49, 0x49, 42, 0]));
+  assert.equal(generated.manifest.asset.crs, "EPSG:4326");
+  assert.equal(generated.manifest.asset.license, "CC0-1.0");
+  assert.deepEqual(
+    generated.manifest.asset.levels.map((level) => level.decimation),
+    [1, 4],
+  );
+  assert.ok(generated.manifest.asset.levels[1].bytes < generated.manifest.asset.bytes / 4);
+  assert.equal(createHash("sha256").update(generated.assetBytes).digest("hex"), generated.manifest.asset.sha256);
+  for (const chunk of generated.chunks) {
+    assert.ok(chunk.bytes.byteLength <= 64 * 1024);
+    assert.equal(createHash("sha256").update(chunk.bytes).digest("hex"), chunk.sha256);
+  }
+});
+
+test("the imagery COG fixture publishes a virtual href instead of a complete object", () => {
+  const generated = buildFixtureCogAssets();
+  const asset = generated.item.assets.cog;
+  assert.equal(asset.href, "./assets/oahu-natural-color-v1.tif");
+  assert.equal(asset["file:size"], generated.assetBytes.byteLength);
+  assert.equal(asset["checksum:multihash"], `sha256:${generated.manifest.asset.sha256}`);
+  assert.equal(
+    generated.chunks.reduce((total, chunk) => total + chunk.bytes.length, 0),
+    generated.assetBytes.length,
+  );
+});
 
 test("every catalog sample gets exactly one publish-or-exclude decision (#656 REQ-001)", () => {
   const decisions = deriveSampleBundleDecisions(catalog);
