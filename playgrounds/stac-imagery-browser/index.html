@@ -32,8 +32,9 @@
         </section>
 
         <section class="map-panel" aria-labelledby="results-heading">
-          <div class="map-copy"><p class="kicker">02 / Select</p><h2 id="results-heading">Maui imagery</h2><p>The preview is fetched from the selected STAC asset URL after typed selection and signing.</p></div>
-          <img id="asset-preview" hidden />
+          <div class="map-copy"><p class="kicker">02 / Select</p><h2 id="results-heading">Maui imagery</h2><p>The selected STAC preview is signed, fetched, and georeferenced on the map from the item bounds.</p></div>
+          <div id="imagery-map" role="img" aria-label="Map of the selected Maui imagery asset and its footprint"></div>
+          <img id="asset-preview" alt="Selected Maui imagery preview" hidden />
           <ol id="result-list"></ol>
           <div class="button-row"><button id="load-next" type="button">Load next page</button><button id="cancel-pagination" class="secondary" type="button">Cancel request</button></div>
         </section>

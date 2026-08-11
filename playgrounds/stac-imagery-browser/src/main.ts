@@ -1,5 +1,9 @@
+import "maplibre-gl/dist/maplibre-gl.css";
+import "./maplibre-vite-worker.js";
+
 import type { DynamicStacAssetDescriptor, HonuaStacItemResponse, StacSearchMethod } from "@honua/sdk-js/stac";
 import { createDynamicStacClient } from "@honua/sdk-js/stac";
+import * as maplibregl from "maplibre-gl";
 
 import { MAUI_BOUNDS, MAUI_DATETIME, mauiSearchRequest } from "./dynamic-stac-example.js";
 import { createStacFixtureEnvironment } from "./fixtures.js";
@@ -13,6 +17,11 @@ declare global {
       readonly loadedCount: number;
       readonly paginationStatus: string;
       readonly selectedItemId?: string;
+      readonly mapReady: boolean;
+      readonly mapImageSourceActive: boolean;
+      readonly mapFootprintSourceActive: boolean;
+      readonly mappedItemId?: string;
+      readonly mappedCoordinates?: readonly (readonly [number, number])[];
       readonly trace: readonly { stage: string; method: string; url: string; assetKey?: string }[];
       search(method: "GET" | "POST"): Promise<void>;
       loadNext(): Promise<void>;
@@ -23,6 +32,22 @@ declare global {
 }
 
 const environment = createStacFixtureEnvironment(createDynamicStacClient, { assetDelayMs: 80, pageDelayMs: 80 });
+const IMAGE_SOURCE_ID = "selected-stac-image";
+const IMAGE_LAYER_ID = "selected-stac-image-raster";
+const FOOTPRINT_SOURCE_ID = "selected-stac-footprint";
+const FOOTPRINT_FILL_LAYER_ID = "selected-stac-footprint-fill";
+const FOOTPRINT_LINE_LAYER_ID = "selected-stac-footprint-line";
+const map = new maplibregl.Map({
+  container: "imagery-map",
+  attributionControl: false,
+  center: [-156.3, 20.8],
+  zoom: 8,
+  style: {
+    version: 8,
+    sources: {},
+    layers: [{ id: "ocean-background", type: "background", paint: { "background-color": "#073b4c" } }],
+  },
+});
 let searchMethod: StacSearchMethod = "POST";
 let searchGeneration = 0;
 let abortController: AbortController | undefined;
@@ -32,6 +57,9 @@ let paginationStatus = "idle";
 let selectedItem: HonuaStacItemResponse | undefined;
 let selectedAsset: DynamicStacAssetDescriptor | undefined;
 let previewObjectUrl: string | undefined;
+let mappedItemId: string | undefined;
+let mappedCoordinates: readonly (readonly [number, number])[] | undefined;
+let mapReady = false;
 let ready = false;
 
 const HANDOFFS = [
@@ -169,6 +197,7 @@ function renderTrace(): void {
 }
 
 function clearAssetPreview(): void {
+  clearMapSelection();
   if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
   previewObjectUrl = undefined;
   const image = element<HTMLImageElement>("#asset-preview");
@@ -176,8 +205,74 @@ function clearAssetPreview(): void {
   image.hidden = true;
 }
 
+function clearMapSelection(): void {
+  for (const layerId of [FOOTPRINT_LINE_LAYER_ID, FOOTPRINT_FILL_LAYER_ID, IMAGE_LAYER_ID]) {
+    if (map.getLayer(layerId)) map.removeLayer(layerId);
+  }
+  for (const sourceId of [FOOTPRINT_SOURCE_ID, IMAGE_SOURCE_ID]) {
+    if (map.getSource(sourceId)) map.removeSource(sourceId);
+  }
+  mappedItemId = undefined;
+  mappedCoordinates = undefined;
+  delete element<HTMLElement>("#imagery-map").dataset.selectedItemId;
+}
+
+function renderMapSelection(objectUrl: string, item: HonuaStacItemResponse): void {
+  const [xmin, ymin, xmax, ymax] = bbox(item).map(Number);
+  const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
+    [xmin, ymax],
+    [xmax, ymax],
+    [xmax, ymin],
+    [xmin, ymin],
+  ];
+  map.addSource(IMAGE_SOURCE_ID, { type: "image", url: objectUrl, coordinates });
+  map.addLayer({ id: IMAGE_LAYER_ID, type: "raster", source: IMAGE_SOURCE_ID, paint: { "raster-opacity": 0.88 } });
+  map.addSource(FOOTPRINT_SOURCE_ID, {
+    type: "geojson",
+    data: {
+      type: "Feature",
+      properties: { itemId: String(item.id) },
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [xmin, ymin],
+            [xmax, ymin],
+            [xmax, ymax],
+            [xmin, ymax],
+            [xmin, ymin],
+          ],
+        ],
+      },
+    },
+  });
+  map.addLayer({
+    id: FOOTPRINT_FILL_LAYER_ID,
+    type: "fill",
+    source: FOOTPRINT_SOURCE_ID,
+    paint: { "fill-color": "#f4b942", "fill-opacity": 0.1 },
+  });
+  map.addLayer({
+    id: FOOTPRINT_LINE_LAYER_ID,
+    type: "line",
+    source: FOOTPRINT_SOURCE_ID,
+    paint: { "line-color": "#fff7dc", "line-width": 3 },
+  });
+  map.fitBounds(
+    [
+      [xmin, ymin],
+      [xmax, ymax],
+    ],
+    { duration: 0, padding: 42 },
+  );
+  mappedItemId = String(item.id);
+  mappedCoordinates = coordinates;
+  element<HTMLElement>("#imagery-map").dataset.selectedItemId = mappedItemId;
+}
+
 async function renderAssetPreview(
   asset: DynamicStacAssetDescriptor,
+  item: HonuaStacItemResponse,
   generation: number,
   controller: AbortController,
 ): Promise<void> {
@@ -195,6 +290,7 @@ async function renderAssetPreview(
   image.src = previewObjectUrl;
   image.alt = `${selectedItem ? title(selectedItem) : "Maui"} selected imagery asset`;
   image.hidden = false;
+  renderMapSelection(objectUrl, item);
 }
 
 async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> {
@@ -203,6 +299,7 @@ async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> 
   if (!controller) return;
   const item = items.find((candidate) => String(candidate.id) === itemId);
   if (!item) return;
+  clearAssetPreview();
   selectedItem = item;
   let candidates: readonly DynamicStacAssetDescriptor[];
   try {
@@ -218,7 +315,7 @@ async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> 
   if (generation !== searchGeneration) return;
   selectedAsset = candidates[0];
   try {
-    if (selectedAsset) await renderAssetPreview(selectedAsset, generation, controller);
+    if (selectedAsset) await renderAssetPreview(selectedAsset, item, generation, controller);
   } catch (error) {
     if (generation !== searchGeneration || controller.signal.aborted) return;
     throw error;
@@ -264,6 +361,8 @@ async function loadNextForGeneration(
 
 function cancelPagination(): void {
   abortController?.abort();
+  clearAssetPreview();
+  selectedAsset = undefined;
   paginationStatus = "cancelled";
   render();
 }
@@ -306,6 +405,8 @@ element<HTMLElement>("#handoff-list").innerHTML = HANDOFFS.map(
 element<HTMLElement>("#query-bounds").textContent = MAUI_BOUNDS.join(", ");
 element<HTMLElement>("#query-time").textContent = MAUI_DATETIME;
 
+await map.once("load");
+mapReady = true;
 await environment.stac.catalog();
 await runSearch("POST");
 ready = true;
@@ -321,6 +422,21 @@ window.__HONUA_STAC_BROWSER__ = {
   },
   get selectedItemId() {
     return selectedItem ? String(selectedItem.id) : undefined;
+  },
+  get mapReady() {
+    return mapReady;
+  },
+  get mapImageSourceActive() {
+    return map.getSource(IMAGE_SOURCE_ID) !== undefined;
+  },
+  get mapFootprintSourceActive() {
+    return map.getSource(FOOTPRINT_SOURCE_ID) !== undefined;
+  },
+  get mappedItemId() {
+    return mappedItemId;
+  },
+  get mappedCoordinates() {
+    return mappedCoordinates;
   },
   get trace() {
     return environment.traceForScope(searchGeneration);
