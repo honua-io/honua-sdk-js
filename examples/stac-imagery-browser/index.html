@@ -41,11 +41,11 @@
 
         <section class="detail-panel" aria-labelledby="asset-heading">
           <div id="item-metadata"></div>
-          <div><p class="kicker">Assets</p><h2 id="asset-heading">Choose the useful representation</h2><ul id="asset-list"></ul><p id="handoff-state"></p></div>
+          <div><p class="kicker">Assets</p><h2 id="asset-heading">Choose the useful representation</h2><ul id="asset-list"></ul><p id="handoff-state"></p><pre id="asset-inspection" aria-live="polite">Select the PMTiles asset to inspect its v3 metadata and exact HTTP range evidence.</pre></div>
         </section>
 
         <section class="proof-panel" aria-labelledby="proof-heading">
-          <div><p class="kicker">03 / Verify</p><h2 id="proof-heading">Request evidence</h2><p>The deterministic fetch seam records the same method, relative cursor, cancellation signal, and signing hook used against a deployed STAC API.</p></div>
+          <div><p class="kicker">03 / Verify</p><h2 id="proof-heading">Request evidence</h2><p>The deterministic fetch seam records the same method, relative cursor, cancellation signal, signing hook, and redacted PMTiles byte-range evidence used against deployed assets.</p></div>
           <pre id="network-log" aria-live="polite"></pre>
         </section>
 

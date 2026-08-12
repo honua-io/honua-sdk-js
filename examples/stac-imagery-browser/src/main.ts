@@ -1,12 +1,18 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import "../../shared/maplibre-vite-worker.js";
 
+import { type PmtilesArchiveInspection, inspectPmtilesArchive } from "@honua/sdk-js/pmtiles";
 import type { DynamicStacAssetDescriptor, HonuaStacItemResponse, StacSearchMethod } from "@honua/sdk-js/stac";
 import { createDynamicStacClient } from "@honua/sdk-js/stac";
 import * as maplibregl from "maplibre-gl";
 
 import { MAUI_BOUNDS, MAUI_DATETIME, mauiSearchRequest } from "./dynamic-stac-example.js";
-import { createStacFixtureEnvironment } from "./fixtures.js";
+import {
+  PMTILES_AUTHORIZATION_SCOPE,
+  PMTILES_INSPECTION_LIMITS,
+  type StacFixtureTrace,
+  createStacFixtureEnvironment,
+} from "./fixtures.js";
 
 import "./styles.css";
 
@@ -22,7 +28,8 @@ declare global {
       readonly mapFootprintSourceActive: boolean;
       readonly mappedItemId?: string;
       readonly mappedCoordinates?: readonly (readonly [number, number])[];
-      readonly trace: readonly { stage: string; method: string; url: string; assetKey?: string }[];
+      readonly pmtilesInspection?: PmtilesArchiveInspection;
+      readonly trace: readonly StacFixtureTrace[];
       search(method: "GET" | "POST"): Promise<void>;
       loadNext(): Promise<void>;
       cancelPagination(): void;
@@ -31,7 +38,11 @@ declare global {
   }
 }
 
-const environment = createStacFixtureEnvironment(createDynamicStacClient, { assetDelayMs: 80, pageDelayMs: 80 });
+const environment = createStacFixtureEnvironment(createDynamicStacClient, {
+  assetDelayMs: 80,
+  pmtilesDelayMs: 160,
+  pageDelayMs: 80,
+});
 const IMAGE_SOURCE_ID = "selected-stac-image";
 const IMAGE_LAYER_ID = "selected-stac-image-raster";
 const FOOTPRINT_SOURCE_ID = "selected-stac-footprint";
@@ -59,12 +70,13 @@ let selectedAsset: DynamicStacAssetDescriptor | undefined;
 let previewObjectUrl: string | undefined;
 let mappedItemId: string | undefined;
 let mappedCoordinates: readonly (readonly [number, number])[] | undefined;
+let pmtilesInspection: PmtilesArchiveInspection | undefined;
 let mapReady = false;
 let ready = false;
 
 const HANDOFFS = [
   { format: "COG", packageExport: "@honua/sdk-js/cog", href: "../../docs/walkthroughs/stac-to-cog-raster.md" },
-  { format: "PMTiles", packageExport: "@honua/sdk-js/contract", href: "../../docs/pmtiles.md" },
+  { format: "PMTiles", packageExport: "@honua/sdk-js/pmtiles", href: "../../docs/pmtiles.md" },
   {
     format: "GeoParquet",
     packageExport: "@honua/sdk-js/columnar-workflow",
@@ -144,6 +156,7 @@ function renderSelection(): void {
   if (!item) {
     metadata.innerHTML = "<p>Run the bounded search to inspect a result.</p>";
     assets.innerHTML = "";
+    renderPmtilesInspection();
     return;
   }
 
@@ -183,6 +196,35 @@ function renderSelection(): void {
     ? `${asset.format} is ready for ${asset.handoff.packageExport}`
     : "This asset is discoverable, but it has no executable SDK handoff.";
   handoff.dataset.supported = String(asset?.handoff !== undefined);
+  renderPmtilesInspection();
+}
+
+function renderPmtilesInspection(): void {
+  const output = element<HTMLElement>("#asset-inspection");
+  if (selectedAsset?.format !== "pmtiles") {
+    output.dataset.state = "idle";
+    output.textContent = "Select the PMTiles asset to inspect its v3 metadata and exact HTTP range evidence.";
+    return;
+  }
+  if (!pmtilesInspection) {
+    output.dataset.state = "loading";
+    output.textContent = "Inspecting the signed PMTiles descriptor within the reviewed request and byte limits...";
+    return;
+  }
+  const metadata = pmtilesInspection.metadata;
+  const ranges = metadata.transfer.ranges
+    .map((range) => `${range.status} ${range.contentRange} (${range.bytesReceived} bytes)`)
+    .join("\n");
+  output.dataset.state = "complete";
+  output.textContent = [
+    `PMTiles v${metadata.specVersion} / ${metadata.tileKind.toUpperCase()} / z${metadata.minZoom}-z${metadata.maxZoom}`,
+    `Bounds ${metadata.bounds.join(", ")}`,
+    `Transfer ${metadata.transfer.requests} request / ${metadata.transfer.bytesFetched} bytes`,
+    ranges,
+    pmtilesInspection.rendererSource
+      ? "Renderer descriptor derived; not mounted in this STAC inspection walkthrough."
+      : "No renderer descriptor was derived from the inspected metadata.",
+  ].join("\n");
 }
 
 function renderTrace(): void {
@@ -191,13 +233,17 @@ function renderTrace(): void {
     .map((entry) => {
       const url = new URL(entry.url, "https://fixture.invalid");
       const detail = entry.assetKey ? ` ${entry.assetKey}` : "";
-      return `${entry.method.padEnd(5)} ${url.pathname}${url.search}${detail}`;
+      const range = entry.range ? ` ${entry.range}` : "";
+      const status = entry.status ? ` ${entry.status}` : "";
+      const authorization = entry.authorization ? ` auth=${entry.authorization}` : "";
+      return `${entry.method.padEnd(5)} ${url.pathname}${url.search}${detail}${range}${status}${authorization}`;
     })
     .join("\n");
 }
 
 function clearAssetPreview(): void {
   clearMapSelection();
+  pmtilesInspection = undefined;
   if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
   previewObjectUrl = undefined;
   const image = element<HTMLImageElement>("#asset-preview");
@@ -217,7 +263,7 @@ function clearMapSelection(): void {
   delete element<HTMLElement>("#imagery-map").dataset.selectedItemId;
 }
 
-function renderMapSelection(objectUrl: string, item: HonuaStacItemResponse): void {
+async function renderMapSelection(objectUrl: string, item: HonuaStacItemResponse): Promise<void> {
   const [xmin, ymin, xmax, ymax] = bbox(item).map(Number);
   const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
     [xmin, ymax],
@@ -268,6 +314,7 @@ function renderMapSelection(objectUrl: string, item: HonuaStacItemResponse): voi
   mappedItemId = String(item.id);
   mappedCoordinates = coordinates;
   element<HTMLElement>("#imagery-map").dataset.selectedItemId = mappedItemId;
+  await map.once("idle");
 }
 
 async function renderAssetPreview(
@@ -290,7 +337,26 @@ async function renderAssetPreview(
   image.src = previewObjectUrl;
   image.alt = `${selectedItem ? title(selectedItem) : "Maui"} selected imagery asset`;
   image.hidden = false;
-  renderMapSelection(objectUrl, item);
+  await image.decode();
+  if (generation !== searchGeneration || controller.signal.aborted) return;
+  await renderMapSelection(objectUrl, item);
+}
+
+async function inspectSelectedPmtiles(
+  asset: DynamicStacAssetDescriptor,
+  generation: number,
+  controller: AbortController,
+): Promise<void> {
+  if (asset.format !== "pmtiles") return;
+  const inspection = await inspectPmtilesArchive({
+    endpoint: asset.href,
+    authorizationScopeFingerprint: PMTILES_AUTHORIZATION_SCOPE,
+    client: environment.createAssetClient(asset.href),
+    signal: controller.signal,
+    limits: PMTILES_INSPECTION_LIMITS,
+  });
+  if (generation !== searchGeneration || controller.signal.aborted) return;
+  pmtilesInspection = inspection;
 }
 
 async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> {
@@ -314,8 +380,13 @@ async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> 
   }
   if (generation !== searchGeneration) return;
   selectedAsset = candidates[0];
+  render();
   try {
-    if (selectedAsset) await renderAssetPreview(selectedAsset, item, generation, controller);
+    if (selectedAsset?.format === "pmtiles") {
+      await inspectSelectedPmtiles(selectedAsset, generation, controller);
+    } else if (selectedAsset) {
+      await renderAssetPreview(selectedAsset, item, generation, controller);
+    }
   } catch (error) {
     if (generation !== searchGeneration || controller.signal.aborted) return;
     throw error;
@@ -437,6 +508,9 @@ window.__HONUA_STAC_BROWSER__ = {
   },
   get mappedCoordinates() {
     return mappedCoordinates;
+  },
+  get pmtilesInspection() {
+    return pmtilesInspection;
   },
   get trace() {
     return environment.traceForScope(searchGeneration);

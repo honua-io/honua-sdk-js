@@ -70,21 +70,39 @@ The descriptor's `handoff.packageExport` is executable documentation, not a gene
 | Asset | Maturity | Continue with |
 | --- | --- | --- |
 | COG | experimental | `@honua/sdk-js/cog` |
-| PMTiles | supported | `@honua/sdk-js/contract` |
+| PMTiles | supported | `@honua/sdk-js/pmtiles` |
 | GeoParquet | experimental | `@honua/sdk-js/columnar-workflow` |
 | GeoArrow | metadata-only | No executable STAC handoff yet |
 | Browser raster | supported | `@honua/sdk-js/runtime` |
 | Zarr / NetCDF | unavailable | No executable client workflow yet |
 
-PMTiles metadata inspection uses the contract entrypoint:
+PMTiles metadata inspection uses the focused, authenticated, and hard-bounded entrypoint:
 
 ```ts doc-test=skip reason="continues the selected asset from step 3 and performs a network range read"
 if (asset.handoff?.kind === "pmtiles") {
-  const { describePmtilesArchive } = await import("@honua/sdk-js/contract");
-  const archive = await describePmtilesArchive(asset.handoff.href);
-  console.log(archive.tileKind, archive.minZoom, archive.maxZoom);
+  const { inspectPmtilesArchive } = await import("@honua/sdk-js/pmtiles");
+  const assetClient = new HonuaClient({
+    baseUrl: new URL(asset.handoff.href).origin,
+    fetchFn,
+    auth,
+  });
+  const inspection = await inspectPmtilesArchive({
+    endpoint: asset.handoff.href,
+    authorizationScopeFingerprint: "tenant-and-audience-fingerprint",
+    client: assetClient,
+    signal: AbortSignal.timeout(5_000),
+    limits: {
+      maxRequests: 2,
+      maxRangeBytes: 512 * 1024,
+      maxTotalBytes: 1024 * 1024,
+      maxDecompressedBytes: 4 * 1024 * 1024,
+    },
+  });
+  console.log(inspection.metadata.tileKind, inspection.metadata.transfer.ranges);
 }
 ```
+
+Inspection proves the archive header, metadata, cache validator, and exact HTTP ranges. A returned renderer descriptor is not proof that tiles were painted. Use the separate [`pmtiles-static`](../../examples/pmtiles-static/README.md) project for the real MapLibre `pmtiles://` renderer workflow.
 
 Direct GeoParquet work uses the bounded columnar session rather than the lower-level profiler:
 

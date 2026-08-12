@@ -1,20 +1,38 @@
+import { HonuaClient } from "@honua/sdk-js/honua";
 import type { DynamicStacClient, DynamicStacClientOptions, HonuaStacItemResponse } from "@honua/sdk-js/stac";
 
 export const FIXTURE_STAC_ROOT = "https://stac.fixture.honua.test/v1";
 export const MAUI_COLLECTION_ID = "sentinel-2-l2a";
+export const PMTILES_AUTHORIZATION_SCOPE = "fixture:maui:pmtiles";
+export const PMTILES_INSPECTION_LIMITS = Object.freeze({
+  maxRequests: 1,
+  maxRangeBytes: 16 * 1024,
+  maxTotalBytes: 16 * 1024,
+  maxDecompressedBytes: 4 * 1024,
+});
+
+const FIXTURE_BEARER_TOKEN = "maui-fixture-bearer-token";
+const PMTILES_ETAG = '"maui-pmtiles-v3"';
+const PMTILES_VIRTUAL_BYTES = 64 * 1024;
+const PMTILES_FIXTURE_BASE64 =
+  "UE1UaWxlcwN/AAAAAAAAABkAAAAAAAAAmAAAAAAAAADIAAAAAAAAAGABAAAAAAAAAAAAAAAAAABgAQAAAAAAABQAAAAAAAAAAQAAAAAAAAABAAAAAAAAAAEAAAAAAAAAAQICAQAFACyRtoDADRZAkpS3gNvEFgMg3xK3AE5pFh+LCAAAAAAAAANjZGAUYQQAWVMpowUAAAAfiwgAAAAAAAADjY+xSgRBEER/ZahIYQITk/kCA4VDzY5D2p2+o2Gme5mePW5d9t/luMVEBLMKXtWjFihVRsKT6URh9/IuhT041bFwuDvz0K3dI6LP4xWzM7dCMyKo9yafUxfTP+qIuPU/Cs3cHGm/QDISCmme/Apk9qHJuK08k+YwOYfRynwydURU0S+zivQQUelyy48RR+GSHWnBUMgdCW+9iZ6wrnHTNKPsvySvRjkMrJ1bEeX/Obb7P4rD+g3ykNp3OgEAAB+LCAAAAAAAAAMDAAAAAAAAAAAA";
 
 export interface StacFixtureTrace {
-  readonly stage: "request" | "sign" | "cancel";
-  readonly method: "GET" | "POST" | "SIGN" | "ABORT";
+  readonly stage: "request" | "sign" | "range" | "cancel";
+  readonly method: "GET" | "POST" | "SIGN" | "RANGE" | "ABORT";
   readonly url: string;
   readonly body?: Readonly<Record<string, unknown>>;
   readonly assetKey?: string;
+  readonly range?: string;
+  readonly status?: number;
+  readonly authorization?: "none" | "[redacted]";
 }
 
 export interface StacFixtureEnvironment {
   readonly stac: DynamicStacClient;
   readonly trace: StacFixtureTrace[];
   readonly fetchAsset: typeof fetch;
+  createAssetClient(endpoint: string): HonuaClient;
   resetTrace(): void;
   setTraceScope(signal: AbortSignal, scope: number): void;
   traceForScope(scope: number): StacFixtureTrace[];
@@ -22,6 +40,7 @@ export interface StacFixtureEnvironment {
 
 export interface StacFixtureOptions {
   readonly assetDelayMs?: number;
+  readonly pmtilesDelayMs?: number;
   readonly pageDelayMs?: number;
   readonly pages?: readonly (readonly HonuaStacItemResponse[])[];
 }
@@ -82,15 +101,26 @@ export function createStacFixtureEnvironment(
   };
   const pages = options.pages ?? [MAUI_ITEMS.slice(0, 2), MAUI_ITEMS.slice(2)];
   const assetDelayMs = options.assetDelayMs ?? 0;
-  const fetchAsset = createFixtureFetch(recordTrace, resolveTraceScope, assetDelayMs, options.pageDelayMs ?? 80, pages);
+  const fetchAsset = createFixtureFetch(
+    recordTrace,
+    resolveTraceScope,
+    assetDelayMs,
+    options.pmtilesDelayMs ?? assetDelayMs,
+    options.pageDelayMs ?? 80,
+    pages,
+  );
   const stac = createClient({
     baseUrl: FIXTURE_STAC_ROOT,
-    clientOptions: { fetchFn: fetchAsset },
+    clientOptions: {
+      fetchFn: fetchAsset,
+      auth: { getCredentials: () => ({ bearerToken: FIXTURE_BEARER_TOKEN }) },
+    },
     refreshAssetUrl: async ({ assetKey, asset, signal }) => {
       const traceScope = resolveTraceScope(signal);
       await abortableDelay(assetDelayMs, signal, recordTrace, traceScope, new URL(asset.href, FIXTURE_STAC_ROOT));
       if (signal?.aborted) throw new DOMException("aborted", "AbortError");
       recordTrace({ stage: "sign", method: "SIGN", url: asset.href, assetKey }, traceScope);
+      if (assetKey === "tiles") return asset.href.replace("/assets/", "/assets/signed/maui-v3/");
       return `${asset.href}${asset.href.includes("?") ? "&" : "?"}signed=fixture`;
     },
   });
@@ -98,6 +128,13 @@ export function createStacFixtureEnvironment(
     stac,
     trace,
     fetchAsset,
+    createAssetClient(endpoint) {
+      return new HonuaClient({
+        baseUrl: new URL(endpoint).origin,
+        fetchFn: fetchAsset,
+        auth: { getCredentials: () => ({ bearerToken: FIXTURE_BEARER_TOKEN }) },
+      });
+    },
     resetTrace() {
       trace.length = 0;
     },
@@ -122,6 +159,7 @@ function createFixtureFetch(
   recordTrace: (entry: StacFixtureTrace, scope?: number) => void,
   resolveTraceScope: (signal: AbortSignal | null | undefined) => number,
   assetDelayMs: number,
+  pmtilesDelayMs: number,
   pageDelayMs: number,
   pages: readonly (readonly HonuaStacItemResponse[])[],
 ): typeof fetch {
@@ -132,7 +170,8 @@ function createFixtureFetch(
     const body = parseBody(init?.body);
     const signal = init?.signal ?? request?.signal;
     const traceScope = resolveTraceScope(signal);
-    recordTrace({ stage: "request", method, url: url.href, ...(body ? { body } : {}) }, traceScope);
+    const traceUrl = redactedTraceUrl(url);
+    recordTrace({ stage: "request", method, url: traceUrl, ...(body ? { body } : {}) }, traceScope);
 
     if (url.pathname.endsWith("/v1") || url.pathname.endsWith("/v1/")) {
       return Response.json({
@@ -195,6 +234,46 @@ function createFixtureFetch(
       return new Response(previewPng(), {
         status: 200,
         headers: { "content-type": "image/png" },
+      });
+    }
+
+    if (url.pathname.includes("/assets/") && url.pathname.endsWith(".pmtiles")) {
+      const headers = mergedRequestHeaders(request, init);
+      const range = headers.get("range");
+      const authorization = headers.get("authorization");
+      if (!url.pathname.includes("/assets/signed/maui-v3/") || authorization !== `Bearer ${FIXTURE_BEARER_TOKEN}`) {
+        return Response.json({ message: "Fixture asset authorization required." }, { status: 401 });
+      }
+      const match = /^bytes=(\d+)-(\d+)$/u.exec(range ?? "");
+      if (!match) return Response.json({ message: "An exact PMTiles byte range is required." }, { status: 416 });
+      const start = Number(match[1]);
+      const end = Number(match[2]);
+      const fixture = pmtilesFixture();
+      if (start < 0 || end < start || end >= fixture.byteLength) {
+        return Response.json({ message: "PMTiles byte range is outside the fixture." }, { status: 416 });
+      }
+      await abortableDelay(pmtilesDelayMs, signal, recordTrace, traceScope, url);
+      const responseBytes = fixture.slice(start, end + 1);
+      recordTrace(
+        {
+          stage: "range",
+          method: "RANGE",
+          url: traceUrl,
+          range: range ?? undefined,
+          status: 206,
+          authorization: "[redacted]",
+        },
+        traceScope,
+      );
+      return new Response(responseBytes, {
+        status: 206,
+        headers: {
+          "accept-ranges": "bytes",
+          "content-length": String(responseBytes.byteLength),
+          "content-range": `bytes ${start}-${end}/${fixture.byteLength}`,
+          "content-type": "application/vnd.pmtiles",
+          etag: PMTILES_ETAG,
+        },
       });
     }
 
@@ -291,17 +370,47 @@ async function abortableDelay(
   traceScope: number,
   url: URL,
 ): Promise<void> {
+  if (signal?.aborted) {
+    recordTrace({ stage: "cancel", method: "ABORT", url: redactedTraceUrl(url) }, traceScope);
+    throw new DOMException("aborted", "AbortError");
+  }
   if (delayMs <= 0) return;
   await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(resolve, delayMs);
+    const done = () => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const timer = setTimeout(done, delayMs);
     const abort = () => {
       clearTimeout(timer);
-      recordTrace({ stage: "cancel", method: "ABORT", url: url.href }, traceScope);
+      signal?.removeEventListener("abort", abort);
+      recordTrace({ stage: "cancel", method: "ABORT", url: redactedTraceUrl(url) }, traceScope);
       reject(new DOMException("aborted", "AbortError"));
     };
-    if (signal?.aborted) abort();
-    else signal?.addEventListener("abort", abort, { once: true });
+    signal?.addEventListener("abort", abort, { once: true });
   });
+}
+
+function mergedRequestHeaders(request: Request | undefined, init: RequestInit | undefined): Headers {
+  const headers = new Headers(request?.headers);
+  new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
+  return headers;
+}
+
+function redactedTraceUrl(input: URL): string {
+  const url = new URL(input);
+  url.pathname = url.pathname.replace("/assets/signed/maui-v3/", "/assets/signed/REDACTED/");
+  for (const name of ["signed", "sig", "signature", "access_token"]) {
+    if (url.searchParams.has(name)) url.searchParams.set(name, "[redacted]");
+  }
+  return url.href;
+}
+
+function pmtilesFixture(): Uint8Array<ArrayBuffer> {
+  const committed = Uint8Array.from(atob(PMTILES_FIXTURE_BASE64), (character) => character.charCodeAt(0));
+  const fixture = new Uint8Array(PMTILES_VIRTUAL_BYTES);
+  fixture.set(committed);
+  return fixture;
 }
 
 function previewPng(): Uint8Array<ArrayBuffer> {

@@ -86,15 +86,6 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
     },
   ],
   [
-    "stac-imagery-browser",
-    {
-      rendersNoMap: "A fixture-backed catalog browser: it previews footprints and assets, and mounts no map.",
-      state: "__HONUA_STAC_BROWSER__",
-      readyField: "ready",
-      features: { field: "loadedCount", atLeast: 1 },
-    },
-  ],
-  [
     "temporal-playback",
     {
       canvasSelector: ".maplibregl-canvas",

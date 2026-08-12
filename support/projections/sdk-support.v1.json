@@ -2128,7 +2128,7 @@
       "status": "experimental",
       "backendNeeded": "Any STAC API; executable assets additionally require the compatible PMTiles, COG, columnar, or runtime client surface",
       "api": "@honua/sdk-js/stac",
-      "notes": "Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable.",
+      "notes": "Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. The walkthrough executes authenticated, byte-bounded PMTiles v3 inspection with redacted range evidence, but does not mount the archive as a tile source; pmtiles-static remains renderer proof. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable.",
       "evidence": [
         "stac-workflow-fixtures",
         "stac-browser-product-fixtures",

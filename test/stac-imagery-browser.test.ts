@@ -5,8 +5,14 @@ import {
   MAUI_DATETIME,
   mauiSearchRequest,
 } from "../examples/stac-imagery-browser/src/dynamic-stac-example.js";
-import { MAUI_ITEMS, createStacFixtureEnvironment } from "../examples/stac-imagery-browser/src/fixtures.js";
+import {
+  MAUI_ITEMS,
+  PMTILES_AUTHORIZATION_SCOPE,
+  PMTILES_INSPECTION_LIMITS,
+  createStacFixtureEnvironment,
+} from "../examples/stac-imagery-browser/src/fixtures.js";
 import { HonuaAbortError } from "../src/core/errors.js";
+import { inspectPmtilesArchive } from "../src/pmtiles/index.js";
 import { createDynamicStacClient } from "../src/stac/index.js";
 
 describe("STAC imagery browser product evidence", () => {
@@ -61,6 +67,79 @@ describe("STAC imagery browser product evidence", () => {
       handoff: { kind: "cog", packageExport: "@honua/sdk-js/cog" },
     });
     expect(fixture.trace.filter((entry) => entry.stage === "sign").map((entry) => entry.assetKey)).toEqual(["visual"]);
+  });
+
+  it("inspects the signed PMTiles v3 descriptor with exact redacted range evidence", async () => {
+    const fixture = createStacFixtureEnvironment(createDynamicStacClient, { pageDelayMs: 0 });
+    const asset = await fixture.stac.selectAsset(MAUI_ITEMS[0]!, { assetKeys: ["tiles"] });
+
+    expect(asset.handoff).toMatchObject({ kind: "pmtiles", packageExport: "@honua/sdk-js/pmtiles" });
+    const inspection = await inspectPmtilesArchive({
+      endpoint: asset.href,
+      authorizationScopeFingerprint: PMTILES_AUTHORIZATION_SCOPE,
+      client: fixture.createAssetClient(asset.href),
+      limits: PMTILES_INSPECTION_LIMITS,
+    });
+
+    expect(inspection.metadata).toMatchObject({
+      specVersion: 3,
+      tileKind: "mvt",
+      transfer: { requests: 1, bytesFetched: 16 * 1024 },
+    });
+    expect(inspection.metadata.vectorLayers.map((layer) => layer.id)).toEqual(["landuse", "roads"]);
+    expect(inspection.metadata.transfer.ranges).toEqual([
+      {
+        offset: 0,
+        length: 16 * 1024,
+        bytesReceived: 16 * 1024,
+        status: 206,
+        contentRange: "bytes 0-16383/65536",
+        validator: 'etag:"maui-pmtiles-v3"',
+      },
+    ]);
+    const rangeTrace = fixture.trace.find((entry) => entry.stage === "range");
+    expect(rangeTrace).toMatchObject({
+      method: "RANGE",
+      range: "bytes=0-16383",
+      status: 206,
+      authorization: "[redacted]",
+    });
+    expect(new URL(rangeTrace?.url ?? "https://invalid.test").pathname).toContain("/assets/signed/REDACTED/");
+    expect(rangeTrace?.url).not.toContain("maui-v3");
+  });
+
+  it("cancels an in-flight signed PMTiles range and can inspect again", async () => {
+    const fixture = createStacFixtureEnvironment(createDynamicStacClient, {
+      assetDelayMs: 0,
+      pmtilesDelayMs: 250,
+      pageDelayMs: 0,
+    });
+    const asset = await fixture.stac.selectAsset(MAUI_ITEMS[0]!, { assetKeys: ["tiles"] });
+    const controller = new AbortController();
+    const pending = inspectPmtilesArchive({
+      endpoint: asset.href,
+      authorizationScopeFingerprint: PMTILES_AUTHORIZATION_SCOPE,
+      client: fixture.createAssetClient(asset.href),
+      signal: controller.signal,
+      limits: PMTILES_INSPECTION_LIMITS,
+    });
+    await vi.waitFor(() =>
+      expect(
+        fixture.trace.some((entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".pmtiles")),
+      ).toBe(true),
+    );
+    controller.abort();
+
+    await expect(pending).rejects.toBeInstanceOf(HonuaAbortError);
+    expect(fixture.trace.some((entry) => entry.stage === "cancel" && entry.method === "ABORT")).toBe(true);
+
+    const recovered = await inspectPmtilesArchive({
+      endpoint: asset.href,
+      authorizationScopeFingerprint: PMTILES_AUTHORIZATION_SCOPE,
+      client: fixture.createAssetClient(asset.href),
+      limits: PMTILES_INSPECTION_LIMITS,
+    });
+    expect(recovered.metadata.specVersion).toBe(3);
   });
 
   it("cancels a pending relative page request", async () => {

@@ -187,6 +187,68 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
     );
     await expect(page.locator(".code-panel pre")).toContainText("createDynamicStacClient");
     await expect(page.locator("#handoff-list")).toContainText("@honua/sdk-js/raster");
+    await expect(page.locator("#handoff-list")).toContainText("@honua/sdk-js/pmtiles");
+
+    await page.evaluate(() => {
+      window.__STAC_PENDING_PMTILES__ = window.__HONUA_STAC_BROWSER__?.selectAsset(
+        "S2B_MAUI_20260502_WEST",
+        "tiles",
+      );
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.__HONUA_STAC_BROWSER__?.trace.some(
+            (entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".pmtiles"),
+          ),
+        ),
+      )
+      .toBe(true);
+    await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.cancelPagination());
+    await page.evaluate(async () => {
+      await window.__STAC_PENDING_PMTILES__;
+      delete window.__STAC_PENDING_PMTILES__;
+    });
+    await expect(page.locator("#page-state")).toContainText("cancelled");
+    expect(await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.trace.some((entry) => entry.stage === "cancel"))).toBe(
+      true,
+    );
+
+    await page.evaluate(async () => {
+      await window.__HONUA_STAC_BROWSER__?.search("POST");
+      await window.__HONUA_STAC_BROWSER__?.selectAsset("S2B_MAUI_20260502_WEST", "tiles");
+    });
+    await expect(page.locator("#handoff-state")).toContainText("pmtiles is ready for @honua/sdk-js/pmtiles");
+    await expect(page.locator("#asset-inspection")).toContainText("PMTiles v3 / MVT");
+    await expect(page.locator("#asset-inspection")).toContainText("206 bytes 0-16383/65536");
+    const pmtilesProof = await page.evaluate(() => {
+      const inspection = window.__HONUA_STAC_BROWSER__?.pmtilesInspection;
+      const range = window.__HONUA_STAC_BROWSER__?.trace.find((entry) => entry.stage === "range");
+      return {
+        specVersion: inspection?.metadata.specVersion,
+        requests: inspection?.metadata.transfer.requests,
+        bytesFetched: inspection?.metadata.transfer.bytesFetched,
+        range: range?.range,
+        status: range?.status,
+        authorization: range?.authorization,
+        signedTracePath: range ? new URL(range.url).pathname : undefined,
+        imageSource: window.__HONUA_STAC_BROWSER__?.mapImageSourceActive,
+        footprintSource: window.__HONUA_STAC_BROWSER__?.mapFootprintSourceActive,
+      };
+    });
+    expect(pmtilesProof).toEqual({
+      specVersion: 3,
+      requests: 1,
+      bytesFetched: 16 * 1024,
+      range: "bytes=0-16383",
+      status: 206,
+      authorization: "[redacted]",
+      signedTracePath:
+        "/v1/collections/sentinel-2-l2a/items/assets/signed/REDACTED/maui.pmtiles",
+      imageSource: false,
+      footprintSource: false,
+    });
+
     expect(pageErrors).toEqual([]);
     expect(consoleErrors).toEqual([]);
     expect(failedRequests).toEqual([]);

@@ -9,7 +9,11 @@ const repoRoot = path.resolve(exampleRoot, "../..");
 export default defineConfig({
   root: exampleRoot,
   resolve: {
-    alias: [{ find: "@honua/sdk-js/stac", replacement: path.resolve(repoRoot, "src/stac/index.ts") }],
+    alias: [
+      { find: "@honua/sdk-js/honua", replacement: path.resolve(repoRoot, "src/honua.ts") },
+      { find: "@honua/sdk-js/pmtiles", replacement: path.resolve(repoRoot, "src/pmtiles/index.ts") },
+      { find: "@honua/sdk-js/stac", replacement: path.resolve(repoRoot, "src/stac/index.ts") },
+    ],
   },
   server: {
     host: "127.0.0.1",

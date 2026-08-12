@@ -423,18 +423,18 @@
     {
       "id": "stac-imagery-browser",
       "title": "STAC imagery browser",
-      "summary": "Searches Maui imagery by bounds and time, renders a selected preview, and exposes typed cloud-native handoffs.",
+      "summary": "Searches Maui imagery by bounds and time, renders a selected preview, and inspects a signed PMTiles v3 handoff.",
       "tier": "advanced",
       "supportStatus": "experimental",
       "disposition": { "decision": "merge", "reason": "Retain as the dynamic STAC Walkthrough, with one atomic bounded-search Example kept in the project source." },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
       "capabilities": ["cancellation", "cog", "geoparquet", "imagery", "pmtiles", "raster", "stac"],
-      "protocols": ["stac"],
+      "protocols": ["pmtiles", "stac"],
       "renderers": ["maplibre"],
-      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed deterministic Maui STAC API responses and preview bytes; no live service claim.", "attribution": "Honua synthetic Maui product-evidence fixture.", "freshness": "Pinned April-May 2026 fixture observations." },
+      "data": { "mode": "fixture", "authMode": "none", "config": [], "provenance": "Committed deterministic Maui STAC API responses, preview bytes, and an exact PMTiles v3 range fixture; no live service claim.", "attribution": "Honua synthetic Maui product-evidence fixture.", "freshness": "Pinned April-May 2026 fixture observations." },
       "lanes": { "fixture": { "status": "executed", "commands": ["npm run demo:stac-browser:build", "npm run test:playwright:stac-browser"] }, "live": { "status": "planned", "commands": [] } },
-      "expectedDegradation": "Unsupported or metadata-only assets remain visible without a handoff, signing is skipped for filtered assets, and cancellation remains explicit.",
+      "expectedDegradation": "Unsupported or metadata-only assets remain visible without a handoff, signing is skipped for filtered assets, and cancelled or failed PMTiles inspection never becomes a tile-rendering claim.",
       "validation": ["npm run demo:stac-browser:typecheck", "npm run demo:stac-browser:build", "npm run test:playwright:stac-browser"]
     },
     {
