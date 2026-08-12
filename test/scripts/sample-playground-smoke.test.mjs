@@ -141,7 +141,7 @@ describe("playground smoke expectations", () => {
   });
 
   it("falls back to the declared floor when the sample publishes its own count", () => {
-    const journey = PLAYGROUND_SMOKE_JOURNEYS.get("stac-imagery-browser");
+    const journey = { features: { field: "featureCount", atLeast: 1 } };
     assert.deepEqual(expectedFeatures(journey, undefined), { count: 1, expectation: "atLeast" });
   });
 
