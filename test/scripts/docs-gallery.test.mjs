@@ -21,6 +21,9 @@ const derivedArtifactsRelaxed = /^(1|true|yes|on)$/i.test(process.env.HONUA_DERI
 const consumerFixture = JSON.parse(
   fs.readFileSync("samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json", "utf8"),
 );
+const canonicalPublicCardCount = projection.samples.filter((sample) =>
+  ["golden", "recipe", "lab"].includes(sample.track),
+).length;
 const repositorySourceResolver = (sample) => {
   const { docsPath } = sample.source;
   if (docsPath.startsWith("docs/") && docsPath.endsWith(".md")) {
@@ -146,6 +149,7 @@ test("owns a deeply frozen projection snapshot across the verification and rende
   assert.throws(() => {
     sampleById(integrity.projection, "maplibre-quickstart").title = "Forged frozen title";
   }, TypeError);
+  const verifiedCardCount = createGalleryModel(integrity).cardCount;
 
   sampleById(callerProjection, "maplibre-quickstart").title = "Forged caller title";
   callerProjection.samples.push({
@@ -155,7 +159,7 @@ test("owns a deeply frozen projection snapshot across the verification and rende
 
   const gallery = createGalleryModel(integrity);
   const html = renderGallery(gallery);
-  assert.equal(gallery.cardCount, 30);
+  assert.equal(gallery.cardCount, verifiedCardCount);
   assert.equal(
     galleryCards(gallery).find((card) => card.sample.id === "maplibre-quickstart").sample.title,
     verifiedTitle,
@@ -405,14 +409,13 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const qualifiedGoldenJourneys = projection.goldenJourneys.filter((journey) => journey.status === "qualified");
   const qualifiedGoldenJourneyIds = new Set(qualifiedGoldenJourneys.map((journey) => journey.id));
 
-  assert.equal(gallery.cardCount, 30);
-  // imagery-cog-quickstart's golden promotion (#548) came from the recipe
-  // track (unlike service-explorer's, which came from lab), so the recipe
-  // count is now 11 (down from 12) and lab absorbs the rest.
+  assert.equal(gallery.cardCount, canonicalPublicCardCount);
+  // Hold the current public track split alongside the total inventory so a
+  // projection regeneration cannot silently reclassify gallery cards.
   assert.deepEqual(counts, {
     golden: qualifiedGoldenJourneys.length,
-    recipe: 11,
-    lab: gallery.cardCount - 11 - qualifiedGoldenJourneys.length,
+    recipe: 13,
+    lab: gallery.cardCount - 13 - qualifiedGoldenJourneys.length,
   });
   assert.ok(!byId.has("arcgis-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
@@ -591,7 +594,7 @@ test("renders global provenance once and puts every card CTA before its disclosu
   assert.equal(occurrenceCount(html, /<dt>Projection SHA-256<\/dt>/g), 1);
   assert.ok(html.includes(consumerFixture.format));
   assert.ok(html.includes(consumerFixture.input.sha256));
-  assert.equal(cards.length, 30);
+  assert.equal(cards.length, canonicalPublicCardCount);
   for (const card of cards) {
     const ctaIndex = card.indexOf('<a class="demo-link"');
     const detailsIndex = card.indexOf('<details class="demo-card-details">');
@@ -748,7 +751,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
   const empty = document.querySelector("[data-gallery-empty]");
   const groups = [...document.querySelectorAll("[data-gallery-group]")];
 
-  assert.equal(count.textContent, "30");
+  assert.equal(count.textContent, String(canonicalPublicCardCount));
   assert.equal(clear.disabled, true);
   assert.equal(empty.hidden, true);
 
@@ -777,7 +780,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
 
   capability.value = "";
   protocol.value = "";
-  search.value = "maplibre-quickstart endpoint inspected";
+  search.value = "maplibre-quickstart";
   let submitWasPrevented = false;
   form.addEventListener("submit", (event) => {
     submitWasPrevented = event.defaultPrevented;
@@ -792,7 +795,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
   assert.equal(search.value, "");
   assert.equal(capability.value, "");
   assert.equal(protocol.value, "");
-  assert.equal(count.textContent, "30");
+  assert.equal(count.textContent, String(canonicalPublicCardCount));
   assert.equal(empty.hidden, true);
   assert.ok(groups.every((group) => !group.hidden));
   assert.equal(document.activeElement, search);

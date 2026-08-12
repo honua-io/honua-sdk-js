@@ -86,8 +86,8 @@ fixture routes that are **not inside the bundle** (the sample's
 as runnable unless the embedding host also serves its `hostFixtureRoutes`;
 `samples/dist/honua-site-samples.v3.json`'s `sampleBundles.published[]` carries
 the same fields, including `requires-live-endpoint`, so a gallery card can say
-so without fetching the bundle manifest. The frozen v2 projection and v1
-handoff remain available for existing consumers.
+so without fetching the bundle manifest. Rolling v2/v1 compatibility
+projections remain available for existing consumers.
 
 This closes a real overstatement: `maplibre-quickstart` has been published
 since honua-io/honua-sdk-js#642 with an undeclared prerequisite of exactly this
@@ -358,10 +358,11 @@ qualified receipt, on every trunk push.
 
 ### Frozen legacy evidence archive
 
-The frozen v1 site handoff is validated with
+The historical v1 site handoff snapshot is validated with
 `honua-site-consumer-legacy-receipts.v2.json`. This additive archive leaves the
-v1 receipt archive and handoff byte-for-byte unchanged, while making historical
-validation independent of the mutable evidence tree and Git history. V2 embeds
+v1 receipt archive and snapshot byte-for-byte unchanged, while the public v1
+compatibility handoff is regenerated from current sealed inputs. Historical
+validation remains independent of the mutable evidence tree and Git history. V2 embeds
 the exact receipt reports, screenshots, packed SDK tarballs and declared sample
 dist files, live evidence, and live producer sources that `validateGateReceipt`
 rehashes. It deliberately excludes unrelated files from the old run roots.
@@ -379,9 +380,11 @@ duplicate, escaped, cross-run, stale, oversized, and decompression-bomb content.
 
 Git is permitted only in the explicit one-time capture command
 `npm run samples:archive-legacy-visual-receipts`, which resolves the already
-content-addressed historical bytes before writing v2. Normal `samples:verify`,
+content-addressed historical bytes from
+`honua-site-consumer-handoff.legacy.v1.json` before writing v2. Normal
+`samples:verify`,
 source-extract, shallow-clone, and package validation reads only the committed
-v2 archive and never invokes Git for frozen evidence.
+snapshot and v2 archive and never invokes Git for frozen evidence.
 
 Instead, `.github/workflows/ci.yml`:
 
@@ -418,9 +421,9 @@ card's prerequisites, and explain every un-bundled card, without guessing a
 path, a prerequisite, or a reason.
 
 `sampleBundles.excluded` and `sampleBundles.published` remain optional in the
-projection schemas for compatibility. The committed v2 projection, v1
-handoff, and v3 consumer fixture remain byte-bound legacy artifacts; current
-generation emits the additive v3 projection, v2 handoff, and v4 fixture.
+projection schemas for compatibility. Current generation emits a v2
+compatibility projection, rolling v1 handoff, and v3 consumer fixture alongside
+the additive v3 projection, v2 handoff, and v4 fixture.
 
 ## Remaining scope
 

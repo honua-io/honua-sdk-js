@@ -1264,9 +1264,13 @@ describe("sample publication contract", () => {
     expect(bumpedProjection.catalog.version).toBe(bumpedVersion);
     expect(bumpedProjection.samples[0].sdk.version).toBe(bumpedVersion);
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
+      "samples/dist/honua-site-samples.v2.json",
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     ]);
 
@@ -1278,16 +1282,20 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(currentOutputs, semanticDrift)).toEqual(["docs/generated/sample-catalog.md"]);
 
     const integrityDrift = new Map(currentOutputs);
-    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json";
+    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
     const consumerFixture = JSON.parse(currentOutputs.get(fixturePath)!);
     consumerFixture.input.sha256 = "0".repeat(64);
     integrityDrift.set(fixturePath, `${JSON.stringify(consumerFixture, null, 2)}\n`);
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
+      "samples/dist/honua-site-samples.v2.json",
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
       fixturePath,
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
