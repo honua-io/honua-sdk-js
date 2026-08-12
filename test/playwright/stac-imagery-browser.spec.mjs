@@ -16,6 +16,15 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
 
   const server = await startStacBrowserFixtureServer();
   try {
+    await page.addInitScript(() => {
+      const revokedObjectUrls = [];
+      const revokeObjectUrl = URL.revokeObjectURL.bind(URL);
+      Object.defineProperty(window, "__STAC_REVOKED_OBJECT_URLS__", { value: revokedObjectUrls });
+      URL.revokeObjectURL = (url) => {
+        revokedObjectUrls.push(String(url));
+        revokeObjectUrl(url);
+      };
+    });
     await page.goto(server.url);
     await expect.poll(async () => page.evaluate(() => window.__HONUA_STAC_BROWSER__?.ready === true)).toBe(true);
 
@@ -26,6 +35,100 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
     await expect(page.locator("#item-metadata")).toContainText("None required");
     await expect(page.locator("#asset-preview")).toBeVisible();
     await expect(page.locator("#asset-preview")).toHaveAttribute("src", /^blob:/);
+
+    const pngToPmtiles = await page.evaluate(async () => {
+      const runtime = window.__HONUA_STAC_BROWSER__;
+      const itemId = runtime?.selectedItemId ?? "";
+      const initialPreviewUrl = document.querySelector("#asset-preview")?.getAttribute("src") ?? "";
+      const older = runtime?.selectAsset(itemId, "preview");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const newer = runtime?.selectAsset(itemId, "tiles");
+      const clearedSynchronously =
+        document.querySelector("#asset-preview")?.hasAttribute("src") === false &&
+        runtime?.mapSelectionSourceIds.length === 0 &&
+        runtime?.mapSelectionLayerIds.length === 0;
+      await Promise.all([older, newer]);
+      return {
+        initialPreviewUrl,
+        clearedSynchronously,
+        selectedAssetKey: runtime?.selectedAssetKey,
+        selectedAssetFormat: runtime?.selectedAssetFormat,
+        sourceIds: runtime?.mapSelectionSourceIds,
+        layerIds: runtime?.mapSelectionLayerIds,
+        inspectionVersion: runtime?.pmtilesInspection?.metadata.specVersion,
+        trace: runtime?.trace ?? [],
+        previewSrc: document.querySelector("#asset-preview")?.getAttribute("src") ?? "",
+        revokedObjectUrls: window.__STAC_REVOKED_OBJECT_URLS__,
+      };
+    });
+    expect(pngToPmtiles.clearedSynchronously).toBe(true);
+    expect(pngToPmtiles.selectedAssetKey).toBe("tiles");
+    expect(pngToPmtiles.selectedAssetFormat).toBe("pmtiles");
+    expect(pngToPmtiles.sourceIds).toEqual([]);
+    expect(pngToPmtiles.layerIds).toEqual([]);
+    expect(pngToPmtiles.previewSrc).toBe("");
+    expect(pngToPmtiles.inspectionVersion).toBe(3);
+    expect(
+      pngToPmtiles.trace.filter((entry) => entry.stage === "sign").map((entry) => entry.assetKey),
+    ).toEqual(["tiles"]);
+    expect(pngToPmtiles.trace.some((entry) => entry.stage === "range")).toBe(true);
+    expect(JSON.stringify(pngToPmtiles.trace)).not.toContain("fixture-stac-bearer-token");
+    expect(pngToPmtiles.revokedObjectUrls).toContain(pngToPmtiles.initialPreviewUrl);
+
+    await page.evaluate(() => {
+      const runtime = window.__HONUA_STAC_BROWSER__;
+      window.__STAC_OLDER_SELECTION__ = runtime?.selectAsset(runtime.selectedItemId, "tiles");
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (window.__HONUA_STAC_BROWSER__?.trace ?? []).some(
+            (entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".pmtiles"),
+          ),
+        ),
+      )
+      .toBe(true);
+    const pmtilesToPng = await page.evaluate(async () => {
+      const runtime = window.__HONUA_STAC_BROWSER__;
+      const newer = runtime?.selectAsset(runtime.selectedItemId, "preview");
+      const clearedSynchronously =
+        runtime?.pmtilesInspection === undefined &&
+        runtime?.mapSelectionSourceIds.length === 0 &&
+        runtime?.mapSelectionLayerIds.length === 0;
+      await Promise.all([window.__STAC_OLDER_SELECTION__, newer]);
+      delete window.__STAC_OLDER_SELECTION__;
+      const previewSrc = document.querySelector("#asset-preview")?.getAttribute("src") ?? "";
+      return {
+        clearedSynchronously,
+        selectedAssetKey: runtime?.selectedAssetKey,
+        selectedAssetFormat: runtime?.selectedAssetFormat,
+        sourceIds: runtime?.mapSelectionSourceIds,
+        layerIds: runtime?.mapSelectionLayerIds,
+        trace: runtime?.trace ?? [],
+        previewSrc,
+        previewWasRevoked: window.__STAC_REVOKED_OBJECT_URLS__.includes(previewSrc),
+      };
+    });
+    expect(pmtilesToPng.clearedSynchronously).toBe(true);
+    expect(pmtilesToPng.selectedAssetKey).toBe("preview");
+    expect(pmtilesToPng.selectedAssetFormat).toBe("raster");
+    expect(pmtilesToPng.sourceIds).toEqual(["selected-stac-image", "selected-stac-footprint"]);
+    expect(pmtilesToPng.layerIds).toEqual([
+      "selected-stac-image-raster",
+      "selected-stac-footprint-fill",
+      "selected-stac-footprint-line",
+    ]);
+    expect(pmtilesToPng.previewSrc).toMatch(/^blob:/);
+    expect(pmtilesToPng.previewWasRevoked).toBe(false);
+    expect(
+      pmtilesToPng.trace.filter((entry) => entry.stage === "sign").map((entry) => entry.assetKey),
+    ).toEqual(["preview"]);
+    expect(pmtilesToPng.trace.some((entry) => entry.stage === "range")).toBe(false);
+    expect(
+      pmtilesToPng.trace.some(
+        (entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".pmtiles"),
+      ),
+    ).toBe(false);
     await expect(page.locator("#imagery-map canvas")).toBeVisible();
     expect(
       await page.evaluate(() => ({
@@ -170,16 +273,17 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
     );
 
     await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.search("POST"));
-    const signedBefore = await page.evaluate(
-      () => window.__HONUA_STAC_BROWSER__?.trace.filter((entry) => entry.stage === "sign").length,
-    );
     await page.evaluate(() =>
       window.__HONUA_STAC_BROWSER__?.selectAsset("S2B_MAUI_20260502_WEST", "metadata"),
     );
     await expect(page.locator("#handoff-state")).toContainText("no executable SDK handoff");
     expect(
-      await page.evaluate(() => window.__HONUA_STAC_BROWSER__?.trace.filter((entry) => entry.stage === "sign").length),
-    ).toBe(signedBefore);
+      await page.evaluate(() =>
+        window.__HONUA_STAC_BROWSER__?.trace
+          .filter((entry) => entry.stage === "sign")
+          .map((entry) => entry.assetKey),
+      ),
+    ).toEqual([]);
 
     await expect(page.getByRole("link", { name: "Open the complete project" })).toHaveAttribute(
       "href",

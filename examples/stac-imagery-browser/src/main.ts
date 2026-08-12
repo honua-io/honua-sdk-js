@@ -23,9 +23,13 @@ declare global {
       readonly loadedCount: number;
       readonly paginationStatus: string;
       readonly selectedItemId?: string;
+      readonly selectedAssetKey?: string;
+      readonly selectedAssetFormat?: string;
       readonly mapReady: boolean;
       readonly mapImageSourceActive: boolean;
       readonly mapFootprintSourceActive: boolean;
+      readonly mapSelectionSourceIds: readonly string[];
+      readonly mapSelectionLayerIds: readonly string[];
       readonly mappedItemId?: string;
       readonly mappedCoordinates?: readonly (readonly [number, number])[];
       readonly pmtilesInspection?: PmtilesArchiveInspection;
@@ -34,6 +38,7 @@ declare global {
       loadNext(): Promise<void>;
       cancelPagination(): void;
       selectAsset(itemId: string, assetKey?: string): Promise<void>;
+      dispose(): void;
     };
   }
 }
@@ -62,6 +67,9 @@ const map = new maplibregl.Map({
 let searchMethod: StacSearchMethod = "POST";
 let searchGeneration = 0;
 let abortController: AbortController | undefined;
+let assetSelectionEpoch = 0;
+let assetAbortController: AbortController | undefined;
+let disposed = false;
 let pageIterator: AsyncGenerator<readonly HonuaStacItemResponse[]> | undefined;
 let items: HonuaStacItemResponse[] = [];
 let paginationStatus = "idle";
@@ -229,7 +237,7 @@ function renderPmtilesInspection(): void {
 
 function renderTrace(): void {
   element<HTMLElement>("#network-log").textContent = environment
-    .traceForScope(searchGeneration)
+    .traceForScope(searchGeneration, assetSelectionEpoch)
     .map((entry) => {
       const url = new URL(entry.url, "https://fixture.invalid");
       const detail = entry.assetKey ? ` ${entry.assetKey}` : "";
@@ -263,7 +271,49 @@ function clearMapSelection(): void {
   delete element<HTMLElement>("#imagery-map").dataset.selectedItemId;
 }
 
-async function renderMapSelection(objectUrl: string, item: HonuaStacItemResponse): Promise<void> {
+interface AssetSelectionContext {
+  readonly generation: number;
+  readonly epoch: number;
+  readonly controller: AbortController;
+}
+
+function isCurrentAssetSelection(selection: AssetSelectionContext): boolean {
+  return (
+    !disposed &&
+    selection.generation === searchGeneration &&
+    selection.epoch === assetSelectionEpoch &&
+    assetAbortController === selection.controller &&
+    !selection.controller.signal.aborted
+  );
+}
+
+function abortCurrentAssetSelection(clearState = true): void {
+  assetAbortController?.abort();
+  assetAbortController = undefined;
+  if (clearState) {
+    clearAssetPreview();
+    selectedAsset = undefined;
+  }
+}
+
+function beginAssetSelection(generation: number): AssetSelectionContext {
+  assetAbortController?.abort();
+  assetSelectionEpoch += 1;
+  const controller = new AbortController();
+  assetAbortController = controller;
+  environment.setTraceScope(controller.signal, generation);
+  environment.setTraceSelection(controller.signal, assetSelectionEpoch);
+  clearAssetPreview();
+  selectedAsset = undefined;
+  return { generation, epoch: assetSelectionEpoch, controller };
+}
+
+async function renderMapSelection(
+  objectUrl: string,
+  item: HonuaStacItemResponse,
+  selection: AssetSelectionContext,
+): Promise<void> {
+  if (!isCurrentAssetSelection(selection)) return;
   const [xmin, ymin, xmax, ymax] = bbox(item).map(Number);
   const coordinates: [[number, number], [number, number], [number, number], [number, number]] = [
     [xmin, ymax],
@@ -311,87 +361,93 @@ async function renderMapSelection(objectUrl: string, item: HonuaStacItemResponse
     ],
     { duration: 0, padding: 42 },
   );
+  await Promise.race([
+    map.once("idle"),
+    new Promise<void>((resolve) =>
+      selection.controller.signal.addEventListener("abort", () => resolve(), { once: true }),
+    ),
+  ]);
+  if (!isCurrentAssetSelection(selection)) return;
   mappedItemId = String(item.id);
   mappedCoordinates = coordinates;
   element<HTMLElement>("#imagery-map").dataset.selectedItemId = mappedItemId;
-  await map.once("idle");
 }
 
 async function renderAssetPreview(
   asset: DynamicStacAssetDescriptor,
   item: HonuaStacItemResponse,
-  generation: number,
-  controller: AbortController,
+  selection: AssetSelectionContext,
 ): Promise<void> {
   if (asset.format !== "raster") return;
-  const response = await environment.fetchAsset(asset.href, { signal: controller.signal });
+  const response = await environment.fetchAsset(asset.href, { signal: selection.controller.signal });
   if (!response.ok) throw new Error(`Preview request failed with ${response.status}.`);
-  const objectUrl = URL.createObjectURL(await response.blob());
-  if (generation !== searchGeneration) {
+  if (!isCurrentAssetSelection(selection)) return;
+  const blob = await response.blob();
+  if (!isCurrentAssetSelection(selection)) return;
+  const objectUrl = URL.createObjectURL(blob);
+  if (!isCurrentAssetSelection(selection)) {
     URL.revokeObjectURL(objectUrl);
     return;
   }
-  clearAssetPreview();
   previewObjectUrl = objectUrl;
   const image = element<HTMLImageElement>("#asset-preview");
   image.src = previewObjectUrl;
-  image.alt = `${selectedItem ? title(selectedItem) : "Maui"} selected imagery asset`;
+  image.alt = `${title(item)} selected imagery asset`;
   image.hidden = false;
   await image.decode();
-  if (generation !== searchGeneration || controller.signal.aborted) return;
-  await renderMapSelection(objectUrl, item);
+  if (!isCurrentAssetSelection(selection)) return;
+  await renderMapSelection(objectUrl, item, selection);
 }
 
 async function inspectSelectedPmtiles(
   asset: DynamicStacAssetDescriptor,
-  generation: number,
-  controller: AbortController,
+  selection: AssetSelectionContext,
 ): Promise<void> {
   if (asset.format !== "pmtiles") return;
   const inspection = await inspectPmtilesArchive({
     endpoint: asset.href,
     authorizationScopeFingerprint: PMTILES_AUTHORIZATION_SCOPE,
     client: environment.createAssetClient(asset.href),
-    signal: controller.signal,
+    signal: selection.controller.signal,
     limits: PMTILES_INSPECTION_LIMITS,
   });
-  if (generation !== searchGeneration || controller.signal.aborted) return;
+  if (!isCurrentAssetSelection(selection)) return;
   pmtilesInspection = inspection;
 }
 
 async function selectAsset(itemId: string, assetKey = "preview"): Promise<void> {
   const generation = searchGeneration;
-  const controller = abortController;
-  if (!controller) return;
+  if (disposed || !abortController || abortController.signal.aborted) return;
+  const selection = beginAssetSelection(generation);
   const item = items.find((candidate) => String(candidate.id) === itemId);
   if (!item) return;
-  clearAssetPreview();
   selectedItem = item;
+  render();
   let candidates: readonly DynamicStacAssetDescriptor[];
   try {
     candidates = await environment.stac.assets(item, {
       assetKeys: [assetKey],
       formats: ["cog", "pmtiles", "geoparquet", "raster"],
-      signal: controller.signal,
+      signal: selection.controller.signal,
     });
   } catch (error) {
-    if (generation !== searchGeneration || controller.signal.aborted) return;
+    if (!isCurrentAssetSelection(selection)) return;
     throw error;
   }
-  if (generation !== searchGeneration) return;
+  if (!isCurrentAssetSelection(selection)) return;
   selectedAsset = candidates[0];
   render();
   try {
     if (selectedAsset?.format === "pmtiles") {
-      await inspectSelectedPmtiles(selectedAsset, generation, controller);
+      await inspectSelectedPmtiles(selectedAsset, selection);
     } else if (selectedAsset) {
-      await renderAssetPreview(selectedAsset, item, generation, controller);
+      await renderAssetPreview(selectedAsset, item, selection);
     }
   } catch (error) {
-    if (generation !== searchGeneration || controller.signal.aborted) return;
+    if (!isCurrentAssetSelection(selection)) return;
     throw error;
   }
-  if (generation !== searchGeneration) return;
+  if (!isCurrentAssetSelection(selection)) return;
   render();
 }
 
@@ -432,19 +488,19 @@ async function loadNextForGeneration(
 
 function cancelPagination(): void {
   abortController?.abort();
-  clearAssetPreview();
-  selectedAsset = undefined;
+  abortCurrentAssetSelection();
   paginationStatus = "cancelled";
   render();
 }
 
 async function runSearch(method: "GET" | "POST"): Promise<void> {
+  if (disposed) return;
   const generation = searchGeneration + 1;
   searchGeneration = generation;
   abortController?.abort();
+  abortCurrentAssetSelection();
   const controller = new AbortController();
   searchMethod = method;
-  clearAssetPreview();
   items = [];
   selectedItem = undefined;
   selectedAsset = undefined;
@@ -460,6 +516,18 @@ async function runSearch(method: "GET" | "POST"): Promise<void> {
   abortController = controller;
   pageIterator = iterator;
   await loadNextForGeneration(generation, iterator, controller);
+}
+
+function dispose(): void {
+  if (disposed) return;
+  disposed = true;
+  searchGeneration += 1;
+  abortController?.abort();
+  abortController = undefined;
+  abortCurrentAssetSelection();
+  if (pageIterator) void pageIterator.return(undefined);
+  pageIterator = undefined;
+  map.remove();
 }
 
 element<HTMLFormElement>("#search-form").addEventListener("submit", (event) => {
@@ -494,6 +562,12 @@ window.__HONUA_STAC_BROWSER__ = {
   get selectedItemId() {
     return selectedItem ? String(selectedItem.id) : undefined;
   },
+  get selectedAssetKey() {
+    return selectedAsset?.key;
+  },
+  get selectedAssetFormat() {
+    return selectedAsset?.format;
+  },
   get mapReady() {
     return mapReady;
   },
@@ -502,6 +576,14 @@ window.__HONUA_STAC_BROWSER__ = {
   },
   get mapFootprintSourceActive() {
     return map.getSource(FOOTPRINT_SOURCE_ID) !== undefined;
+  },
+  get mapSelectionSourceIds() {
+    return [IMAGE_SOURCE_ID, FOOTPRINT_SOURCE_ID].filter((id) => map.getSource(id) !== undefined);
+  },
+  get mapSelectionLayerIds() {
+    return [IMAGE_LAYER_ID, FOOTPRINT_FILL_LAYER_ID, FOOTPRINT_LINE_LAYER_ID].filter(
+      (id) => map.getLayer(id) !== undefined,
+    );
   },
   get mappedItemId() {
     return mappedItemId;
@@ -513,11 +595,13 @@ window.__HONUA_STAC_BROWSER__ = {
     return pmtilesInspection;
   },
   get trace() {
-    return environment.traceForScope(searchGeneration);
+    return environment.traceForScope(searchGeneration, assetSelectionEpoch);
   },
   search: runSearch,
   loadNext,
   cancelPagination,
   selectAsset,
+  dispose,
 };
+window.addEventListener("pagehide", dispose, { once: true });
 render();

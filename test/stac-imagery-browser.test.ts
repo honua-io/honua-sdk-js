@@ -142,6 +142,78 @@ describe("STAC imagery browser product evidence", () => {
     expect(recovered.metadata.specVersion).toBe(3);
   });
 
+  it("isolates rapid same-search PNG and PMTiles selection epochs", async () => {
+    const fixture = createStacFixtureEnvironment(createDynamicStacClient, {
+      assetDelayMs: 80,
+      pmtilesDelayMs: 160,
+      pageDelayMs: 0,
+    });
+    const item = MAUI_ITEMS[0]!;
+
+    const runSelection = async (
+      assetKey: "preview" | "tiles",
+      controller: AbortController,
+      epoch: number,
+    ): Promise<void> => {
+      fixture.setTraceScope(controller.signal, 41);
+      fixture.setTraceSelection(controller.signal, epoch);
+      const candidates = await fixture.stac.assets(item, {
+        assetKeys: [assetKey],
+        formats: ["pmtiles", "raster"],
+        signal: controller.signal,
+      });
+      const asset = candidates[0]!;
+      if (asset.format === "pmtiles") {
+        await inspectPmtilesArchive({
+          endpoint: asset.href,
+          authorizationScopeFingerprint: PMTILES_AUTHORIZATION_SCOPE,
+          client: fixture.createAssetClient(asset.href),
+          signal: controller.signal,
+          limits: PMTILES_INSPECTION_LIMITS,
+        });
+      } else {
+        const response = await fixture.fetchAsset(asset.href, { signal: controller.signal });
+        await response.arrayBuffer();
+      }
+    };
+
+    const oldPng = new AbortController();
+    const pngWork = runSelection("preview", oldPng, 1).catch((error) => error);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const currentPmtiles = new AbortController();
+    const pmtilesWork = runSelection("tiles", currentPmtiles, 2);
+    oldPng.abort();
+    await pmtilesWork;
+    expect((await pngWork).name).toContain("Abort");
+
+    const pmtilesTrace = fixture.traceForScope(41, 2);
+    expect(pmtilesTrace.filter((entry) => entry.stage === "sign").map((entry) => entry.assetKey)).toEqual(["tiles"]);
+    expect(pmtilesTrace.some((entry) => entry.stage === "range")).toBe(true);
+    expect(JSON.stringify(pmtilesTrace)).not.toContain("fixture-stac-bearer-token");
+
+    fixture.resetTrace();
+    const oldPmtiles = new AbortController();
+    const stalePmtilesWork = runSelection("tiles", oldPmtiles, 3).catch((error) => error);
+    await vi.waitFor(() => {
+      expect(
+        fixture.trace.some((entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".pmtiles")),
+      ).toBe(true);
+    });
+    const currentPng = new AbortController();
+    const currentPngWork = runSelection("preview", currentPng, 4);
+    oldPmtiles.abort();
+    await currentPngWork;
+    expect((await stalePmtilesWork).name).toContain("Abort");
+
+    const pngTrace = fixture.traceForScope(41, 4);
+    expect(pngTrace.filter((entry) => entry.stage === "sign").map((entry) => entry.assetKey)).toEqual(["preview"]);
+    expect(pngTrace.some((entry) => entry.stage === "request" && new URL(entry.url).pathname.endsWith(".png"))).toBe(
+      true,
+    );
+    expect(pngTrace.some((entry) => entry.stage === "range")).toBe(false);
+    expect(pngTrace.some((entry) => entry.stage === "cancel")).toBe(false);
+  });
+
   it("cancels a pending relative page request", async () => {
     const fixture = createStacFixtureEnvironment(createDynamicStacClient, { pageDelayMs: 250 });
     const controller = new AbortController();

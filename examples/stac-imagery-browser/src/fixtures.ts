@@ -35,7 +35,8 @@ export interface StacFixtureEnvironment {
   createAssetClient(endpoint: string): HonuaClient;
   resetTrace(): void;
   setTraceScope(signal: AbortSignal, scope: number): void;
-  traceForScope(scope: number): StacFixtureTrace[];
+  setTraceSelection(signal: AbortSignal, selection: number): void;
+  traceForScope(scope: number, selection?: number): StacFixtureTrace[];
 }
 
 export interface StacFixtureOptions {
@@ -87,7 +88,9 @@ export function createStacFixtureEnvironment(
 ): StacFixtureEnvironment {
   const trace: StacFixtureTrace[] = [];
   const traceScopes = new WeakMap<StacFixtureTrace, number>();
+  const traceSelections = new WeakMap<StacFixtureTrace, number>();
   const signalScopes = new WeakMap<AbortSignal, number>();
+  const signalSelections = new WeakMap<AbortSignal, number>();
   let activeTraceScope = 0;
   let lastAbortedTraceScope = 0;
   const resolveTraceScope = (signal: AbortSignal | null | undefined): number => {
@@ -95,15 +98,19 @@ export function createStacFixtureEnvironment(
     if (mappedScope !== undefined) return mappedScope;
     return signal?.aborted ? lastAbortedTraceScope : activeTraceScope;
   };
-  const recordTrace = (entry: StacFixtureTrace, scope = activeTraceScope): void => {
+  const resolveTraceSelection = (signal: AbortSignal | null | undefined): number | undefined =>
+    signal ? signalSelections.get(signal) : undefined;
+  const recordTrace = (entry: StacFixtureTrace, scope = activeTraceScope, selection?: number): void => {
     trace.push(entry);
     traceScopes.set(entry, scope);
+    if (selection !== undefined) traceSelections.set(entry, selection);
   };
   const pages = options.pages ?? [MAUI_ITEMS.slice(0, 2), MAUI_ITEMS.slice(2)];
   const assetDelayMs = options.assetDelayMs ?? 0;
   const fetchAsset = createFixtureFetch(
     recordTrace,
     resolveTraceScope,
+    resolveTraceSelection,
     assetDelayMs,
     options.pmtilesDelayMs ?? assetDelayMs,
     options.pageDelayMs ?? 80,
@@ -117,9 +124,17 @@ export function createStacFixtureEnvironment(
     },
     refreshAssetUrl: async ({ assetKey, asset, signal }) => {
       const traceScope = resolveTraceScope(signal);
-      await abortableDelay(assetDelayMs, signal, recordTrace, traceScope, new URL(asset.href, FIXTURE_STAC_ROOT));
+      const traceSelection = resolveTraceSelection(signal);
+      await abortableDelay(
+        assetDelayMs,
+        signal,
+        recordTrace,
+        traceScope,
+        traceSelection,
+        new URL(asset.href, FIXTURE_STAC_ROOT),
+      );
       if (signal?.aborted) throw new DOMException("aborted", "AbortError");
-      recordTrace({ stage: "sign", method: "SIGN", url: asset.href, assetKey }, traceScope);
+      recordTrace({ stage: "sign", method: "SIGN", url: asset.href, assetKey }, traceScope, traceSelection);
       if (assetKey === "tiles") return asset.href.replace("/assets/", "/assets/signed/maui-v3/");
       return `${asset.href}${asset.href.includes("?") ? "&" : "?"}signed=fixture`;
     },
@@ -149,15 +164,25 @@ export function createStacFixtureEnvironment(
         { once: true },
       );
     },
-    traceForScope(scope) {
-      return trace.filter((entry) => traceScopes.get(entry) === scope);
+    setTraceSelection(signal, selection) {
+      signalSelections.set(signal, selection);
+    },
+    traceForScope(scope, selection) {
+      return trace.filter(
+        (entry) =>
+          traceScopes.get(entry) === scope &&
+          (selection === undefined ||
+            traceSelections.get(entry) === undefined ||
+            traceSelections.get(entry) === selection),
+      );
     },
   };
 }
 
 function createFixtureFetch(
-  recordTrace: (entry: StacFixtureTrace, scope?: number) => void,
+  recordTrace: (entry: StacFixtureTrace, scope?: number, selection?: number) => void,
   resolveTraceScope: (signal: AbortSignal | null | undefined) => number,
+  resolveTraceSelection: (signal: AbortSignal | null | undefined) => number | undefined,
   assetDelayMs: number,
   pmtilesDelayMs: number,
   pageDelayMs: number,
@@ -170,8 +195,9 @@ function createFixtureFetch(
     const body = parseBody(init?.body);
     const signal = init?.signal ?? request?.signal;
     const traceScope = resolveTraceScope(signal);
+    const traceSelection = resolveTraceSelection(signal);
     const traceUrl = redactedTraceUrl(url);
-    recordTrace({ stage: "request", method, url: traceUrl, ...(body ? { body } : {}) }, traceScope);
+    recordTrace({ stage: "request", method, url: traceUrl, ...(body ? { body } : {}) }, traceScope, traceSelection);
 
     if (url.pathname.endsWith("/v1") || url.pathname.endsWith("/v1/")) {
       return Response.json({
@@ -213,7 +239,9 @@ function createFixtureFetch(
         typeof token === "string" && /^maui-page-[2-9][0-9]*$/u.test(token)
           ? Number.parseInt(token.slice("maui-page-".length), 10) - 1
           : 0;
-      if (pageIndex > 0) await abortableDelay(pageDelayMs, signal, recordTrace, traceScope, url);
+      if (pageIndex > 0) {
+        await abortableDelay(pageDelayMs, signal, recordTrace, traceScope, traceSelection, url);
+      }
       const features = pages[pageIndex] ?? [];
       const hasNext = pageIndex + 1 < pages.length;
       const nextToken = `maui-page-${pageIndex + 2}`;
@@ -230,7 +258,7 @@ function createFixtureFetch(
     }
 
     if (url.pathname.includes("/assets/") && url.pathname.endsWith(".png")) {
-      await abortableDelay(assetDelayMs, signal, recordTrace, traceScope, url);
+      await abortableDelay(assetDelayMs, signal, recordTrace, traceScope, traceSelection, url);
       return new Response(previewPng(), {
         status: 200,
         headers: { "content-type": "image/png" },
@@ -252,7 +280,7 @@ function createFixtureFetch(
       if (start < 0 || end < start || end >= fixture.byteLength) {
         return Response.json({ message: "PMTiles byte range is outside the fixture." }, { status: 416 });
       }
-      await abortableDelay(pmtilesDelayMs, signal, recordTrace, traceScope, url);
+      await abortableDelay(pmtilesDelayMs, signal, recordTrace, traceScope, traceSelection, url);
       const responseBytes = fixture.slice(start, end + 1);
       recordTrace(
         {
@@ -264,6 +292,7 @@ function createFixtureFetch(
           authorization: "[redacted]",
         },
         traceScope,
+        traceSelection,
       );
       return new Response(responseBytes, {
         status: 206,
@@ -366,12 +395,13 @@ function parseBody(body: BodyInit | null | undefined): Record<string, unknown> |
 async function abortableDelay(
   delayMs: number,
   signal: AbortSignal | null | undefined,
-  recordTrace: (entry: StacFixtureTrace, scope?: number) => void,
+  recordTrace: (entry: StacFixtureTrace, scope?: number, selection?: number) => void,
   traceScope: number,
+  traceSelection: number | undefined,
   url: URL,
 ): Promise<void> {
   if (signal?.aborted) {
-    recordTrace({ stage: "cancel", method: "ABORT", url: redactedTraceUrl(url) }, traceScope);
+    recordTrace({ stage: "cancel", method: "ABORT", url: redactedTraceUrl(url) }, traceScope, traceSelection);
     throw new DOMException("aborted", "AbortError");
   }
   if (delayMs <= 0) return;
@@ -384,7 +414,7 @@ async function abortableDelay(
     const abort = () => {
       clearTimeout(timer);
       signal?.removeEventListener("abort", abort);
-      recordTrace({ stage: "cancel", method: "ABORT", url: redactedTraceUrl(url) }, traceScope);
+      recordTrace({ stage: "cancel", method: "ABORT", url: redactedTraceUrl(url) }, traceScope, traceSelection);
       reject(new DOMException("aborted", "AbortError"));
     };
     signal?.addEventListener("abort", abort, { once: true });
