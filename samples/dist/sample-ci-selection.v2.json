@@ -1414,7 +1414,7 @@
       "id": "stac-imagery-browser",
       "sourcePath": "examples/stac-imagery-browser",
       "track": "recipe",
-      "supportTier": "supported",
+      "supportTier": "experimental",
       "validationProfile": "browser-recipe",
       "gates": {
         "packedBuild": true,
@@ -1431,13 +1431,15 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:stac-browser:typecheck",
-            "npm run demo:stac-browser:build"
+            "npm run demo:stac-browser:build",
+            "npm run test:playwright:stac-browser"
           ]
         },
         "fixtureEvidence": {
           "execution": "orchestrated",
           "commands": [
-            "npm run demo:stac-browser:build"
+            "npm run demo:stac-browser:build",
+            "npm run test:playwright:stac-browser"
           ]
         },
         "liveEvidence": {
