@@ -588,21 +588,6 @@
       "lifecycle": {
         "state": "active",
         "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
-      },
-      "playground": {
-        "projectPath": "playgrounds/stac-imagery-browser",
-        "providers": [
-          {
-            "id": "stackblitz",
-            "title": "StackBlitz",
-            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
-          },
-          {
-            "id": "codesandbox",
-            "title": "CodeSandbox",
-            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
-          }
-        ]
       }
     },
     "storytelling-25d-map": {
