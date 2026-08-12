@@ -101,6 +101,13 @@ export const UNRELEASED_PLAYGROUND_SDK_SURFACES = new Map([
       surface: "createApacheArrowResponseDecoder({ importModule })",
     },
   ],
+  [
+    "stac-imagery-browser",
+    {
+      unavailableVersions: ["0.1.4-beta.0"],
+      surface: "@honua/sdk-js/stac and @honua/sdk-js/pmtiles",
+    },
+  ],
 ]);
 
 /**
