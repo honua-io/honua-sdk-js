@@ -406,6 +406,8 @@
           "commands": [
             "npm run demo:columnar-query:typecheck",
             "npm run demo:columnar-query:build",
+            "npx vitest run test/columnar-query-quickstart.test.ts",
+            "npm run test:playwright:columnar-query",
             "npx vitest run test/columnar-workflow.test.ts",
             "npx vitest run test/columnar-workflow-honua-arrow.test.ts"
           ]
@@ -413,7 +415,9 @@
         "fixtureEvidence": {
           "execution": "orchestrated",
           "commands": [
-            "npm run demo:columnar-query:build"
+            "npm run demo:columnar-query:build",
+            "npx vitest run test/columnar-query-quickstart.test.ts",
+            "npm run test:playwright:columnar-query"
           ]
         },
         "liveEvidence": {
