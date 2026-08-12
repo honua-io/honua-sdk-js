@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { startStacBrowserFixtureServer } from "../../examples/stac-imagery-browser/mock-server.mjs";
+import { STAC_FIXTURE_AUTH_SENTINEL } from "../../examples/stac-imagery-browser/src/fixture-auth-sentinel.ts";
 
 test.setTimeout(90_000);
 
@@ -72,7 +73,7 @@ test("STAC Walkthrough proves Maui search, pagination, signing, rendering, and c
       pngToPmtiles.trace.filter((entry) => entry.stage === "sign").map((entry) => entry.assetKey),
     ).toEqual(["tiles"]);
     expect(pngToPmtiles.trace.some((entry) => entry.stage === "range")).toBe(true);
-    expect(JSON.stringify(pngToPmtiles.trace)).not.toContain("fixture-stac-bearer-token");
+    expect(JSON.stringify(pngToPmtiles)).not.toContain(STAC_FIXTURE_AUTH_SENTINEL);
     expect(pngToPmtiles.revokedObjectUrls).toContain(pngToPmtiles.initialPreviewUrl);
 
     await page.evaluate(() => {

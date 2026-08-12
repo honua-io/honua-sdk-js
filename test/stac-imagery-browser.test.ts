@@ -5,6 +5,7 @@ import {
   MAUI_DATETIME,
   mauiSearchRequest,
 } from "../examples/stac-imagery-browser/src/dynamic-stac-example.js";
+import { STAC_FIXTURE_AUTH_SENTINEL } from "../examples/stac-imagery-browser/src/fixture-auth-sentinel.js";
 import {
   MAUI_ITEMS,
   PMTILES_AUTHORIZATION_SCOPE,
@@ -189,7 +190,9 @@ describe("STAC imagery browser product evidence", () => {
     const pmtilesTrace = fixture.traceForScope(41, 2);
     expect(pmtilesTrace.filter((entry) => entry.stage === "sign").map((entry) => entry.assetKey)).toEqual(["tiles"]);
     expect(pmtilesTrace.some((entry) => entry.stage === "range")).toBe(true);
-    expect(JSON.stringify(pmtilesTrace)).not.toContain("fixture-stac-bearer-token");
+    expect(JSON.stringify({ trace: fixture.trace, activeTrace: pmtilesTrace })).not.toContain(
+      STAC_FIXTURE_AUTH_SENTINEL,
+    );
 
     fixture.resetTrace();
     const oldPmtiles = new AbortController();

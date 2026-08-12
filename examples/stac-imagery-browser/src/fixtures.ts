@@ -11,7 +11,6 @@ export const PMTILES_INSPECTION_LIMITS = Object.freeze({
   maxDecompressedBytes: 4 * 1024,
 });
 
-const FIXTURE_BEARER_TOKEN = "maui-fixture-bearer-token";
 const PMTILES_ETAG = '"maui-pmtiles-v3"';
 const PMTILES_VIRTUAL_BYTES = 64 * 1024;
 const PMTILES_FIXTURE_BASE64 =
@@ -120,7 +119,7 @@ export function createStacFixtureEnvironment(
     baseUrl: FIXTURE_STAC_ROOT,
     clientOptions: {
       fetchFn: fetchAsset,
-      auth: { getCredentials: () => ({ bearerToken: FIXTURE_BEARER_TOKEN }) },
+      auth: { getCredentials: () => ({ bearerToken: STAC_FIXTURE_AUTH_SENTINEL }) },
     },
     refreshAssetUrl: async ({ assetKey, asset, signal }) => {
       const traceScope = resolveTraceScope(signal);
@@ -147,7 +146,7 @@ export function createStacFixtureEnvironment(
       return new HonuaClient({
         baseUrl: new URL(endpoint).origin,
         fetchFn: fetchAsset,
-        auth: { getCredentials: () => ({ bearerToken: FIXTURE_BEARER_TOKEN }) },
+        auth: { getCredentials: () => ({ bearerToken: STAC_FIXTURE_AUTH_SENTINEL }) },
       });
     },
     resetTrace() {
@@ -269,7 +268,10 @@ function createFixtureFetch(
       const headers = mergedRequestHeaders(request, init);
       const range = headers.get("range");
       const authorization = headers.get("authorization");
-      if (!url.pathname.includes("/assets/signed/maui-v3/") || authorization !== `Bearer ${FIXTURE_BEARER_TOKEN}`) {
+      if (
+        !url.pathname.includes("/assets/signed/maui-v3/") ||
+        authorization !== `Bearer ${STAC_FIXTURE_AUTH_SENTINEL}`
+      ) {
         return Response.json({ message: "Fixture asset authorization required." }, { status: 401 });
       }
       const match = /^bytes=(\d+)-(\d+)$/u.exec(range ?? "");
@@ -448,3 +450,4 @@ function previewPng(): Uint8Array<ArrayBuffer> {
     "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAADCSURBVChTBcGhrcUgAEBRZmADNmADNkDgwTzzQqipoAIMCEwTUlODeeaHNe8/R0gXUO6Ddl+MO7DuxLuL5CrFNYQMH1T4osOBCSc2XPhQSaFRwkDI+EXFAx1PTLywseJjI8VBiTdC5gOVT3S+MLlic8PnQco3JT8I2U9Uv9C9YnrD9oHvN6k/lP4i5LxQs6Jnw8yBnTd+PqT5UuZCyFVRq6HXwKwbux78eklrUdYPIXdD7YHeN2Y/2P3i9yLtH2X/8Q8IkZChO6EkQgAAAABJRU5ErkJggg==";
   return Uint8Array.from(atob(encoded), (character) => character.charCodeAt(0));
 }
+import { STAC_FIXTURE_AUTH_SENTINEL } from "./fixture-auth-sentinel.js";
