@@ -93,6 +93,10 @@ export default defineConfig({
         replacement: path.resolve(import.meta.dirname, "src/contract/index.ts"),
       },
       {
+        find: "@honua/sdk-js/columnar-workflow",
+        replacement: path.resolve(import.meta.dirname, "src/columnar-workflow/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/query-planner",
         replacement: path.resolve(import.meta.dirname, "src/query-planner/index.ts"),
       },

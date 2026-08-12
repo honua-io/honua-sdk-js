@@ -10,6 +10,7 @@ import {
   PLAYGROUND_FIXTURE_ORIGINS,
   SAMPLE_README_END,
   SAMPLE_README_START,
+  UNRELEASED_PLAYGROUND_SDK_SURFACES,
   analyzeSampleSource,
   bareSpecifierPackage,
   derivePlaygroundDecisions,
@@ -112,6 +113,19 @@ describe("playground eligibility", () => {
     const decision = evaluateSamplePlaygroundEligibility(sample, context({ sdkEntrypoints: new Set() }));
     assert.equal(decision.qualified, false);
     assert.equal(decision.category, "unpublished-entrypoint");
+  });
+
+  it("keeps the unreleased columnar importer source-mode only until the public SDK pin advances", () => {
+    const sample = sampleById("columnar-query-quickstart");
+    const current = evaluateSamplePlaygroundEligibility(sample, context());
+    assert.equal(current.qualified, false);
+    assert.equal(current.category, "unreleased-sdk-surface");
+    assert.match(current.detail, /createApacheArrowResponseDecoder\(\{ importModule \}\)/);
+    assert.match(current.detail, /@honua\/sdk-js@0\.1\.4-beta\.0/);
+    assert.deepEqual(UNRELEASED_PLAYGROUND_SDK_SURFACES.get(sample.id).unavailableVersions, ["0.1.4-beta.0"]);
+
+    const released = evaluateSamplePlaygroundEligibility(sample, context({ sdkVersion: "0.1.5-beta.0" }));
+    assert.equal(released.qualified, true);
   });
 
   it("refuses a sample with no audited hosting verdict", () => {
