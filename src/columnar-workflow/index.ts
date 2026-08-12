@@ -12,6 +12,7 @@ import type {
   ColumnarBatchMetrics,
   ColumnarBatchV1,
   DecodedGeoArrowRow,
+  LoadApacheArrowOptions,
 } from "../columnar/index.js";
 import * as Columnar from "../columnar/index.js";
 import { type QueryFilterExpression, compileQueryFilterToSql92 } from "../contract/query-filter.js";
@@ -149,7 +150,7 @@ export interface ColumnarResponseDecoderContext {
 export type ColumnarResponseDecoder = (context: ColumnarResponseDecoderContext) => AsyncIterable<ColumnarBatchV1>;
 
 /** Mapping hints for the bounded Honua Server geoarrow.wkb response bridge. */
-export interface ApacheArrowResponseDecoderOptions extends HonuaArrowWkbMappingOptions {}
+export interface ApacheArrowResponseDecoderOptions extends HonuaArrowWkbMappingOptions, LoadApacheArrowOptions {}
 
 export interface DirectGeoParquetHandle {
   /**
@@ -1165,7 +1166,7 @@ export const createApacheArrowResponseDecoder = (
         signal,
         budgets.maxBackingBytes < budgets.maxTransferBytes ? "BACKING_LIMIT_EXCEEDED" : "TRANSFER_LIMIT_EXCEEDED",
       ));
-    const apache = (await (Columnar.loadApacheArrow as unknown as () => Promise<unknown>)()) as {
+    const apache = (await Columnar.loadApacheArrow({ importModule: options.importModule })) as {
       RecordBatchReader: { from(input: Uint8Array): Promise<AsyncIterable<unknown>> | AsyncIterable<unknown> };
     };
     let reader: AsyncIterable<unknown>;

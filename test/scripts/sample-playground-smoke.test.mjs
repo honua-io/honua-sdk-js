@@ -93,12 +93,16 @@ describe("playground smoke decisions", () => {
     }
   });
 
-  it("keeps the columnar quickstart planning-only and network-free at boot", () => {
-    const journey = PLAYGROUND_SMOKE_JOURNEYS.get("columnar-query-quickstart");
-    const source = playgroundSource("columnar-query-quickstart");
-    assert.match(journey.rendersNoMap, /planning-only/);
-    assert.match(journey.noBootFeatures, /without loading data or making a network request/);
-    assert.ok(source.includes('note: "Planning is deterministic and performs no network request."'));
+  it("keeps the unreleased columnar importer in internal source-mode evidence", () => {
+    const source = ["fixture.ts", "workflow.ts", "main.ts"]
+      .map((file) => fs.readFileSync(path.join(ROOT, "examples/columnar-query-quickstart/src", file), "utf8"))
+      .join("\n");
+    const exclusion = artifact.excluded.find((entry) => entry.sampleId === "columnar-query-quickstart");
+    assert.equal(exclusion.category, "unreleased-sdk-surface");
+    assert.ok(!publishedIds.includes("columnar-query-quickstart"));
+    assert.ok(source.includes("HONUA_ARROW_FIXTURE_BYTES = 1_336"));
+    assert.ok(source.includes('importModule: () => import("apache-arrow")'));
+    assert.ok(source.includes('fixtureTransport: "in-memory exact server artifact; no live endpoint claimed"'));
   });
 
   it("answers, for every playground, whether anything is asserted about its data", () => {
