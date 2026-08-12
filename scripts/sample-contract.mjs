@@ -101,6 +101,8 @@ const SUPPORT_TRUTH_PATH = "config/support-manifest.v1.json";
 const QUALIFICATION_EVIDENCE_ROOT = "samples/evidence";
 const CI_SELECTION_PATH = "samples/dist/sample-ci-selection.v2.json";
 const CI_SELECTION_SCHEMA_PATH = "samples/contract/v2/schemas/sample-ci-selection.schema.json";
+const SITE_CONSUMER_V2_FIXTURE_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
 const SITE_CONSUMER_V3_FIXTURE_PATH =
   "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json";
 const SITE_CONSUMER_V3_FIXTURE_SCHEMA_PATH =
@@ -7370,6 +7372,58 @@ export function generateSiteConsumerFixtureV3(handoff) {
   });
 }
 
+export function generateSiteConsumerFixtureV2(projection) {
+  invariant(
+    projection.format === "honua.site.sdk-sample-projection.v2" && projection.schemaVersion === 2,
+    "site consumer fixture v2 requires projection v2",
+  );
+  const samples = Array.isArray(projection.samples) ? projection.samples : [];
+  const journeys = Array.isArray(projection.goldenJourneys) ? projection.goldenJourneys : [];
+  const routes = Array.isArray(projection.routes) ? projection.routes : [];
+  const sampleIds = samples.map((sample) => sample.id);
+  const routeIds = routes.map((route) => route.id);
+  const representativeRoutes = ["quickstart-map", "public-safety", "two-protocols"];
+  invariant(
+    representativeRoutes.every((routeId) => routeIds.includes(routeId)),
+    "site consumer fixture v2 representative route is absent from the projection",
+  );
+  return {
+    format: "honua.site.sdk-sample-consumer-fixture.v2",
+    schemaVersion: 2,
+    accepts: {
+      projectionFormat: projection.format,
+      projectionSchemaVersion: projection.schemaVersion,
+      catalogFormat: projection.catalog.format,
+      catalogSchemaVersion: projection.catalog.schemaVersion,
+    },
+    input: {
+      path: LEGACY_SITE_PROJECTION_PATH,
+      schemaPath: LEGACY_SITE_PROJECTION_SCHEMA_PATH,
+      sha256: sha256(stableJson(projection)),
+    },
+    assertions: {
+      sampleCount: samples.length,
+      rootExampleCount: samples.filter((sample) => sample.sourceKind === "root-example").length,
+      docsExampleCount: samples.filter((sample) => sample.sourceKind === "docs-example").length,
+      goldenJourneyCount: journeys.length,
+      qualifiedGoldenCount: journeys.filter((journey) => journey.status === "qualified").length,
+      routeCount: routes.length,
+      sampleBundleCount: Array.isArray(projection.sampleBundles?.sampleIds)
+        ? projection.sampleBundles.sampleIds.length
+        : 0,
+      sampleIdsUnique: new Set(sampleIds).size === sampleIds.length,
+      routeIdsUnique: new Set(routeIds).size === routeIds.length,
+      routesEndInHtml: routes.every(
+        (route) => typeof route.route === "string" && route.route.endsWith(".html"),
+      ),
+      executableSourceOwner: projection.contract.executableSourceOwner,
+      presentationOwner: projection.contract.presentationOwner,
+      credentialValuesForbidden: true,
+    },
+    representativeRoutes,
+  };
+}
+
 export function generateSiteConsumerFixtureV4(handoff) {
   invariant(
     handoff.format === "honua.site.sdk-sample-consumer-handoff.v2" && handoff.schemaVersion === 2,
@@ -7681,6 +7735,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   });
   const handoff = generateSiteConsumerHandoff(projection, capabilityMatrix, visualEvidence);
   const legacyHandoff = generateSiteConsumerHandoff(legacyProjection, capabilityMatrix, visualEvidence);
+  const legacyConsumerFixtureV2 = generateSiteConsumerFixtureV2(legacyProjection);
   const consumerFixtureV4 = generateSiteConsumerFixtureV4(handoff);
   const legacyConsumerFixtureV3 = generateSiteConsumerFixtureV3(legacyHandoff);
   await validateSiteConsumerHandoff(handoff, {
@@ -7727,6 +7782,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     [LEGACY_SITE_CONSUMER_HANDOFF_PATH, stableJson(legacyHandoff)],
     [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
+    [SITE_CONSUMER_V2_FIXTURE_PATH, stableJson(legacyConsumerFixtureV2)],
     [SITE_CONSUMER_V3_FIXTURE_PATH, stableJson(legacyConsumerFixtureV3)],
     [SITE_CONSUMER_V4_FIXTURE_PATH, stableJson(consumerFixtureV4)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],

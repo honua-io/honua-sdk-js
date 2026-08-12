@@ -1269,6 +1269,7 @@ describe("sample publication contract", () => {
       "samples/dist/capability-sample-matrix.v1.json",
       "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     ]);
@@ -1281,7 +1282,7 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(currentOutputs, semanticDrift)).toEqual(["docs/generated/sample-catalog.md"]);
 
     const integrityDrift = new Map(currentOutputs);
-    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json";
+    const fixturePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json";
     const consumerFixture = JSON.parse(currentOutputs.get(fixturePath)!);
     consumerFixture.input.sha256 = "0".repeat(64);
     integrityDrift.set(fixturePath, `${JSON.stringify(consumerFixture, null, 2)}\n`);
@@ -1292,8 +1293,9 @@ describe("sample publication contract", () => {
       "samples/dist/capability-sample-matrix.v1.json",
       "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
-      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
       fixturePath,
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
     expect(() => validateGeneratedOutputDrift([fixturePath], { relaxed: true })).not.toThrow();
