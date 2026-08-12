@@ -456,6 +456,7 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:playwright:service-explorer",
   "test:playwright:sketch-editing",
   "test:playwright:spatial-analytics",
+  "test:playwright:stac-browser",
 ]);
 const BOUNDED_VALIDATION_SEGMENTS = [
   /^npm --prefix examples\/kepler-analytics run build$/,

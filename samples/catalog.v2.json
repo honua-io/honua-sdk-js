@@ -2544,34 +2544,23 @@
     {
       "id": "stac-imagery-browser",
       "title": "STAC imagery browser",
-      "summary": "Discovers STAC collections and previews supported imagery assets.",
+      "summary": "Searches Maui imagery by bounds and time, renders a selected preview, and inspects a signed PMTiles v3 handoff.",
       "sourceKind": "root-example",
       "track": "recipe",
-      "supportTier": "supported",
+      "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
         "reason": "Retain as the small credential-free STAC discovery recipe; the imagery journey owns full range, comparison, elevation, and terrain qualification."
       },
       "sourcePath": "examples/stac-imagery-browser",
       "docsPath": "examples/stac-imagery-browser/README.md",
-      "playground": {
-        "projectPath": "playgrounds/stac-imagery-browser",
-        "providers": [
-          {
-            "id": "stackblitz",
-            "title": "StackBlitz",
-            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
-          },
-          {
-            "id": "codesandbox",
-            "title": "CodeSandbox",
-            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/stac-imagery-browser"
-          }
-        ]
-      },
       "capabilities": [
+        "cancellation",
         "cog",
+        "geoparquet",
         "imagery",
+        "pmtiles",
+        "raster",
         "stac"
       ],
       "capabilityKeys": [
@@ -2579,6 +2568,7 @@
         "serve.stac"
       ],
       "protocols": [
+        "pmtiles",
         "stac"
       ],
       "renderers": [
@@ -2588,9 +2578,9 @@
         "mode": "fixture",
         "authMode": "none",
         "config": [],
-        "provenance": "Committed deterministic STAC catalog.",
-        "attribution": "Asset-provider attribution from STAC metadata.",
-        "freshness": "Fixture item datetime and catalog version.",
+        "provenance": "Committed deterministic Maui STAC API responses, preview bytes, and an exact PMTiles v3 range fixture; no live service claim.",
+        "attribution": "Honua synthetic Maui product-evidence fixture.",
+        "freshness": "Pinned April-May 2026 fixture observations.",
         "configurationStatus": "not-required",
         "configClassifications": []
       },
@@ -2599,7 +2589,8 @@
           "mode": "fixture",
           "status": "executed",
           "commands": [
-            "npm run demo:stac-browser:build"
+            "npm run demo:stac-browser:build",
+            "npm run test:playwright:stac-browser"
           ]
         },
         "live": {
@@ -2608,11 +2599,12 @@
           "commands": []
         }
       },
-      "expectedDegradation": "Unsupported asset types retain metadata but disable rendering with a reason.",
+      "expectedDegradation": "Unsupported or metadata-only assets remain visible without a handoff, signing is skipped for filtered assets, and cancelled or failed PMTiles inspection never becomes a tile-rendering claim.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:stac-browser:typecheck",
-        "npm run demo:stac-browser:build"
+        "npm run demo:stac-browser:build",
+        "npm run test:playwright:stac-browser"
       ]
     },
     {
