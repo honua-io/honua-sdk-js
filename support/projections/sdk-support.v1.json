@@ -532,7 +532,10 @@
           "protocolIds": [
             "pmtiles"
           ],
-          "supportClaimIds": [],
+          "supportClaimIds": [
+            "pmtiles-discovery-client-only",
+            "pmtiles-managed-lifecycle-honua-facade"
+          ],
           "external": false
         },
         "s3": {
@@ -835,6 +838,12 @@
       "id": "pmtiles-connect-fixtures",
       "kind": "fixture",
       "path": "test/connect-pmtiles.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "pmtiles-lifecycle-fixtures",
+      "kind": "fixture",
+      "path": "test/pmtiles-lifecycle.test.ts",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -2154,6 +2163,27 @@
       ]
     },
     {
+      "id": "pmtiles-managed-lifecycle-honua-facade",
+      "label": "PMTiles managed publish lifecycle",
+      "protocol": "pmtiles",
+      "operations": [
+        "tiles"
+      ],
+      "environment": "honua-facade",
+      "executionMode": "facade",
+      "status": "experimental",
+      "backendNeeded": "Honua Server tile operations with configured cloud file storage",
+      "serverAttach": {
+        "disposition": "inherent",
+        "rationale": "Archive and publish jobs create artifacts through Honua Server tile operations and configured cloud storage. Direct archive discovery remains the open-endpoint alternative and does not require server attach."
+      },
+      "api": "@honua/sdk-js/pmtiles inspectPmtilesArchive(), createHonuaPmtilesLifecycle(), registerPmtilesSource()",
+      "notes": "Submits archive/publish jobs, bounds typed status polling, cancels work, validates public/signed/range-proxy access semantics, and exposes direct versus managed descriptors. Evidence is contract-only; no pinned managed live canary is claimed, and manual managed artifact deletion is unavailable.",
+      "evidence": [
+        "pmtiles-lifecycle-fixtures"
+      ]
+    },
+    {
       "id": "geoparquet-discovery-client-only",
       "label": "GeoParquet asset discovery",
       "protocol": "geoparquet",
@@ -2889,6 +2919,10 @@
       },
       {
         "subpath": "./cog",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./pmtiles",
         "status": "experimental"
       },
       {
