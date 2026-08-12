@@ -118,6 +118,17 @@ const COMPONENT_KIT_FORBIDDEN_INPUTS = [
   "node_modules/@playwright/",
 ];
 
+const PMTILES_FORBIDDEN_INPUTS = [
+  "dist/src/connect.js",
+  "dist/src/cog/",
+  "dist/src/map/",
+  "dist/src/plugin/",
+  "dist/src/runtime/",
+  "node_modules/geotiff/",
+  "node_modules/maplibre-gl/",
+  "node_modules/cesium/",
+];
+
 /**
  * The measurable surface. Keys match `bundle-budgets.json`.
  *   - kind "bundle": bundled from a dist entry file.
@@ -197,6 +208,13 @@ const TARGETS = [
     entry: "dist/src/cog/index.js",
     label: "`/cog` (caller-injected decoder; no raster peer in the static graph)",
     forbiddenInputs: ["node_modules/geotiff/", "node_modules/maplibre-gl/", "node_modules/cesium/"],
+  },
+  {
+    key: "/pmtiles",
+    kind: "bundle",
+    entry: "dist/src/pmtiles/index.js",
+    label: "`/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded)",
+    forbiddenInputs: PMTILES_FORBIDDEN_INPUTS,
   },
   {
     key: "/deckgl",
@@ -346,6 +364,25 @@ const TARGETS = [
     kind: "fixture",
     entry: "scripts/bundle-size-fixtures/tree-shake-map-source-workflow.mjs",
     label: "tree-shake guard (`{ mountSourceToMapLibre }` from `/map`)",
+  },
+  {
+    key: "tree-shake:pmtiles-lifecycle",
+    kind: "fixture",
+    entry: "scripts/bundle-size-fixtures/tree-shake-pmtiles-lifecycle.mjs",
+    label:
+      "tree-shake guard (`{ createHonuaPmtilesLifecycle }` from `/pmtiles`, generic discovery excluded)",
+    forbiddenInputs: [
+      "dist/src/connect.js",
+      "dist/src/connect-pmtiles.js",
+      "dist/src/pmtiles/inspect.js",
+      "dist/src/cog/",
+      "dist/src/map/",
+      "dist/src/plugin/",
+      "dist/src/runtime/",
+      "node_modules/geotiff/",
+      "node_modules/maplibre-gl/",
+      "node_modules/pmtiles/",
+    ],
   },
   {
     key: "tree-shake:runtime-terra-draw-sketch",

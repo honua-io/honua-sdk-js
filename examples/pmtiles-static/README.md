@@ -35,6 +35,9 @@ deployment points at any archive on object storage — S3 / R2 / GCS). Static
 hosts must honour HTTP `Range` requests, which PMTiles relies on; the bundled
 `mock-server.mjs` (used by the Playwright smoke) does.
 
+Managed publication is intentionally separate from this direct-archive example.
+See the server-side contract-only [managed lifecycle Walkthrough](../../docs/examples/pmtiles-managed-lifecycle/README.md).
+
 ## CDN recipe (build-less)
 
 PMTiles works from a plain HTML page with no bundler:

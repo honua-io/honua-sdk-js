@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true,
+    "paths": {
+      "@honua/sdk-js/honua": [
+        "../../../dist/src/honua.d.ts"
+      ],
+      "@honua/sdk-js/pmtiles": [
+        "../../../dist/src/pmtiles/index.d.ts"
+      ]
+    }
+  }
+}

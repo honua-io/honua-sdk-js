@@ -26,6 +26,7 @@ const VALID_DOMAINS = new Set([
   "realtime",
   "offline",
   "plugin",
+  "pmtiles",
   "agent",
   "app",
 ]);
@@ -70,6 +71,7 @@ const MIGRATED_PUBLIC_CLASSES = [
   "HonuaOfflineRegionError",
   "HonuaReplicaSyncError",
   "HonuaPluginRegistryError",
+  "HonuaPmtilesLifecycleError",
   "HonuaAgentToolError",
   "HonuaAgentSafetyError",
   "HonuaAgentExecutionError",

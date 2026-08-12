@@ -21,6 +21,7 @@ const requiredCapabilities = [
   "WFS",
   "WMS",
   "WMTS",
+  "PMTiles",
   "STAC",
   "OData",
   "MCP",
@@ -128,6 +129,17 @@ describe("demo capability matrix", () => {
     expect(rowByCapability.get("Realtime/live data")?.notes).toContain("Realtime note:");
     expect(rowByCapability.get("Materialized outputs")?.notes).toContain("Materialized note:");
     expect(rowByCapability.get("Uncached ad hoc spatial requests")?.notes).toContain("Ad-hoc note:");
+  });
+
+  it("separates direct PMTiles demo evidence from managed contract coverage", () => {
+    const rows = parseMatrixRows(readMatrixDoc());
+    const pmtiles = rows.find((row) => row.capability === "PMTiles");
+
+    expect(pmtiles).toBeDefined();
+    expect(pmtiles?.status).toBe("tested-only");
+    expect(pmtiles?.notes).toContain("Direct inspection is demoed");
+    expect(pmtiles?.notes).toContain("Managed lifecycle remains contract-only");
+    expect(pmtiles?.notes).toContain("No managed end-to-end claim exists");
   });
 
   it("keeps blocked and weak coverage tied to follow-up issues", () => {
