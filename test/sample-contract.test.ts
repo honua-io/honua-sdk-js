@@ -2043,6 +2043,21 @@ runNpmScriptSync("demo:wrong:build", {
     await expect(validateFixtureBuildHarnesses()).resolves.toBe(24);
   });
 
+  it("keeps the columnar browser validation exact and bounded", async () => {
+    const packageJson = await readJson("package.json");
+    const catalog = await readJson("samples/catalog.v2.json");
+    const columnar = catalog.samples.find((sample: { id: string }) => sample.id === "columnar-query-quickstart");
+    expect(columnar.validation).toContain("npm run test:playwright:columnar-query");
+    const policyValidationTime = { ...validationTime, verifyCheckout: false };
+    await expect(validateCatalog(catalog, packageJson, policyValidationTime)).resolves.toBeUndefined();
+
+    const unboundedPackage = structuredClone(packageJson);
+    unboundedPackage.scripts["test:playwright:columnar-query"] += " && vite";
+    await expect(validateCatalog(catalog, unboundedPackage, policyValidationTime)).rejects.toThrow(
+      "automatic validation command is not in the reviewed bounded registry",
+    );
+  });
+
   it("accepts only bounded, whole catalog commands", async () => {
     const packageJson = await readJson("package.json");
 

@@ -101,20 +101,6 @@ export const UNRELEASED_PLAYGROUND_SDK_SURFACES = new Map([
       surface: "createApacheArrowResponseDecoder({ importModule })",
     },
   ],
-  [
-    "stac-imagery-browser",
-    {
-      unavailableVersions: ["0.1.4-beta.0"],
-      surface: "@honua/sdk-js/stac and @honua/sdk-js/pmtiles",
-    },
-  ],
-  [
-    "coverages-wcs-basic",
-    {
-      unavailableVersions: ["0.1.4-beta.0"],
-      surface: "@honua/sdk-js/coverages",
-    },
-  ],
 ]);
 
 /**
@@ -985,24 +971,18 @@ function collectPlan() {
 }
 
 /** Overlay updates so the generated links reach the catalog through its reviewed migration. */
-function applyOverlay(catalogEntries, decisions) {
+function applyOverlay(catalogEntries) {
   const overlay = readJson(OVERLAY_PATH);
-  const decisionIds = new Set(decisions.map((decision) => decision.id));
   let changed = false;
-  const synchronize = (owner, id) => {
-    if (!decisionIds.has(id)) return;
-    const entry = catalogEntries.get(id);
-    const current = owner.playground;
-    const next = entry ? stableJson(entry) : undefined;
-    if ((current === undefined ? undefined : stableJson(current)) === next) return;
-    changed = true;
-    if (entry) owner.playground = entry;
-    else delete owner.playground;
-  };
   for (const [id, override] of Object.entries(overlay.sampleOverrides)) {
-    synchronize(override, id);
+    const entry = catalogEntries.get(id);
+    const current = override.playground;
+    const next = entry ? stableJson(entry) : undefined;
+    if ((current === undefined ? undefined : stableJson(current)) === next) continue;
+    changed = true;
+    if (entry) override.playground = entry;
+    else delete override.playground;
   }
-  for (const sample of overlay.addedSamples) synchronize(sample, sample.id);
   return { overlay, changed };
 }
 
@@ -1028,7 +1008,7 @@ function main() {
       process.exit(1);
     }
   }
-  const { overlay, changed: overlayChanged } = applyOverlay(catalogEntries, decisions);
+  const { overlay, changed: overlayChanged } = applyOverlay(catalogEntries);
   const artifact = renderPlaygroundArtifact(decisions, catalogEntries, sdkVersion);
   validateArtifact(artifact);
   const artifactBytes = stableJson(artifact);
