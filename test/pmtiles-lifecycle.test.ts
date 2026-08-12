@@ -16,6 +16,7 @@ import {
 
 const BASE_URL = "https://honua.example.test";
 const ASSET_URL = "https://assets.example.test/maps/basemap.pmtiles";
+const MAX_SERVER_INT32 = 2_147_483_647;
 const startedAt = "2026-08-08T12:00:00.000Z";
 const publishedAt = "2026-08-08T12:01:00.000Z";
 
@@ -372,10 +373,67 @@ describe("PMTiles direct inspection and managed lifecycle", () => {
 
     const requestFetch = vi.fn<typeof fetch>();
     const requestLifecycle = createHonuaPmtilesLifecycle(new HonuaClient({ baseUrl: BASE_URL, fetchFn: requestFetch }));
-    await expect(requestLifecycle.submitPublish({ layerId: -1 })).rejects.toMatchObject({
-      lifecycleCode: "invalid-request",
-    });
+    for (const request of [
+      { layerId: -1 },
+      { layerId: MAX_SERVER_INT32 + 1 },
+      { layerId: 0, maxTiles: MAX_SERVER_INT32 + 1 },
+    ]) {
+      await expect(requestLifecycle.submitPublish(request)).rejects.toMatchObject({ lifecycleCode: "invalid-request" });
+    }
     expect(requestFetch).not.toHaveBeenCalled();
+  });
+
+  it("admits the server Int32 request boundary", async () => {
+    const fetchFn = vi.fn<typeof fetch>(async (input, init) => {
+      const request = new Request(input, init);
+      expect(await request.clone().json()).toMatchObject({
+        operation: "publish",
+        layerId: MAX_SERVER_INT32,
+        maxTiles: MAX_SERVER_INT32,
+      });
+      return Response.json(
+        {
+          jobId: "job-int32-boundary",
+          message: "queued",
+          statusUrl: "/api/v1/admin/tile-operations/jobs/job-int32-boundary",
+          cancelUrl: "/api/v1/admin/tile-operations/jobs/job-int32-boundary/cancel",
+        },
+        { status: 202 },
+      );
+    });
+    const lifecycle = createHonuaPmtilesLifecycle(new HonuaClient({ baseUrl: BASE_URL, fetchFn }));
+
+    await expect(
+      lifecycle.submitPublish({ layerId: MAX_SERVER_INT32, maxTiles: MAX_SERVER_INT32 }),
+    ).resolves.toMatchObject({ id: "job-int32-boundary" });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects relative PublicUrl and SignedUrl response access URLs", async () => {
+    for (const [strategy, expiry] of [
+      ["PublicUrl", null],
+      ["SignedUrl", "2099-08-08T13:00:00.000Z"],
+    ] as const) {
+      const lifecycle = createHonuaPmtilesLifecycle(
+        new HonuaClient({
+          baseUrl: BASE_URL,
+          fetchFn: async () =>
+            Response.json(
+              progress(2, {
+                publishedArtifact: artifact({
+                  urlStrategy: strategy,
+                  accessUrl: "/relative/archive.pmtiles",
+                  accessUrlExpiresAt: expiry,
+                }),
+              }),
+            ),
+        }),
+      );
+
+      await expect(lifecycle.getJob("job-1"), strategy).rejects.toMatchObject({
+        lifecycleCode: "invalid-response",
+      });
+    }
   });
 
   it("rejects noncanonical job and artifact route identifiers before URL resolution", async () => {

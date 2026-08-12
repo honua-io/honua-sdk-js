@@ -504,7 +504,7 @@ function normalizeRequest(operation: PmtilesJobOperation, input: PmtilesJobReque
     throw error("invalid-request", "minZoom exceeds maxZoom.");
   return Object.freeze({
     operation,
-    layerId: nonNegativeInteger(input.layerId, "layerId"),
+    layerId: nonNegativeServerInt32(input.layerId, "layerId"),
     ...(input.serviceId === undefined ? {} : { serviceId: identifier(input.serviceId, "serviceId") }),
     ...(minZoom === undefined ? {} : { minZoom }),
     ...(maxZoom === undefined ? {} : { maxZoom }),
@@ -512,7 +512,7 @@ function normalizeRequest(operation: PmtilesJobOperation, input: PmtilesJobReque
       ? {}
       : { tileMatrixSetId: identifier(input.tileMatrixSetId, "tileMatrixSetId") }),
     ...(input.bbox === undefined ? {} : { bbox: bounds(input.bbox, "bbox") }),
-    ...(input.maxTiles === undefined ? {} : { maxTiles: positiveInteger(input.maxTiles, "maxTiles") }),
+    ...(input.maxTiles === undefined ? {} : { maxTiles: positiveServerInt32(input.maxTiles, "maxTiles") }),
   });
 }
 
@@ -568,6 +568,10 @@ function parseArtifact(value: unknown): PmtilesPublishedArtifact {
   const maxZoom = zoom(integer(record, "maxZoom"), "maxZoom");
   if (minZoom > maxZoom) throw error("invalid-response", "Published minZoom exceeds maxZoom.");
   const rawBounds = optional(record, "bounds");
+  const strategy = urlStrategy(record);
+  const rawAccessUrl = string(record, "accessUrl");
+  const accessUrl =
+    strategy === "RangeProxy" ? rawAccessUrl : httpUrl(rawAccessUrl, undefined, "accessUrl", "invalid-response");
   return Object.freeze({
     artifactId: responseRouteIdentifier(record, "artifactId"),
     storageProvider: storageProvider(record),
@@ -575,8 +579,8 @@ function parseArtifact(value: unknown): PmtilesPublishedArtifact {
     objectKey: string(record, "objectKey"),
     contentType,
     sizeBytes: positiveResponseInteger(record, "sizeBytes", MAX_SAFE_SERVER_INT64),
-    urlStrategy: urlStrategy(record),
-    accessUrl: string(record, "accessUrl"),
+    urlStrategy: strategy,
+    accessUrl,
     ...optionalTimestampField(record, "accessUrlExpiresAt"),
     publishedAt: timestamp(record, "publishedAt"),
     minZoom,
@@ -609,7 +613,7 @@ function publishedDescriptor(
           `/api/v1/tiles/pmtiles/${encodeURIComponent(artifact.artifactId)}`,
           "absolute",
         )
-      : httpUrl(artifact.accessUrl, baseUrl, "accessUrl", "invalid-response");
+      : httpUrl(artifact.accessUrl, undefined, "accessUrl", "invalid-response");
   if (artifact.urlStrategy === "RangeProxy") {
     if (artifact.accessUrlExpiresAt) throw error("invalid-response", "RangeProxy access must not expire.");
   }
@@ -1022,6 +1026,22 @@ function nonNegativeInteger(value: number, label: string): number {
   if (!Number.isSafeInteger(value) || value < 0)
     throw error("invalid-request", `${label} must be a non-negative integer.`);
   return value;
+}
+
+function positiveServerInt32(value: number, label: string): number {
+  const result = positiveInteger(value, label);
+  if (result > MAX_SERVER_INT32) {
+    throw error("invalid-request", `${label} must not exceed the server Int32 maximum ${MAX_SERVER_INT32}.`);
+  }
+  return result;
+}
+
+function nonNegativeServerInt32(value: number, label: string): number {
+  const result = nonNegativeInteger(value, label);
+  if (result > MAX_SERVER_INT32) {
+    throw error("invalid-request", `${label} must not exceed the server Int32 maximum ${MAX_SERVER_INT32}.`);
+  }
+  return result;
 }
 
 function zoom(value: number, label: string): number {

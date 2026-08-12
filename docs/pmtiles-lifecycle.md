@@ -27,7 +27,7 @@ console.log(inspection.metadata.vectorLayers);
 console.log(inspection.rendererSource?.maplibreSource);
 ```
 
-Inspection delegates to the authenticated `connect({ protocol: "pmtiles" })` pipeline. It accepts exact bounded `206` responses only, binds cache replay to the authorization-scope digest and byte validator, and retains the complete range/decompression ledger. The existing [`pmtiles-static`](../examples/pmtiles-static/README.md) example remains the minimal server-optional renderer.
+Inspection uses the focused PMTiles discovery runner and the same pure validation primitives as generic `connect({ protocol: "pmtiles" })`; it does not retain or dispatch through the generic connector. It accepts exact bounded `206` responses only, binds cache replay to the authorization-scope digest and byte validator, and retains the complete range/decompression ledger. The existing [`pmtiles-static`](../examples/pmtiles-static/README.md) example remains the minimal server-optional renderer.
 
 ## Publish from a server-side process
 

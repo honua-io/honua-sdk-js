@@ -1388,6 +1388,13 @@ describe("connect() / PMTiles static discovery", () => {
       snapshot.sources[0]!.schema = { fields: [] };
     });
     await expectRejected((snapshot) => {
+      (snapshot.sources[0] as unknown as { schemaV2State?: unknown }).schemaV2State = {
+        state: "unavailable",
+        reason: "not-advertised",
+        provenance: [{ method: "unavailable", protocol: "pmtiles", source: ASSET_URL }],
+      };
+    });
+    await expectRejected((snapshot) => {
       snapshot.sources[0]!.crs = ["EPSG:3857"];
     });
     await expectRejected((snapshot) => {

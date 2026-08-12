@@ -133,6 +133,9 @@ function validateCachedPmtilesSource(
   if (source.schemaV2 !== undefined) {
     cacheMetadataError("Cached PMTiles source contains a projection that direct archive discovery never emits.");
   }
+  if (!sourceSchemaProjection && schemaV2State !== undefined) {
+    cacheMetadataError("Cached PMTiles source contains schemaV2State without a configured source-schema projection.");
+  }
   if (sourceSchemaProjection && schemaV2State?.state !== "unavailable") {
     cacheMetadataError("Focused discovery cache source is missing its unavailable schemaV2 state.");
   }
