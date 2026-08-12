@@ -76,6 +76,8 @@ const GOLDEN_VISUAL_EVIDENCE_PATH = "samples/dist/golden-journey-visual-evidence
 const GOLDEN_VISUAL_EVIDENCE_SCHEMA_PATH =
   "samples/contract/v2/schemas/golden-journey-visual-evidence.schema.json";
 const LEGACY_SITE_CONSUMER_HANDOFF_PATH = "samples/dist/honua-site-consumer-handoff.v1.json";
+const ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH =
+  "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json";
 const LEGACY_SITE_CONSUMER_HANDOFF_SCHEMA_PATH =
   "samples/contract/v2/schemas/site-consumer-handoff.schema.json";
 const LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH =
@@ -4904,7 +4906,7 @@ async function validateLegacyVisualReceiptArchiveEnvelope(archive, handoff, sche
   );
   await validateJsonSchema(archive, schemaPath);
   invariant(
-    archive.handoff.path === LEGACY_SITE_CONSUMER_HANDOFF_PATH &&
+    archive.handoff.path === ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH &&
       archive.handoff.format === handoff.format &&
       archive.handoff.schemaVersion === handoff.schemaVersion &&
       archive.handoff.sha256 === sha256(Buffer.from(stableJson(handoff))) &&
@@ -6575,7 +6577,7 @@ function validateSiteConsumerCardIdentities(cards) {
  * verifiable from the handoff alone (honua-io/honua-sdk-js#550 golden-card receipt
  * enforcement).
  */
-function validateGoldenCardReceiptEnforcement(handoff, now = Date.now()) {
+function validateGoldenCardReceiptEnforcement(handoff, now = Date.now(), historical = false) {
   invariant(
     JSON.stringify(handoff.policy.qualifiedRequires) ===
       JSON.stringify(SITE_CONSUMER_QUALIFIED_REQUIREMENTS),
@@ -6600,7 +6602,7 @@ function validateGoldenCardReceiptEnforcement(handoff, now = Date.now()) {
       `${card.id}: golden card visual receipt belongs to another journey or sample`,
     );
     validateGoldenVisualEvidenceOwnership(visual);
-    validateGoldenVisualEvidenceFreshness(visual, now);
+    validateGoldenVisualEvidenceFreshness(visual, historical ? Date.parse(visual.observedAt) : now);
     const gates = new Map(visual.semanticEvidence.map((entry) => [entry.gate, entry]));
     if (requirements.has("source")) {
       invariant(
@@ -7191,7 +7193,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
   invariant(cardById.size === handoff.cards.length, "site consumer handoff card IDs must be unique");
   validateSiteConsumerCardIdentities(handoff.cards);
-  validateGoldenCardReceiptEnforcement(handoff);
+  validateGoldenCardReceiptEnforcement(handoff, Date.now(), archivedReceipts !== undefined);
   if (inputs.verifyCheckout !== false) {
     for (const [name, reference] of Object.entries(handoff.inputs)) {
       await validateSiteConsumerSchemaBinding(reference, `site consumer ${name}`);
@@ -7656,6 +7658,10 @@ export async function collectReleaseMatrixLanes(catalog, options = {}) {
 export async function generatedOutputs(catalog, packageJson, options = {}) {
   const readme = await readFile(path.join(PROJECT_ROOT, "README.md"), "utf8");
   const projection = generateSiteProjection(catalog, packageJson);
+  const legacyProjection = structuredClone(projection);
+  legacyProjection.format = "honua.site.sdk-sample-projection.v2";
+  legacyProjection.schemaVersion = 2;
+  delete legacyProjection.sampleBundles;
   const ciSelection = generateCiSelection(catalog);
   const supportTruth = options.supportTruth ?? (await readJson(SUPPORT_TRUTH_PATH));
   // Publication is intentionally anchored to the canonical evidence root. Tests inject
@@ -7674,7 +7680,9 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     verifyCheckout: options.verifyCheckout,
   });
   const handoff = generateSiteConsumerHandoff(projection, capabilityMatrix, visualEvidence);
+  const legacyHandoff = generateSiteConsumerHandoff(legacyProjection, capabilityMatrix, visualEvidence);
   const consumerFixtureV4 = generateSiteConsumerFixtureV4(handoff);
+  const legacyConsumerFixtureV3 = generateSiteConsumerFixtureV3(legacyHandoff);
   await validateSiteConsumerHandoff(handoff, {
     projection,
     matrix: capabilityMatrix,
@@ -7688,25 +7696,38 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   await validateSiteConsumerFixtureV4(consumerFixtureV4, handoff, {
     verifyCheckout: options.verifyCheckout,
   });
-  const [legacyProjection, legacyHandoff, legacyConsumerFixtureV3, legacyReceiptArchive] = await Promise.all([
-    readJson(LEGACY_SITE_PROJECTION_PATH),
-    readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH),
-    readJson(SITE_CONSUMER_V3_FIXTURE_PATH),
+  await validateSiteProjection(legacyProjection);
+  await validateSiteConsumerHandoff(legacyHandoff, {
+    projection: legacyProjection,
+    matrix: capabilityMatrix,
+    visualEvidence,
+    catalog,
+    packageJson,
+    supportTruth,
+    qualificationEvidence,
+    verifyCheckout: options.verifyCheckout,
+  });
+  await validateSiteConsumerFixtureV3(legacyConsumerFixtureV3, legacyHandoff, {
+    verifyCheckout: options.verifyCheckout,
+  });
+  const [archivedLegacyHandoff, legacyReceiptArchive] = await Promise.all([
+    readJson(ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH),
     readJson(LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH),
   ]);
-  await validateSiteProjection(legacyProjection);
-  await validateSiteConsumerHandoff(legacyHandoff, { legacyReceiptArchive });
-  await validateSiteConsumerFixtureV3(legacyConsumerFixtureV3, legacyHandoff);
+  await validateSiteConsumerHandoff(archivedLegacyHandoff, { legacyReceiptArchive });
   return new Map([
     [
       GENERATED_CATALOG_PATH,
       generatedCatalogMarkdown(catalog, packageJson, await collectReleaseMatrixLanes(catalog, options)),
     ],
+    [LEGACY_SITE_PROJECTION_PATH, stableJson(legacyProjection)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
     [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
+    [LEGACY_SITE_CONSUMER_HANDOFF_PATH, stableJson(legacyHandoff)],
     [SITE_CONSUMER_HANDOFF_PATH, stableJson(handoff)],
     [CI_SELECTION_PATH, stableJson(ciSelection)],
+    [SITE_CONSUMER_V3_FIXTURE_PATH, stableJson(legacyConsumerFixtureV3)],
     [SITE_CONSUMER_V4_FIXTURE_PATH, stableJson(consumerFixtureV4)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
@@ -8013,7 +8034,7 @@ async function main(argv) {
   const [command = "check", ...args] = argv;
   if (command === "archive-legacy-visual-receipts") {
     invariant(args.length === 0, "archive-legacy-visual-receipts does not accept arguments");
-    const handoff = await readJson(LEGACY_SITE_CONSUMER_HANDOFF_PATH);
+    const handoff = await readJson(ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH);
     const archive = await generateLegacyVisualReceiptArchive(handoff);
     await validateLegacyVisualReceiptArchive(archive, handoff);
     await mkdir(path.dirname(path.join(PROJECT_ROOT, LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH)), { recursive: true });

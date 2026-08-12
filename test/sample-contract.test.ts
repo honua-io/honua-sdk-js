@@ -1264,9 +1264,12 @@ describe("sample publication contract", () => {
     expect(bumpedProjection.catalog.version).toBe(bumpedVersion);
     expect(bumpedProjection.samples[0].sdk.version).toBe(bumpedVersion);
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
+      "samples/dist/honua-site-samples.v2.json",
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
       "samples/contract/v2/consumer-fixtures/honua-site-consumer.v4.json",
     ]);
 
@@ -1284,9 +1287,12 @@ describe("sample publication contract", () => {
     integrityDrift.set(fixturePath, `${JSON.stringify(consumerFixture, null, 2)}\n`);
     expect(generatedOutputDrift(currentOutputs, integrityDrift)).toEqual([fixturePath]);
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
+      "samples/dist/honua-site-samples.v2.json",
       "samples/dist/honua-site-samples.v3.json",
       "samples/dist/capability-sample-matrix.v1.json",
+      "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json",
       fixturePath,
     ]);
     expect(() => validateGeneratedOutputDrift([fixturePath])).toThrow(/has drifted/u);
