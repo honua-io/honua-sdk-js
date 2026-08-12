@@ -440,14 +440,14 @@
     },
     {
       "id": "columnar-query-quickstart",
-      "title": "Bounded columnar query plan",
-      "summary": "Builds an inspectable Arrow query plan with server pushdown and hard browser resource ceilings before any bytes move.",
+      "title": "Map a bounded Arrow result",
+      "summary": "Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Focused inline-code-first entry point for GeoArrow and GeoParquet planning; Overture remains the production-shaped large-data project."
+        "reason": "Map-first fixture workflow for exact Honua Arrow interoperability; Overture remains the complete production-shaped browser GeoParquet project."
       },
       "validationProfile": "browser-recipe",
       "source": {
@@ -460,7 +460,9 @@
         "version": "0.1.4-beta.0"
       },
       "capabilities": [
+        "cancellation",
         "columnar",
+        "map",
         "query"
       ],
       "capabilityKeys": [],
@@ -468,14 +470,14 @@
         "geoservices"
       ],
       "renderers": [
-        "none"
+        "maplibre"
       ],
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "provenance": "Deterministic in-browser request planning with no data or network access.",
-        "attribution": "No spatial data is loaded or rendered.",
-        "freshness": "Versioned with the SDK query contract.",
+        "provenance": "Base64 text embedding of the exact 1,336-byte Honua Server geoarrow.wkb fixture produced by commit fd1c651efa7078c269742152a2777298e3b1c4d4 and pinned by SHA-256.",
+        "attribution": "Honua Server interoperability fixture; application-pinned WGS84 display convention is not inferred from Arrow CRS metadata.",
+        "freshness": "Fixture producer commit, schema contract, byte length, and SHA-256 are release-gated.",
         "configurationStatus": "not-required"
       },
       "evidence": {
@@ -488,7 +490,7 @@
           "status": "not-applicable"
         }
       },
-      "expectedDegradation": "The example plans but does not execute because no demo-manifest target currently advertises live Arrow or Parquet output."
+      "expectedDegradation": "No public live Arrow or Parquet endpoint is claimed. Cancellation and row, batch, transfer, backing-memory, schema, geometry, or CRS violations stop explicitly; unsupported layouts never fall back to full materialization."
     },
     {
       "id": "coverages-wcs-basic",
@@ -786,7 +788,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-12T04:20:30.662Z"
+          "expiresAt": "2026-09-12T07:11:11.449Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed."
@@ -905,7 +907,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-12T04:18:29.544Z"
+          "expiresAt": "2026-09-12T07:09:08.158Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map."
@@ -1018,7 +1020,7 @@
           "mode": "demo-live",
           "status": "executed",
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-12T04:20:55.074Z"
+          "expiresAt": "2026-09-12T07:11:36.380Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed."
@@ -1658,7 +1660,7 @@
           "mode": "public-live",
           "status": "executed",
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-12T04:22:00.686Z"
+          "expiresAt": "2026-09-12T07:12:40.718Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success."
