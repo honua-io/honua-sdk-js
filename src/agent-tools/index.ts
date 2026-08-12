@@ -32,6 +32,13 @@ import {
   isSourceQualifiedSelectionTarget,
   sourceFeatureSelectionTarget,
 } from "../exploration/index.js";
+import {
+  HONUA_INTERACTION_EVENTS,
+  HONUA_INTERACTION_VERBS,
+  type HonuaInteraction,
+  type HonuaInteractionIssue,
+  validateHonuaInteraction,
+} from "../interactions/declarative-contract.js";
 
 export const HONUA_AGENT_TOOL_NAMES = [
   "inspectMap",
@@ -44,6 +51,11 @@ export const HONUA_AGENT_TOOL_NAMES = [
   "summarizeSelection",
   "runWidgetQuery",
   "explainCapabilityGap",
+  "setLayerStyle",
+  "addWidget",
+  "removeWidget",
+  "bindInteraction",
+  "removeInteraction",
 ] as const;
 
 export type HonuaAgentToolName = (typeof HONUA_AGENT_TOOL_NAMES)[number];
@@ -152,6 +164,30 @@ export interface HonuaAgentWidgetQueryResult {
   readonly degraded?: ReadonlyArray<HonuaAgentToolDegradedReason>;
 }
 
+/**
+ * A widget in a composition, as the Studio composition surface spells it
+ * (`honua_studio_add_widget`'s `widget` argument, `StudioMcpWidgetInput`).
+ * `kind` and `config` are deliberately open: the widget catalog is a host
+ * concern, and the composition tools carry `config` verbatim.
+ */
+export interface HonuaAgentWidgetSpec {
+  readonly id: string;
+  readonly kind: string;
+  readonly title?: string;
+  readonly sourceId?: SourceId;
+  readonly config?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * A layer style binding. Mirrors `honua_studio_set_layer_style`'s argument
+ * shape (a flat `styleRef` string binding) plus an optional inline `style`
+ * object for runtimes that carry a style document rather than a reference.
+ */
+export interface HonuaAgentLayerStyle {
+  readonly styleRef?: string;
+  readonly style?: Readonly<Record<string, unknown>>;
+}
+
 export interface HonuaAgentToolDegradedReason {
   readonly code: string;
   readonly message: string;
@@ -177,6 +213,17 @@ export interface HonuaAgentRuntime {
   ): MaybePromise<ReadonlyArray<FeatureSelectionTarget> | void>;
   summarizeSelection?(): MaybePromise<HonuaAgentSelectionSummary>;
   runWidgetQuery?(request: HonuaAgentWidgetQueryRequest): MaybePromise<HonuaAgentWidgetQueryResult>;
+  /**
+   * Composition capabilities. Every one is optional: a runtime that does not
+   * implement one still answers the corresponding tool, with the structured
+   * `status: "error"` / `agent.tool.missing-runtime-method` envelope every
+   * other optional runtime path already returns — never a raw throw.
+   */
+  setLayerStyle?(layerId: string, style: HonuaAgentLayerStyle): MaybePromise<unknown>;
+  addWidget?(widget: HonuaAgentWidgetSpec): MaybePromise<unknown>;
+  removeWidget?(widgetId: string): MaybePromise<unknown>;
+  bindInteraction?(interaction: HonuaInteraction): MaybePromise<unknown>;
+  removeInteraction?(interactionId: string): MaybePromise<unknown>;
 }
 
 export interface InspectMapArgs {
@@ -229,6 +276,31 @@ export interface ExplainCapabilityGapArgs {
   readonly declaredCapabilities?: ReadonlyArray<Capability>;
 }
 
+export interface SetLayerStyleArgs extends HonuaAgentLayerStyle {
+  readonly layerId: string;
+  readonly dryRun?: boolean;
+}
+
+export interface AddWidgetArgs {
+  readonly widget: HonuaAgentWidgetSpec;
+  readonly dryRun?: boolean;
+}
+
+export interface RemoveWidgetArgs {
+  readonly widgetId: string;
+  readonly dryRun?: boolean;
+}
+
+export interface BindInteractionArgs {
+  readonly interaction: HonuaInteraction;
+  readonly dryRun?: boolean;
+}
+
+export interface RemoveInteractionArgs {
+  readonly interactionId: string;
+  readonly dryRun?: boolean;
+}
+
 export type HonuaAgentToolCall =
   | { readonly name: "inspectMap"; readonly args?: InspectMapArgs }
   | { readonly name: "listSources"; readonly args?: ListSourcesArgs }
@@ -239,7 +311,12 @@ export type HonuaAgentToolCall =
   | { readonly name: "selectFeature"; readonly args: SelectFeatureArgs }
   | { readonly name: "summarizeSelection"; readonly args?: SummarizeSelectionArgs }
   | { readonly name: "runWidgetQuery"; readonly args: RunWidgetQueryArgs }
-  | { readonly name: "explainCapabilityGap"; readonly args: ExplainCapabilityGapArgs };
+  | { readonly name: "explainCapabilityGap"; readonly args: ExplainCapabilityGapArgs }
+  | { readonly name: "setLayerStyle"; readonly args: SetLayerStyleArgs }
+  | { readonly name: "addWidget"; readonly args: AddWidgetArgs }
+  | { readonly name: "removeWidget"; readonly args: RemoveWidgetArgs }
+  | { readonly name: "bindInteraction"; readonly args: BindInteractionArgs }
+  | { readonly name: "removeInteraction"; readonly args: RemoveInteractionArgs };
 
 export interface HonuaAgentAuditEvent {
   readonly tool: HonuaAgentToolName;
@@ -453,6 +530,65 @@ const viewportProperties: Readonly<Record<string, HonuaAgentJsonSchema>> = {
   bearing: numberSchema("Map bearing."),
   crs: stringSchema("Coordinate reference system."),
 };
+const widgetSchema: HonuaAgentJsonSchema = {
+  type: "object",
+  description: "Widget specification.",
+  required: ["id", "kind"],
+  properties: {
+    id: stringSchema("Widget id, unique within the composition."),
+    kind: stringSchema("Widget kind, from the host's widget catalog."),
+    title: stringSchema("Human-readable widget title."),
+    sourceId: stringSchema("Source id the widget reads from."),
+    config: { type: "object", description: "Widget configuration, carried verbatim.", additionalProperties: true },
+  },
+  additionalProperties: false,
+};
+/**
+ * `$defs/interaction` from the standard's `common/interactions.schema.json`,
+ * transcribed into this module's schema shape. The closed sets come from
+ * `../interactions/declarative-contract.js`, so a standard ADR that widens
+ * either vocabulary widens this tool's schema in the same edit.
+ */
+const componentRefSchema: HonuaAgentJsonSchema = {
+  type: "string",
+  description: "Component reference: `map`, `layer:{id}`, `widget:{id}`, or `control:{id}`.",
+};
+const interactionSchema: HonuaAgentJsonSchema = {
+  type: "object",
+  description: "One declarative event-to-action binding (geospatial-mcp ADR-0030).",
+  required: ["id", "on", "do"],
+  properties: {
+    id: stringSchema("Stable identifier, unique within the interactions block. Binding replaces an existing id."),
+    on: {
+      type: "object",
+      description: "The user-gesture event source.",
+      required: ["ref", "event"],
+      properties: {
+        ref: componentRefSchema,
+        event: { type: "string", description: "Closed event vocabulary.", enum: HONUA_INTERACTION_EVENTS },
+      },
+      additionalProperties: false,
+    },
+    do: {
+      type: "object",
+      description: "The action. Verb-driven state changes never re-enter the interaction dispatcher.",
+      required: ["ref", "verb"],
+      properties: {
+        ref: componentRefSchema,
+        verb: { type: "string", description: "Closed action-verb vocabulary.", enum: HONUA_INTERACTION_VERBS },
+        args: {
+          type: "object",
+          description:
+            "Static JSON arguments. A string beginning with `$event.` is replaced at dispatch time by the value at that path in the event payload. No expression language.",
+          additionalProperties: true,
+        },
+      },
+      additionalProperties: false,
+    },
+    disabled: booleanSchema("Authored-but-inactive binding; retained but skipped at dispatch.", false),
+  },
+  additionalProperties: false,
+};
 
 export const HONUA_AGENT_TOOL_DEFINITIONS: readonly HonuaAgentToolDefinition[] = [
   {
@@ -626,6 +762,94 @@ export const HONUA_AGENT_TOOL_DEFINITIONS: readonly HonuaAgentToolDefinition[] =
       additionalProperties: false,
     },
   },
+  {
+    name: "setLayerStyle",
+    title: "Set layer style",
+    description:
+      "Bind a layer to a style reference, or apply an inline style document. Requires action opt-in and supports dry-run.",
+    mode: "action",
+    requiresOptIn: true,
+    inputSchema: {
+      type: "object",
+      required: ["layerId"],
+      properties: {
+        layerId: stringSchema("Layer id whose style is being set."),
+        styleRef: stringSchema("Style reference to bind. Omit together with `style` to clear the binding."),
+        style: {
+          type: "object",
+          description: "Inline style document, for runtimes that carry a style rather than a reference.",
+          additionalProperties: true,
+        },
+        dryRun: booleanSchema("Validate without applying the style."),
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "addWidget",
+    title: "Add widget",
+    description: "Add a composition widget. Requires action opt-in and supports dry-run.",
+    mode: "action",
+    requiresOptIn: true,
+    inputSchema: {
+      type: "object",
+      required: ["widget"],
+      properties: {
+        widget: widgetSchema,
+        dryRun: booleanSchema("Validate without adding the widget."),
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "removeWidget",
+    title: "Remove widget",
+    description: "Remove a composition widget by id. Requires action opt-in and supports dry-run.",
+    mode: "action",
+    requiresOptIn: true,
+    inputSchema: {
+      type: "object",
+      required: ["widgetId"],
+      properties: {
+        widgetId: stringSchema("Widget id to remove."),
+        dryRun: booleanSchema("Validate without removing the widget."),
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "bindInteraction",
+    title: "Bind interaction",
+    description:
+      "Add or replace one declarative event-to-action binding (geospatial-mcp ADR-0030). Arguments are static JSON plus $event.* path substitution; actions never emit events. Requires action opt-in and supports dry-run.",
+    mode: "action",
+    requiresOptIn: true,
+    inputSchema: {
+      type: "object",
+      required: ["interaction"],
+      properties: {
+        interaction: interactionSchema,
+        dryRun: booleanSchema("Validate the interaction without binding it."),
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "removeInteraction",
+    title: "Remove interaction",
+    description: "Remove one declarative interaction by id. Requires action opt-in and supports dry-run.",
+    mode: "action",
+    requiresOptIn: true,
+    inputSchema: {
+      type: "object",
+      required: ["interactionId"],
+      properties: {
+        interactionId: stringSchema("Interaction id to remove."),
+        dryRun: booleanSchema("Validate without removing the interaction."),
+      },
+      additionalProperties: false,
+    },
+  },
 ] as const;
 
 /**
@@ -654,7 +878,7 @@ function agentToolSdkCode(code: unknown): HonuaErrorCode {
 /**
  * Tagged agent-tools failure. Participates in the shared SDK error envelope
  * (`isHonuaError`, `serializeHonuaError`) while preserving the legacy `.code`
- * string and `.tool` name. Only the tool name — one of the ten fixed
+ * string and `.tool` name. Only the tool name — one of the fixed
  * {@link HonuaAgentToolName} values — is ever placed in serialized context;
  * no tool arguments, results, prompts, or runtime metadata cross the
  * boundary.
@@ -1013,6 +1237,50 @@ export async function executeHonuaAgentTool(
         });
       case "explainCapabilityGap":
         return result(call.name, "ok", args, options, { data: await explainCapabilityGap(runtime, call.args) });
+      case "setLayerStyle": {
+        const styleArgs = args as unknown as SetLayerStyleArgs;
+        const style: HonuaAgentLayerStyle = {
+          ...(styleArgs.styleRef !== undefined ? { styleRef: styleArgs.styleRef } : {}),
+          ...(styleArgs.style !== undefined ? { style: styleArgs.style } : {}),
+        };
+        if (dryRun)
+          return result(call.name, "dry-run", args, options, { data: { layerId: styleArgs.layerId, ...style } });
+        requireRuntimeMethod(runtime.setLayerStyle, call.name);
+        return result(call.name, "ok", args, options, {
+          data: await runtime.setLayerStyle(styleArgs.layerId, style),
+        });
+      }
+      case "addWidget": {
+        const widget = (args as unknown as AddWidgetArgs).widget;
+        if (dryRun) return result(call.name, "dry-run", args, options, { data: { widget } });
+        requireRuntimeMethod(runtime.addWidget, call.name);
+        return result(call.name, "ok", args, options, { data: await runtime.addWidget(widget) });
+      }
+      case "removeWidget": {
+        const widgetId = (args as unknown as RemoveWidgetArgs).widgetId;
+        if (dryRun) return result(call.name, "dry-run", args, options, { data: { widgetId } });
+        requireRuntimeMethod(runtime.removeWidget, call.name);
+        return result(call.name, "ok", args, options, { data: await runtime.removeWidget(widgetId) });
+      }
+      case "bindInteraction": {
+        const interaction = (args as unknown as BindInteractionArgs).interaction;
+        // The standard's schema-level rules are checked here, before any
+        // runtime sees the binding: an invalid interaction is a structured
+        // tool error, never a partially applied document.
+        const issues = validateHonuaInteraction(interaction);
+        if (issues.length > 0) {
+          return result(call.name, "error", args, options, { data: interactionRejection(issues) });
+        }
+        if (dryRun) return result(call.name, "dry-run", args, options, { data: { interaction } });
+        requireRuntimeMethod(runtime.bindInteraction, call.name);
+        return result(call.name, "ok", args, options, { data: await runtime.bindInteraction(interaction) });
+      }
+      case "removeInteraction": {
+        const interactionId = (args as unknown as RemoveInteractionArgs).interactionId;
+        if (dryRun) return result(call.name, "dry-run", args, options, { data: { interactionId } });
+        requireRuntimeMethod(runtime.removeInteraction, call.name);
+        return result(call.name, "ok", args, options, { data: await runtime.removeInteraction(interactionId) });
+      }
     }
   } catch (error) {
     return result(call.name, "error", args, options, {
@@ -1126,6 +1394,21 @@ async function summarizeSelection(
     count: targets.length,
     bySource: [...bySourceCounts.entries()].map(([sourceId, count]) => ({ sourceId, count })),
     targets: args.includeTargets === false ? [] : targets,
+  };
+}
+
+/**
+ * Projects interaction validation issues into the same shape the executor's
+ * catch arm produces (`{ message }`), plus the structural detail an agent
+ * needs to repair the binding. Carries no argument values.
+ */
+function interactionRejection(issues: ReadonlyArray<HonuaInteractionIssue>): {
+  readonly message: string;
+  readonly issues: ReadonlyArray<HonuaInteractionIssue>;
+} {
+  return {
+    message: `Interaction rejected: ${issues.map((issue) => `${issue.path}: ${issue.message}`).join(" ")}`,
+    issues,
   };
 }
 
@@ -1264,7 +1547,12 @@ function enforceMaxResults(
 }
 
 function sourceIdFromParameters(parameters: Readonly<Record<string, unknown>>): SourceId | undefined {
-  return typeof parameters.sourceId === "string" ? parameters.sourceId : undefined;
+  if (typeof parameters.sourceId === "string") return parameters.sourceId;
+  // `addWidget` carries the source it reads from inside `widget`; the
+  // allowed-source gate must see it there too, or a widget could be pointed
+  // at a source the policy never allowed.
+  const widget = asRecord(parameters.widget);
+  return typeof widget?.sourceId === "string" ? widget.sourceId : undefined;
 }
 
 function layerIdFromParameters(
@@ -1282,6 +1570,13 @@ function targetIdsFromParameters(parameters: Readonly<Record<string, unknown>>):
   if (parameters.id !== undefined && (typeof parameters.id === "string" || typeof parameters.id === "number")) {
     ids.push(String(parameters.id));
   }
+  for (const key of ["widgetId", "interactionId"] as const) {
+    if (typeof parameters[key] === "string") ids.push(parameters[key]);
+  }
+  const widget = asRecord(parameters.widget);
+  if (typeof widget?.id === "string") ids.push(widget.id);
+  const interaction = asRecord(parameters.interaction);
+  if (typeof interaction?.id === "string") ids.push(interaction.id);
   const layerId = layerIdFromParameters(parameters);
   if (layerId) ids.push(layerId);
   const sourceId = sourceIdFromParameters(parameters);

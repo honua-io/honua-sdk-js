@@ -13,6 +13,14 @@ export default defineConfig({
       // path). Each must be an exact-suffix entry pointing at the
       // matching `index.ts` for that subpath export.
       {
+        find: "@honua/sdk-js/interactions/declarative",
+        replacement: path.resolve(import.meta.dirname, "src/interactions/declarative.ts"),
+      },
+      {
+        find: "@honua/sdk-js/studio-agent",
+        replacement: path.resolve(import.meta.dirname, "src/studio-agent/index.ts"),
+      },
+      {
         find: "@honua/sdk-js/operator/controllers",
         replacement: path.resolve(import.meta.dirname, "src/operator/controllers/index.ts"),
       },

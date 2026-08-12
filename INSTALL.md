@@ -8,7 +8,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 22 experimental,
+It projects 22 supported (documented below as stable), 24 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -90,6 +90,8 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/diagnostics` | Dependency-free diagnostic-bundle validation, sanitization, integrity pinning, and bounded read-only replay used by `honua doctor`. |
 | `@honua/sdk-js/nl-map-control` | Natural-language map control ([safety model + walkthrough](./docs/nl-map-control.md)): compiles NL instructions into serializable, inspectable plans (query-planner IR + agent-tool invocations) via a caller-provided LLM callback; execution accepts plans only, gates mutations behind agent-safety envelopes, and emits receipts. |
 | `@honua/sdk-js/routing` | Provider-pluggable routing: typed `RoutingProvider` contract, OSRM and Valhalla adapters, the Honua facade bridge, and per-provider attribution/usage-policy metadata ([provider cookbook](./docs/geocoding-routing-providers.md)). |
+| `@honua/sdk-js/interactions/declarative` | Compiles a standard `interactions[]` block (geospatial-mcp ADR-0030) onto the imperative binding primitives in `/interactions`: closed event/verb sets, `$event.*`-only argument substitution, a per-(ref, event) fan-out cap, actions that never emit events, and typed `unsupported` results naming any pair this runtime cannot honor. |
+| `@honua/sdk-js/studio-agent` | The agent session behind a prompt-to-map Studio: streams honua-server's provider-neutral AI proxy over SSE, dispatches the model's tool calls across two planes (local `/agent-tools` verbs through an AI map kit, `honua_studio_*` composition tools through a dependency-free MCP client) on one serialized queue with a single generation-conflict reload+retry, and never throws mid-stream. |
 
 ## Deprecated compatibility entrypoints
 

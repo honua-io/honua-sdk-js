@@ -9,7 +9,12 @@ import {
   type AgentSourceBindingV1,
   HonuaAgentSafetyError,
 } from "../src/agent-safety/index.js";
-import type { HonuaAgentAuditEvent, HonuaAgentRuntime, HonuaAgentSourceSummary } from "../src/agent-tools/index.js";
+import {
+  HONUA_AGENT_TOOL_NAMES,
+  type HonuaAgentAuditEvent,
+  type HonuaAgentRuntime,
+  type HonuaAgentSourceSummary,
+} from "../src/agent-tools/index.js";
 import {
   type CreateNlMapControlOptions,
   HonuaNlMapControlError,
@@ -505,7 +510,7 @@ describe("nl-map-control tool formats", () => {
   it("publishes the NL surface plus the agent tools in MCP format", () => {
     const tools = toNlMapControlMcpToolDefinitions();
     expect(tools.map((tool) => tool.name).slice(0, 2)).toEqual([...NL_MAP_CONTROL_TOOL_NAMES]);
-    expect(tools).toHaveLength(12);
+    expect(tools).toHaveLength(NL_MAP_CONTROL_TOOL_NAMES.length + HONUA_AGENT_TOOL_NAMES.length);
     for (const tool of tools) {
       expect(Object.keys(tool).sort()).toEqual(["description", "inputSchema", "name"]);
     }
@@ -514,7 +519,7 @@ describe("nl-map-control tool formats", () => {
 
   it("publishes the same surface in OpenAI function format", () => {
     const tools = toNlMapControlOpenAiToolDefinitions();
-    expect(tools).toHaveLength(12);
+    expect(tools).toHaveLength(NL_MAP_CONTROL_TOOL_NAMES.length + HONUA_AGENT_TOOL_NAMES.length);
     for (const tool of tools) {
       expect(tool.type).toBe("function");
       expect(tool.function.parameters).toBeDefined();
