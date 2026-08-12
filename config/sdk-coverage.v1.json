@@ -453,17 +453,22 @@
     },
     {
       "key": "serve.vector-tiles",
-      "status": "covered",
+      "status": "partial",
       "sinceVersion": "0.1.0-beta.0",
       "entrypoints": [
+        "@honua/sdk-js/pmtiles inspectPmtilesArchive()",
         "Source.protocol('pmtiles')",
-        "connect({ protocol: 'pmtiles' })"
+        "connect({ protocol: 'pmtiles' })",
+        "createHonuaPmtilesLifecycle()",
+        "registerPmtilesSource()"
       ],
       "evidence": [
         "test/connect-pmtiles.test.ts",
-        "test/pmtiles-contract.test.ts"
+        "test/pmtiles-contract.test.ts",
+        "test/pmtiles-lifecycle.test.ts"
       ],
-      "source": "support-manifest"
+      "source": "support-manifest",
+      "note": "Reads only a bounded PMTiles v3 header and metadata range through the authenticated client pipeline; pmtiles:// is the sole direct auto marker, while filename-only and spoofed inputs fail closed without alternate-protocol probing. Submits archive/publish jobs, bounds typed status polling, cancels work, validates public/signed/range-proxy access semantics, and exposes direct versus managed descriptors. Evidence is contract-only; no pinned managed live canary is claimed, and manual managed artifact deletion is unavailable."
     },
     {
       "key": "serve.wcs",
