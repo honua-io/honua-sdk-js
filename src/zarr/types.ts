@@ -41,6 +41,7 @@ export interface ZarrStoreRegistration {
 
 export type ZarrMaturityFailureCode =
   | "metadata-pending"
+  | "missing-spatial-extent"
   | "no-tileable-variable"
   | "missing-spatial-reference"
   | "spatial-reference-mismatch"
@@ -70,6 +71,8 @@ export interface ZarrMaturityAssessment {
 export interface ZarrReadinessOptions {
   /** Variable selected by the tile request. Defaults to the server-selected primary-or-first variable. */
   readonly variable?: string;
+  /** Associated layer/coverage extent `[minX, minY, maxX, maxY]`; it must be finite and non-degenerate. */
+  readonly storageExtent: readonly [number, number, number, number];
   /** SRID of the requested tile matrix set; must match the coverage storage SRID. */
   readonly tileMatrixSrid: number;
 }
