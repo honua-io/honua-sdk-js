@@ -109,10 +109,29 @@ describe("experimental Honua Zarr client", () => {
     });
 
     expect(result.bytes).toEqual(png);
+    expect(result.status).toBe(200);
+    expect(result.contentType).toBe("image/png");
     expect(requested?.pathname).toBe("/api/v1/datacubes/7/tiles/WorldCRS84Quad/3/2/4");
     expect(requested?.searchParams.get("variable")).toBe("temperature");
     expect(requested?.searchParams.get("datetime")).toBe("2026-08-13T00:00:00Z");
     expect(requested?.searchParams.get("elevation")).toBe("1");
+  });
+
+  it("preserves the server's empty non-intersecting tile response", async () => {
+    const client = new HonuaClient({
+      baseUrl: "https://zarr.example",
+      fetchFn: vi.fn(async () => new Response(null, { status: 204 })),
+    });
+
+    await expect(
+      createZarrClient(client).tile({
+        layerId: 7,
+        tileMatrixSetId: "WorldCRS84Quad",
+        z: 3,
+        x: 2,
+        y: 4,
+      }),
+    ).resolves.toMatchObject({ bytes: new Uint8Array(), contentType: null, status: 204 });
   });
 
   it("preserves a same-origin relative HonuaClient base path in generated tile URLs", () => {

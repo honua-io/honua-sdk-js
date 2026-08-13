@@ -50,6 +50,8 @@ const tile = await zarr.tile({
   responses also default to 2 MiB and can be reduced per request.
 - Tile coordinates and optional elevation are non-negative integers. The
   server converts the advertised tile window into a bounded, chunk-aware read.
+- A tile outside the coverage extent is returned as `{ status: 204, bytes:
+  Uint8Array(0), contentType: null }`; an intersecting tile is a `200` PNG.
 - `AbortSignal` is forwarded to the shared request pipeline.
 - `assess()` recognizes Zarr v2/v3, little-endian numeric or boolean dtypes,
   and uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes,
