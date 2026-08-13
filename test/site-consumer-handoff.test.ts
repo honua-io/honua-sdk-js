@@ -13,6 +13,7 @@ import {
   generateCapabilitySampleMatrix,
   generateGoldenJourneyVisualEvidence,
   generateLegacyVisualReceiptArchive,
+  generateSiteConsumerFixtureV3,
   generateSiteConsumerFixtureV4,
   generateSiteConsumerHandoff,
   generateSiteProjection,
@@ -206,22 +207,39 @@ describe("honua-site consumer handoff", () => {
     },
   );
 
-  it("keeps the v2 projection, v1 handoff, and v3 fixture valid for existing consumers", async () => {
-    const [projection, handoff, fixture] = await Promise.all([
+  it("keeps the rolling v2 projection, v1 handoff, and v3 fixture on canonical evidence", async () => {
+    const [projection, matrix, handoff, currentHandoff, fixture, visualEvidence] = await Promise.all([
       readJson("samples/dist/honua-site-samples.v2.json"),
+      readJson("samples/dist/capability-sample-matrix.v1.json"),
       readJson("samples/dist/honua-site-consumer-handoff.v1.json"),
+      readJson("samples/dist/honua-site-consumer-handoff.v2.json"),
       readJson("samples/contract/v2/consumer-fixtures/honua-site-consumer.v3.json"),
+      readJson("samples/dist/golden-journey-visual-evidence.v1.json"),
     ]);
 
     await expect(validateSiteProjection(projection)).resolves.toBeUndefined();
     await expect(validateSiteConsumerHandoff(handoff, { verifyCheckout: false })).resolves.toBeUndefined();
     await expect(validateSiteConsumerFixtureV3(fixture, handoff, { verifyCheckout: false })).resolves.toBeUndefined();
+    expect(handoff).toEqual(generateSiteConsumerHandoff(projection, matrix, visualEvidence));
+    expect(fixture).toEqual(generateSiteConsumerFixtureV3(handoff));
     const projectionSchemaBytes = await readFile(handoff.inputs.siteProjection.schemaPath, "utf8");
     expect(handoff.inputs.siteProjection.schemaBytes).toBe(Buffer.byteLength(projectionSchemaBytes));
     expect(handoff.inputs.siteProjection.schemaSha256).toBe(sha256(projectionSchemaBytes));
     expect(projection).toMatchObject({ format: "honua.site.sdk-sample-projection.v2", schemaVersion: 2 });
     expect(handoff).toMatchObject({ format: "honua.site.sdk-sample-consumer-handoff.v1", schemaVersion: 1 });
     expect(fixture).toMatchObject({ format: "honua.site.sdk-sample-consumer-fixture.v3", schemaVersion: 3 });
+    const canonicalImagery = visualEvidence.qualifiedGoldenJourneys.find(
+      (entry: { sampleId: string }) => entry.sampleId === "imagery-cog-quickstart",
+    );
+    const legacyImagery = handoff.cards.find(
+      (card: { id: string }) => card.id === "imagery-cog-quickstart",
+    )?.visualEvidence;
+    const currentImagery = currentHandoff.cards.find(
+      (card: { id: string }) => card.id === "imagery-cog-quickstart",
+    )?.visualEvidence;
+    expect(canonicalImagery).toBeDefined();
+    expect(legacyImagery).toEqual(canonicalImagery);
+    expect(currentImagery).toEqual(canonicalImagery);
   });
 
   it("permits v3 to retire stale capability claims but rejects expansion under an existing identity", () => {
@@ -748,7 +766,9 @@ describe("honua-site consumer handoff", () => {
   });
 
   it("resolves frozen live producers from the content-addressed archive root", async () => {
-    const legacyHandoff = (await readJson("samples/dist/honua-site-consumer-handoff.v1.json")) as SiteConsumerHandoff;
+    const legacyHandoff = (await readJson(
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json",
+    )) as SiteConsumerHandoff;
     const archive = (await readJson(
       "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
     )) as LegacyVisualReceiptArchive;
@@ -788,7 +808,9 @@ describe("honua-site consumer handoff", () => {
 
   it("keeps frozen legacy receipts content-bound across current receipt rollover", { timeout: 240_000 }, async () => {
     const inputs = await canonicalInputs();
-    const legacyHandoff = (await readJson("samples/dist/honua-site-consumer-handoff.v1.json")) as SiteConsumerHandoff;
+    const legacyHandoff = (await readJson(
+      "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json",
+    )) as SiteConsumerHandoff;
     const archive = (await readJson(
       "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json",
     )) as LegacyVisualReceiptArchive;
@@ -946,7 +968,7 @@ describe("honua-site consumer handoff", () => {
     async () => {
       const root = await mkdtemp(path.join(os.tmpdir(), "honua-legacy-archive-contexts-"));
       const archivePath = "samples/contract/v2/consumer-fixtures/honua-site-consumer-legacy-receipts.v2.json";
-      const handoffPath = "samples/dist/honua-site-consumer-handoff.v1.json";
+      const handoffPath = "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json";
       try {
         const extracted = path.join(root, "source-extract");
         await mkdir(path.join(extracted, path.dirname(archivePath)), { recursive: true });

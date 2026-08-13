@@ -17,10 +17,14 @@ import {
 
 const projectionBytes = fs.readFileSync("samples/dist/honua-site-samples.v2.json", "utf8");
 const projection = JSON.parse(projectionBytes);
-const derivedArtifactsRelaxed = /^(1|true|yes|on)$/i.test(process.env.HONUA_DERIVED_ARTIFACTS_RELAX ?? "");
+const canonicalCatalog = JSON.parse(fs.readFileSync("samples/catalog.v2.json", "utf8"));
 const consumerFixture = JSON.parse(
   fs.readFileSync("samples/contract/v2/consumer-fixtures/honua-site-consumer.v2.json", "utf8"),
 );
+const publicGalleryTracks = new Set(["golden", "recipe", "lab"]);
+const canonicalPublicSamples = canonicalCatalog.samples.filter((sample) => publicGalleryTracks.has(sample.track));
+const canonicalPublicCardCount = canonicalPublicSamples.length;
+const canonicalSamplesById = new Map(canonicalCatalog.samples.map((sample) => [sample.id, sample]));
 const repositorySourceResolver = (sample) => {
   const { docsPath } = sample.source;
   if (docsPath.startsWith("docs/") && docsPath.endsWith(".md")) {
@@ -99,6 +103,25 @@ function galleryCards(gallery) {
   return gallery.groups.flatMap((group) => group.cards);
 }
 
+function assertCanonicalLifecycleTruth(gallery) {
+  const cards = galleryCards(gallery);
+  assert.deepEqual(
+    cards.map((card) => card.sample.id).sort(),
+    canonicalPublicSamples.map((sample) => sample.id).sort(),
+    "gallery public sample identity must match the canonical catalog",
+  );
+  for (const card of cards) {
+    const canonicalSample = canonicalSamplesById.get(card.sample.id);
+    assert.ok(canonicalSample, `${card.sample.id}: canonical catalog entry is required`);
+    assert.equal(card.sample.track, canonicalSample.track, `${card.sample.id}: canonical track drift`);
+    assert.deepEqual(
+      card.sample.lifecycle,
+      canonicalSample.lifecycle,
+      `${card.sample.id}: canonical lifecycle drift`,
+    );
+  }
+}
+
 function occurrenceCount(value, pattern) {
   return [...value.matchAll(pattern)].length;
 }
@@ -146,6 +169,7 @@ test("owns a deeply frozen projection snapshot across the verification and rende
   assert.throws(() => {
     sampleById(integrity.projection, "maplibre-quickstart").title = "Forged frozen title";
   }, TypeError);
+  const verifiedCardCount = createGalleryModel(integrity).cardCount;
 
   sampleById(callerProjection, "maplibre-quickstart").title = "Forged caller title";
   callerProjection.samples.push({
@@ -155,7 +179,7 @@ test("owns a deeply frozen projection snapshot across the verification and rende
 
   const gallery = createGalleryModel(integrity);
   const html = renderGallery(gallery);
-  assert.equal(gallery.cardCount, 30);
+  assert.equal(gallery.cardCount, verifiedCardCount);
   assert.equal(
     galleryCards(gallery).find((card) => card.sample.id === "maplibre-quickstart").sample.title,
     verifiedTitle,
@@ -405,14 +429,14 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   const qualifiedGoldenJourneys = projection.goldenJourneys.filter((journey) => journey.status === "qualified");
   const qualifiedGoldenJourneyIds = new Set(qualifiedGoldenJourneys.map((journey) => journey.id));
 
-  assert.equal(gallery.cardCount, 30);
-  // imagery-cog-quickstart's golden promotion (#548) came from the recipe
-  // track (unlike service-explorer's, which came from lab), so the recipe
-  // count is now 11 (down from 12) and lab absorbs the rest.
+  assert.equal(gallery.cardCount, canonicalPublicCardCount);
+  assertCanonicalLifecycleTruth(gallery);
+  // Hold the current public track split alongside the total inventory so a
+  // projection regeneration cannot silently reclassify gallery cards.
   assert.deepEqual(counts, {
     golden: qualifiedGoldenJourneys.length,
-    recipe: 11,
-    lab: gallery.cardCount - 11 - qualifiedGoldenJourneys.length,
+    recipe: 13,
+    lab: gallery.cardCount - 13 - qualifiedGoldenJourneys.length,
   });
   assert.ok(!byId.has("arcgis-source-app"));
   assert.ok(!byId.has("automatic-source-workflow"));
@@ -432,28 +456,22 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   });
   assert.equal(byId.get("web-components-basic").sample.lifecycle.state, "retire");
   assert.equal(byId.get("realtime-incident-dashboard").journey.title, "Realtime Incident Operations");
-  if (!derivedArtifactsRelaxed) {
-    assert.deepEqual(byId.get("edit-workflow-demo").replacement, {
-      kind: "journey",
-      id: "planning-permitting",
-      title: "Planning and Permitting",
-      status: "planned",
-      candidateSampleId: "planning-permitting-workbench",
-      publicSampleId: "planning-permitting-workbench",
-    });
-    assert.equal(byId.get("edit-workflow-demo").sample.lifecycle.state, "replace");
-    assert.equal(byId.get("geocoding-quickstart").sample.track, "recipe");
-    assert.equal(byId.get("geocoding-quickstart").sample.lifecycle.state, "rework");
-    assert.equal(byId.get("sketch-editing").sample.track, "recipe");
-    assert.equal(byId.get("sketch-editing").sample.lifecycle.state, "active");
-    const planningCard = byId.get("planning-permitting-workbench");
-    assert.equal(planningCard.sample.track, "lab");
-    assert.equal(planningCard.sample.lifecycle.state, "active");
-    assert.equal(planningCard.journey.status, "planned");
-    assert.equal(planningCard.qualification.state, "planned-golden-candidate");
-    assert.match(planningCard.qualification.label, /not receipt-qualified/u);
-    assert.equal(planningCard.sample.evidence.live.status, "planned");
-  }
+  assert.deepEqual(byId.get("edit-workflow-demo").replacement, {
+    kind: "journey",
+    id: "planning-permitting",
+    title: "Planning and Permitting",
+    status: "planned",
+    candidateSampleId: "planning-permitting-workbench",
+    publicSampleId: "planning-permitting-workbench",
+  });
+  assert.equal(byId.get("geocoding-quickstart").sample.track, "recipe");
+  assert.equal(byId.get("sketch-editing").sample.track, "recipe");
+  const planningCard = byId.get("planning-permitting-workbench");
+  assert.equal(planningCard.sample.track, "lab");
+  assert.equal(planningCard.journey.status, "planned");
+  assert.equal(planningCard.qualification.state, "planned-golden-candidate");
+  assert.match(planningCard.qualification.label, /not receipt-qualified/u);
+  assert.equal(planningCard.sample.evidence.live.status, "planned");
   // imagery-cog-quickstart is now the real, receipt-qualified Imagery and
   // Terrain golden journey (#548), not merely a planned candidate.
   const imageryCard = byId.get("imagery-cog-quickstart");
@@ -512,6 +530,26 @@ test("projects the canonical public portfolio without hiding lifecycle or replac
   assert.deepEqual(serviceExplorerCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
   assert.deepEqual(imageryCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
   assert.deepEqual(migrationCard.qualification.requiredGates, firstMapCard.qualification.requiredGates);
+});
+
+test("keeps canonical lifecycle truth identical in strict and derived-relaxed modes", async () => {
+  const previousRelaxation = process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+  try {
+    delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+    const strictGallery = await canonicalGallery();
+    assertCanonicalLifecycleTruth(strictGallery);
+
+    process.env.HONUA_DERIVED_ARTIFACTS_RELAX = "1";
+    const relaxedGallery = await canonicalGallery();
+    assertCanonicalLifecycleTruth(relaxedGallery);
+    assert.deepEqual(
+      galleryCards(relaxedGallery).map((card) => [card.sample.id, card.sample.lifecycle]),
+      galleryCards(strictGallery).map((card) => [card.sample.id, card.sample.lifecycle]),
+    );
+  } finally {
+    if (previousRelaxation === undefined) delete process.env.HONUA_DERIVED_ARTIFACTS_RELAX;
+    else process.env.HONUA_DERIVED_ARTIFACTS_RELAX = previousRelaxation;
+  }
 });
 
 test("sorts public capability and protocol facets deterministically", async () => {
@@ -591,7 +629,7 @@ test("renders global provenance once and puts every card CTA before its disclosu
   assert.equal(occurrenceCount(html, /<dt>Projection SHA-256<\/dt>/g), 1);
   assert.ok(html.includes(consumerFixture.format));
   assert.ok(html.includes(consumerFixture.input.sha256));
-  assert.equal(cards.length, 30);
+  assert.equal(cards.length, canonicalPublicCardCount);
   for (const card of cards) {
     const ctaIndex = card.indexOf('<a class="demo-link"');
     const detailsIndex = card.indexOf('<details class="demo-card-details">');
@@ -748,7 +786,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
   const empty = document.querySelector("[data-gallery-empty]");
   const groups = [...document.querySelectorAll("[data-gallery-group]")];
 
-  assert.equal(count.textContent, "30");
+  assert.equal(count.textContent, String(canonicalPublicCardCount));
   assert.equal(clear.disabled, true);
   assert.equal(empty.hidden, true);
 
@@ -777,7 +815,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
 
   capability.value = "";
   protocol.value = "";
-  search.value = "maplibre-quickstart endpoint inspected";
+  search.value = "maplibre-quickstart";
   let submitWasPrevented = false;
   form.addEventListener("submit", (event) => {
     submitWasPrevented = event.defaultPrevented;
@@ -792,7 +830,7 @@ test("initializes accessible DOM filtering, implicit Enter submit, empty, and cl
   assert.equal(search.value, "");
   assert.equal(capability.value, "");
   assert.equal(protocol.value, "");
-  assert.equal(count.textContent, "30");
+  assert.equal(count.textContent, String(canonicalPublicCardCount));
   assert.equal(empty.hidden, true);
   assert.ok(groups.every((group) => !group.hidden));
   assert.equal(document.activeElement, search);

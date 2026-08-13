@@ -6,11 +6,14 @@ inventory in [`config/public-surface.json`](../config/public-surface.json).
 Changes to an SDK example or public surface land and pass compatibility gates
 here before they are projected elsewhere.
 
-The [`honua-site`](https://github.com/honua-io/honua-site) repository owns the
-public, versioned samples/documentation catalog on `honua.io` and deployment of
-its browser artifacts. Site samples consume the deployed Honua demo server and
-approved AWS-hosted live datasets; the site does not become a second source
-tree for SDK examples.
+The [`honua-samples`](https://github.com/honua-io/honua-samples) repository owns
+and deploys the single public learning gallery at
+[`samples.honua.io`](https://samples.honua.io). It admits browser artifacts from
+versioned producer handoffs without becoming a second source tree for SDK
+examples. [`honua-site`](https://github.com/honua-io/honua-site) owns the
+`honua.io` product and documentation routing surface; it may link to the gallery
+or consume pinned artifacts for curated starter and demo routes, but it does not
+own or reconstruct the canonical sample inventory.
 
 The canonical v2 sample contract is owned by
 [`honua-sdk-js#540`](https://github.com/honua-io/honua-sdk-js/issues/540). It
@@ -20,23 +23,25 @@ both CI selection and presentation-safe site metadata. The showcase consumer
 work is tracked by
 [`honua-sdk-js#550`](https://github.com/honua-io/honua-sdk-js/issues/550).
 
-Downstream tooling consumes the generated
+Downstream gallery tooling in `honua-samples` consumes the generated
 [`honua-site-samples.v3.json`](../samples/dist/honua-site-samples.v3.json)
-projection from a pinned SDK commit or published npm tarball. The frozen v2
-projection remains available for existing consumers. Tooling must not infer
-stability from `package.json` export presence. The v1 sample contract remains
-available only as a frozen compatibility surface for consumers completing
-their v2 migration.
+projection from a pinned SDK commit or published npm tarball. The historical
+`honua-site` artifact name is retained for compatibility and does not assign
+gallery ownership or deployment responsibility. The frozen v2 projection
+remains available for existing consumers. Tooling must not infer stability from
+`package.json` export presence. The v1 sample contract remains available only
+as a frozen compatibility surface for consumers completing their v2 migration.
 
 ## Versioned gallery handoff
 
 The SDK also publishes
 [`honua-site-consumer-handoff.v2.json`](../samples/dist/honua-site-consumer-handoff.v2.json).
-It is the content-addressed consumer projection for the gallery rather than a
-second application implementation. It joins the v3 presentation projection,
-the generated capability-to-sample matrix, and current golden visual evidence;
-then exposes canonical public cards, filter dimensions, visible coverage gaps,
-legacy route dispositions, and lifecycle replacement or retirement notices.
+It is the content-addressed producer projection consumed by the
+`honua-samples` gallery rather than a second gallery implementation. It joins
+the v3 presentation projection, the generated capability-to-sample matrix, and
+current golden visual evidence; then exposes canonical public cards, filter
+dimensions, visible coverage gaps, legacy route dispositions, and lifecycle
+replacement or retirement notices.
 
 Public detail routes are stable `samples/<sample-id>.html` paths. Existing
 SDK-owned aliases use permanent redirects to those paths. Internal fixtures and
@@ -78,6 +83,8 @@ keyboard, accessibility, and desktop/mobile behavior. These are requirements
 for the presentation consumer. Contract-declared card, route, gap, facet,
 filter, JSON-depth, and artifact-byte budgets fail closed before adoption.
 Publishing the SDK artifact does not by itself
-prove that `honua-site` has adopted it: site CI must validate the fixture and
-pass its static build plus browser accessibility/responsive smoke before the
-cross-repository rollout is complete.
+prove that `honua-samples` has adopted it: gallery CI must validate the fixture
+and pass its static build plus browser accessibility/responsive smoke before
+the cross-repository rollout is complete. Any pinned artifact independently
+consumed by `honua-site` remains subject to that repository's own validation
+without transferring canonical-gallery ownership.

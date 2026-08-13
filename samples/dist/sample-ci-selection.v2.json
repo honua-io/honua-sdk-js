@@ -451,13 +451,15 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:coverages-wcs:typecheck",
-            "npm run demo:coverages-wcs:build"
+            "npm run demo:coverages-wcs:build",
+            "npm run test:playwright:coverages-wcs"
           ]
         },
         "fixtureEvidence": {
           "execution": "orchestrated",
           "commands": [
-            "npm run demo:coverages-wcs:build"
+            "npm run demo:coverages-wcs:build",
+            "npm run test:playwright:coverages-wcs"
           ]
         },
         "liveEvidence": {
@@ -466,8 +468,8 @@
         }
       },
       "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
+        "mode": "public-live",
+        "status": "planned"
       }
     },
     {
@@ -641,7 +643,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-        "expiresAt": "2026-09-12T07:11:11.449Z"
+        "expiresAt": "2026-09-13T08:53:02.292Z"
       }
     },
     {
@@ -727,7 +729,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-        "expiresAt": "2026-09-12T07:09:08.158Z"
+        "expiresAt": "2026-09-13T08:51:46.247Z"
       }
     },
     {
@@ -813,7 +815,7 @@
         "mode": "demo-live",
         "status": "executed",
         "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-        "expiresAt": "2026-09-12T07:11:36.380Z"
+        "expiresAt": "2026-09-13T08:53:21.152Z"
       }
     },
     {
@@ -1278,7 +1280,7 @@
         "mode": "public-live",
         "status": "executed",
         "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-        "expiresAt": "2026-09-12T07:12:40.718Z"
+        "expiresAt": "2026-09-13T08:54:03.908Z"
       }
     },
     {
@@ -1414,7 +1416,7 @@
       "id": "stac-imagery-browser",
       "sourcePath": "examples/stac-imagery-browser",
       "track": "recipe",
-      "supportTier": "supported",
+      "supportTier": "experimental",
       "validationProfile": "browser-recipe",
       "gates": {
         "packedBuild": true,
@@ -1431,13 +1433,15 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:stac-browser:typecheck",
-            "npm run demo:stac-browser:build"
+            "npm run demo:stac-browser:build",
+            "npm run test:playwright:stac-browser"
           ]
         },
         "fixtureEvidence": {
           "execution": "orchestrated",
           "commands": [
-            "npm run demo:stac-browser:build"
+            "npm run demo:stac-browser:build",
+            "npm run test:playwright:stac-browser"
           ]
         },
         "liveEvidence": {

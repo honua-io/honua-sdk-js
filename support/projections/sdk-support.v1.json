@@ -769,6 +769,12 @@
       "freshnessPolicy": "release-gated"
     },
     {
+      "id": "coverages-wcs-browser",
+      "kind": "integration",
+      "path": "test/playwright/coverages-wcs-basic.spec.mjs",
+      "freshnessPolicy": "release-gated"
+    },
+    {
       "id": "unified-raster-fixtures",
       "kind": "fixture",
       "path": "test/unified-raster.test.ts",
@@ -802,6 +808,18 @@
       "id": "stac-workflow-fixtures",
       "kind": "fixture",
       "path": "test/stac-workflow.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "stac-browser-product-fixtures",
+      "kind": "fixture",
+      "path": "test/stac-imagery-browser.test.ts",
+      "freshnessPolicy": "release-gated"
+    },
+    {
+      "id": "stac-browser-product-playwright",
+      "kind": "integration",
+      "path": "test/playwright/stac-imagery-browser.spec.mjs",
       "freshnessPolicy": "release-gated"
     },
     {
@@ -1752,7 +1770,8 @@
           "executionMode": "native",
           "status": "experimental",
           "evidence": [
-            "coverages-wcs-fixtures"
+            "coverages-wcs-fixtures",
+            "coverages-wcs-browser"
           ]
         }
       ],
@@ -1762,7 +1781,7 @@
         "temporal": [
           "source-dimension"
         ],
-        "notes": "Coverage axes and datetime are explicit subset dimensions, not feature predicates."
+        "notes": "Coverage axes and datetime are explicit subset dimensions, not feature predicates. Release-gated browser evidence is fixture-only; no anonymous live canary exists."
       }
     },
     {
@@ -1778,7 +1797,8 @@
           "executionMode": "native",
           "status": "experimental",
           "evidence": [
-            "coverages-wcs-fixtures"
+            "coverages-wcs-fixtures",
+            "coverages-wcs-browser"
           ]
         }
       ],
@@ -1788,7 +1808,7 @@
         "temporal": [
           "source-dimension"
         ],
-        "notes": "WCS SUBSET/DATETIME dimensions are explicit coverage constraints."
+        "notes": "WCS SUBSET/DATETIME dimensions are explicit coverage constraints. Release-gated browser evidence is fixture-only; no anonymous live canary exists."
       }
     }
   ],
@@ -2116,9 +2136,11 @@
       "status": "experimental",
       "backendNeeded": "Any STAC API; executable assets additionally require the compatible PMTiles, COG, columnar, or runtime client surface",
       "api": "@honua/sdk-js/stac",
-      "notes": "Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable.",
+      "notes": "Adds bounded GET/POST search, server-driven pagination, cancellation, signed URL refresh, and typed asset selection without changing the supported connect() STAC protocol claim. The walkthrough executes authenticated, byte-bounded PMTiles v3 inspection with redacted range evidence, but does not mount the archive as a tile source; pmtiles-static remains renderer proof. Asset maturity and handoff remain explicit; GeoArrow is metadata-only and Zarr/NetCDF are unavailable.",
       "evidence": [
-        "stac-workflow-fixtures"
+        "stac-workflow-fixtures",
+        "stac-browser-product-fixtures",
+        "stac-browser-product-playwright"
       ]
     },
     {
@@ -2294,9 +2316,10 @@
       "status": "experimental",
       "backendNeeded": "Any compatible OGC API Coverages server",
       "api": "@honua/sdk-js/coverages createCoverageClient(), CoverageSource, @honua/sdk-js/raster",
-      "notes": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. The experimental raster facade maps bounded bbox windows, output size, CRS, and named range fields onto the same client.",
+      "notes": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. A strict standalone browser fixture proves named properties, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists.",
       "evidence": [
         "coverages-wcs-fixtures",
+        "coverages-wcs-browser",
         "unified-raster-fixtures"
       ]
     },
@@ -2313,9 +2336,10 @@
       "status": "experimental",
       "backendNeeded": "Any compatible WCS 2.0.1 KVP endpoint",
       "api": "@honua/sdk-js/coverages createWcsClient(), @honua/sdk-js/raster",
-      "notes": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. The experimental raster facade validates advertised scale-axis labels before mapping bounded bbox windows and named range fields.",
+      "notes": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. A strict standalone browser fixture proves named RANGESUBSET, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists.",
       "evidence": [
         "coverages-wcs-fixtures",
+        "coverages-wcs-browser",
         "unified-raster-fixtures"
       ]
     },

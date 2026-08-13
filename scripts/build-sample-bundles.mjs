@@ -230,7 +230,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:coverages-wcs:build",
     auditedVia:
-      "examples/coverages-wcs-basic/src/main.ts injects ./pinned-fixtures.js as HonuaClient.fetchFn; that bundled module answers OGC API Coverages and WCS metadata plus coverage requests from in-memory JSON/XML/PNG fixtures, so the default build issues no network request.",
+      "examples/coverages-wcs-basic/src/main.ts injects ./pinned-fixtures.js as HonuaClient.fetchFn and mounts its bounded PNG through an inline-style MapLibre image source; the strict bundled transport answers OGC API Coverages and WCS metadata plus coverage requests from in-memory JSON/XML/PNG fixtures and rejects every unexpected origin, so the default build issues no external request.",
   },
   {
     id: "ai-spatial-app-builder",
@@ -399,6 +399,30 @@ export const SAMPLE_BUNDLE_AUDIT = [
  * outlive the map/data behavior that made the sample publishable.
  */
 export const SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS = new Map([
+  [
+    "coverages-wcs-basic",
+    {
+      kind: "coverage",
+      state: "__HONUA_COVERAGES_WCS__",
+      readyField: "ready",
+      canvasSelector: ".maplibregl-canvas",
+      ogcSourceId: "ogc-elevation",
+      ogcLayerId: "ogc-elevation-raster",
+      wcsSourceId: "wcs-elevation",
+      wcsLayerId: "wcs-elevation-raster",
+      fixtureDigest: "8c7b5b3f8bd31bca2df07c4a70254d75e70d63838c2f77e033def3c1b8d2acff",
+      fixtureByteLength: 281_908,
+      imageWidth: 320,
+      imageHeight: 220,
+      centerPixelValue: 450,
+      centerPixelColor: [221, 174, 82],
+      legendSelector: "#legend-labels",
+      legendMinText: "0 m",
+      legendMaxText: "600 m",
+      pixelSelector: "#pixel-value",
+      pixelText: "450 m",
+    },
+  ],
   [
     "columnar-query-quickstart",
     {

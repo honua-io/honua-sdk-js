@@ -59,15 +59,6 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
     },
   ],
   [
-    "coverages-wcs-basic",
-    {
-      rendersNoMap: "A fixture-backed bounded coverage image preview mounts no interactive map.",
-      state: "__HONUA_COVERAGES_WCS__",
-      readyField: "ready",
-      noBootFeatures: "It renders one raster coverage response rather than a vector feature collection.",
-    },
-  ],
-  [
     "react-quickstart",
     {
       canvasSelector: ".maplibregl-canvas",
@@ -83,15 +74,6 @@ export const PLAYGROUND_SMOKE_JOURNEYS = new Map([
       state: "__HONUA_SKETCH_EDITING_DEMO__",
       readyField: "ready",
       noBootFeatures: "Its map is deliberately empty until a user draws into it.",
-    },
-  ],
-  [
-    "stac-imagery-browser",
-    {
-      rendersNoMap: "A fixture-backed catalog browser: it previews footprints and assets, and mounts no map.",
-      state: "__HONUA_STAC_BROWSER__",
-      readyField: "ready",
-      features: { field: "loadedCount", atLeast: 1 },
     },
   ],
   [

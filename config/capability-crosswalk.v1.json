@@ -237,9 +237,8 @@
       "reason": "Generic use-case/domain label (\"planning and permitting\"), not a technical platform capability."
     },
     "pmtiles": {
-      "capabilityKeys": [
-        "serve.vector-tiles"
-      ]
+      "internalOnly": true,
+      "reason": "Cloud-native format or typed handoff label; executable vector-tile serving is represented by the vector-tiles slug."
     },
     "profile": {
       "capabilityKeys": [
