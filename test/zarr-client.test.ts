@@ -233,6 +233,14 @@ describe("experimental Honua Zarr client", () => {
       expect.objectContaining({ code: "missing-spatial-reference" }),
     );
 
+    const unreferenced = { ...registration, srid: null } as unknown as ZarrStoreRegistration;
+    expect(zarr.assess(unreferenced).failures).toEqual([
+      expect.objectContaining({ code: "missing-spatial-reference" }),
+    ]);
+    expect(() => zarr.assertTileReady(unreferenced)).toThrow(
+      expect.objectContaining({ code: "missing-spatial-reference" }),
+    );
+
     const unsupported = {
       ...registration,
       variables: [
