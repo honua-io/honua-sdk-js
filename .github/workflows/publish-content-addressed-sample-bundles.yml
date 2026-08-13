@@ -169,9 +169,12 @@ jobs:
             publication/sample-bundles-attestation.v1.json \
             publication/sample-bundles-run-attestation.v1.json \
             staged/
-          cp source-a/.artifacts/sample-bundle-smoke/browser-smoke.v1.json staged/
-          test "$(find staged -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
-          test "$(find staged -mindepth 1 -maxdepth 1 | wc -l)" -eq 5
+          cp \
+            build-a/pack-metadata.v1.json \
+            source-a/.artifacts/sample-bundle-smoke/browser-smoke.v1.json \
+            staged/
+          test "$(find staged -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 6
+          test "$(find staged -mindepth 1 -maxdepth 1 | wc -l)" -eq 6
 
       - name: Upload governed publication
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -215,6 +218,7 @@ jobs:
               "sample-bundles-attestation.v1.json",
               "sample-bundles-run-attestation.v1.json",
               "browser-smoke.v1.json",
+              "pack-metadata.v1.json",
           }
           entries = list(root.iterdir())
           assert {entry.name for entry in entries} == expected_names
@@ -237,8 +241,22 @@ jobs:
           def read_bytes(name):
               return (root / name).read_bytes()
 
-          def load(name):
-              return json.loads(read_bytes(name))
+          def reject_duplicate_pairs(pairs):
+              value = {}
+              for key, entry in pairs:
+                  assert key not in value, f"duplicate JSON key: {key!r}"
+                  value[key] = entry
+              return value
+
+          def reject_constant(value):
+              raise AssertionError(f"invalid JSON constant: {value}")
+
+          def load(value):
+              return json.loads(
+                  value.decode("utf-8"),
+                  object_pairs_hook=reject_duplicate_pairs,
+                  parse_constant=reject_constant,
+              )
 
           def keys(value, expected):
               assert type(value) is dict and set(value) == set(expected)
@@ -254,10 +272,12 @@ jobs:
           deterministic_bytes = read_bytes("sample-bundles-attestation.v1.json")
           run_bytes = read_bytes("sample-bundles-run-attestation.v1.json")
           smoke_bytes = read_bytes("browser-smoke.v1.json")
-          manifest = json.loads(manifest_bytes)
-          deterministic = json.loads(deterministic_bytes)
-          run = json.loads(run_bytes)
-          smoke_raw = json.loads(smoke_bytes)
+          pack_bytes = read_bytes("pack-metadata.v1.json")
+          manifest = load(manifest_bytes)
+          deterministic = load(deterministic_bytes)
+          run = load(run_bytes)
+          smoke_raw = load(smoke_bytes)
+          pack = load(pack_bytes)
 
           keys(manifest, ["format", "schemaVersion", "build", "samples", "excluded"])
           assert manifest["format"] == "honua.sdk.sample-bundles.v2" and manifest["schemaVersion"] == 2
@@ -580,6 +600,16 @@ jobs:
           assert archive_bytes == canonical_gzip(canonical_tar)
           assert deterministic["publication"]["fileCount"] == len(expected_files)
           assert deterministic["publication"]["memberCount"] == len(expected_members)
+          assert pack == {
+              "schema": "honua.sdk.sample-bundle-pack.v1",
+              "sourceCommit": source,
+              "sourceDateEpoch": source_epoch,
+              "manifestSha256": hashlib.sha256(manifest_bytes).hexdigest(),
+              "archiveSha256": hashlib.sha256(archive_bytes).hexdigest(),
+              "archiveBytes": len(archive_bytes),
+              "fileCount": len(expected_files),
+              "memberCount": len(expected_members),
+          }
           print("privileged byte and provenance validation: PASS")
           PY
 

@@ -24,6 +24,7 @@ import {
   classifyReleaseState,
   createReceipts,
   normalizeSmoke,
+  parseUniqueJson,
   parseCanonicalArchive,
   validateDeterministicReceipt,
   validateManifest,
@@ -265,6 +266,7 @@ async function publicationFixture(
     "sample-bundles-attestation.v1.json": await readFile(deterministicPath),
     "sample-bundles-run-attestation.v1.json": await readFile(runPath),
     "browser-smoke.v1.json": smokeBytes,
+    "pack-metadata.v1.json": await readFile(fixture.metadataPath),
   };
   for (const [name, bytes] of Object.entries(files))
     await writeFile(path.join(staged, name), bytes);
@@ -352,6 +354,29 @@ async function runPrivilegedValidator(fixture) {
     },
     stdio: "pipe",
   });
+}
+
+function duplicateRoot(bytes, key) {
+  return Buffer.from(
+    bytes.toString("utf8").replace("{", `{${JSON.stringify(key)}:null,`),
+  );
+}
+
+function duplicateNested(bytes, needle, key, replacement = "null") {
+  const text = bytes.toString("utf8");
+  assert.ok(
+    text.includes(needle),
+    `missing duplicate fixture needle ${needle}`,
+  );
+  return Buffer.from(
+    text.replace(needle, `${needle}${JSON.stringify(key)}:${replacement},`),
+  );
+}
+
+function replaceJson(bytes, needle, replacement) {
+  const text = bytes.toString("utf8");
+  assert.ok(text.includes(needle), `missing JSON fixture needle ${needle}`);
+  return Buffer.from(text.replace(needle, replacement));
 }
 
 function coverageSmokeJourney() {
@@ -714,6 +739,54 @@ test("actual privileged inline validator rejects bound hostile nested smoke byte
   }
 });
 
+test("actual privileged inline validator rejects root and nested duplicates in all five JSON documents", async (context) => {
+  const fixture = await publicationFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const cases = [
+    [
+      "sample-bundles.v2.json",
+      "format",
+      (bytes) => duplicateNested(bytes, '"build": {\n', "node"),
+    ],
+    [
+      "browser-smoke.v1.json",
+      "format",
+      (bytes) => duplicateNested(bytes, '"results": [\n    {\n', "id"),
+    ],
+    [
+      "sample-bundles-attestation.v1.json",
+      "schema",
+      (bytes) => duplicateNested(bytes, '"source": {\n', "commit"),
+    ],
+    [
+      "sample-bundles-run-attestation.v1.json",
+      "schema",
+      (bytes) => duplicateNested(bytes, '"workflow": {\n', "ref"),
+    ],
+    [
+      "pack-metadata.v1.json",
+      "schema",
+      (bytes) =>
+        replaceJson(
+          bytes,
+          `"sourceCommit": "${SOURCE}"`,
+          '"sourceCommit": {"value":1,"value":2}',
+        ),
+    ],
+  ];
+  for (const [name, rootKey, nestedMutation] of cases) {
+    const original = fixture.files[name];
+    for (const hostile of [
+      duplicateRoot(original, rootKey),
+      nestedMutation(original),
+    ]) {
+      await writeFile(path.join(fixture.staged, name), hostile);
+      await assert.rejects(runPrivilegedValidator(fixture));
+    }
+    await writeFile(path.join(fixture.staged, name), original);
+  }
+});
+
 test("canonical ustar name-prefix split is unique in both validators", async (context) => {
   const first = "a".repeat(40);
   const second = "b".repeat(40);
@@ -957,6 +1030,95 @@ test("receipts bind exact bytes, deterministic metadata, run metadata, and stric
         deterministicSha256: run.deterministicReceiptSha256,
       }),
     );
+  }
+});
+
+test("duplicate-key JSON parsing and receipt creation fail closed recursively", async (context) => {
+  assert.deepEqual(parseUniqueJson('{"safe":{"value":1}}'), {
+    safe: { value: 1 },
+  });
+  for (const hostile of [
+    '{"key":1,"key":2}',
+    '{"key":1,"\\u006bey":2}',
+    '{"outer":{"key":1,"key":2}}',
+  ])
+    assert.throws(() => parseUniqueJson(hostile), /duplicate key/u);
+
+  const fixture = await canonicalFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const smokePath = path.join(fixture.root, "smoke.json");
+  const lockPath = path.join(fixture.root, "package-lock.json");
+  const originals = {
+    manifest: fixture.manifestBytes,
+    smoke: Buffer.from(`${JSON.stringify(fixtureSmoke(), null, 2)}\n`),
+    pack: await readFile(fixture.metadataPath),
+  };
+  await writeFile(smokePath, originals.smoke);
+  await writeFile(lockPath, LOCK_BYTES);
+  const inputs = [
+    [
+      path.join(fixture.bundleRoot, "sample-bundles.v2.json"),
+      originals.manifest,
+      [
+        duplicateRoot(originals.manifest, "format"),
+        duplicateNested(originals.manifest, '"build": {\n', "node"),
+      ],
+    ],
+    [
+      smokePath,
+      originals.smoke,
+      [
+        duplicateRoot(originals.smoke, "format"),
+        duplicateNested(originals.smoke, '"results": [\n    {\n', "id"),
+      ],
+    ],
+    [
+      fixture.metadataPath,
+      originals.pack,
+      [
+        duplicateRoot(originals.pack, "schema"),
+        replaceJson(
+          originals.pack,
+          `"sourceCommit": "${SOURCE}"`,
+          '"sourceCommit": {"value":1,"value":2}',
+        ),
+      ],
+    ],
+  ];
+  let receipt = 0;
+  for (const [inputPath, original, hostileDocuments] of inputs) {
+    for (const hostile of hostileDocuments) {
+      await writeFile(inputPath, hostile);
+      receipt += 1;
+      await assert.rejects(
+        createReceipts({
+          manifest: path.join(fixture.bundleRoot, "sample-bundles.v2.json"),
+          archive: fixture.archivePath,
+          packMetadata: fixture.metadataPath,
+          smokeReceipt: smokePath,
+          lockfile: lockPath,
+          deterministicReceipt: path.join(
+            fixture.root,
+            `duplicate-deterministic-${receipt}.json`,
+          ),
+          runReceipt: path.join(fixture.root, `duplicate-run-${receipt}.json`),
+          sourceCommit: SOURCE,
+          sourceDateEpoch: EPOCH,
+          repository: "honua-io/honua-sdk-js",
+          workflowRef: "refs/heads/trunk",
+          runId: "123",
+          runAttempt: "2",
+          runnerName: "GitHub Actions 1",
+          runnerEnvironment: "github-hosted",
+          runnerOs: "Linux",
+          runnerArch: "X64",
+          runnerImage: "ubuntu24",
+          runnerImageVersion: "20260801.1",
+        }),
+        /duplicate key/u,
+      );
+    }
+    await writeFile(inputPath, original);
   }
 });
 

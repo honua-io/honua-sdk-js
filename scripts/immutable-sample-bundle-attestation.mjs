@@ -48,9 +48,9 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Run governance tests and policy":
     "31c9adb88c3990cf2bb12d3fd0c237683cceb86f6092353aa7943c9e614230ff",
   "build-and-smoke/Stage transfer":
-    "6709f7c8d6a676f5eace92ca5dc2709df45a75efb7130b7eab1c92edb6749c6b",
+    "b6a12a3064dd6c7812fbd2aa8f6e24249e8766a230c8b098fe468e30f6603de9",
   "attest-and-publish/Validate all bytes before tokens":
-    "f9960f94e17bb67db36f1c4b6ffe21653d8a02e1c4c8e78558beceab0b8adfbf",
+    "08c85cbc3182ff308b7f6266cc654b9743671ae57fbda4ed31e0cb1b6244ca48",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":
@@ -118,6 +118,168 @@ function canonicalGzip(bytes) {
 
 function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+export function parseUniqueJson(input, label = "JSON document") {
+  const source =
+    typeof input === "string"
+      ? input
+      : new TextDecoder("utf-8", { fatal: true }).decode(input);
+  let offset = 0;
+
+  const fail = (message) => {
+    throw new Error(`${label} ${message} at byte ${offset}`);
+  };
+  const whitespace = () => {
+    while (
+      source[offset] === " " ||
+      source[offset] === "\t" ||
+      source[offset] === "\r" ||
+      source[offset] === "\n"
+    )
+      offset += 1;
+  };
+  const digit = (value) => value >= "0" && value <= "9";
+  const hexDigit = (value) =>
+    digit(value) ||
+    (value >= "a" && value <= "f") ||
+    (value >= "A" && value <= "F");
+
+  const parseString = () => {
+    const start = offset;
+    invariant(
+      source[offset] === '"',
+      `${label} string must start with a quote`,
+    );
+    offset += 1;
+    while (offset < source.length) {
+      const character = source[offset];
+      offset += 1;
+      if (character === '"') return JSON.parse(source.slice(start, offset));
+      if (character === "\\") {
+        const escape = source[offset];
+        offset += 1;
+        if (escape === "u") {
+          for (let index = 0; index < 4; index += 1) {
+            if (!hexDigit(source[offset])) fail("contains an invalid escape");
+            offset += 1;
+          }
+        } else if (
+          !['"', "\\", "/", "b", "f", "n", "r", "t"].includes(escape)
+        ) {
+          fail("contains an invalid escape");
+        }
+      } else if (character.charCodeAt(0) <= 0x1f) {
+        fail("contains an unescaped control character");
+      }
+    }
+    fail("contains an unterminated string");
+  };
+
+  const parseNumber = () => {
+    const start = offset;
+    if (source[offset] === "-") offset += 1;
+    if (source[offset] === "0") {
+      offset += 1;
+    } else {
+      if (!digit(source[offset]) || source[offset] === "0")
+        fail("contains an invalid number");
+      while (digit(source[offset])) offset += 1;
+    }
+    if (source[offset] === ".") {
+      offset += 1;
+      if (!digit(source[offset])) fail("contains an invalid fraction");
+      while (digit(source[offset])) offset += 1;
+    }
+    if (source[offset] === "e" || source[offset] === "E") {
+      offset += 1;
+      if (source[offset] === "+" || source[offset] === "-") offset += 1;
+      if (!digit(source[offset])) fail("contains an invalid exponent");
+      while (digit(source[offset])) offset += 1;
+    }
+    return Number(source.slice(start, offset));
+  };
+
+  const parseValue = (depth = 0) => {
+    invariant(depth <= 256, `${label} is too deeply nested`);
+    whitespace();
+    if (source[offset] === '"') return parseString();
+    if (source[offset] === "{") {
+      offset += 1;
+      whitespace();
+      const result = {};
+      const members = new Set();
+      if (source[offset] === "}") {
+        offset += 1;
+        return result;
+      }
+      while (offset < source.length) {
+        if (source[offset] !== '"') fail("contains an invalid object key");
+        const key = parseString();
+        if (members.has(key))
+          throw new Error(
+            `${label} contains duplicate key ${JSON.stringify(key)}`,
+          );
+        members.add(key);
+        whitespace();
+        if (source[offset] !== ":") fail("is missing an object colon");
+        offset += 1;
+        const value = parseValue(depth + 1);
+        Object.defineProperty(result, key, {
+          value,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+        whitespace();
+        if (source[offset] === "}") {
+          offset += 1;
+          return result;
+        }
+        if (source[offset] !== ",") fail("is missing an object comma");
+        offset += 1;
+        whitespace();
+      }
+      fail("contains an unterminated object");
+    }
+    if (source[offset] === "[") {
+      offset += 1;
+      whitespace();
+      const result = [];
+      if (source[offset] === "]") {
+        offset += 1;
+        return result;
+      }
+      while (offset < source.length) {
+        result.push(parseValue(depth + 1));
+        whitespace();
+        if (source[offset] === "]") {
+          offset += 1;
+          return result;
+        }
+        if (source[offset] !== ",") fail("is missing an array comma");
+        offset += 1;
+      }
+      fail("contains an unterminated array");
+    }
+    for (const [literal, value] of [
+      ["true", true],
+      ["false", false],
+      ["null", null],
+    ]) {
+      if (source.startsWith(literal, offset)) {
+        offset += literal.length;
+        return value;
+      }
+    }
+    if (source[offset] === "-" || digit(source[offset])) return parseNumber();
+    fail("contains an invalid value");
+  };
+
+  const value = parseValue();
+  whitespace();
+  if (offset !== source.length) fail("contains trailing content");
+  return value;
 }
 
 function object(value, label) {
@@ -1296,9 +1458,9 @@ export async function createReceipts(options) {
       readFile(options.lockfile),
       readFile(options.packMetadata),
     ]);
-  const manifest = JSON.parse(manifestBytes);
-  const smoke = JSON.parse(smokeBytes);
-  const pack = JSON.parse(packBytes);
+  const manifest = parseUniqueJson(manifestBytes, "sample bundle manifest");
+  const smoke = parseUniqueJson(smokeBytes, "browser smoke receipt");
+  const pack = parseUniqueJson(packBytes, "pack metadata");
   const lockfileSha256 = sha256(lockfileBytes);
   const { files } = validateManifest(manifest, {
     sourceCommit: options.sourceCommit,

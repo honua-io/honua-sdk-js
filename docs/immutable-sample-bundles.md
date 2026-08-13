@@ -31,8 +31,8 @@ SHA-256 digests, and two-build byte equality. The per-run receipt carries run ID
 image/version/OS/architecture, and the raw smoke-receipt digest; it is attested but not released.
 
 The privileged job has no checkout and executes no repository or build-controlled program. A pinned
-download action transfers only the five governed files, including the raw browser-smoke receipt that
-is not published. Reviewed inline steps validate the exact file set, types, recursive smoke and receipt
+download action transfers only six governed files: five duplicate-key-rejecting JSON documents plus
+the archive, including raw browser-smoke and pack metadata that are not published. Reviewed inline steps validate the exact file set, types, recursive smoke and receipt
 schemas, identities, sizes, SHA-256 digests, manifest/archive membership, canonical tar/gzip bytes, and
 native tar readability before exposing a token. GitHub CLI `2.93.0` is downloaded and accepted only
 at its pinned Linux amd64 archive digest.
@@ -69,9 +69,10 @@ records the governed Node, lockfile, workflow, runner, action, browser-smoke, an
 source identities. The released receipt is deterministic; run ID, attempt, runner
 image, and other per-run fields remain only in the separately attested run receipt.
 
-The privileged job checks five regular artifact files before any API or OIDC-bearing
-step. Its inline validator independently parses the manifest, receipts, gzip stream,
-the raw smoke proof, and every ustar header and member byte. It reconstructs the exact
+The privileged job checks six regular artifact files before any API or OIDC-bearing
+step. Its inline validator recursively rejects duplicate keys while independently parsing
+the manifest, receipts, pack metadata, raw smoke proof, gzip stream, and every ustar header
+and member byte. It reconstructs the exact
 ustar headers, padding, order, end blocks, and deterministic gzip stream and requires
 byte equality. Absolute/traversing/control-character paths,
 links, devices, FIFOs, PAX/GNU extensions, duplicates, reordering, metadata drift,
