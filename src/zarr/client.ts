@@ -256,13 +256,12 @@ function assessVariable(variable: ZarrVariableMetadata, failures: ZarrMaturityFa
     yIndex < 0 ||
     xIndex >= variable.shape.length ||
     yIndex >= variable.shape.length ||
-    variable.shape[xIndex] === 0 ||
-    variable.shape[yIndex] === 0
+    variable.shape.some((extent) => extent === 0)
   ) {
     failures.push({
       code: "no-tileable-variable",
       variable: variable.name,
-      message: `Variable "${variable.name}" does not expose non-empty X and Y axes for tile rendering.`,
+      message: `Variable "${variable.name}" does not expose non-empty dimensions with X and Y axes for tile rendering.`,
     });
   }
   const codec = variable.compressor?.toLowerCase() ?? null;
