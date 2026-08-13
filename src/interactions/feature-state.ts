@@ -101,6 +101,13 @@ export interface HoverHandlerOptions {
   stateKey?: string;
   /** Source layer (required for vector-tile sources). */
   sourceLayer?: string;
+  /**
+   * Called whenever the hovered feature changes, with the source-qualified
+   * target or `undefined` when the pointer leaves the layer. Mirrors
+   * {@link SelectionHandlerOptions.onSelectionTargetsChange} so a hover, like
+   * a selection, can be published without re-reading `hoveredId` on a timer.
+   */
+  onHoverTargetChange?: (hovered: SourceQualifiedFeatureSelectionTarget | undefined) => void;
 }
 
 /** Handle returned by {@link createHoverHandler} for cleanup. */
@@ -134,7 +141,7 @@ export interface HoverHandle {
  * ```
  */
 export function createHoverHandler(map: InteractiveMap, options: HoverHandlerOptions): HoverHandle {
-  const { source, layer, stateKey = "hover", sourceLayer } = options;
+  const { source, layer, stateKey = "hover", sourceLayer, onHoverTargetChange } = options;
   let hoveredId: string | number | undefined;
 
   function onMouseMove(...args: unknown[]): void {
@@ -142,17 +149,24 @@ export function createHoverHandler(map: InteractiveMap, options: HoverHandlerOpt
     const featureId = e?.features?.[0]?.id;
     if (featureId === undefined || featureId === null) return;
 
-    if (hoveredId !== undefined && hoveredId !== featureId) {
+    const changed = hoveredId !== featureId;
+    if (hoveredId !== undefined && changed) {
       map.setFeatureState({ source, id: hoveredId, sourceLayer }, { [stateKey]: false });
     }
     hoveredId = featureId;
     map.setFeatureState({ source, id: hoveredId, sourceLayer }, { [stateKey]: true });
+    // Feature-state is re-set idempotently on every mousemove (unchanged
+    // behavior); the callback fires only on an actual hover *change* so a
+    // declarative binding sees one event per hovered feature, not one per
+    // pointer sample.
+    if (changed) onHoverTargetChange?.(sourceFeatureSelectionTarget(source, featureId, { sourceLayer }));
   }
 
   function onMouseLeave(): void {
     if (hoveredId !== undefined) {
       map.setFeatureState({ source, id: hoveredId, sourceLayer }, { [stateKey]: false });
       hoveredId = undefined;
+      onHoverTargetChange?.(undefined);
     }
   }
 

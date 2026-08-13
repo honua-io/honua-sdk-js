@@ -173,6 +173,18 @@ const TARGETS = [
   { key: "/agent-tools", kind: "bundle", entry: "dist/src/agent-tools/index.js", label: "`/agent-tools`" },
   { key: "/agent-safety", kind: "bundle", entry: "dist/src/agent-safety/index.js", label: "`/agent-safety`" },
   { key: "/nl-map-control", kind: "bundle", entry: "dist/src/nl-map-control/index.js", label: "`/nl-map-control`" },
+  {
+    key: "/interactions/declarative",
+    kind: "bundle",
+    entry: "dist/src/interactions/declarative.js",
+    label: "`/interactions/declarative` (ADR-0030 compiler over the existing binding primitives)",
+  },
+  {
+    key: "/studio-agent",
+    kind: "bundle",
+    entry: "dist/src/studio-agent/index.js",
+    label: "`/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency)",
+  },
   { key: "/runtime", kind: "bundle", entry: "dist/src/runtime/index.js", label: "`/runtime`" },
   { key: "/realtime", kind: "bundle", entry: "dist/src/realtime/index.js", label: "`/realtime`" },
   { key: "/offline", kind: "bundle", entry: "dist/src/offline/index.js", label: "`/offline`" },

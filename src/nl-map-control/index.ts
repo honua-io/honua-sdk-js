@@ -97,6 +97,11 @@ const NL_TOOL_EFFECTS: Readonly<Record<HonuaAgentToolName, NlMapPlanEffect>> = {
   summarizeSelection: "read",
   runWidgetQuery: "read",
   explainCapabilityGap: "read",
+  setLayerStyle: "mutation",
+  addWidget: "mutation",
+  removeWidget: "mutation",
+  bindInteraction: "mutation",
+  removeInteraction: "mutation",
 };
 
 /** Maps an NL plan effect onto the agent-safety effect vocabulary. */
