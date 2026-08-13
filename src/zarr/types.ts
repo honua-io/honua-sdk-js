@@ -82,7 +82,9 @@ export interface ZarrTileRequest {
 
 export interface ZarrTileResult {
   readonly bytes: Uint8Array;
-  readonly contentType: "image/png";
+  /** `null` when the requested tile does not intersect the coverage (`204`). */
+  readonly contentType: "image/png" | null;
+  readonly status: 200 | 204;
   readonly requestUrl: string;
 }
 

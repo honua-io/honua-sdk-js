@@ -124,6 +124,19 @@ export class HonuaZarrClient {
     const maxBytes = positiveByteLimit(request.maxResponseBytes ?? this.maxTileResponseBytes);
     try {
       const response = await boundedFetch(this.client, "GET", path, undefined, "image/png", maxBytes, request.signal);
+      if (response.status === 204) {
+        return {
+          bytes: new Uint8Array(),
+          contentType: null,
+          status: 204,
+          requestUrl: resolveUrl(this.client.serverBaseUrl, path),
+        };
+      }
+      if (response.status !== 200) {
+        throw new HonuaZarrError("invalid-response", "Zarr tile endpoint returned an unexpected success status.", {
+          status: response.status,
+        });
+      }
       const contentType = response.headers.get("Content-Type")?.split(";", 1)[0]?.trim().toLowerCase();
       if (contentType !== "image/png") {
         throw new HonuaZarrError("invalid-response", "Zarr tile endpoint did not return image/png.", {
@@ -133,6 +146,7 @@ export class HonuaZarrClient {
       return {
         bytes: new Uint8Array(await response.arrayBuffer()),
         contentType: "image/png",
+        status: 200,
         requestUrl: resolveUrl(this.client.serverBaseUrl, path),
       };
     } catch (error) {
