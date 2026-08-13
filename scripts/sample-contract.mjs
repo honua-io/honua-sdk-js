@@ -184,6 +184,18 @@ const GOLDEN_VISUAL_GATE_ORDER = Object.freeze([
 ]);
 const GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS = 300;
 const GOLDEN_VISUAL_MAX_WINDOW_SECONDS = 7 * 24 * 60 * 60;
+// The one command that renews every golden-visual window this file enforces.
+// Named in the failure and in the pre-expiry note so an expiry never costs
+// anyone a bisect to find out what to run (honua-io/honua-sdk-js#1266 REQ-002).
+const GOLDEN_VISUAL_RENEWAL_COMMAND = "npm run samples:generate";
+const GOLDEN_VISUAL_RENEWAL_AUTOMATION =
+  "gh workflow run regenerate-derived-artifacts.yml --repo honua-io/honua-sdk-js";
+// A golden-visual window is renewed by an automation that runs every six hours
+// (.github/workflows/regenerate-derived-artifacts.yml), so a published window
+// should never get within a day of expiring while that automation is healthy.
+// Crossing this horizon is not yet a failure -- it is the note that says the
+// renewal path has stopped working, hours before the calendar wedges CI.
+const GOLDEN_VISUAL_RENEWAL_HORIZON_HOURS = 24;
 const SITE_CONSUMER_PUBLIC_TRACKS = Object.freeze(["golden", "recipe", "lab"]);
 const SITE_CONSUMER_FILTER_DIMENSIONS = Object.freeze([
   "task",
@@ -5227,32 +5239,111 @@ function validateGoldenVisualEvidenceOwnership(entry) {
   );
 }
 
+/** Whole-unit duration for humans: "3d 4h", "45m", "12s". */
+function formatDuration(milliseconds) {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  return `${seconds}s`;
+}
+
+/**
+ * Names the single reason one window is unacceptable, or null when it is fine.
+ * Expiry (a renewal lapse nobody's branch caused) reads differently from an
+ * inverted, over-long, or future-dated window (a real authoring defect), and
+ * the caller needs the distinction to write a message someone can act on
+ * (honua-io/honua-sdk-js#1266 REQ-002).
+ */
+function goldenVisualWindowDefect(label, item, now) {
+  const observedAt = Date.parse(item.observedAt);
+  const expiresAt = Date.parse(item.expiresAt);
+  const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
+  const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
+  if (!Number.isFinite(observedAt) || !Number.isFinite(expiresAt)) {
+    return `${label} window has unparseable timestamps (observedAt=${item.observedAt}, expiresAt=${item.expiresAt})`;
+  }
+  if (expiresAt <= observedAt) {
+    return `${label} window ends before it starts (observedAt=${item.observedAt}, expiresAt=${item.expiresAt})`;
+  }
+  if (expiresAt - observedAt > maximumWindowMs) {
+    return `${label} window spans ${formatDuration(expiresAt - observedAt)}, longer than the ${formatDuration(maximumWindowMs)} policy maximum`;
+  }
+  if (observedAt > now + maximumFutureSkewMs) {
+    return `${label} was observed ${formatDuration(observedAt - now)} in the future (observedAt=${item.observedAt})`;
+  }
+  if (expiresAt <= now) {
+    return `${label} expired ${formatDuration(now - expiresAt)} ago (expiresAt=${item.expiresAt})`;
+  }
+  return null;
+}
+
 /**
  * Every freshness window a published golden entry advertises: the aggregate visual
  * window, each semantic gate receipt, and the live observation. Any expired member
  * means the card is no longer current (honua-io/honua-sdk-js#550).
+ *
+ * The failure names the offending window, why it is unacceptable, and the exact
+ * command that renews it. An expiry is a renewal lapse, not a branch defect, and
+ * the message used to say neither -- so a wall-clock detonation read as an
+ * inscrutable red gate on somebody else's pull request (#1266).
  */
 function validateGoldenVisualEvidenceFreshness(entry, now = Date.now()) {
-  const maximumFutureSkewMs = GOLDEN_VISUAL_MAX_FUTURE_SKEW_SECONDS * 1000;
-  const maximumWindowMs = GOLDEN_VISUAL_MAX_WINDOW_SECONDS * 1000;
   const windows = [
-    { observedAt: entry.observedAt, expiresAt: entry.expiresAt },
-    ...entry.semanticEvidence,
-    { observedAt: entry.liveEvidence.observedAt, expiresAt: entry.liveEvidence.expiresAt },
+    { label: "aggregate visual evidence", observedAt: entry.observedAt, expiresAt: entry.expiresAt },
+    ...entry.semanticEvidence.map((semantic) => ({ ...semantic, label: `${semantic.gate} gate receipt` })),
+    {
+      label: "live observation",
+      observedAt: entry.liveEvidence.observedAt,
+      expiresAt: entry.liveEvidence.expiresAt,
+    },
   ];
-  for (const item of windows) {
-    const observedAt = Date.parse(item.observedAt);
-    const expiresAt = Date.parse(item.expiresAt);
-    invariant(
-      Number.isFinite(observedAt) &&
-        Number.isFinite(expiresAt) &&
-        observedAt <= now + maximumFutureSkewMs &&
-        expiresAt > now &&
-        expiresAt > observedAt &&
-        expiresAt - observedAt <= maximumWindowMs,
-      `${entry.sampleId}: visual evidence is stale or has an invalid freshness window`,
-    );
-  }
+  const defects = windows
+    .map((item) => goldenVisualWindowDefect(item.label, item, now))
+    .filter((defect) => defect !== null);
+  invariant(
+    defects.length === 0,
+    `${entry.sampleId}: visual evidence is stale or has an invalid freshness window -- ${defects.join("; ")}. ` +
+      `Renew it with \`${GOLDEN_VISUAL_RENEWAL_COMMAND}\` and commit the regenerated evidence, or let the ` +
+      `regeneration automation do it: \`${GOLDEN_VISUAL_RENEWAL_AUTOMATION}\``,
+  );
+  reportGoldenVisualRenewalHorizon(entry, windows, now);
+}
+
+// validateGoldenVisualEvidenceFreshness runs once per document per process and
+// several documents republish the same windows; report each distinct sample's
+// horizon once so the note stays readable.
+const reportedGoldenVisualHorizonNotes = new Set();
+
+/**
+ * Pre-expiry note (honua-io/honua-sdk-js#1266 REQ-002). A published window that
+ * is inside the renewal horizon is still valid, so this never fails a lane -- it
+ * is the signal that the six-hourly regeneration has stopped renewing this
+ * evidence, printed while there is still time to fix the automation instead of
+ * discovering the lapse as a red gate on an unrelated pull request.
+ */
+function reportGoldenVisualRenewalHorizon(entry, windows, now) {
+  const horizonMs = GOLDEN_VISUAL_RENEWAL_HORIZON_HOURS * 60 * 60 * 1000;
+  const soonest = windows
+    // A window whose whole span is shorter than the horizon is never judged
+    // against it: only the real seven-day receipt windows the regeneration is
+    // responsible for can be overdue for renewal.
+    .filter((item) => Date.parse(item.expiresAt) - Date.parse(item.observedAt) > horizonMs)
+    .map((item) => Date.parse(item.expiresAt))
+    .filter((expiresAt) => Number.isFinite(expiresAt))
+    .sort((left, right) => left - right)[0];
+  if (soonest === undefined || soonest - now > horizonMs) return;
+  const note =
+    `note: ${entry.sampleId}: golden visual evidence expires in ${formatDuration(soonest - now)} ` +
+    `(inside the ${GOLDEN_VISUAL_RENEWAL_HORIZON_HOURS}h renewal horizon). The six-hourly regeneration should have ` +
+    `renewed it already; renew it now with \`${GOLDEN_VISUAL_RENEWAL_COMMAND}\` or \`${GOLDEN_VISUAL_RENEWAL_AUTOMATION}\``;
+  if (reportedGoldenVisualHorizonNotes.has(note)) return;
+  reportedGoldenVisualHorizonNotes.add(note);
+  process.stdout.write(`${note}\n`);
 }
 
 function validateGoldenVisualEvidenceEntries(visualEvidence, options = {}) {
@@ -7772,7 +7863,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     readJson(LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH),
   ]);
   await validateSiteConsumerHandoff(archivedLegacyHandoff, { legacyReceiptArchive });
-  return new Map([
+  const outputs = new Map([
     [
       GENERATED_CATALOG_PATH,
       generatedCatalogMarkdown(catalog, packageJson, await collectReleaseMatrixLanes(catalog, options)),
@@ -7789,6 +7880,86 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     [SITE_CONSUMER_V4_FIXTURE_PATH, stableJson(consumerFixtureV4)],
     ["README.md", replaceReadmeFragment(readme, readmeFragment(catalog))],
   ]);
+  // Deliberately not conditioned on options.verifyCheckout: this scans the
+  // committed contract tree, not the evidence artifacts a relaxed lane skips,
+  // and the relaxed pull-request lane is exactly where the next unrenewable
+  // window would otherwise be introduced unnoticed.
+  await validateGoldenVisualFreshnessRenewability(outputs);
+  return outputs;
+}
+
+// Committed documents that publish golden-visual freshness windows but are NOT
+// regenerated: frozen compatibility copies whose windows are validated against
+// their own observedAt (historical mode), never against the wall clock. Nothing
+// renews these, and nothing has to.
+const ARCHIVED_GOLDEN_VISUAL_FRESHNESS_PATHS = Object.freeze([
+  ARCHIVED_LEGACY_SITE_CONSUMER_HANDOFF_PATH,
+  LEGACY_VISUAL_RECEIPT_ARCHIVE_PATH,
+  LEGACY_VISUAL_RECEIPT_ARCHIVE_V2_PATH,
+]);
+const GOLDEN_VISUAL_FRESHNESS_SCAN_ROOTS = Object.freeze([
+  "samples/dist",
+  "samples/contract/v2/consumer-fixtures",
+]);
+
+export function publishesGoldenVisualWindow(value) {
+  if (Array.isArray(value)) return value.some((item) => publishesGoldenVisualWindow(item));
+  if (!value || typeof value !== "object") return false;
+  for (const [key, nested] of Object.entries(value)) {
+    if (key === "visualEvidence" || key === "qualifiedGoldenJourneys") return true;
+    if (publishesGoldenVisualWindow(nested)) return true;
+  }
+  return false;
+}
+
+/**
+ * The candidate documents -- already narrowed to the ones that are neither
+ * regenerated nor registered as archives -- that publish a golden-visual window
+ * anyway. Pure, so the rule is testable without writing a time bomb into the
+ * real contract tree.
+ */
+export function unrenewableGoldenVisualPaths(documents) {
+  return [...documents]
+    .filter(([, document]) => publishesGoldenVisualWindow(document))
+    .map(([relativePath]) => relativePath)
+    .sort();
+}
+
+/**
+ * The structural half of honua-io/honua-sdk-js#1266.
+ *
+ * `samples/dist/honua-site-consumer-handoff.v1.json` published golden-visual
+ * windows, was validated against the wall clock like every other current
+ * document, and was the one such document `samples:generate` did not rewrite --
+ * it was read back from disk and republished unchanged. Nothing renewed it, so
+ * seven days after the observation that produced it, it expired and took the
+ * whole sample-publication gate (and with it, every pull request's test signal)
+ * down. #1258 made it a regenerated output; this gate is what stops the next
+ * one from being added.
+ *
+ * Every committed document carrying a golden-visual window must therefore be
+ * either regenerated here -- and so renewed on every regeneration pass -- or
+ * explicitly registered as an archived copy that is validated historically. A
+ * new document that is neither fails now, at authoring time, instead of a week
+ * later on somebody else's branch.
+ */
+async function validateGoldenVisualFreshnessRenewability(outputs) {
+  const documents = new Map();
+  for (const root of GOLDEN_VISUAL_FRESHNESS_SCAN_ROOTS) {
+    for (const relativePath of await walkFiles(root)) {
+      if (!relativePath.endsWith(".json")) continue;
+      if (outputs.has(relativePath) || ARCHIVED_GOLDEN_VISUAL_FRESHNESS_PATHS.includes(relativePath)) continue;
+      documents.set(relativePath, await readJson(relativePath));
+    }
+  }
+  const unrenewable = unrenewableGoldenVisualPaths(documents);
+  invariant(
+    unrenewable.length === 0,
+    `${unrenewable.join(", ")} publishes golden visual freshness windows that nothing renews: the file is ` +
+      `neither regenerated by \`${GOLDEN_VISUAL_RENEWAL_COMMAND}\` nor registered in ` +
+      `ARCHIVED_GOLDEN_VISUAL_FRESHNESS_PATHS as a historically validated archive. A window nobody renews expires ` +
+      `on the calendar and wedges the sample publication gate (honua-io/honua-sdk-js#1266)`,
+  );
 }
 
 export function generatedOutputDrift(expectedOutputs, currentOutputs) {

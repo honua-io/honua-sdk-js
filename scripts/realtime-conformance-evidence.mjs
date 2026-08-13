@@ -109,6 +109,26 @@ function packageIdentity(projectRoot = PROJECT_ROOT) {
   return { package: packageJson.name, version: packageJson.version };
 }
 
+/**
+ * GitHub Actions renders an unset `workflow_dispatch` input or an undefined
+ * repository variable as the empty string, so a scheduled run arrives with
+ * `HONUA_REALTIME_LIVE_SERVER_REVISION=""` rather than with the variable
+ * absent. An empty value means *absent*, never *present and invalid*: the
+ * distinction matters because `??` treats `""` as supplied, which turned a
+ * missing optional input into a hard throw, `Number("")` into layer `0`, and a
+ * missing source id into the empty string. Normalizing once at the boundary
+ * keeps every downstream `env.X ?? default` honest instead of asking each
+ * call site to re-derive the same rule.
+ */
+export function normalizeLiveEnv(env = process.env) {
+  const normalized = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value === "string" && value.trim().length === 0) continue;
+    normalized[key] = value;
+  }
+  return normalized;
+}
+
 export function realtimeSourceRevision(env = process.env, projectRoot = PROJECT_ROOT) {
   const supplied = env.HONUA_SAMPLE_SOURCE_REVISION ?? env.GITHUB_SHA;
   if (/^[a-f0-9]{40}$/u.test(supplied ?? "")) return supplied;
@@ -184,11 +204,14 @@ export async function collectFixtureRealtimeConformanceEvidence(options = {}) {
       generatedAt: options.generatedAt ?? new Date().toISOString(),
       sdk: {
         ...packageIdentity(projectRoot),
-        revision: options.sourceRevision ?? realtimeSourceRevision(options.env, projectRoot),
+        revision:
+          options.sourceRevision ??
+          realtimeSourceRevision(normalizeLiveEnv(options.env ?? process.env), projectRoot),
       },
       server: {
         version: "fixture-v1",
         revision: `sha256:${sha256(corpusBytes)}`,
+        revisionSource: "fixture",
         capabilities: { sse: true, websocket: true, odata: true },
       },
       corpusBytes,
@@ -201,7 +224,7 @@ export async function collectFixtureRealtimeConformanceEvidence(options = {}) {
 
 export async function collectLiveRealtimeConformanceEvidence(options = {}) {
   const projectRoot = options.projectRoot ?? PROJECT_ROOT;
-  const env = options.env ?? process.env;
+  const env = normalizeLiveEnv(options.env ?? process.env);
   const corpusBytes = options.corpusBytes ?? readProjectBytes(CORPUS_PATH, projectRoot);
   const generatedAt = options.generatedAt ?? new Date().toISOString();
   const sdkIdentity = {
@@ -312,11 +335,20 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
   );
   const probedIdentity =
     descriptors.serverRevision !== null && descriptors.serverVersion !== null
-      ? { version: null, revision: null }
+      ? { version: null, revision: null, probe: null }
       : await probeServerIdentity(baseUrl, fetchFn, headers, timeoutMs);
   const observedServerRevision = descriptors.serverRevision ?? probedIdentity.revision;
   const serverRevision = observedServerRevision;
   const serverVersion = descriptors.serverVersion ?? probedIdentity.version ?? configuredServerVersion;
+  // Which document bound the retained evidence to a deployment is part of the
+  // evidence, not an implementation detail: a reader must be able to tell a
+  // capability-advertised revision from a manifest-probed one.
+  const serverRevisionSource =
+    descriptors.serverRevision !== null
+      ? "capabilities"
+      : probedIdentity.revision !== null
+        ? "manifest"
+        : null;
   if (
     configuredServerRevision !== null &&
     observedServerRevision !== null &&
@@ -344,7 +376,12 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
         lane: "live",
         generatedAt,
         sdk: sdkIdentity,
-        server: { version: serverVersion, revision: observedServerRevision, capabilities },
+        server: {
+          version: serverVersion,
+          revision: observedServerRevision,
+          revisionSource: serverRevisionSource,
+          capabilities,
+        },
         corpusBytes,
         scenarioCount: 0,
         executionCount: 0,
@@ -360,15 +397,12 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
     serverRevision === null &&
     REALTIME_TRANSPORTS.some((id) => descriptors[id].advertised)
   ) {
+    const revisionMissingMessage = `Advertised realtime transport cannot be certified without an exact server revision (capabilities: no immutable revision; ${
+      probedIdentity.probe ?? "manifest not probed"
+    }).`;
     const transports = REALTIME_TRANSPORTS.map((id) =>
       descriptors[id].advertised
-        ? nonExecutedTransport(
-            id,
-            true,
-            "failed",
-            "server-revision-missing",
-            "Advertised realtime transport cannot be certified without an exact server revision.",
-          )
+        ? nonExecutedTransport(id, true, "failed", "server-revision-missing", revisionMissingMessage)
         : nonExecutedTransport(
             id,
             false,
@@ -382,15 +416,12 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
         lane: "live",
         generatedAt,
         sdk: sdkIdentity,
-        server: { version: serverVersion, revision: null, capabilities },
+        server: { version: serverVersion, revision: null, revisionSource: null, capabilities },
         corpusBytes,
         scenarioCount: 0,
         executionCount: 0,
         transports,
-        conformance: conformanceNotAttempted(
-          "server-revision-missing",
-          "Advertised realtime transport cannot be certified without an exact server revision.",
-        ),
+        conformance: conformanceNotAttempted("server-revision-missing", revisionMissingMessage),
       }),
     );
   }
@@ -493,6 +524,7 @@ export async function collectLiveRealtimeConformanceEvidence(options = {}) {
       server: {
         version: serverVersion,
         revision: serverRevision,
+        revisionSource: serverRevisionSource,
         capabilities,
       },
       corpusBytes,
@@ -717,16 +749,25 @@ async function probeServerIdentity(baseUrl, fetchFn, headers, timeoutMs) {
       timeoutMs,
     );
     const server = isRecord(response.body?.server) ? response.body.server : {};
+    const revision = immutableServerRevisionOrNull(pickImmutableRevision(server));
     return {
       version: textOrNull(server.serverVersion ?? server.version),
-      revision: immutableServerRevisionOrNull(
-        server.serverRevision ?? server.gitRevision ?? server.commitSha ?? server.imageDigest ?? server.revision,
-      ),
+      revision,
+      // A reachable manifest that carries no immutable revision is a different
+      // deployment fact from an unreachable one, and only the retained
+      // diagnostic can tell an operator which one to go fix.
+      probe: revision === null ? "manifest-revision-absent" : "manifest",
     };
-  } catch {
+  } catch (error) {
     // Older deployments may not expose the public manifest. A null immutable
-    // revision prevents advertised transports from being certified.
-    return { version: null, revision: null };
+    // revision prevents advertised transports from being certified. The reason
+    // is reduced to a bare status so no server-controlled prose reaches a
+    // retained document.
+    return {
+      version: null,
+      revision: null,
+      probe: `manifest-unreachable${httpStatusDetail(error)}`,
+    };
   }
 }
 
@@ -906,17 +947,32 @@ function classifyLiveTransportFailure(error) {
     error instanceof LiveDegradedError ||
     code === "transport-gap" ||
     code === "cursor-expired";
+  // Diagnostic text stays a fixed string so server-controlled prose can never
+  // reach a retained document. An HTTP status is the one detail that both
+  // matters to whoever must fix the deployment and cannot carry a secret, so
+  // it is appended as a bare integer and nothing else.
+  const detail = httpStatusDetail(error);
   return degraded
     ? {
         status: "degraded",
         code,
-        message: "Advertised realtime transport was temporarily unavailable during observation.",
+        message: `Advertised realtime transport was temporarily unavailable during observation.${detail}`,
       }
     : {
         status: "failed",
         code,
-        message: "Advertised realtime transport failed the live conformance contract.",
+        message: `Advertised realtime transport failed the live conformance contract.${detail}`,
       };
+}
+
+function httpStatusDetail(error) {
+  for (let node = error, depth = 0; isRecord(node) && depth < 8; node = node.cause, depth += 1) {
+    const status = node.status ?? node.httpStatus ?? node.statusCode;
+    if (Number.isSafeInteger(status) && status >= 100 && status <= 599) {
+      return ` (HTTP ${String(status)})`;
+    }
+  }
+  return "";
 }
 
 export function normalizeLiveCapabilities(payload, baseUrl) {
@@ -1024,10 +1080,27 @@ export function normalizeLiveCapabilities(payload, baseUrl) {
   return {
     ...descriptors,
     serverVersion: textOrNull(body.serverVersion ?? body.version),
-    serverRevision: immutableServerRevisionOrNull(
-      body.serverRevision ?? body.gitRevision ?? body.commitSha ?? body.imageDigest ?? body.revision,
-    ),
+    serverRevision: immutableServerRevisionOrNull(pickImmutableRevision(body)),
   };
+}
+
+/**
+ * `deploymentRevision` is the field name honua-server#3038 actually shipped on
+ * both `/api/v1/streaming/features/capabilities` and
+ * `/api/v1/capabilities/manifest`, alongside a `deploymentRevisionSource` of
+ * `commit-sha` or `image-digest`. It leads the chain because it is the
+ * reviewed contract; the remaining names stay accepted so a deployment that
+ * predates that contract is still bindable rather than uncertifiable.
+ */
+function pickImmutableRevision(document) {
+  return (
+    document.deploymentRevision ??
+    document.serverRevision ??
+    document.gitRevision ??
+    document.commitSha ??
+    document.imageDigest ??
+    document.revision
+  );
 }
 
 function normalizeTransportId(value) {
@@ -1660,7 +1733,12 @@ function assembleEvidence(options) {
     lane: options.lane,
     generatedAt: options.generatedAt,
     sdk: options.sdk,
-    server: options.server,
+    server: {
+      version: options.server.version,
+      revision: options.server.revision,
+      revisionSource: options.server.revisionSource ?? null,
+      capabilities: options.server.capabilities,
+    },
     corpus: {
       kind: "honua.realtime-cross-transport-conformance",
       version: 1,
@@ -1779,7 +1857,22 @@ export function validateRealtimeConformanceEvidence(evidence) {
       immutableServerRevisionOrNull(evidence.server?.revision) !== null,
       "Executed realtime evidence requires an immutable server revision.",
     );
+    invariant(
+      evidence.server?.revisionSource !== null && evidence.server?.revisionSource !== undefined,
+      "Executed realtime evidence requires the document that bound its server revision.",
+    );
   }
+  // A revision and its provenance stand or fall together: naming a source
+  // without a revision, or a revision no document accounted for, would let a
+  // reader believe the deployment binding was checked when it was not.
+  invariant(
+    (evidence.server?.revision === null) === (evidence.server?.revisionSource === null),
+    "Realtime evidence server revision and revision source disagree.",
+  );
+  invariant(
+    !(evidence.server?.revisionSource === "fixture" && evidence.lane !== "fixture"),
+    "Live realtime evidence claimed a fixture revision source.",
+  );
   if (evidence.lane === "live") {
     const executedStates = evidence.transports
       .filter((transport) => transport.status === "executed")
@@ -1875,6 +1968,9 @@ export function summarizeRealtimeConformanceEvidence(evidence) {
   const conformance = evidence.conformance;
   return [
     `lane=${evidence.lane} status=${evidence.summary.status} revision=${evidence.sdk.revision}`,
+    `server: version=${evidence.server.version ?? "unknown"} revision=${
+      evidence.server.revision ?? "unbound"
+    } (${evidence.server.revisionSource ?? "no source"})`,
     ...(conformance
       ? [
           `controlled-run: ${conformance.status}${
@@ -1955,10 +2051,12 @@ function textOrNull(value) {
 
 function immutableServerRevisionOrNull(value) {
   if (value === undefined || value === null) return null;
-  invariant(
-    typeof value === "string" && value.trim().length > 0,
-    "Realtime server revision must be a non-empty string when provided.",
-  );
+  // A blank string is an unset input, not a malformed revision. Rejecting it
+  // here is what took the whole scheduled lane down before any evidence was
+  // written; a server that publishes `""` is likewise revision-less rather
+  // than in violation, and still fails closed via `server-revision-missing`.
+  if (typeof value === "string" && value.trim().length === 0) return null;
+  invariant(typeof value === "string", "Realtime server revision must be a string when provided.");
   const revision = value.trim();
   invariant(
     IMMUTABLE_SERVER_REVISION.test(revision),
@@ -2382,16 +2480,85 @@ function safeOutputPath(value) {
   return output;
 }
 
+/**
+ * A collector that throws used to exit with a stderr line and nothing else, so
+ * the one lane whose whole purpose is retained machine-readable proof retained
+ * nothing at all on its worst day. A crash is itself a conformance result:
+ * classify all three transports `failed` with the collector diagnostic and
+ * write the document, so an operator reads the reason out of the artifact
+ * rather than out of expiring workflow logs.
+ */
+export function collectorFailureRealtimeConformanceEvidence(lane, error, options = {}) {
+  const projectRoot = options.projectRoot ?? PROJECT_ROOT;
+  const message = `Realtime conformance collector failed before it could classify any transport: ${errorMessage(error)}`;
+  return validateRealtimeConformanceEvidence(
+    assembleEvidence({
+      lane,
+      generatedAt: options.generatedAt ?? new Date().toISOString(),
+      sdk: {
+        ...packageIdentity(projectRoot),
+        // The revision reader can be the thing that threw; a zeroed revision
+        // keeps the document schema-valid while remaining obviously not a
+        // real commit, and `failed` prevents it being read as certification.
+        revision: safeSdkRevision(options.env ?? process.env, projectRoot),
+      },
+      server: {
+        version: null,
+        revision: null,
+        revisionSource: null,
+        capabilities: { sse: false, websocket: false, odata: false },
+      },
+      corpusBytes: safeCorpusBytes(projectRoot),
+      scenarioCount: 0,
+      executionCount: 0,
+      transports: REALTIME_TRANSPORTS.map((id) =>
+        nonExecutedTransport(id, false, "failed", "collector-failed", message),
+      ),
+      conformance: conformanceNotAttempted("collector-failed", message),
+    }),
+  );
+}
+
+function safeSdkRevision(env, projectRoot) {
+  try {
+    return realtimeSourceRevision(normalizeLiveEnv(env), projectRoot);
+  } catch {
+    return "0".repeat(40);
+  }
+}
+
+function safeCorpusBytes(projectRoot) {
+  try {
+    return readProjectBytes(CORPUS_PATH, projectRoot);
+  } catch {
+    return new Uint8Array(0);
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const evidence =
-    options.lane === "fixture"
-      ? await collectFixtureRealtimeConformanceEvidence()
-      : await collectLiveRealtimeConformanceEvidence();
+  let evidence;
+  let collectorFailed = false;
+  try {
+    evidence =
+      options.lane === "fixture"
+        ? await collectFixtureRealtimeConformanceEvidence()
+        : await collectLiveRealtimeConformanceEvidence();
+  } catch (error) {
+    collectorFailed = true;
+    process.stderr.write(`Realtime conformance evidence failed: ${errorMessage(error)}\n`);
+    evidence = collectorFailureRealtimeConformanceEvidence(options.lane, error);
+  }
   const output = safeOutputPath(options.output);
   fs.mkdirSync(path.dirname(output), { recursive: true });
   fs.writeFileSync(output, `${JSON.stringify(evidence, null, 2)}\n`, "utf8");
   for (const line of summarizeRealtimeConformanceEvidence(evidence)) process.stdout.write(`${line}\n`);
+  // A collector failure is non-negotiable: `--allow-degraded` may forgive an
+  // unreachable server, but never a lane that could not run.
+  if (collectorFailed) {
+    process.exitCode = 1;
+    return;
+  }
   if (!options.strict) return;
   if (evidence.summary.status === "failed") process.exitCode = 1;
   else if (evidence.summary.status === "degraded" && !options.allowDegraded) process.exitCode = 2;
@@ -2402,7 +2569,8 @@ if (
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
   main().catch((error) => {
-    process.stderr.write(`Realtime conformance evidence failed: ${errorMessage(error)}\n`);
+    // Reached only if evidence retention itself fails (unwritable output).
+    process.stderr.write(`Realtime conformance evidence could not be retained: ${errorMessage(error)}\n`);
     process.exitCode = 1;
   });
 }

@@ -162,8 +162,10 @@ describe("capability-to-sample matrix contract", () => {
     // 35 = 30 pre-existing claims + two columnar workflow claims
     // + the dynamic STAC workflow, direct COG raster, and managed PMTiles claims.
     expect(matrix.supportClaims).toHaveLength(35);
-    // 62 = 59 existing package entrypoints + the experimental STAC, raster, and PMTiles facades.
-    expect(matrix.packageEntrypoints).toHaveLength(62);
+    // 64 = 59 original package entrypoints + the experimental STAC, raster, and
+    // PMTiles facades + the experimental declarative-interactions compiler and
+    // Studio agent session.
+    expect(matrix.packageEntrypoints).toHaveLength(64);
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./pmtiles")).toMatchObject({
       subpath: "./pmtiles",
       supportStatus: "experimental",

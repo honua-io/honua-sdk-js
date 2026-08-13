@@ -67,6 +67,44 @@ An explicit `transports` array is authoritative. In particular,
 `enabled: true` implies the legacy SSE endpoint only when `transports` is
 absent.
 
+### Discovering the deployment revision
+
+The reviewed deployment identifies itself; the lane does not have to be told.
+`deploymentRevision` — the field honua-server#3038 shipped on both
+`/api/v1/streaming/features/capabilities` and `/api/v1/capabilities/manifest`,
+alongside a `deploymentRevisionSource` of `commit-sha` or `image-digest` — is
+read first, with `serverRevision`, `gitRevision`, `commitSha`, `imageDigest`,
+and `revision` still accepted so an older deployment stays bindable. The
+capability response is consulted first; the public manifest is probed only when
+it leaves the revision or the release version unset.
+
+Retained evidence records which document supplied it in `server.revisionSource`
+(`capabilities`, `manifest`, or `fixture`). A revision and its provenance stand
+or fall together: neither may appear without the other, and any document with
+an `executed` transport requires both. When no immutable revision exists, the
+`server-revision-missing` diagnostic names which probe came up empty —
+`manifest-revision-absent` for a reachable but revision-less manifest,
+`manifest-unreachable` for one that could not be read — because those are
+different deployment problems.
+
+### Absent inputs versus invalid ones
+
+GitHub Actions renders an unset `workflow_dispatch` input or an undefined
+repository variable as the empty string, so a scheduled run arrives with
+`HONUA_REALTIME_LIVE_SERVER_REVISION=""` rather than with the variable absent.
+Blank environment values are dropped at the boundary and treated as absent, not
+as supplied-and-invalid. This is not cosmetic: before it was fixed, every
+scheduled run rejected the blank revision, exited non-zero before opening a
+single transport, and retained no live document at all — the lane whose entire
+product is evidence produced none.
+
+For the same reason a collector crash is itself a classified result. If the
+live or fixture collector throws before it can classify anything, the lane
+still writes a schema-valid document with all three transports `failed`, a
+`collector-failed` diagnostic carrying the reason, and exit code `1` that
+`--allow-degraded` cannot forgive. An operator reads the cause out of the
+retained artifact rather than out of expiring workflow logs.
+
 ### Driving the mutation (controlled conformance)
 
 A snapshot-plus-delta contract cannot be proved by watching a deployment and
@@ -208,9 +246,11 @@ HONUA_REALTIME_LIVE_CONFORMANCE_ENABLED=true \
 HONUA_REALTIME_LIVE_BASE_URL=https://demo.honua.io \
 HONUA_REALTIME_LIVE_SOURCE_ID=maui-parcels \
 HONUA_REALTIME_LIVE_LAYER_ID=1 \
-HONUA_REALTIME_LIVE_SERVER_REVISION=<full-server-commit-sha-or-sha256-image-digest> \
 npm run evidence:realtime:live
 ```
+
+Add `HONUA_REALTIME_LIVE_SERVER_REVISION=<full-commit-sha-or-sha256-digest>`
+only to assert that the deployment answering is the one you reviewed.
 
 Driving the controlled mutation is a second, separate opt-in — enabling the
 live lane is consent to observe a deployment, never consent to write to it:
@@ -235,10 +275,11 @@ The scheduled workflow exposes the same switch as the `drive_controlled_mutation
 dispatch input (default `false`) and the
 `HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE` repository variable.
 
-`HONUA_REALTIME_LIVE_SERVER_REVISION` is an expected-identity constraint. The
-lane compares it with a revision observed from server metadata; it never
-substitutes the configured value when the deployment publishes no immutable
-revision.
+`HONUA_REALTIME_LIVE_SERVER_REVISION` is optional and is an expected-identity
+constraint, not a source. The lane discovers the revision from the deployment
+and compares the configured value with it, failing every advertised transport
+on `server-revision-mismatch` when they disagree; it never substitutes the
+configured value when the deployment publishes no immutable revision.
 `HONUA_REALTIME_LIVE_SERVER_VERSION` may record a release label when the server
 does not publish one. It does not satisfy the immutable revision requirement.
 The server contract this lane drives landed in

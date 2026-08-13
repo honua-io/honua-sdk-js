@@ -11,8 +11,10 @@ import {
   REALTIME_SSE_EVENT_MAX_BYTES,
   collectFixtureRealtimeConformanceEvidence,
   collectLiveRealtimeConformanceEvidence,
+  collectorFailureRealtimeConformanceEvidence,
   isRealtimeLiveEnabled,
   normalizeLiveCapabilities,
+  normalizeLiveEnv,
   summarizeRealtimeConformanceEvidence,
   validateRealtimeConformanceEvidence,
 } from "../scripts/realtime-conformance-evidence.mjs";
@@ -1568,5 +1570,270 @@ describe("realtime conformance evidence", () => {
       url: "https://example.test/api/v1/streaming/features",
     });
     expect(legacy.websocket.advertised).toBe(false);
+  });
+});
+
+/**
+ * Regressions from the scheduled lane's own failure record. Every run of
+ * `realtime-live-conformance.yml` between 2026-07-29 and 2026-08-12 exited 1
+ * before writing a live document, so the lane whose entire product is retained
+ * evidence retained none. The cause was not the server: an unset
+ * `workflow_dispatch` input reaches the process as `""`, which the revision
+ * reader treated as supplied-and-invalid rather than absent.
+ */
+describe("scheduled live lane retention", () => {
+  const DEPLOYMENT_REVISION = "6ad71ac701ca709ec671afd09257217e8d17a149";
+
+  function scheduledEnv(overrides: Record<string, string> = {}): Record<string, string> {
+    // Exactly the shape GitHub Actions renders for a scheduled run: the
+    // enable flag is set at workflow level, every dispatch-only input is "".
+    return {
+      HONUA_REALTIME_LIVE_CONFORMANCE_ENABLED: "true",
+      HONUA_REALTIME_LIVE_SERVER_REVISION: "",
+      HONUA_REALTIME_LIVE_SERVER_VERSION: "",
+      HONUA_REALTIME_LIVE_API_KEY: "",
+      HONUA_REALTIME_LIVE_CONFORMANCE_MUTATE: "",
+      HONUA_REALTIME_LIVE_CONFORMANCE_LABEL: "",
+      HONUA_REALTIME_LIVE_CONFORMANCE_TTL_SECONDS: "",
+      ...overrides,
+    };
+  }
+
+  it("drops blank environment values instead of treating them as supplied", () => {
+    const normalized = normalizeLiveEnv({
+      HONUA_REALTIME_LIVE_SERVER_REVISION: "",
+      HONUA_REALTIME_LIVE_LAYER_ID: "   ",
+      HONUA_REALTIME_LIVE_SOURCE_ID: "maui-parcels",
+    });
+    expect(Object.hasOwn(normalized, "HONUA_REALTIME_LIVE_SERVER_REVISION")).toBe(false);
+    expect(Object.hasOwn(normalized, "HONUA_REALTIME_LIVE_LAYER_ID")).toBe(false);
+    expect(normalized.HONUA_REALTIME_LIVE_SOURCE_ID).toBe("maui-parcels");
+  });
+
+  it("classifies a scheduled run with blank dispatch inputs instead of throwing", async () => {
+    // The exact reproduction of the 2026-08-12 failure. Before the fix this
+    // rejected with "Realtime server revision must be a non-empty string when
+    // provided." and no document was produced at all.
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      generatedAt: GENERATED_AT,
+      sourceRevision: SOURCE_REVISION,
+      baseUrl: BASE_URL,
+      timeoutMs: 1_000,
+      sdk: realtimeSdk,
+      corpus,
+      corpusBytes: Buffer.from(JSON.stringify(corpus)),
+      env: scheduledEnv(),
+      fetchFn: () => Promise.resolve(jsonResponse({ enabled: false })),
+    });
+
+    expectSchemaValid(evidence);
+    expect(evidence.lane).toBe("live");
+    expect(evidence.summary.status).toBe("unsupported");
+    expect(evidence.summary.unsupported).toBe(3);
+  });
+
+  it("binds evidence to the deploymentRevision honua-server advertises on its capability response", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions({ serverRevision: undefined, serverVersion: undefined }),
+      env: scheduledEnv(),
+      fetchFn: (input: string | URL | Request) => {
+        const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+        if (url.pathname.endsWith("/capabilities")) {
+          // The live demo.honua.io shape after honua-server#3038.
+          return Promise.resolve(
+            jsonResponse({
+              enabled: true,
+              transports: ["websocket", "sse"],
+              modes: ["delta", "snapshot"],
+              subscriptionSequence: true,
+              serverVersion: "1.0.0",
+              deploymentRevision: DEPLOYMENT_REVISION,
+              deploymentRevisionSource: "commit-sha",
+            }),
+          );
+        }
+        return Promise.resolve(jsonResponse({}, 503));
+      },
+    });
+
+    expectSchemaValid(evidence);
+    expect(evidence.server.revision).toBe(DEPLOYMENT_REVISION);
+    expect(evidence.server.revisionSource).toBe("capabilities");
+    expect(evidence.server.version).toBe("1.0.0");
+    // A revision it could not read would have failed both advertised
+    // transports on server-revision-missing rather than reaching the stream.
+    expect(evidence.transports.map((transport) => transport.diagnostics[0]?.code)).not.toContain(
+      "server-revision-missing",
+    );
+  });
+
+  it("binds evidence to the manifest deploymentRevision when the capability response omits one", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions({ serverRevision: undefined, serverVersion: undefined }),
+      env: scheduledEnv(),
+      fetchFn: (input: string | URL | Request) => {
+        const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+        if (url.pathname.endsWith("/manifest")) {
+          return Promise.resolve(
+            jsonResponse({
+              server: {
+                serverVersion: "1.0.0",
+                deploymentRevision: DEPLOYMENT_REVISION,
+                deploymentRevisionSource: "commit-sha",
+              },
+            }),
+          );
+        }
+        if (url.pathname.endsWith("/capabilities")) {
+          return Promise.resolve(jsonResponse({ enabled: true, transports: ["sse"] }));
+        }
+        return Promise.resolve(jsonResponse({}, 503));
+      },
+    });
+
+    expectSchemaValid(evidence);
+    expect(evidence.server.revision).toBe(DEPLOYMENT_REVISION);
+    expect(evidence.server.revisionSource).toBe("manifest");
+  });
+
+  it("names which document came up empty when no immutable revision exists", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions({ serverRevision: undefined, serverVersion: undefined }),
+      env: scheduledEnv(),
+      fetchFn: (input: string | URL | Request) => {
+        const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+        if (url.pathname.endsWith("/manifest")) {
+          // Reachable, but revision-less: a different deployment fact from a
+          // 404, and the retained diagnostic has to say which one it was.
+          return Promise.resolve(jsonResponse({ server: { serverVersion: "1.0.0" } }));
+        }
+        return Promise.resolve(jsonResponse({ enabled: true, transports: ["sse"] }));
+      },
+    });
+
+    expectSchemaValid(evidence);
+    expect(evidence.summary.status).toBe("failed");
+    expect(evidence.server.revision).toBeNull();
+    expect(evidence.server.revisionSource).toBeNull();
+    const diagnostic = evidence.transports.find((transport) => transport.id === "sse")?.diagnostics[0];
+    expect(diagnostic?.code).toBe("server-revision-missing");
+    expect(diagnostic?.message).toContain("manifest-revision-absent");
+  });
+
+  it("distinguishes an unreachable manifest from a revision-less one", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions({ serverRevision: undefined, serverVersion: undefined }),
+      env: scheduledEnv(),
+      fetchFn: (input: string | URL | Request) => {
+        const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+        if (url.pathname.endsWith("/manifest")) return Promise.resolve(jsonResponse({}, 404));
+        return Promise.resolve(jsonResponse({ enabled: true, transports: ["sse"] }));
+      },
+    });
+
+    expectSchemaValid(evidence);
+    const diagnostic = evidence.transports.find((transport) => transport.id === "sse")?.diagnostics[0];
+    expect(diagnostic?.code).toBe("server-revision-missing");
+    expect(diagnostic?.message).toContain("manifest-unreachable");
+  });
+
+  it("still enforces an operator-supplied revision against the advertised deployment revision", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions({ serverRevision: undefined, serverVersion: undefined }),
+      env: scheduledEnv({ HONUA_REALTIME_LIVE_SERVER_REVISION: SERVER_REVISION }),
+      fetchFn: () =>
+        Promise.resolve(
+          jsonResponse({
+            enabled: true,
+            transports: ["sse"],
+            deploymentRevision: DEPLOYMENT_REVISION,
+          }),
+        ),
+    });
+
+    expectSchemaValid(evidence);
+    expect(evidence.summary.status).toBe("failed");
+    expect(evidence.transports.find((transport) => transport.id === "sse")?.diagnostics[0]?.code).toBe(
+      "server-revision-mismatch",
+    );
+  });
+
+  it("rejects a malformed advertised deployment revision rather than binding to it", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions({ serverRevision: undefined, serverVersion: undefined }),
+      env: scheduledEnv(),
+      fetchFn: () =>
+        Promise.resolve(jsonResponse({ enabled: true, transports: ["sse"], deploymentRevision: "v1.0.0" })),
+    });
+
+    expectSchemaValid(evidence);
+    expect(evidence.summary.status).toBe("failed");
+    expect(evidence.transports.find((transport) => transport.id === "sse")?.diagnostics[0]?.code).toBe(
+      "capability-contract-invalid",
+    );
+  });
+
+  it("retains a failed document with diagnostics when the collector itself throws", () => {
+    const evidence = collectorFailureRealtimeConformanceEvidence(
+      "live",
+      new Error("Realtime server revision must be a non-empty string when provided."),
+      { generatedAt: GENERATED_AT, env: { HONUA_SAMPLE_SOURCE_REVISION: SOURCE_REVISION } },
+    );
+
+    expectSchemaValid(evidence);
+    expect(evidence.summary.status).toBe("failed");
+    expect(evidence.summary.failed).toBe(3);
+    expect(evidence.server.revision).toBeNull();
+    expect(evidence.server.revisionSource).toBeNull();
+    for (const transport of evidence.transports) {
+      expect(transport.status).toBe("failed");
+      expect(transport.diagnostics[0]?.code).toBe("collector-failed");
+      expect(transport.diagnostics[0]?.message).toContain("must be a non-empty string");
+    }
+    // Still a real, summarizable document rather than a stderr line.
+    expect(summarizeRealtimeConformanceEvidence(evidence)[0]).toContain("status=failed");
+  });
+
+  it("refuses to certify without recording how the revision was bound", async () => {
+    const evidence = await collectStubFixtureEvidence();
+    expect(evidence.summary.executed).toBe(3);
+    expect(() =>
+      validateRealtimeConformanceEvidence({
+        ...evidence,
+        server: { ...evidence.server, revisionSource: null },
+      }),
+    ).toThrow(/revisionSource|revision source/u);
+  });
+
+  it("refuses a revision whose provenance no document accounts for", async () => {
+    // Reachable below the schema's executed-only rule: a document with no
+    // executed transport may still carry a revision, and a revision nothing
+    // accounted for would read as a checked deployment binding.
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions(),
+      env: scheduledEnv(),
+      fetchFn: () => Promise.resolve(jsonResponse({ enabled: false })),
+    });
+    expect(evidence.summary.executed).toBe(0);
+    expect(() =>
+      validateRealtimeConformanceEvidence({
+        ...evidence,
+        server: { ...evidence.server, revision: DEPLOYMENT_REVISION, revisionSource: null },
+      }),
+    ).toThrow(/revision and revision source disagree/u);
+  });
+
+  it("refuses live evidence that claims a fixture revision source", async () => {
+    const evidence = await collectLiveRealtimeConformanceEvidence({
+      ...commonLiveOptions(),
+      env: scheduledEnv(),
+      fetchFn: () => Promise.resolve(jsonResponse({ enabled: false })),
+    });
+    expect(() =>
+      validateRealtimeConformanceEvidence({
+        ...evidence,
+        server: { ...evidence.server, revision: `sha256:${"a".repeat(64)}`, revisionSource: "fixture" },
+      }),
+    ).toThrow(/claimed a fixture revision source/u);
   });
 });
