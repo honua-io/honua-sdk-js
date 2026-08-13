@@ -5,7 +5,7 @@ Zarr registration and tile-serving contract. It reuses an existing
 `HonuaClient`, so API keys, bearer tokens, cancellation, retry policy, timeout,
 and request interceptors remain active.
 
-```ts
+```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";
 import { createZarrClient } from "@honua/sdk-js/zarr";
 
