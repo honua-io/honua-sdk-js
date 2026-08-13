@@ -278,6 +278,23 @@ describe("sample publication contract", () => {
     expect(catalog.siteMappings).toHaveLength(21);
   });
 
+  it("accepts only the reviewed bounded Coverage and WCS browser command", async () => {
+    const catalog = await readJson("samples/catalog.v2.json");
+    const packageJson = await readJson("package.json");
+    expect(packageJson.scripts["test:playwright:coverages-wcs"]).toBe(
+      "vite build --config examples/coverages-wcs-basic/vite.config.ts && playwright test test/playwright/coverages-wcs-basic.spec.mjs",
+    );
+    const commandPolicyOptions = { ...validationTime, relaxDerivedArtifacts: true, verifyCheckout: false };
+    await expect(validateCatalog(catalog, packageJson, commandPolicyOptions)).resolves.toBeUndefined();
+
+    const unboundedPackage = structuredClone(packageJson);
+    unboundedPackage.scripts["test:playwright:coverages-wcs"] =
+      `${packageJson.scripts["test:playwright:coverages-wcs"]} && node -e "process.exit(0)"`;
+    await expect(validateCatalog(catalog, unboundedPackage, commandPolicyOptions)).rejects.toThrow(
+      "coverages-wcs-basic: automatic validation command is not in the reviewed bounded registry: npm run test:playwright:coverages-wcs",
+    );
+  });
+
   it("replays the reviewed v1 migration without semantic drift", async () => {
     const v1 = await readJson("samples/catalog.v1.json");
     const migration = await readJson("samples/contract/v2/migrations/catalog.v1-to-v2.json");
