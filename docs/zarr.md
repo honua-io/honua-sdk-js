@@ -24,7 +24,8 @@ const registered = await zarr.register({
 });
 
 const scanned = await zarr.refresh(registered.id);
-const status = zarr.assess(scanned);
+const readiness = { tileMatrixSrid: 4326, variable: scanned.primaryVariable ?? undefined };
+const status = zarr.assess(scanned, readiness);
 if (status.serverTileHandoff !== "ready") {
   throw new Error(status.failures.map((failure) => failure.message).join("; "));
 }
@@ -35,7 +36,7 @@ const tile = await zarr.tile({
   z: 3,
   x: 2,
   y: 4,
-  variable: scanned.primaryVariable ?? undefined,
+  variable: readiness.variable,
   datetime: "2026-08-13T00:00:00Z",
   maxResponseBytes: 2 * 1024 * 1024,
 });
@@ -56,8 +57,14 @@ const tile = await zarr.tile({
 - `assess()` recognizes Zarr v2/v3, little-endian numeric or boolean dtypes,
   and uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes,
   and ambiguous dimension metadata fail explicitly.
+- `assess()` mirrors the server's primary-or-first variable selection. Its
+  readiness options require the requested tile matrix SRID and accept an
+  optional variable; unrelated auxiliary variables do not block a valid
+  raster. Tileable variables require non-empty `x`/`lon` and `y`/`lat` axes.
 - Metadata must be refreshed and expose at least one variable before the tile
   handoff is considered ready.
+- A positive storage SRID is required because the current tile handoff cannot
+  reproject between the coverage and tile matrix set.
 
 This slice does not fetch chunks directly from S3, Azure Blob Storage, or the
 local filesystem. `directObjectStoreRead` therefore remains `"unavailable"`.

@@ -42,6 +42,7 @@ export interface ZarrStoreRegistration {
 export type ZarrMaturityFailureCode =
   | "metadata-pending"
   | "no-tileable-variable"
+  | "spatial-reference-mismatch"
   | "unsupported-version"
   | "unsupported-codec"
   | "unsupported-dtype"
@@ -63,6 +64,13 @@ export interface ZarrMaturityAssessment {
   readonly serverTileHandoff: "ready" | "unavailable";
   readonly directObjectStoreRead: "unavailable";
   readonly failures: readonly ZarrMaturityFailure[];
+}
+
+export interface ZarrReadinessOptions {
+  /** Variable selected by the tile request. Defaults to the server-selected primary-or-first variable. */
+  readonly variable?: string;
+  /** SRID of the requested tile matrix set; must match the coverage storage SRID. */
+  readonly tileMatrixSrid: number;
 }
 
 export interface ZarrTileRequest {
