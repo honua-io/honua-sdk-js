@@ -83,8 +83,6 @@ export interface DecodeHonuaArrowWkbBatchInput extends HonuaArrowWkbMappingOptio
 }
 
 interface GeometryDeclaration {
-  readonly kind?: GeoArrowGeometryKind;
-  readonly dimensions?: GeoArrowDimensions;
   readonly crs?: GeoArrowCrs;
   readonly crsType?: GeoArrowCrsType;
   readonly edges: GeoArrowEdges;
@@ -238,32 +236,6 @@ export const hasHonuaArrowWkbGeometry = (value: unknown): boolean => {
   }
 };
 
-const declaredGeometryType = (raw: unknown): Pick<GeometryDeclaration, "kind" | "dimensions"> => {
-  if (raw === undefined) return {};
-  if (!Array.isArray(raw) || raw.some((item) => typeof item !== "string")) {
-    fail("invalid-payload", "geoarrow.wkb geometry_types must be an array of strings.");
-  }
-  let kind: GeoArrowGeometryKind | undefined;
-  let dimensions: GeoArrowDimensions | undefined;
-  for (const item of raw as string[]) {
-    const match = /^(Point|LineString|Polygon)(?: (Z|M|ZM))?$/.exec(item);
-    if (!match) {
-      fail("unsupported-layout", `Honua Arrow geometry type "${item}" is not representable by the normative batch.`);
-    }
-    if (match[2] === "M" || match[2] === "ZM") {
-      fail("unsupported-layout", "Honua Arrow WKB decoding does not admit M dimensions.");
-    }
-    const candidate = match[1]!.toLowerCase() as GeoArrowGeometryKind;
-    const candidateDimensions: GeoArrowDimensions = match[2] === "Z" ? "xyz" : "xy";
-    if ((kind && kind !== candidate) || (dimensions && dimensions !== candidateDimensions)) {
-      fail("unsupported-layout", "Mixed Honua Arrow geometry kinds or dimensions require separate batches.");
-    }
-    kind = candidate;
-    dimensions = candidateDimensions;
-  }
-  return { ...(kind ? { kind } : {}), ...(dimensions ? { dimensions } : {}) };
-};
-
 const geometryDeclaration = (
   batch: ArrowRecordBatchLike,
   index: number,
@@ -276,7 +248,6 @@ const geometryDeclaration = (
     extensionJson === undefined
       ? {}
       : parseMetadataJson(extensionJson, `Arrow field "${field.name}" extension metadata`, maxBackingBytes);
-  const declared = declaredGeometryType(extension.geometry_types);
   const edgeValue = extension.edges ?? "planar";
   if (!["planar", "spherical", "vincenty", "thomas", "andoyer", "karney"].includes(String(edgeValue))) {
     fail("unsupported-layout", `Honua Arrow edge interpretation "${String(edgeValue)}" is unsupported.`);
@@ -311,7 +282,6 @@ const geometryDeclaration = (
   }
 
   return {
-    ...declared,
     ...(crs === undefined ? {} : { crs: crs as GeoArrowCrs }),
     ...(crsType === undefined ? {} : { crsType: crsType as GeoArrowCrsType }),
     edges: edgeValue as GeoArrowEdges,
@@ -667,16 +637,10 @@ export function decodeHonuaArrowWkbRecordBatch(input: DecodeHonuaArrowWkbBatchIn
     observedDimensions = parsed.dimensions;
     geometries.push(parsed.value);
   }
-  const kind = observedKind ?? declaration.kind ?? input.geometryKind;
-  const dimensions = observedDimensions ?? declaration.dimensions ?? (kind ? "xy" : undefined);
+  const kind = observedKind ?? input.geometryKind;
+  const dimensions = observedDimensions ?? (kind ? "xy" : undefined);
   if (!kind || !dimensions) {
     fail("unsupported-layout", "Empty or all-null Arrow WKB responses require an explicit geometryKind hint.");
-  }
-  if (
-    (declaration.kind && declaration.kind !== kind) ||
-    (declaration.dimensions && declaration.dimensions !== dimensions)
-  ) {
-    fail("invalid-payload", "Arrow WKB values disagree with the declared geometry_types metadata.");
   }
   if (input.geometryKind && input.geometryKind !== kind) {
     fail(
