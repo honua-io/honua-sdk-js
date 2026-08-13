@@ -148,6 +148,12 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Zarr metadata contains no tileable variable",
   ),
+  "core.zarr.spatial-reference-mismatch": classification(
+    "core",
+    "capability",
+    false,
+    "Zarr storage and tile matrix spatial references do not match",
+  ),
   "core.zarr.unsupported-version": classification("core", "capability", false, "Zarr version is unsupported"),
   "core.zarr.unsupported-codec": classification("core", "capability", false, "Zarr codec is unsupported"),
   "core.zarr.unsupported-dtype": classification("core", "capability", false, "Zarr dtype is unsupported"),
