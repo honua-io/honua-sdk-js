@@ -1,17 +1,17 @@
 # Zarr, NetCDF, and HDF5 maturity boundary
 
-This page is internal architecture and curriculum guidance. It is not public
-SDK documentation, a support claim, or a runnable workflow. The sole governed
+This page is internal architecture and curriculum guidance. It is not a
+support claim or a runnable workflow. The sole governed
 source is `config/multidimensional-format-maturity.v1.json`. NetCDF/HDF5 evidence
 is pinned to server commit `61b7038e1887c98131aa217b6f0ae7869356a1f3`, while
-Zarr evidence is pinned to its separately audited commit
-`639d37449fb8da5e9df4b12b7641ba4c6c5ac581`.
+Zarr evidence is reconciled against current merged server commit
+`a0538439c2ee3ac108ff78b413689bdb7e830d5e`.
 
 ## Explicit maturity states
 
 | Format | Client | Server | End to end | Meaning |
 | --- | --- | --- | --- | --- |
-| Zarr v2/v3 | `unavailable` | `experimental` | `unavailable` | Registration, bounded-read internals, CoverageJSON, WCS fixtures, and datacube components exist, but no public canary or JavaScript adapter closes the path. |
+| Zarr v2/v3 | `experimental` | `experimental` | `unavailable` | The SDK now covers versioned registration/metadata and a bounded server tile handoff; direct chunk/slice reads, a public canary, and end-to-end evidence remain. |
 | NetCDF-4 | `unavailable` | `metadata-only` | `unavailable` | Registration and build-optional metadata/conversion exist without a stable variable or subset read contract. |
 | Geospatial HDF5 | `unavailable` | `metadata-only` | `unavailable` | Registration and conversion architecture exist, but explicit driver and bounded-read proof are missing. |
 
@@ -111,11 +111,14 @@ Zarr adds format-specific gates without implying public support:
 - `zarr-bounded-sdk-client`
 - `zarr-sample-publication`
 
-Until every applicable blocker is evidenced, there is no public export, support
-or coverage claim, runnable example, Studio action, CLI command, or implicit
-browser full-file download.
+The experimental `@honua/sdk-js/zarr` export covers only versioned registration,
+metadata responses, maturity assessment, and a byte-bounded server tile handoff.
+There is no runnable sample while public fixture and live-service gates remain.
+Until every remaining applicable blocker is evidenced, there is no support or
+coverage claim, runnable example, Studio action, CLI command, direct object-store
+read, or implicit browser full-file download.
 
-## Maturity-only architecture guidance
+## Client-slice architecture guidance
 
 A future Zarr surface has three conceptual responsibilities, not reserved API
 names: inspect bounded metadata, read a chunk-aware bounded slice, and request a
