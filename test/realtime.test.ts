@@ -69,6 +69,10 @@ class MockRealtimeEventSource implements RealtimeServerSentEventSource {
     for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
 
+  public namedEvent(type: string, event: Event): void {
+    for (const listener of this.listeners.get(type) ?? []) listener(event as MessageEvent<string>);
+  }
+
   public fail(closed = false): void {
     this.readyState = closed ? 2 : 0;
     this.onerror?.(new Event("error"));
@@ -443,6 +447,31 @@ describe("realtime feature state", () => {
     controller.abort("caller stopped");
     expect(complete).toHaveBeenCalledTimes(1);
     expect(errors).toHaveLength(1);
+  });
+
+  it("ignores native EventSource error events while preserving named error messages", () => {
+    let source: MockRealtimeEventSource | undefined;
+    const next = vi.fn();
+    const error = vi.fn();
+    const transport = createRealtimeServerSentEventsTransport({
+      url: "https://honua.example/api/v1/realtime/events",
+      eventSourceFactory(url) {
+        source = new MockRealtimeEventSource(url);
+        return source;
+      },
+    });
+    transport.subscribe({ sourceId: "incidents" }, { next, error, complete: vi.fn() });
+
+    source?.namedEvent("error", new Event("error"));
+
+    expect(next).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+
+    source?.namedMessage("error", { type: "error", code: "transport-gap", receivedAt: 123 });
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error", code: "transport-gap", receivedAt: 123 }),
+    );
+    expect(error).not.toHaveBeenCalled();
   });
 
   it("completes a pre-aborted SSE subscription without constructing a transport or emitting an error", () => {

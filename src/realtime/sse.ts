@@ -105,7 +105,12 @@ export function createRealtimeServerSentEventsTransport<TFeature = unknown>(
 
       for (const type of options.eventTypes ?? DEFAULT_EVENT_TYPES) {
         if (!source.addEventListener) break;
-        const listener = (event: MessageEvent<string>) => emitPayload(event.data);
+        const listener = (event: MessageEvent<unknown>) => {
+          // EventSource also dispatches its native connection-error Event
+          // under the name "error". It has no data payload and must remain
+          // the responsibility of `source.onerror` below.
+          if (typeof event.data === "string") emitPayload(event.data);
+        };
         source.addEventListener(type, listener);
         listeners.push([type, listener]);
       }

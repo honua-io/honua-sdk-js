@@ -577,7 +577,7 @@ function printFailureTable(failures) {
 function parseDocGzipSizes() {
   const doc = fs.readFileSync(DOCS_FILE, "utf8");
   const sizes = new Map();
-  for (const line of doc.split("\n")) {
+  for (const line of doc.split(/\r?\n/)) {
     const match = line.match(/^\| (.+) \| [0-9.]+ KiB \| [0-9.]+ KiB \| ([0-9.]+ KiB) \| [0-9.]+ KiB \|$/);
     if (match) {
       sizes.set(match[1], match[2]);
