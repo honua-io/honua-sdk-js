@@ -222,6 +222,14 @@ describe("experimental Honua Zarr client", () => {
     });
     expect(() => zarr.assertTileReady(empty)).toThrow(expect.objectContaining({ code: "no-tileable-variable" }));
 
+    const unreferenced = { ...registration, srid: null } as unknown as ZarrStoreRegistration;
+    expect(zarr.assess(unreferenced).failures).toEqual([
+      expect.objectContaining({ code: "missing-spatial-reference" }),
+    ]);
+    expect(() => zarr.assertTileReady(unreferenced)).toThrow(
+      expect.objectContaining({ code: "missing-spatial-reference" }),
+    );
+
     const unsupported = {
       ...registration,
       variables: [

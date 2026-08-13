@@ -62,6 +62,8 @@ const tile = await zarr.tile({
   raster. Tileable variables require non-empty `x`/`lon` and `y`/`lat` axes.
 - Metadata must be refreshed and expose at least one variable before the tile
   handoff is considered ready.
+- A positive storage SRID is required because the current tile handoff cannot
+  reproject between the coverage and tile matrix set.
 
 This slice does not fetch chunks directly from S3, Azure Blob Storage, or the
 local filesystem. `directObjectStoreRead` therefore remains `"unavailable"`.

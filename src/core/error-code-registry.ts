@@ -142,6 +142,12 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "core.zarr.invalid-response": classification("core", "protocol", false, "Zarr response is invalid"),
   "core.zarr.response-too-large": classification("core", "validation", false, "Zarr response exceeds its byte limit"),
   "core.zarr.metadata-pending": classification("core", "capability", false, "Zarr metadata scan is pending"),
+  "core.zarr.missing-spatial-reference": classification(
+    "core",
+    "capability",
+    false,
+    "Zarr storage spatial reference is missing",
+  ),
   "core.zarr.no-tileable-variable": classification(
     "core",
     "capability",

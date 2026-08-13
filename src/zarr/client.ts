@@ -90,6 +90,12 @@ export class HonuaZarrClient {
           message: `Zarr v${String(registration.zarrFormat)} is outside the versioned server contract.`,
         });
       }
+      if (registration.srid === null || registration.srid <= 0) {
+        failures.push({
+          code: "missing-spatial-reference",
+          message: "Tile rendering requires a positive storage SRID that can match the requested tile matrix set.",
+        });
+      }
       const variable = selectTileVariable(registration, variableName);
       if (!variable) {
         failures.push({
