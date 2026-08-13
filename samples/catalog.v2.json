@@ -602,24 +602,19 @@
     {
       "id": "coverages-wcs-basic",
       "title": "Bounded coverage quickstart",
-      "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",
+      "summary": "Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Provide the smallest deterministic OGC API Coverages workflow while WCS/connect discovery matures."
+        "reason": "Provide browser-qualified deterministic Coverages/WCS evidence while anonymous live canaries and connect discovery remain open."
       },
       "sourcePath": "examples/coverages-wcs-basic",
       "docsPath": "examples/coverages-wcs-basic/README.md",
       "capabilities": [
         "coverage",
         "multidimensional-raster"
-      ],
-      "capabilityKeys": [
-        "raster.multidim-coverage",
-        "serve.ogc-api-coverages",
-        "serve.wcs"
       ],
       "protocols": [
         "ogc-coverages",
@@ -631,11 +626,11 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
+        "configurationStatus": "not-required",
         "config": [],
-        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
+        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a digest-pinned 320 x 220 fixture PNG, fail-closed in-memory transport, and MapLibre browser proof.",
         "attribution": "Honua protocol contract fixture.",
         "freshness": "Versioned with the repository and server contract.",
-        "configurationStatus": "not-required",
         "configClassifications": []
       },
       "evidence": {
@@ -643,36 +638,28 @@
           "mode": "fixture",
           "status": "executed",
           "commands": [
-            "npm run demo:coverages-wcs:build"
+            "npm run demo:coverages-wcs:build",
+            "npm run test:playwright:coverages-wcs"
           ]
         },
         "live": {
-          "mode": "unavailable",
-          "status": "not-applicable",
+          "mode": "public-live",
+          "status": "planned",
           "commands": []
         }
       },
-      "expectedDegradation": "Unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
+      "expectedDegradation": "Aborted superseded requests, invalid OGC properties, and invalid WCS range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
       "validationProfile": "browser-recipe",
       "validation": [
         "npm run demo:coverages-wcs:typecheck",
-        "npm run demo:coverages-wcs:build"
+        "npm run demo:coverages-wcs:build",
+        "npm run test:playwright:coverages-wcs"
       ],
-      "playground": {
-        "projectPath": "playgrounds/coverages-wcs-basic",
-        "providers": [
-          {
-            "id": "stackblitz",
-            "title": "StackBlitz",
-            "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
-          },
-          {
-            "id": "codesandbox",
-            "title": "CodeSandbox",
-            "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
-          }
-        ]
-      }
+      "capabilityKeys": [
+        "raster.multidim-coverage",
+        "serve.ogc-api-coverages",
+        "serve.wcs"
+      ]
     },
     {
       "id": "edit-workflow-demo",
@@ -933,7 +920,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-09T17:25:43.989Z"
+          "expiresAt": "2026-09-12T23:12:45.049Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1093,15 +1080,15 @@
     },
     {
       "id": "maplibre-quickstart",
-      "title": "First Map: Maui parcels in MapLibre",
-      "summary": "Starts with a populated, interactive Maui parcel map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
+      "title": "First Map: Maui census tracts in MapLibre",
+      "summary": "Starts with all 48 governed Maui County census tracts on an interactive map, then reveals the endpoint, accepted query plan, provenance, and protocol diagnostics behind it.",
       "sourceKind": "root-example",
       "track": "golden",
       "journeyId": "first-map",
       "supportTier": "supported",
       "lifecycle": {
         "state": "active",
-        "reason": "Qualified First Map journey with immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and anonymous live receipts."
+        "reason": "Qualified First Map journey with a governed 2025 Census TIGER/Line fixture, plus immutable packed-build, browser, accessibility, console, responsive, screenshot, performance, fixture, and separate anonymous live receipts."
       },
       "sourcePath": "examples/maplibre-quickstart",
       "docsPath": "examples/maplibre-quickstart/README.md",
@@ -1134,9 +1121,9 @@
           "VITE_HONUA_QUICKSTART_RESULT_RECORD_COUNT",
           "VITE_HONUA_QUICKSTART_WHERE"
         ],
-        "provenance": "Versioned same-origin First Map fixtures or the manifest-advertised anonymous layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1, with exact endpoint, protocol, and source identity recorded at runtime.",
-        "attribution": "Endpoint-advertised attribution is shown and preserved; unavailable attribution is stated explicitly.",
-        "freshness": "SDK observation time and cache status are shown; unavailable source validity time is stated explicitly.",
+        "provenance": "Governed first-map/v2 fixture derived from the exact SHA-256-pinned 2025 U.S. Census Bureau TIGER/Line Hawaii tract archive, or the separate manifest-advertised anonymous live layer https://demo.honua.io/rest/services/maui-parcels/FeatureServer/1; the live lane is not represented as Census-governed.",
+        "attribution": "The fixture preserves the U.S. Census Bureau citation and disclaimer; live sources preserve endpoint-advertised attribution, and unavailable attribution is stated explicitly.",
+        "freshness": "The immutable fixture records its 2025-01-01 source vintage; live SDK observation time and cache status are shown separately.",
         "configurationStatus": "approved",
         "configClassifications": [
           {
@@ -1181,7 +1168,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-09T17:23:34.102Z"
+          "expiresAt": "2026-09-12T23:11:28.650Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1303,7 +1290,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-09T17:26:07.186Z"
+          "expiresAt": "2026-09-12T23:13:03.771Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -2218,7 +2205,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-09T17:27:08.134Z"
+          "expiresAt": "2026-09-12T23:13:48.127Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
