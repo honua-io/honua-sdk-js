@@ -530,6 +530,8 @@ export function validateGeneratedOutputDrift(
   drift: string[],
   options?: { relaxed?: boolean },
 ): void;
+export function publishesGoldenVisualWindow(value: unknown): boolean;
+export function unrenewableGoldenVisualPaths(documents: Map<string, unknown>): string[];
 export function extractSampleConfiguration(
   sourcePath: string,
   exemptions?: Array<{ name: string }>,

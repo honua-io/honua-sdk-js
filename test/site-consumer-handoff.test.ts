@@ -722,6 +722,34 @@ describe("honua-site consumer handoff", () => {
       ),
     ).rejects.toThrow("visual evidence is stale or has an invalid freshness window");
 
+    // A coherent window that simply aged out is the honua-io/honua-sdk-js#1266
+    // shape, and it is not a defect in whatever branch happens to be running:
+    // the message has to separate "this lapsed, renew it with X" from "this card
+    // is malformed", or a renewal lapse gets triaged as a code bug on an
+    // unrelated pull request.
+    const lapsed = await validateSiteConsumerHandoff(
+      tamper((visual) => {
+        visual.liveEvidence.observedAt = "2026-01-01T00:00:00.000Z";
+        visual.liveEvidence.expiresAt = "2026-01-08T00:00:00.000Z";
+      }),
+    ).then(
+      () => "",
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    );
+    expect(lapsed).toMatch(/live observation expired .+ ago \(expiresAt=2026-01-08T00:00:00\.000Z\)/);
+    expect(lapsed).toContain("npm run samples:generate");
+
+    // The malformed shape keeps naming itself as malformed, not as an expiry.
+    const malformed = await validateSiteConsumerHandoff(
+      tamper((visual) => {
+        visual.expiresAt = visual.observedAt;
+      }),
+    ).then(
+      () => "",
+      (error: unknown) => (error instanceof Error ? error.message : String(error)),
+    );
+    expect(malformed).toContain("aggregate visual evidence window ends before it starts");
+
     await expect(
       validateSiteConsumerHandoff(
         tamper((visual) => {

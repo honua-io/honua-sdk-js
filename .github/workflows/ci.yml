@@ -306,7 +306,16 @@ jobs:
       - name: Verify pinned PROJJSON validator
         run: npm run verify:projjson-validator
 
+      # Reported here, enforced at the end of the job (honua-io/honua-sdk-js#1266
+      # REQ-003). This gate sits ~25 steps ahead of the correctness suite, so a
+      # failure here used to mean no pull request in the repo ran a single test --
+      # including when the cause was a wall-clock evidence lapse that no branch
+      # caused. The gate stays blocking: `Enforce sample publication contract`
+      # below fails the job on this step's outcome, but only after the tests have
+      # run and reported. Read the diagnosis at this step; read the verdict there.
       - name: Verify sample publication contract
+        id: sample_contract
+        continue-on-error: true
         run: |
           npm run samples:verify
           npm run samples:verify:flagships
@@ -531,6 +540,15 @@ jobs:
           name: sdk-coverage-v1
           path: config/sdk-coverage.v1.json
           if-no-files-found: error
+
+      # The verdict half of the deferred sample-publication gate above
+      # (honua-io/honua-sdk-js#1266 REQ-003). It is deliberately last: the gate
+      # is still blocking, but it can no longer cost this job its test signal.
+      - name: Enforce sample publication contract
+        if: always() && steps.sample_contract.outcome == 'failure'
+        run: |
+          echo "::error title=Sample publication contract::The sample publication contract failed. Read the failure in the 'Verify sample publication contract' step above; the correctness suite in this job ran to completion regardless. A golden-visual freshness lapse is renewed with 'npm run samples:generate' or 'gh workflow run regenerate-derived-artifacts.yml --repo honua-io/honua-sdk-js'."
+          exit 1
 
   mcp-sdk:
     name: MCP SDK

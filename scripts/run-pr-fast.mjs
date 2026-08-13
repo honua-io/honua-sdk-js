@@ -87,23 +87,36 @@ function run(command, args) {
   });
 }
 
+// `samples:verify` is first because it is the cheapest way to catch a
+// publication defect, NOT because the rest of the tier depends on it. Every
+// step therefore runs even after an earlier one fails: a stale-evidence lapse
+// used to abort this tier before `test:pr-fast` ever started, which cost the
+// pull request its correctness signal over a problem no branch caused
+// (honua-io/honua-sdk-js#1266 REQ-003).
+export const PR_FAST_STEPS = Object.freeze([
+  ["npm", ["run", "samples:verify"]],
+  ["npm", ["run", "typecheck"]],
+  ["npm", ["run", "check"]],
+  ["npm", ["run", "test:pr-fast"]],
+]);
+
+/**
+ * Runs every step, independent of earlier failures, and reports them all. The
+ * tier still fails when any step fails -- it just fails with the whole picture
+ * instead of the first red line.
+ */
+export async function runSteps(steps, runStep) {
+  const results = [];
+  for (const [command, args] of steps) {
+    results.push(await runStep(command, args));
+  }
+  return results;
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const steps = [
-    ["npm", ["run", "samples:verify"]],
-    ["npm", ["run", "typecheck"]],
-    ["npm", ["run", "check"]],
-    ["npm", ["run", "test:pr-fast"]],
-  ];
-  const results = [];
-
-  for (const [command, args] of steps) {
-    const result = await run(command, args);
-    results.push(result);
-    if (result.exitCode !== 0) {
-      break;
-    }
-  }
+  const steps = PR_FAST_STEPS;
+  const results = await runSteps(steps, run);
 
   const completedAtEpochMs = Date.now();
   // System uptime is monotonic across processes, so NTP/WSL wall-clock jumps
