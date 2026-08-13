@@ -56,6 +56,10 @@ const tile = await zarr.tile({
 - `assess()` recognizes Zarr v2/v3, little-endian numeric or boolean dtypes,
   and uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes,
   and ambiguous dimension metadata fail explicitly.
+- `assess()` mirrors the server's primary-or-first variable selection. Pass a
+  variable name to `assess()` / `assertTileReady()` before requesting a
+  different variable; unrelated auxiliary variables do not block a valid
+  raster. Tileable variables require non-empty `x`/`lon` and `y`/`lat` axes.
 - Metadata must be refreshed and expose at least one variable before the tile
   handoff is considered ready.
 

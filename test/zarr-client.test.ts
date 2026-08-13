@@ -235,10 +235,49 @@ describe("experimental Honua Zarr client", () => {
       ],
     } as unknown as ZarrStoreRegistration;
     expect(zarr.assess(unsupported).failures.map((failure) => failure.code)).toEqual([
+      "no-tileable-variable",
       "unsupported-codec",
       "unsupported-dtype",
       "ambiguous-dimensions",
     ]);
+  });
+
+  it("assesses the server-selected variable without blocking on auxiliary variables", () => {
+    const auxiliary = {
+      ...registration.variables[0],
+      name: "quality",
+      compressor: "blosc",
+      dataType: "|f4",
+      dimensionNames: ["time"],
+      shape: [12],
+      chunks: [1],
+    };
+    const multivariable = {
+      ...registration,
+      variables: [...registration.variables, auxiliary],
+      variableCount: 2,
+    } as unknown as ZarrStoreRegistration;
+    const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+
+    expect(zarr.assess(multivariable).failures).toEqual([]);
+    expect(zarr.assess(multivariable, "quality").failures.map((failure) => failure.code)).toEqual([
+      "no-tileable-variable",
+      "unsupported-codec",
+      "unsupported-dtype",
+    ]);
+    expect(zarr.assess(multivariable, "missing").failures).toEqual([
+      expect.objectContaining({ code: "no-tileable-variable" }),
+    ]);
+  });
+
+  it.each(["<f1", "<b8", "|f4", ">f4", "f4"])("rejects non-tileable dtype %s", (dataType) => {
+    const candidate = {
+      ...registration,
+      variables: [{ ...registration.variables[0], dataType }],
+    } as unknown as ZarrStoreRegistration;
+    const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+
+    expect(zarr.assess(candidate).failures).toEqual([expect.objectContaining({ code: "unsupported-dtype" })]);
   });
 
   it("classifies unsupported server versions and accepts empty array dimensions", async () => {
