@@ -357,9 +357,11 @@ async function runPrivilegedValidator(fixture) {
 }
 
 function duplicateRoot(bytes, key) {
-  return Buffer.from(
-    bytes.toString("utf8").replace("{", `{${JSON.stringify(key)}:null,`),
-  );
+  assert.equal(bytes[0], "{".charCodeAt(0), "JSON fixture must be an object");
+  return Buffer.concat([
+    Buffer.from(`{${JSON.stringify(key)}:null,`),
+    bytes.subarray(1),
+  ]);
 }
 
 function duplicateNested(bytes, needle, key, replacement = "null") {
