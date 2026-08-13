@@ -6,6 +6,7 @@ export type HonuaZarrErrorCode =
   | "response-too-large"
   | "metadata-pending"
   | "no-tileable-variable"
+  | "missing-spatial-reference"
   | "spatial-reference-mismatch"
   | "unsupported-version"
   | "unsupported-codec"
