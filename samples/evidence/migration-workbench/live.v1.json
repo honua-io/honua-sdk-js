@@ -5,12 +5,12 @@
   "lane": "live",
   "status": "executed",
   "reason": null,
-  "observedAt": "2026-08-13T08:55:56.233Z",
+  "observedAt": "2026-08-13T19:14:14.412Z",
   "authMode": "none",
   "sdk": {
     "package": "@honua/sdk-js",
     "version": "0.1.6-beta.0",
-    "gitCommit": "4906c70d68e02171ca83ff4857245424aa948c83"
+    "gitCommit": "40d4bf7ab980063f3a3e8fa5119738275f0edeb6"
   },
   "source": {
     "provider": "honua-migrate-cli",
@@ -21,7 +21,7 @@
   },
   "provenance": {
     "sourceId": "arcgis-source-app:v1",
-    "observedAt": "2026-08-13T08:55:56.233Z",
+    "observedAt": "2026-08-13T19:14:14.412Z",
     "validAt": null,
     "state": "live",
     "attribution": "Honua-authored arcgis-source-app repository fixture; no third-party sample source is reproduced."
@@ -46,8 +46,8 @@
     ]
   },
   "timing": {
-    "totalMs": 2299,
-    "firstSuccessfulInteractionMs": 2299
+    "totalMs": 3673,
+    "firstSuccessfulInteractionMs": 3673
   },
   "degradation": {
     "state": "none",
