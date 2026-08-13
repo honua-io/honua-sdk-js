@@ -55,6 +55,7 @@ export const HONUA_ERROR_RUNTIME_CLASSIFICATIONS = Object.freeze({
   "core.zarr.metadata-pending": runtimeClassification("core", "capability", false),
   "core.zarr.missing-spatial-reference": runtimeClassification("core", "capability", false),
   "core.zarr.no-tileable-variable": runtimeClassification("core", "capability", false),
+  "core.zarr.spatial-reference-mismatch": runtimeClassification("core", "capability", false),
   "core.zarr.unsupported-version": runtimeClassification("core", "capability", false),
   "core.zarr.unsupported-codec": runtimeClassification("core", "capability", false),
   "core.zarr.unsupported-dtype": runtimeClassification("core", "capability", false),

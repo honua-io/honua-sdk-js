@@ -6,6 +6,7 @@ import type {
   ZarrHonuaClient,
   ZarrMaturityAssessment,
   ZarrMaturityFailure,
+  ZarrReadinessOptions,
   ZarrStoreRegistration,
   ZarrTileRequest,
   ZarrTileResult,
@@ -79,7 +80,7 @@ export class HonuaZarrClient {
    * Reports whether scanned metadata can be handed to Honua Server's bounded tile operation.
    * It does not claim that this SDK can decode chunks directly from object storage.
    */
-  public assess(registration: ZarrStoreRegistration, variableName?: string): ZarrMaturityAssessment {
+  public assess(registration: ZarrStoreRegistration, options: ZarrReadinessOptions): ZarrMaturityAssessment {
     const failures: ZarrMaturityFailure[] = [];
     if (registration.variables === null || registration.zarrFormat === null) {
       failures.push({ code: "metadata-pending", message: "Refresh the registration before requesting a tile." });
@@ -95,15 +96,25 @@ export class HonuaZarrClient {
           code: "missing-spatial-reference",
           message: "Tile rendering requires a positive storage SRID that can match the requested tile matrix set.",
         });
+      } else if (!Number.isSafeInteger(options?.tileMatrixSrid) || options.tileMatrixSrid <= 0) {
+        failures.push({
+          code: "missing-spatial-reference",
+          message: "Tile readiness requires the positive SRID of the requested tile matrix set.",
+        });
+      } else if (registration.srid !== options.tileMatrixSrid) {
+        failures.push({
+          code: "spatial-reference-mismatch",
+          message: `Coverage EPSG:${registration.srid} cannot be handed to tile matrix EPSG:${options.tileMatrixSrid} without reprojection.`,
+        });
       }
-      const variable = selectTileVariable(registration, variableName);
+      const variable = selectTileVariable(registration, options?.variable);
       if (!variable) {
         failures.push({
           code: "no-tileable-variable",
           message:
-            variableName === undefined
+            options?.variable === undefined
               ? "The completed Zarr metadata scan did not discover a primary variable for the tile operation."
-              : `The completed Zarr metadata scan did not discover variable "${variableName}" for the tile operation.`,
+              : `The completed Zarr metadata scan did not discover variable "${options.variable}" for the tile operation.`,
         });
       } else {
         assessVariable(variable, failures);
@@ -119,8 +130,8 @@ export class HonuaZarrClient {
   }
 
   /** Fail with a stable code when scanned metadata is not ready for the server tile operation. */
-  public assertTileReady(registration: ZarrStoreRegistration, variableName?: string): void {
-    const failure = this.assess(registration, variableName).failures[0];
+  public assertTileReady(registration: ZarrStoreRegistration, options: ZarrReadinessOptions): void {
+    const failure = this.assess(registration, options).failures[0];
     if (failure) {
       throw new HonuaZarrError(failure.code, failure.message, {
         ...(failure.variable ? { variable: failure.variable } : {}),
