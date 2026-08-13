@@ -76,14 +76,14 @@ export function validateSmokeReceipt(smoke, manifest, sourceCommit, sourceDateEp
   invariant(smoke.summary.passed === smoke.results.length, 'Every smoke result must pass');
   invariant(smoke.summary.failed === 0, 'Smoke receipt reports failures');
   const expectedIds = manifest.samples
-    .filter((sample) => sample.runnability === 'standalone')
+    .filter((sample) => sample.runnability !== 'requires-host-fixture-service')
     .map((sample) => sample.id)
     .sort();
   const resultIds = smoke.results.map((result) => result.id);
   invariant(new Set(resultIds).size === resultIds.length, 'Smoke result ids must be unique');
   invariant(
     JSON.stringify([...resultIds].sort()) === JSON.stringify(expectedIds),
-    'Smoke result set does not match standalone bundles',
+    'Smoke result set does not match browser-smoke-eligible bundles',
   );
   for (const result of smoke.results) {
     exactKeys(

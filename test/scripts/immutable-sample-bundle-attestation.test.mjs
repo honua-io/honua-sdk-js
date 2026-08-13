@@ -333,6 +333,15 @@ test('smoke validation rejects schema, source, count, and result-set drift', () 
   for (const mutation of mutations) {
     assert.throws(() => validateSmokeReceipt(mutation, manifest, fixtureSourceCommit, sourceDateEpoch));
   }
+  const liveProbeManifest = structuredClone(manifest);
+  liveProbeManifest.samples.push({ id: 'service', runnability: 'requires-live-endpoint' });
+  const liveProbeSmoke = structuredClone(valid);
+  liveProbeSmoke.summary = { total: 2, passed: 2, failed: 0 };
+  liveProbeSmoke.results.push({ ...structuredClone(valid.results[0]), id: 'service' });
+  assert.equal(
+    validateSmokeReceipt(liveProbeSmoke, liveProbeManifest, fixtureSourceCommit, sourceDateEpoch).summary.failed,
+    0,
+  );
 });
 
 test('publication state permits create and exact idempotence only', () => {

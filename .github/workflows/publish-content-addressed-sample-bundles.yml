@@ -246,7 +246,7 @@ jobs:
           jq -e --arg source "$SOURCE_COMMIT" '
             (.samples | length) > 0 and
             all(.samples[]; .builtFrom.commit == $source) and
-            ([.samples[] | select(.runnability == "standalone") | .id] | sort) ==
+            ([.samples[] | select(.runnability != "requires-host-fixture-service") | .id] | sort) ==
               (input.producerSmoke.resultIds | sort)
           ' staged/sample-bundles.v2.json staged/sample-bundles-attestation.v1.json >/dev/null
           tar -tzf staged/sample-bundles.tar.gz > archive-members.txt
