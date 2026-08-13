@@ -166,6 +166,14 @@ describe("experimental Honua Zarr client", () => {
     expect(zarr.assess(pending).failures).toEqual([expect.objectContaining({ code: "metadata-pending" })]);
     expect(() => zarr.assertTileReady(pending)).toThrow(HonuaZarrError);
 
+    const empty = { ...registration, variables: [] } as unknown as ZarrStoreRegistration;
+    expect(zarr.assess(empty)).toMatchObject({
+      metadata: "ready",
+      serverTileHandoff: "unavailable",
+      failures: [{ code: "no-tileable-variable" }],
+    });
+    expect(() => zarr.assertTileReady(empty)).toThrow(expect.objectContaining({ code: "no-tileable-variable" }));
+
     const unsupported = {
       ...registration,
       variables: [
