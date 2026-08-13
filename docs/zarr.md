@@ -60,15 +60,16 @@ const tile = await zarr.tile({
 - A tile outside the coverage extent is returned as `{ status: 204, bytes:
   Uint8Array(0), contentType: null }`; an intersecting tile is a `200` PNG.
 - `AbortSignal` is forwarded to the shared request pipeline.
-- `assess()` recognizes Zarr v2/v3, little-endian numeric or boolean dtypes,
-  and uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes,
-  and ambiguous dimension metadata fail explicitly.
+- `assess()` recognizes Zarr v2 little-endian numeric or boolean descriptors
+  and the server-supported Zarr v3 named numeric or boolean data types, plus
+  uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes, and
+  ambiguous dimension metadata fail explicitly.
 - `assess()` mirrors the server's primary-or-first variable selection. Its
   readiness options require the requested tile matrix SRID and a finite,
   non-degenerate storage extent from the associated layer/coverage metadata,
   and accept an optional variable. Unrelated auxiliary variables do not block
-  a valid raster. Tileable variables require non-empty `x`/`lon` and `y`/`lat`
-  axes.
+  a valid raster. Tileable variables require every dimension to be non-empty,
+  including `x`/`lon` and `y`/`lat` axes.
 - Metadata must be refreshed and expose at least one variable before the tile
   handoff is considered ready.
 - A positive storage SRID is required because the current tile handoff cannot
