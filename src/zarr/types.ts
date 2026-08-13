@@ -41,6 +41,7 @@ export interface ZarrStoreRegistration {
 
 export type ZarrMaturityFailureCode =
   | "metadata-pending"
+  | "no-tileable-variable"
   | "unsupported-version"
   | "unsupported-codec"
   | "unsupported-dtype"
