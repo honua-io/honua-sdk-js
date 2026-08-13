@@ -302,7 +302,13 @@ function normalizeRegistration(value: unknown): ZarrStoreRegistration {
   const variables = value.variables;
   if (variables !== null && !Array.isArray(variables)) invalidResponse("Zarr variables must be an array or null.");
   const format = nullableInteger(value.zarrFormat, "zarrFormat");
-  if (format !== null && format !== 2 && format !== 3) invalidResponse("Zarr format must be 2, 3, or null.");
+  if (format !== null && format !== 2 && format !== 3) {
+    throw new HonuaZarrError(
+      "unsupported-version",
+      `Zarr v${String(format)} is outside the versioned server contract.`,
+      { zarrFormat: format },
+    );
+  }
   return Object.freeze({
     id: responsePositiveInteger(value.id, "id"),
     layerId: responsePositiveInteger(value.layerId, "layerId"),
@@ -325,7 +331,7 @@ function normalizeVariable(value: unknown): ZarrVariableMetadata {
   if (!isRecord(value)) invalidResponse("Zarr variable entry must be an object.");
   return Object.freeze({
     name: responseText(value.name, "variable.name"),
-    shape: integerArray(value.shape, "variable.shape"),
+    shape: nonNegativeIntegerArray(value.shape, "variable.shape"),
     chunks: integerArray(value.chunks, "variable.chunks"),
     dataType: responseText(value.dataType, "variable.dataType"),
     compressor: nullableText(value.compressor, "variable.compressor"),
@@ -443,6 +449,13 @@ function nullableText(value: unknown, field: string): string | null {
 function integerArray(value: unknown, field: string): readonly number[] {
   if (!Array.isArray(value) || value.some((entry) => !Number.isSafeInteger(entry) || entry <= 0)) {
     invalidResponse(`${field} must be an array of positive integers.`);
+  }
+  return Object.freeze([...(value as number[])]);
+}
+
+function nonNegativeIntegerArray(value: unknown, field: string): readonly number[] {
+  if (!Array.isArray(value) || value.some((entry) => !Number.isSafeInteger(entry) || entry < 0)) {
+    invalidResponse(`${field} must be an array of non-negative integers.`);
   }
   return Object.freeze([...(value as number[])]);
 }
