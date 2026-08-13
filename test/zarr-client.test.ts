@@ -29,7 +29,7 @@ const registration = {
   metadataScannedAt: "2026-08-13T00:00:00Z",
   createdAt: "2026-08-12T00:00:00Z",
 } as const;
-const readiness = { tileMatrixSrid: 4326 } as const;
+const readiness = { storageExtent: [-180, -90, 180, 90], tileMatrixSrid: 4326 } as const;
 
 function json(value: unknown, status = 200): Response {
   const body = JSON.stringify(value);
@@ -295,13 +295,32 @@ describe("experimental Honua Zarr client", () => {
     const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
     const scanned = registration as ZarrStoreRegistration;
 
-    expect(zarr.assess(scanned, { tileMatrixSrid: 3857 }).failures).toEqual([
+    expect(zarr.assess(scanned, { ...readiness, tileMatrixSrid: 3857 }).failures).toEqual([
       expect.objectContaining({ code: "spatial-reference-mismatch" }),
     ]);
-    expect(zarr.assess(scanned, undefined as never).failures).toEqual([
-      expect.objectContaining({ code: "missing-spatial-reference" }),
+    expect(zarr.assess(scanned, undefined as never).failures.map((failure) => failure.code)).toEqual([
+      "missing-spatial-reference",
+      "missing-spatial-extent",
     ]);
   });
+
+  it.each([undefined, [0, 0, 0, 1], [0, 0, 1, 0], [0, 0, Number.POSITIVE_INFINITY, 1]])(
+    "requires a finite non-degenerate advertised storage extent (%j)",
+    (storageExtent) => {
+      const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+      const extentReadiness = {
+        tileMatrixSrid: 4326,
+        storageExtent,
+      } as never;
+
+      expect(zarr.assess(registration as ZarrStoreRegistration, extentReadiness).failures).toEqual([
+        expect.objectContaining({ code: "missing-spatial-extent" }),
+      ]);
+      expect(() => zarr.assertTileReady(registration as ZarrStoreRegistration, extentReadiness)).toThrow(
+        expect.objectContaining({ code: "missing-spatial-extent" }),
+      );
+    },
+  );
 
   it("classifies unsupported server versions and accepts empty array dimensions", async () => {
     const responses = [

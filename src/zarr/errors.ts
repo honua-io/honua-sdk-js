@@ -5,6 +5,7 @@ export type HonuaZarrErrorCode =
   | "invalid-response"
   | "response-too-large"
   | "metadata-pending"
+  | "missing-spatial-extent"
   | "no-tileable-variable"
   | "missing-spatial-reference"
   | "spatial-reference-mismatch"

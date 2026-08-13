@@ -24,7 +24,13 @@ const registered = await zarr.register({
 });
 
 const scanned = await zarr.refresh(registered.id);
-const readiness = { tileMatrixSrid: 4326, variable: scanned.primaryVariable ?? undefined };
+// Supply the extent advertised by the associated layer/coverage metadata. The
+// registration summary does not expose the scanned store extent itself.
+const readiness = {
+  storageExtent: [-180, -90, 180, 90] as const,
+  tileMatrixSrid: 4326,
+  variable: scanned.primaryVariable ?? undefined,
+};
 const status = zarr.assess(scanned, readiness);
 if (status.serverTileHandoff !== "ready") {
   throw new Error(status.failures.map((failure) => failure.message).join("; "));
@@ -58,9 +64,11 @@ const tile = await zarr.tile({
   and uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes,
   and ambiguous dimension metadata fail explicitly.
 - `assess()` mirrors the server's primary-or-first variable selection. Its
-  readiness options require the requested tile matrix SRID and accept an
-  optional variable; unrelated auxiliary variables do not block a valid
-  raster. Tileable variables require non-empty `x`/`lon` and `y`/`lat` axes.
+  readiness options require the requested tile matrix SRID and a finite,
+  non-degenerate storage extent from the associated layer/coverage metadata,
+  and accept an optional variable. Unrelated auxiliary variables do not block
+  a valid raster. Tileable variables require non-empty `x`/`lon` and `y`/`lat`
+  axes.
 - Metadata must be refreshed and expose at least one variable before the tile
   handoff is considered ready.
 - A positive storage SRID is required because the current tile handoff cannot
