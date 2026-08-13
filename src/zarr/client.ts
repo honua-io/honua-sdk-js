@@ -107,6 +107,13 @@ export class HonuaZarrClient {
           message: `Coverage EPSG:${registration.srid} cannot be handed to tile matrix EPSG:${options.tileMatrixSrid} without reprojection.`,
         });
       }
+      if (!isUsableSpatialExtent(options?.storageExtent)) {
+        failures.push({
+          code: "missing-spatial-extent",
+          message:
+            "Tile readiness requires a finite, non-degenerate storage extent from advertised or scanned metadata.",
+        });
+      }
       const variable = selectTileVariable(registration, options?.variable);
       if (!variable) {
         failures.push({
@@ -303,6 +310,14 @@ function isTileDtype(dataType: string): boolean {
   if (kind === "f") return width === "4" || width === "8";
   if (kind === "b") return width === "1";
   return true;
+}
+
+function isUsableSpatialExtent(value: unknown): value is readonly [number, number, number, number] {
+  if (!Array.isArray(value) || value.length !== 4 || value.some((coordinate) => !Number.isFinite(coordinate))) {
+    return false;
+  }
+  const [minX, minY, maxX, maxY] = value as [number, number, number, number];
+  return maxX > minX && maxY > minY;
 }
 
 async function boundedFetch(
