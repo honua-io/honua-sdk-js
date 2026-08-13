@@ -148,6 +148,12 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Zarr metadata contains no tileable variable",
   ),
+  "core.zarr.missing-spatial-reference": classification(
+    "core",
+    "capability",
+    false,
+    "Zarr registration is missing a positive storage SRID for tile handoff",
+  ),
   "core.zarr.spatial-reference-mismatch": classification(
     "core",
     "capability",

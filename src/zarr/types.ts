@@ -42,6 +42,7 @@ export interface ZarrStoreRegistration {
 export type ZarrMaturityFailureCode =
   | "metadata-pending"
   | "no-tileable-variable"
+  | "missing-spatial-reference"
   | "spatial-reference-mismatch"
   | "unsupported-version"
   | "unsupported-codec"
