@@ -128,6 +128,35 @@ describe("experimental Honua Zarr client", () => {
     ).toBe("/honua/api/v1/datacubes/7/tiles/WebMercatorQuad/0/0/0");
   });
 
+  it("accepts layer zero across registration, listing, responses, and tile URLs", async () => {
+    const layerZero = { ...registration, layerId: 0 };
+    const requested: URL[] = [];
+    const client = new HonuaClient({
+      baseUrl: "https://zarr.example",
+      fetchFn: vi.fn(async (input, init) => {
+        const request = new Request(input, init);
+        requested.push(new URL(request.url));
+        return request.method === "POST" ? json(layerZero, 201) : json([layerZero]);
+      }),
+    });
+    const zarr = createZarrClient(client);
+
+    await expect(
+      zarr.register({
+        layerId: 0,
+        name: "temperature",
+        provider: "AwsS3",
+        bucket: "coverage-data",
+        rootPath: "temperature/daily.zarr",
+      }),
+    ).resolves.toMatchObject({ layerId: 0 });
+    await expect(zarr.list(0)).resolves.toEqual([expect.objectContaining({ layerId: 0 })]);
+    expect(requested[1]?.searchParams.get("layerId")).toBe("0");
+    expect(zarr.tileUrl({ layerId: 0, tileMatrixSetId: "WebMercatorQuad", z: 0, x: 0, y: 0 })).toBe(
+      "https://zarr.example/api/v1/datacubes/0/tiles/WebMercatorQuad/0/0/0",
+    );
+  });
+
   it("fails closed when tile bytes exceed the caller ceiling", async () => {
     const client = new HonuaClient({
       baseUrl: "https://zarr.example",
