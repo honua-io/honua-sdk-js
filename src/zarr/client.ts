@@ -40,7 +40,7 @@ export class HonuaZarrClient {
   }
 
   public async list(layerId: number, signal?: AbortSignal): Promise<readonly ZarrStoreRegistration[]> {
-    const id = positiveInteger(layerId, "layerId");
+    const id = nonNegativeInteger(layerId, "layerId");
     const value = await this.json("GET", `${this.adminBasePath}?layerId=${id}`, undefined, signal);
     if (!Array.isArray(value)) invalidResponse("Zarr list response must be an array.");
     return Object.freeze(value.map((entry) => normalizeRegistration(entry)));
@@ -146,7 +146,7 @@ export class HonuaZarrClient {
   }
 
   private tilePath(request: Omit<ZarrTileRequest, "maxResponseBytes" | "signal">): string {
-    const layerId = positiveInteger(request.layerId, "layerId");
+    const layerId = nonNegativeInteger(request.layerId, "layerId");
     const matrix = requiredText(request.tileMatrixSetId, "tileMatrixSetId");
     const z = nonNegativeInteger(request.z, "z");
     const x = nonNegativeInteger(request.x, "x");
@@ -318,7 +318,7 @@ function normalizeRegistration(value: unknown): ZarrStoreRegistration {
   }
   return Object.freeze({
     id: responsePositiveInteger(value.id, "id"),
-    layerId: responsePositiveInteger(value.layerId, "layerId"),
+    layerId: responseNonNegativeInteger(value.layerId, "layerId"),
     name: responseText(value.name, "name"),
     description: nullableText(value.description, "description"),
     provider: responseProvider(value.provider),
@@ -347,7 +347,7 @@ function normalizeVariable(value: unknown): ZarrVariableMetadata {
 }
 
 function validateRegistrationRequest(request: RegisterZarrStoreRequest): void {
-  positiveInteger(request.layerId, "layerId");
+  nonNegativeInteger(request.layerId, "layerId");
   requiredText(request.name, "name");
   requiredText(request.bucket, "bucket");
   const rootPath = requiredText(request.rootPath, "rootPath");
@@ -417,6 +417,12 @@ function positiveInteger(value: unknown, field: string): number {
 
 function responsePositiveInteger(value: unknown, field: string): number {
   if (!Number.isSafeInteger(value) || (value as number) <= 0) invalidResponse(`${field} must be a positive integer.`);
+  return value as number;
+}
+
+function responseNonNegativeInteger(value: unknown, field: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0)
+    invalidResponse(`${field} must be a non-negative integer.`);
   return value as number;
 }
 
