@@ -7,7 +7,7 @@
   "sourceOfTruth": {
     "serverRepository": "honua-io/honua-server",
     "serverCommit": "61b7038e1887c98131aa217b6f0ae7869356a1f3",
-    "reconciledAt": "2026-08-08T12:00:00Z",
+    "reconciledAt": "2026-08-13T19:00:00Z",
     "references": [
       {
         "id": "server-registration-routes",
@@ -72,68 +72,68 @@
       {
         "id": "server-zarr-endpoints",
         "path": "src/Honua.Server/Features/Protocols/Zarr/ZarrEndpoints.cs",
-        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/src/Honua.Server/Features/Protocols/Zarr/ZarrEndpoints.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/a0538439c2ee3ac108ff78b413689bdb7e830d5e/src/Honua.Server/Features/Protocols/Zarr/ZarrEndpoints.cs",
         "assertion": "Maps versioned Zarr administration and public datacube tile routes."
       },
       {
         "id": "server-zarr-endpoint-tests",
         "path": "tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/ZarrEndpointTests.cs",
-        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/ZarrEndpointTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/a0538439c2ee3ac108ff78b413689bdb7e830d5e/tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/ZarrEndpointTests.cs",
         "assertion": "Exercises register, list, get, and delete lifecycle operations through HTTP without proving a readable public store."
       },
       {
         "id": "server-zarr-registration",
         "path": "src/Honua.Server/Features/Infrastructure/Hosting/FeatureRegistrationExtensions.cs",
-        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/src/Honua.Server/Features/Infrastructure/Hosting/FeatureRegistrationExtensions.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/a0538439c2ee3ac108ff78b413689bdb7e830d5e/src/Honua.Server/Features/Infrastructure/Hosting/FeatureRegistrationExtensions.cs",
         "assertion": "Registers Zarr services in the server composition root."
       },
       {
         "id": "server-zarr-coverage-service",
         "path": "src/Honua.Protocols.OgcApi/Coverages/Services/ZarrCoverageService.cs",
-        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/src/Honua.Protocols.OgcApi/Coverages/Services/ZarrCoverageService.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/a0538439c2ee3ac108ff78b413689bdb7e830d5e/src/Honua.Protocols.OgcApi/Coverages/Services/ZarrCoverageService.cs",
         "assertion": "Binds registered Zarr stores to OGC API Coverages and plans bounded CoverageJSON subsets."
       },
       {
         "id": "server-zarr-subset-tests",
         "path": "tests/dotnet/Honua.Core.Tests/Raster/ZarrParser/ZarrSubsetReaderTests.cs",
-        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/tests/dotnet/Honua.Core.Tests/Raster/ZarrParser/ZarrSubsetReaderTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/a0538439c2ee3ac108ff78b413689bdb7e830d5e/tests/dotnet/Honua.Core.Tests/Raster/ZarrParser/ZarrSubsetReaderTests.cs",
         "assertion": "Proves chunk-aware bounded subset reads with deterministic in-memory fixtures."
       },
       {
         "id": "server-zarr-datacube-tests",
         "path": "tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/DatacubeTileEndpointTests.cs",
-        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/DatacubeTileEndpointTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/a0538439c2ee3ac108ff78b413689bdb7e830d5e/tests/dotnet/Honua.Server.Tests/Features/Protocols/Zarr/DatacubeTileEndpointTests.cs",
         "assertion": "Proves the datacube HTTP route exists, but only records the no-registration negative path."
       },
       {
         "id": "server-zarr-interface-proof",
         "path": "docs/gis/data/public-interface-proof.json",
-        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/docs/gis/data/public-interface-proof.json",
+        "url": "https://github.com/honua-io/honua-server/blob/a0538439c2ee3ac108ff78b413689bdb7e830d5e/docs/gis/data/public-interface-proof.json",
         "assertion": "Records datacube route coverage plus planner and renderer component evidence."
       },
       {
         "id": "server-zarr-wcs-tests",
         "path": "tests/dotnet/Honua.Protocols.OgcClassic.Tests/Source/Wcs20/Wcs20ZarrEndpointsTests.cs",
-        "url": "https://github.com/honua-io/honua-server/blob/639d37449fb8da5e9df4b12b7641ba4c6c5ac581/tests/dotnet/Honua.Protocols.OgcClassic.Tests/Source/Wcs20/Wcs20ZarrEndpointsTests.cs",
+        "url": "https://github.com/honua-io/honua-server/blob/a0538439c2ee3ac108ff78b413689bdb7e830d5e/tests/dotnet/Honua.Protocols.OgcClassic.Tests/Source/Wcs20/Wcs20ZarrEndpointsTests.cs",
         "assertion": "Exercises positive registered-Zarr native-CRS PNG slices and explicit unsupported cases through HTTP fixtures."
       }
     ],
     "additionalServerEvidenceCommits": [
       {
         "scope": "zarr",
-        "commit": "639d37449fb8da5e9df4b12b7641ba4c6c5ac581"
+        "commit": "a0538439c2ee3ac108ff78b413689bdb7e830d5e"
       }
     ]
   },
   "policy": {
-    "publicSdkExport": false,
+    "publicSdkExport": true,
     "runnableSample": false,
     "supportClaim": false,
     "coverageClaim": false,
     "browserFullFileDownload": false,
     "studioApi": false,
     "cliApi": false,
-    "unblockRule": "Do not design or publish an SDK adapter until each tracked format has a stable versioned metadata and bounded read contract, explicit runtime proof where applicable, pinned live fixtures, a deployed canary receipt, and reviewed bounded client evidence."
+    "unblockRule": "A focused experimental Zarr server client may ship against the versioned registration, metadata, and tile contract; direct Zarr reads and every NetCDF4/HDF5 client remain gated on their listed fixtures, runtime proof, bounded interfaces, and deployment evidence."
   },
   "trackedFormats": [
     {
@@ -355,8 +355,8 @@
       "scopeBoundary": "Read-only, bounded Zarr v2 and v3 metadata, subset, CoverageJSON, WCS, and datacube tile paths with explicit codec, layout, coordinate, CRS, and resource limits; no Zarr authoring, unrestricted enumeration, or implicit browser full-store download.",
       "maturity": {
         "client": {
-          "state": "unavailable",
-          "summary": "The JavaScript SDK exposes no Zarr connector, metadata reader, slice reader, tile client, or package entrypoint."
+          "state": "experimental",
+          "summary": "The JavaScript SDK exposes a versioned registration and metadata client plus a byte-bounded server tile handoff; direct object-store and general slice reads remain unavailable."
         },
         "server": {
           "state": "experimental",
@@ -476,13 +476,13 @@
         },
         {
           "surface": "sdk-adapter",
-          "state": "missing",
-          "statement": "The JavaScript SDK intentionally exposes no Zarr adapter, types, errors, package export, or runnable sample.",
+          "state": "integration-tested",
+          "statement": "The JavaScript SDK exposes experimental registration and metadata operations, explicit maturity failures, and a byte-bounded server tile handoff with focused unit tests.",
           "evidenceRefs": [
             "server-zarr-coverage-service",
             "server-zarr-subset-tests"
           ],
-          "releaseBlocking": true
+          "releaseBlocking": false
         }
       ],
       "contractLimits": {
@@ -550,19 +550,19 @@
         {
           "group": "sdk-publication",
           "id": "stable-server-contract",
-          "state": "missing",
+          "state": "partial",
           "requirement": "Pin a versioned server contract for registration, metadata, subset, tile, version, codec, coordinate, CRS, and errors."
         },
         {
           "group": "sdk-publication",
           "id": "bounded-client",
-          "state": "missing",
+          "state": "partial",
           "requirement": "Implement typed metadata, slice, and tile operations with byte and chunk budgets, cancellation, auth, interception, and typed errors."
         },
         {
           "group": "sdk-publication",
           "id": "client-evidence",
-          "state": "missing",
+          "state": "partial",
           "requirement": "Pass deterministic fixture contracts and scheduled live evidence without adding unsupported codecs or coordinate inference."
         },
         {
@@ -712,17 +712,18 @@
     }
   ],
   "curriculum": {
-    "currentState": "architecture-only",
+    "currentState": "client-slice",
     "currentAllowedContent": [
       "Internal maturity matrix with pinned server source evidence",
       "Architecture guidance that names blockers and safe boundaries",
-      "Pinned Zarr server implementation evidence and explicit v2/v3 contract limits"
+      "Pinned Zarr server implementation evidence and explicit v2/v3 contract limits",
+      "Experimental versioned Zarr registration, metadata, and bounded server tile client"
     ],
     "currentProhibitedContent": [
-      "Public SDK API or package subpath export",
       "Runnable sample or gallery capability claim",
       "Implicit browser full-file download workflow",
-      "Invented Studio or CLI configuration surface"
+      "Invented Studio or CLI configuration surface",
+      "Direct object-store or general multidimensional slice API before its remaining evidence gates"
     ],
     "futureSequence": [
       {
