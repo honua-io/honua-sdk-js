@@ -1,0 +1,214 @@
+name: Publish content-addressed sample bundles
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: sample-bundles-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish-content-addressed-bundles:
+    name: Rebuild and attest exact-trunk sample bundles
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SOURCE_COMMIT: ${{ github.sha }}
+      RELEASE_ID: sample-bundles-${{ github.sha }}
+      FIRST_MANIFEST: source-a/.artifacts/sample-bundles/sample-bundles.v2.json
+      SECOND_MANIFEST: source-b/.artifacts/sample-bundles/sample-bundles.v2.json
+      FIRST_ARCHIVE: publication/sample-bundles.tar.gz
+      SECOND_ARCHIVE: build-b/sample-bundles.tar.gz
+    steps:
+      - name: Check out governed workflow
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          path: governance
+          fetch-depth: 1
+
+      - name: Require a current trunk dispatch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/trunk"
+          test "$SOURCE_COMMIT" = "$GITHUB_SHA"
+          test "$(git -C governance rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)" = "$GITHUB_SHA"
+
+      - name: Check out first clean exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          path: source-a
+          fetch-depth: 1
+
+      - name: Check out second clean exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          path: source-b
+          fetch-depth: 1
+
+      - name: Set up exact Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '20.19.0'
+          cache: npm
+          cache-dependency-path: |
+            source-a/package-lock.json
+            source-b/package-lock.json
+
+      - name: Assert exact source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source-a rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test "$(git -C source-b rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -z "$(git -C source-a status --porcelain)"
+          test -z "$(git -C source-b status --porcelain)"
+          SOURCE_DATE_EPOCH_A="$(git -C source-a show -s --format=%ct HEAD)"
+          SOURCE_DATE_EPOCH_B="$(git -C source-b show -s --format=%ct HEAD)"
+          test "$SOURCE_DATE_EPOCH_A" = "$SOURCE_DATE_EPOCH_B"
+          echo "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH_A" >> "$GITHUB_ENV"
+
+      - name: Install first clean dependency tree
+        working-directory: source-a
+        run: npm ci
+
+      - name: Install second clean dependency tree
+        working-directory: source-b
+        run: npm ci
+
+      - name: Build, verify, and pack first bundle tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix source-a run samples:bundles:build
+          npm --prefix source-a run samples:bundles:verify
+          node governance/scripts/pack-sample-bundles.mjs \
+            --input source-a/.artifacts/sample-bundles \
+            --output "$FIRST_ARCHIVE" \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH" \
+            --metadata build-a/pack.v1.json
+
+      - name: Build, verify, and pack second bundle tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm --prefix source-b run samples:bundles:build
+          npm --prefix source-b run samples:bundles:verify
+          node governance/scripts/pack-sample-bundles.mjs \
+            --input source-b/.artifacts/sample-bundles \
+            --output "$SECOND_ARCHIVE" \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH" \
+            --metadata build-b/pack.v1.json
+
+      - name: Require exact reproducibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp --silent "$FIRST_MANIFEST" "$SECOND_MANIFEST"
+          cmp --silent "$FIRST_ARCHIVE" "$SECOND_ARCHIVE"
+          cmp --silent build-a/pack.v1.json build-b/pack.v1.json
+          cp "$FIRST_MANIFEST" publication/sample-bundles.v2.json
+
+      - name: Install bounded Chromium smoke dependency
+        working-directory: source-a
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Run producer browser smoke
+        working-directory: source-a
+        run: npm run samples:bundles:smoke
+
+      - name: Enforce governance policy
+        run: node governance/scripts/immutable-sample-bundle-attestation.mjs policy --root governance
+
+      - name: Write immutable metadata receipt
+        run: |
+          node governance/scripts/immutable-sample-bundle-attestation.mjs receipt \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-root source-a \
+            --source-date-epoch "$SOURCE_DATE_EPOCH" \
+            --first-bundle-root source-a/.artifacts/sample-bundles \
+            --second-bundle-root source-b/.artifacts/sample-bundles \
+            --first-archive "$FIRST_ARCHIVE" \
+            --second-archive "$SECOND_ARCHIVE" \
+            --smoke-receipt source-a/.artifacts/sample-bundle-smoke/browser-smoke.v1.json \
+            --output publication/sample-bundles-attestation.v1.json \
+            --workflow-sha "$GITHUB_SHA" \
+            --workflow-run-id "$GITHUB_RUN_ID"
+
+      - name: Check immutable publication state
+        id: release-state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node governance/scripts/immutable-sample-bundle-attestation.mjs release-preflight \
+            --repository "$GITHUB_REPOSITORY" \
+            --publication-directory publication \
+            --github-output "$GITHUB_OUTPUT" \
+            --source-commit "$SOURCE_COMMIT" \
+            --release-id "$RELEASE_ID"
+
+      - name: Attest publication assets
+        if: steps.release-state.outputs.mode == 'create'
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
+        with:
+          subject-path: |
+            publication/sample-bundles.v2.json
+            publication/sample-bundles.tar.gz
+            publication/sample-bundles-attestation.v1.json
+
+      - name: Retain content-addressed workflow artifact
+        if: steps.release-state.outputs.mode == 'create'
+        uses: actions/upload-artifact@043fb46b0c4d128e50b1e9b66585d6281390065a
+        with:
+          name: ${{ env.RELEASE_ID }}
+          path: |
+            publication/sample-bundles.v2.json
+            publication/sample-bundles.tar.gz
+            publication/sample-bundles-attestation.v1.json
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Create immutable content-addressed release
+        if: steps.release-state.outputs.mode == 'create'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_COMMIT" \
+            --title "$RELEASE_ID" \
+            --notes "Immutable, reproducible producer attestation for SDK sample bundles built from $SOURCE_COMMIT." \
+            --latest=false \
+            publication/sample-bundles.v2.json \
+            publication/sample-bundles.tar.gz \
+            publication/sample-bundles-attestation.v1.json
+
+      - name: Verify immutable content-addressed release
+        if: steps.release-state.outputs.mode == 'create'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node governance/scripts/immutable-sample-bundle-attestation.mjs release-preflight \
+            --repository "$GITHUB_REPOSITORY" \
+            --publication-directory publication \
+            --github-output "$GITHUB_OUTPUT" \
+            --source-commit "$SOURCE_COMMIT" \
+            --release-id "$RELEASE_ID"
