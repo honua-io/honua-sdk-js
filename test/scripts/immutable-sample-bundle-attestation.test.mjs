@@ -178,6 +178,7 @@ test('workflow policy rejects mutable and unsafe publication variants', async ()
     workflow.replace('workflow_dispatch: {}', 'workflow_dispatch:\n    inputs:\n      source: {}'),
     workflow.replace('SOURCE_COMMIT: ${{ github.sha }}', 'SOURCE_COMMIT: trunk'),
     workflow.replace(/@[a-f0-9]{40}/, '@v4'),
+    workflow.replace('permissions:\n  contents: read', 'permissions:\n  contents: write'),
     `${workflow}\n# sample-bundles-latest\n`,
     `${workflow}\n# gh release upload --clobber\n`,
     `${workflow}\n# tar -czf sample-bundles.tar.gz .\n`,

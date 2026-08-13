@@ -153,6 +153,15 @@ export function validateContentAddressedWorkflowPolicy(workflow) {
   );
   invariant(workflow.includes('runs-on: ubuntu-24.04'), 'Runner must be pinned to ubuntu-24.04');
   invariant(workflow.includes(`node-version: '${REQUIRED_NODE_VERSION}'`), 'Node version is not pinned');
+  invariant(
+    /^permissions:\n  contents: read$/m.test(workflow),
+    'Top-level token permissions must be read-only',
+  );
+  invariant(!/permissions:\s*write-all/.test(workflow), 'Write-all token permissions are forbidden');
+  invariant(
+    /    permissions:\n      contents: write\n      id-token: write\n      attestations: write/.test(workflow),
+    'Publishing permissions must be scoped to the publishing job',
+  );
   invariant(!workflow.includes('sample-bundles-latest'), 'Rolling sample bundle tags are forbidden');
   invariant(!workflow.includes('--clobber'), 'Release asset clobbering is forbidden');
   invariant(!/overwrite:\s*true/.test(workflow), 'Artifact overwrites are forbidden');

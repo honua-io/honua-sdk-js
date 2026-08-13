@@ -4,9 +4,7 @@ on:
   workflow_dispatch: {}
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 concurrency:
   group: sample-bundles-${{ github.sha }}
@@ -17,6 +15,10 @@ jobs:
     name: Rebuild and attest exact-trunk sample bundles
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     env:
       SOURCE_COMMIT: ${{ github.sha }}
       RELEASE_ID: sample-bundles-${{ github.sha }}
