@@ -16,6 +16,19 @@ import type {
 const DEFAULT_METADATA_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TILE_BYTES = 2 * 1024 * 1024;
 const SUPPORTED_CODECS = new Set(["gzip", "zlib"]);
+const SUPPORTED_V3_DATA_TYPES = new Set([
+  "bool",
+  "int8",
+  "uint8",
+  "int16",
+  "uint16",
+  "int32",
+  "uint32",
+  "int64",
+  "uint64",
+  "float32",
+  "float64",
+]);
 const SUPPORTED_PROVIDERS = new Set(["AwsS3", "AzureBlob", "Local"]);
 
 /** Experimental client for Honua Server's versioned Zarr registration and tile contract. */
@@ -302,6 +315,7 @@ function selectTileVariable(
 }
 
 function isTileDtype(dataType: string): boolean {
+  if (SUPPORTED_V3_DATA_TYPES.has(dataType)) return true;
   const match = /^([<|=])([fiub])(1|2|4|8)$/.exec(dataType);
   if (!match) return false;
   const [, byteOrder, kind, width] = match;
