@@ -18,8 +18,8 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.v3.schema.json",
       "format": "honua.site.sdk-sample-projection.v3",
       "schemaVersion": 3,
-      "bytes": 88296,
-      "sha256": "d54b0757d40f947924f7215cdf8259779ee388acedeb45d90654699b45a12e23",
+      "bytes": 88532,
+      "sha256": "9ac1d7236a571330d14fedd0ec3e568590afef36e0057e1cd9e6bf2fa47508d1",
       "schemaBytes": 15096,
       "schemaSha256": "a73e66887e74d0e6c8a0bbda4b00792e615f91d0e5e1e40a1642ad04d657ce84"
     },
@@ -639,7 +639,7 @@
     {
       "id": "coverages-wcs-basic",
       "title": "Bounded coverage quickstart",
-      "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",
+      "summary": "Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff.",
       "canonicalPath": "samples/coverages-wcs-basic.html",
       "track": "recipe",
       "journey": null,
@@ -674,7 +674,7 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
+        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a digest-pinned 320 x 220 fixture PNG, fail-closed in-memory transport, and MapLibre browser proof.",
         "attribution": "Honua protocol contract fixture.",
         "freshness": "Versioned with the repository and server contract.",
         "configurationStatus": "not-required"
@@ -682,7 +682,7 @@
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Provide the smallest deterministic OGC API Coverages workflow while WCS/connect discovery matures."
+        "reason": "Provide browser-qualified deterministic Coverages/WCS evidence while anonymous live canaries and connect discovery remain open."
       },
       "evidence": {
         "fixture": {
@@ -690,18 +690,18 @@
           "status": "executed"
         },
         "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
+          "mode": "public-live",
+          "status": "planned"
         }
       },
-      "expectedDegradation": "Unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
+      "expectedDegradation": "Aborted superseded requests, invalid OGC properties, and invalid WCS range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors.",
       "qualification": {
         "state": "experimental",
         "catalogStatus": "not-a-golden-journey"
       },
       "evidenceBindingId": null,
       "visualEvidence": null,
-      "searchText": "coverages-wcs-basic bounded coverage quickstart discovers coverage axes and range fields, then renders one byte-bounded png subset. recipe coverage multidimensional-raster ogc-coverages-standalone wcs-standalone ogc-coverages wcs ogc-coverages wcs maplibre fixture none experimental active experimental unbounded, oversized, unsupported-format, and ows exception responses fail with typed errors."
+      "searchText": "coverages-wcs-basic bounded coverage quickstart renders named-band ogc api coverages and wcs subsets through one maplibre image handoff. recipe coverage multidimensional-raster ogc-coverages-standalone wcs-standalone ogc-coverages wcs ogc-coverages wcs maplibre fixture none experimental active experimental aborted superseded requests, invalid ogc properties, and invalid wcs range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and ows exception responses fail with typed errors."
     },
     {
       "id": "edit-workflow-demo",

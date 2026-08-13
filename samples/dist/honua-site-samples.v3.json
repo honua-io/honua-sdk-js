@@ -495,13 +495,13 @@
     {
       "id": "coverages-wcs-basic",
       "title": "Bounded coverage quickstart",
-      "summary": "Discovers coverage axes and range fields, then renders one byte-bounded PNG subset.",
+      "summary": "Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff.",
       "sourceKind": "root-example",
       "track": "recipe",
       "supportTier": "experimental",
       "lifecycle": {
         "state": "active",
-        "reason": "Provide the smallest deterministic OGC API Coverages workflow while WCS/connect discovery matures."
+        "reason": "Provide browser-qualified deterministic Coverages/WCS evidence while anonymous live canaries and connect discovery remain open."
       },
       "validationProfile": "browser-recipe",
       "source": {
@@ -532,7 +532,7 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a fixture PNG.",
+        "provenance": "Committed deterministic OGC API Coverages and WCS metadata plus a digest-pinned 320 x 220 fixture PNG, fail-closed in-memory transport, and MapLibre browser proof.",
         "attribution": "Honua protocol contract fixture.",
         "freshness": "Versioned with the repository and server contract.",
         "configurationStatus": "not-required"
@@ -543,11 +543,11 @@
           "status": "executed"
         },
         "live": {
-          "mode": "unavailable",
-          "status": "not-applicable"
+          "mode": "public-live",
+          "status": "planned"
         }
       },
-      "expectedDegradation": "Unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors."
+      "expectedDegradation": "Aborted superseded requests, invalid OGC properties, and invalid WCS range subsets leave the active bounded raster visible; unbounded, oversized, unsupported-format, and OWS exception responses fail with typed errors."
     },
     {
       "id": "edit-workflow-demo",

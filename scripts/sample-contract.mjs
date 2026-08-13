@@ -450,6 +450,7 @@ const REVIEWED_VALIDATION_SCRIPTS = new Set([
   "test:migration:real-samples",
   "test:playwright:ai-spatial-builder",
   "test:playwright:columnar-query",
+  "test:playwright:coverages-wcs",
   "test:playwright:geocoding",
   "test:playwright:imagery-cog",
   "test:playwright:incident",
