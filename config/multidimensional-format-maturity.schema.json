@@ -89,7 +89,7 @@
       ],
       "properties": {
         "publicSdkExport": {
-          "const": false
+          "const": true
         },
         "runnableSample": {
           "const": false
@@ -149,7 +149,7 @@
       ],
       "properties": {
         "currentState": {
-          "const": "architecture-only"
+          "const": "client-slice"
         },
         "currentAllowedContent": {
           "type": "array",
@@ -613,7 +613,10 @@
           "pattern": "^[a-z0-9-]+$"
         },
         "state": {
-          "const": "missing"
+          "enum": [
+            "missing",
+            "partial"
+          ]
         },
         "requirement": {
           "type": "string",
