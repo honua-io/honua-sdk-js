@@ -215,6 +215,7 @@ interface SyntheticIpcOptions {
   readonly storage?: "binary" | "large-binary";
   readonly extensionMetadata?: string | Readonly<Record<string, unknown>>;
   readonly schemaMetadata?: Readonly<Record<string, string>>;
+  readonly geometryKind?: "point" | "linestring" | "polygon";
   readonly maxBackingBytes?: number;
 }
 
@@ -262,7 +263,10 @@ const syntheticIpc = async (
 
 const decodeSynthetic = async (geometries: readonly (Uint8Array | null)[], options: SyntheticIpcOptions = {}) => {
   const payload = await syntheticIpc(geometries, options);
-  const batches = await decode(
+  const batches = [];
+  for await (const batch of createApacheArrowResponseDecoder({
+    ...(options.geometryKind === undefined ? {} : { geometryKind: options.geometryKind }),
+  })(
     context(
       {
         query: {
@@ -276,7 +280,9 @@ const decodeSynthetic = async (geometries: readonly (Uint8Array | null)[], optio
       },
       payload,
     ),
-  );
+  )) {
+    batches.push(batch);
+  }
   assert.equal(batches.length, 1);
   return batches[0]!;
 };
@@ -495,6 +501,26 @@ test("does not treat non-standard extension geometry_types as the geometry decla
 
   assert.equal(inspectGeoArrowBatch(batch).geometry.kind, "point");
   assert.deepEqual(decodeGeoArrowBatch(batch).rows[0]?.geometry, [1, 2]);
+});
+
+test("accepts the current server split between GeoArrow extension and GeoParquet schema metadata", async () => {
+  const crs = { type: "GeographicCRS", name: "WGS 84", id: { authority: "EPSG", code: 4326 } };
+  const batch = await decodeSynthetic([pointWkb([-157.8583, 21.3069])], {
+    extensionMetadata: { crs },
+    schemaMetadata: {
+      geo: JSON.stringify({
+        version: "1.1.0",
+        primary_column: "geometry",
+        columns: { geometry: { encoding: "WKB", geometry_types: ["Point"], crs } },
+      }),
+    },
+  });
+
+  const geometry = inspectGeoArrowBatch(batch).geometry;
+  assert.equal(geometry.kind, "point");
+  assert.deepEqual(JSON.parse(JSON.stringify(geometry.crs)), crs);
+  assert.equal(geometry.crsType, undefined);
+  assert.equal(geometry.edges, "planar");
 });
 
 test("bounds XYZ WKB coordinate arrays before materializing them", async () => {
