@@ -1135,7 +1135,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="automatic-source-workflow"></a>[`automatic-source-workflow`](../../docs/examples/automatic-source-workflow/README.md) | fixture | - | internal | active | browser-fixture | fixture | not-required | Exercises automatic MapLibre strategy selection, interaction state, refresh, and disposal against deterministic browser fixtures. |
 | <a id="cesium-route-playback"></a>[`cesium-route-playback`](../../docs/examples/cesium-route-playback/README.md) | lab | - | experimental | rework | browser-lab | hybrid | legacy-unsafe | Explores bounded route playback and elevation context through an optional Cesium consumer integration. |
 | <a id="columnar-query-quickstart"></a>[`columnar-query-quickstart`](../../examples/columnar-query-quickstart/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Executes an exact Honua Server Arrow fixture through bounded pushdown, decoding, cancellation, evidence, and a deterministic MapLibre handoff. |
-| <a id="coverages-wcs-basic"></a>[`coverages-wcs-basic`](../../examples/coverages-wcs-basic/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Discovers coverage axes and range fields, then renders one byte-bounded PNG subset. |
+| <a id="coverages-wcs-basic"></a>[`coverages-wcs-basic`](../../examples/coverages-wcs-basic/README.md) | recipe | - | experimental | active | browser-recipe | fixture | not-required | Renders named-band OGC API Coverages and WCS subsets through one MapLibre image handoff. |
 | <a id="edit-workflow-demo"></a>[`edit-workflow-demo`](../../examples/edit-workflow-demo/README.md) | recipe | - | supported | replace | browser-recipe | fixture | not-required | Demonstrates optimistic edits, attachments, conflicts, and safe recovery. |
 | <a id="geocoding-quickstart"></a>[`geocoding-quickstart`](../../examples/geocoding-quickstart/README.md) | recipe | - | supported | active | browser-recipe | fixture | not-required | Turns a reviewed address result into a synchronized MapLibre pin with score, locator, and provenance in view. |
 | <a id="geoprocessing-job-runner"></a>[`geoprocessing-job-runner`](../../examples/geoprocessing-job-runner/README.md) | recipe | - | supported | merge | browser-recipe | fixture | not-required | Runs a deterministic Honolulu buffer job and renders the verified polygon result. |
@@ -1717,7 +1717,7 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-12 at commit `f693a6bb`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-13 at commit `2db0ed20`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
@@ -11665,7 +11665,7 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-12 at commit `f693a6bb`._
+_Generated 2026-08-13 at commit `2db0ed20`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
