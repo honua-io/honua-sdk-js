@@ -42,6 +42,7 @@ const legacySiteProjectionSchema = JSON.parse(
 );
 
 const catalogById = new Map(catalog.samples.map((sample) => [sample.id, sample]));
+const bundleSmokeSource = fs.readFileSync(path.join(ROOT, "scripts/smoke-sample-bundles.mjs"), "utf8");
 
 function fakeCatalog(samples) {
   return { samples };
@@ -386,6 +387,44 @@ test("columnar publication binds exact embedded Arrow execution to a pure-static
     sourceFeatureCountMethod: "sourceFeatureCount",
     markerSelector: ".maplibregl-marker",
   });
+});
+
+test("Coverage publication requires a protocol-semantic static bundle journey", () => {
+  const audit = SAMPLE_BUNDLE_AUDIT.find((entry) => entry.id === "coverages-wcs-basic");
+  assert.equal(audit.runtimeHosting, "self-contained");
+  assert.deepEqual(SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS.get("coverages-wcs-basic"), {
+    kind: "coverage",
+    state: "__HONUA_COVERAGES_WCS__",
+    readyField: "ready",
+    canvasSelector: ".maplibregl-canvas",
+    ogcSourceId: "ogc-elevation",
+    ogcLayerId: "ogc-elevation-raster",
+    wcsSourceId: "wcs-elevation",
+    wcsLayerId: "wcs-elevation-raster",
+    fixtureDigest: "8c7b5b3f8bd31bca2df07c4a70254d75e70d63838c2f77e033def3c1b8d2acff",
+    fixtureByteLength: 281_908,
+    imageWidth: 320,
+    imageHeight: 220,
+    centerPixelValue: 450,
+    centerPixelColor: [221, 174, 82],
+    legendSelector: "#legend-labels",
+    legendMinText: "0 m",
+    legendMaxText: "600 m",
+    pixelSelector: "#pixel-value",
+    pixelText: "450 m",
+  });
+  assert.match(bundleSmokeSource, /journey\.kind === "coverage"/u);
+  for (const evidence of [
+    "ogcSuccess",
+    "ogcCancellation",
+    "ogcDegradation",
+    "wcsSuccess",
+    "wcsCancellation",
+    "wcsDegradation",
+    "revokedBothObjectUrls",
+  ]) {
+    assert.match(bundleSmokeSource, new RegExp(`\\b${evidence}\\b`, "u"));
+  }
 });
 
 test("every computed exclusion category is declared in EXCLUDED_SAMPLE_CATEGORIES", () => {

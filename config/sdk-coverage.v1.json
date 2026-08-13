@@ -370,10 +370,11 @@
       ],
       "evidence": [
         "test/coverages-wcs.test.ts",
+        "test/playwright/coverages-wcs-basic.spec.mjs",
         "test/unified-raster.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. The experimental raster facade maps bounded bbox windows, output size, CRS, and named range fields onto the same client."
+      "note": "Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. A strict standalone browser fixture proves named properties, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists."
     },
     {
       "key": "serve.ogc-api-features",
@@ -482,10 +483,11 @@
       ],
       "evidence": [
         "test/coverages-wcs.test.ts",
+        "test/playwright/coverages-wcs-basic.spec.mjs",
         "test/unified-raster.test.ts"
       ],
       "source": "support-manifest",
-      "note": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. The experimental raster facade validates advertised scale-axis labels before mapping bounded bbox windows and named range fields."
+      "note": "Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. A strict standalone browser fixture proves named RANGESUBSET, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists."
     },
     {
       "key": "serve.wfs",

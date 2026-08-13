@@ -27,25 +27,6 @@
       }
     },
     {
-      "sampleId": "coverages-wcs-basic",
-      "projectPath": "playgrounds/coverages-wcs-basic",
-      "providers": [
-        {
-          "id": "stackblitz",
-          "title": "StackBlitz",
-          "url": "https://stackblitz.com/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
-        },
-        {
-          "id": "codesandbox",
-          "title": "CodeSandbox",
-          "url": "https://codesandbox.io/s/github/honua-io/honua-sdk-js/tree/trunk/playgrounds/coverages-wcs-basic"
-        }
-      ],
-      "dataOrigin": {
-        "kind": "committed-sample-source"
-      }
-    },
-    {
       "sampleId": "react-quickstart",
       "projectPath": "playgrounds/react-quickstart",
       "providers": [
@@ -123,6 +104,11 @@
       "sampleId": "columnar-query-quickstart",
       "category": "unreleased-sdk-surface",
       "detail": "createApacheArrowResponseDecoder({ importModule }) is not published by @honua/sdk-js@0.1.4-beta.0; the repository sample remains source-mode evidence until a post-merge SDK release is pinned and regenerated."
+    },
+    {
+      "sampleId": "coverages-wcs-basic",
+      "category": "unreleased-sdk-surface",
+      "detail": "@honua/sdk-js/coverages is not published by @honua/sdk-js@0.1.4-beta.0; the repository sample remains source-mode evidence until a post-merge SDK release is pinned and regenerated."
     },
     {
       "sampleId": "edit-workflow-demo",

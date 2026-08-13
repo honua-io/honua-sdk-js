@@ -105,6 +105,16 @@ describe("playground smoke decisions", () => {
     assert.ok(source.includes('fixtureTransport: "in-memory exact server artifact; no live endpoint claimed"'));
   });
 
+  it("keeps the unreleased Coverages importer in internal source-mode evidence", () => {
+    const source = fs.readFileSync(path.join(ROOT, "examples/coverages-wcs-basic/src/main.ts"), "utf8");
+    const exclusion = artifact.excluded.find((entry) => entry.sampleId === "coverages-wcs-basic");
+    assert.equal(exclusion.category, "unreleased-sdk-surface");
+    assert.ok(!publishedIds.includes("coverages-wcs-basic"));
+    assert.ok(source.includes('from "@honua/sdk-js/coverages"'));
+    assert.ok(source.includes("createCoverageClient(client)"));
+    assert.ok(source.includes("createWcsClient(client"));
+  });
+
   it("answers, for every playground, whether anything is asserted about its data", () => {
     for (const [id, journey] of PLAYGROUND_SMOKE_JOURNEYS) {
       assert.notEqual(journey.features === undefined, journey.noBootFeatures === undefined, id);
