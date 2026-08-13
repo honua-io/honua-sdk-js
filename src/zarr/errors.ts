@@ -5,6 +5,7 @@ export type HonuaZarrErrorCode =
   | "invalid-response"
   | "response-too-large"
   | "metadata-pending"
+  | "no-tileable-variable"
   | "unsupported-version"
   | "unsupported-codec"
   | "unsupported-dtype"
