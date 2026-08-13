@@ -349,7 +349,9 @@ function versionedPath(value: string, field: string): string {
   if (!path.startsWith("/api/v1/")) invalidRequest(`${field} must use the versioned /api/v1 contract.`, { path });
   if (/^[a-z][a-z\d+.-]*:/i.test(path) || path.startsWith("//"))
     invalidRequest(`${field} must be a relative same-origin path.`, { path });
-  return path.replace(/\/+$/, "");
+  let end = path.length;
+  while (end > 0 && path.charCodeAt(end - 1) === 47) end--;
+  return path.slice(0, end);
 }
 
 function resolveUrl(baseUrl: string, path: string): string {
