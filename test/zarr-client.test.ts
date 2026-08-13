@@ -185,6 +185,24 @@ describe("experimental Honua Zarr client", () => {
     ]);
   });
 
+  it("classifies unsupported server versions and accepts empty array dimensions", async () => {
+    const responses = [
+      { ...registration, zarrFormat: 4 },
+      {
+        ...registration,
+        variables: [{ ...registration.variables[0], shape: [0, 256, 256] }],
+      },
+    ];
+    const client = new HonuaClient({
+      baseUrl: "https://zarr.example",
+      fetchFn: vi.fn(async () => json(responses.shift())),
+    });
+    const zarr = createZarrClient(client);
+
+    await expect(zarr.get(41)).rejects.toMatchObject({ code: "unsupported-version" });
+    await expect(zarr.get(41)).resolves.toMatchObject({ variables: [{ shape: [0, 256, 256] }] });
+  });
+
   it("rejects unversioned endpoints and unsafe registration paths before network I/O", async () => {
     const fetchFn = vi.fn();
     const client = new HonuaClient({ baseUrl: "https://zarr.example", fetchFn });
