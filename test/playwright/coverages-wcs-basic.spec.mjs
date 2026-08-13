@@ -205,6 +205,11 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
     await expect(page.locator("#range")).toContainText("Elevation, Quality mask");
     await expect(page.locator("#wcs")).toContainText("2.0.1 / Lat x Long / elevation, quality");
     expect(await page.evaluate(() => Boolean(window.__honuaMaps?.[0]?.getSource("ogc-elevation")))).toBe(true);
+    const ogcObjectUrl = await page.evaluate(() => window.__HONUA_COVERAGES_WCS__?.activeObjectUrl ?? null);
+    expect(ogcObjectUrl).toMatch(/^blob:/u);
+    expect(await page.evaluate(() => window.__HONUA_NETWORK_CHANNELS__?.createdObjectUrls ?? [])).toEqual([
+      ogcObjectUrl,
+    ]);
 
     await page.getByRole("button", { name: "Prove cancellation" }).click();
     await expect(page.locator("#safety-status")).toContainText("Cancelled safely");
@@ -241,6 +246,17 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
         staleSourceMounted: Boolean(window.__honuaMaps?.[0]?.getSource("ogc-elevation")),
       })),
     ).toEqual({ protocol: "wcs", sourceId: "wcs-elevation", sourceMounted: true, staleSourceMounted: false });
+    const wcsObjectUrlProof = await page.evaluate(() => ({
+      active: window.__HONUA_COVERAGES_WCS__?.activeObjectUrl ?? null,
+      runtimeRevoked: window.__HONUA_COVERAGES_WCS__?.revokedObjectUrls ?? [],
+      created: window.__HONUA_NETWORK_CHANNELS__?.createdObjectUrls ?? [],
+      revoked: window.__HONUA_NETWORK_CHANNELS__?.revokedObjectUrls ?? [],
+    }));
+    expect(wcsObjectUrlProof.active).toMatch(/^blob:/u);
+    expect(wcsObjectUrlProof.active).not.toBe(ogcObjectUrl);
+    expect(wcsObjectUrlProof.created).toEqual([ogcObjectUrl, wcsObjectUrlProof.active]);
+    expect(wcsObjectUrlProof.revoked).toEqual([ogcObjectUrl]);
+    expect(wcsObjectUrlProof.runtimeRevoked).toEqual([ogcObjectUrl]);
 
     await page.getByRole("button", { name: "Prove cancellation" }).click();
     await expect(page.locator("#safety-status")).toContainText("Cancelled safely");
@@ -312,8 +328,11 @@ test("renders both bounded clients through one MapLibre handoff and fails locall
       canvasCount: 0,
     });
     expect(disposal.runtimeRevoked).toContain(disposal.activeObjectUrl);
-    expect(disposal.channels.createdObjectUrls).toContain(disposal.activeObjectUrl);
-    expect(disposal.channels.revokedObjectUrls).toContain(disposal.activeObjectUrl);
+    expect(disposal.runtimeRevoked).toEqual([ogcObjectUrl, disposal.activeObjectUrl]);
+    expect(new Set(disposal.runtimeRevoked).size).toBe(2);
+    expect(disposal.channels.createdObjectUrls).toEqual([ogcObjectUrl, disposal.activeObjectUrl]);
+    expect(disposal.channels.revokedObjectUrls).toEqual(disposal.channels.createdObjectUrls);
+    expect(new Set(disposal.channels.createdObjectUrls).size).toBe(2);
     expect(disposal.channels.websockets).toEqual([]);
     expect(disposal.channels.eventSources).toEqual([]);
     expect(disposal.channels.sharedWorkers).toEqual([]);

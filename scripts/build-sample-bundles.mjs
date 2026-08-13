@@ -400,6 +400,30 @@ export const SAMPLE_BUNDLE_AUDIT = [
  */
 export const SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS = new Map([
   [
+    "coverages-wcs-basic",
+    {
+      kind: "coverage",
+      state: "__HONUA_COVERAGES_WCS__",
+      readyField: "ready",
+      canvasSelector: ".maplibregl-canvas",
+      ogcSourceId: "ogc-elevation",
+      ogcLayerId: "ogc-elevation-raster",
+      wcsSourceId: "wcs-elevation",
+      wcsLayerId: "wcs-elevation-raster",
+      fixtureDigest: "8c7b5b3f8bd31bca2df07c4a70254d75e70d63838c2f77e033def3c1b8d2acff",
+      fixtureByteLength: 281_908,
+      imageWidth: 320,
+      imageHeight: 220,
+      centerPixelValue: 450,
+      centerPixelColor: [221, 174, 82],
+      legendSelector: "#legend-labels",
+      legendMinText: "0 m",
+      legendMaxText: "600 m",
+      pixelSelector: "#pixel-value",
+      pixelText: "450 m",
+    },
+  ],
+  [
     "columnar-query-quickstart",
     {
       state: "__HONUA_COLUMNAR_QUERY_QUICKSTART__",
