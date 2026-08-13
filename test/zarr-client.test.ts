@@ -279,7 +279,7 @@ describe("experimental Honua Zarr client", () => {
     ]);
   });
 
-  it.each(["<f1", "<b8", "|f4", ">f4", "f4"])("rejects non-tileable dtype %s", (dataType) => {
+  it.each(["<f1", "<b8", "|f4", ">f4", "f4", "float16"])("rejects non-tileable dtype %s", (dataType) => {
     const candidate = {
       ...registration,
       variables: [{ ...registration.variables[0], dataType }],
@@ -290,6 +290,19 @@ describe("experimental Honua Zarr client", () => {
       expect.objectContaining({ code: "unsupported-dtype" }),
     ]);
   });
+
+  it.each(["bool", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "float32", "float64"])(
+    "accepts server-supported Zarr v3 dtype %s",
+    (dataType) => {
+      const candidate = {
+        ...registration,
+        variables: [{ ...registration.variables[0], dataType }],
+      } as unknown as ZarrStoreRegistration;
+      const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+
+      expect(zarr.assess(candidate, readiness).failures).toEqual([]);
+    },
+  );
 
   it("requires the requested tile matrix SRID to match storage", () => {
     const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
