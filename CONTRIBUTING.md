@@ -46,6 +46,26 @@ So: do not run `samples:run -- evidence ...`, `samples:generate`, `docs:llms`,
 `demo:migration-workbench:artifacts:write` just to make CI green. If you commit
 stale derived artifacts by habit, it is harmless — trunk overwrites them.
 
+### If the sample publication contract fails on evidence freshness
+
+Golden-visual evidence carries a seven-day freshness window and is renewed by
+the six-hourly `regenerate-derived-artifacts` run. If that renewal stops, the
+windows expire on the calendar and the sample-publication contract fails on
+every branch at once, with a message naming the window, when it lapsed, and the
+fix (honua-io/honua-sdk-js#1266). This is **not** a defect in your PR:
+
+- renew it with `npm run samples:generate` (or
+  `gh workflow run regenerate-derived-artifacts.yml --repo honua-io/honua-sdk-js`,
+  which is the authority that reseals against the trunk source digest);
+- a `note: … inside the 24h renewal horizon` line in the gate output means the
+  renewal path has already stopped working — fix it before it expires.
+
+Two things follow from #1266 and should stay true: the contract gate is
+**reported early and enforced last** in the `JS SDK` job (`Enforce sample
+publication contract`), and the PR-fast tier runs all of its steps, so the test
+suites always run and report even when the contract gate is red. Never "fix" a
+freshness lapse by widening a window or deleting evidence.
+
 ### Bundle budgets stay a PR-time gate
 
 `verify:bundle-budgets` (`report-bundle-sizes.mjs --check`) still runs on your

@@ -25,3 +25,18 @@ export function commandInvocation(
 ): PrFastCommandInvocation;
 
 export function parseArgs(argv: readonly string[]): PrFastOptions;
+
+export interface PrFastStepResult {
+  command: string;
+  durationMs: number;
+  exitCode: number | null;
+  signal?: NodeJS.Signals | null;
+  error?: string;
+}
+
+export const PR_FAST_STEPS: ReadonlyArray<readonly [string, readonly string[]]>;
+
+export function runSteps<TResult>(
+  steps: ReadonlyArray<readonly [string, readonly string[]]>,
+  runStep: (command: string, args: readonly string[]) => Promise<TResult>,
+): Promise<TResult[]>;
