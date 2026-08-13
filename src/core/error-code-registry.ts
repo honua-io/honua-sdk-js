@@ -142,6 +142,12 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "core.zarr.invalid-response": classification("core", "protocol", false, "Zarr response is invalid"),
   "core.zarr.response-too-large": classification("core", "validation", false, "Zarr response exceeds its byte limit"),
   "core.zarr.metadata-pending": classification("core", "capability", false, "Zarr metadata scan is pending"),
+  "core.zarr.no-tileable-variable": classification(
+    "core",
+    "capability",
+    false,
+    "Zarr metadata contains no tileable variable",
+  ),
   "core.zarr.unsupported-version": classification("core", "capability", false, "Zarr version is unsupported"),
   "core.zarr.unsupported-codec": classification("core", "capability", false, "Zarr codec is unsupported"),
   "core.zarr.unsupported-dtype": classification("core", "capability", false, "Zarr dtype is unsupported"),

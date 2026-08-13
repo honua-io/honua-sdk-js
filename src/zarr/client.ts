@@ -90,7 +90,14 @@ export class HonuaZarrClient {
           message: `Zarr v${String(registration.zarrFormat)} is outside the versioned server contract.`,
         });
       }
-      for (const variable of registration.variables) assessVariable(variable, failures);
+      if (registration.variables.length === 0) {
+        failures.push({
+          code: "no-tileable-variable",
+          message: "The completed Zarr metadata scan did not discover a variable for the tile operation.",
+        });
+      } else {
+        for (const variable of registration.variables) assessVariable(variable, failures);
+      }
     }
     return Object.freeze({
       maturity: "experimental" as const,

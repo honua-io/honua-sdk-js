@@ -54,7 +54,8 @@ const tile = await zarr.tile({
 - `assess()` recognizes Zarr v2/v3, little-endian numeric or boolean dtypes,
   and uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes,
   and ambiguous dimension metadata fail explicitly.
-- Metadata must be refreshed before the tile handoff is considered ready.
+- Metadata must be refreshed and expose at least one variable before the tile
+  handoff is considered ready.
 
 This slice does not fetch chunks directly from S3, Azure Blob Storage, or the
 local filesystem. `directObjectStoreRead` therefore remains `"unavailable"`.
