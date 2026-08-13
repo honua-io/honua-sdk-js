@@ -3,47 +3,37 @@ name: Publish content-addressed sample bundles
 on:
   workflow_dispatch: {}
 
-permissions:
-  contents: read
+permissions: {}
 
 concurrency:
-  group: sample-bundles-${{ github.sha }}
+  group: publish-content-addressed-sample-bundles
   cancel-in-progress: false
 
+env:
+  SOURCE_COMMIT: ${{ github.sha }}
+  RELEASE_ID: sample-bundles-${{ github.sha }}
+  WORKFLOW_PATH: .github/workflows/publish-content-addressed-sample-bundles.yml
+
 jobs:
-  publish-content-addressed-bundles:
-    name: Rebuild and attest exact-trunk sample bundles
+  build-and-smoke:
+    name: Build reproducible sample bundles
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
-      contents: write
-      id-token: write
-      attestations: write
+      contents: read
     env:
-      SOURCE_COMMIT: ${{ github.sha }}
-      RELEASE_ID: sample-bundles-${{ github.sha }}
       FIRST_MANIFEST: source-a/.artifacts/sample-bundles/sample-bundles.v2.json
       SECOND_MANIFEST: source-b/.artifacts/sample-bundles/sample-bundles.v2.json
       FIRST_ARCHIVE: publication/sample-bundles.tar.gz
       SECOND_ARCHIVE: build-b/sample-bundles.tar.gz
     steps:
-      - name: Check out governed workflow
+      - name: Check out exact governance source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
           path: governance
           fetch-depth: 1
-
-      - name: Require a current trunk dispatch
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          test "$GITHUB_REF" = "refs/heads/trunk"
-          test "$SOURCE_COMMIT" = "$GITHUB_SHA"
-          test "$(git -C governance rev-parse HEAD)" = "$GITHUB_SHA"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)" = "$GITHUB_SHA"
 
       - name: Check out first clean exact source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -61,6 +51,22 @@ jobs:
           path: source-b
           fetch-depth: 1
 
+      - name: Require current trunk before build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/trunk"
+          test "$SOURCE_COMMIT" = "$GITHUB_SHA"
+          test "$(git -C governance rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test "$(git -C source-a rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test "$(git -C source-b rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)" = "$SOURCE_COMMIT"
+          test -z "$(git -C governance status --porcelain)"
+          test -z "$(git -C source-a status --porcelain)"
+          test -z "$(git -C source-b status --porcelain)"
+
       - name: Set up exact Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
@@ -70,31 +76,18 @@ jobs:
             source-a/package-lock.json
             source-b/package-lock.json
 
-      - name: Assert exact source identity
+      - name: Install independent dependency trees
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C source-a rev-parse HEAD)" = "$SOURCE_COMMIT"
-          test "$(git -C source-b rev-parse HEAD)" = "$SOURCE_COMMIT"
-          test -z "$(git -C source-a status --porcelain)"
-          test -z "$(git -C source-b status --porcelain)"
-          SOURCE_DATE_EPOCH_A="$(git -C source-a show -s --format=%ct HEAD)"
-          SOURCE_DATE_EPOCH_B="$(git -C source-b show -s --format=%ct HEAD)"
-          test "$SOURCE_DATE_EPOCH_A" = "$SOURCE_DATE_EPOCH_B"
-          echo "SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH_A" >> "$GITHUB_ENV"
-
-      - name: Install first clean dependency tree
-        working-directory: source-a
-        run: npm ci
-
-      - name: Install second clean dependency tree
-        working-directory: source-b
-        run: npm ci
+          npm --prefix source-a ci
+          npm --prefix source-b ci
 
       - name: Build, verify, and pack first bundle tree
         shell: bash
         run: |
           set -euo pipefail
+          SOURCE_DATE_EPOCH="$(git -C source-a show -s --format=%ct HEAD)"
           npm --prefix source-a run samples:bundles:build
           npm --prefix source-a run samples:bundles:verify
           node governance/scripts/pack-sample-bundles.mjs \
@@ -108,6 +101,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          SOURCE_DATE_EPOCH="$(git -C source-b show -s --format=%ct HEAD)"
           npm --prefix source-b run samples:bundles:build
           npm --prefix source-b run samples:bundles:verify
           node governance/scripts/pack-sample-bundles.mjs \
@@ -137,8 +131,13 @@ jobs:
       - name: Enforce governance policy
         run: node governance/scripts/immutable-sample-bundle-attestation.mjs policy --root governance
 
-      - name: Write immutable metadata receipt
+      - name: Write deterministic and per-run receipts
+        shell: bash
         run: |
+          set -euo pipefail
+          SOURCE_DATE_EPOCH="$(git -C source-a show -s --format=%ct HEAD)"
+          : "${ImageOS:?ImageOS is required}"
+          : "${ImageVersion:?ImageVersion is required}"
           node governance/scripts/immutable-sample-bundle-attestation.mjs receipt \
             --source-commit "$SOURCE_COMMIT" \
             --source-root source-a \
@@ -149,42 +148,183 @@ jobs:
             --second-archive "$SECOND_ARCHIVE" \
             --smoke-receipt source-a/.artifacts/sample-bundle-smoke/browser-smoke.v1.json \
             --output publication/sample-bundles-attestation.v1.json \
+            --run-output publication/sample-bundles-run.v1.json \
             --workflow-sha "$GITHUB_SHA" \
-            --workflow-run-id "$GITHUB_RUN_ID"
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --runner-image "$ImageOS" \
+            --runner-image-version "$ImageVersion" \
+            --runner-environment "${{ runner.environment }}" \
+            --runner-os "$RUNNER_OS" \
+            --runner-arch "$RUNNER_ARCH"
 
-      - name: Check immutable publication state
-        id: release-state
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          node governance/scripts/immutable-sample-bundle-attestation.mjs release-preflight \
-            --repository "$GITHUB_REPOSITORY" \
-            --publication-directory publication \
-            --github-output "$GITHUB_OUTPUT" \
-            --source-commit "$SOURCE_COMMIT" \
-            --release-id "$RELEASE_ID"
-
-      - name: Attest publication assets
-        if: steps.release-state.outputs.mode == 'create'
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
+      - name: Stage exact producer bytes
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          subject-path: |
-            publication/sample-bundles.v2.json
-            publication/sample-bundles.tar.gz
-            publication/sample-bundles-attestation.v1.json
-
-      - name: Retain content-addressed workflow artifact
-        if: steps.release-state.outputs.mode == 'create'
-        uses: actions/upload-artifact@043fb46b0c4d128e50b1e9b66585d6281390065a
-        with:
-          name: ${{ env.RELEASE_ID }}
+          name: sample-bundles-staging-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             publication/sample-bundles.v2.json
             publication/sample-bundles.tar.gz
             publication/sample-bundles-attestation.v1.json
+            publication/sample-bundles-run.v1.json
           compression-level: 0
-          retention-days: 90
+          retention-days: 7
           if-no-files-found: error
+
+  attest-and-publish:
+    name: Attest and publish exact validated bytes
+    needs: build-and-smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_VERSION: 2.93.0
+      GH_ARCHIVE_SHA256: 02d1290eba130e0b896f3709ffff22e1c75a51475ddb70476a85abc6b5807af0
+      GH_BIN: ${{ runner.temp }}/gh_2.93.0_linux_amd64/bin/gh
+    steps:
+      - name: Redownload staged producer bytes
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: sample-bundles-staging-${{ github.run_id }}-${{ github.run_attempt }}
+          path: staged
+
+      - name: Validate staged bytes without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/trunk"
+          test "$SOURCE_COMMIT" = "$GITHUB_SHA"
+          test "$RELEASE_ID" = "sample-bundles-$SOURCE_COMMIT"
+          test -z "$(find staged \( -type l -o \( ! -type d ! -type f \) \) -print -quit)"
+          find staged -type f -printf '%P\n' | LC_ALL=C sort > actual-files.txt
+          printf '%s\n' \
+            sample-bundles-attestation.v1.json \
+            sample-bundles-run.v1.json \
+            sample-bundles.tar.gz \
+            sample-bundles.v2.json > expected-files.txt
+          cmp --silent actual-files.txt expected-files.txt
+          jq -e --arg source "$SOURCE_COMMIT" --arg release "$RELEASE_ID" --arg workflow "$WORKFLOW_PATH" '
+            .format == "honua.sdk.immutable-sample-bundle-attestation.v1" and
+            .source.commit == $source and .source.ref == "refs/heads/trunk" and
+            .workflow.path == $workflow and .workflow.commit == $source and
+            .publication.tag == $release and .publication.immutable == true and
+            .publication.ownerEnforcedImmutableReleasesRequired == true and
+            .reproducibility.manifestByteIdentical == true and
+            .reproducibility.archiveByteIdentical == true and
+            .producerSmoke.summary.failed == 0 and
+            .producerSmoke.summary.total == (.producerSmoke.resultIds | length)
+          ' staged/sample-bundles-attestation.v1.json >/dev/null
+          jq -e --arg source "$SOURCE_COMMIT" --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" '
+            .format == "honua.sdk.sample-bundle-publisher-run.v1" and
+            .sourceCommit == $source and .workflow.commit == $source and
+            .workflow.runId == $run and .workflow.runAttempt == $attempt and
+            .runner.hosted == true and .runner.environment == "github-hosted" and
+            (.runner.image | length) > 0 and (.runner.imageVersion | length) > 0 and
+            (.runner.os | length) > 0 and (.runner.arch | length) > 0
+          ' staged/sample-bundles-run.v1.json >/dev/null
+          MANIFEST_SHA="$(sha256sum staged/sample-bundles.v2.json | cut -d' ' -f1)"
+          ARCHIVE_SHA="$(sha256sum staged/sample-bundles.tar.gz | cut -d' ' -f1)"
+          RECEIPT_SHA="$(sha256sum staged/sample-bundles-attestation.v1.json | cut -d' ' -f1)"
+          MANIFEST_BYTES="$(stat -c %s staged/sample-bundles.v2.json)"
+          ARCHIVE_BYTES="$(stat -c %s staged/sample-bundles.tar.gz)"
+          RECEIPT_BYTES="$(stat -c %s staged/sample-bundles-attestation.v1.json)"
+          jq -e --arg sha "$MANIFEST_SHA" --argjson bytes "$MANIFEST_BYTES" '
+            .publication.assets["sample-bundles.v2.json"].sha256 == $sha and
+            .publication.assets["sample-bundles.v2.json"].bytes == $bytes
+          ' staged/sample-bundles-attestation.v1.json >/dev/null
+          jq -e --arg sha "$ARCHIVE_SHA" --argjson bytes "$ARCHIVE_BYTES" '
+            .publication.assets["sample-bundles.tar.gz"].sha256 == $sha and
+            .publication.assets["sample-bundles.tar.gz"].bytes == $bytes
+          ' staged/sample-bundles-attestation.v1.json >/dev/null
+          jq -e --arg sha "$RECEIPT_SHA" --argjson bytes "$RECEIPT_BYTES" '
+            .immutableReceipt.sha256 == $sha and .immutableReceipt.bytes == $bytes
+          ' staged/sample-bundles-run.v1.json >/dev/null
+          jq -e --arg source "$SOURCE_COMMIT" '
+            (.samples | length) > 0 and
+            all(.samples[]; .builtFrom.commit == $source) and
+            ([.samples[] | select(.runnability == "standalone") | .id] ==
+              input.producerSmoke.resultIds)
+          ' staged/sample-bundles.v2.json staged/sample-bundles-attestation.v1.json >/dev/null
+          tar -tzf staged/sample-bundles.tar.gz > archive-members.txt
+          test -s archive-members.txt
+          sed '/\/$/d' archive-members.txt | LC_ALL=C sort > archive-files.txt
+          jq -r '.samples[] | .id as $id | .files[] | $id + "/" + .path' \
+            staged/sample-bundles.v2.json | LC_ALL=C sort > manifest-files.txt
+          cmp --silent archive-files.txt manifest-files.txt
+
+      - name: Install checksum-pinned GitHub CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="$RUNNER_TEMP/gh_${GH_VERSION}_linux_amd64.tar.gz"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+            "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
+            --output "$ARCHIVE"
+          echo "$GH_ARCHIVE_SHA256  $ARCHIVE" | sha256sum --check --strict
+          tar -xzf "$ARCHIVE" -C "$RUNNER_TEMP"
+          test "$("$GH_BIN" version | sed -n '1s/^gh version \([^ ]*\\).*/\1/p')" = "$GH_VERSION"
+
+      - name: Expose write token only after validation
+        id: release-state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/trunk"
+          test "$("$GH_BIN" api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)" = "$SOURCE_COMMIT"
+          "$GH_BIN" api "repos/$GITHUB_REPOSITORY/immutable-releases" > immutable-releases.json
+          jq -e '.enabled == true and .enforced_by_owner == true' immutable-releases.json >/dev/null
+          TAG_EXISTS=false
+          RELEASE_EXISTS=false
+          if "$GH_BIN" api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_ID" > existing-tag.json 2>tag-error.txt; then
+            TAG_EXISTS=true
+          else
+            grep -q 'HTTP 404' tag-error.txt
+          fi
+          if "$GH_BIN" api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_ID" > existing-release.json 2>release-error.txt; then
+            RELEASE_EXISTS=true
+          else
+            grep -q 'HTTP 404' release-error.txt
+          fi
+          if ! $TAG_EXISTS && ! $RELEASE_EXISTS; then
+            echo "mode=create" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          $TAG_EXISTS && $RELEASE_EXISTS
+          jq -e --arg source "$SOURCE_COMMIT" '
+            .object.type == "commit" and .object.sha == $source
+          ' existing-tag.json >/dev/null
+          jq -e '
+            .draft == false and .immutable == true and
+            ([.assets[].name] | sort) ==
+              ["sample-bundles-attestation.v1.json","sample-bundles.tar.gz","sample-bundles.v2.json"]
+          ' existing-release.json >/dev/null
+          mkdir existing
+          while IFS=$'\t' read -r name id; do
+            "$GH_BIN" api -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "existing/$name"
+            cmp --silent "existing/$name" "staged/$name"
+          done < <(jq -r '.assets[] | [.name, (.id | tostring)] | @tsv' existing-release.json)
+          echo "mode=idempotent" >> "$GITHUB_OUTPUT"
+
+      - name: Attest exact immutable publication assets
+        if: steps.release-state.outputs.mode == 'create'
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
+        with:
+          subject-path: |
+            staged/sample-bundles.v2.json
+            staged/sample-bundles.tar.gz
+            staged/sample-bundles-attestation.v1.json
+
+      - name: Attest this run receipt
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
+        with:
+          subject-path: staged/sample-bundles-run.v1.json
 
       - name: Create immutable content-addressed release
         if: steps.release-state.outputs.mode == 'create'
@@ -193,24 +333,52 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release create "$RELEASE_ID" \
+          "$GH_BIN" release create "$RELEASE_ID" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$SOURCE_COMMIT" \
             --title "$RELEASE_ID" \
             --notes "Immutable, reproducible producer attestation for SDK sample bundles built from $SOURCE_COMMIT." \
             --latest=false \
-            publication/sample-bundles.v2.json \
-            publication/sample-bundles.tar.gz \
-            publication/sample-bundles-attestation.v1.json
+            staged/sample-bundles.v2.json \
+            staged/sample-bundles.tar.gz \
+            staged/sample-bundles-attestation.v1.json
 
-      - name: Verify immutable content-addressed release
-        if: steps.release-state.outputs.mode == 'create'
+      - name: Verify exact release bytes and provenance
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          node governance/scripts/immutable-sample-bundle-attestation.mjs release-preflight \
-            --repository "$GITHUB_REPOSITORY" \
-            --publication-directory publication \
-            --github-output "$GITHUB_OUTPUT" \
-            --source-commit "$SOURCE_COMMIT" \
-            --release-id "$RELEASE_ID"
+          set -euo pipefail
+          test "$("$GH_BIN" api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)" = "$SOURCE_COMMIT"
+          "$GH_BIN" api "repos/$GITHUB_REPOSITORY/immutable-releases" \
+            --jq 'select(.enabled == true and .enforced_by_owner == true)' >/dev/null
+          "$GH_BIN" api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_ID" \
+            --jq 'select(.object.type == "commit" and .object.sha == "'"$SOURCE_COMMIT"'")' >/dev/null
+          "$GH_BIN" api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_ID" > verified-release.json
+          jq -e '
+            .draft == false and .immutable == true and
+            ([.assets[].name] | sort) ==
+              ["sample-bundles-attestation.v1.json","sample-bundles.tar.gz","sample-bundles.v2.json"]
+          ' verified-release.json >/dev/null
+          mkdir verified
+          while IFS=$'\t' read -r name id; do
+            "$GH_BIN" api -H 'Accept: application/octet-stream' \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "verified/$name"
+            cmp --silent "verified/$name" "staged/$name"
+            "$GH_BIN" attestation verify "verified/$name" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/$WORKFLOW_PATH" \
+              --signer-digest "$SOURCE_COMMIT" \
+              --source-ref refs/heads/trunk \
+              --source-digest "$SOURCE_COMMIT" \
+              --predicate-type https://slsa.dev/provenance/v1 \
+              --deny-self-hosted-runners
+          done < <(jq -r '.assets[] | [.name, (.id | tostring)] | @tsv' verified-release.json)
+          "$GH_BIN" attestation verify staged/sample-bundles-run.v1.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/$WORKFLOW_PATH" \
+            --signer-digest "$SOURCE_COMMIT" \
+            --source-ref refs/heads/trunk \
+            --source-digest "$SOURCE_COMMIT" \
+            --predicate-type https://slsa.dev/provenance/v1 \
+            --deny-self-hosted-runners

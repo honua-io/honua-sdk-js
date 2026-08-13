@@ -67,11 +67,13 @@ function declaredFile(entry, sampleId) {
   invariant(entry && typeof entry === 'object', `Invalid file declaration in ${sampleId}`);
   const relativePath = entry.path ?? entry.relativePath ?? entry.file;
   const sha256 = entry.sha256 ?? entry.digest?.sha256 ?? null;
+  const bytes = entry.bytes ?? null;
   invariant(
     sha256 === null || /^[a-f0-9]{64}$/.test(sha256),
     `Invalid SHA-256 for ${sampleId}/${relativePath}`,
   );
-  return { path: portableRelativePath(relativePath, `File in ${sampleId}`), sha256 };
+  invariant(bytes === null || (Number.isSafeInteger(bytes) && bytes >= 0), `Invalid byte size for ${sampleId}/${relativePath}`);
+  return { path: portableRelativePath(relativePath, `File in ${sampleId}`), sha256, bytes };
 }
 
 export function declaredBundleFiles(manifest) {
@@ -86,7 +88,7 @@ export function declaredBundleFiles(manifest) {
       const archivePath = `${sampleId}/${declared.path}`;
       invariant(!seen.has(archivePath), `Duplicate manifest path: ${archivePath}`);
       seen.add(archivePath);
-      files.push({ archivePath, sha256: declared.sha256 });
+      files.push({ archivePath, sha256: declared.sha256, bytes: declared.bytes });
     }
   }
   return files.sort((left, right) => comparePaths(left.archivePath, right.archivePath));
@@ -177,21 +179,21 @@ function directoryPaths(filePaths) {
   return [...directories].sort(comparePaths);
 }
 
-export async function buildCanonicalTar({ bundleRoot, files, sourceDateEpoch }) {
+export function buildCanonicalTar({ fileSnapshots, sourceDateEpoch }) {
   invariant(
     Number.isSafeInteger(sourceDateEpoch) && sourceDateEpoch > 0,
     'sourceDateEpoch must be a positive integer',
   );
+  invariant(fileSnapshots instanceof Map, 'fileSnapshots must be a Map');
+  const files = [...fileSnapshots.keys()].sort(comparePaths);
   const entries = [
     ...directoryPaths(files).map((archivePath) => ({ archivePath, type: 'directory' })),
     ...files.map((archivePath) => ({ archivePath, type: 'file' })),
   ].sort((left, right) => comparePaths(left.archivePath, right.archivePath));
   const chunks = [];
   for (const entry of entries) {
-    const contents =
-      entry.type === 'file'
-        ? await readFile(path.join(bundleRoot, ...entry.archivePath.split('/')))
-        : Buffer.alloc(0);
+    const contents = entry.type === 'file' ? fileSnapshots.get(entry.archivePath) : Buffer.alloc(0);
+    invariant(Buffer.isBuffer(contents), `Missing byte snapshot for ${entry.archivePath}`);
     chunks.push(
       tarHeader({
         archivePath: entry.archivePath,
@@ -253,12 +255,15 @@ export async function createDeterministicSampleBundleArchive({
     JSON.stringify(actualPaths) === JSON.stringify(declaredPaths),
     'Bundle root files do not exactly match the manifest',
   );
+  const fileSnapshots = new Map();
   for (const declaration of declarations) {
     invariant(declaration.sha256, `Manifest omits SHA-256 for ${declaration.archivePath}`);
     const bytes = await readFile(path.join(bundleRoot, ...declaration.archivePath.split('/')));
+    invariant(declaration.bytes === bytes.length, `Manifest byte size mismatch for ${declaration.archivePath}`);
     invariant(sha256Bytes(bytes) === declaration.sha256, `Manifest SHA-256 mismatch for ${declaration.archivePath}`);
+    fileSnapshots.set(declaration.archivePath, bytes);
   }
-  const tarBytes = await buildCanonicalTar({ bundleRoot, files: declaredPaths, sourceDateEpoch });
+  const tarBytes = buildCanonicalTar({ fileSnapshots, sourceDateEpoch });
   const archiveBytes = createCanonicalGzip(tarBytes);
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, archiveBytes);
