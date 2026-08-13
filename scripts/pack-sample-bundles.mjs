@@ -1,426 +1,396 @@
+#!/usr/bin/env node
+
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { deflateRawSync } from "node:zlib";
+import { gzipSync } from "node:zlib";
 
-const BLOCK_SIZE = 512;
 const MANIFEST_NAME = "sample-bundles.v2.json";
+const SHA256 = /^[0-9a-f]{64}$/u;
+const COMMIT = /^[0-9a-f]{40}$/u;
+const CONTROL = /[\0-\x1f\x7f]/u;
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function comparePaths(left, right) {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function portableRelativePath(value, label) {
-  invariant(
-    typeof value === "string" && value.length > 0,
-    `${label} must be a string`,
-  );
-  invariant(
-    !value.includes("\\"),
-    `${label} must use POSIX separators: ${value}`,
-  );
-  invariant(
-    !value.startsWith("/") && !/^[A-Za-z]:/.test(value),
-    `${label} must be relative`,
-  );
-  const normalized = path.posix.normalize(value);
-  invariant(normalized === value, `${label} is not normalized: ${value}`);
-  invariant(
-    !normalized.split("/").includes(".."),
-    `${label} escapes the bundle root: ${value}`,
-  );
-  invariant(!normalized.includes("\0"), `${label} contains a NUL byte`);
-  return normalized;
-}
-
-export function manifestSourceRevision(manifest) {
-  const explicitRevision =
-    manifest.sourceRevision ??
-    manifest.source?.commit ??
-    manifest.sdk?.commit ??
-    manifest.builtFrom?.commit;
-  const sampleRevisions = new Set(
-    (manifest.samples ?? [])
-      .map((sample) => sample.builtFrom?.commit)
-      .filter(Boolean),
-  );
-  if (explicitRevision) {
-    return sampleRevisions.size === 0 ||
-      (sampleRevisions.size === 1 && sampleRevisions.has(explicitRevision))
-      ? explicitRevision
-      : undefined;
-  }
-  return sampleRevisions.size === 1 ? [...sampleRevisions][0] : undefined;
-}
-
-export function manifestLockfileSha256(manifest) {
-  return (
-    manifest.lockfileSha256 ??
-    manifest.source?.lockfileSha256 ??
-    manifest.sdk?.lockfileSha256 ??
-    manifest.builtFrom?.lockfileSha256 ??
-    manifest.build?.lockfileSha256
-  );
-}
-
-function sampleFiles(sample) {
-  const entries = sample.files ?? sample.assets ?? sample.outputFiles;
-  invariant(
-    Array.isArray(entries),
-    `Manifest sample ${sample.id ?? "<unknown>"} has no file list`,
-  );
-  return entries;
-}
-
-function declaredFile(entry, sampleId) {
-  if (typeof entry === "string") {
-    return {
-      path: portableRelativePath(entry, `File in ${sampleId}`),
-      sha256: null,
-    };
-  }
-  invariant(
-    entry && typeof entry === "object",
-    `Invalid file declaration in ${sampleId}`,
-  );
-  const relativePath = entry.path ?? entry.relativePath ?? entry.file;
-  const sha256 = entry.sha256 ?? entry.digest?.sha256 ?? null;
-  const bytes = entry.bytes ?? null;
-  invariant(
-    sha256 === null || /^[a-f0-9]{64}$/.test(sha256),
-    `Invalid SHA-256 for ${sampleId}/${relativePath}`,
-  );
-  invariant(
-    bytes === null || (Number.isSafeInteger(bytes) && bytes >= 0),
-    `Invalid byte size for ${sampleId}/${relativePath}`,
-  );
-  return {
-    path: portableRelativePath(relativePath, `File in ${sampleId}`),
-    sha256,
-    bytes,
-  };
-}
-
-export function declaredBundleFiles(manifest) {
-  invariant(
-    Array.isArray(manifest.samples) && manifest.samples.length > 0,
-    "Manifest has no samples",
-  );
-  const files = [];
-  const seen = new Set();
-  for (const sample of manifest.samples) {
-    const sampleId = portableRelativePath(sample.id, "Sample id");
-    invariant(
-      !sampleId.includes("/"),
-      `Sample id must be one path segment: ${sampleId}`,
-    );
-    for (const entry of sampleFiles(sample)) {
-      const declared = declaredFile(entry, sampleId);
-      const archivePath = `${sampleId}/${declared.path}`;
-      invariant(
-        !seen.has(archivePath),
-        `Duplicate manifest path: ${archivePath}`,
-      );
-      seen.add(archivePath);
-      files.push({
-        archivePath,
-        sha256: declared.sha256,
-        bytes: declared.bytes,
-      });
-    }
-  }
-  return files.sort((left, right) =>
-    comparePaths(left.archivePath, right.archivePath),
-  );
-}
-
-async function scanBundleRoot(root) {
-  const files = [];
-  async function visit(relativeDirectory) {
-    const directory = path.join(
-      root,
-      ...relativeDirectory.split("/").filter(Boolean),
-    );
-    const entries = await readdir(directory, { withFileTypes: true });
-    entries.sort((left, right) => comparePaths(left.name, right.name));
-    for (const entry of entries) {
-      const relativePath = relativeDirectory
-        ? `${relativeDirectory}/${entry.name}`
-        : entry.name;
-      const absolutePath = path.join(root, ...relativePath.split("/"));
-      const metadata = await lstat(absolutePath);
-      invariant(
-        !metadata.isSymbolicLink(),
-        `Symbolic links are forbidden: ${relativePath}`,
-      );
-      if (metadata.isDirectory()) {
-        await visit(relativePath);
-      } else {
-        invariant(
-          metadata.isFile(),
-          `Special files are forbidden: ${relativePath}`,
-        );
-        if (relativePath !== MANIFEST_NAME) files.push(relativePath);
-      }
-    }
-  }
-  await visit("");
-  return files.sort(comparePaths);
-}
-
-function tarPathParts(archivePath) {
-  if (Buffer.byteLength(archivePath) <= 100)
-    return { name: archivePath, prefix: "" };
-  const slashIndexes = [];
-  for (let index = 0; index < archivePath.length; index += 1) {
-    if (archivePath[index] === "/") slashIndexes.push(index);
-  }
-  for (let index = slashIndexes.length - 1; index >= 0; index -= 1) {
-    const split = slashIndexes[index];
-    const prefix = archivePath.slice(0, split);
-    const name = archivePath.slice(split + 1);
-    if (Buffer.byteLength(prefix) <= 155 && Buffer.byteLength(name) <= 100) {
-      return { name, prefix };
-    }
-  }
-  throw new Error(`Path does not fit the POSIX ustar header: ${archivePath}`);
-}
-
-function writeString(target, offset, length, value, label) {
-  const source = Buffer.from(value, "utf8");
-  invariant(source.length <= length, `${label} is too long for a ustar header`);
-  source.copy(target, offset);
-}
-
-function writeOctal(target, offset, length, value, label) {
-  invariant(
-    Number.isSafeInteger(value) && value >= 0,
-    `${label} must be non-negative`,
-  );
-  const encoded = value.toString(8).padStart(length - 1, "0");
-  invariant(
-    encoded.length <= length - 1,
-    `${label} does not fit a ustar header`,
-  );
-  writeString(target, offset, length, `${encoded}\0`, label);
-}
-
-function tarHeader({ archivePath, type, size, mtime }) {
-  const header = Buffer.alloc(BLOCK_SIZE, 0);
-  const { name, prefix } = tarPathParts(archivePath);
-  writeString(header, 0, 100, name, "name");
-  writeOctal(header, 100, 8, type === "directory" ? 0o755 : 0o644, "mode");
-  writeOctal(header, 108, 8, 0, "uid");
-  writeOctal(header, 116, 8, 0, "gid");
-  writeOctal(header, 124, 12, size, "size");
-  writeOctal(header, 136, 12, mtime, "mtime");
-  header.fill(0x20, 148, 156);
-  header[156] = type === "directory" ? 0x35 : 0x30;
-  writeString(header, 257, 6, "ustar\0", "magic");
-  writeString(header, 263, 2, "00", "version");
-  writeString(header, 345, 155, prefix, "prefix");
-  let checksum = 0;
-  for (const byte of header) checksum += byte;
-  writeString(
-    header,
-    148,
-    8,
-    `${checksum.toString(8).padStart(6, "0")}\0 `,
-    "checksum",
-  );
-  return header;
-}
-
-function directoryPaths(filePaths) {
-  const directories = new Set();
-  for (const filePath of filePaths) {
-    let directory = path.posix.dirname(filePath);
-    while (directory !== ".") {
-      directories.add(`${directory}/`);
-      directory = path.posix.dirname(directory);
-    }
-  }
-  return [...directories].sort(comparePaths);
-}
-
-export function buildCanonicalTar({ fileSnapshots, sourceDateEpoch }) {
-  invariant(
-    Number.isSafeInteger(sourceDateEpoch) && sourceDateEpoch > 0,
-    "sourceDateEpoch must be a positive integer",
-  );
-  invariant(fileSnapshots instanceof Map, "fileSnapshots must be a Map");
-  const files = [...fileSnapshots.keys()].sort(comparePaths);
-  const entries = [
-    ...directoryPaths(files).map((archivePath) => ({
-      archivePath,
-      type: "directory",
-    })),
-    ...files.map((archivePath) => ({ archivePath, type: "file" })),
-  ].sort((left, right) => comparePaths(left.archivePath, right.archivePath));
-  const chunks = [];
-  for (const entry of entries) {
-    const contents =
-      entry.type === "file"
-        ? fileSnapshots.get(entry.archivePath)
-        : Buffer.alloc(0);
-    invariant(
-      Buffer.isBuffer(contents),
-      `Missing byte snapshot for ${entry.archivePath}`,
-    );
-    chunks.push(
-      tarHeader({
-        archivePath: entry.archivePath,
-        type: entry.type,
-        size: contents.length,
-        mtime: sourceDateEpoch,
-      }),
-    );
-    if (contents.length > 0) {
-      chunks.push(contents);
-      const padding =
-        (BLOCK_SIZE - (contents.length % BLOCK_SIZE)) % BLOCK_SIZE;
-      if (padding > 0) chunks.push(Buffer.alloc(padding, 0));
-    }
-  }
-  chunks.push(Buffer.alloc(BLOCK_SIZE * 2));
-  return Buffer.concat(chunks);
-}
-
-function crc32(buffer) {
-  let crc = 0xffffffff;
-  for (const byte of buffer) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-export function createCanonicalGzip(tarBytes) {
-  // Equivalent to gzip -n, with an explicitly portable OS byte as well as zero mtime/name fields.
-  const header = Buffer.from([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0x02, 0xff]);
-  const compressed = deflateRawSync(tarBytes, { level: 9 });
-  const trailer = Buffer.alloc(8);
-  trailer.writeUInt32LE(crc32(tarBytes), 0);
-  trailer.writeUInt32LE(tarBytes.length >>> 0, 4);
-  return Buffer.concat([header, compressed, trailer]);
-}
-
-export function sha256Bytes(bytes) {
+function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-export async function createDeterministicSampleBundleArchive({
-  bundleRoot,
-  outputPath,
-  sourceCommit,
-  sourceDateEpoch,
-  metadataPath = null,
-}) {
+function safeArchivePath(value) {
   invariant(
-    /^[a-f0-9]{40}$/.test(sourceCommit),
-    "sourceCommit must be a full lowercase SHA",
+    typeof value === "string" && value.length > 0,
+    "archive path is empty",
   );
-  const manifestBytes = await readFile(path.join(bundleRoot, MANIFEST_NAME));
-  const manifest = JSON.parse(manifestBytes.toString("utf8"));
   invariant(
-    manifestSourceRevision(manifest) === sourceCommit,
-    `Manifest source revision is not ${sourceCommit}`,
+    !CONTROL.test(value),
+    `archive path contains a control character: ${JSON.stringify(value)}`,
   );
-  const declarations = declaredBundleFiles(manifest);
-  const declaredPaths = declarations.map(({ archivePath }) => archivePath);
-  const actualPaths = await scanBundleRoot(bundleRoot);
   invariant(
-    JSON.stringify(actualPaths) === JSON.stringify(declaredPaths),
-    "Bundle root files do not exactly match the manifest",
+    !value.includes("\\"),
+    `archive path contains a backslash: ${value}`,
   );
-  const fileSnapshots = new Map();
-  for (const declaration of declarations) {
-    invariant(
-      declaration.sha256,
-      `Manifest omits SHA-256 for ${declaration.archivePath}`,
-    );
-    const bytes = await readFile(
-      path.join(bundleRoot, ...declaration.archivePath.split("/")),
-    );
-    invariant(
-      declaration.bytes === bytes.length,
-      `Manifest byte size mismatch for ${declaration.archivePath}`,
-    );
-    invariant(
-      sha256Bytes(bytes) === declaration.sha256,
-      `Manifest SHA-256 mismatch for ${declaration.archivePath}`,
-    );
-    fileSnapshots.set(declaration.archivePath, bytes);
-  }
-  const tarBytes = buildCanonicalTar({ fileSnapshots, sourceDateEpoch });
-  const archiveBytes = createCanonicalGzip(tarBytes);
-  await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, archiveBytes);
-  const metadata = {
-    format: "honua.sdk.sample-bundle-pack.v1",
-    archiveFormat: "posix-ustar",
-    compression: "gzip-no-name-no-mtime-level-9",
-    sourceCommit,
-    sourceDateEpoch,
-    fileCount: declaredPaths.length,
-    manifest: {
-      bytes: manifestBytes.length,
-      sha256: sha256Bytes(manifestBytes),
-    },
-    archive: { bytes: archiveBytes.length, sha256: sha256Bytes(archiveBytes) },
-  };
-  if (metadataPath) {
-    await mkdir(path.dirname(metadataPath), { recursive: true });
-    await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
-  }
-  return metadata;
+  invariant(
+    !value.startsWith("/") && !/^[A-Za-z]:/u.test(value),
+    `archive path is absolute: ${value}`,
+  );
+  const parts = value.split("/");
+  invariant(
+    parts.every((part) => part && part !== "." && part !== ".."),
+    `archive path traverses: ${value}`,
+  );
+  return value;
 }
 
 function parseArguments(argv) {
-  const args = new Map();
+  const values = new Map();
   for (let index = 0; index < argv.length; index += 2) {
-    const name = argv[index];
+    const key = argv[index];
     const value = argv[index + 1];
     invariant(
-      name?.startsWith("--") && value !== undefined,
-      `Invalid argument: ${name ?? ""}`,
+      key?.startsWith("--") && value !== undefined,
+      `invalid argument sequence at ${key ?? "end"}`,
     );
-    args.set(name.slice(2), value);
+    invariant(!values.has(key.slice(2)), `duplicate argument ${key}`);
+    values.set(key.slice(2), value);
   }
-  return args;
+  return values;
+}
+
+function required(values, name) {
+  const value = values.get(name);
+  invariant(value, `--${name} is required`);
+  return value;
+}
+
+function sameIdentity(left, right) {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
+}
+
+/**
+ * Capture one immutable byte snapshot. The path is opened once with no-follow,
+ * the same handle supplies both fstats and all bytes, and the pathname is
+ * checked after the read so rename/symlink/type swaps fail rather than silently
+ * changing the packed object.
+ */
+export async function snapshotRegularFile(filePath, { afterOpen } = {}) {
+  const noFollow = constants.O_NOFOLLOW ?? 0;
+  const handle = await open(filePath, constants.O_RDONLY | noFollow);
+  try {
+    const before = await handle.stat({ bigint: true });
+    invariant(
+      before.isFile(),
+      `bundle member is not a regular file: ${filePath}`,
+    );
+    invariant(
+      before.size >= 0n && before.size <= BigInt(Number.MAX_SAFE_INTEGER),
+      `bundle member is too large: ${filePath}`,
+    );
+    if (afterOpen) await afterOpen({ filePath, handle, before });
+
+    const bytes = Buffer.alloc(Number(before.size));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      invariant(
+        bytesRead > 0,
+        `bundle member changed size while reading: ${filePath}`,
+      );
+      offset += bytesRead;
+    }
+    const extra = Buffer.alloc(1);
+    const { bytesRead: extraBytes } = await handle.read(extra, 0, 1, offset);
+    invariant(
+      extraBytes === 0,
+      `bundle member grew while reading: ${filePath}`,
+    );
+
+    const after = await handle.stat({ bigint: true });
+    invariant(
+      after.isFile() && sameIdentity(before, after),
+      `bundle member identity changed while reading: ${filePath}`,
+    );
+    const pathname = await lstat(filePath, { bigint: true });
+    invariant(
+      pathname.isFile() && sameIdentity(after, pathname),
+      `bundle member pathname was replaced while reading: ${filePath}`,
+    );
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+function exactKeys(value, expected, label) {
+  invariant(
+    value && typeof value === "object" && !Array.isArray(value),
+    `${label} must be an object`,
+  );
+  invariant(
+    JSON.stringify(Object.keys(value).sort()) ===
+      JSON.stringify([...expected].sort()),
+    `${label} keyset drifted`,
+  );
+}
+
+function manifestMembers(manifest) {
+  exactKeys(
+    manifest,
+    ["format", "schemaVersion", "build", "samples", "excluded"],
+    "manifest",
+  );
+  invariant(
+    manifest.format === "honua.sdk.sample-bundles.v2" &&
+      manifest.schemaVersion === 2,
+    "manifest identity drifted",
+  );
+  invariant(
+    Array.isArray(manifest.samples) && manifest.samples.length > 0,
+    "manifest has no samples",
+  );
+  const files = new Map();
+  for (const sample of manifest.samples) {
+    invariant(
+      typeof sample?.id === "string" &&
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(sample.id),
+      "manifest sample id is invalid",
+    );
+    invariant(
+      Array.isArray(sample.files) && sample.files.length > 0,
+      `${sample.id}: manifest has no files`,
+    );
+    for (const file of sample.files) {
+      invariant(
+        typeof file?.path === "string" &&
+          Number.isSafeInteger(file.bytes) &&
+          file.bytes >= 0,
+        `${sample.id}: file record is invalid`,
+      );
+      invariant(
+        SHA256.test(file.sha256),
+        `${sample.id}/${file.path}: SHA-256 is invalid`,
+      );
+      const archivePath = safeArchivePath(`${sample.id}/${file.path}`);
+      invariant(
+        !files.has(archivePath),
+        `duplicate manifest path: ${archivePath}`,
+      );
+      files.set(archivePath, { bytes: file.bytes, sha256: file.sha256 });
+    }
+  }
+  return files;
+}
+
+function splitUstarPath(value) {
+  const bytes = Buffer.byteLength(value);
+  if (bytes <= 100) return { name: value, prefix: "" };
+  const separators = [...value.matchAll(/\//gu)].map((match) => match.index);
+  for (let index = separators.length - 1; index >= 0; index -= 1) {
+    const prefix = value.slice(0, separators[index]);
+    const name = value.slice(separators[index] + 1);
+    if (Buffer.byteLength(prefix) <= 155 && Buffer.byteLength(name) <= 100)
+      return { name, prefix };
+  }
+  throw new Error(`archive path cannot be represented as ustar: ${value}`);
+}
+
+function putString(header, offset, length, value) {
+  const bytes = Buffer.from(value, "utf8");
+  invariant(bytes.length <= length, `ustar field overflow: ${value}`);
+  bytes.copy(header, offset);
+}
+
+function putOctal(header, offset, length, value) {
+  invariant(
+    Number.isSafeInteger(value) && value >= 0,
+    `invalid ustar numeric value: ${value}`,
+  );
+  const encoded = value.toString(8).padStart(length - 1, "0");
+  invariant(
+    encoded.length === length - 1,
+    `ustar numeric field overflow: ${value}`,
+  );
+  putString(header, offset, length - 1, encoded);
+  header[offset + length - 1] = 0;
+}
+
+function tarHeader({ archivePath, type, size, mode, mtime }) {
+  const { name, prefix } = splitUstarPath(
+    type === "5" ? archivePath.slice(0, -1) : archivePath,
+  );
+  const header = Buffer.alloc(512);
+  putString(header, 0, 100, name);
+  putOctal(header, 100, 8, mode);
+  putOctal(header, 108, 8, 0);
+  putOctal(header, 116, 8, 0);
+  putOctal(header, 124, 12, size);
+  putOctal(header, 136, 12, mtime);
+  header.fill(0x20, 148, 156);
+  header[156] = type.charCodeAt(0);
+  putString(header, 257, 6, "ustar");
+  putString(header, 263, 2, "00");
+  putOctal(header, 329, 8, 0);
+  putOctal(header, 337, 8, 0);
+  putString(header, 345, 155, prefix);
+  const checksum = header.reduce((sum, byte) => sum + byte, 0);
+  const encoded = checksum.toString(8).padStart(6, "0");
+  putString(header, 148, 6, encoded);
+  header[154] = 0;
+  header[155] = 0x20;
+  return header;
+}
+
+function parentDirectories(filePaths) {
+  const directories = new Set();
+  for (const filePath of filePaths) {
+    const parts = filePath.split("/");
+    for (let index = 1; index < parts.length; index += 1)
+      directories.add(`${parts.slice(0, index).join("/")}/`);
+  }
+  return directories;
+}
+
+function createTar(entries, mtime) {
+  const blocks = [];
+  for (const entry of entries) {
+    blocks.push(
+      tarHeader({
+        archivePath: entry.path,
+        type: entry.type,
+        size: entry.bytes?.length ?? 0,
+        mode: entry.type === "5" ? 0o755 : 0o644,
+        mtime,
+      }),
+    );
+    if (entry.type === "0") {
+      blocks.push(entry.bytes);
+      const remainder = entry.bytes.length % 512;
+      if (remainder !== 0) blocks.push(Buffer.alloc(512 - remainder));
+    }
+  }
+  blocks.push(Buffer.alloc(1024));
+  return Buffer.concat(blocks);
+}
+
+export async function pack({
+  bundleRoot,
+  output,
+  sourceCommit,
+  sourceDateEpoch,
+  afterOpen,
+}) {
+  invariant(
+    COMMIT.test(sourceCommit),
+    "source commit must be a full lowercase Git SHA",
+  );
+  const mtime = Number(sourceDateEpoch);
+  invariant(
+    Number.isSafeInteger(mtime) && mtime > 0,
+    "source date epoch must be a positive integer",
+  );
+
+  const manifestPath = path.join(bundleRoot, MANIFEST_NAME);
+  const manifestBytes = await snapshotRegularFile(manifestPath, { afterOpen });
+  const manifest = JSON.parse(manifestBytes.toString("utf8"));
+  const expected = manifestMembers(manifest);
+  invariant(
+    manifest.samples.every(
+      (sample) => sample.builtFrom?.commit === sourceCommit,
+    ),
+    "manifest source commit drifted",
+  );
+
+  const files = new Map([[MANIFEST_NAME, manifestBytes]]);
+  for (const [archivePath, record] of [...expected].sort(([left], [right]) =>
+    left.localeCompare(right),
+  )) {
+    const bytes = await snapshotRegularFile(
+      path.join(bundleRoot, ...archivePath.split("/")),
+      { afterOpen },
+    );
+    invariant(
+      bytes.length === record.bytes,
+      `${archivePath}: byte count drifted from manifest`,
+    );
+    invariant(
+      sha256(bytes) === record.sha256,
+      `${archivePath}: SHA-256 drifted from manifest`,
+    );
+    files.set(archivePath, bytes);
+  }
+
+  const entries = [
+    ...[...parentDirectories(files.keys())].map((entryPath) => ({
+      path: entryPath,
+      type: "5",
+    })),
+    ...[...files].map(([entryPath, bytes]) => ({
+      path: entryPath,
+      type: "0",
+      bytes,
+    })),
+  ].sort((left, right) => left.path.localeCompare(right.path));
+  const tar = createTar(entries, mtime);
+  const archive = gzipSync(tar, { level: 9, mtime: 0 });
+  // zlib writes the host platform in the informational gzip OS byte. Normalize
+  // it to the gzip -n Unix value so Windows and hosted Linux emit identical
+  // bytes; this byte is not part of the deflate payload or trailer checksum.
+  archive[9] = 3;
+  await mkdir(path.dirname(output), { recursive: true });
+  await writeFile(output, archive, { flag: "wx", mode: 0o644 });
+  return {
+    schema: "honua.sdk.sample-bundle-pack.v1",
+    sourceCommit,
+    sourceDateEpoch: mtime,
+    manifestSha256: sha256(manifestBytes),
+    archiveSha256: sha256(archive),
+    archiveBytes: archive.length,
+    fileCount: files.size,
+    memberCount: entries.length,
+  };
 }
 
 async function main() {
   const args = parseArguments(process.argv.slice(2));
-  invariant(
-    args.has("input") && args.has("output"),
-    "--input and --output are required",
-  );
-  const metadata = await createDeterministicSampleBundleArchive({
-    bundleRoot: path.resolve(args.get("input")),
-    outputPath: path.resolve(args.get("output")),
-    sourceCommit: args.get("source-commit"),
-    sourceDateEpoch: Number(args.get("source-date-epoch")),
-    metadataPath: args.has("metadata")
-      ? path.resolve(args.get("metadata"))
-      : null,
+  const result = await pack({
+    bundleRoot: path.resolve(required(args, "bundle-root")),
+    output: path.resolve(required(args, "output")),
+    sourceCommit: required(args, "source-commit"),
+    sourceDateEpoch: required(args, "source-date-epoch"),
   });
-  process.stdout.write(`${JSON.stringify(metadata)}\n`);
+  const metadata = args.get("metadata");
+  if (metadata)
+    await writeFile(
+      path.resolve(metadata),
+      `${JSON.stringify(result, null, 2)}\n`,
+      { flag: "wx", mode: 0o644 },
+    );
+  process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 if (
   process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+  path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))
 ) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    process.stderr.write(
+      `${error instanceof Error ? error.message : String(error)}\n`,
+    );
     process.exitCode = 1;
   });
 }

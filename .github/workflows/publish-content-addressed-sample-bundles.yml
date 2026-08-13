@@ -1,7 +1,7 @@
 name: Publish content-addressed sample bundles
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 permissions: {}
 
@@ -9,376 +9,541 @@ concurrency:
   group: publish-content-addressed-sample-bundles
   cancel-in-progress: false
 
-env:
-  SOURCE_COMMIT: ${{ github.sha }}
-  RELEASE_ID: sample-bundles-${{ github.sha }}
-  WORKFLOW_PATH: .github/workflows/publish-content-addressed-sample-bundles.yml
-
 jobs:
   build-and-smoke:
-    name: Build reproducible sample bundles
+    name: Build, reproduce, and smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
     permissions:
       contents: read
-    env:
-      FIRST_MANIFEST: source-a/.artifacts/sample-bundles/sample-bundles.v2.json
-      SECOND_MANIFEST: source-b/.artifacts/sample-bundles/sample-bundles.v2.json
-      FIRST_ARCHIVE: publication/sample-bundles.tar.gz
-      SECOND_ARCHIVE: build-b/sample-bundles.tar.gz
     steps:
-      - name: Check out exact governance source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-          path: governance
-          fetch-depth: 1
-
-      - name: Check out first clean exact source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-          path: source-a
-          fetch-depth: 1
-
-      - name: Check out second clean exact source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-          path: source-b
-          fetch-depth: 1
-
-      - name: Require current trunk before build
-        shell: bash
+      - name: Gate exact current trunk
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           test "$GITHUB_REF" = "refs/heads/trunk"
-          test "$SOURCE_COMMIT" = "$GITHUB_SHA"
-          test "$(git -C governance rev-parse HEAD)" = "$SOURCE_COMMIT"
-          test "$(git -C source-a rev-parse HEAD)" = "$SOURCE_COMMIT"
-          test "$(git -C source-b rev-parse HEAD)" = "$SOURCE_COMMIT"
-          test "$(gh api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)" = "$SOURCE_COMMIT"
-          test -z "$(git -C governance status --porcelain)"
-          test -z "$(git -C source-a status --porcelain)"
-          test -z "$(git -C source-b status --porcelain)"
+          test "$GITHUB_SHA" = "$SOURCE_COMMIT"
+          CURRENT_SHA="$(gh api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)"
+          test "$CURRENT_SHA" = "$SOURCE_COMMIT"
 
-      - name: Set up exact Node.js
+      - name: Checkout governance
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: governance
+          persist-credentials: false
+
+      - name: Checkout source A
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: source-a
+          persist-credentials: false
+
+      - name: Checkout source B
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          path: source-b
+          persist-credentials: false
+
+      - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: "20.19.0"
+          node-version: 20.19.0
           cache: npm
-          cache-dependency-path: |
-            source-a/package-lock.json
-            source-b/package-lock.json
+          cache-dependency-path: source-a/package-lock.json
 
-      - name: Install independent dependency trees
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm --prefix source-a ci
-          npm --prefix source-b ci
-
-      - name: Build, verify, and pack first bundle tree
-        shell: bash
-        run: |
-          set -euo pipefail
-          SOURCE_DATE_EPOCH="$(git -C source-a show -s --format=%ct HEAD)"
-          npm --prefix source-a run samples:bundles:build
-          npm --prefix source-a run samples:bundles:verify
-          node governance/scripts/pack-sample-bundles.mjs \
-            --input source-a/.artifacts/sample-bundles \
-            --output "$FIRST_ARCHIVE" \
-            --source-commit "$SOURCE_COMMIT" \
-            --source-date-epoch "$SOURCE_DATE_EPOCH" \
-            --metadata build-a/pack.v1.json
-
-      - name: Build, verify, and pack second bundle tree
-        shell: bash
-        run: |
-          set -euo pipefail
-          SOURCE_DATE_EPOCH="$(git -C source-b show -s --format=%ct HEAD)"
-          npm --prefix source-b run samples:bundles:build
-          npm --prefix source-b run samples:bundles:verify
-          node governance/scripts/pack-sample-bundles.mjs \
-            --input source-b/.artifacts/sample-bundles \
-            --output "$SECOND_ARCHIVE" \
-            --source-commit "$SOURCE_COMMIT" \
-            --source-date-epoch "$SOURCE_DATE_EPOCH" \
-            --metadata build-b/pack.v1.json
-
-      - name: Require exact reproducibility
-        shell: bash
-        run: |
-          set -euo pipefail
-          cmp --silent "$FIRST_MANIFEST" "$SECOND_MANIFEST"
-          cmp --silent "$FIRST_ARCHIVE" "$SECOND_ARCHIVE"
-          cmp --silent build-a/pack.v1.json build-b/pack.v1.json
-          cp "$FIRST_MANIFEST" publication/sample-bundles.v2.json
-
-      - name: Install bounded Chromium smoke dependency
+      - name: Install source A
         working-directory: source-a
-        run: ./node_modules/.bin/playwright install --with-deps chromium
+        run: npm ci
 
-      - name: Run producer browser smoke
+      - name: Install source B
+        working-directory: source-b
+        run: npm ci
+
+      - name: Build, verify, pack, and smoke source A
         working-directory: source-a
-        run: npm run samples:bundles:smoke
-
-      - name: Enforce governance policy
-        run: node governance/scripts/immutable-sample-bundle-attestation.mjs policy --root governance
-
-      - name: Write deterministic and per-run receipts
-        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
-          SOURCE_DATE_EPOCH="$(git -C source-a show -s --format=%ct HEAD)"
-          : "${ImageOS:?ImageOS is required}"
-          : "${ImageVersion:?ImageVersion is required}"
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -z "$(git status --porcelain)"
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$SOURCE_COMMIT")"
+          test "$SOURCE_DATE_EPOCH" -gt 0
+          npm run samples:bundles:build
+          npm run samples:bundles:verify
+          npx playwright install --with-deps chromium
+          npm run samples:bundles:smoke
+          SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" node --input-type=module - <<'NODE'
+          import { readFile, writeFile } from "node:fs/promises";
+          const target = ".artifacts/sample-bundle-smoke/browser-smoke.v1.json";
+          const receipt = JSON.parse(await readFile(target, "utf8"));
+          receipt.generatedAt = new Date(Number(process.env.SOURCE_DATE_EPOCH) * 1000).toISOString();
+          await writeFile(target, `${JSON.stringify(receipt, null, 2)}\n`);
+          NODE
+          mkdir -p ../publication ../build-a
+          cp .artifacts/sample-bundles/sample-bundles.v2.json ../publication/sample-bundles.v2.json
+          node scripts/pack-sample-bundles.mjs \
+            --bundle-root .artifacts/sample-bundles \
+            --output ../publication/sample-bundles.tar.gz \
+            --metadata ../build-a/pack-metadata.v1.json \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH"
+
+      - name: Build, verify, and pack source B
+        working-directory: source-b
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -z "$(git status --porcelain)"
+          SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$SOURCE_COMMIT")"
+          npm run samples:bundles:build
+          npm run samples:bundles:verify
+          mkdir -p ../build-b
+          cp .artifacts/sample-bundles/sample-bundles.v2.json ../build-b/sample-bundles.v2.json
+          node scripts/pack-sample-bundles.mjs \
+            --bundle-root .artifacts/sample-bundles \
+            --output ../build-b/sample-bundles.tar.gz \
+            --metadata ../build-b/pack-metadata.v1.json \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH"
+
+      - name: Compare independent builds
+        run: |
+          set -euo pipefail
+          cmp publication/sample-bundles.v2.json build-b/sample-bundles.v2.json
+          cmp publication/sample-bundles.tar.gz build-b/sample-bundles.tar.gz
+          cmp build-a/pack-metadata.v1.json build-b/pack-metadata.v1.json
+
+      - name: Create deterministic and run receipts
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          SOURCE_DATE_EPOCH="$(git -C governance show -s --format=%ct "$SOURCE_COMMIT")"
           node governance/scripts/immutable-sample-bundle-attestation.mjs receipt \
-            --source-commit "$SOURCE_COMMIT" \
-            --source-root source-a \
-            --source-date-epoch "$SOURCE_DATE_EPOCH" \
-            --first-bundle-root source-a/.artifacts/sample-bundles \
-            --second-bundle-root source-b/.artifacts/sample-bundles \
-            --first-archive "$FIRST_ARCHIVE" \
-            --second-archive "$SECOND_ARCHIVE" \
+            --manifest publication/sample-bundles.v2.json \
+            --archive publication/sample-bundles.tar.gz \
+            --pack-metadata build-a/pack-metadata.v1.json \
             --smoke-receipt source-a/.artifacts/sample-bundle-smoke/browser-smoke.v1.json \
-            --output publication/sample-bundles-attestation.v1.json \
-            --run-output publication/sample-bundles-run.v1.json \
-            --workflow-sha "$GITHUB_SHA" \
-            --workflow-run-id "$GITHUB_RUN_ID" \
-            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
-            --runner-image "$ImageOS" \
-            --runner-image-version "$ImageVersion" \
-            --runner-environment "${{ runner.environment }}" \
+            --lockfile source-a/package-lock.json \
+            --deterministic-receipt publication/sample-bundles-attestation.v1.json \
+            --run-receipt publication/sample-bundles-run-attestation.v1.json \
+            --source-commit "$SOURCE_COMMIT" \
+            --source-date-epoch "$SOURCE_DATE_EPOCH" \
+            --repository "$GITHUB_REPOSITORY" \
+            --workflow-ref "$GITHUB_REF" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --runner-name "$RUNNER_NAME" \
+            --runner-environment "$RUNNER_ENVIRONMENT" \
             --runner-os "$RUNNER_OS" \
-            --runner-arch "$RUNNER_ARCH"
+            --runner-arch "$RUNNER_ARCH" \
+            --runner-image "${ImageOS:?}" \
+            --runner-image-version "${ImageVersion:?}"
 
-      - name: Stage exact producer bytes
+      - name: Run governance tests and policy
+        working-directory: source-a
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --test test/scripts/immutable-sample-bundle-attestation.test.mjs
+          node scripts/immutable-sample-bundle-attestation.mjs policy \
+            --workflow .github/workflows/publish-content-addressed-sample-bundles.yml \
+            --resolve-actions true
+
+      - name: Stage transfer
+        run: |
+          set -euo pipefail
+          mkdir staged
+          cp \
+            publication/sample-bundles.v2.json \
+            publication/sample-bundles.tar.gz \
+            publication/sample-bundles-attestation.v1.json \
+            publication/sample-bundles-run-attestation.v1.json \
+            staged/
+          test "$(find staged -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 4
+          test "$(find staged -mindepth 1 -maxdepth 1 | wc -l)" -eq 4
+
+      - name: Upload governed publication
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: sample-bundles-staging-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            publication/sample-bundles.v2.json
-            publication/sample-bundles.tar.gz
-            publication/sample-bundles-attestation.v1.json
-            publication/sample-bundles-run.v1.json
-          compression-level: 0
-          retention-days: 7
+          name: content-addressed-sample-bundles
+          path: staged
           if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
 
   attest-and-publish:
-    name: Attest and publish exact validated bytes
+    name: Attest and publish immutable release
     needs: build-and-smoke
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
     permissions:
       actions: read
+      attestations: write
       contents: write
       id-token: write
-      attestations: write
-    env:
-      GH_VERSION: 2.93.0
-      GH_ARCHIVE_SHA256: 02d1290eba130e0b896f3709ffff22e1c75a51475ddb70476a85abc6b5807af0
-      GH_BIN: ${{ runner.temp }}/gh_2.93.0_linux_amd64/bin/gh
     steps:
-      - name: Redownload staged producer bytes
+      - name: Download governed publication
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: sample-bundles-staging-${{ github.run_id }}-${{ github.run_attempt }}
+          name: content-addressed-sample-bundles
           path: staged
 
-      - name: Validate staged bytes without credentials
-        shell: bash
+      - name: Validate all bytes before tokens
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          EXPECTED_LOCKFILE_SHA256: 0ec0a6ef311b26e9fc110617ccaf06f538e7ee6e2b5b4f12c1d6aaf0ac437570
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = "refs/heads/trunk"
-          test "$SOURCE_COMMIT" = "$GITHUB_SHA"
-          test "$RELEASE_ID" = "sample-bundles-$SOURCE_COMMIT"
-          test -z "$(find staged \( -type l -o \( ! -type d ! -type f \) \) -print -quit)"
-          find staged -type f -printf '%P\n' | LC_ALL=C sort > actual-files.txt
-          printf '%s\n' \
-            sample-bundles-attestation.v1.json \
-            sample-bundles-run.v1.json \
-            sample-bundles.tar.gz \
-            sample-bundles.v2.json > expected-files.txt
-          cmp --silent actual-files.txt expected-files.txt
-          jq -e --arg source "$SOURCE_COMMIT" --arg release "$RELEASE_ID" --arg workflow "$WORKFLOW_PATH" '
-            .format == "honua.sdk.immutable-sample-bundle-attestation.v1" and
-            .source.commit == $source and .source.ref == "refs/heads/trunk" and
-            .workflow.path == $workflow and .workflow.commit == $source and
-            .publication.tag == $release and .publication.immutable == true and
-            .publication.ownerEnforcedImmutableReleasesRequired == true and
-            .reproducibility.manifestByteIdentical == true and
-            .reproducibility.archiveByteIdentical == true and
-            .producerSmoke.summary.failed == 0 and
-            .producerSmoke.summary.total == (.producerSmoke.resultIds | length)
-          ' staged/sample-bundles-attestation.v1.json >/dev/null
-          jq -e --arg source "$SOURCE_COMMIT" --arg run "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" '
-            .format == "honua.sdk.sample-bundle-publisher-run.v1" and
-            .sourceCommit == $source and .workflow.commit == $source and
-            .workflow.runId == $run and .workflow.runAttempt == $attempt and
-            .runner.hosted == true and .runner.environment == "github-hosted" and
-            (.runner.image | length) > 0 and (.runner.imageVersion | length) > 0 and
-            (.runner.os | length) > 0 and (.runner.arch | length) > 0
-          ' staged/sample-bundles-run.v1.json >/dev/null
-          MANIFEST_SHA="$(sha256sum staged/sample-bundles.v2.json | cut -d' ' -f1)"
-          ARCHIVE_SHA="$(sha256sum staged/sample-bundles.tar.gz | cut -d' ' -f1)"
-          RECEIPT_SHA="$(sha256sum staged/sample-bundles-attestation.v1.json | cut -d' ' -f1)"
-          MANIFEST_BYTES="$(stat -c %s staged/sample-bundles.v2.json)"
-          ARCHIVE_BYTES="$(stat -c %s staged/sample-bundles.tar.gz)"
-          RECEIPT_BYTES="$(stat -c %s staged/sample-bundles-attestation.v1.json)"
-          jq -e --arg sha "$MANIFEST_SHA" --argjson bytes "$MANIFEST_BYTES" '
-            .publication.assets["sample-bundles.v2.json"].sha256 == $sha and
-            .publication.assets["sample-bundles.v2.json"].bytes == $bytes
-          ' staged/sample-bundles-attestation.v1.json >/dev/null
-          jq -e --arg sha "$ARCHIVE_SHA" --argjson bytes "$ARCHIVE_BYTES" '
-            .publication.assets["sample-bundles.tar.gz"].sha256 == $sha and
-            .publication.assets["sample-bundles.tar.gz"].bytes == $bytes
-          ' staged/sample-bundles-attestation.v1.json >/dev/null
-          jq -e --arg sha "$RECEIPT_SHA" --argjson bytes "$RECEIPT_BYTES" '
-            .immutableReceipt.sha256 == $sha and .immutableReceipt.bytes == $bytes
-          ' staged/sample-bundles-run.v1.json >/dev/null
-          jq -e --arg source "$SOURCE_COMMIT" '
-            (.samples | length) > 0 and
-            all(.samples[]; .builtFrom.commit == $source) and
-            ([.samples[] | select(.runnability != "requires-host-fixture-service") | .id] | sort) ==
-              (input.producerSmoke.resultIds | sort)
-          ' staged/sample-bundles.v2.json staged/sample-bundles-attestation.v1.json >/dev/null
-          tar -tzf staged/sample-bundles.tar.gz > archive-members.txt
-          test -s archive-members.txt
-          sed '/\/$/d' archive-members.txt | LC_ALL=C sort > archive-files.txt
-          jq -r '.samples[] | .id as $id | .files[] | $id + "/" + .path' \
-            staged/sample-bundles.v2.json | LC_ALL=C sort > manifest-files.txt
-          cmp --silent archive-files.txt manifest-files.txt
+          python3 - <<'PY'
+          import gzip, hashlib, json, os, pathlib, re, stat, struct, zlib
 
-      - name: Install checksum-pinned GitHub CLI
-        shell: bash
+          root = pathlib.Path("staged")
+          expected_names = {
+              "sample-bundles.v2.json",
+              "sample-bundles.tar.gz",
+              "sample-bundles-attestation.v1.json",
+              "sample-bundles-run-attestation.v1.json",
+          }
+          entries = list(root.iterdir())
+          assert {entry.name for entry in entries} == expected_names
+          for entry in entries:
+              metadata = entry.lstat()
+              assert stat.S_ISREG(metadata.st_mode) and not entry.is_symlink() and metadata.st_nlink == 1
+
+          source = os.environ["SOURCE_COMMIT"]
+          lock_sha = os.environ["EXPECTED_LOCKFILE_SHA256"]
+          assert re.fullmatch(r"[0-9a-f]{40}", source)
+          assert re.fullmatch(r"[0-9a-f]{64}", lock_sha)
+          action_map = {
+              "checkout": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+              "setupNode": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+              "uploadArtifact": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+              "downloadArtifact": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+              "attestBuildProvenance": "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+          }
+
+          def read_bytes(name):
+              return (root / name).read_bytes()
+
+          def load(name):
+              return json.loads(read_bytes(name))
+
+          def keys(value, expected):
+              assert type(value) is dict and set(value) == set(expected)
+
+          def bounded_string(value, maximum=8192):
+              assert type(value) is str and 0 < len(value) <= maximum and not any(ord(c) < 32 or ord(c) == 127 for c in value)
+
+          def integer(value, minimum, maximum):
+              assert type(value) is int and minimum <= value <= maximum
+
+          manifest_bytes = read_bytes("sample-bundles.v2.json")
+          archive_bytes = read_bytes("sample-bundles.tar.gz")
+          deterministic_bytes = read_bytes("sample-bundles-attestation.v1.json")
+          run_bytes = read_bytes("sample-bundles-run-attestation.v1.json")
+          manifest = json.loads(manifest_bytes)
+          deterministic = json.loads(deterministic_bytes)
+          run = json.loads(run_bytes)
+
+          keys(manifest, ["format", "schemaVersion", "build", "samples", "excluded"])
+          assert manifest["format"] == "honua.sdk.sample-bundles.v2" and manifest["schemaVersion"] == 2
+          keys(manifest["build"], ["node", "lockfileSha256"])
+          bounded_string(manifest["build"]["node"], 64)
+          assert manifest["build"]["lockfileSha256"] == lock_sha
+          assert type(manifest["samples"]) is list and 0 < len(manifest["samples"]) <= 100
+          assert type(manifest["excluded"]) is list and len(manifest["excluded"]) <= 1000
+          files = {}
+          sample_ids = []
+          runnable_ids = []
+          for sample in manifest["samples"]:
+              keys(sample, ["id", "entrypoint", "dataMode", "configDefaults", "runtimeHosting", "runnability", "hostFixtureRoutes", "support", "lifecycle", "builtFrom", "files"])
+              sample_id = sample["id"]
+              assert re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", sample_id)
+              sample_ids.append(sample_id)
+              assert sample["entrypoint"] == "index.html"
+              expected_run = {"self-contained": "standalone", "same-origin-fixture-service": "requires-host-fixture-service", "external-live-endpoint": "requires-live-endpoint"}[sample["runtimeHosting"]]
+              assert sample["runnability"] == expected_run
+              if expected_run in ("standalone", "requires-live-endpoint"):
+                  runnable_ids.append(sample_id)
+              assert type(sample["configDefaults"]) is dict
+              assert type(sample["hostFixtureRoutes"]) is list and all(type(route) is str and route.startswith("/") for route in sample["hostFixtureRoutes"])
+              keys(sample["support"], ["tier", "track", "validationProfile"])
+              assert all(type(value) is str and value for value in sample["support"].values())
+              assert type(sample["lifecycle"]) is dict and {"state", "reason"} <= set(sample["lifecycle"]) <= {"state", "reason", "replacement", "targetRelease"}
+              keys(sample["builtFrom"], ["commit", "packageVersion"])
+              assert sample["builtFrom"]["commit"] == source
+              assert type(sample["files"]) is list and 0 < len(sample["files"]) <= 10000
+              previous = ""
+              for record in sample["files"]:
+                  keys(record, ["path", "bytes", "sha256", "integrity", "mediaType"])
+                  relative = record["path"]
+                  bounded_string(relative, 255)
+                  assert "\\" not in relative and not relative.startswith("/") and all(part not in ("", ".", "..") for part in relative.split("/"))
+                  assert relative > previous
+                  previous = relative
+                  integer(record["bytes"], 0, 1_000_000_000)
+                  assert re.fullmatch(r"[0-9a-f]{64}", record["sha256"])
+                  assert record["integrity"] == "sha256-" + __import__("base64").b64encode(bytes.fromhex(record["sha256"])).decode()
+                  archive_path = f"{sample_id}/{relative}"
+                  assert archive_path not in files
+                  files[archive_path] = record
+          assert sample_ids == sorted(set(sample_ids))
+          for excluded in manifest["excluded"]:
+              keys(excluded, ["id", "category", "reason"])
+              assert excluded["id"] not in sample_ids
+
+          keys(deterministic, ["schema", "source", "build", "publication", "smoke"])
+          assert deterministic["schema"] == "honua.sdk.sample-bundle-attestation.v1"
+          keys(deterministic["source"], ["repository", "commit", "ref", "sourceDateEpoch"])
+          assert deterministic["source"] == {"repository": "honua-io/honua-sdk-js", "commit": source, "ref": "refs/heads/trunk", "sourceDateEpoch": deterministic["source"]["sourceDateEpoch"]}
+          source_epoch = deterministic["source"]["sourceDateEpoch"]
+          integer(source_epoch, 1, 4_102_444_800)
+          keys(deterministic["build"], ["node", "lockfileSha256", "workflow", "actions"])
+          assert deterministic["build"] == {"node": "20.19.0", "lockfileSha256": lock_sha, "workflow": ".github/workflows/publish-content-addressed-sample-bundles.yml", "actions": action_map}
+          keys(deterministic["publication"], ["tag", "fileCount", "memberCount", "assets"])
+          assert deterministic["publication"]["tag"] == f"sample-bundles-{source}"
+          keys(deterministic["publication"]["assets"], ["sample-bundles.v2.json", "sample-bundles.tar.gz"])
+          expected_asset_bytes = {"sample-bundles.v2.json": manifest_bytes, "sample-bundles.tar.gz": archive_bytes}
+          for name, value in deterministic["publication"]["assets"].items():
+              keys(value, ["bytes", "sha256"])
+              assert value == {"bytes": len(expected_asset_bytes[name]), "sha256": hashlib.sha256(expected_asset_bytes[name]).hexdigest()}
+
+          smoke = deterministic["smoke"]
+          keys(smoke, ["rawSha256", "total", "passed", "failed", "results"])
+          assert re.fullmatch(r"[0-9a-f]{64}", smoke["rawSha256"])
+          assert smoke["total"] == smoke["passed"] == len(runnable_ids) and smoke["failed"] == 0
+          assert type(smoke["results"]) is list and [result["id"] for result in smoke["results"]] == runnable_ids
+          for result in smoke["results"]:
+              keys(result, ["id", "passed", "requestCount", "network", "staticJourney", "liveProbe"])
+              assert result["passed"] is True
+              integer(result["requestCount"], 1, 10000)
+              assert result["network"] == {"offOriginRequestCount": 0, "clientErrorResponseCount": 0}
+              keys(result["staticJourney"], ["policy", "status"])
+              assert result["staticJourney"]["policy"] in ("not-required", "coverage", "interaction")
+              assert result["staticJourney"]["status"] in ("not-required", "passed")
+              live = result["liveProbe"]
+              assert type(live) is dict and {"policy", "status"} <= set(live) <= {"policy", "status", "origin", "httpStatus", "featureCount"}
+              if result["id"] == "service-explorer":
+                  keys(live, ["policy", "status", "origin", "httpStatus", "featureCount"])
+                  assert live["policy"] == "geojson-feature-collection" and live["status"] == "passed" and live["origin"] == "https://demo.pygeoapi.io"
+                  integer(live["httpStatus"], 200, 299)
+                  integer(live["featureCount"], 1, 1_000_000)
+              else:
+                  assert live == {"policy": "not-required", "status": "not-required"}
+
+          keys(run, ["schema", "sourceCommit", "deterministicReceiptSha256", "workflow", "runner", "actions"])
+          assert run["schema"] == "honua.sdk.sample-bundle-run-attestation.v1" and run["sourceCommit"] == source
+          assert run["deterministicReceiptSha256"] == hashlib.sha256(deterministic_bytes).hexdigest()
+          keys(run["workflow"], ["repository", "path", "ref", "sha", "runId", "runAttempt"])
+          assert run["workflow"] == {"repository": os.environ["GITHUB_REPOSITORY"], "path": ".github/workflows/publish-content-addressed-sample-bundles.yml", "ref": "refs/heads/trunk", "sha": source, "runId": os.environ["GITHUB_RUN_ID"], "runAttempt": os.environ["GITHUB_RUN_ATTEMPT"]}
+          keys(run["runner"], ["name", "environment", "os", "architecture", "image", "imageVersion"])
+          assert all(type(value) is str and value for value in run["runner"].values())
+          assert run["actions"] == action_map
+
+          assert archive_bytes[:10] == bytes([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 2, 3])
+          inflater = zlib.decompressobj(31)
+          tar = inflater.decompress(archive_bytes) + inflater.flush()
+          assert inflater.eof and inflater.unused_data == b"" and len(tar) % 512 == 0 and len(tar) >= 1024
+
+          expected_files = {"sample-bundles.v2.json": {"bytes": len(manifest_bytes), "sha256": hashlib.sha256(manifest_bytes).hexdigest(), "content": manifest_bytes}, **files}
+          directories = set()
+          for name in expected_files:
+              parts = name.split("/")
+              directories.update("/".join(parts[:index]) + "/" for index in range(1, len(parts)))
+          expected_members = sorted([(name, "5") for name in directories] + [(name, "0") for name in expected_files])
+
+          def cstring(field):
+              end = field.find(b"\0")
+              if end < 0:
+                  end = len(field)
+              else:
+                  assert field[end:] == b"\0" * (len(field) - end)
+              value = field[:end].decode("utf-8")
+              assert not any(ord(c) < 32 or ord(c) == 127 for c in value)
+              return value
+
+          def octal(field):
+              assert field[-1] == 0 and re.fullmatch(rb"[0-7]+", field[:-1])
+              return int(field[:-1], 8)
+
+          actual = []
+          seen = set()
+          offset = 0
+          while offset + 512 <= len(tar):
+              header = tar[offset:offset + 512]
+              if header == b"\0" * 512:
+                  assert offset + 1024 == len(tar) and tar[offset:] == b"\0" * 1024
+                  offset = len(tar)
+                  break
+              assert header[257:263] == b"ustar\0" and header[263:265] == b"00"
+              checksum = bytearray(header)
+              checksum[148:156] = b" " * 8
+              assert header[154:156] == b"\0 " and int(header[148:154], 8) == sum(checksum)
+              name = cstring(header[0:100])
+              prefix = cstring(header[345:500])
+              kind = chr(header[156])
+              assert kind in ("0", "5")
+              member = f"{prefix}/{name}" if prefix else name
+              if kind == "5":
+                  member += "/"
+              assert member and member not in seen and "\\" not in member and not member.startswith("/") and all(part not in ("", ".", "..") for part in member.rstrip("/").split("/"))
+              seen.add(member)
+              mode, uid, gid = octal(header[100:108]), octal(header[108:116]), octal(header[116:124])
+              size, mtime = octal(header[124:136]), octal(header[136:148])
+              assert uid == gid == 0 and mtime == source_epoch
+              assert cstring(header[157:257]) == cstring(header[265:297]) == cstring(header[297:329]) == ""
+              assert octal(header[329:337]) == octal(header[337:345]) == 0
+              assert (kind == "5" and mode == 0o755 and size == 0) or (kind == "0" and mode == 0o644)
+              offset += 512
+              content = tar[offset:offset + size]
+              assert len(content) == size
+              padding = (512 - size % 512) % 512
+              assert tar[offset + size:offset + size + padding] == b"\0" * padding
+              if kind == "0":
+                  record = expected_files[member]
+                  assert record["bytes"] == size and record["sha256"] == hashlib.sha256(content).hexdigest()
+                  if "content" in record:
+                      assert content == record["content"]
+              actual.append((member, kind))
+              offset += size + padding
+          assert offset == len(tar) and actual == expected_members
+          assert deterministic["publication"]["fileCount"] == len(expected_files)
+          assert deterministic["publication"]["memberCount"] == len(expected_members)
+          print("privileged byte and provenance validation: PASS")
+          PY
+
+      - name: Gate current trunk and immutable releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
-          ARCHIVE="$RUNNER_TEMP/gh_${GH_VERSION}_linux_amd64.tar.gz"
+          readonly GH_VERSION="2.93.0"
+          readonly GH_SHA256="02d1290eba130e0b896f3709ffff22e1c75a51475ddb70476a85abc6b5807af0"
+          rm -rf "$RUNNER_TEMP/trusted-gh" "$RUNNER_TEMP/gh.tar.gz"
           curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
             "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
-            --output "$ARCHIVE"
-          echo "$GH_ARCHIVE_SHA256  $ARCHIVE" | sha256sum --check --strict
-          tar -xzf "$ARCHIVE" -C "$RUNNER_TEMP"
-          test "$("$GH_BIN" version | sed -n '1s/^gh version \([^ ]*\\).*/\1/p')" = "$GH_VERSION"
-
-      - name: Expose write token only after validation
-        id: release-state
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
+            --output "$RUNNER_TEMP/gh.tar.gz"
+          echo "$GH_SHA256  $RUNNER_TEMP/gh.tar.gz" | sha256sum --check --strict
+          mkdir "$RUNNER_TEMP/trusted-gh"
+          tar -xzf "$RUNNER_TEMP/gh.tar.gz" --strip-components=1 -C "$RUNNER_TEMP/trusted-gh"
+          readonly GH="$RUNNER_TEMP/trusted-gh/bin/gh"
           test "$GITHUB_REF" = "refs/heads/trunk"
-          test "$("$GH_BIN" api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)" = "$SOURCE_COMMIT"
-          "$GH_BIN" api "repos/$GITHUB_REPOSITORY/immutable-releases" > immutable-releases.json
-          jq -e '.enabled == true and .enforced_by_owner == true' immutable-releases.json >/dev/null
-          TAG_EXISTS=false
-          RELEASE_EXISTS=false
-          if "$GH_BIN" api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_ID" > existing-tag.json 2>tag-error.txt; then
-            TAG_EXISTS=true
-          else
-            grep -q 'HTTP 404' tag-error.txt
-          fi
-          if "$GH_BIN" api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_ID" > existing-release.json 2>release-error.txt; then
-            RELEASE_EXISTS=true
-          else
-            grep -q 'HTTP 404' release-error.txt
-          fi
-          if ! $TAG_EXISTS && ! $RELEASE_EXISTS; then
-            echo "mode=create" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          $TAG_EXISTS && $RELEASE_EXISTS
-          jq -e --arg source "$SOURCE_COMMIT" '
-            .object.type == "commit" and .object.sha == $source
-          ' existing-tag.json >/dev/null
-          jq -e '
-            .draft == false and .immutable == true and
-            ([.assets[].name] | sort) ==
-              ["sample-bundles-attestation.v1.json","sample-bundles.tar.gz","sample-bundles.v2.json"]
-          ' existing-release.json >/dev/null
-          mkdir existing
-          while IFS=$'\t' read -r name id; do
-            "$GH_BIN" api -H 'Accept: application/octet-stream' \
-              "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "existing/$name"
-            cmp --silent "existing/$name" "staged/$name"
-          done < <(jq -r '.assets[] | [.name, (.id | tostring)] | @tsv' existing-release.json)
-          echo "mode=idempotent" >> "$GITHUB_OUTPUT"
+          test "$GITHUB_SHA" = "$SOURCE_COMMIT"
+          CURRENT_SHA="$($GH api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)"
+          test "$CURRENT_SHA" = "$SOURCE_COMMIT"
+          SOURCE_DATE="$($GH api "repos/$GITHUB_REPOSITORY/commits/$SOURCE_COMMIT" --jq .commit.committer.date)"
+          SOURCE_EPOCH="$(date -u -d "$SOURCE_DATE" +%s)"
+          test "$(jq -r .source.sourceDateEpoch staged/sample-bundles-attestation.v1.json)" = "$SOURCE_EPOCH"
+          IMMUTABLE="$($GH api "repos/$GITHUB_REPOSITORY/immutable-releases")"
+          test "$(jq -r .enabled <<<"$IMMUTABLE")" = "true"
+          test "$(jq -r .enforced_by_owner <<<"$IMMUTABLE")" = "true"
 
-      - name: Attest exact immutable publication assets
-        if: steps.release-state.outputs.mode == 'create'
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
+      - name: Attest sample-bundles.v2.json
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
         with:
-          subject-path: |
-            staged/sample-bundles.v2.json
-            staged/sample-bundles.tar.gz
-            staged/sample-bundles-attestation.v1.json
+          subject-path: staged/sample-bundles.v2.json
 
-      - name: Attest this run receipt
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
+      - name: Attest sample-bundles.tar.gz
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
         with:
-          subject-path: staged/sample-bundles-run.v1.json
+          subject-path: staged/sample-bundles.tar.gz
 
-      - name: Create immutable content-addressed release
-        if: steps.release-state.outputs.mode == 'create'
-        shell: bash
+      - name: Attest sample-bundles-attestation.v1.json
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        with:
+          subject-path: staged/sample-bundles-attestation.v1.json
+
+      - name: Attest sample-bundles-run-attestation.v1.json
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        with:
+          subject-path: staged/sample-bundles-run-attestation.v1.json
+
+      - name: Create or accept exact immutable release
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
-          "$GH_BIN" release create "$RELEASE_ID" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$SOURCE_COMMIT" \
-            --title "$RELEASE_ID" \
-            --notes "Immutable, reproducible producer attestation for SDK sample bundles built from $SOURCE_COMMIT." \
-            --latest=false \
-            staged/sample-bundles.v2.json \
-            staged/sample-bundles.tar.gz \
-            staged/sample-bundles-attestation.v1.json
-
-      - name: Verify exact release bytes and provenance
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          test "$("$GH_BIN" api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)" = "$SOURCE_COMMIT"
-          "$GH_BIN" api "repos/$GITHUB_REPOSITORY/immutable-releases" \
-            --jq 'select(.enabled == true and .enforced_by_owner == true)' >/dev/null
-          "$GH_BIN" api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_ID" \
-            --jq 'select(.object.type == "commit" and .object.sha == "'"$SOURCE_COMMIT"'")' >/dev/null
-          "$GH_BIN" api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_ID" > verified-release.json
-          jq -e '
-            .draft == false and .immutable == true and
-            ([.assets[].name] | sort) ==
-              ["sample-bundles-attestation.v1.json","sample-bundles.tar.gz","sample-bundles.v2.json"]
-          ' verified-release.json >/dev/null
-          mkdir verified
-          while IFS=$'\t' read -r name id; do
-            "$GH_BIN" api -H 'Accept: application/octet-stream' \
-              "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "verified/$name"
-            cmp --silent "verified/$name" "staged/$name"
-            "$GH_BIN" attestation verify "verified/$name" \
+          readonly GH_VERSION="2.93.0"
+          readonly GH_SHA256="02d1290eba130e0b896f3709ffff22e1c75a51475ddb70476a85abc6b5807af0"
+          echo "$GH_SHA256  $RUNNER_TEMP/gh.tar.gz" | sha256sum --check --strict
+          readonly GH="$RUNNER_TEMP/trusted-gh/bin/gh"
+          readonly TAG="sample-bundles-$SOURCE_COMMIT"
+          readonly RELEASE_ASSETS=(sample-bundles-attestation.v1.json sample-bundles.tar.gz sample-bundles.v2.json)
+          if RELEASE_JSON="$($GH api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" 2>/dev/null)"; then
+            test "$(jq -r .immutable <<<"$RELEASE_JSON")" = "true"
+            test "$($GH api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.type)" = "commit"
+            test "$($GH api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq .object.sha)" = "$SOURCE_COMMIT"
+            mapfile -t ACTUAL_ASSETS < <(jq -r '.assets[].name' <<<"$RELEASE_JSON" | LC_ALL=C sort)
+            test "${ACTUAL_ASSETS[*]}" = "${RELEASE_ASSETS[*]}"
+            rm -rf existing-release
+            mkdir existing-release
+            "$GH" release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir existing-release
+            for asset in "${RELEASE_ASSETS[@]}"; do
+              cmp "staged/$asset" "existing-release/$asset"
+            done
+          else
+            if "$GH" api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+              echo "immutable tag collision without an exact release" >&2
+              exit 1
+            fi
+            test "$GITHUB_REF" = "refs/heads/trunk"
+            test "$GITHUB_SHA" = "$SOURCE_COMMIT"
+            CURRENT_SHA="$($GH api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)"
+            test "$CURRENT_SHA" = "$SOURCE_COMMIT"
+            "$GH" release create "$TAG" \
+              staged/sample-bundles-attestation.v1.json \
+              staged/sample-bundles.tar.gz \
+              staged/sample-bundles.v2.json \
               --repo "$GITHUB_REPOSITORY" \
-              --signer-workflow "$GITHUB_REPOSITORY/$WORKFLOW_PATH" \
-              --signer-digest "$SOURCE_COMMIT" \
+              --target "$SOURCE_COMMIT" \
+              --title "$TAG" \
+              --notes "Immutable sample bundles for exact SDK source $SOURCE_COMMIT." \
+              --latest=false
+          fi
+          test "$($GH api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .immutable)" = "true"
+
+      - name: Redownload, compare, and verify attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          readonly GH_SHA256="02d1290eba130e0b896f3709ffff22e1c75a51475ddb70476a85abc6b5807af0"
+          echo "$GH_SHA256  $RUNNER_TEMP/gh.tar.gz" | sha256sum --check --strict
+          readonly GH="$RUNNER_TEMP/trusted-gh/bin/gh"
+          readonly TAG="sample-bundles-$SOURCE_COMMIT"
+          test "$($GH api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .immutable)" = "true"
+          rm -rf verified-release
+          mkdir verified-release
+          "$GH" release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir verified-release
+          for asset in sample-bundles-attestation.v1.json sample-bundles.tar.gz sample-bundles.v2.json; do
+            cmp "staged/$asset" "verified-release/$asset"
+            "$GH" attestation verify "verified-release/$asset" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-content-addressed-sample-bundles.yml" \
               --source-ref refs/heads/trunk \
               --source-digest "$SOURCE_COMMIT" \
+              --signer-digest "$SOURCE_COMMIT" \
               --predicate-type https://slsa.dev/provenance/v1 \
               --deny-self-hosted-runners
-          done < <(jq -r '.assets[] | [.name, (.id | tostring)] | @tsv' verified-release.json)
-          "$GH_BIN" attestation verify staged/sample-bundles-run.v1.json \
+          done
+          "$GH" attestation verify staged/sample-bundles-run-attestation.v1.json \
             --repo "$GITHUB_REPOSITORY" \
-            --signer-workflow "$GITHUB_REPOSITORY/$WORKFLOW_PATH" \
-            --signer-digest "$SOURCE_COMMIT" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-content-addressed-sample-bundles.yml" \
             --source-ref refs/heads/trunk \
             --source-digest "$SOURCE_COMMIT" \
+            --signer-digest "$SOURCE_COMMIT" \
             --predicate-type https://slsa.dev/provenance/v1 \
             --deny-self-hosted-runners

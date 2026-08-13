@@ -57,3 +57,26 @@ provenance predicate, and a GitHub-hosted runner.
 4. Confirm owner-enforced immutable releases remain enabled.
 5. Dispatch the publisher exactly once from that exact current `trunk` SHA.
 6. Verify the release assets and attestations before making consumers bind the exact object.
+
+## Fail-closed publisher guarantees
+
+The publisher is input-free and accepts only a manual dispatch of the exact current
+`refs/heads/trunk` commit. It builds in two credentialless clean checkouts, compares
+the manifest, canonical gzip/ustar archive, and pack metadata byte-for-byte, and
+records the governed Node, lockfile, workflow, runner, action, browser-smoke, and
+source identities. The released receipt is deterministic; run ID, attempt, runner
+image, and other per-run fields remain only in the separately attested run receipt.
+
+The privileged job checks four regular artifact files before any API or OIDC-bearing
+step. Its inline validator independently parses the manifest, receipts, gzip stream,
+and every ustar header and member byte. Absolute/traversing/control-character paths,
+links, devices, FIFOs, PAX/GNU extensions, duplicates, reordering, metadata drift,
+and manifest digest mismatches fail closed. All actions resolve to exact verified
+commit objects; provenance uses
+`actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a`.
+
+Immediately before release creation the workflow repeats the exact-ref and current
+trunk API gate. It also requires repository immutable releases to be both enabled
+and owner-enforced. Existing content-addressed releases are accepted only when the
+tag target, immutable state, asset set, sizes, and bytes are exact. The publisher
+never reads or modifies `sample-bundles-latest` and never overwrites an asset.

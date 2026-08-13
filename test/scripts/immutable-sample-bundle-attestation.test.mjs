@@ -1,412 +1,114 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import {
   mkdtemp,
   mkdir,
   readFile,
+  rename,
   rm,
-  symlink,
-  utimes,
+  unlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { gunzipSync } from "node:zlib";
+import { fileURLToPath } from "node:url";
+import { gunzipSync, gzipSync } from "node:zlib";
+import { parse as parseYaml } from "yaml";
+
 import {
-  buildCanonicalTar,
-  createCanonicalGzip,
-  createDeterministicSampleBundleArchive,
-  sha256Bytes,
-} from "../../scripts/pack-sample-bundles.mjs";
-import {
-  RELEASE_ASSETS,
-  WORKFLOW_PATH,
-  classifyPublicationState,
-  createAttestationReceipts,
-  validateSmokeReceipt,
-  validateContentAddressedWorkflowPolicy,
+  ACTIONS,
+  ACTION_COMMITS,
+  classifyReleaseState,
+  createReceipts,
+  normalizeSmoke,
+  parseCanonicalArchive,
+  validateDeterministicReceipt,
+  validateManifest,
+  validateRunReceipt,
+  validateWorkflowDocument,
+  validateWorkflowFile,
 } from "../../scripts/immutable-sample-bundle-attestation.mjs";
+import {
+  pack,
+  snapshotRegularFile,
+} from "../../scripts/pack-sample-bundles.mjs";
 
-const repositoryRoot = path.resolve(import.meta.dirname, "..", "..");
-const sourceDateEpoch = 1_726_000_000;
-const fixtureSourceCommit = "2".repeat(40);
+const ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
+const WORKFLOW = path.join(
+  ROOT,
+  ".github/workflows/publish-content-addressed-sample-bundles.yml",
+);
+const SOURCE = "a".repeat(40);
+const EPOCH = 1_786_614_242;
+const LOCK_BYTES = Buffer.from('{"lockfileVersion":3}\n');
+const LOCK_SHA = createHash("sha256").update(LOCK_BYTES).digest("hex");
 
-function tarString(buffer, offset, length) {
-  const zero = buffer.indexOf(0, offset);
-  const end = zero === -1 || zero > offset + length ? offset + length : zero;
-  return buffer.subarray(offset, end).toString();
+function digest(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
 }
 
-function tarOctal(buffer, offset, length) {
-  return Number.parseInt(tarString(buffer, offset, length).trim() || "0", 8);
+function clone(value) {
+  return structuredClone(value);
 }
 
-function tarEntries(gzipBytes) {
-  const tar = gunzipSync(gzipBytes);
-  const entries = [];
-  for (let offset = 0; offset + 512 <= tar.length; ) {
-    const header = tar.subarray(offset, offset + 512);
-    if (header.every((byte) => byte === 0)) break;
-    const name = tarString(header, 0, 100);
-    const prefix = tarString(header, 345, 155);
-    const size = tarOctal(header, 124, 12);
-    entries.push({
-      path: prefix ? `${prefix}/${name}` : name,
-      mode: tarOctal(header, 100, 8),
-      uid: tarOctal(header, 108, 8),
-      gid: tarOctal(header, 116, 8),
-      mtime: tarOctal(header, 136, 12),
-      type: String.fromCharCode(header[156]),
-      magic: header.subarray(257, 263).toString("binary"),
-    });
-    offset += 512 + Math.ceil(size / 512) * 512;
-  }
-  return entries;
+function fileRecord(relativePath, bytes) {
+  const sha = digest(bytes);
+  return {
+    path: relativePath,
+    bytes: bytes.length,
+    sha256: sha,
+    integrity: `sha256-${Buffer.from(sha, "hex").toString("base64")}`,
+    mediaType: "text/plain",
+  };
 }
 
-async function createFixture(root, { lockfileSha256 = "a".repeat(64) } = {}) {
-  const files = new Map([
-    ["alpha/assets/short.js", Buffer.from("export const answer = 42;\n")],
-    [
-      `alpha/${"deep/".repeat(20)}asset.css`,
-      Buffer.from("body { color: #123; }\n"),
-    ],
-  ]);
-  const declarations = [];
-  for (const [relativePath, contents] of [...files].reverse()) {
-    const absolutePath = path.join(root, ...relativePath.split("/"));
-    await mkdir(path.dirname(absolutePath), { recursive: true });
-    await writeFile(absolutePath, contents);
-    declarations.push({
-      path: relativePath.slice("alpha/".length),
-      bytes: contents.length,
-      sha256: sha256Bytes(contents),
-    });
-  }
-  const manifest = {
+function fixtureManifest(fileBytes = Buffer.from("immutable bytes\n")) {
+  return {
     format: "honua.sdk.sample-bundles.v2",
     schemaVersion: 2,
-    sourceRevision: fixtureSourceCommit,
-    build: { node: ">=20.19.0", lockfileSha256 },
+    build: { node: ">=20.19.0", lockfileSha256: LOCK_SHA },
     samples: [
       {
         id: "alpha",
+        entrypoint: "index.html",
+        dataMode: "fixture",
+        configDefaults: {},
+        runtimeHosting: "self-contained",
         runnability: "standalone",
-        builtFrom: { commit: fixtureSourceCommit, packageVersion: "0.0.0" },
-        files: declarations,
+        hostFixtureRoutes: [],
+        support: {
+          tier: "supported",
+          track: "stable",
+          validationProfile: "browser",
+        },
+        lifecycle: { state: "active", reason: null },
+        builtFrom: { commit: SOURCE, packageVersion: "1.0.0" },
+        files: [fileRecord("index.html", fileBytes)],
+      },
+    ],
+    excluded: [
+      {
+        id: "excluded",
+        category: "not-runtime",
+        reason: "not a runtime sample",
       },
     ],
   };
-  await writeFile(
-    path.join(root, "sample-bundles.v2.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-  );
-  return manifest;
 }
 
-async function packFixture(root, outputPath) {
-  return createDeterministicSampleBundleArchive({
-    bundleRoot: root,
-    outputPath,
-    sourceCommit: fixtureSourceCommit,
-    sourceDateEpoch,
-  });
-}
-
-test("canonical packer is reproducible and normalizes ustar and gzip metadata", async () => {
-  const temporaryRoot = await mkdtemp(
-    path.join(os.tmpdir(), "honua-bundle-pack-"),
-  );
-  try {
-    const firstRoot = path.join(temporaryRoot, "first");
-    const secondRoot = path.join(temporaryRoot, "second");
-    await mkdir(firstRoot);
-    await mkdir(secondRoot);
-    await createFixture(firstRoot);
-    await createFixture(secondRoot);
-    await utimes(
-      path.join(secondRoot, "alpha", "assets", "short.js"),
-      new Date(),
-      new Date(),
-    );
-    const firstArchive = path.join(temporaryRoot, "first.tar.gz");
-    const secondArchive = path.join(temporaryRoot, "second.tar.gz");
-    const first = await packFixture(firstRoot, firstArchive);
-    const second = await packFixture(secondRoot, secondArchive);
-    const firstBytes = await readFile(firstArchive);
-    const secondBytes = await readFile(secondArchive);
-    assert.deepEqual(firstBytes, secondBytes);
-    assert.deepEqual(first, second);
-    assert.deepEqual(
-      [...firstBytes.subarray(0, 10)],
-      [31, 139, 8, 0, 0, 0, 0, 0, 2, 255],
-    );
-    const entries = tarEntries(firstBytes);
-    assert.deepEqual(
-      entries.map(({ path: entryPath }) => entryPath),
-      [...entries.map(({ path: entryPath }) => entryPath)].sort(),
-    );
-    assert.ok(
-      entries.some(({ path: entryPath }) => Buffer.byteLength(entryPath) > 100),
-    );
-    for (const entry of entries) {
-      assert.equal(entry.uid, 0);
-      assert.equal(entry.gid, 0);
-      assert.equal(entry.mtime, sourceDateEpoch);
-      assert.equal(entry.magic, "ustar\0");
-      assert.equal(entry.mode, entry.type === "5" ? 0o755 : 0o644);
-    }
-    const nativeTar = spawnSync("tar", ["-tzf", firstArchive], {
-      encoding: "utf8",
-    });
-    assert.equal(nativeTar.status, 0, nativeTar.stderr);
-    assert.match(nativeTar.stdout, /alpha\/assets\/short\.js/);
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-});
-
-test("canonical tar consumes one immutable byte snapshot instead of reopening paths", async () => {
-  const temporaryRoot = await mkdtemp(
-    path.join(os.tmpdir(), "honua-bundle-snapshot-"),
-  );
-  try {
-    const filePath = path.join(temporaryRoot, "alpha.txt");
-    await writeFile(filePath, "first");
-    const snapshot = await readFile(filePath);
-    await writeFile(filePath, "second");
-    const tar = buildCanonicalTar({
-      fileSnapshots: new Map([["alpha.txt", snapshot]]),
-      sourceDateEpoch,
-    });
-    const archive = createCanonicalGzip(tar);
-    assert.equal(gunzipSync(archive).includes(Buffer.from("first")), true);
-    assert.equal(gunzipSync(archive).includes(Buffer.from("second")), false);
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-});
-
-test("canonical packer rejects undeclared files, source drift, and mixed revisions", async () => {
-  const temporaryRoot = await mkdtemp(
-    path.join(os.tmpdir(), "honua-bundle-negative-"),
-  );
-  try {
-    await createFixture(temporaryRoot);
-    await writeFile(
-      path.join(temporaryRoot, "alpha", "undeclared.js"),
-      "unexpected",
-    );
-    await assert.rejects(
-      packFixture(
-        temporaryRoot,
-        path.join(temporaryRoot, "..", "negative.tar.gz"),
-      ),
-      /do not exactly match/,
-    );
-    await assert.rejects(
-      createDeterministicSampleBundleArchive({
-        bundleRoot: temporaryRoot,
-        outputPath: path.join(temporaryRoot, "..", "negative.tar.gz"),
-        sourceCommit: "f".repeat(40),
-        sourceDateEpoch,
-      }),
-      /Manifest source revision/,
-    );
-    await rm(path.join(temporaryRoot, "alpha", "undeclared.js"));
-    const manifestPath = path.join(temporaryRoot, "sample-bundles.v2.json");
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-    manifest.samples[0].builtFrom.commit = "f".repeat(40);
-    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-    await assert.rejects(
-      packFixture(
-        temporaryRoot,
-        path.join(temporaryRoot, "..", "mixed.tar.gz"),
-      ),
-      /Manifest source revision/,
-    );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-});
-
-test("manifest validation rejects duplicate and unsafe archive paths", async () => {
-  const temporaryRoot = await mkdtemp(
-    path.join(os.tmpdir(), "honua-bundle-paths-"),
-  );
-  try {
-    const manifest = await createFixture(temporaryRoot);
-    const manifestPath = path.join(temporaryRoot, "sample-bundles.v2.json");
-    manifest.samples[0].files.push({ ...manifest.samples[0].files[0] });
-    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-    await assert.rejects(
-      packFixture(
-        temporaryRoot,
-        path.join(temporaryRoot, "..", "duplicate.tar.gz"),
-      ),
-      /Duplicate manifest path/,
-    );
-    manifest.samples[0].files.pop();
-    manifest.samples[0].files[0].path = "../escape.js";
-    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-    await assert.rejects(
-      packFixture(
-        temporaryRoot,
-        path.join(temporaryRoot, "..", "escape.tar.gz"),
-      ),
-      /not normalized|escapes/,
-    );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-});
-
-test("bundle scan rejects links and special files where the platform supports them", async (context) => {
-  const temporaryRoot = await mkdtemp(
-    path.join(os.tmpdir(), "honua-bundle-types-"),
-  );
-  try {
-    await createFixture(temporaryRoot);
-    const linkPath = path.join(temporaryRoot, "alpha", "linked.js");
-    try {
-      await symlink(
-        path.join(temporaryRoot, "alpha", "assets", "short.js"),
-        linkPath,
-      );
-      await assert.rejects(
-        packFixture(
-          temporaryRoot,
-          path.join(temporaryRoot, "..", "link.tar.gz"),
-        ),
-        /Symbolic links are forbidden/,
-      );
-      await rm(linkPath);
-    } catch (error) {
-      if (error?.code !== "EPERM") throw error;
-      context.diagnostic("Symlink creation is not permitted on this platform");
-    }
-    if (process.platform !== "win32") {
-      const fifo = path.join(temporaryRoot, "alpha", "fixture.fifo");
-      assert.equal(spawnSync("mkfifo", [fifo]).status, 0);
-      await assert.rejects(
-        packFixture(
-          temporaryRoot,
-          path.join(temporaryRoot, "..", "fifo.tar.gz"),
-        ),
-        /Special files are forbidden/,
-      );
-    }
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-});
-
-test("released receipt is deterministic while per-run receipt carries run identity", async () => {
-  const temporaryRoot = await mkdtemp(
-    path.join(os.tmpdir(), "honua-bundle-receipt-"),
-  );
-  try {
-    const sourceRoot = path.join(temporaryRoot, "source");
-    const firstRoot = path.join(temporaryRoot, "first");
-    const secondRoot = path.join(temporaryRoot, "second");
-    await mkdir(sourceRoot);
-    await mkdir(firstRoot);
-    await mkdir(secondRoot);
-    const lockfile = Buffer.from('{"lockfileVersion":3}\n');
-    await writeFile(path.join(sourceRoot, "package-lock.json"), lockfile);
-    await createFixture(firstRoot, { lockfileSha256: sha256Bytes(lockfile) });
-    await createFixture(secondRoot, { lockfileSha256: sha256Bytes(lockfile) });
-    const firstArchive = path.join(temporaryRoot, "first.tar.gz");
-    const secondArchive = path.join(temporaryRoot, "second.tar.gz");
-    await packFixture(firstRoot, firstArchive);
-    await packFixture(secondRoot, secondArchive);
-    const smokePath = path.join(temporaryRoot, "smoke.json");
-    await writeFile(
-      smokePath,
-      JSON.stringify({
-        format: "honua.sdk.sample-bundle-browser-smoke.v1",
-        generatedAt: "2099-01-01T00:00:00.000Z",
-        manifest: {
-          format: "honua.sdk.sample-bundles.v2",
-          schemaVersion: 2,
-          commit: fixtureSourceCommit,
-        },
-        summary: { total: 1, passed: 1, failed: 0 },
-        results: [
-          {
-            id: "alpha",
-            title: "Alpha",
-            passed: true,
-            requestCount: 1,
-            network: { offOriginRequestCount: 0, clientErrorResponseCount: 0 },
-            staticJourney: null,
-            liveProbe: null,
-            failures: [],
-            screenshot: null,
-          },
-        ],
-      }),
-    );
-    const invoke = async (suffix, runId, runAttempt) => {
-      const outputPath = path.join(temporaryRoot, `receipt-${suffix}.json`);
-      const runOutputPath = path.join(temporaryRoot, `run-${suffix}.json`);
-      await createAttestationReceipts({
-        sourceCommit: fixtureSourceCommit,
-        sourceRoot,
-        sourceDateEpoch,
-        firstBundleRoot: firstRoot,
-        secondBundleRoot: secondRoot,
-        firstArchivePath: firstArchive,
-        secondArchivePath: secondArchive,
-        smokeReceiptPath: smokePath,
-        outputPath,
-        runOutputPath,
-        workflowSha: fixtureSourceCommit,
-        workflowRunId: runId,
-        workflowRunAttempt: runAttempt,
-        runnerImage: "ubuntu24",
-        runnerImageVersion: "20260801.1",
-        runnerEnvironment: "github-hosted",
-        runnerOs: "Linux",
-        runnerArch: "X64",
-      });
-      return {
-        receipt: await readFile(outputPath),
-        run: await readFile(runOutputPath, "utf8"),
-      };
-    };
-    const first = await invoke("a", "100", "1");
-    const second = await invoke("b", "200", "2");
-    assert.deepEqual(first.receipt, second.receipt);
-    assert.notEqual(first.run, second.run);
-    assert.doesNotMatch(
-      first.receipt.toString(),
-      /2099-01-01|"runId"|"runAttempt"/,
-    );
-    assert.ok(
-      first.receipt
-        .toString()
-        .includes(new Date(sourceDateEpoch * 1000).toISOString()),
-    );
-  } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
-  }
-});
-
-test("smoke validation rejects schema, source, count, and result-set drift", () => {
-  const manifest = {
-    format: "honua.sdk.sample-bundles.v2",
-    schemaVersion: 2,
-    samples: [{ id: "alpha", runnability: "standalone" }],
-  };
-  const valid = {
+function fixtureSmoke() {
+  return {
     format: "honua.sdk.sample-bundle-browser-smoke.v1",
-    generatedAt: "2024-01-01T00:00:00.000Z",
+    generatedAt: new Date(EPOCH * 1000).toISOString(),
     manifest: {
-      format: manifest.format,
+      format: "honua.sdk.sample-bundles.v2",
       schemaVersion: 2,
-      commit: fixtureSourceCommit,
+      commit: SOURCE,
     },
     summary: { total: 1, passed: 1, failed: 0 },
     results: [
@@ -414,7 +116,7 @@ test("smoke validation rejects schema, source, count, and result-set drift", () 
         id: "alpha",
         title: "Alpha",
         passed: true,
-        requestCount: 1,
+        requestCount: 2,
         network: { offOriginRequestCount: 0, clientErrorResponseCount: 0 },
         staticJourney: null,
         liveProbe: null,
@@ -423,193 +125,470 @@ test("smoke validation rejects schema, source, count, and result-set drift", () 
       },
     ],
   };
-  assert.equal(
-    validateSmokeReceipt(valid, manifest, fixtureSourceCommit, sourceDateEpoch)
-      .summary.failed,
-    0,
+}
+
+async function fixtureRoot() {
+  const root = await mkdtemp(path.join(os.tmpdir(), "immutable-bundle-"));
+  const bundleRoot = path.join(root, "bundles");
+  await mkdir(path.join(bundleRoot, "alpha"), { recursive: true });
+  const bytes = Buffer.from("immutable bytes\n");
+  const manifest = fixtureManifest(bytes);
+  const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
+  await writeFile(
+    path.join(bundleRoot, "sample-bundles.v2.json"),
+    manifestBytes,
   );
-  const mutations = [
-    { ...structuredClone(valid), extra: true },
-    {
-      ...structuredClone(valid),
-      manifest: { ...valid.manifest, commit: "f".repeat(40) },
-    },
-    { ...structuredClone(valid), summary: { total: 2, passed: 1, failed: 0 } },
-    {
-      ...structuredClone(valid),
-      results: [{ ...valid.results[0], id: "beta" }],
-    },
-  ];
-  for (const mutation of mutations) {
-    assert.throws(() =>
-      validateSmokeReceipt(
-        mutation,
-        manifest,
-        fixtureSourceCommit,
-        sourceDateEpoch,
-      ),
-    );
-  }
-  const liveProbeManifest = structuredClone(manifest);
-  liveProbeManifest.samples.push({
-    id: "service",
-    runnability: "requires-live-endpoint",
+  await writeFile(path.join(bundleRoot, "alpha/index.html"), bytes);
+  return { root, bundleRoot, manifest, manifestBytes, bytes };
+}
+
+async function canonicalFixture() {
+  const fixture = await fixtureRoot();
+  const archivePath = path.join(fixture.root, "sample-bundles.tar.gz");
+  const metadataPath = path.join(fixture.root, "pack.json");
+  const metadata = await pack({
+    bundleRoot: fixture.bundleRoot,
+    output: archivePath,
+    sourceCommit: SOURCE,
+    sourceDateEpoch: EPOCH,
   });
-  const liveProbeSmoke = structuredClone(valid);
-  liveProbeSmoke.summary = { total: 2, passed: 2, failed: 0 };
-  liveProbeSmoke.results.push({
-    ...structuredClone(valid.results[0]),
-    id: "service",
+  await writeFile(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+  return {
+    ...fixture,
+    archivePath,
+    archive: await readFile(archivePath),
+    metadataPath,
+    metadata,
+  };
+}
+
+function recalculateChecksum(header) {
+  header.fill(0x20, 148, 156);
+  const checksum = header
+    .reduce((sum, byte) => sum + byte, 0)
+    .toString(8)
+    .padStart(6, "0");
+  header.write(checksum, 148, 6, "ascii");
+  header[154] = 0;
+  header[155] = 0x20;
+}
+
+function tarEntries(tar) {
+  const entries = [];
+  let offset = 0;
+  while (!tar.subarray(offset, offset + 512).every((byte) => byte === 0)) {
+    const header = tar.subarray(offset, offset + 512);
+    const size = Number.parseInt(
+      header.subarray(124, 135).toString("ascii"),
+      8,
+    );
+    const length = 512 + size + ((512 - (size % 512)) % 512);
+    entries.push(Buffer.from(tar.subarray(offset, offset + length)));
+    offset += length;
+  }
+  return entries;
+}
+
+function mutatedArchive(archive, mutate) {
+  const tar = Buffer.from(gunzipSync(archive));
+  mutate(tar);
+  const result = gzipSync(tar, { level: 9, mtime: 0 });
+  result[9] = 3;
+  return result;
+}
+
+test("all actions are exact commit pins and attestation uses the verified object", () => {
+  assert.equal(
+    ACTIONS.attestBuildProvenance,
+    "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+  );
+  for (const [repository, commit] of ACTION_COMMITS) {
+    assert.match(repository, /^[a-z0-9-]+\/[a-z0-9-]+$/u);
+    assert.match(commit, /^[0-9a-f]{40}$/u);
+  }
+});
+
+test("the actual workflow passes parsed structural policy", async () => {
+  await validateWorkflowFile(WORKFLOW);
+});
+
+test("structural policy rejects syntax mutations rather than comments", async () => {
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  const mutations = {
+    "global permission": (value) => (value.permissions.contents = "read"),
+    "extra job": (value) =>
+      (value.jobs.extra = clone(value.jobs["build-and-smoke"])),
+    "wrong runner": (value) =>
+      (value.jobs["build-and-smoke"]["runs-on"] = "ubuntu-latest"),
+    "widened privileged permission": (value) =>
+      (value.jobs["attest-and-publish"].permissions.packages = "write"),
+    "wrong dependency": (value) =>
+      (value.jobs["attest-and-publish"].needs = "other"),
+    "unpinned action": (value) =>
+      (value.jobs["build-and-smoke"].steps[1].uses = "actions/checkout@v4"),
+    "old attest commit": (value) =>
+      (value.jobs["attest-and-publish"].steps[3].uses =
+        "actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661"),
+    "extra checkout": (value) =>
+      value.jobs["build-and-smoke"].steps.splice(
+        4,
+        0,
+        clone(value.jobs["build-and-smoke"].steps[1]),
+      ),
+    "early SHA bypass": (value) =>
+      (value.jobs["build-and-smoke"].steps[0].run = "true"),
+    "rolling target": (value) =>
+      (value.jobs["attest-and-publish"].steps[7].run +=
+        "\necho sample-bundles-latest"),
+    "late SHA after create": (value) => {
+      const step = value.jobs["attest-and-publish"].steps[7];
+      const gate =
+        'CURRENT_SHA="$($GH api "repos/$GITHUB_REPOSITORY/commits/trunk" --jq .sha)"\n    test "$CURRENT_SHA" = "$SOURCE_COMMIT"';
+      step.run = `${step.run.replace(gate, "")}\n${gate}\n`;
+    },
+  };
+  for (const [label, mutate] of Object.entries(mutations)) {
+    const changed = clone(workflow);
+    mutate(changed);
+    assert.throws(() => validateWorkflowDocument(changed), undefined, label);
+  }
+});
+
+test("action resolver requires exact commit objects and verified attest commit", async () => {
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  const exact = (_repository, commit) => ({
+    type: "commit",
+    sha: commit,
+    verified: true,
   });
   assert.equal(
-    validateSmokeReceipt(
-      liveProbeSmoke,
-      liveProbeManifest,
-      fixtureSourceCommit,
-      sourceDateEpoch,
-    ).summary.failed,
-    0,
+    validateWorkflowDocument(workflow, { resolveAction: exact }),
+    true,
+  );
+  assert.throws(() =>
+    validateWorkflowDocument(workflow, {
+      resolveAction: (_repository, commit) => ({
+        type: "tag",
+        sha: commit,
+        verified: true,
+      }),
+    }),
+  );
+  assert.throws(() =>
+    validateWorkflowDocument(workflow, {
+      resolveAction: (_repository, commit) => ({
+        type: "commit",
+        sha: commit,
+        verified: false,
+      }),
+    }),
   );
 });
 
-test("publication state permits create and exact idempotence only", () => {
-  const expected = {
-    sourceCommit: fixtureSourceCommit,
-    assets: Object.fromEntries(
-      RELEASE_ASSETS.map((name, index) => [
-        name,
-        { bytes: index + 1, sha256: `${index}`.repeat(64) },
-      ]),
-    ),
+test("packer builds byte-identical canonical archives and native tar reads them", async (context) => {
+  const first = await canonicalFixture();
+  context.after(() => rm(first.root, { recursive: true, force: true }));
+  const secondPath = path.join(first.root, "second.tar.gz");
+  const opened = [];
+  await pack({
+    bundleRoot: first.bundleRoot,
+    output: secondPath,
+    sourceCommit: SOURCE,
+    sourceDateEpoch: EPOCH,
+    afterOpen: ({ filePath }) => opened.push(filePath),
+  });
+  assert.deepEqual(await readFile(secondPath), first.archive);
+  assert.deepEqual(
+    [...first.archive.subarray(0, 10)],
+    [0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 2, 3],
+  );
+  assert.equal(opened.length, 2);
+  assert.deepEqual(
+    parseCanonicalArchive(first.archive, {
+      manifestBytes: first.manifestBytes,
+      manifest: first.manifest,
+      sourceDateEpoch: EPOCH,
+    }),
+    { fileCount: 2, memberCount: 3 },
+  );
+  const listing = execFileSync("tar", ["-tzf", first.archivePath], {
+    encoding: "utf8",
+  })
+    .trim()
+    .split(/\r?\n/u)
+    .map((entry) => entry.replace(/\/$/u, ""));
+  assert.deepEqual(listing, [
+    "alpha",
+    "alpha/index.html",
+    "sample-bundles.v2.json",
+  ]);
+});
+
+test("open-once snapshot rejects pathname and type swaps", async (context) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "snapshot-swap-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const target = path.join(root, "target");
+  const saved = path.join(root, "saved");
+  await writeFile(target, "original");
+  await assert.rejects(
+    snapshotRegularFile(target, {
+      afterOpen: async () => {
+        await rename(target, saved);
+        await writeFile(target, "replaced");
+      },
+    }),
+  );
+  await unlink(target);
+  await rename(saved, target);
+  await assert.rejects(
+    snapshotRegularFile(target, {
+      afterOpen: async () => {
+        await rename(target, saved);
+        await mkdir(target);
+      },
+    }),
+  );
+});
+
+test("canonical parser rejects native tar, path, type, metadata, ordering, and gzip mutations", async (context) => {
+  const fixture = await canonicalFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const mutateHeader = (change, index = 0) =>
+    mutatedArchive(fixture.archive, (tar) => {
+      const entries = tarEntries(tar);
+      const header = entries[index].subarray(0, 512);
+      change(header);
+      recalculateChecksum(header);
+      Buffer.concat([...entries, Buffer.alloc(1024)]).copy(tar);
+    });
+  const writeName = (value) => (header) => {
+    header.fill(0, 0, 100);
+    header.write(value, 0, "utf8");
   };
-  const exactRelease = {
-    draft: false,
-    assets: Object.entries(expected.assets).map(([name, facts]) => ({
-      name,
-      ...facts,
-    })),
+  const mutations = [
+    mutateHeader(writeName("/absolute/")),
+    mutateHeader(writeName("../traversal/")),
+    mutateHeader(writeName("back\\slash/")),
+    mutateHeader(writeName("control\u0001/")),
+    mutateHeader((header) => (header[156] = "2".charCodeAt(0))),
+    mutateHeader((header) => (header[156] = "x".charCodeAt(0))),
+    mutateHeader((header) => (header[156] = "L".charCodeAt(0))),
+    mutateHeader((header) => (header[156] = "3".charCodeAt(0))),
+    mutateHeader((header) => (header[156] = "6".charCodeAt(0))),
+    mutateHeader((header) => header.write("0000777", 100, "ascii")),
+    mutateHeader((header) => header.write("0000001", 108, "ascii")),
+    mutateHeader((header) => header.write("0000001", 116, "ascii")),
+    mutateHeader((header) => header.write("00000000001", 136, "ascii")),
+    mutateHeader((header) => header.write("target", 157, "ascii")),
+    mutatedArchive(fixture.archive, (tar) => {
+      const entries = tarEntries(tar);
+      Buffer.concat([
+        entries[1],
+        entries[0],
+        ...entries.slice(2),
+        Buffer.alloc(1024),
+      ]).copy(tar);
+    }),
+    mutatedArchive(fixture.archive, (tar) => {
+      const entries = tarEntries(tar);
+      Buffer.concat([
+        entries[0],
+        entries[0],
+        ...entries.slice(1),
+        Buffer.alloc(1024),
+      ]).copy(tar);
+    }),
+  ];
+  const badGzip = Buffer.from(fixture.archive);
+  badGzip[3] = 8;
+  mutations.push(badGzip);
+  for (const archive of mutations)
+    assert.throws(() => parseCanonicalArchive(archive, fixture));
+});
+
+test("manifest and nested smoke schemas reject extras, wrong types, enums, and ranges", () => {
+  const manifest = fixtureManifest();
+  validateManifest(manifest, {
+    sourceCommit: SOURCE,
+    lockfileSha256: LOCK_SHA,
+  });
+  const manifestMutations = [
+    (value) => (value.extra = true),
+    (value) => (value.samples[0].builtFrom.commit = "b".repeat(40)),
+    (value) => (value.samples[0].files[0].bytes = -1),
+    (value) => (value.samples[0].files[0].path = "../escape"),
+    (value) => (value.samples[0].runnability = "standalone-ish"),
+    (value) => (value.build.lockfileSha256 = "0".repeat(64)),
+  ];
+  for (const mutate of manifestMutations) {
+    const changed = clone(manifest);
+    mutate(changed);
+    assert.throws(() =>
+      validateManifest(changed, {
+        sourceCommit: SOURCE,
+        lockfileSha256: LOCK_SHA,
+      }),
+    );
+  }
+
+  const smoke = fixtureSmoke();
+  normalizeSmoke(smoke, manifest, SOURCE, EPOCH);
+  const smokeMutations = [
+    (value) => (value.extra = true),
+    (value) => (value.results[0].network.extra = 0),
+    (value) => (value.results[0].requestCount = 0),
+    (value) => (value.results[0].staticJourney = {}),
+    (value) => (value.results[0].liveProbe = { passed: true }),
+    (value) => (value.summary.failed = 1),
+    (value) => (value.results[0].failures = ["failure"]),
+  ];
+  for (const mutate of smokeMutations) {
+    const changed = clone(smoke);
+    mutate(changed);
+    assert.throws(() => normalizeSmoke(changed, manifest, SOURCE, EPOCH));
+  }
+});
+
+test("receipts bind exact bytes, deterministic metadata, run metadata, and strict keysets", async (context) => {
+  const fixture = await canonicalFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const smokePath = path.join(fixture.root, "smoke.json");
+  const lockPath = path.join(fixture.root, "package-lock.json");
+  const deterministicPath = path.join(
+    fixture.root,
+    "sample-bundles-attestation.v1.json",
+  );
+  const runPath = path.join(
+    fixture.root,
+    "sample-bundles-run-attestation.v1.json",
+  );
+  await writeFile(smokePath, `${JSON.stringify(fixtureSmoke(), null, 2)}\n`);
+  await writeFile(lockPath, LOCK_BYTES);
+  const { deterministic, run } = await createReceipts({
+    manifest: path.join(fixture.bundleRoot, "sample-bundles.v2.json"),
+    archive: fixture.archivePath,
+    packMetadata: fixture.metadataPath,
+    smokeReceipt: smokePath,
+    lockfile: lockPath,
+    deterministicReceipt: deterministicPath,
+    runReceipt: runPath,
+    sourceCommit: SOURCE,
+    sourceDateEpoch: EPOCH,
+    repository: "honua-io/honua-sdk-js",
+    workflowRef: "refs/heads/trunk",
+    runId: "123",
+    runAttempt: "2",
+    runnerName: "GitHub Actions 1",
+    runnerEnvironment: "github-hosted",
+    runnerOs: "Linux",
+    runnerArch: "X64",
+    runnerImage: "ubuntu24",
+    runnerImageVersion: "20260801.1",
+  });
+  const deterministicText = await readFile(deterministicPath, "utf8");
+  assert.doesNotMatch(
+    deterministicText,
+    /runId|runAttempt|generatedAt|runner/u,
+  );
+  validateDeterministicReceipt(deterministic, {
+    sourceCommit: SOURCE,
+    sourceDateEpoch: EPOCH,
+    lockfileSha256: LOCK_SHA,
+  });
+  validateRunReceipt(run, {
+    sourceCommit: SOURCE,
+    deterministicSha256: digest(Buffer.from(deterministicText)),
+  });
+
+  for (const mutate of [
+    (value) => (value.extra = true),
+    (value) => (value.build.actions.checkout = "actions/checkout@v4"),
+    (value) => (value.publication.assets["sample-bundles.tar.gz"].bytes = -1),
+    (value) => (value.smoke.results[0].liveProbe.status = "passed"),
+  ]) {
+    const changed = clone(deterministic);
+    mutate(changed);
+    assert.throws(() =>
+      validateDeterministicReceipt(changed, {
+        sourceCommit: SOURCE,
+        sourceDateEpoch: EPOCH,
+        lockfileSha256: LOCK_SHA,
+      }),
+    );
+  }
+  for (const mutate of [
+    (value) => (value.extra = true),
+    (value) => (value.sourceCommit = "b".repeat(40)),
+    (value) => (value.workflow.runAttempt = 3),
+    (value) => (value.runner.extra = "bad"),
+    (value) => (value.actions.attestBuildProvenance = ACTIONS.checkout),
+  ]) {
+    const changed = clone(run);
+    mutate(changed);
+    assert.throws(() =>
+      validateRunReceipt(changed, {
+        sourceCommit: SOURCE,
+        deterministicSha256: run.deterministicReceiptSha256,
+      }),
+    );
+  }
+});
+
+test("release state is create, idempotent, partial, divergent, or collision and never clobber", () => {
+  const expectedAssets = {
+    a: { bytes: 1, sha256: "1".repeat(64) },
+    b: { bytes: 2, sha256: "2".repeat(64) },
   };
   assert.equal(
-    classifyPublicationState({ tagCommit: null, release: null }, expected),
+    classifyReleaseState({
+      releaseExists: false,
+      tagTarget: null,
+      expectedSource: SOURCE,
+      assets: {},
+      expectedAssets,
+    }),
     "create",
   );
   assert.equal(
-    classifyPublicationState(
-      { tagCommit: fixtureSourceCommit, release: exactRelease },
-      expected,
-    ),
+    classifyReleaseState({
+      releaseExists: true,
+      tagTarget: SOURCE,
+      expectedSource: SOURCE,
+      assets: clone(expectedAssets),
+      expectedAssets,
+    }),
     "idempotent",
   );
-  assert.throws(
-    () =>
-      classifyPublicationState(
-        { tagCommit: fixtureSourceCommit, release: null },
-        expected,
-      ),
-    /partially/,
+  assert.equal(
+    classifyReleaseState({
+      releaseExists: true,
+      tagTarget: SOURCE,
+      expectedSource: SOURCE,
+      assets: { a: expectedAssets.a },
+      expectedAssets,
+    }),
+    "partial",
   );
-  assert.throws(
-    () =>
-      classifyPublicationState(
-        { tagCommit: null, release: exactRelease },
-        expected,
-      ),
-    /partially/,
+  const divergent = clone(expectedAssets);
+  divergent.b.bytes = 3;
+  assert.equal(
+    classifyReleaseState({
+      releaseExists: true,
+      tagTarget: SOURCE,
+      expectedSource: SOURCE,
+      assets: divergent,
+      expectedAssets,
+    }),
+    "divergent",
   );
-  assert.throws(
-    () =>
-      classifyPublicationState(
-        { tagCommit: "f".repeat(40), release: exactRelease },
-        expected,
-      ),
-    /collision/,
+  assert.equal(
+    classifyReleaseState({
+      releaseExists: true,
+      tagTarget: "b".repeat(40),
+      expectedSource: SOURCE,
+      assets: clone(expectedAssets),
+      expectedAssets,
+    }),
+    "collision",
   );
-  const divergent = structuredClone(exactRelease);
-  divergent.assets[0].sha256 = "f".repeat(64);
-  assert.throws(
-    () =>
-      classifyPublicationState(
-        { tagCommit: fixtureSourceCommit, release: divergent },
-        expected,
-      ),
-    /digest/,
-  );
-  const partial = structuredClone(exactRelease);
-  partial.assets.pop();
-  assert.throws(
-    () =>
-      classifyPublicationState(
-        { tagCommit: fixtureSourceCommit, release: partial },
-        expected,
-      ),
-    /asset set/,
-  );
-});
-
-test("content-addressed workflow satisfies immutable publication policy", async () => {
-  const workflow = await readFile(
-    path.join(repositoryRoot, WORKFLOW_PATH),
-    "utf8",
-  );
-  assert.equal(validateContentAddressedWorkflowPolicy(workflow), true);
-});
-
-test("workflow policy rejects executable mutable and unsafe variants", async () => {
-  const workflow = await readFile(
-    path.join(repositoryRoot, WORKFLOW_PATH),
-    "utf8",
-  );
-  const mutations = [
-    workflow.replace(
-      "workflow_dispatch: {}",
-      "workflow_dispatch:\n    inputs:\n      source: {}",
-    ),
-    workflow.replace(
-      "SOURCE_COMMIT: ${{ github.sha }}",
-      "SOURCE_COMMIT: trunk",
-    ),
-    workflow.replace(/actions\/checkout@[a-f0-9]{40}/, "actions/checkout@v4"),
-    workflow.replace(
-      "RELEASE_ID: sample-bundles-${{ github.sha }}",
-      "RELEASE_ID: sample-bundles-latest",
-    ),
-    workflow.replace(
-      "--latest=false \\",
-      "--latest=false \\\n            --clobber \\",
-    ),
-    workflow.replace(
-      "node governance/scripts/pack-sample-bundles.mjs",
-      'tar -czf "$FIRST_ARCHIVE" source-a/.artifacts/sample-bundles',
-    ),
-    workflow.replace(
-      'cmp --silent "$FIRST_ARCHIVE" "$SECOND_ARCHIVE"',
-      'test -s "$FIRST_ARCHIVE"',
-    ),
-    workflow.replace("permissions: {}", "permissions:\n  contents: write"),
-    workflow.replace(
-      "group: publish-content-addressed-sample-bundles",
-      "group: sample-bundles-${{ github.sha }}",
-    ),
-    workflow.replace(
-      "jq -e '.enabled == true and .enforced_by_owner == true'",
-      "jq -e '.enabled == true'",
-    ),
-    workflow.replace('--target "$SOURCE_COMMIT"', "--target trunk"),
-    workflow.replaceAll("commits/trunk", "commits/not-trunk"),
-    workflow.replace(
-      'test "$GITHUB_REF" = "refs/heads/trunk"',
-      'test -n "$GITHUB_REF"',
-    ),
-    workflow.replace(
-      "name: Validate staged bytes without credentials",
-      "name: Validate staged bytes without credentials\n        env:\n          GITHUB_ENV: /tmp/env",
-    ),
-  ];
-  for (const [index, mutation] of mutations.entries()) {
-    assert.notEqual(mutation, workflow);
-    assert.throws(
-      () => validateContentAddressedWorkflowPolicy(mutation),
-      `Mutation ${index} passed policy`,
-    );
-  }
 });
