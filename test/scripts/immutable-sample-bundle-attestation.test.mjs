@@ -14,12 +14,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { constants as zlibConstants, gunzipSync, gzipSync } from "node:zlib";
 import { parse as parseYaml } from "yaml";
 
 import {
   ACTIONS,
   ACTION_COMMITS,
+  RUN_BODY_SHA256,
   classifyReleaseState,
   createReceipts,
   normalizeSmoke,
@@ -32,6 +33,7 @@ import {
 } from "../../scripts/immutable-sample-bundle-attestation.mjs";
 import {
   pack,
+  canonicalGzip,
   snapshotRegularFile,
 } from "../../scripts/pack-sample-bundles.mjs";
 
@@ -67,14 +69,18 @@ function fileRecord(relativePath, bytes) {
   };
 }
 
-function fixtureManifest(fileBytes = Buffer.from("immutable bytes\n")) {
+function fixtureManifest(
+  fileBytes = Buffer.from("immutable bytes\n"),
+  relativePath = "index.html",
+  sampleId = "alpha",
+) {
   return {
     format: "honua.sdk.sample-bundles.v2",
     schemaVersion: 2,
     build: { node: ">=20.19.0", lockfileSha256: LOCK_SHA },
     samples: [
       {
-        id: "alpha",
+        id: sampleId,
         entrypoint: "index.html",
         dataMode: "fixture",
         configDefaults: {},
@@ -88,7 +94,7 @@ function fixtureManifest(fileBytes = Buffer.from("immutable bytes\n")) {
         },
         lifecycle: { state: "active", reason: null },
         builtFrom: { commit: SOURCE, packageVersion: "1.0.0" },
-        files: [fileRecord("index.html", fileBytes)],
+        files: [fileRecord(relativePath, fileBytes)],
       },
     ],
     excluded: [
@@ -101,7 +107,7 @@ function fixtureManifest(fileBytes = Buffer.from("immutable bytes\n")) {
   };
 }
 
-function fixtureSmoke() {
+function fixtureSmoke(sampleId = "alpha") {
   return {
     format: "honua.sdk.sample-bundle-browser-smoke.v1",
     generatedAt: new Date(EPOCH * 1000).toISOString(),
@@ -113,7 +119,7 @@ function fixtureSmoke() {
     summary: { total: 1, passed: 1, failed: 0 },
     results: [
       {
-        id: "alpha",
+        id: sampleId,
         title: "Alpha",
         passed: true,
         requestCount: 2,
@@ -127,23 +133,28 @@ function fixtureSmoke() {
   };
 }
 
-async function fixtureRoot() {
+async function fixtureRoot(relativePath = "index.html", sampleId = "alpha") {
   const root = await mkdtemp(path.join(os.tmpdir(), "immutable-bundle-"));
   const bundleRoot = path.join(root, "bundles");
-  await mkdir(path.join(bundleRoot, "alpha"), { recursive: true });
+  await mkdir(path.join(bundleRoot, sampleId), { recursive: true });
   const bytes = Buffer.from("immutable bytes\n");
-  const manifest = fixtureManifest(bytes);
+  const manifest = fixtureManifest(bytes, relativePath, sampleId);
   const manifestBytes = Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`);
   await writeFile(
     path.join(bundleRoot, "sample-bundles.v2.json"),
     manifestBytes,
   );
-  await writeFile(path.join(bundleRoot, "alpha/index.html"), bytes);
+  const target = path.join(bundleRoot, sampleId, ...relativePath.split("/"));
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, bytes);
   return { root, bundleRoot, manifest, manifestBytes, bytes };
 }
 
-async function canonicalFixture() {
-  const fixture = await fixtureRoot();
+async function canonicalFixture(
+  relativePath = "index.html",
+  sampleId = "alpha",
+) {
+  const fixture = await fixtureRoot(relativePath, sampleId);
   const archivePath = path.join(fixture.root, "sample-bundles.tar.gz");
   const metadataPath = path.join(fixture.root, "pack.json");
   const metadata = await pack({
@@ -192,9 +203,224 @@ function tarEntries(tar) {
 function mutatedArchive(archive, mutate) {
   const tar = Buffer.from(gunzipSync(archive));
   mutate(tar);
-  const result = gzipSync(tar, { level: 9, mtime: 0 });
+  return canonicalGzip(tar);
+}
+
+function alternateDeflateArchive(archive) {
+  const result = gzipSync(gunzipSync(archive), {
+    level: 9,
+    mtime: 0,
+    strategy: zlibConstants.Z_HUFFMAN_ONLY,
+  });
+  result[8] = 0;
   result[9] = 3;
   return result;
+}
+
+async function publicationFixture(
+  relativePath = "index.html",
+  sampleId = "alpha",
+  smoke = fixtureSmoke(sampleId),
+) {
+  const fixture = await canonicalFixture(relativePath, sampleId);
+  const smokeBytes = Buffer.from(`${JSON.stringify(smoke, null, 2)}\n`);
+  const smokePath = path.join(fixture.root, "browser-smoke.v1.json");
+  const lockPath = path.join(fixture.root, "package-lock.json");
+  const deterministicPath = path.join(
+    fixture.root,
+    "sample-bundles-attestation.v1.json",
+  );
+  const runPath = path.join(
+    fixture.root,
+    "sample-bundles-run-attestation.v1.json",
+  );
+  await writeFile(smokePath, smokeBytes);
+  await writeFile(lockPath, LOCK_BYTES);
+  await createReceipts({
+    manifest: path.join(fixture.bundleRoot, "sample-bundles.v2.json"),
+    archive: fixture.archivePath,
+    packMetadata: fixture.metadataPath,
+    smokeReceipt: smokePath,
+    lockfile: lockPath,
+    deterministicReceipt: deterministicPath,
+    runReceipt: runPath,
+    sourceCommit: SOURCE,
+    sourceDateEpoch: EPOCH,
+    repository: "honua-io/honua-sdk-js",
+    workflowRef: "refs/heads/trunk",
+    runId: "123",
+    runAttempt: "2",
+    runnerName: "GitHub Actions 1",
+    runnerEnvironment: "github-hosted",
+    runnerOs: "Linux",
+    runnerArch: "X64",
+    runnerImage: "ubuntu24",
+    runnerImageVersion: "20260801.1",
+  });
+  const staged = path.join(fixture.root, "staged");
+  await mkdir(staged);
+  const files = {
+    "sample-bundles.v2.json": fixture.manifestBytes,
+    "sample-bundles.tar.gz": fixture.archive,
+    "sample-bundles-attestation.v1.json": await readFile(deterministicPath),
+    "sample-bundles-run-attestation.v1.json": await readFile(runPath),
+    "browser-smoke.v1.json": smokeBytes,
+  };
+  for (const [name, bytes] of Object.entries(files))
+    await writeFile(path.join(staged, name), bytes);
+  return { ...fixture, staged, files };
+}
+
+async function bindRawSmokeMutation(fixture, smoke) {
+  const smokeBytes = Buffer.from(`${JSON.stringify(smoke, null, 2)}\n`);
+  const deterministicPath = path.join(
+    fixture.staged,
+    "sample-bundles-attestation.v1.json",
+  );
+  const runPath = path.join(
+    fixture.staged,
+    "sample-bundles-run-attestation.v1.json",
+  );
+  const deterministic = JSON.parse(await readFile(deterministicPath, "utf8"));
+  deterministic.smoke.rawSha256 = digest(smokeBytes);
+  const deterministicBytes = Buffer.from(
+    `${JSON.stringify(deterministic, null, 2)}\n`,
+  );
+  const run = JSON.parse(await readFile(runPath, "utf8"));
+  run.deterministicReceiptSha256 = digest(deterministicBytes);
+  await writeFile(
+    path.join(fixture.staged, "browser-smoke.v1.json"),
+    smokeBytes,
+  );
+  await writeFile(deterministicPath, deterministicBytes);
+  await writeFile(runPath, `${JSON.stringify(run, null, 2)}\n`);
+}
+
+async function bindArchiveMutation(fixture, archive) {
+  const deterministicPath = path.join(
+    fixture.staged,
+    "sample-bundles-attestation.v1.json",
+  );
+  const runPath = path.join(
+    fixture.staged,
+    "sample-bundles-run-attestation.v1.json",
+  );
+  const deterministic = JSON.parse(await readFile(deterministicPath, "utf8"));
+  deterministic.publication.assets["sample-bundles.tar.gz"] = {
+    bytes: archive.length,
+    sha256: digest(archive),
+  };
+  const deterministicBytes = Buffer.from(
+    `${JSON.stringify(deterministic, null, 2)}\n`,
+  );
+  const run = JSON.parse(await readFile(runPath, "utf8"));
+  run.deterministicReceiptSha256 = digest(deterministicBytes);
+  await writeFile(path.join(fixture.staged, "sample-bundles.tar.gz"), archive);
+  await writeFile(deterministicPath, deterministicBytes);
+  await writeFile(runPath, `${JSON.stringify(run, null, 2)}\n`);
+}
+
+async function restoreBoundReceipts(fixture) {
+  for (const name of [
+    "sample-bundles-attestation.v1.json",
+    "sample-bundles-run-attestation.v1.json",
+  ])
+    await writeFile(path.join(fixture.staged, name), fixture.files[name]);
+}
+
+async function privilegedPython() {
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  const run = workflow.jobs["attest-and-publish"].steps.find(
+    (step) => step.name === "Validate all bytes before tokens",
+  ).run;
+  const match = /python3 - <<'PY'\n([\s\S]+)\nPY\n?$/u.exec(run);
+  assert.ok(match, "privileged inline Python heredoc is missing");
+  return match[1];
+}
+
+async function runPrivilegedValidator(fixture) {
+  const python = process.platform === "win32" ? "python" : "python3";
+  return execFileSync(python, ["-c", await privilegedPython()], {
+    cwd: fixture.root,
+    env: {
+      ...process.env,
+      SOURCE_COMMIT: SOURCE,
+      EXPECTED_LOCKFILE_SHA256: LOCK_SHA,
+      GITHUB_REPOSITORY: "honua-io/honua-sdk-js",
+      GITHUB_RUN_ID: "123",
+      GITHUB_RUN_ATTEMPT: "2",
+    },
+    stdio: "pipe",
+  });
+}
+
+function coverageSmokeJourney() {
+  const mounted = (protocol) => ({
+    protocol,
+    sourceId: `${protocol}-elevation`,
+    sourceMounted: true,
+    layerMounted: true,
+  });
+  const protocol = (name) => ({
+    mounted: mounted(name),
+    cancellation: { status: "cancelled", activeProtocol: name },
+    degradation: {
+      status: "degraded",
+      code: "InvalidParameterValue",
+      activeProtocol: name,
+    },
+  });
+  return {
+    ogc: protocol("ogc"),
+    wcs: protocol("wcs"),
+    requestProof: {
+      allVirtualFixture: true,
+      ogcSuccess: true,
+      ogcCancellation: true,
+      ogcDegradation: true,
+      wcsSuccess: true,
+      wcsCancellation: true,
+      wcsDegradation: true,
+    },
+    beforeDispose: {
+      ready: true,
+      phase: "degraded",
+      fixtureDigest:
+        "8c7b5b3f8bd31bca2df07c4a70254d75e70d63838c2f77e033def3c1b8d2acff",
+      ogcByteLength: 281_908,
+      wcsByteLength: 281_908,
+      imageWidth: 320,
+      imageHeight: 220,
+      centerPixelValue: 450,
+      centerPixelColor: [221, 174, 82],
+      cancellationCount: 2,
+      degradationCount: 2,
+      requestCount: 12,
+      objectUrlsUnique: true,
+      switchedObjectUrlRevoked: true,
+      activeObjectUrl: "blob:http://127.0.0.1:1234/canonical",
+      protocol: "wcs",
+      sourceId: "wcs-elevation",
+      sourceMounted: true,
+      layerMounted: true,
+    },
+    disposal: {
+      disposed: true,
+      ready: false,
+      sourceId: null,
+      activeObjectUrl: null,
+      sourceCleanupVerified: true,
+      mapRemoved: true,
+      canvasCount: 0,
+      revokedBothObjectUrls: true,
+      revokedObjectUrlCount: 2,
+    },
+    visibleEvidence: {
+      canvasCount: 1,
+      legend: "0 m to 600 m",
+      pixel: "450 m",
+    },
+  };
 }
 
 test("all actions are exact commit pins and attestation uses the verified object", () => {
@@ -237,6 +463,12 @@ test("structural policy rejects syntax mutations rather than comments", async ()
       ),
     "early SHA bypass": (value) =>
       (value.jobs["build-and-smoke"].steps[0].run = "true"),
+    "comment-only run mutation": (value) =>
+      (value.jobs["build-and-smoke"].steps[5].run += "\n# harmless-looking"),
+    "no-op run mutation": (value) =>
+      (value.jobs["build-and-smoke"].steps[6].run += "\ntrue"),
+    "privileged additive run mutation": (value) =>
+      (value.jobs["attest-and-publish"].steps[1].run += "\n:"),
     "rolling target": (value) =>
       (value.jobs["attest-and-publish"].steps[7].run +=
         "\necho sample-bundles-latest"),
@@ -252,6 +484,18 @@ test("structural policy rejects syntax mutations rather than comments", async ()
     mutate(changed);
     assert.throws(() => validateWorkflowDocument(changed), undefined, label);
   }
+});
+
+test("every governed shell body is bound to an exact SHA-256", async () => {
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  const actual = Object.fromEntries(
+    Object.entries(workflow.jobs).flatMap(([jobName, job]) =>
+      job.steps
+        .filter((step) => typeof step.run === "string")
+        .map((step) => [`${jobName}/${step.name}`, digest(step.run)]),
+    ),
+  );
+  assert.deepEqual(actual, RUN_BODY_SHA256);
 });
 
 test("action resolver requires exact commit objects and verified attest commit", async () => {
@@ -300,7 +544,7 @@ test("packer builds byte-identical canonical archives and native tar reads them"
   assert.deepEqual(await readFile(secondPath), first.archive);
   assert.deepEqual(
     [...first.archive.subarray(0, 10)],
-    [0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 2, 3],
+    [0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 3],
   );
   assert.equal(opened.length, 2);
   assert.deepEqual(
@@ -380,6 +624,8 @@ test("canonical parser rejects native tar, path, type, metadata, ordering, and g
     mutateHeader((header) => header.write("0000001", 116, "ascii")),
     mutateHeader((header) => header.write("00000000001", 136, "ascii")),
     mutateHeader((header) => header.write("target", 157, "ascii")),
+    mutateHeader((header) => (header[500] = 1)),
+    mutateHeader((header) => (header[511] = 1)),
     mutatedArchive(fixture.archive, (tar) => {
       const entries = tarEntries(tar);
       Buffer.concat([
@@ -402,8 +648,134 @@ test("canonical parser rejects native tar, path, type, metadata, ordering, and g
   const badGzip = Buffer.from(fixture.archive);
   badGzip[3] = 8;
   mutations.push(badGzip);
+  mutations.push(alternateDeflateArchive(fixture.archive));
   for (const archive of mutations)
     assert.throws(() => parseCanonicalArchive(archive, fixture));
+});
+
+test("actual privileged inline validator accepts canonical bytes and rejects hostile archives", async (context) => {
+  const fixture = await publicationFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  assert.match((await runPrivilegedValidator(fixture)).toString(), /PASS/u);
+  const archivePath = path.join(fixture.staged, "sample-bundles.tar.gz");
+  const mutateHeader = (change, index = 0) =>
+    mutatedArchive(fixture.archive, (tar) => {
+      const entries = tarEntries(tar);
+      const header = entries[index].subarray(0, 512);
+      change(header);
+      recalculateChecksum(header);
+      Buffer.concat([...entries, Buffer.alloc(1024)]).copy(tar);
+    });
+  const hostile = [
+    mutateHeader((header) => (header[500] = 1)),
+    mutateHeader((header) => (header[511] = 1)),
+    mutateHeader((header) => (header[156] = "x".charCodeAt(0))),
+    mutateHeader((header) => (header[156] = "L".charCodeAt(0))),
+    mutateHeader((header) => header.write("bsdtar", 265, "ascii")),
+    alternateDeflateArchive(fixture.archive),
+    mutatedArchive(fixture.archive, (tar) => {
+      const entries = tarEntries(tar);
+      entries[1][512] ^= 1;
+      Buffer.concat([...entries, Buffer.alloc(1024)]).copy(tar);
+    }),
+  ];
+  for (const archive of hostile) {
+    await bindArchiveMutation(fixture, archive);
+    await assert.rejects(runPrivilegedValidator(fixture));
+    await restoreBoundReceipts(fixture);
+  }
+  await writeFile(archivePath, fixture.archive);
+});
+
+test("actual privileged inline validator rejects bound hostile nested smoke bytes", async (context) => {
+  const smoke = fixtureSmoke("coverages-wcs-basic");
+  smoke.results[0].staticJourney = coverageSmokeJourney();
+  const fixture = await publicationFixture(
+    "index.html",
+    "coverages-wcs-basic",
+    smoke,
+  );
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  assert.match((await runPrivilegedValidator(fixture)).toString(), /PASS/u);
+  const mutations = [
+    (value) => (value.results[0].staticJourney.ogc.mounted.extra = true),
+    (value) => (value.results[0].staticJourney.ogc.cancellation = null),
+    (value) =>
+      (value.results[0].staticJourney.requestProof.wcsSuccess = "true"),
+    (value) => (value.results[0].staticJourney.beforeDispose.phase = "ready"),
+    (value) => (value.results[0].staticJourney.visibleEvidence.pixel = "451 m"),
+  ];
+  for (const mutate of mutations) {
+    const changed = clone(smoke);
+    mutate(changed);
+    await bindRawSmokeMutation(fixture, changed);
+    await assert.rejects(runPrivilegedValidator(fixture));
+    await restoreBoundReceipts(fixture);
+  }
+});
+
+test("canonical ustar name-prefix split is unique in both validators", async (context) => {
+  const first = "a".repeat(40);
+  const second = "b".repeat(40);
+  const leaf = `${"c".repeat(30)}.txt`;
+  const relativePath = `${first}/${second}/${leaf}`;
+  const fixture = await publicationFixture(relativePath);
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  assert.match((await runPrivilegedValidator(fixture)).toString(), /PASS/u);
+  const hostile = mutatedArchive(fixture.archive, (tar) => {
+    const entries = tarEntries(tar);
+    const header = entries[3].subarray(0, 512);
+    header.fill(0, 0, 100);
+    header.write(`${second}/${leaf}`, 0, "utf8");
+    header.fill(0, 345, 500);
+    header.write(`alpha/${first}`, 345, "utf8");
+    recalculateChecksum(header);
+    Buffer.concat([...entries, Buffer.alloc(1024)]).copy(tar);
+  });
+  assert.throws(() =>
+    parseCanonicalArchive(hostile, {
+      manifestBytes: fixture.manifestBytes,
+      manifest: fixture.manifest,
+      sourceDateEpoch: EPOCH,
+    }),
+  );
+  await bindArchiveMutation(fixture, hostile);
+  await assert.rejects(runPrivilegedValidator(fixture));
+});
+
+test("native PAX and platform tar streams are hostile fixtures for both validators", async (context) => {
+  const fixture = await publicationFixture();
+  context.after(() => rm(fixture.root, { recursive: true, force: true }));
+  const nativeRoot = path.join(fixture.root, "native");
+  await mkdir(nativeRoot);
+  await writeFile(path.join(nativeRoot, `${"n".repeat(140)}.txt`), "native\n");
+  const formats = [
+    ["pax", ["--format", "pax"]],
+    process.platform === "win32"
+      ? ["bsdtar", []]
+      : ["gnu", ["--format", "gnu"]],
+  ];
+  for (const [format, formatArguments] of formats) {
+    const tarPath = path.join(fixture.root, `native-${format}.tar`);
+    execFileSync(
+      "tar",
+      [...formatArguments, "-cf", tarPath, "-C", nativeRoot, "."],
+      { stdio: "pipe" },
+    );
+    const archive = gzipSync(await readFile(tarPath), { level: 9, mtime: 0 });
+    archive[8] = 0;
+    archive[9] = 3;
+    assert.throws(() =>
+      parseCanonicalArchive(archive, {
+        manifestBytes: fixture.manifestBytes,
+        manifest: fixture.manifest,
+        sourceDateEpoch: EPOCH,
+      }),
+    );
+    await bindArchiveMutation(fixture, archive);
+    await assert.rejects(runPrivilegedValidator(fixture));
+    await restoreBoundReceipts(fixture);
+  }
 });
 
 test("manifest and nested smoke schemas reject extras, wrong types, enums, and ranges", () => {
@@ -446,6 +818,60 @@ test("manifest and nested smoke schemas reject extras, wrong types, enums, and r
     const changed = clone(smoke);
     mutate(changed);
     assert.throws(() => normalizeSmoke(changed, manifest, SOURCE, EPOCH));
+  }
+});
+
+test("coverage and live smoke proofs reject hostile recursive mutations", () => {
+  const coverageManifest = fixtureManifest();
+  coverageManifest.samples[0].id = "coverages-wcs-basic";
+  const coverage = fixtureSmoke();
+  coverage.results[0].id = "coverages-wcs-basic";
+  coverage.results[0].staticJourney = coverageSmokeJourney();
+  normalizeSmoke(coverage, coverageManifest, SOURCE, EPOCH);
+  const coverageMutations = [
+    (value) => (value.results[0].staticJourney.ogc.mounted.extra = true),
+    (value) => (value.results[0].staticJourney.ogc.cancellation.status = null),
+    (value) =>
+      (value.results[0].staticJourney.requestProof.wcsSuccess = "true"),
+    (value) =>
+      (value.results[0].staticJourney.beforeDispose.centerPixelColor = [
+        221, 174,
+      ]),
+    (value) =>
+      (value.results[0].staticJourney.disposal.revokedObjectUrlCount = 1),
+    (value) => (value.results[0].staticJourney.visibleEvidence.pixel = "451 m"),
+  ];
+  for (const mutate of coverageMutations) {
+    const changed = clone(coverage);
+    mutate(changed);
+    assert.throws(() =>
+      normalizeSmoke(changed, coverageManifest, SOURCE, EPOCH),
+    );
+  }
+
+  const liveManifest = fixtureManifest();
+  liveManifest.samples[0].id = "service-explorer";
+  liveManifest.samples[0].runtimeHosting = "external-live-endpoint";
+  liveManifest.samples[0].runnability = "requires-live-endpoint";
+  const live = fixtureSmoke();
+  live.results[0].id = "service-explorer";
+  live.results[0].liveProbe = {
+    passed: true,
+    origin: "https://demo.pygeoapi.io",
+    status: 200,
+    semantic: "geojson-feature-collection",
+    featureCount: 1,
+  };
+  normalizeSmoke(live, liveManifest, SOURCE, EPOCH);
+  for (const mutate of [
+    (value) => (value.results[0].liveProbe.origin = "https://example.invalid"),
+    (value) => (value.results[0].liveProbe.status = "200"),
+    (value) => (value.results[0].liveProbe.featureCount = 0),
+    (value) => (value.results[0].liveProbe.extra = true),
+  ]) {
+    const changed = clone(live);
+    mutate(changed);
+    assert.throws(() => normalizeSmoke(changed, liveManifest, SOURCE, EPOCH));
   }
 });
 

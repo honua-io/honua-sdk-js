@@ -19,19 +19,21 @@ true. Do not dispatch while either value is false.
 The read-only build job checks out the exact SHA into three clean, credentialless trees: one governed
 workflow/tooling tree and two independent producer trees. It uses Node `20.19.0` and `npm ci`, runs
 the canonical bundle build and verification in both producer trees, and byte-compares both manifests,
-archives, and pack metadata. The packer snapshots each verified file once, sorts POSIX ustar paths,
-uses the source commit timestamp, uid/gid zero, normalized `0644`/`0755` modes, and emits a gzip
-stream with no name or timestamp.
+archives, and pack metadata. The packer snapshots each verified file once, sorts POSIX ustar paths
+using explicit UTF-8 byte order, uses the source commit timestamp, uid/gid zero, normalized
+`0644`/`0755` modes, and emits a gzip
+stream with no name or timestamp and a specified sequence of maximum-size stored DEFLATE blocks.
 
-The build job runs bounded producer browser smoke, validates its exact schema/source/result set, and
+The build job runs bounded producer browser smoke, canonicalizes visible-text whitespace, validates its exact recursive schema/source/result set, and
 creates two receipts. The deterministic receipt is a release asset. It binds the source, lockfile,
 runtime, workflow and action identities, normalized smoke evidence, file count, asset sizes and
 SHA-256 digests, and two-build byte equality. The per-run receipt carries run ID/attempt, hosted runner
 image/version/OS/architecture, and the raw smoke-receipt digest; it is attested but not released.
 
 The privileged job has no checkout and executes no repository or build-controlled program. A pinned
-download action transfers only the four staged files. Reviewed inline steps validate the exact file
-set, types, receipt schemas, identities, sizes, SHA-256 digests, manifest/archive membership, and
+download action transfers only the five governed files, including the raw browser-smoke receipt that
+is not published. Reviewed inline steps validate the exact file set, types, recursive smoke and receipt
+schemas, identities, sizes, SHA-256 digests, manifest/archive membership, canonical tar/gzip bytes, and
 native tar readability before exposing a token. GitHub CLI `2.93.0` is downloaded and accepted only
 at its pinned Linux amd64 archive digest.
 
@@ -67,9 +69,11 @@ records the governed Node, lockfile, workflow, runner, action, browser-smoke, an
 source identities. The released receipt is deterministic; run ID, attempt, runner
 image, and other per-run fields remain only in the separately attested run receipt.
 
-The privileged job checks four regular artifact files before any API or OIDC-bearing
+The privileged job checks five regular artifact files before any API or OIDC-bearing
 step. Its inline validator independently parses the manifest, receipts, gzip stream,
-and every ustar header and member byte. Absolute/traversing/control-character paths,
+the raw smoke proof, and every ustar header and member byte. It reconstructs the exact
+ustar headers, padding, order, end blocks, and deterministic gzip stream and requires
+byte equality. Absolute/traversing/control-character paths,
 links, devices, FIFOs, PAX/GNU extensions, duplicates, reordering, metadata drift,
 and manifest digest mismatches fail closed. All actions resolve to exact verified
 commit objects; provenance uses

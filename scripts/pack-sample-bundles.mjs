@@ -2,10 +2,9 @@
 
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, mkdir, open, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { gzipSync } from "node:zlib";
 
 const MANIFEST_NAME = "sample-bundles.v2.json";
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -18,6 +17,53 @@ function invariant(condition, message) {
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function compareUtf8(left, right) {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+const CRC32_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1)
+    value = (value & 1) === 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  return value >>> 0;
+});
+
+function crc32(bytes) {
+  let value = 0xffffffff;
+  for (const byte of bytes)
+    value = CRC32_TABLE[(value ^ byte) & 0xff] ^ (value >>> 8);
+  return (value ^ 0xffffffff) >>> 0;
+}
+
+/**
+ * Emit the one canonical gzip representation used by immutable sample bundles.
+ * Its DEFLATE payload is a sequence of maximum-size stored blocks. This avoids
+ * zlib-version heuristics entirely while retaining a standards-compliant gzip
+ * stream whose bytes can be reproduced independently in the privileged job.
+ */
+export function canonicalGzip(bytes) {
+  invariant(Buffer.isBuffer(bytes), "canonical gzip input must be bytes");
+  const blocks = [];
+  if (bytes.length === 0) blocks.push(Buffer.from([1, 0, 0, 0xff, 0xff]));
+  for (let offset = 0; offset < bytes.length; offset += 65_535) {
+    const length = Math.min(65_535, bytes.length - offset);
+    const block = Buffer.alloc(5 + length);
+    block[0] = offset + length === bytes.length ? 1 : 0;
+    block.writeUInt16LE(length, 1);
+    block.writeUInt16LE(0xffff ^ length, 3);
+    bytes.copy(block, 5, offset, offset + length);
+    blocks.push(block);
+  }
+  const trailer = Buffer.alloc(8);
+  trailer.writeUInt32LE(crc32(bytes), 0);
+  trailer.writeUInt32LE(bytes.length >>> 0, 4);
+  return Buffer.concat([
+    Buffer.from([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 3]),
+    ...blocks,
+    trailer,
+  ]);
 }
 
 function safeArchivePath(value) {
@@ -317,7 +363,7 @@ export async function pack({
 
   const files = new Map([[MANIFEST_NAME, manifestBytes]]);
   for (const [archivePath, record] of [...expected].sort(([left], [right]) =>
-    left.localeCompare(right),
+    compareUtf8(left, right),
   )) {
     const bytes = await snapshotRegularFile(
       path.join(bundleRoot, ...archivePath.split("/")),
@@ -344,13 +390,9 @@ export async function pack({
       type: "0",
       bytes,
     })),
-  ].sort((left, right) => left.path.localeCompare(right.path));
+  ].sort((left, right) => compareUtf8(left.path, right.path));
   const tar = createTar(entries, mtime);
-  const archive = gzipSync(tar, { level: 9, mtime: 0 });
-  // zlib writes the host platform in the informational gzip OS byte. Normalize
-  // it to the gzip -n Unix value so Windows and hosted Linux emit identical
-  // bytes; this byte is not part of the deflate payload or trailer checksum.
-  archive[9] = 3;
+  const archive = canonicalGzip(tar);
   await mkdir(path.dirname(output), { recursive: true });
   await writeFile(output, archive, { flag: "wx", mode: 0o644 });
   return {

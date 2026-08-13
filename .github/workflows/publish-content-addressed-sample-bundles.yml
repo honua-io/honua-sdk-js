@@ -169,8 +169,9 @@ jobs:
             publication/sample-bundles-attestation.v1.json \
             publication/sample-bundles-run-attestation.v1.json \
             staged/
-          test "$(find staged -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 4
-          test "$(find staged -mindepth 1 -maxdepth 1 | wc -l)" -eq 4
+          cp source-a/.artifacts/sample-bundle-smoke/browser-smoke.v1.json staged/
+          test "$(find staged -mindepth 1 -maxdepth 1 -type f | wc -l)" -eq 5
+          test "$(find staged -mindepth 1 -maxdepth 1 | wc -l)" -eq 5
 
       - name: Upload governed publication
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -205,7 +206,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import gzip, hashlib, json, os, pathlib, re, stat, struct, zlib
+          import datetime, hashlib, json, os, pathlib, re, stat, struct, zlib
 
           root = pathlib.Path("staged")
           expected_names = {
@@ -213,6 +214,7 @@ jobs:
               "sample-bundles.tar.gz",
               "sample-bundles-attestation.v1.json",
               "sample-bundles-run-attestation.v1.json",
+              "browser-smoke.v1.json",
           }
           entries = list(root.iterdir())
           assert {entry.name for entry in entries} == expected_names
@@ -251,9 +253,11 @@ jobs:
           archive_bytes = read_bytes("sample-bundles.tar.gz")
           deterministic_bytes = read_bytes("sample-bundles-attestation.v1.json")
           run_bytes = read_bytes("sample-bundles-run-attestation.v1.json")
+          smoke_bytes = read_bytes("browser-smoke.v1.json")
           manifest = json.loads(manifest_bytes)
           deterministic = json.loads(deterministic_bytes)
           run = json.loads(run_bytes)
+          smoke_raw = json.loads(smoke_bytes)
 
           keys(manifest, ["format", "schemaVersion", "build", "samples", "excluded"])
           assert manifest["format"] == "honua.sdk.sample-bundles.v2" and manifest["schemaVersion"] == 2
@@ -289,7 +293,7 @@ jobs:
                   relative = record["path"]
                   bounded_string(relative, 255)
                   assert "\\" not in relative and not relative.startswith("/") and all(part not in ("", ".", "..") for part in relative.split("/"))
-                  assert relative > previous
+                  assert relative.encode("utf-8") > previous.encode("utf-8")
                   previous = relative
                   integer(record["bytes"], 0, 1_000_000_000)
                   assert re.fullmatch(r"[0-9a-f]{64}", record["sha256"])
@@ -297,10 +301,91 @@ jobs:
                   archive_path = f"{sample_id}/{relative}"
                   assert archive_path not in files
                   files[archive_path] = record
-          assert sample_ids == sorted(set(sample_ids))
+          assert sample_ids == sorted(set(sample_ids), key=lambda value: value.encode("utf-8"))
           for excluded in manifest["excluded"]:
               keys(excluded, ["id", "category", "reason"])
               assert excluded["id"] not in sample_ids
+
+          def validate_coverage_journey(value):
+              keys(value, ["ogc", "wcs", "requestProof", "beforeDispose", "disposal", "visibleEvidence"])
+              for protocol, source_id in (("ogc", "ogc-elevation"), ("wcs", "wcs-elevation")):
+                  proof = value[protocol]
+                  keys(proof, ["mounted", "cancellation", "degradation"])
+                  keys(proof["mounted"], ["protocol", "sourceId", "sourceMounted", "layerMounted"])
+                  assert proof["mounted"] == {"protocol": protocol, "sourceId": source_id, "sourceMounted": True, "layerMounted": True}
+                  keys(proof["cancellation"], ["status", "activeProtocol"])
+                  assert proof["cancellation"] == {"status": "cancelled", "activeProtocol": protocol}
+                  keys(proof["degradation"], ["status", "code", "activeProtocol"])
+                  assert proof["degradation"] == {"status": "degraded", "code": "InvalidParameterValue", "activeProtocol": protocol}
+              keys(value["requestProof"], ["allVirtualFixture", "ogcSuccess", "ogcCancellation", "ogcDegradation", "wcsSuccess", "wcsCancellation", "wcsDegradation"])
+              assert all(item is True for item in value["requestProof"].values())
+              before = value["beforeDispose"]
+              keys(before, ["ready", "phase", "fixtureDigest", "ogcByteLength", "wcsByteLength", "imageWidth", "imageHeight", "centerPixelValue", "centerPixelColor", "cancellationCount", "degradationCount", "requestCount", "objectUrlsUnique", "switchedObjectUrlRevoked", "activeObjectUrl", "protocol", "sourceId", "sourceMounted", "layerMounted"])
+              bounded_string(before["activeObjectUrl"], 2048)
+              assert before["activeObjectUrl"].startswith("blob:")
+              expected_before = {
+                  "ready": True,
+                  "phase": "degraded",
+                  "fixtureDigest": "8c7b5b3f8bd31bca2df07c4a70254d75e70d63838c2f77e033def3c1b8d2acff",
+                  "ogcByteLength": 281908,
+                  "wcsByteLength": 281908,
+                  "imageWidth": 320,
+                  "imageHeight": 220,
+                  "centerPixelValue": 450,
+                  "centerPixelColor": [221, 174, 82],
+                  "cancellationCount": 2,
+                  "degradationCount": 2,
+                  "requestCount": 12,
+                  "objectUrlsUnique": True,
+                  "switchedObjectUrlRevoked": True,
+                  "protocol": "wcs",
+                  "sourceId": "wcs-elevation",
+                  "sourceMounted": True,
+                  "layerMounted": True,
+              }
+              assert {key: value for key, value in before.items() if key != "activeObjectUrl"} == expected_before
+              keys(value["disposal"], ["disposed", "ready", "sourceId", "activeObjectUrl", "sourceCleanupVerified", "mapRemoved", "canvasCount", "revokedBothObjectUrls", "revokedObjectUrlCount"])
+              assert value["disposal"] == {"disposed": True, "ready": False, "sourceId": None, "activeObjectUrl": None, "sourceCleanupVerified": True, "mapRemoved": True, "canvasCount": 0, "revokedBothObjectUrls": True, "revokedObjectUrlCount": 2}
+              visible = value["visibleEvidence"]
+              keys(visible, ["canvasCount", "legend", "pixel"])
+              bounded_string(visible["legend"], 4096)
+              assert visible["canvasCount"] == 1 and "0 m" in visible["legend"] and "600 m" in visible["legend"] and visible["pixel"] == "450 m"
+
+          def validate_raw_smoke(value, source_epoch):
+              keys(value, ["format", "generatedAt", "manifest", "summary", "results"])
+              assert value["format"] == "honua.sdk.sample-bundle-browser-smoke.v1"
+              generated = datetime.datetime.fromtimestamp(source_epoch, datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+              assert value["generatedAt"] == generated
+              keys(value["manifest"], ["format", "schemaVersion", "commit"])
+              assert value["manifest"] == {"format": manifest["format"], "schemaVersion": 2, "commit": source}
+              keys(value["summary"], ["total", "passed", "failed"])
+              assert value["summary"] == {"total": len(runnable_ids), "passed": len(runnable_ids), "failed": 0}
+              assert type(value["results"]) is list and [result["id"] for result in value["results"]] == runnable_ids
+              for result in value["results"]:
+                  sample_id = result["id"]
+                  keys(result, ["id", "title", "passed", "requestCount", "network", "staticJourney", "liveProbe", "failures", "screenshot"])
+                  bounded_string(result["title"], 512)
+                  assert result["passed"] is True
+                  integer(result["requestCount"], 1, 10000)
+                  keys(result["network"], ["offOriginRequestCount", "clientErrorResponseCount"])
+                  assert result["network"] == {"offOriginRequestCount": 0, "clientErrorResponseCount": 0}
+                  assert result["failures"] == [] and result["screenshot"] is None
+                  if sample_id == "coverages-wcs-basic":
+                      validate_coverage_journey(result["staticJourney"])
+                  elif sample_id == "columnar-query-quickstart":
+                      keys(result["staticJourney"], ["resultReady", "canvasCount", "sourceFeatureCount", "markerCount"])
+                      assert result["staticJourney"]["resultReady"] is True
+                      for key in ("canvasCount", "sourceFeatureCount", "markerCount"):
+                          integer(result["staticJourney"][key], 1, 10000)
+                  else:
+                      assert result["staticJourney"] is None
+                  if sample_id == "service-explorer":
+                      keys(result["liveProbe"], ["passed", "origin", "status", "semantic", "featureCount"])
+                      assert result["liveProbe"]["passed"] is True and result["liveProbe"]["origin"] == "https://demo.pygeoapi.io" and result["liveProbe"]["semantic"] == "geojson-feature-collection"
+                      integer(result["liveProbe"]["status"], 200, 299)
+                      integer(result["liveProbe"]["featureCount"], 1, 1000000)
+                  else:
+                      assert result["liveProbe"] is None
 
           keys(deterministic, ["schema", "source", "build", "publication", "smoke"])
           assert deterministic["schema"] == "honua.sdk.sample-bundle-attestation.v1"
@@ -308,6 +393,7 @@ jobs:
           assert deterministic["source"] == {"repository": "honua-io/honua-sdk-js", "commit": source, "ref": "refs/heads/trunk", "sourceDateEpoch": deterministic["source"]["sourceDateEpoch"]}
           source_epoch = deterministic["source"]["sourceDateEpoch"]
           integer(source_epoch, 1, 4_102_444_800)
+          validate_raw_smoke(smoke_raw, source_epoch)
           keys(deterministic["build"], ["node", "lockfileSha256", "workflow", "actions"])
           assert deterministic["build"] == {"node": "20.19.0", "lockfileSha256": lock_sha, "workflow": ".github/workflows/publish-content-addressed-sample-bundles.yml", "actions": action_map}
           keys(deterministic["publication"], ["tag", "fileCount", "memberCount", "assets"])
@@ -321,16 +407,21 @@ jobs:
           smoke = deterministic["smoke"]
           keys(smoke, ["rawSha256", "total", "passed", "failed", "results"])
           assert re.fullmatch(r"[0-9a-f]{64}", smoke["rawSha256"])
+          assert smoke["rawSha256"] == hashlib.sha256(smoke_bytes).hexdigest()
           assert smoke["total"] == smoke["passed"] == len(runnable_ids) and smoke["failed"] == 0
           assert type(smoke["results"]) is list and [result["id"] for result in smoke["results"]] == runnable_ids
+          raw_results = {result["id"]: result for result in smoke_raw["results"]}
           for result in smoke["results"]:
               keys(result, ["id", "passed", "requestCount", "network", "staticJourney", "liveProbe"])
               assert result["passed"] is True
               integer(result["requestCount"], 1, 10000)
+              assert result["requestCount"] == raw_results[result["id"]]["requestCount"]
               assert result["network"] == {"offOriginRequestCount": 0, "clientErrorResponseCount": 0}
               keys(result["staticJourney"], ["policy", "status"])
               assert result["staticJourney"]["policy"] in ("not-required", "coverage", "interaction")
               assert result["staticJourney"]["status"] in ("not-required", "passed")
+              expected_static = "coverage" if result["id"] == "coverages-wcs-basic" else "interaction" if result["id"] == "columnar-query-quickstart" else "not-required"
+              assert result["staticJourney"] == {"policy": expected_static, "status": "not-required" if expected_static == "not-required" else "passed"}
               live = result["liveProbe"]
               assert type(live) is dict and {"policy", "status"} <= set(live) <= {"policy", "status", "origin", "httpStatus", "featureCount"}
               if result["id"] == "service-explorer":
@@ -338,6 +429,7 @@ jobs:
                   assert live["policy"] == "geojson-feature-collection" and live["status"] == "passed" and live["origin"] == "https://demo.pygeoapi.io"
                   integer(live["httpStatus"], 200, 299)
                   integer(live["featureCount"], 1, 1_000_000)
+                  assert live["httpStatus"] == raw_results[result["id"]]["liveProbe"]["status"] and live["featureCount"] == raw_results[result["id"]]["liveProbe"]["featureCount"]
               else:
                   assert live == {"policy": "not-required", "status": "not-required"}
 
@@ -350,7 +442,7 @@ jobs:
           assert all(type(value) is str and value for value in run["runner"].values())
           assert run["actions"] == action_map
 
-          assert archive_bytes[:10] == bytes([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 2, 3])
+          assert archive_bytes[:10] == bytes([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 3])
           inflater = zlib.decompressobj(31)
           tar = inflater.decompress(archive_bytes) + inflater.flush()
           assert inflater.eof and inflater.unused_data == b"" and len(tar) % 512 == 0 and len(tar) >= 1024
@@ -360,7 +452,7 @@ jobs:
           for name in expected_files:
               parts = name.split("/")
               directories.update("/".join(parts[:index]) + "/" for index in range(1, len(parts)))
-          expected_members = sorted([(name, "5") for name in directories] + [(name, "0") for name in expected_files])
+          expected_members = sorted([(name, "5") for name in directories] + [(name, "0") for name in expected_files], key=lambda value: value[0].encode("utf-8"))
 
           def cstring(field):
               end = field.find(b"\0")
@@ -376,7 +468,64 @@ jobs:
               assert field[-1] == 0 and re.fullmatch(rb"[0-7]+", field[:-1])
               return int(field[:-1], 8)
 
+          def split_ustar_path(value):
+              encoded = value.encode("utf-8")
+              if len(encoded) <= 100:
+                  return value, ""
+              separators = [index for index, character in enumerate(value) if character == "/"]
+              for index in reversed(separators):
+                  prefix, name = value[:index], value[index + 1:]
+                  if len(prefix.encode("utf-8")) <= 155 and len(name.encode("utf-8")) <= 100:
+                      return name, prefix
+              raise AssertionError(f"path cannot be represented as ustar: {value}")
+
+          def put_string(header, offset, length, value):
+              encoded = value.encode("utf-8")
+              assert len(encoded) <= length
+              header[offset:offset + len(encoded)] = encoded
+
+          def put_octal(header, offset, length, value):
+              assert type(value) is int and value >= 0
+              encoded = format(value, "o").rjust(length - 1, "0").encode("ascii")
+              assert len(encoded) == length - 1
+              header[offset:offset + length - 1] = encoded
+              header[offset + length - 1] = 0
+
+          def canonical_header(member, kind, size):
+              logical = member[:-1] if kind == "5" else member
+              name, prefix = split_ustar_path(logical)
+              header = bytearray(512)
+              put_string(header, 0, 100, name)
+              put_octal(header, 100, 8, 0o755 if kind == "5" else 0o644)
+              put_octal(header, 108, 8, 0)
+              put_octal(header, 116, 8, 0)
+              put_octal(header, 124, 12, size)
+              put_octal(header, 136, 12, source_epoch)
+              header[148:156] = b" " * 8
+              header[156] = ord(kind)
+              put_string(header, 257, 6, "ustar")
+              put_string(header, 263, 2, "00")
+              put_octal(header, 329, 8, 0)
+              put_octal(header, 337, 8, 0)
+              put_string(header, 345, 155, prefix)
+              checksum = format(sum(header), "o").rjust(6, "0").encode("ascii")
+              assert len(checksum) == 6
+              header[148:154] = checksum
+              header[154:156] = b"\0 "
+              return bytes(header)
+
+          def canonical_gzip(payload):
+              blocks = []
+              if not payload:
+                  blocks.append(bytes([1, 0, 0, 0xff, 0xff]))
+              for offset in range(0, len(payload), 65535):
+                  chunk = payload[offset:offset + 65535]
+                  final = 1 if offset + len(chunk) == len(payload) else 0
+                  blocks.append(bytes([final]) + struct.pack("<HH", len(chunk), 0xffff ^ len(chunk)) + chunk)
+              return bytes([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 3]) + b"".join(blocks) + struct.pack("<II", zlib.crc32(payload) & 0xffffffff, len(payload) & 0xffffffff)
+
           actual = []
+          contents = {}
           seen = set()
           offset = 0
           while offset + 512 <= len(tar):
@@ -414,9 +563,21 @@ jobs:
                   assert record["bytes"] == size and record["sha256"] == hashlib.sha256(content).hexdigest()
                   if "content" in record:
                       assert content == record["content"]
+                  contents[member] = content
               actual.append((member, kind))
               offset += size + padding
           assert offset == len(tar) and actual == expected_members
+          canonical_blocks = []
+          for member, kind in expected_members:
+              content = contents[member] if kind == "0" else b""
+              canonical_blocks.append(canonical_header(member, kind, len(content)))
+              if kind == "0":
+                  canonical_blocks.append(content)
+                  canonical_blocks.append(b"\0" * ((512 - len(content) % 512) % 512))
+          canonical_blocks.append(b"\0" * 1024)
+          canonical_tar = b"".join(canonical_blocks)
+          assert tar == canonical_tar
+          assert archive_bytes == canonical_gzip(canonical_tar)
           assert deterministic["publication"]["fileCount"] == len(expected_files)
           assert deterministic["publication"]["memberCount"] == len(expected_members)
           print("privileged byte and provenance validation: PASS")

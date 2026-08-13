@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { gunzipSync, gzipSync } from "node:zlib";
+import { gunzipSync } from "node:zlib";
 import { parse as parseYaml } from "yaml";
 import {
   PUBLISHED_LIVE_SAMPLE_POLICY,
@@ -30,10 +30,37 @@ export const ACTION_COMMITS = new Map(
     return [repository, commit];
   }),
 );
+export const RUN_BODY_SHA256 = Object.freeze({
+  "build-and-smoke/Gate exact current trunk":
+    "a7363cb644c8da6c1b30cb30f31b273b7064f7ae85b0258b23dd8e19c2383d11",
+  "build-and-smoke/Install source A":
+    "9db3f780def6105eee3cc930de4d0982607760820fddaa3facdd3813ccb40628",
+  "build-and-smoke/Install source B":
+    "9db3f780def6105eee3cc930de4d0982607760820fddaa3facdd3813ccb40628",
+  "build-and-smoke/Build, verify, pack, and smoke source A":
+    "6cbbb6c9db8279804d1cf42f23c0d2a713dd6035b6a994478577200d1e598bb2",
+  "build-and-smoke/Build, verify, and pack source B":
+    "7bb1b23018634a3f35b4b08b6fb0e44cf97b6bd24737c7d489fb7a8b752431d6",
+  "build-and-smoke/Compare independent builds":
+    "bea3664e935a4bab051043269ff931b6d447cfb3f103db9904217fe1a38ee908",
+  "build-and-smoke/Create deterministic and run receipts":
+    "85c2488b7e28eee4e6ed9cccc0734925fe68b8a641e5a0d88a63cb28827862cf",
+  "build-and-smoke/Run governance tests and policy":
+    "31c9adb88c3990cf2bb12d3fd0c237683cceb86f6092353aa7943c9e614230ff",
+  "build-and-smoke/Stage transfer":
+    "6709f7c8d6a676f5eace92ca5dc2709df45a75efb7130b7eab1c92edb6749c6b",
+  "attest-and-publish/Validate all bytes before tokens":
+    "f9960f94e17bb67db36f1c4b6ffe21653d8a02e1c4c8e78558beceab0b8adfbf",
+  "attest-and-publish/Gate current trunk and immutable releases":
+    "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
+  "attest-and-publish/Create or accept exact immutable release":
+    "f72f5efcc7a13db37e969a6135ecba8fbb35e5b49a641ad4421f466301044ca0",
+  "attest-and-publish/Redownload, compare, and verify attestations":
+    "c67457a520966d46bdfad17260782af7c450a7de396b7177a4ff22bd94fd3c54",
+});
 
 const SHA = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
-const DIGEST = /^sha256:[0-9a-f]{64}$/u;
 const SAMPLE_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const CONTROL = /[\0-\x1f\x7f]/u;
 const MANIFEST_NAME = "sample-bundles.v2.json";
@@ -47,6 +74,46 @@ function invariant(condition, message) {
 
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function compareUtf8(left, right) {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
+const CRC32_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1)
+    value = (value & 1) === 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+  return value >>> 0;
+});
+
+function crc32(bytes) {
+  let value = 0xffffffff;
+  for (const byte of bytes)
+    value = CRC32_TABLE[(value ^ byte) & 0xff] ^ (value >>> 8);
+  return (value ^ 0xffffffff) >>> 0;
+}
+
+function canonicalGzip(bytes) {
+  const blocks = [];
+  if (bytes.length === 0) blocks.push(Buffer.from([1, 0, 0, 0xff, 0xff]));
+  for (let offset = 0; offset < bytes.length; offset += 65_535) {
+    const length = Math.min(65_535, bytes.length - offset);
+    const block = Buffer.alloc(5 + length);
+    block[0] = offset + length === bytes.length ? 1 : 0;
+    block.writeUInt16LE(length, 1);
+    block.writeUInt16LE(0xffff ^ length, 3);
+    bytes.copy(block, 5, offset, offset + length);
+    blocks.push(block);
+  }
+  const trailer = Buffer.alloc(8);
+  trailer.writeUInt32LE(crc32(bytes), 0);
+  trailer.writeUInt32LE(bytes.length >>> 0, 4);
+  return Buffer.concat([
+    Buffer.from([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 3]),
+    ...blocks,
+    trailer,
+  ]);
 }
 
 function stableJson(value) {
@@ -186,7 +253,7 @@ export function validateManifest(manifest, { sourceCommit, lockfileSha256 }) {
       "manifest sample",
     );
     invariant(
-      SAMPLE_ID.test(sample.id) && sample.id > previousId,
+      SAMPLE_ID.test(sample.id) && compareUtf8(sample.id, previousId) > 0,
       "manifest sample ids are invalid, duplicated, or unordered",
     );
     previousId = sample.id;
@@ -282,7 +349,7 @@ export function validateManifest(manifest, { sourceCommit, lockfileSha256 }) {
       );
       safePath(file.path, `${sample.id} file path`);
       invariant(
-        file.path > previousPath,
+        compareUtf8(file.path, previousPath) > 0,
         `${sample.id}: file paths are duplicated or unordered`,
       );
       previousPath = file.path;
@@ -356,6 +423,183 @@ function validateJsonTree(value, label, depth = 0) {
     );
     validateJsonTree(entry, `${label}.${key}`, depth + 1);
   }
+}
+
+function validateCoverageSmokeJourney(value, policy, label) {
+  exactKeys(
+    value,
+    [
+      "ogc",
+      "wcs",
+      "requestProof",
+      "beforeDispose",
+      "disposal",
+      "visibleEvidence",
+    ],
+    label,
+  );
+  for (const protocol of ["ogc", "wcs"]) {
+    const proof = value[protocol];
+    exactKeys(
+      proof,
+      ["mounted", "cancellation", "degradation"],
+      `${label}.${protocol}`,
+    );
+    exactKeys(
+      proof.mounted,
+      ["protocol", "sourceId", "sourceMounted", "layerMounted"],
+      `${label}.${protocol}.mounted`,
+    );
+    invariant(
+      JSON.stringify(proof.mounted) ===
+        JSON.stringify({
+          protocol,
+          sourceId: policy[`${protocol}SourceId`],
+          sourceMounted: true,
+          layerMounted: true,
+        }),
+      `${label}.${protocol}.mounted drifted`,
+    );
+    exactKeys(
+      proof.cancellation,
+      ["status", "activeProtocol"],
+      `${label}.${protocol}.cancellation`,
+    );
+    invariant(
+      proof.cancellation.status === "cancelled" &&
+        proof.cancellation.activeProtocol === protocol,
+      `${label}.${protocol}.cancellation drifted`,
+    );
+    exactKeys(
+      proof.degradation,
+      ["status", "code", "activeProtocol"],
+      `${label}.${protocol}.degradation`,
+    );
+    invariant(
+      proof.degradation.status === "degraded" &&
+        proof.degradation.code === "InvalidParameterValue" &&
+        proof.degradation.activeProtocol === protocol,
+      `${label}.${protocol}.degradation drifted`,
+    );
+  }
+  exactKeys(
+    value.requestProof,
+    [
+      "allVirtualFixture",
+      "ogcSuccess",
+      "ogcCancellation",
+      "ogcDegradation",
+      "wcsSuccess",
+      "wcsCancellation",
+      "wcsDegradation",
+    ],
+    `${label}.requestProof`,
+  );
+  invariant(
+    Object.values(value.requestProof).every((entry) => entry === true),
+    `${label}.requestProof drifted`,
+  );
+  exactKeys(
+    value.beforeDispose,
+    [
+      "ready",
+      "phase",
+      "fixtureDigest",
+      "ogcByteLength",
+      "wcsByteLength",
+      "imageWidth",
+      "imageHeight",
+      "centerPixelValue",
+      "centerPixelColor",
+      "cancellationCount",
+      "degradationCount",
+      "requestCount",
+      "objectUrlsUnique",
+      "switchedObjectUrlRevoked",
+      "activeObjectUrl",
+      "protocol",
+      "sourceId",
+      "sourceMounted",
+      "layerMounted",
+    ],
+    `${label}.beforeDispose`,
+  );
+  const before = value.beforeDispose;
+  nonemptyString(
+    before.activeObjectUrl,
+    `${label}.beforeDispose.activeObjectUrl`,
+    2048,
+  );
+  invariant(
+    before.activeObjectUrl.startsWith("blob:") &&
+      before.ready === true &&
+      before.phase === "degraded" &&
+      before.fixtureDigest === policy.fixtureDigest &&
+      before.ogcByteLength === policy.fixtureByteLength &&
+      before.wcsByteLength === policy.fixtureByteLength &&
+      before.imageWidth === policy.imageWidth &&
+      before.imageHeight === policy.imageHeight &&
+      before.centerPixelValue === policy.centerPixelValue &&
+      JSON.stringify(before.centerPixelColor) ===
+        JSON.stringify(policy.centerPixelColor) &&
+      before.cancellationCount === 2 &&
+      before.degradationCount === 2 &&
+      before.requestCount === 12 &&
+      before.objectUrlsUnique === true &&
+      before.switchedObjectUrlRevoked === true &&
+      before.protocol === "wcs" &&
+      before.sourceId === policy.wcsSourceId &&
+      before.sourceMounted === true &&
+      before.layerMounted === true,
+    `${label}.beforeDispose drifted`,
+  );
+  exactKeys(
+    value.disposal,
+    [
+      "disposed",
+      "ready",
+      "sourceId",
+      "activeObjectUrl",
+      "sourceCleanupVerified",
+      "mapRemoved",
+      "canvasCount",
+      "revokedBothObjectUrls",
+      "revokedObjectUrlCount",
+    ],
+    `${label}.disposal`,
+  );
+  invariant(
+    JSON.stringify(value.disposal) ===
+      JSON.stringify({
+        disposed: true,
+        ready: false,
+        sourceId: null,
+        activeObjectUrl: null,
+        sourceCleanupVerified: true,
+        mapRemoved: true,
+        canvasCount: 0,
+        revokedBothObjectUrls: true,
+        revokedObjectUrlCount: 2,
+      }),
+    `${label}.disposal drifted`,
+  );
+  exactKeys(
+    value.visibleEvidence,
+    ["canvasCount", "legend", "pixel"],
+    `${label}.visibleEvidence`,
+  );
+  nonemptyString(
+    value.visibleEvidence.legend,
+    `${label}.visibleEvidence.legend`,
+    4096,
+  );
+  invariant(
+    value.visibleEvidence.canvasCount === 1 &&
+      value.visibleEvidence.legend.includes(policy.legendMinText) &&
+      value.visibleEvidence.legend.includes(policy.legendMaxText) &&
+      value.visibleEvidence.pixel === policy.pixelText,
+    `${label}.visibleEvidence drifted`,
+  );
 }
 
 export function normalizeSmoke(smoke, manifest, sourceCommit, sourceDateEpoch) {
@@ -473,16 +717,9 @@ export function normalizeSmoke(smoke, manifest, sourceCommit, sourceDateEpoch) {
         for (const key of ["canvasCount", "sourceFeatureCount", "markerCount"])
           integer(result.staticJourney[key], 1, 10000, `${sample.id}.${key}`);
       } else {
-        exactKeys(
+        validateCoverageSmokeJourney(
           result.staticJourney,
-          [
-            "ogc",
-            "wcs",
-            "requestProof",
-            "beforeDispose",
-            "disposal",
-            "visibleEvidence",
-          ],
+          journeyPolicy,
           `${sample.id}.staticJourney`,
         );
       }
@@ -589,6 +826,80 @@ function parentDirectories(paths) {
   return result;
 }
 
+function splitUstarPath(value) {
+  if (Buffer.byteLength(value) <= 100) return { name: value, prefix: "" };
+  const separators = [...value.matchAll(/\//gu)].map((match) => match.index);
+  for (let index = separators.length - 1; index >= 0; index -= 1) {
+    const prefix = value.slice(0, separators[index]);
+    const name = value.slice(separators[index] + 1);
+    if (Buffer.byteLength(prefix) <= 155 && Buffer.byteLength(name) <= 100)
+      return { name, prefix };
+  }
+  throw new Error(`archive path cannot be represented as ustar: ${value}`);
+}
+
+function putCanonicalString(header, offset, length, value) {
+  const bytes = Buffer.from(value, "utf8");
+  invariant(bytes.length <= length, `ustar field overflow: ${value}`);
+  bytes.copy(header, offset);
+}
+
+function putCanonicalOctal(header, offset, length, value) {
+  integer(value, 0, Number.MAX_SAFE_INTEGER, "ustar numeric field");
+  const encoded = value.toString(8).padStart(length - 1, "0");
+  invariant(encoded.length === length - 1, "ustar numeric field overflow");
+  putCanonicalString(header, offset, length - 1, encoded);
+  header[offset + length - 1] = 0;
+}
+
+function canonicalTarHeader(archivePath, type, size, mtime) {
+  const logicalPath = type === "5" ? archivePath.slice(0, -1) : archivePath;
+  const { name, prefix } = splitUstarPath(logicalPath);
+  const header = Buffer.alloc(512);
+  putCanonicalString(header, 0, 100, name);
+  putCanonicalOctal(header, 100, 8, type === "5" ? 0o755 : 0o644);
+  putCanonicalOctal(header, 108, 8, 0);
+  putCanonicalOctal(header, 116, 8, 0);
+  putCanonicalOctal(header, 124, 12, size);
+  putCanonicalOctal(header, 136, 12, mtime);
+  header.fill(0x20, 148, 156);
+  header[156] = type.charCodeAt(0);
+  putCanonicalString(header, 257, 6, "ustar");
+  putCanonicalString(header, 263, 2, "00");
+  putCanonicalOctal(header, 329, 8, 0);
+  putCanonicalOctal(header, 337, 8, 0);
+  putCanonicalString(header, 345, 155, prefix);
+  const checksum = header.reduce((sum, byte) => sum + byte, 0);
+  putCanonicalString(header, 148, 6, checksum.toString(8).padStart(6, "0"));
+  header[154] = 0;
+  header[155] = 0x20;
+  return header;
+}
+
+function reconstructCanonicalTar(entries, contents, sourceDateEpoch) {
+  const blocks = [];
+  for (const entry of entries) {
+    const content =
+      entry.type === "0" ? contents.get(entry.path) : Buffer.alloc(0);
+    invariant(content, `${entry.path}: archive content is missing`);
+    blocks.push(
+      canonicalTarHeader(
+        entry.path,
+        entry.type,
+        content.length,
+        Number(sourceDateEpoch),
+      ),
+    );
+    if (entry.type === "0") {
+      blocks.push(content);
+      const remainder = content.length % 512;
+      if (remainder !== 0) blocks.push(Buffer.alloc(512 - remainder));
+    }
+  }
+  blocks.push(Buffer.alloc(1024));
+  return Buffer.concat(blocks);
+}
+
 export function parseCanonicalArchive(
   archive,
   { manifestBytes, manifest, sourceDateEpoch },
@@ -598,14 +909,12 @@ export function parseCanonicalArchive(
   invariant(
     archive
       .subarray(0, 10)
-      .equals(Buffer.from([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 2, 3])),
-    "gzip header is not canonical gzip -n level 9",
+      .equals(Buffer.from([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0, 0, 3])),
+    "gzip header is not canonical timestamp-free stored DEFLATE",
   );
   const tar = gunzipSync(archive);
-  const canonicalGzip = gzipSync(tar, { level: 9, mtime: 0 });
-  canonicalGzip[9] = 3;
   invariant(
-    canonicalGzip.equals(archive),
+    canonicalGzip(tar).equals(archive),
     "gzip stream is not the single canonical stream",
   );
   invariant(
@@ -636,9 +945,10 @@ export function parseCanonicalArchive(
       type: "0",
       record,
     })),
-  ].sort((left, right) => left.path.localeCompare(right.path));
+  ].sort((left, right) => compareUtf8(left.path, right.path));
 
   const actual = [];
+  const contents = new Map();
   const seen = new Set();
   let offset = 0;
   while (offset + 512 <= tar.length) {
@@ -739,6 +1049,7 @@ export function parseCanonicalArchive(
           content.equals(record.content),
           `${archivePath}: manifest member bytes drifted`,
         );
+      contents.set(archivePath, Buffer.from(content));
     }
     offset += size + padding;
   }
@@ -749,6 +1060,10 @@ export function parseCanonicalArchive(
         expected.map(({ path: item, type }) => ({ path: item, type })),
       ),
     "ustar member set, type, or order drifted",
+  );
+  invariant(
+    reconstructCanonicalTar(expected, contents, sourceDateEpoch).equals(tar),
+    "ustar bytes are not the single canonical representation",
   );
   return { fileCount: expectedFiles.size, memberCount: expected.length };
 }
@@ -1471,6 +1786,23 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
       releaseRun.includes('--target "$SOURCE_COMMIT"') &&
       releaseRun.includes("--latest=false"),
     "release creation can race, overwrite, or target the wrong source",
+  );
+
+  const governedRunBodies = Object.fromEntries(
+    Object.entries(workflow.jobs).flatMap(([jobName, job]) =>
+      job.steps
+        .filter((step) => typeof step.run === "string")
+        .map((step) => [`${jobName}/${step.name}`, sha256(step.run)]),
+    ),
+  );
+  exactKeys(
+    governedRunBodies,
+    Object.keys(RUN_BODY_SHA256),
+    "governed workflow run bodies",
+  );
+  invariant(
+    JSON.stringify(governedRunBodies) === JSON.stringify(RUN_BODY_SHA256),
+    "governed workflow run body digest drifted",
   );
 
   if (resolveAction) {
