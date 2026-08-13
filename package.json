@@ -295,6 +295,10 @@
     "./coverages": {
       "types": "./dist/src/coverages/index.d.ts",
       "default": "./dist/src/coverages/index.js"
+    },
+    "./zarr": {
+      "types": "./dist/src/zarr/index.d.ts",
+      "default": "./dist/src/zarr/index.js"
     }
   },
   "bin": {
