@@ -29,6 +29,7 @@ const registration = {
   metadataScannedAt: "2026-08-13T00:00:00Z",
   createdAt: "2026-08-12T00:00:00Z",
 } as const;
+const readiness = { tileMatrixSrid: 4326 } as const;
 
 function json(value: unknown, status = 200): Response {
   const body = JSON.stringify(value);
@@ -202,7 +203,7 @@ describe("experimental Honua Zarr client", () => {
   it("reports metadata, codec, dtype, and dimension maturity failures explicitly", () => {
     const client = new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() });
     const zarr = createZarrClient(client);
-    expect(zarr.assess(registration as ZarrStoreRegistration)).toEqual({
+    expect(zarr.assess(registration as ZarrStoreRegistration, readiness)).toEqual({
       maturity: "experimental",
       metadata: "ready",
       serverTileHandoff: "ready",
@@ -211,16 +212,26 @@ describe("experimental Honua Zarr client", () => {
     });
 
     const pending = { ...registration, zarrFormat: null, variables: null } as unknown as ZarrStoreRegistration;
-    expect(zarr.assess(pending).failures).toEqual([expect.objectContaining({ code: "metadata-pending" })]);
-    expect(() => zarr.assertTileReady(pending)).toThrow(HonuaZarrError);
+    expect(zarr.assess(pending, readiness).failures).toEqual([expect.objectContaining({ code: "metadata-pending" })]);
+    expect(() => zarr.assertTileReady(pending, readiness)).toThrow(HonuaZarrError);
 
     const empty = { ...registration, variables: [] } as unknown as ZarrStoreRegistration;
-    expect(zarr.assess(empty)).toMatchObject({
+    expect(zarr.assess(empty, readiness)).toMatchObject({
       metadata: "ready",
       serverTileHandoff: "unavailable",
       failures: [{ code: "no-tileable-variable" }],
     });
-    expect(() => zarr.assertTileReady(empty)).toThrow(expect.objectContaining({ code: "no-tileable-variable" }));
+    expect(() => zarr.assertTileReady(empty, readiness)).toThrow(
+      expect.objectContaining({ code: "no-tileable-variable" }),
+    );
+
+    const unreferenced = { ...registration, srid: null } as unknown as ZarrStoreRegistration;
+    expect(zarr.assess(unreferenced, readiness).failures).toEqual([
+      expect.objectContaining({ code: "missing-spatial-reference" }),
+    ]);
+    expect(() => zarr.assertTileReady(unreferenced, readiness)).toThrow(
+      expect.objectContaining({ code: "missing-spatial-reference" }),
+    );
 
     const unsupported = {
       ...registration,
@@ -234,10 +245,61 @@ describe("experimental Honua Zarr client", () => {
         },
       ],
     } as unknown as ZarrStoreRegistration;
-    expect(zarr.assess(unsupported).failures.map((failure) => failure.code)).toEqual([
+    expect(zarr.assess(unsupported, readiness).failures.map((failure) => failure.code)).toEqual([
+      "no-tileable-variable",
       "unsupported-codec",
       "unsupported-dtype",
       "ambiguous-dimensions",
+    ]);
+  });
+
+  it("assesses the server-selected variable without blocking on auxiliary variables", () => {
+    const auxiliary = {
+      ...registration.variables[0],
+      name: "quality",
+      compressor: "blosc",
+      dataType: "|f4",
+      dimensionNames: ["time"],
+      shape: [12],
+      chunks: [1],
+    };
+    const multivariable = {
+      ...registration,
+      variables: [...registration.variables, auxiliary],
+      variableCount: 2,
+    } as unknown as ZarrStoreRegistration;
+    const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+
+    expect(zarr.assess(multivariable, readiness).failures).toEqual([]);
+    expect(
+      zarr.assess(multivariable, { ...readiness, variable: "quality" }).failures.map((failure) => failure.code),
+    ).toEqual(["no-tileable-variable", "unsupported-codec", "unsupported-dtype"]);
+    expect(zarr.assess(multivariable, { ...readiness, variable: "missing" }).failures).toEqual([
+      expect.objectContaining({ code: "no-tileable-variable" }),
+    ]);
+  });
+
+  it.each(["<f1", "<b8", "|f4", ">f4", "f4"])("rejects non-tileable dtype %s", (dataType) => {
+    const candidate = {
+      ...registration,
+      variables: [{ ...registration.variables[0], dataType }],
+    } as unknown as ZarrStoreRegistration;
+    const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+
+    expect(zarr.assess(candidate, readiness).failures).toEqual([
+      expect.objectContaining({ code: "unsupported-dtype" }),
+    ]);
+  });
+
+  it("requires the requested tile matrix SRID to match storage", () => {
+    const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+    const scanned = registration as ZarrStoreRegistration;
+
+    expect(zarr.assess(scanned, { tileMatrixSrid: 3857 }).failures).toEqual([
+      expect.objectContaining({ code: "spatial-reference-mismatch" }),
+    ]);
+    expect(zarr.assess(scanned, undefined as never).failures).toEqual([
+      expect.objectContaining({ code: "missing-spatial-reference" }),
     ]);
   });
 

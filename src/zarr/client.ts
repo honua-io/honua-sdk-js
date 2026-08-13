@@ -6,6 +6,7 @@ import type {
   ZarrHonuaClient,
   ZarrMaturityAssessment,
   ZarrMaturityFailure,
+  ZarrReadinessOptions,
   ZarrStoreRegistration,
   ZarrTileRequest,
   ZarrTileResult,
@@ -79,7 +80,7 @@ export class HonuaZarrClient {
    * Reports whether scanned metadata can be handed to Honua Server's bounded tile operation.
    * It does not claim that this SDK can decode chunks directly from object storage.
    */
-  public assess(registration: ZarrStoreRegistration): ZarrMaturityAssessment {
+  public assess(registration: ZarrStoreRegistration, options: ZarrReadinessOptions): ZarrMaturityAssessment {
     const failures: ZarrMaturityFailure[] = [];
     if (registration.variables === null || registration.zarrFormat === null) {
       failures.push({ code: "metadata-pending", message: "Refresh the registration before requesting a tile." });
@@ -90,13 +91,33 @@ export class HonuaZarrClient {
           message: `Zarr v${String(registration.zarrFormat)} is outside the versioned server contract.`,
         });
       }
-      if (registration.variables.length === 0) {
+      if (registration.srid === null || registration.srid <= 0) {
+        failures.push({
+          code: "missing-spatial-reference",
+          message: "Tile rendering requires a positive storage SRID that can match the requested tile matrix set.",
+        });
+      } else if (!Number.isSafeInteger(options?.tileMatrixSrid) || options.tileMatrixSrid <= 0) {
+        failures.push({
+          code: "missing-spatial-reference",
+          message: "Tile readiness requires the positive SRID of the requested tile matrix set.",
+        });
+      } else if (registration.srid !== options.tileMatrixSrid) {
+        failures.push({
+          code: "spatial-reference-mismatch",
+          message: `Coverage EPSG:${registration.srid} cannot be handed to tile matrix EPSG:${options.tileMatrixSrid} without reprojection.`,
+        });
+      }
+      const variable = selectTileVariable(registration, options?.variable);
+      if (!variable) {
         failures.push({
           code: "no-tileable-variable",
-          message: "The completed Zarr metadata scan did not discover a variable for the tile operation.",
+          message:
+            options?.variable === undefined
+              ? "The completed Zarr metadata scan did not discover a primary variable for the tile operation."
+              : `The completed Zarr metadata scan did not discover variable "${options.variable}" for the tile operation.`,
         });
       } else {
-        for (const variable of registration.variables) assessVariable(variable, failures);
+        assessVariable(variable, failures);
       }
     }
     return Object.freeze({
@@ -109,8 +130,8 @@ export class HonuaZarrClient {
   }
 
   /** Fail with a stable code when scanned metadata is not ready for the server tile operation. */
-  public assertTileReady(registration: ZarrStoreRegistration): void {
-    const failure = this.assess(registration).failures[0];
+  public assertTileReady(registration: ZarrStoreRegistration, options: ZarrReadinessOptions): void {
+    const failure = this.assess(registration, options).failures[0];
     if (failure) {
       throw new HonuaZarrError(failure.code, failure.message, {
         ...(failure.variable ? { variable: failure.variable } : {}),
@@ -220,6 +241,23 @@ export function createZarrClient(client: ZarrHonuaClient, options: ZarrClientOpt
 }
 
 function assessVariable(variable: ZarrVariableMetadata, failures: ZarrMaturityFailure[]): void {
+  const spatialAxes = variable.dimensionNames.map((name) => name.toLowerCase());
+  const xIndex = spatialAxes.findIndex((name) => name === "x" || name === "lon" || name === "longitude");
+  const yIndex = spatialAxes.findIndex((name) => name === "y" || name === "lat" || name === "latitude");
+  if (
+    xIndex < 0 ||
+    yIndex < 0 ||
+    xIndex >= variable.shape.length ||
+    yIndex >= variable.shape.length ||
+    variable.shape[xIndex] === 0 ||
+    variable.shape[yIndex] === 0
+  ) {
+    failures.push({
+      code: "no-tileable-variable",
+      variable: variable.name,
+      message: `Variable "${variable.name}" does not expose non-empty X and Y axes for tile rendering.`,
+    });
+  }
   const codec = variable.compressor?.toLowerCase() ?? null;
   if (codec !== null && !SUPPORTED_CODECS.has(codec)) {
     failures.push({
@@ -228,7 +266,7 @@ function assessVariable(variable: ZarrVariableMetadata, failures: ZarrMaturityFa
       message: `Variable "${variable.name}" uses unsupported codec "${variable.compressor}"; the server contract permits uncompressed, gzip, or zlib chunks.`,
     });
   }
-  if (!/^(?:[<|])?[fiub](?:1|2|4|8)$/.test(variable.dataType) || variable.dataType.startsWith(">")) {
+  if (!isTileDtype(variable.dataType)) {
     failures.push({
       code: "unsupported-dtype",
       variable: variable.name,
@@ -246,6 +284,25 @@ function assessVariable(variable: ZarrVariableMetadata, failures: ZarrMaturityFa
       message: `Variable "${variable.name}" does not expose one named dimension and chunk extent per shape axis.`,
     });
   }
+}
+
+function selectTileVariable(
+  registration: ZarrStoreRegistration,
+  variableName: string | undefined,
+): ZarrVariableMetadata | undefined {
+  const variables = registration.variables ?? [];
+  const selected = variableName ?? registration.primaryVariable ?? variables[0]?.name;
+  return selected === undefined ? undefined : variables.find((variable) => variable.name === selected);
+}
+
+function isTileDtype(dataType: string): boolean {
+  const match = /^([<|=])([fiub])(1|2|4|8)$/.exec(dataType);
+  if (!match) return false;
+  const [, byteOrder, kind, width] = match;
+  if (byteOrder === "|" && width !== "1") return false;
+  if (kind === "f") return width === "4" || width === "8";
+  if (kind === "b") return width === "1";
+  return true;
 }
 
 async function boundedFetch(
