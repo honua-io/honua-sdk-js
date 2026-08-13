@@ -803,6 +803,10 @@ function stableJson(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function compareUtf8(left, right) {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
 async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(PROJECT_ROOT, relativePath), "utf8"));
 }
@@ -814,7 +818,7 @@ function mediaTypeFor(filePath) {
 async function walkFiles(root, relativeDirectory = "") {
   const files = [];
   const entries = await readdir(path.join(root, relativeDirectory), { withFileTypes: true });
-  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+  for (const entry of entries.sort((left, right) => compareUtf8(left.name, right.name))) {
     const relativePath = path.posix.join(relativeDirectory, entry.name);
     if (entry.isDirectory()) files.push(...(await walkFiles(root, relativePath)));
     else if (entry.isFile()) files.push(relativePath);

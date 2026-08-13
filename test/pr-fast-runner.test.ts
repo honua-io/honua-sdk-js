@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { commandInvocation, parseArgs } from "../scripts/run-pr-fast.mjs";
+import { PR_FAST_STEPS, commandInvocation, parseArgs, runSteps } from "../scripts/run-pr-fast.mjs";
 
 describe("PR-fast runner arguments", () => {
   it("keeps the monotonic timestamp and output arguments distinct", () => {
@@ -47,6 +47,22 @@ describe("PR-fast runner arguments", () => {
     expect(() => commandInvocation("npm", ["install"])).toThrow(
       "PR-fast npm commands must be bounded npm run invocations",
     );
+  });
+
+  // honua-io/honua-sdk-js#1266 REQ-003: `samples:verify` leads this tier because
+  // it is cheap, not because the tests depend on it. When it failed the runner
+  // used to stop, so a stale-evidence lapse nobody's branch caused silently cost
+  // every pull request its correctness signal.
+  it("runs every validation step even after an earlier one fails", async () => {
+    const attempted: string[] = [];
+    const results = await runSteps(PR_FAST_STEPS, async (command: string, args: readonly string[]) => {
+      attempted.push([command, ...args].join(" "));
+      return { command: args[1], exitCode: args[1] === "samples:verify" ? 1 : 0 };
+    });
+
+    expect(attempted).toEqual(PR_FAST_STEPS.map(([command, args]) => [command, ...args].join(" ")));
+    expect(attempted).toContain("npm run test:pr-fast");
+    expect(results.filter((result) => result.exitCode !== 0)).toHaveLength(1);
   });
 
   it("executes its CLI entrypoint from native Windows and POSIX paths", () => {

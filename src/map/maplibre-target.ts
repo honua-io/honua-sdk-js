@@ -183,7 +183,7 @@ export function createHonuaMapLibreStyle(options: HonuaMapLibreStyleOptions = {}
     ...(options.name ? { name: options.name } : {}),
     ...(options.center ? { center: options.center } : {}),
     ...(options.zoom !== undefined ? { zoom: options.zoom } : {}),
-    metadata: options.basemap ? { "honua:arcgis-basemap": options.basemap } : undefined,
+    ...(options.basemap ? { metadata: { "honua:arcgis-basemap": options.basemap } } : {}),
     sources,
     layers,
   };

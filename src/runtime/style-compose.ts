@@ -49,7 +49,8 @@ export async function composeStyle(
   try {
     const withStyleRefs = await applyStyleRefs(mapSpecWithSources, pkg, options.resolveStyleRef);
     const theme = await resolveTheme(pkg, options.resolveTheme);
-    return theme ? applyTheme(withStyleRefs, theme) : withStyleRefs;
+    const composed = theme ? applyTheme(withStyleRefs, theme) : withStyleRefs;
+    return pruneUndefined(composed);
   } catch (cause) {
     if (cause instanceof HonuaMapPackageError) throw cause;
     throw new HonuaMapPackageError("style composition failed", {
@@ -135,18 +136,18 @@ function mergeLayerOverride(
     ...(override.filter !== undefined ? { filter: override.filter } : {}),
     ...(override.minzoom !== undefined ? { minzoom: override.minzoom } : {}),
     ...(override.maxzoom !== undefined ? { maxzoom: override.maxzoom } : {}),
-    paint: { ...(layer.paint ?? {}), ...(override.paint ?? {}) },
-    layout: { ...(layer.layout ?? {}), ...(override.layout ?? {}) },
-    metadata: { ...(layer.metadata ?? {}), ...(override.metadata ?? {}) },
+    ...optionalRecord("paint", { ...(layer.paint ?? {}), ...(override.paint ?? {}) }),
+    ...optionalRecord("layout", { ...(layer.layout ?? {}), ...(override.layout ?? {}) }),
+    ...optionalRecord("metadata", { ...(layer.metadata ?? {}), ...(override.metadata ?? {}) }),
   };
 }
 
 function cloneLayer(layer: HonuaLayerSpecification): HonuaLayerSpecification {
   return {
     ...layer,
-    paint: layer.paint ? { ...layer.paint } : undefined,
-    layout: layer.layout ? { ...layer.layout } : undefined,
-    metadata: layer.metadata ? { ...layer.metadata } : undefined,
+    ...optionalRecord("paint", layer.paint ? { ...layer.paint } : undefined),
+    ...optionalRecord("layout", layer.layout ? { ...layer.layout } : undefined),
+    ...optionalRecord("metadata", layer.metadata ? { ...layer.metadata } : undefined),
   };
 }
 
@@ -156,9 +157,80 @@ function substituteLayerTokens(
 ): HonuaLayerSpecification {
   return {
     ...layer,
-    paint: layer.paint ? substituteTokens(layer.paint, tokens) : layer.paint,
-    layout: layer.layout ? substituteTokens(layer.layout, tokens) : layer.layout,
+    ...optionalRecord("paint", layer.paint ? substituteTokens(layer.paint, tokens) : undefined),
+    ...optionalRecord("layout", layer.layout ? substituteTokens(layer.layout, tokens) : undefined),
   };
+}
+
+/**
+ * Spread helper for optional MapLibre layer properties: contributes the key
+ * only when there is something to contribute.
+ *
+ * `{ layout: undefined }` and "no `layout` key" are indistinguishable to
+ * `JSON.stringify`, but not to MapLibre's style validator — it reads the own
+ * property and rejects the layer with `layers[n].layout: object expected,
+ * undefined found`. A rejected style makes `setStyle(style, { diff: true })`
+ * a silent no-op, so the map stops updating with nothing thrown and nothing
+ * logged. An empty object is dropped for the same reason in spirit: it is
+ * meaningless in the document and only adds diff noise.
+ */
+function optionalRecord<K extends "paint" | "layout" | "metadata">(
+  key: K,
+  value: Record<string, unknown> | undefined,
+): { [P in K]?: Record<string, unknown> } {
+  if (!value || Object.keys(value).length === 0) return {};
+  return { [key]: value } as { [P in K]?: Record<string, unknown> };
+}
+
+/**
+ * Drop present-but-`undefined` properties from the composed document.
+ *
+ * The composition helpers above never introduce them, but the input
+ * `mapSpec` can arrive with them already (hand-built styles, projections
+ * from another shape, `JSON`-roundtripped packages that were assembled with
+ * explicit `undefined`s). Composition is the last hop before `setStyle`, so
+ * it is the right place to guarantee the invariant for every consumer rather
+ * than have each one re-implement the pruning.
+ *
+ * Structure-sharing: a subtree with no `undefined` values is returned by
+ * reference, so a clean style allocates nothing. Only plain objects and
+ * arrays are traversed; anything else (class instances, typed arrays) is
+ * passed through untouched.
+ */
+function pruneUndefined<T>(value: T): T {
+  return pruneUnknown(value) as T;
+}
+
+function pruneUnknown(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    let changed = false;
+    const next = value.map((item) => {
+      const pruned = pruneUnknown(item);
+      if (pruned !== item) changed = true;
+      return pruned;
+    });
+    return changed ? next : value;
+  }
+  if (!isPlainObject(value)) return value;
+
+  let changed = false;
+  const next: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry === undefined) {
+      changed = true;
+      continue;
+    }
+    const pruned = pruneUnknown(entry);
+    if (pruned !== entry) changed = true;
+    next[key] = pruned;
+  }
+  return changed ? next : value;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }
 
 function substituteTokens(

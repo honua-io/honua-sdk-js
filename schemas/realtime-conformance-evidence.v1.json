@@ -33,12 +33,16 @@
     "server": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "revision", "capabilities"],
+      "required": ["version", "revision", "revisionSource", "capabilities"],
       "properties": {
         "version": { "type": ["string", "null"], "minLength": 1 },
         "revision": {
           "type": ["string", "null"],
           "pattern": "^(?:[a-f0-9]{40}|sha256:[a-f0-9]{64})$"
+        },
+        "revisionSource": {
+          "description": "Which document bound this evidence to a deployment: the realtime capability response, the public capability manifest, or the fixture corpus digest. Null when no immutable revision was observed.",
+          "enum": ["capabilities", "manifest", "fixture", null]
         },
         "capabilities": {
           "type": "object",
@@ -113,7 +117,8 @@
               "revision": {
                 "type": "string",
                 "pattern": "^(?:[a-f0-9]{40}|sha256:[a-f0-9]{64})$"
-              }
+              },
+              "revisionSource": { "enum": ["capabilities", "manifest", "fixture"] }
             }
           }
         }

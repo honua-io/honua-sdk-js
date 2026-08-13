@@ -365,8 +365,8 @@ async function assertCoverageStaticJourney(page, sample, journey, failures) {
   );
   const visibleEvidence = {
     canvasCount: await page.locator(journey.canvasSelector).count(),
-    legend: await page.locator(journey.legendSelector).innerText(),
-    pixel: await page.locator(journey.pixelSelector).innerText(),
+    legend: (await page.locator(journey.legendSelector).innerText()).replace(/\s+/gu, " ").trim(),
+    pixel: (await page.locator(journey.pixelSelector).innerText()).replace(/\s+/gu, " ").trim(),
   };
   const proof = await page.evaluate(async ({ state, expected }) => {
     const runtime = window[state];

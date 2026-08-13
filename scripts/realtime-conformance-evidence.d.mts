@@ -1,6 +1,11 @@
 export type RealtimeConformanceStatus = "executed" | "unsupported" | "degraded" | "failed";
 export type RealtimeConformanceTransportId = "sse" | "websocket" | "odata";
 export type RealtimeConformanceRunStatus = "executed" | "skipped" | "degraded" | "failed";
+/**
+ * Where the immutable deployment revision in retained evidence came from.
+ * `null` means none was observed, which prevents certification.
+ */
+export type RealtimeConformanceRevisionSource = "capabilities" | "manifest" | "fixture" | null;
 
 /**
  * Outcome of the controlled-conformance run the live lane drove against
@@ -39,6 +44,8 @@ export interface RealtimeConformanceEvidence {
   readonly server: {
     readonly version: string | null;
     readonly revision: string | null;
+    /** Which document bound the evidence to a deployment. */
+    readonly revisionSource: RealtimeConformanceRevisionSource;
     readonly capabilities: Record<RealtimeConformanceTransportId, boolean>;
   };
   readonly corpus: {
@@ -102,6 +109,12 @@ export const REALTIME_LIVE_SEMANTIC_LIMITS: Readonly<{
   readonly maxHistoryBytes: 16777216;
 }>;
 
+/**
+ * Drops env entries whose value is a blank string. GitHub Actions renders an
+ * unset input or undefined repository variable as `""`, which `??` would
+ * otherwise treat as supplied.
+ */
+export function normalizeLiveEnv(env?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
 export function realtimeSourceRevision(env?: NodeJS.ProcessEnv, projectRoot?: string): string;
 export function isRealtimeLiveEnabled(env?: NodeJS.ProcessEnv): boolean;
 export function isRealtimeConformanceMutationEnabled(env?: NodeJS.ProcessEnv): boolean;
@@ -118,6 +131,15 @@ export function collectFixtureRealtimeConformanceEvidence(
 export function collectLiveRealtimeConformanceEvidence(
   options?: Record<string, unknown>,
 ): Promise<RealtimeConformanceEvidence>;
+/**
+ * Classifies a collector crash as a `failed` document so the lane retains a
+ * machine-readable reason instead of only a stderr line.
+ */
+export function collectorFailureRealtimeConformanceEvidence(
+  lane: "fixture" | "live",
+  error: unknown,
+  options?: Record<string, unknown>,
+): RealtimeConformanceEvidence;
 export function validateRealtimeConformanceEvidence(
   evidence: RealtimeConformanceEvidence,
 ): RealtimeConformanceEvidence;

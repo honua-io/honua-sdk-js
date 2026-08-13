@@ -28,11 +28,16 @@ on:
         type: string
         default: "1"
       server_revision:
-        description: "Reviewed server commit SHA or sha256 image digest"
+        description: >-
+          Optional. The lane discovers the deployment revision from the server's
+          own capability response or manifest; supply this only to assert that
+          the deployment answering is the reviewed one. A mismatch fails every
+          advertised transport. Leave blank to accept whatever the deployment
+          reports.
         type: string
         required: false
       server_version:
-        description: "Optional mutable server release version"
+        description: "Optional mutable server release version, recorded when the server publishes none"
         type: string
         required: false
       drive_controlled_mutation:
@@ -79,6 +84,11 @@ jobs:
           --lane fixture
           --output test-results/realtime-fixture-conformance-evidence.json
           --strict
+      # A scheduled run has no dispatch inputs, so every optional value below
+      # renders as the empty string. The evidence script treats a blank value
+      # as absent rather than as supplied-and-invalid; it also retains a
+      # `collector-failed` document if it cannot classify anything, so this
+      # step can no longer end without producing evidence.
       - name: Observe advertised honua-server transports
         env:
           HONUA_SAMPLE_SOURCE_REVISION: ${{ github.sha }}
