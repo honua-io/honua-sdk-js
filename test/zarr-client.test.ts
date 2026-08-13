@@ -322,7 +322,7 @@ describe("experimental Honua Zarr client", () => {
     },
   );
 
-  it("classifies unsupported server versions and accepts empty array dimensions", async () => {
+  it("classifies unsupported server versions and preserves empty dimensions without declaring them tileable", async () => {
     const responses = [
       { ...registration, zarrFormat: 4 },
       {
@@ -337,7 +337,14 @@ describe("experimental Honua Zarr client", () => {
     const zarr = createZarrClient(client);
 
     await expect(zarr.get(41)).rejects.toMatchObject({ code: "unsupported-version" });
-    await expect(zarr.get(41)).resolves.toMatchObject({ variables: [{ shape: [0, 256, 256] }] });
+    const emptyDimension = await zarr.get(41);
+    expect(emptyDimension).toMatchObject({ variables: [{ shape: [0, 256, 256] }] });
+    expect(zarr.assess(emptyDimension, readiness).failures).toEqual([
+      expect.objectContaining({ code: "no-tileable-variable" }),
+    ]);
+    expect(() => zarr.assertTileReady(emptyDimension, readiness)).toThrow(
+      expect.objectContaining({ code: "no-tileable-variable" }),
+    );
   });
 
   it("rejects unversioned endpoints and unsafe registration paths before network I/O", async () => {
