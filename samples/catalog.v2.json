@@ -920,7 +920,7 @@
             "npm run evidence:cog:live"
           ],
           "evidencePath": "samples/evidence/imagery-cog-quickstart/live.v1.json",
-          "expiresAt": "2026-09-13T19:09:39.162Z"
+          "expiresAt": "2026-09-13T21:39:42.411Z"
         }
       },
       "expectedDegradation": "Credential-bearing URLs, CORS, missing or oversized range responses, unsupported CRS/format, and nodata return structured outcomes while published imagery remains usable. Public live proof covers classified COG inspection and a bounded decoded window in EPSG:32621; browser-side UTM reprojection and a georeferenced live MapLibre mount remain explicitly unclaimed.",
@@ -1168,7 +1168,7 @@
             "npm run evidence:first-map:live"
           ],
           "evidencePath": "samples/evidence/maplibre-quickstart/live.v1.json",
-          "expiresAt": "2026-09-13T19:07:29.019Z"
+          "expiresAt": "2026-09-13T21:37:39.115Z"
         }
       },
       "expectedDegradation": "Capability misses, plan warnings, and bounded fallback are shown rather than silently returning an empty map.",
@@ -1290,7 +1290,7 @@
             "npm run evidence:migration-workbench:live"
           ],
           "evidencePath": "samples/evidence/migration-workbench/live.v1.json",
-          "expiresAt": "2026-09-13T19:10:03.818Z"
+          "expiresAt": "2026-09-13T21:40:07.740Z"
         }
       },
       "expectedDegradation": "Unsupported ArcGIS modules are reported as manual work, never silently removed.",
@@ -2205,7 +2205,7 @@
             "npm run demo:service-explorer:live-evidence"
           ],
           "evidencePath": "samples/evidence/service-explorer/live.v1.json",
-          "expiresAt": "2026-09-13T19:11:11.783Z"
+          "expiresAt": "2026-09-13T21:41:11.548Z"
         }
       },
       "expectedDegradation": "Partial discovery and unsupported source actions remain visible with structured state, code, and reason; the sample does not synthesize success.",
