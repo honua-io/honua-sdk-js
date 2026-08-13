@@ -451,13 +451,15 @@
           "execution": "automatic",
           "commands": [
             "npm run demo:coverages-wcs:typecheck",
-            "npm run demo:coverages-wcs:build"
+            "npm run demo:coverages-wcs:build",
+            "npm run test:playwright:coverages-wcs"
           ]
         },
         "fixtureEvidence": {
           "execution": "orchestrated",
           "commands": [
-            "npm run demo:coverages-wcs:build"
+            "npm run demo:coverages-wcs:build",
+            "npm run test:playwright:coverages-wcs"
           ]
         },
         "liveEvidence": {
@@ -466,8 +468,8 @@
         }
       },
       "liveEvidence": {
-        "mode": "unavailable",
-        "status": "not-applicable"
+        "mode": "public-live",
+        "status": "planned"
       }
     },
     {
