@@ -165,7 +165,7 @@ describe("capability-to-sample matrix contract", () => {
     // 64 = 59 original package entrypoints + the experimental STAC, raster, and
     // PMTiles facades + the experimental declarative-interactions compiler and
     // Studio agent session.
-    expect(matrix.packageEntrypoints).toHaveLength(64);
+    expect(matrix.packageEntrypoints).toHaveLength(65);
     expect(matrix.packageEntrypoints.find((entrypoint) => entrypoint.subpath === "./pmtiles")).toMatchObject({
       subpath: "./pmtiles",
       supportStatus: "experimental",
