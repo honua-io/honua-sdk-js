@@ -35,7 +35,13 @@ const provenanceReceipt = JSON.parse(provenanceReceiptText) as {
   };
 };
 const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
-  readonly producer: { readonly commit: string; readonly mergeCommit: string };
+  readonly schemaVersion: number;
+  readonly producer: {
+    readonly commit: string;
+    readonly mergeCommit: string;
+    readonly artifactRun: number;
+    readonly artifactName: string;
+  };
   readonly artifact: { readonly path: string; readonly bytes: number; readonly sha256: string };
   readonly sidecars: {
     readonly digest: { readonly path: string; readonly bytes: number; readonly sha256: string };
@@ -45,6 +51,8 @@ const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
 
 const PRODUCER_COMMIT = "66a9d34496c6f6a03dd571957062f773bfef7f0a";
 const PRODUCER_MERGE_COMMIT = "4ef53ce7f49b78aad3572db1dfc3be88a6654a43";
+const PRODUCER_ARTIFACT_RUN = 31767388217;
+const PRODUCER_ARTIFACT_NAME = "honua-server-geoarrow-02-66a9d34496c6f6a03dd571957062f773bfef7f0a";
 const FIXTURE_BYTES = 4_160;
 const FIXTURE_SHA256 = "da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52";
 const DIGEST_SHA256 = "e6beabc28e78a8383550f1fb8d08ee848e259f19596ba834519abd19759ced80";
@@ -274,8 +282,11 @@ const decodeSynthetic = async (geometries: readonly (Uint8Array | null)[], optio
 };
 
 test("decodes an exact Honua Server geoarrow.wkb IPC fixture into the normative bounded batch", async () => {
+  assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.producer.commit, PRODUCER_COMMIT);
   assert.equal(manifest.producer.mergeCommit, PRODUCER_MERGE_COMMIT);
+  assert.equal(manifest.producer.artifactRun, PRODUCER_ARTIFACT_RUN);
+  assert.equal(manifest.producer.artifactName, PRODUCER_ARTIFACT_NAME);
   assert.equal(manifest.artifact.path, "test/fixtures/columnar/honua-server-geoarrow-02-point.arrow");
   assert.equal(fixture.byteLength, manifest.artifact.bytes);
   assert.equal(createHash("sha256").update(fixture).digest("hex"), manifest.artifact.sha256);

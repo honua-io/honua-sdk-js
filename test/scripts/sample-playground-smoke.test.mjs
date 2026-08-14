@@ -100,7 +100,7 @@ describe("playground smoke decisions", () => {
     const exclusion = artifact.excluded.find((entry) => entry.sampleId === "columnar-query-quickstart");
     assert.equal(exclusion.category, "unreleased-sdk-surface");
     assert.ok(!publishedIds.includes("columnar-query-quickstart"));
-    assert.ok(source.includes("HONUA_ARROW_FIXTURE_BYTES = 1_336"));
+    assert.ok(source.includes("HONUA_ARROW_FIXTURE_BYTES = 4_160"));
     assert.ok(source.includes('importModule: () => import("apache-arrow")'));
     assert.ok(source.includes('fixtureTransport: "in-memory exact server artifact; no live endpoint claimed"'));
   });
