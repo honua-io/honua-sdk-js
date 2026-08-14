@@ -315,6 +315,7 @@ async function waitForActiveWorker(registration, scriptUrl) {
     };
     const timeout = window.setTimeout(() => finish(() => reject(new Error("Service worker did not activate."))), 5000);
     worker.addEventListener("statechange", stateChanged);
+    stateChanged();
   });
   return registration.active;
 }
@@ -337,6 +338,7 @@ async function waitForController(scriptUrl) {
       5000,
     );
     navigator.serviceWorker.addEventListener("controllerchange", controllerChanged);
+    controllerChanged();
   });
 }
 
