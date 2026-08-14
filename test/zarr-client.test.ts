@@ -408,6 +408,8 @@ describe("experimental Honua Zarr client", () => {
   it.each([
     ["adminBasePath", "/api/v1/../admin/zarr-stores"],
     ["adminBasePath", "/api/v1/%2e%2e/admin/zarr-stores"],
+    ["adminBasePath", "/api/v1/\n../../admin/zarr-stores"],
+    ["adminBasePath", "/api/v1/\t../../admin/zarr-stores"],
     ["adminBasePath", "/api/v1/admin/zarr-stores?scope=other"],
     ["datacubeBasePath", "/api/v1/datacubes#other"],
     ["datacubeBasePath", "/api/v1/datacubes\\other"],
