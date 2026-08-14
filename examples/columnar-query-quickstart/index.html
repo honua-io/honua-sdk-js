@@ -74,7 +74,6 @@
           <summary>Runnable core</summary>
           <pre class="code"><code>const session = openColumnarSession(source, {
   decodeServerResponse: createApacheArrowResponseDecoder({
-    geometryKind: "point",
     importModule: () => import("apache-arrow"),
   }),
   budgets: { maxRows: 25, maxBatches: 2, maxTransferBytes: 16_384, maxBackingBytes: 65_536 },
