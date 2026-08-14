@@ -7193,7 +7193,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
   invariant(cardById.size === handoff.cards.length, "site consumer handoff card IDs must be unique");
   validateSiteConsumerCardIdentities(handoff.cards);
-  validateGoldenCardReceiptEnforcement(handoff, Date.now(), archivedReceipts !== undefined);
+  validateGoldenCardReceiptEnforcement(handoff, undefined, archivedReceipts !== undefined);
   if (inputs.verifyCheckout !== false) {
     for (const [name, reference] of Object.entries(handoff.inputs)) {
       await validateSiteConsumerSchemaBinding(reference, `site consumer ${name}`);
