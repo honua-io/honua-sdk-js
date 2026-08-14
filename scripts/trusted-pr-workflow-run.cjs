@@ -13,6 +13,10 @@ const TERMINAL_CONCLUSIONS = new Set([
   "startup_failure",
 ]);
 const TERMINAL_PULL_REQUEST_STATES = new Set(["open", "closed"]);
+const WORKFLOW_RUN_ATTEMPT_ROUTE =
+  "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}";
+const WORKFLOW_RUN_ATTEMPT_JOBS_ROUTE =
+  "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs";
 
 function parsePositiveSafeInteger(value, label) {
   const text = String(value ?? "");
@@ -59,10 +63,11 @@ async function resolveTrustedPullRequestWorkflowRun({
     throw new Error("invalid workflow run conclusion");
   }
 
-  const { data: run } = await github.rest.actions.getWorkflowRun({
+  const { data: run } = await github.request(WORKFLOW_RUN_ATTEMPT_ROUTE, {
     owner,
     repo,
     run_id: id,
+    attempt_number: expectedAttempt,
   });
   if (
     run?.id !== id ||
@@ -82,11 +87,11 @@ async function resolveTrustedPullRequestWorkflowRun({
     throw new Error("source run is not a completed canonical pull-request workflow");
   }
 
-  const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+  const jobs = await github.paginate(WORKFLOW_RUN_ATTEMPT_JOBS_ROUTE, {
     owner,
     repo,
     run_id: id,
-    filter: "latest",
+    attempt_number: expectedAttempt,
     per_page: 100,
   });
   const canonicalJobs = jobs.filter(

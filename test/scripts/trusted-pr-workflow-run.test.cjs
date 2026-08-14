@@ -66,12 +66,16 @@ function fixtures(overrides = {}) {
     ...overrides.pullRequest,
   };
   const jobs = overrides.jobs || [job];
-  const listJobs = Symbol("list-jobs");
+  const calls = { latestRun: 0, latestJobs: 0, attemptRuns: [], attemptJobs: [] };
+  const listLatestJobs = Symbol("list-latest-jobs");
   const github = {
     rest: {
       actions: {
-        getWorkflowRun: async () => ({ data: run }),
-        listJobsForWorkflowRun: listJobs,
+        getWorkflowRun: async () => {
+          calls.latestRun += 1;
+          return { data: { ...run, run_attempt: run.run_attempt + 1 } };
+        },
+        listJobsForWorkflowRun: listLatestJobs,
       },
       checks: {
         get: async (input) => {
@@ -83,15 +87,31 @@ function fixtures(overrides = {}) {
         get: async () => ({ data: pullRequest }),
       },
     },
-    paginate: async (method, input) => {
-      assert.equal(method, listJobs);
+    request: async (route, input) => {
+      assert.equal(
+        route,
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}",
+      );
       assert.equal(input.run_id, 123);
-      assert.equal(input.filter, "latest");
+      calls.attemptRuns.push(input.attempt_number);
+      return { data: run };
+    },
+    paginate: async (method, input) => {
+      if (method === listLatestJobs) {
+        calls.latestJobs += 1;
+        return [];
+      }
+      assert.equal(
+        method,
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}/jobs",
+      );
+      assert.equal(input.run_id, 123);
       assert.equal(input.per_page, 100);
+      calls.attemptJobs.push(input.attempt_number);
       return jobs;
     },
   };
-  return { github };
+  return { github, calls };
 }
 
 function resolve(github, { runAttempt = "2", runConclusion = "failure" } = {}) {
@@ -136,6 +156,18 @@ test("binds resolution to the triggering run attempt and conclusion", async () =
     resolve(github, { runConclusion: "in_progress" }),
     /workflow run conclusion/u,
   );
+});
+
+test("never substitutes the mutable latest workflow attempt", async () => {
+  const { github, calls } = fixtures();
+  const result = await resolve(github);
+  assert.equal(result.run.run_attempt, 2);
+  assert.deepEqual(calls, {
+    latestRun: 0,
+    latestJobs: 0,
+    attemptRuns: [2],
+    attemptJobs: [2],
+  });
 });
 
 test("fails closed on missing or ambiguous check-run associations", async () => {
