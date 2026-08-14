@@ -6577,7 +6577,7 @@ function validateSiteConsumerCardIdentities(cards) {
  * verifiable from the handoff alone (honua-io/honua-sdk-js#550 golden-card receipt
  * enforcement).
  */
-function validateGoldenCardReceiptEnforcement(handoff, now = Date.now()) {
+function validateGoldenCardReceiptEnforcement(handoff, now = Date.now(), historical = false) {
   invariant(
     JSON.stringify(handoff.policy.qualifiedRequires) ===
       JSON.stringify(SITE_CONSUMER_QUALIFIED_REQUIREMENTS),
@@ -6602,7 +6602,7 @@ function validateGoldenCardReceiptEnforcement(handoff, now = Date.now()) {
       `${card.id}: golden card visual receipt belongs to another journey or sample`,
     );
     validateGoldenVisualEvidenceOwnership(visual);
-    validateGoldenVisualEvidenceFreshness(visual, now);
+    validateGoldenVisualEvidenceFreshness(visual, historical ? Date.parse(visual.observedAt) : now);
     const gates = new Map(visual.semanticEvidence.map((entry) => [entry.gate, entry]));
     if (requirements.has("source")) {
       invariant(
@@ -7193,7 +7193,7 @@ export async function validateSiteConsumerHandoff(handoff, inputs = {}) {
   const cardById = new Map(handoff.cards.map((card) => [card.id, card]));
   invariant(cardById.size === handoff.cards.length, "site consumer handoff card IDs must be unique");
   validateSiteConsumerCardIdentities(handoff.cards);
-  validateGoldenCardReceiptEnforcement(handoff);
+  validateGoldenCardReceiptEnforcement(handoff, Date.now(), archivedReceipts !== undefined);
   if (inputs.verifyCheckout !== false) {
     for (const [name, reference] of Object.entries(handoff.inputs)) {
       await validateSiteConsumerSchemaBinding(reference, `site consumer ${name}`);
