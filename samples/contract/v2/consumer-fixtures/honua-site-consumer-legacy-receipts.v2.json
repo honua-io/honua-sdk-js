@@ -3,14 +3,14 @@
   "format": "honua.site.sdk-sample-legacy-receipt-archive.v2",
   "schemaVersion": 2,
   "handoff": {
-    "path": "samples/dist/honua-site-consumer-handoff.v1.json",
+    "path": "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json",
     "format": "honua.site.sdk-sample-consumer-handoff.v1",
     "schemaVersion": 1,
-    "sha256": "b5e482b084581d136b74729308b8c473ada9ffab238a0c1e15b0a8946c3976ed"
+    "sha256": "f3e7c33589d9d2e337eff7a21886481f2d892baca799e04773e2064f4d4ac077"
   },
   "visualEvidence": {
     "path": "samples/dist/golden-journey-visual-evidence.v1.json",
-    "sha256": "8537dd1d66dba9c8595f1290afd37a7a68c2ce60c2311684bdde383a4959a35f"
+    "sha256": "fdf8c87becfb7a220e7052547f900fc5eced6bf14e6f3b2d4fa6588ebbb1c903"
   },
   "artifacts": {
     "fileCount": 139,
