@@ -16,19 +16,20 @@ import type {
 const DEFAULT_METADATA_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TILE_BYTES = 2 * 1024 * 1024;
 const SUPPORTED_CODECS = new Set(["gzip", "zlib"]);
-const SUPPORTED_V3_DATA_TYPES = new Set([
-  "bool",
-  "int8",
-  "uint8",
-  "int16",
-  "uint16",
-  "int32",
-  "uint32",
-  "int64",
-  "uint64",
-  "float32",
-  "float64",
+const V3_DATA_TYPE_BY_SERVER_DESCRIPTOR = new Map([
+  ["|b1", "bool"],
+  ["|i1", "int8"],
+  ["|u1", "uint8"],
+  ["<i2", "int16"],
+  ["<u2", "uint16"],
+  ["<i4", "int32"],
+  ["<u4", "uint32"],
+  ["<i8", "int64"],
+  ["<u8", "uint64"],
+  ["<f4", "float32"],
+  ["<f8", "float64"],
 ]);
+const SUPPORTED_V3_DATA_TYPES = new Set(V3_DATA_TYPE_BY_SERVER_DESCRIPTOR.values());
 const SUPPORTED_PROVIDERS = new Set(["AwsS3", "AzureBlob", "Local"]);
 
 /** Experimental client for Honua Server's versioned Zarr registration and tile contract. */
@@ -137,7 +138,7 @@ export class HonuaZarrClient {
               : `The completed Zarr metadata scan did not discover variable "${options.variable}" for the tile operation.`,
         });
       } else {
-        assessVariable(variable, failures);
+        assessVariable(variable, registration.zarrFormat, failures);
       }
     }
     return Object.freeze({
@@ -260,7 +261,7 @@ export function createZarrClient(client: ZarrHonuaClient, options: ZarrClientOpt
   return new HonuaZarrClient(client, options);
 }
 
-function assessVariable(variable: ZarrVariableMetadata, failures: ZarrMaturityFailure[]): void {
+function assessVariable(variable: ZarrVariableMetadata, zarrFormat: number, failures: ZarrMaturityFailure[]): void {
   const spatialAxes = variable.dimensionNames.map((name) => name.toLowerCase());
   const xIndex = spatialAxes.findIndex((name) => name === "x" || name === "lon" || name === "longitude");
   const yIndex = spatialAxes.findIndex((name) => name === "y" || name === "lat" || name === "latitude");
@@ -285,7 +286,7 @@ function assessVariable(variable: ZarrVariableMetadata, failures: ZarrMaturityFa
       message: `Variable "${variable.name}" uses unsupported codec "${variable.compressor}"; the server contract permits uncompressed, gzip, or zlib chunks.`,
     });
   }
-  if (!isTileDtype(variable.dataType)) {
+  if (!isTileDtype(variable.dataType, zarrFormat)) {
     failures.push({
       code: "unsupported-dtype",
       variable: variable.name,
@@ -314,8 +315,9 @@ function selectTileVariable(
   return selected === undefined ? undefined : variables.find((variable) => variable.name === selected);
 }
 
-function isTileDtype(dataType: string): boolean {
-  if (SUPPORTED_V3_DATA_TYPES.has(dataType)) return true;
+function isTileDtype(dataType: string, zarrFormat: number): boolean {
+  if (zarrFormat === 3) return SUPPORTED_V3_DATA_TYPES.has(dataType);
+  if (zarrFormat !== 2) return false;
   const match = /^([<|=])([fiub])(1|2|4|8)$/.exec(dataType);
   if (!match) return false;
   const [, byteOrder, kind, width] = match;
@@ -427,19 +429,20 @@ function normalizeRegistration(value: unknown): ZarrStoreRegistration {
     srid: nullableInteger(value.srid, "srid"),
     variableCount: nullableNonNegativeInteger(value.variableCount, "variableCount"),
     primaryVariable: nullableText(value.primaryVariable, "primaryVariable"),
-    variables: variables === null ? null : Object.freeze(variables.map(normalizeVariable)),
+    variables: variables === null ? null : Object.freeze(variables.map((entry) => normalizeVariable(entry, format))),
     metadataScannedAt: nullableText(value.metadataScannedAt, "metadataScannedAt"),
     createdAt: responseText(value.createdAt, "createdAt"),
   });
 }
 
-function normalizeVariable(value: unknown): ZarrVariableMetadata {
+function normalizeVariable(value: unknown, zarrFormat: number | null): ZarrVariableMetadata {
   if (!isRecord(value)) invalidResponse("Zarr variable entry must be an object.");
+  const dataType = responseText(value.dataType, "variable.dataType");
   return Object.freeze({
     name: responseText(value.name, "variable.name"),
     shape: nonNegativeIntegerArray(value.shape, "variable.shape"),
     chunks: integerArray(value.chunks, "variable.chunks"),
-    dataType: responseText(value.dataType, "variable.dataType"),
+    dataType: zarrFormat === 3 ? (V3_DATA_TYPE_BY_SERVER_DESCRIPTOR.get(dataType) ?? dataType) : dataType,
     compressor: nullableText(value.compressor, "variable.compressor"),
     dimensionNames: textArray(value.dimensionNames, "variable.dimensionNames"),
   });
@@ -458,6 +461,9 @@ function validateRegistrationRequest(request: RegisterZarrStoreRequest): void {
 
 function versionedPath(value: string, field: string): string {
   const path = requiredText(value, field);
+  if (/[\\%?#]/.test(path) || path.split("/").some((segment) => segment === "." || segment === "..")) {
+    invalidRequest(`${field} must not contain traversal, encoding, query, or fragment syntax.`, { path });
+  }
   if (!path.startsWith("/api/v1/")) invalidRequest(`${field} must use the versioned /api/v1 contract.`, { path });
   if (/^[a-z][a-z\d+.-]*:/i.test(path) || path.startsWith("//"))
     invalidRequest(`${field} must be a relative same-origin path.`, { path });
