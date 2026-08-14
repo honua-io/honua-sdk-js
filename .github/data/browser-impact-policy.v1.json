@@ -7,7 +7,6 @@
       "id": "offline-service-worker",
       "specPatterns": ["offline-indexeddb.spec.mjs"],
       "changePatterns": [
-        "src/offline/**",
         "docs/examples/offline-region-reference/**",
         "docs/offline-regions.md",
         "test/offline-*.test.ts"
@@ -17,8 +16,6 @@
       "id": "realtime-collaboration",
       "specPatterns": ["realtime-*.spec.mjs"],
       "changePatterns": [
-        "src/realtime/**",
-        "src/collaboration/**",
         "examples/realtime-incident-dashboard/**",
         "samples/fixtures/incident-operations/**",
         "test/realtime-*.test.ts",
@@ -43,9 +40,6 @@
         "terrain-rgb-elevation.spec.mjs"
       ],
       "changePatterns": [
-        "src/columnar/**",
-        "src/kepler/**",
-        "src/scene-workspace/**",
         "examples/columnar-query-quickstart/**",
         "examples/coverages-wcs-basic/**",
         "examples/imagery-cog-quickstart/**",
@@ -68,7 +62,6 @@
         "examples/**",
         "packages/create-honua-app/**",
         "playgrounds/**",
-        "src/agent-tools/**",
         "src/app/**",
         "src/app-controller/**",
         "src/app-workspace/**",
@@ -82,11 +75,23 @@
   ],
   "sharedLanePatterns": [
     {
-      "patterns": ["src/exploration/**", "src/interactions/**"],
+      "patterns": ["src/realtime/**", "src/collaboration/**"],
       "lanes": ["realtime-collaboration", "examples-general"]
     },
     {
+      "patterns": ["src/offline/**"],
+      "lanes": ["offline-service-worker", "examples-general"]
+    },
+    {
+      "patterns": ["src/exploration/**", "src/interactions/**"],
+      "lanes": ["realtime-collaboration", "heavy-map-kepler", "examples-general"]
+    },
+    {
       "patterns": ["examples/spatial-analytics-workbench/**"],
+      "lanes": ["heavy-map-kepler", "examples-general"]
+    },
+    {
+      "patterns": ["src/agent-tools/**", "src/columnar/**", "src/kepler/**", "src/scene-workspace/**"],
       "lanes": ["heavy-map-kepler", "examples-general"]
     },
     {

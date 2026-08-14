@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   assignSpecs,
   discoverBrowserFixtureRoots,
+  discoverLocalModuleDependencies,
   discoverSpecs,
   evaluate,
   loadPolicy,
@@ -53,9 +54,9 @@ test("global generated-asset inputs select every lane", () => {
   assert.deepEqual(report.fail_closed_paths, []);
 });
 
-test("domain changes select only their owned browser evidence", () => {
+test("domain changes select every direct browser consumer", () => {
   const offline = evaluate(policy, ["src/offline/indexeddb.ts"]);
-  assert.deepEqual(offline.candidate.selected_lanes, ["offline-service-worker"]);
+  assert.deepEqual(offline.candidate.selected_lanes, ["offline-service-worker", "examples-general"]);
   const realtime = evaluate(policy, ["examples/realtime-incident-dashboard/src/main.ts"]);
   assert.deepEqual(realtime.candidate.selected_lanes, ["realtime-collaboration"]);
   const heavy = evaluate(policy, ["examples/kepler-analytics/src/main.ts"]);
@@ -66,11 +67,22 @@ test("domain changes select only their owned browser evidence", () => {
   assert.deepEqual(columnar.candidate.selected_lanes, ["heavy-map-kepler"]);
 });
 
-test("shared app modules select realtime and general consumers", () => {
+test("shared app modules select every direct browser consumer", () => {
   for (const path of ["src/exploration/query.ts", "src/interactions/linked-view.ts"]) {
     const report = evaluate(policy, [path]);
-    assert.deepEqual(report.candidate.selected_lanes, ["realtime-collaboration", "examples-general"]);
+    assert.deepEqual(report.candidate.selected_lanes, [
+      "realtime-collaboration",
+      "heavy-map-kepler",
+      "examples-general",
+    ]);
   }
+  const realtime = evaluate(policy, ["src/realtime/index.ts"]);
+  assert.deepEqual(realtime.candidate.selected_lanes, ["realtime-collaboration", "examples-general"]);
+});
+
+test("discovers SDK package entry dependencies from browser fixtures", () => {
+  const dependencies = discoverLocalModuleDependencies("examples/unified-ops-workspace");
+  assert.ok(dependencies.some((path) => path.startsWith("src/realtime/")));
 });
 
 test("shared fixtures select every direct browser consumer", () => {

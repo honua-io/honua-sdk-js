@@ -2,8 +2,8 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { dirname, extname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -15,6 +15,9 @@ const EXPECTED_LANES = [
   "heavy-map-kepler",
   "examples-general",
 ];
+const MODULE_EXTENSIONS = new Set([".cjs", ".js", ".mjs", ".mts", ".ts", ".tsx"]);
+const PACKAGE_NAME = "@honua/sdk-js";
+const PACKAGE_EXPORTS = new Map();
 
 export class PolicyError extends Error {}
 
@@ -92,6 +95,86 @@ export function discoverBrowserFixtureRoots(source) {
   return [...roots].sort();
 }
 
+function sourceFilesUnder(path) {
+  if (!existsSync(path)) return [];
+  if (statSync(path).isFile()) return MODULE_EXTENSIONS.has(extname(path)) ? [path] : [];
+  const files = [];
+  for (const entry of readdirSync(path, { withFileTypes: true })) {
+    if (entry.name === "dist" || entry.name === "node_modules") continue;
+    const child = resolve(path, entry.name);
+    if (entry.isDirectory()) files.push(...sourceFilesUnder(child));
+    else if (entry.isFile() && MODULE_EXTENSIONS.has(extname(entry.name))) files.push(child);
+  }
+  return files;
+}
+
+function localImportSpecifiers(source) {
+  const specifiers = new Set();
+  for (const match of source.matchAll(/\b(?:import|export)\s+(?:[^"'`]*?\s+from\s+)?["'`]([^"'`]+)["'`]/gsu)) {
+    specifiers.add(match[1]);
+  }
+  for (const match of source.matchAll(/\b(?:import|require)\(\s*["'`]([^"'`]+)["'`]\s*\)/gu)) {
+    specifiers.add(match[1]);
+  }
+  return [...specifiers];
+}
+
+function packageSourcePath(specifier, root) {
+  if (specifier !== PACKAGE_NAME && !specifier.startsWith(`${PACKAGE_NAME}/`)) return undefined;
+  if (!PACKAGE_EXPORTS.has(root)) {
+    PACKAGE_EXPORTS.set(root, JSON.parse(readFileSync(resolve(root, "package.json"), "utf8")).exports);
+  }
+  const exportKey = specifier === PACKAGE_NAME ? "." : `.${specifier.slice(PACKAGE_NAME.length)}`;
+  const target = PACKAGE_EXPORTS.get(root)?.[exportKey]?.default;
+  return typeof target === "string" && target.startsWith("./dist/")
+    ? resolve(root, target.slice("./dist/".length))
+    : undefined;
+}
+
+function resolveLocalImport(fromFile, specifier, root) {
+  const base = specifier.startsWith(".")
+    ? resolve(dirname(fromFile), specifier)
+    : packageSourcePath(specifier, root);
+  if (!base) return undefined;
+  const extension = extname(base);
+  const candidates = [base];
+  if (extension) {
+    const stem = base.slice(0, -extension.length);
+    for (const candidateExtension of MODULE_EXTENSIONS) candidates.push(`${stem}${candidateExtension}`);
+  } else {
+    for (const candidateExtension of MODULE_EXTENSIONS) {
+      candidates.push(`${base}${candidateExtension}`, resolve(base, `index${candidateExtension}`));
+    }
+  }
+  return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+}
+
+export function discoverLocalModuleDependencies(entryRoot, root = ROOT) {
+  const queue = sourceFilesUnder(resolve(root, entryRoot));
+  const visited = new Set();
+  const dependencies = new Set();
+  while (queue.length > 0) {
+    const file = queue.pop();
+    if (visited.has(file)) continue;
+    visited.add(file);
+    for (const specifier of localImportSpecifiers(readFileSync(file, "utf8"))) {
+      const target = resolveLocalImport(file, specifier, root);
+      if (!target) continue;
+      const repositoryPath = normalizePath(relative(root, target));
+      if (!repositoryPath || repositoryPath.startsWith("../")) continue;
+      dependencies.add(repositoryPath);
+      if (
+        !repositoryPath.startsWith("src/") &&
+        !repositoryPath.startsWith("packages/") &&
+        !visited.has(target)
+      ) {
+        queue.push(target);
+      }
+    }
+  }
+  return [...dependencies].sort();
+}
+
 export function assignSpecs(policy, specs) {
   const ownership = new Map();
   for (const spec of specs) {
@@ -167,14 +250,30 @@ export function validatePolicy(policy, root = ROOT) {
   if (ownership.size !== specs.length || specs.length === 0) {
     throw new PolicyError("every Playwright spec must have exactly one owner");
   }
+  const dependencyCache = new Map();
+  const routingErrors = new Set();
   for (const spec of specs) {
     const source = readFileSync(resolve(root, "test/playwright", spec), "utf8");
     for (const fixtureRoot of discoverBrowserFixtureRoots(source)) {
       const selectedLanes = selectedLanesForFixtureRoot(policy, fixtureRoot);
       if (!selectedLanes.includes(ownership.get(spec))) {
-        throw new PolicyError(`${fixtureRoot} must select ${ownership.get(spec)} for ${spec}`);
+        routingErrors.add(`${fixtureRoot} must select ${ownership.get(spec)} for ${spec}`);
+      }
+      if (!dependencyCache.has(fixtureRoot)) {
+        dependencyCache.set(fixtureRoot, discoverLocalModuleDependencies(fixtureRoot, root));
+      }
+      for (const dependency of dependencyCache.get(fixtureRoot)) {
+        const routedLanes = routePath(policy, dependency, laneIds).lanes;
+        if (!routedLanes.includes(ownership.get(spec))) {
+          routingErrors.add(
+            `${dependency}, imported by ${fixtureRoot}, must select ${ownership.get(spec)} for ${spec}`,
+          );
+        }
       }
     }
+  }
+  if (routingErrors.size > 0) {
+    throw new PolicyError(`browser dependency routing gaps:\n- ${[...routingErrors].join("\n- ")}`);
   }
   validateWorkflow(root);
   return { specs, ownership };

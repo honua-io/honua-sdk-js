@@ -24,7 +24,10 @@ Rename observations evaluate both the removed and added path, preventing a move
 into an ignored tree from hiding the dependency that was removed. Policy
 validation also extracts contiguous example paths and split
 `path.join(projectRoot, "docs", "examples", ...)` roots from every browser spec,
-then proves that each fixture change selects the spec's owning lane.
+walks each fixture's local example graph, resolves its direct SDK package entry
+points back to source, and proves those dependencies select the spec's owning
+lane. SDK-internal barrels are not expanded as if every re-export were executed;
+shared compiler and bundler inputs remain global.
 
 The four domains are:
 
