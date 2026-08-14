@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   assignSpecs,
+  assertTrustedPolicyCommit,
   buildTrust,
   discoverBrowserFixtureRoots,
   discoverLocalModuleDependencies,
@@ -324,6 +325,35 @@ test("rejects incomplete or malformed trusted evidence identity", () => {
   assert.throws(
     () => buildTrust({ ...valid, observerRepository: "fork/honua-sdk-js" }),
     /workflow identity/u,
+  );
+});
+
+test("accepts the event policy snapshot when trunk advances", () => {
+  const eventPolicy = "a".repeat(40);
+  const laterTrunk = "b".repeat(40);
+  let observed;
+  assert.doesNotThrow(() =>
+    assertTrustedPolicyCommit(eventPolicy, laterTrunk, (ancestor, descendant) => {
+      observed = { ancestor, descendant };
+      return true;
+    }),
+  );
+  assert.deepEqual(observed, { ancestor: eventPolicy, descendant: laterTrunk });
+  assert.doesNotThrow(() =>
+    assertTrustedPolicyCommit(eventPolicy, eventPolicy, () => {
+      throw new Error("equal commits do not need an ancestry query");
+    }),
+  );
+});
+
+test("rejects an event policy snapshot outside default-branch history", () => {
+  assert.throws(
+    () => assertTrustedPolicyCommit("a".repeat(40), "b".repeat(40), () => false),
+    /not reachable from the fetched default branch/u,
+  );
+  assert.throws(
+    () => assertTrustedPolicyCommit("short", "b".repeat(40), () => true),
+    /commit or fetched default-branch head is invalid/u,
   );
 });
 

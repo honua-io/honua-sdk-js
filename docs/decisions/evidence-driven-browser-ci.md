@@ -28,7 +28,9 @@ workflow, policy, resolver, and selector in a fixed manifest. Identity and merge
 parents are resolved again immediately before evidence upload. Fork runs retain
 the full authoritative `JS SDK` job but are explicitly excluded from the shadow
 denominator; a manual backfill accepts only the same completed canonical run
-identity and can execute only from trunk.
+identity and can execute only from trunk. The policy commit is the event-time
+default-branch snapshot: a concurrently advanced trunk remains valid only when
+that snapshot is still an ancestor of the fetched default-branch tip.
 Rename observations evaluate both the removed and added path, preventing a move
 into an ignored tree from hiding the dependency that was removed. Policy
 validation also extracts contiguous example paths and split

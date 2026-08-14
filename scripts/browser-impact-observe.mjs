@@ -48,6 +48,16 @@ const PACKAGE_EXPORTS = new Map();
 
 export class PolicyError extends Error {}
 
+export function assertTrustedPolicyCommit(policyCommitSha, defaultHeadSha, isAncestor) {
+  if (!SHA.test(policyCommitSha) || !SHA.test(defaultHeadSha)) {
+    throw new PolicyError("observer policy commit or fetched default-branch head is invalid");
+  }
+  if (policyCommitSha === defaultHeadSha) return;
+  if (typeof isAncestor !== "function" || !isAncestor(policyCommitSha, defaultHeadSha)) {
+    throw new PolicyError("observer policy commit is not reachable from the fetched default branch");
+  }
+}
+
 export function normalizePath(value) {
   return String(value).replaceAll("\\", "/").replace(/^\.\//, "").replace(/^\/+|\/+$/g, "");
 }
@@ -650,9 +660,17 @@ function main(argv) {
     cwd: ROOT,
     encoding: "utf8",
   }).trim();
-  if (trust.policy_commit_sha !== trustedDefaultHead) {
-    throw new PolicyError("observer policy commit is not the fetched default-branch head");
-  }
+  assertTrustedPolicyCommit(trust.policy_commit_sha, trustedDefaultHead, (ancestor, descendant) => {
+    try {
+      execFileSync("git", ["merge-base", "--is-ancestor", ancestor, descendant], {
+        cwd: ROOT,
+        stdio: "ignore",
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  });
   const report = evaluate(
     policy,
     changedPaths(args.base, args.head, candidateRoot),
