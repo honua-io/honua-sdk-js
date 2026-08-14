@@ -302,7 +302,7 @@ export const SAMPLE_BUNDLE_AUDIT = [
     runtimeHosting: "self-contained",
     buildScript: "demo:columnar-query:build",
     auditedVia:
-      "examples/columnar-query-quickstart/src/fixture.ts embeds the exact 1,336-byte Honua Server Arrow response as base64; src/workflow.ts feeds those bytes through its injected fetchFn into createApacheArrowResponseDecoder with apache-arrow bundled by Vite, so session.stream() executes entirely in memory and issues no off-origin request.",
+      "examples/columnar-query-quickstart/src/fixture.ts embeds the exact 4,160-byte Honua Server Arrow response as base64; src/workflow.ts feeds those bytes through its injected fetchFn into createApacheArrowResponseDecoder with apache-arrow bundled by Vite, so session.stream() executes entirely in memory and issues no off-origin request.",
   },
   {
     id: "node-backend-quickstart",
