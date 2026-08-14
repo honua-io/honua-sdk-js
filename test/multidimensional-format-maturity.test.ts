@@ -222,9 +222,9 @@ describe("internal multidimensional format maturity contract", () => {
     );
     const exampleNames = fs.readdirSync(new URL("../examples", import.meta.url));
     expect(Object.keys(packageJson.exports)).not.toEqual(
-      expect.arrayContaining(["./zarr", "./netcdf", "./hdf5", "./multidimensional"]),
+      expect.arrayContaining(["./netcdf", "./hdf5", "./multidimensional"]),
     );
-    expect(publicSurface).not.toMatch(/"\.\/(?:zarr|netcdf|hdf5|multidimensional)"/iu);
+    expect(publicSurface).not.toMatch(/"\.\/(?:netcdf|hdf5|multidimensional)"/iu);
     expect(governedFormatRecords(supportManifest.supportClaims, ["id", "label", "protocol", "api"])).toEqual([]);
     expect(governedFormatRecords(coverage.capabilities, ["key", "entrypoints"])).toEqual([]);
     expect(

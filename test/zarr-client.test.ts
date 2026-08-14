@@ -276,9 +276,9 @@ describe("experimental Honua Zarr client", () => {
 
     expect(zarr.assess(multivariable, readiness).failures).toEqual([]);
     expect(
-      zarr.assess(multivariable, { ...readiness, variable: "quality" }).failures.map(
-        (failure: ZarrMaturityFailure) => failure.code,
-      ),
+      zarr
+        .assess(multivariable, { ...readiness, variable: "quality" })
+        .failures.map((failure: ZarrMaturityFailure) => failure.code),
     ).toEqual(["no-tileable-variable", "unsupported-codec", "unsupported-dtype"]);
     expect(zarr.assess(multivariable, { ...readiness, variable: "missing" }).failures).toEqual([
       expect.objectContaining({ code: "no-tileable-variable" }),
