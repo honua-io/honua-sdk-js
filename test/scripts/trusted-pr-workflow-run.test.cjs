@@ -66,7 +66,14 @@ function fixtures(overrides = {}) {
     ...overrides.pullRequest,
   };
   const jobs = overrides.jobs || [job];
-  const calls = { latestRun: 0, latestJobs: 0, attemptRuns: [], attemptJobs: [] };
+  const commitPullRequests = overrides.commitPullRequests || [associated];
+  const calls = {
+    latestRun: 0,
+    latestJobs: 0,
+    attemptRuns: [],
+    attemptJobs: [],
+    commitAssociations: 0,
+  };
   const listLatestJobs = Symbol("list-latest-jobs");
   const github = {
     rest: {
@@ -85,6 +92,15 @@ function fixtures(overrides = {}) {
       },
       pulls: {
         get: async () => ({ data: pullRequest }),
+      },
+      repos: {
+        listPullRequestsAssociatedWithCommit: async (input) => {
+          assert.equal(input.owner, "honua-io");
+          assert.equal(input.repo, "honua-sdk-js");
+          assert.equal(input.commit_sha, HEAD);
+          calls.commitAssociations += 1;
+          return { data: commitPullRequests };
+        },
       },
     },
     request: async (route, input) => {
@@ -167,28 +183,62 @@ test("never substitutes the mutable latest workflow attempt", async () => {
     latestJobs: 0,
     attemptRuns: [2],
     attemptJobs: [2],
+    commitAssociations: 0,
   });
 });
 
-test("fails closed on missing or ambiguous check-run associations", async () => {
-  for (const pull_requests of [
+test("recovers a pruned check association from the exact commit association", async () => {
+  const { github, calls } = fixtures({ checkRun: { pull_requests: [] } });
+  const result = await resolve(github);
+  assert.equal(result.pullRequestNumber, 42);
+  assert.equal(result.baseSha, BASE);
+  assert.equal(result.headSha, HEAD);
+  assert.equal(calls.commitAssociations, 1);
+});
+
+test("fails closed on missing or ambiguous commit associations", async () => {
+  for (const commitPullRequests of [
     [],
     [
       {
         number: 41,
         base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
-        head: { sha: HEAD },
+        head: { sha: HEAD, repo: { id: 1 } },
       },
       {
         number: 42,
         base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
-        head: { sha: HEAD },
+        head: { sha: HEAD, repo: { id: 1 } },
       },
     ],
   ]) {
-    const { github } = fixtures({ checkRun: { pull_requests } });
+    const { github } = fixtures({
+      checkRun: { pull_requests: [] },
+      commitPullRequests,
+    });
     await assert.rejects(resolve(github), /exactly one pull request/u);
   }
+});
+
+test("does not replace an ambiguous check association with commit lookup", async () => {
+  const { github, calls } = fixtures({
+    checkRun: {
+      pull_requests: [
+        {
+          number: 41,
+          base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
+          head: { sha: HEAD, repo: { id: 1 } },
+        },
+        {
+          number: 42,
+          base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
+          head: { sha: HEAD, repo: { id: 1 } },
+        },
+      ],
+    },
+  });
+  await assert.rejects(resolve(github), /exactly one pull request/u);
+  assert.equal(calls.commitAssociations, 0);
 });
 
 test("preserves the event base when the live default branch advances", async () => {

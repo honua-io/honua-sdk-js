@@ -127,7 +127,16 @@ async function resolveTrustedPullRequestWorkflowRun({
     throw new Error("canonical workflow job check identity is inconsistent");
   }
 
-  const associations = checkRun.pull_requests || [];
+  let associations = checkRun.pull_requests || [];
+  if (associations.length === 0) {
+    const { data: commitAssociations } =
+      await github.rest.repos.listPullRequestsAssociatedWithCommit({
+        owner,
+        repo,
+        commit_sha: run.head_sha,
+      });
+    associations = commitAssociations || [];
+  }
   if (
     associations.length !== 1 ||
     !Number.isSafeInteger(associations[0]?.number) ||

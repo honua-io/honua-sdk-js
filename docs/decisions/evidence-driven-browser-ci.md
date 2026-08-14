@@ -17,9 +17,11 @@ lanes. Shared application modules may name multiple consumer lanes, while each
 browser spec still has one execution owner. More precise ownership is promoted
 only from measured evidence. The observer runs from the default branch after
 the canonical `SDK CI` workflow completes. It resolves the exact `JS SDK` job
-through its GitHub-managed check-run association, resolves the source run and
-jobs through GitHub's attempt-specific APIs, and binds the run ID, attempt,
-conclusion, and event-time base/head. It then confirms the associated
+through its GitHub-managed check-run association, or—when GitHub prunes that
+association after merge—through the exact commit-to-pull-request association.
+Either source must identify exactly one pull request. The observer resolves the
+source run and jobs through GitHub's attempt-specific APIs and binds the run ID,
+attempt, conclusion, and event-time base/head. It then confirms the associated
 pull-request repository, base branch, and recorded head before reconstructing
 the event-time synthetic merge tree from those immutable parents. A pull request
 that closes or merges after the source run remains observable and can be
