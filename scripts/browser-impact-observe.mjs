@@ -112,6 +112,21 @@ export function validatePolicy(policy, root = ROOT) {
       throw new PolicyError(`${field} must be a non-empty array`);
     }
   }
+  if (!Array.isArray(policy.sharedLanePatterns)) {
+    throw new PolicyError("sharedLanePatterns must be an array");
+  }
+  for (const shared of policy.sharedLanePatterns) {
+    if (!Array.isArray(shared.patterns) || shared.patterns.length === 0) {
+      throw new PolicyError("shared lane patterns must be non-empty");
+    }
+    if (
+      !Array.isArray(shared.lanes) ||
+      shared.lanes.length < 2 ||
+      shared.lanes.some((lane) => !laneIds.includes(lane))
+    ) {
+      throw new PolicyError("shared lane targets must name at least two declared lanes");
+    }
+  }
   const specs = discoverSpecs(root);
   const ownership = assignSpecs(policy, specs);
   if (ownership.size !== specs.length || specs.length === 0) {
@@ -146,6 +161,11 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
     }
     if (matchesAny(rawPath, policy.globalPatterns)) {
       for (const lane of allLanes) reasons[lane].push(rawPath);
+      continue;
+    }
+    const shared = policy.sharedLanePatterns.find((candidate) => matchesAny(rawPath, candidate.patterns));
+    if (shared) {
+      for (const lane of shared.lanes) reasons[lane].push(rawPath);
       continue;
     }
     const lane = policy.lanes.find((candidate) => matchesAny(rawPath, candidate.changePatterns));

@@ -46,9 +46,11 @@
         "src/columnar/**",
         "src/kepler/**",
         "src/scene-workspace/**",
+        "examples/columnar-query-quickstart/**",
         "examples/coverages-wcs-basic/**",
         "examples/imagery-cog-quickstart/**",
         "examples/kepler-analytics/**",
+        "examples/maplibre-quickstart/**",
         "examples/overture-geoparquet/**",
         "examples/pmtiles-static/**",
         "examples/spatial-analytics-workbench/**",
@@ -70,13 +72,17 @@
         "src/app-controller/**",
         "src/app-workspace/**",
         "src/control-plane/**",
-        "src/exploration/**",
         "src/generated-app/**",
-        "src/interactions/**",
         "src/operator/**",
         "src/studio/**",
         "src/web-components/**"
       ]
+    }
+  ],
+  "sharedLanePatterns": [
+    {
+      "patterns": ["src/exploration/**", "src/interactions/**"],
+      "lanes": ["realtime-collaboration", "examples-general"]
     }
   ],
   "globalPatterns": [

@@ -13,7 +13,11 @@ Direct file matching is not enough. A change to
 offline-shell manifest, even though neither the changed path nor its name says
 "offline". The policy therefore treats shared build, contract, core, runtime,
 and configuration inputs as global. Unknown inputs also fail closed to all four
-lanes. More precise ownership is promoted only from measured evidence.
+lanes. Shared application modules may name multiple consumer lanes, while each
+browser spec still has one execution owner. More precise ownership is promoted
+only from measured evidence. The observer checks out the requested head SHA,
+never GitHub's synthetic pull-request merge commit, so its inventory and policy
+digest describe the head printed in the retained artifact.
 
 The four domains are:
 

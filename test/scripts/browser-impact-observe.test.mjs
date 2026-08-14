@@ -50,6 +50,17 @@ test("domain changes select only their owned browser evidence", () => {
   assert.deepEqual(realtime.candidate.selected_lanes, ["realtime-collaboration"]);
   const heavy = evaluate(policy, ["examples/kepler-analytics/src/main.ts"]);
   assert.deepEqual(heavy.candidate.selected_lanes, ["heavy-map-kepler"]);
+  const quickstart = evaluate(policy, ["examples/maplibre-quickstart/mock-server.mjs"]);
+  assert.deepEqual(quickstart.candidate.selected_lanes, ["heavy-map-kepler"]);
+  const columnar = evaluate(policy, ["examples/columnar-query-quickstart/vite.config.ts"]);
+  assert.deepEqual(columnar.candidate.selected_lanes, ["heavy-map-kepler"]);
+});
+
+test("shared app modules select realtime and general consumers", () => {
+  for (const path of ["src/exploration/query.ts", "src/interactions/linked-view.ts"]) {
+    const report = evaluate(policy, [path]);
+    assert.deepEqual(report.candidate.selected_lanes, ["realtime-collaboration", "examples-general"]);
+  }
 });
 
 test("direct spec and snapshot changes select the owning lane", () => {
