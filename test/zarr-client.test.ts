@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { HonuaClient } from "../src/core/client.js";
 import { HonuaZarrError, createZarrClient } from "../src/zarr/index.js";
-import type { ZarrStoreRegistration } from "../src/zarr/types.js";
+import type { ZarrMaturityFailure, ZarrStoreRegistration } from "../src/zarr/types.js";
 
 const registration = {
   id: 41,
@@ -249,7 +249,7 @@ describe("experimental Honua Zarr client", () => {
         },
       ],
     } as unknown as ZarrStoreRegistration;
-    expect(zarr.assess(unsupported, readiness).failures.map((failure) => failure.code)).toEqual([
+    expect(zarr.assess(unsupported, readiness).failures.map((failure: ZarrMaturityFailure) => failure.code)).toEqual([
       "no-tileable-variable",
       "unsupported-codec",
       "unsupported-dtype",
@@ -276,7 +276,9 @@ describe("experimental Honua Zarr client", () => {
 
     expect(zarr.assess(multivariable, readiness).failures).toEqual([]);
     expect(
-      zarr.assess(multivariable, { ...readiness, variable: "quality" }).failures.map((failure) => failure.code),
+      zarr.assess(multivariable, { ...readiness, variable: "quality" }).failures.map(
+        (failure: ZarrMaturityFailure) => failure.code,
+      ),
     ).toEqual(["no-tileable-variable", "unsupported-codec", "unsupported-dtype"]);
     expect(zarr.assess(multivariable, { ...readiness, variable: "missing" }).failures).toEqual([
       expect.objectContaining({ code: "no-tileable-variable" }),
@@ -365,10 +367,9 @@ describe("experimental Honua Zarr client", () => {
     expect(zarr.assess(scanned, { ...readiness, tileMatrixSrid: 3857 }).failures).toEqual([
       expect.objectContaining({ code: "spatial-reference-mismatch" }),
     ]);
-    expect(zarr.assess(scanned, undefined as never).failures.map((failure) => failure.code)).toEqual([
-      "missing-spatial-reference",
-      "missing-spatial-extent",
-    ]);
+    expect(
+      zarr.assess(scanned, undefined as never).failures.map((failure: ZarrMaturityFailure) => failure.code),
+    ).toEqual(["missing-spatial-reference", "missing-spatial-extent"]);
   });
 
   it.each([undefined, [0, 0, 0, 1], [0, 0, 1, 0], [0, 0, Number.POSITIVE_INFINITY, 1]])(
