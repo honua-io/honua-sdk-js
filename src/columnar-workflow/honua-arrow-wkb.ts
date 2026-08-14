@@ -241,7 +241,7 @@ export const hasHonuaArrowWkbGeometry = (value: unknown): boolean => {
 const declaredGeometryType = (raw: unknown): Pick<GeometryDeclaration, "kind" | "dimensions"> => {
   if (raw === undefined) return {};
   if (!Array.isArray(raw) || raw.some((item) => typeof item !== "string")) {
-    fail("invalid-payload", "geoarrow.wkb geometry_types must be an array of strings.");
+    fail("invalid-payload", "GeoParquet geometry_types must be an array of strings.");
   }
   let kind: GeoArrowGeometryKind | undefined;
   let dimensions: GeoArrowDimensions | undefined;
@@ -276,7 +276,7 @@ const geometryDeclaration = (
     extensionJson === undefined
       ? {}
       : parseMetadataJson(extensionJson, `Arrow field "${field.name}" extension metadata`, maxBackingBytes);
-  const declared = declaredGeometryType(extension.geometry_types);
+  let declared: Pick<GeometryDeclaration, "kind" | "dimensions"> = {};
   const edgeValue = extension.edges ?? "planar";
   if (!["planar", "spherical", "vincenty", "thomas", "andoyer", "karney"].includes(String(edgeValue))) {
     fail("unsupported-layout", `Honua Arrow edge interpretation "${String(edgeValue)}" is unsupported.`);
@@ -308,6 +308,7 @@ const geometryDeclaration = (
     if (!isRecord(column) || column.encoding !== "WKB") {
       fail("invalid-payload", "Arrow geo schema metadata must declare WKB for the primary geometry column.");
     }
+    declared = declaredGeometryType(column.geometry_types);
   }
 
   return {

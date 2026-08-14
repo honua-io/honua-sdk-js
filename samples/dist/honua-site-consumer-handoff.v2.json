@@ -18,8 +18,8 @@
       "schemaPath": "samples/contract/v2/schemas/site-projection.v3.schema.json",
       "format": "honua.site.sdk-sample-projection.v3",
       "schemaVersion": 3,
-      "bytes": 88532,
-      "sha256": "1238970da1d54bffc3cbe4de1db8dfb84ddb7c9dd20a1b80b1ca4c926878e196",
+      "bytes": 88627,
+      "sha256": "67f74292a23b9a08ce8b65002ff299bde53ff363cabb9511656b7a8f2cabf9d6",
       "schemaBytes": 15096,
       "schemaSha256": "a73e66887e74d0e6c8a0bbda4b00792e615f91d0e5e1e40a1642ad04d657ce84"
     },
@@ -29,7 +29,7 @@
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
       "bytes": 504943,
-      "sha256": "3e8a661f7395c9853384da5c7536ef61a9ea70fa216aeeeae75fdd4de07a0745",
+      "sha256": "4a46ffedfb229c8fa52fc1319fca17400459693b559b08b2f6f441e0ce886730",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -39,7 +39,7 @@
       "format": "honua.sdk.golden-journey-visual-evidence.v1",
       "schemaVersion": 1,
       "bytes": 45319,
-      "sha256": "f42c0088079339e7b7ef54500e943f8d62ec1c718304453461075bff834824b0",
+      "sha256": "026e7efbae2f395e1119e868c53a30a310122bbf9abdc08912adbec5e63da6cc",
       "schemaBytes": 14598,
       "schemaSha256": "0dff9bfe32cd1a59cd0d58402cb60c3225903eb4636c0af611fbe00aaefeccec"
     }
@@ -607,8 +607,8 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "provenance": "Base64 text embedding of the exact 1,336-byte Honua Server geoarrow.wkb fixture produced by commit fd1c651efa7078c269742152a2777298e3b1c4d4 and pinned by SHA-256.",
-        "attribution": "Honua Server interoperability fixture; application-pinned WGS84 display convention is not inferred from Arrow CRS metadata.",
+        "provenance": "Base64 text embedding of the exact 4,160-byte Honua Server geoarrow.wkb workflow artifact produced by commit 99e2bb52b54e4177e2ae279ce8ccd62d429b67cd and pinned by SHA-256, with its producer receipt and digest sidecar retained byte-for-byte.",
+        "attribution": "Honua Server interoperability fixture; the field extension declares EPSG:4326 PROJJSON and schema-level GeoParquet metadata declares Point.",
         "freshness": "Fixture producer commit, schema contract, byte length, and SHA-256 are release-gated.",
         "configurationStatus": "not-required"
       },
