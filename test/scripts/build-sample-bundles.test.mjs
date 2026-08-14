@@ -508,8 +508,8 @@ test("the v3 runnability enum stays in sync while the closed v2 schema remains c
   );
 });
 
-test("only the exact-origin service explorer bypasses generic external exclusion", () => {
-  assert.deepEqual([...PUBLISHED_LIVE_SAMPLE_POLICY.keys()], ["service-explorer"]);
+test("only approved exact-origin samples bypass generic external exclusion", () => {
+  assert.deepEqual([...PUBLISHED_LIVE_SAMPLE_POLICY.keys()], ["maplibre-quickstart", "service-explorer"]);
   for (const [id, policy] of PUBLISHED_LIVE_SAMPLE_POLICY) {
     assert.deepEqual(policy.allowedOrigins, [id === "maplibre-quickstart" ? "https://demo.honua.io" : "https://demo.pygeoapi.io"]);
     assert.equal(new URL(policy.semanticProbe.url).origin, policy.allowedOrigins[0]);
