@@ -75,6 +75,10 @@
   ],
   "sharedLanePatterns": [
     {
+      "patterns": ["src/offline/digest.ts", "src/offline/quota.ts"],
+      "lanes": ["offline-service-worker", "heavy-map-kepler", "examples-general"]
+    },
+    {
       "patterns": ["src/realtime/**", "src/collaboration/**"],
       "lanes": ["realtime-collaboration", "examples-general"]
     },

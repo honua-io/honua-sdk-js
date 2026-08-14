@@ -80,6 +80,17 @@ test("shared app modules select every direct browser consumer", () => {
   assert.deepEqual(realtime.candidate.selected_lanes, ["realtime-collaboration", "examples-general"]);
 });
 
+test("offline cache primitives select the heavy columnar browser consumer", () => {
+  for (const path of ["src/offline/digest.ts", "src/offline/quota.ts"]) {
+    const report = evaluate(policy, [path]);
+    assert.deepEqual(report.candidate.selected_lanes, [
+      "offline-service-worker",
+      "heavy-map-kepler",
+      "examples-general",
+    ]);
+  }
+});
+
 test("discovers SDK package entry dependencies from browser fixtures", () => {
   const dependencies = discoverLocalModuleDependencies("examples/unified-ops-workspace");
   assert.ok(dependencies.some((path) => path.startsWith("src/realtime/")));

@@ -15,11 +15,14 @@ offline-shell manifest, even though neither the changed path nor its name says
 and configuration inputs as global. Unknown inputs also fail closed to all four
 lanes. Shared application modules may name multiple consumer lanes, while each
 browser spec still has one execution owner. More precise ownership is promoted
-only from measured evidence. The observer checks out the requested head SHA,
-never GitHub's synthetic pull-request merge commit, so its inventory and policy
-digest describe the head printed in the retained artifact. Fork observations
-fetch the exact upstream base with its reachable history and prove that the
-requested base and head have a merge base before computing the three-dot diff.
+only from measured evidence. For pull requests, the observer checks out the
+same GitHub synthetic merge snapshot as the authoritative `JS SDK` job. Its
+retained report records the immutable source-head SHA separately from the
+`evaluation_sha` whose policy, inventory, and diff were evaluated. Manual
+observations use the requested head for both identities. Fork observations use
+the base repository's synthetic merge snapshot, fetch the exact upstream base
+with its reachable history when needed, and prove that the requested base and
+evaluation snapshot have a merge base before computing the three-dot diff.
 Rename observations evaluate both the removed and added path, preventing a move
 into an ignored tree from hiding the dependency that was removed. Policy
 validation also extracts contiguous example paths and split
