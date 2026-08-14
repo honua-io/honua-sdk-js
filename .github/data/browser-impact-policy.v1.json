@@ -1,0 +1,139 @@
+{
+  "schema": "honua.sdk.browser-impact-policy/v1",
+  "mode": "observe",
+  "fallbackLane": "examples-general",
+  "lanes": [
+    {
+      "id": "offline-service-worker",
+      "specPatterns": ["offline-indexeddb.spec.mjs"],
+      "changePatterns": [
+        "docs/examples/offline-region-reference/**",
+        "docs/offline-regions.md",
+        "test/offline-*.test.ts"
+      ]
+    },
+    {
+      "id": "realtime-collaboration",
+      "specPatterns": ["realtime-*.spec.mjs"],
+      "changePatterns": [
+        "examples/realtime-incident-dashboard/**",
+        "samples/fixtures/incident-operations/**",
+        "test/realtime-*.test.ts",
+        "test/collaboration-*.test.ts"
+      ]
+    },
+    {
+      "id": "heavy-map-kepler",
+      "specPatterns": [
+        "analytics-uplot.spec.mjs",
+        "cesium-*.spec.mjs",
+        "columnar-*.spec.mjs",
+        "coverages-wcs-basic.spec.mjs",
+        "imagery-cog-quickstart.spec.mjs",
+        "kepler-*.spec.mjs",
+        "migration-browser-maplibre.spec.mjs",
+        "overture-geoparquet.spec.mjs",
+        "pmtiles-static.spec.mjs",
+        "quickstart-map.spec.mjs",
+        "shared-renderer-state.spec.mjs",
+        "storytelling-25d-map.spec.mjs",
+        "terrain-rgb-elevation.spec.mjs"
+      ],
+      "changePatterns": [
+        "examples/columnar-query-quickstart/**",
+        "examples/coverages-wcs-basic/**",
+        "examples/imagery-cog-quickstart/**",
+        "examples/kepler-analytics/**",
+        "examples/maplibre-quickstart/**",
+        "examples/overture-geoparquet/**",
+        "examples/pmtiles-static/**",
+        "examples/storytelling-25d-map/**",
+        "examples/terrain-rgb-elevation/**",
+        "docs/examples/cesium-route-playback/**",
+        "docs/examples/shared-renderer-state/**",
+        "scripts/ensure-kepler-demo-deps.mjs"
+      ]
+    },
+    {
+      "id": "examples-general",
+      "specPatterns": [],
+      "changePatterns": [
+        "docs/examples/automatic-source-workflow/**",
+        "examples/**",
+        "packages/create-honua-app/**",
+        "playgrounds/**",
+        "src/app/**",
+        "src/app-controller/**",
+        "src/app-workspace/**",
+        "src/control-plane/**",
+        "src/generated-app/**",
+        "src/operator/**",
+        "src/studio/**",
+        "src/web-components/**"
+      ]
+    }
+  ],
+  "sharedLanePatterns": [
+    {
+      "patterns": ["src/offline/digest.ts", "src/offline/quota.ts"],
+      "lanes": ["offline-service-worker", "heavy-map-kepler", "examples-general"]
+    },
+    {
+      "patterns": ["src/realtime/**", "src/collaboration/**"],
+      "lanes": ["realtime-collaboration", "examples-general"]
+    },
+    {
+      "patterns": ["src/offline/**"],
+      "lanes": ["offline-service-worker", "examples-general"]
+    },
+    {
+      "patterns": ["src/exploration/**", "src/interactions/**"],
+      "lanes": ["realtime-collaboration", "heavy-map-kepler", "examples-general"]
+    },
+    {
+      "patterns": ["examples/spatial-analytics-workbench/**"],
+      "lanes": ["heavy-map-kepler", "examples-general"]
+    },
+    {
+      "patterns": ["src/agent-tools/**", "src/columnar/**", "src/kepler/**", "src/scene-workspace/**"],
+      "lanes": ["heavy-map-kepler", "examples-general"]
+    },
+    {
+      "patterns": ["examples/_kit/**"],
+      "lanes": ["realtime-collaboration", "heavy-map-kepler", "examples-general"]
+    }
+  ],
+  "globalPatterns": [
+    ".github/data/browser-impact-policy.v1.json",
+    ".github/workflows/browser-impact-observe.yml",
+    ".github/workflows/ci.yml",
+    ".nvmrc",
+    "biome.json",
+    "package-lock.json",
+    "package.json",
+    "playwright.config.mjs",
+    "playwright.first-map.config.mjs",
+    "scripts/browser-impact-observe.mjs",
+    "scripts/lib/prepared-sdk-artifact.mjs",
+    "scripts/prepare-sdk-test-artifacts.mjs",
+    "examples/shared/**",
+    "samples/**",
+    "src/contract/**",
+    "src/core/**",
+    "src/geometry/**",
+    "src/honua.ts",
+    "src/index.ts",
+    "src/map/**",
+    "src/runtime/**",
+    "src/style/**",
+    "test/scripts/browser-impact-observe.test.mjs",
+    "tsconfig.json",
+    "vite.config.ts"
+  ],
+  "ignoredPatterns": [
+    ".changeset/**",
+    ".github/ISSUE_TEMPLATE/**",
+    "CHANGELOG.md",
+    "docs/**"
+  ]
+}

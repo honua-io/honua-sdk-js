@@ -1,0 +1,78 @@
+name: Browser Impact Observation
+
+# Report-only shadow router for honua-io/honua-sdk-js#1286. It deliberately
+# runs for every trunk PR. The authoritative JS SDK job continues to execute
+# every Playwright spec until the documented 20-run parity threshold passes.
+on:
+  pull_request:
+    branches: [trunk]
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: Base commit for an explicit observation
+        required: true
+        type: string
+      head_sha:
+        description: Head commit for an explicit observation
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-impact-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    name: Compare browser impact routing
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          repository: ${{ github.repository }}
+          # PR CI's authoritative JS SDK job uses this same synthetic merge
+          # snapshot. Manual observations retain their explicit head input.
+          ref: ${{ github.event_name == 'pull_request' && github.sha || inputs.head_sha }}
+
+      - name: Validate policy and ownership fixtures
+        run: |
+          node scripts/browser-impact-observe.mjs validate
+          node --test test/scripts/browser-impact-observe.test.mjs
+
+      - name: Observe exact diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
+          EVALUATION_SHA: ${{ github.event_name == 'pull_request' && github.sha || inputs.head_sha }}
+          SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
+        run: |
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            git fetch --no-tags --filter=blob:none \
+              "https://github.com/${GITHUB_REPOSITORY}.git" \
+              "$BASE_SHA"
+          fi
+          git cat-file -e "$BASE_SHA^{commit}"
+          git merge-base "$BASE_SHA" "$EVALUATION_SHA" >/dev/null
+          node scripts/browser-impact-observe.mjs observe \
+            --base "$BASE_SHA" \
+            --head "$EVALUATION_SHA" \
+            --source-head "$SOURCE_HEAD_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --pr "$PR_NUMBER" \
+            --output test-results/browser-impact-observation.json \
+            --markdown test-results/browser-impact-summary.md
+          cat test-results/browser-impact-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain shadow evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: browser-impact-${{ github.run_id }}
+          path: |
+            test-results/browser-impact-observation.json
+            test-results/browser-impact-summary.md
+          if-no-files-found: error
+          retention-days: 30
