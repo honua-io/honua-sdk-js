@@ -52,7 +52,8 @@ const tile = await zarr.tile({
 
 - The client calls only `/api/v1/admin/zarr-stores` and
   `/api/v1/datacubes/{layerId}/tiles/...`. Alternate unversioned base paths are
-  rejected.
+  rejected, as are configured base paths containing traversal segments,
+  percent encoding, query strings, fragments, or backslashes.
 - Registration and metadata responses default to a 2 MiB ceiling. Tile
   responses also default to 2 MiB and can be reduced per request.
 - Tile coordinates and optional elevation are non-negative integers. The
@@ -63,7 +64,9 @@ const tile = await zarr.tile({
 - `assess()` recognizes Zarr v2 little-endian numeric or boolean descriptors
   and the server-supported Zarr v3 named numeric or boolean data types, plus
   uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes, and
-  ambiguous dimension metadata fail explicitly.
+  version-mismatched or ambiguous dimension metadata fail explicitly. Server
+  v3 metadata's canonical NumPy descriptor is normalized to the corresponding
+  v3 name when a registration response enters the SDK.
 - `assess()` mirrors the server's primary-or-first variable selection. Its
   readiness options require the requested tile matrix SRID and a finite,
   non-degenerate storage extent from the associated layer/coverage metadata,
