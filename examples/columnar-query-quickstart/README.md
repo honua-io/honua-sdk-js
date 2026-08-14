@@ -2,20 +2,19 @@
 
 This map-first example executes a real `f=arrow` workflow without claiming a live service that does not exist. The SDK plans a canonical FeatureServer request, an in-memory fixture transport returns the byte-exact Honua Server Arrow artifact, and the built-in decoder emits one bounded GeoArrow batch for MapLibre.
 
-The fixture is the 1,336-byte artifact produced by Honua Server commit `fd1c651efa7078c269742152a2777298e3b1c4d4`, with SHA-256 `c5d9c789171970b19ca9c54d5eda97f045f28adf66324f949c14813e8f90d001`. The base64 text in `src/fixture.ts` is checked against the canonical binary in `test/fixtures/columnar/` by `test/columnar-query-quickstart.test.ts`.
+The fixture is the exact 4,160-byte workflow artifact produced by reviewed Honua Server head `66a9d34496c6f6a03dd571957062f773bfef7f0a`, merged as `4ef53ce7f49b78aad3572db1dfc3be88a6654a43`, with SHA-256 `da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52`. Its producer receipt and digest sidecar are retained byte-for-byte beside the canonical binary in `test/fixtures/columnar/`; `test/columnar-query-quickstart.test.ts` also checks the base64 text in `src/fixture.ts` against that binary.
 
 ## What the example proves
 
 - Projection, comparison filter, CRS84 bbox, ordering, and a 25-row limit are present in the canonical server request before execution.
 - The response crosses the real SDK transfer, row, batch, backing-memory, and cancellation gates.
-- The built-in GeoArrow 0.2 WKB bridge decodes the exact server response and the table handoff maps it without materializing an unbounded dataset.
+- The built-in GeoArrow 0.2 WKB bridge reads PROJJSON CRS metadata from the field extension and the Point declaration from schema-level GeoParquet metadata, then the table handoff maps the result without materializing an unbounded dataset.
 - Runtime evidence reports rows, batches, admitted payload bytes, elapsed time, peak backing bytes, and governing ceilings.
 - Cancellation stops before a batch is admitted and a subsequent run succeeds without stale output.
 
 ```ts doc-test=skip reason="Browser application excerpt; source, columns, bbox, signal, mapRows, and showEvidence are defined by the runnable project."
 const session = openColumnarSession(source, {
   decodeServerResponse: createApacheArrowResponseDecoder({
-    geometryKind: "point",
     importModule: () => import("apache-arrow"),
   }),
   budgets: {
@@ -34,7 +33,7 @@ for await (const result of session.stream({ columns, bbox, limit: 25, signal }))
 
 ## Truth boundary
 
-This is fixture-only interoperability evidence. No `demo-manifest` target currently proves a deployed Honua endpoint serving Arrow or Parquet. The Arrow metadata does not declare a CRS; the application explicitly pins the known fixture coordinates to WGS84 for display and does not infer CRS84 in the decoder.
+This is fixture-only interoperability evidence. No `demo-manifest` target currently proves a deployed Honua endpoint serving Arrow or Parquet. The Arrow field extension declares EPSG:4326 as PROJJSON with `crs_type: "projjson"`; planar edges are represented by omission, and the schema-level GeoParquet metadata declares `Point`, including for zero-row responses. The decoder preserves this metadata and does not invent a CRS84 default.
 
 The built-in bridge remains intentionally bounded to the documented Binary/LargeBinary Point, LineString, or Polygon WKB subset plus one feature-id, dictionary/text, and timestamp field. It rejects BinaryView, multi-geometries, GeometryCollection, M/ZM coordinates, ambiguous or additional fields, and Parquet responses unless the application supplies a decoder.
 
