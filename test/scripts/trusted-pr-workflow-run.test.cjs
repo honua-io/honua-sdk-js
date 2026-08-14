@@ -159,11 +159,25 @@ test("fails closed on missing or ambiguous check-run associations", async () => 
   }
 });
 
-test("rejects a current PR whose base advanced after the workflow run", async () => {
+test("preserves the event base when the live default branch advances", async () => {
   const { github } = fixtures({
     pullRequest: {
       base: {
         ref: "trunk",
+        sha: "c".repeat(40),
+        repo: { id: 1, full_name: "honua-io/honua-sdk-js" },
+      },
+    },
+  });
+  const result = await resolve(github);
+  assert.equal(result.baseSha, BASE);
+  assert.equal(result.headSha, HEAD);
+});
+
+test("rejects a current PR whose head moved after the workflow run", async () => {
+  const { github } = fixtures({
+    pullRequest: {
+      head: {
         sha: "c".repeat(40),
         repo: { id: 1, full_name: "honua-io/honua-sdk-js" },
       },

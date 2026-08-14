@@ -153,7 +153,6 @@ async function resolveTrustedPullRequestWorkflowRun({
     pullRequest.base?.ref !== defaultBranch ||
     pullRequest.base?.repo?.full_name !== repository ||
     pullRequest.base?.repo?.id !== repositoryId ||
-    pullRequest.base?.sha !== associatedBase ||
     pullRequest.head?.sha !== associatedHead ||
     pullRequest.head?.repo?.full_name !== repository ||
     pullRequest.head?.repo?.id !== repositoryId

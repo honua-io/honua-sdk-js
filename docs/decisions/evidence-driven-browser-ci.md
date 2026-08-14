@@ -19,13 +19,14 @@ only from measured evidence. The observer runs from the default branch after
 the canonical `SDK CI` workflow completes. It resolves the exact `JS SDK` job
 through its GitHub-managed check-run association, binds the source run ID,
 attempt, conclusion, event-time base/head, and current unchanged pull request,
-then reconstructs the exact GitHub synthetic merge used by that job. Both merge
-parents must match the immutable association. The candidate tree is inert
-input: the observer executes no candidate script, action, package hook, or
-generated executable. Its retained v2 report records the source head separately
-from the synthetic `evaluation_sha` and content addresses the trusted observer
-workflow, policy, resolver, and selector in a fixed manifest. Identity and merge
-parents are resolved again immediately before evidence upload. Fork runs retain
+then reconstructs the event-time synthetic merge tree from those immutable
+parents. A later target-branch advance does not alter that snapshot, while a
+moved source head invalidates it. The candidate tree is inert input: the
+observer executes no candidate script, action, package hook, or generated
+executable. Its retained v2 report records the source head separately from the
+synthetic `evaluation_sha` and content addresses the trusted observer workflow,
+policy, resolver, and selector in a fixed manifest. Identity and the reconstructed
+merge tree are resolved again immediately before evidence upload. Fork runs retain
 the full authoritative `JS SDK` job but are explicitly excluded from the shadow
 denominator; a manual backfill accepts only the same completed canonical run
 identity and can execute only from trunk. The policy commit is the event-time
@@ -69,6 +70,11 @@ source PR changed the authoritative `ci.yml`, or when it changed the observer's
 own workflow, policy, resolver, or selector. Those runs still fail closed to the
 appropriate lanes and remain useful diagnostics, but they cannot prove parity
 for promotion.
+
+A failed monolithic `JS SDK` job is also diagnostic-only until retained test
+results identify the failed Playwright spec and therefore its owning lane. A
+bare failed job conclusion cannot prove that a candidate-skipped lane would
+have passed, so it never counts toward promotion.
 
 Enforcement is a separate change with a rollback switch. It will consume one
 immutable, content-addressed exact-head SDK build, normalize the offline-shell

@@ -22,7 +22,6 @@ const TERMINAL_CONCLUSIONS = new Set([
   "stale",
   "startup_failure",
 ]);
-const COMPARABLE_CONCLUSIONS = new Set(["success", "failure"]);
 const OBSERVER_EVENTS = new Set(["workflow_run", "workflow_dispatch"]);
 const TRUSTED_POLICY_INPUTS = new Set([
   ".github/data/browser-impact-policy.v1.json",
@@ -56,6 +55,60 @@ export function assertTrustedPolicyCommit(policyCommitSha, defaultHeadSha, isAnc
   if (typeof isAncestor !== "function" || !isAncestor(policyCommitSha, defaultHeadSha)) {
     throw new PolicyError("observer policy commit is not reachable from the fetched default branch");
   }
+}
+
+export function resolveEventMergeTree(baseSha, headSha, repositoryRoot = ROOT) {
+  if (!SHA.test(baseSha) || !SHA.test(headSha)) {
+    throw new PolicyError("event-time merge base or head is invalid");
+  }
+  let treeSha;
+  try {
+    treeSha = execFileSync("git", ["merge-tree", "--write-tree", baseSha, headSha], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch (error) {
+    throw new PolicyError(`cannot reconstruct event-time merge tree: ${error.message}`);
+  }
+  if (!SHA.test(treeSha)) {
+    throw new PolicyError("event-time merge did not produce exactly one tree");
+  }
+  return treeSha;
+}
+
+export function reconstructEventMerge(baseSha, headSha, candidateRoot, repositoryRoot = ROOT) {
+  const resolvedCandidateRoot = resolve(candidateRoot);
+  if (resolvedCandidateRoot === resolve(repositoryRoot) || existsSync(resolvedCandidateRoot)) {
+    throw new PolicyError("event-time merge candidate root must be a new separate path");
+  }
+  const treeSha = resolveEventMergeTree(baseSha, headSha, repositoryRoot);
+  const identity = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "Honua Browser Impact Observer",
+    GIT_AUTHOR_EMAIL: "browser-impact@honua.invalid",
+    GIT_AUTHOR_DATE: "2000-01-01T00:00:00+00:00",
+    GIT_COMMITTER_NAME: "Honua Browser Impact Observer",
+    GIT_COMMITTER_EMAIL: "browser-impact@honua.invalid",
+    GIT_COMMITTER_DATE: "2000-01-01T00:00:00+00:00",
+  };
+  const mergeSha = execFileSync(
+    "git",
+    ["commit-tree", treeSha, "-p", baseSha, "-p", headSha],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: identity,
+      input: "Honua event-time browser merge\n",
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  ).trim();
+  if (!SHA.test(mergeSha)) throw new PolicyError("event-time merge commit identity is invalid");
+  execFileSync("git", ["worktree", "add", "--detach", resolvedCandidateRoot, mergeSha], {
+    cwd: repositoryRoot,
+    stdio: "ignore",
+  });
+  return { merge_sha: mergeSha, merge_tree_sha: treeSha };
 }
 
 export function normalizePath(value) {
@@ -280,14 +333,15 @@ export function validateWorkflow(root) {
     }
   }
   if (
-    workflow.split('refs/pull/${PR_NUMBER}/merge').length - 1 !== 2 ||
-    !workflow.includes('git worktree add --detach "$CANDIDATE_ROOT" "$MERGE_SHA"') ||
-    workflow.split('[[ "$MERGE_BASE" == "$BASE_SHA" ]]').length - 1 !== 2 ||
-    workflow.split('[[ "$MERGE_HEAD" == "$HEAD_SHA" ]]').length - 1 !== 2 ||
+    workflow.split('refs/pull/${PR_NUMBER}/head').length - 1 !== 2 ||
+    workflow.split('browser-impact-observe.mjs reconstruct').length - 1 !== 1 ||
+    workflow.split('browser-impact-observe.mjs event-tree').length - 1 !== 1 ||
+    workflow.split('browser-impact/${PR_NUMBER}/head^{commit}').length - 1 !== 2 ||
+    !workflow.includes('EXPECTED_MERGE_TREE_SHA: ${{ steps.merge.outputs.merge_tree_sha }}') ||
     !workflow.includes('--head "$MERGE_SHA"') ||
     !workflow.includes('--source-head "$HEAD_SHA"')
   ) {
-    throw new PolicyError("browser observer must verify the authoritative synthetic merge parents");
+    throw new PolicyError("browser observer must reconstruct and revalidate the event-time merge tree");
   }
   const resolveCalls = workflow.match(/await resolveTrustedPullRequestWorkflowRun/gmu) ?? [];
   if (resolveCalls.length !== 2) {
@@ -435,7 +489,9 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
     .digest("hex");
   const promotionExclusionReasons = [];
   if (!metadata.trust) promotionExclusionReasons.push("missing-trusted-identity");
-  if (metadata.trust && !COMPARABLE_CONCLUSIONS.has(metadata.trust.source_job_conclusion)) {
+  if (metadata.trust?.source_job_conclusion === "failure") {
+    promotionExclusionReasons.push("browser-authority-failure-unattributed");
+  } else if (metadata.trust && metadata.trust.source_job_conclusion !== "success") {
     promotionExclusionReasons.push("browser-authority-not-comparable");
   }
   if (normalizedChangedPaths.includes(".github/workflows/ci.yml")) {
@@ -609,6 +665,22 @@ function parseArgs(argv) {
 
 function main(argv) {
   const args = parseArgs(argv);
+  if (args.command === "reconstruct") {
+    if (!args.base || !args.head || !args["candidate-root"]) {
+      throw new PolicyError("reconstruct requires --base, --head, and --candidate-root");
+    }
+    console.log(
+      JSON.stringify(reconstructEventMerge(args.base, args.head, args["candidate-root"])),
+    );
+    return;
+  }
+  if (args.command === "event-tree") {
+    if (!args.base || !args.head) {
+      throw new PolicyError("event-tree requires --base and --head");
+    }
+    console.log(resolveEventMergeTree(args.base, args.head));
+    return;
+  }
   const candidateRoot = args.root ? resolve(args.root) : ROOT;
   const policyPath = args.policy ? resolve(args.policy) : DEFAULT_POLICY;
   if (policyPath !== DEFAULT_POLICY) {

@@ -97,13 +97,14 @@ jobs:
             core.setOutput("job_conclusion", resolved.job.conclusion);
             core.setOutput("check_run_id", resolved.checkRun.id);
 
-      - name: Reconstruct authoritative synthetic merge as inert data
+      - name: Reconstruct event-time synthetic merge as inert data
         id: merge
         shell: bash
         env:
           PR_NUMBER: ${{ steps.resolve.outputs.pull_request }}
           BASE_SHA: ${{ steps.resolve.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolve.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           CANDIDATE_ROOT: ${{ runner.temp }}/browser-impact-candidate
         run: |
           set -euo pipefail
@@ -111,14 +112,20 @@ jobs:
           [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
           git fetch --no-tags origin \
-            "+refs/pull/${PR_NUMBER}/merge:refs/remotes/origin/browser-impact/${PR_NUMBER}"
-          MERGE_SHA=$(git rev-parse "refs/remotes/origin/browser-impact/${PR_NUMBER}^{commit}")
-          read -r MERGE_BASE MERGE_HEAD EXTRA_PARENT <<<"$(git show -s --format=%P "$MERGE_SHA")"
-          [[ -n "$MERGE_BASE" && -n "$MERGE_HEAD" && -z "${EXTRA_PARENT:-}" ]]
-          [[ "$MERGE_BASE" == "$BASE_SHA" ]]
-          [[ "$MERGE_HEAD" == "$HEAD_SHA" ]]
-          git worktree add --detach "$CANDIDATE_ROOT" "$MERGE_SHA"
+            "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/browser-impact/${PR_NUMBER}/head" \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/browser-impact/${PR_NUMBER}/base-tip"
+          [[ "$(git rev-parse "refs/remotes/origin/browser-impact/${PR_NUMBER}/head^{commit}")" == "$HEAD_SHA" ]]
+          git cat-file -e "$BASE_SHA^{commit}"
+          MERGE_JSON=$(node scripts/browser-impact-observe.mjs reconstruct \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA" \
+            --candidate-root "$CANDIDATE_ROOT")
+          MERGE_SHA=$(jq -er '.merge_sha' <<<"$MERGE_JSON")
+          MERGE_TREE_SHA=$(jq -er '.merge_tree_sha' <<<"$MERGE_JSON")
+          [[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MERGE_TREE_SHA" =~ ^[0-9a-f]{40}$ ]]
           echo "merge_sha=$MERGE_SHA" >> "$GITHUB_OUTPUT"
+          echo "merge_tree_sha=$MERGE_TREE_SHA" >> "$GITHUB_OUTPUT"
           echo "candidate_root=$CANDIDATE_ROOT" >> "$GITHUB_OUTPUT"
 
       - name: Observe exact browser impact
@@ -203,23 +210,24 @@ jobs:
               core.setFailed("SDK CI source identity changed during observation");
             }
 
-      - name: Revalidate synthetic merge before publishing evidence
+      - name: Revalidate event-time merge tree before publishing evidence
         shell: bash
         env:
           PR_NUMBER: ${{ steps.resolve.outputs.pull_request }}
           BASE_SHA: ${{ steps.resolve.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolve.outputs.head_sha }}
-          EXPECTED_MERGE_SHA: ${{ steps.merge.outputs.merge_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_MERGE_TREE_SHA: ${{ steps.merge.outputs.merge_tree_sha }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin \
-            "+refs/pull/${PR_NUMBER}/merge:refs/remotes/origin/browser-impact/${PR_NUMBER}"
-          MERGE_SHA=$(git rev-parse "refs/remotes/origin/browser-impact/${PR_NUMBER}^{commit}")
-          read -r MERGE_BASE MERGE_HEAD EXTRA_PARENT <<<"$(git show -s --format=%P "$MERGE_SHA")"
-          [[ "$MERGE_SHA" == "$EXPECTED_MERGE_SHA" ]]
-          [[ "$MERGE_BASE" == "$BASE_SHA" ]]
-          [[ "$MERGE_HEAD" == "$HEAD_SHA" ]]
-          [[ -z "${EXTRA_PARENT:-}" ]]
+            "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/browser-impact/${PR_NUMBER}/head" \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/browser-impact/${PR_NUMBER}/base-tip"
+          [[ "$(git rev-parse "refs/remotes/origin/browser-impact/${PR_NUMBER}/head^{commit}")" == "$HEAD_SHA" ]]
+          CURRENT_MERGE_TREE_SHA=$(node scripts/browser-impact-observe.mjs event-tree \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA")
+          [[ "$CURRENT_MERGE_TREE_SHA" == "$EXPECTED_MERGE_TREE_SHA" ]]
 
       - name: Retain trusted shadow evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

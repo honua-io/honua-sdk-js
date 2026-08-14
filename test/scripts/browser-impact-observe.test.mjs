@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -15,6 +22,7 @@ import {
   loadPolicy,
   parseChangedPaths,
   pathMatches,
+  reconstructEventMerge,
   validatePolicy,
   validateWorkflow,
 } from "../../scripts/browser-impact-observe.mjs";
@@ -187,6 +195,50 @@ test("full upstream base fetch preserves the merge base for a fork head", () => 
   }
 });
 
+test("reconstructs the event-time merge after the live base advances", () => {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "honua-browser-event-merge-"));
+  const repository = join(fixtureRoot, "repository");
+  const candidate = join(fixtureRoot, "candidate");
+  mkdirSync(repository);
+  try {
+    git(repository, "init", "--initial-branch=trunk");
+    git(repository, "config", "user.email", "ci@example.invalid");
+    git(repository, "config", "user.name", "CI Fixture");
+    writeFileSync(join(repository, "base.txt"), "initial\n");
+    git(repository, "add", "base.txt");
+    git(repository, "commit", "-m", "initial");
+    git(repository, "switch", "-c", "feature");
+    writeFileSync(join(repository, "feature.txt"), "feature\n");
+    git(repository, "add", "feature.txt");
+    git(repository, "commit", "-m", "feature");
+    const headSha = git(repository, "rev-parse", "HEAD");
+    git(repository, "switch", "trunk");
+    writeFileSync(join(repository, "base.txt"), "event base\n");
+    git(repository, "add", "base.txt");
+    git(repository, "commit", "-m", "event base");
+    const eventBaseSha = git(repository, "rev-parse", "HEAD");
+    writeFileSync(join(repository, "later.txt"), "later trunk\n");
+    git(repository, "add", "later.txt");
+    git(repository, "commit", "-m", "later trunk");
+
+    const snapshot = reconstructEventMerge(eventBaseSha, headSha, candidate, repository);
+    assert.equal(
+      readFileSync(join(candidate, "base.txt"), "utf8").replaceAll("\r\n", "\n"),
+      "event base\n",
+    );
+    assert.equal(
+      readFileSync(join(candidate, "feature.txt"), "utf8").replaceAll("\r\n", "\n"),
+      "feature\n",
+    );
+    assert.equal(existsSync(join(candidate, "later.txt")), false);
+    assert.equal(git(candidate, "rev-parse", "HEAD^{tree}"), snapshot.merge_tree_sha);
+    assert.equal(git(candidate, "show", "-s", "--format=%P", "HEAD"), `${eventBaseSha} ${headSha}`);
+    git(repository, "worktree", "remove", "--force", candidate);
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
 test("rename parsing evaluates both source and destination paths", () => {
   const paths = parseChangedPaths(
     "R100\0examples/maplibre-quickstart/mock-server.mjs\0docs/archive/mock-server.mjs\0M\0README.md\0",
@@ -289,6 +341,33 @@ test("excludes policy and source-workflow changes from promotion samples", () =>
   ]);
 });
 
+test("excludes unattributed browser failures from promotion samples", () => {
+  const trust = buildTrust({
+    observerRunId: "789",
+    observerRunAttempt: "1",
+    observerEvent: "workflow_run",
+    observerRef: "refs/heads/trunk",
+    observerRepository: "honua-io/honua-sdk-js",
+    sourceRunId: "123",
+    sourceRunAttempt: "1",
+    sourceRunConclusion: "failure",
+    sourceJobId: "456",
+    sourceJobName: "JS SDK",
+    sourceJobConclusion: "failure",
+    sourceCheckRunId: "456",
+    policyCommitSha: "a".repeat(40),
+    observerWorkflowSha256: "b".repeat(64),
+    policyBlobSha256: "c".repeat(64),
+    resolverBlobSha256: "d".repeat(64),
+    selectorBlobSha256: "e".repeat(64),
+  });
+  const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
+  assert.equal(report.comparison.promotion_sample_eligible, false);
+  assert.deepEqual(report.comparison.promotion_exclusion_reasons, [
+    "browser-authority-failure-unattributed",
+  ]);
+});
+
 test("rejects incomplete or malformed trusted evidence identity", () => {
   const valid = {
     observerRunId: "789",
@@ -373,8 +452,8 @@ test("trusted observer workflow rejects permission and identity regressions", ()
       source.replace('jobName: "JS SDK"', 'jobName: "MCP SDK"'),
       source.replace('workflows: ["SDK CI"]', 'workflows: ["Lookalike"]'),
       source.replace(
-        '[[ "$MERGE_HEAD" == "$HEAD_SHA" ]]',
-        '[[ "$MERGE_HEAD" != "$HEAD_SHA" ]]',
+        'browser-impact-observe.mjs event-tree',
+        'browser-impact-observe.mjs validate',
       ),
       source.replace('--head "$MERGE_SHA"', '--head "$HEAD_SHA"'),
     ]) {
