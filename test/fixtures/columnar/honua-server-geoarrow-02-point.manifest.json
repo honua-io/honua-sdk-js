@@ -1,23 +1,33 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 1,
   "producer": {
     "repository": "https://github.com/honua-io/honua-server",
     "commit": "66a9d34496c6f6a03dd571957062f773bfef7f0a",
     "mergeCommit": "4ef53ce7f49b78aad3572db1dfc3be88a6654a43",
-    "pullRequest": "https://github.com/honua-io/honua-server/pull/3212",
-    "artifactRun": 31767388217,
     "formatter": "src/Honua.Protocols.GeoServices/FeatureServer/Services/GeoArrowQueryFormatter.cs",
     "test": "Honua.Server.Tests.Features.Protocols.GeoServices.FeatureServer.Services.GeoArrowQueryFormatterTests.FormatAsGeoArrowAsync_ContractFixture_IsDeterministicAndEmitsGovernedArtifact"
   },
   "artifact": {
-    "path": "test/fixtures/columnar/honua-server-geoarrow-wkb.arrow",
+    "path": "test/fixtures/columnar/honua-server-geoarrow-02-point.arrow",
     "mediaType": "application/vnd.apache.arrow.stream",
     "bytes": 4160,
     "sha256": "da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52"
   },
+  "sidecars": {
+    "digest": {
+      "path": "test/fixtures/columnar/honua-server-geoarrow-02-point.arrow.sha256",
+      "bytes": 103,
+      "sha256": "e6beabc28e78a8383550f1fb8d08ee848e259f19596ba834519abd19759ced80"
+    },
+    "provenance": {
+      "path": "test/fixtures/columnar/honua-server-geoarrow-02-point.arrow.provenance.json",
+      "bytes": 1014,
+      "sha256": "9f52a0e8289d0e29df01f850af84a7bc0577649df7a68684f7558b127653bf5e"
+    }
+  },
   "contract": {
     "requestFormat": "f=arrow",
-    "geoArrowVersion": "0.2",
+    "version": "GeoArrow 0.2",
     "geometryExtension": "geoarrow.wkb",
     "extensionMetadataKeys": ["crs", "crs_type"],
     "crsType": "projjson",
@@ -30,12 +40,6 @@
       { "name": "geometry", "type": "Binary", "role": "geometry" }
     ],
     "rows": 1
-  },
-  "handoff": {
-    "sourceArtifact": "honua-server-geoarrow-02-point.arrow",
-    "provenancePath": "test/fixtures/columnar/honua-server-geoarrow-wkb.arrow.provenance.json",
-    "serverIssue": "https://github.com/honua-io/honua-server/issues/3211",
-    "sdkIssue": "https://github.com/honua-io/honua-sdk-js/issues/1257"
   },
   "maturity": "fixture-only; no deployed demo-manifest target is claimed"
 }

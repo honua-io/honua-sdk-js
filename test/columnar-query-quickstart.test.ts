@@ -17,7 +17,7 @@ import { ColumnarWorkflowError } from "../src/columnar-workflow/index.js";
 
 describe("columnar query quickstart", () => {
   it("embeds the exact reviewed Honua Server Arrow fixture", async () => {
-    const canonical = await readFile("test/fixtures/columnar/honua-server-geoarrow-wkb.arrow");
+    const canonical = await readFile("test/fixtures/columnar/honua-server-geoarrow-02-point.arrow");
     const embedded = honuaArrowFixtureBytes();
     expect(embedded.byteLength).toBe(HONUA_ARROW_FIXTURE_BYTES);
     expect(Buffer.from(embedded)).toEqual(canonical);

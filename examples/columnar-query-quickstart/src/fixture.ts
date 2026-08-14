@@ -1,5 +1,5 @@
 /**
- * Byte-identical base64 of test/fixtures/columnar/honua-server-geoarrow-wkb.arrow.
+ * Byte-identical base64 of test/fixtures/columnar/honua-server-geoarrow-02-point.arrow.
  * It is text-embedded so the generated browser playground remains self-contained
  * without weakening its binary-asset eligibility rule.
  */
@@ -9,7 +9,6 @@ export const HONUA_ARROW_FIXTURE_BASE64 =
 export const HONUA_ARROW_FIXTURE_BYTES = 4_160;
 export const HONUA_ARROW_FIXTURE_SHA256 = "da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52";
 export const HONUA_ARROW_FIXTURE_SERVER_COMMIT = "66a9d34496c6f6a03dd571957062f773bfef7f0a";
-export const HONUA_ARROW_FIXTURE_SERVER_MERGE = "4ef53ce7f49b78aad3572db1dfc3be88a6654a43";
 
 export function honuaArrowFixtureBytes(): Uint8Array {
   const binary = atob(HONUA_ARROW_FIXTURE_BASE64);

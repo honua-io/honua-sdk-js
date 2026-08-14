@@ -13,26 +13,17 @@ import {
 } from "../src/columnar-workflow/index.js";
 import { decodeGeoArrowBatch, inspectGeoArrowBatch } from "../src/columnar/index.js";
 
-const fixtureUrl = new URL("./fixtures/columnar/honua-server-geoarrow-wkb.arrow", import.meta.url);
-const manifestUrl = new URL("./fixtures/columnar/honua-server-geoarrow-wkb.manifest.json", import.meta.url);
-const provenanceUrl = new URL("./fixtures/columnar/honua-server-geoarrow-wkb.arrow.provenance.json", import.meta.url);
+const fixtureUrl = new URL("./fixtures/columnar/honua-server-geoarrow-02-point.arrow", import.meta.url);
+const digestUrl = new URL("./fixtures/columnar/honua-server-geoarrow-02-point.arrow.sha256", import.meta.url);
+const provenanceUrl = new URL(
+  "./fixtures/columnar/honua-server-geoarrow-02-point.arrow.provenance.json",
+  import.meta.url,
+);
+const manifestUrl = new URL("./fixtures/columnar/honua-server-geoarrow-02-point.manifest.json", import.meta.url);
 const fixture = await readFile(fixtureUrl);
-const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
-  readonly producer: {
-    readonly commit: string;
-    readonly mergeCommit: string;
-    readonly pullRequest: string;
-    readonly artifactRun: number;
-  };
-  readonly artifact: { readonly bytes: number; readonly sha256: string };
-  readonly contract: {
-    readonly extensionMetadataKeys: readonly string[];
-    readonly crsType: string;
-    readonly planarEdgesByOmission: boolean;
-    readonly geoParquetGeometryTypes: readonly string[];
-  };
-};
-const provenance = JSON.parse(await readFile(provenanceUrl, "utf8")) as {
+const digestSidecar = await readFile(digestUrl, "utf8");
+const provenanceReceiptText = await readFile(provenanceUrl, "utf8");
+const provenanceReceipt = JSON.parse(provenanceReceiptText) as {
   readonly producer: { readonly commit: string };
   readonly artifact: { readonly file: string; readonly bytes: number; readonly sha256: string };
   readonly contract: {
@@ -40,8 +31,24 @@ const provenance = JSON.parse(await readFile(provenanceUrl, "utf8")) as {
     readonly crsType: string;
     readonly planarEdgesByOmission: boolean;
     readonly geoParquetGeometryTypes: readonly string[];
+    readonly rows: number;
   };
 };
+const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
+  readonly producer: { readonly commit: string; readonly mergeCommit: string };
+  readonly artifact: { readonly path: string; readonly bytes: number; readonly sha256: string };
+  readonly sidecars: {
+    readonly digest: { readonly path: string; readonly bytes: number; readonly sha256: string };
+    readonly provenance: { readonly path: string; readonly bytes: number; readonly sha256: string };
+  };
+};
+
+const PRODUCER_COMMIT = "66a9d34496c6f6a03dd571957062f773bfef7f0a";
+const PRODUCER_MERGE_COMMIT = "4ef53ce7f49b78aad3572db1dfc3be88a6654a43";
+const FIXTURE_BYTES = 4_160;
+const FIXTURE_SHA256 = "da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52";
+const DIGEST_SHA256 = "e6beabc28e78a8383550f1fb8d08ee848e259f19596ba834519abd19759ced80";
+const PROVENANCE_SHA256 = "9f52a0e8289d0e29df01f850af84a7bc0577649df7a68684f7558b127653bf5e";
 
 const budgets: ColumnarWorkflowBudgets = {
   maxRows: 100,
@@ -199,9 +206,25 @@ const unsupportedWkb = (type: number): Uint8Array => {
 interface SyntheticIpcOptions {
   readonly storage?: "binary" | "large-binary";
   readonly extensionMetadata?: string | Readonly<Record<string, unknown>>;
-  readonly geoMetadata?: Readonly<Record<string, unknown>>;
+  readonly schemaMetadata?: Readonly<Record<string, string>>;
   readonly maxBackingBytes?: number;
 }
+
+const geoSchemaMetadata = (
+  geometryTypes: unknown,
+  options: { readonly primaryColumn?: string; readonly encoding?: unknown } = {},
+): Readonly<Record<string, string>> => ({
+  geo: JSON.stringify({
+    version: "1.1.0",
+    primary_column: options.primaryColumn ?? "geometry",
+    columns: {
+      geometry: {
+        encoding: options.encoding ?? "WKB",
+        geometry_types: geometryTypes,
+      },
+    },
+  }),
+});
 
 const syntheticIpc = async (
   geometries: readonly (Uint8Array | null)[],
@@ -219,10 +242,11 @@ const syntheticIpc = async (
         : JSON.stringify(options.extensionMetadata),
     );
   }
-  const schemaMetadata = new Map<string, string>();
-  if (options.geoMetadata !== undefined) schemaMetadata.set("geo", JSON.stringify(options.geoMetadata));
   const recordBatch = new arrow.RecordBatch(
-    new arrow.Schema([new arrow.Field("geometry", type, true, metadata)], schemaMetadata),
+    new arrow.Schema(
+      [new arrow.Field("geometry", type, true, metadata)],
+      new Map(Object.entries(options.schemaMetadata ?? {})),
+    ),
     source.data,
   );
   return arrow.RecordBatchStreamWriter.writeAll([recordBatch]).toUint8Array();
@@ -249,50 +273,64 @@ const decodeSynthetic = async (geometries: readonly (Uint8Array | null)[], optio
   return batches[0]!;
 };
 
-const fixtureMetadata = (): {
-  readonly extension: Record<string, unknown>;
-  readonly geoParquetColumn: Record<string, unknown>;
-} => {
-  const batch = arrow.tableFromIPC(fixture).batches[0]!;
-  const field = batch.schema.fields.find(({ name }) => name === "geometry");
-  assert.ok(field);
-  const extensionJson = field.metadata.get("ARROW:extension:metadata");
-  const geoJson = batch.schema.metadata.get("geo");
-  assert.ok(extensionJson);
-  assert.ok(geoJson);
-  const extension = JSON.parse(extensionJson) as Record<string, unknown>;
-  const geo = JSON.parse(geoJson) as { readonly columns?: Record<string, unknown> };
-  const geoParquetColumn = geo.columns?.geometry;
-  assert.ok(typeof geoParquetColumn === "object" && geoParquetColumn !== null && !Array.isArray(geoParquetColumn));
-  return { extension, geoParquetColumn: geoParquetColumn as Record<string, unknown> };
-};
-
-const assertGovernedFixtureMetadata = (
-  extension: Readonly<Record<string, unknown>>,
-  geoParquetColumn: Readonly<Record<string, unknown>>,
-): void => {
-  assert.deepEqual(Object.keys(extension).sort(), [...manifest.contract.extensionMetadataKeys].sort());
-  assert.equal(typeof extension.crs, "object");
-  assert.ok(extension.crs !== null && !Array.isArray(extension.crs));
-  assert.equal(extension.crs_type, manifest.contract.crsType);
-  assert.equal("geometry_types" in extension, false);
-  assert.equal("edges" in extension, false);
-  assert.equal(manifest.contract.planarEdgesByOmission, true);
-  assert.deepEqual(geoParquetColumn.geometry_types, manifest.contract.geoParquetGeometryTypes);
-};
-
 test("decodes an exact Honua Server geoarrow.wkb IPC fixture into the normative bounded batch", async () => {
+  assert.equal(manifest.producer.commit, PRODUCER_COMMIT);
+  assert.equal(manifest.producer.mergeCommit, PRODUCER_MERGE_COMMIT);
+  assert.equal(manifest.artifact.path, "test/fixtures/columnar/honua-server-geoarrow-02-point.arrow");
   assert.equal(fixture.byteLength, manifest.artifact.bytes);
   assert.equal(createHash("sha256").update(fixture).digest("hex"), manifest.artifact.sha256);
-  assert.equal(provenance.producer.commit, manifest.producer.commit);
-  assert.equal(provenance.artifact.bytes, manifest.artifact.bytes);
-  assert.equal(provenance.artifact.sha256, manifest.artifact.sha256);
-  assert.deepEqual(provenance.contract.extensionMetadataKeys, manifest.contract.extensionMetadataKeys);
-  assert.equal(provenance.contract.crsType, manifest.contract.crsType);
-  assert.equal(provenance.contract.planarEdgesByOmission, manifest.contract.planarEdgesByOmission);
-  assert.deepEqual(provenance.contract.geoParquetGeometryTypes, manifest.contract.geoParquetGeometryTypes);
-  const metadata = fixtureMetadata();
-  assertGovernedFixtureMetadata(metadata.extension, metadata.geoParquetColumn);
+  assert.equal(fixture.byteLength, FIXTURE_BYTES);
+  assert.equal(manifest.artifact.sha256, FIXTURE_SHA256);
+  assert.equal(digestSidecar, `${FIXTURE_SHA256}  honua-server-geoarrow-02-point.arrow\n`);
+  assert.equal(Buffer.byteLength(digestSidecar), manifest.sidecars.digest.bytes);
+  assert.equal(createHash("sha256").update(digestSidecar).digest("hex"), DIGEST_SHA256);
+  assert.equal(manifest.sidecars.digest.sha256, DIGEST_SHA256);
+  assert.equal(Buffer.byteLength(provenanceReceiptText), manifest.sidecars.provenance.bytes);
+  assert.equal(createHash("sha256").update(provenanceReceiptText).digest("hex"), PROVENANCE_SHA256);
+  assert.equal(manifest.sidecars.provenance.sha256, PROVENANCE_SHA256);
+  assert.equal(provenanceReceipt.producer.commit, PRODUCER_COMMIT);
+  assert.deepEqual(provenanceReceipt.artifact, {
+    file: "honua-server-geoarrow-02-point.arrow",
+    mediaType: "application/vnd.apache.arrow.stream",
+    bytes: FIXTURE_BYTES,
+    sha256: FIXTURE_SHA256,
+  });
+  assert.deepEqual(provenanceReceipt.contract, {
+    version: "GeoArrow 0.2",
+    geometryExtension: "geoarrow.wkb",
+    extensionMetadataKeys: ["crs", "crs_type"],
+    crsType: "projjson",
+    planarEdgesByOmission: true,
+    geoParquetGeometryTypes: ["Point"],
+    rows: 1,
+  });
+
+  const sourceTable = arrow.tableFromIPC(fixture);
+  const geometryField = sourceTable.schema.fields.find((field) => field.name === "geometry");
+  assert.ok(geometryField);
+  const extension = JSON.parse(geometryField.metadata.get("ARROW:extension:metadata") ?? "null") as Record<
+    string,
+    unknown
+  >;
+  const geo = JSON.parse(sourceTable.schema.metadata.get("geo") ?? "null") as {
+    readonly primary_column: string;
+    readonly columns: {
+      readonly geometry: {
+        readonly encoding: string;
+        readonly geometry_types: readonly string[];
+        readonly crs: unknown;
+      };
+    };
+  };
+  assert.deepEqual(Object.keys(extension).sort(), ["crs", "crs_type"]);
+  assert.equal(extension.crs_type, "projjson");
+  assert.equal(extension.edges, undefined);
+  assert.equal(extension.geometry_types, undefined);
+  assert.equal(geo.primary_column, "geometry");
+  assert.equal(geo.columns.geometry.encoding, "WKB");
+  assert.deepEqual(geo.columns.geometry.geometry_types, ["Point"]);
+  assert.deepEqual(extension.crs, geo.columns.geometry.crs);
+
   const batches = await decode(context());
   assert.equal(batches.length, 1);
   const batch = batches[0]!;
@@ -301,9 +339,9 @@ test("decodes an exact Honua Server geoarrow.wkb IPC fixture into the normative 
   assert.equal(batch.identity?.sourceVersion, manifest.producer.commit);
   assert.equal(batch.identity?.ordering.stable, true);
   assert.equal(inspection.geometry.kind, "point");
-  assert.deepEqual(JSON.parse(JSON.stringify(inspection.geometry.crs)), metadata.extension.crs);
   assert.equal(inspection.geometry.crsType, "projjson");
   assert.equal(inspection.geometry.edges, "planar");
+  assert.deepEqual(JSON.parse(JSON.stringify(inspection.geometry.crs)), extension.crs);
   assert.equal(inspection.featureIds?.field, "objectid");
   assert.equal(inspection.dictionary?.field, "name");
   assert.equal(inspection.temporal?.field, "created");
@@ -315,67 +353,6 @@ test("decodes an exact Honua Server geoarrow.wkb IPC fixture into the normative 
       featureId: 1,
     },
   ]);
-});
-
-test("fails fixture governance assertions for non-canonical GeoArrow metadata mutations", () => {
-  const { extension, geoParquetColumn } = fixtureMetadata();
-  const { crs } = extension;
-  const mutations: ReadonlyArray<{
-    readonly name: string;
-    readonly extension: Readonly<Record<string, unknown>>;
-    readonly geoParquetColumn: Readonly<Record<string, unknown>>;
-  }> = [
-    { name: "missing crs_type", extension: { crs }, geoParquetColumn },
-    { name: "wrong crs_type", extension: { crs, crs_type: "authority_code" }, geoParquetColumn },
-    {
-      name: "extension geometry_types",
-      extension: { ...extension, geometry_types: ["Point"] },
-      geoParquetColumn,
-    },
-    { name: "explicit planar edges", extension: { ...extension, edges: "planar" }, geoParquetColumn },
-    {
-      name: "unknown GeoParquet geometry type",
-      extension,
-      geoParquetColumn: { ...geoParquetColumn, geometry_types: [] },
-    },
-  ];
-  for (const mutation of mutations) {
-    assert.throws(() => assertGovernedFixtureMetadata(mutation.extension, mutation.geoParquetColumn), mutation.name);
-  }
-});
-
-test("derives a zero-row Point declaration from GeoParquet-level geo metadata", async () => {
-  const projjson = { type: "GeographicCRS", name: "WGS 84" };
-  const batch = await decodeSynthetic([], {
-    extensionMetadata: { crs: projjson, crs_type: "projjson" },
-    geoMetadata: {
-      version: "1.1.0",
-      primary_column: "geometry",
-      columns: { geometry: { encoding: "WKB", geometry_types: ["Point"] } },
-    },
-  });
-  const inspection = inspectGeoArrowBatch(batch);
-  assert.equal(inspection.geometry.kind, "point");
-  assert.equal(inspection.geometry.dimensions, "xy");
-  assert.deepEqual(JSON.parse(JSON.stringify(inspection.geometry.crs)), projjson);
-  assert.equal(inspection.geometry.crsType, "projjson");
-  assert.equal(inspection.geometry.edges, "planar");
-  assert.deepEqual(decodeGeoArrowBatch(batch).rows, []);
-});
-
-test("rejects conflicting extension and GeoParquet geometry type declarations", async () => {
-  await assert.rejects(
-    () =>
-      decodeSynthetic([pointWkb([1, 2])], {
-        extensionMetadata: { geometry_types: ["LineString"] },
-        geoMetadata: {
-          version: "1.1.0",
-          primary_column: "geometry",
-          columns: { geometry: { encoding: "WKB", geometry_types: ["Point"] } },
-        },
-      }),
-    (error: unknown) => error instanceof ColumnarWorkflowError && error.code === "INVALID_RESPONSE",
-  );
 });
 
 test("preserves bounded GeoArrow CRS and edges metadata across Binary and LargeBinary storage", async () => {
@@ -434,7 +411,7 @@ test("ignores embedded EWKB SRIDs and preserves only declared GeoArrow CRS metad
 test("preserves null and empty Point, LineString, and Polygon semantics", async () => {
   const points = decodeGeoArrowBatch(
     await decodeSynthetic([pointWkb([Number.NaN, Number.NaN]), null, pointWkb([1, 2])], {
-      extensionMetadata: { geometry_types: ["Point"] },
+      schemaMetadata: geoSchemaMetadata(["Point"]),
     }),
   ).rows;
   assert.ok(Array.isArray(points[0]!.geometry));
@@ -488,6 +465,27 @@ test("preserves null and empty Point, LineString, and Polygon semantics", async 
   );
 });
 
+test("uses schema-level GeoParquet geometry_types for a zero-row response", async () => {
+  const batch = await decodeSynthetic([], {
+    extensionMetadata: { crs: { type: "GeographicCRS", name: "WGS 84" }, crs_type: "projjson" },
+    schemaMetadata: geoSchemaMetadata(["Point"]),
+  });
+
+  assert.equal(inspectGeoArrowBatch(batch).geometry.kind, "point");
+  assert.equal(inspectGeoArrowBatch(batch).geometry.crsType, "projjson");
+  assert.deepEqual(decodeGeoArrowBatch(batch).rows, []);
+});
+
+test("does not treat non-standard extension geometry_types as the geometry declaration", async () => {
+  const batch = await decodeSynthetic([pointWkb([1, 2])], {
+    extensionMetadata: { geometry_types: ["LineString"] },
+    schemaMetadata: geoSchemaMetadata(["Point"]),
+  });
+
+  assert.equal(inspectGeoArrowBatch(batch).geometry.kind, "point");
+  assert.deepEqual(decodeGeoArrowBatch(batch).rows[0]?.geometry, [1, 2]);
+});
+
 test("bounds XYZ WKB coordinate arrays before materializing them", async () => {
   const positions = Array.from({ length: 8 }, (_, index) => [index, index + 1, index + 2] as const);
   await assert.rejects(
@@ -522,6 +520,36 @@ test("rejects malformed metadata and intentionally unsupported WKB layouts", asy
       name: "invalid edges",
       geometries: [pointWkb([1, 2])],
       options: { extensionMetadata: { edges: "rhumb" } },
+    },
+    {
+      name: "non-object GeoParquet schema metadata",
+      geometries: [pointWkb([1, 2])],
+      options: { schemaMetadata: { geo: "[]" } },
+    },
+    {
+      name: "GeoParquet primary column mismatch",
+      geometries: [pointWkb([1, 2])],
+      options: { schemaMetadata: geoSchemaMetadata(["Point"], { primaryColumn: "footprint" }) },
+    },
+    {
+      name: "GeoParquet encoding mismatch",
+      geometries: [pointWkb([1, 2])],
+      options: { schemaMetadata: geoSchemaMetadata(["Point"], { encoding: "point" }) },
+    },
+    {
+      name: "invalid GeoParquet geometry_types",
+      geometries: [pointWkb([1, 2])],
+      options: { schemaMetadata: geoSchemaMetadata("Point") },
+    },
+    {
+      name: "unsupported GeoParquet geometry type",
+      geometries: [pointWkb([1, 2])],
+      options: { schemaMetadata: geoSchemaMetadata(["MultiPoint"]) },
+    },
+    {
+      name: "GeoParquet geometry declaration disagrees with WKB",
+      geometries: [pointWkb([1, 2])],
+      options: { schemaMetadata: geoSchemaMetadata(["LineString"]) },
     },
     { name: "M", geometries: [pointWkb([1, 2, 3], { dimensions: "xym" })] },
     { name: "ZM", geometries: [pointWkb([1, 2, 3, 4], { dimensions: "xyzm", flavor: "ewkb" })] },

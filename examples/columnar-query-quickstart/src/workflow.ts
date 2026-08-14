@@ -67,13 +67,12 @@ export function createFixtureWorkflow(delayMs = 140) {
       layerId: 0,
       format: "arrow",
       sourceVersion: HONUA_ARROW_FIXTURE_SERVER_COMMIT,
-      schemaVersion: "honua-server-geoarrow-wkb-v1",
+      schemaVersion: "honua-server-geoarrow-02-point-v1",
       authorizationScope: "public-fixture",
     },
     {
       budgets: COLUMNAR_BUDGETS,
       decodeServerResponse: createApacheArrowResponseDecoder({
-        geometryKind: "point",
         importModule: () => import("apache-arrow"),
       }),
       clientOptions: {
