@@ -140,12 +140,7 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
   "core.coverage.wcs-exception": classification("core", "protocol", false, "WCS exception report"),
   "core.zarr.invalid-request": classification("core", "validation", false, "Zarr request failed contract validation"),
   "core.zarr.invalid-response": classification("core", "protocol", false, "Zarr response failed contract validation"),
-  "core.zarr.response-too-large": classification(
-    "core",
-    "validation",
-    false,
-    "Zarr response exceeded its byte limit",
-  ),
+  "core.zarr.response-too-large": classification("core", "validation", false, "Zarr response exceeded its byte limit"),
   "core.zarr.metadata-pending": classification(
     "core",
     "validation",
@@ -188,12 +183,7 @@ export const HONUA_ERROR_CODE_REGISTRY = Object.freeze({
     false,
     "Zarr tile codec is unsupported for handoff",
   ),
-  "core.zarr.unsupported-dtype": classification(
-    "core",
-    "capability",
-    false,
-    "Zarr tile dtype is unsupported",
-  ),
+  "core.zarr.unsupported-dtype": classification("core", "capability", false, "Zarr tile dtype is unsupported"),
   "core.zarr.ambiguous-dimensions": classification(
     "core",
     "validation",

@@ -21,7 +21,7 @@
       "required": ["path", "format", "schemaVersion", "sha256"],
       "properties": {
         "path": {
-          "const": "samples/contract/v2/consumer-fixtures/honua-site-consumer-handoff.legacy.v1.json"
+          "const": "samples/dist/honua-site-consumer-handoff.v1.json"
         },
         "format": { "const": "honua.site.sdk-sample-consumer-handoff.v1" },
         "schemaVersion": { "const": 1 },
