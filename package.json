@@ -1,6 +1,6 @@
 {
   "name": "@honua/sdk-js",
-  "version": "0.1.4-beta.0",
+  "version": "0.1.7-beta.0",
   "description": "Open GIS SDK for MapLibre — one typed client for ArcGIS/Esri GeoServices, OGC API, WFS, WMS, STAC, OData, and GeoParquet, plus an ArcGIS migration codemod, geocoding, and routing",
   "license": "Apache-2.0",
   "author": "Honua",
@@ -156,6 +156,10 @@
       "types": "./dist/src/interactions/index.d.ts",
       "default": "./dist/src/interactions/index.js"
     },
+    "./interactions/declarative": {
+      "types": "./dist/src/interactions/declarative.d.ts",
+      "default": "./dist/src/interactions/declarative.js"
+    },
     "./filter-registry": {
       "types": "./dist/src/filter-registry/index.d.ts",
       "default": "./dist/src/filter-registry/index.js"
@@ -211,6 +215,10 @@
     "./studio": {
       "types": "./dist/src/_deprecated/studio.d.ts",
       "default": "./dist/src/_deprecated/studio.js"
+    },
+    "./studio-agent": {
+      "types": "./dist/src/studio-agent/index.d.ts",
+      "default": "./dist/src/studio-agent/index.js"
     },
     "./agent-tools": {
       "types": "./dist/src/agent-tools/index.d.ts",
@@ -283,6 +291,10 @@
     "./raster": {
       "types": "./dist/src/raster/index.d.ts",
       "default": "./dist/src/raster/index.js"
+    },
+    "./zarr": {
+      "types": "./dist/src/zarr/index.d.ts",
+      "default": "./dist/src/zarr/index.js"
     },
     "./coverages": {
       "types": "./dist/src/coverages/index.d.ts",
@@ -747,6 +759,7 @@
     "maplibre-gl": "^6.0.0",
     "maplibre-gl-v5": "npm:maplibre-gl@^5.24.0",
     "marked": "^15.0.12",
+    "yaml": "2.8.1",
     "pmtiles": "^4.4.1",
     "proj4": "^2.20.9",
     "react": "^19.2.7",

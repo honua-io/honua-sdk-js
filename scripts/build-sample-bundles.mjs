@@ -642,7 +642,7 @@ export function deriveSampleBundleDecisions(catalog, { audit = SAMPLE_BUNDLE_AUD
       `${decision.id}: computed exclusion category "${decision.category}" is not in EXCLUDED_SAMPLE_CATEGORIES`,
     );
   }
-  return decisions.sort((left, right) => left.id.localeCompare(right.id));
+  return decisions.sort((left, right) => compareUtf8(left.id, right.id));
 }
 
 /**
@@ -802,6 +802,10 @@ function invariant(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function compareUtf8(left, right) {
+  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+}
+
 function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -825,7 +829,7 @@ function mediaTypeFor(filePath) {
 async function walkFiles(root, relativeDirectory = "") {
   const files = [];
   const entries = await readdir(path.join(root, relativeDirectory), { withFileTypes: true });
-  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+  for (const entry of entries.sort((left, right) => compareUtf8(left.name, right.name))) {
     const relativePath = path.posix.join(relativeDirectory, entry.name);
     if (entry.isDirectory()) files.push(...(await walkFiles(root, relativePath)));
     else if (entry.isFile()) files.push(relativePath);
