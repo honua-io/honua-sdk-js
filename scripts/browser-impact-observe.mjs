@@ -319,7 +319,10 @@ export function validateWorkflow(root) {
   if (
     !workflow.includes("scripts/trusted-pr-workflow-run.cjs") ||
     !workflow.includes('ref: ${{ github.sha }}') ||
-    !workflow.includes('head_repository.full_name == github.repository')
+    !workflow.includes('head_repository.full_name == github.repository') ||
+    !/github\.event\.workflow_run\.pull_requests\[0\]\.base\.ref\s*==\s*github\.event\.repository\.default_branch/u.test(
+      workflow,
+    )
   ) {
     throw new PolicyError("browser observer must resolve the exact trusted JS SDK workflow job");
   }

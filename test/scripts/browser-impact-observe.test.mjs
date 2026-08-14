@@ -452,6 +452,10 @@ test("trusted observer workflow rejects permission and identity regressions", ()
       source.replace('jobName: "JS SDK"', 'jobName: "MCP SDK"'),
       source.replace('workflows: ["SDK CI"]', 'workflows: ["Lookalike"]'),
       source.replace(
+        "github.event.workflow_run.pull_requests[0].base.ref ==",
+        "github.event.workflow_run.pull_requests[0].base.ref !=",
+      ),
+      source.replace(
         'browser-impact-observe.mjs event-tree',
         'browser-impact-observe.mjs validate',
       ),

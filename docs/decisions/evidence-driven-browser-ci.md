@@ -31,8 +31,9 @@ synthetic `evaluation_sha` and content addresses the trusted observer workflow,
 policy, resolver, and selector in a fixed manifest. Identity and the reconstructed
 merge tree are resolved again immediately before evidence upload. Fork runs retain
 the full authoritative `JS SDK` job but are explicitly excluded from the shadow
-denominator; a manual backfill accepts only the same completed canonical run
-identity and can execute only from trunk. The policy commit is the event-time
+denominator, and non-default-base pull requests are neutral skips rather than
+failed observations. A manual backfill accepts only the same completed canonical
+run identity and can execute only from trunk. The policy commit is the event-time
 default-branch snapshot: a concurrently advanced trunk remains valid only when
 that snapshot is still an ancestor of the fetched default-branch tip.
 Rename observations evaluate both the removed and added path, preventing a move
