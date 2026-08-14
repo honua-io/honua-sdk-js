@@ -127,17 +127,25 @@
    "min": 70888,
    "gzip": 22439
   },
+  "/interactions/declarative": {
+   "min": 16157,
+   "gzip": 5652
+  },
+  "/studio-agent": {
+   "min": 28588,
+   "gzip": 9078
+  },
   "/agent-tools": {
-   "min": 39107,
-   "gzip": 11180
+   "min": 50124,
+   "gzip": 13775
   },
   "/agent-safety": {
    "min": 74925,
    "gzip": 20971
   },
   "/nl-map-control": {
-   "min": 86514,
-   "gzip": 25947
+   "min": 97271,
+   "gzip": 27625
   },
   "/runtime": {
    "min": 626939,
@@ -280,8 +288,8 @@
    "gzip": 4648
   },
   "tree-shake:error-registry": {
-   "min": 16701,
-   "gzip": 3556
+   "min": 19216,
+   "gzip": 4070
   },
   "/pmtiles": {
    "min": 372930,
