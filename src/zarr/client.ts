@@ -461,7 +461,11 @@ function validateRegistrationRequest(request: RegisterZarrStoreRequest): void {
 
 function versionedPath(value: string, field: string): string {
   const path = requiredText(value, field);
-  if (/[\\%?#]/.test(path) || path.split("/").some((segment) => segment === "." || segment === "..")) {
+  if (
+    hasAsciiControl(path) ||
+    /[\\%?#]/.test(path) ||
+    path.split("/").some((segment) => segment === "." || segment === "..")
+  ) {
     invalidRequest(`${field} must not contain traversal, encoding, query, or fragment syntax.`, { path });
   }
   if (!path.startsWith("/api/v1/")) invalidRequest(`${field} must use the versioned /api/v1 contract.`, { path });
@@ -470,6 +474,14 @@ function versionedPath(value: string, field: string): string {
   let end = path.length;
   while (end > 0 && path.charCodeAt(end - 1) === 47) end--;
   return path.slice(0, end);
+}
+
+function hasAsciiControl(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 31 || code === 127) return true;
+  }
+  return false;
 }
 
 function resolveUrl(baseUrl: string, path: string): string {

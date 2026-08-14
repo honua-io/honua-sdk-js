@@ -53,7 +53,8 @@ const tile = await zarr.tile({
 - The client calls only `/api/v1/admin/zarr-stores` and
   `/api/v1/datacubes/{layerId}/tiles/...`. Alternate unversioned base paths are
   rejected, as are configured base paths containing traversal segments,
-  percent encoding, query strings, fragments, or backslashes.
+  control characters, percent encoding, query strings, fragments, or
+  backslashes.
 - Registration and metadata responses default to a 2 MiB ceiling. Tile
   responses also default to 2 MiB and can be reduced per request.
 - Tile coordinates and optional elevation are non-negative integers. The
