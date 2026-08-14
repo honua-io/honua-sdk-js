@@ -276,7 +276,7 @@ const geometryDeclaration = (
     extensionJson === undefined
       ? {}
       : parseMetadataJson(extensionJson, `Arrow field "${field.name}" extension metadata`, maxBackingBytes);
-  const declared = declaredGeometryType(extension.geometry_types);
+  let declared = declaredGeometryType(extension.geometry_types);
   const edgeValue = extension.edges ?? "planar";
   if (!["planar", "spherical", "vincenty", "thomas", "andoyer", "karney"].includes(String(edgeValue))) {
     fail("unsupported-layout", `Honua Arrow edge interpretation "${String(edgeValue)}" is unsupported.`);
@@ -308,6 +308,23 @@ const geometryDeclaration = (
     if (!isRecord(column) || column.encoding !== "WKB") {
       fail("invalid-payload", "Arrow geo schema metadata must declare WKB for the primary geometry column.");
     }
+    const geoParquetDeclared = declaredGeometryType(column.geometry_types);
+    if (
+      (declared.kind !== undefined &&
+        geoParquetDeclared.kind !== undefined &&
+        declared.kind !== geoParquetDeclared.kind) ||
+      (declared.dimensions !== undefined &&
+        geoParquetDeclared.dimensions !== undefined &&
+        declared.dimensions !== geoParquetDeclared.dimensions)
+    ) {
+      fail("invalid-payload", "GeoArrow extension and GeoParquet schema geometry_types metadata disagree.");
+    }
+    declared = {
+      ...((declared.kind ?? geoParquetDeclared.kind) ? { kind: (declared.kind ?? geoParquetDeclared.kind)! } : {}),
+      ...((declared.dimensions ?? geoParquetDeclared.dimensions)
+        ? { dimensions: (declared.dimensions ?? geoParquetDeclared.dimensions)! }
+        : {}),
+    };
   }
 
   return {
