@@ -5,6 +5,7 @@ import {
   discoverSpecs,
   evaluate,
   loadPolicy,
+  parseChangedPaths,
   pathMatches,
   validatePolicy,
 } from "../../scripts/browser-impact-observe.mjs";
@@ -61,6 +62,30 @@ test("shared app modules select realtime and general consumers", () => {
     const report = evaluate(policy, [path]);
     assert.deepEqual(report.candidate.selected_lanes, ["realtime-collaboration", "examples-general"]);
   }
+});
+
+test("shared fixtures select every direct browser consumer", () => {
+  const spatial = evaluate(policy, ["examples/spatial-analytics-workbench/src/kepler-handoff.ts"]);
+  assert.deepEqual(spatial.candidate.selected_lanes, ["heavy-map-kepler", "examples-general"]);
+  const firstMap = evaluate(policy, ["samples/fixtures/first-map/v2/features.json"]);
+  assert.deepEqual(firstMap.candidate.selected_lanes, ["heavy-map-kepler"]);
+  const scenarios = evaluate(policy, ["samples/scenarios/index.mjs"]);
+  assert.deepEqual(scenarios.candidate.selected_lanes, ["realtime-collaboration", "heavy-map-kepler"]);
+  const sharedRenderer = evaluate(policy, ["docs/examples/shared-renderer-state/app.mjs"]);
+  assert.deepEqual(sharedRenderer.candidate.selected_lanes, ["heavy-map-kepler"]);
+});
+
+test("rename parsing evaluates both source and destination paths", () => {
+  const paths = parseChangedPaths(
+    "R100\0examples/maplibre-quickstart/mock-server.mjs\0docs/archive/mock-server.mjs\0M\0README.md\0",
+  );
+  assert.deepEqual(paths, [
+    "README.md",
+    "docs/archive/mock-server.mjs",
+    "examples/maplibre-quickstart/mock-server.mjs",
+  ]);
+  const report = evaluate(policy, paths);
+  assert.ok(report.candidate.selected_lanes.includes("heavy-map-kepler"));
 });
 
 test("direct spec and snapshot changes select the owning lane", () => {

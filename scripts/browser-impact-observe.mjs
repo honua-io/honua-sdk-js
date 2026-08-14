@@ -119,12 +119,8 @@ export function validatePolicy(policy, root = ROOT) {
     if (!Array.isArray(shared.patterns) || shared.patterns.length === 0) {
       throw new PolicyError("shared lane patterns must be non-empty");
     }
-    if (
-      !Array.isArray(shared.lanes) ||
-      shared.lanes.length < 2 ||
-      shared.lanes.some((lane) => !laneIds.includes(lane))
-    ) {
-      throw new PolicyError("shared lane targets must name at least two declared lanes");
+    if (!Array.isArray(shared.lanes) || shared.lanes.length === 0 || shared.lanes.some((lane) => !laneIds.includes(lane))) {
+      throw new PolicyError("shared lane targets must name declared lanes");
     }
   }
   const specs = discoverSpecs(root);
@@ -242,12 +238,31 @@ export function markdown(report) {
   return lines.join("\n");
 }
 
+export function parseChangedPaths(output) {
+  const tokens = output.split("\0");
+  const paths = [];
+  for (let index = 0; index < tokens.length; ) {
+    const status = tokens[index++];
+    if (!status) continue;
+    const source = tokens[index++];
+    if (!source) throw new PolicyError(`missing path for git diff status ${status}`);
+    paths.push(source);
+    if (/^[CR][0-9]+$/u.test(status)) {
+      const destination = tokens[index++];
+      if (!destination) throw new PolicyError(`missing destination for git diff status ${status}`);
+      paths.push(destination);
+    }
+  }
+  return [...new Set(paths.map(normalizePath))].sort();
+}
+
 function changedPaths(base, head) {
-  const output = execFileSync("git", ["diff", "--name-only", "--diff-filter=ACDMRTUXB", `${base}...${head}`], {
-    cwd: ROOT,
-    encoding: "utf8",
-  });
-  return output.split(/\r?\n/u).filter(Boolean);
+  const output = execFileSync(
+    "git",
+    ["diff", "--name-status", "-z", "--find-renames", "--diff-filter=ACDMRTUXB", `${base}...${head}`],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  return parseChangedPaths(output);
 }
 
 function parseArgs(argv) {
