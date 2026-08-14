@@ -406,6 +406,11 @@ jobs:
         # disagrees with the evidence, or manifest/doc drift (issue #683).
         run: node scripts/component-qualification.mjs check
 
+      - name: App-platform reference qualification
+        # Keeps the packed-workbench evidence projection and its explicitly
+        # open reference gates honest alongside the component matrix.
+        run: npm run qualification:app-platform:check
+
       - name: Bundle-size budgets
         run: npm run verify:bundle-budgets
 

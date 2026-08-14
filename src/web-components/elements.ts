@@ -1,5 +1,7 @@
 import type { HonuaClient } from "../core/client.js";
+import type { FilterClause } from "../filter-registry/index.js";
 import type { MapPackageLocator } from "../runtime/index.js";
+import type { HonuaApplicationContext, HonuaApplicationContextChangeEvent } from "./application-context.js";
 import { createHonuaWebComponentController } from "./controller.js";
 import { renderCspSafeShadowHtml } from "./csp-styles.js";
 import { redactHonuaExportText } from "./export-redaction.js";
@@ -16,8 +18,10 @@ import {
 import {
   type HonuaFeatureEditChangeDetail,
   type HonuaFeatureEditCommitDetail,
+  type HonuaFeatureEditOfflineConflictDetail,
   HonuaFeatureEditorElement,
 } from "./feature-editor.js";
+import { HonuaFeatureInspectionElement } from "./feature-inspection.js";
 import type {
   HonuaFeatureTable,
   HonuaFeatureTableConflict,
@@ -827,7 +831,7 @@ export class HonuaLegendElement<T = Record<string, unknown>> extends HonuaElemen
  */
 export class HonuaFeatureTableElement<T = Record<string, unknown>> extends HonuaElementBase<T> {
   static get observedAttributes(): string[] {
-    return ["for", "source", "fields", "page-size", "filter-text", "label", "row-height"];
+    return ["for", "source", "fields", "page-size", "filter-text", "label", "row-height", "column-width"];
   }
 
   #model: HonuaFeatureTableModel<T> | undefined;
@@ -839,6 +843,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   #tableConnected = false;
   #restoringScroll = false;
   #messages: HonuaFeatureTableMessages = {};
+  #applicationContext: HonuaApplicationContext<T> | undefined;
 
   public get messages(): HonuaFeatureTableMessages {
     return this.#messages;
@@ -871,7 +876,32 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     // Only hold a subscription while connected; `connectedCallback()` re-takes
     // it so a detached-then-reinserted grid resumes updating.
     this.#subscribeTable();
+    this.#applyApplicationContext();
     this.render();
+  }
+
+  /** Application shell context assigned and driven by `mountHonuaApplication()`. */
+  public get applicationContext(): HonuaApplicationContext<T> | undefined {
+    return this.#applicationContext;
+  }
+
+  public set applicationContext(context: HonuaApplicationContext<T> | undefined) {
+    if (context === this.#applicationContext) return;
+    this.#applicationContext = context;
+    this.#applyApplicationContext();
+  }
+
+  public honuaApplicationContextConnected(context: HonuaApplicationContext<T>): void {
+    this.applicationContext = context;
+  }
+
+  public honuaApplicationContextChanged(event: HonuaApplicationContextChangeEvent<T>): void {
+    if (event.current !== this.#applicationContext?.snapshot) return;
+    this.#applyApplicationContext(event);
+  }
+
+  public honuaApplicationContextDisconnected(context: HonuaApplicationContext<T>): void {
+    if (this.#applicationContext === context) this.applicationContext = undefined;
   }
 
   /** Takes the engine subscription, unless one is already held or we are detached. */
@@ -882,6 +912,7 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     this.#tableSnapshot = table.snapshot;
     this.#tableUnsubscribe = table.subscribe((snapshot) => {
       this.#tableSnapshot = snapshot;
+      this.#publishApplicationState(snapshot);
       this.render();
       this.#announceConflicts(snapshot);
     });
@@ -954,9 +985,10 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   protected render(): void {
     const label = this.#messages.label ?? this.getAttribute("label") ?? "Features";
     const rowHeight = this.rowHeight();
+    const columnWidth = this.columnWidth();
     const snapshot = this.#tableSnapshot;
     const viewModel = snapshot
-      ? featureTableViewModel(snapshot, { label, rowHeight, messages: this.#messages })
+      ? featureTableViewModel(snapshot, { label, rowHeight, columnWidth, messages: this.#messages })
       : legacyFeatureTableViewModel(
           this.#model ?? tableModelFromState(this.state, this.sourceId(), this.fields(), this.pageSize()),
           {
@@ -975,25 +1007,141 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
     // on every publish — including the synchronous loading snapshot that
     // `setScroll` itself publishes. Carry the offset across the swap.
     const previousScrollTop = this.#scroller()?.scrollTop ?? 0;
+    const previousScrollLeft = this.#scroller()?.scrollLeft ?? 0;
     this.setShadowHtml(
-      `<style>${baseStyles()}${tableStyles()}${featureTableGridStyles()}</style>${featureTableGridHtml(viewModel)}`,
+      `<style>${baseStyles()}${tableStyles()}${featureTableGridStyles()}</style>${this.#applicationPresentationHtml()}${featureTableGridHtml(viewModel)}`,
     );
     this.#bindGrid();
-    this.#restoreScrollTop(previousScrollTop);
+    this.#restoreScroll(previousScrollTop, previousScrollLeft);
   }
 
   #scroller(): HTMLElement | null {
     return this.shadowRoot?.querySelector<HTMLElement>("[data-scroller]") ?? null;
   }
 
-  #restoreScrollTop(scrollTop: number): void {
-    if (scrollTop <= 0) return;
+  #applyApplicationContext(event?: HonuaApplicationContextChangeEvent<T>): void {
+    const context = this.#applicationContext;
+    if (!context) {
+      this.removeAttribute("data-honua-status");
+      this.removeAttribute("aria-disabled");
+      this.render();
+      return;
+    }
+    const snapshot = context.snapshot;
+    this.setAttribute("data-honua-status", snapshot.status);
+    this.setAttribute("lang", snapshot.locale.locale);
+    this.setAttribute("dir", snapshot.locale.direction ?? "auto");
+    this.toggleAttribute("aria-disabled", snapshot.authorization.status === "unauthorized");
+    const table = this.#table;
+    if (!table) {
+      this.render();
+      return;
+    }
+    const sourceIdentity = snapshot.binding.sourceIdentity ?? snapshot.binding.source?.descriptor.id;
+    if (sourceIdentity && sourceIdentity !== table.snapshot.sourceId) {
+      table.cancel();
+      this.render();
+      return;
+    }
+    if (snapshot.authorization.status === "unauthorized") table.cancel();
+    if (!event || event.changed.includes("selection")) {
+      const targets = snapshot.selection.filter(isApplicationSelectionTarget);
+      const keys = table.keysForTargets(targets);
+      if (!sameApplicationValue(table.snapshot.selection, keys)) table.select(keys, { replace: true });
+    }
+    if (!event || event.changed.includes("filters")) {
+      const filters = snapshot.filters.filter(isApplicationFilterClause);
+      if (!sameApplicationValue(table.snapshot.filters, filters)) void table.setFilters(filters);
+    }
+    if (
+      event &&
+      (event.changed.includes("edits") || event.changed.includes("freshness")) &&
+      snapshot.authorization.status !== "unauthorized"
+    ) {
+      table.markStale("Application edits or freshness changed; refreshing the bounded table.");
+      void table.refresh();
+    }
+    this.render();
+  }
+
+  #publishApplicationState(snapshot: HonuaFeatureTableSnapshot<T>): void {
+    const context = this.#applicationContext;
+    if (!context || context.disposed) return;
+    const sourceId = snapshot.sourceId;
+    const peers = context.snapshot.selection.filter(
+      (entry) => !isApplicationSelectionTarget(entry) || entry.sourceId !== sourceId,
+    );
+    const selectionTargets = this.#table?.selectionTargets() ?? [];
+    const selected = snapshot.selection
+      .map((key, index) => {
+        const row = snapshot.rows.find((candidate) => candidate?.key === key);
+        const target = row?.target ?? selectionTargets[index];
+        if (!target) return undefined;
+        return row && isApplicationSelectionTarget(target)
+          ? { ...target, attributes: row.attributes, ...(row.geometry !== undefined ? { geometry: row.geometry } : {}) }
+          : target;
+      })
+      .filter((entry) => entry !== undefined);
+    const selection = [...peers, ...selected];
+    const filters = snapshot.filters;
+    const componentId = "honua-feature-table";
+    const tableDiagnostics = [
+      ...(snapshot.error
+        ? [
+            {
+              code: "feature-table-query-failed",
+              message:
+                snapshot.error instanceof Error
+                  ? snapshot.error.message
+                  : (snapshot.message ?? "The table query failed."),
+              severity: "error" as const,
+              componentId,
+              status: "failed" as const,
+            },
+          ]
+        : []),
+      ...snapshot.conflicts.map((conflict) => ({
+        code: `feature-table-${conflict.code}`,
+        message: conflict.message,
+        severity: "warning" as const,
+        componentId,
+        status: "degraded" as const,
+      })),
+    ];
+    const diagnostics = [
+      ...context.snapshot.diagnostics.filter((entry) => entry.componentId !== componentId),
+      ...tableDiagnostics,
+    ];
+    const update = {
+      ...(!sameApplicationValue(context.snapshot.selection, selection) ? { selection } : {}),
+      ...(!sameApplicationValue(context.snapshot.filters, filters) ? { filters } : {}),
+      ...(!sameApplicationValue(context.snapshot.diagnostics, diagnostics) ? { diagnostics } : {}),
+    };
+    if (Object.keys(update).length > 0) context.update(update);
+  }
+
+  #applicationPresentationHtml(): string {
+    const context = this.#applicationContext;
+    if (!context) return "";
+    const presentation = context.statusPresentation();
+    const diagnostics = context.snapshot.diagnostics.filter(
+      (diagnostic) => diagnostic.componentId === undefined || diagnostic.componentId === "honua-feature-table",
+    );
+    return `<div data-application-presentation>
+      <p class="status" data-application-status role="${presentation.role}" aria-live="${presentation.ariaLive}" aria-busy="${String(presentation.busy)}">${escapeHtml(presentation.label)}</p>
+      ${diagnostics.map((diagnostic) => `<p class="status" role="${diagnostic.severity === "error" ? "alert" : "status"}" data-application-diagnostic="${escapeAttribute(diagnostic.code)}">${escapeHtml(diagnostic.message)}</p>`).join("")}
+    </div>`;
+  }
+
+  #restoreScroll(scrollTop: number, scrollLeft: number): void {
+    if (scrollTop <= 0 && scrollLeft <= 0) return;
     const scroller = this.#scroller();
-    if (!scroller || scroller.scrollTop === scrollTop) return;
+    if (!scroller || (scroller.scrollTop === scrollTop && scroller.scrollLeft === scrollLeft)) return;
     // Restoring the offset fires `scroll`; that echo must not be mistaken for a
     // user gesture and fed back into the engine as a new window.
     this.#restoringScroll = true;
     scroller.scrollTop = scrollTop;
+    scroller.scrollLeft = scrollLeft;
     queueMicrotask(() => {
       this.#restoringScroll = false;
     });
@@ -1007,6 +1155,12 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
         const field = button.dataset.sortField;
         if (!field) return;
         void this.#table?.toggleSort(field, { additive: (event as MouseEvent).shiftKey });
+      });
+    }
+    for (const input of root.querySelectorAll<HTMLInputElement>("[data-column-field]")) {
+      input.addEventListener("change", () => {
+        const field = input.dataset.columnField;
+        if (field) void this.#table?.setColumnVisibility(field, input.checked);
       });
     }
     for (const row of root.querySelectorAll<HTMLTableRowElement>("tbody tr[data-feature-id]")) {
@@ -1025,6 +1179,11 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
           scrollTop: scroller.scrollTop,
           rowHeight: this.rowHeight(),
           viewportHeight: scroller.clientHeight || this.rowHeight() * 10,
+        });
+        this.#table?.setColumnScroll({
+          scrollLeft: scroller.scrollLeft,
+          columnWidth: this.columnWidth(),
+          viewportWidth: scroller.clientWidth || this.columnWidth() * 4,
         });
       });
     }
@@ -1169,6 +1328,11 @@ export class HonuaFeatureTableElement<T = Record<string, unknown>> extends Honua
   private rowHeight(): number {
     const parsed = Number(this.getAttribute("row-height"));
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 32;
+  }
+
+  private columnWidth(): number {
+    const parsed = Number(this.getAttribute("column-width"));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 160;
   }
 }
 
@@ -2622,6 +2786,7 @@ const WEB_COMPONENT_ELEMENTS: ReadonlyMap<string, CustomElementConstructor> = ne
     ["honua-layer-list", HonuaLayerListElement],
     ["honua-legend", HonuaLegendElement],
     ["honua-feature-table", HonuaFeatureTableElement],
+    ["honua-feature-inspection", HonuaFeatureInspectionElement],
     ["honua-search", HonuaSearchElement],
     ["honua-editor", HonuaEditorElement],
     ["honua-feature-editor", HonuaFeatureEditorElement],
@@ -2874,6 +3039,37 @@ function escapeHtml(value: string): string {
 
 function escapeAttribute(value: string): string {
   return escapeHtml(value).replace(/'/g, "&#39;");
+}
+
+function isApplicationSelectionTarget(
+  value: unknown,
+): value is { readonly sourceId: string; readonly id: string | number } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "sourceId" in value &&
+    typeof value.sourceId === "string" &&
+    "id" in value &&
+    (typeof value.id === "string" || typeof value.id === "number")
+  );
+}
+
+function isApplicationFilterClause(value: unknown): value is FilterClause {
+  if (typeof value !== "object" || value === null || !("id" in value) || !("owner" in value)) return false;
+  const owner = value.owner;
+  return (
+    typeof value.id === "string" &&
+    typeof owner === "object" &&
+    owner !== null &&
+    "kind" in owner &&
+    typeof owner.kind === "string" &&
+    "id" in owner &&
+    typeof owner.id === "string"
+  );
+}
+
+function sameApplicationValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function formatLayerOpacityValue(format: HonuaLayerListMessages["opacityValue"], percent: number): string {
@@ -3559,6 +3755,7 @@ declare global {
     "honua-edit-change": CustomEvent<HonuaEditChangeDetail>;
     "honua-feature-edit-change": CustomEvent<HonuaFeatureEditChangeDetail>;
     "honua-feature-edit-commit": CustomEvent<HonuaFeatureEditCommitDetail>;
+    "honua-feature-edit-offline-conflict": CustomEvent<HonuaFeatureEditOfflineConflictDetail>;
     "honua-basemap-change": CustomEvent<HonuaBasemapChangeDetail>;
     "honua-bookmark-change": CustomEvent<HonuaBookmarkChangeDetail>;
     "honua-locate-change": CustomEvent<HonuaLocateChangeDetail>;

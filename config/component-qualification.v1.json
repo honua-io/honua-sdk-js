@@ -130,15 +130,15 @@
     }
   ],
   "summary": {
-    "components": 22,
+    "components": 23,
     "gates": 18,
-    "cells": 396,
-    "passing": 327,
+    "cells": 414,
+    "passing": 343,
     "failing": 0,
     "pending": 21,
-    "notApplicable": 48,
-    "productionQualifiedComponents": 1,
-    "productionTierComponents": 1
+    "notApplicable": 50,
+    "productionQualifiedComponents": 2,
+    "productionTierComponents": 2
   },
   "components": [
     {
@@ -1471,9 +1471,10 @@
           "requirement": "REQ-005",
           "status": "passing",
           "evidence": [
+            "test/web-components-feature-table-element.test.ts",
             "test/web-components-lifecycle-gates.test.ts"
           ],
-          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. Covered for the controller lane only. The bounded engine lane is not driven by the harness and no feature-table suite spies on the console, so its query, paging, and conflict paths are unswept."
+          "note": "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called. The cross-cutting harness covers the controller lane, while the feature-table suite spies on console.error and console.warn while driving the bounded engine through query, virtual paging, server sort, realtime conflict, and teardown paths."
         },
         {
           "gate": "deterministic-disposal",
@@ -1494,6 +1495,179 @@
             "test/web-components-lifecycle-gates.test.ts"
           ],
           "note": "After ten controller-driven re-renders a single interaction still produces the same (non-zero) number of events it did after the first render, proving handlers are bound to freshly rendered nodes rather than accumulated on surviving ones. Covered through the controller lane by the harness, and the bounded lane binds every grid handler to nodes the next render replaces rather than to the persistent shadow root, which is the arrangement that makes accumulation impossible. The bounded lane's scroll, cell-focus, and sort-button handlers are not themselves swept across repeated renders."
+        },
+        {
+          "gate": "memory-leak",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-memory-leak.spec.mjs"
+          ],
+          "note": "Chromium's HeapProfiler.collectGarbage is used with a WeakRef for every catalog component; after removal and repeated forced collections, no detached element remains reachable."
+        },
+        {
+          "gate": "ssr-import",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/web-components-ssr-import.test.ts"
+          ],
+          "note": "Both kit entrypoints, the element module, the catalog, and the registry are imported in a DOM-free Node environment with window and document asserted absent; no custom element is defined and no browser global is touched at module scope."
+        },
+        {
+          "gate": "secure-export",
+          "requirement": "REQ-005",
+          "status": "not-applicable",
+          "note": "This component does not expose print, renderer snapshot, or sanitized state export actions; the secure export contract is owned by honua-print-export."
+        },
+        {
+          "gate": "bundle-budget",
+          "requirement": "NFR-001",
+          "status": "passing",
+          "evidence": [
+            "bundle-budgets.json",
+            "scripts/report-bundle-sizes.mjs"
+          ],
+          "note": "The owning kit's entrypoint (/controls or /web-components) carries a declared min+gzip ceiling enforced by npm run verify:bundle-budgets, with maplibre-gl, cesium, deck.gl, PDF/image encoders, and localization frameworks declared as forbidden static inputs (NFR-001)."
+        }
+      ]
+    },
+    {
+      "id": "web-components.feature-inspection",
+      "tag": "honua-feature-inspection",
+      "source": "web-components",
+      "supportTier": "production-tier",
+      "productionQualified": true,
+      "openGates": [],
+      "summary": {
+        "passing": 16,
+        "failing": 0,
+        "pending": 0,
+        "notApplicable": 2
+      },
+      "gates": [
+        {
+          "gate": "keyboard-behavior",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "Enter and Space activate search results, result navigation, refresh, close, attachment paging, and relationship paging from real keydown events; ArrowLeft/ArrowRight/Home/End navigate overlapping results, slash focuses search, Enter submits search, and Escape dismisses details with asserted state changes."
+        },
+        {
+          "gate": "screen-reader-semantics",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "The focused suite asserts dialog/region labelling, aria-modal only on popup dialogs, combobox/listbox/option state, live status, alert diagnostics, busy state, selected search result, and labelled result/attachment/relationship navigation."
+        },
+        {
+          "gate": "focus-restoration",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "The focused search input retains focus, live typed value, selection range, and direction across a state-driven shadow render, while closing a subsequently opened inspection restores the external map/table opener."
+        },
+        {
+          "gate": "reduced-motion",
+          "requirement": "REQ-004",
+          "status": "not-applicable",
+          "note": "The component owns no animation: its shadow styles declare no transition, animation, or keyframes, and it does not move the map camera. There is nothing for prefers-reduced-motion to suppress. Re-evaluate if animated affordances are added."
+        },
+        {
+          "gate": "high-contrast",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "The emitted stylesheet is asserted to provide forced-colors and prefers-contrast Canvas/CanvasText, ButtonFace/ButtonText, LinkText, Highlight focus, and non-color diagnostic boundaries."
+        },
+        {
+          "gate": "responsive-layout",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "The focused stylesheet evidence asserts inline-size containment, shrinkable surfaces, anywhere wrapping, and both container- and viewport-based 320px rules that stack search, field, header, and paging controls."
+        },
+        {
+          "gate": "localization",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "Every label, status, range, fallback attachment name, paging action, accessible name, and diagnostic displayed by the inspection element resolves through HonuaFeatureInspectionMessages; German injection and application-context status localization are asserted."
+        },
+        {
+          "gate": "pseudo-locale",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/pseudo-locale.spec.mjs"
+          ],
+          "note": "The browser probe expands every visible alphabetic label by approximately 35% at a 280px viewport and finds no clipping or truncation across the complete component catalog."
+        },
+        {
+          "gate": "rtl",
+          "requirement": "REQ-004",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "The component renders with dir=rtl and its emitted stylesheet is asserted to use inline-size, padding-inline-start, border-inline-start, and text-align:start without physical left/right declarations."
+        },
+        {
+          "gate": "visual-regression",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/app-platform-reference-components.spec.mjs"
+          ],
+          "note": "The packed-reference browser lane mounts the production inspection element in its deterministic empty state and compares it with committed Chromium baselines on every run, with animations disabled and the caret hidden."
+        },
+        {
+          "gate": "strict-csp",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/playwright/web-components-csp.spec.mjs"
+          ],
+          "note": "The browser catalog mounts every native and web component under a strict same-origin Content-Security-Policy with no style-src unsafe-inline, exercises representative rerenders, and asserts that no securitypolicyviolation events occur."
+        },
+        {
+          "gate": "zero-console-error",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "console.error and console.warn are spied across mount, ten state renders, keyboard interaction, detach, reconnect, another interaction, and final teardown; neither is called."
+        },
+        {
+          "gate": "deterministic-disposal",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "Disconnecting removes the controller subscription and all three connection-scoped delegated shadow listeners; a key event at the detached shadow root reaches no controller, reconnect takes exactly one subscription/listener set, and final detach returns the collaborator listener count to zero."
+        },
+        {
+          "gate": "duplicate-listener",
+          "requirement": "REQ-005",
+          "status": "passing",
+          "evidence": [
+            "test/feature-inspection-qualification.test.ts"
+          ],
+          "note": "After ten state-driven shadow renders, one Enter keydown invokes result navigation exactly once; after detach/reconnect, one ArrowRight again invokes it exactly once, proving delegated listeners are connection-scoped rather than render-scoped."
         },
         {
           "gate": "memory-leak",

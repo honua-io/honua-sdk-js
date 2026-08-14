@@ -16,6 +16,7 @@ import {
   explorationClauseToFilterClause,
   featureTableAriaRowCount,
   featureTableAriaSort,
+  featureTableColumnWindow,
   featureTablePageCacheKey,
   featureTableWindow,
   featureTableWorkByTier,
@@ -312,6 +313,18 @@ describe("budgets and virtualization (REQ-002)", () => {
   it("ships conservative default budgets", () => {
     expect(DEFAULT_FEATURE_TABLE_BUDGETS.maxCachedRows).toBeLessThan(TOTAL_ROWS);
     expect(DEFAULT_FEATURE_TABLE_BUDGETS.maxExportRows).toBeGreaterThan(DEFAULT_FEATURE_TABLE_BUDGETS.maxCachedRows);
+    expect(DEFAULT_FEATURE_TABLE_BUDGETS.maxRenderedColumns).toBeLessThanOrEqual(
+      DEFAULT_FEATURE_TABLE_BUDGETS.maxFields,
+    );
+  });
+
+  it("computes a bounded horizontal column window", () => {
+    expect(
+      featureTableColumnWindow(
+        { scrollLeft: 20 * 160, columnWidth: 160, viewportWidth: 4 * 160 },
+        { totalColumns: 64, maxRenderedColumns: 8, overscan: 1 },
+      ),
+    ).toEqual({ startIndex: 19, endIndex: 25 });
   });
 });
 
@@ -666,6 +679,27 @@ describe("bounded export (REQ-001)", () => {
 
     expect(result.content.split("\n")[1]).toBe('1,"A, ""B""",open,1');
   });
+
+  it("neutralizes spreadsheet formula and control prefixes in CSV cells", async () => {
+    const fixture = makeFixture({
+      totalRows: 6,
+      rows: (index) => ({
+        OBJECTID: index + 1,
+        NAME: ["=1+1", "+cmd", "-2+3", "@SUM(A1:A2)", "\tformula", "  =hidden"][index] ?? "safe",
+        STATUS: "open",
+        SEVERITY: 1,
+      }),
+    });
+    const table = makeTable(fixture, { budgets: { pageSize: 10 } });
+
+    const result = await table.export({ format: "csv" });
+    const names = result.content
+      .split("\n")
+      .slice(1)
+      .map((line) => line.split(",")[1]);
+
+    expect(names).toEqual(["'=1+1", "'+cmd", "'-2+3", "'@SUM(A1:A2)", "'\tformula", "'  =hidden"]);
+  });
 });
 
 describe("keyboard focus model (NFR-001)", () => {
@@ -721,6 +755,30 @@ describe("keyboard focus model (NFR-001)", () => {
         { field: "NAME", direction: "asc" },
       ]),
     ).toBe("other");
+  });
+
+  it("reveals a focused column outside the horizontal window", async () => {
+    const columns = Array.from({ length: 20 }, (_unused, index) => ({ field: `FIELD_${index}` }));
+    const fixture = makeFixture({
+      totalRows: 1,
+      rows: () => Object.fromEntries(columns.map((column, index) => [column.field, index])) as unknown as Row,
+    });
+    const table = makeTable(fixture, {
+      identityField: "FIELD_0",
+      columns,
+      budgets: { pageSize: 1, maxFields: 20, maxRenderedColumns: 4 },
+    });
+    await table.refresh();
+
+    table.setFocus({ rowKey: "incidents:0", field: "FIELD_12" });
+
+    expect(table.snapshot.columnWindow).toEqual({ startIndex: 9, endIndex: 13 });
+    expect(table.snapshot.renderedColumns.map((column) => column.field)).toEqual([
+      "FIELD_9",
+      "FIELD_10",
+      "FIELD_11",
+      "FIELD_12",
+    ]);
   });
 });
 
@@ -1123,6 +1181,124 @@ describe("engine lifecycle", () => {
         format: (v) => `#${v}`,
       }),
     ).toBe("#5");
+  });
+});
+
+describe("#1300 application workflow gaps", () => {
+  it("executes bounded grouping/aggregation through the accepted query plan", async () => {
+    const requests: Query<Row>[] = [];
+    const table = createHonuaFeatureTable<Row>({
+      source: {
+        descriptor: descriptor(["query", "queryAggregate"]),
+        async query(request) {
+          requests.push(request ?? {});
+          return {
+            features: [{ attributes: { STATUS: "open", OBJECTID: 3 } as unknown as Row }],
+            exceededTransferLimit: false,
+          };
+        },
+      },
+      sourceId: "incidents",
+      identityField: "OBJECTID",
+      budgets: { pageSize: 10 },
+      planner: () =>
+        ({
+          id: "aggregate-plan",
+          fingerprint: "sha256:aggregate",
+          pushdown: "full",
+          fidelity: "exact",
+          steps: [],
+        }) as never,
+    });
+
+    const result = await table.aggregate({ groupBy: ["STATUS"], metrics: [{ fn: "count", field: "OBJECTID" }] });
+
+    expect(requests[0]?.aggregation).toEqual({
+      groupBy: ["STATUS"],
+      metrics: [{ fn: "count", field: "OBJECTID" }],
+    });
+    expect(requests[0]?.pagination?.limit).toBe(10);
+    expect(result.evidence.planId).toBe("aggregate-plan");
+    expect(result.rows).toHaveLength(1);
+  });
+
+  it("applies map extent only in linked viewport mode", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, { viewportExtent: { xmin: 1, ymin: 2, xmax: 3, ymax: 4 } });
+    await table.refresh();
+    expect(fixture.requests.at(-1)?.spatialFilter).toBeUndefined();
+
+    await table.setViewportMode("linked");
+    expect(fixture.requests.at(-1)?.spatialFilter?.geometry).toMatchObject({ xmin: 1, ymin: 2, xmax: 3, ymax: 4 });
+
+    await table.setViewportMode("independent");
+    expect(fixture.requests.at(-1)?.spatialFilter).toBeUndefined();
+  });
+
+  it("bounds projected fields and export bytes", async () => {
+    const table = makeTable(makeFixture(), {
+      columns: COLUMNS,
+      budgets: { pageSize: 10, maxFields: 2, maxExportBytes: 80 },
+    });
+    await table.refresh();
+
+    expect(table.snapshot.visibleColumns).toHaveLength(2);
+    expect(table.snapshot.ledger.exhausted).toContain("fields");
+    const exported = await table.export({ format: "csv" });
+    expect(new TextEncoder().encode(exported.content).byteLength).toBeLessThanOrEqual(80);
+    expect(exported.limit).toBe("export-bytes");
+  });
+
+  it("re-authorizes, re-executes, records provenance, and supports cancellation", async () => {
+    const fixture = makeFixture({ totalRows: 4 });
+    const table = makeTable(fixture, { budgets: { pageSize: 2, maxRequests: 10 } });
+    await table.refresh();
+    const before = fixture.requests.length;
+    const recorded: unknown[] = [];
+    const result = await table.secureExport({
+      format: "csv",
+      adapter: {
+        id: "host-policy",
+        authorize: () => ({ authorized: true, authorizationId: "decision-42" }),
+        record: (provenance) => {
+          recorded.push(provenance);
+        },
+      },
+    });
+
+    expect(fixture.requests.length).toBeGreaterThan(before);
+    expect(result.provenance).toMatchObject({ adapterId: "host-policy", authorizationId: "decision-42" });
+    expect(recorded).toEqual([result.provenance]);
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      table.secureExport({
+        format: "json",
+        signal: controller.signal,
+        adapter: { id: "host", authorize: () => ({ authorized: true, authorizationId: "x" }), record: () => {} },
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("marks filtered pages stale when realtime membership cannot be proven", async () => {
+    const table = makeTable(makeFixture(), { filters: [statusFilter("open")] });
+    await table.refresh();
+    const outcome = table.applyRealtimeDiff({
+      reset: false,
+      changes: [
+        {
+          kind: "update",
+          key: "incidents:1",
+          id: 1,
+          record: { feature: { attributes: { OBJECTID: 1, NAME: "Incident 1", STATUS: "closed", SEVERITY: 1 } } },
+        },
+      ],
+    });
+
+    expect(table.snapshot.state).toBe("stale");
+    expect(outcome.conflicts.map((conflict) => conflict.code)).toContain("filter-membership-unknown");
+    expect(outcome.patchedRowKeys).toEqual([]);
   });
 });
 

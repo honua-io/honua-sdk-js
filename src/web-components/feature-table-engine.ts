@@ -30,8 +30,17 @@
  * @module
  */
 
-import type { DegradedReason, FeatureId, Query, Result, SortSpec, SourceDescriptor } from "../contract/types.js";
-import type { HonuaTypedFeature } from "../core/types.js";
+import type {
+  AggregationSpec,
+  DegradedReason,
+  FeatureId,
+  Query,
+  Result,
+  SortSpec,
+  SourceDescriptor,
+} from "../contract/types.js";
+import { type SpatialFilter, envelope } from "../core/spatial-filter.js";
+import type { HonuaExtent, HonuaTypedFeature } from "../core/types.js";
 import { isSourceQualifiedSelectionTarget, sourceFeatureSelectionTarget } from "../exploration/selection.js";
 import type {
   FilterClause as ExplorationFilterClause,
@@ -167,6 +176,12 @@ export interface HonuaFeatureTableBudgets {
   readonly maxRequests: number;
   /** Hard ceiling on rows an export may drain. */
   readonly maxExportRows: number;
+  /** Hard ceiling on fields projected and rendered at once. */
+  readonly maxFields: number;
+  /** Maximum columns materialized in the DOM at once. */
+  readonly maxRenderedColumns: number;
+  /** Hard ceiling on UTF-8 bytes returned by one export. */
+  readonly maxExportBytes: number;
   /** Extra rows fetched either side of the visible window. */
   readonly windowOverscan: number;
 }
@@ -178,11 +193,14 @@ export const DEFAULT_FEATURE_TABLE_BUDGETS: HonuaFeatureTableBudgets = Object.fr
   maxCachedBytes: 4 * 1024 * 1024,
   maxRequests: 64,
   maxExportRows: 10_000,
+  maxFields: 64,
+  maxRenderedColumns: 12,
+  maxExportBytes: 16 * 1024 * 1024,
   windowOverscan: 20,
 });
 
 /** Which ceiling a bounded operation ran into. */
-export type HonuaFeatureTableBudgetKind = "rows" | "bytes" | "requests" | "export-rows";
+export type HonuaFeatureTableBudgetKind = "rows" | "bytes" | "requests" | "fields" | "export-rows" | "export-bytes";
 
 /** Running budget consumption. Exact, and never reset by a render. */
 export interface HonuaFeatureTableBudgetLedger {
@@ -261,10 +279,33 @@ export interface HonuaFeatureTableScrollMetrics {
   readonly viewportHeight: number;
 }
 
+export interface HonuaFeatureTableColumnScrollMetrics {
+  readonly scrollLeft: number;
+  readonly columnWidth: number;
+  readonly viewportWidth: number;
+}
+
 /** Inclusive-exclusive row window the renderer should paint. */
 export interface HonuaFeatureTableWindow {
   readonly startIndex: number;
   readonly endIndex: number;
+}
+
+export type HonuaFeatureTableColumnWindow = HonuaFeatureTableWindow;
+
+/** Horizontal counterpart of {@link featureTableWindow}. */
+export function featureTableColumnWindow(
+  metrics: HonuaFeatureTableColumnScrollMetrics,
+  options: { readonly overscan?: number; readonly totalColumns: number; readonly maxRenderedColumns: number },
+): HonuaFeatureTableColumnWindow {
+  const width = metrics.columnWidth > 0 ? metrics.columnWidth : 1;
+  const overscan = Math.max(0, options.overscan ?? 1);
+  const total = Math.max(0, options.totalColumns);
+  const first = Math.max(0, Math.floor(Math.max(0, metrics.scrollLeft) / width) - overscan);
+  const visible = Math.max(1, Math.ceil(Math.max(0, metrics.viewportWidth) / width));
+  const span = Math.min(options.maxRenderedColumns, visible + overscan * 2);
+  const startIndex = Math.min(first, Math.max(0, total - span));
+  return Object.freeze({ startIndex, endIndex: Math.min(total, startIndex + span) });
 }
 
 /**
@@ -314,7 +355,8 @@ export type HonuaFeatureTableConflictCode =
   | "selection-invalidated"
   | "snapshot-reset"
   | "schema-changed"
-  | "sort-key-changed";
+  | "sort-key-changed"
+  | "filter-membership-unknown";
 
 /** One announced conflict. Never silent, never a reorder behind the user's back. */
 export interface HonuaFeatureTableConflict {
@@ -379,6 +421,62 @@ export interface HonuaFeatureTableExport {
   readonly evidence: HonuaFeatureTableQueryEvidence;
 }
 
+/** Whether the table query follows the shared map extent. */
+export type HonuaFeatureTableViewportMode = "linked" | "independent";
+
+/** Bounded aggregate result executed through the same accepted-plan seam. */
+export interface HonuaFeatureTableAggregation<T = Record<string, unknown>> {
+  readonly rows: readonly T[];
+  readonly truncated: boolean;
+  readonly evidence: HonuaFeatureTableQueryEvidence;
+}
+
+export interface HonuaFeatureTableExportAuthorizationContext {
+  readonly sourceId: string;
+  readonly format: "csv" | "json";
+  readonly selectionOnly: boolean;
+  readonly maxRows: number;
+  readonly maxBytes: number;
+  readonly authorizationScope: readonly string[];
+  readonly planId?: string;
+  readonly planFingerprint?: `sha256:${string}`;
+  readonly signal?: AbortSignal;
+}
+
+export type HonuaFeatureTableExportAuthorization =
+  | { readonly authorized: true; readonly authorizationId: string }
+  | { readonly authorized: false; readonly reason?: string };
+
+/** Host-owned authorization and audit boundary for table exports. */
+export interface HonuaFeatureTableSecureExportAdapter {
+  readonly id: string;
+  authorize(
+    context: HonuaFeatureTableExportAuthorizationContext,
+  ): HonuaFeatureTableExportAuthorization | Promise<HonuaFeatureTableExportAuthorization>;
+  record(provenance: HonuaFeatureTableExportProvenance): void | Promise<void>;
+}
+
+export interface HonuaFeatureTableExportProvenance {
+  readonly sourceId: string;
+  readonly adapterId: string;
+  readonly authorizationId: string;
+  readonly exportedAt: string;
+  readonly format: "csv" | "json";
+  readonly rowCount: number;
+  readonly truncated: boolean;
+  readonly authorizationScope: readonly string[];
+  readonly planId?: string;
+  readonly planFingerprint?: `sha256:${string}`;
+}
+
+export interface HonuaFeatureTableSecureExportRequest extends HonuaFeatureTableExportRequest {
+  readonly adapter: HonuaFeatureTableSecureExportAdapter;
+}
+
+export interface HonuaFeatureTableSecureExport extends HonuaFeatureTableExport {
+  readonly provenance: HonuaFeatureTableExportProvenance;
+}
+
 // ── Page-cache identity ───────────────────────────────────────
 
 /**
@@ -438,6 +536,9 @@ export interface HonuaFeatureTableSnapshot<T = Record<string, unknown>> {
   readonly state: HonuaFeatureTableState;
   readonly columns: readonly HonuaFeatureTableResolvedColumn[];
   readonly visibleColumns: readonly HonuaFeatureTableResolvedColumn[];
+  /** Horizontally virtualized slice of `visibleColumns`. */
+  readonly renderedColumns: readonly HonuaFeatureTableResolvedColumn[];
+  readonly columnWindow: HonuaFeatureTableColumnWindow;
   /**
    * The window slice, in absolute row order. `undefined` marks a row inside
    * the window whose page is not resident — the renderer paints a placeholder
@@ -456,6 +557,8 @@ export interface HonuaFeatureTableSnapshot<T = Record<string, unknown>> {
   readonly evidence: HonuaFeatureTableQueryEvidence;
   readonly conflicts: readonly HonuaFeatureTableConflict[];
   readonly stale: boolean;
+  readonly viewportMode: HonuaFeatureTableViewportMode;
+  readonly viewportExtent?: HonuaExtent;
   readonly message?: string;
   readonly error?: unknown;
   /** Monotonic revision; changes exactly when the snapshot changes. */
@@ -495,6 +598,9 @@ export interface CreateHonuaFeatureTableOptions<T = Record<string, unknown>> {
   readonly sourceVersion?: string;
   /** Whether geometry is requested with each page. @default false */
   readonly returnGeometry?: boolean;
+  /** Whether shared map extents constrain table queries. @default "independent" */
+  readonly viewportMode?: HonuaFeatureTableViewportMode;
+  readonly viewportExtent?: HonuaExtent;
 }
 
 // ── Public engine ─────────────────────────────────────────────
@@ -507,6 +613,8 @@ export interface HonuaFeatureTable<T = Record<string, unknown>> {
   refresh(options?: { readonly signal?: AbortSignal }): Promise<HonuaFeatureTableSnapshot<T>>;
   /** Report scroll geometry; loads only the pages the new window needs. */
   setScroll(metrics: HonuaFeatureTableScrollMetrics): Promise<HonuaFeatureTableSnapshot<T>>;
+  /** Report horizontal grid geometry; updates only the materialized column slice. */
+  setColumnScroll(metrics: HonuaFeatureTableColumnScrollMetrics): HonuaFeatureTableSnapshot<T>;
   /** Replace the multi-column sort. Invalidates the page cache. */
   setSort(sort: readonly SortSpec[]): Promise<HonuaFeatureTableSnapshot<T>>;
   /** Cycle one column asc → desc → unsorted. `additive` keeps the other keys. */
@@ -517,6 +625,15 @@ export interface HonuaFeatureTable<T = Record<string, unknown>> {
   setColumns(columns: readonly HonuaFeatureTableColumn[]): Promise<HonuaFeatureTableSnapshot<T>>;
   /** Show/hide one column without reordering the rest. */
   setColumnVisibility(field: string, visible: boolean): Promise<HonuaFeatureTableSnapshot<T>>;
+  /** Link/unlink table queries from the shared map extent. */
+  setViewportMode(mode: HonuaFeatureTableViewportMode): Promise<HonuaFeatureTableSnapshot<T>>;
+  /** Replace the current map extent. It affects queries only in linked mode. */
+  setViewportExtent(extent: HonuaExtent | undefined): Promise<HonuaFeatureTableSnapshot<T>>;
+  /** Execute one bounded grouped/aggregate query with accepted-plan evidence. */
+  aggregate(
+    aggregation: AggregationSpec,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<HonuaFeatureTableAggregation<T>>;
 
   select(keys: readonly HonuaFeatureTableRowKey[], options?: { readonly replace?: boolean }): void;
   deselect(keys?: readonly HonuaFeatureTableRowKey[]): void;
@@ -536,6 +653,8 @@ export interface HonuaFeatureTable<T = Record<string, unknown>> {
 
   /** Bounded export over the same paged query path. Cannot exceed policy. */
   export(request: HonuaFeatureTableExportRequest): Promise<HonuaFeatureTableExport>;
+  /** Re-authorized export that re-executes the accepted query and records provenance. */
+  secureExport(request: HonuaFeatureTableSecureExportRequest): Promise<HonuaFeatureTableSecureExport>;
 
   /** Cancel the in-flight fetch; the table settles in the `"cancelled"` state. */
   cancel(): void;
@@ -603,11 +722,17 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   const misconfiguredPageSize = budgets.pageSize > budgets.maxCachedRows;
 
   let columns = resolveColumns(options.columns ?? []);
+  let viewportMode: HonuaFeatureTableViewportMode = options.viewportMode ?? "independent";
+  let viewportExtent = options.viewportExtent ? Object.freeze({ ...options.viewportExtent }) : undefined;
   let sort: readonly SortSpec[] = Object.freeze([...(options.sort ?? [])]);
   let filters = normalizeFilters(options.filters);
   let selection: readonly HonuaFeatureTableRowKey[] = Object.freeze([]);
   let focus: HonuaFeatureTableFocus | undefined;
   let window: HonuaFeatureTableWindow = Object.freeze({ startIndex: 0, endIndex: 0 });
+  let columnWindow: HonuaFeatureTableColumnWindow = Object.freeze({
+    startIndex: 0,
+    endIndex: Math.min(columns.filter((column) => column.visible).length, budgets.maxRenderedColumns),
+  });
   let state: HonuaFeatureTableState =
     identityField && !misconfiguredPageSize && queryCapabilityAdvertised !== false ? "idle" : "unsupported";
   let stale = false;
@@ -619,18 +744,23 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
         ? `\`budgets.pageSize\` (${budgets.pageSize}) exceeds \`budgets.maxCachedRows\` (${budgets.maxCachedRows}), so ${PAGE_SIZE_HINT}`
         : undefined;
   /** Set when a bounded operation had to give something up; survives a successful run. */
-  let budgetNotice: string | undefined;
+  let budgetNotice: string | undefined =
+    columns.filter((column) => column.visible).length > budgets.maxFields
+      ? `Only the first ${budgets.maxFields} visible fields are projected and rendered.`
+      : undefined;
   let error: unknown;
   let conflicts: readonly HonuaFeatureTableConflict[] = Object.freeze([]);
   let evidence = EMPTY_EVIDENCE;
   let count: HonuaFeatureTableCount = Object.freeze({ kind: "unknown", loaded: 0, evidence: "none" });
+  const initialExhausted: HonuaFeatureTableBudgetKind[] =
+    columns.filter((column) => column.visible).length > budgets.maxFields ? ["fields"] : [];
   let ledger: HonuaFeatureTableBudgetLedger = Object.freeze({
     requests: 0,
     lifetimeRequests: 0,
     rows: 0,
     bytes: 0,
     evictedRows: 0,
-    exhausted: Object.freeze([]),
+    exhausted: Object.freeze(initialExhausted),
   });
   let totalKnown: number | undefined;
   /** Which evidence produced `totalKnown`. Never inferred after the fact. */
@@ -649,11 +779,18 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   // ── Snapshot assembly ───────────────────────────────────────
 
   function buildSnapshot(): HonuaFeatureTableSnapshot<T> {
+    const visibleColumns = columns.filter((column) => column.visible).slice(0, budgets.maxFields);
+    const boundedColumnWindow = clampColumnWindow(columnWindow, visibleColumns.length, budgets.maxRenderedColumns);
+    columnWindow = boundedColumnWindow;
     return Object.freeze({
       sourceId: options.sourceId,
       state,
       columns,
-      visibleColumns: Object.freeze(columns.filter((column) => column.visible)),
+      visibleColumns: Object.freeze(visibleColumns),
+      renderedColumns: Object.freeze(
+        visibleColumns.slice(boundedColumnWindow.startIndex, boundedColumnWindow.endIndex),
+      ),
+      columnWindow: boundedColumnWindow,
       rows: Object.freeze(rowsInWindow()),
       window,
       count,
@@ -667,6 +804,8 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       evidence,
       conflicts,
       stale,
+      viewportMode,
+      ...(viewportExtent ? { viewportExtent } : {}),
       ...(message !== undefined ? { message } : {}),
       ...(error !== undefined ? { error } : {}),
       revision,
@@ -724,14 +863,20 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   // ── Query composition ───────────────────────────────────────
 
   function projection(): readonly string[] | undefined {
-    const fields = columns.filter((column) => column.visible).map((column) => column.field);
+    const fields = columns
+      .filter((column) => column.visible)
+      .slice(0, budgets.maxFields)
+      .map((column) => column.field);
     if (fields.length === 0) return undefined;
     return identityField && !fields.includes(identityField) ? [...fields, identityField] : fields;
   }
 
   function orderedFields(): readonly string[] {
-    const visible = columns.filter((column) => column.visible).map((column) => column.field);
-    return visible.length > 0 ? visible : columns.map((column) => column.field);
+    const visible = columns
+      .filter((column) => column.visible)
+      .slice(0, budgets.maxFields)
+      .map((column) => column.field);
+    return visible.length > 0 ? visible : columns.slice(0, budgets.maxFields).map((column) => column.field);
   }
 
   function composeQuery(page: { readonly offset?: number; readonly limit: number }): {
@@ -750,15 +895,27 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       },
     );
     const outFields = projection();
+    const extentFilter =
+      viewportMode === "linked" && viewportExtent
+        ? envelope(
+            viewportExtent.xmin,
+            viewportExtent.ymin,
+            viewportExtent.xmax,
+            viewportExtent.ymax,
+            viewportExtent.spatialReference,
+          )
+        : undefined;
+    const spatialFilter = combineFeatureTableSpatialFilters(extentFilter, projected.query.spatialFilter);
     const query: Query<T> = {
       ...(projected.where !== undefined ? { where: projected.where } : {}),
-      ...(projected.query.spatialFilter ? { spatialFilter: projected.query.spatialFilter } : {}),
+      ...(spatialFilter ? { spatialFilter } : {}),
       ...(outFields ? { outFields } : {}),
       ...(sort.length > 0 ? { orderBy: [...sort] } : {}),
       pagination: { ...(page.offset === undefined ? {} : { offset: page.offset }), limit: page.limit },
       returnGeometry,
     };
-    return { query, degraded: projected.degraded ?? [], filterKey: projected.cacheKey };
+    const extentKey = extentFilter ? JSON.stringify(extentFilter.geometry) : "independent";
+    return { query, degraded: projected.degraded ?? [], filterKey: `${projected.cacheKey}|viewport=${extentKey}` };
   }
 
   function identity(filterKey: string, planFingerprint: string | undefined): HonuaFeatureTablePageIdentity {
@@ -1117,7 +1274,11 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     // refuse to load a brand-new question forever, so the per-identity counter
     // and its exhaustion flags reset while the lifetime totals stay intact.
     ledger = Object.freeze({ ...ledger, requests: 0, exhausted: Object.freeze([]) });
-    budgetNotice = undefined;
+    budgetNotice =
+      columns.filter((column) => column.visible).length > budgets.maxFields
+        ? `Only the first ${budgets.maxFields} visible fields are projected and rendered.`
+        : undefined;
+    if (budgetNotice) markExhausted("fields");
     conflicts = Object.freeze([]);
     if (state !== "unsupported") state = "idle";
   }
@@ -1223,6 +1384,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     const row = rowAt(absolute);
     const nextField = fields[field];
     if (!row || nextField === undefined) return publish();
+    revealColumn(field, fields.length);
     focus = Object.freeze({ rowKey: row.key, field: nextField });
     return publish();
   }
@@ -1233,6 +1395,13 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       for (const row of page.rows) max = Math.max(max, row.index);
     }
     return max;
+  }
+
+  function revealColumn(index: number, totalColumns: number): void {
+    if (index >= columnWindow.startIndex && index < columnWindow.endIndex) return;
+    const span = Math.min(budgets.maxRenderedColumns, totalColumns);
+    const startIndex = index < columnWindow.startIndex ? index : index - span + 1;
+    columnWindow = clampColumnWindow({ startIndex, endIndex: startIndex + span }, totalColumns, span);
   }
 
   // ── Realtime reconciliation (REQ-005) ───────────────────────
@@ -1281,6 +1450,17 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
         if (!existing) continue;
         const attributes = change.record?.feature.attributes;
         if (!attributes) continue;
+        if (filters.length > 0) {
+          stale = true;
+          if (state === "ready" || state === "partial") state = "stale";
+          message = "A live update may have changed filtered membership; refresh the bounded page.";
+          nextConflicts.push({
+            code: "filter-membership-unknown",
+            message,
+            rowKeys: Object.freeze([change.key]),
+          });
+          continue;
+        }
         if (changesSortKey(existing.attributes, attributes, sortFields)) {
           nextConflicts.push({
             code: "sort-key-changed",
@@ -1383,20 +1563,61 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   async function setColumns(nextColumns: readonly HonuaFeatureTableColumn[]) {
     const before = (projection() ?? []).join(",");
     columns = resolveColumns(nextColumns);
-    if ((projection() ?? []).join(",") === before) return publish();
+    const fieldsExceeded = columns.filter((column) => column.visible).length > budgets.maxFields;
+    if ((projection() ?? []).join(",") === before) {
+      if (fieldsExceeded) {
+        markExhausted("fields");
+        budgetNotice = `Only the first ${budgets.maxFields} visible fields are projected and rendered.`;
+      }
+      return publish();
+    }
     invalidate();
+    if (fieldsExceeded) {
+      markExhausted("fields");
+      budgetNotice = `Only the first ${budgets.maxFields} visible fields are projected and rendered.`;
+    }
     ensureWindow();
     return run(undefined);
+  }
+
+  async function runAggregation(
+    aggregation: AggregationSpec,
+    aggregateOptions: { readonly signal?: AbortSignal } = {},
+  ): Promise<HonuaFeatureTableAggregation<T>> {
+    throwIfAborted(aggregateOptions.signal);
+    const composed = composeQuery({ limit: budgets.pageSize });
+    const query: Query<T> = {
+      ...composed.query,
+      aggregation,
+      returnGeometry: false,
+      pagination: { limit: budgets.pageSize },
+      ...(aggregateOptions.signal ? { signal: aggregateOptions.signal } : {}),
+    };
+    const plan = options.planner?.(query);
+    const result = await options.source.query(query);
+    throwIfAborted(aggregateOptions.signal);
+    const aggregateEvidence = buildEvidence(
+      plan,
+      [...composed.degraded, ...(result.degraded ?? [])],
+      composed.filterKey,
+    );
+    return Object.freeze({
+      rows: Object.freeze(result.features.slice(0, budgets.pageSize).map((feature) => feature.attributes)),
+      truncated: result.features.length > budgets.pageSize || result.exceededTransferLimit === true,
+      evidence: aggregateEvidence,
+    });
   }
 
   async function runExport(request: HonuaFeatureTableExportRequest): Promise<HonuaFeatureTableExport> {
     const fields = orderedFields();
     if (currentState() === "unsupported") {
+      const serialized = serializeBoundedExport(request.format, [], fields, columns, budgets.maxExportBytes);
       return Object.freeze({
         format: request.format,
-        content: request.format === "csv" ? toCsv([], fields, columns) : toJson([], fields, columns),
+        content: serialized.content,
         rowCount: 0,
-        truncated: false,
+        truncated: serialized.truncated,
+        ...(serialized.truncated ? { limit: "export-bytes" as const } : {}),
         columns: Object.freeze([...fields]),
         evidence,
       });
@@ -1432,14 +1653,95 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
 
     recomputeCount();
     publish();
+    const serialized = serializeBoundedExport(request.format, rows, fields, columns, budgets.maxExportBytes);
+    if (serialized.truncated) limit = "export-bytes";
     return Object.freeze({
       format: request.format,
-      content: request.format === "csv" ? toCsv(rows, fields, columns) : toJson(rows, fields, columns),
-      rowCount: rows.length,
+      content: serialized.content,
+      rowCount: serialized.rowCount,
       truncated: limit !== undefined,
       ...(limit ? { limit } : {}),
       columns: Object.freeze([...fields]),
       evidence,
+    });
+  }
+
+  async function runSecureExport(
+    request: HonuaFeatureTableSecureExportRequest,
+  ): Promise<HonuaFeatureTableSecureExport> {
+    throwIfAborted(request.signal);
+    const fields = orderedFields();
+    const maxRows = Math.max(0, Math.min(request.maxRows ?? budgets.maxExportRows, budgets.maxExportRows));
+    const first = composeQuery({ offset: 0, limit: Math.min(budgets.pageSize, Math.max(1, maxRows)) });
+    const plan = options.planner?.(first.query);
+    const authorization = await request.adapter.authorize({
+      sourceId: options.sourceId,
+      format: request.format,
+      selectionOnly: request.selectionOnly === true,
+      maxRows,
+      maxBytes: budgets.maxExportBytes,
+      authorizationScope,
+      ...(plan ? { planId: plan.id, planFingerprint: plan.fingerprint } : {}),
+      ...(request.signal ? { signal: request.signal } : {}),
+    });
+    throwIfAborted(request.signal);
+    if (!authorization.authorized) {
+      throw new Error(authorization.reason ?? "The host denied the table export under the current authorization.");
+    }
+
+    const selected = request.selectionOnly ? new Set(selection) : undefined;
+    const rows: HonuaFeatureTableRow<T>[] = [];
+    let offset = 0;
+    let requests = 0;
+    let degraded: readonly DegradedReason[] = first.degraded;
+    let sourceExhausted = false;
+    while (rows.length < maxRows && requests < budgets.maxRequests && !sourceExhausted) {
+      throwIfAborted(request.signal);
+      const composed = composeQuery({ offset, limit: budgets.pageSize });
+      const result = await options.source.query({
+        ...composed.query,
+        ...(request.signal ? { signal: request.signal } : {}),
+      });
+      requests += 1;
+      degraded = [...composed.degraded, ...(result.degraded ?? [])];
+      for (const [index, feature] of result.features.entries()) {
+        const row = toRow(feature, offset + index);
+        if (!row) continue;
+        if ((!selected || selected.has(row.key)) && rows.length < maxRows) rows.push(row);
+      }
+      sourceExhausted = result.features.length < budgets.pageSize && result.exceededTransferLimit !== true;
+      offset += budgets.pageSize;
+    }
+    throwIfAborted(request.signal);
+    const exportEvidence = buildEvidence(plan, degraded, first.filterKey);
+    const serialized = serializeBoundedExport(request.format, rows, fields, columns, budgets.maxExportBytes);
+    const truncated =
+      serialized.truncated ||
+      rows.length >= maxRows ||
+      (!sourceExhausted && requests >= budgets.maxRequests) ||
+      (selected !== undefined && rows.length < selected.size);
+    const provenance: HonuaFeatureTableExportProvenance = Object.freeze({
+      sourceId: options.sourceId,
+      adapterId: request.adapter.id,
+      authorizationId: authorization.authorizationId,
+      exportedAt: new Date().toISOString(),
+      format: request.format,
+      rowCount: serialized.rowCount,
+      truncated,
+      authorizationScope,
+      ...(plan ? { planId: plan.id, planFingerprint: plan.fingerprint } : {}),
+    });
+    await request.adapter.record(provenance);
+    throwIfAborted(request.signal);
+    return Object.freeze({
+      format: request.format,
+      content: serialized.content,
+      rowCount: serialized.rowCount,
+      truncated,
+      ...(serialized.truncated ? { limit: "export-bytes" as const } : {}),
+      columns: Object.freeze([...fields]),
+      evidence: exportEvidence,
+      provenance,
     });
   }
 
@@ -1465,6 +1767,16 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       window = next;
       return run(undefined);
     },
+    setColumnScroll(metrics) {
+      const totalColumns = Math.min(budgets.maxFields, columns.filter((column) => column.visible).length);
+      const next = featureTableColumnWindow(metrics, {
+        totalColumns,
+        maxRenderedColumns: budgets.maxRenderedColumns,
+      });
+      if (next.startIndex === columnWindow.startIndex && next.endIndex === columnWindow.endIndex) return snapshot;
+      columnWindow = next;
+      return publish();
+    },
     setSort,
     async toggleSort(field, toggleOptions = {}) {
       const existing = sort.find((entry) => entry.field === field);
@@ -1483,6 +1795,21 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     async setColumnVisibility(field, visible) {
       return setColumns(columns.map((column) => (column.field === field ? { ...column, visible } : { ...column })));
     },
+    async setViewportMode(mode) {
+      if (mode === viewportMode) return snapshot;
+      viewportMode = mode;
+      invalidate();
+      ensureWindow();
+      return run(undefined);
+    },
+    async setViewportExtent(extent) {
+      viewportExtent = extent ? Object.freeze({ ...extent }) : undefined;
+      if (viewportMode === "independent") return publish();
+      invalidate();
+      ensureWindow();
+      return run(undefined);
+    },
+    aggregate: runAggregation,
     select(keys, selectOptions = {}) {
       setSelection(selectOptions.replace === false ? [...selection, ...keys] : keys);
     },
@@ -1515,6 +1842,11 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       return Object.freeze(out);
     },
     setFocus(nextFocus) {
+      if (nextFocus) {
+        const fields = orderedFields();
+        const index = fields.indexOf(nextFocus.field);
+        if (index >= 0) revealColumn(index, fields.length);
+      }
       focus = nextFocus ? Object.freeze({ ...nextFocus }) : undefined;
       publish();
     },
@@ -1531,6 +1863,7 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       publish();
     },
     export: runExport,
+    secureExport: runSecureExport,
     cancel() {
       const controller = inFlight;
       inFlight = undefined;
@@ -1566,6 +1899,8 @@ export interface LinkFeatureTableToExplorationOptions {
   readonly selection?: boolean;
   /** Publish the virtualization window as the shared `page` slice. @default true */
   readonly page?: boolean;
+  /** Apply the shared map extent to table queries. @default false */
+  readonly extent?: boolean;
 }
 
 /**
@@ -1593,6 +1928,10 @@ export function linkFeatureTableToExploration<T>(
   const syncFilters = options.filters ?? true;
   const syncSelection = options.selection ?? true;
   const syncPage = options.page ?? true;
+  const syncExtent = options.extent ?? false;
+  if (syncExtent) {
+    void table.setViewportMode("linked").then(() => table.setViewportExtent(view.state.extent));
+  }
 
   let applying = false;
   let suppressFilterPublish = 0;
@@ -1618,7 +1957,7 @@ export function linkFeatureTableToExploration<T>(
     }
   }
 
-  const unsubscribeContext = view.subscribe(["selection", "sort", "visibleFields", "filters"], (event) => {
+  const unsubscribeContext = view.subscribe(["selection", "sort", "visibleFields", "filters", "extent"], (event) => {
     if (applying) return;
     applying = true;
     try {
@@ -1653,6 +1992,7 @@ export function linkFeatureTableToExploration<T>(
           }
         });
       }
+      if (syncExtent && event.changedSlices.has("extent")) void table.setViewportExtent(event.state.extent);
     } finally {
       applying = false;
     }
@@ -1877,9 +2217,77 @@ function toCsv<T>(
   return lines.join("\n");
 }
 
+function serializeBoundedExport<T>(
+  format: "csv" | "json",
+  rows: readonly HonuaFeatureTableRow<T>[],
+  fields: readonly string[],
+  columns: readonly HonuaFeatureTableResolvedColumn[],
+  maxBytes: number,
+): { readonly content: string; readonly rowCount: number; readonly truncated: boolean } {
+  let kept = rows.length;
+  while (kept >= 0) {
+    const content =
+      format === "csv" ? toCsv(rows.slice(0, kept), fields, columns) : toJson(rows.slice(0, kept), fields, columns);
+    if (new TextEncoder().encode(content).byteLength <= maxBytes) {
+      return { content, rowCount: kept, truncated: kept < rows.length };
+    }
+    kept -= 1;
+  }
+  return { content: "", rowCount: 0, truncated: true };
+}
+
 function csvCell(value: string): string {
-  if (!value.includes(",") && !value.includes('"') && !value.includes("\n")) return value;
-  return `"${value.split('"').join('""')}"`;
+  // Spreadsheet programs treat leading =, +, -, @, tab, and carriage return
+  // as formula/control syntax even in a CSV cell. Prefixing an apostrophe
+  // forces literal display and prevents a server-returned value from becoming
+  // executable spreadsheet content when a user opens the bounded export.
+  const safe = /^[\t\r]|^\s*[=+\-@]/.test(value) ? `'${value}` : value;
+  if (!safe.includes(",") && !safe.includes('"') && !safe.includes("\n")) return safe;
+  return `"${safe.split('"').join('""')}"`;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (!signal?.aborted) return;
+  if (typeof signal.throwIfAborted === "function") signal.throwIfAborted();
+  const error = new Error("The table operation was cancelled.");
+  error.name = "AbortError";
+  throw error;
+}
+
+function combineFeatureTableSpatialFilters(
+  extent: SpatialFilter | undefined,
+  existing: SpatialFilter | undefined,
+): SpatialFilter | undefined {
+  if (!extent) return existing;
+  if (!existing) return extent;
+  if (extent.geometryType !== "esriGeometryEnvelope" || existing.geometryType !== "esriGeometryEnvelope") {
+    throw new Error(
+      "A linked table extent cannot be combined exactly with a non-envelope spatial filter; use independent viewport mode or an envelope filter.",
+    );
+  }
+  const left = extent.geometry;
+  const right = existing.geometry;
+  const values = [left.xmin, left.ymin, left.xmax, left.ymax, right.xmin, right.ymin, right.xmax, right.ymax];
+  if (!values.every((value) => typeof value === "number" && Number.isFinite(value))) {
+    throw new Error("A linked table extent and spatial filter must contain finite envelope coordinates.");
+  }
+  return envelope(
+    Math.max(left.xmin as number, right.xmin as number),
+    Math.max(left.ymin as number, right.ymin as number),
+    Math.min(left.xmax as number, right.xmax as number),
+    Math.min(left.ymax as number, right.ymax as number),
+    (extent.geometry.spatialReference ?? existing.geometry.spatialReference) as HonuaExtent["spatialReference"],
+  );
+}
+
+function clampColumnWindow(
+  value: HonuaFeatureTableColumnWindow,
+  totalColumns: number,
+  maxRenderedColumns: number,
+): HonuaFeatureTableColumnWindow {
+  const span = Math.min(maxRenderedColumns, totalColumns);
+  const startIndex = Math.min(Math.max(0, value.startIndex), Math.max(0, totalColumns - span));
+  return Object.freeze({ startIndex, endIndex: Math.min(totalColumns, startIndex + span) });
 }
 
 function toJson<T>(

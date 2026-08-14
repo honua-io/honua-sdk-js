@@ -1,0 +1,241 @@
+{
+  "$schema": "./app-platform-reference-qualification.schema.json",
+  "format": "honua.app-platform.reference-qualification.v1",
+  "schemaVersion": 1,
+  "observedAt": "2026-08-14T12:00:00.000Z",
+  "expiresAt": "2026-11-12T12:00:00.000Z",
+  "packageMode": "packed",
+  "zeroEgress": true,
+  "evidenceDigest": "sha256:75af887ddd3d2c52c17b277ee9990b9db75f7d2283000b9bb86c9390e986e71a",
+  "maturityDigest": "sha256:55c5e7ad81a9f923cf8f7e95ca9bdd18245aebc27d5797806d3fa535bf7ecbc5",
+  "workbench": "test/fixtures/packed-app-platform-reference-workbench.mjs",
+  "journey": [
+    "connect",
+    "map",
+    "inspect",
+    "filter",
+    "edit",
+    "table",
+    "export"
+  ],
+  "lanes": [
+    {
+      "id": "direct-custom-element",
+      "environment": "installed-jsdom",
+      "evidence": [
+        "test/fixtures/packed-app-platform-reference-workbench.mjs"
+      ]
+    },
+    {
+      "id": "react-host",
+      "environment": "installed-react-ssr-jsdom",
+      "evidence": [
+        "test/fixtures/packed-app-platform-reference-workbench.mjs"
+      ]
+    }
+  ],
+  "browsers": [
+    {
+      "id": "chromium",
+      "status": "automated",
+      "evidence": [
+        "test/playwright/app-platform-reference-components.spec.mjs",
+        "test/playwright/web-components-basic.spec.mjs"
+      ]
+    }
+  ],
+  "states": {
+    "locale": [
+      "test/fixtures/packed-app-platform-reference-workbench.mjs",
+      "test/web-components-localization-german.test.ts"
+    ],
+    "rtl": [
+      "test/fixtures/packed-app-platform-reference-workbench.mjs",
+      "test/web-components-rtl.test.ts"
+    ],
+    "csp": [
+      "test/playwright/web-components-csp.spec.mjs",
+      "test/web-components-csp.test.ts"
+    ],
+    "auth-change": [
+      "test/fixtures/packed-app-platform-reference-workbench.mjs",
+      "test/web-components-application-context.test.ts"
+    ],
+    "error": [
+      "test/fixtures/packed-app-platform-reference-workbench.mjs",
+      "test/web-components-lifecycle-gates.test.ts"
+    ],
+    "offline": [
+      "test/fixtures/packed-app-platform-reference-workbench.mjs",
+      "test/offline-status.test.ts"
+    ],
+    "realtime": [
+      "test/fixtures/packed-app-platform-reference-workbench.mjs",
+      "test/web-components-application-context.test.ts"
+    ]
+  },
+  "budgets": [
+    {
+      "id": "first-use",
+      "status": "verified",
+      "limit": 5000,
+      "unit": "ms",
+      "evidence": [
+        "test/fixtures/packed-app-platform-reference-workbench.mjs"
+      ]
+    },
+    {
+      "id": "interaction",
+      "status": "verified",
+      "limit": 250,
+      "unit": "ms",
+      "evidence": [
+        "test/fixtures/packed-app-platform-reference-workbench.mjs"
+      ]
+    },
+    {
+      "id": "retained-heap",
+      "status": "open",
+      "limit": 2097152,
+      "unit": "bytes-per-cycle",
+      "evidence": [],
+      "note": "The WeakRef browser sweep proves collectibility, but no committed harness measures retained bytes per cycle yet."
+    },
+    {
+      "id": "listener-delta",
+      "status": "verified",
+      "limit": 0,
+      "unit": "listeners-per-cycle",
+      "evidence": [
+        "test/web-components-lifecycle-gates.test.ts",
+        "test/feature-inspection-qualification.test.ts",
+        "test/web-components-feature-editor-element.test.ts"
+      ]
+    },
+    {
+      "id": "dom-nodes",
+      "status": "verified",
+      "limit": 250,
+      "unit": "nodes",
+      "evidence": [
+        "test/fixtures/packed-app-platform-reference-workbench.mjs"
+      ]
+    },
+    {
+      "id": "bundle-gzip",
+      "status": "verified",
+      "limit": 329668,
+      "unit": "bytes",
+      "evidence": [
+        "bundle-budgets.json",
+        "scripts/report-bundle-sizes.mjs"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "web-components.feature-inspection",
+      "tag": "honua-feature-inspection",
+      "maturity": "production-tier",
+      "productionQualified": true,
+      "qualifiedGates": [
+        "unit-contract",
+        "browser-functional",
+        "packed-journey",
+        "deterministic-disposal",
+        "duplicate-listener",
+        "memory-leak"
+      ],
+      "openGates": [
+        "reference.automated-axe",
+        "reference.manual-screen-reader"
+      ],
+      "gateEvidence": {
+        "unit-contract": [
+          "test/feature-inspection-qualification.test.ts"
+        ],
+        "browser-functional": [
+          "test/playwright/app-platform-reference-components.spec.mjs"
+        ],
+        "packed-journey": [
+          "test/fixtures/packed-app-platform-reference-workbench.mjs"
+        ],
+        "deterministic-disposal": [
+          "test/feature-inspection-qualification.test.ts"
+        ],
+        "duplicate-listener": [
+          "test/feature-inspection-qualification.test.ts"
+        ],
+        "memory-leak": [
+          "test/playwright/web-components-memory-leak.spec.mjs"
+        ]
+      },
+      "unit": [
+        "test/feature-inspection-qualification.test.ts"
+      ],
+      "browser": [
+        "test/playwright/app-platform-reference-components.spec.mjs"
+      ],
+      "journey": [
+        "test/fixtures/packed-app-platform-reference-workbench.mjs"
+      ]
+    },
+    {
+      "id": "web-components.feature-editor",
+      "tag": "honua-feature-editor",
+      "maturity": "production-tier",
+      "productionQualified": true,
+      "qualifiedGates": [
+        "unit-contract",
+        "packed-journey",
+        "deterministic-disposal",
+        "duplicate-listener",
+        "memory-leak"
+      ],
+      "openGates": [
+        "reference.automated-axe",
+        "reference.browser-functional",
+        "reference.manual-screen-reader"
+      ],
+      "gateEvidence": {
+        "unit-contract": [
+          "test/web-components-feature-editor-element.test.ts"
+        ],
+        "packed-journey": [
+          "test/fixtures/packed-app-platform-reference-workbench.mjs"
+        ],
+        "deterministic-disposal": [
+          "test/web-components-feature-editor-element.test.ts"
+        ],
+        "duplicate-listener": [
+          "test/web-components-feature-editor-element.test.ts"
+        ],
+        "memory-leak": [
+          "test/playwright/web-components-memory-leak.spec.mjs"
+        ]
+      },
+      "unit": [
+        "test/web-components-feature-editor-element.test.ts"
+      ],
+      "browser": [
+        "test/playwright/web-components-basic.spec.mjs"
+      ],
+      "journey": [
+        "test/fixtures/packed-app-platform-reference-workbench.mjs"
+      ]
+    }
+  ],
+  "live": {
+    "enabledBy": "HONUA_APP_PLATFORM_LIVE_ENABLED=true",
+    "status": "not-recorded",
+    "evidence": []
+  },
+  "summary": {
+    "supportedComponents": 2,
+    "componentsWithUnitEvidence": 2,
+    "componentsWithBrowserEvidence": 2,
+    "componentsWithPackedJourneyEvidence": 2,
+    "openQualificationGates": 5,
+    "openBudgetGates": 1
+  }
+}
