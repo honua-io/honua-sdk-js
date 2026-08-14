@@ -21,13 +21,17 @@ const registration = {
       name: "temperature",
       shape: [12, 256, 256],
       chunks: [1, 64, 64],
-      dataType: "<f4",
+      dataType: "float32",
       compressor: "gzip",
       dimensionNames: ["time", "y", "x"],
     },
   ],
   metadataScannedAt: "2026-08-13T00:00:00Z",
   createdAt: "2026-08-12T00:00:00Z",
+} as const;
+const serverRegistration = {
+  ...registration,
+  variables: [{ ...registration.variables[0], dataType: "<f4" }],
 } as const;
 const readiness = { storageExtent: [-180, -90, 180, 90], tileMatrixSrid: 4326 } as const;
 
@@ -51,14 +55,14 @@ describe("experimental Honua Zarr client", () => {
         const url = new URL(request.url);
         if (request.method === "POST" && url.pathname === "/api/v1/admin/zarr-stores") {
           expect(await request.json()).toMatchObject({ provider: "AwsS3", rootPath: "temperature/daily.zarr" });
-          return json(registration, 201);
+          return json(serverRegistration, 201);
         }
         if (request.method === "GET" && url.pathname === "/api/v1/admin/zarr-stores") {
           expect(url.searchParams.get("layerId")).toBe("7");
-          return json([registration]);
+          return json([serverRegistration]);
         }
         if (request.method === "POST" && url.pathname === "/api/v1/admin/zarr-stores/41/refresh") {
-          return json(registration);
+          return json(serverRegistration);
         }
         if (request.method === "DELETE" && url.pathname === "/api/v1/admin/zarr-stores/41") {
           return new Response(null, { status: 204 });
@@ -76,7 +80,7 @@ describe("experimental Honua Zarr client", () => {
         bucket: "coverage-data",
         rootPath: "temperature/daily.zarr",
       }),
-    ).toMatchObject({ id: 41, zarrFormat: 3, primaryVariable: "temperature" });
+    ).toMatchObject({ id: 41, zarrFormat: 3, primaryVariable: "temperature", variables: [{ dataType: "float32" }] });
     expect(await zarr.list(7)).toHaveLength(1);
     expect(await zarr.refresh(41)).toMatchObject({ metadataScannedAt: "2026-08-13T00:00:00Z" });
     await expect(zarr.unregister(41)).resolves.toBeUndefined();
@@ -304,6 +308,31 @@ describe("experimental Honua Zarr client", () => {
     },
   );
 
+  it("binds dtype notation to the registration's Zarr format", () => {
+    const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+    const v2 = {
+      ...registration,
+      zarrFormat: 2,
+      variables: [{ ...registration.variables[0], dataType: "<f4" }],
+    } as unknown as ZarrStoreRegistration;
+    const mismatchedV2 = {
+      ...v2,
+      variables: [{ ...registration.variables[0], dataType: "float32" }],
+    } as unknown as ZarrStoreRegistration;
+    const mismatchedV3 = {
+      ...registration,
+      variables: [{ ...registration.variables[0], dataType: "<f4" }],
+    } as unknown as ZarrStoreRegistration;
+
+    expect(zarr.assess(v2, readiness).failures).toEqual([]);
+    expect(zarr.assess(mismatchedV2, readiness).failures).toEqual([
+      expect.objectContaining({ code: "unsupported-dtype" }),
+    ]);
+    expect(zarr.assess(mismatchedV3, readiness).failures).toEqual([
+      expect.objectContaining({ code: "unsupported-dtype" }),
+    ]);
+  });
+
   it("requires the requested tile matrix SRID to match storage", () => {
     const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
     const scanned = registration as ZarrStoreRegistration;
@@ -374,5 +403,19 @@ describe("experimental Honua Zarr client", () => {
       }),
     ).rejects.toMatchObject({ code: "invalid-request" });
     expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["adminBasePath", "/api/v1/../admin/zarr-stores"],
+    ["adminBasePath", "/api/v1/%2e%2e/admin/zarr-stores"],
+    ["adminBasePath", "/api/v1/admin/zarr-stores?scope=other"],
+    ["datacubeBasePath", "/api/v1/datacubes#other"],
+    ["datacubeBasePath", "/api/v1/datacubes\\other"],
+  ] as const)("rejects unsafe versioned %s value %s", (field, value) => {
+    const client = new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() });
+
+    expect(() => createZarrClient(client, { [field]: value })).toThrow(
+      expect.objectContaining({ code: "invalid-request" }),
+    );
   });
 });
