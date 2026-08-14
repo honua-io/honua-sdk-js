@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   assignSpecs,
@@ -68,11 +69,37 @@ test("shared fixtures select every direct browser consumer", () => {
   const spatial = evaluate(policy, ["examples/spatial-analytics-workbench/src/kepler-handoff.ts"]);
   assert.deepEqual(spatial.candidate.selected_lanes, ["heavy-map-kepler", "examples-general"]);
   const firstMap = evaluate(policy, ["samples/fixtures/first-map/v2/features.json"]);
-  assert.deepEqual(firstMap.candidate.selected_lanes, ["heavy-map-kepler"]);
+  assert.deepEqual(firstMap.candidate.selected_lanes, policy.lanes.map((lane) => lane.id));
   const scenarios = evaluate(policy, ["samples/scenarios/index.mjs"]);
-  assert.deepEqual(scenarios.candidate.selected_lanes, ["realtime-collaboration", "heavy-map-kepler"]);
+  assert.deepEqual(scenarios.candidate.selected_lanes, policy.lanes.map((lane) => lane.id));
   const sharedRenderer = evaluate(policy, ["docs/examples/shared-renderer-state/app.mjs"]);
   assert.deepEqual(sharedRenderer.candidate.selected_lanes, ["heavy-map-kepler"]);
+  const sharedKit = evaluate(policy, ["examples/_kit/vite.config.ts"]);
+  assert.deepEqual(sharedKit.candidate.selected_lanes, [
+    "realtime-collaboration",
+    "heavy-map-kepler",
+    "examples-general",
+  ]);
+  const sharedExample = evaluate(policy, ["examples/shared/maplibre-vite-worker.js"]);
+  assert.deepEqual(sharedExample.candidate.selected_lanes, policy.lanes.map((lane) => lane.id));
+});
+
+test("every browser-served example root routes to the owning spec lane", () => {
+  const specs = discoverSpecs();
+  const ownership = assignSpecs(policy, specs);
+  for (const spec of specs) {
+    const source = readFileSync(`test/playwright/${spec}`, "utf8");
+    const dependencies = new Set(
+      [...source.matchAll(/\b((?:docs\/examples|examples)\/[a-z0-9-]+)/gu)].map((match) => match[1]),
+    );
+    for (const dependency of dependencies) {
+      const report = evaluate(policy, [`${dependency}/__impact_probe__`]);
+      assert.ok(
+        report.candidate.selected_lanes.includes(ownership.get(spec)),
+        `${dependency} must select ${ownership.get(spec)} for ${spec}`,
+      );
+    }
+  }
 });
 
 test("rename parsing evaluates both source and destination paths", () => {

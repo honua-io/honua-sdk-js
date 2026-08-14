@@ -47,6 +47,12 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
           PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
         run: |
+          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 \
+              "https://github.com/${GITHUB_REPOSITORY}.git" \
+              "$BASE_SHA"
+          fi
+          git cat-file -e "$BASE_SHA^{commit}"
           node scripts/browser-impact-observe.mjs observe \
             --base "$BASE_SHA" \
             --head "$HEAD_SHA" \

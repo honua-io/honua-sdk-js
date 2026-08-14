@@ -17,7 +17,8 @@ lanes. Shared application modules may name multiple consumer lanes, while each
 browser spec still has one execution owner. More precise ownership is promoted
 only from measured evidence. The observer checks out the requested head SHA,
 never GitHub's synthetic pull-request merge commit, so its inventory and policy
-digest describe the head printed in the retained artifact. Rename observations
+digest describe the head printed in the retained artifact. Fork observations
+fetch the exact upstream base before computing the three-dot diff. Rename observations
 evaluate both the removed and added path, preventing a move into an ignored
 tree from hiding the dependency that was removed.
 

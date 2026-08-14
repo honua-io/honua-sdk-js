@@ -55,6 +55,7 @@
         "examples/pmtiles-static/**",
         "examples/storytelling-25d-map/**",
         "examples/terrain-rgb-elevation/**",
+        "docs/examples/cesium-route-playback/**",
         "docs/examples/shared-renderer-state/**",
         "scripts/ensure-kepler-demo-deps.mjs"
       ]
@@ -63,10 +64,10 @@
       "id": "examples-general",
       "specPatterns": [],
       "changePatterns": [
+        "docs/examples/automatic-source-workflow/**",
         "examples/**",
         "packages/create-honua-app/**",
         "playgrounds/**",
-        "samples/**",
         "src/agent-tools/**",
         "src/app/**",
         "src/app-controller/**",
@@ -89,12 +90,8 @@
       "lanes": ["heavy-map-kepler", "examples-general"]
     },
     {
-      "patterns": ["samples/fixtures/first-map/**"],
-      "lanes": ["heavy-map-kepler"]
-    },
-    {
-      "patterns": ["samples/scenarios/**"],
-      "lanes": ["realtime-collaboration", "heavy-map-kepler"]
+      "patterns": ["examples/_kit/**"],
+      "lanes": ["realtime-collaboration", "heavy-map-kepler", "examples-general"]
     }
   ],
   "globalPatterns": [
@@ -110,6 +107,8 @@
     "scripts/browser-impact-observe.mjs",
     "scripts/lib/prepared-sdk-artifact.mjs",
     "scripts/prepare-sdk-test-artifacts.mjs",
+    "examples/shared/**",
+    "samples/**",
     "src/contract/**",
     "src/core/**",
     "src/geometry/**",
