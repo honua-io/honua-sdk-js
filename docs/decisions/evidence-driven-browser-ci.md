@@ -18,9 +18,11 @@ browser spec still has one execution owner. More precise ownership is promoted
 only from measured evidence. The observer runs from the default branch after
 the canonical `SDK CI` workflow completes. It resolves the exact `JS SDK` job
 through its GitHub-managed check-run association, binds the source run ID,
-attempt, conclusion, event-time base/head, and current unchanged pull request,
-then reconstructs the event-time synthetic merge tree from those immutable
-parents. A later target-branch advance does not alter that snapshot, while a
+attempt, conclusion, and event-time base/head, then confirms the associated
+pull-request repository, base branch, and recorded head before reconstructing
+the event-time synthetic merge tree from those immutable parents. A pull request
+that closes or merges after the source run remains observable and can be
+backfilled; a later target-branch advance does not alter that snapshot, while a
 moved source head invalidates it. The candidate tree is inert input: the
 observer executes no candidate script, action, package hook, or generated
 executable. Its retained v2 report records the source head separately from the

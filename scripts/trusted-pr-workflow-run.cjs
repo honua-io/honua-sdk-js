@@ -12,6 +12,7 @@ const TERMINAL_CONCLUSIONS = new Set([
   "stale",
   "startup_failure",
 ]);
+const TERMINAL_PULL_REQUEST_STATES = new Set(["open", "closed"]);
 
 function parsePositiveSafeInteger(value, label) {
   const text = String(value ?? "");
@@ -149,7 +150,7 @@ async function resolveTrustedPullRequestWorkflowRun({
   });
   if (
     pullRequest?.number !== associated.number ||
-    pullRequest.state !== "open" ||
+    !TERMINAL_PULL_REQUEST_STATES.has(pullRequest.state) ||
     pullRequest.base?.ref !== defaultBranch ||
     pullRequest.base?.repo?.full_name !== repository ||
     pullRequest.base?.repo?.id !== repositoryId ||

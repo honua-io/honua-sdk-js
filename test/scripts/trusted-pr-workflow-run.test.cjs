@@ -174,6 +174,19 @@ test("preserves the event base when the live default branch advances", async () 
   assert.equal(result.headSha, HEAD);
 });
 
+test("accepts immutable run evidence after the associated pull request closes", async () => {
+  for (const pullRequest of [
+    { state: "closed", merged: false },
+    { state: "closed", merged: true, merged_at: "2026-08-14T19:40:00Z" },
+  ]) {
+    const { github } = fixtures({ pullRequest });
+    const result = await resolve(github);
+    assert.equal(result.pullRequestNumber, 42);
+    assert.equal(result.baseSha, BASE);
+    assert.equal(result.headSha, HEAD);
+  }
+});
+
 test("rejects a current PR whose head moved after the workflow run", async () => {
   const { github } = fixtures({
     pullRequest: {
@@ -183,6 +196,11 @@ test("rejects a current PR whose head moved after the workflow run", async () =>
       },
     },
   });
+  await assert.rejects(resolve(github), /moved after/u);
+});
+
+test("rejects an unknown pull-request state", async () => {
+  const { github } = fixtures({ pullRequest: { state: "unknown" } });
   await assert.rejects(resolve(github), /moved after/u);
 });
 
