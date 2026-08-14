@@ -8,7 +8,34 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_POLICY = resolve(ROOT, ".github/data/browser-impact-policy.v1.json");
-const OBSERVATION_SCHEMA = "honua.sdk.browser-impact-observation/v1";
+const OBSERVATION_SCHEMA = "honua.sdk.browser-impact-observation/v2";
+const SHA = /^[0-9a-f]{40}$/u;
+const SHA256 = /^[0-9a-f]{64}$/u;
+const TERMINAL_CONCLUSIONS = new Set([
+  "success",
+  "failure",
+  "cancelled",
+  "timed_out",
+  "action_required",
+  "neutral",
+  "skipped",
+  "stale",
+  "startup_failure",
+]);
+const COMPARABLE_CONCLUSIONS = new Set(["success", "failure"]);
+const OBSERVER_EVENTS = new Set(["workflow_run", "workflow_dispatch"]);
+const TRUSTED_POLICY_INPUTS = new Set([
+  ".github/data/browser-impact-policy.v1.json",
+  ".github/workflows/browser-impact-observe.yml",
+  "scripts/browser-impact-observe.mjs",
+  "scripts/trusted-pr-workflow-run.cjs",
+]);
+const TRUSTED_MANIFEST_ORDER = [
+  "observer_workflow_sha256",
+  "policy_blob_sha256",
+  "resolver_blob_sha256",
+  "selector_blob_sha256",
+];
 const EXPECTED_LANES = [
   "offline-service-worker",
   "realtime-collaboration",
@@ -189,33 +216,87 @@ export function assignSpecs(policy, specs) {
   return ownership;
 }
 
-function validateWorkflow(root) {
+export function validateWorkflow(root) {
   const workflowPath = resolve(root, ".github/workflows/browser-impact-observe.yml");
   const workflow = readFileSync(workflowPath, "utf8");
-  if (/^\s{4}paths(?:-ignore)?:/mu.test(workflow)) {
-    throw new PolicyError("browser observer must run on every pull request");
+  if (!workflow.includes("workflow_run:") || !workflow.includes('workflows: ["SDK CI"]')) {
+    throw new PolicyError("browser observer must consume completed SDK CI workflow runs");
   }
-  for (const forbidden of ["playwright test", "gh run cancel", "cancelWorkflowRun", "pull_request_target"]) {
+  for (const forbidden of [
+    "playwright test",
+    "gh run cancel",
+    "cancelWorkflowRun",
+    "pull_request_target",
+    "pull_request:",
+  ]) {
     if (workflow.includes(forbidden)) {
       throw new PolicyError(`observe-only workflow contains forbidden authority: ${forbidden}`);
     }
   }
-  if (workflow.includes("--depth=1")) {
-    throw new PolicyError("browser observer must not shallow-fetch the upstream base");
-  }
-  if (!workflow.includes('git merge-base "$BASE_SHA" "$EVALUATION_SHA"')) {
-    throw new PolicyError("browser observer must prove the evaluation diff has a merge base");
+  const permissionBlocks = [
+    ...workflow.matchAll(/^permissions:\r?\n((?:  [a-z-]+: [^\r\n]+\r?\n)+)/gmu),
+  ];
+  const permissions = permissionBlocks[0]?.[1]
+    ?.trim()
+    .split(/\r?\n/u)
+    .map((line) => line.trim());
+  if (
+    permissionBlocks.length !== 1 ||
+    JSON.stringify(permissions) !==
+      JSON.stringify([
+        "actions: read",
+        "checks: read",
+        "contents: read",
+        "pull-requests: read",
+      ]) ||
+    /^\s{4,}permissions:/mu.test(workflow)
+  ) {
+    throw new PolicyError("browser observer permissions must be the exact read-only allowlist");
   }
   if (
-    !workflow.includes("ref: ${{ github.event_name == 'pull_request' && github.sha || inputs.head_sha }}") ||
-    !workflow.includes("SOURCE_HEAD_SHA:") ||
-    !workflow.includes("--source-head \"$SOURCE_HEAD_SHA\"")
+    !workflow.includes("scripts/trusted-pr-workflow-run.cjs") ||
+    !workflow.includes('ref: ${{ github.sha }}') ||
+    !workflow.includes('head_repository.full_name == github.repository')
   ) {
-    throw new PolicyError("PR observations must compare routing from the authoritative merge snapshot");
+    throw new PolicyError("browser observer must resolve the exact trusted JS SDK workflow job");
+  }
+  for (const binding of [
+    'workflowPath: ".github/workflows/ci.yml"',
+    'workflowName: "SDK CI"',
+    'jobName: "JS SDK"',
+  ]) {
+    if (workflow.split(binding).length - 1 !== 2) {
+      throw new PolicyError("browser observer source identity must match in both resolutions");
+    }
+  }
+  if (
+    workflow.split('refs/pull/${PR_NUMBER}/merge').length - 1 !== 2 ||
+    !workflow.includes('git worktree add --detach "$CANDIDATE_ROOT" "$MERGE_SHA"') ||
+    workflow.split('[[ "$MERGE_BASE" == "$BASE_SHA" ]]').length - 1 !== 2 ||
+    workflow.split('[[ "$MERGE_HEAD" == "$HEAD_SHA" ]]').length - 1 !== 2 ||
+    !workflow.includes('--head "$MERGE_SHA"') ||
+    !workflow.includes('--source-head "$HEAD_SHA"')
+  ) {
+    throw new PolicyError("browser observer must verify the authoritative synthetic merge parents");
+  }
+  const resolveCalls = workflow.match(/await resolveTrustedPullRequestWorkflowRun/gmu) ?? [];
+  if (resolveCalls.length !== 2) {
+    throw new PolicyError("browser observer must resolve source identity before and after observation");
+  }
+  for (const argument of [
+    '--observer-run-id "$GITHUB_RUN_ID"',
+    '--observer-run-attempt "$GITHUB_RUN_ATTEMPT"',
+    '--observer-event "$GITHUB_EVENT_NAME"',
+    '--observer-ref "$GITHUB_REF"',
+    '--observer-repository "$GITHUB_REPOSITORY"',
+  ]) {
+    if (!workflow.includes(argument)) {
+      throw new PolicyError("browser observer receipt is missing trusted run identity");
+    }
   }
 }
 
-export function validatePolicy(policy, root = ROOT) {
+export function validatePolicy(policy, root = ROOT, workflowRoot = ROOT) {
   if (policy.schema !== "honua.sdk.browser-impact-policy/v1") {
     throw new PolicyError("unsupported browser impact policy schema");
   }
@@ -282,7 +363,7 @@ export function validatePolicy(policy, root = ROOT) {
   if (routingErrors.size > 0) {
     throw new PolicyError(`browser dependency routing gaps:\n- ${[...routingErrors].join("\n- ")}`);
   }
-  validateWorkflow(root);
+  validateWorkflow(workflowRoot);
   return { specs, ownership };
 }
 
@@ -310,13 +391,16 @@ function specForSnapshot(path, specs) {
 }
 
 export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
-  const { specs, ownership } = validatePolicy(policy, root);
+  const { specs, ownership } = validatePolicy(policy, root, metadata.workflowRoot ?? ROOT);
+  const normalizedChangedPaths = [
+    ...new Set(changedPaths.map(normalizePath).filter(Boolean)),
+  ].sort();
   const allLanes = policy.lanes.map((lane) => lane.id);
   const reasons = Object.fromEntries(allLanes.map((lane) => [lane, []]));
   const ignored = [];
   const failClosed = [];
 
-  for (const rawPath of [...new Set(changedPaths.map(normalizePath).filter(Boolean))].sort()) {
+  for (const rawPath of normalizedChangedPaths) {
     const directSpec = rawPath.startsWith("test/playwright/")
       ? rawPath.slice("test/playwright/".length)
       : undefined;
@@ -339,6 +423,17 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
   const policyDigest = createHash("sha256")
     .update(JSON.stringify(policy))
     .digest("hex");
+  const promotionExclusionReasons = [];
+  if (!metadata.trust) promotionExclusionReasons.push("missing-trusted-identity");
+  if (metadata.trust && !COMPARABLE_CONCLUSIONS.has(metadata.trust.source_job_conclusion)) {
+    promotionExclusionReasons.push("browser-authority-not-comparable");
+  }
+  if (normalizedChangedPaths.includes(".github/workflows/ci.yml")) {
+    promotionExclusionReasons.push("source-workflow-changed");
+  }
+  if (normalizedChangedPaths.some((path) => TRUSTED_POLICY_INPUTS.has(path))) {
+    promotionExclusionReasons.push("trusted-observer-policy-changed");
+  }
   return {
     schema: OBSERVATION_SCHEMA,
     mode: "observe",
@@ -349,7 +444,8 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
     head_sha: metadata.headSha ?? "",
     evaluation_sha: metadata.evaluationSha ?? metadata.headSha ?? "",
     policy_sha256: policyDigest,
-    changed_paths: [...new Set(changedPaths.map(normalizePath).filter(Boolean))].sort(),
+    trust: metadata.trust ?? null,
+    changed_paths: normalizedChangedPaths,
     ignored_paths: ignored,
     fail_closed_paths: failClosed,
     legacy: { runs_all_specs: true, spec_count: specs.length },
@@ -370,6 +466,8 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
       avoided_spec_count: specs.length - selectedSpecs.length,
       candidate_runs_nothing: selectedLanes.length === 0,
       authoritative_execution_unchanged: true,
+      promotion_sample_eligible: promotionExclusionReasons.length === 0,
+      promotion_exclusion_reasons: promotionExclusionReasons,
     },
   };
 }
@@ -384,6 +482,7 @@ export function markdown(report) {
     `- Candidate lanes: ${report.candidate.selected_lanes.length ? report.candidate.selected_lanes.map((lane) => `\`${lane}\``).join(", ") : "none"}`,
     `- Legacy specs: \`${report.legacy.spec_count}\`; candidate specs: \`${report.candidate.selected_spec_count}\``,
     `- Unknown paths failing closed to all lanes: \`${report.fail_closed_paths.length}\``,
+    `- Promotion sample eligible: \`${report.comparison.promotion_sample_eligible}\`${report.comparison.promotion_exclusion_reasons.length ? ` (${report.comparison.promotion_exclusion_reasons.join(", ")})` : ""}`,
     "",
     "| Lane | Selected | Owned specs | Reasons |",
     "|---|---:|---:|---|",
@@ -415,13 +514,75 @@ export function parseChangedPaths(output) {
   return [...new Set(paths.map(normalizePath))].sort();
 }
 
-function changedPaths(base, head) {
+function changedPaths(base, head, root = ROOT) {
   const output = execFileSync(
     "git",
     ["diff", "--name-status", "-z", "--find-renames", "--diff-filter=ACDMRTUXB", `${base}...${head}`],
-    { cwd: ROOT, encoding: "utf8" },
+    { cwd: root, encoding: "utf8" },
   );
   return parseChangedPaths(output);
+}
+
+function parsePositiveSafeInteger(value, label) {
+  const text = String(value ?? "");
+  if (!/^[1-9][0-9]*$/u.test(text)) throw new PolicyError(`invalid ${label}`);
+  const number = Number(text);
+  if (!Number.isSafeInteger(number)) throw new PolicyError(`unsafe ${label}`);
+  return number;
+}
+
+function sha256File(path) {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+export function buildTrust(metadata) {
+  const trust = {
+    observer_run_id: parsePositiveSafeInteger(metadata.observerRunId, "observer run id"),
+    observer_run_attempt: parsePositiveSafeInteger(
+      metadata.observerRunAttempt,
+      "observer run attempt",
+    ),
+    observer_event: String(metadata.observerEvent ?? ""),
+    observer_ref: String(metadata.observerRef ?? ""),
+    observer_repository: String(metadata.observerRepository ?? ""),
+    source_run_id: parsePositiveSafeInteger(metadata.sourceRunId, "source run id"),
+    source_run_attempt: parsePositiveSafeInteger(
+      metadata.sourceRunAttempt,
+      "source run attempt",
+    ),
+    source_run_conclusion: String(metadata.sourceRunConclusion ?? ""),
+    source_job_id: parsePositiveSafeInteger(metadata.sourceJobId, "source job id"),
+    source_job_name: String(metadata.sourceJobName ?? ""),
+    source_job_conclusion: String(metadata.sourceJobConclusion ?? ""),
+    source_check_run_id: parsePositiveSafeInteger(
+      metadata.sourceCheckRunId,
+      "source check run id",
+    ),
+    policy_commit_sha: String(metadata.policyCommitSha ?? ""),
+    observer_workflow_sha256: String(metadata.observerWorkflowSha256 ?? ""),
+    policy_blob_sha256: String(metadata.policyBlobSha256 ?? ""),
+    resolver_blob_sha256: String(metadata.resolverBlobSha256 ?? ""),
+    selector_blob_sha256: String(metadata.selectorBlobSha256 ?? ""),
+  };
+  if (!SHA.test(trust.policy_commit_sha)) {
+    throw new PolicyError("invalid trusted policy commit SHA");
+  }
+  if (
+    !OBSERVER_EVENTS.has(trust.observer_event) ||
+    trust.observer_ref !== "refs/heads/trunk" ||
+    trust.observer_repository !== "honua-io/honua-sdk-js" ||
+    trust.source_job_name !== "JS SDK" ||
+    !TERMINAL_CONCLUSIONS.has(trust.source_run_conclusion) ||
+    !TERMINAL_CONCLUSIONS.has(trust.source_job_conclusion)
+  ) {
+    throw new PolicyError("trusted source workflow identity is incomplete");
+  }
+  for (const field of TRUSTED_MANIFEST_ORDER) {
+    if (!SHA256.test(trust[field])) throw new PolicyError(`invalid ${field}`);
+  }
+  const manifest = TRUSTED_MANIFEST_ORDER.map((field) => `${field} ${trust[field]}\n`).join("");
+  trust.policy_manifest_sha256 = createHash("sha256").update(manifest).digest("hex");
+  return trust;
 }
 
 function parseArgs(argv) {
@@ -438,8 +599,13 @@ function parseArgs(argv) {
 
 function main(argv) {
   const args = parseArgs(argv);
-  const policy = loadPolicy(args.policy ? resolve(ROOT, args.policy) : DEFAULT_POLICY);
-  const validated = validatePolicy(policy);
+  const candidateRoot = args.root ? resolve(args.root) : ROOT;
+  const policyPath = args.policy ? resolve(args.policy) : DEFAULT_POLICY;
+  if (policyPath !== DEFAULT_POLICY) {
+    throw new PolicyError("observation policy must be the trusted checked-in policy");
+  }
+  const policy = loadPolicy(policyPath);
+  const validated = validatePolicy(policy, candidateRoot, ROOT);
   if (args.command === "validate") {
     console.log(`browser-impact=ok mode=observe specs=${validated.specs.length} lanes=${policy.lanes.length}`);
     return;
@@ -447,14 +613,63 @@ function main(argv) {
   if (args.command !== "observe" || !args.base || !args.head || !args.output || !args.markdown) {
     throw new PolicyError("observe requires --base, --head, --output, and --markdown");
   }
-  const report = evaluate(policy, changedPaths(args.base, args.head), {
-    baseSha: args.base,
-    headSha: args["source-head"] ?? args.head,
-    evaluationSha: args.head,
-    repository: args.repository,
-    pullRequest: Number(args.pr ?? 0),
+  if (
+    !SHA.test(args.base) ||
+    !SHA.test(args.head) ||
+    !SHA.test(args["source-head"] ?? "") ||
+    args.repository !== "honua-io/honua-sdk-js"
+  ) {
+    throw new PolicyError("observation repository or commit identity is invalid");
+  }
+  const pullRequestNumber = parsePositiveSafeInteger(args.pr, "pull request number");
+  const trust = buildTrust({
+    observerRunId: args["observer-run-id"],
+    observerRunAttempt: args["observer-run-attempt"],
+    observerEvent: args["observer-event"],
+    observerRef: args["observer-ref"],
+    observerRepository: args["observer-repository"],
+    sourceRunId: args["source-run-id"],
+    sourceRunAttempt: args["source-run-attempt"],
+    sourceRunConclusion: args["source-run-conclusion"],
+    sourceJobId: args["source-job-id"],
+    sourceJobName: args["source-job-name"],
+    sourceJobConclusion: args["source-job-conclusion"],
+    sourceCheckRunId: args["source-check-run-id"],
+    policyCommitSha: execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    }).trim(),
+    observerWorkflowSha256: sha256File(
+      resolve(ROOT, ".github/workflows/browser-impact-observe.yml"),
+    ),
+    policyBlobSha256: sha256File(DEFAULT_POLICY),
+    resolverBlobSha256: sha256File(resolve(ROOT, "scripts/trusted-pr-workflow-run.cjs")),
+    selectorBlobSha256: sha256File(resolve(ROOT, "scripts/browser-impact-observe.mjs")),
   });
-  for (const target of [args.output, args.markdown]) mkdirSync(dirname(resolve(ROOT, target)), { recursive: true });
+  const trustedDefaultHead = execFileSync("git", ["rev-parse", "origin/trunk"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  }).trim();
+  if (trust.policy_commit_sha !== trustedDefaultHead) {
+    throw new PolicyError("observer policy commit is not the fetched default-branch head");
+  }
+  const report = evaluate(
+    policy,
+    changedPaths(args.base, args.head, candidateRoot),
+    {
+      baseSha: args.base,
+      headSha: args["source-head"] ?? args.head,
+      evaluationSha: args.head,
+      repository: args.repository,
+      pullRequest: pullRequestNumber,
+      trust,
+      workflowRoot: ROOT,
+    },
+    candidateRoot,
+  );
+  for (const target of [args.output, args.markdown]) {
+    mkdirSync(dirname(resolve(ROOT, target)), { recursive: true });
+  }
   writeFileSync(resolve(ROOT, args.output), `${JSON.stringify(report, null, 2)}\n`);
   writeFileSync(resolve(ROOT, args.markdown), markdown(report));
   console.log(JSON.stringify(report));

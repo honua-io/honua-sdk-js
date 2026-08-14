@@ -15,14 +15,20 @@ offline-shell manifest, even though neither the changed path nor its name says
 and configuration inputs as global. Unknown inputs also fail closed to all four
 lanes. Shared application modules may name multiple consumer lanes, while each
 browser spec still has one execution owner. More precise ownership is promoted
-only from measured evidence. For pull requests, the observer checks out the
-same GitHub synthetic merge snapshot as the authoritative `JS SDK` job. Its
-retained report records the immutable source-head SHA separately from the
-`evaluation_sha` whose policy, inventory, and diff were evaluated. Manual
-observations use the requested head for both identities. Fork observations use
-the base repository's synthetic merge snapshot, fetch the exact upstream base
-with its reachable history when needed, and prove that the requested base and
-evaluation snapshot have a merge base before computing the three-dot diff.
+only from measured evidence. The observer runs from the default branch after
+the canonical `SDK CI` workflow completes. It resolves the exact `JS SDK` job
+through its GitHub-managed check-run association, binds the source run ID,
+attempt, conclusion, event-time base/head, and current unchanged pull request,
+then reconstructs the exact GitHub synthetic merge used by that job. Both merge
+parents must match the immutable association. The candidate tree is inert
+input: the observer executes no candidate script, action, package hook, or
+generated executable. Its retained v2 report records the source head separately
+from the synthetic `evaluation_sha` and content addresses the trusted observer
+workflow, policy, resolver, and selector in a fixed manifest. Identity and merge
+parents are resolved again immediately before evidence upload. Fork runs retain
+the full authoritative `JS SDK` job but are explicitly excluded from the shadow
+denominator; a manual backfill accepts only the same completed canonical run
+identity and can execute only from trunk.
 Rename observations evaluate both the removed and added path, preventing a move
 into an ignored tree from hiding the dependency that was removed. Policy
 validation also extracts contiguous example paths and split
@@ -41,8 +47,9 @@ The four domains are:
 
 Every current `test/playwright/*.spec.mjs` file has exactly one owner. A new spec
 falls into `examples-general`; a changed unowned input selects all lanes. The
-workflow has read-only repository permissions, does not execute Playwright, and
-cannot cancel or dispatch another workflow.
+workflow has an exact read-only actions/checks/contents/pull-request permission
+allowlist, does not execute Playwright, and cannot publish status, cancel,
+dispatch, push, or merge.
 
 ## Promotion contract
 
@@ -54,6 +61,12 @@ runs show all of the following:
 3. shared and generated inputs select every transitively affected lane;
 4. unknown inputs continue to select all lanes;
 5. the projected latency and billed-minute reduction is material.
+
+A receipt is not counted when the `JS SDK` job was skipped/canceled, when the
+source PR changed the authoritative `ci.yml`, or when it changed the observer's
+own workflow, policy, resolver, or selector. Those runs still fail closed to the
+appropriate lanes and remain useful diagnostics, but they cannot prove parity
+for promotion.
 
 Enforcement is a separate change with a rollback switch. It will consume one
 immutable, content-addressed exact-head SDK build, normalize the offline-shell
