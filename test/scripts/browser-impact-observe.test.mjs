@@ -204,6 +204,16 @@ test("unknown paths fail closed and documentation-only paths may select nothing"
   assert.equal(docs.comparison.authoritative_execution_unchanged, true);
 });
 
+test("records the source head and merge-tree evaluation snapshot separately", () => {
+  const report = evaluate(policy, ["docs/decisions/unrelated.md"], {
+    headSha: "source-head",
+    evaluationSha: "synthetic-merge",
+  });
+  assert.equal(report.head_sha, "source-head");
+  assert.equal(report.evaluation_sha, "synthetic-merge");
+  assert.match(report.mode, /^observe$/u);
+});
+
 test("glob matching treats repository prefixes and wildcards deterministically", () => {
   assert.equal(pathMatches("src/offline/indexeddb.ts", "src/offline/**"), true);
   assert.equal(pathMatches("test/offline-region.test.ts", "test/offline-*.test.ts"), true);

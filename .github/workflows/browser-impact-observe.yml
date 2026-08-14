@@ -33,8 +33,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+          repository: ${{ github.repository }}
+          # PR CI's authoritative JS SDK job uses this same synthetic merge
+          # snapshot. Manual observations retain their explicit head input.
+          ref: ${{ github.event_name == 'pull_request' && github.sha || inputs.head_sha }}
 
       - name: Validate policy and ownership fixtures
         run: |
@@ -44,7 +46,8 @@ jobs:
       - name: Observe exact diff
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
+          EVALUATION_SHA: ${{ github.event_name == 'pull_request' && github.sha || inputs.head_sha }}
+          SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
           PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
         run: |
           if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
@@ -53,10 +56,11 @@ jobs:
               "$BASE_SHA"
           fi
           git cat-file -e "$BASE_SHA^{commit}"
-          git merge-base "$BASE_SHA" "$HEAD_SHA" >/dev/null
+          git merge-base "$BASE_SHA" "$EVALUATION_SHA" >/dev/null
           node scripts/browser-impact-observe.mjs observe \
             --base "$BASE_SHA" \
-            --head "$HEAD_SHA" \
+            --head "$EVALUATION_SHA" \
+            --source-head "$SOURCE_HEAD_SHA" \
             --repository "$GITHUB_REPOSITORY" \
             --pr "$PR_NUMBER" \
             --output test-results/browser-impact-observation.json \

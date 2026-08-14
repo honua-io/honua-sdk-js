@@ -203,8 +203,15 @@ function validateWorkflow(root) {
   if (workflow.includes("--depth=1")) {
     throw new PolicyError("browser observer must not shallow-fetch the upstream base");
   }
-  if (!workflow.includes('git merge-base "$BASE_SHA" "$HEAD_SHA"')) {
-    throw new PolicyError("browser observer must prove the exact diff has a merge base");
+  if (!workflow.includes('git merge-base "$BASE_SHA" "$EVALUATION_SHA"')) {
+    throw new PolicyError("browser observer must prove the evaluation diff has a merge base");
+  }
+  if (
+    !workflow.includes("ref: ${{ github.event_name == 'pull_request' && github.sha || inputs.head_sha }}") ||
+    !workflow.includes("SOURCE_HEAD_SHA:") ||
+    !workflow.includes("--source-head \"$SOURCE_HEAD_SHA\"")
+  ) {
+    throw new PolicyError("PR observations must compare routing from the authoritative merge snapshot");
   }
 }
 
@@ -340,6 +347,7 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
     pull_request: metadata.pullRequest ?? 0,
     base_sha: metadata.baseSha ?? "",
     head_sha: metadata.headSha ?? "",
+    evaluation_sha: metadata.evaluationSha ?? metadata.headSha ?? "",
     policy_sha256: policyDigest,
     changed_paths: [...new Set(changedPaths.map(normalizePath).filter(Boolean))].sort(),
     ignored_paths: ignored,
@@ -372,6 +380,7 @@ export function markdown(report) {
     "",
     `- Mode: \`${report.mode}\` (mutation: \`${report.mutation}\`)`,
     `- PR/head: \`#${report.pull_request}\` / \`${report.head_sha}\``,
+    `- Evaluation snapshot: \`${report.evaluation_sha}\``,
     `- Candidate lanes: ${report.candidate.selected_lanes.length ? report.candidate.selected_lanes.map((lane) => `\`${lane}\``).join(", ") : "none"}`,
     `- Legacy specs: \`${report.legacy.spec_count}\`; candidate specs: \`${report.candidate.selected_spec_count}\``,
     `- Unknown paths failing closed to all lanes: \`${report.fail_closed_paths.length}\``,
@@ -440,7 +449,8 @@ function main(argv) {
   }
   const report = evaluate(policy, changedPaths(args.base, args.head), {
     baseSha: args.base,
-    headSha: args.head,
+    headSha: args["source-head"] ?? args.head,
+    evaluationSha: args.head,
     repository: args.repository,
     pullRequest: Number(args.pr ?? 0),
   });
