@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "honua-geoarrow-interop-fixture-v1",
+  "producer": {
+    "repository": "https://github.com/honua-io/honua-server",
+    "commit": "66a9d34496c6f6a03dd571957062f773bfef7f0a",
+    "formatter": "src/Honua.Protocols.GeoServices/FeatureServer/Services/GeoArrowQueryFormatter.cs",
+    "test": "Honua.Server.Tests.Features.Protocols.GeoServices.FeatureServer.Services.GeoArrowQueryFormatterTests.FormatAsGeoArrowAsync_ContractFixture_IsDeterministicAndEmitsGovernedArtifact"
+  },
+  "artifact": {
+    "file": "honua-server-geoarrow-02-point.arrow",
+    "mediaType": "application/vnd.apache.arrow.stream",
+    "bytes": 4160,
+    "sha256": "da4ccf9aa159e6e34b448c87712e074438a64f7eb57f38c39bad24a821170f52"
+  },
+  "contract": {
+    "version": "GeoArrow 0.2",
+    "geometryExtension": "geoarrow.wkb",
+    "extensionMetadataKeys": [
+      "crs",
+      "crs_type"
+    ],
+    "crsType": "projjson",
+    "planarEdgesByOmission": true,
+    "geoParquetGeometryTypes": [
+      "Point"
+    ],
+    "rows": 1
+  }
+}

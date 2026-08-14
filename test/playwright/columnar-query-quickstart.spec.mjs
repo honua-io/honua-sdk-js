@@ -55,7 +55,7 @@ test("maps the exact bounded Arrow fixture and proves cancellation and resource 
     expect(firstRun.evidence).toMatchObject({
       rows: 1,
       batches: 1,
-      transferBytes: 1336,
+      transferBytes: 4160,
       ceilings: { maxRows: 25, maxBatches: 2, maxTransferBytes: 16_384, maxBackingBytes: 65_536 },
     });
     expect(firstRun.evidence.peakBackingBytes).toBeGreaterThan(0);

@@ -14,7 +14,7 @@ The runnable [Map a bounded Arrow result](../../examples/columnar-query-quicksta
 ```text
 execution             server-pushdown
 rows / batches        1 / 1
-admitted payload      1,336 bytes
+admitted payload      4,160 bytes
 row ceiling           25
 transfer ceiling      16,384 bytes
 backing ceiling       65,536 bytes
@@ -93,9 +93,9 @@ for await (const { batch, evidence } of session.stream({
 
 Expected outcome: evidence reports cumulative rows, batches, admitted payload bytes, elapsed time, peak backing bytes, and governing ceilings. Cancellation, an exceeded ceiling, or an unsupported layout is a typed `ColumnarWorkflowError`, never partial success.
 
-The built-in bridge decodes a bounded GeoArrow 0.2 WKB subset: Binary/LargeBinary Point, LineString, or Polygon in XY/XYZ, plus one object-id, one UTF-8/dictionary field, and one timestamp field. It ignores embedded EWKB SRIDs and preserves only validated optional column-level `crs`/`crs_type` metadata. It never invents a CRS84 default. BinaryView, multi-geometries, GeometryCollection, M/ZM coordinates, ambiguous or additional fields, and Parquet responses require an application decoder and fail closed otherwise.
+The built-in bridge decodes a bounded GeoArrow 0.2 WKB subset: Binary/LargeBinary Point, LineString, or Polygon in XY/XYZ, plus one object-id, one UTF-8/dictionary field, and one timestamp field. It ignores embedded EWKB SRIDs, preserves validated optional column-level `crs`/`crs_type` metadata, and reads the geometry declaration from schema-level GeoParquet metadata when no row can establish it. It never invents a CRS84 default. BinaryView, multi-geometries, GeometryCollection, M/ZM coordinates, ambiguous or additional fields, and Parquet responses require an application decoder and fail closed otherwise.
 
-The checked-in interoperability fixture was emitted by Honua Server commit `fd1c651efa7078c269742152a2777298e3b1c4d4`. It is fixture evidence, not a live deployment claim.
+The checked-in interoperability fixture and its exact producer receipt were emitted by reviewed Honua Server head `66a9d34496c6f6a03dd571957062f773bfef7f0a`, merged as `4ef53ce7f49b78aad3572db1dfc3be88a6654a43`. It is fixture evidence, not a live deployment claim.
 
 ## 4. Switch to direct GeoParquet for browser analysis
 

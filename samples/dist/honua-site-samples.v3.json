@@ -475,8 +475,8 @@
       "data": {
         "mode": "fixture",
         "authMode": "none",
-        "provenance": "Base64 text embedding of the exact 1,336-byte Honua Server geoarrow.wkb fixture produced by commit fd1c651efa7078c269742152a2777298e3b1c4d4 and pinned by SHA-256.",
-        "attribution": "Honua Server interoperability fixture; application-pinned WGS84 display convention is not inferred from Arrow CRS metadata.",
+        "provenance": "Base64 text embedding of the exact 4,160-byte Honua Server geoarrow.wkb workflow artifact produced by reviewed head 66a9d34496c6f6a03dd571957062f773bfef7f0a, merged as 4ef53ce7f49b78aad3572db1dfc3be88a6654a43, and pinned by SHA-256, with its producer receipt and digest sidecar retained byte-for-byte.",
+        "attribution": "Honua Server interoperability fixture; the field extension declares EPSG:4326 PROJJSON and schema-level GeoParquet metadata declares Point.",
         "freshness": "Fixture producer commit, schema contract, byte length, and SHA-256 are release-gated.",
         "configurationStatus": "not-required"
       },
