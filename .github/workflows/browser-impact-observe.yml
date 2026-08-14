@@ -48,11 +48,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
         run: |
           if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
-            git fetch --no-tags --depth=1 \
+            git fetch --no-tags --filter=blob:none \
               "https://github.com/${GITHUB_REPOSITORY}.git" \
               "$BASE_SHA"
           fi
           git cat-file -e "$BASE_SHA^{commit}"
+          git merge-base "$BASE_SHA" "$HEAD_SHA" >/dev/null
           node scripts/browser-impact-observe.mjs observe \
             --base "$BASE_SHA" \
             --head "$HEAD_SHA" \

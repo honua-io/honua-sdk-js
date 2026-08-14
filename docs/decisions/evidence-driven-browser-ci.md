@@ -18,9 +18,13 @@ browser spec still has one execution owner. More precise ownership is promoted
 only from measured evidence. The observer checks out the requested head SHA,
 never GitHub's synthetic pull-request merge commit, so its inventory and policy
 digest describe the head printed in the retained artifact. Fork observations
-fetch the exact upstream base before computing the three-dot diff. Rename observations
-evaluate both the removed and added path, preventing a move into an ignored
-tree from hiding the dependency that was removed.
+fetch the exact upstream base with its reachable history and prove that the
+requested base and head have a merge base before computing the three-dot diff.
+Rename observations evaluate both the removed and added path, preventing a move
+into an ignored tree from hiding the dependency that was removed. Policy
+validation also extracts contiguous example paths and split
+`path.join(projectRoot, "docs", "examples", ...)` roots from every browser spec,
+then proves that each fixture change selects the spec's owning lane.
 
 The four domains are:
 

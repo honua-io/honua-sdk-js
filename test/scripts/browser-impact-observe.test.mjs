@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   assignSpecs,
+  discoverBrowserFixtureRoots,
   discoverSpecs,
   evaluate,
   loadPolicy,
@@ -12,6 +16,10 @@ import {
 } from "../../scripts/browser-impact-observe.mjs";
 
 const policy = loadPolicy();
+
+function git(cwd, ...args) {
+  return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+}
 
 test("owns every current Playwright spec exactly once", () => {
   const { specs, ownership } = validatePolicy(policy);
@@ -89,9 +97,7 @@ test("every browser-served example root routes to the owning spec lane", () => {
   const ownership = assignSpecs(policy, specs);
   for (const spec of specs) {
     const source = readFileSync(`test/playwright/${spec}`, "utf8");
-    const dependencies = new Set(
-      [...source.matchAll(/\b((?:docs\/examples|examples)\/[a-z0-9-]+)/gu)].map((match) => match[1]),
-    );
+    const dependencies = discoverBrowserFixtureRoots(source);
     for (const dependency of dependencies) {
       const report = evaluate(policy, [`${dependency}/__impact_probe__`]);
       assert.ok(
@@ -99,6 +105,59 @@ test("every browser-served example root routes to the owning spec lane", () => {
         `${dependency} must select ${ownership.get(spec)} for ${spec}`,
       );
     }
+  }
+});
+
+test("discovers split path.join fixture roots", () => {
+  const source = `
+    path.join(projectRoot, "docs", "examples", "automatic-source-workflow");
+    path.join(projectRoot, "examples", "kepler-analytics", "dist");
+  `;
+  assert.deepEqual(discoverBrowserFixtureRoots(source), [
+    "docs/examples/automatic-source-workflow",
+    "examples/kepler-analytics",
+  ]);
+});
+
+test("full upstream base fetch preserves the merge base for a fork head", () => {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "honua-browser-impact-fork-"));
+  try {
+    const upstream = join(fixtureRoot, "upstream");
+    const fork = join(fixtureRoot, "fork.git");
+    const forkWork = join(fixtureRoot, "fork-work");
+    const observer = join(fixtureRoot, "observer");
+    mkdirSync(upstream);
+    git(upstream, "init", "--initial-branch=trunk");
+    git(upstream, "config", "user.email", "ci@example.invalid");
+    git(upstream, "config", "user.name", "CI Fixture");
+    writeFileSync(join(upstream, "fixture.txt"), "base\n");
+    git(upstream, "add", "fixture.txt");
+    git(upstream, "commit", "-m", "base");
+    const mergeBase = git(upstream, "rev-parse", "HEAD");
+
+    git(fixtureRoot, "clone", "--bare", upstream, fork);
+    git(fixtureRoot, "clone", fork, forkWork);
+    git(forkWork, "config", "user.email", "fork@example.invalid");
+    git(forkWork, "config", "user.name", "Fork Fixture");
+    git(forkWork, "switch", "-c", "feature");
+    writeFileSync(join(forkWork, "fork.txt"), "fork\n");
+    git(forkWork, "add", "fork.txt");
+    git(forkWork, "commit", "-m", "fork head");
+    git(forkWork, "push", "origin", "HEAD:feature");
+
+    for (const value of ["base-advanced-once\n", "base-advanced-twice\n"]) {
+      writeFileSync(join(upstream, "fixture.txt"), value);
+      git(upstream, "add", "fixture.txt");
+      git(upstream, "commit", "-m", value.trim());
+    }
+    const baseSha = git(upstream, "rev-parse", "HEAD");
+
+    git(fixtureRoot, "clone", "--branch", "feature", fork, observer);
+    assert.throws(() => git(observer, "cat-file", "-e", `${baseSha}^{commit}`));
+    git(observer, "fetch", "--no-tags", "--filter=blob:none", upstream, baseSha);
+    assert.equal(git(observer, "merge-base", baseSha, "HEAD"), mergeBase);
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true });
   }
 });
 

@@ -59,6 +59,39 @@ export function discoverSpecs(root = ROOT) {
     .sort();
 }
 
+export function discoverBrowserFixtureRoots(source) {
+  const roots = new Set();
+  for (const literal of source.matchAll(/["'`]([^"'`\r\n]+)["'`]/gu)) {
+    const value = literal[1].replaceAll("\\", "/");
+    if (value.includes("://")) continue;
+    const normalized = value.replace(/^(?:\.\.\/)+/u, "");
+    const fixture = /^(docs\/examples|examples)\/([a-z0-9-]+)(?:\/|$)/u.exec(normalized);
+    if (fixture) roots.add(`${fixture[1]}/${fixture[2]}`);
+  }
+  for (const call of source.matchAll(/path\.(?:join|resolve)\(([^;]*?)\)/gsu)) {
+    const segments = [...call[1].matchAll(/["'`]([^"'`]+)["'`]/gu)].map(
+      (match) => match[1],
+    );
+    for (let index = 0; index < segments.length; index += 1) {
+      if (
+        segments[index] === "examples" &&
+        segments[index - 1] !== "docs" &&
+        /^[a-z0-9-]+$/u.test(segments[index + 1] ?? "")
+      ) {
+        roots.add(`examples/${segments[index + 1]}`);
+      }
+      if (
+        segments[index] === "docs" &&
+        segments[index + 1] === "examples" &&
+        /^[a-z0-9-]+$/u.test(segments[index + 2] ?? "")
+      ) {
+        roots.add(`docs/examples/${segments[index + 2]}`);
+      }
+    }
+  }
+  return [...roots].sort();
+}
+
 export function assignSpecs(policy, specs) {
   const ownership = new Map();
   for (const spec of specs) {
@@ -83,6 +116,12 @@ function validateWorkflow(root) {
     if (workflow.includes(forbidden)) {
       throw new PolicyError(`observe-only workflow contains forbidden authority: ${forbidden}`);
     }
+  }
+  if (workflow.includes("--depth=1")) {
+    throw new PolicyError("browser observer must not shallow-fetch the upstream base");
+  }
+  if (!workflow.includes('git merge-base "$BASE_SHA" "$HEAD_SHA"')) {
+    throw new PolicyError("browser observer must prove the exact diff has a merge base");
   }
 }
 
@@ -128,8 +167,33 @@ export function validatePolicy(policy, root = ROOT) {
   if (ownership.size !== specs.length || specs.length === 0) {
     throw new PolicyError("every Playwright spec must have exactly one owner");
   }
+  for (const spec of specs) {
+    const source = readFileSync(resolve(root, "test/playwright", spec), "utf8");
+    for (const fixtureRoot of discoverBrowserFixtureRoots(source)) {
+      const selectedLanes = selectedLanesForFixtureRoot(policy, fixtureRoot);
+      if (!selectedLanes.includes(ownership.get(spec))) {
+        throw new PolicyError(`${fixtureRoot} must select ${ownership.get(spec)} for ${spec}`);
+      }
+    }
+  }
   validateWorkflow(root);
   return { specs, ownership };
+}
+
+function selectedLanesForFixtureRoot(policy, fixtureRoot) {
+  const path = `${fixtureRoot}/__impact_probe__`;
+  const allLanes = policy.lanes.map((lane) => lane.id);
+  return routePath(policy, path, allLanes).lanes;
+}
+
+function routePath(policy, path, allLanes) {
+  if (matchesAny(path, policy.globalPatterns)) return { kind: "selected", lanes: allLanes };
+  const shared = policy.sharedLanePatterns.find((candidate) => matchesAny(path, candidate.patterns));
+  if (shared) return { kind: "selected", lanes: shared.lanes };
+  const lane = policy.lanes.find((candidate) => matchesAny(path, candidate.changePatterns));
+  if (lane) return { kind: "selected", lanes: [lane.id] };
+  if (matchesAny(path, policy.ignoredPatterns)) return { kind: "ignored", lanes: [] };
+  return { kind: "fail-closed", lanes: allLanes };
 }
 
 function specForSnapshot(path, specs) {
@@ -155,26 +219,13 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
       reasons[ownership.get(ownedSpec)].push(rawPath);
       continue;
     }
-    if (matchesAny(rawPath, policy.globalPatterns)) {
-      for (const lane of allLanes) reasons[lane].push(rawPath);
-      continue;
-    }
-    const shared = policy.sharedLanePatterns.find((candidate) => matchesAny(rawPath, candidate.patterns));
-    if (shared) {
-      for (const lane of shared.lanes) reasons[lane].push(rawPath);
-      continue;
-    }
-    const lane = policy.lanes.find((candidate) => matchesAny(rawPath, candidate.changePatterns));
-    if (lane) {
-      reasons[lane.id].push(rawPath);
-      continue;
-    }
-    if (matchesAny(rawPath, policy.ignoredPatterns)) {
+    const route = routePath(policy, rawPath, allLanes);
+    if (route.kind === "ignored") {
       ignored.push(rawPath);
       continue;
     }
-    failClosed.push(rawPath);
-    for (const laneId of allLanes) reasons[laneId].push(rawPath);
+    if (route.kind === "fail-closed") failClosed.push(rawPath);
+    for (const laneId of route.lanes) reasons[laneId].push(rawPath);
   }
 
   const selectedLanes = allLanes.filter((lane) => reasons[lane].length > 0);
