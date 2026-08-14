@@ -15,7 +15,6 @@ import type {
 
 const DEFAULT_METADATA_BYTES = 2 * 1024 * 1024;
 const DEFAULT_TILE_BYTES = 2 * 1024 * 1024;
-const SUPPORTED_CODECS = new Set(["gzip", "zlib"]);
 const V3_DATA_TYPE_BY_SERVER_DESCRIPTOR = new Map([
   ["|b1", "bool"],
   ["|i1", "int8"],
@@ -279,11 +278,11 @@ function assessVariable(variable: ZarrVariableMetadata, zarrFormat: number, fail
     });
   }
   const codec = variable.compressor?.toLowerCase() ?? null;
-  if (codec !== null && !SUPPORTED_CODECS.has(codec)) {
+  if (!isTileCodec(codec, zarrFormat)) {
     failures.push({
       code: "unsupported-codec",
       variable: variable.name,
-      message: `Variable "${variable.name}" uses unsupported codec "${variable.compressor}"; the server contract permits uncompressed, gzip, or zlib chunks.`,
+      message: `Variable "${variable.name}" uses unsupported codec "${variable.compressor}" for Zarr v${zarrFormat}; the server contract permits uncompressed or version-specific gzip/zlib chunks.`,
     });
   }
   if (!isTileDtype(variable.dataType, zarrFormat)) {
@@ -325,6 +324,11 @@ function isTileDtype(dataType: string, zarrFormat: number): boolean {
   if (kind === "f") return width === "4" || width === "8";
   if (kind === "b") return width === "1";
   return true;
+}
+
+function isTileCodec(codec: string | null, zarrFormat: number): boolean {
+  if (codec === null) return zarrFormat === 2 || zarrFormat === 3;
+  return zarrFormat === 2 ? codec === "zlib" : zarrFormat === 3 && codec === "gzip";
 }
 
 function isUsableSpatialExtent(value: unknown): value is readonly [number, number, number, number] {

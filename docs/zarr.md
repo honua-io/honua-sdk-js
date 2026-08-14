@@ -63,11 +63,12 @@ const tile = await zarr.tile({
   Uint8Array(0), contentType: null }`; an intersecting tile is a `200` PNG.
 - `AbortSignal` is forwarded to the shared request pipeline.
 - `assess()` recognizes Zarr v2 little-endian numeric or boolean descriptors
-  and the server-supported Zarr v3 named numeric or boolean data types, plus
-  uncompressed, gzip, or zlib chunks. Blosc, Zstandard, big-endian dtypes, and
-  version-mismatched or ambiguous dimension metadata fail explicitly. Server
-  v3 metadata's canonical NumPy descriptor is normalized to the corresponding
-  v3 name when a registration response enters the SDK.
+  and the server-supported Zarr v3 named numeric or boolean data types. Codec
+  readiness is version-specific: v2 permits uncompressed or zlib chunks, while
+  v3 permits uncompressed or gzip chunks. Blosc, Zstandard, big-endian dtypes,
+  and version-mismatched or ambiguous metadata fail explicitly. Server v3
+  metadata's canonical NumPy descriptor is normalized to the corresponding v3
+  name when a registration response enters the SDK.
 - `assess()` mirrors the server's primary-or-first variable selection. Its
   readiness options require the requested tile matrix SRID and a finite,
   non-degenerate storage extent from the associated layer/coverage metadata,

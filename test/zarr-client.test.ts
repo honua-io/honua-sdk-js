@@ -313,11 +313,11 @@ describe("experimental Honua Zarr client", () => {
     const v2 = {
       ...registration,
       zarrFormat: 2,
-      variables: [{ ...registration.variables[0], dataType: "<f4" }],
+      variables: [{ ...registration.variables[0], dataType: "<f4", compressor: "zlib" }],
     } as unknown as ZarrStoreRegistration;
     const mismatchedV2 = {
       ...v2,
-      variables: [{ ...registration.variables[0], dataType: "float32" }],
+      variables: [{ ...registration.variables[0], dataType: "float32", compressor: "zlib" }],
     } as unknown as ZarrStoreRegistration;
     const mismatchedV3 = {
       ...registration,
@@ -330,6 +330,31 @@ describe("experimental Honua Zarr client", () => {
     ]);
     expect(zarr.assess(mismatchedV3, readiness).failures).toEqual([
       expect.objectContaining({ code: "unsupported-dtype" }),
+    ]);
+  });
+
+  it("binds codec support to the registration's Zarr format", () => {
+    const zarr = createZarrClient(new HonuaClient({ baseUrl: "https://zarr.example", fetchFn: vi.fn() }));
+    const v2 = {
+      ...registration,
+      zarrFormat: 2,
+      variables: [{ ...registration.variables[0], dataType: "<f4", compressor: "zlib" }],
+    } as unknown as ZarrStoreRegistration;
+    const mismatchedV2 = {
+      ...v2,
+      variables: [{ ...registration.variables[0], dataType: "<f4", compressor: "gzip" }],
+    } as unknown as ZarrStoreRegistration;
+    const mismatchedV3 = {
+      ...registration,
+      variables: [{ ...registration.variables[0], compressor: "zlib" }],
+    } as unknown as ZarrStoreRegistration;
+
+    expect(zarr.assess(v2, readiness).failures).toEqual([]);
+    expect(zarr.assess(mismatchedV2, readiness).failures).toEqual([
+      expect.objectContaining({ code: "unsupported-codec" }),
+    ]);
+    expect(zarr.assess(mismatchedV3, readiness).failures).toEqual([
+      expect.objectContaining({ code: "unsupported-codec" }),
     ]);
   });
 
