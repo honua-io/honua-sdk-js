@@ -1,0 +1,880 @@
+name: SDK Verification
+
+# The reusable-build verification graph (honua-io/honua-sdk-js#1286), the SDK
+# implementation child of honua-io/honua-server#3213.
+#
+# ci.yml runs SDK verification as one ~37-minute `JS SDK` job. A Playwright
+# failure in its last five minutes invalidates every green type, style, build,
+# package, coverage, migration, example, and browser result before it, and
+# `gh run rerun --failed` replays the whole monolith rather than the failing
+# evidence slice. This workflow keeps every one of those gates and rearranges
+# who owns them:
+#
+#   admission          cheap policy + generated-artifact normalization, first
+#   build              ONE SDK build for an exact validated input fingerprint
+#   verify-core        \
+#   verify-package      | independently rerunnable consumers of that one build
+#   verify-examples     | -- none of them rebuilds the SDK from source
+#   mcp                /
+#   browser (matrix)   one job per owned browser failure domain
+#   verified           the single aggregate result a reviewer reads
+#
+# ROLLOUT. This graph is deliberately NOT authoritative yet (NFR-004): ci.yml
+# remains the required check while shadow runs accumulate. `vars.HONUA_SDK_VERIFICATION_MODE`
+# is the switch and the rollback: `off` skips the graph entirely without editing
+# a workflow file, `shadow` (the default) runs it alongside ci.yml, and
+# `authoritative` is set only once parity and cost thresholds pass -- at which
+# point ci.yml's `JS SDK` and `MCP SDK` jobs are retired in their own pull
+# request, not silently bypassed by this one. Nothing here removes, weakens, or
+# skips a gate that ci.yml enforces today; test/scripts/sdk-verification-workflow.test.mjs
+# fails if it ever does.
+#
+# NOT REUSED, ON PURPOSE. `quickstart-budget` measures clean-install time to a
+# first usable map. Handing it a prebuilt SDK would measure something else, so
+# it installs and builds from scratch like a new user does.
+
+on:
+  push:
+    branches:
+      - trunk
+      - "release/**"
+  pull_request:
+    branches:
+      - trunk
+      - "release/**"
+# Deliberately no `workflow_dispatch`. Every job checks out
+# `needs.admission.outputs.head_sha` so one graph run verifies one pinned head
+# (REQ-007), and `actions/setup-node` writes the npm cache. On `push` and
+# `pull_request` that head is fixed by the event; on a manual dispatch the actor
+# chooses the ref, so a run in the default branch's cache scope could check out
+# arbitrary code and populate a cache later runs restore. CodeQL's
+# actions/cache-poisoning/poisonable-step query flagged exactly that
+# combination on every checkout in this workflow (69 alerts on
+# honua-io/honua-sdk-js#1334). Re-add dispatch only together with a ref
+# allow-list or with caching disabled in the dispatched path.
+
+# Read-only for every job, and this workflow is `pull_request`, never
+# `pull_request_target` (REQ-008): a fork's code therefore never executes with a
+# write token and can never publish evidence anything downstream trusts.
+permissions:
+  contents: read
+
+# Exact-head supersession (REQ-007): a new push to the same pull request cancels
+# the older head's long verification instead of paying for a result nobody will
+# read. Trunk pushes are keyed by ref and are never cancelled.
+concurrency:
+  group: sdk-verification-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "20.19.0"
+  # Same relaxation semantics as ci.yml (#677): committed generated artifacts
+  # are re-bound on trunk by regenerate-derived-artifacts.yml, so trunk PRs and
+  # the trunk push tolerate a lagging pin. Release branches stay strict.
+  HONUA_DERIVED_ARTIFACTS_RELAX: ${{ (github.event_name == 'pull_request' && github.base_ref == 'trunk' || github.event_name == 'push' && github.ref == 'refs/heads/trunk') && '1' || '' }}
+
+jobs:
+  admission:
+    name: Admission
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.mode.outputs.enabled }}
+      mode: ${{ steps.mode.outputs.mode }}
+      head_sha: ${{ steps.head.outputs.sha }}
+      browser_matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Resolve rollout mode
+        id: mode
+        env:
+          MODE: ${{ vars.HONUA_SDK_VERIFICATION_MODE || 'shadow' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${MODE}" in
+            off|shadow|authoritative) ;;
+            *) echo "::error::HONUA_SDK_VERIFICATION_MODE must be off, shadow, or authoritative (got ${MODE})"; exit 1 ;;
+          esac
+          echo "mode=${MODE}" >> "$GITHUB_OUTPUT"
+          if [[ "${MODE}" == "off" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SDK Verification is switched off by repository variable HONUA_SDK_VERIFICATION_MODE."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Every downstream job checks out this exact commit rather than resolving
+      # the ref again, so one graph run is one head end to end (REQ-007). A
+      # newer head gets its own run and cancels this one via `concurrency`.
+      - name: Pin the exact head under verification
+        id: head
+        shell: bash
+        run: echo "sha=${{ github.event.pull_request.head.sha || github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # The same workflow-policy suites ci.yml's guard jobs run. They need no
+      # dependencies, so they fail in seconds rather than after an install.
+      - name: Test pull request issue-disposition policy
+        run: node --test test/scripts/pr-issue-disposition.test.mjs
+
+      - name: Test Release Please CI dispatch policy
+        run: node --test test/scripts/release-please-ci-dispatch.test.mjs
+
+      - name: Test Release Please CI check publication policy
+        run: node --test test/scripts/release-please-ci-checks.test.mjs
+
+      - name: Test backlog dependency reconciliation policy
+        run: node --test test/scripts/backlog-dependencies.test.mjs
+
+      - name: Test derived-artifact loop guard policy
+        run: node --test test/scripts/derived-artifact-loop-guard.test.mjs
+
+      - name: Test stranded-merge detection policy
+        run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Test SDK build evidence policy
+        run: node --test test/scripts/sdk-build-evidence.test.mjs
+
+      - name: Test CI timing baseline policy
+        run: node --test test/scripts/ci-timing-baseline.test.mjs
+
+      # A Playwright spec that belongs to no shard would never run, which is
+      # indistinguishable from passing (honua-io/honua-server#3259).
+      - name: Test browser shard partition
+        run: npm run browser:shards:test
+
+      - name: Verify every browser spec has an owning shard
+        run: node scripts/browser-shards.mjs check
+
+      # Everything above this line imports only Node builtins and repository
+      # sources, so it fails in seconds. The graph fixture parses two workflow
+      # files and needs the `yaml` devDependency, so it -- and only it -- pays
+      # for an install.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test verification graph policy
+        run: node --test test/scripts/sdk-verification-workflow.test.mjs
+
+      - name: Publish browser shard matrix
+        id: matrix
+        shell: bash
+        run: echo "matrix=$(node scripts/browser-shards.mjs matrix)" >> "$GITHUB_OUTPUT"
+
+  quickstart-budget:
+    name: Quickstart budget (clean install)
+    needs: admission
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      # The enforceable five-minute clock includes npm ci, browser
+      # provisioning, the fixture build, and the first usable map. It measures
+      # a new user's clean install, so it must never consume the reusable build.
+      - name: Start quickstart budget clock
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at=$(awk '{ printf "%.0f", $1 * 1000 }' /proc/uptime)
+          if [[ ! "$started_at" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Could not capture a positive monotonic start timestamp"
+            exit 1
+          fi
+          echo "QUICKSTART_STARTED_AT_MONOTONIC_MS=$started_at" >> "$GITHUB_ENV"
+          node scripts/quickstart-time-to-map.mjs --initialize \
+            --started-at-monotonic-ms "$started_at" \
+            --output test-results/quickstart-time-to-map.json
+
+      - name: Install dependencies
+        id: quickstart_install
+        shell: bash
+        run: |
+          now=$(awk '{ printf "%.0f", $1 * 1000 }' /proc/uptime)
+          remaining_ms=$((QUICKSTART_STARTED_AT_MONOTONIC_MS + 300000 - now))
+          (( remaining_ms > 0 ))
+          timeout --foreground "$(((remaining_ms + 999) / 1000))s" npm ci
+
+      - name: Install Playwright browser
+        id: quickstart_browser
+        shell: bash
+        run: |
+          now=$(awk '{ printf "%.0f", $1 * 1000 }' /proc/uptime)
+          remaining_ms=$((QUICKSTART_STARTED_AT_MONOTONIC_MS + 300000 - now))
+          (( remaining_ms > 0 ))
+          timeout --foreground "$(((remaining_ms + 999) / 1000))s" npx playwright install --with-deps chromium
+
+      - name: Gate clean-install time to first fixture map
+        id: quickstart_map
+        run: |
+          npm run docs:quickstart:time-to-map -- \
+            --started-at-monotonic-ms "$QUICKSTART_STARTED_AT_MONOTONIC_MS" \
+            --output test-results/quickstart-time-to-map.json
+
+      - name: Finalize quickstart failure evidence
+        if: always() && steps.quickstart_map.outcome != 'success'
+        shell: bash
+        run: |
+          stage=first-map
+          if [[ "${{ steps.quickstart_install.outcome }}" != "success" ]]; then
+            stage=clean-install
+          elif [[ "${{ steps.quickstart_browser.outcome }}" != "success" ]]; then
+            stage=browser-provisioning
+          fi
+          node scripts/quickstart-time-to-map.mjs \
+            --finalize-failure "$stage" \
+            --started-at-monotonic-ms "$QUICKSTART_STARTED_AT_MONOTONIC_MS" \
+            --output test-results/quickstart-time-to-map.json
+
+      - name: Upload quickstart timing evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: quickstart-time-to-map-graph
+          path: test-results/quickstart-time-to-map.json
+          if-no-files-found: error
+
+      - name: Validate quickstart timing runner
+        run: npm run docs:quickstart:time-to-map:test
+
+  build:
+    name: SDK build (producer)
+    needs: admission
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      fingerprint: ${{ steps.evidence.outputs.fingerprint }}
+      artifact_name: ${{ steps.evidence.outputs.artifact-name }}
+    env:
+      HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      # REQ-006, and the reason this step is in the producer rather than beside
+      # the browser suite. The offline region reference's shell manifest pins an
+      # exact byte length and SHA-256 per compiled asset, and its service worker
+      # refuses to commit a generation when one pin disagrees with the bytes it
+      # fetched -- so a stale pin fails every offline browser test at once with
+      # a signature that names nothing near the cause. A 13-code addition to
+      # src/core/error-classifications.ts cost 16 red tests that way in #1280.
+      # Recomputing the pins against the dist this job just emitted names the
+      # drifted asset here, before a single browser is provisioned.
+      - name: Verify offline shell manifest pins against the built SDK
+        run: npm run offline:shell-manifest:check
+
+      - name: Emit SDK build evidence
+        id: evidence
+        run: node scripts/sdk-build-evidence.mjs emit --output .artifacts/sdk-build/evidence.v1.json
+
+      # The reusable build. `.tmp/prepared-sdk-artifact/manifest.json` travels
+      # with dist/ because it is what makes `prepare:test-sdk:already` in every
+      # consumer a verification rather than a rebuild; it is a dotted path, so
+      # hidden files must be included or the consumers would silently rebuild.
+      - name: Upload the immutable SDK build
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ steps.evidence.outputs.artifact-name }}
+          path: |
+            dist/
+            .tmp/prepared-sdk-artifact/manifest.json
+            .artifacts/sdk-build/evidence.v1.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 3
+
+  verify-core:
+    name: "Verify: core, types, style, coverage"
+    needs: [admission, build]
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
+      HONUA_RELEASE_MATRIX_RECEIPT_RELAX: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the immutable SDK build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+
+      - name: Admit the SDK build
+        run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Verify north-star API design fixtures
+        run: npm run verify:north-star-api
+
+      - name: Verify contract v2 design fixtures
+        run: npm run verify:contract-v2-design
+
+      - name: Verify pinned PROJJSON validator
+        run: npm run verify:projjson-validator
+
+      # Reported here, enforced at the end of the job (#1266 REQ-003): a
+      # wall-clock evidence lapse must not cost this job its test signal. Read
+      # the diagnosis at this step; read the verdict at the last step.
+      - name: Verify sample publication contract
+        id: sample_contract
+        continue-on-error: true
+        run: |
+          npm run samples:verify
+          npm run samples:verify:flagships
+          npm run samples:fixtures:verify
+          npm run docs:site:gallery:test
+
+      - name: Validate sample runner boundaries and generated selection
+        run: |
+          npm run samples:runner:test
+          npm run samples:run -- list --kit --json
+
+      # Unit tests for the release-tag sealing gate (#768). `release:seal:check`
+      # itself stays a release-time gate in publish-js-sdk.yml and
+      # first-map-release-smoke.yml: it reads the git tree, not dist/, so build
+      # reuse neither helps nor weakens it.
+      - name: Validate release-seal policy
+        run: npm run release:seal:test
+
+      - name: Code style
+        run: npm run check
+
+      - name: Verify llms.txt freshness
+        run: npm run verify:llms
+
+      - name: Verify comparison page freshness
+        run: npm run docs:comparison:check
+
+      - name: Verify MCP eval scorecard freshness
+        run: npm run docs:mcp-scorecard:check
+
+      - name: Verify npm search discoverability page freshness
+        run: npm run docs:npm-search:check
+
+      - name: Verify documentation version manifest
+        run: npm run docs:versions:check
+
+      - name: Verify agent skills
+        run: npm run verify:skills
+
+      - name: Verify public API report (stable tier)
+        run: node scripts/report-api-surface.mjs --check
+
+      - name: Verify final root surface and migration matrix
+        run: npm run verify:root-surface:prepared
+
+      - name: Verify generated support truth
+        run: npm run support:check
+
+      - name: Verify sdk-coverage capability snapshot
+        run: npm run sdk-coverage:check
+
+      - name: Verify task-oriented learning paths
+        run: npm run docs:learning:check
+
+      - name: Validate documentation snippets
+        run: npm run docs:snippets:check
+
+      - name: Component qualification matrix
+        run: node scripts/component-qualification.mjs check
+
+      - name: Unit tests with coverage
+        run: npm run test:coverage:prepared
+
+      # Re-runs the sample publication contract suite against a forward-shifted
+      # validation clock (+35d, +95d) so a fixture whose validity silently
+      # depends on the wall-clock date fails here rather than wedging trunk for
+      # an unrelated pull request (#1079).
+      - name: Sample contract look-ahead clock lane
+        run: npm run samples:contract:lookahead
+
+      - name: Migration e2e harness
+        run: npx vitest run test/migration-e2e.test.ts
+
+      - name: Publish sdk-coverage.v1.json artifact
+        if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sdk-coverage-v1-graph
+          path: config/sdk-coverage.v1.json
+          if-no-files-found: error
+
+      - name: Enforce sample publication contract
+        if: always() && steps.sample_contract.outcome == 'failure'
+        run: |
+          echo "::error title=Sample publication contract::The sample publication contract failed. Read the failure in the 'Verify sample publication contract' step above; the correctness suite in this job ran to completion regardless. A golden-visual freshness lapse is renewed with 'npm run samples:generate' or 'gh workflow run regenerate-derived-artifacts.yml --repo honua-io/honua-sdk-js'."
+          exit 1
+
+  verify-package:
+    name: "Verify: package, publish surface, bundles"
+    needs: [admission, build]
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the immutable SDK build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+
+      - name: Admit the SDK build
+        run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
+
+      # `samples:run -- verify --kit` runs each pilot's own Playwright gate
+      # (`test:playwright:<sample>`), so this job needs a browser even though it
+      # is not a browser shard. ci.yml hid that: its JS SDK job provisions
+      # chromium near the top for the quickstart clock, and every later gate
+      # inherited it. Split apart, the pilots failed with "Executable doesn't
+      # exist at .../chrome-headless-shell".
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Before the browser bundle and the split-package build, exactly as in
+      # ci.yml: `build:split-packages:prepared` cleans dist/ and republishes the
+      # prepared manifest, and the kit pilots verify against the prepared
+      # artifact. Run after that sequence they fail with "Prepared SDK artifact
+      # is stale or incomplete", which names the artifact rather than the
+      # ordering.
+      - name: Qualify shared-kit pilots from source and packed SDK
+        run: |
+          npm run samples:run -- verify --kit --sdk-mode source
+          npm run samples:run -- verify --kit --sdk-mode packed
+
+      - name: Build and verify browser bundle
+        run: npm run verify:browser:prepared
+
+      # Must stay in this job, immediately after the browser bundle exists:
+      # `./browser` is a declared public entry point, so this gate resolves
+      # dist/browser/honua-sdk.esm.js and fails with "built-entrypoint target is
+      # missing" in any job that has not built it.
+      - name: Verify public-surface inventory and imports
+        run: npm run verify:public-surface
+
+      - name: Verify browser artifact publication manifest
+        run: |
+          node scripts/sample-contract.mjs artifacts
+          npm run prepare:test-sdk:adopt --silent
+
+      - name: Bundle-size budgets
+        run: npm run verify:bundle-budgets
+
+      - name: Split package verification
+        run: npm run verify:split-packages:prepared
+
+      - name: Root package discoverability
+        run: npm run verify:discoverability
+
+      - name: Publish-surface integrity
+        # split-package build cleans dist/, so restore the browser bundle first
+        # (same ordering the publish workflow uses).
+        run: |
+          npm run build:browser --silent
+          node scripts/sample-contract.mjs artifacts
+          npm run prepare:test-sdk:adopt --silent
+          npm run verify:publish-surface
+
+      - name: Installed packed-SDK smoke
+        run: npm run verify:packed-sdk
+
+      - name: Build sample bundles
+        run: npm run samples:bundles:build
+
+      - name: Verify sample bundle manifest
+        run: npm run samples:bundles:verify
+
+      - name: Upload sample bundles workflow artifact
+        if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sample-bundles-graph
+          path: .artifacts/sample-bundles/
+          if-no-files-found: error
+
+  verify-examples:
+    name: "Verify: examples, demos, scaffolds"
+    needs: [admission, build]
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the immutable SDK build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+
+      - name: Admit the SDK build
+        run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
+
+      - name: Compile learning-path examples
+        run: npm run docs:learning:typecheck
+
+      - name: Example typechecks
+        run: npm run demo:examples:typecheck
+
+      - name: create-honua-app scaffold and playground links
+        run: |
+          npm run create-app:verify
+          npm run create-app:test
+          npm run create-app:templates:typecheck
+          npm run playgrounds:check
+
+      - name: create-honua-app packed artifact
+        run: npm run create-app:verify:package
+
+      - name: Gallery sample playgrounds
+        run: |
+          npm run samples:playgrounds:check
+          npm run samples:playgrounds:test
+          npm run samples:playgrounds:typecheck
+
+      - name: Acquire pinned Overture extension and prove offline build
+        run: |
+          npm run demo:overture:prepare
+          npm run demo:overture:build:offline
+
+      - name: Primitive demo matrix
+        run: npm run demo:primitive-matrix
+
+      - name: Kepler example audit
+        run: node --test examples/kepler-analytics/test/audit.test.mjs && node examples/kepler-analytics/scripts/audit.mjs
+
+      - name: Example builds
+        run: npm run demo:examples:build:prepared
+
+  browser:
+    name: Browser (${{ matrix.shard }})
+    needs: [admission, build]
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # One failed domain must not cancel the other three: the whole point is
+      # that a Kepler regression leaves the offline verdict standing.
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.admission.outputs.browser_matrix) }}
+    env:
+      HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
+      HONUA_BROWSER_SHARD: ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the immutable SDK build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+
+      - name: Admit the SDK build
+        run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # coverages-wcs-basic.spec.mjs serves the built example through
+      # `vite preview`, so an unbuilt example 404s its own assets and the spec
+      # fails as a console-error gate. The only thing in CI that runs
+      # `demo:coverages-wcs:build` is scripts/build-sample-bundles.mjs, which
+      # builds every gallery sample through its own declared build script --
+      # and in ci.yml it happened to run earlier in the same job. Note that
+      # `demo:examples:build:prepared` does NOT cover it: that chain builds 27
+      # named demos and coverages-wcs is not one of them, which is why adding it
+      # here did not fix the map shard.
+      - name: Build sample bundles
+        run: npm run samples:bundles:build
+
+      # The MapLibre 5.x/6.x peer-major claim (#1004) is browser evidence and
+      # belongs to the examples domain, where the migration specs already live.
+      # Kept ahead of the offline check and the suite, exactly as in ci.yml.
+      - name: MapLibre peer-major matrix (5.x + 6.x)
+        if: matrix.shard == 'examples'
+        run: npm run test:maplibre-compat:prepared
+
+      # Re-checked per shard, cheaply, against the admitted build. The producer
+      # already gated on this; repeating it here means a shard rerun days later
+      # still cannot start against drifted offline evidence.
+      - name: Verify offline shell manifest pins
+        run: npm run offline:shell-manifest:check
+
+      - name: Browser suite
+        run: npm run test:playwright:prepared
+
+      # The deterministic rendering benchmark is map evidence.
+      - name: Deterministic browser rendering benchmark
+        id: browser_benchmark
+        if: matrix.shard == 'map'
+        run: npm run bench:browser
+
+      - name: Upload browser benchmark evidence
+        if: always() && matrix.shard == 'map' && steps.browser_benchmark.outcome != 'skipped'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sdk-browser-benchmark-graph
+          path: test-results/browser-benchmark/
+          if-no-files-found: error
+
+  verified:
+    name: SDK verified
+    needs: [admission, quickstart-budget, build, verify-core, verify-package, verify-examples, mcp, browser]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # `needs.*.result` must be checked explicitly. A job that is skipped or
+      # cancelled does not fail its dependents, so an aggregate gate written as
+      # a bare `needs:` list reports success for a graph that never ran -- the
+      # exact silent-green failure this workflow exists to remove.
+      - name: Aggregate verification result
+        env:
+          ADMISSION: ${{ needs.admission.result }}
+          ENABLED: ${{ needs.admission.outputs.enabled }}
+          RESULTS: ${{ toJSON(needs) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Admission's own result is checked FIRST, and separately from the
+          # switch it publishes.
+          #
+          # `enabled` is written by the `Resolve rollout mode` step, so whether
+          # it survives a failed admission depends on WHERE admission failed. A
+          # late failure -- the graph fixture, the shard audit -- leaves
+          # `enabled=true` published, and reading the switch first still caught
+          # it. A failure at or before the mode step, or a cancellation, leaves
+          # `enabled` empty, which is indistinguishable from "switched off":
+          # this gate then printed the switched-off notice and exited 0 while
+          # every guard in admission had failed to run. That second shape is
+          # routine, not exotic -- `cancel-in-progress` cancels admission on
+          # every superseded head, and an invalid HONUA_SDK_VERIFICATION_MODE
+          # fails the mode step itself.
+          if [[ "${ADMISSION}" != "success" ]]; then
+            echo "::error title=SDK verification::Admission finished '${ADMISSION}', not 'success'. No verification evidence was produced, and the rollout switch it publishes cannot be trusted."
+            exit 1
+          fi
+          case "${ENABLED}" in
+            true|false) ;;
+            *)
+              echo "::error title=SDK verification::Admission succeeded but published enabled='${ENABLED}', which is neither 'true' nor 'false'."
+              exit 1
+              ;;
+          esac
+          if [[ "${ENABLED}" != "true" ]]; then
+            echo "::notice::SDK Verification is switched off; no verification evidence was produced."
+            exit 0
+          fi
+          failed=0
+          while IFS=$'\t' read -r job result; do
+            printf '%-24s %s\n' "$job" "$result"
+            if [[ "$result" != "success" ]]; then
+              echo "::error title=SDK verification::Job '${job}' finished '${result}', not 'success'."
+              failed=1
+            fi
+          done < <(printf '%s' "${RESULTS}" | node -e '
+            const needs = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
+            for (const [job, value] of Object.entries(needs)) {
+              process.stdout.write(`${job}\t${value.result}\n`);
+            }
+          ')
+          exit "$failed"
+
+  mcp:
+    # NOT "MCP SDK". Repository ruleset 18085797 requires the status contexts
+    # "JS SDK" and "MCP SDK" *unqualified* -- with no integration_id -- so a
+    # check run published under either name satisfies or blocks the requirement
+    # no matter which workflow produced it. A shadow job sharing an
+    # authoritative job's name therefore either satisfies the gate ci.yml is
+    # supposed to own, or blocks a pull request on a lane nobody has promoted.
+    # `gh pr checks` showed two check runs named "MCP SDK" on
+    # honua-io/honua-sdk-js#1334 before this rename.
+    name: "Verify: MCP"
+    needs: [admission, build]
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+
+      # ci.yml's MCP job builds the SDK from source purely to satisfy the peer
+      # dependency -- a second full compile of the same tree the JS SDK job
+      # already compiled. Here it installs root dependencies and consumes the
+      # one build instead.
+      - name: Install JS SDK dependencies
+        working-directory: .
+        run: npm ci
+
+      - name: Download the immutable SDK build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+
+      - name: Admit the SDK build
+        working-directory: .
+        run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Security audit
+        run: npm audit --omit=dev
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Code style
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      - name: NL map-control security certification (gate)
+        run: npm run test:certification:nl-map-control
+
+      - name: MCP certification (gate)
+        env:
+          HONUA_MCP_CERT_TARGET: offline
+        run: npm run test:certification
+
+      - name: MCP certification artifact
+        if: always()
+        env:
+          HONUA_MCP_CERT_TARGET: offline
+        run: npm run test:certification:artifact
+
+      - name: MCP platform-free certification (gate)
+        run: node dist/src/certification/cli.js --target standalone --out-dir standalone-cert
+
+      - name: MCP non-GeoServices certification (gate)
+        run: node dist/src/certification/cli.js --target standalone-ogc --out-dir standalone-ogc-cert
+
+      - name: Cross-model workflow eval (gate, offline)
+        run: npm run test:eval
+
+      - name: Platform-free semantic eval (gate, offline)
+        run: npm run eval:standalone
+
+      - name: Non-GeoServices semantic eval (gate, offline)
+        run: npm run eval:ogc
+
+      - name: Cross-model workflow eval artifact
+        if: always()
+        run: npm run test:eval:artifact
+
+      - name: Upload MCP provability artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: mcp-provability-artifacts-graph
+          path: |
+            mcp/mcp-certification-results.json
+            mcp/mcp-certification-results.md
+            mcp/standalone-cert/mcp-certification-results.json
+            mcp/standalone-cert/mcp-certification-results.md
+            mcp/standalone-ogc-cert/mcp-certification-results.json
+            mcp/standalone-ogc-cert/mcp-certification-results.md
+            mcp/mcp-eval-results.json
+            mcp/mcp-eval-results.md
+          if-no-files-found: warn

@@ -163,6 +163,76 @@ test("rejects a manifest the service worker itself would refuse", () => {
   }
 });
 
+// The #1280 regression, reproduced as a fixture (honua-io/honua-sdk-js#1286
+// REQ-006). Adding 13 error codes to src/core/error-classifications.ts changed
+// the compiled dist/src/core/error-classifications.js, the committed shell
+// manifest still pinned the old length and digest, and the only symptom was 16
+// offline browser tests reporting `shellReady:false` roughly 40 minutes into
+// the run. This asserts the two behaviours that turn that into a named, early
+// failure: `check` rejects the stale pin and names the exact compiled asset,
+// and `write` refreshes it to the real bytes.
+test("a changed error-classifications build names its own stale pin before any browser runs", () => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "honua-shell-manifest-1280-"));
+  const compiledPath = "dist/src/core/error-classifications.js";
+  try {
+    fs.mkdirSync(path.join(projectRoot, EXAMPLE_DIRECTORY), { recursive: true });
+    fs.mkdirSync(path.join(projectRoot, "dist/src/core"), { recursive: true });
+    fs.writeFileSync(path.join(projectRoot, EXAMPLE_DIRECTORY, "index.html"), INDEX_HTML);
+    const before = "export const CLASSIFICATIONS = ['a'];\n";
+    fs.writeFileSync(path.join(projectRoot, compiledPath), before);
+
+    const manifest = recomputeShellManifest(
+      {
+        format: "honua.offline-shell-manifest.v1",
+        deploymentId: "offline-region-reference-fixture-v1",
+        resources: [
+          { url: "./", byteLength: 0, integrity: `sha256:${"0".repeat(64)}`, mediaType: "text/html" },
+          {
+            url: `/${compiledPath}`,
+            byteLength: 0,
+            integrity: `sha256:${"0".repeat(64)}`,
+            mediaType: "application/javascript",
+          },
+        ],
+      },
+      { projectRoot },
+    ).manifest;
+    assert.deepEqual(recomputeShellManifest(manifest, { projectRoot }).drift, []);
+
+    // The source change lands; the committed manifest does not.
+    const after = "export const CLASSIFICATIONS = ['a','b','c','d','e','f','g','h','i','j','k','l','m'];\n";
+    fs.writeFileSync(path.join(projectRoot, compiledPath), after);
+
+    const { drift, manifest: refreshed } = recomputeShellManifest(manifest, { projectRoot });
+    assert.deepEqual(
+      drift.map((entry) => `${entry.file}:${entry.field}`),
+      [`${compiledPath}:byteLength`, `${compiledPath}:integrity`],
+    );
+    const report = formatDriftReport(drift);
+    assert.match(report, new RegExp(compiledPath.replaceAll("/", "\\/").replaceAll(".", "\\.")));
+    assert.match(report, new RegExp(`byteLength: ${before.length} -> ${after.length}`));
+
+    // Normalization refreshes the pin to the exact compiled asset, and the
+    // refreshed manifest is then current.
+    const pin = refreshed.resources.find((resource) => resource.url === `/${compiledPath}`);
+    assert.equal(pin.byteLength, after.length);
+    assert.equal(pin.integrity, sha256Integrity(Buffer.from(after)));
+    assert.deepEqual(recomputeShellManifest(refreshed, { projectRoot }).drift, []);
+  } finally {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  }
+});
+
+// The committed shell manifest must keep pinning the compiled asset that caused
+// #1280; dropping it from the shell would make the regression above unobservable.
+test("the committed shell manifest pins the compiled error classifications", () => {
+  const manifest = loadShellManifest();
+  assert.ok(
+    manifest.resources.some((resource) => resource.url === "/dist/src/core/error-classifications.js"),
+    "the offline shell must keep pinning dist/src/core/error-classifications.js",
+  );
+});
+
 const distBuilt = fs.existsSync(path.join(ROOT, "dist"));
 
 test("the committed manifest is current against the built shell", { skip: !distBuilt }, () => {
