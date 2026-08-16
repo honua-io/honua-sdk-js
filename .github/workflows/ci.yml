@@ -515,6 +515,18 @@ jobs:
         # fails the ordinary gates; this step is what keeps 5.x honest.
         run: npm run test:maplibre-compat:prepared
 
+      # The offline region reference's application shell manifest is
+      # hand-maintained and pins an exact byte length plus SHA-256 digest per
+      # resource. Its service worker refuses to commit a shell generation when
+      # one pin disagrees with the bytes it fetched, so a stale pin fails every
+      # offline browser test at once with a signature that names nothing near
+      # the cause (a 13-code addition to src/core/error-classifications.ts took
+      # 16 tests red in #1280). This step recomputes the pins against the built
+      # dist/ and names the drifted resource before the suite runs. Refresh
+      # with `npm run offline:shell-manifest:generate`.
+      - name: Verify offline shell manifest pins
+        run: npm run offline:shell-manifest:check
+
       - name: Browser smoke suite
         run: npm run test:playwright:prepared
 
