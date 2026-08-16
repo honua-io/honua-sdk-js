@@ -69,7 +69,11 @@ describe("widget disposition data", () => {
 
   it("grounds shim-backed dispositions in real files under src/esri-compat/", () => {
     for (const entry of WIDGET_DISPOSITIONS) {
-      if (entry.disposition === "automated" || entry.disposition === "compat-shim") {
+      if (
+        entry.disposition === "automated" ||
+        entry.disposition === "compat-shim" ||
+        entry.disposition === "app-platform"
+      ) {
         expect(entry.shimSource, `${entry.widget} must record its shim source`).toBeDefined();
         expect(fs.existsSync(path.join(process.cwd(), entry.shimSource!))).toBe(true);
       }
@@ -82,7 +86,13 @@ describe("widget disposition data", () => {
     // to re-estimate the work from the label — which is how that epic came to
     // overstate itself by roughly 2x.
     for (const entry of WIDGET_DISPOSITION_DOCUMENTATION) {
-      if (entry.disposition !== "compat-shim" && entry.disposition !== "manual-workaround") continue;
+      if (
+        entry.disposition !== "compat-shim" &&
+        entry.disposition !== "app-platform" &&
+        entry.disposition !== "manual-workaround"
+      ) {
+        continue;
+      }
       expect(entry.parityDelta, `${entry.widget} must state what the native component does not cover`).toBeDefined();
       expect(entry.parityDelta!.trim().length).toBeGreaterThan(0);
       expect(entry.parityDelta!, `${entry.widget} parity delta must not be a placeholder`).not.toMatch(
@@ -120,6 +130,27 @@ describe("widget disposition data", () => {
       expect(defined.has(tagName), `<${tagName}> is named in widget-dispositions but is not a registered element`).toBe(
         true,
       );
+    }
+  });
+
+  it("names a native element on every app-platform row and on no compat-shim row", () => {
+    // #1315 AC-2. The two labels differ only in whether a native element ships,
+    // so that has to be structurally true rather than a matter of narration —
+    // reading `compat-shim` as "no native component" is what produced the
+    // original 2x overestimate.
+    for (const entry of WIDGET_DISPOSITION_DOCUMENTATION) {
+      if (entry.disposition === "app-platform") {
+        expect(
+          entry.appPlatformComponent,
+          `${entry.widget} is app-platform but names no native element`,
+        ).toBeDefined();
+      }
+      if (entry.disposition === "compat-shim") {
+        expect(
+          entry.appPlatformComponent,
+          `${entry.widget} names a native element, so it belongs in app-platform`,
+        ).toBeUndefined();
+      }
     }
   });
 

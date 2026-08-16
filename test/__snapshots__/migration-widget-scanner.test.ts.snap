@@ -3,7 +3,7 @@
 exports[`widget readiness report on the esri-widget-cliff-app fixture > matches the JSON report snapshot 1`] = `
 {
   "deprecationRelease": "5.0",
-  "dispositionDataVersion": "1.3.0",
+  "dispositionDataVersion": "1.4.0",
   "filesScanned": 4,
   "filesWithWidgetUsage": 4,
   "removalRelease": "6.0",
@@ -81,7 +81,7 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
     {
       "bucket": "assisted",
       "count": 1,
-      "disposition": "compat-shim",
+      "disposition": "app-platform",
       "guideLink": "docs/widget-survival-guide.md#editor",
       "sites": [
         {
@@ -138,7 +138,7 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
     {
       "bucket": "assisted",
       "count": 1,
-      "disposition": "compat-shim",
+      "disposition": "app-platform",
       "guideLink": "docs/widget-survival-guide.md#featuretable",
       "sites": [
         {
@@ -195,7 +195,7 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
     {
       "bucket": "assisted",
       "count": 1,
-      "disposition": "compat-shim",
+      "disposition": "app-platform",
       "guideLink": "docs/widget-survival-guide.md#print",
       "sites": [
         {
@@ -233,7 +233,7 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
     {
       "bucket": "assisted",
       "count": 1,
-      "disposition": "compat-shim",
+      "disposition": "app-platform",
       "guideLink": "docs/widget-survival-guide.md#sketch",
       "sites": [
         {
@@ -252,7 +252,7 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
     {
       "bucket": "assisted",
       "count": 1,
-      "disposition": "compat-shim",
+      "disposition": "app-platform",
       "guideLink": "docs/widget-survival-guide.md#timeslider",
       "sites": [
         {
@@ -275,7 +275,7 @@ exports[`widget readiness report on the esri-widget-cliff-app fixture > matches 
 exports[`widget readiness report on the esri-widget-cliff-app fixture > matches the markdown report snapshot 1`] = `
 "# ArcGIS widget readiness report
 
-Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early as Q1 2027). Disposition data v1.3.0.
+Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early as Q1 2027). Disposition data v1.4.0.
 
 - Files scanned: 4
 - Files with widget usage: 4
@@ -288,16 +288,16 @@ Classic ArcGIS JS widgets are deprecated at 5.0 and are removed at 6.0 (as early
 | [BasemapGallery](docs/widget-survival-guide.md#basemapgallery) | 1 | \`automated\` | BasemapGalleryCompat from @honua/sdk-esri-compat |
 | [Daylight](docs/widget-survival-guide.md#daylight) | 1 | \`no-equivalent\` | None. Requires a 3D scene with sun/shadow simulation. |
 | [Directions](docs/widget-survival-guide.md#directions) | 1 | \`compat-shim\` | DirectionsCompat from @honua/sdk-esri-compat backed by HonuaRouteService (RouteTask parity) |
-| [Editor](docs/widget-survival-guide.md#editor) | 1 | \`compat-shim\` | EditorCompat from @honua/sdk-esri-compat |
+| [Editor](docs/widget-survival-guide.md#editor) | 1 | \`app-platform\` | EditorCompat from @honua/sdk-esri-compat |
 | [ElevationProfile](docs/widget-survival-guide.md#elevationprofile) | 1 | \`manual-workaround\` | No drop-in widget. Sample the profile geometry yourself (e.g. @honua/sdk-js/geometry densify + an elevation/terrain source such as maplibre-gl queryTerrainElevation) and chart with your own charting library. |
 | [Expand](docs/widget-survival-guide.md#expand) | 1 | \`automated\` | ExpandCompat from @honua/sdk-esri-compat |
-| [FeatureTable](docs/widget-survival-guide.md#featuretable) | 1 | \`compat-shim\` | FeatureTableCompat from @honua/sdk-esri-compat |
+| [FeatureTable](docs/widget-survival-guide.md#featuretable) | 1 | \`app-platform\` | FeatureTableCompat from @honua/sdk-esri-compat |
 | [LayerList](docs/widget-survival-guide.md#layerlist) | 1 | \`automated\` | LayerListCompat from @honua/sdk-esri-compat |
 | [Legend](docs/widget-survival-guide.md#legend) | 1 | \`automated\` | LegendCompat from @honua/sdk-esri-compat |
-| [Print](docs/widget-survival-guide.md#print) | 1 | \`compat-shim\` | PrintCompat from @honua/sdk-esri-compat |
+| [Print](docs/widget-survival-guide.md#print) | 1 | \`app-platform\` | PrintCompat from @honua/sdk-esri-compat |
 | [Search (support modules)](docs/widget-survival-guide.md#search) | 1 | \`support-module\` | Support-module import — honua-migrate only rewrites the root Search widget module; migrate these by hand (root Search disposition: automated). |
-| [Sketch](docs/widget-survival-guide.md#sketch) | 1 | \`compat-shim\` | SketchCompat from @honua/sdk-esri-compat |
-| [TimeSlider](docs/widget-survival-guide.md#timeslider) | 1 | \`compat-shim\` | TimeSliderCompat from @honua/sdk-esri-compat |
+| [Sketch](docs/widget-survival-guide.md#sketch) | 1 | \`app-platform\` | SketchCompat from @honua/sdk-esri-compat |
+| [TimeSlider](docs/widget-survival-guide.md#timeslider) | 1 | \`app-platform\` | TimeSliderCompat from @honua/sdk-esri-compat |
 
 ## File inventory
 

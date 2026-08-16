@@ -18,7 +18,7 @@
  */
 
 /** Version of this disposition dataset. Bump when rows or taxonomy change. */
-export const WIDGET_DISPOSITION_DATA_VERSION = "1.3.0";
+export const WIDGET_DISPOSITION_DATA_VERSION = "1.4.0";
 
 /** ArcGIS JS release that deprecated every classic widget. */
 export const ARCGIS_WIDGET_DEPRECATION_RELEASE = "5.0";
@@ -356,11 +356,26 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
     AUTOMATED_NOTE,
     "src/esri-compat/controls.ts",
   ),
-  // --- compat-shim: shim exists and the codemod rewrites to it, but the
-  // widget carries a large interaction surface; expect hands-on verification ---
+  // --- compat-shim / app-platform ---
+  //
+  // Both dispositions share a shim under src/esri-compat/ that the codemod
+  // rewrites to; they differ in what a team gets if it stops there.
+  //
+  // `app-platform` — a native Honua element also ships, and it is the
+  // destination for a deliberate rewrite. Eight rows moved here from
+  // `compat-shim` once their parity deltas were measured (#1315 AC-2): the
+  // label had been read as "no native component exists", which is not what it
+  // means and is how that epic came to overstate its scope by roughly 2x.
+  //
+  // `compat-shim` — the shim is all there is. Three rows remain:
+  // CoordinateConversion (nothing native), Directions (blocked on a server
+  // API, honua-server#2447), FeatureForm (belongs to the form-package work).
+  //
+  // Both stay in the `assisted` readiness bucket: the shim covers the core
+  // workflow rather than the full ArcGIS surface either way.
   widgetEntry(
     "AreaMeasurement2D",
-    "compat-shim",
+    "app-platform",
     "AreaMeasurement2DCompat from @honua/sdk-esri-compat",
     COMPAT_SHIM_NOTE,
     "src/esri-compat/measurement-2d.ts",
@@ -400,7 +415,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   ),
   widgetEntry(
     "DistanceMeasurement2D",
-    "compat-shim",
+    "app-platform",
     "DistanceMeasurement2DCompat from @honua/sdk-esri-compat",
     COMPAT_SHIM_NOTE,
     "src/esri-compat/measurement-2d.ts",
@@ -409,7 +424,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   ),
   widgetEntry(
     "Editor",
-    "compat-shim",
+    "app-platform",
     "EditorCompat from @honua/sdk-esri-compat",
     [
       COMPAT_SHIM_NOTE,
@@ -445,7 +460,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   ),
   widgetEntry(
     "FeatureTable",
-    "compat-shim",
+    "app-platform",
     "FeatureTableCompat from @honua/sdk-esri-compat",
     [
       COMPAT_SHIM_NOTE,
@@ -469,7 +484,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   ),
   widgetEntry(
     "Measurement",
-    "compat-shim",
+    "app-platform",
     "MeasurementCompat from @honua/sdk-esri-compat (2D distance/area only)",
     `${COMPAT_SHIM_NOTE} 3D measurement modes are not supported.`,
     "src/esri-compat/measurement.ts",
@@ -484,7 +499,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   ),
   widgetEntry(
     "Print",
-    "compat-shim",
+    "app-platform",
     "PrintCompat from @honua/sdk-esri-compat",
     [
       COMPAT_SHIM_NOTE,
@@ -509,7 +524,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   ),
   widgetEntry(
     "Sketch",
-    "compat-shim",
+    "app-platform",
     "SketchCompat from @honua/sdk-esri-compat",
     `${COMPAT_SHIM_NOTE} Snapping and 3D sketch tools are not reproduced.`,
     "src/esri-compat/sketch.ts",
@@ -527,7 +542,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
   ),
   widgetEntry(
     "TimeSlider",
-    "compat-shim",
+    "app-platform",
     "TimeSliderCompat from @honua/sdk-esri-compat",
     [
       COMPAT_SHIM_NOTE,

@@ -30,11 +30,13 @@ const DISPOSITION_DESCRIPTIONS = {
     "The `honua-migrate` codemod deterministically rewrites the import and safe constructor call sites to a " +
     "Honua compat shim from `@honua/sdk-esri-compat`. Unsafe option literals fall through to an annotated manual TODO.",
   "compat-shim":
-    "A Honua compat shim exists and the codemod rewrites to it, but the widget carries a large interaction " +
-    "surface — treat the migration as assisted and verify app-specific behavior by hand.",
+    "A Honua compat shim exists and the codemod rewrites to it, but no native Honua element does the job yet — " +
+    "the shim is the destination, not a waypoint. Treat the migration as assisted and verify app-specific " +
+    "behavior by hand.",
   "app-platform":
-    "The capability is served by a Honua app-platform component rather than an SDK widget. " +
-    "(Reserved: no widget currently carries this disposition; rows may move here as the app platform matures.)",
+    "A native Honua app-platform element ships for this capability, and it is the destination for a deliberate " +
+    "rewrite. The codemod still rewrites to the compat shim, so migrating and adopting the element are separate " +
+    "steps — read the row's parity delta for what the element does not cover.",
   "maplibre-plugin":
     "The capability is served by a MapLibre control or community plugin wired up by hand. " +
     "(Reserved: no widget currently carries this disposition; several `automated` rows note the MapLibre-native control underneath.)",
@@ -123,11 +125,11 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
   );
   lines.push("");
   lines.push(
-    "**A `compat-shim` disposition does not mean there is no native component.** It describes the " +
-      "*migration path* — an API-compatible shim the codemod can rewrite to — and says nothing about " +
-      "whether a native element already exists. Most `compat-shim` rows have one. Read each row's " +
-      "**Parity delta** for what the native component does not cover; that field is measured against " +
-      "the shipping code, not assumed.",
+    "**A shim-backed disposition is about the *migration path*, not about whether a native component " +
+      "exists.** `app-platform` rows ship one and name it; `compat-shim` rows do not. Both are rewritten " +
+      "by the codemod to the same shim, so migrating and adopting the native element are separate steps. " +
+      "Read each row's **Parity delta** for what the native component does not cover — that field is " +
+      "measured against the shipping code, not assumed.",
   );
   lines.push("");
   lines.push("## Summary");

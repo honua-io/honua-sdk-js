@@ -8,7 +8,7 @@ Every classic ArcGIS JS SDK widget (`esri/widgets/*` / `@arcgis/core/widgets/*`)
 
 This guide answers, for each deprecated widget, what happens if you migrate to Honua/MapLibre instead of rewriting onto Esri's web components. Dispositions are deliberately honest — including "no equivalent" — in the spirit of [docs/migration-punch-list.md](./migration-punch-list.md).
 
-This document is generated from the versioned disposition data in [`src/migration/widget-dispositions.ts`](../src/migration/widget-dispositions.ts) (v1.3.0); the `honua-migrate` widget scanner consumes the same data, so the scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS release against https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets.html (5.0 deprecation list) and updated manually.
+This document is generated from the versioned disposition data in [`src/migration/widget-dispositions.ts`](../src/migration/widget-dispositions.ts) (v1.4.0); the `honua-migrate` widget scanner consumes the same data, so the scanner report and this guide cannot drift apart. The deprecated-widget inventory is pinned per ArcGIS release against https://developers.arcgis.com/javascript/latest/api-reference/esri-widgets.html (5.0 deprecation list) and updated manually.
 
 ## Scan your app first
 
@@ -22,8 +22,8 @@ The report inventories every widget usage site (ESM imports, AMD `require([...])
 ## Disposition taxonomy
 
 - **Automated** (`automated`): The `honua-migrate` codemod deterministically rewrites the import and safe constructor call sites to a Honua compat shim from `@honua/sdk-esri-compat`. Unsafe option literals fall through to an annotated manual TODO.
-- **Compat shim** (`compat-shim`): A Honua compat shim exists and the codemod rewrites to it, but the widget carries a large interaction surface — treat the migration as assisted and verify app-specific behavior by hand.
-- **App platform** (`app-platform`): The capability is served by a Honua app-platform component rather than an SDK widget. (Reserved: no widget currently carries this disposition; rows may move here as the app platform matures.)
+- **Compat shim** (`compat-shim`): A Honua compat shim exists and the codemod rewrites to it, but no native Honua element does the job yet — the shim is the destination, not a waypoint. Treat the migration as assisted and verify app-specific behavior by hand.
+- **App platform** (`app-platform`): A native Honua app-platform element ships for this capability, and it is the destination for a deliberate rewrite. The codemod still rewrites to the compat shim, so migrating and adopting the element are separate steps — read the row's parity delta for what the element does not cover.
 - **MapLibre plugin** (`maplibre-plugin`): The capability is served by a MapLibre control or community plugin wired up by hand. (Reserved: no widget currently carries this disposition; several `automated` rows note the MapLibre-native control underneath.)
 - **Manual workaround** (`manual-workaround`): No drop-in replacement. The row documents an explicit, honest workaround that is real app work you own.
 - **No equivalent** (`no-equivalent`): No Honua or MapLibre surface reproduces the widget today. Apps that depend on it need a product decision, not a rewrite.
@@ -32,15 +32,15 @@ Readiness buckets: `automated` counts as automated; `compat-shim`, `app-platform
 
 A compat-backed row may also list a direct `@honua/app-platform` component. That component is the recommended destination for a deliberate UI rewrite; the disposition still describes what `honua-migrate` can automate today.
 
-**A `compat-shim` disposition does not mean there is no native component.** It describes the *migration path* — an API-compatible shim the codemod can rewrite to — and says nothing about whether a native element already exists. Most `compat-shim` rows have one. Read each row's **Parity delta** for what the native component does not cover; that field is measured against the shipping code, not assumed.
+**A shim-backed disposition is about the *migration path*, not about whether a native component exists.** `app-platform` rows ship one and name it; `compat-shim` rows do not. Both are rewritten by the codemod to the same shim, so migrating and adopting the native element are separate steps. Read each row's **Parity delta** for what the native component does not cover — that field is measured against the shipping code, not assumed.
 
 ## Summary
 
 | Disposition | Widgets |
 | --- | --- |
 | `automated` | 21 |
-| `compat-shim` | 11 |
-| `app-platform` | 0 |
+| `compat-shim` | 3 |
+| `app-platform` | 8 |
 | `maplibre-plugin` | 0 |
 | `manual-workaround` | 1 |
 | `no-equivalent` | 5 |
@@ -50,7 +50,7 @@ A compat-backed row may also list a direct `@honua/app-platform` component. That
 
 | Widget | ESM module | AMD module | Disposition | Target |
 | --- | --- | --- | --- | --- |
-| [AreaMeasurement2D](#areameasurement2d) | `@arcgis/core/widgets/AreaMeasurement2D` | `esri/widgets/AreaMeasurement2D` | `compat-shim` | AreaMeasurement2DCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-measurement>`](../src/web-components/measurement.ts) from `@honua/app-platform/web-components` |
+| [AreaMeasurement2D](#areameasurement2d) | `@arcgis/core/widgets/AreaMeasurement2D` | `esri/widgets/AreaMeasurement2D` | `app-platform` | AreaMeasurement2DCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-measurement>`](../src/web-components/measurement.ts) from `@honua/app-platform/web-components` |
 | [Attribution](#attribution) | `@arcgis/core/widgets/Attribution` | `esri/widgets/Attribution` | `automated` | AttributionCompat from @honua/sdk-esri-compat (MapLibre AttributionControl underneath) |
 | [BasemapGallery](#basemapgallery) | `@arcgis/core/widgets/BasemapGallery` | `esri/widgets/BasemapGallery` | `automated` | BasemapGalleryCompat from @honua/sdk-esri-compat |
 | [BasemapLayerList](#basemaplayerlist) | `@arcgis/core/widgets/BasemapLayerList` | `esri/widgets/BasemapLayerList` | `automated` | BasemapLayerListCompat from @honua/sdk-esri-compat |
@@ -60,13 +60,13 @@ A compat-backed row may also list a direct `@honua/app-platform` component. That
 | [CoordinateConversion](#coordinateconversion) | `@arcgis/core/widgets/CoordinateConversion` | `esri/widgets/CoordinateConversion` | `compat-shim` | CoordinateConversionCompat from @honua/sdk-esri-compat |
 | [Daylight](#daylight) | `@arcgis/core/widgets/Daylight` | `esri/widgets/Daylight` | `no-equivalent` | None. Requires a 3D scene with sun/shadow simulation. |
 | [Directions](#directions) | `@arcgis/core/widgets/Directions` | `esri/widgets/Directions` | `compat-shim` | DirectionsCompat from @honua/sdk-esri-compat backed by HonuaRouteService (RouteTask parity) |
-| [DistanceMeasurement2D](#distancemeasurement2d) | `@arcgis/core/widgets/DistanceMeasurement2D` | `esri/widgets/DistanceMeasurement2D` | `compat-shim` | DistanceMeasurement2DCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-measurement>`](../src/web-components/measurement.ts) from `@honua/app-platform/web-components` |
-| [Editor](#editor) | `@arcgis/core/widgets/Editor` | `esri/widgets/Editor` | `compat-shim` | EditorCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-editor>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
+| [DistanceMeasurement2D](#distancemeasurement2d) | `@arcgis/core/widgets/DistanceMeasurement2D` | `esri/widgets/DistanceMeasurement2D` | `app-platform` | DistanceMeasurement2DCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-measurement>`](../src/web-components/measurement.ts) from `@honua/app-platform/web-components` |
+| [Editor](#editor) | `@arcgis/core/widgets/Editor` | `esri/widgets/Editor` | `app-platform` | EditorCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-editor>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [ElevationProfile](#elevationprofile) | `@arcgis/core/widgets/ElevationProfile` | `esri/widgets/ElevationProfile` | `manual-workaround` | No drop-in widget. Sample the profile geometry yourself (e.g. @honua/sdk-js/geometry densify + an elevation/terrain source such as maplibre-gl queryTerrainElevation) and chart with your own charting library. |
 | [Expand](#expand) | `@arcgis/core/widgets/Expand` | `esri/widgets/Expand` | `automated` | ExpandCompat from @honua/sdk-esri-compat |
 | [Feature](#feature) | `@arcgis/core/widgets/Feature` | `esri/widgets/Feature` | `automated` | FeatureCompat from @honua/sdk-esri-compat |
 | [FeatureForm](#featureform) | `@arcgis/core/widgets/FeatureForm` | `esri/widgets/FeatureForm` | `compat-shim` | FeatureFormCompat from @honua/sdk-esri-compat |
-| [FeatureTable](#featuretable) | `@arcgis/core/widgets/FeatureTable` | `esri/widgets/FeatureTable` | `compat-shim` | FeatureTableCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-feature-table>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
+| [FeatureTable](#featuretable) | `@arcgis/core/widgets/FeatureTable` | `esri/widgets/FeatureTable` | `app-platform` | FeatureTableCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-feature-table>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [FeatureTemplates](#featuretemplates) | `@arcgis/core/widgets/FeatureTemplates` | `esri/widgets/FeatureTemplates` | `automated` | FeatureTemplatesCompat from @honua/sdk-esri-compat |
 | [Fullscreen](#fullscreen) | `@arcgis/core/widgets/Fullscreen` | `esri/widgets/Fullscreen` | `automated` | FullscreenCompat from @honua/sdk-esri-compat (MapLibre FullscreenControl underneath) |
 | [Home](#home) | `@arcgis/core/widgets/Home` | `esri/widgets/Home` | `automated` | HomeCompat from @honua/sdk-esri-compat |
@@ -74,17 +74,17 @@ A compat-backed row may also list a direct `@honua/app-platform` component. That
 | [Legend](#legend) | `@arcgis/core/widgets/Legend` | `esri/widgets/Legend` | `automated` | LegendCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-legend>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [LineOfSight](#lineofsight) | `@arcgis/core/widgets/LineOfSight` | `esri/widgets/LineOfSight` | `no-equivalent` | None. Requires 3D scene geometry intersection analysis. |
 | [Locate](#locate) | `@arcgis/core/widgets/Locate` | `esri/widgets/Locate` | `automated` | LocateCompat from @honua/sdk-esri-compat (MapLibre GeolocateControl covers the same behavior natively) |
-| [Measurement](#measurement) | `@arcgis/core/widgets/Measurement` | `esri/widgets/Measurement` | `compat-shim` | MeasurementCompat from @honua/sdk-esri-compat (2D distance/area only)<br>Direct app-platform component: [`<honua-measurement>`](../src/web-components/measurement.ts) from `@honua/app-platform/web-components` |
+| [Measurement](#measurement) | `@arcgis/core/widgets/Measurement` | `esri/widgets/Measurement` | `app-platform` | MeasurementCompat from @honua/sdk-esri-compat (2D distance/area only)<br>Direct app-platform component: [`<honua-measurement>`](../src/web-components/measurement.ts) from `@honua/app-platform/web-components` |
 | [Popup](#popup) | `@arcgis/core/widgets/Popup` | `esri/widgets/Popup` | `automated` | PopupCompat from @honua/sdk-esri-compat |
-| [Print](#print) | `@arcgis/core/widgets/Print` | `esri/widgets/Print` | `compat-shim` | PrintCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-print-export>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
+| [Print](#print) | `@arcgis/core/widgets/Print` | `esri/widgets/Print` | `app-platform` | PrintCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-print-export>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [ScaleBar](#scalebar) | `@arcgis/core/widgets/ScaleBar` | `esri/widgets/ScaleBar` | `automated` | ScaleBarCompat from @honua/sdk-esri-compat (MapLibre ScaleControl underneath) |
 | [Search](#search) | `@arcgis/core/widgets/Search` | `esri/widgets/Search` | `automated` | SearchCompat from @honua/sdk-esri-compat, with LocatorSearchSourceCompat as the address backend<br>Direct app-platform component: [`<honua-search>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [ShadowCast](#shadowcast) | `@arcgis/core/widgets/ShadowCast` | `esri/widgets/ShadowCast` | `no-equivalent` | None. Requires a 3D scene with shadow accumulation. |
-| [Sketch](#sketch) | `@arcgis/core/widgets/Sketch` | `esri/widgets/Sketch` | `compat-shim` | SketchCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-sketch-control>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
+| [Sketch](#sketch) | `@arcgis/core/widgets/Sketch` | `esri/widgets/Sketch` | `app-platform` | SketchCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-sketch-control>`](../src/web-components/elements.ts) from `@honua/app-platform/web-components` |
 | [Slice](#slice) | `@arcgis/core/widgets/Slice` | `esri/widgets/Slice` | `no-equivalent` | None. Requires 3D scene slicing. |
 | [Swipe](#swipe) | `@arcgis/core/widgets/Swipe` | `esri/widgets/Swipe` | `automated` | SwipeCompat from @honua/sdk-esri-compat |
 | [TableList](#tablelist) | `@arcgis/core/widgets/TableList` | `esri/widgets/TableList` | `automated` | TableListCompat from @honua/sdk-esri-compat |
-| [TimeSlider](#timeslider) | `@arcgis/core/widgets/TimeSlider` | `esri/widgets/TimeSlider` | `compat-shim` | TimeSliderCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-time-slider>`](../src/web-components/time-slider.ts) from `@honua/app-platform/web-components` |
+| [TimeSlider](#timeslider) | `@arcgis/core/widgets/TimeSlider` | `esri/widgets/TimeSlider` | `app-platform` | TimeSliderCompat from @honua/sdk-esri-compat<br>Direct app-platform component: [`<honua-time-slider>`](../src/web-components/time-slider.ts) from `@honua/app-platform/web-components` |
 | [Track](#track) | `@arcgis/core/widgets/Track` | `esri/widgets/Track` | `automated` | TrackCompat from @honua/sdk-esri-compat |
 | [Weather](#weather) | `@arcgis/core/widgets/Weather` | `esri/widgets/Weather` | `no-equivalent` | None. Requires a 3D scene atmosphere/weather renderer. |
 | [Zoom](#zoom) | `@arcgis/core/widgets/Zoom` | `esri/widgets/Zoom` | `automated` | ZoomCompat from @honua/sdk-esri-compat (MapLibre NavigationControl underneath) |
@@ -93,7 +93,7 @@ A compat-backed row may also list a direct `@honua/app-platform` component. That
 
 ### AreaMeasurement2D
 
-- Disposition: `compat-shim` (Compat shim)
+- Disposition: `app-platform` (App platform)
 - Modules: `@arcgis/core/widgets/AreaMeasurement2D`, `esri/widgets/AreaMeasurement2D`
 - Target: AreaMeasurement2DCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/measurement-2d.ts`](../src/esri-compat/measurement-2d.ts)
@@ -187,7 +187,7 @@ import "@honua/app-platform/web-components";
 
 ### DistanceMeasurement2D
 
-- Disposition: `compat-shim` (Compat shim)
+- Disposition: `app-platform` (App platform)
 - Modules: `@arcgis/core/widgets/DistanceMeasurement2D`, `esri/widgets/DistanceMeasurement2D`
 - Target: DistanceMeasurement2DCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/measurement-2d.ts`](../src/esri-compat/measurement-2d.ts)
@@ -208,7 +208,7 @@ import "@honua/app-platform/web-components";
 
 ### Editor
 
-- Disposition: `compat-shim` (Compat shim)
+- Disposition: `app-platform` (App platform)
 - Modules: `@arcgis/core/widgets/Editor`, `esri/widgets/Editor`
 - Target: EditorCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/editor.ts`](../src/esri-compat/editor.ts)
@@ -263,7 +263,7 @@ import "@honua/app-platform/web-components";
 
 ### FeatureTable
 
-- Disposition: `compat-shim` (Compat shim)
+- Disposition: `app-platform` (App platform)
 - Modules: `@arcgis/core/widgets/FeatureTable`, `esri/widgets/FeatureTable`
 - Target: FeatureTableCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/feature-table.ts`](../src/esri-compat/feature-table.ts)
@@ -364,7 +364,7 @@ import "@honua/app-platform/web-components";
 
 ### Measurement
 
-- Disposition: `compat-shim` (Compat shim)
+- Disposition: `app-platform` (App platform)
 - Modules: `@arcgis/core/widgets/Measurement`, `esri/widgets/Measurement`
 - Target: MeasurementCompat from @honua/sdk-esri-compat (2D distance/area only)
 - Compat shim source: [`src/esri-compat/measurement.ts`](../src/esri-compat/measurement.ts)
@@ -393,7 +393,7 @@ import "@honua/app-platform/web-components";
 
 ### Print
 
-- Disposition: `compat-shim` (Compat shim)
+- Disposition: `app-platform` (App platform)
 - Modules: `@arcgis/core/widgets/Print`, `esri/widgets/Print`
 - Target: PrintCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/print.ts`](../src/esri-compat/print.ts)
@@ -450,7 +450,7 @@ import "@honua/app-platform/web-components";
 
 ### Sketch
 
-- Disposition: `compat-shim` (Compat shim)
+- Disposition: `app-platform` (App platform)
 - Modules: `@arcgis/core/widgets/Sketch`, `esri/widgets/Sketch`
 - Target: SketchCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/sketch.ts`](../src/esri-compat/sketch.ts)
@@ -495,7 +495,7 @@ import "@honua/app-platform/web-components";
 
 ### TimeSlider
 
-- Disposition: `compat-shim` (Compat shim)
+- Disposition: `app-platform` (App platform)
 - Modules: `@arcgis/core/widgets/TimeSlider`, `esri/widgets/TimeSlider`
 - Target: TimeSliderCompat from @honua/sdk-esri-compat
 - Compat shim source: [`src/esri-compat/time-slider.ts`](../src/esri-compat/time-slider.ts)
