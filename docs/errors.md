@@ -240,6 +240,19 @@ classification is conservatively non-retryable.
 | `core.coverage.unsupported-format` | `core` | `capability` | no | Coverage format is unsupported |
 | `core.coverage.service-error` | `core` | `protocol` | no | Coverage service rejected the request |
 | `core.coverage.wcs-exception` | `core` | `protocol` | no | WCS exception report |
+| `core.zarr.invalid-request` | `core` | `validation` | no | Zarr request is invalid |
+| `core.zarr.invalid-response` | `core` | `protocol` | no | Zarr response is invalid |
+| `core.zarr.response-too-large` | `core` | `validation` | no | Zarr response exceeds its byte limit |
+| `core.zarr.metadata-pending` | `core` | `capability` | no | Zarr metadata scan is pending |
+| `core.zarr.missing-spatial-extent` | `core` | `capability` | no | Zarr storage spatial extent is missing or unusable |
+| `core.zarr.no-tileable-variable` | `core` | `capability` | no | Zarr metadata contains no tileable variable |
+| `core.zarr.missing-spatial-reference` | `core` | `capability` | no | Zarr registration is missing a positive storage SRID for tile handoff |
+| `core.zarr.spatial-reference-mismatch` | `core` | `capability` | no | Zarr storage and tile matrix spatial references do not match |
+| `core.zarr.unsupported-version` | `core` | `capability` | no | Zarr version is unsupported |
+| `core.zarr.unsupported-codec` | `core` | `capability` | no | Zarr codec is unsupported |
+| `core.zarr.unsupported-dtype` | `core` | `capability` | no | Zarr dtype is unsupported |
+| `core.zarr.ambiguous-dimensions` | `core` | `validation` | no | Zarr dimensions are ambiguous |
+| `core.zarr.service-error` | `core` | `protocol` | no | Zarr service rejected the request |
 | `discovery.ambiguous-protocol` | `discovery` | `validation` | no | Multiple protocols match the endpoint |
 | `discovery.ambiguous-source` | `discovery` | `validation` | no | Multiple sources match the selection |
 | `discovery.invalid-cloud-native-input` | `discovery` | `validation` | no | Cloud-native discovery input is invalid or ambiguous |
