@@ -482,6 +482,15 @@ jobs:
       - name: Admit the SDK build
         run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
 
+      # `samples:run -- verify --kit` runs each pilot's own Playwright gate
+      # (`test:playwright:<sample>`), so this job needs a browser even though it
+      # is not a browser shard. ci.yml hid that: its JS SDK job provisions
+      # chromium near the top for the quickstart clock, and every later gate
+      # inherited it. Split apart, the pilots failed with "Executable doesn't
+      # exist at .../chrome-headless-shell".
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
       # Before the browser bundle and the split-package build, exactly as in
       # ci.yml: `build:split-packages:prepared` cleans dist/ and republishes the
       # prepared manifest, and the kit pilots verify against the prepared
@@ -650,6 +659,15 @@ jobs:
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+
+      # Several specs serve a built example through `vite preview` rather than a
+      # mock server -- coverages-wcs-basic.spec.mjs is one -- so an unbuilt
+      # example 404s its own assets and the spec fails as a console-error gate.
+      # ci.yml never had to say so: `Example builds` ran earlier in the same job.
+      # Measured at ~40s, which is cheap insurance against a cross-job
+      # prerequisite that is invisible from the spec.
+      - name: Example builds
+        run: npm run demo:examples:build:prepared
 
       # The MapLibre 5.x/6.x peer-major claim (#1004) is browser evidence and
       # belongs to the examples domain, where the migration specs already live.

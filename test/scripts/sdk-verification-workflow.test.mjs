@@ -243,6 +243,63 @@ function bareImports(relativeFile) {
   return [...specifiers].filter((specifier) => !specifier.startsWith(".") && !specifier.startsWith("node:"));
 }
 
+/**
+ * Commands that launch a browser, and therefore need one provisioned in the
+ * same job.
+ *
+ * A reviewed list, in the same spirit as config/browser-shards.v1.json, because
+ * the derivation is not static: `samples:run -- verify --kit` spawns each
+ * pilot's own `test:playwright:<sample>` script from inside
+ * scripts/sample-runner.mjs, `bench/browser/run.mjs` and
+ * scripts/quickstart-time-to-map.mjs import `@playwright/test` directly, and
+ * scripts/sample-contract.mjs merely names those things in data. Every
+ * heuristic that catches the first three also catches the fourth. Add to this
+ * list when a gate starts driving a browser.
+ *
+ * ci.yml never had to state this: its JS SDK job provisions chromium near the
+ * top for the quickstart clock, and every later gate silently inherited it.
+ */
+const BROWSER_LAUNCHING_COMMANDS = new Set([
+  "npm run test:playwright:prepared",
+  "npm run test:maplibre-compat:prepared",
+  "npm run bench:browser",
+  "npm run docs:quickstart:time-to-map",
+  "npm run samples:run -- verify",
+]);
+
+describe("a job that drives a browser provisions one", () => {
+  it("installs chromium before any browser-launching gate", () => {
+    for (const jobId of Object.keys(graph.jobs)) {
+      let provisioned = false;
+      for (const step of steps(graph, jobId)) {
+        const script = stepScript(step);
+        if (/\bnpx playwright install\b/u.test(script)) provisioned = true;
+        if (provisioned) continue;
+        for (const command of invokedCommands(script)) {
+          assert.equal(
+            BROWSER_LAUNCHING_COMMANDS.has(command),
+            false,
+            `${jobId} runs ${command} before \`npx playwright install\`; it will fail with ` +
+              '"Executable doesn\'t exist"',
+          );
+        }
+      }
+    }
+  });
+
+  it("does not provision a browser in a job that never drives one", () => {
+    for (const jobId of Object.keys(graph.jobs)) {
+      const installs = steps(graph, jobId).some((step) => /\bnpx playwright install\b/u.test(stepScript(step)));
+      if (!installs) continue;
+      const commands = jobCommands(graph, jobId);
+      assert.ok(
+        [...BROWSER_LAUNCHING_COMMANDS].some((command) => commands.has(command)),
+        `${jobId} provisions a browser but runs no gate that needs one`,
+      );
+    }
+  });
+});
+
 describe("cheap policy suites really are cheap", () => {
   // A policy suite placed before `npm ci` fails with ERR_MODULE_NOT_FOUND the
   // moment it grows a devDependency import, and the failure names the module
