@@ -482,6 +482,17 @@ jobs:
       - name: Admit the SDK build
         run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
 
+      # Before the browser bundle and the split-package build, exactly as in
+      # ci.yml: `build:split-packages:prepared` cleans dist/ and republishes the
+      # prepared manifest, and the kit pilots verify against the prepared
+      # artifact. Run after that sequence they fail with "Prepared SDK artifact
+      # is stale or incomplete", which names the artifact rather than the
+      # ordering.
+      - name: Qualify shared-kit pilots from source and packed SDK
+        run: |
+          npm run samples:run -- verify --kit --sdk-mode source
+          npm run samples:run -- verify --kit --sdk-mode packed
+
       - name: Build and verify browser bundle
         run: npm run verify:browser:prepared
 
@@ -517,11 +528,6 @@ jobs:
 
       - name: Installed packed-SDK smoke
         run: npm run verify:packed-sdk
-
-      - name: Qualify shared-kit pilots from source and packed SDK
-        run: |
-          npm run samples:run -- verify --kit --sdk-mode source
-          npm run samples:run -- verify --kit --sdk-mode packed
 
       - name: Build sample bundles
         run: npm run samples:bundles:build
@@ -642,23 +648,24 @@ jobs:
       - name: Admit the SDK build
         run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
 
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # The MapLibre 5.x/6.x peer-major claim (#1004) is browser evidence and
+      # belongs to the examples domain, where the migration specs already live.
+      # Kept ahead of the offline check and the suite, exactly as in ci.yml.
+      - name: MapLibre peer-major matrix (5.x + 6.x)
+        if: matrix.shard == 'examples'
+        run: npm run test:maplibre-compat:prepared
+
       # Re-checked per shard, cheaply, against the admitted build. The producer
       # already gated on this; repeating it here means a shard rerun days later
       # still cannot start against drifted offline evidence.
       - name: Verify offline shell manifest pins
         run: npm run offline:shell-manifest:check
 
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-
       - name: Browser suite
         run: npm run test:playwright:prepared
-
-      # The MapLibre 5.x/6.x peer-major claim (#1004) is browser evidence and
-      # belongs to the examples domain, where the migration specs already live.
-      - name: MapLibre peer-major matrix (5.x + 6.x)
-        if: matrix.shard == 'examples'
-        run: npm run test:maplibre-compat:prepared
 
       # The deterministic rendering benchmark is map evidence.
       - name: Deterministic browser rendering benchmark

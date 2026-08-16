@@ -62,7 +62,17 @@ function invokedCommands(script, directory = ".") {
   const found = new Set();
   const scope = directory === "." ? "" : `${directory}:`;
   const add = (command) => found.add(`${scope}${command}`);
-  for (const [, name] of script.matchAll(/\bnpm run ([a-z0-9:._-]+)/gu)) add(`npm run ${name}`);
+  // Both the bare script and, when the script is a dispatcher, the script plus
+  // its subcommand. `samples:run -- list` and `samples:run -- verify` are two
+  // different gates run at two different points in ci.yml's sequence; collapsed
+  // to one name they look like a repetition and drop out of the ordering
+  // comparison below, which is how a misplaced `samples:run -- verify` reached
+  // hosted CI once already.
+  for (const match of script.matchAll(/\bnpm run ([a-z0-9:._-]+)((?:\s+--)?(?:\s+[^\s\n]+)*)/gu)) {
+    add(`npm run ${match[1]}`);
+    const subcommand = /^\s+--\s+([a-z][a-z0-9:-]*)/u.exec(match[2] ?? "");
+    if (subcommand) add(`npm run ${match[1]} -- ${subcommand[1]}`);
+  }
   for (const [, name] of script.matchAll(/\bnpm (ci|test|audit)\b/gu)) add(`npm ${name}`);
   for (const [, name] of script.matchAll(/\bnpx ([a-z0-9@/._-]+)/gu)) add(`npx ${name}`);
   for (const match of script.matchAll(/\bnode (?:--test )?([^\s"']+\.(?:mjs|js|cjs))/gu)) {
@@ -356,6 +366,50 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
       `the verification graph drops gates ci.yml enforces today: ${lost.join(", ")}. ` +
         "Sharding redistributes work; it must never retire a gate.",
     );
+  });
+
+  // The general form of the co-location rule below, and the one that catches
+  // the cases nobody thought to list. ci.yml's JS SDK job is a sequence, and
+  // some of that sequence is load-bearing: `build:split-packages:prepared`
+  // cleans dist/ and republishes the prepared manifest, `build:browser`
+  // restores what it removed, and gates on either side read the result. Which
+  // job a gate lands in is a free choice; the order of two gates that land in
+  // the SAME job is not.
+  //
+  // Commands that appear more than once on either side are skipped: repetition
+  // is itself part of the restore dance, and pairing occurrences would compare
+  // the wrong two.
+  it("preserves ci.yml's relative order between gates that share a job", () => {
+    // Environment provisioning is not a gate and reads nothing the build
+    // produces, so moving it is free. Everything else is ordered by what it
+    // reads.
+    const provisioning = new Set(["npm ci", "npx playwright"]);
+    const authoritative = [];
+    for (const step of steps(ci, "js-sdk")) {
+      for (const command of invokedCommands(stepScript(step))) authoritative.push(command);
+    }
+    const seenOnce = new Set(
+      authoritative.filter((command) => authoritative.indexOf(command) === authoritative.lastIndexOf(command)),
+    );
+
+    for (const jobId of CONSUMER_JOBS) {
+      const sequence = [];
+      for (const step of steps(graph, jobId)) {
+        for (const command of invokedCommands(stepScript(step))) sequence.push(command);
+      }
+      const comparable = sequence
+        .filter((command) => sequence.indexOf(command) === sequence.lastIndexOf(command))
+        .filter((command) => seenOnce.has(command) && !provisioning.has(command));
+
+      for (let index = 1; index < comparable.length; index += 1) {
+        const previous = comparable[index - 1];
+        const current = comparable[index];
+        assert.ok(
+          authoritative.indexOf(previous) < authoritative.indexOf(current),
+          `${jobId} runs ${previous} before ${current}, but ci.yml's JS SDK job runs them the other way round`,
+        );
+      }
+    }
   });
 
   // Splitting one job into several can separate a gate from the step that
