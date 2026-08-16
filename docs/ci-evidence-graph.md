@@ -201,6 +201,20 @@ Adding a spec without claiming it fails `browser:shards:check` in `admission`,
 before any expensive job starts. Nothing about the browser contract changes:
 one chromium project, one worker, CI retries, same specs.
 
+### What a browser shard needs besides the SDK build
+
+`coverages-wcs-basic.spec.mjs` serves its example through `vite preview`, so an
+unbuilt example 404s its own assets and the spec fails as a console-error gate.
+The only thing in CI that runs `demo:coverages-wcs:build` is
+`scripts/build-sample-bundles.mjs`, which builds every gallery sample through
+its own declared build script -- and in the monolith it simply happened to run
+earlier in the same job. `demo:examples:build:prepared` does **not** cover it:
+that chain builds 27 named demos and coverages-wcs is not one of them.
+
+Each browser shard therefore runs `npm run samples:bundles:build` before its
+suite. If you add a spec that previews a built example, check that some step in
+the shard builds it; the fixture cannot infer this from the spec.
+
 ## Generated offline evidence normalizes before browser execution
 
 `npm run offline:shell-manifest:check` recomputes every pinned byte length and

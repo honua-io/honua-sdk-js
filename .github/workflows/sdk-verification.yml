@@ -660,14 +660,17 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      # Several specs serve a built example through `vite preview` rather than a
-      # mock server -- coverages-wcs-basic.spec.mjs is one -- so an unbuilt
-      # example 404s its own assets and the spec fails as a console-error gate.
-      # ci.yml never had to say so: `Example builds` ran earlier in the same job.
-      # Measured at ~40s, which is cheap insurance against a cross-job
-      # prerequisite that is invisible from the spec.
-      - name: Example builds
-        run: npm run demo:examples:build:prepared
+      # coverages-wcs-basic.spec.mjs serves the built example through
+      # `vite preview`, so an unbuilt example 404s its own assets and the spec
+      # fails as a console-error gate. The only thing in CI that runs
+      # `demo:coverages-wcs:build` is scripts/build-sample-bundles.mjs, which
+      # builds every gallery sample through its own declared build script --
+      # and in ci.yml it happened to run earlier in the same job. Note that
+      # `demo:examples:build:prepared` does NOT cover it: that chain builds 27
+      # named demos and coverages-wcs is not one of them, which is why adding it
+      # here did not fix the map shard.
+      - name: Build sample bundles
+        run: npm run samples:bundles:build
 
       # The MapLibre 5.x/6.x peer-major claim (#1004) is browser evidence and
       # belongs to the examples domain, where the migration specs already live.
