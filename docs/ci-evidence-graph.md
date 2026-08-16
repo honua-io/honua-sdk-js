@@ -49,48 +49,64 @@ npm run ci:baseline:report
 `collect` needs an authenticated `gh`. `report` is offline, so anyone can
 re-derive the summary from the committed record without credentials.
 
-## What the graph costs, projected from measured step times
+## What the graph costs, measured
 
-Run `31962372165` is a representative green run: `JS SDK` took 36.8 minutes
-across 72 steps, `MCP SDK` 2.8. Assigning each measured step to the job that
-owns it in the graph, adding 1.6 minutes of per-job setup (checkout, Node,
-`npm ci`, artifact download), and splitting the 6.6-minute browser suite across
-shards by test count:
+First fully green graph run on hosted CI
+([31973409813](https://github.com/honua-io/honua-sdk-js/actions/runs/31973409813)):
 
-| Job | Projected (min) |
+| Job | Measured (min) |
 | --- | --- |
-| admission | 1.9 |
-| build | 2.7 |
-| verify-core | 16.4 |
-| verify-package | 9.0 |
-| verify-examples | 8.2 |
-| mcp | 5.0 |
-| browser:offline | 5.8 |
-| browser:examples | 5.5 |
-| browser:map | 4.9 |
-| browser:realtime | 4.2 |
-| quickstart-budget | 2.6 |
+| Admission | 0.6 |
+| Quickstart budget | 1.0 |
+| SDK build (producer) | 1.5 |
+| MCP SDK | 1.8 |
+| Browser (realtime) | 2.5 |
+| Browser (offline) | 2.6 |
+| Browser (examples) | 5.3 |
+| Browser (map) | 6.4 |
+| Verify: package | 6.9 |
+| Verify: examples | 6.9 |
+| Verify: core | 11.6 |
+| SDK verified | 0.1 |
 
-- **Critical path: 36.8 → 20.9 minutes** (admission + build + slowest consumer).
-- **Billed minutes on a fully green run: 39.6 → 66.1** — the graph costs *more*,
-  not less. Parallel jobs each pay their own runner setup and `npm ci`.
-- **Billed minutes on the scenarios #1286 is about** fall sharply: a failed
-  browser shard reruns 4.2–5.8 minutes instead of replaying the 36.8-minute
-  monolith (−84%), and a superseded head is cancelled instead of finishing.
+- **Wall clock 13.9 minutes**, against a `JS SDK` p50 of 18.4 and p90 of 38.5 in
+  the 49-run baseline.
+- **Billed 47.1 minutes**, against a p50 of 24.5 and p90 of 44.7. The graph
+  costs *more* when everything passes: eleven jobs each pay their own runner
+  setup and `npm ci`.
+- **`verify-core` at 11.6 minutes clears the 15-minute p90 target (NFR-003)**,
+  and it is the critical path — every other consumer finishes sooner.
+- **A failed browser shard reruns in 2.5-6.4 minutes** instead of replaying the
+  whole monolith, and a superseded head is cancelled rather than finished.
 
-State both numbers whenever this change is described. A graph that is faster to
-wait for and more expensive to run green is a trade, not a free win, and the
+State both directions whenever this change is described. A graph that is faster
+to wait for and more expensive to run green is a trade, not a free win, and the
 promotion decision belongs to whoever is paying.
 
-Two honest gaps against the issue's targets:
+One gap remains: `quickstart-budget`, `mcp`, and every consumer re-install
+dependencies rather than sharing a node_modules artifact. Reusing the *build*
+was the scope here; reusing the *install* is a separate mechanism with its own
+integrity questions.
 
-- **`verify-core` at ~16 minutes still exceeds the 15-minute p90 target
-  (NFR-003).** `Unit tests with coverage` alone is 10.7 minutes and is not yet
-  sharded. Splitting it is tracked separately; it is a Vitest-level change, not
-  a workflow-level one.
-- **`quickstart-budget` and `mcp` re-install dependencies** rather than sharing
-  a node_modules artifact. Reusing the *build* was the scope here; reusing the
-  *install* is a separate mechanism with its own integrity questions.
+### Prerequisites the monolith supplied by accident
+
+Three cross-job prerequisites were invisible until the jobs were split, and each
+one failed on hosted CI before it was found. They are recorded here because the
+next person to move a gate will hit the same class of problem:
+
+1. **`verify:public-surface` needs `verify:browser:prepared`.** It resolves
+   `dist/browser/honua-sdk.esm.js`, so in a job without the bundle it fails with
+   "built-entrypoint target is missing" and reads like a surface regression.
+2. **`samples:run -- verify --kit` needs a browser.** It spawns each pilot's own
+   `test:playwright:<sample>` gate. `ci.yml` provisions chromium near the top of
+   `JS SDK` for the quickstart clock, and every later gate inherited it.
+3. **Browser shards need the gallery samples built.** See below.
+
+`test/scripts/sdk-verification-workflow.test.mjs` now enforces the general rule
+behind the first: which job a gate lands in is a free choice, but two gates that
+land in the *same* job must keep `ci.yml`'s relative order. The second is a
+reviewed list of browser-launching commands. The third cannot be inferred from a
+spec at all, which is why it is written down.
 
 ## The graph
 
