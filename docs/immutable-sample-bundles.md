@@ -85,3 +85,44 @@ trunk API gate. It also requires repository immutable releases to be both enable
 and owner-enforced. Existing content-addressed releases are accepted only when the
 tag target, immutable state, asset set, sizes, and bytes are exact. The publisher
 never reads or modifies `sample-bundles-latest` and never overwrites an asset.
+
+## The rolling release is retired, not merely untouched
+
+This document originally read the sentence above as a coexistence guarantee: the
+content-addressed publisher would leave the rolling `sample-bundles-latest`
+release alone and the two would run side by side. That assumption did not
+survive contact with the org-level setting it depends on.
+
+Immutable releases were enabled org-wide on 2026-08-13 and applied
+**retroactively**, permanently freezing `sample-bundles-latest` (release id
+`356226688`, created 2026-07-19) at its 2026-08-13T10:32Z assets. The rolling
+job in `ci.yml` kept trying to move it and failed identically every run with
+`HTTP 422: target_commitish cannot be changed when release is immutable`, which
+is what held `SDK CI` red on trunk for 15 consecutive runs
+(honua-io/honua-sdk-js#1325). The rolling pattern is structurally incompatible
+with immutable releases -- the release and its tag can no longer be updated
+*or* deleted -- so the job was removed rather than repaired
+(honua-io/honua-sdk-js#1320).
+
+Two consequences a reader of this page needs:
+
+- **`sample-bundles-latest` is retired.** It is not a stale-but-refreshing
+  pointer; it is a permanent snapshot of one 2026-08-13 build and will never
+  advance. Its release notes additionally misstate their own provenance --
+  they name commit `6a5330899` while the frozen assets were built from
+  `9c88f65b8`, because the notes edit landed before the assets froze. Notes
+  remain editable and correcting them needs a repo admin.
+- **Consumers must resolve bundles by source commit.** The only supported
+  pointer is the per-commit tag `sample-bundles-<full-source-SHA>` described
+  above. The site projection carries it as a template rather than a fixed tag
+  (`sampleBundles.publication.releaseTag` = `sample-bundles-{sourceCommit}`);
+  substitute the full 40-character SHA of the source commit whose bundles you
+  want. The field keeps the name `releaseTag` because renaming it is a v3 schema
+  edit that the committed handoff's byte-binding forbids without a version bump
+  (honua-io/honua-sdk-js#1338). See
+  [sample-bundles.md](./sample-bundles.md) for the consumer walkthrough.
+
+The publisher's own policy assertion still holds and is now the stronger
+statement: it never reads or modifies the retired rolling release, and
+`scripts/immutable-sample-bundle-attestation.mjs` fails closed if the workflow
+ever references `sample-bundles-latest` again.

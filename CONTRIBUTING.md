@@ -78,6 +78,32 @@ PR and only enforces the ceilings in `bundle-budgets.json` — it never writes t
 3. commit **`bundle-budgets.json`** (the budget reset is real PR content). The
    regenerated `docs/bundle-sizes.md` doc lands on trunk automatically.
 
+## Target every PR at `trunk`
+
+**Open your PR against `trunk`, not against another PR's branch.** Stacked PRs
+are discouraged here because GitHub makes their failure mode invisible: a PR
+merged into a stack base that itself never merges is still reported **MERGED**,
+with green CI and often a closed tracking issue, while its payload is simply not
+in the product. That is not hypothetical — it cost
+[#863](https://github.com/honua-io/honua-sdk-js/pull/863) here and three PRs
+(~3,800 insertions) in `honua-server`; see #1317 and honua-server#3248.
+
+If you cannot avoid stacking, you own the re-target: the moment the base PR
+merges, change the stacked PR's base to `trunk` and rebase. Do not merge it into
+a base branch that has already landed.
+
+The check is mechanical and runs weekly (`.github/workflows/stranded-merge-detector.yml`):
+
+```bash
+npm run stranded-merges:sweep -- --repo honua-io/honua-sdk-js --default-branch trunk
+```
+
+It sweeps recently merged PRs, tests each merge commit with
+`git merge-base --is-ancestor <mergeCommit> origin/trunk`, and fails on any that
+are not on `trunk`. It also names open PRs whose base has already merged or been
+deleted, so they can be re-targeted before they strand. Verify a landing with
+that command rather than with the MERGED badge.
+
 ## Commit hygiene
 
 Author commits as the repo owner (`Mike McDougall <mike@honua.io>`). Do not add

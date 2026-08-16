@@ -1,31 +1,78 @@
 name: Stranded Merge Detector
 
-# Thin caller. The detector, its tests, and the two-pass classification live in
-# honua-server (honua-io/honua-server#3248); #1317 is the same failure here, and
-# both issues ask for one mechanism rather than two implementations.
+# What it catches: a pull request opened against a stack base is merged into
+# that base, so GitHub reports MERGED while the payload sits on a branch that
+# itself never merged. honua-io/honua-sdk-js#863 was found this way; three more
+# were found in honua-io/honua-server (#3248). The failure is silent by
+# construction -- CI was green, the badge says MERGED, and the tracking issue is
+# often closed as resolved.
 #
-# What it catches: a PR opened against a stack base is merged into that base, so
-# GitHub reports MERGED while the payload sits on a branch that itself never
-# merged. #863 was found this way.
+# The detection is one command per merged pull request:
+#
+#   git merge-base --is-ancestor <mergeCommit> origin/trunk
+#
+# This ran as a thin caller of a reusable workflow in honua-server. That
+# workflow was never written, so the `uses:` reference dangled and the sweep
+# never executed once -- the same silent-nonexecution class the detector exists
+# to break. The mechanism now lives here, in
+# scripts/lib/stranded-merge-detector.mjs, deliberately repository-agnostic
+# (default branch, sweep limit, and transient base globs are all inputs) so
+# honua-server#3248 can adopt this implementation rather than write a second
+# one.
 
 on:
   workflow_dispatch:
+    inputs:
+      limit:
+        description: Merged pull requests to sweep
+        required: false
+        default: "250"
   schedule:
     - cron: "23 6 * * 1"
 
 permissions:
   contents: read
-  issues: write
   pull-requests: read
+
+concurrency:
+  group: stranded-merge-detector
+  cancel-in-progress: false
 
 jobs:
   sweep:
     name: Sweep merged PRs for stranded merge commits
-    uses: honua-io/honua-server/.github/workflows/stranded-merge-detector.yml@trunk
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: read
-    with:
-      default-branch: trunk
-      limit: 250
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # Ancestry is the whole test: a shallow clone cannot answer it, and a
+          # stranded merge commit is by definition on a branch nobody fetched.
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Test the detector before trusting it
+        run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Sweep
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/stranded-merge-detector.mjs \
+            --repo "${{ github.repository }}" \
+            --default-branch trunk \
+            --limit "${{ inputs.limit || '250' }}" \
+            --output stranded-merge-report.md
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: stranded-merge-report
+          path: stranded-merge-report.md
+          if-no-files-found: warn

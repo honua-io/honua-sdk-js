@@ -94,6 +94,9 @@ jobs:
       - name: Test derived-artifact loop guard policy
         run: node --test test/scripts/derived-artifact-loop-guard.test.mjs
 
+      - name: Test stranded-merge detection policy
+        run: node --test test/scripts/stranded-merge-detector.test.mjs
+
       - name: Install dependencies
         run: npm ci
 
@@ -219,6 +222,9 @@ jobs:
 
       - name: Test derived-artifact loop guard policy
         run: node --test test/scripts/derived-artifact-loop-guard.test.mjs
+
+      - name: Test stranded-merge detection policy
+        run: node --test test/scripts/stranded-merge-detector.test.mjs
 
       # The enforceable five-minute clock includes npm ci, browser
       # provisioning, the fixture build, and the first usable map.

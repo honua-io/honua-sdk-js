@@ -1,0 +1,241 @@
+/**
+ * Stranded-merge detection.
+ *
+ * A pull request opened against a *stack base* branch and merged into that base
+ * is reported MERGED by GitHub even when the base branch itself never reaches
+ * the default branch. The payload is then not in the product, CI was green, and
+ * the tracking issue is often closed as resolved. Nothing signals the loss --
+ * the failure is silent by construction.
+ *
+ * The test is one command per merged pull request:
+ *
+ *   git merge-base --is-ancestor <mergeCommit> origin/<defaultBranch>
+ *
+ * A non-zero exit means the merge commit is not on the default branch, so the
+ * work is stranded.
+ *
+ * Confirmed in two repositories: honua-io/honua-sdk-js#1317 (PR #863) and
+ * honua-io/honua-server#3248 (three PRs, ~3,800 insertions, including a fix
+ * whose issue had already been closed as resolved). Both issues ask for one
+ * mechanism rather than two implementations, so everything here is
+ * repository-agnostic: the caller supplies the default branch, the pull-request
+ * records, the ancestry predicate, and any legitimately-transient base branch
+ * patterns (honua-server lands through `train/batch/*` merge-train branches,
+ * which are expected to disappear once the train fast-forwards trunk).
+ *
+ * This module is deliberately pure -- no `gh`, no `git`, no filesystem -- so the
+ * classification is unit-testable without a network or a repository.
+ */
+
+/** Bases that are expected not to survive, and so must not be reported. */
+export const DEFAULT_TRANSIENT_BASE_PATTERNS = Object.freeze(["train/batch/*"]);
+
+/**
+ * Compiles a glob-ish base-branch pattern (`*` matches any run of characters,
+ * including `/`) into an anchored matcher. Nothing else is special.
+ */
+function compileBasePattern(pattern) {
+  if (typeof pattern !== "string" || pattern.length === 0) {
+    throw new Error("base pattern must be a non-empty string");
+  }
+  // Split on the one metacharacter and escape each literal segment. A sentinel
+  // substitution would be shorter but needs a character that cannot appear in a
+  // branch name, and every such character is a control byte -- which would make
+  // this file grep-invisible (see honua-io/honua-sdk-js#1332).
+  const escaped = pattern
+    .split("*")
+    .map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/gu, (character) => `\\${character}`))
+    .join(".*");
+  return new RegExp(`^${escaped}$`, "u");
+}
+
+export function matchesAnyBasePattern(baseRefName, patterns) {
+  return patterns.some((pattern) => compileBasePattern(pattern).test(baseRefName));
+}
+
+function requireString(value, label) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${label} must be a non-empty string`);
+  }
+  return value;
+}
+
+/**
+ * Normalizes one `gh pr list --json` record. `mergeCommit` is an object in the
+ * GitHub CLI's shape (`{ oid }`); a bare string is accepted so callers can hand
+ * in fixtures without ceremony.
+ */
+export function normalizePullRequest(pullRequest) {
+  const number = pullRequest?.number;
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error("pull request number must be a positive integer");
+  }
+  const mergeCommit = pullRequest?.mergeCommit;
+  const oid = typeof mergeCommit === "string" ? mergeCommit : mergeCommit?.oid;
+  return {
+    number,
+    title: typeof pullRequest?.title === "string" ? pullRequest.title : "",
+    baseRefName: requireString(pullRequest?.baseRefName, `pull request #${number} baseRefName`),
+    headRefName: typeof pullRequest?.headRefName === "string" ? pullRequest.headRefName : "",
+    mergeCommit: typeof oid === "string" && oid.length > 0 ? oid : undefined,
+    mergedAt: typeof pullRequest?.mergedAt === "string" ? pullRequest.mergedAt : "",
+    url: typeof pullRequest?.url === "string" ? pullRequest.url : "",
+  };
+}
+
+/**
+ * Classifies merged pull requests into landed, stranded, and unresolved.
+ *
+ * `isAncestor(sha)` must return `true` when `sha` is an ancestor of the default
+ * branch tip, `false` when it is reachable but not an ancestor, and `undefined`
+ * when the object is not present locally (a shallow clone, or a merge commit on
+ * a branch that has since been garbage-collected). Unknown is never reported as
+ * stranded: a detector that cries wolf gets muted, which reinstates the silence
+ * it exists to break.
+ *
+ * A merged pull request whose base is the default branch is trusted without an
+ * ancestry probe only when it has no merge commit to probe; otherwise every
+ * record is probed, because a default-branch merge can still be dropped by a
+ * later force-push.
+ */
+export function classifyMergedPullRequests({
+  pullRequests,
+  defaultBranch,
+  isAncestor,
+  transientBasePatterns = DEFAULT_TRANSIENT_BASE_PATTERNS,
+}) {
+  requireString(defaultBranch, "defaultBranch");
+  if (typeof isAncestor !== "function") throw new Error("isAncestor must be a function");
+  if (!Array.isArray(pullRequests)) throw new Error("pullRequests must be an array");
+
+  const landed = [];
+  const stranded = [];
+  const unresolved = [];
+  const transient = [];
+
+  for (const raw of pullRequests) {
+    const pullRequest = normalizePullRequest(raw);
+
+    if (pullRequest.mergeCommit === undefined) {
+      // Squash/rebase landings still record a merge commit; a missing one means
+      // the record is incomplete, not that the payload is fine.
+      unresolved.push({ ...pullRequest, reason: "no merge commit recorded" });
+      continue;
+    }
+
+    const ancestor = isAncestor(pullRequest.mergeCommit);
+    if (ancestor === true) {
+      landed.push(pullRequest);
+      continue;
+    }
+    if (ancestor !== false) {
+      unresolved.push({ ...pullRequest, reason: "merge commit is not present locally" });
+      continue;
+    }
+
+    if (
+      pullRequest.baseRefName !== defaultBranch &&
+      matchesAnyBasePattern(pullRequest.baseRefName, transientBasePatterns)
+    ) {
+      // A merge-train batch branch that has not yet fast-forwarded the default
+      // branch. Expected to resolve on its own; surfaced but not failed on.
+      transient.push(pullRequest);
+      continue;
+    }
+
+    stranded.push(pullRequest);
+  }
+
+  return { landed, stranded, unresolved, transient };
+}
+
+/**
+ * Open pull requests stacked on a non-default base whose base has already been
+ * merged or deleted. These are the *next* stranded merges: landing one now
+ * merges it into a branch that no longer leads anywhere.
+ *
+ * `baseState(baseRefName)` returns `"open"`, `"merged"`, `"missing"`, or
+ * `"unknown"`.
+ */
+export function classifyOpenStacks({ pullRequests, defaultBranch, baseState }) {
+  requireString(defaultBranch, "defaultBranch");
+  if (typeof baseState !== "function") throw new Error("baseState must be a function");
+  if (!Array.isArray(pullRequests)) throw new Error("pullRequests must be an array");
+
+  const retarget = [];
+  const stacked = [];
+  for (const raw of pullRequests) {
+    const pullRequest = normalizePullRequest(raw);
+    if (pullRequest.baseRefName === defaultBranch) continue;
+    const state = baseState(pullRequest.baseRefName);
+    if (state === "merged" || state === "missing") {
+      retarget.push({ ...pullRequest, baseState: state });
+      continue;
+    }
+    stacked.push({ ...pullRequest, baseState: state });
+  }
+  return { retarget, stacked };
+}
+
+function bullet(pullRequest, defaultBranch) {
+  const link = pullRequest.url || `#${pullRequest.number}`;
+  const title = pullRequest.title ? ` — ${pullRequest.title}` : "";
+  const merged = pullRequest.mergedAt ? `, merged ${pullRequest.mergedAt}` : "";
+  const commit = pullRequest.mergeCommit ? `\`${pullRequest.mergeCommit.slice(0, 9)}\`` : "(none)";
+  return `- ${link}${title}\n  - base \`${pullRequest.baseRefName}\` (not \`${defaultBranch}\`)${merged}\n  - merge commit ${commit}${pullRequest.reason ? ` — ${pullRequest.reason}` : ""}`;
+}
+
+/** Renders the sweep as markdown, for a job summary or a tracking issue body. */
+export function renderReport({ repo, defaultBranch, scanned, classification, openStacks }) {
+  const lines = [
+    `# Stranded merge sweep — \`${repo}\``,
+    "",
+    `Swept the ${scanned} most recent merged pull requests. A merge commit that is not an`,
+    `ancestor of \`${defaultBranch}\` means GitHub reports the pull request MERGED while its`,
+    "payload is not in the product.",
+    "",
+    "```",
+    `git merge-base --is-ancestor <mergeCommit> origin/${defaultBranch}`,
+    "```",
+    "",
+    `- landed: ${classification.landed.length}`,
+    `- stranded: ${classification.stranded.length}`,
+    `- in-flight merge-train bases: ${classification.transient.length}`,
+    `- unresolved: ${classification.unresolved.length}`,
+  ];
+
+  if (classification.stranded.length > 0) {
+    lines.push("", "## Stranded — merged, but not on the default branch", "");
+    for (const pullRequest of classification.stranded) lines.push(bullet(pullRequest, defaultBranch));
+    lines.push(
+      "",
+      "Recover each payload onto the default branch (cherry-pick the head commit), or",
+      "abandon the branch explicitly with a note saying why. Re-check any issue that was",
+      "closed as resolved by one of these pull requests.",
+    );
+  }
+
+  if (classification.unresolved.length > 0) {
+    lines.push("", "## Unresolved — could not be decided", "");
+    for (const pullRequest of classification.unresolved) lines.push(bullet(pullRequest, defaultBranch));
+  }
+
+  if (classification.transient.length > 0) {
+    lines.push("", "## In-flight merge-train bases — expected to resolve", "");
+    for (const pullRequest of classification.transient) lines.push(bullet(pullRequest, defaultBranch));
+  }
+
+  if (openStacks && openStacks.retarget.length > 0) {
+    lines.push(
+      "",
+      "## Open pull requests needing a re-target",
+      "",
+      "Their base branch has already merged or been deleted, so landing them as-is would",
+      `strand them. Re-target at \`${defaultBranch}\`.`,
+      "",
+    );
+    for (const pullRequest of openStacks.retarget) lines.push(bullet(pullRequest, defaultBranch));
+  }
+
+  return `${lines.join("\n")}\n`;
+}
