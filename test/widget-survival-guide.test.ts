@@ -101,6 +101,26 @@ describe("widget disposition data", () => {
     }
   });
 
+  it("backticks every element name in the prose the guide renders as Markdown", () => {
+    // `target`, `notes`, and `parityDelta` land in Markdown verbatim. A bare
+    // `<honua-chart>` is parsed as an HTML custom-element tag there and is
+    // sanitized away by GitHub, so the reader never sees which element the
+    // delta describes. Only the fenced `usageHtml` block may carry raw markup.
+    const bareTag = /(?<!`)<[a-z][a-z0-9-]*>/;
+    for (const entry of WIDGET_DISPOSITION_DOCUMENTATION) {
+      for (const [field, prose] of [
+        ["target", entry.target],
+        ["notes", entry.notes],
+        ["parityDelta", entry.parityDelta],
+      ] as const) {
+        if (!prose) {
+          continue;
+        }
+        expect(prose, `${entry.widget} ${field} must wrap element names in backticks`).not.toMatch(bareTag);
+      }
+    }
+  });
+
   it("keeps the parity delta off the public runtime rows", () => {
     for (const entry of WIDGET_DISPOSITIONS) {
       expect("parityDelta" in entry).toBe(false);

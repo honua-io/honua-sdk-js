@@ -380,7 +380,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
     COMPAT_SHIM_NOTE,
     "src/esri-compat/measurement-2d.ts",
     measurementComponent(),
-    `A native element ships: <honua-measurement> in area mode. ${MEASUREMENT_UNIT_DELTA}`,
+    `A native element ships: \`<honua-measurement>\` in area mode. ${MEASUREMENT_UNIT_DELTA}`,
   ),
   widgetEntry(
     "CoordinateConversion",
@@ -420,7 +420,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
     COMPAT_SHIM_NOTE,
     "src/esri-compat/measurement-2d.ts",
     measurementComponent(),
-    `A native element ships: <honua-measurement> in distance mode. ${MEASUREMENT_UNIT_DELTA}`,
+    `A native element ships: \`<honua-measurement>\` in distance mode. ${MEASUREMENT_UNIT_DELTA}`,
   ),
   widgetEntry(
     "Editor",
@@ -437,7 +437,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       "src/web-components/elements.ts",
       '<honua-map id="map"></honua-map>\n<honua-editor for="map"></honua-editor>\n<!-- richer attribute editing: <honua-feature-editor> from src/web-components/feature-editor.ts -->',
     ),
-    "Two native elements ship: <honua-editor> for the map-bound edit workflow and <honua-feature-editor> " +
+    "Two native elements ship: `<honua-editor>` for the map-bound edit workflow and `<honua-feature-editor>` " +
       "for attribute drafts, the latter with undo/redo (Ctrl/Cmd+Z), Escape-to-cancel, a polite live " +
       "region, and focus/selection that survive re-render so an unrelated realtime change never " +
       "interrupts typing. The delta is form *layout*, not editing: grouped and conditional field " +
@@ -473,7 +473,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       "src/web-components/elements.ts",
       '<honua-map id="map"></honua-map>\n<honua-feature-table for="map"></honua-feature-table>\n<!-- bounded lane: element.table = createHonuaFeatureTable({ ... }) -->',
     ),
-    "A native element ships: <honua-feature-table>. Its bounded lane already does the parts usually " +
+    "A native element ships: `<honua-feature-table>`. Its bounded lane already does the parts usually " +
       "assumed missing — a virtualized window, remote paging driven by real scroll geometry, " +
       "multi-column sort from header clicks, total-known/estimated/partial/stale/cancelled truth, and " +
       "realtime reconciliation conflicts announced in a polite live region — over a full WAI-ARIA `grid` " +
@@ -490,7 +490,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
     "src/esri-compat/measurement.ts",
     measurementComponent(),
     [
-      "A native element ships: <honua-measurement>, and `Measurement`, `AreaMeasurement2D`, and",
+      "A native element ships: `<honua-measurement>`, and `Measurement`, `AreaMeasurement2D`, and",
       "`DistanceMeasurement2D` collapse into it rather than into three components. Modes are",
       "`off | distance | area` only (`HonuaMeasureMode`); ArcGIS's 3D `direct-line` mode has no",
       "equivalent and needs a scene, not a component.",
@@ -512,7 +512,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       "src/web-components/elements.ts",
       '<honua-map id="map"></honua-map>\n<honua-print-export for="map"></honua-print-export>\n<!-- element.exportAdapter = yourAdapter — snapshot/state fail closed without one -->',
     ),
-    "A native element ships: <honua-print-export>, covering browser print, snapshot, and sanitized state " +
+    "A native element ships: `<honua-print-export>`, covering browser print, snapshot, and sanitized state " +
       "export. The delta is deliberate rather than unfinished: the SDK bundles no renderer, PDF writer, " +
       "or image encoder, so snapshot and state export require an application-supplied " +
       "`HonuaExportAdapter` and **fail closed** without one — disabled buttons and an `unsupported` " +
@@ -533,7 +533,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       "src/web-components/elements.ts",
       '<honua-map id="map"></honua-map>\n<honua-sketch-control for="map"></honua-sketch-control>\n<!-- requires a sketchGeometry provider on the controller -->',
     ),
-    "A native element ships: <honua-sketch-control>, with point/line/polygon modes, plus the terra-draw " +
+    "A native element ships: `<honua-sketch-control>`, with point/line/polygon modes, plus the terra-draw " +
       "integration and the edit-sketch contracts in src/contract/edit-sketch.ts. Two named gaps remain, " +
       "both real: **snapping** (ArcGIS `SnappingOptions`, self- and feature-snapping) is absent, and 3D " +
       "sketch tools need a scene. One behaviour reads as a gap but is a decision: the modes render " +
@@ -548,7 +548,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       COMPAT_SHIM_NOTE,
       "Time-aware layer filtering works; stops derived from server time-info metadata should be",
       "verified per service. With a container and a registered widget kit the shim now renders through",
-      "<honua-time-slider>; without the kit it stays state-model-only, and the element's own transport",
+      "`<honua-time-slider>`; without the kit it stays state-model-only, and the element's own transport",
       "drives the app-platform temporal playback controller rather than the shim's stop list.",
     ].join(" "),
     "src/esri-compat/time-slider.ts",
@@ -557,7 +557,7 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       "src/web-components/time-slider.ts",
       '<honua-map id="map"></honua-map>\n<honua-time-slider id="time" label="Time"></honua-time-slider>\n<!-- element.playback = createTemporalPlayback({ ... }) from @honua/sdk-js/map -->',
     ),
-    "A native element ships: <honua-time-slider>, following the WAI-ARIA slider pattern with full " +
+    "A native element ships: `<honua-time-slider>`, following the WAI-ARIA slider pattern with full " +
       "keyboard operation (arrows step, PageUp/PageDown move ten, Home/End jump, RTL-mirrored) and a " +
       "CSP-safe shadow tree built once so an active drag is never torn out from under the pointer. The " +
       "delta is in configuration surface, not behaviour: the element observes only `label`, " +
@@ -577,10 +577,12 @@ export const WIDGET_DISPOSITION_DOCUMENTATION: readonly WidgetDispositionData[] 
       "profile sampling, unit handling, and chart UX are app code you own after migration.",
     undefined,
     undefined,
-    "No native element and no shim — the only row in the inventory with neither, and one of the three " +
+    "No native element and no shim — the only 2D row in the inventory with neither (the five " +
+      "`no-equivalent` rows — Daylight, LineOfSight, ShadowCast, Slice, Weather — have neither either, " +
+      "but each needs a 3D scene before a component question even arises), and one of the three " +
       "genuinely missing components. Every piece it needs already exists separately: densification in " +
       "@honua/sdk-js/geometry, terrain sampling via `queryTerrainElevation`, and charting via " +
-      "<honua-chart>. What is missing is the component that composes them, plus the elevation-source " +
+      "`<honua-chart>`. What is missing is the component that composes them, plus the elevation-source " +
       "binding contract that says where the terrain comes from. ArcGIS's multi-profile comparison " +
       "(ground vs input line vs view) and hover-to-locate-on-map are additional surface beyond a first " +
       "cut.",
