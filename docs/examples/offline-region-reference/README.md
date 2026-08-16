@@ -67,6 +67,18 @@ stream so valid small resources are not rejected by a larger wire size.
 The same streaming ceiling is applied to the declared offline data resource
 before the SDK receives any bytes for persistence.
 
+Because the worker commits nothing when a single pin disagrees, a source change
+that shifts any pinned `dist/` module leaves `shellReady` false and fails the
+whole offline browser suite at once. `scripts/offline-shell-manifest.mjs`
+recomputes the pins from the files themselves.
+`npm run offline:shell-manifest:generate` rebuilds `dist/` and then refreshes
+the manifest in place — it pins the bytes CI will serve rather than whatever
+stale build happens to be on disk — and
+`npm run offline:shell-manifest:check` — run in CI before the browser suite —
+fails naming the drifted resource and its old and new values. Which URLs belong
+in the shell stays a reviewed decision; the script only refreshes what the
+manifest already lists.
+
 Shell refresh is best effort once a complete generation exists. The worker
 stages and validates the complete replacement under a new cache name, commits
 it by changing one persistent active-generation pointer, and then removes the
