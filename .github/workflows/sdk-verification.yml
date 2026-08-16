@@ -132,9 +132,6 @@ jobs:
       - name: Test SDK build evidence policy
         run: node --test test/scripts/sdk-build-evidence.test.mjs
 
-      - name: Test verification graph policy
-        run: node --test test/scripts/sdk-verification-workflow.test.mjs
-
       - name: Test CI timing baseline policy
         run: node --test test/scripts/ci-timing-baseline.test.mjs
 
@@ -145,6 +142,16 @@ jobs:
 
       - name: Verify every browser spec has an owning shard
         run: node scripts/browser-shards.mjs check
+
+      # Everything above this line imports only Node builtins and repository
+      # sources, so it fails in seconds. The graph fixture parses two workflow
+      # files and needs the `yaml` devDependency, so it -- and only it -- pays
+      # for an install.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test verification graph policy
+        run: node --test test/scripts/sdk-verification-workflow.test.mjs
 
       - name: Publish browser shard matrix
         id: matrix

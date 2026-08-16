@@ -219,6 +219,50 @@ describe("generated offline evidence normalizes before browser execution", () =>
   });
 });
 
+/**
+ * Bare package specifiers a `node --test` file imports. `node:` builtins and
+ * relative paths resolve without an install; anything else needs node_modules.
+ */
+function bareImports(relativeFile) {
+  const absolute = path.join(root, relativeFile);
+  if (!fs.existsSync(absolute)) return [];
+  const source = fs.readFileSync(absolute, "utf8");
+  const specifiers = new Set();
+  for (const match of source.matchAll(/^import\s[^"']*from\s+["']([^"']+)["']/gmu)) specifiers.add(match[1]);
+  for (const match of source.matchAll(/^import\s+["']([^"']+)["']/gmu)) specifiers.add(match[1]);
+  return [...specifiers].filter((specifier) => !specifier.startsWith(".") && !specifier.startsWith("node:"));
+}
+
+describe("cheap policy suites really are cheap", () => {
+  // A policy suite placed before `npm ci` fails with ERR_MODULE_NOT_FOUND the
+  // moment it grows a devDependency import, and the failure names the module
+  // rather than the ordering. Both workflows are checked, so a suite added to
+  // ci.yml's guard jobs is held to the same rule.
+  it("runs no test that needs node_modules before the install that provides it", () => {
+    for (const [label, workflow] of [
+      ["sdk-verification.yml", graph],
+      ["ci.yml", ci],
+    ]) {
+      for (const jobId of Object.keys(workflow.jobs)) {
+        let installed = false;
+        for (const step of steps(workflow, jobId)) {
+          const script = stepScript(step);
+          if (/\bnpm ci\b/u.test(script)) installed = true;
+          if (installed) continue;
+          for (const match of script.matchAll(/\bnode --test ([^\s"']+\.(?:mjs|js|cjs))/gu)) {
+            const missing = bareImports(match[1]);
+            assert.deepEqual(
+              missing,
+              [],
+              `${label} ${jobId} runs ${match[1]} before \`npm ci\`, but it imports ${missing.join(", ")}`,
+            );
+          }
+        }
+      }
+    }
+  });
+});
+
 describe("the aggregate gate cannot report green for a graph that did not run", () => {
   it("depends on every other job", () => {
     const others = Object.keys(graph.jobs).filter((jobId) => jobId !== "verified");
