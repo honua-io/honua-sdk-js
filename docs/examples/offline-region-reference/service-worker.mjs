@@ -297,7 +297,7 @@ async function replaceApplicationShell(manifestUrl, signal) {
 }
 
 async function replaceApplicationShellLocked(manifestUrl, signal) {
-  if (!self.navigator.locks) return replaceApplicationShell(manifestUrl, signal);
+  if (!self.navigator.locks) throw new Error("Cross-worker shell locking is unavailable.");
   return self.navigator.locks.request(SHELL_UPDATE_LOCK_NAME, { mode: "exclusive", signal }, () =>
     replaceApplicationShell(manifestUrl, signal),
   );
