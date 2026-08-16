@@ -122,6 +122,14 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
       "can automate today.",
   );
   lines.push("");
+  lines.push(
+    "**A `compat-shim` disposition does not mean there is no native component.** It describes the " +
+      "*migration path* — an API-compatible shim the codemod can rewrite to — and says nothing about " +
+      "whether a native element already exists. Most `compat-shim` rows have one. Read each row's " +
+      "**Parity delta** for what the native component does not cover; that field is measured against " +
+      "the shipping code, not assumed.",
+  );
+  lines.push("");
   lines.push("## Summary");
   lines.push("");
   lines.push("| Disposition | Widgets |");
@@ -167,6 +175,9 @@ export function generateWidgetSurvivalGuideMarkdown(data) {
       );
     }
     lines.push(`- Notes: ${entry.notes}`);
+    if (entry.parityDelta) {
+      lines.push(`- Parity delta: ${entry.parityDelta}`);
+    }
     if (entry.appPlatformComponent) {
       lines.push("");
       lines.push("App-platform usage (the module import auto-registers the element):");
