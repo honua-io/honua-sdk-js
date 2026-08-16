@@ -135,6 +135,9 @@ jobs:
       - name: Test verification graph policy
         run: node --test test/scripts/sdk-verification-workflow.test.mjs
 
+      - name: Test CI timing baseline policy
+        run: node --test test/scripts/ci-timing-baseline.test.mjs
+
       # A Playwright spec that belongs to no shard would never run, which is
       # indistinguishable from passing (honua-io/honua-server#3259).
       - name: Test browser shard partition
@@ -390,9 +393,6 @@ jobs:
       - name: Verify final root surface and migration matrix
         run: npm run verify:root-surface:prepared
 
-      - name: Verify public-surface inventory and imports
-        run: npm run verify:public-surface
-
       - name: Verify generated support truth
         run: npm run support:check
 
@@ -468,6 +468,13 @@ jobs:
 
       - name: Build and verify browser bundle
         run: npm run verify:browser:prepared
+
+      # Must stay in this job, immediately after the browser bundle exists:
+      # `./browser` is a declared public entry point, so this gate resolves
+      # dist/browser/honua-sdk.esm.js and fails with "built-entrypoint target is
+      # missing" in any job that has not built it.
+      - name: Verify public-surface inventory and imports
+        run: npm run verify:public-surface
 
       - name: Verify browser artifact publication manifest
         run: |

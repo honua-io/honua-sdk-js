@@ -25,7 +25,11 @@ function steps(workflow, jobId) {
   return job.steps ?? [];
 }
 
-function runScript(step) {
+// Named `stepScript`, not `runScript`: scripts/lib/test-build-ownership.mjs
+// treats an identifier called `runScript` as a package-script launcher, and it
+// is right to -- a test that shells out to an npm script escapes the prepared
+// artifact owner. This one only reads YAML.
+function stepScript(step) {
   return typeof step?.run === "string" ? step.run : "";
 }
 
@@ -70,7 +74,7 @@ function invokedCommands(script, directory = ".") {
 function jobCommands(workflow, jobId) {
   const found = new Set();
   for (const step of steps(workflow, jobId)) {
-    const script = runScript(step);
+    const script = stepScript(step);
     for (const command of invokedCommands(script, effectiveDirectory(workflow, jobId, step, script))) {
       found.add(command);
     }
@@ -127,7 +131,7 @@ describe("the SDK verification graph produces one build and consumes it", () => 
       }
 
       const admitIndex = jobSteps.findIndex((step) =>
-        runScript(step).includes("scripts/sdk-build-evidence.mjs verify"),
+        stepScript(step).includes("scripts/sdk-build-evidence.mjs verify"),
       );
       assert.ok(admitIndex > downloadIndex, `${jobId} must admit the build immediately after downloading it`);
       assert.ok(graph.jobs[jobId].needs.includes("build"), `${jobId} must depend on the producer`);
@@ -181,7 +185,7 @@ describe("browser evidence is sharded by owned failure domain", () => {
   });
 
   it("audits the partition before any browser job starts", () => {
-    const admissionScripts = steps(graph, "admission").map(runScript).join("\n");
+    const admissionScripts = steps(graph, "admission").map(stepScript).join("\n");
     assert.match(admissionScripts, /scripts\/browser-shards\.mjs check/u);
     assert.ok(graph.jobs.browser.needs.includes("admission"));
   });
@@ -190,9 +194,9 @@ describe("browser evidence is sharded by owned failure domain", () => {
 describe("generated offline evidence normalizes before browser execution", () => {
   it("checks the offline shell pins in the producer, right after the build", () => {
     const jobSteps = steps(graph, "build");
-    const buildIndex = jobSteps.findIndex((step) => invokedCommands(runScript(step)).has("npm run build"));
+    const buildIndex = jobSteps.findIndex((step) => invokedCommands(stepScript(step)).has("npm run build"));
     const checkIndex = jobSteps.findIndex((step) =>
-      invokedCommands(runScript(step)).has("npm run offline:shell-manifest:check"),
+      invokedCommands(stepScript(step)).has("npm run offline:shell-manifest:check"),
     );
     assert.ok(buildIndex >= 0 && checkIndex > buildIndex, "the pins are recomputed against the dist just emitted");
   });
@@ -206,10 +210,10 @@ describe("generated offline evidence normalizes before browser execution", () =>
   it("re-checks the pins in every browser shard before the suite runs", () => {
     const jobSteps = steps(graph, "browser");
     const checkIndex = jobSteps.findIndex((step) =>
-      invokedCommands(runScript(step)).has("npm run offline:shell-manifest:check"),
+      invokedCommands(stepScript(step)).has("npm run offline:shell-manifest:check"),
     );
     const suiteIndex = jobSteps.findIndex((step) =>
-      invokedCommands(runScript(step)).has("npm run test:playwright:prepared"),
+      invokedCommands(stepScript(step)).has("npm run test:playwright:prepared"),
     );
     assert.ok(checkIndex >= 0 && suiteIndex > checkIndex);
   });
@@ -223,7 +227,7 @@ describe("the aggregate gate cannot report green for a graph that did not run", 
 
   it("runs even when a dependency failed, and inspects each result explicitly", () => {
     assert.equal(graph.jobs.verified.if, "always()", "the aggregate gate must run with if: always()");
-    const script = steps(graph, "verified").map(runScript).join("\n");
+    const script = steps(graph, "verified").map(stepScript).join("\n");
     assert.match(script, /toJSON\(needs\)|RESULTS/u);
     assert.match(script, /!= "success"/u);
   });
@@ -272,7 +276,7 @@ describe("exact-head orchestration and the rollback switch", () => {
 
   it("can be rolled back without editing a workflow file", () => {
     const modeScript = steps(graph, "admission")
-      .map(runScript)
+      .map(stepScript)
       .find((script) => script.includes("HONUA_SDK_VERIFICATION_MODE"));
     const modeEnv = steps(graph, "admission")
       .map((step) => JSON.stringify(step.env ?? {}))
@@ -304,6 +308,34 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
     );
   });
 
+  // Splitting one job into several can separate a gate from the step that
+  // produces what it reads. `verify:public-surface` resolves
+  // dist/browser/honua-sdk.esm.js, which only exists after
+  // `verify:browser:prepared` has run in the SAME job; moved apart, it fails
+  // with "built-entrypoint target is missing" and looks like a surface
+  // regression. Each pair below is an in-job dependency found by running the
+  // gates against a build that lacked the producer's output.
+  it("keeps every gate in the same job as the step that produces what it reads", () => {
+    const coLocated = [
+      { producer: "npm run verify:browser:prepared", consumer: "npm run verify:public-surface" },
+      { producer: "npm run verify:browser:prepared", consumer: "npm run verify:bundle-budgets" },
+      { producer: "npm run verify:browser:prepared", consumer: "npm run verify:publish-surface" },
+    ];
+    for (const { producer, consumer } of coLocated) {
+      const owners = Object.keys(graph.jobs).filter((jobId) => jobCommands(graph, jobId).has(consumer));
+      assert.ok(owners.length > 0, `no job runs ${consumer}`);
+      for (const jobId of owners) {
+        const jobSteps = steps(graph, jobId);
+        const producerIndex = jobSteps.findIndex((step) => invokedCommands(stepScript(step)).has(producer));
+        const consumerIndex = jobSteps.findIndex((step) => invokedCommands(stepScript(step)).has(consumer));
+        assert.ok(
+          producerIndex >= 0 && producerIndex < consumerIndex,
+          `${jobId} runs ${consumer} without first running ${producer} in the same job`,
+        );
+      }
+    }
+  });
+
   it("does not weaken the release-seal or publish gates", () => {
     // release:seal:check is a release-time gate in publish-js-sdk.yml and
     // first-map-release-smoke.yml, and it reads the git tree rather than dist/,
@@ -316,7 +348,7 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
     // does not run it.
     assert.equal(executed.has("npm run release:seal:check"), false, "the graph must not take over the release-time seal");
     const executedScripts = Object.keys(graph.jobs)
-      .flatMap((jobId) => steps(graph, jobId).map(runScript))
+      .flatMap((jobId) => steps(graph, jobId).map(stepScript))
       .join("\n");
     assert.equal(/\bnpm publish\b/u.test(executedScripts), false, "the verification graph must never publish");
   });
