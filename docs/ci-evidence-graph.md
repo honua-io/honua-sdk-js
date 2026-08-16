@@ -69,14 +69,15 @@ First fully green graph run on hosted CI
 | Verify: core | 11.6 |
 | SDK verified | 0.1 |
 
-- **Wall clock 13.9 minutes**, against a `JS SDK` p50 of 18.4 and p90 of 38.5 in
-  the 49-run baseline. A second green run measured 16.8, so treat 14-17 minutes
-  as the range rather than 13.9 as a figure.
-- **Billed 47.1 minutes of job time**, against a baseline p50 of 24.5 and p90 of
-  44.7 — and that **understates** the real cost. GitHub bills each job rounded
-  up to the whole minute, so twelve jobs of which five run under three minutes
-  bill closer to **52 minutes**, against four jobs in the monolith. The graph
-  costs more when everything passes; measure it as ~52 vs ~46, not 47 vs 45.
+- **Wall clock 13.6-17.2 minutes** across four green runs, against a `JS SDK`
+  p50 of 18.4 and p90 of 38.5 in the 49-run baseline. Treat it as a range, not a
+  figure.
+- **Billed ~51 minutes**, against a baseline p50 of 24.5 and p90 of 44.7. Raw
+  job-minutes sum to 45.5, but GitHub bills each job rounded up to the whole
+  minute, and twelve jobs — six of them under three minutes — lose more to
+  rounding than the monolith's four. Quote the rounded number: the raw sum
+  understates the graph against what it replaces. The graph costs more when
+  everything passes.
 - **`verify-core` at 11.6-14.6 minutes clears the 15-minute p90 target
   (NFR-003)**, and it is the critical path — every other consumer finishes
   sooner. The margin is thin enough that #1335 tracks sharding it.
