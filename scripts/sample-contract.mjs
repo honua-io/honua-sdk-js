@@ -3640,9 +3640,17 @@ export function generateSiteProjection(catalog, packageJson) {
     sampleBundles: {
       format: "honua.sdk.sample-bundles.v2",
       schemaVersion: 2,
+      // Publication is content-addressed: one immutable release per source
+      // commit, tagged `sample-bundles-<full-source-SHA>`. The rolling
+      // `sample-bundles-latest` tag this pointer used to name was permanently
+      // frozen when org-wide immutable releases were enabled on 2026-08-13
+      // (honua-io/honua-sdk-js#1325), so it now names stale bytes forever. A
+      // template is the only honest pointer here: the projection is a
+      // deterministic derived artifact and cannot embed the SHA of the commit
+      // that generates it.
       publication: {
         repo: "honua-io/honua-sdk-js",
-        releaseTag: "sample-bundles-latest",
+        releaseTagTemplate: "sample-bundles-{sourceCommit}",
         manifestAsset: "sample-bundles.v2.json",
         bundleAsset: "sample-bundles.tar.gz",
       },

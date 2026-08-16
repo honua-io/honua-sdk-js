@@ -430,6 +430,18 @@ already fetches the projection can find the manifest, state every runnable
 card's prerequisites, and explain every un-bundled card, without guessing a
 path, a prerequisite, or a reason.
 
+The pointer names the publication by **template, not by tag**:
+`sampleBundles.publication.releaseTagTemplate` is
+`sample-bundles-{sourceCommit}`, and a consumer substitutes the full
+40-character SHA of the source commit whose bundles it wants. It replaced the
+fixed `releaseTag` field, which named the rolling `sample-bundles-latest`
+release; that release was permanently frozen by the retroactive org-wide
+immutable-releases change described above, so a fixed tag in a derived artifact
+can only ever name stale bytes (honua-io/honua-sdk-js#1325). The projection is
+itself a deterministic derived artifact, so it cannot embed the SHA of the
+commit that generates it -- a template is the only pointer that can be both
+honest and reproducible.
+
 `sampleBundles.excluded` and `sampleBundles.published` remain optional in the
 projection schemas for compatibility. Current generation emits a v2
 compatibility projection, rolling v1 handoff, and v3 consumer fixture alongside
