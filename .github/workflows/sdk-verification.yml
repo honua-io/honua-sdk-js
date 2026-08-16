@@ -42,7 +42,16 @@ on:
     branches:
       - trunk
       - "release/**"
-  workflow_dispatch:
+# Deliberately no `workflow_dispatch`. Every job checks out
+# `needs.admission.outputs.head_sha` so one graph run verifies one pinned head
+# (REQ-007), and `actions/setup-node` writes the npm cache. On `push` and
+# `pull_request` that head is fixed by the event; on a manual dispatch the actor
+# chooses the ref, so a run in the default branch's cache scope could check out
+# arbitrary code and populate a cache later runs restore. CodeQL's
+# actions/cache-poisoning/poisonable-step query flagged exactly that
+# combination on every checkout in this workflow (69 alerts on
+# honua-io/honua-sdk-js#1334). Re-add dispatch only together with a ref
+# allow-list or with caching disabled in the dispatched path.
 
 # Read-only for every job, and this workflow is `pull_request`, never
 # `pull_request_target` (REQ-008): a fork's code therefore never executes with a

@@ -280,6 +280,12 @@ describe("the aggregate gate cannot report green for a graph that did not run", 
 describe("forks and untrusted heads cannot publish reusable evidence", () => {
   it("never runs untrusted code in a write-token workflow", () => {
     assert.equal(graph.on.pull_request_target, undefined);
+    // Every job checks out an expression-derived ref and writes the npm cache.
+    // On push and pull_request the head is fixed by the event; on a manual
+    // dispatch the actor picks the ref, which is a cache-poisoning vector in
+    // the default branch's cache scope. Re-adding dispatch needs a ref
+    // allow-list or caching disabled in that path.
+    assert.equal("workflow_dispatch" in graph.on, false, "manual dispatch would let the actor choose the checked-out ref");
     assert.deepEqual(graph.permissions, { contents: "read" });
     for (const [jobId, job] of Object.entries(graph.jobs)) {
       assert.equal(job.permissions, undefined, `${jobId} must not widen the workflow's read-only token`);

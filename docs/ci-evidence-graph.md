@@ -272,3 +272,11 @@ retire a gate.
 - **Forks.** The graph is `pull_request`, never `pull_request_target`, so
   untrusted code never runs with a write token and can never publish evidence
   anything downstream trusts.
+- **Manual dispatch.** The graph has no `workflow_dispatch` trigger. Every job
+  checks out `needs.admission.outputs.head_sha` and `actions/setup-node` writes
+  the npm cache; on `push` and `pull_request` that head is fixed by the event,
+  but a manual dispatch lets the actor choose the ref, so a run in the default
+  branch's cache scope could check out arbitrary code and populate a cache later
+  runs restore. CodeQL's `actions/cache-poisoning/poisonable-step` query flagged
+  that combination on every checkout in the workflow. Re-add dispatch only with
+  a ref allow-list, or with caching disabled in the dispatched path.
