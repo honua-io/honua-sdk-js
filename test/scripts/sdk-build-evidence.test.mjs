@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   buildArtifactName,
@@ -8,6 +11,7 @@ import {
   DEFAULT_EVIDENCE_TTL_SECONDS,
   digestPackageScripts,
   FINGERPRINT_IDENTITY_FIELDS,
+  MAX_EVIDENCE_TTL_SECONDS,
   SDK_BUILD_EVIDENCE_FORMAT,
   SDK_VERIFICATION_CONTRACT,
   SdkBuildEvidenceError,
@@ -69,6 +73,7 @@ function admit(overrides = {}) {
     expectedFingerprint: evidence?.fingerprint,
     observedDistSha256: evidence?.artifact?.distSha256,
     now: "2026-08-16T13:00:00Z",
+    expectedRepository: "honua-io/honua-sdk-js",
     ...rest,
   });
 }
@@ -82,6 +87,31 @@ function rejection(fn) {
   }
   assert.fail("expected the build evidence to be rejected");
 }
+
+describe("the admission policy stays reviewable", () => {
+  // This module was written with raw U+0000 and U+0001 as the canonicalisation
+  // separators in digestPackageScripts. Git classifies a file containing them
+  // as binary, so `gh pr diff` printed "Binary files differ" and the most
+  // security-sensitive file in the change was invisible to every human and
+  // every reviewing agent. The escapes emit identical bytes; only the source
+  // representation changed. Same defect class as honua-io/honua-sdk-js#1332.
+  it("contains no raw control byte, so git diffs it as text", () => {
+    const source = fs.readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "../../scripts/lib/sdk-build-evidence.mjs"),
+    );
+    const offenders = [];
+    for (const [offset, byte] of source.entries()) {
+      if (byte < 0x09 || (byte > 0x0d && byte < 0x20)) offenders.push(`0x${byte.toString(16)} at ${offset}`);
+    }
+    assert.deepEqual(offenders, [], `raw control bytes make this file unreviewable: ${offenders.join(", ")}`);
+  });
+
+  it("still separates script names from commands, and entries from each other", () => {
+    // The separators exist to stop {a: "bc"} and {ab: "c"} digesting the same.
+    assert.notEqual(digestPackageScripts({ a: "bc" }), digestPackageScripts({ ab: "c" }));
+    assert.notEqual(digestPackageScripts({ a: "b", c: "d" }), digestPackageScripts({ a: "bcd" }));
+  });
+});
 
 describe("SDK build evidence identity", () => {
   it("carries every input REQ-002 names", () => {
@@ -184,6 +214,7 @@ describe("SDK build evidence admission", () => {
         expectedFingerprint: evidence.fingerprint,
         observedDistSha256: evidence.artifact.distSha256,
         now: "2026-08-16T13:00:00Z",
+        expectedRepository: "honua-io/honua-sdk-js",
       }),
     );
     assert.equal(error.reason, "incompatible-contract");
@@ -205,6 +236,7 @@ describe("SDK build evidence admission", () => {
         expectedFingerprint: `${evidence.fingerprint.slice(0, 63)}${evidence.fingerprint.at(-1) === "0" ? "1" : "0"}`,
         observedDistSha256: evidence.artifact.distSha256,
         now: "2026-08-16T13:00:00Z",
+        expectedRepository: "honua-io/honua-sdk-js",
       }),
     );
     assert.equal(error.reason, "fingerprint-mismatch");
@@ -219,6 +251,7 @@ describe("SDK build evidence admission", () => {
         expectedFingerprint: evidence.fingerprint,
         observedDistSha256: DIGEST_C,
         now: "2026-08-16T13:00:00Z",
+        expectedRepository: "honua-io/honua-sdk-js",
       }),
     );
     assert.equal(error.reason, "digest-mismatch");
@@ -228,6 +261,37 @@ describe("SDK build evidence admission", () => {
     const evidence = evidenceFor({ producerOverrides: { repository: "attacker/fork" } });
     const error = rejection(() => admit({ evidence, expectedRepository: "honua-io/honua-sdk-js" }));
     assert.equal(error.reason, "untrusted-producer");
+  });
+
+  it("refuses to run at all without an expected producer, rather than skipping the check", () => {
+    // The producer comparison used to be skipped when the caller passed
+    // nothing, so a call site that forgot it silently lost the check.
+    const evidence = evidenceFor({ producerOverrides: { repository: "attacker/fork" } });
+    assert.equal(rejection(() => admit({ evidence, expectedRepository: undefined })).reason, "malformed");
+    assert.equal(rejection(() => admit({ evidence, expectedRepository: "" })).reason, "malformed");
+  });
+
+  it("rejects evidence created ahead of the verifying clock", () => {
+    // `expiresAt` is derived from `createdAt`, so a fast producer clock would
+    // otherwise hand itself a longer life.
+    const evidence = evidenceFor({ createdAt: "2026-08-16T14:00:00Z" });
+    const error = rejection(() => admit({ evidence, now: "2026-08-16T13:00:00Z" }));
+    assert.equal(error.reason, "malformed");
+    assert.match(error.message, /ahead of the verifying clock/);
+    // Ordinary NTP drift is tolerated.
+    assert.ok(
+      admit({ evidence: evidenceFor({ createdAt: "2026-08-16T13:02:00Z" }), now: "2026-08-16T13:00:00Z" }),
+    );
+  });
+
+  it("rejects a lifetime longer than the ceiling even when the manifest is self-consistent", () => {
+    const evidence = { ...evidenceFor(), expiresAt: "2026-09-16T12:00:00Z" };
+    assert.equal(rejection(() => admit({ evidence })).reason, "malformed");
+  });
+
+  it("caps the declared TTL at creation time", () => {
+    rejection(() => evidenceFor({ ttlSeconds: MAX_EVIDENCE_TTL_SECONDS + 1 }));
+    assert.ok(evidenceFor({ ttlSeconds: MAX_EVIDENCE_TTL_SECONDS }));
   });
 
   it("rejects a manifest whose artifact name does not name its own fingerprint", () => {

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 
 import { loadBrowserShardMap } from "../../scripts/lib/browser-shards.mjs";
+import { MAX_EVIDENCE_TTL_SECONDS } from "../../scripts/lib/sdk-build-evidence.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const GRAPH_WORKFLOW = ".github/workflows/sdk-verification.yml";
@@ -162,6 +163,20 @@ describe("the SDK verification graph produces one build and consumes it", () => 
         assert.match(uses, /^actions\/(?:upload|download)-artifact@[0-9a-f]{40}/u);
       }
     }
+  });
+
+  // A TTL longer than the artifact's own retention would let evidence claim to
+  // be admissible after the build it describes had been deleted -- the policy
+  // promising something the storage cannot honour.
+  it("cannot declare a lifetime longer than the build artifact is kept", () => {
+    const upload = steps(graph, "build").find((step) => String(step.uses ?? "").includes("upload-artifact"));
+    const retentionDays = Number(upload.with["retention-days"]);
+    assert.ok(Number.isInteger(retentionDays) && retentionDays > 0, "the build artifact must set retention-days");
+    assert.ok(
+      MAX_EVIDENCE_TTL_SECONDS <= retentionDays * 24 * 60 * 60,
+      `the evidence TTL ceiling (${MAX_EVIDENCE_TTL_SECONDS}s) exceeds the artifact's ` +
+        `${retentionDays}-day retention`,
+    );
   });
 
   it("measures the clean-install quickstart budget without the reusable build", () => {
@@ -342,6 +357,30 @@ describe("the aggregate gate cannot report green for a graph that did not run", 
     assert.match(script, /toJSON\(needs\)|RESULTS/u);
     assert.match(script, /!= "success"/u);
   });
+
+  // The switch admission publishes is only meaningful if admission ran. A
+  // failed or cancelled admission emits no outputs, so `enabled` arrives empty;
+  // read before the job result, that is indistinguishable from "switched off"
+  // and the gate exits 0 with a "switched off" notice. Every guard this
+  // workflow adds -- the browser-shard audit, the build-evidence policy, this
+  // fixture -- lives in admission, so that ordering disarmed all of them.
+  it("checks admission's own result before trusting the switch it publishes", () => {
+    const aggregate = steps(graph, "verified").find((step) => stepScript(step).includes("ENABLED"));
+    assert.ok(aggregate, "the aggregate gate must read the rollout switch");
+    assert.equal(
+      aggregate.env.ADMISSION,
+      "${{ needs.admission.result }}",
+      "the aggregate gate must receive admission's job result, not only its outputs",
+    );
+    const script = stepScript(aggregate);
+    const admissionCheck = script.indexOf('"${ADMISSION}" != "success"');
+    const switchCheck = script.indexOf('"${ENABLED}" != "true"');
+    assert.ok(admissionCheck >= 0, "the aggregate gate must fail on a non-success admission");
+    assert.ok(
+      admissionCheck < switchCheck,
+      "admission's result must be checked before the switch, or a failed admission reads as switched off",
+    );
+  });
 });
 
 describe("forks and untrusted heads cannot publish reusable evidence", () => {
@@ -512,6 +551,35 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
       .flatMap((jobId) => steps(graph, jobId).map(stepScript))
       .join("\n");
     assert.equal(/\bnpm publish\b/u.test(executedScripts), false, "the verification graph must never publish");
+  });
+});
+
+describe("the shadow graph cannot satisfy or block a required status context", () => {
+  // Repository ruleset 18085797 requires "JS SDK" and "MCP SDK" *unqualified* --
+  // the requirement carries no integration_id, so branch protection matches on
+  // the check-run name alone, whichever workflow produced it. A shadow job named
+  // "MCP SDK" therefore publishes a second check run under a required context:
+  // its pass can satisfy the gate ci.yml is supposed to own, and its flake can
+  // block a pull request on a lane nobody promoted. `gh pr checks` showed
+  // exactly two "MCP SDK" runs on honua-io/honua-sdk-js#1334 before the rename.
+  //
+  // Comparing against ci.yml's own job names rather than a copied list of
+  // required contexts keeps this true if the ruleset gains a context later.
+  it("shares no job name with the authoritative workflow", () => {
+    const authoritative = new Set(Object.values(ci.jobs).map((job) => job.name));
+    for (const [jobId, job] of Object.entries(graph.jobs)) {
+      assert.equal(
+        authoritative.has(job.name),
+        false,
+        `graph job ${jobId} is named "${job.name}", which is also a job name in ci.yml; ` +
+          "branch protection matches check runs by name, so the shadow lane would gate pull requests",
+      );
+    }
+  });
+
+  it("keeps every graph job name distinct so no pair is ambiguous", () => {
+    const names = Object.values(graph.jobs).map((job) => job.name);
+    assert.equal(new Set(names).size, names.length);
   });
 });
 

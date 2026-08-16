@@ -717,11 +717,32 @@ jobs:
       # exact silent-green failure this workflow exists to remove.
       - name: Aggregate verification result
         env:
+          ADMISSION: ${{ needs.admission.result }}
           ENABLED: ${{ needs.admission.outputs.enabled }}
           RESULTS: ${{ toJSON(needs) }}
         shell: bash
         run: |
           set -euo pipefail
+          # Admission's own result is checked FIRST, and separately from the
+          # switch it publishes. A failed or cancelled admission emits no
+          # outputs, so `enabled` arrives empty -- indistinguishable from
+          # "switched off" if the switch is read first. Reading it first is
+          # exactly how this gate reported green while admission's guards
+          # (browser-shard audit, build-evidence policy, graph fixture) were
+          # failing, mislabelled as "switched off". Every guard this workflow
+          # adds lives in admission, so trusting its output without checking
+          # whether it ran disarms all of them at once.
+          if [[ "${ADMISSION}" != "success" ]]; then
+            echo "::error title=SDK verification::Admission finished '${ADMISSION}', not 'success'. No verification evidence was produced, and the rollout switch it publishes cannot be trusted."
+            exit 1
+          fi
+          case "${ENABLED}" in
+            true|false) ;;
+            *)
+              echo "::error title=SDK verification::Admission succeeded but published enabled='${ENABLED}', which is neither 'true' nor 'false'."
+              exit 1
+              ;;
+          esac
           if [[ "${ENABLED}" != "true" ]]; then
             echo "::notice::SDK Verification is switched off; no verification evidence was produced."
             exit 0
@@ -742,7 +763,15 @@ jobs:
           exit "$failed"
 
   mcp:
-    name: MCP SDK
+    # NOT "MCP SDK". Repository ruleset 18085797 requires the status contexts
+    # "JS SDK" and "MCP SDK" *unqualified* -- with no integration_id -- so a
+    # check run published under either name satisfies or blocks the requirement
+    # no matter which workflow produced it. A shadow job sharing an
+    # authoritative job's name therefore either satisfies the gate ci.yml is
+    # supposed to own, or blocks a pull request on a lane nobody has promoted.
+    # `gh pr checks` showed two check runs named "MCP SDK" on
+    # honua-io/honua-sdk-js#1334 before this rename.
+    name: "Verify: MCP"
     needs: [admission, build]
     if: needs.admission.outputs.enabled == 'true'
     runs-on: ubuntu-latest

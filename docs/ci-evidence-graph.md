@@ -70,14 +70,21 @@ First fully green graph run on hosted CI
 | SDK verified | 0.1 |
 
 - **Wall clock 13.9 minutes**, against a `JS SDK` p50 of 18.4 and p90 of 38.5 in
-  the 49-run baseline.
-- **Billed 47.1 minutes**, against a p50 of 24.5 and p90 of 44.7. The graph
-  costs *more* when everything passes: eleven jobs each pay their own runner
-  setup and `npm ci`.
-- **`verify-core` at 11.6 minutes clears the 15-minute p90 target (NFR-003)**,
-  and it is the critical path — every other consumer finishes sooner.
-- **A failed browser shard reruns in 2.5-6.4 minutes** instead of replaying the
-  whole monolith, and a superseded head is cancelled rather than finished.
+  the 49-run baseline. A second green run measured 16.8, so treat 14-17 minutes
+  as the range rather than 13.9 as a figure.
+- **Billed 47.1 minutes of job time**, against a baseline p50 of 24.5 and p90 of
+  44.7 — and that **understates** the real cost. GitHub bills each job rounded
+  up to the whole minute, so twelve jobs of which five run under three minutes
+  bill closer to **52 minutes**, against four jobs in the monolith. The graph
+  costs more when everything passes; measure it as ~52 vs ~46, not 47 vs 45.
+- **`verify-core` at 11.6-14.6 minutes clears the 15-minute p90 target
+  (NFR-003)**, and it is the critical path — every other consumer finishes
+  sooner. The margin is thin enough that #1335 tracks sharding it.
+- **A failed browser shard would rerun in 2.2-6.4 minutes** instead of replaying
+  the whole monolith. That figure is **projected, not measured**: it reuses the
+  shard durations from green first runs. No `gh run rerun --failed` has been
+  observed on this graph, and none can be until it runs on trunk — the
+  acceptance criterion for it is deliberately still open.
 
 State both directions whenever this change is described. A graph that is faster
 to wait for and more expensive to run green is a trade, not a free win, and the
@@ -257,6 +264,11 @@ are independent and the build is content-addressed, the failed shard downloads
 the same immutable build the green shards used, and the green jobs keep their
 original timestamps.
 
+**This is the design, not an observation.** No failed-only rerun of this graph
+has been performed; the saving quoted above is computed from green first-run
+shard durations. The proof needs a deliberate failure on a graph running on
+trunk, which is why that acceptance criterion is still open in #1286.
+
 ```bash
 gh run rerun <run-id> --failed
 gh run view <run-id> --json jobs \
@@ -269,6 +281,18 @@ than reusing stale bytes. That is intended: rebuild by rerunning the whole run.
 ## Rollout, promotion, and rollback
 
 The graph is **not authoritative**. `ci.yml` remains the required check.
+
+Not-authoritative is a property of **check-run names**, not of intent.
+Repository ruleset 18085797 requires the contexts `JS SDK` and `MCP SDK`
+*unqualified* — with no `integration_id` — so branch protection matches any
+check run with that name, whichever workflow published it. The graph's MCP job
+was briefly named `MCP SDK`, which put two check runs under a required context
+on the same pull request: the shadow lane could then satisfy the gate `ci.yml`
+is supposed to own, or block a pull request on a lane nobody had promoted. It
+is now `Verify: MCP`, and
+`test/scripts/sdk-verification-workflow.test.mjs` fails if any graph job ever
+takes a name `ci.yml` also uses. Check that assertion, not the intent, before
+believing the graph cannot gate anything.
 
 `vars.HONUA_SDK_VERIFICATION_MODE` is both the switch and the rollback:
 

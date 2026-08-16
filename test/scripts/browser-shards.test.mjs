@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -61,6 +63,24 @@ describe("browser shard map schema", () => {
     assert.throws(() => parseBrowserShardMap(map([shard(), shard()])), /Duplicate browser shard id/);
     assert.throws(() => parseBrowserShardMap(map([shard({ specs: ["helper.mjs"] })])), /invalid spec name/);
   });
+
+  it("claims specs by path relative to test/playwright, not by basename", () => {
+    // Playwright's testDir recurses, so a subdirectory spec is a real spec and
+    // the map has to be able to name it -- and to distinguish two specs that
+    // share a basename in different directories.
+    const parsed = parseBrowserShardMap(
+      map([shard({ specs: ["nested/deep.spec.mjs", "offline-indexeddb.spec.mjs"] })]),
+    );
+    assert.equal(parsed.claimedBy.get("nested/deep.spec.mjs"), "offline");
+    assert.throws(
+      () => parseBrowserShardMap(map([shard({ specs: ["../escape.spec.mjs"] })])),
+      /invalid spec name/,
+    );
+    assert.throws(
+      () => parseBrowserShardMap(map([shard({ specs: ["/absolute.spec.mjs"] })])),
+      /invalid spec name/,
+    );
+  });
 });
 
 describe("browser shard partition audit", () => {
@@ -119,6 +139,57 @@ describe("the committed browser shard partition", () => {
   });
 });
 
+describe("spec discovery follows Playwright's testDir", () => {
+  // Verified against Playwright itself: a spec at test/playwright/nested/ is
+  // listed by `playwright test --list` (46 files instead of 45). A flat
+  // readdirSync missed it, so the audit reported "no orphans" for a spec that
+  // ran in CI and belonged to no shard -- honua-server#3259 reproduced inside
+  // the countermeasure. See scripts/lib/browser-shards.mjs.
+  it("finds specs in subdirectories, named by their relative path", () => {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "honua-browser-shards-"));
+    try {
+      const specs = path.join(scratch, "test", "playwright", "nested", "deeper");
+      fs.mkdirSync(specs, { recursive: true });
+      fs.writeFileSync(path.join(scratch, "test", "playwright", "flat.spec.mjs"), "");
+      fs.writeFileSync(path.join(scratch, "test", "playwright", "nested", "mid.spec.mjs"), "");
+      fs.writeFileSync(path.join(specs, "low.spec.mjs"), "");
+      fs.writeFileSync(path.join(scratch, "test", "playwright", "helper.mjs"), "");
+
+      assert.deepEqual(discoverPlaywrightSpecs(scratch), [
+        "flat.spec.mjs",
+        "nested/deeper/low.spec.mjs",
+        "nested/mid.spec.mjs",
+      ]);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a symlinked spec rather than claiming it under two names", () => {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "honua-browser-shards-"));
+    try {
+      const directory = path.join(scratch, "test", "playwright");
+      fs.mkdirSync(directory, { recursive: true });
+      fs.writeFileSync(path.join(directory, "real.spec.mjs"), "");
+      fs.symlinkSync(path.join(directory, "real.spec.mjs"), path.join(directory, "alias.spec.mjs"));
+      assert.throws(() => discoverPlaywrightSpecs(scratch), /contains a symlink/);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("reports a nested orphan the same way it reports a flat one", () => {
+    const shardMap = loadBrowserShardMap(root);
+    const audit = auditBrowserShards({
+      shardMap,
+      discoveredSpecs: [...discoverPlaywrightSpecs(root), "nested/brand-new.spec.mjs"],
+    });
+    assert.equal(audit.ok, false);
+    assert.deepEqual(audit.orphans, ["nested/brand-new.spec.mjs"]);
+    assert.match(formatShardAudit(audit), /nested\/brand-new\.spec\.mjs/);
+  });
+});
+
 describe("Playwright shard selection", () => {
   it("matches a shard's specs and nothing else", () => {
     const shardMap = loadBrowserShardMap(root);
@@ -127,9 +198,18 @@ describe("Playwright shard selection", () => {
     assert.ok(pattern.test("/work/test/playwright/offline-indexeddb.spec.mjs"));
     assert.ok(pattern.test("C:\\work\\test\\playwright\\offline-indexeddb.spec.mjs"));
     assert.equal(pattern.test("/work/test/playwright/kepler-arrow-packed.spec.mjs"), false);
-    // Anchored on the whole basename: a longer name that merely ends the same
-    // way must not be dragged into the shard.
+    // Anchored on the whole path segment: a longer name that merely ends the
+    // same way must not be dragged into the shard.
     assert.equal(pattern.test("/work/test/playwright/not-offline-indexeddb.spec.mjs"), false);
+  });
+
+  it("distinguishes two specs that share a basename in different directories", () => {
+    const nested = { id: "nested", name: "n", specs: ["a/shared.spec.mjs"] };
+    const pattern = shardTestMatch(nested);
+    assert.ok(pattern.test("/work/test/playwright/a/shared.spec.mjs"));
+    assert.ok(pattern.test("C:\\work\\test\\playwright\\a\\shared.spec.mjs"));
+    assert.equal(pattern.test("/work/test/playwright/b/shared.spec.mjs"), false);
+    assert.equal(pattern.test("/work/test/playwright/shared.spec.mjs"), false);
   });
 
   it("runs the whole directory when no shard is selected", () => {

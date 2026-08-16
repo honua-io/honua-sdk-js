@@ -24,7 +24,15 @@ export const PLAYWRIGHT_SPEC_DIRECTORY = path.join("test", "playwright");
 export const BROWSER_SHARD_ENV = "HONUA_BROWSER_SHARD";
 
 const SHARD_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
-const SPEC_NAME_PATTERN = /^[a-z0-9][a-z0-9.-]{0,127}\.spec\.mjs$/;
+// Specs are named by their path RELATIVE TO test/playwright, forward-slashed,
+// not by basename. Playwright's `testDir` recurses, so a spec in a subdirectory
+// is a spec Playwright runs; a basename-only model cannot represent it, and a
+// non-recursive audit would call the directory clean while that spec belonged
+// to no shard and never ran -- honua-io/honua-server#3259 reproduced inside the
+// countermeasure meant to prevent it. Flat names remain valid relative paths,
+// so the committed map needed no change.
+const SPEC_PATH_PATTERN = /^(?:[a-z0-9][a-z0-9._-]{0,63}\/){0,4}[a-z0-9][a-z0-9.-]{0,127}\.spec\.mjs$/;
+const MAX_SPEC_DIRECTORY_DEPTH = 5;
 
 export function parseBrowserShardMap(raw) {
   if (raw?.format !== BROWSER_SHARD_MAP_FORMAT) {
@@ -53,7 +61,7 @@ export function parseBrowserShardMap(raw) {
       throw new Error(`Browser shard ${shard.id} claims no specs`);
     }
     for (const spec of shard.specs) {
-      if (typeof spec !== "string" || !SPEC_NAME_PATTERN.test(spec)) {
+      if (typeof spec !== "string" || !SPEC_PATH_PATTERN.test(spec)) {
         throw new Error(`Browser shard ${shard.id} claims an invalid spec name: ${String(spec)}`);
       }
       const existing = claimedBy.get(spec);
@@ -76,13 +84,40 @@ export function loadBrowserShardMap(projectRoot) {
   return parseBrowserShardMap(JSON.parse(fs.readFileSync(file, "utf8")));
 }
 
+/**
+ * Every spec Playwright would run, as forward-slashed paths relative to
+ * test/playwright.
+ *
+ * Recursive, because `testDir` is. A flat `readdirSync` sees only the top level,
+ * so a spec added under test/playwright/<subdir>/ would run in CI, be claimed by
+ * no shard, and be reported by this audit as "no orphans" -- the audit lying in
+ * exactly the direction it exists to prevent. Symlinks are refused rather than
+ * followed: a link out of the tree would let a spec be claimed under two names.
+ */
 export function discoverPlaywrightSpecs(projectRoot) {
-  const directory = path.join(projectRoot, PLAYWRIGHT_SPEC_DIRECTORY);
-  return fs
-    .readdirSync(directory, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".spec.mjs"))
-    .map((entry) => entry.name)
-    .sort();
+  const root = path.join(projectRoot, PLAYWRIGHT_SPEC_DIRECTORY);
+  const found = [];
+
+  const visit = (relativeDirectory, depth) => {
+    if (depth > MAX_SPEC_DIRECTORY_DEPTH) {
+      throw new Error(`Playwright spec tree is nested deeper than ${MAX_SPEC_DIRECTORY_DEPTH} directories`);
+    }
+    const absolute = relativeDirectory === "" ? root : path.join(root, ...relativeDirectory.split("/"));
+    for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
+      const relativePath = relativeDirectory === "" ? entry.name : `${relativeDirectory}/${entry.name}`;
+      if (entry.isSymbolicLink()) {
+        throw new Error(`Playwright spec tree contains a symlink: ${relativePath}`);
+      }
+      if (entry.isDirectory()) {
+        visit(relativePath, depth + 1);
+      } else if (entry.isFile() && entry.name.endsWith(".spec.mjs")) {
+        found.push(relativePath);
+      }
+    }
+  };
+
+  visit("", 0);
+  return found.sort();
 }
 
 /**
@@ -118,23 +153,44 @@ export function formatShardAudit({ orphans, missing }) {
 }
 
 /**
- * Playwright filter for one shard. Anchored on the basename so a spec cannot be
- * matched by a partial name, and returned as a RegExp because a bare string is
- * interpreted as a glob against the full path.
+ * Playwright filter for one shard.
+ *
+ * Anchored on the spec's whole path relative to test/playwright, preceded by a
+ * separator, so `a/b.spec.mjs` and `c/b.spec.mjs` are different specs and a
+ * longer name ending the same way is not dragged in. Returned as a RegExp
+ * because a bare string is interpreted as a glob against the full path. Both
+ * separators are accepted so the filter works on Windows checkouts.
  */
 export function shardTestMatch(shard) {
-  const alternatives = shard.specs.map((spec) => spec.replace(/[.*+?^${}()|[\]\\]/gu, (ch) => `\\${ch}`));
+  const alternatives = shard.specs.map((spec) =>
+    spec
+      .split("/")
+      .map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/gu, (ch) => `\\${ch}`))
+      .join("[\\\\/]"),
+  );
   return new RegExp(`[\\\\/](?:${alternatives.join("|")})$`, "u");
 }
 
+/**
+ * Resolves the selected shard, loading the map only when one is selected.
+ *
+ * `shardMap` is a THUNK, not a map. playwright.config.mjs is shared with
+ * ci.yml's authoritative `JS SDK` job, which never sets HONUA_BROWSER_SHARD;
+ * loading config/browser-shards.v1.json eagerly there would let a malformed or
+ * missing shard map -- a shadow-lane concern -- hard-fail production Playwright
+ * at config load. Deferring the read means the unsharded path never touches the
+ * file, while a sharded job still fails loudly rather than quietly running
+ * every spec.
+ */
 export function resolveShardFromEnvironment(shardMap, environment) {
   const id = environment?.[BROWSER_SHARD_ENV];
   if (typeof id !== "string" || id.length === 0) return undefined;
-  const shard = shardMap.byId.get(id);
+  const resolved = typeof shardMap === "function" ? shardMap() : shardMap;
+  const shard = resolved.byId.get(id);
   if (!shard) {
     throw new Error(
       `${BROWSER_SHARD_ENV}=${id} names no browser shard. Known shards: ` +
-        `${[...shardMap.byId.keys()].join(", ")}`,
+        `${[...resolved.byId.keys()].join(", ")}`,
     );
   }
   return shard;

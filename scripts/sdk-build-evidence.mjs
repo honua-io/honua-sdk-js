@@ -167,7 +167,10 @@ function commandVerify(argv) {
     expectedFingerprint: fingerprintFor(PROJECT_ROOT, environment),
     observedDistSha256: snapshotDistTree(PROJECT_ROOT).sha256,
     now: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    expectedRepository: process.env.GITHUB_REPOSITORY || undefined,
+    // Same fallback readProducer() stamps, so a local build verifies against a
+    // local producer and a CI build against its repository. Never `undefined`:
+    // the verifier requires a value rather than skipping the comparison.
+    expectedRepository: readProducer().repository,
   });
   process.stdout.write(
     `sdk build evidence admitted: fingerprint=${evidence.fingerprint} produced by run ` +
