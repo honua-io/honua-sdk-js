@@ -1,0 +1,31 @@
+name: Stranded Merge Detector
+
+# Thin caller. The detector, its tests, and the two-pass classification live in
+# honua-server (honua-io/honua-server#3248); #1317 is the same failure here, and
+# both issues ask for one mechanism rather than two implementations.
+#
+# What it catches: a PR opened against a stack base is merged into that base, so
+# GitHub reports MERGED while the payload sits on a branch that itself never
+# merged. #863 was found this way.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * 1"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  sweep:
+    name: Sweep merged PRs for stranded merge commits
+    uses: honua-io/honua-server/.github/workflows/stranded-merge-detector.yml@trunk
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    with:
+      default-branch: trunk
+      limit: 250
