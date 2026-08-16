@@ -26,13 +26,6 @@ on:
         required: false
         default: false
         type: boolean
-      publish_sample_bundles:
-        description: >-
-          Publish the rolling sample-bundle release after exact post-regeneration
-          trunk validation. Reserved for regenerate-derived-artifacts.yml.
-        required: false
-        default: false
-        type: boolean
       release_pull_request_number:
         description: >-
           Exact Release Please pull request validated by trusted trunk policy.
@@ -480,8 +473,9 @@ jobs:
         run: npm run samples:bundles:verify
 
       - name: Upload sample bundles workflow artifact
-        # Versioned artifact for every push; the stable, plain-HTTPS-fetchable
-        # publication is the sample-bundles-release job's GitHub Release below.
+        # Versioned artifact for every push. Durable publication is the
+        # content-addressed immutable release produced by
+        # publish-content-addressed-sample-bundles.yml, one per source commit.
         if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

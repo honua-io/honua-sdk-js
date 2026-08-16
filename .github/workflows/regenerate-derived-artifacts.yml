@@ -989,8 +989,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh workflow run ci.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref trunk \
-            -f publish_sample_bundles=true
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref trunk
           gh workflow run docs-site.yml --repo "$GITHUB_REPOSITORY" --ref trunk
