@@ -140,10 +140,7 @@ describe("widget disposition data", () => {
     // original 2x overestimate.
     for (const entry of WIDGET_DISPOSITION_DOCUMENTATION) {
       if (entry.disposition === "app-platform") {
-        expect(
-          entry.appPlatformComponent,
-          `${entry.widget} is app-platform but names no native element`,
-        ).toBeDefined();
+        expect(entry.appPlatformComponent, `${entry.widget} is app-platform but names no native element`).toBeDefined();
       }
       if (entry.disposition === "compat-shim") {
         expect(
