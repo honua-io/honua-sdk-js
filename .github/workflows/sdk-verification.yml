@@ -724,14 +724,19 @@ jobs:
         run: |
           set -euo pipefail
           # Admission's own result is checked FIRST, and separately from the
-          # switch it publishes. A failed or cancelled admission emits no
-          # outputs, so `enabled` arrives empty -- indistinguishable from
-          # "switched off" if the switch is read first. Reading it first is
-          # exactly how this gate reported green while admission's guards
-          # (browser-shard audit, build-evidence policy, graph fixture) were
-          # failing, mislabelled as "switched off". Every guard this workflow
-          # adds lives in admission, so trusting its output without checking
-          # whether it ran disarms all of them at once.
+          # switch it publishes.
+          #
+          # `enabled` is written by the `Resolve rollout mode` step, so whether
+          # it survives a failed admission depends on WHERE admission failed. A
+          # late failure -- the graph fixture, the shard audit -- leaves
+          # `enabled=true` published, and reading the switch first still caught
+          # it. A failure at or before the mode step, or a cancellation, leaves
+          # `enabled` empty, which is indistinguishable from "switched off":
+          # this gate then printed the switched-off notice and exited 0 while
+          # every guard in admission had failed to run. That second shape is
+          # routine, not exotic -- `cancel-in-progress` cancels admission on
+          # every superseded head, and an invalid HONUA_SDK_VERIFICATION_MODE
+          # fails the mode step itself.
           if [[ "${ADMISSION}" != "success" ]]; then
             echo "::error title=SDK verification::Admission finished '${ADMISSION}', not 'success'. No verification evidence was produced, and the rollout switch it publishes cannot be trusted."
             exit 1
