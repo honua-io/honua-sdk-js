@@ -535,6 +535,10 @@ describe("ci.yml stays the authoritative workflow while the graph runs in shadow
       "node test/scripts/release-please-ci-checks.test.mjs",
       "node test/scripts/backlog-dependencies.test.mjs",
       "node test/scripts/derived-artifact-loop-guard.test.mjs",
+      // Added to both guard jobs by honua-io/honua-sdk-js#1331 while this graph
+      // was in review. The coverage fixture caught its absence from the graph on
+      // the merge ref, which is the composition check working as intended.
+      "node test/scripts/stranded-merge-detector.test.mjs",
     ];
     for (const jobId of ["pr-fast", "js-sdk"]) {
       const commands = jobCommands(ci, jobId);

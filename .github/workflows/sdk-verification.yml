@@ -138,6 +138,9 @@ jobs:
       - name: Test derived-artifact loop guard policy
         run: node --test test/scripts/derived-artifact-loop-guard.test.mjs
 
+      - name: Test stranded-merge detection policy
+        run: node --test test/scripts/stranded-merge-detector.test.mjs
+
       - name: Test SDK build evidence policy
         run: node --test test/scripts/sdk-build-evidence.test.mjs
 
