@@ -123,6 +123,23 @@ describe("stranded merge detector", () => {
     assert.equal(matchesAnyBasePattern("train/batch", DEFAULT_TRANSIENT_BASE_PATTERNS), false);
   });
 
+  it("treats every glob character except * as a literal", () => {
+    assert.equal(matchesAnyBasePattern("release/v1.2", ["release/v1.2"]), true);
+    assert.equal(matchesAnyBasePattern("release/v1x2", ["release/v1.2"]), false);
+    assert.equal(matchesAnyBasePattern("fix/(auth)+", ["fix/(auth)+"]), true);
+  });
+
+  it("keeps the detector sources free of control bytes, so grep can see them", () => {
+    // A raw NUL makes git and grep classify a source file as binary and return
+    // no matches without -a. That is what hid the #863 payload during this
+    // ticket's own investigation (#1332), and an earlier draft of this module
+    // reintroduced it via a sentinel character.
+    for (const relative of ["scripts/lib/stranded-merge-detector.mjs", "scripts/stranded-merge-detector.mjs"]) {
+      const bytes = fs.readFileSync(path.join(root, relative));
+      assert.equal(bytes.includes(0), false, `${relative} contains a NUL byte`);
+    }
+  });
+
   it("names open stacked pull requests whose base has already merged or vanished", () => {
     const openStacks = classifyOpenStacks({
       pullRequests: [
