@@ -63,14 +63,18 @@ export function shellMediaType(file) {
 }
 
 /**
- * Resolves a manifest resource URL to its repository-relative file, mirroring
+ * Resolves a manifest resource URL against the manifest's own URL, mirroring
  * both the worker's URL admission rule and the fixture server's routing table:
- *   ./                -> docs/examples/offline-region-reference/index.html
- *   ./index.html      -> docs/examples/offline-region-reference/index.html
- *   ./app.mjs         -> docs/examples/offline-region-reference/app.mjs
- *   /dist/src/x.js    -> dist/src/x.js
+ *   ./                -> /docs/…/  -> docs/examples/offline-region-reference/index.html
+ *   ./index.html      -> /docs/…/index.html -> docs/examples/offline-region-reference/index.html
+ *   ./app.mjs         -> /docs/…/app.mjs    -> docs/examples/offline-region-reference/app.mjs
+ *   /dist/src/x.js    -> /dist/src/x.js     -> dist/src/x.js
+ *
+ * Returns both halves: `href` is the resolved identity the worker dedupes on
+ * (`./app.mjs` and `app.mjs` collapse to one href), `file` is the repository
+ * file whose bytes back the pin.
  */
-export function resolveShellResourceFile(resourceUrl) {
+export function resolveShellResource(resourceUrl) {
   if (typeof resourceUrl !== "string" || resourceUrl.length === 0) {
     throw new Error("Application shell resource URL must be a non-empty string");
   }
@@ -84,12 +88,19 @@ export function resolveShellResourceFile(resourceUrl) {
   if (url.origin !== manifestUrl.origin || url.username || url.password || url.search || url.hash) {
     throw new Error(`Application shell resource URL is unreviewed: ${resourceUrl}`);
   }
-  if (url.pathname.startsWith(DIST_PREFIX)) return url.pathname.slice(1);
+  if (url.pathname.startsWith(DIST_PREFIX)) return { href: url.href, file: url.pathname.slice(1) };
   if (!url.pathname.startsWith(SHELL_SCOPE_PATH)) {
     throw new Error(`Application shell resource URL escapes the reference scope: ${resourceUrl}`);
   }
   const relative = url.pathname.slice(SHELL_SCOPE_PATH.length);
-  return path.posix.join(EXAMPLE_DIRECTORY, relative === "" ? DIRECTORY_INDEX_FILE : relative);
+  return {
+    href: url.href,
+    file: path.posix.join(EXAMPLE_DIRECTORY, relative === "" ? DIRECTORY_INDEX_FILE : relative),
+  };
+}
+
+export function resolveShellResourceFile(resourceUrl) {
+  return resolveShellResource(resourceUrl).file;
 }
 
 function readResourceBytes(projectRoot, file) {
@@ -131,9 +142,13 @@ export function recomputeShellManifest(manifest, { projectRoot = PROJECT_ROOT } 
   const drift = [];
   let totalBytes = 0;
   const resources = manifest.resources.map((resource) => {
-    const file = resolveShellResourceFile(resource?.url);
-    if (seen.has(resource.url)) throw new Error(`Duplicate application shell URL: ${resource.url}`);
-    seen.add(resource.url);
+    // Dedupe on the resolved href, not the spelling: the worker resolves every
+    // entry against the manifest URL before its own duplicate check, so
+    // `./app.mjs` and `app.mjs` are one URL there and would fail the browser
+    // suite after this script had already called the manifest current.
+    const { href, file } = resolveShellResource(resource?.url);
+    if (seen.has(href)) throw new Error(`Duplicate application shell URL: ${resource.url} (resolves to ${href})`);
+    seen.add(href);
     const bytes = readResourceBytes(projectRoot, file);
     const recomputed = {
       url: resource.url,

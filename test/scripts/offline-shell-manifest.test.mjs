@@ -138,6 +138,18 @@ test("rejects a manifest the service worker itself would refuse", () => {
         }),
       /Duplicate application shell URL/,
     );
+    // The worker resolves every entry against the manifest URL before its own
+    // duplicate check, so equivalent spellings are one URL there. Catching it
+    // on raw strings alone would call this manifest current and fail later, in
+    // the browser suite, as an unexplained `shellReady === false`.
+    assert.throws(
+      () =>
+        recomputeShellManifest(
+          { ...manifest, resources: [manifest.resources[1], { ...manifest.resources[1], url: "app.mjs" }] },
+          { projectRoot },
+        ),
+      /Duplicate application shell URL: app\.mjs \(resolves to /,
+    );
     assert.throws(
       () =>
         recomputeShellManifest(
