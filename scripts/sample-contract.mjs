@@ -3641,16 +3641,34 @@ export function generateSiteProjection(catalog, packageJson) {
       format: "honua.sdk.sample-bundles.v2",
       schemaVersion: 2,
       // Publication is content-addressed: one immutable release per source
-      // commit, tagged `sample-bundles-<full-source-SHA>`. The rolling
-      // `sample-bundles-latest` tag this pointer used to name was permanently
+      // commit, tagged `sample-bundles-<full-source-SHA>`. This pointer used to
+      // name the rolling `sample-bundles-latest` release, which was permanently
       // frozen when org-wide immutable releases were enabled on 2026-08-13
-      // (honua-io/honua-sdk-js#1325), so it now names stale bytes forever. A
-      // template is the only honest pointer here: the projection is a
-      // deterministic derived artifact and cannot embed the SHA of the commit
-      // that generates it.
+      // (honua-io/honua-sdk-js#1325), so a fixed tag here can only ever name
+      // stale bytes. `releaseTag` now carries a TEMPLATE: substitute
+      // `{sourceCommit}` with the full 40-character source SHA whose bundles
+      // you want. The projection is a deterministic derived artifact and cannot
+      // embed the SHA of the commit that generates it, so a template is the
+      // only pointer that is both honest and reproducible.
+      //
+      // The field keeps its `releaseTag` name deliberately. Renaming it to
+      // `releaseTagTemplate` is the clearer contract and was tried first, but
+      // it is not landable in a feature PR: the name lives in
+      // site-projection.v3.schema.json, the committed handoff content-binds
+      // that schema's exact bytes, and `test/site-consumer-handoff.test.ts`
+      // fails any edit to a referenced schema without a version bump. The
+      // committed projection cannot be regenerated here either -- strict
+      // `write` requires gate receipts matching the current source digest, and
+      // that digest covers scripts/, test/ and samples/, so any feature PR
+      // invalidates it by construction (the #677 decoupling policy: only
+      // regenerate-derived-artifacts.yml reseals). The rename therefore needs a
+      // v4 projection bump, tracked in honua-io/honua-sdk-js#1338. The template
+      // value already removes the defect this ticket is about: the pointer no
+      // longer names permanently frozen bytes, and it fails loudly rather than
+      // silently serving stale data if a consumer uses it verbatim.
       publication: {
         repo: "honua-io/honua-sdk-js",
-        releaseTagTemplate: "sample-bundles-{sourceCommit}",
+        releaseTag: "sample-bundles-{sourceCommit}",
         manifestAsset: "sample-bundles.v2.json",
         bundleAsset: "sample-bundles.tar.gz",
       },

@@ -341,13 +341,10 @@
         "schemaVersion": { "enum": [1, 2] },
         "publication": {
           "type": "object",
-          "required": ["repo", "releaseTagTemplate", "manifestAsset", "bundleAsset"],
+          "required": ["repo", "releaseTag", "manifestAsset", "bundleAsset"],
           "properties": {
             "repo": { "type": "string" },
-            "releaseTagTemplate": {
-              "description": "Release tag pattern for the content-addressed sample-bundle publication, one immutable release per source commit (honua-io/honua-sdk-js#1274). Substitute `{sourceCommit}` with the full 40-character SHA of the source commit whose bundles are wanted. Replaced the fixed `releaseTag` pointer, which named the rolling `sample-bundles-latest` release; org-wide immutable releases were enabled on 2026-08-13 and applied retroactively, permanently freezing that release, so a fixed tag can only ever name stale bytes (honua-io/honua-sdk-js#1325).",
-              "const": "sample-bundles-{sourceCommit}"
-            },
+            "releaseTag": { "type": "string" },
             "manifestAsset": { "type": "string" },
             "bundleAsset": { "type": "string" }
           },
