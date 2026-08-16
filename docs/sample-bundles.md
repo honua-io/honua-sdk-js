@@ -393,18 +393,28 @@ Instead, `.github/workflows/ci.yml`:
   steps) so a broken build fails CI like any other gate;
 - on trunk pushes only, uploads `.artifacts/sample-bundles/` as a versioned
   workflow artifact (`sample-bundles`, same pattern as `sdk-coverage-v1`);
-- on trunk pushes only, a dedicated `sample-bundles-release` job (`needs:
-  js-sdk`, scoped `permissions: contents: write`) rebuilds and publishes the
-  manifest plus a `sample-bundles.tar.gz` of every bundle directory as
-  assets on a rolling `sample-bundles-latest` GitHub Release, updated
-  (`--clobber`) on every trunk push. This gives honua-samples a stable,
-  plain-HTTPS-fetchable URL that does not depend on a workflow-artifact run
-  ID or Actions API auth:
+- publication is content-addressed and immutable, one release per source
+  commit, produced by
+  [`publish-content-addressed-sample-bundles.yml`](../.github/workflows/publish-content-addressed-sample-bundles.yml)
+  and documented in [immutable-sample-bundles.md](./immutable-sample-bundles.md).
+  Tags are `sample-bundles-<full-source-SHA>`:
 
   ```sh
-  gh release download sample-bundles-latest -R honua-io/honua-sdk-js \
+  gh release download "sample-bundles-$(git rev-parse trunk)" \
+    -R honua-io/honua-sdk-js \
     -p 'sample-bundles.v2.json' -p 'sample-bundles.tar.gz'
   ```
+
+  > **The rolling `sample-bundles-latest` release is retired.** Repository
+  > immutable releases were enabled org-wide on 2026-08-13 and applied
+  > retroactively, permanently freezing that release at its 2026-08-13T10:32Z
+  > assets. Every subsequent attempt to update it failed with
+  > `HTTP 422: target_commitish cannot be changed when release is immutable`,
+  > which is what kept `SDK CI` red on trunk. The rolling pattern is
+  > structurally incompatible with immutable releases -- the release and its
+  > tag can no longer be deleted or updated -- so the job that maintained it
+  > has been removed rather than patched. Consumers must move to the
+  > per-commit tag above.
 
 ## Discovery from the site projection
 

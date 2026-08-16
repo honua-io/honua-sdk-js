@@ -28,7 +28,7 @@
  * prerequisites, and the exact commit / package version it was built from.
  *
  * Publication (workflow artifact + GitHub Release asset) happens in CI
- * (.github/workflows/ci.yml `sample-bundles-release` job); see
+ * (.github/workflows/publish-content-addressed-sample-bundles.yml); see
  * docs/sample-bundles.md for the consumer contract.
  *
  * Run with:
