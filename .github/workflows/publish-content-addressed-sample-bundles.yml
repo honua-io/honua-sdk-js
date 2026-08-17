@@ -641,22 +641,22 @@ jobs:
           test "$(jq -r .enforced_by_owner <<<"$IMMUTABLE")" = "true"
 
       - name: Attest sample-bundles.v2.json
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: staged/sample-bundles.v2.json
 
       - name: Attest sample-bundles.tar.gz
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: staged/sample-bundles.tar.gz
 
       - name: Attest sample-bundles-attestation.v1.json
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: staged/sample-bundles-attestation.v1.json
 
       - name: Attest sample-bundles-run-attestation.v1.json
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: staged/sample-bundles-run-attestation.v1.json
 
