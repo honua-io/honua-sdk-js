@@ -97,7 +97,7 @@ byte equality. Absolute/traversing/control-character paths,
 links, devices, FIFOs, PAX/GNU extensions, duplicates, reordering, metadata drift,
 and manifest digest mismatches fail closed. All actions resolve to exact verified
 commit objects; provenance uses
-`actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a`.
+`actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8`.
 
 Immediately before release creation the workflow repeats the exact-ref and current
 trunk API gate. It also requires repository immutable releases to be both enabled
