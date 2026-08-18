@@ -290,9 +290,13 @@ jobs:
             --match-head-commit "$PUBLISHED"
           # Merges performed with GITHUB_TOKEN emit no push event, so nothing would
           # run against the resulting trunk head and it would carry no core check
-          # runs at all. Dispatch strict trunk CI explicitly, as the derived-artifact
-          # automation does after its own token merge.
-          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref trunk
+          # runs at all. Re-enter the derived-artifact automation, exactly as it
+          # does after its own token merge: it reseals whatever the new head made
+          # stale and then dispatches strict trunk CI itself. Dispatching ci.yml
+          # directly would run trunk's STRICT validation against a head whose
+          # derived artifacts have not been resealed yet, which fails on golden
+          # gate-receipt source digests for reasons this report did not cause.
+          gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk
 
       - name: Summarize publication
         if: always()
