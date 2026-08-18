@@ -567,6 +567,9 @@ describe("pull request issue disposition policy", () => {
     assert.ok(requiredCheckWait > nativeApproval);
     assert.ok(merge > requiredCheckWait);
     assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
+    // The approval wait names the workflows carrying trunk's required contexts,
+    // so a late-appearing held run cannot stall the check wait unnoticed.
+    assert.match(workflow, /\["SDK CI","PR issue disposition"\]/u);
     assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --watch --fail-fast/u);
     assert.match(workflow, /--match-head-commit "\$PUBLISHED"/u);
     assert.doesNotMatch(workflow, /--auto/u);

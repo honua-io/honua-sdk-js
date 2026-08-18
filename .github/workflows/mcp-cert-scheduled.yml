@@ -225,6 +225,12 @@ jobs:
           PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
         run: |
           set -euo pipefail
+          # The two workflows that carry trunk's three required contexts:
+          # "SDK CI" runs JS SDK and MCP SDK, "PR issue disposition" runs
+          # PR Issue Disposition. Waiting on the named workflows rather than on
+          # "something attached" keeps a later-appearing held run from being
+          # missed and then blocking the check wait until the job times out.
+          expected_workflows='["SDK CI","PR issue disposition"]'
           for attempt in {1..30}; do
             runs="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
@@ -232,14 +238,17 @@ jobs:
               --event pull_request \
               --limit 30 \
               --json databaseId,workflowName,conclusion,headSha)"
-            matching="$(jq --arg published "$PUBLISHED" \
-              '[.[] | select(.headSha == $published)]' <<<"$runs")"
+            matching="$(jq \
+              --arg published "$PUBLISHED" \
+              --argjson expected "$expected_workflows" \
+              '[.[] | select(.headSha == $published and (.workflowName as $name | $expected | index($name)))]' \
+              <<<"$runs")"
             while IFS= read -r run_id; do
               gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/approve"
             done < <(jq -r '.[] | select(.conclusion == "action_required") | .databaseId' <<<"$matching")
+            attached="$(jq 'map(.workflowName) | unique | length' <<<"$matching")"
             held="$(jq '[.[] | select(.conclusion == "action_required")] | length' <<<"$matching")"
-            attached="$(jq 'length' <<<"$matching")"
-            if [[ "$attached" -gt 0 && "$held" -eq 0 ]]; then
+            if [[ "$attached" -eq 2 && "$held" -eq 0 ]]; then
               break
             fi
             if (( attempt == 30 )); then
