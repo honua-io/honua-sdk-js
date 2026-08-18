@@ -573,6 +573,9 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --watch --fail-fast/u);
     assert.match(workflow, /--match-head-commit "\$PUBLISHED"/u);
     assert.doesNotMatch(workflow, /--auto/u);
+    // A token merge emits no push event, so trunk would otherwise carry no core
+    // check runs for the resulting head.
+    assert.match(workflow, /gh workflow run ci\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u);
     // Nothing outside the certification corpus may ride the automation merge.
     assert.match(workflow, /Certification publication contains an unexpected path/u);
     // The evidence stays visible even when nothing is published.

@@ -288,6 +288,11 @@ jobs:
             --merge \
             --delete-branch \
             --match-head-commit "$PUBLISHED"
+          # Merges performed with GITHUB_TOKEN emit no push event, so nothing would
+          # run against the resulting trunk head and it would carry no core check
+          # runs at all. Dispatch strict trunk CI explicitly, as the derived-artifact
+          # automation does after its own token merge.
+          gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref trunk
 
       - name: Summarize publication
         if: always()
