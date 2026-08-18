@@ -5,7 +5,6 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
-import { parse as parseYaml } from "yaml";
 import {
   PUBLISHED_LIVE_SAMPLE_POLICY,
   SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS,
@@ -1894,7 +1893,7 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     {
       SOURCE_COMMIT: "${{ github.sha }}",
       EXPECTED_LOCKFILE_SHA256:
-        "0ec0a6ef311b26e9fc110617ccaf06f538e7ee6e2b5b4f12c1d6aaf0ac437570",
+        "4b64e03cfacac59bfb20342356e7bce7b229b719d955c6c0fb33c2db23e45b2c",
     },
     "byte validation environment",
   );
@@ -2013,10 +2012,18 @@ async function resolveActionCommits() {
   return results;
 }
 
+// `yaml` is the only non-builtin dependency this module needs, and only the
+// `policy` command needs it. The `receipt` command runs from the pristine
+// `governance/` checkout, which is deliberately never `npm ci`-installed, so a
+// static import would make every publication fail with ERR_MODULE_NOT_FOUND
+// (honua-io/honua-sdk-js#1325). Loading it here keeps the receipt path
+// resolvable with no `node_modules` at all, which is the stronger guarantee:
+// nothing installed from the registry can influence the receipts.
 export async function validateWorkflowFile(
   workflowPath,
   { resolveActions = false } = {},
 ) {
+  const { parse: parseYaml } = await import("yaml");
   const workflow = parseYaml(await readFile(workflowPath, "utf8"));
   const resolved = resolveActions ? await resolveActionCommits() : null;
   return validateWorkflowDocument(workflow, {

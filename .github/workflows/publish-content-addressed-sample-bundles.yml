@@ -205,7 +205,7 @@ jobs:
       - name: Validate all bytes before tokens
         env:
           SOURCE_COMMIT: ${{ github.sha }}
-          EXPECTED_LOCKFILE_SHA256: 0ec0a6ef311b26e9fc110617ccaf06f538e7ee6e2b5b4f12c1d6aaf0ac437570
+          EXPECTED_LOCKFILE_SHA256: 4b64e03cfacac59bfb20342356e7bce7b229b719d955c6c0fb33c2db23e45b2c
         run: |
           set -euo pipefail
           python3 - <<'PY'

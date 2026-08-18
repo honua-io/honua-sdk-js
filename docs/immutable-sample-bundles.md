@@ -60,6 +60,25 @@ provenance predicate, and a GitHub-hosted runner.
 5. Dispatch the publisher exactly once from that exact current `trunk` SHA.
 6. Verify the release assets and attestations before making consumers bind the exact object.
 
+## Maintenance obligations between dispatches
+
+The publisher is dispatch-only, so anything that breaks it stays invisible until
+someone dispatches it — both obligations below had silently lapsed and were only
+discovered at dispatch (#1325). Each is now asserted by
+`npm run samples:bundles:test`, which `npm run samples:bundles:verify` chains on
+every CI run:
+
+- **The receipt path must resolve against Node builtins alone.** Receipts are
+  produced from the `governance/` checkout, which is deliberately never
+  `npm ci`-installed — nothing from the registry can influence a receipt. Any
+  import-time dependency added anywhere in that module graph, including a
+  transitive `require`, breaks every publication.
+- **`EXPECTED_LOCKFILE_SHA256` must move with `package-lock.json`.** The
+  privileged job never checks out source, so it can only judge the manifest's
+  `build.lockfileSha256` against a constant carried in the workflow file and
+  bound again in `scripts/immutable-sample-bundle-attestation.mjs`. Every
+  dependency bump invalidates it; update both copies in the same change.
+
 ## Fail-closed publisher guarantees
 
 The publisher is input-free and accepts only a manual dispatch of the exact current
