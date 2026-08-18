@@ -78,6 +78,24 @@ every CI run:
   `build.lockfileSha256` against a constant carried in the workflow file and
   bound again in `scripts/immutable-sample-bundle-attestation.mjs`. Every
   dependency bump invalidates it; update both copies in the same change.
+  `scripts/lib/lockfile-pin.mjs` reads, compares and rewrites the pair as one
+  unit, and the guard runs in two tiers: the `pr-fast`/`js-sdk` policy step
+  (`test/scripts/lockfile-pin.test.mjs`, before `npm ci`) and
+  `npm run samples:bundles:verify`.
+- **The release branch is re-pinned, not exempted.** Release Please's version
+  bump rewrites `package-lock.json`, so every release pull request broke this
+  pin by construction and the failure reached trunk through
+  `release-please-ci`'s dispatch-and-await (#1357). The
+  `release-please-lockfile-pin` job in `release-please.yml` runs
+  `scripts/sync-release-please-lockfile-pin.mjs`, which rewrites both bound
+  copies on the bot branch in one fast-forward commit before canonical CI is
+  dispatched, and re-applies on every Release Please run so a regenerated
+  branch is simply pinned again. It refuses to compute a digest unless the
+  branch lockfile equals trusted trunk's modulo first-party `version` strings,
+  so a release branch cannot carry a dependency change past the guard. Nothing
+  else may write that constant. The trusted base refresh rewinds that one
+  commit before merging trunk into the branch, because the pin and a trunk
+  dependency bump edit the same line and would otherwise conflict.
 
 ## Fail-closed publisher guarantees
 
