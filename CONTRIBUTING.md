@@ -98,11 +98,34 @@ The check is mechanical and runs weekly (`.github/workflows/stranded-merge-detec
 npm run stranded-merges:sweep -- --repo honua-io/honua-sdk-js --default-branch trunk
 ```
 
-It sweeps recently merged PRs, tests each merge commit with
-`git merge-base --is-ancestor <mergeCommit> origin/trunk`, and fails on any that
-are not on `trunk`. It also names open PRs whose base has already merged or been
-deleted, so they can be re-targeted before they strand. Verify a landing with
-that command rather than with the MERGED badge.
+It sweeps recently merged PRs, and it decides by **content**, not by commit
+identity. `git merge-base --is-ancestor <mergeCommit> origin/trunk` only
+nominates a candidate; each candidate's payload is then adjudicated against
+`trunk` by patch identity, blob equality, and added-line presence, because a
+squash, a cherry-pick, or an independent re-land all put the content on `trunk`
+under a different SHA. #863 is exactly that case -- its merge commit is off
+`trunk` and its payload is on `trunk` via #921 -- and the first version of this
+job, which stopped at ancestry, reported it lost every week until people stopped
+reading the job.
+
+So read the output by classification:
+
+| Classification | What it means | What to do |
+|---|---|---|
+| `stranded` | The payload's files are not on `trunk` at all | Recover it, or abandon the branch with a note on the issue |
+| `edits-missing` | The files are there, the added lines are not | Diff before acting; a re-land may have re-worded them |
+| `indeterminate` | Could not be adjudicated (deleted or force-pushed base) | Investigate; never assume it landed |
+| `superseded` / `landed` | Stranded merge commit, content present | Nothing. Recorded so it is not re-investigated |
+| `needs-retarget` (open PR) | Base has already merged or been deleted | `gh pr edit <N> --base trunk` |
+
+The job fails only on the first three plus `needs-retarget`. It also names open
+PRs whose base has already merged or been deleted, so they can be re-targeted
+before they strand. Verify a landing with that command rather than with the
+MERGED badge.
+
+The same mechanism exists in `honua-server` as
+`scripts/ci/detect-stranded-merges.py`, with the same schema-version-2
+vocabulary; the two implementations publish one contract.
 
 ## Commit hygiene
 

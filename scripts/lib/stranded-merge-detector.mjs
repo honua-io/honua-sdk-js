@@ -1,5 +1,5 @@
 /**
- * Stranded-merge detection.
+ * Stranded-merge detection -- pure classification (schema version 2).
  *
  * A pull request opened against a *stack base* branch and merged into that base
  * is reported MERGED by GitHub even when the base branch itself never reaches
@@ -7,28 +7,96 @@
  * the tracking issue is often closed as resolved. Nothing signals the loss --
  * the failure is silent by construction.
  *
- * The test is one command per merged pull request:
+ * The cheap test is one command per merged pull request:
  *
  *   git merge-base --is-ancestor <mergeCommit> origin/<defaultBranch>
  *
- * A non-zero exit means the merge commit is not on the default branch, so the
- * work is stranded.
+ * That test is exact, and it is the wrong question to *stop* on. It compares
+ * commit identity, and identity is not content: a squash merge, a cherry-pick,
+ * or an independent re-implementation all put the payload on the default branch
+ * under a different SHA and all read as "stranded". This repository is the proof
+ * -- schema version 1 of this module reported honua-sdk-js#863 stranded on every
+ * weekly run, while #863's payload had been on trunk since #921 four days after
+ * the strand, in a stricter form. A detector that files "payload lost" on a
+ * payload that is present gets muted, which reinstates the silence it exists to
+ * break.
  *
- * Confirmed in two repositories: honua-io/honua-sdk-js#1317 (PR #863) and
- * honua-io/honua-server#3248 (three PRs, ~3,800 insertions, including a fix
- * whose issue had already been closed as resolved). Both issues ask for one
- * mechanism rather than two implementations, so everything here is
- * repository-agnostic: the caller supplies the default branch, the pull-request
- * records, the ancestry predicate, and any legitimately-transient base branch
- * patterns (honua-server lands through `train/batch/*` merge-train branches,
- * which are expected to disappear once the train fast-forwards trunk).
+ * So ancestry only nominates *candidates*, and every candidate is adjudicated by
+ * content in three descending strengths of evidence:
+ *
+ *   1. Patch identity -- `git patch-id --stable` proves an equivalent patch is
+ *      already on the default branch. Exact, and survives squash and cherry-pick.
+ *   2. Blob equality -- the path's blob at the merge equals its blob on the
+ *      default branch, so the content landed byte-identically whatever the SHA.
+ *   3. Added-line presence -- the significant lines the pull request added to
+ *      that path are looked for in the default branch's current version.
+ *
+ * Only (3) is a heuristic, and it is biased toward false-positives-that-say-so
+ * over silent misses: a line moved to another file, or re-worded during a later
+ * re-land, reads as missing. Hence the split between `stranded` (the file is
+ * absent outright -- hard evidence) and `edits-missing` (the file is there but
+ * the added lines are not -- strong, worth a human minute, not proof). Anything
+ * that cannot be adjudicated at all is `indeterminate`, never quietly `landed`.
  *
  * This module is deliberately pure -- no `gh`, no `git`, no filesystem -- so the
- * classification is unit-testable without a network or a repository.
+ * whole classification is unit-testable without a network or a repository. The
+ * live fact resolution lives in scripts/stranded-merge-detector.mjs.
+ *
+ * The classification vocabulary is kept identical to honua-server's
+ * scripts/ci/detect-stranded-merges.py (also schema version 2) so the two
+ * repositories publish one contract even while they carry two implementations
+ * in two languages; honua-io/honua-sdk-js#1317 and honua-io/honua-server#3248
+ * are the same failure.
  */
+
+/** Bumped when the JSON contract changes. Consumers must branch on it. */
+export const SCHEMA_VERSION = 2;
 
 /** Bases that are expected not to survive, and so must not be reported. */
 export const DEFAULT_TRANSIENT_BASE_PATTERNS = Object.freeze(["train/batch/*"]);
+
+// Classifications for merged pull requests.
+export const MERGED_ON_DEFAULT = "on-default-branch";
+export const MERGED_LANDED = "landed";
+export const MERGED_SUPERSEDED = "superseded";
+export const MERGED_EDITS_MISSING = "edits-missing";
+export const MERGED_STRANDED = "stranded";
+export const MERGED_INDETERMINATE = "indeterminate";
+export const MERGED_TRANSIENT_BASE = "transient-base";
+
+// Classifications for open pull requests.
+export const OPEN_ON_DEFAULT = "based-on-default-branch";
+export const OPEN_LIVE_BASE = "stacked-live-base";
+export const OPEN_UNKNOWN_BASE = "unknown-base";
+export const OPEN_NEEDS_RETARGET = "needs-retarget";
+
+/** Findings a human has to look at. Everything else is informational. */
+export const ACTIONABLE_CLASSIFICATIONS = Object.freeze(
+  new Set([MERGED_STRANDED, MERGED_EDITS_MISSING, MERGED_INDETERMINATE, OPEN_NEEDS_RETARGET]),
+);
+
+// Per-path verdicts.
+export const PATH_IDENTICAL = "identical";
+export const PATH_PATCH_LANDED = "patch-landed";
+export const PATH_PRESENT = "present";
+export const PATH_PARTIAL = "partial";
+export const PATH_MISSING = "missing";
+export const PATH_ABSENT = "absent";
+export const PATH_INDETERMINATE = "indeterminate";
+export const PATH_DELETION_PENDING = "deletion-not-applied";
+
+/**
+ * A line has to carry some information before its absence means anything.
+ * Braces, `else`, and blank lines occur everywhere and would match by accident.
+ */
+export const MIN_SIGNIFICANT_LINE_LENGTH = 8;
+
+/**
+ * Per-path cap on how many distinct added lines are probed. Generated files can
+ * add tens of thousands of lines and the verdict never changes after a few
+ * hundred.
+ */
+export const MAX_PROBED_LINES = 400;
 
 /**
  * Compiles a glob-ish base-branch pattern (`*` matches any run of characters,
@@ -61,6 +129,124 @@ function requireString(value, label) {
 }
 
 /**
+ * Decodes a git-quoted path from a diff header.
+ *
+ * `core.quotepath=off` stops git quoting non-ASCII, but a path containing a
+ * quote, a backslash or a control character is still C-quoted, so the decode has
+ * to exist regardless: a path that fails to decode fails every blob lookup, and
+ * an absent file would then be classified as landed.
+ */
+export function unquoteDiffPath(raw) {
+  if (!(raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"'))) return raw;
+  const body = raw.slice(1, -1);
+  const simple = { n: 10, t: 9, r: 13, b: 8, f: 12, a: 7, v: 11, '"': 34, "\\": 92 };
+  const bytes = [];
+  let index = 0;
+  while (index < body.length) {
+    const character = body[index];
+    if (character !== "\\") {
+      for (const byte of Buffer.from(character, "utf8")) bytes.push(byte);
+      index += 1;
+      continue;
+    }
+    if (index + 1 >= body.length) break;
+    const next = body[index + 1];
+    if (next >= "0" && next <= "7") {
+      bytes.push(Number.parseInt(body.slice(index + 1, index + 4), 8) & 0xff);
+      index += 4;
+    } else {
+      bytes.push(simple[next] ?? next.charCodeAt(0));
+      index += 2;
+    }
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
+/**
+ * Added lines per post-image path from a unified diff, noise filtered out.
+ *
+ * Reads `+++ b/<path>` headers, so renames are attributed to the new path and
+ * files the diff deletes (`+++ /dev/null`) contribute nothing.
+ */
+export function significantAddedLines(diffText) {
+  const perPath = new Map();
+  let current;
+  for (const line of diffText.split("\n")) {
+    if (line.startsWith("+++ ")) {
+      const target = unquoteDiffPath(line.slice(4).trim());
+      current = target === "/dev/null" ? undefined : target.startsWith("b/") ? target.slice(2) : target;
+      if (current !== undefined && !perPath.has(current)) perPath.set(current, []);
+      continue;
+    }
+    if (line.startsWith("---") || line.startsWith("@@") || line.startsWith("diff --git")) continue;
+    if (current !== undefined && line.startsWith("+")) {
+      const stripped = line.slice(1).trim();
+      if (stripped.length >= MIN_SIGNIFICANT_LINE_LENGTH) perPath.get(current).push(stripped);
+    }
+  }
+  return perPath;
+}
+
+/**
+ * Adjudicates one path of a stranded candidate against the default branch.
+ *
+ * `headBlob` / `defaultBlob` are blob object ids, or `undefined` when the path
+ * does not exist on that side. `patchLanded` means every payload commit touching
+ * this path has an exact patch-id equivalent on the default branch -- proof, and
+ * so checked before any heuristic.
+ */
+export function classifyPath({
+  path,
+  headBlob: rawHeadBlob,
+  defaultBlob: rawDefaultBlob,
+  addedLines = [],
+  defaultText,
+  touchedOnDefaultSinceMerge = false,
+  patchLanded = false,
+}) {
+  // `?? undefined` on purpose: a JSON fixture spells "the path is not on this
+  // side" as null, and a null blob id must not compare equal to a real one.
+  const headBlob = rawHeadBlob ?? undefined;
+  const defaultBlob = rawDefaultBlob ?? undefined;
+  const probed = [...new Set(addedLines)].slice(0, MAX_PROBED_LINES);
+  let found = 0;
+  let verdict;
+
+  if (headBlob === undefined) {
+    // The pull request deleted the path. Absent downstream is the intended
+    // outcome; still present means the deletion has not landed, which is not
+    // lost work.
+    verdict = defaultBlob === undefined ? PATH_IDENTICAL : PATH_DELETION_PENDING;
+  } else if (defaultBlob === undefined) {
+    verdict = PATH_ABSENT;
+  } else if (defaultBlob === headBlob) {
+    verdict = PATH_IDENTICAL;
+  } else if (patchLanded) {
+    verdict = PATH_PATCH_LANDED;
+  } else if (probed.length === 0) {
+    // Nothing was added, so there is no textual evidence either way (a pure
+    // removal, or binary content). Say so rather than guess.
+    verdict = PATH_INDETERMINATE;
+  } else {
+    const haystack = defaultText ?? "";
+    found = probed.reduce((total, line) => total + (haystack.includes(line) ? 1 : 0), 0);
+    verdict = found === probed.length ? PATH_PRESENT : found === 0 ? PATH_MISSING : PATH_PARTIAL;
+  }
+
+  const entry = { path, verdict };
+  if (verdict === PATH_PARTIAL || verdict === PATH_MISSING) {
+    entry.addedLinesProbed = probed.length;
+    entry.addedLinesFound = found;
+    // "The default branch moved past this" is only credible when the default
+    // branch demonstrably has *part* of the change. A hot path that trunk
+    // rewrites weekly must not launder a wholly absent edit into a
+    // non-actionable finding, which a bare "touched since" test would do.
+    entry.supersededOnDefault = touchedOnDefaultSinceMerge && found > 0;
+  }
+  return entry;
+}
+
+/**
  * Normalizes one `gh pr list --json` record. `mergeCommit` is an object in the
  * GitHub CLI's shape (`{ oid }`); a bare string is accepted so callers can hand
  * in fixtures without ceremony.
@@ -84,158 +270,285 @@ export function normalizePullRequest(pullRequest) {
 }
 
 /**
- * Classifies merged pull requests into landed, stranded, and unresolved.
+ * Classifies one merged pull request from already-resolved facts. Pure.
  *
- * `isAncestor(sha)` must return `true` when `sha` is an ancestor of the default
- * branch tip, `false` when it is reachable but not an ancestor, and `undefined`
- * when the object is not present locally (a shallow clone, or a merge commit on
- * a branch that has since been garbage-collected). Unknown is never reported as
- * stranded: a detector that cries wolf gets muted, which reinstates the silence
- * it exists to break.
- *
- * A merged pull request whose base is the default branch is trusted without an
- * ancestry probe only when it has no merge commit to probe; otherwise every
- * record is probed, because a default-branch merge can still be dropped by a
- * later force-push.
+ * `onDefaultBranch` is the ancestry answer: `true` when the merge commit is an
+ * ancestor of the default branch tip, `false` when it is not, and `undefined`
+ * when the object is not in the clone at all. Unknown is never reported as
+ * landed -- the commonest cause is a stack base that was deleted or
+ * force-pushed, which is exactly when payload goes missing.
  */
-export function classifyMergedPullRequests({
-  pullRequests,
-  defaultBranch,
-  isAncestor,
-  transientBasePatterns = DEFAULT_TRANSIENT_BASE_PATTERNS,
-}) {
-  requireString(defaultBranch, "defaultBranch");
-  if (typeof isAncestor !== "function") throw new Error("isAncestor must be a function");
-  if (!Array.isArray(pullRequests)) throw new Error("pullRequests must be an array");
+export function classifyMergedPullRequest(
+  pullRequest,
+  { onDefaultBranch, pathVerdicts = [], indeterminateReason, transientBase = false } = {},
+) {
+  const record = normalizePullRequest(pullRequest);
+  const finding = {
+    number: record.number,
+    title: record.title,
+    url: record.url,
+    base: record.baseRefName,
+    mergeCommit: record.mergeCommit,
+    mergedAt: record.mergedAt,
+  };
 
-  const landed = [];
-  const stranded = [];
-  const unresolved = [];
-  const transient = [];
-
-  for (const raw of pullRequests) {
-    const pullRequest = normalizePullRequest(raw);
-
-    if (pullRequest.mergeCommit === undefined) {
-      // Squash/rebase landings still record a merge commit; a missing one means
-      // the record is incomplete, not that the payload is fine.
-      unresolved.push({ ...pullRequest, reason: "no merge commit recorded" });
-      continue;
-    }
-
-    const ancestor = isAncestor(pullRequest.mergeCommit);
-    if (ancestor === true) {
-      landed.push(pullRequest);
-      continue;
-    }
-    if (ancestor !== false) {
-      unresolved.push({ ...pullRequest, reason: "merge commit is not present locally" });
-      continue;
-    }
-
-    if (
-      pullRequest.baseRefName !== defaultBranch &&
-      matchesAnyBasePattern(pullRequest.baseRefName, transientBasePatterns)
-    ) {
-      // A merge-train batch branch that has not yet fast-forwarded the default
-      // branch. Expected to resolve on its own; surfaced but not failed on.
-      transient.push(pullRequest);
-      continue;
-    }
-
-    stranded.push(pullRequest);
+  if (record.mergeCommit === undefined) {
+    // Squash and rebase landings still record a merge commit; a missing one
+    // means the record is incomplete, not that the payload is fine.
+    finding.classification = MERGED_INDETERMINATE;
+    finding.reason = "no merge commit recorded on the pull request";
+    return finding;
   }
 
-  return { landed, stranded, unresolved, transient };
+  if (onDefaultBranch === true) {
+    finding.classification = MERGED_ON_DEFAULT;
+    return finding;
+  }
+
+  if (onDefaultBranch !== false) {
+    finding.classification = MERGED_INDETERMINATE;
+    finding.reason = `merge commit ${record.mergeCommit.slice(0, 9)} is not in this clone -- the stack base was probably deleted or force-pushed, so the payload cannot be checked`;
+    return finding;
+  }
+
+  if (transientBase) {
+    // A merge-train batch branch that has not yet fast-forwarded the default
+    // branch. Expected to resolve on its own; surfaced but not failed on.
+    finding.classification = MERGED_TRANSIENT_BASE;
+    return finding;
+  }
+
+  if (indeterminateReason) {
+    finding.classification = MERGED_INDETERMINATE;
+    finding.reason = indeterminateReason;
+    finding.paths = [...pathVerdicts];
+    return finding;
+  }
+
+  const verdicts = [...pathVerdicts];
+  finding.paths = verdicts;
+  const absent = verdicts.filter((entry) => entry.verdict === PATH_ABSENT).map((entry) => entry.path);
+  const lost = verdicts
+    .filter(
+      (entry) =>
+        (entry.verdict === PATH_MISSING || entry.verdict === PATH_PARTIAL) && !entry.supersededOnDefault,
+    )
+    .map((entry) => entry.path);
+  const movedOn = verdicts.filter(
+    (entry) =>
+      entry.verdict === PATH_MISSING ||
+      entry.verdict === PATH_PARTIAL ||
+      entry.verdict === PATH_INDETERMINATE,
+  );
+
+  finding.absentPaths = absent;
+  finding.unlandedEditPaths = lost;
+
+  if (absent.length > 0) finding.classification = MERGED_STRANDED;
+  else if (lost.length > 0) finding.classification = MERGED_EDITS_MISSING;
+  else if (movedOn.length > 0) finding.classification = MERGED_SUPERSEDED;
+  else finding.classification = MERGED_LANDED;
+  return finding;
 }
 
 /**
- * Open pull requests stacked on a non-default base whose base has already been
- * merged or deleted. These are the *next* stranded merges: landing one now
- * merges it into a branch that no longer leads anywhere.
+ * Classifies one open pull request from already-resolved facts. Pure.
  *
- * `baseState(baseRefName)` returns `"open"`, `"merged"`, `"missing"`, or
- * `"unknown"`.
+ * By the time the merged sweep fires, the work is already stranded. An open pull
+ * request whose base branch has already been merged, or no longer exists, will
+ * strand its payload the moment it merges, and the remedy is one command. That
+ * turns the scheduled job from an autopsy into a warning.
+ *
+ * "Merged" is deliberately not "is an ancestor of the default branch": a freshly
+ * created or freshly reset stack base points at a default-branch commit and is
+ * an ancestor while being perfectly alive, and telling someone to detach a live
+ * stack from it would be wrong.
+ *
+ * `undefined` for `baseExists` / `baseMerged` means "could not be established",
+ * which is reported as such rather than assumed either way.
  */
-export function classifyOpenStacks({ pullRequests, defaultBranch, baseState }) {
+export function classifyOpenPullRequest(
+  pullRequest,
+  {
+    defaultBranch,
+    baseExists,
+    baseMerged,
+    baseIsAncestor,
+    transientBasePatterns = DEFAULT_TRANSIENT_BASE_PATTERNS,
+  } = {},
+) {
   requireString(defaultBranch, "defaultBranch");
-  if (typeof baseState !== "function") throw new Error("baseState must be a function");
-  if (!Array.isArray(pullRequests)) throw new Error("pullRequests must be an array");
+  const record = normalizePullRequest(pullRequest);
+  const finding = {
+    number: record.number,
+    title: record.title,
+    url: record.url,
+    base: record.baseRefName,
+    baseExists,
+    baseMerged,
+  };
 
-  const retarget = [];
-  const stacked = [];
-  for (const raw of pullRequests) {
-    const pullRequest = normalizePullRequest(raw);
-    if (pullRequest.baseRefName === defaultBranch) continue;
-    const state = baseState(pullRequest.baseRefName);
-    if (state === "merged" || state === "missing") {
-      retarget.push({ ...pullRequest, baseState: state });
-      continue;
-    }
-    stacked.push({ ...pullRequest, baseState: state });
+  if (record.baseRefName === defaultBranch || matchesAnyBasePattern(record.baseRefName, transientBasePatterns)) {
+    finding.classification = OPEN_ON_DEFAULT;
+    return finding;
   }
-  return { retarget, stacked };
+
+  // `== null` on purpose: JSON fixtures and the GitHub API both express "could
+  // not be established" as null, and treating that as a resolved value is how a
+  // live stack gets told to detach.
+  if (baseExists == null) {
+    finding.classification = OPEN_UNKNOWN_BASE;
+    finding.reason = "base branch could not be resolved";
+  } else if (baseExists === false) {
+    finding.classification = OPEN_NEEDS_RETARGET;
+    finding.reason = "base branch no longer exists";
+  } else if (baseMerged == null) {
+    finding.classification = OPEN_UNKNOWN_BASE;
+    finding.reason = "could not establish whether the base branch has been merged";
+  } else if (baseMerged) {
+    finding.classification = OPEN_NEEDS_RETARGET;
+    finding.reason = `base branch has already been merged into ${defaultBranch}`;
+  } else {
+    finding.classification = OPEN_LIVE_BASE;
+    finding.reason = baseIsAncestor
+      ? `base branch has no commits of its own beyond ${defaultBranch} yet; re-target once it lands`
+      : "base branch is still open; re-target once it lands";
+  }
+
+  if (finding.classification === OPEN_NEEDS_RETARGET) {
+    finding.remedy = `gh pr edit ${record.number} --base ${defaultBranch}`;
+  }
+  return finding;
 }
 
-function bullet(pullRequest, defaultBranch) {
-  const link = pullRequest.url || `#${pullRequest.number}`;
-  const title = pullRequest.title ? ` — ${pullRequest.title}` : "";
-  const merged = pullRequest.mergedAt ? `, merged ${pullRequest.mergedAt}` : "";
-  const commit = pullRequest.mergeCommit ? `\`${pullRequest.mergeCommit.slice(0, 9)}\`` : "(none)";
-  return `- ${link}${title}\n  - base \`${pullRequest.baseRefName}\` (not \`${defaultBranch}\`)${merged}\n  - merge commit ${commit}${pullRequest.reason ? ` — ${pullRequest.reason}` : ""}`;
+/** Counts per classification, plus how many findings a human must act on. */
+export function summarize({ mergedFindings = [], openFindings = [] } = {}) {
+  const counts = {};
+  let actionable = 0;
+  for (const finding of [...mergedFindings, ...openFindings]) {
+    counts[finding.classification] = (counts[finding.classification] ?? 0) + 1;
+    if (ACTIONABLE_CLASSIFICATIONS.has(finding.classification)) actionable += 1;
+  }
+  return { counts, actionable };
+}
+
+function mergedBullet(finding, defaultBranch) {
+  const link = finding.url || `#${finding.number}`;
+  const title = finding.title ? ` — ${finding.title}` : "";
+  const merged = finding.mergedAt ? `, merged ${finding.mergedAt}` : "";
+  const commit = finding.mergeCommit ? `\`${finding.mergeCommit.slice(0, 9)}\`` : "(none)";
+  const lines = [
+    `- ${link}${title}`,
+    `  - base \`${finding.base}\` (not \`${defaultBranch}\`)${merged}, merge commit ${commit}`,
+  ];
+  if (finding.reason) lines.push(`  - ${finding.reason}`);
+  if (finding.absentPaths?.length) lines.push(`  - absent from \`${defaultBranch}\`: ${finding.absentPaths.join(", ")}`);
+  if (finding.unlandedEditPaths?.length) {
+    lines.push(`  - added lines not found on \`${defaultBranch}\`: ${finding.unlandedEditPaths.join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
+function openBullet(finding) {
+  const link = finding.url || `#${finding.number}`;
+  const title = finding.title ? ` — ${finding.title}` : "";
+  const lines = [`- ${link}${title}`, `  - base \`${finding.base}\` — ${finding.reason ?? "stacked"}`];
+  if (finding.remedy) lines.push(`  - remedy: \`${finding.remedy}\``);
+  return lines.join("\n");
+}
+
+function section(lines, heading, blurb, findings, render) {
+  if (findings.length === 0) return;
+  lines.push("", heading, "");
+  if (blurb) lines.push(blurb, "");
+  for (const finding of findings) lines.push(render(finding));
 }
 
 /** Renders the sweep as markdown, for a job summary or a tracking issue body. */
-export function renderReport({ repo, defaultBranch, scanned, classification, openStacks }) {
+export function renderReport({
+  repo,
+  defaultBranch,
+  scanned,
+  openScanned = 0,
+  mergedFindings = [],
+  openFindings = [],
+}) {
+  const of = (classification) => mergedFindings.filter((finding) => finding.classification === classification);
+  const openOf = (classification) => openFindings.filter((finding) => finding.classification === classification);
+  const { counts, actionable } = summarize({ mergedFindings, openFindings });
+
   const lines = [
     `# Stranded merge sweep — \`${repo}\``,
     "",
-    `Swept the ${scanned} most recent merged pull requests. A merge commit that is not an`,
-    `ancestor of \`${defaultBranch}\` means GitHub reports the pull request MERGED while its`,
-    "payload is not in the product.",
+    `Swept the ${scanned} most recent merged pull requests and ${openScanned} open pull requests.`,
+    `A merge commit that is not an ancestor of \`${defaultBranch}\` only makes a pull request a`,
+    "*candidate*; each candidate's payload is then adjudicated against the default branch by",
+    "patch identity, blob equality, and added-line presence, because a squash, a cherry-pick or",
+    "an independent re-land all put the content on the branch under a different SHA.",
     "",
-    "```",
-    `git merge-base --is-ancestor <mergeCommit> origin/${defaultBranch}`,
-    "```",
+    `- on \`${defaultBranch}\`: ${counts[MERGED_ON_DEFAULT] ?? 0}`,
+    `- landed elsewhere (content present): ${counts[MERGED_LANDED] ?? 0}`,
+    `- superseded (default branch moved past it): ${counts[MERGED_SUPERSEDED] ?? 0}`,
+    `- **stranded (files absent): ${counts[MERGED_STRANDED] ?? 0}**`,
+    `- **edits missing (files present, added lines absent): ${counts[MERGED_EDITS_MISSING] ?? 0}**`,
+    `- **indeterminate: ${counts[MERGED_INDETERMINATE] ?? 0}**`,
+    `- in-flight merge-train bases: ${counts[MERGED_TRANSIENT_BASE] ?? 0}`,
+    `- **open pull requests needing a re-target: ${counts[OPEN_NEEDS_RETARGET] ?? 0}**`,
+    `- open pull requests on a live stack base: ${counts[OPEN_LIVE_BASE] ?? 0}`,
+    `- open pull requests with an unresolvable base: ${counts[OPEN_UNKNOWN_BASE] ?? 0}`,
     "",
-    `- landed: ${classification.landed.length}`,
-    `- stranded: ${classification.stranded.length}`,
-    `- in-flight merge-train bases: ${classification.transient.length}`,
-    `- unresolved: ${classification.unresolved.length}`,
+    `Actionable findings: ${actionable}.`,
   ];
 
-  if (classification.stranded.length > 0) {
-    lines.push("", "## Stranded — merged, but not on the default branch", "");
-    for (const pullRequest of classification.stranded) lines.push(bullet(pullRequest, defaultBranch));
-    lines.push(
-      "",
-      "Recover each payload onto the default branch (cherry-pick the head commit), or",
-      "abandon the branch explicitly with a note saying why. Re-check any issue that was",
-      "closed as resolved by one of these pull requests.",
-    );
-  }
-
-  if (classification.unresolved.length > 0) {
-    lines.push("", "## Unresolved — could not be decided", "");
-    for (const pullRequest of classification.unresolved) lines.push(bullet(pullRequest, defaultBranch));
-  }
-
-  if (classification.transient.length > 0) {
-    lines.push("", "## In-flight merge-train bases — expected to resolve", "");
-    for (const pullRequest of classification.transient) lines.push(bullet(pullRequest, defaultBranch));
-  }
-
-  if (openStacks && openStacks.retarget.length > 0) {
-    lines.push(
-      "",
-      "## Open pull requests needing a re-target",
-      "",
-      "Their base branch has already merged or been deleted, so landing them as-is would",
-      `strand them. Re-target at \`${defaultBranch}\`.`,
-      "",
-    );
-    for (const pullRequest of openStacks.retarget) lines.push(bullet(pullRequest, defaultBranch));
-  }
+  section(
+    lines,
+    "## Stranded — payload files are absent from the default branch",
+    "Hard evidence: the pull request added or changed these paths and they are not there.",
+    of(MERGED_STRANDED),
+    (finding) => mergedBullet(finding, defaultBranch),
+  );
+  section(
+    lines,
+    "## Edits missing — the files are there, the added lines are not",
+    "Strong but not proof: a re-land that re-worded or moved the lines reads the same way. Diff before acting.",
+    of(MERGED_EDITS_MISSING),
+    (finding) => mergedBullet(finding, defaultBranch),
+  );
+  section(
+    lines,
+    "## Indeterminate — could not be adjudicated",
+    "Never assume these landed; the usual cause is a deleted or force-pushed stack base.",
+    of(MERGED_INDETERMINATE),
+    (finding) => mergedBullet(finding, defaultBranch),
+  );
+  section(
+    lines,
+    "## Open pull requests needing a re-target",
+    "Their base has already merged or been deleted, so landing them as-is would strand them.",
+    openOf(OPEN_NEEDS_RETARGET),
+    openBullet,
+  );
+  section(
+    lines,
+    "## Landed elsewhere — stranded merge, content present",
+    "Not lost work. Recorded so a re-run does not re-investigate them, and so nobody reads the merge-commit ancestry test as a loss report.",
+    of(MERGED_LANDED).concat(of(MERGED_SUPERSEDED)),
+    (finding) => mergedBullet(finding, defaultBranch),
+  );
+  section(
+    lines,
+    "## In-flight merge-train bases — expected to resolve",
+    "",
+    of(MERGED_TRANSIENT_BASE),
+    (finding) => mergedBullet(finding, defaultBranch),
+  );
+  section(
+    lines,
+    "## Open pull requests with an unresolvable base",
+    "",
+    openOf(OPEN_UNKNOWN_BASE),
+    openBullet,
+  );
 
   return `${lines.join("\n")}\n`;
 }
