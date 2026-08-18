@@ -39,21 +39,45 @@ jobs:
           CREATE_APP_RELEASE_CREATED: ${{ steps.release.outputs['packages/create-honua-app--release_created'] }}
           CREATE_APP_TAG_NAME: ${{ steps.release.outputs['packages/create-honua-app--tag_name'] }}
         run: |
+          set -euo pipefail
+
+          # Every abort in this step must name itself. Three consecutive
+          # releases (0.1.5/0.1.6/0.1.7-beta.0) died here and all a reader got
+          # was "Process completed with exit code 1", so the tag-move was
+          # diagnosed as "silently not firing" (#1337) when it had in fact been
+          # aborted upstream twice and rejected by the ruleset once. Failures
+          # are annotated and written to the job summary so the release log says
+          # which tag, which commit, and what did not happen.
+          RELEASE_FAILURE_TAG="(none)"
+          fail() {
+            local message="$1"
+            echo "::error title=Release blocked for ${RELEASE_FAILURE_TAG}::${message}"
+            {
+              echo "## Release blocked: \`${RELEASE_FAILURE_TAG}\`"
+              echo
+              echo "${message}"
+              echo
+              echo "Nothing was published for this tag."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 1
+          }
+
           dispatch_tag_publish() {
             local workflow="$1"
             local tag="$2"
             if [[ -z "${tag}" ]]; then
-              echo "Release Please did not expose a tag for ${workflow}; refusing to dispatch a branch publish."
-              exit 1
+              RELEASE_FAILURE_TAG="${workflow}"
+              fail "Release Please did not expose a tag for ${workflow}; refusing to dispatch a branch publish."
             fi
+            RELEASE_FAILURE_TAG="${tag}"
             gh workflow run "${workflow}" --repo "${GITHUB_REPOSITORY}" --ref "${tag}" -f dry_run=false
           }
 
           dispatch_resealed_js_publish() {
             local tag="$1"
+            RELEASE_FAILURE_TAG="${tag:-(no tag exposed)}"
             if [[ "${tag}" != js-sdk-* ]]; then
-              echo "Release Please exposed an invalid JS SDK tag: ${tag}"
-              exit 1
+              fail "Release Please exposed an invalid JS SDK tag: ${tag}"
             fi
             local release_version="${tag#js-sdk-}"
             while [[ "${release_version}" == v* ]]; do
@@ -91,10 +115,11 @@ jobs:
               fi
             done
             if [[ -z "${reseal_run_id}" ]]; then
-              echo "Dispatched reseal run for ${GITHUB_SHA} never appeared in the run list."
-              exit 1
+              fail "Dispatched reseal run for ${GITHUB_SHA} never appeared in the run list, so ${tag} was not moved onto a resealed commit and nothing was published."
             fi
-            gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 10
+            if ! gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 10; then
+              fail "Reseal run ${reseal_run_id} for release commit ${GITHUB_SHA} did not succeed. ${tag} still points at the unsealed version-bump commit, so it would fail \`release-seal check\`; nothing was published. Fix the reseal and re-run this workflow."
+            fi
 
             local trunk_sha
             trunk_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/trunk" --jq .object.sha)"
@@ -105,8 +130,7 @@ jobs:
             local merge_base
             merge_base="$(jq -r .merge_base_commit.sha <<<"${comparison}")"
             if [[ "${merge_base}" != "${GITHUB_SHA}" || ( "${comparison_status}" != "ahead" && "${comparison_status}" != "identical" ) ]]; then
-              echo "Trunk ${trunk_sha} is not a generated-only descendant of release commit ${GITHUB_SHA}."
-              exit 1
+              fail "Trunk ${trunk_sha} is not a generated-only descendant of release commit ${GITHUB_SHA}, so ${tag} may not be moved onto it and nothing was published."
             fi
             # Keep this allowlist in lockstep with the identical one in
             # regenerate-derived-artifacts.yml's "Validate and publish
@@ -139,8 +163,7 @@ jobs:
                 samples/evidence/service-explorer/*)
                   ;;
                 *)
-                  echo "Post-release trunk contains a non-generated path: ${changed_path}"
-                  exit 1
+                  fail "Post-release trunk contains a non-generated path: ${changed_path}. ${tag} may not be moved onto ${trunk_sha} and nothing was published."
                   ;;
               esac
             done < <(jq -r '.files[].filename' <<<"${comparison}")
@@ -162,13 +185,45 @@ jobs:
             local tag_sha
             tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
             if [[ "${tag_sha}" != "${GITHUB_SHA}" && "${tag_sha}" != "${trunk_sha}" ]]; then
-              echo "Tag ${tag} resolves to ${tag_sha}, neither the release commit nor the resealed trunk tip."
-              exit 1
+              fail "Tag ${tag} resolves to ${tag_sha}, neither the release commit ${GITHUB_SHA} nor the resealed trunk tip ${trunk_sha}. Refusing to move it; nothing was published."
             fi
+            echo "::group::Move ${tag} onto the resealed commit"
+            echo "release commit: ${GITHUB_SHA}"
+            echo "resealed tip:   ${trunk_sha}"
+            echo "tag currently:  ${tag_sha}"
             if [[ "${tag_sha}" != "${trunk_sha}" ]]; then
-              gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" \
-                -f sha="${trunk_sha}" -F force=true >/dev/null
+              if ! gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" \
+                -f sha="${trunk_sha}" -F force=true >/dev/null; then
+                echo "::endgroup::"
+                # Org-enforced immutable releases protect any tag that already
+                # carries a published release, so this PATCH is rejected with
+                # GH013 / "Cannot update this protected ref" once Release Please
+                # has published the release on the version-bump commit. That is
+                # what happened to 0.1.7-beta.0 (#1337).
+                fail "Moving ${tag} from ${tag_sha} onto the resealed commit ${trunk_sha} was rejected by GitHub. Immutable releases protect a tag once its release is published, so the tag cannot be moved after the fact and this release cannot publish from a sealed tree. Nothing was published."
+              fi
+            else
+              echo "tag already names the resealed commit; no move required"
             fi
+            echo "::endgroup::"
+
+            # Post-condition, asserted every release. The tag-move used to be a
+            # fire-and-forget PATCH whose outcome nothing checked, which is how
+            # three releases shipped tags that could never pass the seal. If the
+            # tag does not name the resealed commit at this point, stop: the
+            # publish below would verify a tree consumers will not receive.
+            local moved_tag_sha
+            moved_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
+            if [[ "${moved_tag_sha}" != "${trunk_sha}" ]]; then
+              fail "Post-condition failed: ${tag} resolves to ${moved_tag_sha}, not the resealed commit ${trunk_sha}. The release tag is not on a sealed tree and \`node scripts/release-seal.mjs check --tag ${tag}\` would fail. Nothing was published."
+            fi
+            echo "${tag} verified on resealed commit ${moved_tag_sha}"
+            {
+              echo "## Release tag sealed: \`${tag}\`"
+              echo
+              echo "- release commit: \`${GITHUB_SHA}\`"
+              echo "- resealed commit the tag now names: \`${moved_tag_sha}\`"
+            } >> "${GITHUB_STEP_SUMMARY}"
 
             # Publish from the tag itself rather than as a branch recovery run:
             # the tag now names the sealed commit, so publish-js-sdk's own

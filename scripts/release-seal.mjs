@@ -65,8 +65,12 @@ const REMEDIATION = [
   "Release Please's version-bump commit never is -- it edits files inside the evidence-neutral",
   "source digest, which re-stales every gate receipt, and the sample artifacts it carries were",
   "generated before the bump. Wait for regenerate-derived-artifacts.yml's automation PR to merge,",
-  "then move the js-sdk-* tag onto that generated-only descendant (release-please.yml's",
-  '"Move the release tag onto the resealed commit" step does this automatically) and rerun.',
+  "then move the js-sdk-* tag onto that generated-only descendant. release-please.yml's",
+  '"Dispatch package publish workflows" step does this automatically and then verifies the tag',
+  "landed on the resealed commit before publishing; if you are reading this after a release, that",
+  "verification is where the release stopped and its annotation says why. Note that a tag whose",
+  "GitHub Release is already published cannot be moved at all under org-enforced immutable",
+  "releases, so re-cut the release rather than trying to repair the tag.",
 ].join("\n");
 
 function truthyEnvSignal(value) {

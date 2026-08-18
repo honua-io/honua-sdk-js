@@ -13,6 +13,41 @@ const TERMINAL_CONCLUSIONS = new Set([
   "startup_failure",
 ]);
 const TERMINAL_PULL_REQUEST_STATES = new Set(["open", "closed"]);
+// A workflow run is immutable; the check-run -> pull-request association that
+// names it is not. GitHub recomputes that association from live repository
+// state, so two ordinary lifecycle events detach it from the run it describes:
+//
+//   * another push to the pull request moves the association onto the newer
+//     head while this run stays pinned to the head it actually ran, and
+//   * merging or closing the pull request and deleting its head branch
+//     withdraws the association entirely (the run-attempt endpoint reports an
+//     empty `pull_requests` array for the same reason).
+//
+// Neither is an integrity failure and neither is repairable: the immutable run
+// evidence no longer names an observable pull request. Callers get a typed
+// SupersededSourceRunError so they can record the outcome explicitly instead of
+// reporting a red build for a race the observer's own design creates. Every
+// other inconsistency stays a hard Error.
+const SUPERSEDED_SOURCE_RUN = "superseded-source-run";
+const SUPERSEDE_REASONS = new Set([
+  "pull-request-association-withdrawn",
+  "source-run-head-superseded",
+  "pull-request-head-moved",
+]);
+
+class SupersededSourceRunError extends Error {
+  constructor(reason, detail = {}) {
+    if (!SUPERSEDE_REASONS.has(reason)) {
+      throw new Error(`unknown superseded source-run reason: ${reason}`);
+    }
+    super(`source run observation is superseded: ${reason}`);
+    this.name = "SupersededSourceRunError";
+    this.code = SUPERSEDED_SOURCE_RUN;
+    this.reason = reason;
+    this.detail = detail;
+  }
+}
+
 const WORKFLOW_RUN_ATTEMPT_ROUTE =
   "GET /repos/{owner}/{repo}/actions/runs/{run_id}/attempts/{attempt_number}";
 const WORKFLOW_RUN_ATTEMPT_JOBS_ROUTE =
@@ -128,6 +163,14 @@ async function resolveTrustedPullRequestWorkflowRun({
   }
 
   const associations = checkRun.pull_requests || [];
+  if (associations.length === 0) {
+    throw new SupersededSourceRunError("pull-request-association-withdrawn", {
+      runId: id,
+      runAttempt: expectedAttempt,
+      runHeadSha: run.head_sha,
+      checkRunId: checkRun.id,
+    });
+  }
   if (
     associations.length !== 1 ||
     !Number.isSafeInteger(associations[0]?.number) ||
@@ -143,9 +186,19 @@ async function resolveTrustedPullRequestWorkflowRun({
     associated.base?.repo?.id !== repositoryId ||
     associated.head?.repo?.id !== repositoryId ||
     !SHA.test(associatedBase || "") ||
-    associatedHead !== run.head_sha
+    !SHA.test(associatedHead || "")
   ) {
     throw new Error("canonical workflow check pull-request identity is inconsistent");
+  }
+  if (associatedHead !== run.head_sha) {
+    throw new SupersededSourceRunError("source-run-head-superseded", {
+      runId: id,
+      runAttempt: expectedAttempt,
+      runHeadSha: run.head_sha,
+      checkRunId: checkRun.id,
+      pullRequestNumber: associated.number,
+      currentHeadSha: associatedHead,
+    });
   }
 
   const { data: pullRequest } = await github.rest.pulls.get({
@@ -159,11 +212,22 @@ async function resolveTrustedPullRequestWorkflowRun({
     pullRequest.base?.ref !== defaultBranch ||
     pullRequest.base?.repo?.full_name !== repository ||
     pullRequest.base?.repo?.id !== repositoryId ||
-    pullRequest.head?.sha !== associatedHead ||
     pullRequest.head?.repo?.full_name !== repository ||
     pullRequest.head?.repo?.id !== repositoryId
   ) {
     throw new Error("pull request moved after the canonical workflow run");
+  }
+  if (pullRequest.head?.sha !== associatedHead) {
+    // The head advanced between the check-run read and this read: the same
+    // benign race as `source-run-head-superseded`, caught one call later.
+    throw new SupersededSourceRunError("pull-request-head-moved", {
+      runId: id,
+      runAttempt: expectedAttempt,
+      runHeadSha: run.head_sha,
+      checkRunId: checkRun.id,
+      pullRequestNumber: associated.number,
+      currentHeadSha: pullRequest.head?.sha ?? "",
+    });
   }
 
   return {
@@ -178,6 +242,9 @@ async function resolveTrustedPullRequestWorkflowRun({
 }
 
 module.exports = {
+  SUPERSEDED_SOURCE_RUN,
+  SUPERSEDE_REASONS,
+  SupersededSourceRunError,
   TERMINAL_CONCLUSIONS,
   parseRunId,
   resolveTrustedPullRequestWorkflowRun,

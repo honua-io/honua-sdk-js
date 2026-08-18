@@ -85,6 +85,9 @@ jobs:
       - name: Test Release Please CI dispatch policy
         run: node --test test/scripts/release-please-ci-dispatch.test.mjs
 
+      - name: Test Release Please tag-seal policy
+        run: node --test test/scripts/release-please-tag-seal.test.mjs
+
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs
 
@@ -213,6 +216,9 @@ jobs:
 
       - name: Test Release Please CI dispatch policy
         run: node --test test/scripts/release-please-ci-dispatch.test.mjs
+
+      - name: Test Release Please tag-seal policy
+        run: node --test test/scripts/release-please-tag-seal.test.mjs
 
       - name: Test Release Please CI check publication policy
         run: node --test test/scripts/release-please-ci-checks.test.mjs

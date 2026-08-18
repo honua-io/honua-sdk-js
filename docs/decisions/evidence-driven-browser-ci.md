@@ -90,3 +90,37 @@ After enforcement, 30 additional runs must demonstrate under-15-minute p90
 post-review verification and at least 60% fewer billed minutes for review churn
 and failed-browser reruns. A failed-only rerun must leave successful job
 timestamps unchanged.
+
+## Superseded source runs are skipped, not failed
+
+A workflow run is immutable; the check-run to pull-request association that
+names it is not. GitHub recomputes that association from live repository state,
+so two ordinary lifecycle events detach it from the run it describes: another
+push to the pull request moves the association onto the newer head while the
+run stays pinned to the head it actually ran, and merging or closing the pull
+request and deleting its head branch withdraws the association entirely. The
+run-attempt endpoint reports an empty `pull_requests` array for the same
+reason, so the pull request cannot be recovered from immutable data either.
+
+The resolver originally compared the live association against the immutable run
+and treated any difference as an integrity failure. Because `workflow_run`
+workflows always execute from the default branch, every such failure posted a
+red check run against `trunk` — 16 of 40 consecutive observer runs, none of them
+describing a real routing problem, all of them masking the next real one.
+
+The resolver now classifies those two states as `SupersededSourceRunError`
+rather than failing: the immutable evidence no longer names an observable pull
+request, nothing can be compared, and the head that superseded it gets its own
+`SDK CI` run and its own observation. Every other inconsistency — an ambiguous
+association, a base branch that is not the default branch, a foreign repository
+id, an unknown pull-request state — remains a hard failure.
+
+Skipping must never be silent, which is the failure mode this repository has
+already been burned by twice. A superseded run emits a warning annotation,
+replaces the evidence artifact the observer always uploads with a record under
+its own `honua.sdk.browser-impact-superseded/v1` schema carrying
+`observed: false` and the reason, and repeats it in the job summary. The record
+has no lane or comparison surface at all, so no consumer can mistake a skipped
+observation for one that ran and selected nothing. `validateWorkflow` asserts
+the classification, the step gating, and the record step are all present, so the
+loud path cannot be removed without failing `SDK CI`.
