@@ -31,8 +31,30 @@ const SHARD_ID_PATTERN = /^[a-z][a-z0-9-]{0,31}$/;
 // to no shard and never ran -- honua-io/honua-server#3259 reproduced inside the
 // countermeasure meant to prevent it. Flat names remain valid relative paths,
 // so the committed map needed no change.
-const SPEC_PATH_PATTERN = /^(?:[a-z0-9][a-z0-9._-]{0,63}\/){0,4}[a-z0-9][a-z0-9.-]{0,127}\.spec\.mjs$/;
-const MAX_SPEC_DIRECTORY_DEPTH = 5;
+// The two limits are ONE limit, derived rather than written twice. They were
+// written twice and disagreed by one: discovery admitted a spec five
+// directories deep while the claim pattern accepted at most four, so such a
+// spec was reported as an orphan and then rejected when someone tried to claim
+// it -- an unbreakable loop where the audit demands an action the parser
+// refuses. Fail-closed, but a soft-lock, and the fix must not be "raise one of
+// them" or they drift apart again.
+export const MAX_SPEC_DIRECTORY_DEPTH = 4;
+const SPEC_PATH_PATTERN = new RegExp(
+  `^(?:[a-z0-9][a-z0-9._-]{0,63}/){0,${MAX_SPEC_DIRECTORY_DEPTH}}[a-z0-9][a-z0-9.-]{0,127}\\.spec\\.mjs$`,
+);
+
+/**
+ * Whether a discovered spec path could ever be claimed by a shard.
+ *
+ * The audit's job is to name specs that no shard runs. When the reason a spec
+ * is unclaimed is that its own path cannot satisfy the claim pattern -- too
+ * deep, uppercase, a leading dot -- reporting it as a plain orphan sends the
+ * reader to add a line that will be rejected. Naming the real problem is the
+ * difference between a finding and a dead end.
+ */
+export function isClaimableSpecPath(spec) {
+  return typeof spec === "string" && SPEC_PATH_PATTERN.test(spec);
+}
 
 export function parseBrowserShardMap(raw) {
   if (raw?.format !== BROWSER_SHARD_MAP_FORMAT) {
@@ -61,7 +83,7 @@ export function parseBrowserShardMap(raw) {
       throw new Error(`Browser shard ${shard.id} claims no specs`);
     }
     for (const spec of shard.specs) {
-      if (typeof spec !== "string" || !SPEC_PATH_PATTERN.test(spec)) {
+      if (!isClaimableSpecPath(spec)) {
         throw new Error(`Browser shard ${shard.id} claims an invalid spec name: ${String(spec)}`);
       }
       const existing = claimedBy.get(spec);
@@ -100,7 +122,11 @@ export function discoverPlaywrightSpecs(projectRoot) {
 
   const visit = (relativeDirectory, depth) => {
     if (depth > MAX_SPEC_DIRECTORY_DEPTH) {
-      throw new Error(`Playwright spec tree is nested deeper than ${MAX_SPEC_DIRECTORY_DEPTH} directories`);
+      throw new Error(
+        `Playwright spec tree is nested deeper than ${MAX_SPEC_DIRECTORY_DEPTH} directories at ` +
+          `${PLAYWRIGHT_SPEC_DIRECTORY}/${relativeDirectory}. A spec below this point could not be ` +
+          "claimed by any shard, so it would never run.",
+      );
     }
     const absolute = relativeDirectory === "" ? root : path.join(root, ...relativeDirectory.split("/"));
     for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
@@ -127,14 +153,32 @@ export function discoverPlaywrightSpecs(projectRoot) {
  */
 export function auditBrowserShards({ shardMap, discoveredSpecs }) {
   const discovered = new Set(discoveredSpecs);
-  const orphans = discoveredSpecs.filter((spec) => !shardMap.claimedBy.has(spec));
+  const unclaimed = discoveredSpecs.filter((spec) => !shardMap.claimedBy.has(spec));
+  // Split by WHY the spec is unclaimed. Both are failures; only one of them is
+  // fixable by editing the shard map.
+  const unclaimable = unclaimed.filter((spec) => !isClaimableSpecPath(spec));
+  const orphans = unclaimed.filter((spec) => isClaimableSpecPath(spec));
   const missing = [...shardMap.claimedBy.keys()].filter((spec) => !discovered.has(spec)).sort();
-  return { orphans, missing, ok: orphans.length === 0 && missing.length === 0 };
+  return {
+    orphans,
+    unclaimable,
+    missing,
+    ok: orphans.length === 0 && unclaimable.length === 0 && missing.length === 0,
+  };
 }
 
-export function formatShardAudit({ orphans, missing }) {
+export function formatShardAudit({ orphans, unclaimable = [], missing }) {
   const lines = [];
+  if (unclaimable.length > 0) {
+    lines.push(
+      `${unclaimable.length} Playwright spec(s) have a path no shard can claim, so they would never run`,
+      `and cannot be added to ${BROWSER_SHARD_MAP_PATH}. Rename or relocate each one: paths are`,
+      `lowercase, at most ${MAX_SPEC_DIRECTORY_DEPTH} directories deep, and end in .spec.mjs.`,
+      ...unclaimable.map((spec) => `  ${spec}`),
+    );
+  }
   if (orphans.length > 0) {
+    if (lines.length > 0) lines.push("");
     lines.push(
       `${orphans.length} Playwright spec(s) belong to no browser shard and would never run in CI.`,
       `Claim each in ${BROWSER_SHARD_MAP_PATH} under the shard that owns its failure domain:`,

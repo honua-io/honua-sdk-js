@@ -1,0 +1,77 @@
+name: SDK Shadow Parity
+
+# Accumulates the promotion evidence for the reusable-build verification graph
+# (honua-io/honua-sdk-js#1286 AC-7, AC-8, NFR-004).
+#
+# `.github/workflows/sdk-verification.yml` runs beside `ci.yml` rather than
+# instead of it, and promotion to authoritative is gated on the two having
+# reached the same verdict on the same head for 20 heads. Without a collector
+# that is a promise to go back through the Actions UI by hand, which is a
+# promise nobody keeps -- so the graph either stays in shadow forever or gets
+# promoted on a feeling. This job renders the number on a schedule.
+#
+# READ-ONLY, AND DELIBERATELY NOT A GATE. It observes runs; it has no status,
+# dispatch, cancellation, or merge authority, publishes no check run, and
+# commits nothing. It cannot make a pull request pass or fail. The evidence it
+# produces is an artifact and a job summary, and promoting the graph remains an
+# explicit human decision made from that evidence -- the same trust boundary the
+# browser-impact observer was corrected to respect (issue comment 5295479441).
+
+on:
+  schedule:
+    # Daily, after the previous day's pull-request traffic has settled.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "How many runs of each workflow to inspect (1-100)"
+        required: false
+        default: "60"
+
+permissions:
+  contents: read
+  # `gh run list` and the jobs API. Nothing here writes.
+  actions: read
+
+concurrency:
+  group: sdk-shadow-parity
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    name: Shadow parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20.19.0"
+
+      # No `npm ci`: the collector imports only Node builtins and shells out to
+      # the preinstalled `gh`. An install here would cost minutes to observe
+      # minutes.
+      - name: Collect parity observations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIMIT: ${{ inputs.limit || '60' }}
+        run: |
+          set -euo pipefail
+          case "${LIMIT}" in
+            ''|*[!0-9]*) echo "::error::limit must be a positive integer"; exit 1 ;;
+          esac
+          node scripts/ci-shadow-parity.mjs collect --limit "${LIMIT}" --output .artifacts/ci-shadow-parity.v1.json
+
+      - name: Render the promotion readout
+        run: node scripts/ci-shadow-parity.mjs report --input .artifacts/ci-shadow-parity.v1.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The collected document, not just its rendering: a later reader can
+      # recompute the headline number from the observations it was derived from.
+      - name: Upload parity observations
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ci-shadow-parity
+          path: .artifacts/ci-shadow-parity.v1.json
+          retention-days: 30
+          if-no-files-found: error

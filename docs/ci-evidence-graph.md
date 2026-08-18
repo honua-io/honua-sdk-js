@@ -314,6 +314,65 @@ execute, matched on working directory plus program plus script name, and fails
 if the graph drops any of them. Sharding redistributes work; it must never
 retire a gate.
 
+### Measuring parity, so promotion is a decision and not a feeling
+
+"Parity and cost thresholds pass" is only actionable if somebody can say what
+the current number is. `scripts/ci-shadow-parity.mjs` computes it:
+
+```bash
+npm run ci:parity:collect    # needs `gh` with actions:read; rewrites the evidence
+npm run ci:parity:report     # offline; re-renders the committed observations
+```
+
+`.github/workflows/sdk-shadow-parity.yml` runs `collect` daily and writes the
+readout into its job summary. It is **read-only and not a gate**: it publishes
+no check run, commits nothing, and cannot make a pull request pass or fail.
+Promotion stays an explicit human decision made from the evidence it produces.
+
+The unit of comparison is **one exact head SHA**. Not a pull request — a pull
+request accumulates heads, and comparing at that level would pair the graph's
+verdict on one commit with `ci.yml`'s verdict on another. That is the mutable-base
+defect that closed [#1312](https://github.com/honua-io/honua-sdk-js/issues/1312)
+without merge.
+
+A head counts only when **both** workflows reached a terminal verdict on it.
+Everything else is excluded by a named reason and stays visible in the document
+rather than being dropped:
+
+| Reason | What it means |
+| --- | --- |
+| `pre-deployment` | The head predates the graph's first default-branch run. |
+| `missing-graph-run` / `missing-authoritative-run` | Only one workflow ran that head. |
+| `ambiguous-graph-run` / `ambiguous-authoritative-run` | Two distinct runs of one workflow on one head. |
+| `graph-not-terminal` / `authoritative-not-terminal` | Cancelled or still running. |
+| `graph-gate-missing` / `authoritative-gate-missing` | A gate job the run never published. |
+
+`pre-deployment` is the one worth understanding. Runs produced while the graph
+was itself the change under review were produced by a workflow file that moved
+between heads, so they say nothing about the deployed graph — in **either**
+direction. The first collection found six disagreements, all of them on
+[#1334](https://github.com/honua-io/honua-sdk-js/pull/1334)'s own development
+heads, where the graph was failing because it was being written. Counting those
+as parity findings would be as wrong as counting them as agreement. The window
+opens at the graph's earliest default-branch run, resolved from the API rather
+than hard-coded, so a rollback and redeploy moves it.
+
+Exclusion is always the cheaper mistake. A wrongly excluded head delays
+promotion; a wrongly counted head promotes a graph nobody measured.
+
+Promotion needs **both** conditions, and neither absorbs the other:
+
+- at least `PROMOTION_SAMPLE_THRESHOLD` (20) agreeing heads, and
+- **zero** disagreements. One unexplained disagreement blocks promotion no
+  matter how large the agreeing sample is, because the disagreement is the
+  evidence that the graph and `ci.yml` are not the same gate.
+
+The report prints both sides' cost, because sharding trades billed minutes for
+wall clock and reporting one number would let a loss read as a win. On the first
+post-deployment observations the graph's critical path is roughly a third of
+`ci.yml`'s while its billed total is higher — the whole graph pays eleven runner
+setups where the monolith pays two.
+
 ## What the graph deliberately does not touch
 
 - **`release:seal:check`** stays a release-time gate in `publish-js-sdk.yml` and

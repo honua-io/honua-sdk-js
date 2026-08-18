@@ -147,6 +147,20 @@ jobs:
       - name: Test CI timing baseline policy
         run: node --test test/scripts/ci-timing-baseline.test.mjs
 
+      # Promotion out of shadow mode is gated on measured parity, so the
+      # measurement itself is policy: it must refuse to count a head both
+      # workflows did not decide, and refuse to count a head decided before this
+      # graph was deployed.
+      - name: Test shadow-parity policy
+        run: node --test test/scripts/ci-shadow-parity.test.mjs
+
+      # A raw control byte makes git classify a policy source as binary, and a
+      # binary diff is a diff nobody reviewed. This has happened twice already
+      # (#1332, #1334); the guard covers every policy source rather than the one
+      # file that broke last time.
+      - name: Test policy sources stay reviewable as text
+        run: node --test test/scripts/source-text-guard.test.mjs
+
       # A Playwright spec that belongs to no shard would never run, which is
       # indistinguishable from passing (honua-io/honua-server#3259).
       - name: Test browser shard partition
