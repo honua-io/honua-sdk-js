@@ -48,8 +48,6 @@ import { fileURLToPath } from "node:url";
 import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const require = createRequire(import.meta.url);
-const Ajv2020 = require("ajv/dist/2020").default;
-const addFormats = require("ajv-formats").default;
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -982,7 +980,14 @@ async function loadSchema() {
   return JSON.parse(await readFile(SCHEMA_PATH, "utf8"));
 }
 
+// Resolved on use, not on import. `scripts/immutable-sample-bundle-attestation.mjs`
+// imports this module purely for its policy constants and runs from the pristine
+// `governance/` checkout, which is deliberately never `npm ci`-installed; an
+// import-time `require` made every publication fail before it wrote a receipt
+// (honua-io/honua-sdk-js#1325). Only manifest validation genuinely needs Ajv.
 export async function validateSampleBundleManifest(manifest, { catalog } = {}) {
+  const Ajv2020 = require("ajv/dist/2020").default;
+  const addFormats = require("ajv-formats").default;
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   addFormats(ajv);
   const validate = ajv.compile(await loadSchema());

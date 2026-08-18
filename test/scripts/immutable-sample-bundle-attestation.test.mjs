@@ -7,6 +7,7 @@ import {
   readFile,
   rename,
   rm,
+  symlink,
   unlink,
   writeFile,
 } from "node:fs/promises";
@@ -463,6 +464,84 @@ test("all actions are exact commit pins and attestation uses the verified object
 
 test("the actual workflow passes parsed structural policy", async () => {
   await validateWorkflowFile(WORKFLOW);
+});
+
+test("the pinned lockfile digest still matches the committed lockfile", async () => {
+  // The privileged publish job never checks out source, so it can only judge
+  // the manifest's `build.lockfileSha256` against a constant carried in the
+  // workflow file itself. That constant therefore goes stale on every
+  // dependency bump, and until this guard existed it went stale *silently* —
+  // publication only discovered it at dispatch, months later
+  // (honua-io/honua-sdk-js#1325). Deliberately a hard failure: the pin has to
+  // move in the same change that moves the lockfile.
+  const actual = createHash("sha256")
+    .update(await readFile(path.join(ROOT, "package-lock.json")))
+    .digest("hex");
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  const pinned = workflow.jobs["attest-and-publish"].steps[1].env
+    .EXPECTED_LOCKFILE_SHA256;
+  assert.equal(
+    pinned,
+    actual,
+    `package-lock.json now hashes to ${actual}. Update EXPECTED_LOCKFILE_SHA256 in ` +
+      `.github/workflows/publish-content-addressed-sample-bundles.yml and the bound copy in ` +
+      `scripts/immutable-sample-bundle-attestation.mjs, or sample-bundle publication will fail at dispatch.`,
+  );
+  // The policy validator binds the same constant; both copies must agree.
+  await validateWorkflowFile(WORKFLOW);
+});
+
+test("receipts are generated from a checkout with no installed dependencies", async (context) => {
+  // The publisher runs `receipt` out of the pristine `governance/` checkout,
+  // which is deliberately never `npm ci`-installed, so the receipt path must
+  // resolve against builtins alone. A static `yaml` import made every
+  // publication die with ERR_MODULE_NOT_FOUND before it produced a single
+  // receipt (honua-io/honua-sdk-js#1325, run 31972413231).
+  const scratch = await mkdtemp(path.join(os.tmpdir(), "honua-governance-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  // Only `scripts/` has to be a real copy — it is what module resolution walks
+  // up from, and nothing above the scratch directory provides `node_modules`.
+  // Data roots the graph reads at import time are symlinked, so the tree stays
+  // faithful to a full checkout without copying 65 MB of samples.
+  execFileSync("cp", [
+    "-R",
+    path.join(ROOT, "scripts"),
+    path.join(scratch, "scripts"),
+  ]);
+  await symlink(path.join(ROOT, "samples"), path.join(scratch, "samples"));
+
+  // Prove the isolation is real rather than a vacuous pass: a bare specifier
+  // genuinely cannot resolve from there.
+  assert.throws(() =>
+    execFileSync(
+      process.execPath,
+      ["--input-type=module", "-e", "await import('yaml');"],
+      { cwd: scratch, stdio: "pipe" },
+    ),
+  );
+
+  const entrypoint = path.join(
+    scratch,
+    "scripts/immutable-sample-bundle-attestation.mjs",
+  );
+  let status = 0;
+  let stderr = "";
+  try {
+    execFileSync(process.execPath, [entrypoint, "receipt"], {
+      cwd: scratch,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    status = error.status;
+    stderr = String(error.stderr);
+  }
+
+  // It must fail on its arguments — that is proof the whole module graph
+  // loaded — and never on module resolution.
+  assert.equal(status, 1);
+  assert.doesNotMatch(stderr, /ERR_MODULE_NOT_FOUND/u);
+  assert.match(stderr, /--manifest is required/u);
 });
 
 test("structural policy rejects syntax mutations rather than comments", async () => {

@@ -478,6 +478,15 @@ jobs:
       - name: Verify sample bundle manifest
         run: npm run samples:bundles:verify
 
+      - name: Sample bundle publication governance
+        # These suites previously ran only inside
+        # publish-content-addressed-sample-bundles.yml, so anything that broke
+        # the publisher stayed invisible until someone dispatched it. Two such
+        # breakages accumulated unnoticed that way (#1325): an import that the
+        # dependency-free governance checkout could not resolve, and a lockfile
+        # digest pin that dependency bumps had left stale.
+        run: npm run samples:bundles:test
+
       - name: Upload sample bundles workflow artifact
         # Versioned artifact for every push. Durable publication is the
         # content-addressed immutable release produced by
