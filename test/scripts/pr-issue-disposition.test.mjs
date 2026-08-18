@@ -281,7 +281,7 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /^permissions: read-all$/mu);
     assert.match(
       workflow,
-      /^  release-please:\n    if: \$\{\{ github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
+      /^  release-please:\n    if: \$\{\{ github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n(?:    #[^\n]*\n)*    concurrency:\n      group: release-please-\$\{\{ github\.repository \}\}\n      cancel-in-progress: false\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
     );
     assert.match(
       workflow,

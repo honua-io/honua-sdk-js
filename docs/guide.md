@@ -533,14 +533,27 @@ relaxation. Release Please's version-bump commit never satisfies that on its own
 `release-please-config.json`, all inside the evidence-neutral source digest
 (`scripts/sample-gate-receipt.mjs`), which re-stales every sample gate receipt,
 and the derived sample artifacts it carries were generated before the bump, so
-they still self-report the previous version. The release therefore:
+they still self-report the previous version. The release therefore cuts the tag
+on a commit that is already sealed rather than sealing it afterwards
+(honua-io/honua-sdk-js#1350) -- a tag cannot be moved once its GitHub Release is
+published, because immutable releases protect it. In order:
 
-- waits for `regenerate-derived-artifacts.yml` to reseal evidence and regenerate
-  the projections against the bumped tree and merge that generated-only
+- Release Please cuts the JS SDK release as a **draft**
+  (`"draft": true` on the `"."` package in `release-please-config.json`), which
+  creates no Git tag at all and leaves nothing protected;
+- `regenerate-derived-artifacts.yml` reseals evidence and regenerates the
+  projections against the bumped tree, and merges that generated-only
   descendant;
-- verifies the descendant changed only generated paths, then moves the
-  `js-sdk-*` tag onto it, so the tag names the sealed commit;
-- publishes from that tag, and dispatches the First Map release smoke at it.
+- the release verifies the descendant changed only generated paths, then
+  *creates* the `js-sdk-*` tag on it, so the tag names the sealed commit the
+  first and only time it is written;
+- it re-reads the tag, publishes the draft release, and re-reads the tag once
+  more -- publishing a draft whose tag does not exist would make GitHub create
+  it on the unsealed bump commit;
+- it publishes from that tag, and dispatches the First Map release smoke at it.
+
+See [the decision record](./decisions/release-tag-sealing-under-immutable-releases.md)
+for why the tag can never be repaired after the fact.
 
 `npm run release:seal:check` is the gate that proves a commit is sealed (every
 gate receipt bound to this tree, derived artifacts stamping this release

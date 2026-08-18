@@ -59,9 +59,9 @@ name: Regenerate derived artifacts
 # consumers dispatch this workflow and wait for it before strictly verifying
 # evidence, so releases never observe the bounded staleness window: publish-js-sdk
 # does so for branch-recovery runs, and release-please's resealed JS publish path
-# does so for every release -- then moves the js-sdk-* tag onto the resealed
+# does so for every release -- then creates the js-sdk-* tag on the resealed
 # commit this workflow merged, because a reseal is always a NEW commit and can
-# never freshen a tree an existing tag already names (#768). The loop guard below
+# never freshen a tree an existing tag already names (#768, #1350). The loop guard below
 # makes a dispatch a fast no-op when trunk's tip is already a regeneration merge --
 # except when a skip attestation is due for renewal (#972), which is a wall-clock
 # obligation the guard must not be able to defer indefinitely on a quiet trunk.
