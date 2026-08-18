@@ -247,7 +247,6 @@ describe("Release Please workflow policy", () => {
     const ci = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8").replaceAll("\r\n", "\n");
     const dispatcher = jobSlice(release, "release-please-ci");
     const refresher = jobSlice(release, "release-please-refresh");
-    const lockfilePin = jobSlice(release, "release-please-lockfile-pin");
     const disposition = jobSlice(release, "release-please-disposition");
     const jsSdk = jobSlice(ci, "js-sdk");
     const mcpSdk = jobSlice(ci, "mcp-sdk");
@@ -259,19 +258,7 @@ describe("Release Please workflow policy", () => {
     assert.match(refresher, /node scripts\/refresh-release-please-base\.mjs/u);
     assert.doesNotMatch(refresher, /actions: write|checks: write/u);
 
-    // The lockfile-digest pin runs between the refresh and the dispatch, so the
-    // canonical CI run is dispatched for a head whose pinned lockfile digest
-    // already matches its version-bumped lockfile (#1357). It is the only job
-    // here that writes to the bot branch, and it writes nothing else.
-    assert.match(lockfilePin, /needs: \[release-please, release-please-refresh\]/u);
-    assert.match(lockfilePin, /release_pr_present == 'true'/u);
-    assert.match(lockfilePin, /permissions:\n      contents: write\n      pull-requests: read/u);
-    assert.match(lockfilePin, /ref: \$\{\{ github\.sha \}\}/u);
-    assert.match(lockfilePin, /persist-credentials: false/u);
-    assert.match(lockfilePin, /node scripts\/sync-release-please-lockfile-pin\.mjs/u);
-    assert.doesNotMatch(lockfilePin, /actions: write|checks: write|pull-requests: write/u);
-
-    assert.match(dispatcher, /needs: \[release-please, release-please-refresh, release-please-lockfile-pin\]/u);
+    assert.match(dispatcher, /needs: \[release-please, release-please-refresh\]/u);
     assert.match(dispatcher, /timeout-minutes: 50/u);
     assert.match(dispatcher, /release_pr_present == 'true'/u);
     assert.match(dispatcher, /permissions:\n      actions: write\n      contents: read\n      pull-requests: read/u);
@@ -279,11 +266,7 @@ describe("Release Please workflow policy", () => {
     assert.match(dispatcher, /persist-credentials: false/u);
     assert.match(dispatcher, /node scripts\/dispatch-release-please-ci\.mjs/u);
     assert.doesNotMatch(dispatcher, /checks: write|contents: write|pull-requests: write/u);
-    assert.match(
-      disposition,
-      /needs: \[release-please, release-please-refresh, release-please-lockfile-pin, release-please-ci\]/u,
-    );
-    assert.match(disposition, /needs\.release-please-lockfile-pin\.result == 'success'/u);
+    assert.match(disposition, /needs: \[release-please, release-please-refresh, release-please-ci\]/u);
     assert.match(disposition, /needs\.release-please-ci\.result == 'success'/u);
 
     assert.match(

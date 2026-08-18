@@ -45,6 +45,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { lockfileDependencyDigest } from "./lib/lockfile-pin.mjs";
 import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const require = createRequire(import.meta.url);
@@ -949,7 +950,7 @@ export async function buildSampleBundleManifest({ gitCommit = gitSha() } = {}) {
   const packageJson = await readJson("package.json");
   const catalog = await readJson("samples/catalog.v2.json");
   verifySampleBundleAudit(catalog);
-  const packageLock = await readFile(path.join(PROJECT_ROOT, "package-lock.json"));
+  const packageLock = await readFile(path.join(PROJECT_ROOT, "package-lock.json"), "utf8");
 
   await rm(OUTPUT_ROOT, { recursive: true, force: true });
   await mkdir(OUTPUT_ROOT, { recursive: true });
@@ -969,7 +970,7 @@ export async function buildSampleBundleManifest({ gitCommit = gitSha() } = {}) {
     schemaVersion: 2,
     build: {
       node: packageJson.engines.node,
-      lockfileSha256: sha256(packageLock),
+      lockfileSha256: lockfileDependencyDigest(packageLock),
     },
     samples,
     excluded,
