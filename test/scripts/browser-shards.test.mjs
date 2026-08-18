@@ -11,7 +11,9 @@ import {
   BROWSER_SHARD_MAP_FORMAT,
   discoverPlaywrightSpecs,
   formatShardAudit,
+  isClaimableSpecPath,
   loadBrowserShardMap,
+  MAX_SPEC_DIRECTORY_DEPTH,
   parseBrowserShardMap,
   resolveShardFromEnvironment,
   shardTestMatch,
@@ -187,6 +189,58 @@ describe("spec discovery follows Playwright's testDir", () => {
     assert.equal(audit.ok, false);
     assert.deepEqual(audit.orphans, ["nested/brand-new.spec.mjs"]);
     assert.match(formatShardAudit(audit), /nested\/brand-new\.spec\.mjs/);
+  });
+});
+
+// The residual left open by honua-io/honua-sdk-js#1334: discovery admitted a
+// spec five directories deep while the claim pattern accepted at most four. The
+// audit demanded the spec be claimed and the parser refused the claim -- a
+// soft-lock with no way out that did not involve editing this module.
+describe("what discovery admits is exactly what a shard can claim", () => {
+  it("accepts a claim at the deepest path discovery will produce", () => {
+    const deepest = `${Array.from({ length: MAX_SPEC_DIRECTORY_DEPTH }, (_unused, index) => `d${index}`).join("/")}/leaf.spec.mjs`;
+    assert.equal(isClaimableSpecPath(deepest), true);
+    assert.doesNotThrow(() =>
+      parseBrowserShardMap({
+        format: BROWSER_SHARD_MAP_FORMAT,
+        shards: [shard({ specs: [deepest] })],
+      }),
+    );
+  });
+
+  it("refuses to discover anything a shard could not then claim", () => {
+    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "honua-browser-shards-"));
+    try {
+      const tooDeep = path.join(
+        scratch,
+        "test",
+        "playwright",
+        ...Array.from({ length: MAX_SPEC_DIRECTORY_DEPTH + 1 }, (_unused, index) => `d${index}`),
+      );
+      fs.mkdirSync(tooDeep, { recursive: true });
+      fs.writeFileSync(path.join(tooDeep, "leaf.spec.mjs"), "");
+      // A named, actionable failure rather than an orphan report nobody can act on.
+      assert.throws(() => discoverPlaywrightSpecs(scratch), /nested deeper than 4 directories at test\/playwright\/d0/u);
+    } finally {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  // Depth was one way to reach the soft-lock; a name shape is another. Both now
+  // report what is actually wrong instead of "claim this spec" for a spec that
+  // cannot be claimed.
+  it("names an unclaimable spec as unclaimable, not as a plain orphan", () => {
+    const audit = auditBrowserShards({
+      shardMap: loadBrowserShardMap(root),
+      discoveredSpecs: [...discoverPlaywrightSpecs(root), "Nested/Brand-New.spec.mjs"],
+    });
+    assert.equal(audit.ok, false);
+    assert.deepEqual(audit.orphans, []);
+    assert.deepEqual(audit.unclaimable, ["Nested/Brand-New.spec.mjs"]);
+    const message = formatShardAudit(audit);
+    assert.match(message, /no shard can claim/u);
+    assert.match(message, /Nested\/Brand-New\.spec\.mjs/u);
+    assert.doesNotMatch(message, /Claim each in/u);
   });
 });
 

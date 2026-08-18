@@ -602,7 +602,11 @@ export function releaseMatrixEnginesFromPlaywrightReport(report, options = {}) {
     // the engine failed.
     const finalAttempts = new Map();
     for (const match of matches) {
-      const key = `${match.file} ${match.title}`;
+      // Escaped, not raw. A literal NUL here made git classify this whole file as
+      // binary, hiding its diff from every reviewer -- the defect class of #1332 and
+      // #1334. The escape emits the identical byte; only the source representation
+      // changed, so the key and every digest derived from it are unchanged.
+      const key = `${match.file}\u0000${match.title}`;
       const previous = finalAttempts.get(key);
       if (!previous || match.retry >= previous.retry) finalAttempts.set(key, match);
     }

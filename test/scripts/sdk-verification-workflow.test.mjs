@@ -216,6 +216,34 @@ describe("browser evidence is sharded by owned failure domain", () => {
   });
 });
 
+// The measurement that decides whether this graph is ever promoted, and the
+// guard that keeps a policy source reviewable, are themselves policy. Wired
+// into admission so they fail in seconds, before anything expensive.
+describe("the promotion and reviewability guards run in admission", () => {
+  const required = [
+    "node test/scripts/ci-shadow-parity.test.mjs",
+    "node test/scripts/source-text-guard.test.mjs",
+  ];
+
+  for (const command of required) {
+    it(`runs ${command} before the graph spends a minute`, () => {
+      assert.ok(jobCommands(graph, "admission").has(command));
+    });
+  }
+
+  // Everything in admission before `npm ci` imports only Node builtins and
+  // repository sources; both suites do, so neither may push the install earlier.
+  it("keeps the cheap suites ahead of the install that only the graph fixture needs", () => {
+    const jobSteps = steps(graph, "admission");
+    const installIndex = jobSteps.findIndex((step) => invokedCommands(stepScript(step)).has("npm ci"));
+    assert.ok(installIndex > 0, "admission must still install for the graph fixture");
+    for (const command of required) {
+      const index = jobSteps.findIndex((step) => invokedCommands(stepScript(step)).has(command));
+      assert.ok(index >= 0 && index < installIndex, `${command} must run before the install`);
+    }
+  });
+});
+
 describe("generated offline evidence normalizes before browser execution", () => {
   it("checks the offline shell pins in the producer, right after the build", () => {
     const jobSteps = steps(graph, "build");

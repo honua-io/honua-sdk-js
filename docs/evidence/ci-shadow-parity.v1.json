@@ -1,0 +1,238 @@
+{
+  "format": "honua.ci-shadow-parity.v1",
+  "repository": "honua-io/honua-sdk-js",
+  "event": "pull_request",
+  "graphWorkflow": "sdk-verification.yml",
+  "authoritativeWorkflow": "ci.yml",
+  "collectedAt": "2026-08-17T23:51:23Z",
+  "observationWindowStart": "2026-08-16T23:50:35Z",
+  "threshold": 20,
+  "summary": {
+    "observed": 18,
+    "comparable": 3,
+    "agreed": 3,
+    "disagreed": 0,
+    "agreementRate": 1,
+    "exclusions": {
+      "pre-deployment": 14,
+      "missing-graph-run": 1
+    },
+    "threshold": 20,
+    "promotionReady": false,
+    "disagreements": [],
+    "cost": {
+      "graph": {
+        "samples": 3,
+        "billed": {
+          "p50": 46.099999999999994,
+          "p90": 49.199999999999996
+        },
+        "criticalPath": {
+          "p50": 11.6,
+          "p90": 14.783333333333333
+        }
+      },
+      "authoritative": {
+        "samples": 3,
+        "billed": {
+          "p50": 20.866666666666667,
+          "p90": 21.46666666666667
+        },
+        "criticalPath": {
+          "p50": 18.166666666666668,
+          "p90": 18.75
+        }
+      }
+    }
+  },
+  "observations": [
+    {
+      "headSha": "1fcbdffcfc78d3e290c878644218f4e8bae10bc9",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "31994996452",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 46.099999999999994,
+          "criticalPathMinutes": 11.6
+        }
+      },
+      "authoritative": {
+        "runId": "31994996462",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "failure"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 20.866666666666667,
+          "criticalPathMinutes": 18.166666666666668
+        }
+      }
+    },
+    {
+      "headSha": "21a9bc3076c31e8ddad15a5c0680465b74bcda23",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "3bc5f483d4ae87eceec76458aefb0008db9d77af",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "59ffb50e023f782cd301ad8a53e506782d75738e",
+      "comparable": false,
+      "reason": "missing-graph-run"
+    },
+    {
+      "headSha": "60f6478eac975110664b9e0c0deae10e66d76c68",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "31995001366",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 45.78333333333333,
+          "criticalPathMinutes": 11.433333333333334
+        }
+      },
+      "authoritative": {
+        "runId": "31995001365",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "failure"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 21.46666666666667,
+          "criticalPathMinutes": 18.75
+        }
+      }
+    },
+    {
+      "headSha": "6f2bfedb7eb5d65ad0d546678e759ebf7c4e7ade",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "7503781f60cea753b0987d1e47167831a0de8acb",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "76d134118e603236f38a9c1581d97216948a2a5d",
+      "comparable": true,
+      "agrees": true,
+      "graph": {
+        "runId": "31994983259",
+        "verdict": "failure",
+        "cost": {
+          "jobCount": 12,
+          "billedMinutes": 49.199999999999996,
+          "criticalPathMinutes": 14.783333333333333
+        }
+      },
+      "authoritative": {
+        "runId": "31994983250",
+        "verdict": "failure",
+        "jobs": [
+          {
+            "name": "JS SDK",
+            "conclusion": "failure"
+          },
+          {
+            "name": "MCP SDK",
+            "conclusion": "success"
+          }
+        ],
+        "cost": {
+          "jobCount": 2,
+          "billedMinutes": 16.633333333333333,
+          "criticalPathMinutes": 13.833333333333334
+        }
+      }
+    },
+    {
+      "headSha": "835848775eb34fc623ad27a09650a65051fb4cf2",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "8c389c7a06076221968241f668f0dd08191336a9",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "90aba3cc4e8f73cbdd7a3b9e1e31aa8e8edc1df5",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "9b3d18f3c222a335420388805ff17fafab2e32b2",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "a5dbd435840059b8f2db6d33681ae651cc323577",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "b2cf9a4cad98dd55c6dd1a95701edc419d49bd2f",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "c277923317eb10ca79097567e899f843d337bfc9",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "eb9327079d65cd2cb10779c5c98795553735f490",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "eef20512f5fdc5641c8976173bec13437a0cb45d",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    },
+    {
+      "headSha": "f3d92c2a959c87c7cbeb28c00dc5b257357ff2d6",
+      "comparable": false,
+      "reason": "pre-deployment",
+      "detail": "2026-08-16T23:50:35Z"
+    }
+  ]
+}

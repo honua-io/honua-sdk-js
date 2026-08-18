@@ -1,0 +1,24 @@
+# Diff CI-policy sources as text, always.
+#
+# Git classifies a blob as binary when it finds a control byte near the start,
+# and then prints "Bin 8864 -> 9127 bytes" instead of a diff. That has hidden a
+# review twice in this repository: a raw NUL concealed the stranded-merge
+# payload in #1332, and NUL/SOH digest separators rendered
+# scripts/lib/sdk-build-evidence.mjs -- the file deciding whether a downloaded
+# build may be trusted -- as an unreadable blob to every reviewer of #1334.
+#
+# test/scripts/source-text-guard.test.mjs stops a control byte being committed.
+# This stops one that slipped through, or one already in the *old* side of a
+# diff, from taking the review with it: the fix for a binary-classified file is
+# itself binary-classified without this, so the commit that repairs the problem
+# is the one nobody can read.
+*.mjs diff
+*.cjs diff
+*.mts diff
+*.js diff
+*.ts diff
+*.tsx diff
+*.yml diff
+*.yaml diff
+*.json diff
+*.md diff
