@@ -13,6 +13,15 @@ import {
 export const WORKFLOW_PATH =
   ".github/workflows/publish-content-addressed-sample-bundles.yml";
 export const NODE_VERSION = "20.19.0";
+// The sha256 of `package-lock.json` that the privileged publish job is allowed
+// to publish for. This is the bound copy: the authoritative one is the
+// `EXPECTED_LOCKFILE_SHA256` env value in the workflow above, and
+// `validateWorkflowDocument` asserts they are the same string, so neither can
+// move without the other. `scripts/lib/lockfile-pin.mjs` reads, compares and
+// rewrites both together; the release branch's synchroniser is the only writer
+// that is not a human editing a dependency change.
+export const EXPECTED_LOCKFILE_SHA256 =
+  "4b64e03cfacac59bfb20342356e7bce7b229b719d955c6c0fb33c2db23e45b2c";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
@@ -1892,8 +1901,7 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     privileged.steps[1].env,
     {
       SOURCE_COMMIT: "${{ github.sha }}",
-      EXPECTED_LOCKFILE_SHA256:
-        "4b64e03cfacac59bfb20342356e7bce7b229b719d955c6c0fb33c2db23e45b2c",
+      EXPECTED_LOCKFILE_SHA256,
     },
     "byte validation environment",
   );

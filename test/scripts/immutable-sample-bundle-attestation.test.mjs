@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
+  copyFile,
   mkdtemp,
   mkdir,
   readFile,
@@ -19,8 +20,16 @@ import { constants as zlibConstants, gunzipSync, gzipSync } from "node:zlib";
 import { parse as parseYaml } from "yaml";
 
 import {
+  assertLockfilePinInSync,
+  assertMechanicalVersionBump,
+  inspectLockfilePinAt,
+  lockfileDigest,
+  writeLockfilePinAt,
+} from "../../scripts/lib/lockfile-pin.mjs";
+import {
   ACTIONS,
   ACTION_COMMITS,
+  EXPECTED_LOCKFILE_SHA256,
   RUN_BODY_SHA256,
   classifyReleaseState,
   createReceipts,
@@ -473,22 +482,106 @@ test("the pinned lockfile digest still matches the committed lockfile", async ()
   // dependency bump, and until this guard existed it went stale *silently* —
   // publication only discovered it at dispatch, months later
   // (honua-io/honua-sdk-js#1325). Deliberately a hard failure: the pin has to
-  // move in the same change that moves the lockfile.
-  const actual = createHash("sha256")
-    .update(await readFile(path.join(ROOT, "package-lock.json")))
-    .digest("hex");
+  // move in the same change that moves the lockfile. The one deliberate,
+  // mechanical exception — Release Please's version bump, which rewrote the
+  // lockfile on every release branch and so failed this by construction
+  // (honua-io/honua-sdk-js#1357) — is re-pinned on the release branch by
+  // scripts/sync-release-please-lockfile-pin.mjs. It is not exempted here.
+  const result = await inspectLockfilePinAt(ROOT);
+  assert.equal(result.status, "in-sync", result.message);
+
+  // The guard reads the pin with an anchored regular expression so the same
+  // reader can run before `npm ci` and from the dependency-free release
+  // synchroniser. Bind that cheap reader to the genuinely parsed workflow
+  // document and to the exported constant, so neither can drift from the value
+  // the privileged job would actually receive.
   const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
-  const pinned = workflow.jobs["attest-and-publish"].steps[1].env
-    .EXPECTED_LOCKFILE_SHA256;
   assert.equal(
-    pinned,
-    actual,
-    `package-lock.json now hashes to ${actual}. Update EXPECTED_LOCKFILE_SHA256 in ` +
-      `.github/workflows/publish-content-addressed-sample-bundles.yml and the bound copy in ` +
-      `scripts/immutable-sample-bundle-attestation.mjs, or sample-bundle publication will fail at dispatch.`,
+    workflow.jobs["attest-and-publish"].steps[1].env.EXPECTED_LOCKFILE_SHA256,
+    result.actual,
+  );
+  assert.equal(EXPECTED_LOCKFILE_SHA256, result.actual);
+  assert.equal(
+    createHash("sha256")
+      .update(await readFile(path.join(ROOT, "package-lock.json")))
+      .digest("hex"),
+    result.actual,
   );
   // The policy validator binds the same constant; both copies must agree.
   await validateWorkflowFile(WORKFLOW);
+});
+
+test("an undeclared lockfile change still fails the pinned-digest guard", async (context) => {
+  // The criterion the #1357 fix had to keep: giving Release Please's version
+  // bump a path through the pin must not open one for a smuggled dependency
+  // change. Mutate a real checkout's lockfile without touching either bound
+  // copy, and prove the guard still rejects it.
+  const scratch = await mkdtemp(path.join(os.tmpdir(), "honua-lockfile-pin-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  await mkdir(path.join(scratch, ".github/workflows"), { recursive: true });
+  await mkdir(path.join(scratch, "scripts"), { recursive: true });
+  for (const file of [
+    "package-lock.json",
+    ".github/workflows/publish-content-addressed-sample-bundles.yml",
+    "scripts/immutable-sample-bundle-attestation.mjs",
+  ]) {
+    await copyFile(path.join(ROOT, file), path.join(scratch, file));
+  }
+  // Normalise the copy to in-sync first, so this reports the mutation and
+  // nothing else. Whether the repository itself is in sync is the subject of
+  // the guard above; it must not also decide the outcome here.
+  await writeLockfilePinAt(
+    scratch,
+    lockfileDigest(await readFile(path.join(scratch, "package-lock.json"))),
+  );
+  assert.equal((await inspectLockfilePinAt(scratch)).status, "in-sync");
+
+  const pristine = await readFile(path.join(scratch, "package-lock.json"), "utf8");
+  const lockfile = JSON.parse(pristine);
+  // A plausible smuggle: one more installed dependency, nothing else.
+  lockfile.packages["node_modules/honua-undeclared-dependency"] = {
+    version: "1.0.0",
+    resolved:
+      "https://registry.npmjs.org/honua-undeclared-dependency/-/honua-undeclared-dependency-1.0.0.tgz",
+    integrity: `sha512-${"A".repeat(86)}==`,
+  };
+  const smuggled = `${JSON.stringify(lockfile, null, 2)}\n`;
+  // A mutation test that mutated nothing would pass vacuously.
+  assert.notEqual(smuggled, pristine);
+  await writeFile(path.join(scratch, "package-lock.json"), smuggled);
+
+  const mutated = await inspectLockfilePinAt(scratch);
+  assert.equal(mutated.status, "stale");
+  assert.match(
+    mutated.message,
+    /^package-lock\.json now hashes to [0-9a-f]{64}\./u,
+  );
+  // The failure has to keep naming both bound files or it is unactionable.
+  assert.match(
+    mutated.message,
+    /\.github\/workflows\/publish-content-addressed-sample-bundles\.yml/u,
+  );
+  assert.match(
+    mutated.message,
+    /scripts\/immutable-sample-bundle-attestation\.mjs/u,
+  );
+  await assert.rejects(() => assertLockfilePinInSync(scratch), {
+    message: mutated.message,
+  });
+
+  // And the release path cannot launder it either: the synchroniser only
+  // recomputes a digest for a lockfile that differs from trusted trunk by
+  // nothing but first-party version strings.
+  assert.throws(
+    () =>
+      assertMechanicalVersionBump({
+        baseLockfileText: pristine,
+        headLockfileText: smuggled,
+        baseVersion: "0.1.7-beta.0",
+        headVersion: "0.1.8-beta.0",
+      }),
+    /undeclared lockfile change/u,
+  );
 });
 
 test("receipts are generated from a checkout with no installed dependencies", async (context) => {

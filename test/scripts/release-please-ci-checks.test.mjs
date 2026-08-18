@@ -355,7 +355,10 @@ describe("Release Please check-writer workflow policy", () => {
     const ci = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8").replaceAll("\r\n", "\n");
     const disposition = jobSlice(release, "release-please-disposition");
 
-    assert.match(disposition, /needs: \[release-please, release-please-refresh, release-please-ci\]/u);
+    assert.match(
+      disposition,
+      /needs: \[release-please, release-please-refresh, release-please-lockfile-pin, release-please-ci\]/u,
+    );
     assert.match(disposition, /needs\.release-please-ci\.result == 'success'/u);
     assert.match(
       disposition,

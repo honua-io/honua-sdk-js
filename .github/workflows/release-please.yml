@@ -295,8 +295,57 @@ jobs:
           test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
           node scripts/refresh-release-please-base.mjs
 
-  release-please-ci:
+  release-please-lockfile-pin:
+    # Release Please's version bump rewrites package-lock.json, which moves the
+    # digest that binds sample-bundle publication to an exact lockfile -- so
+    # every release pull request breaks that pin by construction and the
+    # failure reaches trunk through release-please-ci's dispatch-and-await
+    # (#1357). This re-pins the branch instead of relaxing the guard, and it
+    # runs before the canonical CI dispatch below so the dispatched run sees a
+    # consistent tree. It re-applies on every Release Please run, so a
+    # regenerated (force-pushed) bot branch is simply pinned again in the same
+    # run. The synchroniser proves the branch lockfile equals trusted trunk's
+    # modulo first-party version strings before it recomputes anything, so a
+    # release branch cannot smuggle a dependency change past the guard.
     needs: [release-please, release-please-refresh]
+    if: ${{ needs.release-please-refresh.outputs.release_pr_present == 'true' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-please-lockfile-pin-${{ github.repository }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: read
+    outputs:
+      pin_status: ${{ steps.pin.outputs.pin_status }}
+      release_head_sha: ${{ steps.pin.outputs.release_head_sha }}
+    steps:
+      - name: Check out trusted lockfile-pin policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: trusted-lockfile-pin-policy
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node.js for trusted lockfile-pin policy
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20.19.0"
+
+      - name: Pin the sample-bundle lockfile digest on the exact Release Please head
+        id: pin
+        working-directory: trusted-lockfile-pin-policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_PLEASE_PR_READY: ${{ needs.release-please-refresh.outputs.release_pr_present }}
+          TRUSTED_POLICY_SHA: ${{ github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "${TRUSTED_POLICY_SHA}"
+          node scripts/sync-release-please-lockfile-pin.mjs
+
+  release-please-ci:
+    needs: [release-please, release-please-refresh, release-please-lockfile-pin]
     if: ${{ needs.release-please-refresh.outputs.release_pr_present == 'true' }}
     runs-on: ubuntu-latest
     concurrency:
@@ -332,13 +381,14 @@ jobs:
           node scripts/dispatch-release-please-ci.mjs
 
   release-please-disposition:
-    needs: [release-please, release-please-refresh, release-please-ci]
+    needs: [release-please, release-please-refresh, release-please-lockfile-pin, release-please-ci]
     if: >-
       ${{ always() &&
           needs.release-please.result == 'success' &&
           needs.release-please-refresh.result == 'success' &&
           (needs.release-please-refresh.outputs.release_pr_present != 'true' ||
-           needs.release-please-ci.result == 'success') }}
+           (needs.release-please-lockfile-pin.result == 'success' &&
+            needs.release-please-ci.result == 'success')) }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
