@@ -547,6 +547,9 @@ jobs:
       - name: Verify sample bundle manifest
         run: npm run samples:bundles:verify
 
+      - name: Sample bundle publication governance
+        run: npm run samples:bundles:test
+
       - name: Upload sample bundles workflow artifact
         if: github.ref == 'refs/heads/trunk' && github.event_name == 'push'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
