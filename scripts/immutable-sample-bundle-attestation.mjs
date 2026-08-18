@@ -17,11 +17,11 @@ export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
   uploadArtifact:
-    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
   downloadArtifact:
-    "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+    "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
   attestBuildProvenance:
-    "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+    "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 });
 export const ACTION_COMMITS = new Map(
   Object.values(ACTIONS).map((value) => {
@@ -49,7 +49,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Stage transfer":
     "b6a12a3064dd6c7812fbd2aa8f6e24249e8766a230c8b098fe468e30f6603de9",
   "attest-and-publish/Validate all bytes before tokens":
-    "08c85cbc3182ff308b7f6266cc654b9743671ae57fbda4ed31e0cb1b6244ca48",
+    "1123caba9863f93123a946ed9d03be4863a4c1f53ed8d30cb9e946d61cc09a31",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":

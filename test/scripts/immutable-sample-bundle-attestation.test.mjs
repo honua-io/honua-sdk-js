@@ -454,7 +454,7 @@ function coverageSmokeJourney() {
 test("all actions are exact commit pins and attestation uses the verified object", () => {
   assert.equal(
     ACTIONS.attestBuildProvenance,
-    "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+    "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
   );
   for (const [repository, commit] of ACTION_COMMITS) {
     assert.match(repository, /^[a-z0-9-]+\/[a-z0-9-]+$/u);
