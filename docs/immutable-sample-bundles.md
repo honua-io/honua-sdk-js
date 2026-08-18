@@ -63,8 +63,10 @@ provenance predicate, and a GitHub-hosted runner.
 ## Maintenance obligations between dispatches
 
 The publisher is dispatch-only, so anything that breaks it stays invisible until
-someone dispatches it. Two obligations therefore run continuously, and `SDK CI`
-now enforces both through `npm run samples:bundles:test` (#1325):
+someone dispatches it — both obligations below had silently lapsed and were only
+discovered at dispatch (#1325). Each is now asserted by
+`npm run samples:bundles:test`, which `npm run samples:bundles:verify` chains on
+every CI run:
 
 - **The receipt path must resolve against Node builtins alone.** Receipts are
   produced from the `governance/` checkout, which is deliberately never
