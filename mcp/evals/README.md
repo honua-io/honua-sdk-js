@@ -101,7 +101,13 @@ named surface and expect the same numbers.
 
 - **Scheduled free certification** (`.github/workflows/mcp-cert-scheduled.yml`) —
   weekly + on-demand, runs the deterministic (zero-LLM, free) certifier against
-  the live demo `/mcp`, commits `cert-demo.json`, and regenerates the leaderboard.
+  the live demo `/mcp`, then publishes `cert-demo.json`, the regenerated
+  leaderboard, and the docs-site scorecard through an automation pull request
+  that merges once trunk's required checks pass. It cannot push at trunk
+  directly: the branch ruleset rejects that, so every run used to certify the
+  surface and then discard the report (honua-sdk-js#1351). The raw certification
+  JSON and Markdown are also attached to every run as the `mcp-scheduled-cert`
+  artifact, whether or not the corpus changed.
 - **Paid cross-model eval** (`.github/workflows/mcp-eval-live.yml`) — manual only.
   Runs the corpus through Bedrock models (`us.anthropic.claude-opus-4-6-v1`,
   `us.amazon.nova-2-lite-v1:0`) against a live surface, then appends the artifacts

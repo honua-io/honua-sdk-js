@@ -36,6 +36,16 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # The probe validates every envelope it publishes against the committed
+      # sample-evidence schema, so it loads scripts/sample-contract.mjs, whose
+      # module graph resolves real dependencies (ajv, ajv-formats, typescript,
+      # @playwright/test). Without an install the job died at module load with
+      # `Cannot find module 'ajv/dist/2020'` before it contacted any endpoint,
+      # and reported that as "live evidence is failing" (honua-sdk-js#1351).
+      - name: Install dependencies
+        run: npm ci
 
       - name: Probe canonical live sources
         env:

@@ -107,15 +107,21 @@ snapshot, cursor, lag, observation-window, and reconnect fields even when the
 live capability is unavailable; fixture data is never substituted into that
 lane.
 
-The live lane skips for two distinct, separately coded reasons. When the demo
+The live lane skips for three distinct, separately coded reasons. When the demo
 server reports realtime feature streams as unavailable, the skip code is
 `realtime-capability-disabled` and the reconnect outcome is
 `not-attempted-capability-unavailable`. When the capability is enabled but the
 demo incident feature service returns a well-formed snapshot with zero features,
 the skip code is `incident-demo-dataset-empty` and the reconnect outcome is
 `not-attempted-demo-dataset-empty`, because a snapshot-plus-delta journey cannot
-be demonstrated against an empty dataset. Seeding that dataset is tracked in
-[honua-sdk-js#812](https://github.com/honua-io/honua-sdk-js/issues/812). Errors,
-timeouts, and responses that do not match the protocol are never skips; they
-remain recorded failures. The taxonomy is documented in
+be demonstrated against an empty dataset. When the capability is enabled but the
+demo does not publish the incident feature service at all -- the query answers
+with a GeoServices `404` error payload -- the skip code is
+`incident-demo-service-missing` and the reconnect outcome is
+`not-attempted-demo-service-missing`. Deploying and seeding that service is
+tracked in [honua-demo#14](https://github.com/honua-io/honua-demo/issues/14),
+which superseded
+[honua-sdk-js#812](https://github.com/honua-io/honua-sdk-js/issues/812). Every
+other error payload, timeout, and response that does not match the protocol is
+never a skip; they remain recorded failures. The taxonomy is documented in
 [`docs/benchmark-methodology.md`](../../docs/benchmark-methodology.md).

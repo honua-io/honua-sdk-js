@@ -167,6 +167,43 @@ describe("live benchmark evidence", () => {
     expectReportValid(report);
   });
 
+  it("classifies an unpublished incident feature service as its own honest skip", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) =>
+        liveFixtureResponse(input, {
+          realtime: true,
+          incidentSnapshot: { error: { code: 404, message: "Service 'maui-incidents' not found." } },
+        }),
+      ),
+    );
+
+    const report = await collectLiveEvidence({ HONUA_BENCH_LIVE_ENABLED: "true" });
+    const incident = report.targets.find((target) => target.id === "honua-demo-incident-realtime");
+
+    expect(incident).toMatchObject({
+      status: "skipped",
+      skipReasonCode: "incident-demo-service-missing",
+      skipReason: expect.stringContaining("does not publish the maui-incidents"),
+      sampleEvidence: {
+        sampleId: "realtime-incident-dashboard",
+        status: "skipped",
+        degradation: { state: "unavailable" },
+        realtime: { reconnectOutcome: "not-attempted-demo-service-missing" },
+      },
+    });
+    // The skip must name the owner of the gap so it stays actionable.
+    expect(incident?.skipReason).toContain("honua-demo#14");
+    expect(sampleEvidenceOf(incident).degradation.reasons).toContain("incident-demo-service-missing");
+    // An unpublished service is not an empty dataset and not a capability finding.
+    expect(incident?.skipReasonCode).not.toBe("incident-demo-dataset-empty");
+    expect(incident?.skipReasonCode).not.toBe("realtime-capability-disabled");
+    expect(sampleEvidenceOf(incident).realtime.reconnectOutcome).not.toBe("not-attempted-capability-unavailable");
+    // A lane whose only unmet target is an environment gap still publishes evidence.
+    expect(report.run.status).toBe("passed");
+    expectReportValid(report);
+  });
+
   it("proceeds with the live journey when the incident snapshot carries features", async () => {
     vi.stubGlobal(
       "fetch",
@@ -211,6 +248,14 @@ describe("live benchmark evidence", () => {
   it.each([
     ["an error status", { incidentSnapshotStatus: 500 }],
     ["an error payload behind HTTP 200", { incidentSnapshot: { error: { code: 400, message: "Invalid where" } } }],
+    [
+      "an authorization error payload behind HTTP 200",
+      { incidentSnapshot: { error: { code: 403, message: "Token required" } } },
+    ],
+    [
+      "a server-fault error payload behind HTTP 200",
+      { incidentSnapshot: { error: { code: 500, message: "Internal error" } } },
+    ],
     ["a schema mismatch", { incidentSnapshot: { features: "not-an-array" } }],
   ])("keeps %s a failure rather than a skip", async (_label, overrides) => {
     vi.stubGlobal(
@@ -228,6 +273,7 @@ describe("live benchmark evidence", () => {
       degradation: { state: "unexpected" },
     });
     expect(sampleEvidenceOf(incident).degradation.reasons).not.toContain("incident-demo-dataset-empty");
+    expect(sampleEvidenceOf(incident).degradation.reasons).not.toContain("incident-demo-service-missing");
     expect(report.run.status).toBe("failed");
   });
 
@@ -285,6 +331,9 @@ describe("live benchmark evidence", () => {
     expect(outcomes.map(([code]) => code).sort()).toEqual([...codes].sort());
     expect(INCIDENT_SKIP_RECONNECT_OUTCOMES["operator-requested-skip"]).toBe("not-attempted-operator-skip");
     expect(INCIDENT_SKIP_RECONNECT_OUTCOMES["incident-demo-dataset-empty"]).toBe("not-attempted-demo-dataset-empty");
+    expect(INCIDENT_SKIP_RECONNECT_OUTCOMES["incident-demo-service-missing"]).toBe(
+      "not-attempted-demo-service-missing",
+    );
   });
 
   it("rejects a skipped target that carries no typed reason code", async () => {

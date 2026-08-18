@@ -143,19 +143,29 @@ condition applied:
 | `realtime-capability-probe-unavailable` | The realtime capability endpoint answered 403 or 404 | `not-attempted-capability-unavailable` |
 | `realtime-capability-disabled` | The capability probe succeeded and reported the stream as not enabled | `not-attempted-capability-unavailable` |
 | `incident-demo-dataset-empty` | The capability is enabled, but the demo incident feature service returned a well-formed, zero-feature snapshot | `not-attempted-demo-dataset-empty` |
+| `incident-demo-service-missing` | The capability is enabled, but the demo does not publish the incident feature service at all: the query answered with a GeoServices `404` error payload | `not-attempted-demo-service-missing` |
 
 The schema requires `skipReasonCode` on every skipped target and forbids it on
 any other status, so an untyped skip cannot be published.
 
 Every other outcome stays `failed`: a transport error, a non-2xx status, a
-timeout, a GeoServices error payload behind HTTP 200, or a response whose shape
-does not match the protocol. In particular, an empty incident snapshot is a skip
-only when the response was authenticated and schema-valid and simply carried no
-features; a snapshot-plus-delta journey cannot be demonstrated against an empty
-dataset, so claiming an execution would be dishonest. Seeding the demo incident
-dataset is tracked in
-[honua-sdk-js#812](https://github.com/honua-io/honua-sdk-js/issues/812); until it
-lands, the skip is the truthful attestation.
+timeout, a GeoServices error payload behind HTTP 200 that reports anything other
+than `404`, or a response whose shape does not match the protocol. In particular,
+an empty incident snapshot is a skip only when the response was authenticated and
+schema-valid and simply carried no features; a snapshot-plus-delta journey cannot
+be demonstrated against an empty dataset, so claiming an execution would be
+dishonest.
+
+A GeoServices `404` payload is the one error payload that is a skip rather than a
+failure, and only because it establishes the same fact one step earlier: the
+deployment does not publish the incident feature service at all, so there is no
+journey to demonstrate. Any other error code describes a service that *is*
+published and answering wrongly, which is a genuine failure. Deploying and seeding
+the demo incident service is tracked in
+[honua-demo#14](https://github.com/honua-io/honua-demo/issues/14) (which
+superseded [honua-sdk-js#812](https://github.com/honua-io/honua-sdk-js/issues/812));
+until it lands, the skip is the truthful attestation, and it is published in the
+evidence envelope and the run's step summary rather than swallowed.
 
 The sample evidence envelope has no free-form code field, so the reason code is
 republished there as an additional `degradation.reasons` entry, and the incident
