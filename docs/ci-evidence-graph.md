@@ -158,7 +158,7 @@ length-framed, fixed-order values:
 | --- | --- |
 | `contract` | A graph revision that moves a gate between jobs can make a byte-identical build the wrong build to trust. |
 | `sourceSha256` | The prepared-artifact digest of every source input `tsc` can reach. |
-| `lockfileSha256` | A different dependency tree is a different build. Taken over the dependency projection of `package-lock.json` (`scripts/lib/lockfile-pin.mjs`), so this repository's own version does not count as a dependency change. |
+| `lockfileSha256` | A different dependency tree is a different build. |
 | `tsconfigSha256` | Compiler configuration changes the emit. |
 | `scriptsSha256` | Consumers execute npm scripts by name against the reused dist. |
 | `nodeVersion`, `npmVersion` | Toolchain. |
