@@ -25,6 +25,8 @@ import {
   reconstructEventMerge,
   validatePolicy,
   validateWorkflow,
+  supersededMarkdown,
+  supersededRecord,
 } from "../../scripts/browser-impact-observe.mjs";
 
 const policy = loadPolicy();
@@ -460,6 +462,13 @@ test("trusted observer workflow rejects permission and identity regressions", ()
         'browser-impact-observe.mjs validate',
       ),
       source.replace('--head "$MERGE_SHA"', '--head "$HEAD_SHA"'),
+      // The superseded classification and its evidence record are load-bearing:
+      // without them an unobservable source run is either a red build or a
+      // silent skip, which is the failure mode this observer already caused.
+      source.replace("browser-impact-observe.mjs superseded", "browser-impact-observe.mjs validate"),
+      source.replace("if: steps.resolve.outputs.superseded != 'true'\n        shell: bash", "shell: bash"),
+      source.replace('core.setOutput("superseded", "false");', ""),
+      source.replaceAll("core.warning(", "core.debug("),
     ]) {
       writeFileSync(workflowPath, mutated);
       assert.throws(() => validateWorkflow(fixtureRoot), /browser observer/u);
@@ -473,4 +482,54 @@ test("glob matching treats repository prefixes and wildcards deterministically",
   assert.equal(pathMatches("src/offline/indexeddb.ts", "src/offline/**"), true);
   assert.equal(pathMatches("test/offline-region.test.ts", "test/offline-*.test.ts"), true);
   assert.equal(pathMatches("test/realtime.test.ts", "test/offline-*.test.ts"), false);
+});
+
+test("a superseded record can never be read as a successful observation", () => {
+  const record = supersededRecord({
+    reason: "source-run-head-superseded",
+    stage: "resolve",
+    repository: "honua-io/honua-sdk-js",
+    sourceRunId: "32083146632",
+    sourceRunAttempt: "1",
+    sourceRunConclusion: "failure",
+    observerRunId: "32084218948",
+    observerRunAttempt: "1",
+    detail: "pull request 1344 advanced",
+  });
+  assert.equal(record.schema, "honua.sdk.browser-impact-superseded/v1");
+  assert.notEqual(record.schema, "honua.sdk.browser-impact-observation/v2");
+  assert.equal(record.observed, false);
+  assert.equal(record.status, "superseded");
+  assert.equal(record.reason, "source-run-head-superseded");
+  assert.equal(record.source_run_id, 32083146632);
+  assert.equal(record.observer_run_id, 32084218948);
+  // No lane/comparison surface at all, so nothing downstream can mistake an
+  // empty comparison for a comparison that ran and selected nothing.
+  assert.equal(record.candidate, undefined);
+  assert.equal(record.comparison, undefined);
+  const markdown = supersededMarkdown(record);
+  assert.match(markdown, /SUPERSEDED \(not observed\)/u);
+  assert.match(markdown, /source-run-head-superseded/u);
+  assert.match(markdown, /32083146632/u);
+});
+
+test("a superseded record refuses an unrecognised or missing reason", () => {
+  const base = {
+    stage: "resolve",
+    repository: "honua-io/honua-sdk-js",
+    sourceRunId: "1",
+    sourceRunAttempt: "1",
+    sourceRunConclusion: "failure",
+    observerRunId: "2",
+    observerRunAttempt: "1",
+  };
+  for (const reason of [undefined, "", "flake", "unknown"]) {
+    assert.throws(() => supersededRecord({ ...base, reason }), /unknown superseded reason/u);
+  }
+  for (const field of ["sourceRunId", "observerRunId", "sourceRunAttempt"]) {
+    assert.throws(
+      () => supersededRecord({ ...base, reason: "pull-request-head-moved", [field]: "0" }),
+      /run id|run attempt/u,
+    );
+  }
 });

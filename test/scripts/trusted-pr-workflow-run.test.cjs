@@ -4,9 +4,44 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
+  SUPERSEDED_SOURCE_RUN,
+  SupersededSourceRunError,
   parseRunId,
   resolveTrustedPullRequestWorkflowRun,
 } = require("../../scripts/trusted-pr-workflow-run.cjs");
+
+/** Assert a resolution was classified superseded (skippable), not inconsistent. */
+async function assertSuperseded(promise, reason) {
+  const error = await promise.then(
+    () => {
+      throw new Error("expected the resolution to be superseded");
+    },
+    (caught) => caught,
+  );
+  assert.ok(
+    error instanceof SupersededSourceRunError,
+    `expected SupersededSourceRunError, got ${error?.name}: ${error?.message}`,
+  );
+  assert.equal(error.code, SUPERSEDED_SOURCE_RUN);
+  assert.equal(error.reason, reason);
+  return error;
+}
+
+/** Assert a resolution failed hard: an integrity violation, never skippable. */
+async function assertHardFailure(promise, pattern) {
+  const error = await promise.then(
+    () => {
+      throw new Error("expected the resolution to fail");
+    },
+    (caught) => caught,
+  );
+  assert.ok(
+    !(error instanceof SupersededSourceRunError),
+    `integrity violations must never be classified superseded: ${error.message}`,
+  );
+  assert.match(error.message, pattern);
+  return error;
+}
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -170,25 +205,55 @@ test("never substitutes the mutable latest workflow attempt", async () => {
   });
 });
 
-test("fails closed on missing or ambiguous check-run associations", async () => {
-  for (const pull_requests of [
-    [],
-    [
-      {
-        number: 41,
-        base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
-        head: { sha: HEAD },
-      },
-      {
-        number: 42,
-        base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
-        head: { sha: HEAD },
-      },
-    ],
-  ]) {
-    const { github } = fixtures({ checkRun: { pull_requests } });
-    await assert.rejects(resolve(github), /exactly one pull request/u);
-  }
+test("fails closed on ambiguous check-run associations", async () => {
+  const { github } = fixtures({
+    checkRun: {
+      pull_requests: [
+        {
+          number: 41,
+          base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
+          head: { sha: HEAD },
+        },
+        {
+          number: 42,
+          base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
+          head: { sha: HEAD },
+        },
+      ],
+    },
+  });
+  await assertHardFailure(resolve(github), /exactly one pull request/u);
+});
+
+test("classifies a withdrawn pull-request association as superseded, not inconsistent", async () => {
+  // GitHub drops the check-run association once the head branch is deleted by a
+  // merge or close. The run stays immutable but no longer names an observable
+  // pull request, and the run-attempt endpoint is empty for the same reason, so
+  // there is nothing to resolve and nothing to repair.
+  const { github } = fixtures({ checkRun: { pull_requests: [] } });
+  const error = await assertSuperseded(resolve(github), "pull-request-association-withdrawn");
+  assert.equal(error.detail.runId, 123);
+  assert.equal(error.detail.runHeadSha, HEAD);
+  assert.equal(error.detail.checkRunId, 456);
+});
+
+test("classifies a newer pull-request head as superseding this source run", async () => {
+  const newer = "d".repeat(40);
+  const { github } = fixtures({
+    checkRun: {
+      pull_requests: [
+        {
+          number: 42,
+          base: { ref: "trunk", sha: BASE, repo: { id: 1 } },
+          head: { sha: newer, repo: { id: 1 } },
+        },
+      ],
+    },
+  });
+  const error = await assertSuperseded(resolve(github), "source-run-head-superseded");
+  assert.equal(error.detail.runHeadSha, HEAD);
+  assert.equal(error.detail.currentHeadSha, newer);
+  assert.equal(error.detail.pullRequestNumber, 42);
 });
 
 test("preserves the event base when the live default branch advances", async () => {
@@ -219,21 +284,41 @@ test("accepts immutable run evidence after the associated pull request closes", 
   }
 });
 
-test("rejects a current PR whose head moved after the workflow run", async () => {
+test("classifies a head that moves mid-resolution as superseded", async () => {
+  const newer = "c".repeat(40);
   const { github } = fixtures({
     pullRequest: {
       head: {
-        sha: "c".repeat(40),
+        sha: newer,
         repo: { id: 1, full_name: "honua-io/honua-sdk-js" },
       },
     },
   });
-  await assert.rejects(resolve(github), /moved after/u);
+  const error = await assertSuperseded(resolve(github), "pull-request-head-moved");
+  assert.equal(error.detail.currentHeadSha, newer);
 });
 
 test("rejects an unknown pull-request state", async () => {
   const { github } = fixtures({ pullRequest: { state: "unknown" } });
-  await assert.rejects(resolve(github), /moved after/u);
+  await assertHardFailure(resolve(github), /moved after/u);
+});
+
+test("keeps every pull-request identity violation a hard failure", async () => {
+  const cases = [
+    { number: 43 },
+    { base: { ref: "other", sha: BASE, repo: { id: 1, full_name: "honua-io/honua-sdk-js" } } },
+    { base: { ref: "trunk", sha: BASE, repo: { id: 99, full_name: "honua-io/honua-sdk-js" } } },
+    { head: { sha: HEAD, repo: { id: 99, full_name: "honua-io/honua-sdk-js" } } },
+    { head: { sha: HEAD, repo: { id: 1, full_name: "other/repository" } } },
+  ];
+  for (const pullRequest of cases) {
+    const { github } = fixtures({ pullRequest });
+    await assertHardFailure(resolve(github), /moved after/u);
+  }
+});
+
+test("rejects an unknown superseded reason rather than inventing one", () => {
+  assert.throws(() => new SupersededSourceRunError("not-a-reason"), /unknown superseded/u);
 });
 
 test("rejects malformed or lookalike workflow runs", async () => {
@@ -314,7 +399,7 @@ test("rejects inconsistent check-run and event-time association identities", asy
   ];
   for (const checkRun of cases) {
     const { github } = fixtures({ checkRun });
-    await assert.rejects(resolve(github), /check|identity/u);
+    await assertHardFailure(resolve(github), /check|identity/u);
   }
 });
 

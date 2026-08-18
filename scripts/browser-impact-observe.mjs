@@ -9,6 +9,12 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_POLICY = resolve(ROOT, ".github/data/browser-impact-policy.v1.json");
 const OBSERVATION_SCHEMA = "honua.sdk.browser-impact-observation/v2";
+const SUPERSEDED_SCHEMA = "honua.sdk.browser-impact-superseded/v1";
+const SUPERSEDE_REASONS = new Set([
+  "pull-request-association-withdrawn",
+  "source-run-head-superseded",
+  "pull-request-head-moved",
+]);
 const SHA = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const TERMINAL_CONCLUSIONS = new Set([
@@ -350,6 +356,27 @@ export function validateWorkflow(root) {
   if (resolveCalls.length !== 2) {
     throw new PolicyError("browser observer must resolve source identity before and after observation");
   }
+  // A source run that can no longer be observed is skipped, never silently: both
+  // resolutions must classify the supersede, every observation step must be
+  // gated on that classification, and the always-uploaded evidence must be
+  // replaced by an explicit superseded record. Dropping any of these turns a
+  // skipped observation back into either a red build or a silent no-op.
+  const supersedeGuards = [
+    workflow.split("SUPERSEDED_SOURCE_RUN").length - 1 >= 4,
+    (workflow.match(/core\.setOutput\("superseded", "true"\)/gmu) ?? []).length === 2,
+    (workflow.match(/core\.setOutput\("superseded", "false"\)/gmu) ?? []).length === 2,
+    (workflow.match(/steps\.resolve\.outputs\.superseded != 'true'/gmu) ?? []).length === 4,
+    workflow.includes("steps.revalidate.outputs.superseded != 'true'"),
+    workflow.includes("browser-impact-observe.mjs superseded"),
+    workflow.includes("steps.resolve.outputs.superseded == 'true' ||"),
+    workflow.includes("steps.revalidate.outputs.superseded == 'true'"),
+    (workflow.match(/core\.warning\(/gmu) ?? []).length === 2,
+  ];
+  if (supersedeGuards.some((guard) => !guard)) {
+    throw new PolicyError(
+      "browser observer must classify superseded source runs and publish an explicit superseded record",
+    );
+  }
   for (const argument of [
     '--observer-run-id "$GITHUB_RUN_ID"',
     '--observer-run-attempt "$GITHUB_RUN_ATTEMPT"',
@@ -541,6 +568,62 @@ export function evaluate(policy, changedPaths, metadata = {}, root = ROOT) {
   };
 }
 
+/**
+ * Evidence for a source run that can no longer be observed.
+ *
+ * This deliberately carries its own schema rather than an observation with
+ * empty lanes: nothing downstream may mistake a skipped observation for a
+ * successful one, and the artifact the observer always uploads must state, in
+ * the run's own evidence, exactly which run was skipped and why.
+ */
+export function supersededRecord(metadata) {
+  const reason = String(metadata.reason ?? "");
+  if (!SUPERSEDE_REASONS.has(reason)) {
+    throw new PolicyError(`unknown superseded reason: ${reason || "(empty)"}`);
+  }
+  return {
+    schema: SUPERSEDED_SCHEMA,
+    mode: "observe",
+    mutation: "none",
+    observed: false,
+    status: "superseded",
+    reason,
+    stage: metadata.stage === "revalidate" ? "revalidate" : "resolve",
+    repository: String(metadata.repository ?? ""),
+    source_run_id: parsePositiveSafeInteger(metadata.sourceRunId, "source run id"),
+    source_run_attempt: parsePositiveSafeInteger(
+      metadata.sourceRunAttempt,
+      "source run attempt",
+    ),
+    source_run_conclusion: String(metadata.sourceRunConclusion ?? ""),
+    observer_run_id: parsePositiveSafeInteger(metadata.observerRunId, "observer run id"),
+    observer_run_attempt: parsePositiveSafeInteger(
+      metadata.observerRunAttempt,
+      "observer run attempt",
+    ),
+    detail: String(metadata.detail ?? ""),
+  };
+}
+
+export function supersededMarkdown(record) {
+  return [
+    "## SDK browser impact observation: SUPERSEDED (not observed)",
+    "",
+    `- Outcome: \`${record.status}\` at stage \`${record.stage}\` -- **no routing comparison was produced**`,
+    `- Reason: \`${record.reason}\``,
+    `- Source SDK CI run: \`${record.source_run_id}\` attempt \`${record.source_run_attempt}\` (\`${record.source_run_conclusion}\`)`,
+    `- Observer run: \`${record.observer_run_id}\` attempt \`${record.observer_run_attempt}\``,
+    `- Detail: \`${record.detail || "none"}\``,
+    "",
+    "The immutable workflow run this observer was handed no longer names an",
+    "observable pull request: GitHub recomputes the check-run association from",
+    "live repository state, so a later push, or a merge that deletes the head",
+    "branch, detaches it. Nothing was compared and nothing is wrong. The head",
+    "that superseded this one gets its own SDK CI run and its own observation.",
+    "",
+  ].join("\n");
+}
+
 export function markdown(report) {
   const lines = [
     "## SDK browser impact observation",
@@ -675,6 +758,29 @@ function main(argv) {
     console.log(
       JSON.stringify(reconstructEventMerge(args.base, args.head, args["candidate-root"])),
     );
+    return;
+  }
+  if (args.command === "superseded") {
+    if (!args.output || !args.markdown) {
+      throw new PolicyError("superseded requires --output and --markdown");
+    }
+    const record = supersededRecord({
+      reason: args.reason,
+      stage: args.stage,
+      repository: args.repository,
+      sourceRunId: args["source-run-id"],
+      sourceRunAttempt: args["source-run-attempt"],
+      sourceRunConclusion: args["source-run-conclusion"],
+      observerRunId: args["observer-run-id"],
+      observerRunAttempt: args["observer-run-attempt"],
+      detail: args.detail,
+    });
+    for (const target of [args.output, args.markdown]) {
+      mkdirSync(dirname(resolve(ROOT, target)), { recursive: true });
+    }
+    writeFileSync(resolve(ROOT, args.output), `${JSON.stringify(record, null, 2)}\n`);
+    writeFileSync(resolve(ROOT, args.markdown), supersededMarkdown(record));
+    console.log(JSON.stringify(record));
     return;
   }
   if (args.command === "event-tree") {
