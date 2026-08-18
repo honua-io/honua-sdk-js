@@ -1,0 +1,155 @@
+{
+  "$comment": [
+    "Recorded facts for the honua-io/honua-sdk-js#1317 sweep, replayed with",
+    "`node scripts/stranded-merge-detector.mjs --fixture <this file> --no-fetch`.",
+    "No `gh`, no network, no git repository -- every field here is a fact the live",
+    "resolver would have produced, so the classification is exercised end to end.",
+    "",
+    "#863 is the case that motivated schema version 2: its merge commit really is",
+    "not an ancestor of trunk, and its payload really is on trunk, re-landed by",
+    "#921 four days later in a stricter form. Schema version 1 reported it",
+    "stranded on every weekly run.",
+    "",
+    "`pathFacts` are adjudicated through the real classifyPath; `paths` are",
+    "recorded verdicts used where only the pull-request rollup is under test."
+  ],
+  "repo": "honua-io/honua-sdk-js",
+  "merged": [
+    {
+      "number": 921,
+      "title": "feat(scene): project temporal instants to Cesium availability",
+      "baseRefName": "trunk",
+      "mergeCommit": { "oid": "c7775d0d4aa0000000000000000000000000000a" },
+      "mergedAt": "2026-08-02T00:00:00Z",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/921",
+      "onDefaultBranch": true
+    },
+    {
+      "number": 863,
+      "title": "feat(scene): project temporal instants to Cesium availability",
+      "baseRefName": "codex/395-polygon-holes",
+      "mergeCommit": { "oid": "b6f246180d08fbf42503e6eca7bb906ecbac7380" },
+      "mergedAt": "2026-07-30T03:59:57Z",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/863",
+      "onDefaultBranch": false,
+      "pathFacts": [
+        {
+          "path": "src/scene-workspace/index.ts",
+          "headBlob": "c74e42070",
+          "defaultBlob": "9911aa220",
+          "addedLines": ["CesiumEntityTimeOptions,"],
+          "defaultText": "export type {\n  CesiumEntityInterval,\n  CesiumEntityTimeOptions,\n  CesiumEntityProjection,\n};\n",
+          "touchedOnDefaultSinceMerge": true
+        },
+        {
+          "path": "src/scene-workspace/source-to-cesium.ts",
+          "headBlob": "5c1d0aa11",
+          "defaultBlob": "77f0bb332",
+          "addedLines": [
+            "export type CesiumEntityTimeOptions =",
+            "readonly instantField: string;",
+            "const instant = isoInstant(attributes[time.instantField]);"
+          ],
+          "defaultText": "export type CesiumEntityTimeOptions =\n  | {\n      readonly instantField: string;\n      readonly startField?: never;\n    }\n  | {\n      readonly instantField?: never;\n      readonly startField: string;\n    };\n\nif (time.instantField !== undefined) {\n  const instant = isoInstant(attributes[time.instantField]);\n}\n",
+          "touchedOnDefaultSinceMerge": true
+        }
+      ]
+    },
+    {
+      "number": 1207,
+      "title": "feat(query): add a spatial-index planner hint",
+      "baseRefName": "agent/1200-query-planner",
+      "mergeCommit": { "oid": "aa11bb22cc33dd44ee55ff6600112233445566aa" },
+      "mergedAt": "2026-08-05T11:00:00Z",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1207",
+      "onDefaultBranch": false,
+      "pathFacts": [
+        {
+          "path": "src/query/planner-hint.ts",
+          "headBlob": "1111aaaa2",
+          "addedLines": ["export function planSpatialIndexHint(query: FeatureQuery): PlannerHint {"]
+        },
+        {
+          "path": "test/query-planner-hint.test.ts",
+          "headBlob": "3333cccc4",
+          "addedLines": ["it(\"prefers the spatial index when the bbox is small\", async () => {"]
+        }
+      ]
+    },
+    {
+      "number": 1211,
+      "title": "fix(tiles): clamp the overzoom factor",
+      "baseRefName": "agent/1208-tile-overzoom",
+      "mergeCommit": { "oid": "bb22cc33dd44ee55ff6600112233445566aabb22" },
+      "mergedAt": "2026-08-06T09:30:00Z",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1211",
+      "onDefaultBranch": false,
+      "pathFacts": [
+        {
+          "path": "src/tiles/overzoom.ts",
+          "headBlob": "5555dddd6",
+          "defaultBlob": "7777eeee8",
+          "addedLines": ["const clamped = Math.min(requestedZoom, source.maxzoom + MAX_OVERZOOM);"],
+          "defaultText": "const clamped = requestedZoom;\nreturn clamped;\n",
+          "touchedOnDefaultSinceMerge": true
+        }
+      ]
+    },
+    {
+      "number": 1250,
+      "title": "chore(train): batch 2026-08-10",
+      "baseRefName": "train/batch/9d20f0cb4/7",
+      "mergeCommit": { "oid": "cc33dd44ee55ff6600112233445566aabb22cc33" },
+      "mergedAt": "2026-08-10T04:00:00Z",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1250",
+      "onDefaultBranch": false
+    },
+    {
+      "number": 1266,
+      "title": "feat(realtime): reconnect with jittered backoff",
+      "baseRefName": "agent/1260-realtime-backoff",
+      "mergeCommit": { "oid": "dd44ee55ff6600112233445566aabb22cc33dd44" },
+      "mergedAt": "2026-08-12T18:00:00Z",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1266",
+      "onDefaultBranch": null
+    }
+  ],
+  "open": [
+    {
+      "number": 1330,
+      "title": "docs: refresh the quickstart",
+      "baseRefName": "trunk",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1330"
+    },
+    {
+      "number": 1333,
+      "title": "feat(scene): sampled positions",
+      "baseRefName": "agent/1331-scene-base",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1333"
+    },
+    {
+      "number": 1334,
+      "title": "feat(scene): clamp to terrain",
+      "baseRefName": "agent/1300-scene-landed",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1334"
+    },
+    {
+      "number": 1335,
+      "title": "fix(odata): encode $filter parentheses",
+      "baseRefName": "agent/1290-odata-gone",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1335"
+    },
+    {
+      "number": 1336,
+      "title": "chore: retry a flaky sample",
+      "baseRefName": "agent/1289-unknown",
+      "url": "https://github.com/honua-io/honua-sdk-js/pull/1336"
+    }
+  ],
+  "bases": {
+    "agent/1331-scene-base": { "baseExists": true, "baseMerged": false, "baseIsAncestor": false },
+    "agent/1300-scene-landed": { "baseExists": true, "baseMerged": true, "baseIsAncestor": true },
+    "agent/1290-odata-gone": { "baseExists": false },
+    "agent/1289-unknown": { "baseExists": null }
+  }
+}

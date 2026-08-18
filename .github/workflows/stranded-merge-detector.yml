@@ -1,24 +1,32 @@
 name: Stranded Merge Detector
 
-# What it catches: a pull request opened against a stack base is merged into
-# that base, so GitHub reports MERGED while the payload sits on a branch that
-# itself never merged. honua-io/honua-sdk-js#863 was found this way; three more
-# were found in honua-io/honua-server (#3248). The failure is silent by
-# construction -- CI was green, the badge says MERGED, and the tracking issue is
-# often closed as resolved.
+# Two sweeps over this repository (honua-io/honua-sdk-js#1317, honua-server#3248).
 #
-# The detection is one command per merged pull request:
+# Post-mortem: merged pull requests whose payload never reached `trunk`. A pull
+# request opened against a stack base is merged into that base; if the base is
+# never merged, GitHub still reports MERGED, CI was green, and the tracking issue
+# is often closed as resolved, while the payload sits on a branch nobody watches.
 #
-#   git merge-base --is-ancestor <mergeCommit> origin/trunk
+# Preventive: open pull requests stacked on a base that has already been merged
+# or deleted. Those strand their payload the moment they merge, and the remedy is
+# one `gh pr edit` away -- which is the point of running this on a schedule
+# rather than only after the fact.
 #
-# This ran as a thin caller of a reusable workflow in honua-server. That
-# workflow was never written, so the `uses:` reference dangled and the sweep
-# never executed once -- the same silent-nonexecution class the detector exists
-# to break. The mechanism now lives here, in
-# scripts/lib/stranded-merge-detector.mjs, deliberately repository-agnostic
-# (default branch, sweep limit, and transient base globs are all inputs) so
-# honua-server#3248 can adopt this implementation rather than write a second
-# one.
+# Detection is by *content*, not by commit identity. Ancestry
+# (`git merge-base --is-ancestor <mergeCommit> origin/trunk`) only nominates
+# candidates; each candidate's payload is then adjudicated against `trunk` by
+# patch identity, blob equality, and added-line presence. Schema version 1 of
+# this job stopped at ancestry and reported #863 stranded on every run, while
+# #863's payload had been on `trunk` since #921 -- a detector that files "payload
+# lost" on a payload that is present gets muted, which reinstates the silence it
+# exists to break.
+#
+# History worth keeping: this workflow originally shipped as a thin caller of a
+# reusable workflow in honua-server that had not been written, so the `uses:`
+# reference dangled and the sweep never executed once. The mechanism lives here
+# on purpose, and test/scripts/stranded-merge-detector.test.mjs asserts it does
+# not regress to that shape. honua-server carries an equivalent implementation
+# in Python with the same schema version 2 vocabulary.
 
 on:
   workflow_dispatch:
@@ -27,6 +35,14 @@ on:
         description: Merged pull requests to sweep
         required: false
         default: "250"
+      open-limit:
+        description: Open pull requests to check for a stale base
+        required: false
+        default: "200"
+      fail-on:
+        description: actionable (default) | stranded | never
+        required: false
+        default: actionable
   schedule:
     - cron: "23 6 * * 1"
 
@@ -40,15 +56,17 @@ concurrency:
 
 jobs:
   sweep:
-    name: Sweep merged PRs for stranded merge commits
+    name: Sweep merged and open PRs for stranded payload
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # Ancestry is the whole test: a shallow clone cannot answer it, and a
-          # stranded merge commit is by definition on a branch nobody fetched.
+          # fetch-depth: 0 is required three times over: the ancestry test needs
+          # full history on both sides, the content pass reads blobs out of the
+          # stranded merge commits themselves, and the open-PR pass resolves base
+          # branches from local remote-tracking refs.
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -56,23 +74,51 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      # Replays the recorded fixture through the real classifiers, so a broken
+      # detector fails here rather than quietly reporting a clean repository.
       - name: Test the detector before trusting it
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      # One sweep, one set of API calls. The markdown report is rendered from the
+      # same findings.json the gate reads, so report and gate cannot disagree.
       - name: Sweep
+        id: sweep
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -o pipefail
           node scripts/stranded-merge-detector.mjs \
             --repo "${{ github.repository }}" \
             --default-branch trunk \
             --limit "${{ inputs.limit || '250' }}" \
-            --output stranded-merge-report.md
+            --open-limit "${{ inputs.open-limit || '200' }}" \
+            --fail-on never \
+            --json > stranded-merge-findings.json
+          node scripts/stranded-merge-detector.mjs \
+            --from-json stranded-merge-findings.json \
+            | tee -a "${GITHUB_STEP_SUMMARY}" > stranded-merge-report.md
+          actionable=$(node -e "process.stdout.write(String(require('./stranded-merge-findings.json').actionable))")
+          echo "actionable=${actionable}" >> "${GITHUB_OUTPUT}"
 
-      - name: Upload report
+      - name: Upload findings
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: stranded-merge-report
-          path: stranded-merge-report.md
+          path: |
+            stranded-merge-report.md
+            stranded-merge-findings.json
           if-no-files-found: warn
+
+      # Only actionable findings fail the run: payload that is absent, payload
+      # whose added lines never landed, payload that could not be adjudicated at
+      # all, and open pull requests pointing at a dead base. A stranded merge
+      # whose content re-landed elsewhere is real and harmless, and failing on it
+      # is exactly how this job got ignored before.
+      - name: Fail on actionable findings
+        if: steps.sweep.outputs.actionable != '0' && inputs.fail-on != 'never'
+        run: |
+          echo "::error::${{ steps.sweep.outputs.actionable }} stranded-merge finding(s) need a human."
+          echo "Merged rows are a signal to diff the payload, not proof a feature is gone."
+          echo "Open rows are cheap to fix now: re-target the PR at trunk before it merges."
+          exit 1
