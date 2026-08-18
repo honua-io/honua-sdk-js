@@ -205,7 +205,11 @@ jobs:
       - name: Validate all bytes before tokens
         env:
           SOURCE_COMMIT: ${{ github.sha }}
-          EXPECTED_LOCKFILE_SHA256: 4b64e03cfacac59bfb20342356e7bce7b229b719d955c6c0fb33c2db23e45b2c
+          # The dependency digest of package-lock.json (see
+          # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
+          # a release version bump rewrites those and nothing in CI is able
+          # to move this constant (#1357).
+          EXPECTED_LOCKFILE_SHA256: 56274f7cb04166da3cbed82429d90a33dc8f13b07f25f4a5b7d9a2971d119ae9
         run: |
           set -euo pipefail
           python3 - <<'PY'

@@ -73,29 +73,33 @@ every CI run:
   `npm ci`-installed — nothing from the registry can influence a receipt. Any
   import-time dependency added anywhere in that module graph, including a
   transitive `require`, breaks every publication.
-- **`EXPECTED_LOCKFILE_SHA256` must move with `package-lock.json`.** The
+- **`EXPECTED_LOCKFILE_SHA256` must move with the dependency set.** The
   privileged job never checks out source, so it can only judge the manifest's
   `build.lockfileSha256` against a constant carried in the workflow file and
   bound again in `scripts/immutable-sample-bundle-attestation.mjs`. Every
-  dependency bump invalidates it; update both copies in the same change.
+  dependency change invalidates it; update both copies in the same change.
   `scripts/lib/lockfile-pin.mjs` reads, compares and rewrites the pair as one
   unit, and the guard runs in two tiers: the `pr-fast`/`js-sdk` policy step
   (`test/scripts/lockfile-pin.test.mjs`, before `npm ci`) and
   `npm run samples:bundles:verify`.
-- **The release branch is re-pinned, not exempted.** Release Please's version
-  bump rewrites `package-lock.json`, so every release pull request broke this
-  pin by construction and the failure reached trunk through
-  `release-please-ci`'s dispatch-and-await (#1357). The
-  `release-please-lockfile-pin` job in `release-please.yml` runs
-  `scripts/sync-release-please-lockfile-pin.mjs`, which rewrites both bound
-  copies on the bot branch in one fast-forward commit before canonical CI is
-  dispatched, and re-applies on every Release Please run so a regenerated
-  branch is simply pinned again. It refuses to compute a digest unless the
-  branch lockfile equals trusted trunk's modulo first-party `version` strings,
-  so a release branch cannot carry a dependency change past the guard. Nothing
-  else may write that constant. The trusted base refresh rewinds that one
-  commit before merging trunk into the branch, because the pin and a trunk
-  dependency bump edit the same line and would otherwise conflict.
+- **The digest is over the dependency projection, not the file's bytes.**
+  `lockfileDependencyDigest` hashes a canonical `package-lock.json` in which
+  the `version` of every package this repository owns -- the root document and
+  any `packages` entry outside `node_modules` -- is normalised away. Everything
+  an installed package contributes is kept: its version, `resolved`,
+  `integrity`, flags and the ranges the root declares. So adding, removing,
+  re-pointing or re-versioning a dependency always moves the pin, including a
+  dependency whose version is made to look exactly like a release bump, while
+  Release Please's version bump moves nothing.
+
+  That is deliberate and load-bearing rather than a convenience. A byte digest
+  was **unsatisfiable on any release branch by construction**: the release pull
+  request's whole job is to bump versions, which rewrote the lockfile, which
+  broke the pin, and the failure reached trunk through `release-please-ci`'s
+  dispatch-and-await (#1357). Nor could any job repair it -- `GITHUB_TOKEN`
+  cannot create a commit touching `.github/workflows/**`, so nothing in CI is
+  able to move the workflow's copy. Only a human editing a real dependency
+  change moves this constant.
 
 ## Fail-closed publisher guarantees
 

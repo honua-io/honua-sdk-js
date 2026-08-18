@@ -9,19 +9,21 @@ import {
   PUBLISHED_LIVE_SAMPLE_POLICY,
   SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS,
 } from "./build-sample-bundles.mjs";
+import { lockfileDependencyDigest } from "./lib/lockfile-pin.mjs";
 
 export const WORKFLOW_PATH =
   ".github/workflows/publish-content-addressed-sample-bundles.yml";
 export const NODE_VERSION = "20.19.0";
-// The sha256 of `package-lock.json` that the privileged publish job is allowed
-// to publish for. This is the bound copy: the authoritative one is the
+// The dependency digest of `package-lock.json` that the privileged publish job
+// is allowed to publish for -- `lockfileDependencyDigest`, not a digest of the
+// file's bytes. This is the bound copy: the authoritative one is the
 // `EXPECTED_LOCKFILE_SHA256` env value in the workflow above, and
 // `validateWorkflowDocument` asserts they are the same string, so neither can
-// move without the other. `scripts/lib/lockfile-pin.mjs` reads, compares and
-// rewrites both together; the release branch's synchroniser is the only writer
-// that is not a human editing a dependency change.
+// move without the other. Only a human editing a real dependency change moves
+// it: nothing in CI can, because `GITHUB_TOKEN` cannot commit to
+// `.github/workflows/**` (#1357).
 export const EXPECTED_LOCKFILE_SHA256 =
-  "4b64e03cfacac59bfb20342356e7bce7b229b719d955c6c0fb33c2db23e45b2c";
+  "56274f7cb04166da3cbed82429d90a33dc8f13b07f25f4a5b7d9a2971d119ae9";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
@@ -1469,7 +1471,7 @@ export async function createReceipts(options) {
   const manifest = parseUniqueJson(manifestBytes, "sample bundle manifest");
   const smoke = parseUniqueJson(smokeBytes, "browser smoke receipt");
   const pack = parseUniqueJson(packBytes, "pack metadata");
-  const lockfileSha256 = sha256(lockfileBytes);
+  const lockfileSha256 = lockfileDependencyDigest(lockfileBytes);
   const { files } = validateManifest(manifest, {
     sourceCommit: options.sourceCommit,
     lockfileSha256,

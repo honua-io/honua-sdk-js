@@ -21,9 +21,8 @@ import { parse as parseYaml } from "yaml";
 
 import {
   assertLockfilePinInSync,
-  assertMechanicalVersionBump,
   inspectLockfilePinAt,
-  lockfileDigest,
+  lockfileDependencyDigest,
   writeLockfilePinAt,
 } from "../../scripts/lib/lockfile-pin.mjs";
 import {
@@ -59,7 +58,7 @@ const WORKFLOW = path.join(
 const SOURCE = "a".repeat(40);
 const EPOCH = 1_786_614_242;
 const LOCK_BYTES = Buffer.from('{"lockfileVersion":3}\n');
-const LOCK_SHA = createHash("sha256").update(LOCK_BYTES).digest("hex");
+const LOCK_SHA = lockfileDependencyDigest(LOCK_BYTES);
 
 function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -485,8 +484,8 @@ test("the pinned lockfile digest still matches the committed lockfile", async ()
   // move in the same change that moves the lockfile. The one deliberate,
   // mechanical exception — Release Please's version bump, which rewrote the
   // lockfile on every release branch and so failed this by construction
-  // (honua-io/honua-sdk-js#1357) — is re-pinned on the release branch by
-  // scripts/sync-release-please-lockfile-pin.mjs. It is not exempted here.
+  // (honua-io/honua-sdk-js#1357) — cannot move the digest at all, because the
+  // digest is taken over the dependency projection. Nothing is exempted here.
   const result = await inspectLockfilePinAt(ROOT);
   assert.equal(result.status, "in-sync", result.message);
 
@@ -502,9 +501,7 @@ test("the pinned lockfile digest still matches the committed lockfile", async ()
   );
   assert.equal(EXPECTED_LOCKFILE_SHA256, result.actual);
   assert.equal(
-    createHash("sha256")
-      .update(await readFile(path.join(ROOT, "package-lock.json")))
-      .digest("hex"),
+    lockfileDependencyDigest(await readFile(path.join(ROOT, "package-lock.json"))),
     result.actual,
   );
   // The policy validator binds the same constant; both copies must agree.
@@ -532,7 +529,7 @@ test("an undeclared lockfile change still fails the pinned-digest guard", async 
   // the guard above; it must not also decide the outcome here.
   await writeLockfilePinAt(
     scratch,
-    lockfileDigest(await readFile(path.join(scratch, "package-lock.json"))),
+    lockfileDependencyDigest(await readFile(path.join(scratch, "package-lock.json"))),
   );
   assert.equal((await inspectLockfilePinAt(scratch)).status, "in-sync");
 
@@ -554,7 +551,7 @@ test("an undeclared lockfile change still fails the pinned-digest guard", async 
   assert.equal(mutated.status, "stale");
   assert.match(
     mutated.message,
-    /^package-lock\.json now hashes to [0-9a-f]{64}\./u,
+    /^package-lock\.json dependencies now hash to [0-9a-f]{64}\./u,
   );
   // The failure has to keep naming both bound files or it is unactionable.
   assert.match(
@@ -569,18 +566,15 @@ test("an undeclared lockfile change still fails the pinned-digest guard", async 
     message: mutated.message,
   });
 
-  // And the release path cannot launder it either: the synchroniser only
-  // recomputes a digest for a lockfile that differs from trusted trunk by
-  // nothing but first-party version strings.
-  assert.throws(
-    () =>
-      assertMechanicalVersionBump({
-        baseLockfileText: pristine,
-        headLockfileText: smuggled,
-        baseVersion: "0.1.7-beta.0",
-        headVersion: "0.1.8-beta.0",
-      }),
-    /undeclared lockfile change/u,
+  // And a release version bump cannot launder it: the digest is taken over the
+  // dependency projection, so bumping every first-party version on top of the
+  // smuggled dependency leaves the failure exactly where it was.
+  const released = JSON.parse(smuggled);
+  released.version = "9.9.9";
+  released.packages[""].version = "9.9.9";
+  assert.equal(
+    lockfileDependencyDigest(`${JSON.stringify(released, null, 2)}\n`),
+    mutated.actual,
   );
 });
 

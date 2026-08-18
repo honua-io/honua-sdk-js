@@ -136,7 +136,7 @@ jobs:
         run: node --test test/scripts/release-please-ci-checks.test.mjs
 
       - name: Test sample-bundle lockfile digest pin policy
-        run: node --test test/scripts/lockfile-pin.test.mjs test/scripts/release-please-lockfile-pin.test.mjs
+        run: node --test test/scripts/lockfile-pin.test.mjs
 
       - name: Test backlog dependency reconciliation policy
         run: node --test test/scripts/backlog-dependencies.test.mjs

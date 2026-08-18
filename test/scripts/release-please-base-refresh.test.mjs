@@ -4,7 +4,6 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { BOUND_PIN_PATHS, PIN_COMMIT_MESSAGE } from "../../scripts/lib/lockfile-pin.mjs";
 import { refreshReleasePleaseBase } from "../../scripts/lib/release-please-base-refresh.mjs";
 import { RELEASE_PLEASE_HEAD } from "../../scripts/lib/release-please-disposition-check.mjs";
 
@@ -72,12 +71,10 @@ function harness(options = {}) {
   };
   const calls = [];
   let updateAccepted = false;
-  let rewoundTo = null;
   const request = async (url, requestOptions = {}) => {
     calls.push({ url, options: requestOptions });
     const pathname = new URL(url).pathname;
-    const rewound = rewoundTo === null ? stale : { ...stale, headSha: rewoundTo };
-    const current = updateAccepted && options.confirmRefresh !== false ? refreshed : rewound;
+    const current = updateAccepted && options.confirmRefresh !== false ? refreshed : stale;
     if (pathname.endsWith("/pulls")) return options.noPullRequest ? [] : [restPull(current)];
     if (pathname.endsWith("/graphql")) return graphqlPayload(current);
     if (pathname.endsWith("/git/ref/heads/trunk")) {
@@ -94,18 +91,6 @@ function harness(options = {}) {
           sha: options.releaseBranchHead ?? current.headSha,
         },
       };
-    }
-    // `<pin parent>...<pin commit>`, asked only while deciding whether the head
-    // is the droppable lockfile-digest pin commit.
-    if (pathname.includes("/compare/") && pathname.endsWith(stale.headSha)) {
-      return (
-        options.pinComparison ?? {
-          status: "ahead",
-          ahead_by: 1,
-          behind_by: 0,
-          files: BOUND_PIN_PATHS.map((filename) => ({ filename })),
-        }
-      );
     }
     if (pathname.includes("/compare/")) {
       return options.comparison ?? {
@@ -131,22 +116,9 @@ function harness(options = {}) {
         parents: [{ sha: stale.headSha }, { sha: trustedPolicySha }],
       };
     }
-    // The lockfile-digest pin commit the refresh rewinds off before merging.
-    if (pathname.includes("/git/commits/")) {
-      const sha = pathname.split("/git/commits/")[1];
-      return options.headCommit ?? { sha, message: "chore: release trunk", parents: [{ sha: "a".repeat(40) }] };
-    }
-    if (requestOptions.method === "PATCH" && pathname.endsWith(`/git/refs/heads/${RELEASE_PLEASE_HEAD}`)) {
-      const body = JSON.parse(requestOptions.body);
-      rewoundTo = body.sha;
-      return options.rewindResponse ?? {
-        ref: `refs/heads/${RELEASE_PLEASE_HEAD}`,
-        object: { type: "commit", sha: body.sha },
-      };
-    }
     throw new Error(`Unexpected request: ${url}`);
   };
-  return { calls, request, stale, refreshed, rewound: () => rewoundTo };
+  return { calls, request, stale, refreshed };
 }
 
 describe("trusted Release Please base refresh", () => {
@@ -250,88 +222,6 @@ describe("trusted Release Please base refresh", () => {
         ),
         expected,
       );
-    }
-  });
-
-  // The pin and any trunk dependency bump edit the same line in both bound
-  // files, so merging trunk into a still-pinned branch would conflict and this
-  // refresh would fail. Dropping the pin first costs nothing: the
-  // release-please-lockfile-pin job re-applies it for the refreshed lockfile
-  // immediately afterwards (honua-io/honua-sdk-js#1357).
-  it("rewinds off the lockfile-digest pin commit before merging trunk", async () => {
-    const pinParent = "9".repeat(40);
-    const testHarness = harness({
-      headCommit: { sha: fixture.headSha, message: PIN_COMMIT_MESSAGE, parents: [{ sha: pinParent }] },
-      refreshCommit: { sha: refreshedHeadSha, parents: [{ sha: pinParent }, { sha: trustedPolicySha }] },
-    });
-    const result = await refreshReleasePleaseBase(
-      {
-        repository,
-        trustedPolicySha,
-        releasePleaseReportedUpdate: false,
-        confirmationAttempts: 1,
-        confirmationDelayMs: 0,
-      },
-      testHarness.request,
-    );
-    assert.equal(result.status, "refreshed");
-    assert.equal(testHarness.rewound(), pinParent);
-    assert.equal(result.previousHeadSha, pinParent);
-    const update = testHarness.calls.find(({ url }) => new URL(url).pathname.endsWith("/update-branch"));
-    assert.deepEqual(JSON.parse(update.options.body), { expected_head_sha: pinParent });
-  });
-
-  it("refuses to rewind a head that only claims to be the pin commit", async () => {
-    for (const [options, expected] of [
-      [
-        {
-          headCommit: {
-            sha: fixture.headSha,
-            message: PIN_COMMIT_MESSAGE,
-            parents: [{ sha: "9".repeat(40) }],
-          },
-          pinComparison: {
-            status: "ahead",
-            ahead_by: 1,
-            behind_by: 0,
-            files: [...BOUND_PIN_PATHS, "package-lock.json"].map((filename) => ({ filename })),
-          },
-        },
-        /changes more than/u,
-      ],
-      [
-        {
-          headCommit: {
-            sha: fixture.headSha,
-            message: PIN_COMMIT_MESSAGE,
-            parents: [{ sha: "9".repeat(40) }, { sha: "8".repeat(40) }],
-          },
-        },
-        /not a single-parent commit/u,
-      ],
-      [
-        {
-          headCommit: { sha: fixture.headSha, message: PIN_COMMIT_MESSAGE, parents: [{ sha: "9".repeat(40) }] },
-          rewindResponse: { ref: "refs/heads/release-please--branches--trunk", object: { sha: "7".repeat(40) } },
-        },
-        /did not rewind/u,
-      ],
-    ]) {
-      const testHarness = harness(options);
-      await assert.rejects(
-        refreshReleasePleaseBase(
-          {
-            repository,
-            trustedPolicySha,
-            releasePleaseReportedUpdate: false,
-            confirmationAttempts: 1,
-            confirmationDelayMs: 0,
-          },
-          testHarness.request,
-        ),
-        expected,
-      );
-      assert.equal(testHarness.calls.some(({ url }) => new URL(url).pathname.endsWith("/update-branch")), false);
     }
   });
 

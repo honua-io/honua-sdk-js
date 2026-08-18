@@ -1,7 +1,6 @@
 import process from "node:process";
 
 import { githubRequest, loadCurrentPullRequestDisposition } from "./github-pr-issue-disposition.mjs";
-import { BOUND_PIN_PATHS, PIN_COMMIT_MESSAGE } from "./lockfile-pin.mjs";
 import { automationExemption } from "./pr-issue-disposition.mjs";
 import {
   assertMatchingReleasePleaseSnapshots,
@@ -72,65 +71,6 @@ async function assertRefreshAncestry(repository, baseSha, trustedPolicySha, requ
   }
 }
 
-/**
- * Drop the lockfile-digest pin commit before merging trunk into the branch.
- *
- * The pin and any trunk dependency bump edit the same one line in both bound
- * files, so merging trunk into a pinned branch would conflict and this refresh
- * would fail (honua-io/honua-sdk-js#1357). Dropping it costs nothing: the
- * `release-please-lockfile-pin` job re-applies the pin immediately after this
- * job, computed for the refreshed lockfile, which is the only correct value
- * anyway. The rewind is deliberately narrow -- it accepts only a single-parent
- * commit carrying the exact pin message and changing exactly the bound files,
- * and refuses anything else rather than force-rewinding a branch it does not
- * fully recognise.
- */
-async function rewindLockfilePinCommit(repository, current, request) {
-  const commit = await request(`${apiRoot()}/repos/${repository}/git/commits/${current.headSha}`);
-  if (commit?.sha !== current.headSha) throw new Error("GitHub returned the wrong Release Please head commit.");
-  if (commit.message !== PIN_COMMIT_MESSAGE) return current;
-
-  const parents = Array.isArray(commit.parents) ? commit.parents.map((parent) => parent?.sha) : [];
-  if (parents.length !== 1) {
-    throw new Error("The Release Please lockfile-digest pin commit is not a single-parent commit.");
-  }
-  assertSha(String(parents[0]), "Release Please lockfile-digest pin parent");
-  const comparison = await request(`${apiRoot()}/repos/${repository}/compare/${parents[0]}...${current.headSha}`);
-  const changed = (Array.isArray(comparison?.files) ? comparison.files : []).map((file) => file?.filename).sort();
-  if (
-    comparison?.status !== "ahead" ||
-    comparison?.ahead_by !== 1 ||
-    comparison?.behind_by !== 0 ||
-    JSON.stringify(changed) !== JSON.stringify([...BOUND_PIN_PATHS].sort())
-  ) {
-    throw new Error(
-      `The Release Please head carries the lockfile-digest pin message but changes more than ${BOUND_PIN_PATHS.join(" and ")}.`,
-    );
-  }
-
-  const updated = await request(
-    `${apiRoot()}/repos/${repository}/git/refs/heads/${encodeURIComponent(RELEASE_PLEASE_HEAD)}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sha: parents[0], force: true }),
-    },
-  );
-  if (updated?.ref !== `refs/heads/${RELEASE_PLEASE_HEAD}` || updated?.object?.sha !== parents[0]) {
-    throw new Error("GitHub did not rewind the Release Please branch off its lockfile-digest pin commit.");
-  }
-  const rewound = await loadExactReleasePleasePullRequest(repository, request);
-  if (
-    !rewound ||
-    rewound.pullRequestNumber !== current.pullRequestNumber ||
-    rewound.headSha !== parents[0] ||
-    rewound.baseSha !== current.baseSha
-  ) {
-    throw new Error("The exact Release Please pull request did not settle on the rewound head.");
-  }
-  return rewound;
-}
-
 function validateUpdateResponse(response, repository, pullRequestNumber) {
   const url = new URL(String(response?.url ?? ""));
   const expected = new URL(
@@ -176,7 +116,7 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   }
   const { attempts, delayMs } = pollingOptions(input ?? {});
 
-  let current = await loadExactReleasePleasePullRequest(repository, request);
+  const current = await loadExactReleasePleasePullRequest(repository, request);
   if (!current) return { status: "not-found", repository, trustedPolicySha };
   const trustedBranchHead = await branchHead(repository, RELEASE_PLEASE_BASE, request);
   if (trustedBranchHead !== trustedPolicySha) {
@@ -200,7 +140,6 @@ export async function refreshReleasePleaseBase(input, request = githubRequest, w
   }
 
   await assertRefreshAncestry(repository, current.baseSha, trustedPolicySha, request);
-  current = await rewindLockfilePinCommit(repository, current, request);
   const response = await request(
     `${apiRoot()}/repos/${repository}/pulls/${current.pullRequestNumber}/update-branch`,
     {

@@ -291,7 +291,7 @@ a catalog promotion, not a bundling change.
 
 The manifest intentionally carries no wall-clock timestamp so a rebuild at
 the same commit with the same `package-lock.json` (hashed into
-`build.lockfileSha256`) reproduces byte-identical file hashes -- Vite/Rollup
+`build.lockfileSha256`, the dependency digest) reproduces byte-identical file hashes -- Vite/Rollup
 content-hashed chunk names are a pure function of chunk content given a
 pinned toolchain. No other nondeterminism was observed across repeated local
 builds; if CI ever needs to tolerate a nondeterministic asset, prefer fixing

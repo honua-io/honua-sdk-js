@@ -3,8 +3,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 /**
- * The lockfile digest pinned into the content-addressed sample-bundle
- * publication path (honua-io/honua-sdk-js#1325).
+ * The dependency digest pinned into the content-addressed sample-bundle
+ * publication path (honua-io/honua-sdk-js#1325, #1357).
  *
  * The privileged publish job never checks out source, so the only thing it can
  * judge a manifest's `build.lockfileSha256` against is a constant carried in
@@ -14,29 +14,31 @@ import path from "node:path";
  * workflow. Everything in this module exists to make that pair one unit: read
  * both, compare both, rewrite both, and fail naming both.
  *
+ * The digest is taken over a *dependency projection* of `package-lock.json`
+ * rather than its literal bytes, and that is what makes the pin enforceable at
+ * all. Release Please's version bump rewrites the lockfile's own `version`
+ * fields on every release, so a byte digest was unsatisfiable on any release
+ * branch by construction -- every release pull request broke the pin, and the
+ * failure reached trunk through `release-please-ci` (#1357). Nothing could
+ * repair it either: `GITHUB_TOKEN` cannot create a commit that touches
+ * `.github/workflows/**`, so no job in this repository is able to move the
+ * workflow's copy. The projection removes the problem instead of automating
+ * around it -- the mechanical change cannot move the digest, and nothing else
+ * about the lockfile can hide from it. See `lockfileDependencyDigest`.
+ *
  * Deliberately dependency-free (builtins only). The policy tests that consume
- * it run in CI *before* `npm ci`, and the release-branch synchroniser runs from
- * a pristine trusted checkout, so a YAML parser is not available in either
- * place. The digest is therefore extracted by an anchored single-match regular
- * expression rather than by parsing; the sample-bundle attestation test
- * cross-checks that extraction against the genuinely parsed workflow document,
- * so the cheap reader can never drift from the real one.
+ * it run in CI *before* `npm ci`, and `scripts/build-sample-bundles.mjs` is
+ * imported by the attestation policy from the pristine `governance/` checkout,
+ * which is never `npm ci`-installed. The pinned constant is likewise extracted
+ * by an anchored single-match regular expression rather than by parsing YAML;
+ * the sample-bundle attestation test cross-checks that extraction against the
+ * genuinely parsed workflow document, so the cheap reader cannot drift from
+ * the real one.
  */
 export const LOCKFILE_PATH = "package-lock.json";
-export const MANIFEST_PATH = "package.json";
 export const PIN_WORKFLOW_PATH =
   ".github/workflows/publish-content-addressed-sample-bundles.yml";
 export const PIN_POLICY_PATH = "scripts/immutable-sample-bundle-attestation.mjs";
-
-/**
- * The message of the one commit allowed to move the pin without a human.
- *
- * Declared here rather than beside the synchroniser so the trusted base-refresh
- * policy can recognise -- and rewind -- that commit without importing anything
- * that talks to GitHub.
- */
-export const PIN_COMMIT_MESSAGE =
-  "chore: pin the sample-bundle lockfile digest to the release version bump";
 
 /** Every file the pin is bound into, in the order the failure message names them. */
 export const BOUND_PIN_PATHS = Object.freeze([
@@ -45,7 +47,6 @@ export const BOUND_PIN_PATHS = Object.freeze([
 ]);
 
 const SHA256 = /^[0-9a-f]{64}$/u;
-const VERSION = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$/u;
 
 // Anchored, whole-line, and applied globally so a second occurrence is an
 // error rather than a silently ignored copy.
@@ -67,8 +68,74 @@ export function boundPinRemediation() {
   );
 }
 
-export function lockfileDigest(bytes) {
-  return createHash("sha256").update(bytes).digest("hex");
+// A value no semantic version can equal, so a normalised entry is never
+// confused with a real one.
+const FIRST_PARTY_VERSION = "\u0000first-party";
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+    .join(",")}}`;
+}
+
+function parseLockfile(text, label) {
+  const parsed = JSON.parse(text);
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${label} is not a JSON object.`);
+  }
+  return parsed;
+}
+
+/** A package entry this repository owns, rather than one npm installed. */
+function firstPartyPackage(entryPath) {
+  return !entryPath.split("/").includes("node_modules");
+}
+
+/**
+ * The lockfile reduced to what it says about *dependencies*.
+ *
+ * Every installed package keeps its name, version, `resolved`, `integrity`,
+ * flags and declared ranges, so adding, removing, re-pointing or re-versioning
+ * a dependency always moves the digest -- including a dependency whose version
+ * is made to look exactly like the release bump. The only thing normalised
+ * away is the `version` of a package this repository owns: the root document
+ * and any `packages` entry that is not inside `node_modules`. That is
+ * precisely, and only, what Release Please rewrites when it cuts a release,
+ * which is why a release branch no longer breaks the pin.
+ *
+ * Serialised canonically (sorted keys), so reformatting the lockfile does not
+ * move the digest either. npm writes it deterministically, and a reformat by
+ * definition changes no dependency.
+ */
+export function lockfileDependencyProjection(lockfileText, label = LOCKFILE_PATH) {
+  const lockfile = parseLockfile(
+    typeof lockfileText === "string" ? lockfileText : Buffer.from(lockfileText).toString("utf8"),
+    label,
+  );
+  if (typeof lockfile.version === "string") lockfile.version = FIRST_PARTY_VERSION;
+  const packages = lockfile.packages;
+  if (packages !== null && typeof packages === "object" && !Array.isArray(packages)) {
+    for (const [entryPath, entry] of Object.entries(packages)) {
+      if (!firstPartyPackage(entryPath)) continue;
+      if (entry === null || typeof entry !== "object" || Array.isArray(entry)) continue;
+      if (typeof entry.version === "string") entry.version = FIRST_PARTY_VERSION;
+    }
+  }
+  return canonicalJson(lockfile);
+}
+
+/**
+ * The pinned digest: sha256 over the dependency projection.
+ *
+ * This is the value the builder records as `manifest.build.lockfileSha256` and
+ * the value the privileged publish job compares against its constant, so all
+ * three must be computed here and nowhere else.
+ */
+export function lockfileDependencyDigest(lockfileText, label = LOCKFILE_PATH) {
+  return createHash("sha256").update(lockfileDependencyProjection(lockfileText, label)).digest("hex");
 }
 
 function patternFor(boundPath) {
@@ -108,7 +175,7 @@ export function writePinnedDigest(text, boundPath, digest) {
  * rewriting (the release-branch synchroniser).
  */
 export function inspectLockfilePin({ lockfile, boundTexts }) {
-  const actual = lockfileDigest(lockfile);
+  const actual = lockfileDependencyDigest(lockfile);
   const pinned = new Map();
   for (const boundPath of BOUND_PIN_PATHS) {
     const text = boundTexts?.[boundPath];
@@ -135,7 +202,7 @@ export function inspectLockfilePin({ lockfile, boundTexts }) {
     status: "stale",
     actual,
     pinned: Object.fromEntries(pinned),
-    message: `${LOCKFILE_PATH} now hashes to ${actual}. ${boundPinRemediation()}`,
+    message: `${LOCKFILE_PATH} dependencies now hash to ${actual}. ${boundPinRemediation()}`,
   };
 }
 
@@ -179,119 +246,4 @@ export async function writeLockfilePinAt(root, digest) {
     changed.push(boundPath);
   }
   return changed;
-}
-
-function collectDifferences(base, head, keyPath, differences) {
-  if (base === head) return;
-  const baseIsObject = base !== null && typeof base === "object";
-  const headIsObject = head !== null && typeof head === "object";
-  if (!baseIsObject || !headIsObject || Array.isArray(base) !== Array.isArray(head)) {
-    differences.push({ path: [...keyPath], from: base, to: head });
-    return;
-  }
-  for (const key of [...new Set([...Object.keys(base), ...Object.keys(head)])].sort()) {
-    const inBase = Object.hasOwn(base, key);
-    const inHead = Object.hasOwn(head, key);
-    if (!inBase || !inHead) {
-      differences.push({
-        path: [...keyPath, key],
-        from: inBase ? base[key] : undefined,
-        to: inHead ? head[key] : undefined,
-      });
-      continue;
-    }
-    collectDifferences(base[key], head[key], [...keyPath, key], differences);
-  }
-}
-
-/** Every value that differs between two lockfile documents, as key paths. */
-export function lockfileDifferences(baseLockfileText, headLockfileText) {
-  const differences = [];
-  collectDifferences(JSON.parse(baseLockfileText), JSON.parse(headLockfileText), [], differences);
-  return differences;
-}
-
-function pointer(keyPath) {
-  return keyPath.length === 0 ? "(document)" : keyPath.join(".");
-}
-
-/**
- * Prove that a lockfile changed by nothing but a first-party version bump.
- *
- * This is what keeps recomputing the pin on a release branch from becoming a
- * hole. The synchroniser does not trust whatever lockfile the branch happens to
- * carry; it proves the branch lockfile equals the *trusted trunk* lockfile
- * except for `version` strings on packages that are local to this repository,
- * each moving from exactly the trunk release version to exactly the version the
- * release is cutting. A dependency change cannot hide in that shape: it either
- * adds or removes a `packages` entry, or edits a `resolved`/`integrity`/range
- * value, and every one of those is a difference this rejects.
- */
-export function assertMechanicalVersionBump({
-  baseLockfileText,
-  headLockfileText,
-  baseVersion,
-  headVersion,
-}) {
-  if (!VERSION.test(String(baseVersion)) || !VERSION.test(String(headVersion))) {
-    throw new Error("The release version bump must move between two exact semantic versions.");
-  }
-  if (baseVersion === headVersion) {
-    throw new Error(
-      `The release branch declares the same version as trunk (${headVersion}), so no version bump is in flight ` +
-        `and ${LOCKFILE_PATH} must not differ from trunk at all.`,
-    );
-  }
-  const base = JSON.parse(baseLockfileText);
-  const differences = lockfileDifferences(baseLockfileText, headLockfileText);
-  if (differences.length === 0) {
-    throw new Error(
-      `The release branch bumps ${baseVersion} to ${headVersion} but left ${LOCKFILE_PATH} untouched, so the ` +
-        `lockfile does not describe the release being cut.`,
-    );
-  }
-  for (const difference of differences) {
-    const label = `${LOCKFILE_PATH}: ${pointer(difference.path)}`;
-    if (difference.from !== baseVersion || difference.to !== headVersion) {
-      throw new Error(
-        `${label} changed from ${JSON.stringify(difference.from)} to ${JSON.stringify(difference.to)}, which is not ` +
-          `the ${baseVersion} to ${headVersion} release version bump. Refusing to recompute the pinned lockfile ` +
-          `digest for an undeclared lockfile change.`,
-      );
-    }
-    const isRootVersion = difference.path.length === 1 && difference.path[0] === "version";
-    const isPackageVersion =
-      difference.path.length === 3 && difference.path[0] === "packages" && difference.path[2] === "version";
-    if (!isRootVersion && !isPackageVersion) {
-      throw new Error(
-        `${label} is not a first-party package version field. Refusing to recompute the pinned lockfile digest ` +
-          `for an undeclared lockfile change.`,
-      );
-    }
-    if (!isPackageVersion) continue;
-    const entry = base.packages?.[difference.path[1]];
-    if (
-      entry === null ||
-      typeof entry !== "object" ||
-      Object.hasOwn(entry, "resolved") ||
-      Object.hasOwn(entry, "integrity") ||
-      entry.link === true
-    ) {
-      throw new Error(
-        `${label} belongs to an installed dependency, not a package local to this repository. Refusing to ` +
-          `recompute the pinned lockfile digest for an undeclared lockfile change.`,
-      );
-    }
-  }
-  return { differences, baseVersion, headVersion };
-}
-
-/** The `version` a package manifest declares, validated. */
-export function manifestVersion(manifestText, label) {
-  const manifest = JSON.parse(manifestText);
-  const version = manifest?.version;
-  if (typeof version !== "string" || !VERSION.test(version)) {
-    throw new Error(`${label} does not declare an exact semantic version.`);
-  }
-  return version;
 }
