@@ -12,6 +12,19 @@ jobs:
   release-please:
     if: ${{ github.ref == 'refs/heads/trunk' }}
     runs-on: ubuntu-latest
+    # Serialize release runs (#1350). A JS SDK release holds this job for the
+    # length of the reseal, and the reseal's own automation merge is a trunk
+    # push that starts another run of this workflow. That run must not overlap
+    # the release: between the draft release being cut and its tag being created
+    # on the resealed commit there is no js-sdk-* tag, and Release Please's
+    # release iterator skips a draft release because it has no tag commit -- so
+    # a run inside that window cannot find the previous release and would
+    # rebuild the next release pull request from far too much history. Queuing
+    # (rather than cancelling in progress) means such a run simply happens after
+    # the tag exists.
+    concurrency:
+      group: release-please-${{ github.repository }}
+      cancel-in-progress: false
     permissions:
       actions: write
       contents: write
@@ -34,16 +47,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           JS_SDK_RELEASE_CREATED: ${{ steps.release.outputs.release_created || steps.release.outputs['.--release_created'] }}
           JS_SDK_TAG_NAME: ${{ steps.release.outputs.tag_name || steps.release.outputs['.--tag_name'] }}
+          # The JS SDK release is cut as a DRAFT (release-please-config.json,
+          # #1350), so these two carry the draft that this step must finish.
+          JS_SDK_RELEASE_ID: ${{ steps.release.outputs.id || steps.release.outputs['.--id'] }}
+          JS_SDK_RELEASE_DRAFT: ${{ steps.release.outputs.draft || steps.release.outputs['.--draft'] }}
           MCP_RELEASE_CREATED: ${{ steps.release.outputs['mcp--release_created'] }}
           MCP_TAG_NAME: ${{ steps.release.outputs['mcp--tag_name'] }}
           CREATE_APP_RELEASE_CREATED: ${{ steps.release.outputs['packages/create-honua-app--release_created'] }}
           CREATE_APP_TAG_NAME: ${{ steps.release.outputs['packages/create-honua-app--tag_name'] }}
         run: |
-          set -euo pipefail
+          # -E so the ERR trap below is inherited by the shell functions: without
+          # it a failing `gh` inside one of them still ends the step with a bare
+          # exit code, which is the reporting gap #1337 was about.
+          set -Eeuo pipefail
 
           # Every abort in this step must name itself. Three consecutive
           # releases (0.1.5/0.1.6/0.1.7-beta.0) died here and all a reader got
-          # was "Process completed with exit code 1", so the tag-move was
+          # was "Process completed with exit code 1", so the tag placement was
           # diagnosed as "silently not firing" (#1337) when it had in fact been
           # aborted upstream twice and rejected by the ruleset once. Failures
           # are annotated and written to the job summary so the release log says
@@ -62,6 +82,11 @@ jobs:
             exit 1
           }
 
+          # Backstop for the aborts that are not routed through fail() by hand:
+          # a `gh` call in a command substitution that errexit kills. Without
+          # this the step can still end in "Process completed with exit code 1".
+          trap 'fail "The release step failed at line ${LINENO}: ${BASH_COMMAND}. Nothing was published."' ERR
+
           dispatch_tag_publish() {
             local workflow="$1"
             local tag="$2"
@@ -73,8 +98,23 @@ jobs:
             gh workflow run "${workflow}" --repo "${GITHUB_REPOSITORY}" --ref "${tag}" -f dry_run=false
           }
 
+          # Release ordering (#1350). Release Please cuts the JS SDK release as a
+          # DRAFT ("draft": true on the "." package in release-please-config.json),
+          # which is the whole fix: GitHub does not create a Git tag for a draft
+          # release, and immutability does not attach until it is published. So
+          # this function reseals FIRST, CREATES the tag on the resealed commit,
+          # and only then publishes the draft. Nothing here ever moves a tag or
+          # edits a published release, which is what made the previous ordering
+          # (publish on the unsealed bump commit, then move the tag) impossible
+          # to complete under org-enforced immutable releases.
+          #
+          # GitHub's own guidance for immutable releases is to draft first and
+          # publish once everything is in place; the thing that has to be in
+          # place here is the tag's commit rather than a release asset.
           dispatch_resealed_js_publish() {
             local tag="$1"
+            local release_id="$2"
+            local release_draft="$3"
             RELEASE_FAILURE_TAG="${tag:-(no tag exposed)}"
             if [[ "${tag}" != js-sdk-* ]]; then
               fail "Release Please exposed an invalid JS SDK tag: ${tag}"
@@ -83,6 +123,20 @@ jobs:
             while [[ "${release_version}" == v* ]]; do
               release_version="${release_version#v}"
             done
+
+            # Fail before the ~40-minute reseal rather than after it. If the
+            # release is not a draft then Release Please already published it on
+            # the unsealed version-bump commit and created the tag there, and
+            # under immutable releases that tag can never be moved -- exactly
+            # what stranded 0.1.5/0.1.6/0.1.7-beta.0 (#1337). There is no
+            # recovery inside this run; the config must be repaired and the
+            # release re-cut.
+            if [[ "${release_draft}" != "true" ]]; then
+              fail "Release Please published ${tag} instead of drafting it, so its tag was created on the unsealed version-bump commit ${GITHUB_SHA} and cannot be moved under immutable releases. Restore \"draft\": true on the \".\" package in release-please-config.json and re-cut the release. Nothing was published."
+            fi
+            if [[ ! "${release_id}" =~ ^[0-9]+$ ]]; then
+              fail "Release Please did not expose a numeric draft release id for ${tag} (got '${release_id}'), so the draft cannot be published after the reseal. Nothing was published."
+            fi
 
             # The strict reseal no longer runs on every trunk push (#746), so
             # dispatch one for the release commit's tree and publish only after
@@ -115,10 +169,10 @@ jobs:
               fi
             done
             if [[ -z "${reseal_run_id}" ]]; then
-              fail "Dispatched reseal run for ${GITHUB_SHA} never appeared in the run list, so ${tag} was not moved onto a resealed commit and nothing was published."
+              fail "Dispatched reseal run for ${GITHUB_SHA} never appeared in the run list, so no sealed commit exists for ${tag} to be created on and nothing was published."
             fi
             if ! gh run watch "${reseal_run_id}" --repo "${GITHUB_REPOSITORY}" --exit-status --interval 10; then
-              fail "Reseal run ${reseal_run_id} for release commit ${GITHUB_SHA} did not succeed. ${tag} still points at the unsealed version-bump commit, so it would fail \`release-seal check\`; nothing was published. Fix the reseal and re-run this workflow."
+              fail "Reseal run ${reseal_run_id} for release commit ${GITHUB_SHA} did not succeed, so there is no sealed commit to create ${tag} on and its draft release stays unpublished. Fix the reseal and re-run this workflow. Nothing was published."
             fi
 
             local trunk_sha
@@ -130,15 +184,15 @@ jobs:
             local merge_base
             merge_base="$(jq -r .merge_base_commit.sha <<<"${comparison}")"
             if [[ "${merge_base}" != "${GITHUB_SHA}" || ( "${comparison_status}" != "ahead" && "${comparison_status}" != "identical" ) ]]; then
-              fail "Trunk ${trunk_sha} is not a generated-only descendant of release commit ${GITHUB_SHA}, so ${tag} may not be moved onto it and nothing was published."
+              fail "Trunk ${trunk_sha} is not a generated-only descendant of release commit ${GITHUB_SHA}, so ${tag} may not be created on it and nothing was published."
             fi
             # Keep this allowlist in lockstep with the identical one in
             # regenerate-derived-artifacts.yml's "Validate and publish
             # regeneration commits" step: that job is the producer of these
             # commits, this is the consumer that decides a release may proceed
-            # (and, below, that the tag may move onto them). A path present
-            # there but missing here stalls every release; the reverse would let
-            # non-generated content ride into a release under a moved tag.
+            # (and, below, that the release tag may be created on them). A path
+            # present there but missing here stalls every release; the reverse
+            # would let non-generated content ride into a released tag.
             while IFS= read -r changed_path; do
               case "${changed_path}" in
                 README.md | \
@@ -163,13 +217,13 @@ jobs:
                 samples/evidence/service-explorer/*)
                   ;;
                 *)
-                  fail "Post-release trunk contains a non-generated path: ${changed_path}. ${tag} may not be moved onto ${trunk_sha} and nothing was published."
+                  fail "Post-release trunk contains a non-generated path: ${changed_path}. ${tag} may not be created on ${trunk_sha} and nothing was published."
                   ;;
               esac
             done < <(jq -r '.files[].filename' <<<"${comparison}")
 
-            # Release-tag sealing (#768). The tag Release Please just cut points
-            # at this version-bump commit, which can never be self-verifiable:
+            # Release-tag sealing (#768, reordered by #1350). The version-bump
+            # commit this workflow is running on can never be self-verifiable:
             # it edits package.json plus the version-stamped fixtures listed in
             # release-please-config.json, all inside the evidence-neutral source
             # digest (scripts/sample-gate-receipt.mjs), so a pristine checkout
@@ -177,56 +231,86 @@ jobs:
             # source digest mismatch, and the sample contract artifacts it
             # carries still self-report the previous release version. The reseal
             # awaited above produced a descendant that IS sealed and stamps this
-            # release's version, so move the tag onto it before anything
-            # publishes. The two checks above -- merge base equals this release
-            # commit, and every changed path is generated output -- are what
-            # make moving the tag safe: only regenerated bytes can differ, so
-            # the tag still names exactly this release's source.
-            local tag_sha
-            tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
-            if [[ "${tag_sha}" != "${GITHUB_SHA}" && "${tag_sha}" != "${trunk_sha}" ]]; then
-              fail "Tag ${tag} resolves to ${tag_sha}, neither the release commit ${GITHUB_SHA} nor the resealed trunk tip ${trunk_sha}. Refusing to move it; nothing was published."
-            fi
-            echo "::group::Move ${tag} onto the resealed commit"
-            echo "release commit: ${GITHUB_SHA}"
+            # release's version, and because the release is still a draft no tag
+            # exists yet -- so the tag is CREATED there, first time, correctly.
+            # The two checks above -- merge base equals this release commit, and
+            # every changed path is generated output -- are what make tagging
+            # the descendant honest: only regenerated bytes can differ, so the
+            # tag still names exactly this release's source.
+            echo "::group::Create ${tag} on the resealed commit"
+            echo "release commit: ${GITHUB_SHA} (unsealed version bump)"
             echo "resealed tip:   ${trunk_sha}"
-            echo "tag currently:  ${tag_sha}"
-            if [[ "${tag_sha}" != "${trunk_sha}" ]]; then
-              if ! gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}" \
-                -f sha="${trunk_sha}" -F force=true >/dev/null; then
-                echo "::endgroup::"
-                # Org-enforced immutable releases protect any tag that already
-                # carries a published release, so this PATCH is rejected with
-                # GH013 / "Cannot update this protected ref" once Release Please
-                # has published the release on the version-bump commit. That is
-                # what happened to 0.1.7-beta.0 (#1337).
-                fail "Moving ${tag} from ${tag_sha} onto the resealed commit ${trunk_sha} was rejected by GitHub. Immutable releases protect a tag once its release is published, so the tag cannot be moved after the fact and this release cannot publish from a sealed tree. Nothing was published."
-              fi
-            else
-              echo "tag already names the resealed commit; no move required"
-            fi
+            local tag_created="true"
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${tag}" -f sha="${trunk_sha}" >/dev/null || tag_created="false"
             echo "::endgroup::"
-
-            # Post-condition, asserted every release. The tag-move used to be a
-            # fire-and-forget PATCH whose outcome nothing checked, which is how
-            # three releases shipped tags that could never pass the seal. If the
-            # tag does not name the resealed commit at this point, stop: the
-            # publish below would verify a tree consumers will not receive.
-            local moved_tag_sha
-            moved_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
-            if [[ "${moved_tag_sha}" != "${trunk_sha}" ]]; then
-              fail "Post-condition failed: ${tag} resolves to ${moved_tag_sha}, not the resealed commit ${trunk_sha}. The release tag is not on a sealed tree and \`node scripts/release-seal.mjs check --tag ${tag}\` would fail. Nothing was published."
+            if [[ "${tag_created}" == "true" ]]; then
+              echo "created refs/tags/${tag} -> ${trunk_sha}"
+            else
+              # The only benign reason a create fails is that this run already
+              # created it (a re-run after a later step failed). Anything else
+              # means the tag exists somewhere it must not, and under immutable
+              # releases it can never be moved.
+              local existing_tag_sha
+              existing_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha 2>/dev/null || echo "(unresolvable)")"
+              if [[ "${existing_tag_sha}" != "${trunk_sha}" ]]; then
+                fail "Creating ${tag} on the resealed commit ${trunk_sha} failed, and the tag names ${existing_tag_sha} instead. A release tag gets exactly one chance to be created in the right place: immutable releases forbid moving it once its release is published. Nothing was published."
+              fi
+              echo "${tag} already named the resealed commit; treating creation as done"
             fi
-            echo "${tag} verified on resealed commit ${moved_tag_sha}"
+
+            # Post-condition, asserted every release (#1349). The tag used to be
+            # positioned by a fire-and-forget PATCH whose outcome nothing
+            # checked, which is how three releases shipped tags that could never
+            # pass the seal. Reordering does not make this unreachable: a create
+            # that silently does not land, a tag racing in from elsewhere, or a
+            # resolvable-but-wrong ref all still land here. If the tag does not
+            # name the resealed commit, stop before the release is published --
+            # after publication nothing about it can be corrected.
+            local sealed_tag_sha
+            sealed_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
+            if [[ "${sealed_tag_sha}" != "${trunk_sha}" ]]; then
+              fail "Post-condition failed: ${tag} resolves to ${sealed_tag_sha}, not the resealed commit ${trunk_sha}. The release tag is not on a sealed tree and \`node scripts/release-seal.mjs check --tag ${tag}\` would fail. Nothing was published."
+            fi
+            echo "${tag} verified on resealed commit ${sealed_tag_sha}"
+
+            # Publish the draft. Read the release back from GitHub rather than
+            # trusting the action's outputs: this is the last moment anything
+            # about the release can be corrected.
+            local draft_state
+            draft_state="$(gh api "repos/${GITHUB_REPOSITORY}/releases/${release_id}" --jq '"\(.draft) \(.tag_name)"')"
+            if [[ "${draft_state}" != "true ${tag}" ]]; then
+              fail "Release ${release_id} is '${draft_state}' (draft tag_name), not the unpublished draft for ${tag}. Refusing to publish it. Nothing was published."
+            fi
+            local published_draft
+            if ! published_draft="$(gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" -F draft=false --jq .draft)"; then
+              fail "Publishing draft release ${release_id} for ${tag} was rejected by GitHub. Unlike the tag move this replaces, that is recoverable: ${tag} already names the sealed commit ${trunk_sha}, so publish the draft and re-dispatch publish-js-sdk.yml against ${tag}. Nothing was published."
+            fi
+            if [[ "${published_draft}" != "false" ]]; then
+              fail "Release ${release_id} for ${tag} is still a draft after being published. Nothing was published."
+            fi
+
+            # Second post-condition, and not a duplicate of the first: GitHub
+            # creates the tag itself, at the release's target_commitish (the
+            # UNSEALED bump commit), when a draft is published while its tag
+            # does not exist. So publication is the one operation that can still
+            # put this release on the wrong commit, and it is re-checked here.
+            local published_tag_sha
+            published_tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${tag}" --jq .sha)"
+            if [[ "${published_tag_sha}" != "${trunk_sha}" ]]; then
+              fail "Post-condition failed: publishing release ${release_id} repointed ${tag} to ${published_tag_sha} instead of the resealed commit ${trunk_sha}. Nothing was published."
+            fi
+            echo "${tag} published on resealed commit ${published_tag_sha}"
             {
               echo "## Release tag sealed: \`${tag}\`"
               echo
               echo "- release commit: \`${GITHUB_SHA}\`"
-              echo "- resealed commit the tag now names: \`${moved_tag_sha}\`"
+              echo "- resealed commit the tag names: \`${published_tag_sha}\`"
+              echo "- GitHub Release \`${release_id}\` published from that tag"
             } >> "${GITHUB_STEP_SUMMARY}"
 
             # Publish from the tag itself rather than as a branch recovery run:
-            # the tag now names the sealed commit, so publish-js-sdk's own
+            # the tag names the sealed commit, so publish-js-sdk's own
             # tag/version check and its strict release-seal gate both apply to
             # the exact bytes consumers will fetch.
             gh workflow run publish-js-sdk.yml \
@@ -236,18 +320,18 @@ jobs:
               -f release_version="${release_version}" \
               -f source_revision="${trunk_sha}"
 
-            # The release smoke cannot use the `release: published` event: that
-            # event fires on the unsealed version-bump commit and
-            # actions/checkout pins the event's payload SHA, so such a run would
-            # verify the stale tree however long it waited. Dispatch it against
-            # the moved tag instead.
+            # The release smoke is dispatched against the tag rather than
+            # driven by the `release: published` event: that event's payload SHA
+            # is the release's target_commitish -- the unsealed version-bump
+            # commit -- and actions/checkout pins it, so such a run would verify
+            # the stale tree however long it waited.
             gh workflow run first-map-release-smoke.yml \
               --repo "${GITHUB_REPOSITORY}" \
               --ref "${tag}"
           }
 
           if [[ "${JS_SDK_RELEASE_CREATED}" == "true" ]]; then
-            dispatch_resealed_js_publish "${JS_SDK_TAG_NAME}"
+            dispatch_resealed_js_publish "${JS_SDK_TAG_NAME}" "${JS_SDK_RELEASE_ID}" "${JS_SDK_RELEASE_DRAFT}"
           fi
           if [[ "${MCP_RELEASE_CREATED}" == "true" ]]; then
             dispatch_tag_publish publish-mcp-server.yml "${MCP_TAG_NAME}"
