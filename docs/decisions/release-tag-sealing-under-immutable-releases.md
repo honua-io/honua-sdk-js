@@ -58,10 +58,11 @@ release into a blocked one.
 
 ### Loudness (#1349)
 
-- The `Dispatch package publish workflows` step runs under `set -euo pipefail`
+- The `Dispatch package publish workflows` step runs under `set -Eeuo pipefail`
   and routes every abort through a `fail()` helper that emits a
   `::error title=Release blocked for <tag>::` annotation and writes the reason
-  to the job summary. No release path can now end in a bare exit code.
+  to the job summary, with an `ERR` trap as the backstop for the aborts errexit
+  would otherwise report bare. No release path can now end in a bare exit code.
 - The reseal wait, the ancestry check, the generated-path allowlist and the tag
   placement each say which tag was affected and that nothing was published.
 - A **post-condition** re-reads the tag and requires it to name the resealed
@@ -107,6 +108,16 @@ repository before the change was written, not inferred:
 | Publishing that draft | Release binds to the existing tag; `target_commitish` is ignored and the tag still resolves to the commit we chose |
 | Publishing a draft whose tag does **not** exist | GitHub creates the tag at `target_commitish` — the unsealed bump commit |
 | `POST /git/refs` for an existing ref | 422 `Reference already exists`, which the step treats as an idempotent resume only when the existing tag already names the resealed commit |
+
+One thing in that path is *not* proven: `PATCH /releases/<id> -F draft=false`
+was exercised on a repository that could not have immutable releases enabled,
+because the setting is exposed nowhere in the REST or GraphQL API (only the
+derived `immutable` flag on a release object), and manufacturing a permanent
+junk release here to test it is not reversible under immutability. Two things
+make that acceptable: publishing performs no ref write at all when the tag
+already exists, so there is nothing for ref protection to reject; and if it were
+rejected the state is recoverable, because the tag already names the sealed
+commit and the release is still a draft.
 
 One consequence had to be handled explicitly. A draft release has no tag, and
 Release Please's release iterator skips a release with no tag commit, so during
