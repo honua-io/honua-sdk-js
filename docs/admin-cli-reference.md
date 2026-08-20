@@ -442,3 +442,4 @@ Common options: `--body @file.json`, repeated `--path name=value`, repeated
 | `uploadLicenseFile` | `POST` | `/license/upload` | Upload License File |
 | `validateConfigurationSecrets` | `GET` | `/configuration/secrets/validate` | Validate Configuration Secrets |
 | `verifyObservabilityAudit` | `GET` | `/observability/audit/verify` | Verify Audit Trail Integrity |
+
