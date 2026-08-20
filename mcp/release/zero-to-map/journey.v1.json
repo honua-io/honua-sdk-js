@@ -1,0 +1,646 @@
+{
+  "schemaVersion": "honua.zero-to-map.plan/v1",
+  "journeyId": "2026.1-zero-to-map",
+  "releaseContract": "honua-release#123/D9.3",
+  "fixtures": [
+    "fixtures/parcels.geojson",
+    "fixtures/zoning.geojson"
+  ],
+  "dependencyRefs": [
+    "honua-sdk-js#1370-#1373 control-plane CLI and proxy integration",
+    "honua-server#3268 synchronous OGC process execution and GeoJSON inputs",
+    "honua-demo-infra#68 live geometry.buffer canary",
+    "honua-server#3304 publication status and stable URL",
+    "honua-server#3358-#3365 2026.1 admin operation catalog"
+  ],
+  "variables": {
+    "installDirectory": ".honua-zero-to-map",
+    "dbHost": "postgis",
+    "dbPort": 5432,
+    "dbName": "honua",
+    "dbUser": "honua",
+    "serviceName": "zero-to-map",
+    "route": "zero-to-map",
+    "parcelsTable": "zero_to_map_parcels",
+    "zoningTable": "zero_to_map_zoning"
+  },
+  "stages": [
+    {
+      "number": 1,
+      "id": "install",
+      "title": "Install Honua locally and verify the handoff surfaces",
+      "actions": [
+        {
+          "id": "install-local",
+          "title": "Run the control-plane Docker installer",
+          "kind": "cli",
+          "args": ["admin", "install", "local", "--profile", "gp-dev", "--yes", "--directory", "${installDirectory}"]
+        },
+        {
+          "id": "install-status",
+          "title": "Verify API, MCP, and Console readiness",
+          "kind": "cli",
+          "args": ["admin", "install", "status", "--directory", "${installDirectory}"]
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "id": "admin",
+      "title": "Configure a connection, import data, publish layers, and set access",
+      "actions": [
+        {
+          "id": "admin-status",
+          "title": "Read server status through the admin MCP catalog",
+          "kind": "mcp",
+          "tool": "honua_admin_server_status",
+          "arguments": {}
+        },
+        {
+          "id": "create-connection",
+          "title": "Create the fixture PostGIS connection",
+          "kind": "mcp",
+          "tool": "honua_admin_connection_create",
+          "arguments": {
+            "body": {
+              "name": "zero-to-map",
+              "description": "Deterministic 2026.1 release journey fixtures",
+              "host": "${dbHost}",
+              "port": "${dbPort}",
+              "databaseName": "${dbName}",
+              "username": "${dbUser}",
+              "password": "${dbPassword}",
+              "sslRequired": false,
+              "sslMode": "Disable"
+            }
+          },
+          "captures": [
+            {
+              "variable": "connectionId",
+              "pointers": ["/structuredContent/details/response"],
+              "parsedPointers": ["/data/connectionId"]
+            }
+          ]
+        },
+        {
+          "id": "test-connection",
+          "title": "Test the saved connection",
+          "kind": "mcp",
+          "tool": "honua_admin_connection_test",
+          "arguments": { "id": "${connectionId}" }
+        },
+        {
+          "id": "import-parcels",
+          "title": "Import the parcel fixture",
+          "kind": "mcp",
+          "tool": "honua_admin_import_upload_url",
+          "arguments": {
+            "body": {
+              "sourceUrl": "${fixtureBaseUrl}/parcels.geojson",
+              "fileName": "parcels.geojson",
+              "tableName": "${parcelsTable}",
+              "targetSchema": "public",
+              "sourceSrid": 4326,
+              "targetSrid": 4326,
+              "overwriteExisting": true
+            }
+          }
+        },
+        {
+          "id": "import-zoning",
+          "title": "Import the zoning fixture",
+          "kind": "mcp",
+          "tool": "honua_admin_import_upload_url",
+          "arguments": {
+            "body": {
+              "sourceUrl": "${fixtureBaseUrl}/zoning.geojson",
+              "fileName": "zoning.geojson",
+              "tableName": "${zoningTable}",
+              "targetSchema": "public",
+              "sourceSrid": 4326,
+              "targetSrid": 4326,
+              "overwriteExisting": true
+            }
+          }
+        },
+        {
+          "id": "publish-parcels",
+          "title": "Publish the parcel layer",
+          "kind": "mcp",
+          "tool": "honua_admin_layer_publish",
+          "arguments": {
+            "id": "${connectionId}",
+            "body": {
+              "schema": "public",
+              "table": "${parcelsTable}",
+              "layerName": "Parcels",
+              "serviceName": "${serviceName}",
+              "geometryColumn": "geometry",
+              "geometryType": "Polygon",
+              "srid": 4326,
+              "primaryKey": "parcel_id",
+              "enabled": true
+            }
+          },
+          "captures": [
+            {
+              "variable": "parcelsLayerId",
+              "pointers": ["/structuredContent/details/response"],
+              "parsedPointers": ["/data/layerId"]
+            }
+          ]
+        },
+        {
+          "id": "publish-zoning",
+          "title": "Publish the zoning layer",
+          "kind": "mcp",
+          "tool": "honua_admin_layer_publish",
+          "arguments": {
+            "id": "${connectionId}",
+            "body": {
+              "schema": "public",
+              "table": "${zoningTable}",
+              "layerName": "Zoning",
+              "serviceName": "${serviceName}",
+              "geometryColumn": "geometry",
+              "geometryType": "Polygon",
+              "srid": 4326,
+              "primaryKey": "zone",
+              "enabled": true
+            }
+          },
+          "captures": [
+            {
+              "variable": "zoningLayerId",
+              "pointers": ["/structuredContent/details/response"],
+              "parsedPointers": ["/data/layerId"]
+            }
+          ]
+        },
+        {
+          "id": "set-public-access",
+          "title": "Allow anonymous read access to the journey service",
+          "kind": "mcp",
+          "tool": "honua_admin_service_set_access_policy",
+          "arguments": {
+            "serviceName": "${serviceName}",
+            "body": { "allowAnonymous": true, "allowAnonymousWrite": false }
+          }
+        },
+        {
+          "id": "create-scoped-key",
+          "title": "Create the scoped journey API key",
+          "kind": "mcp",
+          "tool": "honua_admin_api_key_create",
+          "arguments": {
+            "body": {
+              "name": "zero-to-map-release",
+              "permissions": ["read:${serviceName}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "id": "geoprocessing",
+      "title": "Execute Buffer through AI-facing Esri MCP, GPServer compatibility, and direct analysis",
+      "actions": [
+        {
+          "id": "list-esri-gp-tasks",
+          "title": "Discover the Esri-compatible GP task catalog through MCP",
+          "kind": "mcp",
+          "tool": "honua_esri_gp_list_tasks",
+          "arguments": {},
+          "captures": [
+            { "variable": "esriGpTasks", "pointers": ["/structuredContent/tasks"] }
+          ]
+        },
+        {
+          "id": "describe-esri-buffer",
+          "title": "Resolve the Esri Buffer alias to the canonical process",
+          "kind": "mcp",
+          "tool": "honua_esri_gp_describe_task",
+          "arguments": { "taskName": "Buffer" },
+          "captures": [
+            { "variable": "esriGpTaskName", "pointers": ["/structuredContent/taskName"], "equals": "Buffer" },
+            { "variable": "esriGpProcessId", "pointers": ["/structuredContent/processId"], "equals": "geometry.buffer" }
+          ]
+        },
+        {
+          "id": "buffer-esri-mcp",
+          "title": "Execute the AI-selected Esri Buffer task through MCP",
+          "kind": "mcp",
+          "tool": "honua_esri_gp_execute_task",
+          "arguments": {
+            "serviceId": "analysis",
+            "taskName": "Buffer",
+            "parameters": {
+              "wkb": {
+                "geometryType": "esriGeometryPolygon",
+                "spatialReference": { "wkid": 4326 },
+                "features": [
+                  {
+                    "attributes": { "parcel_id": "P-101" },
+                    "geometry": {
+                      "rings": [
+                        [
+                          [-157.8616, 21.3067],
+                          [-157.8608, 21.3067],
+                          [-157.8608, 21.3073],
+                          [-157.8616, 21.3073],
+                          [-157.8616, 21.3067]
+                        ]
+                      ]
+                    }
+                  }
+                ]
+              },
+              "distance": 0.00025
+            },
+            "idempotencyKey": "2026.1-zero-to-map-esri-buffer"
+          },
+          "captures": [
+            { "variable": "esriMcpJobId", "pointers": ["/structuredContent/jobId"] },
+            { "variable": "esriMcpServiceId", "pointers": ["/structuredContent/serviceId"], "equals": "analysis" },
+            { "variable": "esriMcpTaskName", "pointers": ["/structuredContent/taskName"], "equals": "Buffer" },
+            { "variable": "esriMcpProcessId", "pointers": ["/structuredContent/processId"], "equals": "geometry.buffer" }
+          ]
+        },
+        {
+          "id": "wait-esri-mcp-buffer",
+          "title": "Poll the Esri MCP job to terminal success",
+          "kind": "mcp-resource",
+          "uri": "honua://jobs/${esriMcpJobId}",
+          "waitFor": {
+            "pointer": "/status",
+            "equals": "Succeeded",
+            "terminal": ["Succeeded", "Failed", "Cancelled"],
+            "pollIntervalMs": 500,
+            "deadlineMs": 120000
+          },
+          "captures": [
+            {
+              "variable": "esriMcpResultsUri",
+              "pointers": ["/contents/0/text"],
+              "parsedPointers": ["/resultsUri"]
+            }
+          ]
+        },
+        {
+          "id": "read-esri-mcp-buffer-results",
+          "title": "Join the Esri MCP job to its result package and artifact",
+          "kind": "mcp-resource",
+          "uri": "${esriMcpResultsUri}",
+          "captures": [
+            {
+              "variable": "esriMcpResultJobId",
+              "pointers": ["/contents/0/text"],
+              "parsedPointers": ["/jobId"],
+              "equals": "${esriMcpJobId}"
+            },
+            {
+              "variable": "esriMcpResultPackageId",
+              "pointers": ["/contents/0/text"],
+              "parsedPointers": ["/resultPackageId"]
+            },
+            {
+              "variable": "esriMcpArtifactId",
+              "pointers": ["/contents/0/text"],
+              "parsedPointers": ["/artifacts/0/artifactId"]
+            }
+          ]
+        },
+        {
+          "id": "buffer-esri-gpserver",
+          "title": "Prove the same Buffer task through the SDK GPServer protocol adapter",
+          "kind": "gpserver",
+          "serviceId": "geoprocessing",
+          "taskName": "Buffer",
+          "processId": "geometry.buffer",
+          "parameters": {
+            "wkb": "AQEAAABQ/Bhz15pewNDVVuwv40JA",
+            "srid": 4326,
+            "distance": 0.00025
+          },
+          "resultNames": ["outputFeatureLayer"],
+          "captures": [
+            { "variable": "gpServerJobId", "pointers": ["/jobId"] }
+          ]
+        },
+        {
+          "id": "buffer-parcels",
+          "title": "Run the MCP direct verb and retain its artifact for Studio",
+          "kind": "mcp",
+          "tool": "honua_buffer_features",
+          "arguments": {
+            "source": { "serviceId": "${serviceName}", "layerId": "${parcelsLayerId}" },
+            "distance": 25,
+            "unit": "meters",
+            "dissolve": false,
+            "outSrid": 4326
+          },
+          "captures": [
+            {
+              "variable": "directAnalysisJobId",
+              "pointers": ["/structuredContent/jobId"]
+            }
+          ]
+        },
+        {
+          "id": "wait-direct-buffer",
+          "title": "Poll the direct analysis job to terminal success",
+          "kind": "mcp-resource",
+          "uri": "honua://jobs/${directAnalysisJobId}",
+          "waitFor": {
+            "pointer": "/status",
+            "equals": "Succeeded",
+            "terminal": ["Succeeded", "Failed", "Cancelled"],
+            "pollIntervalMs": 500,
+            "deadlineMs": 120000
+          },
+          "captures": [
+            {
+              "variable": "directAnalysisResultsUri",
+              "pointers": ["/contents/0/text"],
+              "parsedPointers": ["/resultsUri"]
+            }
+          ]
+        },
+        {
+          "id": "read-direct-buffer-results",
+          "title": "Retain the direct analysis artifact for Studio",
+          "kind": "mcp-resource",
+          "uri": "${directAnalysisResultsUri}",
+          "captures": [
+            {
+              "variable": "directAnalysisResultJobId",
+              "pointers": ["/contents/0/text"],
+              "parsedPointers": ["/jobId"],
+              "equals": "${directAnalysisJobId}"
+            },
+            {
+              "variable": "bufferArtifactId",
+              "pointers": ["/contents/0/text"],
+              "parsedPointers": ["/artifacts/0/artifactId"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 4,
+      "id": "studio",
+      "title": "Compose, validate, save, and reopen the map app",
+      "actions": [
+        {
+          "id": "create-draft",
+          "title": "Create the Studio app draft",
+          "kind": "mcp",
+          "tool": "honua_studio_create_draft",
+          "arguments": { "packageKey": "zero-to-map", "family": "app", "schemaVersion": "1.0.0" },
+          "captures": [
+            { "variable": "draftId", "pointers": ["/structuredContent/draftId", "/structuredContent/draft/draftId"] },
+            { "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }
+          ]
+        },
+        {
+          "id": "add-parcels-layer",
+          "title": "Add the published parcels to the map",
+          "kind": "mcp",
+          "tool": "honua_studio_add_layer",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "layer": {
+              "id": "parcels",
+              "sourceId": "honua://services/${serviceName}/layers/${parcelsLayerId}",
+              "type": "fill",
+              "title": "Parcels",
+              "visible": true
+            }
+          },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        },
+        {
+          "id": "add-buffer-layer",
+          "title": "Add the retained GP artifact",
+          "kind": "mcp",
+          "tool": "honua_studio_add_layer",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "layer": {
+              "id": "parcel-buffer",
+              "sourceId": "honua://artifacts/${bufferArtifactId}",
+              "type": "fill",
+              "title": "25 m parcel buffer",
+              "visible": true
+            }
+          },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        },
+        {
+          "id": "style-buffer-layer",
+          "title": "Apply the buffer style",
+          "kind": "mcp",
+          "tool": "honua_studio_set_layer_style",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "layerId": "parcel-buffer",
+            "styleRef": "zero-to-map-buffer"
+          },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        },
+        {
+          "id": "set-buffer-visibility",
+          "title": "Set explicit buffer visibility",
+          "kind": "mcp",
+          "tool": "honua_studio_set_layer_visibility",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "layerId": "parcel-buffer",
+            "visible": true
+          },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        },
+        {
+          "id": "set-view",
+          "title": "Set the map view",
+          "kind": "mcp",
+          "tool": "honua_studio_set_view",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "view": { "bbox": [-157.862, 21.3064, -157.8595, 21.3083], "crs": "EPSG:4326" }
+          },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        },
+        {
+          "id": "add-chart",
+          "title": "Add the assessed-value chart",
+          "kind": "mcp",
+          "tool": "honua_studio_add_widget",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "widget": {
+              "id": "value-by-zone",
+              "kind": "chart",
+              "title": "Assessed value by zone",
+              "sourceId": "parcels",
+              "config": { "categoryField": "zone", "valueField": "assessed_value", "aggregate": "sum" }
+            }
+          },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        },
+        {
+          "id": "add-layer-control",
+          "title": "Add the layer-list control",
+          "kind": "mcp",
+          "tool": "honua_studio_add_control",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "control": { "id": "layers", "kind": "layer-list", "title": "Layers", "sourceId": "parcels" }
+          },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        },
+        {
+          "id": "bind-chart-interaction",
+          "title": "Bind chart selection to the parcel layer",
+          "kind": "mcp",
+          "tool": "honua_studio_bind_interaction",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "interaction": {
+              "id": "filter-parcels-by-zone",
+              "on": { "ref": "widget:value-by-zone", "event": "select" },
+              "do": { "ref": "layer:parcels", "verb": "filter", "args": { "where": "zone = '$event.value'" } }
+            }
+          },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        },
+        {
+          "id": "validate-draft",
+          "title": "Validate the composed draft",
+          "kind": "mcp",
+          "tool": "honua_studio_validate_draft",
+          "arguments": { "draftId": "${draftId}" }
+        },
+        {
+          "id": "reopen-draft",
+          "title": "Reopen the saved draft",
+          "kind": "mcp",
+          "tool": "honua_studio_get_draft",
+          "arguments": { "draftId": "${draftId}" },
+          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+        }
+      ]
+    },
+    {
+      "number": 5,
+      "id": "proposal",
+      "title": "Propose publication without bypassing human confirmation",
+      "actions": [
+        {
+          "id": "propose-publication",
+          "title": "Record public publication intent",
+          "kind": "mcp",
+          "tool": "honua_studio_propose_publication",
+          "arguments": {
+            "draftId": "${draftId}",
+            "generation": "${generation}",
+            "route": "${route}",
+            "visibility": "public",
+            "embed": true,
+            "note": "2026.1 D9.3 zero-to-map release candidate"
+          },
+          "captures": [
+            { "variable": "generation", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
+            { "variable": "proposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
+            { "variable": "publicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
+            { "variable": "humanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 6,
+      "id": "console",
+      "title": "Inspect and approve the candidate in Console",
+      "actions": [
+        {
+          "id": "console-approval",
+          "title": "Import the Console health, release, audit, and recovery receipt",
+          "kind": "receipt",
+          "receiptSchema": "honua.zero-to-map.console-receipt/v1",
+          "matches": {
+            "/journeyId": "${journeyId}",
+            "/releaseContract": "${releaseContract}",
+            "/proposal/draftId": "${draftId}",
+            "/proposal/generation": "${proposalGeneration}",
+            "/proposal/route": "${route}",
+            "/resources/connectionId": "${connectionId}",
+            "/resources/serviceId": "${serviceName}",
+            "/resources/layerIds/parcels": "${parcelsLayerId}",
+            "/resources/layerIds/zoning": "${zoningLayerId}",
+            "/resources/jobs/esriMcp": "${esriMcpJobId}",
+            "/resources/jobs/gpServer": "${gpServerJobId}",
+            "/resources/jobs/directAnalysis": "${directAnalysisJobId}",
+            "/resources/gp/jobId": "${esriMcpJobId}",
+            "/resources/gp/resultPackageId": "${esriMcpResultPackageId}",
+            "/resources/gp/artifactId": "${esriMcpArtifactId}",
+            "/resources/artifactId": "${bufferArtifactId}",
+            "/resources/draftId": "${draftId}",
+            "/checks/health": "passed",
+            "/checks/audit": "passed",
+            "/checks/recovery": "passed"
+          },
+          "requiredPointers": [
+            "/candidate/candidateId",
+            "/candidate/releaseId",
+            "/proposal/proposalId",
+            "/proposal/executionOperationId",
+            "/audit/correlationId",
+            "/audit/operationId",
+            "/checks/health",
+            "/checks/audit",
+            "/checks/recovery",
+            "/shareUrl"
+          ],
+          "equalPointers": [
+            ["/proposal/executionOperationId", "/audit/operationId"],
+            ["/proposal/draftId", "/resources/draftId"],
+            ["/resources/jobs/esriMcp", "/resources/gp/jobId"]
+          ],
+          "captures": [
+            { "variable": "candidateId", "pointers": ["/candidate/candidateId"] },
+            { "variable": "releaseId", "pointers": ["/candidate/releaseId"] },
+            { "variable": "proposalId", "pointers": ["/proposal/proposalId"] },
+            { "variable": "executionOperationId", "pointers": ["/proposal/executionOperationId"] },
+            { "variable": "auditCorrelationId", "pointers": ["/audit/correlationId"] },
+            { "variable": "shareUrl", "pointers": ["/shareUrl"] }
+          ]
+        }
+      ]
+    },
+    {
+      "number": 7,
+      "id": "artifact",
+      "title": "Verify the stable app URL",
+      "actions": [
+        {
+          "id": "verify-share-url",
+          "title": "Require an HTTP 200 from the approved share URL",
+          "kind": "http",
+          "url": "${shareUrl}",
+          "expectedStatus": 200
+        }
+      ]
+    }
+  ]
+}

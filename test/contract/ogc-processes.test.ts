@@ -54,6 +54,60 @@ describe("ogc-processes / discovery", () => {
 });
 
 describe("ogc-processes / IJobRun lifecycle", () => {
+  it("executes a declared synchronous process with Prefer: respond-sync", async () => {
+    let prefer: string | null = null;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/processes/processes/geometry.buffer/execution",
+          (_url, init) => {
+            prefer = new Headers(init?.headers).get("Prefer");
+            return jsonResponse({ result: { type: "Polygon", coordinates: [] } });
+          },
+        ],
+      ],
+    });
+
+    const run = await client.ogcProcesses().execute<Record<string, unknown>>({
+      processId: "geometry.buffer",
+      inputs: { geometry: { type: "Point", coordinates: [-157.8583, 21.3069] }, distance: 100 },
+      mode: "sync",
+      jobControlOptions: ["sync-execute", "async-execute"],
+    });
+
+    expect(prefer).toBe("respond-sync");
+    expect(run.status).toBe("successful");
+    expect((await run.results()).outputs.result).toMatchObject({ type: "Polygon" });
+  });
+
+  it("fails closed before POST when sync-execute is not advertised", async () => {
+    let posts = 0;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/processes/processes/geometry.buffer/execution",
+          () => {
+            posts += 1;
+            return jsonResponse({});
+          },
+        ],
+      ],
+    });
+
+    await expect(
+      client.ogcProcesses().execute({
+        processId: "geometry.buffer",
+        inputs: { geometry: { type: "Point", coordinates: [-157.8583, 21.3069] }, distance: 100 },
+        mode: "sync",
+        jobControlOptions: ["async-execute"],
+      }),
+    ).rejects.toMatchObject({
+      name: "HonuaCapabilityNotSupportedError",
+      capability: "processes.sync-execute",
+    });
+    expect(posts).toBe(0);
+  });
+
   it("returns an IJobRun-shaped handle from execute() — not an OGC-specific job type", async () => {
     const client = makeMockClient({
       routes: [

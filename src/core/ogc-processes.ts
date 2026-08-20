@@ -1230,16 +1230,16 @@ export async function cancelOgcProcessJob(
 }
 
 /**
- * Build the `Prefer` header for an OGC API Processes execution request.
- * `mode: "async"` sends an explicit `Prefer: respond-async` (RFC 7240) so a
- * server that supports both shapes returns a job and OGC conformance checkers
- * see the header. `"sync"` and `"auto"` omit it: Core defines no header that
- * forces synchronous execution, so `"sync"` is expressed by *not* preferring
- * async plus the `sync-execute` capability assertion made before the post.
+ * Build the execution preference header. Honua and other Processes servers
+ * use the symmetric `respond-sync` token for an explicit synchronous request;
+ * `"auto"` omits `Prefer` and accepts either response shape.
  */
 function preferHeaderForExecute(request: OgcProcessExecuteRequest): { Prefer: string } | undefined {
   if (request.mode === "async") {
     return { Prefer: "respond-async" };
+  }
+  if (request.mode === "sync") {
+    return { Prefer: "respond-sync" };
   }
   return undefined;
 }

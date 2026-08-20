@@ -482,6 +482,34 @@ describe("createStudioAgentSession composition plane", () => {
     do: { ref: "widget:area-chart", verb: "setFilter", args: { field: "parcelId", value: "$event.featureId" } },
   };
 
+  it("routes honua_studio_set_layer_visibility and retains a not_found error code", async () => {
+    const { server, session } = makeSession({
+      draft: { draftId: "draft-1", generation: 4 },
+      turns: [
+        toolTurn([
+          {
+            id: "call-1",
+            name: "honua_studio_set_layer_visibility",
+            args: { layerId: "missing", visible: false },
+          },
+        ]),
+        textTurn("The layer was not found."),
+      ],
+      mcp: { toolCalls: [{ isError: true, result: { code: "not_found", message: "unknown layer" } }] },
+    });
+
+    const turn = await session.chat("Hide the missing layer.");
+
+    expect(server.mcpCalls).toEqual([
+      {
+        name: "honua_studio_set_layer_visibility",
+        arguments: { draftId: "draft-1", generation: 4, layerId: "missing", visible: false },
+      },
+    ]);
+    expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: false, errorCode: "not_found" });
+    expect(JSON.parse(turn.toolCalls[0]?.content ?? "{}")).toMatchObject({ code: "not_found" });
+  });
+
   it("routes honua_studio_bind_interaction through MCP with session-owned draft identity", async () => {
     const { server, session } = makeSession({
       draft: { draftId: "draft-1", generation: 4 },
@@ -554,6 +582,7 @@ describe("createStudioAgentSession composition plane", () => {
     expect(server.mcpCalls).toHaveLength(3);
     expect(turn.status).toBe("completed");
     expect(turn.toolCalls[0]).toMatchObject({ plane: "composition", ok: false });
+    expect(turn.toolCalls[0]?.errorCode).toBe("failed_precondition");
     expect(turn.toolCalls[0]?.errorMessage).toContain("stale again");
   });
 

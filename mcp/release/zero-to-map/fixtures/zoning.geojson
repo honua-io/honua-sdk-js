@@ -1,0 +1,24 @@
+{
+  "type": "FeatureCollection",
+  "name": "zero_to_map_zoning",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "Z-R1",
+      "properties": { "zone": "R-1", "label": "Residential" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-157.8620, 21.3064], [-157.8604, 21.3064], [-157.8604, 21.3083], [-157.8620, 21.3083], [-157.8620, 21.3064]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "Z-B2",
+      "properties": { "zone": "B-2", "label": "Community business" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-157.8604, 21.3064], [-157.8595, 21.3064], [-157.8595, 21.3083], [-157.8604, 21.3083], [-157.8604, 21.3064]]]
+      }
+    }
+  ]
+}

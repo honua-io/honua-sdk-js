@@ -32,6 +32,7 @@ describe("@honua/sdk-js/agent-tools", () => {
       "runWidgetQuery",
       "explainCapabilityGap",
       "setLayerStyle",
+      "setVisibility",
       "addWidget",
       "removeWidget",
       "bindInteraction",
@@ -274,9 +275,10 @@ describe("@honua/sdk-js/agent-tools", () => {
       do: { ref: "widget:area-chart", verb: "setFilter", args: { field: "parcelId", value: "$event.featureId" } },
     } as const;
 
-    it("declares all five as action tools requiring opt-in", () => {
+    it("declares all six as action tools requiring opt-in", () => {
       for (const name of [
         "setLayerStyle",
+        "setVisibility",
         "addWidget",
         "removeWidget",
         "bindInteraction",
@@ -284,6 +286,17 @@ describe("@honua/sdk-js/agent-tools", () => {
       ] as const) {
         expect(getHonuaAgentToolDefinition(name)).toMatchObject({ mode: "action", requiresOptIn: true });
       }
+
+      expect(getHonuaAgentToolDefinition("setVisibility").inputSchema).toMatchObject({
+        required: ["draftId", "generation", "layerId", "visible"],
+        additionalProperties: false,
+        properties: {
+          draftId: { type: "string", format: "uuid" },
+          generation: { type: "integer", minimum: 1 },
+          layerId: { type: "string", minLength: 1, maxLength: 200 },
+          visible: { type: "boolean" },
+        },
+      });
     });
 
     it("publishes the standard's closed event and verb sets in the bindInteraction schema", () => {
@@ -309,6 +322,10 @@ describe("@honua/sdk-js/agent-tools", () => {
       const runtime = makeCompositionRuntime();
       const calls: HonuaAgentToolCall[] = [
         { name: "setLayerStyle", args: { layerId: "parcels", styleRef: "style:parcels-choropleth" } },
+        {
+          name: "setVisibility",
+          args: { draftId: "draft-1", generation: 4, layerId: "parcels", visible: false },
+        },
         { name: "addWidget", args: { widget: { id: "area-chart", kind: "chart", sourceId: "incidents" } } },
         { name: "removeWidget", args: { widgetId: "area-chart" } },
         { name: "bindInteraction", args: { interaction } },
@@ -341,6 +358,10 @@ describe("@honua/sdk-js/agent-tools", () => {
         name: "setLayerStyle",
         args: { layerId: "parcels", styleRef: "style:choropleth" },
       });
+      const visibility = await execute({
+        name: "setVisibility",
+        args: { draftId: "draft-1", generation: 4, layerId: "parcels", visible: false },
+      });
       const added = await execute({
         name: "addWidget",
         args: { widget: { id: "area-chart", kind: "chart", sourceId: "incidents" } },
@@ -349,7 +370,8 @@ describe("@honua/sdk-js/agent-tools", () => {
       const bound = await execute({ name: "bindInteraction", args: { interaction } });
       const unbound = await execute({ name: "removeInteraction", args: { interactionId: interaction.id } });
 
-      expect([style, added, removed, bound, unbound].map((result) => result.status)).toEqual([
+      expect([style, visibility, added, removed, bound, unbound].map((result) => result.status)).toEqual([
+        "ok",
         "ok",
         "ok",
         "ok",
@@ -358,6 +380,7 @@ describe("@honua/sdk-js/agent-tools", () => {
       ]);
       expect(runtime.log).toEqual([
         "setLayerStyle:parcels:style:choropleth",
+        "setVisibility:draft-1:4:parcels:false",
         "addWidget:area-chart",
         "removeWidget:area-chart",
         `bindInteraction:${interaction.id}`,
@@ -365,6 +388,7 @@ describe("@honua/sdk-js/agent-tools", () => {
       ]);
       expect(audit.map((event) => [event.tool, event.action, event.targetIds])).toEqual([
         ["setLayerStyle", true, ["parcels"]],
+        ["setVisibility", true, ["parcels"]],
         ["addWidget", true, ["area-chart", "incidents"]],
         ["removeWidget", true, ["area-chart"]],
         ["bindInteraction", true, [interaction.id]],
@@ -373,10 +397,14 @@ describe("@honua/sdk-js/agent-tools", () => {
     });
 
     it("returns the structured error envelope when the runtime lacks the capability, never a raw throw", async () => {
-      // A runtime with none of the five optional composition methods.
+      // A runtime with none of the six optional composition methods.
       const bare = makeRuntime();
       for (const call of [
         { name: "setLayerStyle", args: { layerId: "parcels", styleRef: "s" } },
+        {
+          name: "setVisibility",
+          args: { draftId: "draft-1", generation: 4, layerId: "parcels", visible: true },
+        },
         { name: "addWidget", args: { widget: { id: "w", kind: "chart" } } },
         { name: "removeWidget", args: { widgetId: "w" } },
         { name: "bindInteraction", args: { interaction } },
@@ -460,6 +488,10 @@ function makeCompositionRuntime(): CompositionRuntime {
     setLayerStyle: (layerId, style) => {
       log.push(`setLayerStyle:${layerId}:${style.styleRef ?? "inline"}`);
       return { layerId, ...style };
+    },
+    setVisibility: (args) => {
+      log.push(`setVisibility:${args.draftId}:${args.generation}:${args.layerId}:${args.visible}`);
+      return { ...args, generation: args.generation + 1 };
     },
     addWidget: (widget) => {
       log.push(`addWidget:${widget.id}`);

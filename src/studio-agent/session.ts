@@ -54,8 +54,13 @@ import type {
   StudioAiToolDefinition,
 } from "./ai-contract.js";
 import { McpClient } from "./mcp-client.js";
-import { isMcpGenerationConflict } from "./mcp-errors.js";
-import { type McpToolsCallResult, type StudioMcpDraft, isHonuaStudioMcpToolName } from "./mcp-protocol.js";
+import { isMcpGenerationConflict, isMcpToolError } from "./mcp-errors.js";
+import {
+  type McpToolErrorCode,
+  type McpToolsCallResult,
+  type StudioMcpDraft,
+  isHonuaStudioMcpToolName,
+} from "./mcp-protocol.js";
 import { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
 import type { ChatTransport } from "./transport.js";
 
@@ -118,6 +123,8 @@ export interface StudioAgentToolDispatch {
   readonly draft?: StudioMcpDraft;
   /** Set when the composition call succeeded only after one generation-conflict reload+retry. */
   readonly retriedAfterConflict?: boolean;
+  /** Structured MCP tool error code, when the composition server supplied one. */
+  readonly errorCode?: McpToolErrorCode;
   readonly errorMessage?: string;
   /** The exact JSON string sent back to the model as the `role: "tool"` message. */
   readonly content: string;
@@ -529,7 +536,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       result = await client.callTool(call.toolName, args);
     } catch (error) {
       if (!isMcpGenerationConflict(error) || !this.#draft) {
-        return reject(call, "composition", errorMessage(error));
+        return reject(call, "composition", errorMessage(error), mcpErrorCode(error));
       }
       // One reload + retry against the fresh generation, then surface.
       try {
@@ -537,7 +544,7 @@ class StudioAgentSessionImpl implements StudioAgentSession {
         retried = true;
         result = await client.callTool(call.toolName, { ...args, generation: refreshed.generation });
       } catch (retryError) {
-        return reject(call, "composition", errorMessage(retryError));
+        return reject(call, "composition", errorMessage(retryError), mcpErrorCode(retryError));
       }
     }
 
@@ -589,15 +596,21 @@ function reject(
   call: PendingToolCall,
   plane: StudioAgentToolPlane | "unknown",
   message: string,
+  errorCode?: McpToolErrorCode,
 ): StudioAgentToolDispatch {
   return {
     toolCallId: call.toolCallId,
     toolName: call.toolName,
     plane,
     ok: false,
+    ...(errorCode ? { errorCode } : {}),
     errorMessage: message,
-    content: stringify({ status: "error", message }),
+    content: stringify({ status: "error", ...(errorCode ? { code: errorCode } : {}), message }),
   };
+}
+
+function mcpErrorCode(error: unknown): McpToolErrorCode | undefined {
+  return isMcpToolError(error) ? error.code : undefined;
 }
 
 /**

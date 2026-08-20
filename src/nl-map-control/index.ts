@@ -92,6 +92,7 @@ const NL_TOOL_EFFECTS: Readonly<Record<HonuaAgentToolName, NlMapPlanEffect>> = {
   listCapabilities: "read",
   setViewport: "viewport",
   addLayer: "mutation",
+  setVisibility: "mutation",
   setFilter: "mutation",
   selectFeature: "mutation",
   summarizeSelection: "read",
