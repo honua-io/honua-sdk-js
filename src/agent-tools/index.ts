@@ -52,6 +52,7 @@ export const HONUA_AGENT_TOOL_NAMES = [
   "runWidgetQuery",
   "explainCapabilityGap",
   "setLayerStyle",
+  "setVisibility",
   "addWidget",
   "removeWidget",
   "bindInteraction",
@@ -67,10 +68,13 @@ export interface HonuaAgentJsonSchema {
   readonly type?: string | readonly string[];
   readonly description?: string;
   readonly enum?: readonly unknown[];
+  readonly format?: string;
   readonly properties?: Readonly<Record<string, HonuaAgentJsonSchema>>;
   readonly items?: HonuaAgentJsonSchema;
   readonly required?: readonly string[];
   readonly additionalProperties?: boolean | HonuaAgentJsonSchema;
+  readonly minLength?: number;
+  readonly maxLength?: number;
   readonly minimum?: number;
   readonly maximum?: number;
   readonly default?: unknown;
@@ -220,6 +224,13 @@ export interface HonuaAgentRuntime {
    * other optional runtime path already returns — never a raw throw.
    */
   setLayerStyle?(layerId: string, style: HonuaAgentLayerStyle): MaybePromise<unknown>;
+  /**
+   * Persist a Studio composition layer's visibility against the server-owned
+   * draft generation. The argument object deliberately mirrors
+   * `honua_studio_set_layer_visibility` without defaults: `visible` is a
+   * required state, not a toggle inferred by the client.
+   */
+  setVisibility?(args: SetVisibilityArgs): MaybePromise<unknown>;
   addWidget?(widget: HonuaAgentWidgetSpec): MaybePromise<unknown>;
   removeWidget?(widgetId: string): MaybePromise<unknown>;
   bindInteraction?(interaction: HonuaInteraction): MaybePromise<unknown>;
@@ -281,6 +292,14 @@ export interface SetLayerStyleArgs extends HonuaAgentLayerStyle {
   readonly dryRun?: boolean;
 }
 
+/** Arguments for the server's `honua_studio_set_layer_visibility` tool. */
+export interface SetVisibilityArgs {
+  readonly draftId: string;
+  readonly generation: number;
+  readonly layerId: string;
+  readonly visible: boolean;
+}
+
 export interface AddWidgetArgs {
   readonly widget: HonuaAgentWidgetSpec;
   readonly dryRun?: boolean;
@@ -313,6 +332,7 @@ export type HonuaAgentToolCall =
   | { readonly name: "runWidgetQuery"; readonly args: RunWidgetQueryArgs }
   | { readonly name: "explainCapabilityGap"; readonly args: ExplainCapabilityGapArgs }
   | { readonly name: "setLayerStyle"; readonly args: SetLayerStyleArgs }
+  | { readonly name: "setVisibility"; readonly args: SetVisibilityArgs }
   | { readonly name: "addWidget"; readonly args: AddWidgetArgs }
   | { readonly name: "removeWidget"; readonly args: RemoveWidgetArgs }
   | { readonly name: "bindInteraction"; readonly args: BindInteractionArgs }
@@ -786,6 +806,34 @@ export const HONUA_AGENT_TOOL_DEFINITIONS: readonly HonuaAgentToolDefinition[] =
     },
   },
   {
+    name: "setVisibility",
+    title: "Set layer visibility",
+    description:
+      "Persist a layer's visibility on a server-owned Studio draft through honua_studio_set_layer_visibility.",
+    mode: "action",
+    requiresOptIn: true,
+    inputSchema: {
+      type: "object",
+      required: ["draftId", "generation", "layerId", "visible"],
+      properties: {
+        draftId: { type: "string", format: "uuid", description: "Studio draft UUID." },
+        generation: {
+          type: "integer",
+          description: "Expected current draft generation.",
+          minimum: 1,
+        },
+        layerId: {
+          type: "string",
+          minLength: 1,
+          maxLength: 200,
+          description: "Layer id whose stored visibility is being set.",
+        },
+        visible: booleanSchema("Visibility state to persist."),
+      },
+      additionalProperties: false,
+    },
+  },
+  {
     name: "addWidget",
     title: "Add widget",
     description: "Add a composition widget. Requires action opt-in and supports dry-run.",
@@ -1249,6 +1297,12 @@ export async function executeHonuaAgentTool(
         return result(call.name, "ok", args, options, {
           data: await runtime.setLayerStyle(styleArgs.layerId, style),
         });
+      }
+      case "setVisibility": {
+        const visibility = args as unknown as SetVisibilityArgs;
+        if (dryRun) return result(call.name, "dry-run", args, options, { data: { ...visibility } });
+        requireRuntimeMethod(runtime.setVisibility, call.name);
+        return result(call.name, "ok", args, options, { data: await runtime.setVisibility(visibility) });
       }
       case "addWidget": {
         const widget = (args as unknown as AddWidgetArgs).widget;

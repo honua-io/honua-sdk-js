@@ -1,5 +1,5 @@
 /**
- * A documented, compatible subset of the Vega-Lite v5 spec used by Studio
+ * A documented, compatible subset of the Vega-Lite v6 spec used by Studio
  * dashboard and report charts. The acceptance criterion for cross-surface
  * parity is that "dashboard/report charts use Vega-Lite specs or an explicitly
  * documented compatible subset" — this module is that documented subset, plus
@@ -20,7 +20,7 @@
 import type { HonuaGeneratedAppChartWidget } from "../generated-app/manifest.js";
 
 /** Vega-Lite schema URL this subset targets. */
-export const HONUA_VEGA_LITE_SCHEMA_V5 = "https://vega.github.io/schema/vega-lite/v5.json" as const;
+export const HONUA_VEGA_LITE_SCHEMA = "https://vega.github.io/schema/vega-lite/v6.json" as const;
 
 /** Mark types in the supported subset. */
 export type HonuaChartMark = "bar" | "line" | "point" | "arc";
@@ -62,12 +62,12 @@ export interface HonuaChartEncoding {
  * @experimental
  */
 export interface HonuaVegaLiteChartSpec {
-  readonly $schema: typeof HONUA_VEGA_LITE_SCHEMA_V5;
+  readonly $schema: typeof HONUA_VEGA_LITE_SCHEMA;
   readonly title?: string;
   readonly description?: string;
   readonly mark: HonuaChartMark | { readonly type: HonuaChartMark; readonly tooltip?: boolean };
   readonly encoding: HonuaChartEncoding;
-  readonly data?: {
+  readonly data: {
     readonly values?: ReadonlyArray<Record<string, unknown>>;
     readonly name?: string;
   };
@@ -88,8 +88,8 @@ const CHART_KIND_MARK: Record<NonNullable<HonuaGeneratedAppChartWidget["chartKin
 /**
  * Derive a {@link HonuaVegaLiteChartSpec} from a generated-app chart widget so
  * dashboard and report charts render identically across surfaces. `rows`, when
- * supplied, become inline `data.values`; otherwise the host binds a named
- * dataset. Returns `undefined` when the widget lacks the field needed for its
+ * supplied, become inline `data.values`; otherwise the host binds the named
+ * dataset identified by the widget id. Returns `undefined` when the widget lacks the field needed for its
  * chart kind (so a caller can degrade cleanly rather than emit a broken spec).
  *
  * @experimental
@@ -139,12 +139,12 @@ export function chartWidgetToVegaLiteSpec(
   }
 
   return {
-    $schema: HONUA_VEGA_LITE_SCHEMA_V5,
+    $schema: HONUA_VEGA_LITE_SCHEMA,
     ...(widget.title ? { title: widget.title } : {}),
     mark: { type: mark, tooltip: true },
     encoding,
     width: "container",
-    ...(rows ? { data: { values: rows } } : {}),
+    data: rows ? { values: rows } : { name: widget.id },
   };
 }
 

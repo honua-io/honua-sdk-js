@@ -1615,13 +1615,12 @@ export interface HonuaOgcProcessJobStatus {
  *
  * - `"async"` → `Prefer: respond-async`. A conformant server answers `201` with
  *   a `Location` header and a `statusInfo` body.
- * - `"sync"` → no `Prefer` header, and the caller asserts the process declares
- *   `sync-execute`. A conformant server answers `200` with the results document.
+ * - `"sync"` → `Prefer: respond-sync`, and the caller asserts the process
+ *   declares `sync-execute`. A supporting server answers `200` with the results document.
  * - `"auto"` (default) → no `Prefer` header; whichever shape the server returns
  *   is adapted onto the same `IJobRun` surface.
  *
- * Core defines no header that *forces* synchronous execution, so `"sync"` is a
- * preference plus a capability assertion, never a guarantee: a server that
+ * `respond-sync` remains a preference plus a capability assertion, never a guarantee: a server that
  * answers a `"sync"` request with a job still yields a pollable `IJobRun`.
  */
 export interface OgcProcessExecuteRequest {

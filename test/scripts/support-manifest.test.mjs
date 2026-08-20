@@ -541,10 +541,10 @@ test("the OGC discovery/execution line is represented as separate claims", () =>
   // off the facade, so the split is the only thing keeping the lanes distinct.
   const discovery = claims.get("ogc-processes-discovery-standalone");
   const execution = claims.get("ogc-processes-execution-standalone");
-  assert.equal(discovery.status, "experimental");
+  assert.equal(discovery.status, "supported");
   assert.equal(discovery.environment, "standalone");
   assert.equal(discovery.executionMode, "discovery");
-  assert.equal(execution.status, "experimental");
+  assert.equal(execution.status, "supported");
   assert.equal(execution.environment, "standalone");
   assert.equal(execution.executionMode, "native");
   assert.notDeepEqual(discovery.operations, execution.operations);
