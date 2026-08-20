@@ -372,6 +372,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Verify generated admin REST client freshness
+        run: npm run admin-client:check
+
       - name: Verify north-star API design fixtures
         run: npm run verify:north-star-api
 
@@ -857,6 +860,9 @@ jobs:
         env:
           HONUA_MCP_CERT_TARGET: offline
         run: npm run test:certification
+
+      - name: Admin MCP proxy parity contract (119-operation family)
+        run: npm run test:certification:admin
 
       - name: MCP certification artifact
         if: always()
