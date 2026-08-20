@@ -53,6 +53,8 @@
     "certify:standalone-ogc": "npm run build --silent && node dist/src/certification/cli.js --target standalone-ogc",
     "test:certification:nl-map-control": "vitest run test/certification/nl-map-control.test.ts",
     "test:certification": "npm run build --silent && vitest run test/certification && node dist/src/certification/cli.js",
+    "test:certification:admin": "vitest run test/proxy.test.ts test/certification/admin-parity.test.ts",
+    "certify:admin-parity": "npm run build --silent && node dist/src/certification/admin-parity.js",
     "test:certification:artifact": "npm run build --silent && node dist/src/certification/cli.js --artifact-only",
     "test:certification:standalone": "npm run build --silent && node dist/src/certification/cli.js --target standalone",
     "test:certification:standalone-ogc": "npm run build --silent && node dist/src/certification/cli.js --target standalone-ogc",

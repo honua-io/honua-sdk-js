@@ -24,6 +24,33 @@ export {
   createHonuaControlPlane,
 } from "./client.js";
 export type { HonuaControlPlaneClientOptions } from "./client.js";
+export {
+  HonuaAdminApiError,
+  HonuaAdminClient,
+  createHonuaAdminClient,
+} from "./admin-client.js";
+export type {
+  AdminClientOptions,
+  AdminOperationContentType,
+  AdminOperationRequest,
+  AdminOperationRequestBody,
+  AdminOperationResponse,
+  AdminOperationResult,
+} from "./admin-client.js";
+export {
+  ADMIN_API_BASE_PATH,
+  ADMIN_API_OPERATION_COUNT,
+  ADMIN_API_SERVER_SHA,
+  ADMIN_API_SPEC_SHA256,
+  ADMIN_OPERATIONS,
+  ADMIN_PUBLISHED_OPERATION_COUNT,
+  ADMIN_RELEASE_CONTRACT_COMPATIBLE,
+  ADMIN_RELEASE_CONTRACT_STATUS,
+  ADMIN_RELEASE_OPERATION_COUNT,
+  ADMIN_RELEASE_SERVER_SHA,
+} from "./generated/admin-operations.js";
+export type { AdminOperationDescriptor, AdminOperationId } from "./generated/admin-operations.js";
+export type { components as AdminApiComponents, operations as AdminApiOperations } from "./generated/admin-api.js";
 export type { StudioCapabilityManifest } from "../studio/capability-manifest.js";
 export { HONUA_CAPABILITY_MANIFEST_PATH, HONUA_CONTROL_PLANE_BASE_PATH } from "./types.js";
 export type {

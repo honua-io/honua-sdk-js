@@ -3042,6 +3042,10 @@
         "status": "experimental"
       },
       {
+        "subpath": "./local-install",
+        "status": "experimental"
+      },
+      {
         "subpath": "./app",
         "status": "deprecated",
         "replacement": "@honua/app-platform/app",

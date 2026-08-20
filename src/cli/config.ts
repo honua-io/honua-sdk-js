@@ -21,6 +21,14 @@ export interface HonuaCliConfig {
   baseUrl?: string;
   apiKey?: string;
   locatorName?: string;
+  profiles?: Record<
+    string,
+    {
+      baseUrl?: string;
+      apiKey?: string;
+      adminKey?: string;
+    }
+  >;
 }
 
 export interface ResolvedConnection {
@@ -89,6 +97,7 @@ export function writeConfig(config: HonuaCliConfig, env: NodeJS.ProcessEnv = pro
 export interface ResolveOptions {
   baseUrl?: string;
   apiKey?: string;
+  profile?: string;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -100,6 +109,10 @@ export interface ResolveOptions {
 export function resolveConnection(options: ResolveOptions = {}): ResolvedConnection {
   const env = options.env ?? process.env;
   const saved = readConfig(env);
+  const profile = options.profile ? saved.profiles?.[options.profile] : undefined;
+  if (options.profile && !profile) {
+    throw new Error(`Honua profile "${options.profile}" was not found in ${configPath(env)}.`);
+  }
 
   let baseUrl: string | undefined;
   let source: ResolvedConnection["source"] = "config";
@@ -109,6 +122,9 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
   } else if (env.HONUA_BASE_URL && env.HONUA_BASE_URL.trim() !== "") {
     baseUrl = env.HONUA_BASE_URL;
     source = "env";
+  } else if (profile?.baseUrl && profile.baseUrl.trim() !== "") {
+    baseUrl = profile.baseUrl;
+    source = "config";
   } else if (saved.baseUrl && saved.baseUrl.trim() !== "") {
     baseUrl = saved.baseUrl;
     source = "config";
@@ -123,7 +139,26 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
   const apiKey =
     (options.apiKey && options.apiKey.trim() !== "" ? options.apiKey : undefined) ??
     (env.HONUA_API_KEY && env.HONUA_API_KEY.trim() !== "" ? env.HONUA_API_KEY : undefined) ??
+    (profile?.apiKey && profile.apiKey.trim() !== "" ? profile.apiKey : undefined) ??
     (saved.apiKey && saved.apiKey.trim() !== "" ? saved.apiKey : undefined);
 
   return { baseUrl: stripTrailingSlashes(baseUrl), apiKey, source };
+}
+
+export interface ResolvedAdminConnection extends ResolvedConnection {
+  adminKey?: string;
+}
+
+/** Resolve admin auth, preferring the dedicated root key over the general API key. */
+export function resolveAdminConnection(options: ResolveOptions & { adminKey?: string } = {}): ResolvedAdminConnection {
+  const env = options.env ?? process.env;
+  const saved = readConfig(env);
+  const profile = options.profile ? saved.profiles?.[options.profile] : undefined;
+  const connection = resolveConnection(options);
+  const adminKey =
+    (options.adminKey && options.adminKey.trim() !== "" ? options.adminKey : undefined) ??
+    (env.HONUA_ADMIN_KEY && env.HONUA_ADMIN_KEY.trim() !== "" ? env.HONUA_ADMIN_KEY : undefined) ??
+    (profile?.adminKey && profile.adminKey.trim() !== "" ? profile.adminKey : undefined) ??
+    connection.apiKey;
+  return { ...connection, adminKey };
 }

@@ -63,6 +63,12 @@ jobs:
           HONUA_API_KEY: ${{ secrets.HONUA_API_KEY }}
         run: node dist/src/certification/cli.js
 
+      - name: Admin MCP HTTP/proxy parity (119-operation release gate)
+        env:
+          HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url || secrets.HONUA_MCP_REMOTE_URL }}
+          HONUA_ADMIN_KEY: ${{ secrets.HONUA_API_KEY }}
+        run: node dist/src/certification/admin-parity.js admin-mcp-parity.json
+
       - name: Upload live certification artifacts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -71,4 +77,5 @@ jobs:
           path: |
             mcp/mcp-certification-results.json
             mcp/mcp-certification-results.md
+            mcp/admin-mcp-parity.json
           if-no-files-found: warn
