@@ -10,6 +10,7 @@ import { type NlMapControlMcpHost, registerNlMapControlMcpTools } from "./nl-map
 import * as layerSchemaResource from "./resources/layer-schema.js";
 import * as servicesResource from "./resources/services.js";
 import * as stylesResource from "./resources/styles.js";
+import * as adminInstallLocal from "./tools/admin-install-local.js";
 import * as applyStylePreset from "./tools/apply-style-preset.js";
 import * as countFeatures from "./tools/count-features.js";
 import * as describeLayer from "./tools/describe-layer.js";
@@ -281,6 +282,8 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     async (args) => applyStylePreset.execute(client, applyStylePreset.schema.parse(args)),
   );
 
+  registerLocalInstallTool(server);
+
   // ── Resources ──────────────────────────────────────────────────
 
   server.resource("services-catalog", servicesResource.uri, async (_uri) => servicesResource.read(client));
@@ -303,6 +306,23 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
   return server;
 }
 
+/** Bootstrap-only MCP surface for a laptop that does not have Honua yet. */
+export function createBootstrapServer(): McpServer {
+  const server = new McpServer({ name: "honua-bootstrap", version: SERVER_VERSION });
+  registerLocalInstallTool(server);
+  return server;
+}
+
+function registerLocalInstallTool(server: McpServer): void {
+  server.tool(
+    "honua_admin_install_local",
+    "Install the manifest-pinned Honua Server, PostGIS, and Redis on this laptop, wait for readiness, bootstrap a scoped admin key, and write proxy MCP configuration. Requires confirm=true.",
+    adminInstallLocal.schema.shape,
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    async (args) => adminInstallLocal.execute(adminInstallLocal.schema.parse(args)),
+  );
+}
+
 /* v8 ignore start -- live-process entry: wires the stdio transport to a real
    SDK client against HONUA_BASE_URL; exercised by running the bin, not unit tests.
    The unit-testable logic (option resolution, client construction, server wiring)
@@ -317,8 +337,8 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
  * required. For the Honua-enhanced `/mcp` catalog, use `honua-mcp-proxy` instead.
  */
 export async function runStandalone(env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  const client = createClientFromEnv(env);
-  const server = createServer(client);
+  const bootstrapOnly = env.HONUA_MCP_BOOTSTRAP === "1" || env.HONUA_MCP_BOOTSTRAP === "true";
+  const server = bootstrapOnly ? createBootstrapServer() : createServer(createClientFromEnv(env));
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

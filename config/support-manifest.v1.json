@@ -585,6 +585,7 @@
       { "subpath": "./routing", "status": "experimental" },
       { "subpath": "./interactions/declarative", "status": "experimental" },
       { "subpath": "./studio-agent", "status": "experimental" },
+      { "subpath": "./local-install", "status": "experimental" },
       { "subpath": "./app", "status": "deprecated", "replacement": "@honua/app-platform/app", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
       { "subpath": "./app-controller", "status": "deprecated", "replacement": "@honua/app-platform/app-controller", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
       { "subpath": "./app-workspace", "status": "deprecated", "replacement": "@honua/app-platform/app-workspace", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },

@@ -1,14 +1,16 @@
 <!-- GENERATED FILE — do not edit by hand. -->
 <!-- Regenerate with: npm run docs:mcp-scorecard -->
-<!-- Inputs: mcp/evals/runs/**/*.json (committed run artifacts), mcp/src/eval/corpus.ts, mcp/src/eval/operator-corpus.ts, mcp/src/eval/northstar-corpus.ts, mcp/src/eval/standalone-corpus.ts. -->
+<!-- Inputs: mcp/evals/runs/**/*.json (committed run artifacts), mcp/evals/admin-family.v1.json, mcp/src/eval/corpus.ts, mcp/src/eval/operator-corpus.ts, mcp/src/eval/northstar-corpus.ts, mcp/src/eval/standalone-corpus.ts. -->
 <!-- Freshness is enforced by npm run docs:mcp-scorecard:check. -->
 
 # Cross-model MCP eval scorecard
 
 How well do different client models actually drive Honua's MCP surface? This page is the
-answer, published rather than asserted. Every figure below is rendered from a committed run
+answer, published rather than asserted. Every observed result below is rendered from a committed run
 artifact under [`mcp/evals/runs/`](https://github.com/honua-io/honua-sdk-js/tree/trunk/mcp/evals/runs) — the same JSON the eval harness wrote,
-carrying the surface it ran against, how it authenticated, and (where the artifact is new
+admin release-readiness is read from [`mcp/evals/admin-family.v1.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/admin-family.v1.json) and stays blocked
+until a live candidate receipt exists. Run artifacts carry the surface they ran against, how they
+authenticated, and (where the artifact is new
 enough to record it) the negotiated MCP protocol version and the git SHA of the suite that
 produced it. Nothing here is hand-typed, and the generator recomputes every rate from the
 per-scenario rows before publishing it, so a summary that disagreed with its own graded
@@ -92,6 +94,16 @@ listed here, with the grader's own violation text.
 Read these as capability signals, not bugs in the surface: the eval grades whether a client
 *composed the right workflow*, so a smaller model that asked for clarification it did not need,
 or looped past its iteration budget, is exactly what the corpus is designed to expose.
+
+## Admin operation family
+
+The generated Admin REST client covers **396 operations**; the server-owned semantic MCP family is bounded to **119 tools**. The row stays blocked until those descriptors are certified against the same release candidate through both HTTP and the proxy.
+
+| Family | REST operations | Expected MCP tools | HTTP/proxy parity | Approval outcomes | `secret_ref` | Candidate status |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| `honua_admin_*` | 396 | 119 | implemented-awaiting-live-candidate | fixture-covered-awaiting-server-catalog | fixture-covered-awaiting-server-catalog | blocked-server-pin-regresses-admin-contract (`4a7903c2ef764ffeaa60083689f73b9e42bbc6a3`, 395 REST operations) |
+
+Evidence definition: [`mcp/test/certification/admin-parity.test.ts`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/test/certification/admin-parity.test.ts). Source contract: `f897700159e2791c9468c6ca85bb4e2a3a8d8433` / `edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a`. This is a readiness row, not a fabricated live pass receipt.
 
 ## Protocol certification (zero-LLM control)
 

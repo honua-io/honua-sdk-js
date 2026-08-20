@@ -63,7 +63,14 @@ describe("stdio proxy parity (#1950)", () => {
       const normalize = (tools: typeof upstreamTools) =>
         [...tools]
           .sort((a, b) => a.name.localeCompare(b.name))
-          .map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+          .map((t) => ({
+            name: t.name,
+            title: t.title,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            outputSchema: t.outputSchema,
+            annotations: t.annotations,
+          }));
 
       expect(downstreamTools.length).toBeGreaterThan(0);
       expect(normalize(downstreamTools)).toEqual(normalize(upstreamTools));
@@ -150,6 +157,15 @@ describe("proxy option resolution (#1950)", () => {
       apiKey: "key",
     });
     expect(headers).toEqual({ Authorization: "Bearer tok", "x-api-key": "key" });
+  });
+
+  it("prefers HONUA_ADMIN_KEY for the admin operation family", () => {
+    const opts = resolveProxyOptions({
+      HONUA_MCP_REMOTE_URL: "https://demo.honua.io/mcp",
+      HONUA_ADMIN_KEY: "admin",
+      HONUA_API_KEY: "general",
+    });
+    expect(opts.apiKey).toBe("admin");
   });
 
   it("omits headers when no credentials are configured", () => {

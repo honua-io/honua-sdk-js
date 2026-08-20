@@ -2,9 +2,9 @@
 // artifacts under `mcp/evals/runs/` (issue #960).
 //
 // Discipline (mirrors scripts/generate-comparison-page.mjs):
-//   - Every number on the page comes from a committed, dated run artifact.
-//     Nothing is hand-written, nothing is averaged across surfaces, and the
-//     renderer has no fallback that would invent a figure.
+//   - Every observed result on the page comes from a committed, dated run
+//     artifact. Release-readiness inventory is kept in its own committed,
+//     dated artifact and never rendered as a live pass.
 //   - Every published rate is RECOMPUTED here from the per-scenario `results`
 //     rows and cross-checked against the artifact's own model summary. A
 //     disagreement throws rather than publishing.
@@ -21,6 +21,7 @@ import path from "node:path";
 // Repo-relative, POSIX-separated so the rendered page is identical on every OS.
 export const RUNS_DIR = "mcp/evals/runs";
 export const OUTPUT_PATH = "docs/generated/mcp-eval-scorecard.md";
+export const ADMIN_FAMILY_PATH = "mcp/evals/admin-family.v1.json";
 
 /** Corpus sources scanned for scenario titles so the matrix reads as workflows, not ids. */
 export const CORPUS_SOURCES = [
@@ -442,6 +443,33 @@ export function buildScorecardModel({ evals, certifications, scenarioIndex }) {
   };
 }
 
+export function loadAdminFamilyScorecard(projectRoot) {
+  const absolute = path.join(projectRoot, ADMIN_FAMILY_PATH);
+  if (!fs.existsSync(absolute)) return null;
+  const value = JSON.parse(fs.readFileSync(absolute, "utf8"));
+  if (value.schemaVersion !== "honua.admin-family-scorecard.v1") {
+    throw new Error(`${ADMIN_FAMILY_PATH} has unsupported schemaVersion ${value.schemaVersion ?? "<missing>"}`);
+  }
+  if (value.family !== "honua_admin_*" || !Number.isInteger(value.expectedPublishedTools)) {
+    throw new Error(`${ADMIN_FAMILY_PATH} has an invalid admin family inventory.`);
+  }
+  if (!Array.isArray(value.checks) || value.checks.length === 0) {
+    throw new Error(`${ADMIN_FAMILY_PATH} must publish its certification checks.`);
+  }
+  const source = JSON.parse(fs.readFileSync(path.join(projectRoot, "config/admin-client.v1.json"), "utf8"));
+  if (
+    value.restOperationCount !== source.operationCount ||
+    value.expectedPublishedTools !== source.publishedAdminOperationCount ||
+    value.adminApi.sha !== source.serverSha ||
+    value.adminApi.sha256 !== source.specSha256 ||
+    value.releaseCandidate.serverSha !== source.releaseManifestServerSha ||
+    value.releaseCandidate.restOperationCount !== source.releaseManifestOperationCount
+  ) {
+    throw new Error(`${ADMIN_FAMILY_PATH} has drifted from config/admin-client.v1.json.`);
+  }
+  return value;
+}
+
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
@@ -546,7 +574,7 @@ export function renderScorecardMarkdown(model) {
   push(
     "<!-- GENERATED FILE — do not edit by hand. -->",
     "<!-- Regenerate with: npm run docs:mcp-scorecard -->",
-    `<!-- Inputs: ${RUNS_DIR}/**/*.json (committed run artifacts), ${CORPUS_SOURCES.join(", ")}. -->`,
+    `<!-- Inputs: ${RUNS_DIR}/**/*.json (committed run artifacts), ${ADMIN_FAMILY_PATH}, ${CORPUS_SOURCES.join(", ")}. -->`,
     "<!-- Freshness is enforced by npm run docs:mcp-scorecard:check. -->",
     "",
     "# Cross-model MCP eval scorecard",
@@ -555,9 +583,11 @@ export function renderScorecardMarkdown(model) {
 
   push(
     "How well do different client models actually drive Honua's MCP surface? This page is the",
-    "answer, published rather than asserted. Every figure below is rendered from a committed run",
+    "answer, published rather than asserted. Every observed result below is rendered from a committed run",
     `artifact under ${treeLink(`${RUNS_DIR}/`, RUNS_DIR)} — the same JSON the eval harness wrote,`,
-    "carrying the surface it ran against, how it authenticated, and (where the artifact is new",
+    `admin release-readiness is read from ${link(ADMIN_FAMILY_PATH, ADMIN_FAMILY_PATH)} and stays blocked`,
+    "until a live candidate receipt exists. Run artifacts carry the surface they ran against, how they",
+    "authenticated, and (where the artifact is new",
     "enough to record it) the negotiated MCP protocol version and the git SHA of the suite that",
     "produced it. Nothing here is hand-typed, and the generator recomputes every rate from the",
     "per-scenario rows before publishing it, so a summary that disagreed with its own graded",
@@ -681,6 +711,22 @@ export function renderScorecardMarkdown(model) {
   }
 
   // -- Certification --------------------------------------------------------
+  if (model.adminFamily) {
+    const admin = model.adminFamily;
+    push(
+      "## Admin operation family",
+      "",
+      `The generated Admin REST client covers **${admin.restOperationCount} operations**; the server-owned semantic MCP family is bounded to **${admin.expectedPublishedTools} tools**. The row stays blocked until those descriptors are certified against the same release candidate through both HTTP and the proxy.`,
+      "",
+      "| Family | REST operations | Expected MCP tools | HTTP/proxy parity | Approval outcomes | `secret_ref` | Candidate status |",
+      "| --- | ---: | ---: | --- | --- | --- | --- |",
+      `| ${code(admin.family)} | ${admin.restOperationCount} | ${admin.expectedPublishedTools} | ${cell(admin.checks[0].status)} | ${cell(admin.checks[1].status)} | ${cell(admin.checks[2].status)} | ${cell(admin.releaseCandidate.status)} (${code(admin.releaseCandidate.serverSha)}, ${admin.releaseCandidate.restOperationCount} REST operations) |`,
+      "",
+      `Evidence definition: ${link(admin.checks[0].evidence, admin.checks[0].evidence)}. Source contract: ${code(admin.adminApi.sha)} / ${code(admin.adminApi.sha256)}. This is a readiness row, not a fabricated live pass receipt.`,
+      "",
+    );
+  }
+
   if (model.certifications.length > 0) {
     push(
       "## Protocol certification (zero-LLM control)",
@@ -894,5 +940,7 @@ export function renderScorecardMarkdown(model) {
 export function generateScorecardMarkdown(projectRoot) {
   const { evals, certifications } = loadMcpEvalRuns(projectRoot);
   const scenarioIndex = loadScenarioIndex(projectRoot);
-  return renderScorecardMarkdown(buildScorecardModel({ evals, certifications, scenarioIndex }));
+  const model = buildScorecardModel({ evals, certifications, scenarioIndex });
+  model.adminFamily = loadAdminFamilyScorecard(projectRoot);
+  return renderScorecardMarkdown(model);
 }

@@ -64,7 +64,7 @@ export function resolveProxyOptions(env: NodeJS.ProcessEnv = process.env): Proxy
   return {
     remoteUrl: parsed.toString(),
     authToken: env.HONUA_MCP_AUTH_TOKEN,
-    apiKey: env.HONUA_API_KEY,
+    apiKey: env.HONUA_ADMIN_KEY ?? env.HONUA_API_KEY,
   };
 }
 

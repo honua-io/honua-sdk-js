@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "honua.admin-family-scorecard.v1",
+  "recordedAt": "2026-08-20",
+  "family": "honua_admin_*",
+  "restOperationCount": 396,
+  "expectedPublishedTools": 119,
+  "adminApi": {
+    "repository": "honua-io/honua-server",
+    "sha": "f897700159e2791c9468c6ca85bb4e2a3a8d8433",
+    "sha256": "edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a"
+  },
+  "releaseCandidate": {
+    "status": "blocked-server-pin-regresses-admin-contract",
+    "serverSha": "4a7903c2ef764ffeaa60083689f73b9e42bbc6a3",
+    "restOperationCount": 395
+  },
+  "checks": [
+    {
+      "name": "HTTP/proxy names, schemas, and annotations",
+      "status": "implemented-awaiting-live-candidate",
+      "evidence": "mcp/test/certification/admin-parity.test.ts"
+    },
+    {
+      "name": "approval outcomes",
+      "status": "fixture-covered-awaiting-server-catalog",
+      "evidence": "mcp/test/certification/admin-parity.test.ts"
+    },
+    {
+      "name": "secret_ref handling",
+      "status": "fixture-covered-awaiting-server-catalog",
+      "evidence": "mcp/test/certification/admin-parity.test.ts"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "honua.admin-client-source.v1",
+  "serverRepository": "honua-io/honua-server",
+  "serverSha": "f897700159e2791c9468c6ca85bb4e2a3a8d8433",
+  "specPath": "docs/developer/api-specs/admin-api.json",
+  "specBlobSha": "ad2e001b4626b47caa22bc64187912b13ae280de",
+  "specSha256": "edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a",
+  "operationCount": 396,
+  "publishedAdminOperationCount": 119,
+  "adminBasePath": "/api/v1/admin",
+  "serverImage": "ghcr.io/honua-io/honua-server:nightly-aot-4a7903c@sha256:9bcc7bcde92f2623035d04a8164aafe928e48278590f686ac6ca1e470af4547f",
+  "releaseManifestStatus": "blocked-server-pin-regresses-admin-contract",
+  "releaseManifestServerSha": "4a7903c2ef764ffeaa60083689f73b9e42bbc6a3",
+  "releaseManifestOperationCount": 395
+}

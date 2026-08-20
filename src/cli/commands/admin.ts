@@ -1,0 +1,221 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+import { ADMIN_OPERATIONS, type AdminOperationId, HonuaAdminClient } from "../../control-plane/index.js";
+import {
+  type LocalInstallProfile,
+  cloudInstallHandoff,
+  getHonuaLocalStatus,
+  installHonuaLocal,
+  renderLocalCompose,
+} from "../../local-install.js";
+import type { ParsedArgs } from "../args.js";
+import { ArgError, getArray, getBoolean, getNumber, getString } from "../args.js";
+import type { CommandContext } from "../command.js";
+import { resolveAdminConnection } from "../config.js";
+import { printLine, renderJson } from "../output.js";
+
+const ADMIN_GROUPS = new Set(["connect", "import", "publish", "configure", "secure", "release", "operate"]);
+
+const ADMIN_HELP = `honua admin — complete Honua control-plane client
+
+USAGE
+  honua admin <group> <operationId> [options]
+  honua admin api <operationId> [options]
+  honua admin operations [group]
+  honua admin install local|cloud|status [options]
+
+GROUPS
+  connect  import  publish  configure  secure  release  operate
+
+REQUEST OPTIONS
+  --body <json|@file>       JSON request body
+  --path <name=value>       Path parameter (repeatable)
+  --query <name=value>      Query parameter (repeatable)
+  --header <name=value>     Request header (repeatable)
+  --dry-run                 Print the resolved operation request without sending it
+  --yes                     Required for mutating REST operations
+  --profile <name>          Use a named profile from the Honua config file
+  --admin-key <key>         Root admin key (or HONUA_ADMIN_KEY)
+  --json                    Machine-readable output
+
+The api escape hatch exposes every operation in the pinned 396-operation Admin OpenAPI contract.
+See docs/admin-cli-reference.md for the generated inventory.`;
+
+export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
+  const group = parsed.positionals[0];
+  if (!group || group === "help") {
+    printLine(ADMIN_HELP);
+    return;
+  }
+  if (group === "operations") {
+    printOperations(parsed.positionals[1]);
+    return;
+  }
+  if (group === "install") {
+    await installCommand(parsed);
+    return;
+  }
+  if (group !== "api" && !ADMIN_GROUPS.has(group)) {
+    throw new ArgError(`Unknown admin group: ${group}`);
+  }
+
+  const operationId = parsed.positionals[1];
+  if (!operationId || !isOperationId(operationId)) {
+    throw new ArgError(`Unknown or missing admin operationId: ${operationId ?? "(missing)"}`);
+  }
+  const descriptor = ADMIN_OPERATIONS[operationId];
+  if (group !== "api" && descriptor.group !== group) {
+    throw new ArgError(
+      `${operationId} belongs to the ${descriptor.group} group. Use ` +
+        `honua admin ${descriptor.group} ${operationId}, or the api escape hatch.`,
+    );
+  }
+
+  const request = {
+    path: assignments(getArray(parsed, "path"), "path"),
+    query: assignments(getArray(parsed, "query"), "query"),
+    headers: stringAssignments(getArray(parsed, "header"), "header"),
+    body: readBody(getString(parsed, "body")),
+  };
+  if (getBoolean(parsed, "dry-run")) {
+    printLine(renderJson({ operationId, ...descriptor, request, executed: false }));
+    return;
+  }
+  if (descriptor.mutating && !getBoolean(parsed, "yes")) {
+    throw new ArgError(`Admin operation ${operationId} mutates state. Re-run with --yes or inspect it with --dry-run.`);
+  }
+
+  const connection = resolveAdminConnection({
+    baseUrl: ctx.baseUrl,
+    apiKey: ctx.apiKey,
+    adminKey: ctx.adminKey,
+    profile: ctx.profile,
+  });
+  const client = new HonuaAdminClient({
+    baseUrl: connection.baseUrl,
+    apiKey: connection.apiKey,
+    adminKey: connection.adminKey,
+  });
+  const result = await callDynamic(client, operationId, compactRequest(request));
+  printLine(renderJson(result.data));
+}
+
+async function installCommand(parsed: ParsedArgs): Promise<void> {
+  const action = parsed.positionals[1];
+  const directory = path.resolve(getString(parsed, "directory") ?? ".honua");
+  if (action === "cloud") {
+    printLine(renderJson(cloudInstallHandoff(parsed.positionals[2] ?? "aws")));
+    return;
+  }
+  if (action === "status") {
+    printLine(renderJson(await getHonuaLocalStatus(directory)));
+    return;
+  }
+  if (action !== "local") throw new ArgError("Usage: honua admin install local|cloud|status");
+  const profile = (getString(parsed, "profile") ?? "quickstart") as LocalInstallProfile;
+  if (profile !== "quickstart" && profile !== "gp-dev") {
+    throw new ArgError("Local install --profile must be quickstart or gp-dev.");
+  }
+  if (getBoolean(parsed, "dry-run")) {
+    printLine(
+      renderJson({
+        action: "install-local",
+        directory,
+        profile,
+        compose: renderLocalCompose({ profile }),
+        executed: false,
+      }),
+    );
+    return;
+  }
+  if (!getBoolean(parsed, "yes")) {
+    throw new ArgError(
+      "Local install creates files and starts Docker containers. Re-run with --yes or inspect with --dry-run.",
+    );
+  }
+  const result = await installHonuaLocal({
+    directory,
+    profile,
+    httpPort: getNumber(parsed, "http-port"),
+    timeoutMs: getNumber(parsed, "timeout-ms"),
+  });
+  printLine(renderJson(result));
+}
+
+function printOperations(group: string | undefined): void {
+  if (group && !ADMIN_GROUPS.has(group)) throw new ArgError(`Unknown admin group: ${group}`);
+  const rows = Object.entries(ADMIN_OPERATIONS)
+    .filter(([, descriptor]) => !group || descriptor.group === group)
+    .map(([operationId, descriptor]) => ({ operationId, ...descriptor }));
+  printLine(renderJson(rows));
+}
+
+function isOperationId(value: string): value is AdminOperationId {
+  return Object.hasOwn(ADMIN_OPERATIONS, value);
+}
+
+function assignments(values: readonly string[], kind: string): Record<string, unknown> {
+  return Object.fromEntries(values.map((value) => splitAssignment(value, kind, parseScalar)));
+}
+
+function stringAssignments(values: readonly string[], kind: string): Record<string, string> {
+  return Object.fromEntries(values.map((value) => splitAssignment(value, kind, (raw) => raw)));
+}
+
+function splitAssignment<T>(value: string, kind: string, parse: (raw: string) => T): [string, T] {
+  const separator = value.indexOf("=");
+  if (separator <= 0) throw new ArgError(`--${kind} must be name=value, got: ${value}`);
+  return [value.slice(0, separator), parse(value.slice(separator + 1))];
+}
+
+function parseScalar(value: string): unknown {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (value === "null") return null;
+  if (value !== "" && Number.isFinite(Number(value))) return Number(value);
+  if (value.startsWith("[") || value.startsWith("{")) {
+    try {
+      return JSON.parse(value);
+    } catch {
+      throw new ArgError(`Invalid JSON parameter value: ${value}`);
+    }
+  }
+  return value;
+}
+
+function readBody(value: string | undefined): unknown {
+  if (!value) return undefined;
+  const raw = value.startsWith("@") ? readFileSync(value.slice(1), "utf8") : value;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new ArgError("--body must be JSON or @file containing JSON.");
+  }
+}
+
+function compactRequest(request: {
+  path: Record<string, unknown>;
+  query: Record<string, unknown>;
+  headers: Record<string, string>;
+  body: unknown;
+}): Record<string, unknown> {
+  return {
+    ...(Object.keys(request.path).length > 0 ? { path: request.path } : {}),
+    ...(Object.keys(request.query).length > 0 ? { query: request.query } : {}),
+    ...(Object.keys(request.headers).length > 0 ? { headers: request.headers } : {}),
+    ...(request.body !== undefined ? { body: request.body } : {}),
+  };
+}
+
+function callDynamic(
+  client: HonuaAdminClient,
+  operationId: AdminOperationId,
+  request: Record<string, unknown>,
+): Promise<{ readonly data: unknown }> {
+  const call = client.call as unknown as (
+    id: AdminOperationId,
+    value: Record<string, unknown>,
+  ) => Promise<{ readonly data: unknown }>;
+  return call(operationId, request);
+}

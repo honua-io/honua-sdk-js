@@ -80,7 +80,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.7-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 25 experimental subpaths may change before 1.0, and
+by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -619,7 +619,7 @@ correctly use this SDK:
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
     `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
     `/offline`, `/diagnostics`, `/routing`, `/cog`, `/pmtiles`, `/stac`, `/raster`, `/coverages`, `/columnar-workflow`, `/kepler`, `/analytics`, `/analytics/uplot`, `/zarr`,
-    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 25 experimental subpaths in total.
+    `/pmtiles-protocol-plugin.js`, `/local-install` — with `/query-planner` below, 26 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
