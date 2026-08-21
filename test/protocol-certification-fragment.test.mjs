@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { buildFragment, GAP_OWNER } from "../scripts/protocol-certification-fragment.mjs";
+
+const certificationContract = JSON.parse(readFileSync(new URL("../config/protocol-certification.v1.json", import.meta.url), "utf8"));
 
 const identity = {
   clientVersion: "1.2.3",
@@ -35,7 +38,13 @@ test("normalizes execution and preserves missing operation gaps", () => {
     cut_at: identity.cutAt,
   });
   assert.equal(fragment.operation_scope.complete, true);
-  assert.equal(fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "metadata").result, "pass");
+  const metadata = fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "metadata");
+  assert.equal(metadata.result, "pass");
+  assert.equal(metadata.capability_key, "serve.geoservices-featureserver");
+  assert.deepEqual(metadata.scenario_facets, ["positive", "metadata", "media-schema"]);
+  assert.equal(metadata.canonical_client, "@honua/sdk-js");
+  assert.equal(metadata.contract_revision, `sdk-js-certification@${identity.producerSourceSha}`);
+  assert.equal(metadata.auth_policy_revision, "anonymous-and-protected-v1");
   assert.deepEqual(fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "query").failure_messages, ["boom"]);
   const missing = fragment.observations.find((row) => row.surface === "wcs" && row.operation === "get-coverage");
   assert.equal(missing.result, "skip");
@@ -52,6 +61,21 @@ test("marks evidence incomplete when a suite report is unavailable", () => {
 
   assert.equal(fragment.operation_scope.complete, false);
   assert.ok(fragment.observations.every((row) => row.result === "skip"));
+});
+
+test("machine-readable certification contract matches emitted operation identities", () => {
+  const fragment = buildFragment({ identity, reports: [] });
+  assert.deepEqual(
+    fragment.observations.map(({ capability_key, surface, operation, scenario_facets }) => ({
+      capability_key,
+      surface,
+      operation,
+      scenario_facets,
+    })),
+    certificationContract.operations,
+  );
+  assert.equal(certificationContract.canonicalClient, "@honua/sdk-js");
+  assert.equal(certificationContract.clientVersion, "0.1.7-beta.0");
 });
 
 test("matches canonical assertion wording without certifying neighboring operations", () => {

@@ -4,6 +4,31 @@ import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 export const GAP_OWNER = "https://github.com/honua-io/honua-sdk-js/issues/1113";
+export const AUTH_POLICY_REVISION = "anonymous-and-protected-v1";
+
+const CAPABILITIES = {
+  featureserver: "serve.geoservices-featureserver",
+  geocoding: "serve.geoservices-geocodeserver",
+  geometryserver: "serve.geoservices-geometry-service",
+  gpserver: "process.geoprocessing",
+  "grpc-web": "grpc.web",
+  imageserver: "serve.geoservices-imageserver",
+  mapserver: "serve.geoservices-mapserver",
+  odata: "serve.odata",
+  "ogc-features": "serve.ogc-api-features",
+  "ogc-maps": "serve.ogc-api-maps",
+  "ogc-processes": "process.ogc-api-processes",
+  "ogc-records": "serve.ogc-api-records",
+  "ogc-tiles": "serve.ogc-api-tiles",
+  "ogc-coverages": "serve.ogc-api-coverages",
+  realtime: "streaming.feature-subscriptions",
+  routing: "routing.solve",
+  stac: "serve.stac",
+  wcs: "serve.wcs",
+  wfs: "serve.wfs",
+  wms: "serve.wms",
+  wmts: "serve.wmts",
+};
 
 const OPERATIONS = [
   ["featureserver", "metadata", /feature[-_ ]?(?:server|service)/i, /metadata/i],
@@ -90,6 +115,16 @@ function statusFor(matches) {
   return "skip";
 }
 
+function facetsFor(operation) {
+  const facets = ["positive"];
+  if (/metadata|landing|conformance|capabilities|collections|list|describe/.test(operation)) facets.push("metadata");
+  if (/query|items|entity-page|cursor-pagination|object-ids/.test(operation)) facets.push("pagination");
+  if (operation === "authentication") facets.push("auth");
+  if (/retry|invalid/.test(operation)) facets.push("negative");
+  facets.push("media-schema");
+  return facets;
+}
+
 export function buildFragment({ reports, identity, complete = true, now = new Date().toISOString() }) {
   const tests = reports.flatMap(assertions);
   return {
@@ -106,8 +141,10 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
       const matches = tests.filter(({ text }) => surfacePattern.test(text) && operationPattern.test(text));
       const result = statusFor(matches);
       return {
+        capability_key: CAPABILITIES[surface],
         surface,
         operation,
+        scenario_facets: facetsFor(operation),
         canonical_client: "@honua/sdk-js",
         client_version: identity.clientVersion,
         deployment_target: identity.deploymentTarget,
@@ -117,6 +154,8 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
         producer_source_sha: identity.producerSourceSha,
         image_digest: identity.imageDigest,
         fixture_revision: identity.fixtureRevision,
+        contract_revision: `sdk-js-certification@${identity.producerSourceSha}`,
+        auth_policy_revision: AUTH_POLICY_REVISION,
         evidence_uri: identity.evidenceUri,
         started_at: identity.startedAt ?? now,
         completed_at: now,
