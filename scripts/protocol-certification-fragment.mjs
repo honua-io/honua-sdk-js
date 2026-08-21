@@ -117,6 +117,21 @@ function statusFor(matches) {
   return "skip";
 }
 
+const FACET_PATTERNS = {
+  auth: /auth|credential|token|unauthor/i,
+  metadata: /metadata|landing|conformance|capabilit|collection|list|describe/i,
+  pagination: /pag|cursor|next|offset|limit|object.?ids|count/i,
+  negative: /invalid|reject|error|retry|backoff/i,
+  "media-schema": /schema|content.?type|media|json|protobuf|decode|envelope|shape/i,
+  mutation: /add|update|delete|edit|attachment/i,
+};
+
+function facetStatus(facet, matches) {
+  if (facet === "positive") return statusFor(matches);
+  const pattern = FACET_PATTERNS[facet] ?? new RegExp(facet.replace("-", ".*"), "i");
+  return statusFor(matches.filter(({ text }) => pattern.test(text)));
+}
+
 function facetsFor(operation) {
   const facets = ["positive"];
   if (/metadata|landing|conformance|capabilities|collections|list|describe/.test(operation)) facets.push("metadata");
@@ -144,8 +159,13 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
       const matches = tests.filter(({ text, title }) =>
         surfacePattern.test(text) && operationPattern.test(text) && (!titlePattern || titlePattern.test(title))
       );
-      const result = statusFor(matches);
       const scenarioFacets = facetsFor(operation);
+      const facetStatuses = Object.fromEntries(
+        scenarioFacets.map((facet) => [facet, facetStatus(facet, matches)]),
+      );
+      const result = Object.values(facetStatuses).some((status) => status === "fail")
+        ? "fail"
+        : Object.values(facetStatuses).every((status) => status === "pass") ? "pass" : "skip";
       return {
         capability_key: CAPABILITIES[surface],
         surface,
@@ -162,10 +182,16 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
         fixture_revision: identity.fixtureRevision,
         contract_revision: `sdk-js-certification@${identity.producerSourceSha}`,
         auth_policy_revision: AUTH_POLICY_REVISION,
-        evidence_uri: identity.evidenceUri,
+        evidence_uri: result === "skip" ? null : `https://evidence.honua.io/data/sha256/${evidenceDigest.slice(7)}`,
         evidence_digest: result === "skip" ? null : evidenceDigest,
         facet_results: result === "skip" ? null : Object.fromEntries(
-          scenarioFacets.map((facet) => [facet, { result, evidence_digest: evidenceDigest }]),
+          scenarioFacets.map((facet) => [
+            facet,
+            {
+              result: facetStatuses[facet] === "pass" ? "pass" : "fail",
+              evidence_digest: evidenceDigest,
+            },
+          ]),
         ),
         started_at: identity.startedAt ?? now,
         completed_at: now,

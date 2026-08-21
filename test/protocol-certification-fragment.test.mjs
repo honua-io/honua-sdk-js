@@ -83,7 +83,7 @@ test("normalizes execution and preserves missing operation gaps", () => {
     reports: [{ testResults: [{
       name: "test/integration/surfaces/feature-service.integration.ts",
       assertionResults: [
-        { title: "returns metadata", status: "passed" },
+        { title: "returns metadata with valid JSON media schema", status: "passed" },
         { title: "queries features", status: "failed", failureMessages: ["boom"] },
       ],
     }] }],
@@ -152,18 +152,18 @@ test("matches canonical assertion wording without certifying neighboring operati
     reports: [{ testResults: [
       {
         name: "MapServer integration",
-        assertionResults: [{ title: "queries features", status: "passed" }],
+        assertionResults: [{ title: "queries paginated features with valid JSON media schema", status: "passed" }],
       },
       {
         name: "STAC integration",
         assertionResults: [{
-          title: "fetches the configured STAC collection when it is advertised",
+          title: "fetches configured STAC collection metadata with valid JSON media schema",
           status: "passed",
         }],
       },
       {
         name: "OGC Processes integration",
-        assertionResults: [{ title: "returns conformance", status: "passed" }],
+        assertionResults: [{ title: "returns conformance metadata with valid JSON media schema", status: "passed" }],
       },
     ] }],
   });
@@ -183,7 +183,7 @@ test("keeps WMTS capabilities independent from the tile assertion", () => {
     reports: [{ testResults: [{
       name: "test/integration/surfaces/wmts.integration.ts WMTS",
       assertionResults: [
-        { title: "reads service capabilities", status: "passed" },
+        { title: "reads service capabilities metadata with valid XML media schema", status: "passed" },
         { title: "fetches a tile at zoom 0,0,0 when capabilities advertise a layer", status: "failed" },
       ],
     }] }],
