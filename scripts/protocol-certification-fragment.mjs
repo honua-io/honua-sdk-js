@@ -6,14 +6,14 @@ import { pathToFileURL } from "node:url";
 export const GAP_OWNER = "https://github.com/honua-io/honua-sdk-js/issues/1113";
 
 const OPERATIONS = [
-  ["featureserver", "metadata", /feature.?server/i, /metadata/i],
-  ["featureserver", "query", /feature.?server/i, /quer(y|ies).*feature/i],
-  ["featureserver", "count", /feature.?server/i, /count/i],
-  ["featureserver", "object-ids", /feature.?server/i, /object.?ids?/i],
-  ["featureserver", "add-features", /feature.?server/i, /add.?features/i],
-  ["featureserver", "update-features", /feature.?server/i, /update.?features/i],
-  ["featureserver", "delete-features", /feature.?server/i, /delete.?features/i],
-  ["featureserver", "attachments", /feature.?server/i, /attachment/i],
+  ["featureserver", "metadata", /feature[-_ ]?(?:server|service)/i, /metadata/i],
+  ["featureserver", "query", /feature[-_ ]?(?:server|service)/i, /quer(y|ies).*feature/i],
+  ["featureserver", "count", /feature[-_ ]?(?:server|service)/i, /count/i],
+  ["featureserver", "object-ids", /feature[-_ ]?(?:server|service)/i, /object.?ids?/i],
+  ["featureserver", "add-features", /feature[-_ ]?(?:server|service)/i, /add.?features/i],
+  ["featureserver", "update-features", /feature[-_ ]?(?:server|service)/i, /update.?features/i],
+  ["featureserver", "delete-features", /feature[-_ ]?(?:server|service)/i, /delete.?features/i],
+  ["featureserver", "attachments", /feature[-_ ]?(?:server|service)/i, /attachment/i],
   ["geocoding", "forward", /geocod/i, /forward|find.?address|suggest/i],
   ["geocoding", "reverse", /geocod/i, /reverse/i],
   ["geometryserver", "project", /geometry.?server/i, /project/i],
