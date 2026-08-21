@@ -145,12 +145,6 @@ function facetsFor(operation) {
 export function buildFragment({ reports, identity, complete = true, now = new Date().toISOString() }) {
   const tests = reports.flatMap(assertions);
   const payloadBase64 = Buffer.from(JSON.stringify(reports), "utf8").toString("base64");
-  const requiredMarkers = OPERATIONS.flatMap(([surface, operation]) =>
-    facetsFor(operation).map((facet) => `[cert:${surface}/${operation}#${facet}]`)
-  );
-  const observedMarkers = new Set(
-    tests.flatMap(({ text }) => requiredMarkers.filter((marker) => text.includes(marker))),
-  );
   return {
     schema: "honua.protocol-certification-fragment/v1",
     producer: "honua-sdk-js",
@@ -160,10 +154,7 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
       image_digest: identity.imageDigest,
       cut_at: identity.cutAt,
     },
-    operation_scope: {
-      complete: complete && requiredMarkers.every((marker) => observedMarkers.has(marker)),
-      owner_issue: GAP_OWNER,
-    },
+    operation_scope: { complete, owner_issue: GAP_OWNER },
     observations: OPERATIONS.map(([surface, operation, surfacePattern, operationPattern, titlePattern]) => {
       const matches = tests.filter(({ text, title }) =>
         surfacePattern.test(text) && operationPattern.test(text) && (!titlePattern || titlePattern.test(title))

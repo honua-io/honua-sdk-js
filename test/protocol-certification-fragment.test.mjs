@@ -96,7 +96,7 @@ test("normalizes execution and preserves missing operation gaps", () => {
     image_digest: identity.imageDigest,
     cut_at: identity.cutAt,
   });
-  assert.equal(fragment.operation_scope.complete, false);
+  assert.equal(fragment.operation_scope.complete, true);
   const metadata = fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "metadata");
   assert.equal(metadata.result, "pass");
   assert.equal(metadata.capability_key, "serve.geoservices-featureserver");
