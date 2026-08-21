@@ -50,7 +50,31 @@ if (config && !config.imageServiceId) {
           format: "png",
         });
         expect(exported).toBeDefined();
-        expect(typeof exported.href === "string" || exported.extent !== undefined).toBe(true);
+        expect(exported.href).toBeTypeOf("string");
+        expect(exported.href?.length).toBeGreaterThan(0);
+        expect(exported.width).toBe(256);
+        expect(exported.height).toBe(256);
+        expect(exported.extent).toBeDefined();
+        expect([
+          exported.extent?.xmin,
+          exported.extent?.ymin,
+          exported.extent?.xmax,
+          exported.extent?.ymax,
+        ].every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))).toBe(true);
+
+        const headers: Record<string, string> = {};
+        if (config.apiKey) headers["X-API-Key"] = config.apiKey;
+        if (config.bearerToken) headers.Authorization = `Bearer ${config.bearerToken}`;
+        const assetResponse = await fetch(new URL(exported.href!, config.baseUrl), { headers });
+        expect(assetResponse.ok).toBe(true);
+        expect(assetResponse.headers.get("content-type")?.split(";", 1)[0]).toBe("image/png");
+
+        const png = new Uint8Array(await assetResponse.arrayBuffer());
+        expect(Array.from(png.subarray(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+        expect(png.length).toBeGreaterThanOrEqual(24);
+        const header = new DataView(png.buffer, png.byteOffset, png.byteLength);
+        expect(header.getUint32(16)).toBe(256);
+        expect(header.getUint32(20)).toBe(256);
       });
     });
   });
