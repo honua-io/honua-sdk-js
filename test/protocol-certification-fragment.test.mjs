@@ -5,9 +5,12 @@ import test from "node:test";
 import {
   buildFragment,
   GAP_OWNER,
+  LICENSED_PROOF_SCHEMA,
   validateCertificationIdentity,
   validateIdentityOverrideEnvironment,
+  validateLicensedProof,
 } from "../scripts/protocol-certification-fragment.mjs";
+import { createHash } from "node:crypto";
 
 const certificationContract = JSON.parse(readFileSync(new URL("../config/protocol-certification.v1.json", import.meta.url), "utf8"));
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -22,6 +25,33 @@ const identity = {
   evidenceUri: "https://github.com/honua-io/honua-sdk-js/actions/runs/1",
   cutAt: "2026-08-19T00:00:00Z",
 };
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function licensedProof(overrides = {}) {
+  const proof = {
+    schema: LICENSED_PROOF_SCHEMA,
+    verification: "live-server-capability-probe-v1",
+    policy_revision: "honua-pro-feature-subscriptions-v1",
+    deployment_target: "licensed-release",
+    checked_at: "2026-08-19T00:01:00Z",
+    license_identity: { license_id: "license-1", edition: "Pro", issued_at: null, validation_state: "Valid" },
+    entitlement: { key: "streaming.feature-subscriptions", active: true },
+    license_fingerprint: "",
+    ...overrides,
+  };
+  proof.license_fingerprint = overrides.license_fingerprint ?? `sha256:${createHash("sha256").update(canonicalJson({
+    license_identity: proof.license_identity,
+    entitlement: proof.entitlement,
+  })).digest("hex")}`;
+  return proof;
+}
 
 test("rejects partial self-contained candidate identity overrides", () => {
   assert.throws(
@@ -132,14 +162,8 @@ test("marks evidence incomplete when a suite report is unavailable", () => {
 test("machine-readable certification contract matches emitted operation identities", () => {
   const communityFragment = buildFragment({ identity, reports: [] });
   assert.equal(communityFragment.observations.some((row) => row.surface === "realtime"), false);
-  const licensedIdentity = {
-    ...identity,
-    deploymentTarget: "licensed-release",
-    entitlementPolicyRevision: "honua-pro-feature-subscriptions-v1",
-    entitlementCheckedAt: "2026-08-19T00:01:00Z",
-    licenseFingerprint: `sha256:${"e".repeat(64)}`,
-  };
-  const fragment = buildFragment({ identity: licensedIdentity, reports: [] });
+  const licensedIdentity = { ...identity, deploymentTarget: "licensed-release" };
+  const fragment = buildFragment({ identity: licensedIdentity, licensedProof: licensedProof(), reports: [] });
   assert.deepEqual(
     fragment.observations.map(({ capability_key, surface, operation, scenario_facets }) => ({
       capability_key,
@@ -152,6 +176,26 @@ test("machine-readable certification contract matches emitted operation identiti
   assert.equal(certificationContract.canonicalClient, "@honua/sdk-js");
   assert.equal(certificationContract.clientVersion, packageJson.version);
   assert.equal("fixtureRevision" in certificationContract, false);
+});
+
+test("accepts only a digest-bound closed licensed proof", () => {
+  const proof = licensedProof();
+  assert.doesNotThrow(() => validateLicensedProof(proof, "licensed-release"));
+  assert.throws(
+    () => validateLicensedProof({ ...proof, license_fingerprint: `sha256:${"0".repeat(64)}` }, "licensed-release"),
+    /fingerprint does not match/,
+  );
+  assert.throws(
+    () => validateLicensedProof(licensedProof({ entitlement: { key: "streaming.feature-subscriptions", active: false } }), "licensed-release"),
+    /active streaming entitlement/,
+  );
+  assert.throws(
+    () => buildFragment({
+      identity: { ...identity, entitlementPolicyRevision: "honua-pro-feature-subscriptions-v1" },
+      reports: [],
+    }),
+    /closed proof artifact/,
+  );
 });
 
 test("production integration tests declare every currently executable certification marker", () => {
