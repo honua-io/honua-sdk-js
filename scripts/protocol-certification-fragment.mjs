@@ -141,7 +141,14 @@ async function main() {
       throw error;
     }
   }));
-  const metadata = JSON.parse(await readFile(argument("metadata", "test-results/integration-meta.json"), "utf8"));
+  let metadata = {};
+  let metadataAvailable = true;
+  try {
+    metadata = JSON.parse(await readFile(argument("metadata", "test-results/integration-meta.json"), "utf8"));
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+    metadataAvailable = false;
+  }
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   const required = (name, value) => {
     if (!value) throw new Error(`Missing required certification identity: ${name}`);
@@ -156,16 +163,16 @@ async function main() {
   );
   const fragment = buildFragment({
     reports: reports.filter(Boolean),
-    complete: reports.every(Boolean),
+    complete: metadataAvailable && reports.every(Boolean),
     identity: {
       clientVersion: packageJson.version,
       deploymentTarget: required("deployment-target", deploymentTarget),
-      sourceSha: required("source-sha", argument("source-sha", metadata.serverCommit)),
+      sourceSha: required("source-sha", argument("source-sha", metadata.serverCommit ?? process.env.HONUA_INTEGRATION_SERVER_COMMIT)),
       producerSourceSha: required("producer-source-sha", argument("producer-source-sha", process.env.GITHUB_SHA)),
       imageDigest: required("image-digest", argument("image-digest", imageDigest)),
-      fixtureRevision: required("fixture-revision", argument("fixture-revision", metadata.conformanceFixturesVersion)),
+      fixtureRevision: required("fixture-revision", argument("fixture-revision", metadata.conformanceFixturesVersion ?? process.env.HONUA_CONFORMANCE_FIXTURES_VERSION)),
       evidenceUri: required("evidence-uri", argument("evidence-uri", process.env.HONUA_EVIDENCE_URI)),
-      cutAt: required("candidate-cut-at", argument("candidate-cut-at", metadata.candidateCutAt)),
+      cutAt: required("candidate-cut-at", argument("candidate-cut-at", metadata.candidateCutAt ?? process.env.HONUA_CANDIDATE_CUT_AT)),
       startedAt: argument("started-at", metadata.startedAt),
     },
   });

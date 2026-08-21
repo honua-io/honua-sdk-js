@@ -1,20 +1,18 @@
--- ============================================================================
--- Honua SDK integration seed — VENDORED, do not hand-edit.
+-- Shared base schema and seed data for CI integration tests.
+-- Used by: js-integration-tests, mcp-certification, mcp-llm-smoke.
+-- Idempotent: safe to re-run (IF NOT EXISTS / ON CONFLICT).
 --
--- Provenance: honua-io/honua-server `tests/seed/client-compat-v1.sql` @ 6d34dd1
---   (the exact commit behind the pinned integration image
---   `ghcr.io/honua-io/honua-server:nightly-6d34dd1`). Refreshed 1:1 with the
---   image pin so the seed schema always matches the server that consumes it.
---
--- To advance: update HONUA_INTEGRATION_SERVER_IMAGE/_COMMIT in
--- .github/workflows/integration.yml and re-vendor this file from the same
--- commit: git -C ../honua-server show <commit>:tests/seed/client-compat-v1.sql
--- ============================================================================
-
--- Client compatibility certification seed snapshot v1.
--- Canonical source for the Windows client compatibility certification workflow.
--- This file is intentionally versioned and self-contained so future CI seed
--- changes do not silently alter certification evidence for the same seed name.
+-- This is a CI-focused schema that covers the tables and columns needed by
+-- integration tests. It is NOT a mirror of the canonical migration set in
+-- src/Honua.Server/Migrations/; the server runs its own migrations at startup.
+-- The schema here is a pragmatic superset/subset: it includes columns from
+-- several migrations (001, 002, 003, 005, 007, 009, 011, 021) and adds seed data
+-- that migrations do not provide. It intentionally excludes migrations that
+-- are not exercised by CI integration tests:
+--   004 (import functions), 006 (secure connections), 010 (metadata resources),
+--   012 (replication), 013/014 (alerts).
+-- When adding columns from new migrations, update this file and check that
+-- existing CI seed data remains compatible.
 
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS postgis_raster;
@@ -58,6 +56,7 @@ ALTER TABLE IF EXISTS honua.services
 ALTER TABLE IF EXISTS honua.services
     ADD COLUMN IF NOT EXISTS connection_id UUID;
 
+-- Columns from migrations 005, 007, 009, 011 — keep in sync.
 ALTER TABLE IF EXISTS honua.layers
     ADD COLUMN IF NOT EXISTS table_schema TEXT NOT NULL DEFAULT current_schema();
 
@@ -107,6 +106,34 @@ ALTER TABLE IF EXISTS honua.layers
 ALTER TABLE IF EXISTS honua.layers
     ADD COLUMN IF NOT EXISTS enabled BOOLEAN NOT NULL DEFAULT TRUE;
 
+-- Independent styleId-keyed style catalog (ADR-0048 Phase 2, migration 042, #1389).
+CREATE TABLE IF NOT EXISTS honua.styles (
+    style_id            TEXT PRIMARY KEY,
+    title               TEXT,
+    description         TEXT,
+    maplibre_style      JSONB NOT NULL,
+    drawing_info        JSONB,
+    style_version       INT NOT NULL DEFAULT 1,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    revised_by          TEXT,
+    change_summary      TEXT,
+    CONSTRAINT styles_style_id_not_blank_check CHECK (length(btrim(style_id)) > 0),
+    CONSTRAINT styles_change_summary_length_check
+        CHECK (change_summary IS NULL OR char_length(change_summary) <= 1000)
+);
+
+CREATE TABLE IF NOT EXISTS honua.layer_style_refs (
+    layer_id    INT NOT NULL REFERENCES honua.layers (layer_id) ON DELETE CASCADE,
+    style_id    TEXT NOT NULL REFERENCES honua.styles (style_id) ON DELETE CASCADE,
+    ordinal     INT NOT NULL DEFAULT 0,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (layer_id, style_id)
+);
+
+CREATE INDEX IF NOT EXISTS layer_style_refs_layer_idx ON honua.layer_style_refs (layer_id, ordinal);
+CREATE INDEX IF NOT EXISTS layer_style_refs_style_idx ON honua.layer_style_refs (style_id);
+
 CREATE TABLE IF NOT EXISTS honua.service_layers (
     service_name VARCHAR(64) NOT NULL REFERENCES honua.services(service_name) ON DELETE CASCADE,
     layer_id INT NOT NULL REFERENCES honua.layers(layer_id) ON DELETE CASCADE,
@@ -145,6 +172,12 @@ CREATE TABLE IF NOT EXISTS honua.raster_data (
     srid INTEGER GENERATED ALWAYS AS (ST_SRID(raster)) STORED
 );
 
+-- Store the raster payload EXTERNAL (out-of-line, UNCOMPRESSED) so dynamic
+-- tile/terrain/statistics/export reads fetch only the chunks they touch instead
+-- of detoasting and decompressing the entire monolithic row (#1625). Keep in sync
+-- with src/Honua.Db/Postgres/Migrations/001 and Server migration 055.
+ALTER TABLE honua.raster_data ALTER COLUMN raster SET STORAGE EXTERNAL;
+
 CREATE TABLE IF NOT EXISTS honua.raster_statistics (
     id BIGSERIAL PRIMARY KEY,
     raster_data_id BIGINT NOT NULL REFERENCES honua.raster_data(id) ON DELETE CASCADE,
@@ -159,6 +192,65 @@ CREATE TABLE IF NOT EXISTS honua.raster_statistics (
     CONSTRAINT raster_statistics_unique_band UNIQUE (raster_data_id, band_number)
 );
 
+-- Persisted reduced-resolution overview pyramids reused on the low-zoom tile read path (#1836).
+-- Keep in sync with src/Honua.Server/Migrations/063_CreateRasterOverviews.sql.
+CREATE TABLE IF NOT EXISTS honua.raster_overviews (
+    id BIGSERIAL PRIMARY KEY,
+    raster_data_id BIGINT NOT NULL REFERENCES honua.raster_data(id) ON DELETE CASCADE,
+    overview_factor INTEGER NOT NULL,
+    raster raster NOT NULL,
+    ground_resolution DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT raster_overviews_unique_factor UNIQUE (raster_data_id, overview_factor),
+    CONSTRAINT raster_overviews_factor_positive CHECK (overview_factor >= 2)
+);
+ALTER TABLE honua.raster_overviews ALTER COLUMN raster SET STORAGE EXTERNAL;
+CREATE INDEX IF NOT EXISTS idx_raster_overviews_raster_data_id ON honua.raster_overviews(raster_data_id);
+CREATE INDEX IF NOT EXISTS idx_raster_overviews_lookup ON honua.raster_overviews(raster_data_id, ground_resolution);
+
+-- Per-raster footprint + optional seamline (cutline) for esriMosaicSeamline (#1804).
+-- Keep in sync with src/Honua.Server/Migrations/064_CreateRasterFootprints.sql.
+CREATE TABLE IF NOT EXISTS honua.raster_footprints (
+    raster_data_id BIGINT PRIMARY KEY REFERENCES honua.raster_data(id) ON DELETE CASCADE,
+    footprint geometry NOT NULL,
+    seamline geometry,
+    srid INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_raster_footprints_footprint ON honua.raster_footprints USING GIST (footprint);
+
+-- Per-raster sensor/camera/orientation/RPC metadata (#1879/#1880/#1881). Keep in sync
+-- with src/Honua.Server/Migrations/060_AddRasterSensorMetadata.sql.
+CREATE TABLE IF NOT EXISTS honua.raster_sensor_metadata (
+    raster_data_id BIGINT PRIMARY KEY REFERENCES honua.raster_data(id) ON DELETE CASCADE,
+    sensor_name VARCHAR(255),
+    camera_model VARCHAR(255),
+    interior_orientation JSONB,
+    exterior_orientation JSONB,
+    rpc JSONB,
+    dem_source VARCHAR(512),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Layer-level (mosaic) band statistics persisted by PostgresRasterStore so ImageServer
+-- service metadata is served from persisted values instead of per-request ST_SummaryStats
+-- (#1639). Keep in sync with src/Honua.Db/Postgres/Migrations/003_CreateRasterLayerStatistics.sql.
+CREATE TABLE IF NOT EXISTS honua.raster_layer_statistics (
+    layer_id INTEGER NOT NULL,
+    merge_strategy VARCHAR(32) NOT NULL,
+    raster_signature TEXT NOT NULL,
+    band_number INTEGER NOT NULL,
+    min_value DOUBLE PRECISION,
+    max_value DOUBLE PRECISION,
+    mean_value DOUBLE PRECISION,
+    std_dev DOUBLE PRECISION,
+    valid_pixel_count BIGINT,
+    nodata_pixel_count BIGINT,
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (layer_id, merge_strategy, raster_signature, band_number)
+);
+
 CREATE TABLE IF NOT EXISTS honua.raster_tiles (
     id BIGSERIAL PRIMARY KEY,
     raster_data_id BIGINT NOT NULL REFERENCES honua.raster_data(id) ON DELETE CASCADE,
@@ -170,6 +262,54 @@ CREATE TABLE IF NOT EXISTS honua.raster_tiles (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT raster_tiles_unique_tile UNIQUE (raster_data_id, zoom_level, tile_x, tile_y)
 );
+
+ALTER TABLE honua.raster_tiles ALTER COLUMN tile_data SET STORAGE EXTERNAL;
+
+CREATE TABLE IF NOT EXISTS honua.cloud_raster_catalog (
+    id              BIGSERIAL PRIMARY KEY,
+    layer_id        INTEGER NOT NULL,
+    name            VARCHAR(255) NOT NULL,
+    description     TEXT,
+    provider        VARCHAR(50) NOT NULL,
+    bucket          VARCHAR(255) NOT NULL,
+    object_key      VARCHAR(1024) NOT NULL,
+    width           INTEGER,
+    height          INTEGER,
+    band_count      INTEGER,
+    pixel_type      VARCHAR(10),
+    srid            INTEGER,
+    compression     VARCHAR(50),
+    tile_width      INTEGER,
+    tile_height     INTEGER,
+    overview_levels JSONB,
+    extent_xmin     DOUBLE PRECISION,
+    extent_ymin     DOUBLE PRECISION,
+    extent_xmax     DOUBLE PRECISION,
+    extent_ymax     DOUBLE PRECISION,
+    ifd_cache       BYTEA,
+    metadata_scanned_at TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ,
+    CONSTRAINT fk_cloud_raster_layer FOREIGN KEY (layer_id)
+        REFERENCES honua.layers(layer_id) ON DELETE CASCADE,
+    CONSTRAINT uq_cloud_raster_object UNIQUE (layer_id, provider, bucket, object_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cloud_raster_layer ON honua.cloud_raster_catalog(layer_id);
+
+CREATE OR REPLACE FUNCTION honua.update_cloud_raster_catalog_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_cloud_raster_catalog_updated_at ON honua.cloud_raster_catalog;
+CREATE TRIGGER trg_cloud_raster_catalog_updated_at
+    BEFORE UPDATE ON honua.cloud_raster_catalog
+    FOR EACH ROW
+    EXECUTE FUNCTION honua.update_cloud_raster_catalog_updated_at();
 
 CREATE TABLE IF NOT EXISTS honua.attachments (
     id BIGSERIAL PRIMARY KEY,
@@ -282,6 +422,96 @@ CREATE INDEX IF NOT EXISTS ix_fco_dispatch ON honua.feature_change_outbox (creat
 CREATE INDEX IF NOT EXISTS ix_fco_claim_recovery ON honua.feature_change_outbox (claim_expires_at) WHERE status = 'claimed';
 CREATE INDEX IF NOT EXISTS ix_fco_dead_lettered ON honua.feature_change_outbox (created_at) WHERE status = 'dead_lettered';
 
+-- OGC SensorThings API (STA v1.1) Phase 1 storage (#1747). Mirrors migration
+-- 059_CreateSensorThings.sql so the migration-skipping CI fixture has the tables.
+CREATE TABLE IF NOT EXISTS honua.sta_thing (
+    id          bigint NOT NULL,
+    name        text   NOT NULL,
+    description text   NOT NULL DEFAULT '',
+    CONSTRAINT sta_thing_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS honua.sta_sensor (
+    id            bigint NOT NULL,
+    name          text   NOT NULL,
+    description   text   NOT NULL DEFAULT '',
+    encoding_type text   NOT NULL DEFAULT 'application/pdf',
+    metadata      text   NOT NULL DEFAULT '',
+    CONSTRAINT sta_sensor_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS honua.sta_observed_property (
+    id          bigint NOT NULL,
+    name        text   NOT NULL,
+    definition  text   NOT NULL DEFAULT '',
+    description text   NOT NULL DEFAULT '',
+    CONSTRAINT sta_observed_property_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS honua.sta_datastream (
+    id                   bigint NOT NULL,
+    name                 text   NOT NULL,
+    description          text   NOT NULL DEFAULT '',
+    observation_type     text   NOT NULL DEFAULT 'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement',
+    unit_name            text   NOT NULL DEFAULT '',
+    unit_symbol          text   NOT NULL DEFAULT '',
+    unit_definition      text   NOT NULL DEFAULT '',
+    thing_id             bigint NOT NULL,
+    sensor_id            bigint NOT NULL,
+    observed_property_id bigint NOT NULL,
+    CONSTRAINT sta_datastream_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS honua.sta_observation (
+    id                     bigint           NOT NULL,
+    datastream_id          bigint           NOT NULL,
+    phenomenon_time        timestamptz      NOT NULL,
+    result_time            timestamptz,
+    result                 double precision NOT NULL,
+    feature_of_interest_id bigint,
+    CONSTRAINT sta_observation_pkey PRIMARY KEY (id, phenomenon_time)
+) PARTITION BY RANGE (phenomenon_time);
+
+CREATE TABLE IF NOT EXISTS honua.sta_observation_default
+    PARTITION OF honua.sta_observation DEFAULT;
+
+CREATE INDEX IF NOT EXISTS ix_sta_observation_time
+    ON honua.sta_observation USING BRIN (phenomenon_time);
+CREATE INDEX IF NOT EXISTS ix_sta_observation_datastream_time
+    ON honua.sta_observation (datastream_id, phenomenon_time);
+
+INSERT INTO honua.sta_thing (id, name, description)
+VALUES (1, 'Demo Air Quality Station', 'Synthetic air-quality monitoring station for the SensorThings Phase 1 demo')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO honua.sta_sensor (id, name, description, encoding_type, metadata)
+VALUES (1, 'Demo Thermometer', 'Synthetic temperature sensor', 'application/pdf', 'https://example.org/sensors/demo-thermometer')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO honua.sta_observed_property (id, name, definition, description)
+VALUES (1, 'Air Temperature', 'http://mmisw.org/ont/cf/parameter/air_temperature', 'Ambient air temperature')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO honua.sta_datastream (
+    id, name, description, observation_type, unit_name, unit_symbol, unit_definition,
+    thing_id, sensor_id, observed_property_id)
+VALUES (
+    1, 'Demo Air Temperature',
+    'Synthetic air-temperature datastream for the SensorThings Phase 1 demo',
+    'http://www.opengis.net/def/observationType/OGC-OM/2.0/OM_Measurement',
+    'degree Celsius', 'C', 'http://unitsofmeasure.org/ucum.html#para-30',
+    1, 1, 1)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO honua.sta_observation (id, datastream_id, phenomenon_time, result_time, result, feature_of_interest_id)
+SELECT gs, 1,
+    (now() - ((48 - gs) || ' hours')::interval),
+    (now() - ((48 - gs) || ' hours')::interval),
+    15.0 + 10.0 * sin(gs::double precision),
+    NULL::bigint
+FROM generate_series(1, 48) AS gs
+ON CONFLICT (id, phenomenon_time) DO NOTHING;
+
 CREATE OR REPLACE FUNCTION honua.seed_metadata_v2_compat_snapshot()
 RETURNS void
 LANGUAGE plpgsql
@@ -357,10 +587,12 @@ BEGIN
                 -- to anonymous only when no policy was seeded. (honua-server#1345.)
                 COALESCE(s.metadata -> 'accessPolicy', jsonb_build_object('allowAnonymous', true)) AS service_access_policy,
                 COALESCE(l.metadata -> 'accessPolicy', jsonb_build_object('allowAnonymous', true)) AS layer_access_policy,
-                -- Temporal (time-aware) config carried through from v1 layer metadata so a
-                -- layer published with timeInfo compiles into the v2 resource's typed
-                -- temporal slot. Only surfaced when a non-empty startTimeField is present.
-                -- (honua-server#1910.)
+                -- Temporal (time-aware) configuration carried through from v1 layer
+                -- metadata so a layer published with timeInfo compiles into the v2
+                -- resource's typed temporal slot. Without this the GeoServices
+                -- FeatureServer layer metadata omits timeInfo and the temporalExtent
+                -- resource cannot resolve the dimension. Only surfaced when a non-empty
+                -- startTimeField is present. (honua-server#1910.)
                 CASE
                     WHEN NULLIF(l.metadata #>> '{timeInfo,startTimeField}', '') IS NOT NULL THEN
                         jsonb_strip_nulls(jsonb_build_object(
@@ -485,7 +717,8 @@ BEGIN
                     'extensions', '{}'::jsonb
                 )
                 -- Attach the typed temporal slot only when the v1 layer declared a
-                -- start-time field (opt-in time-aware). (honua-server#1910.)
+                -- start-time field, so non-time-aware layers stay free of a temporal
+                -- block (opt-in contract). (#1910.)
                 || CASE WHEN layer_temporal IS NOT NULL
                         THEN jsonb_build_object('temporal', layer_temporal)
                         ELSE '{}'::jsonb END
@@ -577,6 +810,7 @@ BEGIN
                     'connectionId', NULL,
                     'storageType', 'relational-table',
                     'locator', 'honua.raster_data',
+                    'storageLayerId', layer_id,
                     'capabilities', to_jsonb(ARRAY['query', 'filter', 'render', 'tile', 'download']::text[]),
                     'options', '{}'::jsonb,
                     'status', (SELECT value FROM status_doc),
@@ -595,8 +829,16 @@ BEGIN
                     'metadata', jsonb_build_object('id', 'svc-' || service_part || '-feature', 'name', service_name, 'title', service_name),
                     'serviceType', 'esri-feature-service',
                     'publicationIds', '[]'::jsonb,
-                    'protocols', to_jsonb(ARRAY['FeatureServer', 'MapServer', 'OData', 'Grpc', 'OgcFeatures', 'Wfs20', 'Wms', 'Wmts', 'OGC-API-Maps', 'OGC-API-Tiles']::text[]),
-                    'enabledProtocols', to_jsonb(ARRAY['FeatureServer', 'MapServer', 'OData', 'Grpc', 'OgcFeatures', 'Wfs20', 'Wms', 'Wmts', 'OGC-API-Maps', 'OGC-API-Tiles']::text[]),
+                    -- Name-based service routing (ServicesByName / FindService) is first-wins on
+                    -- the lowest service id 'svc-<part>-feature', so the feature service must carry
+                    -- the full protocol union (including Wcs / OGC API Coverages / ImageServer /
+                    -- GPServer) the way the production publish path does (which sets
+                    -- MetadataV2ServiceProtocols.All). Otherwise WCS GetCapabilities 404s with
+                    -- OperationNotSupported and GPServer service/task routes 404 with
+                    -- "GPServer is not enabled". Mirrors MetadataV2CompatSnapshotSql.
+                    -- (honua-server#1412.)
+                    'protocols', to_jsonb(ARRAY['FeatureServer', 'MapServer', 'ImageServer', 'GPServer', 'OData', 'Grpc', 'OgcFeatures', 'Wfs20', 'Wms', 'Wmts', 'Wcs', 'OGC-API-Maps', 'OGC-API-Tiles', 'OGC-API-Coverages']::text[]),
+                    'enabledProtocols', to_jsonb(ARRAY['FeatureServer', 'MapServer', 'ImageServer', 'GPServer', 'OData', 'Grpc', 'OgcFeatures', 'Wfs20', 'Wms', 'Wmts', 'Wcs', 'OGC-API-Maps', 'OGC-API-Tiles', 'OGC-API-Coverages']::text[]),
                     'options', '{}'::jsonb,
                     'accessPolicy', service_access_policy,
                     'status', (SELECT value FROM status_doc),
@@ -859,12 +1101,13 @@ BEGIN
 END;
 $$;
 
+-- Base test service
 INSERT INTO honua.services (
     service_name, description, srid, max_record_count,
     supported_formats, capabilities, service_extent
 )
 VALUES (
-    'test_service', 'Client compatibility certification service', 4326, 1000,
+    'test_service', 'Test Feature Service', 4326, 1000,
     ARRAY['JSON', 'GeoJSON'],
     ARRAY['Query', 'Extract', 'Create', 'Update', 'Delete'],
     ST_MakeEnvelope(-122.5, 37.7, -122.35, 37.84, 4326)
@@ -882,12 +1125,16 @@ UPDATE honua.services
 SET metadata = jsonb_build_object('accessPolicy', jsonb_build_object('allowAnonymous', true))
 WHERE service_name = 'test_service';
 
+-- Base test layer (layer 0, Point)
 INSERT INTO honua.layers (
     layer_id, layer_name, description, table_name,
     geometry_type, srid, extent, default_visibility
 )
 VALUES (
-    0, 'Test Layer', 'Client compatibility certification layer',
+    -- Layer 0 is a Point layer: esri-leaflet's FeatureLayer (and other consumers) require a concrete
+    -- geometryType to render. The heterogeneous JS geometry round-trip suite uses the dedicated
+    -- 'Mixed' layer 1 seeded below instead, so it isn't constrained to a single geometry family.
+    0, 'Test Layer', 'Default layer for integration tests',
     'features', 'Point', 4326,
     ST_MakeEnvelope(-122.5, 37.7, -122.35, 37.84, 4326), true
 )
@@ -904,6 +1151,7 @@ UPDATE honua.layers
 SET metadata = jsonb_build_object('accessPolicy', jsonb_build_object('allowAnonymous', true))
 WHERE layer_id = 0;
 
+-- Layer 0 fields — core set
 INSERT INTO honua.layer_fields (
     layer_id, field_name, field_type, field_order,
     max_length, nullable, default_value, description
@@ -915,6 +1163,7 @@ VALUES
     (0, 'shape', 'Geometry', 3, NULL, true, NULL, 'Geometry')
 ON CONFLICT (layer_id, field_name) DO NOTHING;
 
+-- Layer 0 fields — extended set
 INSERT INTO honua.layer_fields (
     layer_id, field_name, field_type, field_order,
     max_length, nullable, default_value, description
@@ -929,32 +1178,114 @@ VALUES
     (0, 'event_time', 'Time', 10, NULL, true, NULL, 'Event time'),
     (0, 'uid', 'Uuid', 11, NULL, true, NULL, 'Unique identifier'),
     (0, 'tags', 'Json', 12, NULL, true, NULL, 'Tag array'),
-    (0, 'numbers', 'Json', 13, NULL, true, NULL, 'Number array'),
-    -- STAC EO extension cloud-cover queryable. stac-api-validator's Filter Extension
-    -- conformance matrix hard-codes `eo:cloud_cover` as the numeric property it filters on,
-    -- so the seeded collection must expose it as a real, queryable numeric field for the
-    -- Item Search Filter Ext class to pass.
-    (0, 'eo:cloud_cover', 'Double', 14, NULL, true, NULL, 'Cloud cover percentage')
+    (0, 'numbers', 'Json', 13, NULL, true, NULL, 'Number array')
 ON CONFLICT (layer_id, field_name) DO NOTHING;
 
+-- Bind layer 0 to test_service
 INSERT INTO honua.service_layers (service_name, layer_id, layer_order)
 VALUES ('test_service', 0, 0)
 ON CONFLICT (service_name, layer_id) DO NOTHING;
 
+-- Dedicated 'Mixed' layer (layer 1) for the heterogeneous JS geometry round-trip suite. The edit-time
+-- geometry-type enforcement treats a Mixed layer as unconstrained, so point/line/polygon adds all
+-- succeed here without forcing layer 0 (a Point layer that esri-leaflet's FeatureLayer needs) to drop
+-- its concrete geometryType. The seed_metadata_v2_compat_snapshot() call below picks this layer up.
+INSERT INTO honua.layers (
+    layer_id, layer_name, description, table_name,
+    geometry_type, srid, extent, default_visibility
+)
+VALUES (
+    1, 'Mixed Geometry Test Layer', 'Heterogeneous-geometry layer for JS round-trip tests',
+    'features', 'Mixed', 4326,
+    ST_MakeEnvelope(-122.5, 37.7, -122.35, 37.84, 4326), true
+)
+ON CONFLICT (layer_id) DO UPDATE SET
+    layer_name = EXCLUDED.layer_name,
+    description = EXCLUDED.description,
+    table_name = EXCLUDED.table_name,
+    geometry_type = EXCLUDED.geometry_type,
+    srid = EXCLUDED.srid,
+    extent = EXCLUDED.extent,
+    default_visibility = EXCLUDED.default_visibility;
+
+UPDATE honua.layers
+SET metadata = jsonb_build_object('accessPolicy', jsonb_build_object('allowAnonymous', true))
+WHERE layer_id = 1;
+
+INSERT INTO honua.layer_fields (
+    layer_id, field_name, field_type, field_order,
+    max_length, nullable, default_value, description
+)
+VALUES
+    (1, 'objectid', 'Integer', 0, NULL, false, NULL, 'Object ID'),
+    (1, 'name', 'String', 1, 255, true, NULL, 'Name'),
+    (1, 'description', 'String', 2, 1024, true, NULL, 'Description'),
+    (1, 'shape', 'Geometry', 3, NULL, true, NULL, 'Geometry')
+ON CONFLICT (layer_id, field_name) DO NOTHING;
+
+INSERT INTO honua.service_layers (service_name, layer_id, layer_order)
+VALUES ('test_service', 1, 1)
+ON CONFLICT (service_name, layer_id) DO NOTHING;
+
+-- Deterministic feature rows for the dedicated 'Mixed' layer (layer 1). Layer 1
+-- is advertised as the 'mixed_geometry_test_layer' WFS/OGC feature type, but it
+-- was previously seeded empty and only populated at runtime by the geometry
+-- round-trip applyEdits suite. That left every read-only consumer of layer 1 —
+-- notably the WFS GetFeature suite's discoverTypeWithFeatures(), which scans the
+-- advertised types for one that returns parseable features — depending solely on
+-- layer 0 ('test_layer'). Layer 0 is the single Point layer every other
+-- concurrent JS lane (apply-edits/query/geometry, all HONUA_LAYER_ID=0) mutates,
+-- so a single transient failure on its first GetFeature left the WFS suite with
+-- no populated fallback type and failed the whole lane ("No WFS FeatureType
+-- produced parseable features"). Seed layer 1 with stable, heterogeneous
+-- geometries (point/line/polygon — valid for a Mixed layer) so the suite always
+-- has a second populated, low-contention type and additionally exercises GML
+-- decode of non-point geometry. Runtime applyEdits rows are additive on top.
+WITH mixed_seed AS (
+    SELECT *
+    FROM (
+        VALUES
+            ('mixed_point',   'active',   1, 1.25, true,  '00000000-0000-0000-0000-000000000101', 'POINT(-122.4400 37.7600)'),
+            ('mixed_line',    'active',   2, 2.50, true,  '00000000-0000-0000-0000-000000000102', 'LINESTRING(-122.4500 37.7500, -122.4300 37.7700)'),
+            ('mixed_polygon', 'inactive', 3, 3.75, false, '00000000-0000-0000-0000-000000000103', 'POLYGON((-122.4600 37.7400, -122.4200 37.7400, -122.4200 37.7800, -122.4600 37.7800, -122.4600 37.7400))')
+    ) AS seed(name, status, feature_count, ratio, active_flag, uid, wkt)
+)
+INSERT INTO features (layer_id, geometry, attributes)
+SELECT
+    1,
+    ST_SetSRID(ST_GeomFromText(wkt), 4326),
+    jsonb_build_object(
+        'name', name,
+        'status', status,
+        'count', feature_count,
+        'ratio', ratio,
+        'active', active_flag,
+        'uid', uid
+    )
+FROM mixed_seed
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM features
+    WHERE layer_id = 1
+);
+
+-- Deterministic feature rows for CI lanes that only apply base-schema.sql.
+-- Keep these aligned with the JS/Python shared test attributes so query
+-- contracts validate against a populated layer instead of an empty catalog.
 WITH seeded_features AS (
     SELECT *
     FROM (
         VALUES
-            ('alpha',   'active',   1,  1.25, true,  '2024-01-01T12:00:00Z', '2024-02-01', '12:34:56', '00000000-0000-0000-0000-000000000001', '["red","blue"]'::jsonb, '[0,1,2]'::jsonb, NULL::text,          'POINT(-122.4900 37.7100)',  5.0::double precision),
-            ('beta',    'inactive', 2,  2.50, false, '2024-01-02T12:00:00Z', '2024-02-02', '12:34:56', '00000000-0000-0000-0000-000000000002', '["green"]'::jsonb,      '[1,2,3]'::jsonb, 'description_1',   'POINT(-122.4750 37.7200)',  8.0::double precision),
-            ('gamma',   'active',   3,  3.75, true,  '2024-01-03T12:00:00Z', '2024-02-03', '12:34:56', '00000000-0000-0000-0000-000000000003', '["red","blue"]'::jsonb, '[2,3,4]'::jsonb, 'description_2',   'POINT(-122.4600 37.7300)', 25.0::double precision),
-            ('delta',   'inactive', 4,  5.00, false, '2024-01-04T12:00:00Z', '2024-02-04', '12:34:56', '00000000-0000-0000-0000-000000000004', '["green"]'::jsonb,      '[3,4,5]'::jsonb, NULL::text,          'POINT(-122.4450 37.7400)', 60.0::double precision),
-            ('epsilon', 'active',   5,  6.25, true,  '2024-01-05T12:00:00Z', '2024-02-05', '12:34:56', '00000000-0000-0000-0000-000000000005', '["red","blue"]'::jsonb, '[4,5,6]'::jsonb, 'description_4',   'POINT(-122.4300 37.7500)',  9.0::double precision),
-            ('zeta',    'inactive', 6,  7.50, false, '2024-01-06T12:00:00Z', '2024-02-06', '12:34:56', '00000000-0000-0000-0000-000000000006', '["green"]'::jsonb,      '[5,6,7]'::jsonb, 'description_5',   'POINT(-122.4150 37.7600)', 75.0::double precision),
-            ('eta',     'active',   7,  8.75, true,  '2024-01-07T12:00:00Z', '2024-02-07', '12:34:56', '00000000-0000-0000-0000-000000000007', '["red","blue"]'::jsonb, '[6,7,8]'::jsonb, NULL::text,          'POINT(-122.4000 37.7700)',  2.0::double precision),
-            ('theta',   'inactive', 8, 10.00, false, '2024-01-08T12:00:00Z', '2024-02-08', '12:34:56', '00000000-0000-0000-0000-000000000008', '["green"]'::jsonb,      '[7,8,9]'::jsonb, 'description_7',   'POINT(-122.3850 37.7800)', 95.0::double precision),
-            ('iota',    'active',   9, 11.25, true,  '2024-01-09T12:00:00Z', '2024-02-09', '12:34:56', '00000000-0000-0000-0000-000000000009', '["red","blue"]'::jsonb, '[8,9,10]'::jsonb, 'description_8',  'POINT(-122.3700 37.7900)',  7.0::double precision),
-            ('lambda',  'inactive',10, 12.50, false, '2024-01-10T12:00:00Z', '2024-02-10', '12:34:56', '00000000-0000-0000-0000-000000000010', '["green"]'::jsonb,      '[9,10,11]'::jsonb, NULL::text,        NULL::text,                 NULL::double precision)
+            ('alpha',   'active',   1,  1.25, true,  '2024-01-01T12:00:00Z', '2024-02-01', '12:34:56', '00000000-0000-0000-0000-000000000001', '["red","blue"]'::jsonb, '[0,1,2]'::jsonb, NULL::text,            'POINT(-122.4900 37.7100)'),
+            ('beta',    'inactive', 2,  2.50, false, '2024-01-02T12:00:00Z', '2024-02-02', '12:34:56', '00000000-0000-0000-0000-000000000002', '["green"]'::jsonb,      '[1,2,3]'::jsonb, 'description_1',     'POINT(-122.4750 37.7200)'),
+            ('gamma',   'active',   3,  3.75, true,  '2024-01-03T12:00:00Z', '2024-02-03', '12:34:56', '00000000-0000-0000-0000-000000000003', '["red","blue"]'::jsonb, '[2,3,4]'::jsonb, 'description_2',     'POINT(-122.4600 37.7300)'),
+            ('delta',   'inactive', 4,  5.00, false, '2024-01-04T12:00:00Z', '2024-02-04', '12:34:56', '00000000-0000-0000-0000-000000000004', '["green"]'::jsonb,      '[3,4,5]'::jsonb, NULL::text,            'POINT(-122.4450 37.7400)'),
+            ('epsilon', 'active',   5,  6.25, true,  '2024-01-05T12:00:00Z', '2024-02-05', '12:34:56', '00000000-0000-0000-0000-000000000005', '["red","blue"]'::jsonb, '[4,5,6]'::jsonb, 'description_4',     'POINT(-122.4300 37.7500)'),
+            ('zeta',    'inactive', 6,  7.50, false, '2024-01-06T12:00:00Z', '2024-02-06', '12:34:56', '00000000-0000-0000-0000-000000000006', '["green"]'::jsonb,      '[5,6,7]'::jsonb, 'description_5',     'POINT(-122.4150 37.7600)'),
+            ('eta',     'active',   7,  8.75, true,  '2024-01-07T12:00:00Z', '2024-02-07', '12:34:56', '00000000-0000-0000-0000-000000000007', '["red","blue"]'::jsonb, '[6,7,8]'::jsonb, NULL::text,            'POINT(-122.4194 37.7749)'),
+            ('theta',   'inactive', 8, 10.00, false, '2024-01-08T12:00:00Z', '2024-02-08', '12:34:56', '00000000-0000-0000-0000-000000000008', '["green"]'::jsonb,      '[7,8,9]'::jsonb, 'description_7',     'POINT(-122.3850 37.7800)'),
+            ('iota',    'active',   9, 11.25, true,  '2024-01-09T12:00:00Z', '2024-02-09', '12:34:56', '00000000-0000-0000-0000-000000000009', '["red","blue"]'::jsonb, '[8,9,10]'::jsonb, 'description_8',    'POINT(-122.3700 37.7900)'),
+            ('lambda',  'inactive',10, 12.50, false, '2024-01-10T12:00:00Z', '2024-02-10', '12:34:56', '00000000-0000-0000-0000-000000000010', '["green"]'::jsonb,      '[9,10,11]'::jsonb, NULL::text,          NULL::text)
     ) AS seed(
         name,
         status,
@@ -968,8 +1299,7 @@ WITH seeded_features AS (
         tags,
         numbers,
         description,
-        wkt,
-        cloud_cover
+        wkt
     )
 )
 INSERT INTO features (layer_id, geometry, attributes)
@@ -991,8 +1321,7 @@ SELECT
         'uid', uid,
         'tags', tags,
         'numbers', numbers,
-        'description', description,
-        'eo:cloud_cover', cloud_cover
+        'description', description
     )
 FROM seeded_features
 WHERE NOT EXISTS (
@@ -1001,4 +1330,89 @@ WHERE NOT EXISTS (
     WHERE layer_id = 0
 );
 
+-- Deterministic one-band raster for OGC API Maps and ImageServer client lanes.
+WITH inserted_raster AS (
+    INSERT INTO honua.raster_data (layer_id, name, description, raster)
+    SELECT
+        0,
+        'Test Raster',
+        'Deterministic raster for client compatibility tests',
+        ST_AddBand(
+            ST_MakeEmptyRaster(64, 64, -122.5, 37.84, 0.00234375, -0.0021875, 0, 0, 4326),
+            '8BUI'::text,
+            128,
+            0)
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM honua.raster_data
+        WHERE layer_id = 0 AND name = 'Test Raster'
+    )
+    RETURNING id
+),
+target_raster AS (
+    SELECT id FROM inserted_raster
+    UNION ALL
+    SELECT id
+    FROM honua.raster_data
+    WHERE layer_id = 0 AND name = 'Test Raster'
+    LIMIT 1
+)
+INSERT INTO honua.raster_statistics (
+    raster_data_id,
+    band_number,
+    min_value,
+    max_value,
+    mean_value,
+    std_dev,
+    valid_pixel_count,
+    nodata_pixel_count
+)
+SELECT id, 1, 128, 128, 128, 0, 4096, 0
+FROM target_raster
+ON CONFLICT (raster_data_id, band_number) DO UPDATE SET
+    min_value = EXCLUDED.min_value,
+    max_value = EXCLUDED.max_value,
+    mean_value = EXCLUDED.mean_value,
+    std_dev = EXCLUDED.std_dev,
+    valid_pixel_count = EXCLUDED.valid_pixel_count,
+    nodata_pixel_count = EXCLUDED.nodata_pixel_count,
+    computed_at = NOW();
+
 SELECT honua.seed_metadata_v2_compat_snapshot();
+
+-- Tile-cache catalog (#1016 slice 4) + package-import serving columns (#1269).
+-- Mirrors migrations 033_CreateTileCacheCatalog and 067_AddTileCachePackageImport so
+-- the .tpk/.tpkx/.vtpk import + serving binding has its tables in CI seed schemas.
+CREATE TABLE IF NOT EXISTS honua.tile_caches (
+    tile_cache_id      TEXT PRIMARY KEY,
+    layer_identifier   TEXT NOT NULL,
+    tile_matrix_set    TEXT NOT NULL,
+    source_service_url TEXT NOT NULL,
+    tile_format        TEXT NOT NULL DEFAULT 'image/png',
+    style_identifier   TEXT NOT NULL DEFAULT 'default',
+    min_zoom           INTEGER NOT NULL,
+    max_zoom           INTEGER NOT NULL,
+    data_type          TEXT NOT NULL DEFAULT 'raster',
+    tileset_title      TEXT,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (layer_identifier, tile_matrix_set, style_identifier, tile_format, source_service_url)
+);
+
+CREATE TABLE IF NOT EXISTS honua.tile_cache_entries (
+    tile_cache_id  TEXT NOT NULL REFERENCES honua.tile_caches (tile_cache_id) ON DELETE CASCADE,
+    zoom_level     INTEGER NOT NULL,
+    tile_column    INTEGER NOT NULL,
+    tile_row       INTEGER NOT NULL,
+    content_type   TEXT NOT NULL,
+    content        BYTEA NOT NULL,
+    source_url     TEXT NOT NULL,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (tile_cache_id, zoom_level, tile_column, tile_row),
+    CHECK (zoom_level >= 0),
+    CHECK (tile_column >= 0),
+    CHECK (tile_row >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS tile_cache_entries_cache_zoom_idx
+    ON honua.tile_cache_entries (tile_cache_id, zoom_level);
