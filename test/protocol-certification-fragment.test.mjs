@@ -83,8 +83,8 @@ test("normalizes execution and preserves missing operation gaps", () => {
     reports: [{ testResults: [{
       name: "test/integration/surfaces/feature-service.integration.ts",
       assertionResults: [
-        { title: "returns metadata with valid JSON media schema", status: "passed" },
-        { title: "queries features", status: "failed", failureMessages: ["boom"] },
+        { title: "returns metadata [cert:featureserver/metadata#positive] [cert:featureserver/metadata#metadata] [cert:featureserver/metadata#media-schema]", status: "passed" },
+        { title: "queries features [cert:featureserver/query#positive] [cert:featureserver/query#pagination] [cert:featureserver/query#media-schema]", status: "failed", failureMessages: ["boom"] },
       ],
     }] }],
   });
@@ -152,18 +152,18 @@ test("matches canonical assertion wording without certifying neighboring operati
     reports: [{ testResults: [
       {
         name: "MapServer integration",
-        assertionResults: [{ title: "queries paginated features with valid JSON media schema", status: "passed" }],
+        assertionResults: [{ title: "queries features [cert:mapserver/query#positive] [cert:mapserver/query#pagination] [cert:mapserver/query#media-schema]", status: "passed" }],
       },
       {
         name: "STAC integration",
         assertionResults: [{
-          title: "fetches configured STAC collection metadata with valid JSON media schema",
+          title: "fetches collection [cert:stac/collection#positive] [cert:stac/collection#metadata] [cert:stac/collection#media-schema]",
           status: "passed",
         }],
       },
       {
         name: "OGC Processes integration",
-        assertionResults: [{ title: "returns conformance metadata with valid JSON media schema", status: "passed" }],
+        assertionResults: [{ title: "returns conformance [cert:ogc-processes/conformance#positive] [cert:ogc-processes/conformance#metadata] [cert:ogc-processes/conformance#media-schema]", status: "passed" }],
       },
     ] }],
   });
@@ -183,8 +183,8 @@ test("keeps WMTS capabilities independent from the tile assertion", () => {
     reports: [{ testResults: [{
       name: "test/integration/surfaces/wmts.integration.ts WMTS",
       assertionResults: [
-        { title: "reads service capabilities metadata with valid XML media schema", status: "passed" },
-        { title: "fetches a tile at zoom 0,0,0 when capabilities advertise a layer", status: "failed" },
+        { title: "reads service capabilities [cert:wmts/capabilities#positive] [cert:wmts/capabilities#metadata] [cert:wmts/capabilities#media-schema]", status: "passed" },
+        { title: "fetches tile [cert:wmts/get-tile#positive] [cert:wmts/get-tile#media-schema]", status: "failed" },
       ],
     }] }],
   });
@@ -206,7 +206,15 @@ test("certifies OGC Features conformance only from the dedicated endpoint assert
       },
       {
         name: "test/integration/surfaces/ogc-features.integration.ts OGC API Features",
-        assertionResults: [{ title: "declares OGC Features conformance classes", status: "failed" }],
+        assertionResults: [{
+          ancestorTitles: [
+            "[cert:ogc-features/conformance#positive]",
+            "[cert:ogc-features/conformance#metadata]",
+            "[cert:ogc-features/conformance#media-schema]",
+          ],
+          title: "declares OGC Features conformance classes",
+          status: "failed",
+        }],
       },
     ] }],
   });

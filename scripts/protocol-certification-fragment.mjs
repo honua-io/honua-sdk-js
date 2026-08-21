@@ -117,19 +117,19 @@ function statusFor(matches) {
   return "skip";
 }
 
-const FACET_PATTERNS = {
-  auth: /auth|credential|token|unauthor/i,
-  metadata: /metadata|landing|conformance|capabilit|collection|list|describe/i,
-  pagination: /pag|cursor|next|offset|limit|object.?ids|count/i,
-  negative: /invalid|reject|error|retry|backoff/i,
-  "media-schema": /schema|content.?type|media|json|protobuf|decode|envelope|shape/i,
-  mutation: /add|update|delete|edit|attachment/i,
-};
+function facetStatus(surface, operation, facet, matches) {
+  const governedTestId = "[cert:" + surface + "/" + operation + "#" + facet + "]";
+  return statusFor(matches.filter(({ text }) => text.includes(governedTestId)));
+}
 
-function facetStatus(facet, matches) {
-  if (facet === "positive") return statusFor(matches);
-  const pattern = FACET_PATTERNS[facet] ?? new RegExp(facet.replace("-", ".*"), "i");
-  return statusFor(matches.filter(({ text }) => pattern.test(text)));
+function canonicalJson(value) {
+  if (Array.isArray(value)) return "[" + value.map(canonicalJson).join(",") + "]";
+  if (value && typeof value === "object") {
+    return "{" + Object.keys(value).sort().map(
+      (key) => JSON.stringify(key) + ":" + canonicalJson(value[key]),
+    ).join(",") + "}";
+  }
+  return JSON.stringify(value);
 }
 
 function facetsFor(operation) {
@@ -144,7 +144,8 @@ function facetsFor(operation) {
 
 export function buildFragment({ reports, identity, complete = true, now = new Date().toISOString() }) {
   const tests = reports.flatMap(assertions);
-  const evidenceDigest = `sha256:${createHash("sha256").update(JSON.stringify(reports)).digest("hex")}`;
+  const evidenceReceipt = { format: "honua.sdk-js.jest-reports/v1", reports };
+  const evidenceDigest = `sha256:${createHash("sha256").update(canonicalJson(evidenceReceipt)).digest("hex")}`;
   return {
     schema: "honua.protocol-certification-fragment/v1",
     producer: "honua-sdk-js",
@@ -161,7 +162,7 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
       );
       const scenarioFacets = facetsFor(operation);
       const facetStatuses = Object.fromEntries(
-        scenarioFacets.map((facet) => [facet, facetStatus(facet, matches)]),
+        scenarioFacets.map((facet) => [facet, facetStatus(surface, operation, facet, matches)]),
       );
       const result = Object.values(facetStatuses).some((status) => status === "fail")
         ? "fail"
@@ -184,6 +185,7 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
         auth_policy_revision: AUTH_POLICY_REVISION,
         evidence_uri: result === "skip" ? null : `https://evidence.honua.io/data/sha256/${evidenceDigest.slice(7)}`,
         evidence_digest: result === "skip" ? null : evidenceDigest,
+        evidence_receipt: result === "skip" ? null : evidenceReceipt,
         facet_results: result === "skip" ? null : Object.fromEntries(
           scenarioFacets.map((facet) => [
             facet,
