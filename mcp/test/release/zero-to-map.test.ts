@@ -110,11 +110,51 @@ describe("zero-to-map D9.3 release journey", () => {
       captures: expect.arrayContaining([expect.objectContaining({ variable: "bufferArtifactId" })]),
     });
 
+    const studio = new Map(plan.stages[3]?.actions.map((action) => [action.id, action]));
+    expect([
+      studio.get("create-map-draft"),
+      studio.get("create-app-draft"),
+      studio.get("create-dashboard-draft"),
+    ]).toEqual([
+      expect.objectContaining({ kind: "mcp", arguments: expect.objectContaining({ family: "map" }) }),
+      expect.objectContaining({ kind: "mcp", arguments: expect.objectContaining({ family: "app" }) }),
+      expect.objectContaining({ kind: "mcp", arguments: expect.objectContaining({ family: "dashboard" }) }),
+    ]);
+    for (const family of ["map", "app", "dashboard"] as const) {
+      expect(studio.get(`save-${family}-version`)).toMatchObject({
+        kind: "mcp",
+        tool: "honua_studio_save_version",
+        arguments: {
+          draftId: `\${${family}DraftId}`,
+          generation: `\${${family}Generation}`,
+          changeNote: `2026.1 zero-to-map ${family}`,
+        },
+        captures: expect.arrayContaining([
+          expect.objectContaining({ variable: `${family}VersionId` }),
+          expect.objectContaining({ variable: `${family}ContentHash` }),
+        ]),
+      });
+      expect(studio.get(`get-${family}-version`)).toMatchObject({
+        kind: "mcp",
+        tool: "honua_studio_get_version",
+        arguments: { itemId: `\${${family}ItemId}`, versionId: `\${${family}VersionId}` },
+      });
+      expect(studio.get(`reopen-${family}-version`)).toMatchObject({
+        kind: "mcp",
+        tool: "honua_studio_reopen_version",
+        arguments: { itemId: `\${${family}ItemId}`, versionId: `\${${family}VersionId}` },
+        captures: expect.arrayContaining([
+          expect.objectContaining({ variable: `${family}ReopenedDraftId` }),
+          expect.objectContaining({ variable: `${family}ReopenedBaseVersionId`, equals: `\${${family}VersionId}` }),
+        ]),
+      });
+    }
+
     const consoleContract = JSON.parse(
       await readFile(`${bundleRoot}/contracts/console-receipt.schema.json`, "utf8"),
     ) as {
       required: string[];
-      properties: Record<string, { required?: string[] }>;
+      properties: Record<string, { required?: string[]; properties?: Record<string, { required?: string[] }> }>;
     };
     expect(consoleContract.required).toEqual(
       expect.arrayContaining(["proposal", "audit", "resources", "candidate", "checks", "shareUrl"]),
@@ -123,6 +163,8 @@ describe("zero-to-map D9.3 release journey", () => {
       expect.arrayContaining(["proposalId", "executionOperationId"]),
     );
     expect(consoleContract.properties.audit?.required).toEqual(["correlationId", "operationId"]);
+    expect(consoleContract.properties.resources?.required).toContain("studio");
+    expect(consoleContract.properties.resources?.properties?.studio?.required).toEqual(["map", "app", "dashboard"]);
 
     const admin = new Map(plan.stages[1]?.actions.map((action) => [action.id, action]));
     expect(admin.get("create-connection")).toMatchObject({
@@ -272,6 +314,63 @@ describe("zero-to-map D9.3 release journey", () => {
     ]);
   });
 
+  it("fails closed before mutation until the exact Studio version lifecycle tools are advertised", async () => {
+    const plan = await loadPlan();
+    const requiredTools = [
+      ...new Set(
+        plan.stages.flatMap((stage) =>
+          stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+        ),
+      ),
+    ];
+    const unavailable = new Set([
+      "honua_studio_save_version",
+      "honua_studio_get_version",
+      "honua_studio_reopen_version",
+    ]);
+    const calls: string[] = [];
+    const adapter: JourneyAdapter = {
+      async runCli(args) {
+        calls.push(`cli:${args.join(" ")}`);
+        return {};
+      },
+      async listTools() {
+        calls.push("tools/list");
+        return requiredTools
+          .filter((name) => !unavailable.has(name))
+          .map((name) => ({ name, inputSchema: { type: "object" } }));
+      },
+      async callTool(tool) {
+        calls.push(`tools/call:${tool}`);
+        return {};
+      },
+      async readResource() {
+        return {};
+      },
+      async runGpServer() {
+        return {};
+      },
+      async readReceipt() {
+        return undefined;
+      },
+      async checkHttp() {
+        return {};
+      },
+    };
+
+    const receipt = await runZeroToMapJourney(plan, adapter, { execute: true, now: deterministicClock() });
+
+    expect(receipt.status).toBe("blocked");
+    expect(receipt.stages[1]?.actions[0]).toMatchObject({
+      status: "blocked",
+      code: "mcp-catalog-incomplete",
+    });
+    expect(receipt.stages[1]?.actions[0]?.message).toContain(
+      "honua_studio_save_version, honua_studio_get_version, honua_studio_reopen_version",
+    );
+    expect(calls.filter((call) => call.startsWith("tools/call"))).toEqual([]);
+  });
+
   it("fails closed when a published admin input schema drifts", async () => {
     const plan = await loadPlan();
     const requiredTools = [
@@ -385,8 +484,32 @@ describe("zero-to-map D9.3 release journey", () => {
       stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
     );
     const seenArguments = new Map<string, Readonly<Record<string, unknown>>>();
+    const studio = {
+      map: {
+        draftId: "11111111-1111-4111-8111-111111111111",
+        itemId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        versionId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        reopenedDraftId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        contentHash: "sha256:map",
+      },
+      app: {
+        draftId: "22222222-2222-4222-8222-222222222222",
+        itemId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        versionId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        reopenedDraftId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        contentHash: "sha256:app",
+      },
+      dashboard: {
+        draftId: "33333333-3333-4333-8333-333333333333",
+        itemId: "44444444-4444-4444-8444-444444444444",
+        versionId: "55555555-5555-4555-8555-555555555555",
+        reopenedDraftId: "66666666-6666-4666-8666-666666666666",
+        contentHash: "sha256:dashboard",
+      },
+    } as const;
+    const generations = new Map<string, number>();
     let layerId = 0;
-    let generation = 0;
+    let proposalGeneration = 0;
     const adapter: JourneyAdapter = {
       async runCli() {
         return { evidence: { exitCode: 0 } };
@@ -448,20 +571,59 @@ describe("zero-to-map D9.3 release journey", () => {
           });
         }
         if (tool === "honua_studio_create_draft") {
-          generation = 1;
-          return value({ draftId: "11111111-1111-4111-8111-111111111111", generation });
+          const family = args.family as keyof typeof studio;
+          const identity = studio[family];
+          generations.set(identity.draftId, 1);
+          return value({ draftId: identity.draftId, itemId: identity.itemId, generation: 1 });
+        }
+        if (tool === "honua_studio_save_version") {
+          const identity = Object.values(studio).find((candidate) => candidate.draftId === args.draftId);
+          if (!identity) throw new Error(`unknown Studio draft ${String(args.draftId)}`);
+          return value({
+            itemId: identity.itemId,
+            versionId: identity.versionId,
+            versionNumber: 1,
+            contentHash: identity.contentHash,
+          });
+        }
+        if (tool === "honua_studio_get_version") {
+          const identity = Object.values(studio).find((candidate) => candidate.itemId === args.itemId);
+          if (!identity) throw new Error(`unknown Studio item ${String(args.itemId)}`);
+          return value({
+            itemId: identity.itemId,
+            versionId: identity.versionId,
+            versionNumber: 1,
+            contentHash: identity.contentHash,
+          });
+        }
+        if (tool === "honua_studio_reopen_version") {
+          const identity = Object.values(studio).find((candidate) => candidate.itemId === args.itemId);
+          if (!identity) throw new Error(`unknown Studio item ${String(args.itemId)}`);
+          generations.set(identity.reopenedDraftId, 1);
+          return value({
+            draftId: identity.reopenedDraftId,
+            itemId: identity.itemId,
+            baseVersionId: identity.versionId,
+            generation: 1,
+          });
+        }
+        if (tool === "honua_studio_propose_publication") {
+          const draftId = String(args.draftId);
+          proposalGeneration = (generations.get(draftId) ?? 0) + 1;
+          generations.set(draftId, proposalGeneration);
+          return value({
+            draft: { draftId, generation: proposalGeneration },
+            recorded: true,
+            humanConfirmationRequired: true,
+          });
         }
         if (tool.startsWith("honua_studio_") && tool !== "honua_studio_validate_draft") {
-          generation += 1;
-          return tool === "honua_studio_propose_publication"
-            ? value({
-                draft: { draftId: "11111111-1111-4111-8111-111111111111", generation },
-                recorded: true,
-                humanConfirmationRequired: true,
-              })
-            : value({ draftId: "11111111-1111-4111-8111-111111111111", generation });
+          const draftId = String(args.draftId);
+          const generation = (generations.get(draftId) ?? 0) + 1;
+          generations.set(draftId, generation);
+          return value({ draftId, generation });
         }
-        return value({ ok: true });
+        return tool === "honua_studio_validate_draft" ? value({ status: "valid" }) : value({ ok: true });
       },
       async readResource(action) {
         const jobId = action.uri.includes("esri-mcp-buffer-1") ? "esri-mcp-buffer-1" : "direct-buffer-1";
@@ -506,8 +668,8 @@ describe("zero-to-map D9.3 release journey", () => {
             releaseContract: plan.releaseContract,
             status: "passed",
             proposal: {
-              draftId: "11111111-1111-4111-8111-111111111111",
-              generation,
+              draftId: studio.app.reopenedDraftId,
+              generation: proposalGeneration,
               route: "zero-to-map",
               proposalId: "proposal-1",
               executionOperationId: "operation-1",
@@ -532,7 +694,29 @@ describe("zero-to-map D9.3 release journey", () => {
               },
               gpServerResultNames: ["outputFeatureLayer"],
               artifactId: "artifact-buffer-1",
-              draftId: "11111111-1111-4111-8111-111111111111",
+              studio: {
+                map: {
+                  draftId: studio.map.draftId,
+                  itemId: studio.map.itemId,
+                  versionId: studio.map.versionId,
+                  contentHash: studio.map.contentHash,
+                  reopenedDraftId: studio.map.reopenedDraftId,
+                },
+                app: {
+                  draftId: studio.app.draftId,
+                  itemId: studio.app.itemId,
+                  versionId: studio.app.versionId,
+                  contentHash: studio.app.contentHash,
+                  reopenedDraftId: studio.app.reopenedDraftId,
+                },
+                dashboard: {
+                  draftId: studio.dashboard.draftId,
+                  itemId: studio.dashboard.itemId,
+                  versionId: studio.dashboard.versionId,
+                  contentHash: studio.dashboard.contentHash,
+                  reopenedDraftId: studio.dashboard.reopenedDraftId,
+                },
+              },
             },
             candidate: { candidateId: "candidate-1", releaseId: "release-1" },
             checks: { health: "passed", audit: "passed", recovery: "passed" },
@@ -578,7 +762,15 @@ describe("zero-to-map D9.3 release journey", () => {
       },
     });
     expect(seenArguments.get("honua_studio_add_layer")).toMatchObject({
-      draftId: "11111111-1111-4111-8111-111111111111",
+      draftId: studio.app.draftId,
+    });
+    expect(seenArguments.get("honua_studio_propose_publication")).toEqual({
+      draftId: studio.app.reopenedDraftId,
+      generation: 1,
+      route: "zero-to-map",
+      visibility: "public",
+      embed: true,
+      note: "2026.1 D9.3 zero-to-map release candidate",
     });
   });
 });

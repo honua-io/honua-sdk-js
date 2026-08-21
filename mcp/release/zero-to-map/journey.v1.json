@@ -391,27 +391,44 @@
     {
       "number": 4,
       "id": "studio",
-      "title": "Compose, validate, save, and reopen the map app",
+      "title": "Compose, validate, save, read, and reopen distinct map, app, and dashboard families",
       "actions": [
         {
-          "id": "create-draft",
-          "title": "Create the Studio app draft",
+          "id": "create-map-draft",
+          "title": "Create the Studio map draft",
           "kind": "mcp",
           "tool": "honua_studio_create_draft",
-          "arguments": { "packageKey": "zero-to-map", "family": "app", "schemaVersion": "1.0.0" },
+          "arguments": {
+            "packageKey": "zero-to-map-map",
+            "family": "map",
+            "schemaVersion": "1.0",
+            "body": {
+              "mapPackageId": "map-zero-to-map",
+              "format": "honua_map_package.v1",
+              "status": "Draft",
+              "sourceBindings": [],
+              "styleRefs": [],
+              "legend": [],
+              "popupBindings": [],
+              "labelBindings": [],
+              "boundArtifacts": [],
+              "createdAt": "2026-08-20T00:00:00Z"
+            }
+          },
           "captures": [
-            { "variable": "draftId", "pointers": ["/structuredContent/draftId", "/structuredContent/draft/draftId"] },
-            { "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }
+            { "variable": "mapDraftId", "pointers": ["/structuredContent/draftId"] },
+            { "variable": "mapItemId", "pointers": ["/structuredContent/itemId"] },
+            { "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }
           ]
         },
         {
-          "id": "add-parcels-layer",
+          "id": "add-map-parcels-layer",
           "title": "Add the published parcels to the map",
           "kind": "mcp",
           "tool": "honua_studio_add_layer",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${mapDraftId}",
+            "generation": "${mapGeneration}",
             "layer": {
               "id": "parcels",
               "sourceId": "honua://services/${serviceName}/layers/${parcelsLayerId}",
@@ -420,16 +437,16 @@
               "visible": true
             }
           },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
-          "id": "add-buffer-layer",
+          "id": "add-map-buffer-layer",
           "title": "Add the retained GP artifact",
           "kind": "mcp",
           "tool": "honua_studio_add_layer",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${mapDraftId}",
+            "generation": "${mapGeneration}",
             "layer": {
               "id": "parcel-buffer",
               "sourceId": "honua://artifacts/${bufferArtifactId}",
@@ -438,54 +455,166 @@
               "visible": true
             }
           },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
-          "id": "style-buffer-layer",
+          "id": "style-map-buffer-layer",
           "title": "Apply the buffer style",
           "kind": "mcp",
           "tool": "honua_studio_set_layer_style",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${mapDraftId}",
+            "generation": "${mapGeneration}",
             "layerId": "parcel-buffer",
             "styleRef": "zero-to-map-buffer"
           },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
-          "id": "set-buffer-visibility",
+          "id": "set-map-buffer-visibility",
           "title": "Set explicit buffer visibility",
           "kind": "mcp",
           "tool": "honua_studio_set_layer_visibility",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${mapDraftId}",
+            "generation": "${mapGeneration}",
             "layerId": "parcel-buffer",
             "visible": true
           },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
-          "id": "set-view",
+          "id": "set-map-view",
           "title": "Set the map view",
           "kind": "mcp",
           "tool": "honua_studio_set_view",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${mapDraftId}",
+            "generation": "${mapGeneration}",
             "view": { "bbox": [-157.862, 21.3064, -157.8595, 21.3083], "crs": "EPSG:4326" }
           },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
-          "id": "add-chart",
+          "id": "validate-map-draft",
+          "title": "Validate the composed map draft",
+          "kind": "mcp",
+          "tool": "honua_studio_validate_draft",
+          "arguments": { "draftId": "${mapDraftId}" }
+        },
+        {
+          "id": "save-map-version",
+          "title": "Save the map as an immutable content version",
+          "kind": "mcp",
+          "tool": "honua_studio_save_version",
+          "arguments": {
+            "draftId": "${mapDraftId}",
+            "generation": "${mapGeneration}",
+            "changeNote": "2026.1 zero-to-map map"
+          },
+          "captures": [
+            { "variable": "savedMapItemId", "pointers": ["/structuredContent/itemId"], "equals": "${mapItemId}" },
+            { "variable": "mapVersionId", "pointers": ["/structuredContent/versionId"] },
+            { "variable": "mapVersionNumber", "pointers": ["/structuredContent/versionNumber"] },
+            { "variable": "mapContentHash", "pointers": ["/structuredContent/contentHash"] }
+          ]
+        },
+        {
+          "id": "get-map-version",
+          "title": "Read the exact immutable map version",
+          "kind": "mcp",
+          "tool": "honua_studio_get_version",
+          "arguments": { "itemId": "${mapItemId}", "versionId": "${mapVersionId}" },
+          "captures": [
+            { "variable": "loadedMapVersionId", "pointers": ["/structuredContent/versionId"], "equals": "${mapVersionId}" },
+            { "variable": "loadedMapContentHash", "pointers": ["/structuredContent/contentHash"], "equals": "${mapContentHash}" }
+          ]
+        },
+        {
+          "id": "reopen-map-version",
+          "title": "Reopen the immutable map version as a new draft",
+          "kind": "mcp",
+          "tool": "honua_studio_reopen_version",
+          "arguments": { "itemId": "${mapItemId}", "versionId": "${mapVersionId}" },
+          "captures": [
+            { "variable": "mapReopenedDraftId", "pointers": ["/structuredContent/draftId"] },
+            { "variable": "mapReopenedItemId", "pointers": ["/structuredContent/itemId"], "equals": "${mapItemId}" },
+            { "variable": "mapReopenedBaseVersionId", "pointers": ["/structuredContent/baseVersionId"], "equals": "${mapVersionId}" },
+            { "variable": "mapReopenedGeneration", "pointers": ["/structuredContent/generation"] }
+          ]
+        },
+        {
+          "id": "create-app-draft",
+          "title": "Create a distinct Studio app draft bound to the saved map",
+          "kind": "mcp",
+          "tool": "honua_studio_create_draft",
+          "arguments": {
+            "packageKey": "zero-to-map-app",
+            "family": "app",
+            "schemaVersion": "1.0",
+            "body": {
+              "appPackageId": "app-zero-to-map",
+              "targetSdk": "honua-sdk-js",
+              "format": "honua_app_package.v1",
+              "status": "Draft",
+              "generatedFiles": [],
+              "assetManifest": [],
+              "mapPackageId": "map-zero-to-map",
+              "sharePolicy": { "visibility": "private", "embed": false, "reviewed": false },
+              "boundArtifacts": [],
+              "createdAt": "2026-08-20T00:00:00Z"
+            }
+          },
+          "captures": [
+            { "variable": "appDraftId", "pointers": ["/structuredContent/draftId"] },
+            { "variable": "appItemId", "pointers": ["/structuredContent/itemId"] },
+            { "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }
+          ]
+        },
+        {
+          "id": "add-app-parcels-layer",
+          "title": "Add the published parcels to the app map",
+          "kind": "mcp",
+          "tool": "honua_studio_add_layer",
+          "arguments": {
+            "draftId": "${appDraftId}",
+            "generation": "${appGeneration}",
+            "layer": {
+              "id": "parcels",
+              "sourceId": "honua://services/${serviceName}/layers/${parcelsLayerId}",
+              "type": "fill",
+              "title": "Parcels",
+              "visible": true
+            }
+          },
+          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
+          "id": "add-app-buffer-layer",
+          "title": "Add the retained analysis artifact to the app",
+          "kind": "mcp",
+          "tool": "honua_studio_add_layer",
+          "arguments": {
+            "draftId": "${appDraftId}",
+            "generation": "${appGeneration}",
+            "layer": {
+              "id": "parcel-buffer",
+              "sourceId": "honua://artifacts/${bufferArtifactId}",
+              "type": "fill",
+              "title": "25 m parcel buffer",
+              "visible": true
+            }
+          },
+          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
+          "id": "add-app-chart",
           "title": "Add the assessed-value chart",
           "kind": "mcp",
           "tool": "honua_studio_add_widget",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${appDraftId}",
+            "generation": "${appGeneration}",
             "widget": {
               "id": "value-by-zone",
               "kind": "chart",
@@ -494,50 +623,161 @@
               "config": { "categoryField": "zone", "valueField": "assessed_value", "aggregate": "sum" }
             }
           },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
-          "id": "add-layer-control",
+          "id": "add-app-layer-control",
           "title": "Add the layer-list control",
           "kind": "mcp",
           "tool": "honua_studio_add_control",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${appDraftId}",
+            "generation": "${appGeneration}",
             "control": { "id": "layers", "kind": "layer-list", "title": "Layers", "sourceId": "parcels" }
           },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
-          "id": "bind-chart-interaction",
+          "id": "bind-app-chart-interaction",
           "title": "Bind chart selection to the parcel layer",
           "kind": "mcp",
           "tool": "honua_studio_bind_interaction",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${appDraftId}",
+            "generation": "${appGeneration}",
             "interaction": {
               "id": "filter-parcels-by-zone",
               "on": { "ref": "widget:value-by-zone", "event": "select" },
               "do": { "ref": "layer:parcels", "verb": "filter", "args": { "where": "zone = '$event.value'" } }
             }
           },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
-          "id": "validate-draft",
-          "title": "Validate the composed draft",
+          "id": "validate-app-draft",
+          "title": "Validate the composed app draft",
           "kind": "mcp",
           "tool": "honua_studio_validate_draft",
-          "arguments": { "draftId": "${draftId}" }
+          "arguments": { "draftId": "${appDraftId}" }
         },
         {
-          "id": "reopen-draft",
-          "title": "Reopen the saved draft",
+          "id": "save-app-version",
+          "title": "Save the app as an immutable content version",
           "kind": "mcp",
-          "tool": "honua_studio_get_draft",
-          "arguments": { "draftId": "${draftId}" },
-          "captures": [{ "variable": "generation", "pointers": ["/structuredContent/generation", "/structuredContent/draft/generation"] }]
+          "tool": "honua_studio_save_version",
+          "arguments": {
+            "draftId": "${appDraftId}",
+            "generation": "${appGeneration}",
+            "changeNote": "2026.1 zero-to-map app"
+          },
+          "captures": [
+            { "variable": "savedAppItemId", "pointers": ["/structuredContent/itemId"], "equals": "${appItemId}" },
+            { "variable": "appVersionId", "pointers": ["/structuredContent/versionId"] },
+            { "variable": "appVersionNumber", "pointers": ["/structuredContent/versionNumber"] },
+            { "variable": "appContentHash", "pointers": ["/structuredContent/contentHash"] }
+          ]
+        },
+        {
+          "id": "get-app-version",
+          "title": "Read the exact immutable app version",
+          "kind": "mcp",
+          "tool": "honua_studio_get_version",
+          "arguments": { "itemId": "${appItemId}", "versionId": "${appVersionId}" },
+          "captures": [
+            { "variable": "loadedAppVersionId", "pointers": ["/structuredContent/versionId"], "equals": "${appVersionId}" },
+            { "variable": "loadedAppContentHash", "pointers": ["/structuredContent/contentHash"], "equals": "${appContentHash}" }
+          ]
+        },
+        {
+          "id": "reopen-app-version",
+          "title": "Reopen the immutable app version as a new draft",
+          "kind": "mcp",
+          "tool": "honua_studio_reopen_version",
+          "arguments": { "itemId": "${appItemId}", "versionId": "${appVersionId}" },
+          "captures": [
+            { "variable": "appReopenedDraftId", "pointers": ["/structuredContent/draftId"] },
+            { "variable": "appReopenedItemId", "pointers": ["/structuredContent/itemId"], "equals": "${appItemId}" },
+            { "variable": "appReopenedBaseVersionId", "pointers": ["/structuredContent/baseVersionId"], "equals": "${appVersionId}" },
+            { "variable": "appReopenedGeneration", "pointers": ["/structuredContent/generation"] }
+          ]
+        },
+        {
+          "id": "create-dashboard-draft",
+          "title": "Compose a distinct dashboard from the saved map and published service",
+          "kind": "mcp",
+          "tool": "honua_studio_create_draft",
+          "arguments": {
+            "packageKey": "zero-to-map-dashboard",
+            "family": "dashboard",
+            "schemaVersion": "1.0",
+            "body": {
+              "title": "Parcel assessment dashboard",
+              "map": { "itemId": "${mapItemId}", "versionId": "${mapVersionId}" },
+              "widgets": [
+                {
+                  "id": "assessed-value-by-zone",
+                  "kind": "chart",
+                  "sourceId": "honua://services/${serviceName}/layers/${parcelsLayerId}",
+                  "categoryField": "zone",
+                  "valueField": "assessed_value",
+                  "aggregate": "sum"
+                }
+              ]
+            }
+          },
+          "captures": [
+            { "variable": "dashboardDraftId", "pointers": ["/structuredContent/draftId"] },
+            { "variable": "dashboardItemId", "pointers": ["/structuredContent/itemId"] },
+            { "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }
+          ]
+        },
+        {
+          "id": "validate-dashboard-draft",
+          "title": "Validate the composed dashboard envelope",
+          "kind": "mcp",
+          "tool": "honua_studio_validate_draft",
+          "arguments": { "draftId": "${dashboardDraftId}" }
+        },
+        {
+          "id": "save-dashboard-version",
+          "title": "Save the dashboard as an immutable content version",
+          "kind": "mcp",
+          "tool": "honua_studio_save_version",
+          "arguments": {
+            "draftId": "${dashboardDraftId}",
+            "generation": "${dashboardGeneration}",
+            "changeNote": "2026.1 zero-to-map dashboard"
+          },
+          "captures": [
+            { "variable": "savedDashboardItemId", "pointers": ["/structuredContent/itemId"], "equals": "${dashboardItemId}" },
+            { "variable": "dashboardVersionId", "pointers": ["/structuredContent/versionId"] },
+            { "variable": "dashboardVersionNumber", "pointers": ["/structuredContent/versionNumber"] },
+            { "variable": "dashboardContentHash", "pointers": ["/structuredContent/contentHash"] }
+          ]
+        },
+        {
+          "id": "get-dashboard-version",
+          "title": "Read the exact immutable dashboard version",
+          "kind": "mcp",
+          "tool": "honua_studio_get_version",
+          "arguments": { "itemId": "${dashboardItemId}", "versionId": "${dashboardVersionId}" },
+          "captures": [
+            { "variable": "loadedDashboardVersionId", "pointers": ["/structuredContent/versionId"], "equals": "${dashboardVersionId}" },
+            { "variable": "loadedDashboardContentHash", "pointers": ["/structuredContent/contentHash"], "equals": "${dashboardContentHash}" }
+          ]
+        },
+        {
+          "id": "reopen-dashboard-version",
+          "title": "Reopen the immutable dashboard version as a new draft",
+          "kind": "mcp",
+          "tool": "honua_studio_reopen_version",
+          "arguments": { "itemId": "${dashboardItemId}", "versionId": "${dashboardVersionId}" },
+          "captures": [
+            { "variable": "dashboardReopenedDraftId", "pointers": ["/structuredContent/draftId"] },
+            { "variable": "dashboardReopenedItemId", "pointers": ["/structuredContent/itemId"], "equals": "${dashboardItemId}" },
+            { "variable": "dashboardReopenedBaseVersionId", "pointers": ["/structuredContent/baseVersionId"], "equals": "${dashboardVersionId}" },
+            { "variable": "dashboardReopenedGeneration", "pointers": ["/structuredContent/generation"] }
+          ]
         }
       ]
     },
@@ -552,15 +792,15 @@
           "kind": "mcp",
           "tool": "honua_studio_propose_publication",
           "arguments": {
-            "draftId": "${draftId}",
-            "generation": "${generation}",
+            "draftId": "${appReopenedDraftId}",
+            "generation": "${appReopenedGeneration}",
             "route": "${route}",
             "visibility": "public",
             "embed": true,
             "note": "2026.1 D9.3 zero-to-map release candidate"
           },
           "captures": [
-            { "variable": "generation", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
+            { "variable": "appReopenedGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
             { "variable": "proposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
             { "variable": "publicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
             { "variable": "humanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
@@ -581,7 +821,7 @@
           "matches": {
             "/journeyId": "${journeyId}",
             "/releaseContract": "${releaseContract}",
-            "/proposal/draftId": "${draftId}",
+            "/proposal/draftId": "${appReopenedDraftId}",
             "/proposal/generation": "${proposalGeneration}",
             "/proposal/route": "${route}",
             "/resources/connectionId": "${connectionId}",
@@ -595,7 +835,21 @@
             "/resources/gp/resultPackageId": "${esriMcpResultPackageId}",
             "/resources/gp/artifactId": "${esriMcpArtifactId}",
             "/resources/artifactId": "${bufferArtifactId}",
-            "/resources/draftId": "${draftId}",
+            "/resources/studio/map/draftId": "${mapDraftId}",
+            "/resources/studio/map/itemId": "${mapItemId}",
+            "/resources/studio/map/versionId": "${mapVersionId}",
+            "/resources/studio/map/contentHash": "${mapContentHash}",
+            "/resources/studio/map/reopenedDraftId": "${mapReopenedDraftId}",
+            "/resources/studio/app/draftId": "${appDraftId}",
+            "/resources/studio/app/itemId": "${appItemId}",
+            "/resources/studio/app/versionId": "${appVersionId}",
+            "/resources/studio/app/contentHash": "${appContentHash}",
+            "/resources/studio/app/reopenedDraftId": "${appReopenedDraftId}",
+            "/resources/studio/dashboard/draftId": "${dashboardDraftId}",
+            "/resources/studio/dashboard/itemId": "${dashboardItemId}",
+            "/resources/studio/dashboard/versionId": "${dashboardVersionId}",
+            "/resources/studio/dashboard/contentHash": "${dashboardContentHash}",
+            "/resources/studio/dashboard/reopenedDraftId": "${dashboardReopenedDraftId}",
             "/checks/health": "passed",
             "/checks/audit": "passed",
             "/checks/recovery": "passed"
@@ -614,7 +868,7 @@
           ],
           "equalPointers": [
             ["/proposal/executionOperationId", "/audit/operationId"],
-            ["/proposal/draftId", "/resources/draftId"],
+            ["/proposal/draftId", "/resources/studio/app/reopenedDraftId"],
             ["/resources/jobs/esriMcp", "/resources/gp/jobId"]
           ],
           "captures": [

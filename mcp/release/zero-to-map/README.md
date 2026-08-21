@@ -3,8 +3,10 @@
 This bundle is the executable contract for `honua-release#123` D9.3: install
 Honua, configure and publish deterministic data with AI-accessible admin tools,
 run Buffer through the AI-facing Esri MCP tool, the SDK's Esri GPServer
-compatibility path, and the MCP-native analysis verb, compose an app in Studio,
-then stop at the human Console gate before verifying the approved URL. Both MCP
+compatibility path, and the MCP-native analysis verb, compose distinct map,
+app, and dashboard packages in Studio, save each as an immutable version, read
+that exact version, reopen it as a new draft, then stop at the human Console
+gate before verifying the approved URL. Both MCP
 jobs are polled through `honua://jobs/{id}` and joined to their
 `honua://jobs/{id}/results` packages; a queued submission alone cannot pass.
 
@@ -39,7 +41,9 @@ Prerequisites:
 - Node.js 20.19 or newer and Docker with Compose
 - the 2026.1 `honua` CLI work from `honua-sdk-js#1370-#1373`
 - a server build exposing the 119 `honua_admin_*` tools, the three
-  `honua_esri_gp_*` tools, Studio tools, and `honua_buffer_features`
+  `honua_esri_gp_*` tools, `honua_buffer_features`, and the Studio lifecycle
+  tools including `honua_studio_save_version`, `honua_studio_get_version`, and
+  `honua_studio_reopen_version`
 - the `geoprocessing/Buffer` GPServer task seeded by the deployment
 - these fixtures available to the server at an HTTP(S) base URL
 - a separately captured Console approval receipt matching
@@ -65,10 +69,16 @@ produce explicit blocked receipts. The driver reads connection/layer IDs only
 from `structuredContent.details.response`, the server's PublishedOperation
 endpoint-response seam.
 
+The Studio version tools are also preflighted before the first server mutation.
+The journey does not treat `honua_studio_get_draft` as reopen evidence: every
+family must capture its `itemId`, immutable `versionId`, `contentHash`, and the
+new draft whose `baseVersionId` points back to that exact version.
+
 The Console receipt is accepted only when it is `passed` and binds this
 journey/release contract to the exact connection, service, layers, three GP job
-identities, result packages/artifacts, draft, proposal, execution operation,
-audit correlation, route, candidate, and release. Its audit operation must be
+identities, result packages/artifacts, map/app/dashboard draft and immutable
+version identities, the reopened app draft proposed for publication, proposal,
+execution operation, audit correlation, route, candidate, and release. Its audit operation must be
 the proposal's execution operation. The Studio proposal action itself only
 records `PublicationIntent` and must report both `recorded=true` and
 `humanConfirmationRequired=true`; the separately supplied `proposalId` is the

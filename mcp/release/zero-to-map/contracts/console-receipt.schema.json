@@ -43,7 +43,7 @@
     },
     "resources": {
       "type": "object",
-      "required": ["connectionId", "serviceId", "layerIds", "jobs", "gp", "artifactId", "draftId"],
+      "required": ["connectionId", "serviceId", "layerIds", "jobs", "gp", "artifactId", "studio"],
       "properties": {
         "connectionId": { "type": "string", "minLength": 1 },
         "serviceId": { "type": "string", "minLength": 1 },
@@ -85,7 +85,16 @@
           "items": { "type": "string", "minLength": 1 }
         },
         "artifactId": { "type": "string", "minLength": 1 },
-        "draftId": { "type": "string", "format": "uuid" }
+        "studio": {
+          "type": "object",
+          "required": ["map", "app", "dashboard"],
+          "properties": {
+            "map": { "$ref": "#/$defs/studioFamily" },
+            "app": { "$ref": "#/$defs/studioFamily" },
+            "dashboard": { "$ref": "#/$defs/studioFamily" }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },
@@ -108,7 +117,21 @@
       },
       "additionalProperties": false
     },
-    "shareUrl": { "type": "string", "format": "uri", "pattern": "^https?://" }
+    "shareUrl": { "type": "string", "format": "uri", "pattern": "^https://" }
+  },
+  "$defs": {
+    "studioFamily": {
+      "type": "object",
+      "required": ["draftId", "itemId", "versionId", "contentHash", "reopenedDraftId"],
+      "properties": {
+        "draftId": { "type": "string", "format": "uuid" },
+        "itemId": { "type": "string", "format": "uuid" },
+        "versionId": { "type": "string", "format": "uuid" },
+        "contentHash": { "type": "string", "minLength": 1 },
+        "reopenedDraftId": { "type": "string", "format": "uuid" }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }
