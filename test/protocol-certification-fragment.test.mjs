@@ -130,7 +130,16 @@ test("marks evidence incomplete when a suite report is unavailable", () => {
 });
 
 test("machine-readable certification contract matches emitted operation identities", () => {
-  const fragment = buildFragment({ identity, reports: [] });
+  const communityFragment = buildFragment({ identity, reports: [] });
+  assert.equal(communityFragment.observations.some((row) => row.surface === "realtime"), false);
+  const licensedIdentity = {
+    ...identity,
+    deploymentTarget: "licensed-release",
+    entitlementPolicyRevision: "honua-pro-feature-subscriptions-v1",
+    entitlementCheckedAt: "2026-08-19T00:01:00Z",
+    licenseFingerprint: `sha256:${"e".repeat(64)}`,
+  };
+  const fragment = buildFragment({ identity: licensedIdentity, reports: [] });
   assert.deepEqual(
     fragment.observations.map(({ capability_key, surface, operation, scenario_facets }) => ({
       capability_key,

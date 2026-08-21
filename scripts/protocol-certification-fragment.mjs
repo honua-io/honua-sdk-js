@@ -6,6 +6,8 @@ import { pathToFileURL } from "node:url";
 
 export const GAP_OWNER = "https://github.com/honua-io/honua-sdk-js/issues/1113";
 export const AUTH_POLICY_REVISION = "anonymous-public-v1";
+export const LICENSED_AUTH_POLICY_REVISION = "api-key-protected-v1";
+export const LICENSED_ENTITLEMENT_POLICY_REVISION = "honua-pro-feature-subscriptions-v1";
 
 const CAPABILITIES = {
   featureserver: "serve.geoservices-featureserver",
@@ -155,7 +157,11 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
       cut_at: identity.cutAt,
     },
     operation_scope: { complete, owner_issue: GAP_OWNER },
-    observations: OPERATIONS.map(([surface, operation, surfacePattern, operationPattern, titlePattern]) => {
+    observations: OPERATIONS
+      .filter(([surface]) => surface !== "realtime" || identity.entitlementPolicyRevision)
+      .map(([surface, operation, surfacePattern, operationPattern, titlePattern]) => {
+      const licensed = surface === "realtime";
+      const authPolicyRevision = licensed ? LICENSED_AUTH_POLICY_REVISION : AUTH_POLICY_REVISION;
       const matches = tests.filter(({ text, title }) =>
         surfacePattern.test(text) && operationPattern.test(text) && (!titlePattern || titlePattern.test(title))
       );
@@ -180,17 +186,29 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
           canonical_client: "@honua/sdk-js",
           client_version: identity.clientVersion,
           deployment_target: identity.deploymentTarget,
+          ...(licensed ? { entitlement_policy_revision: identity.entitlementPolicyRevision } : {}),
           source_sha: identity.sourceSha,
           producer_source_sha: identity.producerSourceSha,
           image_digest: identity.imageDigest,
           fixture_revision: identity.fixtureRevision,
           contract_revision: contractRevision,
-          auth_policy_revision: AUTH_POLICY_REVISION,
+          auth_policy_revision: authPolicyRevision,
           started_at: startedAt,
           completed_at: now,
         },
         result,
         facets: normalizedFacets,
+        ...(licensed ? {
+          entitlement: {
+            policy_revision: identity.entitlementPolicyRevision,
+            capability_key: CAPABILITIES[surface],
+            deployment_target: identity.deploymentTarget,
+            verification: "live-server-capability-probe-v1",
+            status: "active",
+            checked_at: identity.entitlementCheckedAt,
+            license_fingerprint: identity.licenseFingerprint,
+          },
+        } : {}),
         payload_base64: payloadBase64,
       };
       const evidenceDigest = evidenceReceipt === null ? null
@@ -210,7 +228,7 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
         image_digest: identity.imageDigest,
         fixture_revision: identity.fixtureRevision,
         contract_revision: contractRevision,
-        auth_policy_revision: AUTH_POLICY_REVISION,
+        auth_policy_revision: authPolicyRevision,
         evidence_uri: result === "skip" ? null : `https://evidence.honua.io/data/sha256/${evidenceDigest.slice(7)}`,
         evidence_digest: result === "skip" ? null : evidenceDigest,
         evidence_receipt: result === "skip" ? null : evidenceReceipt,
@@ -263,6 +281,29 @@ export function validateCertificationIdentity(identity) {
   }
   if (!isStrictUtcTimestamp(identity.cutAt)) {
     throw new Error("candidate-cut-at must be a valid UTC ISO-8601 timestamp");
+  }
+  const entitlementValues = [
+    identity.entitlementPolicyRevision,
+    identity.entitlementCheckedAt,
+    identity.licenseFingerprint,
+  ];
+  const entitlementCount = entitlementValues.filter(Boolean).length;
+  if (entitlementCount !== 0 && entitlementCount !== entitlementValues.length) {
+    throw new Error("licensed certification identity fields must be supplied together");
+  }
+  if (entitlementCount > 0) {
+    if (identity.entitlementPolicyRevision !== LICENSED_ENTITLEMENT_POLICY_REVISION) {
+      throw new Error("entitlement-policy-revision is not the governed Honua Pro policy");
+    }
+    if (identity.deploymentTarget !== "licensed-release") {
+      throw new Error("licensed certification must use the licensed-release deployment target");
+    }
+    if (!isStrictUtcTimestamp(identity.entitlementCheckedAt)) {
+      throw new Error("entitlement-checked-at must be a valid UTC ISO-8601 timestamp");
+    }
+    if (!/^sha256:[0-9a-f]{64}$/.test(identity.licenseFingerprint)) {
+      throw new Error("license-fingerprint must be a non-secret lowercase sha256 digest");
+    }
   }
 }
 
@@ -326,6 +367,9 @@ async function main() {
     evidenceUri: required("evidence-uri", argument("evidence-uri", process.env.HONUA_EVIDENCE_URI)),
     cutAt: required("candidate-cut-at", argument("candidate-cut-at", metadata.candidateCutAt ?? process.env.HONUA_CANDIDATE_CUT_AT)),
     startedAt: argument("started-at", process.env.HONUA_CERTIFICATION_STARTED_AT ?? metadata.startedAt),
+    entitlementPolicyRevision: argument("entitlement-policy-revision", process.env.HONUA_ENTITLEMENT_POLICY_REVISION),
+    entitlementCheckedAt: argument("entitlement-checked-at", process.env.HONUA_ENTITLEMENT_CHECKED_AT),
+    licenseFingerprint: argument("license-fingerprint", process.env.HONUA_LICENSE_FINGERPRINT),
   };
   validateCertificationIdentity(identity);
   const fragment = buildFragment({
