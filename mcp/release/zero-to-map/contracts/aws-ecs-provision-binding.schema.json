@@ -3,7 +3,7 @@
   "$id": "https://honua.io/schemas/aws-ecs-provision-binding.v1.json",
   "title": "Honua pre-teardown AWS ECS provision binding",
   "type": "object",
-  "required": ["schemaVersion", "target", "status", "candidateId", "releaseId", "endpoint", "adminKeySecretRef", "serverImage", "components", "checks", "evidence"],
+  "required": ["schemaVersion", "target", "status", "candidateId", "releaseId", "endpoint", "adminKeySecretRef", "accessCredential", "serverImage", "components", "checks", "evidence"],
   "properties": {
     "schemaVersion": { "const": "honua.aws-ecs.provision-binding/v1" },
     "target": { "const": "aws-ecs" },
@@ -12,6 +12,20 @@
     "releaseId": { "type": "string", "minLength": 1 },
     "endpoint": { "type": "string", "pattern": "^https://" },
     "adminKeySecretRef": { "type": "string", "pattern": "^arn:aws(?:-us-gov|-cn)?:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$" },
+    "accessCredential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "requestedGrants", "effectiveGrants", "status", "canAuthenticate", "referenceType", "referenceDigestSha256"],
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "requestedGrants": { "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": { "enum": ["admin:read", "admin:write"] } },
+        "effectiveGrants": { "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": { "enum": ["admin:read", "admin:write"] } },
+        "status": { "const": "active" },
+        "canAuthenticate": { "const": true },
+        "referenceType": { "const": "aws-secrets-manager" },
+        "referenceDigestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "serverImage": { "type": "string", "pattern": "^ghcr\\.io/honua-io/honua-server:[^@]+@sha256:[0-9a-f]{64}$" },
     "components": {
       "type": "object",

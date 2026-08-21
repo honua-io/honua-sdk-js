@@ -8111,13 +8111,13 @@ or looped past its iteration budget, is exactly what the corpus is designed to e
 
 ## Admin operation family
 
-The generated Admin REST client covers **396 operations**; the server-owned semantic MCP family is bounded to **119 tools**. The row stays blocked until those descriptors are certified against the same release candidate through both HTTP and the proxy.
+The generated Admin REST client covers **396 operations**: **387** are published as Admin MCP tools and **9** one-time-secret/session operations are explicitly excluded. The default server roster is **434 tools** = **47 static** + **387 Admin MCP**. The row stays blocked until that exact paginated roster is certified against the same release candidate through both HTTP and the proxy.
 
-| Family | REST operations | Expected MCP tools | HTTP/proxy parity | Approval outcomes | `secret_ref` | Candidate status |
-| --- | ---: | ---: | --- | --- | --- | --- |
-| `honua_admin_*` | 396 | 119 | implemented-awaiting-live-candidate | fixture-covered-awaiting-server-catalog | fixture-covered-awaiting-server-catalog | blocked-server-pin-regresses-admin-contract (`4a7903c2ef764ffeaa60083689f73b9e42bbc6a3`, 395 REST operations) |
+| Family | REST | Published | Excluded | Static | Default total | HTTP/proxy parity | Approval outcomes | Secret handling | Candidate status |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- |
+| `honua_admin_*` | 396 | 387 | 9 | 47 | 434 | implemented-awaiting-live-candidate | fixture-covered-awaiting-server-catalog | coverage-roster-and-schema-covered-awaiting-live-candidate | blocked-server-pin-regresses-admin-contract (`4a7903c2ef764ffeaa60083689f73b9e42bbc6a3`, 395 REST operations) |
 
-Evidence definition: [`mcp/test/certification/admin-parity.test.ts`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/test/certification/admin-parity.test.ts). Source contract: `f897700159e2791c9468c6ca85bb4e2a3a8d8433` / `edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a`. This is a readiness row, not a fabricated live pass receipt.
+Evidence definition: [`mcp/test/certification/admin-parity.test.ts`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/test/certification/admin-parity.test.ts). REST source: `f897700159e2791c9468c6ca85bb4e2a3a8d8433` / `edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a`. MCP coverage: [`config/admin-mcp-coverage.v1.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/config/admin-mcp-coverage.v1.json) / `a05f5865a3fe9a342509130a10dfedcb398f349e9f1df18a7b872a5ab4a7c337`; exclusion roster `90586ad7d6418a0765e3ae71483f2aad2c014a160acf2ea3bcb3b2b0e8da267c`. Reviewed server head: `aa2ff7e8aaf91cfdde449ddcc7534b66c08db153`. Final server contract head: review-head-validated-awaiting-merged-trunk-pin. This is a readiness row, not a fabricated live pass receipt.
 
 ## Protocol certification (zero-LLM control)
 

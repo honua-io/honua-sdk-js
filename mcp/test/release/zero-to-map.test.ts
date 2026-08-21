@@ -1,7 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import {
+  ADMIN_MCP_EXCLUDED_OPERATIONS,
+  ADMIN_MCP_PUBLISHED_TOOL_NAMES,
+  MCP_DEFAULT_STATIC_TOOL_COUNT,
+} from "@honua/sdk-js/control-plane";
 import { describe, expect, it } from "vitest";
-import { readJourneyMcpResource, requireCompletedPublishedOperation } from "../../src/release/zero-to-map-cli.js";
+import {
+  parseInstallAccessCredential,
+  readJourneyMcpResource,
+  requireCompletedPublishedOperation,
+} from "../../src/release/zero-to-map-cli.js";
 import {
   type JourneyAdapter,
   type JourneyBlockedError,
@@ -17,7 +26,63 @@ async function loadPlan() {
   return parseZeroToMapPlan(JSON.parse(await readFile(`${bundleRoot}/journey.v1.json`, "utf8")) as unknown);
 }
 
+function completeCatalog(
+  requiredTools: readonly string[],
+  inputSchema: (name: string) => Readonly<Record<string, unknown>> = () => ({ type: "object" }),
+) {
+  const admin = ADMIN_MCP_PUBLISHED_TOOL_NAMES.map((name) => ({ name, inputSchema: inputSchema(name) }));
+  const staticNames = new Set(requiredTools.filter((name) => !name.startsWith("honua_admin_")));
+  for (let index = 0; staticNames.size < MCP_DEFAULT_STATIC_TOOL_COUNT; index += 1) {
+    staticNames.add(`honua_fixture_static_${String(index).padStart(2, "0")}`);
+  }
+  return [...admin, ...[...staticNames].map((name) => ({ name, inputSchema: inputSchema(name) }))];
+}
+
 describe("zero-to-map D9.3 release journey", () => {
+  it("accepts only the exact secret-free installer access receipt", () => {
+    const receipt = {
+      status: "ready",
+      profile: "gp-dev",
+      directory: "/private/honua",
+      baseUrl: "http://127.0.0.1:8080",
+      readyUrl: "http://127.0.0.1:8080/healthz/ready",
+      composeFile: "/private/honua/compose.yaml",
+      envFile: "/private/honua/.env",
+      mcpConfigFile: "/private/honua/.mcp.json",
+      claudeDesktopConfigFile: "/private/honua/claude_desktop_config.json",
+      adminKeyWritten: true,
+      serverImage: "ghcr.io/honua-io/honua-server:2026.1",
+      reused: false,
+      accessCredential: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "honua-local-agent",
+        status: "active",
+        requestedGrants: ["admin:read", "admin:write"],
+        effectiveGrants: ["admin:write", "admin:read"],
+        canAuthenticate: true,
+        referenceType: "private-env-file",
+        referenceDigestSha256: "a".repeat(64),
+        provisioned: true,
+      },
+    };
+    expect(parseInstallAccessCredential(JSON.stringify(receipt))).toEqual(receipt.accessCredential);
+    expect(() =>
+      parseInstallAccessCredential(
+        JSON.stringify({
+          ...receipt,
+          accessCredential: {
+            ...receipt.accessCredential,
+            requestedGrants: ["admin:approve", "admin:read", "admin:write"],
+            effectiveGrants: ["admin:approve", "admin:read", "admin:write"],
+          },
+        }),
+      ),
+    ).toThrow("not scoped to the required release grants");
+    expect(() => parseInstallAccessCredential(JSON.stringify({ ...receipt, secret: "must-not-pass" }))).toThrow(
+      "unexpected or missing fields",
+    );
+  });
+
   it("ships a seven-stage plan and small deterministic GeoJSON fixtures", async () => {
     const plan = await loadPlan();
     expect(plan.stages.map((stage) => stage.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
@@ -255,6 +320,12 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(admin.get("create-connection")).toMatchObject({
       kind: "mcp",
       tool: "honua_admin_connection_create",
+      arguments: {
+        body: expect.objectContaining({
+          secretReference: "${dbSecretReference}",
+          secretType: "${dbSecretType}",
+        }),
+      },
       captures: [
         {
           pointers: ["/structuredContent/details/response"],
@@ -262,6 +333,9 @@ describe("zero-to-map D9.3 release journey", () => {
         },
       ],
     });
+    expect(
+      (admin.get("create-connection") as { arguments: { body: Record<string, unknown> } }).arguments.body,
+    ).not.toHaveProperty("password");
     expect(admin.get("test-connection")).toMatchObject({
       kind: "mcp",
       tool: "honua_admin_connection_test",
@@ -280,6 +354,8 @@ describe("zero-to-map D9.3 release journey", () => {
     });
     expect(plan.stages[1]?.actions.filter((action) => action.kind === "mcp").map((action) => action.tool)).toEqual([
       "honua_admin_server_status",
+      "honua_admin_api_key_list",
+      "honua_admin_api_key_effective_permissions",
       "honua_admin_connection_create",
       "honua_admin_connection_test",
       "honua_admin_import_upload_url",
@@ -287,8 +363,11 @@ describe("zero-to-map D9.3 release journey", () => {
       "honua_admin_layer_publish",
       "honua_admin_layer_publish",
       "honua_admin_service_set_access_policy",
-      "honua_admin_api_key_create",
     ]);
+    expect(plan.stages.flatMap((stage) => stage.actions).map((action) => action.id)).not.toContain("create-scoped-key");
+    expect(ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.toolName)).toContain(
+      "honua_admin_api_key_create",
+    );
   });
 
   it("honors the server PublishedOperation handle instead of guessing top-level endpoint ids", () => {
@@ -359,7 +438,7 @@ describe("zero-to-map D9.3 release journey", () => {
     const adapter: JourneyAdapter = {
       async runCli(args) {
         calls.push(`cli:${args.join(" ")}`);
-        return {};
+        return cliResult(args);
       },
       async listTools() {
         calls.push("tools/list");
@@ -417,13 +496,11 @@ describe("zero-to-map D9.3 release journey", () => {
     const adapter: JourneyAdapter = {
       async runCli(args) {
         calls.push(`cli:${args.join(" ")}`);
-        return {};
+        return cliResult(args);
       },
       async listTools() {
         calls.push("tools/list");
-        return requiredTools
-          .filter((name) => !unavailable.has(name))
-          .map((name) => ({ name, inputSchema: { type: "object" } }));
+        return completeCatalog(requiredTools.filter((name) => !unavailable.has(name)));
       },
       async callTool(tool) {
         calls.push(`tools/call:${tool}`);
@@ -467,22 +544,20 @@ describe("zero-to-map D9.3 release journey", () => {
     ];
     const calls: string[] = [];
     const adapter: JourneyAdapter = {
-      async runCli() {
-        return {};
+      async runCli(args) {
+        return cliResult(args);
       },
       async listTools() {
-        return requiredTools.map((name) => ({
-          name,
-          inputSchema:
-            name === "honua_admin_connection_create"
-              ? {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["body"],
-                  properties: { body: { type: "string" } },
-                }
-              : { type: "object" },
-        }));
+        return completeCatalog(requiredTools, (name) =>
+          name === "honua_admin_connection_create"
+            ? {
+                type: "object",
+                additionalProperties: false,
+                required: ["body"],
+                properties: { body: { type: "string" } },
+              }
+            : { type: "object" },
+        );
       },
       async callTool(tool) {
         calls.push(tool);
@@ -605,15 +680,38 @@ describe("zero-to-map D9.3 release journey", () => {
     let layerId = 0;
     let proposalGeneration = 0;
     const adapter: JourneyAdapter = {
-      async runCli() {
-        return { evidence: { exitCode: 0 } };
+      async runCli(args) {
+        return cliResult(args);
       },
       async listTools() {
-        return requiredTools.map((name) => ({ name, inputSchema: { type: "object" } }));
+        return completeCatalog(requiredTools);
       },
       async callTool(tool, args) {
         seenArguments.set(tool, args);
         if (tool === "honua_studio_add_layer") studioLayerArguments.push(args);
+        if (tool === "honua_admin_api_key_list") {
+          return adminOperation("admin.api-key.list", {
+            data: [
+              {
+                id: "11111111-1111-4111-8111-111111111111",
+                name: "honua-local-agent",
+                permissions: ["admin:read", "admin:write"],
+                status: "active",
+              },
+            ],
+          });
+        }
+        if (tool === "honua_admin_api_key_effective_permissions") {
+          return adminOperation("admin.api-key.effective-permissions", {
+            data: {
+              id: "11111111-1111-4111-8111-111111111111",
+              name: "honua-local-agent",
+              permissions: ["admin:read", "admin:write"],
+              status: "active",
+              canAuthenticate: true,
+            },
+          });
+        }
         if (tool === "honua_admin_connection_create") {
           return adminOperation("admin.connection.create", { data: { connectionId: "connection-1" } });
         }
@@ -881,7 +979,6 @@ describe("zero-to-map D9.3 release journey", () => {
       execute: true,
       now: deterministicClock(),
       variables: {
-        dbPassword: "not-recorded",
         fixtureBaseUrl: "https://fixtures.example.test",
         candidateId: "candidate-1",
         releaseId: "release-1",
@@ -943,6 +1040,24 @@ function adminOperation(operationId: string, response: unknown): JourneyExecutio
     handleId: `handle-${operationId}`,
     details: { response: JSON.stringify(response), httpStatus: "200", responseTruncated: "False" },
   });
+}
+
+function cliResult(args: readonly string[]): JourneyExecutionResult {
+  if (args[0] !== "admin" || args[1] !== "install" || args[2] !== "local") {
+    return { evidence: { exitCode: 0 } };
+  }
+  const accessCredential = {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "honua-local-agent",
+    status: "active",
+    requestedGrants: ["admin:read", "admin:write"],
+    effectiveGrants: ["admin:read", "admin:write"],
+    canAuthenticate: true,
+    referenceType: "private-env-file",
+    referenceDigestSha256: "a".repeat(64),
+    provisioned: true,
+  } as const;
+  return { value: { accessCredential }, evidence: { exitCode: 0, accessCredential } };
 }
 
 function neverCalledAdapter(): JourneyAdapter {

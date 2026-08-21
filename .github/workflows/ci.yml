@@ -653,7 +653,7 @@ jobs:
           HONUA_MCP_CERT_TARGET: offline
         run: npm run test:certification
 
-      - name: Admin MCP proxy parity contract (119-operation family)
+      - name: Admin MCP proxy parity contract (432-tool default roster)
         working-directory: mcp
         run: npm run test:certification:admin
 

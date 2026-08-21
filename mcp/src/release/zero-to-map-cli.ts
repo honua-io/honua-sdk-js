@@ -20,6 +20,7 @@ import {
 } from "./zero-to-map-checkpoint.js";
 import {
   type AwsEcsProvisionBinding,
+  ZERO_TO_MAP_ACCESS_GRANTS,
   assertAwsEcsProvisionBindings,
   parseAwsEcsProvisionBinding,
 } from "./zero-to-map-provision.js";
@@ -90,7 +91,19 @@ class LiveAdapter implements JourneyAdapter {
     if (this.options.target === "aws-ecs") return this.awsProvisionEvidence(args);
     const result = await runProcess(this.options.honuaCommand, args, this.env);
     if (result.exitCode !== 0) {
-      throw new Error(`honua CLI exited ${result.exitCode}; see stderr from the driver process`);
+      throw new Error(`honua CLI exited ${result.exitCode}; command output was suppressed`);
+    }
+    if (args[0] === "admin" && args[1] === "install" && args[2] === "local") {
+      const accessCredential = parseInstallAccessCredential(result.stdout);
+      return {
+        value: { accessCredential },
+        evidence: {
+          command: "honua",
+          args: redactCliArgs(args),
+          exitCode: result.exitCode,
+          accessCredential,
+        },
+      };
     }
     return { evidence: { command: "honua", args: redactCliArgs(args), exitCode: result.exitCode } };
   }
@@ -103,6 +116,7 @@ class LiveAdapter implements JourneyAdapter {
     }
     if (args[2] === "local") {
       return {
+        value: { accessCredential: binding.accessCredential },
         evidence: {
           target: binding.target,
           candidateId: binding.candidateId,
@@ -113,6 +127,7 @@ class LiveAdapter implements JourneyAdapter {
           terraformApply: binding.checks["terraform-apply"],
           producerEvidenceUrl: binding.evidence.url,
           producerEvidenceSha256: binding.evidence.sha256,
+          accessCredential: binding.accessCredential,
         },
       };
     }
@@ -135,10 +150,15 @@ class LiveAdapter implements JourneyAdapter {
     const client = await this.client();
     const tools: { name: string; inputSchema: Readonly<Record<string, unknown>> }[] = [];
     let cursor: string | undefined;
+    const seenCursors = new Set<string>();
     do {
       const result = await client.listTools(cursor ? { cursor } : undefined);
       tools.push(...result.tools.map((tool) => ({ name: tool.name, inputSchema: tool.inputSchema })));
       cursor = result.nextCursor;
+      if (cursor && seenCursors.has(cursor)) {
+        throw new Error(`MCP tools/list repeated cursor ${cursor}`);
+      }
+      if (cursor) seenCursors.add(cursor);
     } while (cursor);
     return tools;
   }
@@ -559,9 +579,28 @@ export async function claimZeroToMapCheckpoint(path: string, digest: string): Pr
   }
 }
 
-function runProcess(command: string, args: readonly string[], env: NodeJS.ProcessEnv): Promise<{ exitCode: number }> {
+function runProcess(
+  command: string,
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, [...args], { env, stdio: ["ignore", "inherit", "inherit"], windowsHide: true });
+    const child = spawn(command, [...args], { env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let outputBytes = 0;
+    let outputExceeded = false;
+    const collect = (target: Buffer[], chunk: Buffer): void => {
+      outputBytes += chunk.byteLength;
+      if (outputBytes > 1024 * 1024) {
+        outputExceeded = true;
+        child.kill();
+        return;
+      }
+      target.push(chunk);
+    };
+    child.stdout.on("data", (chunk: Buffer) => collect(stdout, chunk));
+    child.stderr.on("data", (chunk: Buffer) => collect(stderr, chunk));
     child.once("error", (error) => {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "ENOENT") {
@@ -572,8 +611,146 @@ function runProcess(command: string, args: readonly string[], env: NodeJS.Proces
         reject(error);
       }
     });
-    child.once("close", (code) => resolve({ exitCode: code ?? 1 }));
+    child.once("close", (code) => {
+      if (outputExceeded) {
+        reject(new Error("honua CLI exceeded the bounded command-output limit; output was suppressed"));
+        return;
+      }
+      resolve({
+        exitCode: code ?? 1,
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      });
+    });
   });
+}
+
+export function parseInstallAccessCredential(stdout: string): {
+  readonly id: string;
+  readonly name: string;
+  readonly status: "active";
+  readonly requestedGrants: readonly string[];
+  readonly effectiveGrants: readonly string[];
+  readonly canAuthenticate: true;
+  readonly referenceType: "private-env-file";
+  readonly referenceDigestSha256: string;
+  readonly provisioned: boolean;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    throw new Error("local installer did not emit a valid secret-free access credential receipt");
+  }
+  const root = releaseRecord(parsed, "local installer receipt");
+  releaseExactKeys(
+    root,
+    [
+      "accessCredential",
+      "adminKeyWritten",
+      "baseUrl",
+      "claudeDesktopConfigFile",
+      "composeFile",
+      "directory",
+      "envFile",
+      "mcpConfigFile",
+      "profile",
+      "readyUrl",
+      "reused",
+      "serverImage",
+      "status",
+    ],
+    "local installer receipt",
+  );
+  const credential = releaseRecord(root.accessCredential, "local installer access credential");
+  releaseExactKeys(
+    credential,
+    [
+      "canAuthenticate",
+      "effectiveGrants",
+      "id",
+      "name",
+      "provisioned",
+      "referenceDigestSha256",
+      "referenceType",
+      "requestedGrants",
+      "status",
+    ],
+    "local installer access credential",
+  );
+  const id = releaseText(credential.id, "local installer access credential id");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    throw new Error("local installer access credential id is invalid");
+  }
+  const requestedGrants = releaseStringList(
+    credential.requestedGrants,
+    "local installer access credential requested grants",
+  );
+  const effectiveGrants = releaseStringList(
+    credential.effectiveGrants,
+    "local installer access credential effective grants",
+  );
+  if (stableStringSet(requestedGrants) !== stableStringSet(effectiveGrants)) {
+    throw new Error("local installer requested and effective access grants do not match");
+  }
+  if (stableStringSet(requestedGrants) !== stableStringSet(ZERO_TO_MAP_ACCESS_GRANTS)) {
+    throw new Error("local installer access credential is not scoped to the required release grants");
+  }
+  if (
+    credential.status !== "active" ||
+    credential.canAuthenticate !== true ||
+    credential.referenceType !== "private-env-file" ||
+    typeof credential.provisioned !== "boolean"
+  ) {
+    throw new Error("local installer access credential is not an active private-file handoff");
+  }
+  const referenceDigestSha256 = releaseText(
+    credential.referenceDigestSha256,
+    "local installer access credential reference digest",
+  );
+  if (!/^[0-9a-f]{64}$/.test(referenceDigestSha256)) {
+    throw new Error("local installer access credential reference digest is invalid");
+  }
+  return {
+    id,
+    name: releaseText(credential.name, "local installer access credential name"),
+    status: "active",
+    requestedGrants,
+    effectiveGrants,
+    canAuthenticate: true,
+    referenceType: "private-env-file",
+    referenceDigestSha256,
+    provisioned: credential.provisioned,
+  };
+}
+
+function releaseRecord(value: unknown, path: string): Readonly<Record<string, unknown>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${path} must be an object`);
+  return value as Readonly<Record<string, unknown>>;
+}
+
+function releaseExactKeys(value: Readonly<Record<string, unknown>>, expected: readonly string[], path: string): void {
+  const actual = Object.keys(value).sort();
+  const allowed = [...expected].sort();
+  if (actual.length !== allowed.length || actual.some((key, index) => key !== allowed[index])) {
+    throw new Error(`${path} contains unexpected or missing fields`);
+  }
+}
+
+function releaseText(value: unknown, path: string): string {
+  if (typeof value !== "string" || !value) throw new Error(`${path} must be a non-empty string`);
+  return value;
+}
+
+function releaseStringList(value: unknown, path: string): readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== "string" || !item)) {
+    throw new Error(`${path} must be a non-empty string array`);
+  }
+  return value;
+}
+
+function stableStringSet(value: readonly string[]): string {
+  return [...new Set(value)].sort().join("\n");
 }
 
 function toolErrorMessage(value: unknown): string {

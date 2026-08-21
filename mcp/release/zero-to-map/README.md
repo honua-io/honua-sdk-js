@@ -12,7 +12,11 @@ jobs are polled through `honua://jobs/{id}` and joined to their
 `honua://jobs/{id}/results` packages; a queued submission alone cannot pass.
 
 The driver reuses `honua admin install` and `honua-mcp-proxy`. It does not ship
-a second installer, admin client, or MCP transport.
+a second installer, admin client, or MCP transport. The installer is the
+canonical credential-issuance boundary: material is handed directly to its
+private environment/MCP configuration files, while its JSON receipt contains
+only the credential ID, requested/effective grants, active status, and a digest
+of the file reference.
 
 ## Inspect the contract without changing anything
 
@@ -41,7 +45,9 @@ Prerequisites:
 
 - Node.js 20.19 or newer and Docker with Compose
 - the 2026.1 `honua` CLI work from `honua-sdk-js#1370-#1373`
-- a server build exposing the 119 `honua_admin_*` tools, the three
+- a server build exposing the complete default 432-tool roster (47 static plus
+  385 `honua_admin_*` tools), with all eleven secret/session Admin operations
+  absent, plus the three
   `honua_esri_gp_*` tools, `honua_buffer_features`, and the Studio lifecycle
   tools including `honua_studio_save_version`, `honua_studio_get_version`, and
   `honua_studio_reopen_version`
@@ -59,7 +65,8 @@ npm run release:zero-to-map -- \
   --target local-docker \
   --mcp-url http://localhost:8080/mcp \
   --var fixtureBaseUrl=http://host.docker.internal:4173 \
-  --var-env dbPassword=HONUA_ZERO_TO_MAP_DB_PASSWORD \
+  --var dbSecretReference=env:HONUA_ZERO_TO_MAP_DB_CONNECTION \
+  --var dbSecretType=environment \
   --var candidateId=manifest-sha256:<platform-manifest-sha256> \
   --var releaseId=2026.1 \
   --checkpoint ./zero-to-map.checkpoint.json \
@@ -82,19 +89,29 @@ or concurrent claimant fails closed. The checkpoint is bound to the exact plan
 bytes, SDK source SHA (`HONUA_SOURCE_REVISION`), target, MCP endpoint,
 candidate/release, and (for AWS) provisioning receipt; it contains only
 allowlisted captures/evidence, including the non-secret deterministic
-`serviceName` identity required by external producers, and never the database
-password, admin key, token, or authorization material. A successful resume
+`serviceName` identity and access-credential ID/grants/reference digest required
+by external producers, and never the database password, admin key, token, or
+authorization material. A successful resume
 marks it consumed and binds the final receipt hash.
 
 For a deployment already provisioned by the DevOps ECS producer, use
 `--target aws-ecs --provision-receipt <pre-teardown-binding.json>`. The binding
 must match `contracts/aws-ecs-provision-binding.schema.json`, the candidate and
 release variables, and `--mcp-url=<binding.endpoint>/mcp`. Stage 1 then records
-the real image/digest, Terraform, readiness, and secret-reference handoff
-evidence; it does not invoke or pretend to invoke the Docker installer.
+the real image/digest, Terraform, readiness, and a secret-free access receipt
+whose reference digest is verified against the producer's Secrets Manager ARN;
+it does not invoke or pretend to invoke the Docker installer.
 
 The catalog is checked in full before the first MCP call. Missing tools or
-input-schema drift block the run without sending that call. Admin operations
+input-schema drift block the run without sending that call. The preflight
+requires the exact 385-tool Admin roster and at least the 47-tool default static
+surface; additive opt-in analysis/Esri tools are allowed. The connection is
+created with `secretReference` + `secretType`; raw database credentials never
+enter MCP arguments, checkpoints, or receipts. One-time-secret and session-bound
+operations (including API-key issuance) are deliberately absent from MCP and
+must be handled by the install/control-plane credential boundary. The journey
+then exercises only secret-safe API-key list and effective-permissions tools to
+verify the provisioned identity and its exact grants. Admin operations
 must return a completed PublishedOperation; queued or approval-required handles
 produce explicit blocked receipts. The driver reads connection/layer IDs only
 from `structuredContent.details.response`, the server's PublishedOperation

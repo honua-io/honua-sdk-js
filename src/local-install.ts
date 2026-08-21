@@ -8,7 +8,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -55,9 +55,34 @@ export interface LocalInstallResult {
   readonly mcpConfigFile: string;
   readonly claudeDesktopConfigFile: string;
   readonly adminKeyWritten: true;
+  /** Secret-free identity and grant evidence for the credential handed to MCP. */
+  readonly accessCredential: LocalAccessCredentialReceipt;
   readonly serverImage: string;
   readonly reused: boolean;
 }
+
+export interface LocalAccessCredentialReceipt {
+  readonly id: string;
+  readonly name: string;
+  readonly status: "active";
+  readonly requestedGrants: readonly string[];
+  readonly effectiveGrants: readonly string[];
+  readonly canAuthenticate: true;
+  readonly referenceType: "private-env-file";
+  readonly referenceDigestSha256: string;
+  readonly provisioned: boolean;
+}
+
+interface ProvisionedAdminCredential {
+  readonly material: string;
+  readonly id: string;
+  readonly name: string;
+  readonly requestedGrants: readonly string[];
+  readonly effectiveGrants: readonly string[];
+  readonly provisioned: boolean;
+}
+
+const LOCAL_AGENT_GRANTS = ["admin:read", "admin:write"] as const;
 
 export interface LocalInstallStatus {
   readonly installed: boolean;
@@ -118,14 +143,16 @@ export async function installHonuaLocal(
 
   await waitForReady(`${baseUrl}/healthz/ready`, options.timeoutMs ?? 180_000, runtime);
 
-  let adminKey = env.HONUA_ADMIN_KEY;
-  if (!adminKey) {
-    adminKey = await bootstrapAdminKey(baseUrl, env.HONUA_ADMIN_PASSWORD, runtime.fetchFn);
-    env.HONUA_ADMIN_KEY = adminKey;
+  let credential: ProvisionedAdminCredential;
+  if (!env.HONUA_ADMIN_KEY) {
+    credential = await bootstrapAdminKey(baseUrl, env.HONUA_ADMIN_PASSWORD, runtime.fetchFn);
+    env.HONUA_ADMIN_KEY = credential.material;
     await writePrivateFile(envFile, renderEnv(env));
+  } else {
+    credential = await resolveExistingAdminKey(baseUrl, env.HONUA_ADMIN_KEY, runtime.fetchFn);
   }
 
-  const mcpConfig = renderMcpConfig(baseUrl, adminKey);
+  const mcpConfig = renderMcpConfig(baseUrl, credential.material);
   await writePrivateFile(mcpConfigFile, mcpConfig);
   await writePrivateFile(claudeDesktopConfigFile, mcpConfig);
 
@@ -140,6 +167,17 @@ export async function installHonuaLocal(
     mcpConfigFile,
     claudeDesktopConfigFile,
     adminKeyWritten: true,
+    accessCredential: {
+      id: credential.id,
+      name: credential.name,
+      status: "active",
+      requestedGrants: credential.requestedGrants,
+      effectiveGrants: credential.effectiveGrants,
+      canAuthenticate: true,
+      referenceType: "private-env-file",
+      referenceDigestSha256: createHash("sha256").update(`file:${envFile}#HONUA_ADMIN_KEY`, "utf8").digest("hex"),
+      provisioned: credential.provisioned,
+    },
     serverImage: LOCAL_INSTALL_SERVER_IMAGE,
     reused,
   };
@@ -287,16 +325,113 @@ export function cloudInstallHandoff(stack = "aws"): {
   };
 }
 
-async function bootstrapAdminKey(baseUrl: string, rootKey: string, fetchFn: typeof fetch | undefined): Promise<string> {
+async function bootstrapAdminKey(
+  baseUrl: string,
+  rootKey: string,
+  fetchFn: typeof fetch | undefined,
+): Promise<ProvisionedAdminCredential> {
   const client = new HonuaAdminClient({ baseUrl, adminKey: rootKey, fetchFn });
   const result = await client.call("createAdminApiKey", {
-    body: { name: "honua-local-agent", permissions: ["admin:read", "admin:write"] },
+    body: { name: "honua-local-agent", permissions: LOCAL_AGENT_GRANTS },
   });
-  const response = result.data;
-  if (!isRecord(response) || !isRecord(response.data) || typeof response.data.key !== "string") {
+  const issued = readIssuedAdminCredential(result.data);
+  const effective = await readEffectiveAdminCredential(client, issued.id);
+  if (!sameStrings(LOCAL_AGENT_GRANTS, effective.permissions)) {
+    throw new Error("Admin key bootstrap effective grants did not match the requested grants.");
+  }
+  return {
+    material: issued.material,
+    id: issued.id,
+    name: issued.name,
+    requestedGrants: LOCAL_AGENT_GRANTS,
+    effectiveGrants: effective.permissions,
+    provisioned: true,
+  };
+}
+
+async function resolveExistingAdminKey(
+  baseUrl: string,
+  material: string,
+  fetchFn: typeof fetch | undefined,
+): Promise<ProvisionedAdminCredential> {
+  const client = new HonuaAdminClient({ baseUrl, adminKey: material, fetchFn });
+  const result = await client.call("listAdminApiKeys", {});
+  const root = result.data;
+  if (!isRecord(root) || !Array.isArray(root.data)) {
+    throw new Error("Existing Admin credential could not be resolved to secret-safe server metadata.");
+  }
+  const matches = root.data.filter(
+    (candidate): candidate is Record<string, unknown> =>
+      isRecord(candidate) &&
+      candidate.name === "honua-local-agent" &&
+      candidate.status === "active" &&
+      typeof candidate.keyPrefix === "string" &&
+      candidate.keyPrefix.length > 0 &&
+      isStringArray(candidate.permissions) &&
+      sameStrings(candidate.permissions, LOCAL_AGENT_GRANTS) &&
+      material.startsWith(candidate.keyPrefix),
+  );
+  if (matches.length !== 1) {
+    throw new Error("Existing Admin credential did not resolve to exactly one active local-agent identity.");
+  }
+  const match = matches[0];
+  if (!match || typeof match.id !== "string" || !isStringArray(match.permissions) || typeof match.name !== "string") {
+    throw new Error("Existing Admin credential metadata was incomplete.");
+  }
+  const effective = await readEffectiveAdminCredential(client, match.id);
+  if (!sameStrings(LOCAL_AGENT_GRANTS, effective.permissions)) {
+    throw new Error("Existing Admin credential was not scoped to the required local-agent grants.");
+  }
+  return {
+    material,
+    id: match.id,
+    name: match.name,
+    requestedGrants: LOCAL_AGENT_GRANTS,
+    effectiveGrants: effective.permissions,
+    provisioned: false,
+  };
+}
+
+function readIssuedAdminCredential(value: unknown): {
+  readonly material: string;
+  readonly id: string;
+  readonly name: string;
+} {
+  if (!isRecord(value) || !isRecord(value.data) || typeof value.data.key !== "string") {
     throw new Error("Admin key bootstrap response did not contain one-time key material.");
   }
-  return response.data.key;
+  const apiKey = value.data.apiKey;
+  if (!isRecord(apiKey) || typeof apiKey.id !== "string" || typeof apiKey.name !== "string") {
+    throw new Error("Admin key bootstrap response did not contain secret-safe key identity metadata.");
+  }
+  return { material: value.data.key, id: apiKey.id, name: apiKey.name };
+}
+
+async function readEffectiveAdminCredential(
+  client: HonuaAdminClient,
+  id: string,
+): Promise<{ readonly permissions: readonly string[] }> {
+  const result = await client.call("getAdminApiKeyEffectivePermissions", { path: { id } });
+  const root = result.data;
+  if (
+    !isRecord(root) ||
+    !isRecord(root.data) ||
+    root.data.id !== id ||
+    root.data.status !== "active" ||
+    root.data.canAuthenticate !== true ||
+    !isStringArray(root.data.permissions)
+  ) {
+    throw new Error("Admin key bootstrap could not verify active effective grants.");
+  }
+  return { permissions: root.data.permissions };
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string" && item.length > 0);
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return [...new Set(left)].sort().join("\n") === [...new Set(right)].sort().join("\n");
 }
 
 async function waitForReady(url: string, timeoutMs: number, runtime: LocalInstallRuntime): Promise<void> {

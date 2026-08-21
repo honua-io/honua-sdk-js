@@ -1,11 +1,23 @@
 import { describe, expect, it } from "vitest";
 
+import { ADMIN_ONE_TIME_SECRET_OPERATION_IDS } from "../src/cli/admin-secret-output.js";
 import {
   ADMIN_API_OPERATION_COUNT,
   ADMIN_API_SERVER_SHA,
+  ADMIN_MCP_CONTRACT_REVIEW_SERVER_SHA,
+  ADMIN_MCP_CONTRACT_SERVER_SHA,
+  ADMIN_MCP_CONTRACT_STATUS,
+  ADMIN_MCP_COVERAGE_SHA256,
+  ADMIN_MCP_EXCLUDED_OPERATIONS,
+  ADMIN_MCP_EXCLUDED_OPERATION_COUNT,
+  ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
+  ADMIN_MCP_PUBLISHED_TOOL_NAMES,
   ADMIN_OPERATIONS,
+  ADMIN_PUBLISHED_OPERATION_COUNT,
   HonuaAdminApiError,
   HonuaAdminClient,
+  MCP_DEFAULT_STATIC_TOOL_COUNT,
+  MCP_DEFAULT_TOTAL_TOOL_COUNT,
 } from "../src/control-plane/index.js";
 
 describe("generated admin REST client", () => {
@@ -14,6 +26,46 @@ describe("generated admin REST client", () => {
     expect(ADMIN_API_OPERATION_COUNT).toBe(396);
     expect(ADMIN_API_SERVER_SHA).toMatch(/^[0-9a-f]{40}$/);
     expect(ADMIN_OPERATIONS.createConnection).toMatchObject({ method: "POST", path: "/connections" });
+  });
+
+  it("classifies every REST operation into the complete default Admin MCP roster", () => {
+    expect(ADMIN_PUBLISHED_OPERATION_COUNT).toBe(385);
+    expect(ADMIN_MCP_PUBLISHED_TOOL_NAMES).toHaveLength(385);
+    expect(new Set(ADMIN_MCP_PUBLISHED_TOOL_NAMES)).toHaveProperty("size", 385);
+    expect(ADMIN_MCP_EXCLUDED_OPERATION_COUNT).toBe(11);
+    expect(ADMIN_MCP_EXCLUDED_OPERATIONS).toHaveLength(11);
+    expect(ADMIN_PUBLISHED_OPERATION_COUNT + ADMIN_MCP_EXCLUDED_OPERATION_COUNT).toBe(ADMIN_API_OPERATION_COUNT);
+    expect(MCP_DEFAULT_STATIC_TOOL_COUNT).toBe(47);
+    expect(MCP_DEFAULT_TOTAL_TOOL_COUNT).toBe(432);
+    expect(MCP_DEFAULT_STATIC_TOOL_COUNT + ADMIN_PUBLISHED_OPERATION_COUNT).toBe(MCP_DEFAULT_TOTAL_TOOL_COUNT);
+    expect(ADMIN_MCP_COVERAGE_SHA256).toMatch(/^[0-9a-f]{64}$/);
+    expect(ADMIN_MCP_EXCLUSION_ROSTER_SHA256).toMatch(/^[0-9a-f]{64}$/);
+    expect(ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.operationId)).toEqual([
+      "admin.api-key.create",
+      "admin.api-key.rotate",
+      "admin.oauth-client.create",
+      "admin.openapi.create-admin-auth-authorize-url",
+      "admin.openapi.create-embed-key",
+      "admin.openapi.get-admin-auth-logout-url",
+      "admin.openapi.get-admin-auth-session",
+      "admin.openapi.issue-admin-operator-bearer",
+      "admin.openapi.logout-admin-auth-session",
+      "admin.openapi.request-admin-auth-token",
+      "admin.openapi.rotate-embed-key",
+    ]);
+    const publishedNames = new Set<string>(ADMIN_MCP_PUBLISHED_TOOL_NAMES);
+    expect(ADMIN_MCP_EXCLUDED_OPERATIONS.every((operation) => !publishedNames.has(operation.toolName))).toBe(true);
+    expect([...ADMIN_ONE_TIME_SECRET_OPERATION_IDS].sort()).toEqual(
+      ADMIN_MCP_EXCLUDED_OPERATIONS.filter((operation) => operation.code === "one-time-secret-result")
+        .map((operation) => operation.openApiOperationId)
+        .sort(),
+    );
+    expect(ADMIN_MCP_CONTRACT_SERVER_SHA === null || /^[0-9a-f]{40}$/.test(ADMIN_MCP_CONTRACT_SERVER_SHA)).toBe(true);
+    if (ADMIN_MCP_CONTRACT_SERVER_SHA === null) {
+      expect(ADMIN_MCP_CONTRACT_STATUS).toBe("review-head-validated-awaiting-merged-trunk-pin");
+      expect(ADMIN_MCP_CONTRACT_SERVER_SHA).toBeNull();
+      expect(ADMIN_MCP_CONTRACT_REVIEW_SERVER_SHA).toBe("c810ef3df29269527d4eceb26151921c8c5d5eab");
+    }
   });
 
   it("calls an operation with typed path parameters and admin-key precedence", async () => {

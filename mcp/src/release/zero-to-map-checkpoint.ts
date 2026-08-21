@@ -205,7 +205,7 @@ function assertSecretFree(value: unknown, path = "checkpoint"): void {
   }
   if (!value || typeof value !== "object") return;
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    if (/(?:password|authorization|api[-_]?key|access[-_]?key|secret[-_]?key|bearer|token)/i.test(key)) {
+    if (/(?:password|authorization|api[-_]?key|access[-_]?key|secret(?:[-_]?key)?|bearer|token|material)/i.test(key)) {
       throw new Error(`checkpoint contains a forbidden credential field at ${path}.${key}`);
     }
     assertSecretFree(item, `${path}.${key}`);

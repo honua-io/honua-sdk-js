@@ -63,7 +63,7 @@ jobs:
           HONUA_API_KEY: ${{ secrets.HONUA_API_KEY }}
         run: node dist/src/certification/cli.js
 
-      - name: Admin MCP HTTP/proxy parity (119-operation release gate)
+      - name: Admin MCP HTTP/proxy parity (432-tool default-roster release gate)
         env:
           HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url || secrets.HONUA_MCP_REMOTE_URL }}
           HONUA_ADMIN_KEY: ${{ secrets.HONUA_API_KEY }}

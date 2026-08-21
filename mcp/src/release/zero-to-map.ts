@@ -7,6 +7,13 @@
  * not contain a second installer, admin client, or MCP proxy.
  */
 
+import {
+  ADMIN_MCP_EXCLUDED_OPERATIONS,
+  ADMIN_MCP_PUBLISHED_TOOL_NAMES,
+  MCP_DEFAULT_STATIC_TOOL_COUNT,
+  MCP_DEFAULT_TOTAL_TOOL_COUNT,
+} from "@honua/sdk-js/control-plane";
+
 export const ZERO_TO_MAP_PLAN_SCHEMA = "honua.zero-to-map.plan/v1" as const;
 export const ZERO_TO_MAP_RECEIPT_SCHEMA = "honua.zero-to-map.receipt/v1" as const;
 export const ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA = "honua.zero-to-map.console-receipt/v1" as const;
@@ -543,6 +550,29 @@ async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): P
     stage.actions.filter((action): action is JourneyMcpAction => action.kind === "mcp").map((action) => action.tool),
   );
   const catalog = await adapter.listTools();
+  const duplicateNames = duplicateValues(catalog.map((tool) => tool.name));
+  const adminNames = catalog.filter((tool) => tool.name.startsWith("honua_admin_")).map((tool) => tool.name);
+  const advertisedAdmin = new Set(adminNames);
+  const expectedAdmin = new Set<string>(ADMIN_MCP_PUBLISHED_TOOL_NAMES);
+  const missingAdmin = [...expectedAdmin].filter((name) => !advertisedAdmin.has(name)).sort();
+  const unexpectedAdmin = [...advertisedAdmin].filter((name) => !expectedAdmin.has(name)).sort();
+  const excludedAdmin = ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.toolName)
+    .filter((name) => advertisedAdmin.has(name))
+    .sort();
+  const staticToolCount = catalog.length - adminNames.length;
+  if (
+    duplicateNames.length > 0 ||
+    missingAdmin.length > 0 ||
+    unexpectedAdmin.length > 0 ||
+    excludedAdmin.length > 0 ||
+    staticToolCount < MCP_DEFAULT_STATIC_TOOL_COUNT ||
+    catalog.length < MCP_DEFAULT_TOTAL_TOOL_COUNT
+  ) {
+    throw new JourneyBlockedError(
+      `MCP catalog does not satisfy the complete Admin/default roster: total=${catalog.length} (minimum ${MCP_DEFAULT_TOTAL_TOOL_COUNT}), static=${staticToolCount} (minimum ${MCP_DEFAULT_STATIC_TOOL_COUNT}), admin=${adminNames.length} (expected ${ADMIN_MCP_PUBLISHED_TOOL_NAMES.length}); missingAdmin=${missingAdmin.join(", ") || "none"}; unexpectedAdmin=${unexpectedAdmin.join(", ") || "none"}; excludedAdmin=${excludedAdmin.join(", ") || "none"}; duplicates=${duplicateNames.join(", ") || "none"}`,
+      "mcp-catalog-incomplete",
+    );
+  }
   const advertised = new Map(catalog.map((tool) => [tool.name, tool]));
   const missing = [...new Set(required)].filter((tool) => !advertised.has(tool));
   if (missing.length > 0) {
@@ -564,6 +594,16 @@ async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): P
       );
     }
   }
+}
+
+function duplicateValues(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const value of values) {
+    if (seen.has(value)) duplicates.add(value);
+    else seen.add(value);
+  }
+  return [...duplicates].sort();
 }
 
 function assertArgumentShape(value: unknown, schemaValue: unknown, path: string): void {
@@ -853,7 +893,7 @@ function captureValues(
     }
     const expected =
       typeof capture.equals === "string" ? resolveTemplateValue(capture.equals, variables) : capture.equals;
-    if (expected !== undefined && captured !== expected) {
+    if (expected !== undefined && stableValue(captured) !== stableValue(expected)) {
       throw new Error(
         `response contract mismatch for ${capture.variable}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(captured)}`,
       );

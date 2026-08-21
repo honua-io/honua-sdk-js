@@ -2,7 +2,16 @@
 
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { ADMIN_PUBLISHED_OPERATION_COUNT } from "@honua/sdk-js/control-plane";
+import {
+  ADMIN_MCP_CONTRACT_SERVER_SHA,
+  ADMIN_MCP_COVERAGE_SHA256,
+  ADMIN_MCP_EXCLUDED_OPERATIONS,
+  ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
+  ADMIN_MCP_PUBLISHED_TOOL_NAMES,
+  ADMIN_PUBLISHED_OPERATION_COUNT,
+  MCP_DEFAULT_STATIC_TOOL_COUNT,
+  MCP_DEFAULT_TOTAL_TOOL_COUNT,
+} from "@honua/sdk-js/control-plane";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
@@ -12,25 +21,82 @@ export interface AdminParityReceipt {
   readonly schemaVersion: "honua.admin-mcp-parity.v1";
   readonly family: "honua_admin_*";
   readonly expectedTools: number;
+  readonly expectedStaticTools: number;
+  readonly expectedTotalTools: number;
   readonly directTools: number;
   readonly proxiedTools: number;
+  readonly directStaticTools: number;
+  readonly proxiedStaticTools: number;
+  readonly directTotalTools: number;
+  readonly proxiedTotalTools: number;
+  readonly coverageSha256: string;
+  readonly exclusionRosterSha256: string;
+  readonly contractServerSha: string | null;
   readonly pass: boolean;
   readonly differences: readonly string[];
 }
 
+export interface AdminParityExpectation {
+  readonly publishedToolNames: readonly string[];
+  readonly excludedToolNames: readonly string[];
+  readonly expectedStaticTools: number;
+  readonly expectedTotalTools: number;
+}
+
+const DEFAULT_EXPECTATION: AdminParityExpectation = {
+  publishedToolNames: ADMIN_MCP_PUBLISHED_TOOL_NAMES,
+  excludedToolNames: ADMIN_MCP_EXCLUDED_OPERATIONS.map((operation) => operation.toolName),
+  expectedStaticTools: MCP_DEFAULT_STATIC_TOOL_COUNT,
+  expectedTotalTools: MCP_DEFAULT_TOTAL_TOOL_COUNT,
+};
+
 export function certifyAdminCatalogParity(
   directCatalog: readonly Tool[],
   proxiedCatalog: readonly Tool[],
-  expectedTools = ADMIN_PUBLISHED_OPERATION_COUNT,
+  expectation: AdminParityExpectation = DEFAULT_EXPECTATION,
 ): AdminParityReceipt {
   const direct = normalizeAdminTools(directCatalog);
   const proxied = normalizeAdminTools(proxiedCatalog);
+  const expectedTools = expectation.publishedToolNames.length;
+  const directStaticTools = directCatalog.length - direct.length;
+  const proxiedStaticTools = proxiedCatalog.length - proxied.length;
   const differences: string[] = [];
+  if (expectedTools !== ADMIN_PUBLISHED_OPERATION_COUNT) {
+    differences.push(
+      `certification expectation contains ${expectedTools} admin tools; generated contract requires ${ADMIN_PUBLISHED_OPERATION_COUNT}`,
+    );
+  }
   if (direct.length !== expectedTools) {
     differences.push(`direct catalog exposes ${direct.length} admin tools; expected ${expectedTools}`);
   }
   if (proxied.length !== expectedTools) {
     differences.push(`proxied catalog exposes ${proxied.length} admin tools; expected ${expectedTools}`);
+  }
+  if (directStaticTools !== expectation.expectedStaticTools) {
+    differences.push(
+      `direct catalog exposes ${directStaticTools} static tools; expected ${expectation.expectedStaticTools}`,
+    );
+  }
+  if (proxiedStaticTools !== expectation.expectedStaticTools) {
+    differences.push(
+      `proxied catalog exposes ${proxiedStaticTools} static tools; expected ${expectation.expectedStaticTools}`,
+    );
+  }
+  if (directCatalog.length !== expectation.expectedTotalTools) {
+    differences.push(
+      `direct catalog exposes ${directCatalog.length} total tools; expected ${expectation.expectedTotalTools}`,
+    );
+  }
+  if (proxiedCatalog.length !== expectation.expectedTotalTools) {
+    differences.push(
+      `proxied catalog exposes ${proxiedCatalog.length} total tools; expected ${expectation.expectedTotalTools}`,
+    );
+  }
+  if (expectation.expectedStaticTools + expectedTools !== expectation.expectedTotalTools) {
+    differences.push(
+      `certification equation failed: ${expectation.expectedStaticTools} static + ${expectedTools} admin ` +
+        `!= ${expectation.expectedTotalTools} total tools`,
+    );
   }
   for (const duplicate of findDuplicateNames(direct)) {
     differences.push(`direct catalog repeats admin tool ${duplicate}`);
@@ -38,6 +104,14 @@ export function certifyAdminCatalogParity(
   for (const duplicate of findDuplicateNames(proxied)) {
     differences.push(`proxied catalog repeats admin tool ${duplicate}`);
   }
+  for (const duplicate of findDuplicateNames(directCatalog)) {
+    if (!duplicate.startsWith("honua_admin_")) differences.push(`direct catalog repeats static tool ${duplicate}`);
+  }
+  for (const duplicate of findDuplicateNames(proxiedCatalog)) {
+    if (!duplicate.startsWith("honua_admin_")) differences.push(`proxied catalog repeats static tool ${duplicate}`);
+  }
+  compareExpectedRoster("direct", direct, expectation, differences);
+  compareExpectedRoster("proxied", proxied, expectation, differences);
   const directByName = new Map(direct.map((tool) => [tool.name, tool]));
   const proxiedByName = new Map(proxied.map((tool) => [tool.name, tool]));
   for (const name of [...new Set([...directByName.keys(), ...proxiedByName.keys()])].sort()) {
@@ -51,11 +125,40 @@ export function certifyAdminCatalogParity(
     schemaVersion: "honua.admin-mcp-parity.v1",
     family: "honua_admin_*",
     expectedTools,
+    expectedStaticTools: expectation.expectedStaticTools,
+    expectedTotalTools: expectation.expectedTotalTools,
     directTools: direct.length,
     proxiedTools: proxied.length,
+    directStaticTools,
+    proxiedStaticTools,
+    directTotalTools: directCatalog.length,
+    proxiedTotalTools: proxiedCatalog.length,
+    coverageSha256: ADMIN_MCP_COVERAGE_SHA256,
+    exclusionRosterSha256: ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
+    contractServerSha: ADMIN_MCP_CONTRACT_SERVER_SHA,
     pass: differences.length === 0,
     differences,
   };
+}
+
+function compareExpectedRoster(
+  transport: "direct" | "proxied",
+  tools: ReadonlyArray<{ readonly name: string }>,
+  expectation: AdminParityExpectation,
+  differences: string[],
+): void {
+  const actual = new Set(tools.map((tool) => tool.name));
+  const expected = new Set(expectation.publishedToolNames);
+  for (const name of [...expected].sort()) {
+    if (!actual.has(name)) differences.push(`${name} is missing from the ${transport} catalog contract`);
+  }
+  for (const name of [...actual].sort()) {
+    if (!expected.has(name))
+      differences.push(`${name} is not classified as published in the ${transport} catalog contract`);
+  }
+  for (const name of [...expectation.excludedToolNames].sort()) {
+    if (actual.has(name)) differences.push(`${transport} catalog advertises explicitly excluded admin tool ${name}`);
+  }
 }
 
 function findDuplicateNames(tools: ReadonlyArray<{ readonly name: string }>): string[] {
@@ -85,7 +188,7 @@ export function normalizeAdminTools(tools: readonly Tool[]) {
 /**
  * Read the complete MCP tool catalog. The server deliberately pages large
  * catalogs, so a single tools/list response is not certification evidence for
- * the 119-tool admin family.
+ * the 432-tool default roster (47 static plus 385 Admin MCP tools).
  */
 export async function listAllTools(client: {
   listTools(request?: { cursor?: string }): Promise<{ tools: Tool[]; nextCursor?: string }>;
@@ -109,6 +212,11 @@ export async function runAdminParityCertification(
   env: NodeJS.ProcessEnv = process.env,
   outputPath = "admin-mcp-parity.json",
 ): Promise<AdminParityReceipt> {
+  if (ADMIN_MCP_CONTRACT_SERVER_SHA === null) {
+    throw new Error(
+      "Admin MCP live certification is blocked until config/admin-client.v1.json pins the final server head.",
+    );
+  }
   const upstream = await connectUpstream(resolveProxyOptions(env));
   const proxy = createProxyServer(upstream);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

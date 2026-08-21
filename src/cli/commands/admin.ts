@@ -9,6 +9,11 @@ import {
   installHonuaLocal,
   renderLocalCompose,
 } from "../../local-install.js";
+import {
+  isAdminOneTimeSecretOperation,
+  prepareAdminSecretSink,
+  writeAdminOneTimeSecret,
+} from "../admin-secret-output.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getArray, getBoolean, getNumber, getString } from "../args.js";
 import type { CommandContext } from "../command.js";
@@ -33,6 +38,7 @@ REQUEST OPTIONS
   --path <name=value>       Path parameter (repeatable)
   --query <name=value>      Query parameter (repeatable)
   --header <name=value>     Request header (repeatable)
+  --secret-output <path>    Required private file sink for one-time secret responses
   --dry-run                 Print the resolved operation request without sending it
   --yes                     Required for mutating REST operations
   --profile <name>          Use a named profile from the Honua config file
@@ -82,6 +88,16 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     printLine(renderJson({ operationId, ...descriptor, request, executed: false }));
     return;
   }
+  const secretOutput = getString(parsed, "secret-output");
+  const oneTimeSecret = isAdminOneTimeSecretOperation(operationId);
+  if (oneTimeSecret && !secretOutput) {
+    throw new ArgError(
+      `Admin operation ${operationId} returns one-time secret material. Re-run with --secret-output <new-private-file>.`,
+    );
+  }
+  if (!oneTimeSecret && secretOutput) {
+    throw new ArgError("--secret-output is valid only for an Admin operation that returns one-time secret material.");
+  }
   if (descriptor.mutating && !getBoolean(parsed, "yes")) {
     throw new ArgError(`Admin operation ${operationId} mutates state. Re-run with --yes or inspect it with --dry-run.`);
   }
@@ -97,8 +113,22 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     apiKey: connection.apiKey,
     adminKey: connection.adminKey,
   });
-  const result = await callDynamic(client, operationId, compactRequest(request));
-  printLine(renderJson(result.data));
+  if (!oneTimeSecret) {
+    const result = await callDynamic(client, operationId, compactRequest(request));
+    printLine(renderJson(result.data));
+    return;
+  }
+
+  if (!secretOutput) throw new Error("internal error: one-time-secret sink validation was bypassed");
+  const sink = await prepareAdminSecretSink(secretOutput);
+  try {
+    const result = await callDynamic(client, operationId, compactRequest(request));
+    printLine(renderJson(await writeAdminOneTimeSecret(operationId, result.data, sink)));
+  } catch (error) {
+    await sink.abort();
+    if (error instanceof ArgError || isSafeSecretResponseError(error)) throw error;
+    throw new Error(`Admin one-time-secret operation ${operationId} failed; server details were suppressed.`);
+  }
 }
 
 async function installCommand(parsed: ParsedArgs): Promise<void> {
@@ -217,5 +247,12 @@ function callDynamic(
     id: AdminOperationId,
     value: Record<string, unknown>,
   ) => Promise<{ readonly data: unknown }>;
-  return call(operationId, request);
+  return call.call(client, operationId, request);
+}
+
+function isSafeSecretResponseError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /returned an invalid one-time-secret response; no output was emitted\.$/.test(error.message)
+  );
 }

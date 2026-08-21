@@ -12,6 +12,11 @@ the generated request or response contract.
 Common options: `--body @file.json`, repeated `--path name=value`, repeated
 `--query name=value`, `--json`, `--dry-run`, `--yes`, and `--profile <name>`.
 
+The six one-time-secret operations (`createAdminApiKey`, `rotateAdminApiKey`, `registerOAuthClient`, `createEmbedKey`, `issueAdminOperatorBearer`, `rotateEmbedKey`) fail closed unless
+`--secret-output <new-private-file>` is supplied. The CLI atomically creates that file with
+private permissions, refuses overwrite/reuse, and prints only allowlisted resource metadata plus
+the sink path and SHA-256 digest; plaintext material is never written to stdout or stderr.
+
 ## connect
 
 | Operation ID | Method | Path | Summary |

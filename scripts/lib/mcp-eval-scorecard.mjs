@@ -15,6 +15,7 @@
 //   - cross-model eval report  — schemaVersion 4, has `models` + `results`
 //   - certification report     — schemaVersion 2, has `tools` + `contracts`
 
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -457,11 +458,38 @@ export function loadAdminFamilyScorecard(projectRoot) {
     throw new Error(`${ADMIN_FAMILY_PATH} must publish its certification checks.`);
   }
   const source = JSON.parse(fs.readFileSync(path.join(projectRoot, "config/admin-client.v1.json"), "utf8"));
+  const contract = source.adminMcpContract;
+  const coveragePath = path.join(projectRoot, contract.coveragePath);
+  const coverageText = fs.readFileSync(coveragePath, "utf8").replace(/\r\n/g, "\n");
+  const coverageSha256 = createHash("sha256").update(coverageText).digest("hex");
+  const coverage = JSON.parse(coverageText);
+  const exclusionRosterSha256 = createHash("sha256")
+    .update(JSON.stringify(coverage.excluded))
+    .digest("hex");
   if (
     value.restOperationCount !== source.operationCount ||
-    value.expectedPublishedTools !== source.publishedAdminOperationCount ||
+    value.expectedPublishedTools !== contract.publishedOperationCount ||
+    value.expectedExcludedOperations !== contract.excludedOperationCount ||
+    value.defaultStaticToolCount !== contract.defaultStaticToolCount ||
+    value.expectedDefaultTotalTools !== contract.defaultTotalToolCount ||
+    value.restOperationCount !== value.expectedPublishedTools + value.expectedExcludedOperations ||
+    value.expectedDefaultTotalTools !== value.defaultStaticToolCount + value.expectedPublishedTools ||
     value.adminApi.sha !== source.serverSha ||
     value.adminApi.sha256 !== source.specSha256 ||
+    value.adminMcpCoverage.path !== contract.coveragePath ||
+    value.adminMcpCoverage.sha256 !== contract.coverageSha256 ||
+    value.adminMcpCoverage.sha256 !== coverageSha256 ||
+    value.adminMcpCoverage.exclusionRosterSha256 !== contract.exclusionRosterSha256 ||
+    value.adminMcpCoverage.exclusionRosterSha256 !== exclusionRosterSha256 ||
+    value.adminMcpCoverage.serverSha !== contract.serverSha ||
+    value.adminMcpCoverage.reviewServerSha !== contract.reviewServerSha ||
+    value.adminMcpCoverage.status !== contract.status ||
+    coverage.schemaVersion !== "honua.admin-mcp-coverage.v1" ||
+    coverage.summary?.openApiOperationCount !== value.restOperationCount ||
+    coverage.summary?.projectedOperationCount !== value.expectedPublishedTools ||
+    coverage.summary?.excludedOperationCount !== value.expectedExcludedOperations ||
+    coverage.projected?.length !== value.expectedPublishedTools ||
+    coverage.excluded?.length !== value.expectedExcludedOperations ||
     value.releaseCandidate.serverSha !== source.releaseManifestServerSha ||
     value.releaseCandidate.restOperationCount !== source.releaseManifestOperationCount
   ) {
@@ -716,13 +744,13 @@ export function renderScorecardMarkdown(model) {
     push(
       "## Admin operation family",
       "",
-      `The generated Admin REST client covers **${admin.restOperationCount} operations**; the server-owned semantic MCP family is bounded to **${admin.expectedPublishedTools} tools**. The row stays blocked until those descriptors are certified against the same release candidate through both HTTP and the proxy.`,
+      `The generated Admin REST client covers **${admin.restOperationCount} operations**: **${admin.expectedPublishedTools}** are published as Admin MCP tools and **${admin.expectedExcludedOperations}** one-time-secret/session operations are explicitly excluded. The default server roster is **${admin.expectedDefaultTotalTools} tools** = **${admin.defaultStaticToolCount} static** + **${admin.expectedPublishedTools} Admin MCP**. The row stays blocked until that exact paginated roster is certified against the same release candidate through both HTTP and the proxy.`,
       "",
-      "| Family | REST operations | Expected MCP tools | HTTP/proxy parity | Approval outcomes | `secret_ref` | Candidate status |",
-      "| --- | ---: | ---: | --- | --- | --- | --- |",
-      `| ${code(admin.family)} | ${admin.restOperationCount} | ${admin.expectedPublishedTools} | ${cell(admin.checks[0].status)} | ${cell(admin.checks[1].status)} | ${cell(admin.checks[2].status)} | ${cell(admin.releaseCandidate.status)} (${code(admin.releaseCandidate.serverSha)}, ${admin.releaseCandidate.restOperationCount} REST operations) |`,
+      "| Family | REST | Published | Excluded | Static | Default total | HTTP/proxy parity | Approval outcomes | Secret handling | Candidate status |",
+      "| --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- |",
+      `| ${code(admin.family)} | ${admin.restOperationCount} | ${admin.expectedPublishedTools} | ${admin.expectedExcludedOperations} | ${admin.defaultStaticToolCount} | ${admin.expectedDefaultTotalTools} | ${cell(admin.checks[0].status)} | ${cell(admin.checks[1].status)} | ${cell(admin.checks[2].status)} | ${cell(admin.releaseCandidate.status)} (${code(admin.releaseCandidate.serverSha)}, ${admin.releaseCandidate.restOperationCount} REST operations) |`,
       "",
-      `Evidence definition: ${link(admin.checks[0].evidence, admin.checks[0].evidence)}. Source contract: ${code(admin.adminApi.sha)} / ${code(admin.adminApi.sha256)}. This is a readiness row, not a fabricated live pass receipt.`,
+      `Evidence definition: ${link(admin.checks[0].evidence, admin.checks[0].evidence)}. REST source: ${code(admin.adminApi.sha)} / ${code(admin.adminApi.sha256)}. MCP coverage: ${link(admin.adminMcpCoverage.path, admin.adminMcpCoverage.path)} / ${code(admin.adminMcpCoverage.sha256)}; exclusion roster ${code(admin.adminMcpCoverage.exclusionRosterSha256)}. Reviewed server head: ${code(admin.adminMcpCoverage.reviewServerSha)}. Final server contract head: ${admin.adminMcpCoverage.serverSha ? code(admin.adminMcpCoverage.serverSha) : cell(admin.adminMcpCoverage.status)}. This is a readiness row, not a fabricated live pass receipt.`,
       "",
     );
   }

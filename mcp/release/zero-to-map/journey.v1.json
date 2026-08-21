@@ -19,6 +19,8 @@
     "dbPort": 5432,
     "dbName": "honua",
     "dbUser": "honua",
+    "dbSecretReference": "env:HONUA_ZERO_TO_MAP_DB_CONNECTION",
+    "dbSecretType": "environment",
     "serviceName": "zero-to-map",
     "route": "zero-to-map",
     "mapRoute": "zero-to-map-map",
@@ -36,7 +38,19 @@
           "id": "install-local",
           "title": "Run the control-plane Docker installer",
           "kind": "cli",
-          "args": ["admin", "install", "local", "--profile", "gp-dev", "--yes", "--directory", "${installDirectory}"]
+          "args": ["admin", "install", "local", "--profile", "gp-dev", "--yes", "--directory", "${installDirectory}"],
+          "captures": [
+            { "variable": "credentialId", "pointers": ["/accessCredential/id"] },
+            { "variable": "credentialRequestedGrants", "pointers": ["/accessCredential/requestedGrants"] },
+            { "variable": "credentialEffectiveGrants", "pointers": ["/accessCredential/effectiveGrants"] },
+            { "variable": "credentialReferenceDigest", "pointers": ["/accessCredential/referenceDigestSha256"] }
+          ],
+          "forbiddenPointers": [
+            "/accessCredential/material",
+            "/accessCredential/secret",
+            "/accessCredential/apiKey",
+            "/adminKey"
+          ]
         },
         {
           "id": "install-status",
@@ -59,6 +73,56 @@
           "arguments": {}
         },
         {
+          "id": "list-access-credentials",
+          "title": "List secret-safe access credential metadata through MCP",
+          "kind": "mcp",
+          "tool": "honua_admin_api_key_list",
+          "arguments": {},
+          "forbiddenPointers": [
+            "/structuredContent/key",
+            "/structuredContent/data/key",
+            "/structuredContent/accessToken"
+          ]
+        },
+        {
+          "id": "verify-access-credential",
+          "title": "Verify the provisioned credential identity and effective grants through MCP",
+          "kind": "mcp",
+          "tool": "honua_admin_api_key_effective_permissions",
+          "arguments": { "id": "${credentialId}" },
+          "captures": [
+            {
+              "variable": "verifiedCredentialId",
+              "pointers": ["/structuredContent/details/response"],
+              "parsedPointers": ["/data/id"],
+              "equals": "${credentialId}"
+            },
+            {
+              "variable": "verifiedCredentialStatus",
+              "pointers": ["/structuredContent/details/response"],
+              "parsedPointers": ["/data/status"],
+              "equals": "active"
+            },
+            {
+              "variable": "verifiedCredentialCanAuthenticate",
+              "pointers": ["/structuredContent/details/response"],
+              "parsedPointers": ["/data/canAuthenticate"],
+              "equals": true
+            },
+            {
+              "variable": "verifiedCredentialGrants",
+              "pointers": ["/structuredContent/details/response"],
+              "parsedPointers": ["/data/permissions"],
+              "equals": "${credentialEffectiveGrants}"
+            }
+          ],
+          "forbiddenPointers": [
+            "/structuredContent/key",
+            "/structuredContent/data/key",
+            "/structuredContent/accessToken"
+          ]
+        },
+        {
           "id": "create-connection",
           "title": "Create the fixture PostGIS connection",
           "kind": "mcp",
@@ -71,7 +135,8 @@
               "port": "${dbPort}",
               "databaseName": "${dbName}",
               "username": "${dbUser}",
-              "password": "${dbPassword}",
+              "secretReference": "${dbSecretReference}",
+              "secretType": "${dbSecretType}",
               "sslRequired": false,
               "sslMode": "Disable"
             }
@@ -187,18 +252,6 @@
           "arguments": {
             "serviceName": "${serviceName}",
             "body": { "allowAnonymous": true, "allowAnonymousWrite": false }
-          }
-        },
-        {
-          "id": "create-scoped-key",
-          "title": "Create the scoped journey API key",
-          "kind": "mcp",
-          "tool": "honua_admin_api_key_create",
-          "arguments": {
-            "body": {
-              "name": "zero-to-map-release",
-              "permissions": ["read:${serviceName}"]
-            }
           }
         }
       ]

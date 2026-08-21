@@ -1,4 +1,17 @@
+import { createHash } from "node:crypto";
+
 export const AWS_ECS_PROVISION_BINDING_SCHEMA = "honua.aws-ecs.provision-binding/v1" as const;
+export const ZERO_TO_MAP_ACCESS_GRANTS = ["admin:read", "admin:write"] as const;
+
+export interface ProvisionedAccessCredentialReceipt {
+  readonly id: string;
+  readonly requestedGrants: readonly string[];
+  readonly effectiveGrants: readonly string[];
+  readonly status: "active";
+  readonly canAuthenticate: true;
+  readonly referenceType: "aws-secrets-manager";
+  readonly referenceDigestSha256: string;
+}
 
 export interface AwsEcsProvisionBinding {
   readonly schemaVersion: typeof AWS_ECS_PROVISION_BINDING_SCHEMA;
@@ -8,6 +21,7 @@ export interface AwsEcsProvisionBinding {
   readonly releaseId: string;
   readonly endpoint: string;
   readonly adminKeySecretRef: string;
+  readonly accessCredential: ProvisionedAccessCredentialReceipt;
   readonly serverImage: string;
   readonly components: Readonly<Record<"honua-server" | "honua-devops" | "honua-iac", string>>;
   readonly checks: Readonly<Record<"terraform-plan" | "terraform-apply" | "readiness" | "admin-mcp-handoff", "passed">>;
@@ -30,6 +44,7 @@ export function parseAwsEcsProvisionBinding(value: unknown): AwsEcsProvisionBind
       "releaseId",
       "endpoint",
       "adminKeySecretRef",
+      "accessCredential",
       "serverImage",
       "components",
       "checks",
@@ -55,6 +70,41 @@ export function parseAwsEcsProvisionBinding(value: unknown): AwsEcsProvisionBind
     /^arn:aws(?:-us-gov|-cn)?:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$/,
     "AWS ECS provision binding adminKeySecretRef",
   );
+  const accessCredential = object(binding.accessCredential, "AWS ECS provision binding accessCredential");
+  exactKeys(
+    accessCredential,
+    ["id", "requestedGrants", "effectiveGrants", "status", "canAuthenticate", "referenceType", "referenceDigestSha256"],
+    "AWS ECS provision binding accessCredential",
+  );
+  const requestedGrants = stringList(
+    accessCredential.requestedGrants,
+    "AWS ECS provision binding accessCredential.requestedGrants",
+  );
+  const effectiveGrants = stringList(
+    accessCredential.effectiveGrants,
+    "AWS ECS provision binding accessCredential.effectiveGrants",
+  );
+  if (!sameStrings(requestedGrants, effectiveGrants)) {
+    throw new Error("AWS ECS provision binding requested and effective grants must match");
+  }
+  if (!sameStrings(requestedGrants, ZERO_TO_MAP_ACCESS_GRANTS)) {
+    throw new Error("AWS ECS provision binding access credential is not scoped to the required release grants");
+  }
+  if (accessCredential.status !== "active" || accessCredential.canAuthenticate !== true) {
+    throw new Error("AWS ECS provision binding access credential must be active and able to authenticate");
+  }
+  if (accessCredential.referenceType !== "aws-secrets-manager") {
+    throw new Error("AWS ECS provision binding access credential referenceType must be aws-secrets-manager");
+  }
+  const referenceDigestSha256 = pattern(
+    accessCredential.referenceDigestSha256,
+    /^[0-9a-f]{64}$/,
+    "AWS ECS provision binding accessCredential.referenceDigestSha256",
+  );
+  const expectedReferenceDigest = createHash("sha256").update(adminKeySecretRef, "utf8").digest("hex");
+  if (referenceDigestSha256 !== expectedReferenceDigest) {
+    throw new Error("AWS ECS provision binding access credential reference digest does not match its secret reference");
+  }
   const serverImage = pattern(
     binding.serverImage,
     /^ghcr\.io\/honua-io\/honua-server:[^@]+@sha256:[0-9a-f]{64}$/,
@@ -82,6 +132,19 @@ export function parseAwsEcsProvisionBinding(value: unknown): AwsEcsProvisionBind
     releaseId,
     endpoint,
     adminKeySecretRef,
+    accessCredential: {
+      id: pattern(
+        accessCredential.id,
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        "AWS ECS provision binding accessCredential.id",
+      ),
+      requestedGrants,
+      effectiveGrants,
+      status: "active",
+      canAuthenticate: true,
+      referenceType: "aws-secrets-manager",
+      referenceDigestSha256,
+    },
     serverImage,
     components: {
       "honua-server": revision(components["honua-server"], "AWS ECS provision binding honua-server SHA"),
@@ -172,4 +235,15 @@ function pattern(value: unknown, regex: RegExp, path: string): string {
 
 function revision(value: unknown, path: string): string {
   return pattern(value, /^[0-9a-f]{40}$/, path);
+}
+
+function stringList(value: unknown, path: string): readonly string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.some((item) => typeof item !== "string" || !item)) {
+    throw new Error(`${path} must be a non-empty string array`);
+  }
+  return value;
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return [...new Set(left)].sort().join("\n") === [...new Set(right)].sort().join("\n");
 }

@@ -34,6 +34,7 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "path", multiple: true },
   { name: "query", multiple: true },
   { name: "header", multiple: true },
+  { name: "secret-output" },
   { name: "directory" },
   { name: "http-port" },
   { name: "locator" },

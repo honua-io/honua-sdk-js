@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ADMIN_MCP_PUBLISHED_TOOL_NAMES, MCP_DEFAULT_STATIC_TOOL_COUNT } from "@honua/sdk-js/control-plane";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -32,6 +34,17 @@ const bindings: ZeroToMapCheckpointBindings = {
   candidateId: `manifest-sha256:${"4".repeat(64)}`,
   releaseId: "2026.1",
 };
+
+function completeCatalog(requiredTool: string) {
+  const staticNames = new Set([requiredTool]);
+  for (let index = 0; staticNames.size < MCP_DEFAULT_STATIC_TOOL_COUNT; index += 1) {
+    staticNames.add(`honua_fixture_static_${String(index).padStart(2, "0")}`);
+  }
+  return [
+    ...ADMIN_MCP_PUBLISHED_TOOL_NAMES.map((name) => ({ name, inputSchema: { type: "object" } })),
+    ...[...staticNames].map((name) => ({ name, inputSchema: { type: "object" } })),
+  ];
+}
 
 function fixturePlan() {
   return parseZeroToMapPlan({
@@ -214,6 +227,23 @@ describe("zero-to-map pause/resume checkpoint", () => {
       }),
     ).toThrow("forbidden credential field");
 
+    const secretFreeAccess = structuredClone(snapshot);
+    const firstAction = secretFreeAccess.completedStages[0]?.actions[0];
+    if (!firstAction) throw new Error("fixture action missing");
+    (firstAction as { evidence?: Readonly<Record<string, unknown>> }).evidence = {
+      accessCredential: {
+        id: "11111111-1111-4111-8111-111111111111",
+        requestedGrants: ["admin:read", "admin:write"],
+        effectiveGrants: ["admin:read", "admin:write"],
+        referenceDigestSha256: "a".repeat(64),
+      },
+    };
+    expect(() => createZeroToMapCheckpoint(bindings, secretFreeAccess)).not.toThrow();
+    (firstAction as { evidence?: Readonly<Record<string, unknown>> }).evidence = {
+      material: "must-never-enter-a-checkpoint",
+    };
+    expect(() => createZeroToMapCheckpoint(bindings, secretFreeAccess)).toThrow("forbidden credential field");
+
     const consumed = consumeZeroToMapCheckpoint(checkpoint, "a".repeat(64), "2026-08-20T12:10:00Z");
     expect(parseZeroToMapCheckpoint(consumed).state).toBe("consumed");
     expect(() => consumeZeroToMapCheckpoint(consumed, "b".repeat(64))).toThrow("already been consumed");
@@ -254,6 +284,7 @@ describe("zero-to-map pause/resume checkpoint", () => {
 
   it("strictly binds the producer-owned AWS ECS provision handoff", () => {
     const candidateId = `manifest-sha256:${"a".repeat(64)}`;
+    const adminKeySecretRef = "arn:aws:secretsmanager:us-west-2:123456789012:secret:honua/admin-key";
     const binding = parseAwsEcsProvisionBinding({
       schemaVersion: "honua.aws-ecs.provision-binding/v1",
       target: "aws-ecs",
@@ -261,7 +292,16 @@ describe("zero-to-map pause/resume checkpoint", () => {
       candidateId,
       releaseId: "2026.1",
       endpoint: "https://candidate.example.test",
-      adminKeySecretRef: "arn:aws:secretsmanager:us-west-2:123456789012:secret:honua/admin-key",
+      adminKeySecretRef,
+      accessCredential: {
+        id: "11111111-1111-4111-8111-111111111111",
+        requestedGrants: ["admin:read", "admin:write"],
+        effectiveGrants: ["admin:read", "admin:write"],
+        status: "active",
+        canAuthenticate: true,
+        referenceType: "aws-secrets-manager",
+        referenceDigestSha256: createHash("sha256").update(adminKeySecretRef, "utf8").digest("hex"),
+      },
       serverImage: `ghcr.io/honua-io/honua-server:2026.1@sha256:${"b".repeat(64)}`,
       components: {
         "honua-server": "c".repeat(40),
@@ -293,6 +333,16 @@ describe("zero-to-map pause/resume checkpoint", () => {
     expect(() => parseAwsEcsProvisionBinding({ ...binding, endpoint: "http://127.0.0.1:8080" })).toThrow(
       "public HTTPS",
     );
+    expect(() =>
+      parseAwsEcsProvisionBinding({
+        ...binding,
+        accessCredential: {
+          ...binding.accessCredential,
+          requestedGrants: ["admin:approve", "admin:read", "admin:write"],
+          effectiveGrants: ["admin:approve", "admin:read", "admin:write"],
+        },
+      }),
+    ).toThrow("not scoped to the required release grants");
   });
 
   it("rejects publication identity or URL leakage before Console approval", async () => {
@@ -321,7 +371,7 @@ describe("zero-to-map pause/resume checkpoint", () => {
       plan,
       adapter({
         runCli: async () => ({ value: { id: "runtime" } }),
-        listTools: async () => [{ name: "honua_studio_propose_publication", inputSchema: { type: "object" } }],
+        listTools: async () => completeCatalog("honua_studio_propose_publication"),
         callTool: async () => ({
           value: {
             structuredContent: {
