@@ -104,10 +104,20 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     if (!objectIdField) throw new Error("gRPC response did not identify an object-id field");
 
     const firstPage = await runWithDiagnostics(context, "grpc first page", () =>
-      grpc.queryFeatures({ ...baseQuery, orderByFields: `${objectIdField} ASC`, resultOffset: 0, resultRecordCount: 1 }),
+      grpc.queryFeatures({
+        ...baseQuery,
+        orderByFields: `${objectIdField} ASC`,
+        resultOffset: 0,
+        resultRecordCount: 1,
+      }),
     );
     const secondPage = await runWithDiagnostics(context, "grpc second page", () =>
-      grpc.queryFeatures({ ...baseQuery, orderByFields: `${objectIdField} ASC`, resultOffset: 1, resultRecordCount: 1 }),
+      grpc.queryFeatures({
+        ...baseQuery,
+        orderByFields: `${objectIdField} ASC`,
+        resultOffset: 1,
+        resultRecordCount: 1,
+      }),
     );
     expect(firstPage.features).toHaveLength(1);
     expect(secondPage.features).toHaveLength(1);

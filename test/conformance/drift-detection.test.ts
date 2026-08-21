@@ -91,9 +91,9 @@ describe("conformance gate effectiveness (negative drift detection)", () => {
   });
 
   it("fails closed when canonical int64 pagination cannot be represented exactly", () => {
-    expect(() =>
-      canonRequestToQuery({ ...CANON_REQUEST, resultOffsetLong: "9007199254740992" }),
-    ).toThrow(/safe-integer boundary/);
+    expect(() => canonRequestToQuery({ ...CANON_REQUEST, resultOffsetLong: "9007199254740992" })).toThrow(
+      /safe-integer boundary/,
+    );
     expect(() => canonRequestToQuery({ ...CANON_REQUEST, resultRecordCountLong: "1.5" })).toThrow(
       /canonical non-negative int64/,
     );
