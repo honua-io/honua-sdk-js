@@ -44,3 +44,35 @@ test("marks evidence incomplete when a suite report is unavailable", () => {
   assert.equal(fragment.complete, false);
   assert.ok(fragment.observations.every((row) => row.result === "skip"));
 });
+
+test("matches canonical assertion wording without certifying neighboring operations", () => {
+  const fragment = buildFragment({
+    identity,
+    now: "2026-08-20T00:00:00.000Z",
+    reports: [{ testResults: [
+      {
+        name: "MapServer integration",
+        assertionResults: [{ title: "queries features", status: "passed" }],
+      },
+      {
+        name: "STAC integration",
+        assertionResults: [{
+          title: "fetches the configured STAC collection when it is advertised",
+          status: "passed",
+        }],
+      },
+      {
+        name: "OGC Processes integration",
+        assertionResults: [{ title: "returns conformance", status: "passed" }],
+      },
+    ] }],
+  });
+
+  const row = (surface, operation) => fragment.observations.find(
+    (candidate) => candidate.surface === surface && candidate.operation === operation,
+  );
+  assert.equal(row("mapserver", "query").result, "pass");
+  assert.equal(row("stac", "collection").result, "pass");
+  assert.equal(row("ogc-processes", "conformance").result, "pass");
+  assert.equal(row("ogc-processes", "list").result, "skip");
+});
