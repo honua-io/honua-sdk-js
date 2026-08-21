@@ -144,8 +144,13 @@ function facetsFor(operation) {
 
 export function buildFragment({ reports, identity, complete = true, now = new Date().toISOString() }) {
   const tests = reports.flatMap(assertions);
-  const evidenceReceipt = { format: "honua.sdk-js.jest-reports/v1", reports };
-  const evidenceDigest = `sha256:${createHash("sha256").update(canonicalJson(evidenceReceipt)).digest("hex")}`;
+  const payloadBase64 = Buffer.from(JSON.stringify(reports), "utf8").toString("base64");
+  const requiredMarkers = OPERATIONS.flatMap(([surface, operation]) =>
+    facetsFor(operation).map((facet) => `[cert:${surface}/${operation}#${facet}]`)
+  );
+  const observedMarkers = new Set(
+    tests.flatMap(({ text }) => requiredMarkers.filter((marker) => text.includes(marker))),
+  );
   return {
     schema: "honua.protocol-certification-fragment/v1",
     producer: "honua-sdk-js",
@@ -155,7 +160,10 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
       image_digest: identity.imageDigest,
       cut_at: identity.cutAt,
     },
-    operation_scope: { complete, owner_issue: GAP_OWNER },
+    operation_scope: {
+      complete: complete && requiredMarkers.every((marker) => observedMarkers.has(marker)),
+      owner_issue: GAP_OWNER,
+    },
     observations: OPERATIONS.map(([surface, operation, surfacePattern, operationPattern, titlePattern]) => {
       const matches = tests.filter(({ text, title }) =>
         surfacePattern.test(text) && operationPattern.test(text) && (!titlePattern || titlePattern.test(title))
@@ -167,6 +175,35 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
       const result = Object.values(facetStatuses).some((status) => status === "fail")
         ? "fail"
         : Object.values(facetStatuses).every((status) => status === "pass") ? "pass" : "skip";
+      const normalizedFacets = Object.fromEntries(
+        scenarioFacets.map((facet) => [facet, facetStatuses[facet] === "pass" ? "pass" : "fail"]),
+      );
+      const startedAt = identity.startedAt ?? now;
+      const contractRevision = `sdk-js-certification@${identity.producerSourceSha}`;
+      const evidenceReceipt = result === "skip" ? null : {
+        schema: "honua.certification-evidence-receipt/v1",
+        identity: {
+          capability_key: CAPABILITIES[surface],
+          surface,
+          operation,
+          canonical_client: "@honua/sdk-js",
+          client_version: identity.clientVersion,
+          deployment_target: identity.deploymentTarget,
+          source_sha: identity.sourceSha,
+          producer_source_sha: identity.producerSourceSha,
+          image_digest: identity.imageDigest,
+          fixture_revision: identity.fixtureRevision,
+          contract_revision: contractRevision,
+          auth_policy_revision: AUTH_POLICY_REVISION,
+          started_at: startedAt,
+          completed_at: now,
+        },
+        result,
+        facets: normalizedFacets,
+        payload_base64: payloadBase64,
+      };
+      const evidenceDigest = evidenceReceipt === null ? null
+        : `sha256:${createHash("sha256").update(canonicalJson(evidenceReceipt)).digest("hex")}`;
       return {
         capability_key: CAPABILITIES[surface],
         surface,
@@ -181,7 +218,7 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
         producer_source_sha: identity.producerSourceSha,
         image_digest: identity.imageDigest,
         fixture_revision: identity.fixtureRevision,
-        contract_revision: `sdk-js-certification@${identity.producerSourceSha}`,
+        contract_revision: contractRevision,
         auth_policy_revision: AUTH_POLICY_REVISION,
         evidence_uri: result === "skip" ? null : `https://evidence.honua.io/data/sha256/${evidenceDigest.slice(7)}`,
         evidence_digest: result === "skip" ? null : evidenceDigest,
@@ -190,12 +227,12 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
           scenarioFacets.map((facet) => [
             facet,
             {
-              result: facetStatuses[facet] === "pass" ? "pass" : "fail",
+              result: normalizedFacets[facet],
               evidence_digest: evidenceDigest,
             },
           ]),
         ),
-        started_at: identity.startedAt ?? now,
+        started_at: startedAt,
         completed_at: now,
         failure_messages: result === "fail" ? matches.flatMap(({ failures }) => failures) : [],
       };
