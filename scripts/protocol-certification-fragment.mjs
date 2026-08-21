@@ -58,7 +58,7 @@ const OPERATIONS = [
   ["odata", "metadata", /odata/i, /metadata/i],
   ["odata", "entity-page", /odata/i, /entit|page|list/i],
   ["ogc-features", "landing", /ogc.*feature/i, /landing/i],
-  ["ogc-features", "conformance", /ogc.*feature/i, /conformance/i],
+  ["ogc-features", "conformance", /ogc.*feature/i, /conformance/i, /^declares OGC Features conformance classes$/i],
   ["ogc-features", "collections", /ogc.*feature/i, /collections/i],
   ["ogc-features", "items", /ogc.*feature/i, /items|paginated/i],
   ["ogc-features", "item", /ogc.*feature/i, /item.*id|single.?item/i],
@@ -103,6 +103,7 @@ function assertions(report) {
   return (report?.testResults ?? []).flatMap((suite) =>
     (suite.assertionResults ?? []).map((test) => ({
       text: [suite.name, ...(test.ancestorTitles ?? []), test.fullName, test.title].filter(Boolean).join(" "),
+      title: String(test.title ?? ""),
       status: String(test.status ?? "unknown").toLowerCase(),
       failures: test.failureMessages ?? [],
     })),
@@ -137,8 +138,10 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
       cut_at: identity.cutAt,
     },
     operation_scope: { complete, owner_issue: GAP_OWNER },
-    observations: OPERATIONS.map(([surface, operation, surfacePattern, operationPattern]) => {
-      const matches = tests.filter(({ text }) => surfacePattern.test(text) && operationPattern.test(text));
+    observations: OPERATIONS.map(([surface, operation, surfacePattern, operationPattern, titlePattern]) => {
+      const matches = tests.filter(({ text, title }) =>
+        surfacePattern.test(text) && operationPattern.test(text) && (!titlePattern || titlePattern.test(title))
+      );
       const result = statusFor(matches);
       return {
         capability_key: CAPABILITIES[surface],

@@ -188,3 +188,24 @@ test("keeps WMTS capabilities independent from the tile assertion", () => {
   assert.equal(row("capabilities").result, "pass");
   assert.equal(row("get-tile").result, "fail");
 });
+
+test("certifies OGC Features conformance only from the dedicated endpoint assertion", () => {
+  const fragment = buildFragment({
+    identity,
+    reports: [{ testResults: [
+      {
+        name: "test/conformance/feature-service.conformance.ts",
+        assertionResults: [{ title: "preserves the conformance projection shape", status: "passed" }],
+      },
+      {
+        name: "test/integration/surfaces/ogc-features.integration.ts OGC API Features",
+        assertionResults: [{ title: "declares OGC Features conformance classes", status: "failed" }],
+      },
+    ] }],
+  });
+
+  const conformance = fragment.observations.find(
+    (candidate) => candidate.surface === "ogc-features" && candidate.operation === "conformance",
+  );
+  assert.equal(conformance.result, "fail");
+});
