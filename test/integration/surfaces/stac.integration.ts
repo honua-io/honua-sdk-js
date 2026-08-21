@@ -26,7 +26,9 @@ integrationSuite("STAC", "stac", ({ client, context, config }) => {
     });
   });
 
-  it("fetches the configured STAC collection when it is advertised [cert:stac/collection#positive] [cert:stac/collection#media-schema]", async ({ skip }) => {
+  it("fetches the configured STAC collection when it is advertised [cert:stac/collection#positive] [cert:stac/collection#media-schema]", async ({
+    skip,
+  }) => {
     const collections = await runWithDiagnostics(context, "client.stac().collections", async () => stac.collections());
     const ids = collections.collections.map((entry) => String(entry.id));
     if (!ids.includes(String(config.stacCollectionId))) {

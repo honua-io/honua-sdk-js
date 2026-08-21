@@ -20,7 +20,9 @@ integrationSuite("WMS", "wms", ({ client, context, config }) => {
     });
   });
 
-  it("renders a GetMap image for the first advertised layer [cert:wms/get-map#positive] [cert:wms/get-map#media-schema]", async ({ skip }) => {
+  it("renders a GetMap image for the first advertised layer [cert:wms/get-map#positive] [cert:wms/get-map#media-schema]", async ({
+    skip,
+  }) => {
     const capabilities = await runWithDiagnostics(context, "client.wms().capabilities", async () => {
       const r = await wms.capabilities();
       expect(r.version.length).toBeGreaterThan(0);

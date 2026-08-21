@@ -36,7 +36,9 @@ integrationSuite("OGC API Processes", "ogc-processes", ({ client, context }) => 
     });
   });
 
-  it("describes the first registered process when one exists [cert:ogc-processes/describe#positive] [cert:ogc-processes/describe#metadata] [cert:ogc-processes/describe#media-schema]", async ({ skip }) => {
+  it("describes the first registered process when one exists [cert:ogc-processes/describe#positive] [cert:ogc-processes/describe#metadata] [cert:ogc-processes/describe#media-schema]", async ({
+    skip,
+  }) => {
     const list = await runWithDiagnostics(context, "client.ogcProcesses().list", async () => {
       const r = await processes.list();
       expect(Array.isArray(r.processes)).toBe(true);

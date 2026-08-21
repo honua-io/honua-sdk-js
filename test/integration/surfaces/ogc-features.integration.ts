@@ -48,7 +48,9 @@ integrationSuite("OGC API Features", "ogc-features", ({ client, context, config 
     });
   });
 
-  it("fetches a single item by id [cert:ogc-features/item#positive] [cert:ogc-features/item#media-schema]", async ({ skip }) => {
+  it("fetches a single item by id [cert:ogc-features/item#positive] [cert:ogc-features/item#media-schema]", async ({
+    skip,
+  }) => {
     const items = await runWithDiagnostics(context, "client.ogcFeatures().collection().items", async () => {
       const r = await collection.items({ limit: 1 });
       expect(r.type).toBe("FeatureCollection");
