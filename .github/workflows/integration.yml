@@ -55,10 +55,10 @@ env:
   # deliberate, reviewable change. The vendored seed
   # (test/integration/seed/places-roads-v1.sql) is refreshed 1:1 with this pin.
   #
-  # Pinned to the 2026-07-05 honua-server nightly (commit 6d34dd1, digest
-  # sha256:4c17c4feaedb880606684c5c013119fe7dfb16cab6ad663383164f31bade6157).
-  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server:nightly-6d34dd1' }}
-  HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || '6d34dd1' }}
+  # Pinned to the current nightly candidate identity. Repository overrides must
+  # also be immutable digest references so evidence cannot drift between runs.
+  HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:78e3088d64d832d3e2752c87d80bfcad201b414f4525989ca5d9a242cd5fee8a' }}
+  HONUA_INTEGRATION_SERVER_COMMIT: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT || 'f897700159e2791c9468c6ca85bb4e2a3a8d8433' }}
   HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.3' }}
   # Deterministic container passwords for the self-contained stack. These are
   # NOT secrets (the stack is ephemeral and never exposed off the runner); the
@@ -72,7 +72,7 @@ env:
 jobs:
   integration:
     name: Integration + Conformance
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       # External-override credentials/target (empty in self-contained mode). The
       # self-contained mode overwrites the base URL and surface coordinates via
@@ -241,6 +241,12 @@ jobs:
       - name: Run live conformance round-trip
         run: npm run test:conformance -- --reporter=default --reporter=json --outputFile=test-results/conformance-vitest.json
 
+      - name: Emit protocol certification fragment
+        if: always()
+        env:
+          HONUA_EVIDENCE_URI: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/protocol-certification-fragment.mjs
+
       - name: Dump server logs on failure
         if: ${{ failure() && steps.mode.outputs.mode == 'self-contained' }}
         run: |
@@ -256,6 +262,7 @@ jobs:
             test-results/integration-meta.json
             test-results/integration-vitest.json
             test-results/conformance-vitest.json
+            test-results/protocol-certification-fragment.json
           if-no-files-found: warn
 
       # The summary distinguishes EXECUTED (self-contained | external) from a
@@ -314,7 +321,7 @@ jobs:
 
   conformance-guardrail:
     name: Conformance Drift Guardrail
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Effectiveness guardrail — ALWAYS runs, independent of the server lane.
     # Proves the conformance gate catches a mutated golden (renamed/removed
     # field, type change, dropped geometry/attribute, flipped
