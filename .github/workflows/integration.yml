@@ -99,6 +99,11 @@ jobs:
       HONUA_LICENSED_CERTIFICATION_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_BASE_URL || '' }}
       HONUA_LICENSED_CERTIFICATION_ALLOWED_HOST: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_ALLOWED_HOST || '' }}
       HONUA_LICENSED_CERTIFICATION_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && secrets.HONUA_LICENSED_CERTIFICATION_API_KEY || '' }}
+      HONUA_LICENSED_CERTIFICATION_SERVER_COMMIT: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_SERVER_COMMIT || '' }}
+      HONUA_LICENSED_CERTIFICATION_SERVER_IMAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_SERVER_IMAGE || '' }}
+      HONUA_LICENSED_CERTIFICATION_CANDIDATE_CUT_AT: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_CANDIDATE_CUT_AT || '' }}
+      HONUA_LICENSED_CERTIFICATION_FIXTURES_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_FIXTURES_VERSION || '' }}
+      HONUA_LICENSED_CERTIFICATION_SEED_PROFILE: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_SEED_PROFILE || '' }}
       HONUA_INTEGRATION_SEED_PROFILE: ${{ github.event.inputs.seed_profile || vars.HONUA_INTEGRATION_SEED_PROFILE || 'places-roads-v1' }}
       HONUA_INTEGRATION_SERVICE_ID: ${{ vars.HONUA_INTEGRATION_SERVICE_ID || 'test_service_gw0' }}
       HONUA_INTEGRATION_LAYER_ID: ${{ vars.HONUA_INTEGRATION_LAYER_ID || '1000' }}
@@ -122,12 +127,34 @@ jobs:
           if [ "${HONUA_LICENSED_CERTIFICATION:-false}" = "true" ]; then
             if [ -z "${HONUA_LICENSED_CERTIFICATION_BASE_URL:-}" ] ||
                [ -z "${HONUA_LICENSED_CERTIFICATION_ALLOWED_HOST:-}" ] ||
-               [ -z "${HONUA_LICENSED_CERTIFICATION_API_KEY:-}" ]; then
-              echo "::error::Licensed certification requires environment-scoped base URL, allowed host, and API key configuration."
+               [ -z "${HONUA_LICENSED_CERTIFICATION_API_KEY:-}" ] ||
+               [ -z "${HONUA_LICENSED_CERTIFICATION_SERVER_COMMIT:-}" ] ||
+               [ -z "${HONUA_LICENSED_CERTIFICATION_SERVER_IMAGE:-}" ] ||
+               [ -z "${HONUA_LICENSED_CERTIFICATION_CANDIDATE_CUT_AT:-}" ] ||
+               [ -z "${HONUA_LICENSED_CERTIFICATION_FIXTURES_VERSION:-}" ] ||
+               [ -z "${HONUA_LICENSED_CERTIFICATION_SEED_PROFILE:-}" ]; then
+              echo "::error::Licensed certification requires complete environment-scoped target and provenance configuration."
+              exit 1
+            fi
+            if ! [[ "$HONUA_LICENSED_CERTIFICATION_SERVER_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::Licensed certification server commit must be a lowercase full SHA."
+              exit 1
+            fi
+            if ! [[ "$HONUA_LICENSED_CERTIFICATION_SERVER_IMAGE" =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::Licensed certification server image must be an immutable lowercase sha256 reference."
+              exit 1
+            fi
+            if ! [[ "$HONUA_LICENSED_CERTIFICATION_FIXTURES_VERSION" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+              echo "::error::Licensed certification fixtures version has an invalid format."
+              exit 1
+            fi
+            if ! [[ "$HONUA_LICENSED_CERTIFICATION_SEED_PROFILE" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              echo "::error::Licensed certification seed profile has an invalid format."
               exit 1
             fi
             LICENSED_URL="$HONUA_LICENSED_CERTIFICATION_BASE_URL" \
             LICENSED_ALLOWED_HOST="$HONUA_LICENSED_CERTIFICATION_ALLOWED_HOST" \
+            LICENSED_CANDIDATE_CUT_AT="$HONUA_LICENSED_CERTIFICATION_CANDIDATE_CUT_AT" \
               node --input-type=module <<'EOF'
             const url = new URL(process.env.LICENSED_URL);
             if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
@@ -136,14 +163,37 @@ jobs:
             if (url.hostname !== process.env.LICENSED_ALLOWED_HOST || (url.port && url.port !== "443")) {
               throw new Error("Licensed certification base URL is not on the environment allowlist.");
             }
+            const candidateCut = process.env.LICENSED_CANDIDATE_CUT_AT;
+            const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/.exec(candidateCut ?? "");
+            const parsed = Date.parse(candidateCut ?? "");
+            if (!match || !Number.isFinite(parsed)) {
+              throw new Error("Licensed certification candidate cut must be a valid UTC timestamp.");
+            }
+            const date = new Date(parsed);
+            const [, year, month, day, hour, minute, second] = match.map(Number);
+            if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day || date.getUTCHours() !== hour || date.getUTCMinutes() !== minute || date.getUTCSeconds() !== second) {
+              throw new Error("Licensed certification candidate cut must be a valid UTC timestamp.");
+            }
             EOF
             HONUA_INTEGRATION_BASE_URL="$HONUA_LICENSED_CERTIFICATION_BASE_URL"
             HONUA_INTEGRATION_API_KEY="$HONUA_LICENSED_CERTIFICATION_API_KEY"
-            export HONUA_INTEGRATION_BASE_URL HONUA_INTEGRATION_API_KEY
+            HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE="$HONUA_LICENSED_CERTIFICATION_SERVER_COMMIT"
+            HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE="$HONUA_LICENSED_CERTIFICATION_SERVER_IMAGE"
+            HONUA_CANDIDATE_CUT_AT_OVERRIDE="$HONUA_LICENSED_CERTIFICATION_CANDIDATE_CUT_AT"
+            HONUA_CONFORMANCE_FIXTURES_VERSION="$HONUA_LICENSED_CERTIFICATION_FIXTURES_VERSION"
+            HONUA_INTEGRATION_SEED_PROFILE="$HONUA_LICENSED_CERTIFICATION_SEED_PROFILE"
+            HONUA_DEPLOYMENT_TARGET_OVERRIDE="licensed-release"
+            export HONUA_INTEGRATION_BASE_URL HONUA_INTEGRATION_API_KEY HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE HONUA_CANDIDATE_CUT_AT_OVERRIDE HONUA_CONFORMANCE_FIXTURES_VERSION HONUA_INTEGRATION_SEED_PROFILE HONUA_DEPLOYMENT_TARGET_OVERRIDE
             echo "::add-mask::$HONUA_INTEGRATION_API_KEY"
             {
               echo "HONUA_INTEGRATION_BASE_URL=$HONUA_INTEGRATION_BASE_URL"
               echo "HONUA_INTEGRATION_API_KEY=$HONUA_INTEGRATION_API_KEY"
+              echo "HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE=$HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE"
+              echo "HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE=$HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE"
+              echo "HONUA_CANDIDATE_CUT_AT_OVERRIDE=$HONUA_CANDIDATE_CUT_AT_OVERRIDE"
+              echo "HONUA_CONFORMANCE_FIXTURES_VERSION=$HONUA_CONFORMANCE_FIXTURES_VERSION"
+              echo "HONUA_INTEGRATION_SEED_PROFILE=$HONUA_INTEGRATION_SEED_PROFILE"
+              echo "HONUA_DEPLOYMENT_TARGET_OVERRIDE=$HONUA_DEPLOYMENT_TARGET_OVERRIDE"
             } >> "$GITHUB_ENV"
           fi
           if [ -n "${HONUA_INTEGRATION_BASE_URL:-}" ]; then
