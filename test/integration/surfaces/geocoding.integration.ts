@@ -34,7 +34,7 @@ if (config && !config.geocodingLocatorName) {
       timeoutMs: config.timeoutMs,
     });
 
-    it("forward geocodes a configured probe string", async () => {
+    it("forward geocodes a configured probe string [cert:geocoding/forward#positive] [cert:geocoding/forward#media-schema]", async () => {
       await runWithDiagnostics(context, "new HonuaGeocodingClient().forwardGeocode", async () => {
         const results = await geocoder.forwardGeocode(config.geocodingProbeText, { maxResults: 1 });
         expect(Array.isArray(results)).toBe(true);

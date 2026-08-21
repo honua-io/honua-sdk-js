@@ -17,7 +17,7 @@ const POINTS = {
 integrationSuite("GeometryServer", "geometry-server", ({ client, context }) => {
   const geometry = client.geometryService();
 
-  it("projects point geometries through GeometryServer", async () => {
+  it("projects point geometries through GeometryServer [cert:geometryserver/project#positive] [cert:geometryserver/project#media-schema]", async () => {
     await runWithDiagnostics(context, "client.geometryService().project", async () => {
       const result = await geometry.project({
         geometries: POINTS,
@@ -29,7 +29,7 @@ integrationSuite("GeometryServer", "geometry-server", ({ client, context }) => {
     });
   });
 
-  it("buffers point geometries through GeometryServer", async () => {
+  it("buffers point geometries through GeometryServer [cert:geometryserver/buffer#positive] [cert:geometryserver/buffer#media-schema]", async () => {
     await runWithDiagnostics(context, "client.geometryService().buffer", async () => {
       const result = await geometry.buffer({
         geometries: POINTS,

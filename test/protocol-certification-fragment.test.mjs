@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -143,6 +143,34 @@ test("machine-readable certification contract matches emitted operation identiti
   assert.equal(certificationContract.canonicalClient, "@honua/sdk-js");
   assert.equal(certificationContract.clientVersion, packageJson.version);
   assert.equal("fixtureRevision" in certificationContract, false);
+});
+
+test("production integration tests declare every currently executable certification marker", () => {
+  const surfaces = new URL("integration/surfaces/", import.meta.url);
+  const source = readdirSync(surfaces)
+    .filter((name) => name.endsWith(".integration.ts"))
+    .map((name) => readFileSync(new URL(name, surfaces), "utf8"))
+    .join("\n");
+  const missingOperations = certificationContract.operations
+    .filter(({ surface, operation, scenario_facets }) =>
+      scenario_facets.some((facet) => !source.includes(`[cert:${surface}/${operation}#${facet}]`))
+    )
+    .map(({ surface, operation }) => `${surface}/${operation}`);
+
+  assert.deepEqual(missingOperations, [
+    "featureserver/add-features",
+    "featureserver/update-features",
+    "featureserver/delete-features",
+    "featureserver/attachments",
+    "geocoding/reverse",
+    "imageserver/export-image",
+    "ogc-coverages/landing",
+    "ogc-coverages/conformance",
+    "ogc-coverages/coverage",
+    "routing/solve",
+    "wcs/capabilities",
+    "wcs/get-coverage",
+  ]);
 });
 
 test("matches canonical assertion wording without certifying neighboring operations", () => {

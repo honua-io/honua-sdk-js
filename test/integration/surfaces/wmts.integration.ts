@@ -12,7 +12,7 @@ import { integrationSuite, runWithDiagnostics } from "../harness.js";
 integrationSuite("WMTS", "wmts", ({ client, context, config }) => {
   const wmts = client.wmts(config.serviceId);
 
-  it("reads service capabilities", async () => {
+  it("reads service capabilities [cert:wmts/capabilities#positive] [cert:wmts/capabilities#metadata] [cert:wmts/capabilities#media-schema]", async () => {
     await runWithDiagnostics(context, "client.wmts().capabilities", async () => {
       const capabilities = await wmts.capabilities();
       expect(capabilities.layers.length).toBeGreaterThan(0);
@@ -20,7 +20,7 @@ integrationSuite("WMTS", "wmts", ({ client, context, config }) => {
     });
   });
 
-  it("fetches a tile at zoom 0,0,0 when capabilities advertise a layer", async () => {
+  it("fetches a tile at zoom 0,0,0 when capabilities advertise a layer [cert:wmts/get-tile#positive] [cert:wmts/get-tile#media-schema]", async () => {
     const capabilities = await runWithDiagnostics(context, "client.wmts().capabilities", async () => {
       const r = await wmts.capabilities();
       expect(r.layers.length).toBeGreaterThan(0);

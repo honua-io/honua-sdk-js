@@ -32,7 +32,7 @@ if (config && !config.imageServiceId) {
     const imageServiceId = config.imageServiceId ?? config.serviceId;
     const image = client.imageService(imageServiceId);
 
-    it("returns ImageServer metadata", async () => {
+    it("returns ImageServer metadata [cert:imageserver/metadata#positive] [cert:imageserver/metadata#metadata] [cert:imageserver/metadata#media-schema]", async () => {
       await runWithDiagnostics(context, "client.imageService().metadata", async () => {
         const metadata = await image.metadata();
         expect(metadata).toBeDefined();
