@@ -28,11 +28,11 @@ integrationSuite("WMTS", "wmts", ({ client, context, config }) => {
     });
     const advertisedLayer = capabilities.layers.find((layer) => typeof layer.identifier === "string");
     if (!advertisedLayer?.identifier) {
-      return;
+      throw new Error("WMTS capabilities did not advertise a layer with a usable identifier");
     }
     const advertisedMatrixSet = advertisedLayer.tileMatrixSetIds[0] ?? capabilities.tileMatrixSets[0]?.identifier;
     if (!advertisedMatrixSet) {
-      return;
+      throw new Error("WMTS capabilities did not advertise a usable tile matrix set");
     }
     await runWithDiagnostics(context, "client.wmts().tile", async () => {
       const tile = await wmts.tile({

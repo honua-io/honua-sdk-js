@@ -69,6 +69,7 @@ env:
   HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:78e3088d64d832d3e2752c87d80bfcad201b414f4525989ca5d9a242cd5fee8a' }}
   HONUA_INTEGRATION_SERVER_COMMIT: ${{ vars.HONUA_INTEGRATION_SERVER_COMMIT || '6d13c20fdf131a04cdfe2658ff84d3b55c3f5b76' }}
   HONUA_CANDIDATE_CUT_AT: ${{ vars.HONUA_CANDIDATE_CUT_AT || '2026-08-20T07:58:03Z' }}
+  HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID: ${{ (vars.HONUA_INTEGRATION_SERVER_IMAGE != '' || vars.HONUA_INTEGRATION_SERVER_COMMIT != '' || vars.HONUA_CANDIDATE_CUT_AT != '') && !(vars.HONUA_INTEGRATION_SERVER_IMAGE != '' && vars.HONUA_INTEGRATION_SERVER_COMMIT != '' && vars.HONUA_CANDIDATE_CUT_AT != '') }}
   HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.3' }}
   # Deterministic container passwords for the self-contained stack. These are
   # NOT secrets (the stack is ephemeral and never exposed off the runner); the
@@ -176,6 +177,10 @@ jobs:
             postgres:16 \
             psql -v ON_ERROR_STOP=1 -h honua-pg -U postgres -d "$PG_DB" -f /seed/places-roads-v1.sql
 
+          if [ "${HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID}" = "true" ]; then
+            echo "::error::HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together"
+            exit 1
+          fi
           echo "Starting Honua Server (${HONUA_INTEGRATION_SERVER_IMAGE})..."
           docker run -d --name honua-server --network "$NET" -p 8080:8080 \
             -e ASPNETCORE_ENVIRONMENT=Production \
