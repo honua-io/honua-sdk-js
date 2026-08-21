@@ -379,11 +379,11 @@ class FetchEventSource implements RealtimeServerSentEventSource {
         const { value, done } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        let boundary = buffer.indexOf("\n\n");
-        while (boundary >= 0) {
-          this.dispatchFrame(buffer.slice(0, boundary));
-          buffer = buffer.slice(boundary + 2);
-          boundary = buffer.indexOf("\n\n");
+        let boundary = /(?:\r\n|\r|\n){2}/.exec(buffer);
+        while (boundary) {
+          this.dispatchFrame(buffer.slice(0, boundary.index));
+          buffer = buffer.slice(boundary.index + boundary[0].length);
+          boundary = /(?:\r\n|\r|\n){2}/.exec(buffer);
         }
       }
       // The stream ended without the caller closing us â€” signal an error so the
@@ -398,8 +398,7 @@ class FetchEventSource implements RealtimeServerSentEventSource {
     if (this.closed) return;
     let eventType = "message";
     const dataLines: string[] = [];
-    for (const rawLine of frame.split("\n")) {
-      const line = rawLine.replace(/\r$/, "");
+    for (const line of frame.split(/\r\n|\r|\n/)) {
       if (line.startsWith(":")) continue; // comment / keep-alive
       if (line.startsWith("event:")) {
         eventType = line.slice("event:".length).trim();

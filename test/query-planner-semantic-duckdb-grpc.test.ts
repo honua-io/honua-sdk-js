@@ -300,8 +300,8 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
       outFields: ["id", "status", "preciseAmount"],
       returnGeometry: false,
       orderBy: "amount DESC",
-      resultOffset: 7,
-      resultRecordCount: 25,
+      resultOffsetLong: "7",
+      resultRecordCountLong: "25",
       usesNativeFilter: false,
     });
     expect(hostileGrpc.where).toBe(
@@ -505,7 +505,7 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
       where: "status = 'open'",
       returnGeometry: false,
       orderBy: "status ASC",
-      resultRecordCount: 10,
+      resultRecordCountLong: "10",
       groupBy: ["status"],
       outStatistics: [
         {
@@ -830,7 +830,7 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     });
     expect(pageResult).toMatchObject({
       outcome: "compiled",
-      artifact: { resultOffset: 2_147_483_648 },
+      artifact: { resultOffsetLong: "2147483648" },
     });
   });
 

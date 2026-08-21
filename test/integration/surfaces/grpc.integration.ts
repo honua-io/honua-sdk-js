@@ -97,17 +97,29 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     expect(Array.isArray(features)).toBe(true);
     expect(features.length).toBeGreaterThan(0);
     expect(features[0]?.attributes).toBeDefined();
+    const objectIdField =
+      result.objectIdFieldName ??
+      Object.keys(features[0]?.attributes ?? {}).find((field) => field.toLowerCase() === "objectid");
+    expect(typeof objectIdField).toBe("string");
+    if (!objectIdField) throw new Error("gRPC response did not identify an object-id field");
 
     const firstPage = await runWithDiagnostics(context, "grpc first page", () =>
-      grpc.queryFeatures({ ...baseQuery, orderByFields: "objectid ASC", resultOffset: 0, resultRecordCount: 1 }),
+      grpc.queryFeatures({ ...baseQuery, orderByFields: `${objectIdField} ASC`, resultOffset: 0, resultRecordCount: 1 }),
     );
     const secondPage = await runWithDiagnostics(context, "grpc second page", () =>
-      grpc.queryFeatures({ ...baseQuery, orderByFields: "objectid ASC", resultOffset: 1, resultRecordCount: 1 }),
+      grpc.queryFeatures({ ...baseQuery, orderByFields: `${objectIdField} ASC`, resultOffset: 1, resultRecordCount: 1 }),
     );
     expect(firstPage.features).toHaveLength(1);
     expect(secondPage.features).toHaveLength(1);
-    expect(firstPage.features?.[0]?.attributes).toMatchObject({ objectid: 4, name: "alpha" });
-    expect(secondPage.features?.[0]?.attributes).toMatchObject({ objectid: 5, name: "beta" });
+    const firstId = Number(firstPage.features?.[0]?.attributes?.[objectIdField]);
+    const secondId = Number(secondPage.features?.[0]?.attributes?.[objectIdField]);
+    expect(Number.isSafeInteger(firstId)).toBe(true);
+    expect(Number.isSafeInteger(secondId)).toBe(true);
+    expect(secondId).toBeGreaterThan(firstId);
+    if ((process.env.HONUA_DEPLOYMENT_TARGET ?? "").trim() === "local-docker") {
+      expect(firstPage.features?.[0]?.attributes).toMatchObject({ objectid: 4, name: "alpha" });
+      expect(secondPage.features?.[0]?.attributes).toMatchObject({ objectid: 5, name: "beta" });
+    }
   });
 
   it("returns query parity with the REST transport [cert:grpc-web/rest-parity#positive] [cert:grpc-web/rest-parity#media-schema]", async (ctx) => {

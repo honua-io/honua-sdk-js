@@ -107,8 +107,8 @@ export interface SemanticGrpcCompiledQueryV1 {
   readonly returnGeometry: boolean;
   readonly outSr?: SemanticGrpcSpatialReference;
   readonly orderBy?: string;
-  readonly resultOffset?: number;
-  readonly resultRecordCount?: number;
+  readonly resultOffsetLong?: string;
+  readonly resultRecordCountLong?: string;
   readonly spatialFilter?: {
     readonly geometry: SemanticGrpcGeometry;
     readonly spatialRelationship: SemanticGrpcSpatialRelationship;
@@ -328,8 +328,8 @@ export function compileSemanticGrpcQuery<TRecord, TSpatiality extends SourceSpat
       returnGeometry: query.kind === "aggregate" ? false : projection.returnGeometry,
       ...(outSr ? { outSr } : {}),
       ...(orderBy ? { orderBy } : {}),
-      ...(page?.kind === "offset" ? { resultOffset: page.offset } : {}),
-      ...(page?.limit !== undefined ? { resultRecordCount: page.limit } : {}),
+      ...(page?.kind === "offset" ? { resultOffsetLong: String(page.offset) } : {}),
+      ...(page?.limit !== undefined ? { resultRecordCountLong: String(page.limit) } : {}),
       ...(spatialFilter ? { spatialFilter } : {}),
       ...aggregation,
       usesNativeFilter: state.usesNativeFilter,
