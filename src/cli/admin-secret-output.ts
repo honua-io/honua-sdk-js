@@ -1,8 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
-import { chmod, link, lstat, open, unlink } from "node:fs/promises";
+import { link, lstat, open, unlink } from "node:fs/promises";
 import path from "node:path";
 
 import type { AdminOperationId } from "../control-plane/index.js";
+import { restrictPrivateFile, syncPrivateFileDirectory, verifyPrivateFile } from "../private-file.js";
 import { ArgError } from "./args.js";
 
 export const ADMIN_ONE_TIME_SECRET_OPERATION_IDS = [
@@ -30,7 +31,29 @@ export interface PreparedAdminSecretSink {
   abort(): Promise<void>;
 }
 
+export class AdminSecretPersistenceError extends Error {
+  public constructor(
+    public readonly operationId: AdminOneTimeSecretOperationId,
+    public readonly resource: Readonly<Record<string, unknown>>,
+    public readonly recoveryPath?: string,
+  ) {
+    super(
+      recoveryPath
+        ? `The one-time secret is retained in the private recovery file ${recoveryPath}.`
+        : `The one-time secret for ${operationId} could not be persisted.`,
+    );
+    this.name = "AdminSecretPersistenceError";
+  }
+}
+
+class SecretSinkCommitError extends Error {
+  public constructor(public readonly recoveryPath?: string) {
+    super("one-time secret sink commit failed");
+  }
+}
+
 const ONE_TIME_SECRET_OPERATIONS = new Set<AdminOperationId>(ADMIN_ONE_TIME_SECRET_OPERATION_IDS);
+const MAX_ONE_TIME_SECRET_BYTES = 64 * 1_024;
 
 export function isAdminOneTimeSecretOperation(
   operationId: AdminOperationId,
@@ -57,20 +80,28 @@ export async function prepareAdminSecretSink(outputPath: string): Promise<Prepar
     path.dirname(resolved),
     `.${path.basename(resolved)}.${randomBytes(12).toString("hex")}.tmp`,
   );
-  let handle: Awaited<ReturnType<typeof open>>;
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     handle = await open(temporary, "wx", 0o600);
-    await chmod(temporary, 0o600);
+    await restrictPrivateFile(temporary);
+    await verifyPrivateFile(temporary);
+    await handle.truncate(MAX_ONE_TIME_SECRET_BYTES);
+    await handle.sync();
   } catch {
+    await handle?.close().catch(() => undefined);
+    await unlink(temporary).catch(() => undefined);
     throw secretSinkError();
   }
+  if (!handle) throw secretSinkError();
+  const privateHandle = handle;
 
   let committed = false;
+  let retained = false;
   let closed = false;
   const close = async (): Promise<void> => {
     if (closed) return;
     closed = true;
-    await handle.close().catch(() => undefined);
+    await privateHandle.close().catch(() => undefined);
   };
   const cleanup = async (): Promise<void> => {
     await close();
@@ -81,24 +112,50 @@ export async function prepareAdminSecretSink(outputPath: string): Promise<Prepar
     outputPath: resolved,
     async commit(secret) {
       if (committed) throw secretSinkError();
+      if (Buffer.byteLength(secret, "utf8") > MAX_ONE_TIME_SECRET_BYTES) throw new SecretSinkCommitError();
+      let linked = false;
+      let durable = false;
       try {
-        await handle.writeFile(secret, { encoding: "utf8" });
-        await handle.sync();
+        await privateHandle.writeFile(secret, { encoding: "utf8" });
+        await privateHandle.truncate(Buffer.byteLength(secret, "utf8"));
+        await privateHandle.sync();
+        durable = true;
         await close();
+        await verifyPrivateFile(temporary);
         await link(temporary, resolved);
+        linked = true;
+        await verifyPrivateFile(resolved);
+        await syncPrivateFileDirectory(resolved);
         committed = true;
         await unlink(temporary);
+        await syncPrivateFileDirectory(resolved);
         return {
           path: resolved,
           sha256: createHash("sha256").update(secret, "utf8").digest("hex"),
         };
       } catch {
+        let recoveryPath: string | undefined;
+        if (durable) {
+          const candidate = linked ? resolved : temporary;
+          try {
+            await verifyPrivateFile(candidate);
+            recoveryPath = candidate;
+          } catch {
+            recoveryPath = undefined;
+          }
+        }
+        if (linked && recoveryPath !== resolved) await unlink(resolved).catch(() => undefined);
+        if (recoveryPath) {
+          retained = true;
+          if (recoveryPath === resolved) await unlink(temporary).catch(() => undefined);
+          throw new SecretSinkCommitError(recoveryPath);
+        }
         await cleanup();
-        throw secretSinkError();
+        throw new SecretSinkCommitError();
       }
     },
     async abort() {
-      if (!committed) await cleanup();
+      if (!committed && !retained) await cleanup();
     },
   };
 }
@@ -119,7 +176,15 @@ export async function writeAdminOneTimeSecret(
       secretOutput: sink.outputPath,
     };
   }
-  const committed = await sink.commit(extracted.secret);
+  let committed: { readonly path: string; readonly sha256: string };
+  try {
+    committed = await sink.commit(extracted.secret);
+  } catch (error) {
+    if (error instanceof SecretSinkCommitError) {
+      throw new AdminSecretPersistenceError(operationId, extracted.resource, error.recoveryPath);
+    }
+    throw error;
+  }
   return {
     operationId,
     resource: extracted.resource,

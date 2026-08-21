@@ -196,12 +196,26 @@ export async function listAllTools(client: {
   const tools: Tool[] = [];
   let cursor: string | undefined;
   const seenCursors = new Set<string>();
+  let pageCount = 0;
   do {
+    pageCount += 1;
+    if (pageCount > MCP_DEFAULT_TOTAL_TOOL_COUNT) {
+      throw new Error(`MCP tools/list exceeded ${MCP_DEFAULT_TOTAL_TOOL_COUNT} bounded pages`);
+    }
     const page = await client.listTools(cursor ? { cursor } : undefined);
+    if (tools.length + page.tools.length > MCP_DEFAULT_TOTAL_TOOL_COUNT) {
+      throw new Error(`MCP tools/list exceeded the exact ${MCP_DEFAULT_TOTAL_TOOL_COUNT}-tool default roster`);
+    }
     tools.push(...page.tools);
     cursor = page.nextCursor;
+    if (cursor !== undefined && (cursor.length === 0 || cursor.length > 1_024)) {
+      throw new Error("MCP tools/list returned an invalid bounded cursor");
+    }
     if (cursor && seenCursors.has(cursor)) {
       throw new Error(`MCP tools/list repeated cursor ${cursor}`);
+    }
+    if (cursor && page.tools.length === 0) {
+      throw new Error("MCP tools/list returned an empty page with a continuation cursor");
     }
     if (cursor) seenCursors.add(cursor);
   } while (cursor);

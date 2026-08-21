@@ -16,6 +16,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { writePrivateFileAtomic } from "../private-file.js";
 
 export interface HonuaCliConfig {
   baseUrl?: string;
@@ -81,16 +82,11 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): HonuaCliConfig
 }
 
 /** Persist the config file (used by `honua login`). Returns the path written. */
-export function writeConfig(config: HonuaCliConfig, env: NodeJS.ProcessEnv = process.env): string {
+export async function writeConfig(config: HonuaCliConfig, env: NodeJS.ProcessEnv = process.env): Promise<string> {
   const dir = configDir(env);
   fs.mkdirSync(dir, { recursive: true });
   const file = configPath(env);
-  fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-  try {
-    fs.chmodSync(file, 0o600);
-  } catch {
-    // best-effort on platforms without POSIX modes
-  }
+  await writePrivateFileAtomic(file, `${JSON.stringify(config, null, 2)}\n`);
   return file;
 }
 

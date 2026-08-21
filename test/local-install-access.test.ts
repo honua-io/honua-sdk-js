@@ -150,6 +150,18 @@ describe("local installer access handoff", () => {
           ],
         });
       }
+      if (url.pathname === "/api/v1/admin/api-keys/44444444-4444-4444-8444-444444444444/effective-permissions") {
+        return jsonResponse({
+          success: true,
+          data: {
+            id: "44444444-4444-4444-8444-444444444444",
+            name: "honua-local-agent",
+            permissions: ["admin:read", "admin:write"],
+            status: "active",
+            canAuthenticate: true,
+          },
+        });
+      }
       throw new Error(`unexpected request ${url.pathname}`);
     });
 
@@ -293,58 +305,67 @@ describe("local installer access handoff", () => {
     expect(readFileSync(path.join(directory, ".env"), "utf8")).not.toContain(material);
   });
 
-  it.skipIf(process.platform === "win32")(
-    "atomically replaces an existing permissive credential file with owner-only permissions",
-    async () => {
-      const directory = mkdtempSync(path.join(tmpdir(), "honua-local-access-mode-"));
-      cleanup.push(directory);
-      const material = "hnua_existing-private-material";
-      const envFile = path.join(directory, ".env");
-      writeFileSync(
-        envFile,
-        [
-          "HONUA_SERVER_IMAGE=example.invalid/honua@sha256:1234",
-          "HONUA_HTTP_PORT=8080",
-          "POSTGRES_PASSWORD=postgres",
-          "HONUA_ADMIN_PASSWORD=root",
-          "HONUA_CONNECTION_ENCRYPTION_MASTER_KEY=master",
-          `HONUA_ADMIN_KEY=${material}`,
-          "",
-        ].join("\n"),
-        { encoding: "utf8", mode: 0o644 },
-      );
-      chmodSync(envFile, 0o644);
-      const fetchFn = vi.fn(async (input: string | URL | Request) => {
-        const url = new URL(input instanceof Request ? input.url : input.toString());
-        if (url.pathname === "/healthz/ready") return new Response("ready", { status: 200 });
-        if (url.pathname === "/api/v1/admin/api-keys") {
-          return jsonResponse({
-            success: true,
-            data: [
-              {
-                id: "44444444-4444-4444-8444-444444444444",
-                name: "honua-local-agent",
-                keyPrefix: material.slice(0, 12),
-                permissions: ["admin:read", "admin:write"],
-                status: "active",
-              },
-            ],
-          });
-        }
-        throw new Error(`unexpected request ${url.pathname}`);
-      });
+  it("atomically replaces an existing permissive credential file with owner-only permissions", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-local-access-mode-"));
+    cleanup.push(directory);
+    const material = "hnua_existing-private-material";
+    const envFile = path.join(directory, ".env");
+    writeFileSync(
+      envFile,
+      [
+        "HONUA_SERVER_IMAGE=example.invalid/honua@sha256:1234",
+        "HONUA_HTTP_PORT=8080",
+        "POSTGRES_PASSWORD=postgres",
+        "HONUA_ADMIN_PASSWORD=root",
+        "HONUA_CONNECTION_ENCRYPTION_MASTER_KEY=master",
+        `HONUA_ADMIN_KEY=${material}`,
+        "",
+      ].join("\n"),
+      { encoding: "utf8", mode: 0o644 },
+    );
+    if (process.platform !== "win32") chmodSync(envFile, 0o644);
+    const fetchFn = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(input instanceof Request ? input.url : input.toString());
+      if (url.pathname === "/healthz/ready") return new Response("ready", { status: 200 });
+      if (url.pathname === "/api/v1/admin/api-keys") {
+        return jsonResponse({
+          success: true,
+          data: [
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              name: "honua-local-agent",
+              keyPrefix: material.slice(0, 12),
+              permissions: ["admin:read", "admin:write"],
+              status: "active",
+            },
+          ],
+        });
+      }
+      if (url.pathname === "/api/v1/admin/api-keys/44444444-4444-4444-8444-444444444444/effective-permissions") {
+        return jsonResponse({
+          success: true,
+          data: {
+            id: "44444444-4444-4444-8444-444444444444",
+            name: "honua-local-agent",
+            permissions: ["admin:read", "admin:write"],
+            status: "active",
+            canAuthenticate: true,
+          },
+        });
+      }
+      throw new Error(`unexpected request ${url.pathname}`);
+    });
 
-      const result = await installHonuaLocal(
-        { directory, timeoutMs: 1_000 },
-        {
-          fetchFn,
-          run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
-          wait: async () => undefined,
-        },
-      );
-      expect(statSync(result.envFile).mode & 0o777).toBe(0o600);
-    },
-  );
+    const result = await installHonuaLocal(
+      { directory, timeoutMs: 1_000 },
+      {
+        fetchFn,
+        run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+        wait: async () => undefined,
+      },
+    );
+    if (process.platform !== "win32") expect(statSync(result.envFile).mode & 0o777).toBe(0o600);
+  });
 
   it.skipIf(process.platform === "win32")("refuses a symbolic-link credential target", async () => {
     const directory = mkdtempSync(path.join(tmpdir(), "honua-local-access-symlink-"));

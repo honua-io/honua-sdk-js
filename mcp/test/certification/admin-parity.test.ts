@@ -62,13 +62,57 @@ describe("complete Admin MCP default-roster transport parity", () => {
   });
 
   it("fails closed when a server repeats a tools/list cursor", async () => {
+    let page = 0;
     await expect(
       listAllTools({
         async listTools() {
-          return { tools: [], nextCursor: "same-page" };
+          page += 1;
+          return {
+            tools: page === 1 ? [{ name: "tool", inputSchema: { type: "object" } }] : [],
+            nextCursor: "same-page",
+          };
         },
       }),
     ).rejects.toThrow("repeated cursor same-page");
+  });
+
+  it("bounds hostile tools/list sizes, cursors, and unique-cursor chains", async () => {
+    await expect(
+      listAllTools({
+        async listTools() {
+          return { tools: [...defaultCatalog(), staticTools()[0] as Tool] };
+        },
+      }),
+    ).rejects.toThrow("exceeded the exact 432-tool default roster");
+
+    await expect(
+      listAllTools({
+        async listTools() {
+          return { tools: [], nextCursor: "another-page" };
+        },
+      }),
+    ).rejects.toThrow("empty page with a continuation cursor");
+
+    let page = 0;
+    await expect(
+      listAllTools({
+        async listTools() {
+          page += 1;
+          return {
+            tools: [{ name: `tool-${page}`, inputSchema: { type: "object" } }],
+            nextCursor: `page-${page + 1}`,
+          };
+        },
+      }),
+    ).rejects.toThrow("exceeded 432 bounded pages");
+
+    await expect(
+      listAllTools({
+        async listTools() {
+          return { tools: [{ name: "tool", inputSchema: { type: "object" } }], nextCursor: "x".repeat(1_025) };
+        },
+      }),
+    ).rejects.toThrow("invalid bounded cursor");
   });
 
   it("certifies the exact 47 + 385 = 432 roster, schemas, annotations, and provenance", () => {

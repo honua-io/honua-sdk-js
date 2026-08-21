@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -23,6 +23,117 @@ function capture() {
   });
   return output;
 }
+
+const ADMIN_SECRET_CASES = [
+  {
+    operationId: "createAdminApiKey",
+    secret: "hnua_create-secret",
+    response: {
+      success: true,
+      data: {
+        apiKey: {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "release-agent",
+          keyPrefix: "hnua_create",
+          permissions: ["admin:read", "admin:write"],
+          status: "active",
+        },
+        key: "hnua_create-secret",
+      },
+    },
+    rollbackPath: "/api-keys/11111111-1111-4111-8111-111111111111/revoke",
+    recoveryPreferred: false,
+  },
+  {
+    operationId: "rotateAdminApiKey",
+    secret: "hnua_rotate-secret",
+    response: {
+      success: true,
+      data: {
+        apiKey: {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "release-agent",
+          keyPrefix: "hnua_rotate",
+          permissions: ["admin:read", "admin:write"],
+          status: "active",
+        },
+        key: "hnua_rotate-secret",
+      },
+    },
+    rollbackPath: null,
+    recoveryPreferred: true,
+  },
+  {
+    operationId: "registerOAuthClient",
+    secret: "oauth-client-secret",
+    response: {
+      success: true,
+      data: {
+        client: {
+          id: "22222222-2222-4222-8222-222222222222",
+          clientId: "release-client",
+          name: "Release client",
+          clientType: "confidential",
+          allowedScopes: ["admin:read"],
+          status: "active",
+        },
+        clientSecret: "oauth-client-secret",
+      },
+    },
+    rollbackPath: "/oauth-clients/22222222-2222-4222-8222-222222222222",
+    recoveryPreferred: false,
+  },
+  {
+    operationId: "createEmbedKey",
+    secret: "embed-create-secret",
+    response: {
+      success: true,
+      data: {
+        embedKey: {
+          id: "33333333-3333-4333-8333-333333333333",
+          name: "Public map",
+          keyPrefix: "embed_create",
+          status: "active",
+          scope: { allowedContentIds: ["map-1"], allowedEmbedOrigins: ["https://example.test"] },
+        },
+        key: "embed-create-secret",
+      },
+    },
+    rollbackPath: "/embed/keys/33333333-3333-4333-8333-333333333333/revoke",
+    recoveryPreferred: false,
+  },
+  {
+    operationId: "rotateEmbedKey",
+    secret: "embed-rotate-secret",
+    response: {
+      success: true,
+      data: {
+        embedKey: {
+          id: "33333333-3333-4333-8333-333333333333",
+          name: "Public map",
+          keyPrefix: "embed_rotate",
+          status: "active",
+          scope: { allowedContentIds: ["map-1"], allowedEmbedOrigins: ["https://example.test"] },
+        },
+        key: "embed-rotate-secret",
+      },
+    },
+    rollbackPath: null,
+    recoveryPreferred: true,
+  },
+  {
+    operationId: "issueAdminOperatorBearer",
+    secret: "operator-bearer-secret",
+    response: {
+      accessToken: "operator-bearer-secret",
+      tokenType: "Bearer",
+      expiresIn: 300,
+      expiresAt: "2026-08-20T12:05:00Z",
+    },
+    rollbackPath: null,
+    recoveryPreferred: true,
+  },
+] as const;
 
 describe("honua admin", () => {
   it("lists the generated operation inventory without contacting a server", async () => {
@@ -75,147 +186,184 @@ describe("honua admin", () => {
     expect(output.join("")).toContain("belongs to the connect group");
   });
 
-  it.each([
-    {
-      operationId: "createAdminApiKey",
-      secret: "hnua_create-secret",
-      response: {
-        success: true,
-        data: {
-          apiKey: {
-            id: "11111111-1111-4111-8111-111111111111",
-            name: "release-agent",
-            keyPrefix: "hnua_create",
-            permissions: ["admin:read", "admin:write"],
-            status: "active",
-          },
-          key: "hnua_create-secret",
-        },
-      },
+  it.each(ADMIN_SECRET_CASES)(
+    "writes $operationId material only to an explicit new private sink",
+    async ({ operationId, secret, response }) => {
+      const directory = mkdtempSync(path.join(tmpdir(), "honua-admin-secret-"));
+      const secretOutput = path.join(directory, "credential");
+      const output = capture();
+      const fetchFn = vi.fn(
+        async () =>
+          new Response(JSON.stringify(response), {
+            status: operationId.startsWith("create") || operationId === "registerOAuthClient" ? 201 : 200,
+            headers: { "content-type": "application/json" },
+          }),
+      );
+      vi.stubGlobal("fetch", fetchFn);
+      try {
+        const pathArgs =
+          operationId === "rotateAdminApiKey" || operationId === "rotateEmbedKey"
+            ? ["--path", "id=11111111-1111-4111-8111-111111111111"]
+            : [];
+        const bodyArgs =
+          operationId === "createAdminApiKey" ||
+          operationId === "registerOAuthClient" ||
+          operationId === "createEmbedKey"
+            ? ["--body", "{}"]
+            : [];
+        const code = await run([
+          "admin",
+          "api",
+          operationId,
+          "--base-url",
+          "https://example.test",
+          "--admin-key",
+          "root",
+          ...pathArgs,
+          ...bodyArgs,
+          "--yes",
+          "--secret-output",
+          secretOutput,
+          "--json",
+        ]);
+        expect(code, output.join("")).toBe(0);
+        expect(readFileSync(secretOutput, "utf8")).toBe(secret);
+        const sinkStat = statSync(secretOutput);
+        expect(sinkStat.isFile()).toBe(true);
+        if (process.platform !== "win32") expect(sinkStat.mode & 0o777).toBe(0o600);
+        const rendered = output.join("");
+        expect(rendered).not.toContain(secret);
+        expect(JSON.parse(rendered)).toMatchObject({ operationId, secretWritten: true, secretOutput });
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
     },
-    {
-      operationId: "rotateAdminApiKey",
-      secret: "hnua_rotate-secret",
-      response: {
-        success: true,
-        data: {
-          apiKey: {
-            id: "11111111-1111-4111-8111-111111111111",
-            name: "release-agent",
-            keyPrefix: "hnua_rotate",
-            permissions: ["admin:read", "admin:write"],
-            status: "active",
-          },
-          key: "hnua_rotate-secret",
-        },
-      },
+  );
+
+  it.each(ADMIN_SECRET_CASES)(
+    "recovers or rolls back $operationId when the requested sink is raced after issuance",
+    async ({ operationId, secret, response, rollbackPath, recoveryPreferred }) => {
+      const directory = mkdtempSync(path.join(tmpdir(), "honua-admin-secret-race-"));
+      const secretOutput = path.join(directory, "credential");
+      const output = capture();
+      let issued = false;
+      const fetchFn = vi.fn(async (_input: string | URL | Request) => {
+        if (!issued) {
+          issued = true;
+          writeFileSync(secretOutput, "racer", "utf8");
+          return new Response(JSON.stringify(response), {
+            status: operationId.startsWith("create") || operationId === "registerOAuthClient" ? 201 : 200,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ success: true, data: {} }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+      vi.stubGlobal("fetch", fetchFn);
+      try {
+        const pathArgs =
+          operationId === "rotateAdminApiKey"
+            ? ["--path", "id=11111111-1111-4111-8111-111111111111"]
+            : operationId === "rotateEmbedKey"
+              ? ["--path", "id=33333333-3333-4333-8333-333333333333"]
+              : [];
+        const bodyArgs =
+          operationId === "createAdminApiKey" ||
+          operationId === "registerOAuthClient" ||
+          operationId === "createEmbedKey"
+            ? ["--body", "{}"]
+            : [];
+        expect(
+          await run([
+            "admin",
+            "api",
+            operationId,
+            "--base-url",
+            "https://example.test",
+            "--admin-key",
+            "root",
+            ...pathArgs,
+            ...bodyArgs,
+            "--yes",
+            "--secret-output",
+            secretOutput,
+          ]),
+          output.join(""),
+        ).toBe(2);
+        expect(readFileSync(secretOutput, "utf8")).toBe("racer");
+        const rendered = output.join("");
+        expect(rendered).not.toContain(secret);
+        const recoveryFiles = readdirSync(directory).filter((name) => name.endsWith(".tmp"));
+        if (recoveryPreferred) {
+          expect(fetchFn).toHaveBeenCalledTimes(1);
+          expect(recoveryFiles).toHaveLength(1);
+          const recoveryPath = path.join(directory, recoveryFiles[0]!);
+          expect(readFileSync(recoveryPath, "utf8")).toBe(secret);
+          if (process.platform !== "win32") expect(statSync(recoveryPath).mode & 0o777).toBe(0o600);
+          expect(rendered).toContain("verified private recovery file");
+          expect(rendered).toContain(recoveryPath);
+        } else {
+          expect(fetchFn).toHaveBeenCalledTimes(2);
+          expect(recoveryFiles).toHaveLength(0);
+          expect(rendered).toContain("was rolled back");
+          const rollbackCall = fetchFn.mock.calls[1]?.[0];
+          const rollbackUrl = rollbackCall instanceof Request ? rollbackCall.url : String(rollbackCall);
+          expect(rollbackUrl).toContain(rollbackPath);
+        }
+      } finally {
+        rmSync(directory, { recursive: true, force: true });
+      }
     },
-    {
-      operationId: "registerOAuthClient",
-      secret: "oauth-client-secret",
-      response: {
-        success: true,
-        data: {
-          client: {
-            id: "22222222-2222-4222-8222-222222222222",
-            clientId: "release-client",
-            name: "Release client",
-            clientType: "confidential",
-            allowedScopes: ["admin:read"],
-            status: "active",
-          },
-          clientSecret: "oauth-client-secret",
-        },
-      },
-    },
-    {
-      operationId: "createEmbedKey",
-      secret: "embed-create-secret",
-      response: {
-        success: true,
-        data: {
-          embedKey: {
-            id: "33333333-3333-4333-8333-333333333333",
-            name: "Public map",
-            keyPrefix: "embed_create",
-            status: "active",
-            scope: { allowedContentIds: ["map-1"], allowedEmbedOrigins: ["https://example.test"] },
-          },
-          key: "embed-create-secret",
-        },
-      },
-    },
-    {
-      operationId: "rotateEmbedKey",
-      secret: "embed-rotate-secret",
-      response: {
-        success: true,
-        data: {
-          embedKey: {
-            id: "33333333-3333-4333-8333-333333333333",
-            name: "Public map",
-            keyPrefix: "embed_rotate",
-            status: "active",
-            scope: { allowedContentIds: ["map-1"], allowedEmbedOrigins: ["https://example.test"] },
-          },
-          key: "embed-rotate-secret",
-        },
-      },
-    },
-    {
-      operationId: "issueAdminOperatorBearer",
-      secret: "operator-bearer-secret",
-      response: {
-        accessToken: "operator-bearer-secret",
-        tokenType: "Bearer",
-        expiresIn: 300,
-        expiresAt: "2026-08-20T12:05:00Z",
-      },
-    },
-  ])("writes $operationId material only to an explicit new private sink", async ({ operationId, secret, response }) => {
-    const directory = mkdtempSync(path.join(tmpdir(), "honua-admin-secret-"));
+  );
+
+  it("reports a scrubbed combined failure and retains recovery material when rollback fails", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-admin-secret-rollback-failure-"));
     const secretOutput = path.join(directory, "credential");
     const output = capture();
-    const fetchFn = vi.fn(
-      async () =>
-        new Response(JSON.stringify(response), {
-          status: operationId.startsWith("create") || operationId === "registerOAuthClient" ? 201 : 200,
+    let issued = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        if (!issued) {
+          issued = true;
+          writeFileSync(secretOutput, "racer", "utf8");
+          return new Response(JSON.stringify(ADMIN_SECRET_CASES[0].response), {
+            status: 201,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ message: "rollback-server-secret" }), {
+          status: 500,
           headers: { "content-type": "application/json" },
-        }),
+        });
+      }),
     );
-    vi.stubGlobal("fetch", fetchFn);
     try {
-      const pathArgs =
-        operationId === "rotateAdminApiKey" || operationId === "rotateEmbedKey"
-          ? ["--path", "id=11111111-1111-4111-8111-111111111111"]
-          : [];
-      const bodyArgs =
-        operationId === "createAdminApiKey" || operationId === "registerOAuthClient" || operationId === "createEmbedKey"
-          ? ["--body", "{}"]
-          : [];
-      const code = await run([
-        "admin",
-        "api",
-        operationId,
-        "--base-url",
-        "https://example.test",
-        "--admin-key",
-        "root",
-        ...pathArgs,
-        ...bodyArgs,
-        "--yes",
-        "--secret-output",
-        secretOutput,
-        "--json",
-      ]);
-      expect(code, output.join("")).toBe(0);
-      expect(readFileSync(secretOutput, "utf8")).toBe(secret);
-      const sinkStat = statSync(secretOutput);
-      expect(sinkStat.isFile()).toBe(true);
-      if (process.platform !== "win32") expect(sinkStat.mode & 0o777).toBe(0o600);
+      expect(
+        await run([
+          "admin",
+          "api",
+          "createAdminApiKey",
+          "--base-url",
+          "https://example.test",
+          "--admin-key",
+          "root",
+          "--body",
+          "{}",
+          "--yes",
+          "--secret-output",
+          secretOutput,
+        ]),
+      ).toBe(2);
       const rendered = output.join("");
-      expect(rendered).not.toContain(secret);
-      expect(JSON.parse(rendered)).toMatchObject({ operationId, secretWritten: true, secretOutput });
+      expect(rendered).toContain("persistence and compensating rollback both failed");
+      expect(rendered).not.toContain("rollback-server-secret");
+      expect(rendered).not.toContain(ADMIN_SECRET_CASES[0].secret);
+      const recoveryFiles = readdirSync(directory).filter((name) => name.endsWith(".tmp"));
+      expect(recoveryFiles).toHaveLength(1);
+      expect(readFileSync(path.join(directory, recoveryFiles[0]!), "utf8")).toBe(ADMIN_SECRET_CASES[0].secret);
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

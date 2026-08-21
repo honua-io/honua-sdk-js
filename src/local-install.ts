@@ -9,7 +9,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { lstat, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { HonuaAdminClient } from "./control-plane/admin-client.js";
@@ -20,6 +20,7 @@ import {
   ADMIN_RELEASE_OPERATION_COUNT,
   ADMIN_RELEASE_SERVER_SHA,
 } from "./control-plane/generated/admin-operations.js";
+import { writePrivateFileAtomic } from "./private-file.js";
 
 export type LocalInstallProfile = "quickstart" | "gp-dev";
 
@@ -134,7 +135,7 @@ export async function installHonuaLocal(
   };
 
   await mkdir(directory, { recursive: true });
-  await writePrivateFile(envFile, renderEnv(env));
+  await writePrivateFileAtomic(envFile, renderEnv(env));
   await writeFile(composeFile, renderLocalCompose({ profile }), "utf8");
 
   const run = runtime.run ?? runCommand;
@@ -155,22 +156,22 @@ export async function installHonuaLocal(
     credential = await bootstrapAdminKey(baseUrl, env.HONUA_ADMIN_PASSWORD, runtime.fetchFn);
     try {
       env.HONUA_ADMIN_KEY = credential.material;
-      await writePrivateFile(envFile, renderEnv(env));
+      await writePrivateFileAtomic(envFile, renderEnv(env));
       const mcpConfig = renderMcpConfig(baseUrl, credential.material);
-      await writePrivateFile(mcpConfigFile, mcpConfig);
-      await writePrivateFile(claudeDesktopConfigFile, mcpConfig);
+      await writePrivateFileAtomic(mcpConfigFile, mcpConfig);
+      await writePrivateFileAtomic(claudeDesktopConfigFile, mcpConfig);
     } catch (error) {
       env.HONUA_ADMIN_KEY = undefined;
       const client = new HonuaAdminClient({ baseUrl, adminKey: env.HONUA_ADMIN_PASSWORD, fetchFn: runtime.fetchFn });
       await revokeIssuedAdminKey(client, credential.id, error, async () => {
-        await writePrivateFile(envFile, renderEnv(env));
+        await writePrivateFileAtomic(envFile, renderEnv(env));
       });
     }
   } else {
     credential = await resolveExistingAdminKey(baseUrl, env.HONUA_ADMIN_KEY, runtime.fetchFn);
     const mcpConfig = renderMcpConfig(baseUrl, credential.material);
-    await writePrivateFile(mcpConfigFile, mcpConfig);
-    await writePrivateFile(claudeDesktopConfigFile, mcpConfig);
+    await writePrivateFileAtomic(mcpConfigFile, mcpConfig);
+    await writePrivateFileAtomic(claudeDesktopConfigFile, mcpConfig);
   }
 
   return {
@@ -550,104 +551,6 @@ function renderEnv(env: Record<string, string | undefined>): string {
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .map(([name, value]) => `${name}=${value}`)
     .join("\n")}\n`;
-}
-
-async function writePrivateFile(filePath: string, content: string): Promise<void> {
-  await rejectSymbolicLink(filePath);
-  const directory = path.dirname(filePath);
-  const temporary = path.join(directory, `.${path.basename(filePath)}.${randomBytes(16).toString("hex")}.tmp`);
-  let handle: Awaited<ReturnType<typeof open>> | undefined;
-  try {
-    handle = await open(temporary, "wx", 0o600);
-    if (process.platform === "win32") await enforcePrivateAccess(temporary);
-    await handle.writeFile(content, "utf8");
-    await handle.sync();
-    await handle.close();
-    handle = undefined;
-    if (process.platform !== "win32") await enforcePrivateAccess(temporary);
-    await rejectSymbolicLink(filePath);
-    await rename(temporary, filePath);
-    await verifyPrivateAccess(filePath);
-    if (process.platform !== "win32") {
-      const directoryHandle = await open(directory, "r");
-      try {
-        await directoryHandle.sync();
-      } finally {
-        await directoryHandle.close();
-      }
-    }
-  } finally {
-    await handle?.close().catch(() => {});
-    await rm(temporary, { force: true }).catch(() => {});
-  }
-}
-
-async function rejectSymbolicLink(filePath: string): Promise<void> {
-  try {
-    const metadata = await lstat(filePath);
-    if (metadata.isSymbolicLink()) throw new Error(`Refusing to replace symbolic-link credential file: ${filePath}`);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-}
-
-async function enforcePrivateAccess(filePath: string): Promise<void> {
-  if (process.platform !== "win32") {
-    const handle = await open(filePath, "r+");
-    try {
-      await handle.chmod(0o600);
-      await handle.sync();
-    } finally {
-      await handle.close();
-    }
-    return;
-  }
-
-  const directory = path.dirname(filePath);
-  const sid = await windowsOwnerSid(directory);
-  const acl = await runCommand("icacls", [filePath, "/inheritance:r", "/grant:r", `*${sid}:(F)`], directory);
-  if (acl.exitCode !== 0) throw new Error(`Could not establish an owner-only Windows ACL: ${acl.stderr || acl.stdout}`);
-}
-
-async function verifyPrivateAccess(filePath: string): Promise<void> {
-  const metadata = await lstat(filePath);
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    throw new Error(`Credential path is not a private regular file: ${filePath}`);
-  }
-  if (process.platform !== "win32" && (metadata.mode & 0o777) !== 0o600) {
-    throw new Error(`Credential file permissions are not owner-only: ${filePath}`);
-  }
-  if (process.platform === "win32") {
-    const directory = path.dirname(filePath);
-    const sid = await windowsOwnerSid(directory);
-    const script = [
-      "& { param([string]$credentialPath, [string]$expectedSid)",
-      "$acl = Get-Acl -LiteralPath $credentialPath",
-      "$rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))",
-      "$full = [System.Security.AccessControl.FileSystemRights]::FullControl",
-      "$allow = [System.Security.AccessControl.AccessControlType]::Allow",
-      "$valid = $acl.AreAccessRulesProtected -and $rules.Count -eq 1 -and " +
-        "$rules[0].IdentityReference.Value -eq $expectedSid -and -not $rules[0].IsInherited -and " +
-        "$rules[0].AccessControlType -eq $allow -and (($rules[0].FileSystemRights -band $full) -eq $full)",
-      "if (-not $valid) { Write-Error 'private ACL mismatch'; exit 1 }",
-      "}",
-    ].join("; ");
-    const result = await runCommand(
-      "powershell.exe",
-      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script, filePath, sid],
-      directory,
-    );
-    if (result.exitCode !== 0) {
-      throw new Error(`Windows credential ACL is not owner-only: ${result.stderr || result.stdout}`);
-    }
-  }
-}
-
-async function windowsOwnerSid(directory: string): Promise<string> {
-  const identity = await runCommand("whoami", ["/user", "/fo", "csv", "/nh"], directory);
-  const sid = identity.stdout.match(/"(S-\d+(?:-\d+)+)"/i)?.[1];
-  if (identity.exitCode !== 0 || !sid) throw new Error("Could not resolve the Windows owner SID for a private file.");
-  return sid;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

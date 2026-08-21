@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import path from "node:path";
 
 import { ADMIN_OPERATIONS, type AdminOperationId, HonuaAdminClient } from "../../control-plane/index.js";
@@ -10,6 +11,8 @@ import {
   renderLocalCompose,
 } from "../../local-install.js";
 import {
+  type AdminOneTimeSecretOperationId,
+  AdminSecretPersistenceError,
   isAdminOneTimeSecretOperation,
   prepareAdminSecretSink,
   writeAdminOneTimeSecret,
@@ -126,9 +129,81 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     printLine(renderJson(await writeAdminOneTimeSecret(operationId, result.data, sink)));
   } catch (error) {
     await sink.abort();
+    if (error instanceof AdminSecretPersistenceError) {
+      throw await handleSecretPersistenceFailure(client, error);
+    }
     if (error instanceof ArgError || isSafeSecretResponseError(error)) throw error;
     throw new Error(`Admin one-time-secret operation ${operationId} failed; server details were suppressed.`);
   }
+}
+
+async function handleSecretPersistenceFailure(
+  client: HonuaAdminClient,
+  error: AdminSecretPersistenceError,
+): Promise<ArgError> {
+  if (error.recoveryPath && isRecoveryPreferred(error.operationId)) {
+    return new ArgError(
+      `Admin operation ${error.operationId} completed, but its requested sink could not be finalized. ` +
+        `The one-time material is retained in the verified private recovery file ${error.recoveryPath}.`,
+    );
+  }
+
+  const rollback = rollbackOperation(error.operationId, error.resource);
+  if (!rollback) {
+    return new ArgError(
+      error.operationId === "issueAdminOperatorBearer"
+        ? `Admin operation ${error.operationId} completed, but its one-time material could not be persisted. The short-lived bearer cannot be revoked; wait for it to expire before retrying.`
+        : `Admin operation ${error.operationId} completed, but its resource identity could not be verified for compensating rollback. Inspect server state before retrying.`,
+    );
+  }
+
+  try {
+    await callDynamic(client, rollback.operationId, { path: { id: rollback.resourceId } });
+  } catch {
+    return new ArgError(
+      `Admin operation ${error.operationId} completed, but private-file persistence and compensating rollback both failed. Inspect the server resource ${rollback.resourceId} before retrying.${error.recoveryPath ? ` One-time material remains in ${error.recoveryPath}.` : ""}`,
+    );
+  }
+
+  if (error.recoveryPath) {
+    try {
+      await rm(error.recoveryPath, { force: true });
+    } catch {
+      return new ArgError(
+        `Admin operation ${error.operationId} was rolled back after persistence failed, but the private ` +
+          `recovery file ${error.recoveryPath} could not be removed. Delete it before retrying.`,
+      );
+    }
+  }
+  return new ArgError(
+    `Admin operation ${error.operationId} was rolled back because its one-time material could not be committed to the requested private file.`,
+  );
+}
+
+function isRecoveryPreferred(operationId: AdminOneTimeSecretOperationId): boolean {
+  return (
+    operationId === "rotateAdminApiKey" ||
+    operationId === "rotateEmbedKey" ||
+    operationId === "issueAdminOperatorBearer"
+  );
+}
+
+function rollbackOperation(
+  operationId: AdminOneTimeSecretOperationId,
+  resource: Readonly<Record<string, unknown>>,
+): { readonly operationId: AdminOperationId; readonly resourceId: string } | null {
+  const resourceId = typeof resource.id === "string" && resource.id.trim() !== "" ? resource.id : null;
+  if (!resourceId) return null;
+  if (operationId === "createAdminApiKey" || operationId === "rotateAdminApiKey") {
+    return { operationId: "revokeAdminApiKey", resourceId };
+  }
+  if (operationId === "registerOAuthClient") {
+    return { operationId: "deleteOAuthClient", resourceId };
+  }
+  if (operationId === "createEmbedKey" || operationId === "rotateEmbedKey") {
+    return { operationId: "revokeEmbedKey", resourceId };
+  }
+  return null;
 }
 
 async function installCommand(parsed: ParsedArgs): Promise<void> {
