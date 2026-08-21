@@ -19,7 +19,7 @@ const identity = {
   producerSourceSha: "c".repeat(40),
   imageDigest: `sha256:${"b".repeat(64)}`,
   fixtureRevision: "fixture-1",
-  evidenceUri: "https://example.test/run/1",
+  evidenceUri: "https://github.com/honua-io/honua-sdk-js/actions/runs/1",
   cutAt: "2026-08-19T00:00:00Z",
 };
 
@@ -103,10 +103,17 @@ test("normalizes execution and preserves missing operation gaps", () => {
   assert.deepEqual(metadata.scenario_facets, ["positive", "metadata", "media-schema"]);
   assert.equal(metadata.canonical_client, "@honua/sdk-js");
   assert.equal(metadata.contract_revision, `sdk-js-certification@${identity.producerSourceSha}`);
-  assert.equal(metadata.auth_policy_revision, "anonymous-and-protected-v1");
+  assert.equal(metadata.auth_policy_revision, "anonymous-public-v1");
+  assert.match(metadata.evidence_digest, /^sha256:[0-9a-f]{64}$/);
+  assert.deepEqual(Object.keys(metadata.facet_results), metadata.scenario_facets);
+  assert.ok(Object.values(metadata.facet_results).every((facet) => (
+    facet.result === "pass" && facet.evidence_digest === metadata.evidence_digest
+  )));
   assert.deepEqual(fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "query").failure_messages, ["boom"]);
   const missing = fragment.observations.find((row) => row.surface === "wcs" && row.operation === "get-coverage");
   assert.equal(missing.result, "skip");
+  assert.equal(missing.evidence_digest, null);
+  assert.equal(missing.facet_results, null);
   assert.match(missing.skip_reason, new RegExp(GAP_OWNER));
 });
 

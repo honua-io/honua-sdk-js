@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 export const GAP_OWNER = "https://github.com/honua-io/honua-sdk-js/issues/1113";
-export const AUTH_POLICY_REVISION = "anonymous-and-protected-v1";
+export const AUTH_POLICY_REVISION = "anonymous-public-v1";
 
 const CAPABILITIES = {
   featureserver: "serve.geoservices-featureserver",
@@ -128,6 +129,7 @@ function facetsFor(operation) {
 
 export function buildFragment({ reports, identity, complete = true, now = new Date().toISOString() }) {
   const tests = reports.flatMap(assertions);
+  const evidenceDigest = `sha256:${createHash("sha256").update(JSON.stringify(reports)).digest("hex")}`;
   return {
     schema: "honua.protocol-certification-fragment/v1",
     producer: "honua-sdk-js",
@@ -143,11 +145,12 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
         surfacePattern.test(text) && operationPattern.test(text) && (!titlePattern || titlePattern.test(title))
       );
       const result = statusFor(matches);
+      const scenarioFacets = facetsFor(operation);
       return {
         capability_key: CAPABILITIES[surface],
         surface,
         operation,
-        scenario_facets: facetsFor(operation),
+        scenario_facets: scenarioFacets,
         canonical_client: "@honua/sdk-js",
         client_version: identity.clientVersion,
         deployment_target: identity.deploymentTarget,
@@ -160,6 +163,10 @@ export function buildFragment({ reports, identity, complete = true, now = new Da
         contract_revision: `sdk-js-certification@${identity.producerSourceSha}`,
         auth_policy_revision: AUTH_POLICY_REVISION,
         evidence_uri: identity.evidenceUri,
+        evidence_digest: result === "skip" ? null : evidenceDigest,
+        facet_results: result === "skip" ? null : Object.fromEntries(
+          scenarioFacets.map((facet) => [facet, { result, evidence_digest: evidenceDigest }]),
+        ),
         started_at: identity.startedAt ?? now,
         completed_at: now,
         failure_messages: result === "fail" ? matches.flatMap(({ failures }) => failures) : [],
