@@ -274,6 +274,9 @@ jobs:
           conformance/fetch-fixtures.sh --version "${HONUA_CONFORMANCE_FIXTURES_VERSION}" --dest "${GITHUB_WORKSPACE}/conformance-fixtures"
           echo "HONUA_CONFORMANCE_FIXTURES_DIR=${GITHUB_WORKSPACE}/conformance-fixtures" >> "$GITHUB_ENV"
 
+      - name: Capture certification execution start
+        run: echo "HONUA_CERTIFICATION_STARTED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
       - name: Run integration surfaces
         run: npm run test:integration -- --reporter=default --reporter=json --outputFile=test-results/integration-vitest.json
 

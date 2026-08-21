@@ -170,6 +170,36 @@ function argument(name, fallback) {
   return index >= 0 ? process.argv[index + 1] : fallback;
 }
 
+function isStrictUtcTimestamp(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?Z$/.exec(value ?? "");
+  if (!match) return false;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return false;
+  const date = new Date(parsed);
+  const [, year, month, day, hour, minute, second] = match.map(Number);
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() + 1 === month
+    && date.getUTCDate() === day
+    && date.getUTCHours() === hour
+    && date.getUTCMinutes() === minute
+    && date.getUTCSeconds() === second;
+}
+
+export function validateCertificationIdentity(identity) {
+  if (!/^[0-9a-f]{40}$/.test(identity.sourceSha ?? "")) {
+    throw new Error("source-sha must be a full lowercase commit SHA");
+  }
+  if (!/^[0-9a-f]{40}$/.test(identity.producerSourceSha ?? "")) {
+    throw new Error("producer-source-sha must be a full lowercase commit SHA");
+  }
+  if (!/^sha256:[0-9a-f]{64}$/.test(identity.imageDigest ?? "")) {
+    throw new Error("image-digest must be an immutable lowercase sha256 digest");
+  }
+  if (!isStrictUtcTimestamp(identity.cutAt)) {
+    throw new Error("candidate-cut-at must be a valid UTC ISO-8601 timestamp");
+  }
+}
+
 export function validateIdentityOverrideEnvironment(environment = process.env) {
   if (environment.HONUA_CERTIFICATION_EXTERNAL === "true") return;
   if (environment.HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID === "true") {
@@ -184,10 +214,7 @@ export function validateIdentityOverrideEnvironment(environment = process.env) {
     throw new Error("HONUA_INTEGRATION_SERVER_COMMIT must be a full lowercase commit SHA");
   }
   const cutAt = environment.HONUA_CANDIDATE_CUT_AT ?? "";
-  if (
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(cutAt) ||
-    Number.isNaN(Date.parse(cutAt))
-  ) {
+  if (!isStrictUtcTimestamp(cutAt)) {
     throw new Error("HONUA_CANDIDATE_CUT_AT must be a valid UTC ISO-8601 timestamp");
   }
 }
@@ -223,20 +250,22 @@ async function main() {
     "deployment-target",
     external ? process.env.HONUA_DEPLOYMENT_TARGET : (process.env.HONUA_DEPLOYMENT_TARGET ?? "local-docker"),
   );
+  const identity = {
+    clientVersion: packageJson.version,
+    deploymentTarget: required("deployment-target", deploymentTarget),
+    sourceSha: required("source-sha", argument("source-sha", metadata.serverCommit ?? process.env.HONUA_INTEGRATION_SERVER_COMMIT)),
+    producerSourceSha: required("producer-source-sha", argument("producer-source-sha", process.env.GITHUB_SHA)),
+    imageDigest: required("image-digest", argument("image-digest", imageDigest)),
+    fixtureRevision: required("fixture-revision", argument("fixture-revision", metadata.conformanceFixturesVersion ?? process.env.HONUA_CONFORMANCE_FIXTURES_VERSION)),
+    evidenceUri: required("evidence-uri", argument("evidence-uri", process.env.HONUA_EVIDENCE_URI)),
+    cutAt: required("candidate-cut-at", argument("candidate-cut-at", metadata.candidateCutAt ?? process.env.HONUA_CANDIDATE_CUT_AT)),
+    startedAt: argument("started-at", process.env.HONUA_CERTIFICATION_STARTED_AT ?? metadata.startedAt),
+  };
+  validateCertificationIdentity(identity);
   const fragment = buildFragment({
     reports: reports.filter(Boolean),
     complete: metadataAvailable && reports.every(Boolean),
-    identity: {
-      clientVersion: packageJson.version,
-      deploymentTarget: required("deployment-target", deploymentTarget),
-      sourceSha: required("source-sha", argument("source-sha", metadata.serverCommit ?? process.env.HONUA_INTEGRATION_SERVER_COMMIT)),
-      producerSourceSha: required("producer-source-sha", argument("producer-source-sha", process.env.GITHUB_SHA)),
-      imageDigest: required("image-digest", argument("image-digest", imageDigest)),
-      fixtureRevision: required("fixture-revision", argument("fixture-revision", metadata.conformanceFixturesVersion ?? process.env.HONUA_CONFORMANCE_FIXTURES_VERSION)),
-      evidenceUri: required("evidence-uri", argument("evidence-uri", process.env.HONUA_EVIDENCE_URI)),
-      cutAt: required("candidate-cut-at", argument("candidate-cut-at", metadata.candidateCutAt ?? process.env.HONUA_CANDIDATE_CUT_AT)),
-      startedAt: argument("started-at", metadata.startedAt),
-    },
+    identity,
   });
   await writeFile(argument("output", "test-results/protocol-certification-fragment.json"), `${JSON.stringify(fragment, null, 2)}\n`);
 }

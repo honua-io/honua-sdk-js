@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   buildFragment,
   GAP_OWNER,
+  validateCertificationIdentity,
   validateIdentityOverrideEnvironment,
 } from "../scripts/protocol-certification-fragment.mjs";
 
@@ -51,6 +52,26 @@ test("validates the complete self-contained candidate identity", () => {
   );
   assert.throws(
     () => validateIdentityOverrideEnvironment({ ...valid, HONUA_CANDIDATE_CUT_AT: "yesterday" }),
+    /UTC ISO-8601/,
+  );
+  assert.throws(
+    () => validateIdentityOverrideEnvironment({ ...valid, HONUA_CANDIDATE_CUT_AT: "2026-02-31T00:00:00Z" }),
+    /UTC ISO-8601/,
+  );
+});
+
+test("validates the resolved external candidate identity", () => {
+  assert.doesNotThrow(() => validateCertificationIdentity(identity));
+  assert.throws(
+    () => validateCertificationIdentity({ ...identity, sourceSha: "A".repeat(40) }),
+    /full lowercase commit SHA/,
+  );
+  assert.throws(
+    () => validateCertificationIdentity({ ...identity, imageDigest: `sha256:${"B".repeat(64)}` }),
+    /lowercase sha256 digest/,
+  );
+  assert.throws(
+    () => validateCertificationIdentity({ ...identity, cutAt: "2026-02-31T00:00:00Z" }),
     /UTC ISO-8601/,
   );
 });
