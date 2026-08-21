@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { buildFragment, GAP_OWNER } from "../scripts/protocol-certification-fragment.mjs";
+import {
+  buildFragment,
+  GAP_OWNER,
+  validateIdentityOverrideEnvironment,
+} from "../scripts/protocol-certification-fragment.mjs";
 
 const certificationContract = JSON.parse(readFileSync(new URL("../config/protocol-certification.v1.json", import.meta.url), "utf8"));
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -17,6 +21,13 @@ const identity = {
   evidenceUri: "https://example.test/run/1",
   cutAt: "2026-08-19T00:00:00Z",
 };
+
+test("rejects partial self-contained candidate identity overrides", () => {
+  assert.throws(
+    () => validateIdentityOverrideEnvironment({ HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID: "true" }),
+    /must be overridden together/,
+  );
+});
 
 test("normalizes execution and preserves missing operation gaps", () => {
   const fragment = buildFragment({

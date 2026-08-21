@@ -170,7 +170,16 @@ function argument(name, fallback) {
   return index >= 0 ? process.argv[index + 1] : fallback;
 }
 
+export function validateIdentityOverrideEnvironment(environment = process.env) {
+  if (environment.HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID === "true") {
+    throw new Error(
+      "HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together",
+    );
+  }
+}
+
 async function main() {
+  validateIdentityOverrideEnvironment();
   const reportPaths = argument("reports", "test-results/integration-vitest.json,test-results/conformance-vitest.json").split(",");
   const reports = await Promise.all(reportPaths.map(async (path) => {
     try {

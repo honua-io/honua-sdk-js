@@ -275,6 +275,9 @@ jobs:
       - name: Run integration surfaces
         run: npm run test:integration -- --reporter=default --reporter=json --outputFile=test-results/integration-vitest.json
 
+      - name: Run protocol certification unit tests
+        run: node --test test/protocol-certification-fragment.test.mjs
+
       - name: Run live conformance round-trip
         if: always()
         run: npm run test:conformance -- --reporter=default --reporter=json --outputFile=test-results/conformance-vitest.json
