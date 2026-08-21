@@ -32,3 +32,15 @@ test("normalizes execution and preserves missing operation gaps", () => {
   assert.equal(missing.result, "skip");
   assert.match(missing.skip_reason, new RegExp(GAP_OWNER));
 });
+
+test("marks evidence incomplete when a suite report is unavailable", () => {
+  const fragment = buildFragment({
+    identity,
+    complete: false,
+    reports: [],
+    now: "2026-08-20T00:00:00.000Z",
+  });
+
+  assert.equal(fragment.complete, false);
+  assert.ok(fragment.observations.every((row) => row.result === "skip"));
+});

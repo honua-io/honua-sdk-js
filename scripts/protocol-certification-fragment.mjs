@@ -90,11 +90,11 @@ function statusFor(matches) {
   return "skip";
 }
 
-export function buildFragment({ reports, identity, now = new Date().toISOString() }) {
+export function buildFragment({ reports, identity, complete = true, now = new Date().toISOString() }) {
   const tests = reports.flatMap(assertions);
   return {
     schema_version: "1.0.0",
-    complete: true,
+    complete,
     observations: OPERATIONS.map(([surface, operation, surfacePattern, operationPattern]) => {
       const matches = tests.filter(({ text }) => surfacePattern.test(text) && operationPattern.test(text));
       const result = statusFor(matches);
@@ -125,7 +125,14 @@ function argument(name, fallback) {
 
 async function main() {
   const reportPaths = argument("reports", "test-results/integration-vitest.json,test-results/conformance-vitest.json").split(",");
-  const reports = await Promise.all(reportPaths.map(async (path) => JSON.parse(await readFile(path, "utf8"))));
+  const reports = await Promise.all(reportPaths.map(async (path) => {
+    try {
+      return JSON.parse(await readFile(path, "utf8"));
+    } catch (error) {
+      if (error?.code === "ENOENT") return undefined;
+      throw error;
+    }
+  }));
   const metadata = JSON.parse(await readFile(argument("metadata", "test-results/integration-meta.json"), "utf8"));
   const packageJson = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   const required = (name, value) => {
@@ -134,11 +141,17 @@ async function main() {
   };
   const serverImage = argument("server-image", metadata.serverImage ?? process.env.HONUA_INTEGRATION_SERVER_IMAGE);
   const imageDigest = serverImage?.includes("@") ? serverImage.slice(serverImage.indexOf("@") + 1) : undefined;
+  const external = process.env.HONUA_CERTIFICATION_EXTERNAL === "true";
+  const deploymentTarget = argument(
+    "deployment-target",
+    external ? process.env.HONUA_DEPLOYMENT_TARGET : (process.env.HONUA_DEPLOYMENT_TARGET ?? "local-docker"),
+  );
   const fragment = buildFragment({
-    reports,
+    reports: reports.filter(Boolean),
+    complete: reports.every(Boolean),
     identity: {
       clientVersion: packageJson.version,
-      deploymentTarget: argument("deployment-target", process.env.HONUA_DEPLOYMENT_TARGET ?? "local-docker"),
+      deploymentTarget: required("deployment-target", deploymentTarget),
       sourceSha: required("source-sha", argument("source-sha", metadata.serverCommit)),
       imageDigest: required("image-digest", argument("image-digest", imageDigest)),
       fixtureRevision: required("fixture-revision", argument("fixture-revision", metadata.conformanceFixturesVersion)),
