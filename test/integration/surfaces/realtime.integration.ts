@@ -34,8 +34,9 @@ const SURFACE = "realtime";
 /** Bounded window (ms) to wait for the live stream to open / emit an event. */
 const LIVE_WAIT_MS = 15_000;
 
-integrationSuite("Realtime SSE", SURFACE, ({ config }) => {
+integrationSuite("Realtime SSE", SURFACE, ({ client, config }) => {
   const streamingUrl = `${config.baseUrl.replace(/\/+$/, "")}${HONUA_SERVER_STREAMING_FEATURES_PATH}`;
+  const streamingOrigin = new URL(streamingUrl).origin;
   const authHeaders: Record<string, string> = {};
   if (config.apiKey) authHeaders["X-API-Key"] = config.apiKey;
   if (config.bearerToken) authHeaders.Authorization = `Bearer ${config.bearerToken}`;
@@ -52,6 +53,7 @@ integrationSuite("Realtime SSE", SURFACE, ({ config }) => {
         url.searchParams.set("layers", String(config.layerId));
         const response = await fetch(url, {
           headers: { Accept: "text/event-stream", ...authHeaders },
+          redirect: "error",
           signal: controller.signal,
         });
         // Drain/close the stream immediately; we only inspect the handshake.
@@ -86,7 +88,8 @@ integrationSuite("Realtime SSE", SURFACE, ({ config }) => {
     const liveUrl = new URL(streamingUrl);
     liveUrl.searchParams.set("mode", "snapshot-then-delta");
     liveUrl.searchParams.set("requestId", "sdk-certification-subscribe");
-    const factory: RealtimeServerSentEventSourceFactory = (url) => new FetchEventSource(url, authHeaders);
+    const factory: RealtimeServerSentEventSourceFactory = (url) =>
+      new FetchEventSource(url, authHeaders, streamingOrigin);
     const transport = createHonuaServerRealtimeSubscription({
       url: liveUrl.toString(),
       eventSourceFactory: factory,
@@ -135,7 +138,7 @@ integrationSuite("Realtime SSE", SURFACE, ({ config }) => {
     let initialState = emptyRealtimeFeatureState();
     const initialTransport = createHonuaServerRealtimeSubscription({
       url: initialUrl.toString(),
-      eventSourceFactory: (url) => new FetchEventSource(url, authHeaders),
+      eventSourceFactory: (url) => new FetchEventSource(url, authHeaders, streamingOrigin),
     });
     const initialHandle = initialTransport.subscribe(
       { sourceId: config.serviceId, layerId: config.layerId },
@@ -166,58 +169,87 @@ integrationSuite("Realtime SSE", SURFACE, ({ config }) => {
       initialHandle.close();
     }
 
-    const resumedUrl = new URL(streamingUrl);
-    resumedUrl.searchParams.set("mode", "snapshot-then-delta");
-    resumedUrl.searchParams.set("requestId", "sdk-certification-resume-reconnect");
-    let observedRequestUrl: string | undefined;
-    let resumedState = emptyRealtimeFeatureState();
-    const resumedCheckpoint = deferred<NonNullable<ReturnType<typeof realtimeResumeCheckpoint>>>();
-    const resumedTransport = createHonuaServerRealtimeSubscription({
-      url: resumedUrl.toString(),
-      eventSourceFactory: (url) => {
-        observedRequestUrl = url;
-        return new FetchEventSource(url, authHeaders);
-      },
+    const marker = `sdk-certification-resume-${Date.now()}`;
+    const mutation = await client.applyEdits({
+      serviceId: config.serviceId,
+      layerId: config.layerId,
+      adds: [
+        {
+          attributes: { name: marker },
+          geometry: { x: -156.5, y: 20.8, spatialReference: { wkid: 4326 } },
+        },
+      ],
     });
-    const resumedHandle = resumedTransport.subscribe(
-      { sourceId: config.serviceId, layerId: config.layerId, resumeFrom: checkpoint },
-      {
-        next(event) {
-          if (!isServerDataEvent(event)) return;
-          resumedState = reduceRealtimeFeatureState(resumedState, event);
-          const nextCheckpoint = realtimeResumeCheckpoint(resumedState);
-          if (nextCheckpoint?.cursor !== undefined || nextCheckpoint?.sequence !== undefined) {
-            resumedCheckpoint.resolve(nextCheckpoint);
-          }
-        },
-        error(error) {
-          resumedCheckpoint.reject(error instanceof Error ? error : new Error(String(error)));
-        },
-        complete() {},
-      },
-    );
+    const addResult = mutation.addResults?.[0];
+    expect(addResult?.success).toBe(true);
+    const addedId = addResult?.objectId;
+    expect(addedId).toBeDefined();
+    if (addedId === undefined) throw new Error("controlled realtime mutation did not return an object id");
 
-    let nextCheckpoint: NonNullable<ReturnType<typeof realtimeResumeCheckpoint>>;
     try {
-      nextCheckpoint = await withTimeout(
-        resumedCheckpoint.promise,
-        LIVE_WAIT_MS,
-        "resumed SSE stream did not emit a decodable server data envelope",
+      const resumedUrl = new URL(streamingUrl);
+      resumedUrl.searchParams.set("mode", "snapshot-then-delta");
+      resumedUrl.searchParams.set("requestId", "sdk-certification-resume-reconnect");
+      let observedRequestUrl: string | undefined;
+      let resumedState = emptyRealtimeFeatureState();
+      const resumedCheckpoint = deferred<NonNullable<ReturnType<typeof realtimeResumeCheckpoint>>>();
+      const resumedTransport = createHonuaServerRealtimeSubscription({
+        url: resumedUrl.toString(),
+        eventSourceFactory: (url) => {
+          observedRequestUrl = url;
+          return new FetchEventSource(url, authHeaders, streamingOrigin);
+        },
+      });
+      const resumedHandle = resumedTransport.subscribe(
+        { sourceId: config.serviceId, layerId: config.layerId, resumeFrom: checkpoint },
+        {
+          next(event) {
+            if (!isServerDataEvent(event) || !eventContainsFeatureId(event, addedId)) return;
+            resumedState = reduceRealtimeFeatureState(resumedState, event);
+            const nextCheckpoint = realtimeResumeCheckpoint(resumedState);
+            if (nextCheckpoint?.cursor !== undefined || nextCheckpoint?.sequence !== undefined) {
+              resumedCheckpoint.resolve(nextCheckpoint);
+            }
+          },
+          error(error) {
+            resumedCheckpoint.reject(error instanceof Error ? error : new Error(String(error)));
+          },
+          complete() {},
+        },
       );
-    } finally {
-      resumedHandle.close();
-    }
 
-    expect(observedRequestUrl).toBeDefined();
-    const request = new URL(observedRequestUrl!);
-    if (checkpoint.cursor !== undefined) {
-      expect(request.searchParams.get("cursor")).toBe(checkpoint.cursor);
-    }
-    if (checkpoint.sequence !== undefined) {
-      expect(request.searchParams.get("sequence")).toBe(String(checkpoint.sequence));
-    }
-    if (checkpoint.sequence !== undefined && nextCheckpoint.sequence !== undefined) {
-      expect(nextCheckpoint.sequence).toBeGreaterThanOrEqual(checkpoint.sequence);
+      let nextCheckpoint: NonNullable<ReturnType<typeof realtimeResumeCheckpoint>>;
+      try {
+        nextCheckpoint = await withTimeout(
+          resumedCheckpoint.promise,
+          LIVE_WAIT_MS,
+          "resumed SSE stream did not replay the controlled post-checkpoint mutation",
+        );
+      } finally {
+        resumedHandle.close();
+      }
+
+      expect(observedRequestUrl).toBeDefined();
+      const request = new URL(observedRequestUrl!);
+      if (checkpoint.cursor !== undefined) {
+        expect(request.searchParams.get("cursor")).toBe(checkpoint.cursor);
+      }
+      if (checkpoint.sequence !== undefined) {
+        expect(request.searchParams.get("sequence")).toBe(String(checkpoint.sequence));
+      }
+      if (checkpoint.cursor !== undefined && nextCheckpoint.cursor !== undefined) {
+        expect(nextCheckpoint.cursor).not.toBe(checkpoint.cursor);
+      }
+      if (checkpoint.sequence !== undefined && nextCheckpoint.sequence !== undefined) {
+        expect(nextCheckpoint.sequence).toBeGreaterThan(checkpoint.sequence);
+      }
+    } finally {
+      const cleanup = await client.applyEdits({
+        serviceId: config.serviceId,
+        layerId: config.layerId,
+        deletes: [addedId],
+      });
+      expect(cleanup.deleteResults?.[0]?.success).toBe(true);
     }
   });
 });
@@ -229,6 +261,20 @@ function isServerDataEvent(event: RealtimeFeatureEvent): boolean {
     event.type === "delete" ||
     event.type === "snapshot"
   );
+}
+
+function eventContainsFeatureId(event: RealtimeFeatureEvent, expectedId: unknown): boolean {
+  const expected = String(expectedId);
+  if (event.type === "upsert") return String(event.feature.id) === expected;
+  if (event.type === "delete") return String(event.id) === expected;
+  if (event.type === "snapshot") return event.features.some((feature) => String(feature.id) === expected);
+  if (event.type === "delta") {
+    return (
+      event.upserts?.some((feature) => String(feature.id) === expected) === true ||
+      event.deletes?.some((feature) => String(feature.id) === expected) === true
+    );
+  }
+  return false;
 }
 /** A promise plus its resolve/reject handles. */
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void } {
@@ -275,8 +321,8 @@ class FetchEventSource implements RealtimeServerSentEventSource {
   private readonly listeners = new Map<string, Set<(event: MessageEvent<string>) => void>>();
   private closed = false;
 
-  public constructor(url: string, headers: Record<string, string>) {
-    void this.connect(url, headers);
+  public constructor(url: string, headers: Record<string, string>, allowedOrigin: string) {
+    void this.connect(url, headers, allowedOrigin);
   }
 
   public addEventListener(type: string, listener: (event: MessageEvent<string>) => void): void {
@@ -296,10 +342,15 @@ class FetchEventSource implements RealtimeServerSentEventSource {
     this.controller.abort();
   }
 
-  private async connect(url: string, headers: Record<string, string>): Promise<void> {
+  private async connect(url: string, headers: Record<string, string>, allowedOrigin: string): Promise<void> {
     try {
-      const response = await fetch(url, {
+      const target = new URL(url);
+      if (target.origin !== allowedOrigin || target.username || target.password) {
+        throw new Error("SSE target must remain credential-free and on the configured deployment origin");
+      }
+      const response = await fetch(target, {
         headers: { Accept: "text/event-stream", ...headers },
+        redirect: "error",
         signal: this.controller.signal,
       });
       if (!response.ok || !response.body) {
