@@ -3931,8 +3931,8 @@
     {
       "subpath": "@honua/sdk-js/agent-tools",
       "types": "dist/src/agent-tools/index.d.ts",
-      "exportCount": 63,
-      "signatureSha256": "544f6d6c7a9e5f311be6e745d4e2a952e58ed53cbbb9813607d7e547e7986814",
+      "exportCount": 64,
+      "signatureSha256": "9162dc5a28850ad646aba7c85847a5db4ba20868434b2bc4d93750117de80b48",
       "exports": [
         "AddLayerArgs — interface",
         "AddWidgetArgs — interface",
@@ -3983,6 +3983,7 @@
         "SetFilterArgs — interface",
         "SetLayerStyleArgs — interface",
         "SetViewportArgs — interface",
+        "SetVisibilityArgs — interface",
         "SummarizeSelectionArgs — interface",
         "adaptHonuaControllerToAgentRuntime — function",
         "adaptHonuaGeneratedAppRuntimeToAgentRuntime — function",

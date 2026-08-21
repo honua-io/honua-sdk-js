@@ -90,7 +90,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.7-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 25 experimental subpaths may change before 1.0, and
+by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -126,8 +126,9 @@ clients, styling, interactions, editing, geocoding, migration tooling — the gl
 team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 
 - **Protocol-neutral data access.** One `Source.query(...)` call works against
-  GeoServices, OGC, WFS, OData and friends — including typed execution against raw
-  OGC API Processes servers (experimental). Capability misses throw
+  GeoServices, OGC, WFS, OData and friends. Geoprocessing uses one `IJobRun`
+  lifecycle across raw OGC API Processes and Esri-compatible GPServer tasks.
+  Capability misses throw
   `HonuaCapabilityNotSupportedError` instead of returning empty results. Large
   results ride an experimental columnar data plane (GeoArrow batches, streaming
   backpressure, worker-side aggregation —
@@ -189,8 +190,8 @@ Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw st
 OGC API Tiles (`beta`), Maps (`beta`), and Records
 (`beta`) also discover and use raw advertised paths. OGC API Processes
 keeps two honest lanes against a raw server:
-discovery (`experimental`, `standalone`) and
-typed execution (`experimental`, `standalone`).
+discovery (`supported`, `standalone`) and
+typed execution (`supported`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 `MapPackage`s, realtime, collaboration, compatibility metadata, a richer hosted
@@ -529,6 +530,8 @@ tables, and backwards-compatibility policy live in:
 - [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` standalone bridge cookbook
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
+- [`docs/geoprocessing.md`](./docs/geoprocessing.md) — one job lifecycle across OGC API Processes, Esri GPServer compatibility, and AI-selected operations
+- [`docs/zero-to-map-release-journey.md`](./docs/zero-to-map-release-journey.md) — contract-first 2026.1 install → admin/GP → Studio → human Console gate walkthrough
 - [`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md) — provider-pluggable geocoding & routing adapters
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
@@ -629,7 +632,7 @@ correctly use this SDK:
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
     `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
     `/offline`, `/diagnostics`, `/routing`, `/cog`, `/pmtiles`, `/stac`, `/raster`, `/coverages`, `/columnar-workflow`, `/kepler`, `/analytics`, `/analytics/uplot`, `/zarr`,
-    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 25 experimental subpaths in total.
+    `/pmtiles-protocol-plugin.js`, `/local-install` — with `/query-planner` below, 26 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.
@@ -744,7 +747,7 @@ and the protocol-neutral contract are all reachable from this one install.
 ## Generated support status
 
 The versioned source of truth is [`config/support-manifest.v1.json`](./config/support-manifest.v1.json).
-It projects 22 supported (documented below as stable), 25 experimental,
+It projects 22 supported (documented below as stable), 26 experimental,
 and 18 deprecated package entrypoints. Protocol status is independent
 of package lifecycle: raw endpoint support, facade requirements, execution mode, and
 evidence are listed in the generated
@@ -829,6 +832,7 @@ not re-exported from `@honua/sdk-js` or `@honua/sdk-js/honua`.
 | `@honua/sdk-js/routing` | Provider-pluggable routing: typed `RoutingProvider` contract, OSRM and Valhalla adapters, the Honua facade bridge, and per-provider attribution/usage-policy metadata ([provider cookbook](./docs/geocoding-routing-providers.md)). |
 | `@honua/sdk-js/interactions/declarative` | Compiles a standard `interactions[]` block (geospatial-mcp ADR-0030) onto the imperative binding primitives in `/interactions`: closed event/verb sets, `$event.*`-only argument substitution, a per-(ref, event) fan-out cap, actions that never emit events, and typed `unsupported` results naming any pair this runtime cannot honor. |
 | `@honua/sdk-js/studio-agent` | The agent session behind a prompt-to-map Studio: streams honua-server's provider-neutral AI proxy over SSE, dispatches the model's tool calls across two planes (local `/agent-tools` verbs through an AI map kit, `honua_studio_*` composition tools through a dependency-free MCP client) on one serialized queue with a single generation-conflict reload+retry, and never throws mid-stream. |
+| `@honua/sdk-js/local-install` | Node-only, manifest-pinned local Docker installer shared by `honua admin install local` and the bootstrap MCP tool; fails closed when the release image does not match the generated Admin API contract. |
 
 ## Deprecated compatibility entrypoints
 
@@ -1723,13 +1727,13 @@ comparison.
 ## Bundle size
 
 Honua per-entrypoint sizes below are projected from the generated
-[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-18 at commit `b934972c`;
+[`docs/bundle-sizes.md`](./bundle-sizes.md) (measured 2026-08-21 at commit `3bd8bf0`;
 esbuild `--bundle --minify`, target `es2020`, runtime peers external — the way a real consumer
 builds). CI enforces a byte budget on every entrypoint (`npm run verify:bundle-budgets`).
 
 | What you import | Minified | Gzip |
 | --- | ---: | ---: |
-| Full root entrypoint: connect → query → explain → mount workflow | 758.5 KiB | 203.0 KiB |
+| Full root entrypoint: connect → query → explain → mount workflow | 758.6 KiB | 203.0 KiB |
 | Importing only `HonuaClient` (tree-shake guard) | 240.9 KiB | 62.1 KiB |
 | Data→map bridge only: `mountSourceToMapLibre` from `/map` | 45.6 KiB | 13.7 KiB |
 | Protocol-neutral contract (`Dataset`/`Source`/`Query`/`Result`) | 368.2 KiB | 99.1 KiB |
@@ -1745,7 +1749,7 @@ entrypoints it imports.
 
 A complete open stack, measured here, in one unit:
 
-- **Minified:** engine 1036.3 KiB + Honua root 758.5 KiB ≈ **1.75 MB**.
+- **Minified:** engine 1036.3 KiB + Honua root 758.6 KiB ≈ **1.75 MB**.
 - **Gzip:** engine 273.8 KiB + Honua root 203.0 KiB ≈ **0.47 MB**.
 
 Both totals add figures produced by the same local harness in the same unit and compression,
@@ -8010,15 +8014,17 @@ the plan's effects).
 
 <!-- GENERATED FILE — do not edit by hand. -->
 <!-- Regenerate with: npm run docs:mcp-scorecard -->
-<!-- Inputs: mcp/evals/runs/**/*.json (committed run artifacts), mcp/src/eval/corpus.ts, mcp/src/eval/operator-corpus.ts, mcp/src/eval/northstar-corpus.ts, mcp/src/eval/standalone-corpus.ts. -->
+<!-- Inputs: mcp/evals/runs/**/*.json (committed run artifacts), mcp/evals/admin-family.v1.json, mcp/src/eval/corpus.ts, mcp/src/eval/operator-corpus.ts, mcp/src/eval/northstar-corpus.ts, mcp/src/eval/standalone-corpus.ts. -->
 <!-- Freshness is enforced by npm run docs:mcp-scorecard:check. -->
 
 # Cross-model MCP eval scorecard
 
 How well do different client models actually drive Honua's MCP surface? This page is the
-answer, published rather than asserted. Every figure below is rendered from a committed run
+answer, published rather than asserted. Every observed result below is rendered from a committed run
 artifact under [`mcp/evals/runs/`](https://github.com/honua-io/honua-sdk-js/tree/trunk/mcp/evals/runs) — the same JSON the eval harness wrote,
-carrying the surface it ran against, how it authenticated, and (where the artifact is new
+admin release-readiness is read from [`mcp/evals/admin-family.v1.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/admin-family.v1.json) and stays blocked
+until a live candidate receipt exists. Run artifacts carry the surface they ran against, how they
+authenticated, and (where the artifact is new
 enough to record it) the negotiated MCP protocol version and the git SHA of the suite that
 produced it. Nothing here is hand-typed, and the generator recomputes every rate from the
 per-scenario rows before publishing it, so a summary that disagreed with its own graded
@@ -8102,6 +8108,16 @@ listed here, with the grader's own violation text.
 Read these as capability signals, not bugs in the surface: the eval grades whether a client
 *composed the right workflow*, so a smaller model that asked for clarification it did not need,
 or looped past its iteration budget, is exactly what the corpus is designed to expose.
+
+## Admin operation family
+
+The generated Admin REST client covers **396 operations**; the server-owned semantic MCP family is bounded to **119 tools**. The row stays blocked until those descriptors are certified against the same release candidate through both HTTP and the proxy.
+
+| Family | REST operations | Expected MCP tools | HTTP/proxy parity | Approval outcomes | `secret_ref` | Candidate status |
+| --- | ---: | ---: | --- | --- | --- | --- |
+| `honua_admin_*` | 396 | 119 | implemented-awaiting-live-candidate | fixture-covered-awaiting-server-catalog | fixture-covered-awaiting-server-catalog | blocked-server-pin-regresses-admin-contract (`4a7903c2ef764ffeaa60083689f73b9e42bbc6a3`, 395 REST operations) |
+
+Evidence definition: [`mcp/test/certification/admin-parity.test.ts`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/test/certification/admin-parity.test.ts). Source contract: `f897700159e2791c9468c6ca85bb4e2a3a8d8433` / `edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a`. This is a readiness row, not a fabricated live pass receipt.
 
 ## Protocol certification (zero-LLM control)
 
@@ -10139,8 +10155,8 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | WCS 2.0.1 discovery and bounded retrieval | `open-endpoint` | `experimental` | `standalone` | `native` | Any compatible WCS 2.0.1 KVP endpoint | @honua/sdk-js/coverages createWcsClient(), @honua/sdk-js/raster | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts)<br>[integration: coverages-wcs-browser](../test/playwright/coverages-wcs-basic.spec.mjs)<br>[fixture: unified-raster-fixtures](../test/unified-raster.test.ts) | Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. A strict standalone browser fixture proves named RANGESUBSET, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists. |
 | OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
 | Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, every declared imagery protocol (url-template, WMS, WMTS, single-tile, and both ArcGIS endpoint shapes) with the request each provider puts on the wire, glTF/GLB models, 3D-Tiles tilesets including a .pnts point cloud and the honua_style sidecar, the fail-closed rows for an undeclared imagery protocol and an unmaterialized model format, and a documented final-canvas GC floor whose listener budget is itself proven by an injected per-cycle leak (#928, #1055). Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table. |
-| OGC API Processes discovery | `open-endpoint` | `experimental` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
-| OGC API Processes execution | `open-endpoint` | `experimental` | `standalone` | `native` | Any conformant OGC API Processes Part 1 (Core) server | client.ogcProcesses({ basePath, conformance }).execute() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Executes at the discovered service root in both Core response shapes (synchronous 200 results and Prefer: respond-async 201 + Location), then follows the advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture-proven; no public endpoint permits anonymous execution, so there is no live lane. |
+| OGC API Processes discovery | `open-endpoint` | `supported` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
+| OGC API Processes execution | `open-endpoint` | `supported` | `standalone` | `native` | Any conformant OGC API Processes Part 1 (Core) server | client.ogcProcesses({ basePath, conformance }).execute() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Executes at the discovered service root in both Core response shapes (Prefer: respond-sync with synchronous 200 results, or Prefer: respond-async with 201 + Location), then follows advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Contract and integration proven; the anonymous geometry.buffer live step remains explicitly blocked on honua-server#3268 and honua-demo-infra#68. |
 | Server compatibility gate | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
 | Authored MapPackage runtime | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | @honua/sdk-js/runtime | [fixture: map-package-fixtures](../test/runtime/map-package-fetch.test.ts) | Loads server-authored styles, layer order, and metadata. |
 | Realtime subscriptions | `server-attach` | `facade-required` | `honua-facade` | `transport` | Honua Server | @honua/sdk-js/realtime | [fixture: realtime-cross-transport-fixtures](../test/realtime-cross-transport-conformance.test.ts)<br>[integration: realtime-integration](../test/integration/surfaces/realtime.integration.ts)<br>[live: realtime-live-conformance](../scripts/realtime-conformance-evidence.mjs) | SSE, WebSocket, and OData polling share a release-gated fixture corpus; scheduled evidence executes each transport that Honua Server advertises and classifies unsupported or degraded capability separately. |
@@ -11689,22 +11705,22 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-18 at commit `b934972c`._
+_Generated 2026-08-21 at commit `3bd8bf0`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 758.5 KiB | 829.3 KiB | 203.0 KiB | 211.8 KiB |
-| `/honua` | 921.3 KiB | 937.2 KiB | 247.2 KiB | 251.0 KiB |
+| `.` (root) | 758.6 KiB | 829.3 KiB | 203.0 KiB | 211.8 KiB |
+| `/honua` | 921.4 KiB | 937.2 KiB | 247.2 KiB | 251.0 KiB |
 | `/contract` | 368.2 KiB | 400.6 KiB | 99.1 KiB | 108.0 KiB |
-| `/source-schema` (focused schema + pinned PROJJSON validator) | 892.3 KiB | 925.5 KiB | 201.1 KiB | 206.0 KiB |
+| `/source-schema` (focused schema + pinned PROJJSON validator) | 892.4 KiB | 925.5 KiB | 201.2 KiB | 206.0 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.8 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
-| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 926.3 KiB | 961.8 KiB | 210.5 KiB | 215.6 KiB |
+| `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 926.4 KiB | 961.8 KiB | 210.5 KiB | 215.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 67.2 KiB | 69.2 KiB | 20.3 KiB | 21.9 KiB |
-| `/agent-tools` | 44.5 KiB | 48.1 KiB | 12.2 KiB | 13.3 KiB |
+| `/agent-tools` | 45.3 KiB | 48.1 KiB | 12.4 KiB | 13.3 KiB |
 | `/agent-safety` | 68.7 KiB | 73.2 KiB | 19.0 KiB | 20.5 KiB |
-| `/nl-map-control` | 86.4 KiB | 94.2 KiB | 25.1 KiB | 25.3 KiB |
+| `/nl-map-control` | 87.2 KiB | 94.2 KiB | 25.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
-| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 25.4 KiB | 27.9 KiB | 8.1 KiB | 8.9 KiB |
+| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 26.1 KiB | 27.9 KiB | 8.3 KiB | 8.9 KiB |
 | `/runtime` | 608.0 KiB | 612.2 KiB | 164.3 KiB | 180.4 KiB |
 | `/realtime` | 80.6 KiB | 86.2 KiB | 23.1 KiB | 25.0 KiB |
 | `/offline` | 171.1 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
@@ -11720,19 +11736,19 @@ _Generated 2026-08-18 at commit `b934972c`._
 | `/map` | 183.0 KiB | 198.2 KiB | 51.6 KiB | 56.2 KiB |
 | `/geoparquet` (duckdb-wasm external — lazy peer) | 146.8 KiB | 154.9 KiB | 44.0 KiB | 46.6 KiB |
 | `/cog` (caller-injected decoder; no raster peer in the static graph) | 51.7 KiB | 56.1 KiB | 14.8 KiB | 16.1 KiB |
-| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 333.8 KiB | 364.2 KiB | 89.9 KiB | 98.7 KiB |
+| `/pmtiles` (bounded direct inspection + managed lifecycle; renderer runtime excluded) | 333.9 KiB | 364.2 KiB | 89.9 KiB | 98.7 KiB |
 | `/deckgl` (deck.gl external — lazy peer) | 66.1 KiB | 68.3 KiB | 17.7 KiB | 18.3 KiB |
-| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1014.1 KiB | 1037.6 KiB | 272.4 KiB | 277.9 KiB |
-| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1090.7 KiB | 1120.1 KiB | 295.8 KiB | 321.9 KiB |
+| `/controls` (framework-free control kit; includes the lazy web-components registration chunk) | 1014.2 KiB | 1037.6 KiB | 272.4 KiB | 277.9 KiB |
+| `/web-components` (custom-element kit; maplibre-gl external, export adapters injected) | 1090.8 KiB | 1120.1 KiB | 295.8 KiB | 321.9 KiB |
 | `/kepler` (kepler.gl/react/redux absent — dynamic optional peer) | 61.4 KiB | 67.5 KiB | 17.9 KiB | 18.1 KiB |
 | `/analytics` (contract + accessible default presentation; no chart adapter, no chart peer) | 35.7 KiB | 39.2 KiB | 11.2 KiB | 11.6 KiB |
 | `/analytics/uplot` (µPlot external — dynamically imported optional peer) | 10.1 KiB | 10.3 KiB | 3.9 KiB | 4.2 KiB |
 | `/react` (react/react-dom external) | 543.8 KiB | 562.6 KiB | 146.2 KiB | 150.2 KiB |
 | `/geometry` (turf/proj4 bundled — real consumer cost) | 516.4 KiB | 568.0 KiB | 142.7 KiB | 157.0 KiB |
-| browser IIFE (`./browser` unpkg/jsdelivr) | 759.1 KiB | 832.8 KiB | 203.2 KiB | 222.1 KiB |
-| browser ESM (`./browser`) | 757.8 KiB | 828.5 KiB | 202.9 KiB | 221.7 KiB |
+| browser IIFE (`./browser` unpkg/jsdelivr) | 759.2 KiB | 832.8 KiB | 203.2 KiB | 222.1 KiB |
+| browser ESM (`./browser`) | 757.9 KiB | 828.5 KiB | 202.9 KiB | 221.7 KiB |
 | tree-shake guard (`{ HonuaClient }` only) | 240.9 KiB | 254.0 KiB | 62.1 KiB | 63.6 KiB |
-| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 618.0 KiB | 627.9 KiB | 164.1 KiB | 166.9 KiB |
+| tree-shake guard (`{ connect }` from root, source-schema runtime excluded) | 618.1 KiB | 627.9 KiB | 164.1 KiB | 166.9 KiB |
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.4 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 16.3 KiB | 17.1 KiB | 4.3 KiB | 4.5 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.0 KiB | 18.5 KiB | 3.6 KiB | 3.9 KiB |
@@ -13126,6 +13142,11 @@ custom query parameter can still pass one through `extraParams`.
 
 ### OGC API Processes
 
+For the end-to-end discover, describe, synchronous/asynchronous execute,
+results, and cancellation workflow—and the equivalent `IJobRun` lifecycle for
+Esri-compatible GPServer tasks—see the dedicated
+[geoprocessing guide](./geoprocessing.md).
+
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import type { IJobRun } from "@honua/sdk-js/honua";
 
@@ -13208,7 +13229,7 @@ Four properties hold whichever server is on the other end:
 
 - **Both Core response shapes.** `mode: "async"` sends
   `Prefer: respond-async` and expects `201` + `Location`; `mode: "sync"`
-  omits the header and expects `200` with the results document;
+  sends `Prefer: respond-sync` and expects `200` with the results document;
   `mode: "auto"` (the default) accepts either. A synchronous execution
   still returns an `IJobRun` — an already-terminal one with `id === ""`,
   since Core assigns no job identifier — so caller code is identical.
