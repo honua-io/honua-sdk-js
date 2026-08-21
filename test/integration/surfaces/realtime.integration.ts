@@ -88,7 +88,7 @@ integrationSuite("Realtime SSE", SURFACE, ({ config }) => {
     return probe;
   };
 
-  it("subscribes over SSE and reports a live connection, decoding any change", async (ctx) => {
+  it("subscribes over SSE and reports a live connection, decoding any change [cert:realtime/subscribe#positive] [cert:realtime/subscribe#media-schema]", async (ctx) => {
     const gap = await probeCapability();
     if (gap) {
       ctx.skip(gap);
@@ -129,7 +129,7 @@ integrationSuite("Realtime SSE", SURFACE, ({ config }) => {
     }
   });
 
-  it("surfaces a reconnecting status and derives a resume checkpoint on a drop", async () => {
+  it("surfaces a reconnecting status and derives a resume checkpoint on a drop [cert:realtime/resume#positive] [cert:realtime/resume#media-schema]", async () => {
     // Deterministic reconnect drill: drive a controllable source so the outcome
     // does not depend on the server dropping the connection on cue. This still
     // exercises the real SDK transport (status derivation + honua-server decode

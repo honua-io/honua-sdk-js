@@ -63,7 +63,7 @@ integrationSuite("OGC API Records", SURFACE, ({ client, context }) => {
     return gap;
   };
 
-  it("returns an OGC API Records landing document", async (ctx) => {
+  it("returns an OGC API Records landing document [cert:ogc-records/landing#positive] [cert:ogc-records/landing#metadata] [cert:ogc-records/landing#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     await runWithDiagnostics(context, "client.ogcRecords().landing", async () => {
       const landing = await records.landing();
@@ -72,7 +72,7 @@ integrationSuite("OGC API Records", SURFACE, ({ client, context }) => {
     });
   });
 
-  it("declares OGC API Records conformance classes", async (ctx) => {
+  it("declares OGC API Records conformance classes [cert:ogc-records/conformance#positive] [cert:ogc-records/conformance#metadata] [cert:ogc-records/conformance#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     await runWithDiagnostics(context, "client.ogcRecords().conformance", async () => {
       const conformance = await records.conformance();
@@ -81,7 +81,7 @@ integrationSuite("OGC API Records", SURFACE, ({ client, context }) => {
     });
   });
 
-  it("lists catalog collections", async (ctx) => {
+  it("lists catalog collections [cert:ogc-records/collections#positive] [cert:ogc-records/collections#metadata] [cert:ogc-records/collections#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     await runWithDiagnostics(context, "client.ogcRecords().collections", async () => {
       const result = await records.collections();
@@ -102,7 +102,7 @@ integrationSuite("OGC API Records", SURFACE, ({ client, context }) => {
     return catalog;
   };
 
-  it("searches a catalog with a bounded page", async (ctx) => {
+  it("searches a catalog with a bounded page [cert:ogc-records/search#positive] [cert:ogc-records/search#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     const catalogId = await resolveCatalogId();
     if (!catalogId) {
@@ -121,7 +121,7 @@ integrationSuite("OGC API Records", SURFACE, ({ client, context }) => {
     });
   });
 
-  it("pages a catalog with a cursor-driven pager (non-offset continuation)", async (ctx) => {
+  it("pages a catalog with a cursor-driven pager (non-offset continuation) [cert:ogc-records/cursor-pagination#positive] [cert:ogc-records/cursor-pagination#pagination] [cert:ogc-records/cursor-pagination#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     const catalogId = await resolveCatalogId();
     if (!catalogId) {

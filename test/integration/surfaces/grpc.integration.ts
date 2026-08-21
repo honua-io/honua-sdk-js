@@ -84,7 +84,7 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     return gap;
   };
 
-  it("round-trips a query over the gRPC-web transport", async (ctx) => {
+  it("round-trips a query over the gRPC-web transport [cert:grpc-web/query#positive] [cert:grpc-web/query#pagination] [cert:grpc-web/query#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     const grpc = makeGrpcClient();
     const result = await runWithDiagnostics(context, "grpc queryFeatures", () => grpc.queryFeatures(baseQuery));
@@ -94,7 +94,7 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     expect(features[0]?.attributes).toBeDefined();
   });
 
-  it("returns query parity with the REST transport", async (ctx) => {
+  it("returns query parity with the REST transport [cert:grpc-web/rest-parity#positive] [cert:grpc-web/rest-parity#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     const grpc = makeGrpcClient();
     const [rest, grpcResult] = await Promise.all([
@@ -114,7 +114,7 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     }
   });
 
-  it("attaches the configured auth credential to gRPC-web requests", async (ctx) => {
+  it("attaches the configured auth credential to gRPC-web requests [cert:grpc-web/authentication#positive] [cert:grpc-web/authentication#auth] [cert:grpc-web/authentication#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     if (!config.apiKey && !config.bearerToken) {
       ctx.skip("no apiKey/bearerToken configured; no credential to assert on the wire");
@@ -137,7 +137,7 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     expect(attached).toBe(true);
   });
 
-  it("replays a transient failure through the gRPC-web retry/backoff path", async (ctx) => {
+  it("replays a transient failure through the gRPC-web retry/backoff path [cert:grpc-web/retry#positive] [cert:grpc-web/retry#negative] [cert:grpc-web/retry#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     // Fail the first gRPC-web POST with HTTP 503 (Connect maps this to the
     // retryable `unavailable` code), then delegate to the real transport. A
