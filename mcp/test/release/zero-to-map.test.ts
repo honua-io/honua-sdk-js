@@ -434,6 +434,41 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(receipt.stages.slice(1).every((stage) => stage.status === "skipped")).toBe(true);
   });
 
+  it("bounds local Docker fixtures without weakening the AWS public HTTPS boundary", async () => {
+    const plan = await loadPlan();
+    const adapter = neverCalledAdapter();
+    const local = await runZeroToMapJourney(plan, adapter, {
+      execute: false,
+      target: "local-docker",
+      variables: { fixtureBaseUrl: "http://host.docker.internal:4173/" },
+      now: deterministicClock(),
+    });
+    expect(local.status).toBe("blocked");
+
+    await expect(
+      runZeroToMapJourney(plan, adapter, {
+        execute: false,
+        target: "aws-ecs",
+        variables: { fixtureBaseUrl: "http://host.docker.internal:4173" },
+      }),
+    ).rejects.toThrow("public HTTPS");
+
+    for (const fixtureBaseUrl of [
+      "http://host.docker.internal:4174",
+      "http://fixtures.local:4173",
+      "http://user:password@host.docker.internal:4173",
+      "http://host.docker.internal:4173?credential=unexpected",
+    ]) {
+      await expect(
+        runZeroToMapJourney(plan, adapter, {
+          execute: false,
+          target: "local-docker",
+          variables: { fixtureBaseUrl },
+        }),
+      ).rejects.toThrow("local Docker fixture origin");
+    }
+  });
+
   it("preflights the complete MCP catalog before the first server mutation", async () => {
     const plan = await loadPlan();
     const calls: string[] = [];

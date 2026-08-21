@@ -9,7 +9,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { HonuaAdminClient } from "./control-plane/admin-client.js";
@@ -117,7 +117,14 @@ export async function installHonuaLocal(
   const existingEnv = await readEnv(envFile);
   const reused = Object.keys(existingEnv).length > 0;
   const secret = runtime.randomSecret ?? ((bytes: number) => randomBytes(bytes).toString("hex"));
-  const env = {
+  const env: Record<string, string | undefined> & {
+    HONUA_SERVER_IMAGE: string;
+    HONUA_HTTP_PORT: string;
+    POSTGRES_PASSWORD: string;
+    HONUA_ADMIN_PASSWORD: string;
+    HONUA_CONNECTION_ENCRYPTION_MASTER_KEY: string;
+    HONUA_ADMIN_KEY: string | undefined;
+  } = {
     HONUA_SERVER_IMAGE: LOCAL_INSTALL_SERVER_IMAGE,
     HONUA_HTTP_PORT: String(httpPort),
     POSTGRES_PASSWORD: existingEnv.POSTGRES_PASSWORD ?? secret(24),
@@ -146,15 +153,25 @@ export async function installHonuaLocal(
   let credential: ProvisionedAdminCredential;
   if (!env.HONUA_ADMIN_KEY) {
     credential = await bootstrapAdminKey(baseUrl, env.HONUA_ADMIN_PASSWORD, runtime.fetchFn);
-    env.HONUA_ADMIN_KEY = credential.material;
-    await writePrivateFile(envFile, renderEnv(env));
+    try {
+      env.HONUA_ADMIN_KEY = credential.material;
+      await writePrivateFile(envFile, renderEnv(env));
+      const mcpConfig = renderMcpConfig(baseUrl, credential.material);
+      await writePrivateFile(mcpConfigFile, mcpConfig);
+      await writePrivateFile(claudeDesktopConfigFile, mcpConfig);
+    } catch (error) {
+      env.HONUA_ADMIN_KEY = undefined;
+      const client = new HonuaAdminClient({ baseUrl, adminKey: env.HONUA_ADMIN_PASSWORD, fetchFn: runtime.fetchFn });
+      await revokeIssuedAdminKey(client, credential.id, error, async () => {
+        await writePrivateFile(envFile, renderEnv(env));
+      });
+    }
   } else {
     credential = await resolveExistingAdminKey(baseUrl, env.HONUA_ADMIN_KEY, runtime.fetchFn);
+    const mcpConfig = renderMcpConfig(baseUrl, credential.material);
+    await writePrivateFile(mcpConfigFile, mcpConfig);
+    await writePrivateFile(claudeDesktopConfigFile, mcpConfig);
   }
-
-  const mcpConfig = renderMcpConfig(baseUrl, credential.material);
-  await writePrivateFile(mcpConfigFile, mcpConfig);
-  await writePrivateFile(claudeDesktopConfigFile, mcpConfig);
 
   return {
     status: "ready",
@@ -335,18 +352,47 @@ async function bootstrapAdminKey(
     body: { name: "honua-local-agent", permissions: LOCAL_AGENT_GRANTS },
   });
   const issued = readIssuedAdminCredential(result.data);
-  const effective = await readEffectiveAdminCredential(client, issued.id);
-  if (!sameStrings(LOCAL_AGENT_GRANTS, effective.permissions)) {
-    throw new Error("Admin key bootstrap effective grants did not match the requested grants.");
+  try {
+    const effective = await readEffectiveAdminCredential(client, issued.id);
+    if (!sameStrings(LOCAL_AGENT_GRANTS, effective.permissions)) {
+      throw new Error("Admin key bootstrap effective grants did not match the requested grants.");
+    }
+    return {
+      material: issued.material,
+      id: issued.id,
+      name: issued.name,
+      requestedGrants: LOCAL_AGENT_GRANTS,
+      effectiveGrants: effective.permissions,
+      provisioned: true,
+    };
+  } catch (error) {
+    return await revokeIssuedAdminKey(client, issued.id, error);
   }
-  return {
-    material: issued.material,
-    id: issued.id,
-    name: issued.name,
-    requestedGrants: LOCAL_AGENT_GRANTS,
-    effectiveGrants: effective.permissions,
-    provisioned: true,
-  };
+}
+
+async function revokeIssuedAdminKey(
+  client: HonuaAdminClient,
+  id: string,
+  originalError: unknown,
+  cleanup?: () => Promise<void>,
+): Promise<never> {
+  let revokeError: unknown;
+  try {
+    await client.call("revokeAdminApiKey", { path: { id } });
+  } catch (error) {
+    revokeError = error;
+  }
+  try {
+    await cleanup?.();
+  } catch {
+    // The credential is already revoked (or the combined error below reports that it was not).
+  }
+  if (revokeError !== undefined) {
+    throw new Error("Admin key bootstrap failed and rollback could not revoke the issued credential.", {
+      cause: originalError,
+    });
+  }
+  throw originalError;
 }
 
 async function resolveExistingAdminKey(
@@ -507,8 +553,75 @@ function renderEnv(env: Record<string, string | undefined>): string {
 }
 
 async function writePrivateFile(filePath: string, content: string): Promise<void> {
-  await writeFile(filePath, content, { encoding: "utf8", mode: 0o600 });
-  await chmod(filePath, 0o600).catch(() => {});
+  await rejectSymbolicLink(filePath);
+  const directory = path.dirname(filePath);
+  const temporary = path.join(directory, `.${path.basename(filePath)}.${randomBytes(16).toString("hex")}.tmp`);
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
+  try {
+    handle = await open(temporary, "wx", 0o600);
+    await handle.writeFile(content, "utf8");
+    await handle.sync();
+    await handle.close();
+    handle = undefined;
+    await enforcePrivateAccess(temporary);
+    await rejectSymbolicLink(filePath);
+    await rename(temporary, filePath);
+    await verifyPrivateAccess(filePath);
+    if (process.platform !== "win32") {
+      const directoryHandle = await open(directory, "r");
+      try {
+        await directoryHandle.sync();
+      } finally {
+        await directoryHandle.close();
+      }
+    }
+  } finally {
+    await handle?.close().catch(() => {});
+    await rm(temporary, { force: true }).catch(() => {});
+  }
+}
+
+async function rejectSymbolicLink(filePath: string): Promise<void> {
+  try {
+    const metadata = await lstat(filePath);
+    if (metadata.isSymbolicLink()) throw new Error(`Refusing to replace symbolic-link credential file: ${filePath}`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+async function enforcePrivateAccess(filePath: string): Promise<void> {
+  if (process.platform !== "win32") {
+    const handle = await open(filePath, "r+");
+    try {
+      await handle.chmod(0o600);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    return;
+  }
+
+  const directory = path.dirname(filePath);
+  const identity = await runCommand("whoami", ["/user", "/fo", "csv", "/nh"], directory);
+  const sid = identity.stdout.match(/"(S-\d+(?:-\d+)+)"/i)?.[1];
+  if (identity.exitCode !== 0 || !sid) throw new Error("Could not resolve the Windows owner SID for a private file.");
+  const acl = await runCommand("icacls", [filePath, "/inheritance:r", "/grant:r", `*${sid}:(F)`], directory);
+  if (acl.exitCode !== 0) throw new Error(`Could not establish an owner-only Windows ACL: ${acl.stderr || acl.stdout}`);
+}
+
+async function verifyPrivateAccess(filePath: string): Promise<void> {
+  const metadata = await lstat(filePath);
+  if (!metadata.isFile() || metadata.isSymbolicLink()) {
+    throw new Error(`Credential path is not a private regular file: ${filePath}`);
+  }
+  if (process.platform !== "win32" && (metadata.mode & 0o777) !== 0o600) {
+    throw new Error(`Credential file permissions are not owner-only: ${filePath}`);
+  }
+  if (process.platform === "win32") {
+    const result = await runCommand("icacls", [filePath, "/verify"], path.dirname(filePath));
+    if (result.exitCode !== 0) throw new Error(`Could not verify the Windows private-file ACL: ${result.stderr}`);
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

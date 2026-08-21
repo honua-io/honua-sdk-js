@@ -354,6 +354,7 @@ export async function runZeroToMapCli(
   const adapter = options.execute ? new LiveAdapter(liveOptions, env) : new ContractAdapter();
   const receipt = await runZeroToMapJourney(plan, adapter, {
     execute: options.execute,
+    target: options.target,
     variables: options.variables,
     ...(checkpoint ? { resume: checkpoint.resume } : {}),
     ...(!checkpoint && bindings && options.checkpointPath

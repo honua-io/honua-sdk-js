@@ -41,6 +41,7 @@ const STUDIO_PUBLICATION_GENERATION_CAPTURE_POINTERS = [
 export type JourneyActionKind = "cli" | "mcp" | "mcp-resource" | "gpserver" | "receipt" | "http";
 export type JourneyActionStatus = "passed" | "blocked" | "failed" | "skipped";
 export type JourneyStatus = "passed" | "blocked" | "failed";
+export type JourneyTarget = "local-docker" | "aws-ecs";
 
 export interface JourneyCapture {
   readonly variable: string;
@@ -172,6 +173,8 @@ export interface JourneyAdapter {
 export interface RunJourneyOptions {
   /** Live mutations are refused unless this is explicitly true. */
   readonly execute: boolean;
+  /** Selects the target-specific boundary for checkpoint-safe fixture inputs. */
+  readonly target?: JourneyTarget;
   readonly variables?: Readonly<Record<string, unknown>>;
   readonly now?: () => Date;
   /** Previously completed live stages restored from a verified checkpoint. */
@@ -307,8 +310,9 @@ export async function runZeroToMapJourney(
   const now = options.now ?? (() => new Date());
   if (options.resume && !options.execute) throw new Error("A journey checkpoint can be resumed only in live mode.");
   const configuredVariables: Record<string, unknown> = { ...plan.variables, ...options.variables };
-  const checkpointSeeds = checkpointSeedVariables(configuredVariables);
-  const resumeStageIndex = options.resume ? validateJourneyResume(plan, options.resume, options.variables) : 0;
+  const target = options.target ?? "local-docker";
+  const checkpointSeeds = checkpointSeedVariables(configuredVariables, target);
+  const resumeStageIndex = options.resume ? validateJourneyResume(plan, options.resume, options.variables, target) : 0;
   const startedAt = options.resume?.startedAt ?? now().toISOString();
   const capturedVariables: Record<string, unknown> = options.resume
     ? { ...options.resume.capturedVariables }
@@ -467,6 +471,7 @@ export function validateJourneyResume(
   plan: ZeroToMapPlan,
   resume: JourneyResumeState,
   executionVariables: Readonly<Record<string, unknown>> = {},
+  target: JourneyTarget = "local-docker",
 ): number {
   if (!Number.isFinite(Date.parse(resume.startedAt))) throw new Error("checkpoint startedAt must be an ISO timestamp");
   const stageIndex = plan.stages.findIndex((stage) => stage.id === resume.resumeAt.stageId);
@@ -481,11 +486,14 @@ export function validateJourneyResume(
     throw new Error("checkpoint completed stage prefix does not reach the declared resume point");
   }
 
-  const expectedSeeds = checkpointSeedVariables({
-    ...plan.variables,
-    ...executionVariables,
-  });
-  const persistedSeeds = checkpointSeedVariables(resume.capturedVariables);
+  const expectedSeeds = checkpointSeedVariables(
+    {
+      ...plan.variables,
+      ...executionVariables,
+    },
+    target,
+  );
+  const persistedSeeds = checkpointSeedVariables(resume.capturedVariables, target);
   for (const [name, value] of Object.entries(expectedSeeds)) {
     if (persistedSeeds[name] !== value) {
       throw new Error(`checkpoint seed ${name} does not match the current plan or execution input`);
@@ -627,7 +635,10 @@ function assertMutableGenerationAdvance(
 }
 
 /** Persist only validated, non-secret deterministic inputs needed by external evidence producers. */
-function checkpointSeedVariables(variables: Readonly<Record<string, unknown>>): Record<string, unknown> {
+function checkpointSeedVariables(
+  variables: Readonly<Record<string, unknown>>,
+  target: JourneyTarget,
+): Record<string, unknown> {
   const seeds: Record<string, unknown> = {};
   const serviceName = variables.serviceName;
   if (serviceName !== undefined) {
@@ -638,9 +649,34 @@ function checkpointSeedVariables(variables: Readonly<Record<string, unknown>>): 
   }
   const fixtureBaseUrl = variables.fixtureBaseUrl;
   if (fixtureBaseUrl !== undefined) {
-    seeds.fixtureBaseUrl = publicHttps(fixtureBaseUrl, "fixtureBaseUrl").replace(/\/$/, "");
+    seeds.fixtureBaseUrl = checkpointFixtureBaseUrl(fixtureBaseUrl, target);
   }
   return seeds;
+}
+
+function checkpointFixtureBaseUrl(value: unknown, target: JourneyTarget): string {
+  if (target === "aws-ecs") return publicHttps(value, "fixtureBaseUrl").replace(/\/$/, "");
+  try {
+    return publicHttps(value, "fixtureBaseUrl").replace(/\/$/, "");
+  } catch (publicError) {
+    if (typeof value !== "string" || !value) throw publicError;
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase().replace(/\.$/, "");
+    if (
+      url.protocol !== "http:" ||
+      host !== "host.docker.internal" ||
+      url.port !== "4173" ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    ) {
+      throw new Error(
+        "fixtureBaseUrl must be public HTTPS or the local Docker fixture origin http://host.docker.internal:4173",
+      );
+    }
+    return url.toString().replace(/\/$/, "");
+  }
 }
 
 function resolveReceiptRequest(
