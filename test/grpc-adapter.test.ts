@@ -22,7 +22,7 @@ import {
   SpatialReferenceSchema,
   SpatialRelationship,
   StatisticType,
-} from "../src/gen/honua/v1/feature_service_pb.js";
+} from "../src/gen/geospatial/v1/index.js";
 
 describe("toProtoQueryRequest", () => {
   it("converts a minimal request", () => {
@@ -89,8 +89,8 @@ describe("toProtoQueryRequest", () => {
       resultRecordCount: 50,
     });
 
-    expect(result.resultOffset).toBe(100);
-    expect(result.resultRecordCount).toBe(50);
+    expect(result.resultOffsetLong).toBe(100n);
+    expect(result.resultRecordCountLong).toBe(50n);
   });
 
   it("converts orderByFields and returnDistinct", () => {

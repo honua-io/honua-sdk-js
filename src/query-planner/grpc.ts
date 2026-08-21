@@ -1,6 +1,6 @@
 /**
  * Compile canonical query IR to a deterministic, inspectable description of the
- * `honua.v1.FeatureService/QueryFeatures` unary gRPC request — without pulling
+ * `geospatial.v1.FeatureService/QueryFeatures` unary gRPC request — without pulling
  * the `@bufbuild/protobuf` runtime into the planner graph.
  *
  * The compiled object mirrors the generated `QueryFeaturesRequest` message
@@ -98,7 +98,7 @@ export interface SemanticGrpcCompiledQueryV1 {
   readonly dialect: "honua-grpc";
   readonly schemaFingerprint: SourceSchemaV2["fingerprint"];
   readonly queryFingerprint: `sha256:${string}`;
-  readonly service: "honua.v1.FeatureService";
+  readonly service: "geospatial.v1.FeatureService";
   readonly method: "QueryFeatures";
   readonly serviceId: string;
   readonly layerId: number;
@@ -206,7 +206,7 @@ export function compileGrpcQuery(source: QueryIrSourceIdentity, query: Canonical
 
   return {
     compiler: "honua-grpc-query-features-v1",
-    service: "honua.v1.FeatureService",
+    service: "geospatial.v1.FeatureService",
     method: "QueryFeatures",
     serviceId: source.serviceId,
     layerId: source.layerId,
@@ -319,7 +319,7 @@ export function compileSemanticGrpcQuery<TRecord, TSpatiality extends SourceSpat
       dialect: "honua-grpc",
       schemaFingerprint: schema.fingerprint,
       queryFingerprint: hashSemanticQuery(query, { schema, protocol: "grpc" }),
-      service: "honua.v1.FeatureService",
+      service: "geospatial.v1.FeatureService",
       method: "QueryFeatures",
       serviceId: source.serviceId,
       layerId: source.layerId,

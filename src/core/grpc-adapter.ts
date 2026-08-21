@@ -21,7 +21,7 @@ import {
   SpatialRelationship,
   StatisticDefinitionSchema,
   StatisticType,
-} from "../gen/honua/v1/feature_service_pb.js";
+} from "../gen/geospatial/v1/index.js";
 import { HonuaGrpcError } from "./errors.js";
 import type {
   HonuaCountResponse,
@@ -158,10 +158,10 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   }
 
   if (request.resultOffset !== undefined) {
-    msg.resultOffset = request.resultOffset;
+    msg.resultOffsetLong = BigInt(request.resultOffset);
   }
   if (request.resultRecordCount !== undefined) {
-    msg.resultRecordCount = request.resultRecordCount;
+    msg.resultRecordCountLong = BigInt(request.resultRecordCount);
   }
   if (request.orderByFields !== undefined) {
     msg.orderBy = request.orderByFields;

@@ -608,14 +608,14 @@ export type GrpcStatisticType =
   | "STATISTIC_TYPE_VAR";
 
 /**
- * Inspectable `honua.v1.FeatureService/QueryFeatures` unary request produced
+ * Inspectable `geospatial.v1.FeatureService/QueryFeatures` unary request produced
  * without pulling in the protobuf runtime. Field names and enum value names
  * mirror the generated `QueryFeaturesRequest` message so the plan is a faithful,
  * deterministic description of the wire request.
  */
 export interface GrpcCompiledQueryV1 {
   readonly compiler: "honua-grpc-query-features-v1";
-  readonly service: "honua.v1.FeatureService";
+  readonly service: "geospatial.v1.FeatureService";
   readonly method: "QueryFeatures";
   readonly serviceId: string;
   readonly layerId: number;

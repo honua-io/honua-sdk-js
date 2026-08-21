@@ -176,7 +176,7 @@ describe("gRPC FeatureService compiler", () => {
       operation: "query",
       compiled: {
         compiler: "honua-grpc-query-features-v1",
-        service: "honua.v1.FeatureService",
+        service: "geospatial.v1.FeatureService",
         method: "QueryFeatures",
         serviceId: "incidents",
         layerId: 0,

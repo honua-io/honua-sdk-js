@@ -198,7 +198,7 @@ function schema(
       {
         method: "declared",
         protocol: "grpc",
-        source: "honua.v1.FeatureService/QueryFeatures",
+        source: "geospatial.v1.FeatureService/QueryFeatures",
       },
     ],
   });
@@ -211,7 +211,7 @@ function nonSpatialSchema(fields: readonly LogicalField[]): SourceSchemaV2 {
     geometry: { state: "none", reason: "no-geometry-fields" },
     temporal: { state: "none" },
     openContent: "closed",
-    provenance: [{ method: "declared", protocol: "grpc", source: "honua.v1.FeatureService/QueryFeatures" }],
+    provenance: [{ method: "declared", protocol: "grpc", source: "geospatial.v1.FeatureService/QueryFeatures" }],
   });
 }
 
@@ -293,7 +293,7 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     const hostileGrpc = compiled(grpc(attributeQuery<"grpc">(adversarial)));
     expect(hostileGrpc).toMatchObject({
       compiler: "honua-grpc-semantic-query-v1",
-      service: "honua.v1.FeatureService",
+      service: "geospatial.v1.FeatureService",
       method: "QueryFeatures",
       serviceId: "incidents",
       layerId: 0,

@@ -61,9 +61,14 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
         await makeGrpcClient().queryFeatures({ ...baseQuery, resultRecordCount: 1 });
         return undefined;
       } catch (error) {
+        if ((process.env.HONUA_DEPLOYMENT_TARGET ?? "").trim() === "local-docker") {
+          throw error;
+        }
         // A gRPC-web transport that the server does not serve surfaces as a
         // Connect "unimplemented"/network error rather than an HTTP status the
-        // classifier recognizes, so treat any probe failure as a clean gap.
+        // classifier recognizes. An external deployment may explicitly omit
+        // the optional transport, but the deterministic self-contained lane
+        // advertises gRPC-web and therefore fails closed above.
         const gap =
           classifyCapabilityGap("gRPC-web FeatureService", error) ??
           ({
