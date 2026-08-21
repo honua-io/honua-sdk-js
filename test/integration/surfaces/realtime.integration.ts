@@ -1,26 +1,14 @@
-/**
- * Realtime (Server-Sent Events) integration coverage. Exercises the SDK's
- * `@honua/sdk-js/realtime` transport against honua-server's
- * `/api/v1/streaming/features` endpoint:
+﻿/**
+ * Realtime SSE integration coverage against honua-server's live
+ * /api/v1/streaming/features endpoint.
  *
- *   1. subscribe over SSE and confirm the connection goes live (bounded wait),
- *   2. decode any server feature-change envelope through the honua-server
- *      preset decoder,
- *   3. surface a `reconnecting` status when the stream drops and derive a
- *      resume checkpoint — the mechanism a client uses to resume after a drop.
+ * Certification requires decoded server data, not merely a successful
+ * handshake. Resume coverage obtains a checkpoint from one live connection,
+ * sends it on a second connection, and requires a non-regressing server event.
+ * No synthetic EventSource may satisfy a governed certification marker.
  *
- * Node 20 has no global `EventSource`, so the suite supplies a small fetch-based
- * `eventSourceFactory` (the exact extension point the transport exposes for
- * non-browser runtimes) — the SDK's `src/realtime` decode / status / reconnect
- * logic is what is under test, not a browser EventSource.
- *
- * The live subscribe/decode tests gate on the server actually publishing the
- * streaming endpoint (skip with an explicit reason otherwise); the
- * reconnect/resume test drives the transport deterministically and always runs
- * when the lane is configured, so the surface never silently no-ops.
- *
- * All waits are bounded and event-driven — the suite resolves as soon as the
- * expected event arrives and never sleeps a fixed interval.
+ * Node 20 has no global EventSource, so the suite uses a bounded fetch-backed
+ * adapter while retaining the SDK's production decoder and transport.
  *
  * @module
  */
@@ -88,109 +76,160 @@ integrationSuite("Realtime SSE", SURFACE, ({ config }) => {
     return probe;
   };
 
-  it("subscribes over SSE and reports a live connection, decoding any change [cert:realtime/subscribe#positive] [cert:realtime/subscribe#media-schema]", async (ctx) => {
+  it("subscribes over SSE and decodes a live server data envelope [cert:realtime/subscribe#positive] [cert:realtime/subscribe#media-schema]", async (ctx) => {
     const gap = await probeCapability();
     if (gap) {
       ctx.skip(gap);
       return;
     }
 
+    const liveUrl = new URL(streamingUrl);
+    liveUrl.searchParams.set("mode", "snapshot-then-delta");
+    liveUrl.searchParams.set("requestId", "sdk-certification-subscribe");
     const factory: RealtimeServerSentEventSourceFactory = (url) => new FetchEventSource(url, authHeaders);
-    const transport = createHonuaServerRealtimeSubscription({ url: streamingUrl, eventSourceFactory: factory });
+    const transport = createHonuaServerRealtimeSubscription({
+      url: liveUrl.toString(),
+      eventSourceFactory: factory,
+    });
 
     const events: RealtimeFeatureEvent[] = [];
-    const wentLive = deferred<void>();
+    const receivedData = deferred<RealtimeFeatureEvent>();
     const observer: RealtimeFeatureObserver = {
       next(event) {
         events.push(event);
-        if (event.type === "status" && event.status === "live") wentLive.resolve();
-        // A server feature-change decodes to a delta/upsert/delete/snapshot —
-        // resolve early on the first real data event too.
-        if (event.type === "delta" || event.type === "upsert" || event.type === "snapshot") wentLive.resolve();
+        if (isServerDataEvent(event)) receivedData.resolve(event);
       },
       error(error) {
-        wentLive.reject(error instanceof Error ? error : new Error(String(error)));
+        receivedData.reject(error instanceof Error ? error : new Error(String(error)));
       },
       complete() {},
     };
 
     const handle = transport.subscribe({ sourceId: config.serviceId, layerId: config.layerId }, observer);
+    let dataEvent: RealtimeFeatureEvent;
     try {
-      await withTimeout(wentLive.promise, LIVE_WAIT_MS, "SSE stream did not go live within the bounded window");
+      dataEvent = await withTimeout(
+        receivedData.promise,
+        LIVE_WAIT_MS,
+        "SSE stream did not emit a decodable server data envelope within the bounded window",
+      );
     } finally {
       handle.close();
     }
 
-    // The synthetic `status: live` is emitted on open; any additional envelope
-    // (heartbeat/snapshot/delta) proves the decoder ran on real server output.
     expect(events.some((event) => event.type === "status" && event.status === "live")).toBe(true);
-    for (const event of events) {
-      expect(typeof event.type).toBe("string");
-    }
+    expect(isServerDataEvent(dataEvent)).toBe(true);
   });
 
-  it("surfaces a reconnecting status and derives a resume checkpoint on a drop [cert:realtime/resume#positive] [cert:realtime/resume#media-schema]", async () => {
-    // Deterministic reconnect drill: drive a controllable source so the outcome
-    // does not depend on the server dropping the connection on cue. This still
-    // exercises the real SDK transport (status derivation + honua-server decode
-    // + reducer resume-checkpoint), just with a source the test can steer.
-    const controllable = new ControllableEventSource();
-    const transport = createHonuaServerRealtimeSubscription({
-      url: streamingUrl,
-      eventSourceFactory: () => controllable,
-    });
-
-    const events: RealtimeFeatureEvent[] = [];
-    const observer: RealtimeFeatureObserver = {
-      next(event) {
-        events.push(event);
-      },
-      error() {},
-      complete() {},
-    };
-    const handle = transport.subscribe({ sourceId: config.serviceId, layerId: config.layerId }, observer);
-
-    // Open, then drop while still "open" (readyState !== CLOSED) so the
-    // transport reports `reconnecting` rather than terminating with an error.
-    controllable.readyState = 1;
-    controllable.onopen?.(new Event("open"));
-    controllable.readyState = 1;
-    controllable.onerror?.(new Event("error"));
-
-    // Feed one honua-server feature-change envelope and confirm it decodes to a
-    // delta carrying the resume cursor/sequence a reconnect would replay from.
-    const envelope = {
-      serviceId: config.serviceId,
-      layerId: config.layerId,
-      eventId: "evt-1",
-      sequence: 42,
-      cursor: "cursor-42",
-      watermark: "2026-07-05T00:00:00Z",
-      changes: [{ op: "insert", featureId: 1001, feature: { id: 1001, name: "probe" } }],
-    };
-    controllable.emitMessage(JSON.stringify(envelope));
-
-    handle.close();
-
-    expect(events.some((event) => event.type === "status" && event.status === "live")).toBe(true);
-    expect(events.some((event) => event.type === "status" && event.status === "reconnecting")).toBe(true);
-
-    const delta = events.find((event) => event.type === "delta");
-    expect(delta).toBeDefined();
-
-    // Reduce the decoded delta into feature state and confirm a resume
-    // checkpoint is derivable — the exact value a reconnect passes as
-    // `resumeFrom` so the server replays from the last seen position.
-    let state = emptyRealtimeFeatureState();
-    for (const event of events) {
-      state = reduceRealtimeFeatureState(state, event);
+  it("resumes a live server stream from an observed checkpoint [cert:realtime/resume#positive] [cert:realtime/resume#media-schema]", async (ctx) => {
+    const gap = await probeCapability();
+    if (gap) {
+      ctx.skip(gap);
+      return;
     }
-    const checkpoint = realtimeResumeCheckpoint(state);
-    expect(checkpoint).toBeDefined();
-    expect(checkpoint?.cursor ?? checkpoint?.sequence).toBeDefined();
+
+    const initialUrl = new URL(streamingUrl);
+    initialUrl.searchParams.set("mode", "snapshot-then-delta");
+    initialUrl.searchParams.set("requestId", "sdk-certification-resume-initial");
+    const initialCheckpoint = deferred<NonNullable<ReturnType<typeof realtimeResumeCheckpoint>>>();
+    let initialState = emptyRealtimeFeatureState();
+    const initialTransport = createHonuaServerRealtimeSubscription({
+      url: initialUrl.toString(),
+      eventSourceFactory: (url) => new FetchEventSource(url, authHeaders),
+    });
+    const initialHandle = initialTransport.subscribe(
+      { sourceId: config.serviceId, layerId: config.layerId },
+      {
+        next(event) {
+          if (!isServerDataEvent(event)) return;
+          initialState = reduceRealtimeFeatureState(initialState, event);
+          const checkpoint = realtimeResumeCheckpoint(initialState);
+          if (checkpoint?.cursor !== undefined || checkpoint?.sequence !== undefined) {
+            initialCheckpoint.resolve(checkpoint);
+          }
+        },
+        error(error) {
+          initialCheckpoint.reject(error instanceof Error ? error : new Error(String(error)));
+        },
+        complete() {},
+      },
+    );
+
+    let checkpoint: NonNullable<ReturnType<typeof realtimeResumeCheckpoint>>;
+    try {
+      checkpoint = await withTimeout(
+        initialCheckpoint.promise,
+        LIVE_WAIT_MS,
+        "initial SSE stream did not emit a resumable server checkpoint",
+      );
+    } finally {
+      initialHandle.close();
+    }
+
+    const resumedUrl = new URL(streamingUrl);
+    resumedUrl.searchParams.set("mode", "snapshot-then-delta");
+    resumedUrl.searchParams.set("requestId", "sdk-certification-resume-reconnect");
+    let observedRequestUrl: string | undefined;
+    let resumedState = emptyRealtimeFeatureState();
+    const resumedCheckpoint = deferred<NonNullable<ReturnType<typeof realtimeResumeCheckpoint>>>();
+    const resumedTransport = createHonuaServerRealtimeSubscription({
+      url: resumedUrl.toString(),
+      eventSourceFactory: (url) => {
+        observedRequestUrl = url;
+        return new FetchEventSource(url, authHeaders);
+      },
+    });
+    const resumedHandle = resumedTransport.subscribe(
+      { sourceId: config.serviceId, layerId: config.layerId, resumeFrom: checkpoint },
+      {
+        next(event) {
+          if (!isServerDataEvent(event)) return;
+          resumedState = reduceRealtimeFeatureState(resumedState, event);
+          const nextCheckpoint = realtimeResumeCheckpoint(resumedState);
+          if (nextCheckpoint?.cursor !== undefined || nextCheckpoint?.sequence !== undefined) {
+            resumedCheckpoint.resolve(nextCheckpoint);
+          }
+        },
+        error(error) {
+          resumedCheckpoint.reject(error instanceof Error ? error : new Error(String(error)));
+        },
+        complete() {},
+      },
+    );
+
+    let nextCheckpoint: NonNullable<ReturnType<typeof realtimeResumeCheckpoint>>;
+    try {
+      nextCheckpoint = await withTimeout(
+        resumedCheckpoint.promise,
+        LIVE_WAIT_MS,
+        "resumed SSE stream did not emit a decodable server data envelope",
+      );
+    } finally {
+      resumedHandle.close();
+    }
+
+    expect(observedRequestUrl).toBeDefined();
+    const request = new URL(observedRequestUrl!);
+    if (checkpoint.cursor !== undefined) {
+      expect(request.searchParams.get("cursor")).toBe(checkpoint.cursor);
+    }
+    if (checkpoint.sequence !== undefined) {
+      expect(request.searchParams.get("sequence")).toBe(String(checkpoint.sequence));
+    }
+    if (checkpoint.sequence !== undefined && nextCheckpoint.sequence !== undefined) {
+      expect(nextCheckpoint.sequence).toBeGreaterThanOrEqual(checkpoint.sequence);
+    }
   });
 });
 
+function isServerDataEvent(event: RealtimeFeatureEvent): boolean {
+  return (
+    event.type === "delta" ||
+    event.type === "upsert" ||
+    event.type === "delete" ||
+    event.type === "snapshot"
+  );
+}
 /** A promise plus its resolve/reject handles. */
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void } {
   let resolve!: (value: T) => void;
@@ -284,7 +323,7 @@ class FetchEventSource implements RealtimeServerSentEventSource {
           boundary = buffer.indexOf("\n\n");
         }
       }
-      // The stream ended without the caller closing us — signal an error so the
+      // The stream ended without the caller closing us â€” signal an error so the
       // transport reports `reconnecting`, matching native EventSource behavior.
       if (!this.closed) this.fail();
     } catch {
@@ -317,35 +356,5 @@ class FetchEventSource implements RealtimeServerSentEventSource {
   private fail(): void {
     this.readyState = 2; // CLOSED
     this.onerror?.(new Event("error"));
-  }
-}
-
-/** Test-driven `EventSource` for the deterministic reconnect drill. */
-class ControllableEventSource implements RealtimeServerSentEventSource {
-  public onopen: ((event: Event) => void) | null = null;
-  public onmessage: ((event: MessageEvent<string>) => void) | null = null;
-  public onerror: ((event: Event) => void) | null = null;
-  public readyState = 0;
-  private readonly listeners = new Map<string, Set<(event: MessageEvent<string>) => void>>();
-
-  public addEventListener(type: string, listener: (event: MessageEvent<string>) => void): void {
-    const set = this.listeners.get(type) ?? new Set();
-    set.add(listener);
-    this.listeners.set(type, set);
-  }
-
-  public removeEventListener(type: string, listener: (event: MessageEvent<string>) => void): void {
-    this.listeners.get(type)?.delete(listener);
-  }
-
-  public close(): void {
-    this.readyState = 2;
-  }
-
-  /** Dispatch a default (`message`) frame carrying `data`. */
-  public emitMessage(data: string): void {
-    const event = { data } as MessageEvent<string>;
-    this.onmessage?.(event);
-    for (const listener of this.listeners.get("message") ?? []) listener(event);
   }
 }
