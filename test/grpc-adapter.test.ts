@@ -93,6 +93,18 @@ describe("toProtoQueryRequest", () => {
     expect(result.resultRecordCountLong).toBe(50n);
   });
 
+  it("rejects paging values that cannot be represented exactly as protobuf int64", () => {
+    expect(() =>
+      toProtoQueryRequest({ serviceId: "svc", layerId: 0, resultOffset: Number.MAX_SAFE_INTEGER + 1 }),
+    ).toThrow("resultOffset must be a non-negative safe integer");
+    expect(() => toProtoQueryRequest({ serviceId: "svc", layerId: 0, resultRecordCount: 1.5 })).toThrow(
+      "resultRecordCount must be a non-negative safe integer",
+    );
+    expect(() => toProtoQueryRequest({ serviceId: "svc", layerId: 0, resultOffset: -1 })).toThrow(
+      "resultOffset must be a non-negative safe integer",
+    );
+  });
+
   it("converts orderByFields and returnDistinct", () => {
     const result = toProtoQueryRequest({
       serviceId: "test",

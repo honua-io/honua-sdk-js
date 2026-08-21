@@ -359,11 +359,11 @@ function verifiedGrpcSource(value: SemanticGrpcSourceIdentity): SemanticGrpcSour
 
 function verifyGrpcPage(page: RuntimeGrpcQuery["page"]): void {
   if (!page) return;
-  if (page.limit !== undefined && page.limit > 2_147_483_647) {
-    semanticUnsupported("unsupported-node", "$.page.limit", "QueryFeatures result_record_count is int32-bounded");
+  if (page.limit !== undefined && (!Number.isSafeInteger(page.limit) || page.limit < 0)) {
+    semanticUnsupported("unsupported-node", "$.page.limit", "QueryFeatures result_record_count must be an exact int64");
   }
-  if (page.kind === "offset" && page.offset > 2_147_483_647) {
-    semanticUnsupported("unsupported-node", "$.page.offset", "QueryFeatures result_offset is int32-bounded");
+  if (page.kind === "offset" && (!Number.isSafeInteger(page.offset) || page.offset < 0)) {
+    semanticUnsupported("unsupported-node", "$.page.offset", "QueryFeatures result_offset must be an exact int64");
   }
 }
 

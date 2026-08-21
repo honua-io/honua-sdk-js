@@ -120,6 +120,13 @@ const STATISTIC_TYPE_MAP: Record<string, StatisticType> = {
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
 
+function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: number): bigint {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(`${field} must be a non-negative safe integer for the gRPC int64 contract`);
+  }
+  return BigInt(value);
+}
+
 /**
  * Converts a SDK QueryFeaturesRequest into a proto QueryFeaturesRequest message.
  */
@@ -158,10 +165,10 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   }
 
   if (request.resultOffset !== undefined) {
-    msg.resultOffsetLong = BigInt(request.resultOffset);
+    msg.resultOffsetLong = toProtoPageInt64("resultOffset", request.resultOffset);
   }
   if (request.resultRecordCount !== undefined) {
-    msg.resultRecordCountLong = BigInt(request.resultRecordCount);
+    msg.resultRecordCountLong = toProtoPageInt64("resultRecordCount", request.resultRecordCount);
   }
   if (request.orderByFields !== undefined) {
     msg.orderBy = request.orderByFields;

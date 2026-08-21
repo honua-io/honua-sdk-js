@@ -97,6 +97,16 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     expect(Array.isArray(features)).toBe(true);
     expect(features.length).toBeGreaterThan(0);
     expect(features[0]?.attributes).toBeDefined();
+
+    const firstPage = await runWithDiagnostics(context, "grpc first page", () =>
+      grpc.queryFeatures({ ...baseQuery, resultOffset: 0, resultRecordCount: 1 }),
+    );
+    const secondPage = await runWithDiagnostics(context, "grpc second page", () =>
+      grpc.queryFeatures({ ...baseQuery, resultOffset: 1, resultRecordCount: 1 }),
+    );
+    expect(firstPage.features).toHaveLength(1);
+    expect(secondPage.features).toHaveLength(1);
+    expect(secondPage.features?.[0]?.attributes).not.toEqual(firstPage.features?.[0]?.attributes);
   });
 
   it("returns query parity with the REST transport [cert:grpc-web/rest-parity#positive] [cert:grpc-web/rest-parity#media-schema]", async (ctx) => {

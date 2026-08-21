@@ -803,7 +803,7 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     });
   });
 
-  it("rejects spatial composition and pagination the QueryFeatures message cannot preserve", () => {
+  it("rejects spatial composition while preserving exact int64-range pagination", () => {
     const query = createSemanticQueryBuilder<Incident, "grpc", "primary-geometry">();
     const spatial = defineSpatialNode<Incident, "primary-geometry">({
       kind: "spatial",
@@ -829,8 +829,8 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
       source: { serviceId: "incidents", layerId: 0 },
     });
     expect(pageResult).toMatchObject({
-      outcome: "unsupported",
-      diagnostics: [{ code: "unsupported-node", path: "$.page.offset" }],
+      outcome: "compiled",
+      artifact: { resultOffset: 2_147_483_648 },
     });
   });
 
