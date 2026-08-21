@@ -21,6 +21,8 @@
     "dbUser": "honua",
     "serviceName": "zero-to-map",
     "route": "zero-to-map",
+    "mapRoute": "zero-to-map-map",
+    "dashboardRoute": "zero-to-map-dashboard",
     "parcelsTable": "zero_to_map_parcels",
     "zoningTable": "zero_to_map_zoning"
   },
@@ -787,8 +789,49 @@
       "title": "Propose publication without bypassing human confirmation",
       "actions": [
         {
-          "id": "propose-publication",
-          "title": "Record public publication intent",
+          "id": "propose-map-publication",
+          "title": "Record the public map publication intent",
+          "kind": "mcp",
+          "tool": "honua_studio_propose_publication",
+          "arguments": {
+            "draftId": "${mapReopenedDraftId}",
+            "generation": "${mapReopenedGeneration}",
+            "route": "${mapRoute}",
+            "visibility": "public",
+            "embed": true,
+            "note": "2026.1 D9.3 zero-to-map map candidate"
+          },
+          "forbiddenPointers": [
+            "/structuredContent/publicationId",
+            "/structuredContent/publicUrl",
+            "/structuredContent/shareUrl"
+          ],
+          "captures": [
+            { "variable": "mapReopenedGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
+            { "variable": "mapProposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
+            { "variable": "mapPublicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
+            { "variable": "mapHumanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
+          ]
+        },
+        {
+          "id": "save-map-publication-version",
+          "title": "Save the intent-bearing map as the governed publication version",
+          "kind": "mcp",
+          "tool": "honua_studio_save_version",
+          "arguments": {
+            "draftId": "${mapReopenedDraftId}",
+            "generation": "${mapProposalGeneration}",
+            "changeNote": "2026.1 zero-to-map map publication intent"
+          },
+          "captures": [
+            { "variable": "mapPublicationItemId", "pointers": ["/structuredContent/itemId"], "equals": "${mapItemId}" },
+            { "variable": "mapPublicationVersionId", "pointers": ["/structuredContent/versionId"] },
+            { "variable": "mapPublicationContentHash", "pointers": ["/structuredContent/contentHash"] }
+          ]
+        },
+        {
+          "id": "propose-app-publication",
+          "title": "Record the public app publication intent",
           "kind": "mcp",
           "tool": "honua_studio_propose_publication",
           "arguments": {
@@ -797,13 +840,75 @@
             "route": "${route}",
             "visibility": "public",
             "embed": true,
-            "note": "2026.1 D9.3 zero-to-map release candidate"
+            "note": "2026.1 D9.3 zero-to-map app candidate"
           },
+          "forbiddenPointers": [
+            "/structuredContent/publicationId",
+            "/structuredContent/publicUrl",
+            "/structuredContent/shareUrl"
+          ],
           "captures": [
             { "variable": "appReopenedGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
-            { "variable": "proposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
-            { "variable": "publicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
-            { "variable": "humanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
+            { "variable": "appProposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
+            { "variable": "appPublicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
+            { "variable": "appHumanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
+          ]
+        },
+        {
+          "id": "save-app-publication-version",
+          "title": "Save the intent-bearing app as the governed publication version",
+          "kind": "mcp",
+          "tool": "honua_studio_save_version",
+          "arguments": {
+            "draftId": "${appReopenedDraftId}",
+            "generation": "${appProposalGeneration}",
+            "changeNote": "2026.1 zero-to-map app publication intent"
+          },
+          "captures": [
+            { "variable": "appPublicationItemId", "pointers": ["/structuredContent/itemId"], "equals": "${appItemId}" },
+            { "variable": "appPublicationVersionId", "pointers": ["/structuredContent/versionId"] },
+            { "variable": "appPublicationContentHash", "pointers": ["/structuredContent/contentHash"] }
+          ]
+        },
+        {
+          "id": "propose-dashboard-publication",
+          "title": "Record the public dashboard publication intent",
+          "kind": "mcp",
+          "tool": "honua_studio_propose_publication",
+          "arguments": {
+            "draftId": "${dashboardReopenedDraftId}",
+            "generation": "${dashboardReopenedGeneration}",
+            "route": "${dashboardRoute}",
+            "visibility": "public",
+            "embed": true,
+            "note": "2026.1 D9.3 zero-to-map dashboard candidate"
+          },
+          "forbiddenPointers": [
+            "/structuredContent/publicationId",
+            "/structuredContent/publicUrl",
+            "/structuredContent/shareUrl"
+          ],
+          "captures": [
+            { "variable": "dashboardReopenedGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
+            { "variable": "dashboardProposalGeneration", "pointers": ["/structuredContent/draft/generation", "/structuredContent/generation"] },
+            { "variable": "dashboardPublicationIntentRecorded", "pointers": ["/structuredContent/recorded"], "equals": true },
+            { "variable": "dashboardHumanConfirmationRequired", "pointers": ["/structuredContent/humanConfirmationRequired"], "equals": true }
+          ]
+        },
+        {
+          "id": "save-dashboard-publication-version",
+          "title": "Save the intent-bearing dashboard as the governed publication version",
+          "kind": "mcp",
+          "tool": "honua_studio_save_version",
+          "arguments": {
+            "draftId": "${dashboardReopenedDraftId}",
+            "generation": "${dashboardProposalGeneration}",
+            "changeNote": "2026.1 zero-to-map dashboard publication intent"
+          },
+          "captures": [
+            { "variable": "dashboardPublicationItemId", "pointers": ["/structuredContent/itemId"], "equals": "${dashboardItemId}" },
+            { "variable": "dashboardPublicationVersionId", "pointers": ["/structuredContent/versionId"] },
+            { "variable": "dashboardPublicationContentHash", "pointers": ["/structuredContent/contentHash"] }
           ]
         }
       ]
@@ -821,9 +926,26 @@
           "matches": {
             "/journeyId": "${journeyId}",
             "/releaseContract": "${releaseContract}",
-            "/proposal/draftId": "${appReopenedDraftId}",
-            "/proposal/generation": "${proposalGeneration}",
-            "/proposal/route": "${route}",
+            "/candidate/candidateId": "${candidateId}",
+            "/candidate/releaseId": "${releaseId}",
+            "/proposals/map/draftId": "${mapReopenedDraftId}",
+            "/proposals/map/generation": "${mapProposalGeneration}",
+            "/proposals/map/route": "${mapRoute}",
+            "/proposals/app/draftId": "${appReopenedDraftId}",
+            "/proposals/app/generation": "${appProposalGeneration}",
+            "/proposals/app/route": "${route}",
+            "/proposals/dashboard/draftId": "${dashboardReopenedDraftId}",
+            "/proposals/dashboard/generation": "${dashboardProposalGeneration}",
+            "/proposals/dashboard/route": "${dashboardRoute}",
+            "/publications/map/itemId": "${mapItemId}",
+            "/publications/map/versionId": "${mapPublicationVersionId}",
+            "/publications/map/status": "published",
+            "/publications/app/itemId": "${appItemId}",
+            "/publications/app/versionId": "${appPublicationVersionId}",
+            "/publications/app/status": "published",
+            "/publications/dashboard/itemId": "${dashboardItemId}",
+            "/publications/dashboard/versionId": "${dashboardPublicationVersionId}",
+            "/publications/dashboard/status": "published",
             "/resources/connectionId": "${connectionId}",
             "/resources/serviceId": "${serviceName}",
             "/resources/layerIds/parcels": "${parcelsLayerId}",
@@ -855,28 +977,69 @@
             "/checks/recovery": "passed"
           },
           "requiredPointers": [
-            "/candidate/candidateId",
-            "/candidate/releaseId",
-            "/proposal/proposalId",
-            "/proposal/executionOperationId",
-            "/audit/correlationId",
-            "/audit/operationId",
+            "/proposals/map/proposalId",
+            "/proposals/map/executionOperationId",
+            "/proposals/app/proposalId",
+            "/proposals/app/executionOperationId",
+            "/proposals/dashboard/proposalId",
+            "/proposals/dashboard/executionOperationId",
+            "/publications/map/requestId",
+            "/publications/map/publicationId",
+            "/publications/map/publicUrl",
+            "/publications/app/requestId",
+            "/publications/app/publicationId",
+            "/publications/app/publicUrl",
+            "/publications/dashboard/requestId",
+            "/publications/dashboard/publicationId",
+            "/publications/dashboard/publicUrl",
+            "/audit/map/correlationId",
+            "/audit/map/operationId",
+            "/audit/app/correlationId",
+            "/audit/app/operationId",
+            "/audit/dashboard/correlationId",
+            "/audit/dashboard/operationId",
             "/checks/health",
             "/checks/audit",
             "/checks/recovery",
             "/shareUrl"
           ],
           "equalPointers": [
-            ["/proposal/executionOperationId", "/audit/operationId"],
-            ["/proposal/draftId", "/resources/studio/app/reopenedDraftId"],
+            ["/proposals/map/proposalId", "/publications/map/requestId"],
+            ["/proposals/map/executionOperationId", "/audit/map/operationId"],
+            ["/proposals/map/draftId", "/resources/studio/map/reopenedDraftId"],
+            ["/proposals/app/proposalId", "/publications/app/requestId"],
+            ["/proposals/app/executionOperationId", "/audit/app/operationId"],
+            ["/proposals/app/draftId", "/resources/studio/app/reopenedDraftId"],
+            ["/proposals/dashboard/proposalId", "/publications/dashboard/requestId"],
+            ["/proposals/dashboard/executionOperationId", "/audit/dashboard/operationId"],
+            ["/proposals/dashboard/draftId", "/resources/studio/dashboard/reopenedDraftId"],
+            ["/shareUrl", "/publications/app/publicUrl"],
             ["/resources/jobs/esriMcp", "/resources/gp/jobId"]
           ],
           "captures": [
             { "variable": "candidateId", "pointers": ["/candidate/candidateId"] },
             { "variable": "releaseId", "pointers": ["/candidate/releaseId"] },
-            { "variable": "proposalId", "pointers": ["/proposal/proposalId"] },
-            { "variable": "executionOperationId", "pointers": ["/proposal/executionOperationId"] },
-            { "variable": "auditCorrelationId", "pointers": ["/audit/correlationId"] },
+            { "variable": "mapProposalId", "pointers": ["/proposals/map/proposalId"] },
+            { "variable": "mapExecutionOperationId", "pointers": ["/proposals/map/executionOperationId"] },
+            { "variable": "mapPublicationRequestId", "pointers": ["/publications/map/requestId"] },
+            { "variable": "mapPublicationId", "pointers": ["/publications/map/publicationId"] },
+            { "variable": "mapPublicationStatus", "pointers": ["/publications/map/status"], "equals": "published" },
+            { "variable": "mapPublicUrl", "pointers": ["/publications/map/publicUrl"] },
+            { "variable": "mapAuditCorrelationId", "pointers": ["/audit/map/correlationId"] },
+            { "variable": "appProposalId", "pointers": ["/proposals/app/proposalId"] },
+            { "variable": "appExecutionOperationId", "pointers": ["/proposals/app/executionOperationId"] },
+            { "variable": "appPublicationRequestId", "pointers": ["/publications/app/requestId"] },
+            { "variable": "appPublicationId", "pointers": ["/publications/app/publicationId"] },
+            { "variable": "appPublicationStatus", "pointers": ["/publications/app/status"], "equals": "published" },
+            { "variable": "appPublicUrl", "pointers": ["/publications/app/publicUrl"] },
+            { "variable": "appAuditCorrelationId", "pointers": ["/audit/app/correlationId"] },
+            { "variable": "dashboardProposalId", "pointers": ["/proposals/dashboard/proposalId"] },
+            { "variable": "dashboardExecutionOperationId", "pointers": ["/proposals/dashboard/executionOperationId"] },
+            { "variable": "dashboardPublicationRequestId", "pointers": ["/publications/dashboard/requestId"] },
+            { "variable": "dashboardPublicationId", "pointers": ["/publications/dashboard/publicationId"] },
+            { "variable": "dashboardPublicationStatus", "pointers": ["/publications/dashboard/status"], "equals": "published" },
+            { "variable": "dashboardPublicUrl", "pointers": ["/publications/dashboard/publicUrl"] },
+            { "variable": "dashboardAuditCorrelationId", "pointers": ["/audit/dashboard/correlationId"] },
             { "variable": "shareUrl", "pointers": ["/shareUrl"] }
           ]
         }
@@ -885,13 +1048,27 @@
     {
       "number": 7,
       "id": "artifact",
-      "title": "Verify the stable app URL",
+      "title": "Verify the stable map, app, and dashboard URLs",
       "actions": [
         {
+          "id": "verify-map-public-url",
+          "title": "Require an identity-bound HTTP 200 from the approved map URL",
+          "kind": "http",
+          "url": "${mapPublicUrl}",
+          "expectedStatus": 200
+        },
+        {
           "id": "verify-share-url",
-          "title": "Require an HTTP 200 from the approved share URL",
+          "title": "Require an identity-bound HTTP 200 from the approved app share URL",
           "kind": "http",
           "url": "${shareUrl}",
+          "expectedStatus": 200
+        },
+        {
+          "id": "verify-dashboard-public-url",
+          "title": "Require an identity-bound HTTP 200 from the approved dashboard URL",
+          "kind": "http",
+          "url": "${dashboardPublicUrl}",
           "expectedStatus": 200
         }
       ]

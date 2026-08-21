@@ -1,11 +1,28 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HonuaClient } from "@honua/sdk-js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { validateAgainstSchema } from "../certification/json-schema.js";
+import {
+  type ZeroToMapCheckpoint,
+  type ZeroToMapCheckpointBindings,
+  assertZeroToMapCheckpointBindings,
+  assertZeroToMapCheckpointDigest,
+  assertZeroToMapCheckpointFresh,
+  consumeZeroToMapCheckpoint,
+  createZeroToMapCheckpoint,
+  parseZeroToMapCheckpoint,
+} from "./zero-to-map-checkpoint.js";
+import {
+  type AwsEcsProvisionBinding,
+  assertAwsEcsProvisionBindings,
+  parseAwsEcsProvisionBinding,
+} from "./zero-to-map-provision.js";
 import {
   type JourneyAdapter,
   JourneyBlockedError,
@@ -16,13 +33,23 @@ import {
   runZeroToMapJourney,
 } from "./zero-to-map.js";
 
-interface CliOptions {
+type JourneyTarget = "local-docker" | "aws-ecs";
+
+export interface CliOptions {
   readonly execute: boolean;
   readonly confirmed: boolean;
   readonly planPath: string;
   readonly outputPath: string;
   readonly honuaCommand: string;
+  readonly target: JourneyTarget;
   readonly mcpUrl?: string;
+  readonly checkpointPath?: string;
+  readonly checkpointDigest?: string;
+  readonly provisionReceiptPath?: string;
+  readonly consoleReceiptPath?: string;
+  readonly provisionBinding?: AwsEcsProvisionBinding;
+  readonly provisionReceiptSha256?: string;
+  readonly sourceRevision?: string;
   readonly variables: Readonly<Record<string, unknown>>;
   readonly receiptPaths: Readonly<Record<string, string>>;
 }
@@ -60,11 +87,48 @@ class LiveAdapter implements JourneyAdapter {
   ) {}
 
   async runCli(args: readonly string[]): Promise<JourneyExecutionResult> {
+    if (this.options.target === "aws-ecs") return this.awsProvisionEvidence(args);
     const result = await runProcess(this.options.honuaCommand, args, this.env);
     if (result.exitCode !== 0) {
       throw new Error(`honua CLI exited ${result.exitCode}; see stderr from the driver process`);
     }
     return { evidence: { command: "honua", args: redactCliArgs(args), exitCode: result.exitCode } };
+  }
+
+  private awsProvisionEvidence(args: readonly string[]): JourneyExecutionResult {
+    const binding = this.options.provisionBinding;
+    if (!binding) throw new Error("AWS ECS target has no verified provision binding");
+    if (args[0] !== "admin" || args[1] !== "install") {
+      throw new Error("AWS ECS target can replace only the Stage 1 install actions");
+    }
+    if (args[2] === "local") {
+      return {
+        evidence: {
+          target: binding.target,
+          candidateId: binding.candidateId,
+          releaseId: binding.releaseId,
+          serverImage: binding.serverImage,
+          components: binding.components,
+          terraformPlan: binding.checks["terraform-plan"],
+          terraformApply: binding.checks["terraform-apply"],
+          producerEvidenceUrl: binding.evidence.url,
+          producerEvidenceSha256: binding.evidence.sha256,
+        },
+      };
+    }
+    if (args[2] === "status") {
+      return {
+        evidence: {
+          target: binding.target,
+          endpoint: binding.endpoint,
+          mcpUrl: this.options.mcpUrl,
+          readiness: binding.checks.readiness,
+          adminMcpHandoff: binding.checks["admin-mcp-handoff"],
+          credentialReferencePresent: binding.adminKeySecretRef.length > 0,
+        },
+      };
+    }
+    throw new Error("AWS ECS target encountered an unknown Stage 1 install action");
   }
 
   async listTools(): Promise<readonly { name: string; inputSchema: Readonly<Record<string, unknown>> }[]> {
@@ -150,6 +214,16 @@ class LiveAdapter implements JourneyAdapter {
     if (!path) return undefined;
     const bytes = await readFile(path);
     const value = JSON.parse(bytes.toString("utf8")) as unknown;
+    if (actionId === "console-approval") {
+      const schemaPath = fileURLToPath(
+        new URL("../../../release/zero-to-map/contracts/console-receipt.schema.json", import.meta.url),
+      );
+      const schema = JSON.parse(await readFile(schemaPath, "utf8")) as Record<string, unknown>;
+      const validation = validateAgainstSchema(schema, value);
+      if (!validation.valid) {
+        throw new Error(`Console receipt failed its strict schema: ${validation.errors.join("; ")}`);
+      }
+    }
     return {
       value,
       evidence: {
@@ -160,15 +234,26 @@ class LiveAdapter implements JourneyAdapter {
   }
 
   async checkHttp(url: string, expectedStatus: number): Promise<JourneyExecutionResult> {
+    const requested = new URL(url);
+    if (requested.protocol !== "https:" || requested.username || requested.password) {
+      throw new Error("published artifact URL must be HTTPS and must not embed credentials");
+    }
     const response = await fetch(url, { method: "GET", redirect: "follow" });
     if (response.status !== expectedStatus) {
       throw new Error(`GET ${url} returned ${response.status}; expected ${expectedStatus}`);
     }
+    if (normalizeEndpoint(response.url) !== normalizeEndpoint(url)) {
+      throw new Error(`GET ${url} resolved to a different published identity: ${response.url}`);
+    }
+    const contentType = response.headers.get("content-type");
+    if (!contentType) throw new Error(`GET ${url} returned no content type`);
     return {
       evidence: {
+        requestedUrl: url,
         url: response.url,
         status: response.status,
-        contentType: response.headers.get("content-type"),
+        contentType,
+        identityMatched: true,
       },
     };
   }
@@ -215,28 +300,75 @@ export async function runZeroToMapCli(
   argv: readonly string[] = process.argv.slice(2),
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<number> {
-  const options = parseArgs(argv, env);
+  const options = parseZeroToMapCliArgs(argv, env);
   if (options.execute && !options.confirmed) {
     throw new Error("--execute requires --yes because the journey creates and publishes server state");
   }
-  const plan = parseZeroToMapPlan(JSON.parse(await readFile(options.planPath, "utf8")) as unknown);
-  const adapter = options.execute ? new LiveAdapter(options, env) : new ContractAdapter();
+  if (options.execute && !options.checkpointPath) {
+    throw new Error("--execute requires --checkpoint so Console approval cannot replay prior mutations");
+  }
+  const planBytes = await readFile(options.planPath);
+  const plan = parseZeroToMapPlan(JSON.parse(planBytes.toString("utf8")) as unknown);
+  const liveOptions = options.execute ? await prepareLiveOptions(options) : options;
+  const bindings = options.execute
+    ? checkpointBindings(liveOptions, plan.journeyId, plan.releaseContract, planBytes)
+    : undefined;
+  let checkpoint: ZeroToMapCheckpoint | undefined;
+  let claimPath: string | undefined;
+  if (options.execute && options.checkpointPath) {
+    checkpoint = await readCheckpointIfPresent(options.checkpointPath);
+    if (checkpoint) {
+      if (!options.consoleReceiptPath) throw new Error("a paused checkpoint requires --console-receipt to resume");
+      if (!options.checkpointDigest) throw new Error("--checkpoint-digest is required to resume");
+      assertZeroToMapCheckpointDigest(checkpoint, options.checkpointDigest);
+      if (checkpoint.state !== "paused") throw new Error("checkpoint has already been consumed");
+      assertZeroToMapCheckpointFresh(checkpoint);
+      if (!bindings) throw new Error("internal checkpoint binding error");
+      assertZeroToMapCheckpointBindings(checkpoint, bindings);
+      claimPath = await claimZeroToMapCheckpoint(options.checkpointPath, checkpoint.integrity.digest);
+    } else if (options.consoleReceiptPath || options.checkpointDigest) {
+      throw new Error("--console-receipt and --checkpoint-digest require an existing paused checkpoint");
+    }
+  }
+
+  const adapter = options.execute ? new LiveAdapter(liveOptions, env) : new ContractAdapter();
   const receipt = await runZeroToMapJourney(plan, adapter, {
     execute: options.execute,
     variables: options.variables,
+    ...(checkpoint ? { resume: checkpoint.resume } : {}),
+    ...(!checkpoint && bindings && options.checkpointPath
+      ? {
+          onExternalReceiptMissing: async (snapshot) => {
+            await writeJsonNew(options.checkpointPath as string, createZeroToMapCheckpoint(bindings, snapshot));
+          },
+        }
+      : {}),
   });
-  await writeFile(options.outputPath, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+  const receiptBytes = `${JSON.stringify(receipt, null, 2)}\n`;
+  await writeFile(options.outputPath, receiptBytes, "utf8");
+  if (checkpoint && claimPath && options.checkpointPath) {
+    if (receipt.status === "passed") {
+      const consumed = consumeZeroToMapCheckpoint(checkpoint, createHash("sha256").update(receiptBytes).digest("hex"));
+      await writeFile(claimPath, `${JSON.stringify(consumed, null, 2)}\n`, "utf8");
+      await rename(claimPath, options.checkpointPath);
+    }
+  }
   process.stdout.write(`${receipt.mode} journey ${receipt.status}; receipt written to ${options.outputPath}\n`);
   return receipt.status === "passed" ? 0 : receipt.status === "blocked" ? 2 : 1;
 }
 
-function parseArgs(argv: readonly string[], env: NodeJS.ProcessEnv): CliOptions {
+export function parseZeroToMapCliArgs(argv: readonly string[], env: NodeJS.ProcessEnv): CliOptions {
   let execute = false;
   let confirmed = false;
   let planPath = fileURLToPath(new URL("../../../release/zero-to-map/journey.v1.json", import.meta.url));
   let outputPath = "zero-to-map-receipt.json";
   let honuaCommand = env.HONUA_CLI_COMMAND ?? "honua";
   let mcpUrl = env.HONUA_MCP_REMOTE_URL ?? env.HONUA_MCP_URL;
+  let target: JourneyTarget = "local-docker";
+  let checkpointPath: string | undefined;
+  let checkpointDigest: string | undefined;
+  let provisionReceiptPath: string | undefined;
+  let consoleReceiptPath: string | undefined;
   const variables: Record<string, unknown> = {};
   const receiptPaths: Record<string, string> = {};
 
@@ -261,6 +393,26 @@ function parseArgs(argv: readonly string[], env: NodeJS.ProcessEnv): CliOptions 
       case "--mcp-url":
         mcpUrl = requireNext(argv, ++index, arg);
         break;
+      case "--target": {
+        const value = requireNext(argv, ++index, arg);
+        if (value !== "local-docker" && value !== "aws-ecs") {
+          throw new Error("--target must be local-docker or aws-ecs");
+        }
+        target = value;
+        break;
+      }
+      case "--checkpoint":
+        checkpointPath = requireNext(argv, ++index, arg);
+        break;
+      case "--checkpoint-digest":
+        checkpointDigest = requireNext(argv, ++index, arg);
+        if (!/^[0-9a-f]{64}$/.test(checkpointDigest)) {
+          throw new Error("--checkpoint-digest must be a lowercase SHA-256 digest");
+        }
+        break;
+      case "--provision-receipt":
+        provisionReceiptPath = requireNext(argv, ++index, arg);
+        break;
       case "--var": {
         const pair = requireNext(argv, ++index, arg);
         const separator = pair.indexOf("=");
@@ -268,9 +420,23 @@ function parseArgs(argv: readonly string[], env: NodeJS.ProcessEnv): CliOptions 
         variables[pair.slice(0, separator)] = parseVariable(pair.slice(separator + 1));
         break;
       }
-      case "--console-receipt":
-        receiptPaths["console-approval"] = requireNext(argv, ++index, arg);
+      case "--var-env": {
+        const pair = requireNext(argv, ++index, arg);
+        const separator = pair.indexOf("=");
+        if (separator < 1) throw new Error("--var-env requires name=ENV_NAME");
+        const name = pair.slice(0, separator);
+        const envName = pair.slice(separator + 1);
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(envName)) throw new Error("--var-env requires a valid environment name");
+        const value = env[envName];
+        if (!value) throw new Error(`--var-env ${name} references a missing or empty environment value`);
+        variables[name] = parseVariable(value);
         break;
+      }
+      case "--console-receipt": {
+        consoleReceiptPath = requireNext(argv, ++index, arg);
+        receiptPaths["console-approval"] = consoleReceiptPath;
+        break;
+      }
       case "--help":
         printHelp();
         throw new HelpRequested();
@@ -285,10 +451,112 @@ function parseArgs(argv: readonly string[], env: NodeJS.ProcessEnv): CliOptions 
     planPath,
     outputPath,
     honuaCommand,
+    target,
     ...(mcpUrl ? { mcpUrl } : {}),
+    ...(checkpointPath ? { checkpointPath } : {}),
+    ...(checkpointDigest ? { checkpointDigest } : {}),
+    ...(provisionReceiptPath ? { provisionReceiptPath } : {}),
+    ...(consoleReceiptPath ? { consoleReceiptPath } : {}),
+    ...(env.HONUA_SOURCE_REVISION ? { sourceRevision: env.HONUA_SOURCE_REVISION } : {}),
     variables,
     receiptPaths,
   };
+}
+
+async function prepareLiveOptions(options: CliOptions): Promise<CliOptions> {
+  if (!options.sourceRevision || !/^[0-9a-f]{40}$/.test(options.sourceRevision)) {
+    throw new Error("HONUA_SOURCE_REVISION must be the exact 40-character SDK candidate SHA");
+  }
+  if (!options.mcpUrl) throw new Error("--mcp-url is required for live execution");
+  requireBindingVariable(options.variables, "candidateId");
+  requireBindingVariable(options.variables, "releaseId");
+  if (options.target === "local-docker") {
+    if (options.provisionReceiptPath) throw new Error("--provision-receipt is valid only with --target aws-ecs");
+    return options;
+  }
+  if (!options.provisionReceiptPath) throw new Error("--target aws-ecs requires --provision-receipt");
+  const provisionBytes = await readFile(options.provisionReceiptPath);
+  const provisionBinding = parseAwsEcsProvisionBinding(JSON.parse(provisionBytes.toString("utf8")) as unknown);
+  assertAwsEcsProvisionBindings(provisionBinding, {
+    candidateId: requireBindingVariable(options.variables, "candidateId"),
+    releaseId: requireBindingVariable(options.variables, "releaseId"),
+    mcpUrl: options.mcpUrl,
+  });
+  return {
+    ...options,
+    provisionBinding,
+    provisionReceiptSha256: createHash("sha256").update(provisionBytes).digest("hex"),
+  };
+}
+
+function checkpointBindings(
+  options: CliOptions,
+  journeyId: string,
+  releaseContract: string,
+  planBytes: Uint8Array,
+): ZeroToMapCheckpointBindings {
+  if (!options.sourceRevision || !options.mcpUrl) throw new Error("live checkpoint bindings are incomplete");
+  return {
+    journeyId,
+    releaseContract,
+    target: options.target,
+    planSha256: createHash("sha256").update(planBytes).digest("hex"),
+    sourceRevision: options.sourceRevision,
+    mcpEndpointSha256: createHash("sha256").update(normalizeEndpoint(options.mcpUrl)).digest("hex"),
+    candidateId: requireBindingVariable(options.variables, "candidateId"),
+    releaseId: requireBindingVariable(options.variables, "releaseId"),
+    ...(options.provisionReceiptSha256 ? { provisionReceiptSha256: options.provisionReceiptSha256 } : {}),
+  };
+}
+
+function normalizeEndpoint(value: string): string {
+  const url = new URL(value);
+  url.hash = "";
+  return url.toString().replace(/\/$/, "");
+}
+
+function requireBindingVariable(variables: Readonly<Record<string, unknown>>, name: string): string {
+  const value = variables[name];
+  if (typeof value !== "string" || !value) throw new Error(`--var ${name}=... is required for live execution`);
+  return value;
+}
+
+async function readCheckpointIfPresent(path: string): Promise<ZeroToMapCheckpoint | undefined> {
+  try {
+    return parseZeroToMapCheckpoint(JSON.parse(await readFile(path, "utf8")) as unknown);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+async function writeJsonNew(path: string, value: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+}
+
+/** Atomically transfer one paused checkpoint to a single resume owner. */
+export async function claimZeroToMapCheckpoint(path: string, digest: string): Promise<string> {
+  if (!/^[0-9a-f]{64}$/.test(digest)) throw new Error("checkpoint claim digest must be a lowercase SHA-256");
+  const checkpoint = await readCheckpointIfPresent(path);
+  if (!checkpoint) throw new Error("checkpoint is already claimed by another resume");
+  if (checkpoint.state !== "paused") throw new Error("checkpoint has already been consumed");
+  assertZeroToMapCheckpointDigest(checkpoint, digest);
+  const claimPath = `${path}.claimed-${digest}`;
+  const lockPath = `${claimPath}.lock`;
+  try {
+    const lock = await open(lockPath, "wx");
+    await lock.close();
+    await rename(path, claimPath);
+    return claimPath;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    throw new Error(
+      code === "ENOENT" || code === "EEXIST"
+        ? "checkpoint is already claimed by another resume"
+        : `could not atomically claim checkpoint: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
 }
 
 function runProcess(command: string, args: readonly string[], env: NodeJS.ProcessEnv): Promise<{ exitCode: number }> {
@@ -463,8 +731,13 @@ function printHelp(): void {
   process.stdout.write("  --plan <path>             Override the checked-in journey plan\n");
   process.stdout.write("  --output <path>           Receipt output (default zero-to-map-receipt.json)\n");
   process.stdout.write("  --mcp-url <url>           Server /mcp URL consumed through honua-mcp-proxy\n");
+  process.stdout.write("  --target <name>           local-docker (default) or aws-ecs\n");
+  process.stdout.write("  --provision-receipt <p>   Required pre-teardown binding for aws-ecs\n");
   process.stdout.write("  --honua-command <path>    Control-plane CLI executable (default honua)\n");
   process.stdout.write("  --var name=value          Supply a journey variable; repeat as needed\n");
+  process.stdout.write("  --var-env name=ENV_NAME   Read a secret variable from the child environment\n");
+  process.stdout.write("  --checkpoint <path>       Persist the secret-free Console pause/resume boundary\n");
+  process.stdout.write("  --checkpoint-digest <sha> Externally carried digest required to claim a resume\n");
   process.stdout.write("  --console-receipt <path>  Import the separately captured Console gate receipt\n");
 }
 

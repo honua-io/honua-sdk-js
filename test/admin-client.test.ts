@@ -67,6 +67,21 @@ describe("generated admin REST client", () => {
     expect(url).toBe("https://example.test/api/v1/admin/alerts/rules?serviceId=public+maps&layerId=2");
   });
 
+  it("normalizes an adversarial trailing-slash base path in linear time", async () => {
+    let url = "";
+    const client = new HonuaAdminClient({
+      baseUrl: "https://example.test",
+      basePath: `/api/v1/admin${"/".repeat(200_000)}`,
+      fetchFn: async (input) => {
+        url = String(input);
+        return Response.json({ data: [] });
+      },
+    });
+
+    await client.call("listAlertRules", {});
+    expect(url).toBe("https://example.test/api/v1/admin/alerts/rules");
+  });
+
   it("serializes JSON request bodies and returns typed response data", async () => {
     let body: unknown;
     const client = new HonuaAdminClient({

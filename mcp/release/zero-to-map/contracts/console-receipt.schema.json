@@ -3,44 +3,15 @@
   "$id": "https://honua.io/schemas/zero-to-map-console-receipt.v1.json",
   "title": "Honua zero-to-map Console approval receipt",
   "type": "object",
-  "required": [
-    "schemaVersion",
-    "journeyId",
-    "releaseContract",
-    "status",
-    "proposal",
-    "audit",
-    "resources",
-    "candidate",
-    "checks",
-    "shareUrl"
-  ],
+  "required": ["schemaVersion", "journeyId", "releaseContract", "status", "proposals", "publications", "audit", "resources", "candidate", "checks", "shareUrl"],
   "properties": {
     "schemaVersion": { "const": "honua.zero-to-map.console-receipt/v1" },
     "journeyId": { "const": "2026.1-zero-to-map" },
     "releaseContract": { "const": "honua-release#123/D9.3" },
     "status": { "const": "passed" },
-    "proposal": {
-      "type": "object",
-      "required": ["draftId", "generation", "route", "proposalId", "executionOperationId"],
-      "properties": {
-        "draftId": { "type": "string", "format": "uuid" },
-        "generation": { "type": "integer", "minimum": 1 },
-        "route": { "type": "string", "minLength": 1 },
-        "proposalId": { "type": "string", "minLength": 1 },
-        "executionOperationId": { "type": "string", "minLength": 1 }
-      },
-      "additionalProperties": false
-    },
-    "audit": {
-      "type": "object",
-      "required": ["correlationId", "operationId"],
-      "properties": {
-        "correlationId": { "type": "string", "minLength": 1 },
-        "operationId": { "type": "string", "minLength": 1 }
-      },
-      "additionalProperties": false
-    },
+    "proposals": { "$ref": "#/$defs/studioFamiliesProposal" },
+    "publications": { "$ref": "#/$defs/studioFamiliesPublication" },
+    "audit": { "$ref": "#/$defs/studioFamiliesAudit" },
     "resources": {
       "type": "object",
       "required": ["connectionId", "serviceId", "layerIds", "jobs", "gp", "artifactId", "studio"],
@@ -79,22 +50,9 @@
           },
           "additionalProperties": false
         },
-        "gpServerResultNames": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "type": "string", "minLength": 1 }
-        },
+        "gpServerResultNames": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
         "artifactId": { "type": "string", "minLength": 1 },
-        "studio": {
-          "type": "object",
-          "required": ["map", "app", "dashboard"],
-          "properties": {
-            "map": { "$ref": "#/$defs/studioFamily" },
-            "app": { "$ref": "#/$defs/studioFamily" },
-            "dashboard": { "$ref": "#/$defs/studioFamily" }
-          },
-          "additionalProperties": false
-        }
+        "studio": { "$ref": "#/$defs/studioFamiliesResource" }
       },
       "additionalProperties": false
     },
@@ -120,6 +78,61 @@
     "shareUrl": { "type": "string", "format": "uri", "pattern": "^https://" }
   },
   "$defs": {
+    "studioFamiliesProposal": {
+      "type": "object",
+      "required": ["map", "app", "dashboard"],
+      "properties": { "map": { "$ref": "#/$defs/studioProposal" }, "app": { "$ref": "#/$defs/studioProposal" }, "dashboard": { "$ref": "#/$defs/studioProposal" } },
+      "additionalProperties": false
+    },
+    "studioProposal": {
+      "type": "object",
+      "required": ["draftId", "generation", "route", "proposalId", "executionOperationId"],
+      "properties": {
+        "draftId": { "type": "string", "format": "uuid" },
+        "generation": { "type": "integer", "minimum": 1 },
+        "route": { "type": "string", "minLength": 1 },
+        "proposalId": { "type": "string", "format": "uuid" },
+        "executionOperationId": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "studioFamiliesPublication": {
+      "type": "object",
+      "required": ["map", "app", "dashboard"],
+      "properties": { "map": { "$ref": "#/$defs/studioPublication" }, "app": { "$ref": "#/$defs/studioPublication" }, "dashboard": { "$ref": "#/$defs/studioPublication" } },
+      "additionalProperties": false
+    },
+    "studioPublication": {
+      "type": "object",
+      "required": ["requestId", "itemId", "versionId", "status", "publicationId", "publicUrl"],
+      "properties": {
+        "requestId": { "type": "string", "format": "uuid" },
+        "itemId": { "type": "string", "format": "uuid" },
+        "versionId": { "type": "string", "format": "uuid" },
+        "status": { "const": "published" },
+        "publicationId": { "type": "string", "minLength": 1 },
+        "publicUrl": { "type": "string", "format": "uri", "pattern": "^https://" }
+      },
+      "additionalProperties": false
+    },
+    "studioFamiliesAudit": {
+      "type": "object",
+      "required": ["map", "app", "dashboard"],
+      "properties": { "map": { "$ref": "#/$defs/studioAudit" }, "app": { "$ref": "#/$defs/studioAudit" }, "dashboard": { "$ref": "#/$defs/studioAudit" } },
+      "additionalProperties": false
+    },
+    "studioAudit": {
+      "type": "object",
+      "required": ["correlationId", "operationId"],
+      "properties": { "correlationId": { "type": "string", "minLength": 1 }, "operationId": { "type": "string", "minLength": 1 } },
+      "additionalProperties": false
+    },
+    "studioFamiliesResource": {
+      "type": "object",
+      "required": ["map", "app", "dashboard"],
+      "properties": { "map": { "$ref": "#/$defs/studioFamily" }, "app": { "$ref": "#/$defs/studioFamily" }, "dashboard": { "$ref": "#/$defs/studioFamily" } },
+      "additionalProperties": false
+    },
     "studioFamily": {
       "type": "object",
       "required": ["draftId", "itemId", "versionId", "contentHash", "reopenedDraftId"],

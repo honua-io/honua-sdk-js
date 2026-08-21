@@ -1,3 +1,4 @@
+import { trimTrailingSlashes } from "../core/path-utils.js";
 import type { operations } from "./generated/admin-api.js";
 import { ADMIN_API_BASE_PATH, ADMIN_OPERATIONS, type AdminOperationId } from "./generated/admin-operations.js";
 
@@ -161,7 +162,7 @@ export function createHonuaAdminClient(options: AdminClientOptions): HonuaAdminC
 
 function normalizeBasePath(value: string): string {
   const rooted = value.startsWith("/") ? value : `/${value}`;
-  return rooted.replace(/\/+$/, "");
+  return trimTrailingSlashes(rooted);
 }
 
 function interpolatePath(template: string, parameters: Record<string, unknown> | undefined): string {

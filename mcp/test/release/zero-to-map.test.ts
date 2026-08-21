@@ -155,16 +155,52 @@ describe("zero-to-map D9.3 release journey", () => {
     ) as {
       required: string[];
       properties: Record<string, { required?: string[]; properties?: Record<string, { required?: string[] }> }>;
+      $defs: Record<string, { required?: string[] }>;
     };
     expect(consoleContract.required).toEqual(
-      expect.arrayContaining(["proposal", "audit", "resources", "candidate", "checks", "shareUrl"]),
+      expect.arrayContaining(["proposals", "publications", "audit", "resources", "candidate", "checks", "shareUrl"]),
     );
-    expect(consoleContract.properties.proposal?.required).toEqual(
-      expect.arrayContaining(["proposalId", "executionOperationId"]),
-    );
-    expect(consoleContract.properties.audit?.required).toEqual(["correlationId", "operationId"]);
     expect(consoleContract.properties.resources?.required).toContain("studio");
-    expect(consoleContract.properties.resources?.properties?.studio?.required).toEqual(["map", "app", "dashboard"]);
+    expect(consoleContract.$defs.studioFamiliesResource?.required).toEqual(["map", "app", "dashboard"]);
+
+    const proposal = new Map(plan.stages[4]?.actions.map((action) => [action.id, action]));
+    for (const family of ["map", "app", "dashboard"] as const) {
+      expect(proposal.get(`propose-${family}-publication`)).toMatchObject({
+        kind: "mcp",
+        tool: "honua_studio_propose_publication",
+        forbiddenPointers: expect.arrayContaining(["/structuredContent/publicationId", "/structuredContent/publicUrl"]),
+      });
+      expect(proposal.get(`save-${family}-publication-version`)).toMatchObject({
+        kind: "mcp",
+        tool: "honua_studio_save_version",
+        arguments: {
+          draftId: `\${${family}ReopenedDraftId}`,
+          generation: `\${${family}ProposalGeneration}`,
+          changeNote: `2026.1 zero-to-map ${family} publication intent`,
+        },
+        captures: expect.arrayContaining([
+          expect.objectContaining({ variable: `${family}PublicationVersionId` }),
+          expect.objectContaining({ variable: `${family}PublicationContentHash` }),
+        ]),
+      });
+    }
+    expect(plan.stages[6]?.actions.map((action) => action.id)).toEqual([
+      "verify-map-public-url",
+      "verify-share-url",
+      "verify-dashboard-public-url",
+    ]);
+    const consoleApproval = plan.stages[5]?.actions[0];
+    expect(consoleApproval).toMatchObject({
+      kind: "receipt",
+      matches: {
+        "/resources/studio/map/versionId": "${mapVersionId}",
+        "/resources/studio/app/versionId": "${appVersionId}",
+        "/resources/studio/dashboard/versionId": "${dashboardVersionId}",
+        "/publications/map/versionId": "${mapPublicationVersionId}",
+        "/publications/app/versionId": "${appPublicationVersionId}",
+        "/publications/dashboard/versionId": "${dashboardPublicationVersionId}",
+      },
+    });
 
     const admin = new Map(plan.stages[1]?.actions.map((action) => [action.id, action]));
     expect(admin.get("create-connection")).toMatchObject({
@@ -491,6 +527,8 @@ describe("zero-to-map D9.3 release journey", () => {
         versionId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         reopenedDraftId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
         contentHash: "sha256:map",
+        publicationVersionId: "abababab-abab-4bab-8bab-abababababab",
+        publicationContentHash: "sha256:map-publication",
       },
       app: {
         draftId: "22222222-2222-4222-8222-222222222222",
@@ -498,6 +536,8 @@ describe("zero-to-map D9.3 release journey", () => {
         versionId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
         reopenedDraftId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
         contentHash: "sha256:app",
+        publicationVersionId: "cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd",
+        publicationContentHash: "sha256:app-publication",
       },
       dashboard: {
         draftId: "33333333-3333-4333-8333-333333333333",
@@ -505,9 +545,13 @@ describe("zero-to-map D9.3 release journey", () => {
         versionId: "55555555-5555-4555-8555-555555555555",
         reopenedDraftId: "66666666-6666-4666-8666-666666666666",
         contentHash: "sha256:dashboard",
+        publicationVersionId: "efefefef-efef-4fef-8fef-efefefefefef",
+        publicationContentHash: "sha256:dashboard-publication",
       },
     } as const;
     const generations = new Map<string, number>();
+    const publicationArguments: Readonly<Record<string, unknown>>[] = [];
+    const publicUrls: string[] = [];
     let layerId = 0;
     let proposalGeneration = 0;
     const adapter: JourneyAdapter = {
@@ -577,13 +621,16 @@ describe("zero-to-map D9.3 release journey", () => {
           return value({ draftId: identity.draftId, itemId: identity.itemId, generation: 1 });
         }
         if (tool === "honua_studio_save_version") {
-          const identity = Object.values(studio).find((candidate) => candidate.draftId === args.draftId);
+          const identity = Object.values(studio).find(
+            (candidate) => candidate.draftId === args.draftId || candidate.reopenedDraftId === args.draftId,
+          );
           if (!identity) throw new Error(`unknown Studio draft ${String(args.draftId)}`);
+          const publication = identity.reopenedDraftId === args.draftId;
           return value({
             itemId: identity.itemId,
-            versionId: identity.versionId,
-            versionNumber: 1,
-            contentHash: identity.contentHash,
+            versionId: publication ? identity.publicationVersionId : identity.versionId,
+            versionNumber: publication ? 2 : 1,
+            contentHash: publication ? identity.publicationContentHash : identity.contentHash,
           });
         }
         if (tool === "honua_studio_get_version") {
@@ -608,6 +655,7 @@ describe("zero-to-map D9.3 release journey", () => {
           });
         }
         if (tool === "honua_studio_propose_publication") {
+          publicationArguments.push(args);
           const draftId = String(args.draftId);
           proposalGeneration = (generations.get(draftId) ?? 0) + 1;
           generations.set(draftId, proposalGeneration);
@@ -667,14 +715,60 @@ describe("zero-to-map D9.3 release journey", () => {
             journeyId: plan.journeyId,
             releaseContract: plan.releaseContract,
             status: "passed",
-            proposal: {
-              draftId: studio.app.reopenedDraftId,
-              generation: proposalGeneration,
-              route: "zero-to-map",
-              proposalId: "proposal-1",
-              executionOperationId: "operation-1",
+            proposals: {
+              map: {
+                draftId: studio.map.reopenedDraftId,
+                generation: proposalGeneration,
+                route: "zero-to-map-map",
+                proposalId: "77777777-7777-4777-8777-777777777777",
+                executionOperationId: "operation-map",
+              },
+              app: {
+                draftId: studio.app.reopenedDraftId,
+                generation: proposalGeneration,
+                route: "zero-to-map",
+                proposalId: "88888888-8888-4888-8888-888888888888",
+                executionOperationId: "operation-app",
+              },
+              dashboard: {
+                draftId: studio.dashboard.reopenedDraftId,
+                generation: proposalGeneration,
+                route: "zero-to-map-dashboard",
+                proposalId: "99999999-9999-4999-8999-999999999999",
+                executionOperationId: "operation-dashboard",
+              },
             },
-            audit: { correlationId: "correlation-1", operationId: "operation-1" },
+            publications: {
+              map: {
+                requestId: "77777777-7777-4777-8777-777777777777",
+                itemId: studio.map.itemId,
+                versionId: studio.map.publicationVersionId,
+                status: "published",
+                publicationId: "publication-map",
+                publicUrl: "https://example.test/maps/zero-to-map-map",
+              },
+              app: {
+                requestId: "88888888-8888-4888-8888-888888888888",
+                itemId: studio.app.itemId,
+                versionId: studio.app.publicationVersionId,
+                status: "published",
+                publicationId: "publication-app",
+                publicUrl: "https://example.test/apps/zero-to-map",
+              },
+              dashboard: {
+                requestId: "99999999-9999-4999-8999-999999999999",
+                itemId: studio.dashboard.itemId,
+                versionId: studio.dashboard.publicationVersionId,
+                status: "published",
+                publicationId: "publication-dashboard",
+                publicUrl: "https://example.test/dashboards/zero-to-map-dashboard",
+              },
+            },
+            audit: {
+              map: { correlationId: "correlation-map", operationId: "operation-map" },
+              app: { correlationId: "correlation-app", operationId: "operation-app" },
+              dashboard: { correlationId: "correlation-dashboard", operationId: "operation-dashboard" },
+            },
             resources: {
               connectionId: "connection-1",
               serviceId: "zero-to-map",
@@ -726,8 +820,8 @@ describe("zero-to-map D9.3 release journey", () => {
         };
       },
       async checkHttp(url, expectedStatus) {
-        expect(url).toBe("https://example.test/apps/zero-to-map");
         expect(expectedStatus).toBe(200);
+        publicUrls.push(url);
         return { evidence: { status: 200 } };
       },
     };
@@ -738,6 +832,8 @@ describe("zero-to-map D9.3 release journey", () => {
       variables: {
         dbPassword: "not-recorded",
         fixtureBaseUrl: "https://fixtures.example.test",
+        candidateId: "candidate-1",
+        releaseId: "release-1",
       },
     });
 
@@ -764,14 +860,16 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(seenArguments.get("honua_studio_add_layer")).toMatchObject({
       draftId: studio.app.draftId,
     });
-    expect(seenArguments.get("honua_studio_propose_publication")).toEqual({
-      draftId: studio.app.reopenedDraftId,
-      generation: 1,
-      route: "zero-to-map",
-      visibility: "public",
-      embed: true,
-      note: "2026.1 D9.3 zero-to-map release candidate",
-    });
+    expect(publicationArguments).toEqual([
+      expect.objectContaining({ draftId: studio.map.reopenedDraftId, route: "zero-to-map-map" }),
+      expect.objectContaining({ draftId: studio.app.reopenedDraftId, route: "zero-to-map" }),
+      expect.objectContaining({ draftId: studio.dashboard.reopenedDraftId, route: "zero-to-map-dashboard" }),
+    ]);
+    expect(publicUrls).toEqual([
+      "https://example.test/maps/zero-to-map-map",
+      "https://example.test/apps/zero-to-map",
+      "https://example.test/dashboards/zero-to-map-dashboard",
+    ]);
   });
 });
 

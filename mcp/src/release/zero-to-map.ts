@@ -10,6 +10,7 @@
 export const ZERO_TO_MAP_PLAN_SCHEMA = "honua.zero-to-map.plan/v1" as const;
 export const ZERO_TO_MAP_RECEIPT_SCHEMA = "honua.zero-to-map.receipt/v1" as const;
 export const ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA = "honua.zero-to-map.console-receipt/v1" as const;
+export const ZERO_TO_MAP_CONSOLE_RECEIPT_REQUEST_SCHEMA = "honua.zero-to-map.console-receipt-request/v1" as const;
 
 export type JourneyActionKind = "cli" | "mcp" | "mcp-resource" | "gpserver" | "receipt" | "http";
 export type JourneyActionStatus = "passed" | "blocked" | "failed" | "skipped";
@@ -30,6 +31,8 @@ interface JourneyActionBase {
   readonly title: string;
   readonly kind: JourneyActionKind;
   readonly captures?: readonly JourneyCapture[];
+  /** Response fields that must remain absent (for example pre-approval public URLs). */
+  readonly forbiddenPointers?: readonly string[];
 }
 
 export interface JourneyCliAction extends JourneyActionBase {
@@ -145,6 +148,10 @@ export interface RunJourneyOptions {
   readonly execute: boolean;
   readonly variables?: Readonly<Record<string, unknown>>;
   readonly now?: () => Date;
+  /** Previously completed live stages restored from a verified checkpoint. */
+  readonly resume?: JourneyResumeState;
+  /** Called only at the external Console receipt boundary, before later work is skipped. */
+  readonly onExternalReceiptMissing?: (snapshot: JourneyPauseSnapshot) => Promise<void> | void;
 }
 
 export interface JourneyActionReceipt {
@@ -165,6 +172,32 @@ export interface JourneyStageReceipt {
   readonly title: string;
   readonly status: JourneyActionStatus;
   readonly actions: readonly JourneyActionReceipt[];
+}
+
+export interface JourneyResumePoint {
+  readonly stageId: string;
+  readonly actionId: string;
+}
+
+export interface JourneyReceiptRequest {
+  readonly schemaVersion: typeof ZERO_TO_MAP_CONSOLE_RECEIPT_REQUEST_SCHEMA;
+  readonly actionId: string;
+  readonly receiptSchema: string;
+  readonly matches: Readonly<Record<string, unknown>>;
+  readonly requiredPointers: readonly string[];
+  readonly equalPointers: readonly (readonly [string, string])[];
+}
+
+/** Secret-free execution state nested inside the CLI checkpoint. */
+export interface JourneyResumeState {
+  readonly startedAt: string;
+  readonly capturedVariables: Readonly<Record<string, unknown>>;
+  readonly completedStages: readonly JourneyStageReceipt[];
+  readonly resumeAt: JourneyResumePoint;
+}
+
+export interface JourneyPauseSnapshot extends JourneyResumeState {
+  readonly consoleReceiptRequest: JourneyReceiptRequest;
 }
 
 export interface ZeroToMapReceipt {
@@ -246,21 +279,29 @@ export async function runZeroToMapJourney(
   options: RunJourneyOptions,
 ): Promise<ZeroToMapReceipt> {
   const now = options.now ?? (() => new Date());
-  const startedAt = now().toISOString();
+  if (options.resume && !options.execute) throw new Error("A journey checkpoint can be resumed only in live mode.");
+  const resumeStageIndex = options.resume ? validateJourneyResume(plan, options.resume) : 0;
+  const startedAt = options.resume?.startedAt ?? now().toISOString();
+  const capturedVariables: Record<string, unknown> = { ...options.resume?.capturedVariables };
   const variables: Record<string, unknown> = {
     ...plan.variables,
     ...options.variables,
     journeyId: plan.journeyId,
     releaseContract: plan.releaseContract,
+    ...capturedVariables,
   };
-  const stages: JourneyStageReceipt[] = [];
+  const stages: JourneyStageReceipt[] = [...(options.resume?.completedStages ?? [])];
   let stop: { status: "blocked" | "failed"; actionId: string } | undefined;
   let catalogChecked = false;
 
   try {
-    for (const stage of plan.stages) {
+    for (let stageIndex = resumeStageIndex; stageIndex < plan.stages.length; stageIndex += 1) {
+      const stage = plan.stages[stageIndex];
+      if (!stage) throw new Error(`plan stage ${stageIndex + 1} disappeared during execution`);
       const actions: JourneyActionReceipt[] = [];
-      for (const action of stage.actions) {
+      for (let actionIndex = 0; actionIndex < stage.actions.length; actionIndex += 1) {
+        const action = stage.actions[actionIndex];
+        if (!action) throw new Error(`plan action ${stage.id}[${actionIndex}] disappeared during execution`);
         const actionStartedAt = now().toISOString();
         if (stop) {
           actions.push({
@@ -294,8 +335,14 @@ export async function runZeroToMapJourney(
             catalogChecked = true;
           }
           const result = await executeAction(action, adapter, variables);
+          for (const pointer of action.forbiddenPointers ?? []) {
+            if (jsonPointer(result.value, pointer) !== undefined) {
+              throw new Error(`${action.id} disclosed forbidden pre-approval evidence at ${pointer}`);
+            }
+          }
           const captures = captureValues(action.captures, result.value, variables);
           Object.assign(variables, captures);
+          Object.assign(capturedVariables, captures);
           actions.push({
             id: action.id,
             kind: action.kind,
@@ -306,7 +353,30 @@ export async function runZeroToMapJourney(
             ...(Object.keys(captures).length > 0 ? { captures } : {}),
           });
         } catch (error) {
-          const blocked = error instanceof JourneyBlockedError;
+          let effectiveError = error;
+          if (
+            error instanceof JourneyBlockedError &&
+            error.code === "external-receipt-missing" &&
+            options.onExternalReceiptMissing
+          ) {
+            try {
+              if (action.kind !== "receipt") throw new Error("external receipt pause requires a receipt action");
+              if (actionIndex !== 0) {
+                throw new Error("external receipt pause must occur at a stage boundary to prevent partial replay");
+              }
+              await options.onExternalReceiptMissing({
+                startedAt,
+                capturedVariables: { ...capturedVariables },
+                completedStages: [...stages],
+                resumeAt: { stageId: stage.id, actionId: action.id },
+                consoleReceiptRequest: resolveReceiptRequest(action, variables),
+              });
+            } catch (pauseError) {
+              effectiveError = pauseError;
+            }
+          }
+          const checkpointFailure = effectiveError !== error;
+          const blocked = effectiveError instanceof JourneyBlockedError;
           const status = blocked ? "blocked" : "failed";
           actions.push({
             id: action.id,
@@ -314,8 +384,13 @@ export async function runZeroToMapJourney(
             status,
             startedAt: actionStartedAt,
             finishedAt: now().toISOString(),
-            code: blocked ? error.code : "execution-failed",
-            message: error instanceof Error ? error.message : String(error),
+            code:
+              effectiveError instanceof JourneyBlockedError
+                ? effectiveError.code
+                : checkpointFailure
+                  ? "checkpoint-write-failed"
+                  : "execution-failed",
+            message: effectiveError instanceof Error ? effectiveError.message : String(effectiveError),
           });
           stop = { status, actionId: action.id };
         }
@@ -352,6 +427,95 @@ export async function runZeroToMapJourney(
     blockers,
     stages,
   };
+}
+
+/**
+ * Validate that a checkpoint contains exactly the passed stage prefix for this
+ * plan. Returning the resume stage index lets the executor preserve the prior
+ * receipts without replaying any mutating action.
+ */
+export function validateJourneyResume(plan: ZeroToMapPlan, resume: JourneyResumeState): number {
+  if (!Number.isFinite(Date.parse(resume.startedAt))) throw new Error("checkpoint startedAt must be an ISO timestamp");
+  const stageIndex = plan.stages.findIndex((stage) => stage.id === resume.resumeAt.stageId);
+  if (stageIndex < 0) throw new Error(`checkpoint resume stage is not in this plan: ${resume.resumeAt.stageId}`);
+  const stage = plan.stages[stageIndex];
+  if (!stage) throw new Error("checkpoint resume stage disappeared from the plan");
+  const actionIndex = stage.actions.findIndex((action) => action.id === resume.resumeAt.actionId);
+  if (actionIndex !== 0 || stage.actions[0]?.kind !== "receipt") {
+    throw new Error("checkpoint resume action must be the first receipt action in its stage");
+  }
+  if (resume.completedStages.length !== stageIndex) {
+    throw new Error("checkpoint completed stage prefix does not reach the declared resume point");
+  }
+
+  const restoredCaptures: Record<string, unknown> = {};
+  for (let index = 0; index < resume.completedStages.length; index += 1) {
+    const actualStage = resume.completedStages[index];
+    const plannedStage = plan.stages[index];
+    if (!actualStage || !plannedStage) throw new Error(`checkpoint completed stage ${index + 1} is missing`);
+    if (
+      actualStage.number !== plannedStage.number ||
+      actualStage.id !== plannedStage.id ||
+      actualStage.title !== plannedStage.title ||
+      actualStage.status !== "passed" ||
+      actualStage.actions.length !== plannedStage.actions.length
+    ) {
+      throw new Error(`checkpoint completed stage ${plannedStage.id} does not match the current plan`);
+    }
+    for (let actionIndex = 0; actionIndex < actualStage.actions.length; actionIndex += 1) {
+      const actualAction = actualStage.actions[actionIndex];
+      const plannedAction = plannedStage.actions[actionIndex];
+      if (
+        !actualAction ||
+        !plannedAction ||
+        actualAction.id !== plannedAction.id ||
+        actualAction.kind !== plannedAction.kind ||
+        actualAction.status !== "passed"
+      ) {
+        throw new Error(`checkpoint action ${plannedStage.id}[${actionIndex}] is not an exact passed plan action`);
+      }
+      const allowedCaptures = new Set((plannedAction.captures ?? []).map((capture) => capture.variable));
+      for (const [name, value] of Object.entries(actualAction.captures ?? {})) {
+        if (!allowedCaptures.has(name))
+          throw new Error(`checkpoint action ${actualAction.id} has unknown capture ${name}`);
+        if (Object.hasOwn(restoredCaptures, name)) throw new Error(`checkpoint capture ${name} is duplicated`);
+        restoredCaptures[name] = value;
+      }
+    }
+  }
+  if (stableValue(restoredCaptures) !== stableValue(resume.capturedVariables)) {
+    throw new Error("checkpoint captured variables do not match the completed action receipts");
+  }
+  return stageIndex;
+}
+
+function resolveReceiptRequest(
+  action: JourneyReceiptAction,
+  variables: Readonly<Record<string, unknown>>,
+): JourneyReceiptRequest {
+  return {
+    schemaVersion: ZERO_TO_MAP_CONSOLE_RECEIPT_REQUEST_SCHEMA,
+    actionId: action.id,
+    receiptSchema: action.receiptSchema,
+    matches: Object.fromEntries(
+      Object.entries(action.matches).map(([pointer, template]) => [pointer, resolveTemplateValue(template, variables)]),
+    ),
+    requiredPointers: [...action.requiredPointers],
+    equalPointers: (action.equalPointers ?? []).map(([left, right]) => [left, right] as const),
+  };
+}
+
+function stableValue(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (Array.isArray(value)) return `[${value.map(stableValue).join(",")}]`;
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return `{${Object.keys(object)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableValue(object[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): Promise<void> {
@@ -512,7 +676,17 @@ function parseAction(value: unknown, path: string, ids: Set<string>): JourneyAct
     throw new Error(`${path}.kind is not supported`);
   }
   const captures = parseCaptures(action.captures, `${path}.captures`);
-  const common = { id, title, kind, ...(captures ? { captures } : {}) };
+  const forbiddenPointers =
+    action.forbiddenPointers === undefined
+      ? undefined
+      : stringArray(action.forbiddenPointers, `${path}.forbiddenPointers`);
+  const common = {
+    id,
+    title,
+    kind,
+    ...(captures ? { captures } : {}),
+    ...(forbiddenPointers ? { forbiddenPointers } : {}),
+  };
   switch (kind) {
     case "cli":
       return { ...common, kind, args: stringArray(action.args, `${path}.args`) };
