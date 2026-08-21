@@ -95,7 +95,7 @@ const OPERATIONS = [
   ["wfs", "get-feature", /\bwfs\b/i, /feature|page/i],
   ["wms", "capabilities", /\bwms\b/i, /capabilities/i],
   ["wms", "get-map", /\bwms\b/i, /get.?map|map image/i],
-  ["wmts", "capabilities", /\bwmts\b/i, /capabilities/i],
+  ["wmts", "capabilities", /\bwmts\b/i, /reads service capabilities/i],
   ["wmts", "get-tile", /\bwmts\b/i, /tile/i],
 ];
 

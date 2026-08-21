@@ -5,6 +5,7 @@ import test from "node:test";
 import { buildFragment, GAP_OWNER } from "../scripts/protocol-certification-fragment.mjs";
 
 const certificationContract = JSON.parse(readFileSync(new URL("../config/protocol-certification.v1.json", import.meta.url), "utf8"));
+const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
 const identity = {
   clientVersion: "1.2.3",
@@ -75,7 +76,8 @@ test("machine-readable certification contract matches emitted operation identiti
     certificationContract.operations,
   );
   assert.equal(certificationContract.canonicalClient, "@honua/sdk-js");
-  assert.equal(certificationContract.clientVersion, "0.1.7-beta.0");
+  assert.equal(certificationContract.clientVersion, packageJson.version);
+  assert.equal("fixtureRevision" in certificationContract, false);
 });
 
 test("matches canonical assertion wording without certifying neighboring operations", () => {
@@ -108,4 +110,23 @@ test("matches canonical assertion wording without certifying neighboring operati
   assert.equal(row("stac", "collection").result, "pass");
   assert.equal(row("ogc-processes", "conformance").result, "pass");
   assert.equal(row("ogc-processes", "list").result, "skip");
+});
+
+test("keeps WMTS capabilities independent from the tile assertion", () => {
+  const fragment = buildFragment({
+    identity,
+    reports: [{ testResults: [{
+      name: "test/integration/surfaces/wmts.integration.ts WMTS",
+      assertionResults: [
+        { title: "reads service capabilities", status: "passed" },
+        { title: "fetches a tile at zoom 0,0,0 when capabilities advertise a layer", status: "failed" },
+      ],
+    }] }],
+  });
+  const row = (operation) => fragment.observations.find(
+    (candidate) => candidate.surface === "wmts" && candidate.operation === operation,
+  );
+
+  assert.equal(row("capabilities").result, "pass");
+  assert.equal(row("get-tile").result, "fail");
 });

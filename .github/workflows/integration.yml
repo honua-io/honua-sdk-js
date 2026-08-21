@@ -225,7 +225,7 @@ jobs:
       # In external mode, publish the pinned image/commit metadata too so the
       # uploaded artifact records the target's provenance consistently.
       - name: Record external-mode provenance
-        if: steps.mode.outputs.mode == 'external'
+        if: always() && steps.mode.outputs.mode == 'external'
         run: |
           {
             echo "HONUA_INTEGRATION_SERVER_IMAGE=${HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE}"
