@@ -1009,6 +1009,34 @@ describe("zero-to-map D9.3 release journey", () => {
       "must advance by exactly one",
     );
 
+    const requireMapMutation = (candidatePlan: typeof plan) => {
+      const action = candidatePlan.stages[3]?.actions.find((candidate) => candidate.id === "add-map-parcels-layer");
+      if (!action || action.kind !== "mcp") throw new Error("canonical map mutation action is missing");
+      return action;
+    };
+
+    const nonStudioPlan = structuredClone(plan) as typeof plan;
+    (requireMapMutation(nonStudioPlan) as { tool: string }).tool = "honua_admin_generation_advance";
+    expect(() => validateJourneyResume(nonStudioPlan, paused as JourneyPauseSnapshot, executionVariables)).toThrow(
+      "checkpoint capture mapGeneration is duplicated",
+    );
+
+    const crossDraftPlan = structuredClone(plan) as typeof plan;
+    (requireMapMutation(crossDraftPlan).arguments as Record<string, unknown>).draftId = "${appDraftId}";
+    expect(() => validateJourneyResume(crossDraftPlan, paused as JourneyPauseSnapshot, executionVariables)).toThrow(
+      "is not the same Studio draft generation stream",
+    );
+
+    const wrongSourcePlan = structuredClone(plan) as typeof plan;
+    const wrongSourceCapture = requireMapMutation(wrongSourcePlan).captures?.find(
+      (capture) => capture.variable === "mapGeneration",
+    );
+    if (!wrongSourceCapture) throw new Error("canonical map generation capture is missing");
+    (wrongSourceCapture as { pointers: string[] }).pointers = ["/structuredContent/notGeneration"];
+    expect(() => validateJourneyResume(wrongSourcePlan, paused as JourneyPauseSnapshot, executionVariables)).toThrow(
+      "is not the same Studio draft generation stream",
+    );
+
     const finalGenerationMismatch = structuredClone(paused as JourneyPauseSnapshot);
     (finalGenerationMismatch.capturedVariables as Record<string, unknown>).mapGeneration = 999;
     expect(() => validateJourneyResume(plan, finalGenerationMismatch, executionVariables)).toThrow(
