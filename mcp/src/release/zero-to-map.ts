@@ -555,7 +555,7 @@ export function validateJourneyResume(
                 ...beforeAction,
               })
             : capture.equals;
-        if (expected !== undefined && value !== expected) {
+        if (expected !== undefined && stableValue(value) !== stableValue(expected)) {
           throw new Error(
             `checkpoint capture ${name} does not match its planned value: expected ${JSON.stringify(expected)}, got ${JSON.stringify(value)}`,
           );
@@ -563,7 +563,7 @@ export function validateJourneyResume(
 
         const sourceKey = stableValue({ pointers: capture.pointers, parsedPointers: capture.parsedPointers });
         const priorSource = captureSources.get(sourceKey);
-        if (priorSource && priorSource.value !== value) {
+        if (priorSource && stableValue(priorSource.value) !== stableValue(value)) {
           throw new Error(
             `checkpoint action ${actualAction.id} captured different values from the same response source for ${priorSource.variable} and ${name}`,
           );
