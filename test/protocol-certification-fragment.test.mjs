@@ -201,6 +201,20 @@ test("machine-readable certification contract matches emitted operation identiti
     }),
     /licensed certification requires realtime\/subscribe to pass; observed skip/,
   );
+  assert.throws(
+    () => buildFragment({
+      identity: licensedIdentity,
+      licensedProof: licensedProof(),
+      reports: [{ testResults: [{
+        name: "test/integration/surfaces/realtime.integration.ts Realtime SSE",
+        assertionResults: [
+          { title: "subscribes and decodes [cert:realtime/subscribe#positive] [cert:realtime/subscribe#media-schema]", status: "passed" },
+        ],
+      }] }],
+      now: "2026-08-19T00:02:00Z",
+    }),
+    /licensed certification requires realtime\/resume to pass; observed skip/,
+  );
 });
 
 test("accepts only a digest-bound closed licensed proof", () => {

@@ -233,6 +233,7 @@ describe("fromProtoQueryResponse", () => {
 
     const field = create(FieldDefinitionSchema);
     field.name = "name";
+    field.alias = "Display name";
     field.fieldType = FieldType.STRING;
     field.length = 255;
     field.nullable = true;
@@ -247,6 +248,7 @@ describe("fromProtoQueryResponse", () => {
     expect(result.spatialReference).toEqual({ wkid: 4326 });
     expect(result.fields).toHaveLength(1);
     expect(result.fields[0].name).toBe("name");
+    expect(result.fields[0].alias).toBe("Display name");
     expect(result.fields[0].type).toBe("esriFieldTypeString");
     expect(result.features).toHaveLength(1);
     expect(result.features[0].attributes.name).toBe("TestName");

@@ -30,7 +30,7 @@ still parsed those payloads.
   `VERSION` in `--dest` (default `./conformance-fixtures-<version>/`).
 
   ```bash
-  conformance/fetch-fixtures.sh --version 0.1.0-alpha.3 [--dest DIR] [--repo honua-io/geospatial-grpc]
+  conformance/fetch-fixtures.sh --version 0.2.0-alpha.1 [--dest DIR] [--repo honua-io/geospatial-grpc]
   ```
 
 The fixtures themselves are **not vendored** — they are pulled at CI time so a
@@ -67,13 +67,13 @@ fixture set always maps 1:1 to a `geospatial.v1` schema release (REQ-003).
 
 ```bash
 # 1. pull the pinned fixtures
-conformance/fetch-fixtures.sh --version 0.1.0-alpha.3 --dest ./conformance-fixtures
+conformance/fetch-fixtures.sh --version 0.2.0-alpha.1 --dest ./conformance-fixtures
 
 # 2. point the lane at a live, seeded honua-server and the fixtures
 export HONUA_INTEGRATION_BASE_URL=http://localhost:5555
 export HONUA_INTEGRATION_API_KEY=...          # matches the server admin password
 export HONUA_CONFORMANCE_FIXTURES_DIR=$PWD/conformance-fixtures
-export HONUA_CONFORMANCE_FIXTURES_VERSION=0.1.0-alpha.3
+export HONUA_CONFORMANCE_FIXTURES_VERSION=0.2.0-alpha.1
 
 npm run test:conformance
 ```
@@ -111,7 +111,7 @@ The lane pins and records the server under test into
 | Image | `ghcr.io/honua-io/honua-server:nightly-6d34dd1` |
 | Server commit | `6d34dd1` (nightly 2026-07-05) |
 | Digest | `sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db` |
-| Fixtures version | `0.1.0-alpha.3` |
+| Fixtures version | `0.2.0-alpha.1` |
 
 The pin is set at workflow level in `.github/workflows/integration.yml`
 (`HONUA_INTEGRATION_SERVER_IMAGE` / `HONUA_INTEGRATION_SERVER_COMMIT` /
