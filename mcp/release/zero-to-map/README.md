@@ -81,9 +81,10 @@ The resume atomically claims the checkpoint before any adapter work. A second
 or concurrent claimant fails closed. The checkpoint is bound to the exact plan
 bytes, SDK source SHA (`HONUA_SOURCE_REVISION`), target, MCP endpoint,
 candidate/release, and (for AWS) provisioning receipt; it contains only
-allowlisted captures/evidence and never the database password, admin key,
-token, or authorization material. A successful resume marks it consumed and
-binds the final receipt hash.
+allowlisted captures/evidence, including the non-secret deterministic
+`serviceName` identity required by external producers, and never the database
+password, admin key, token, or authorization material. A successful resume
+marks it consumed and binds the final receipt hash.
 
 For a deployment already provisioned by the DevOps ECS producer, use
 `--target aws-ecs --provision-receipt <pre-teardown-binding.json>`. The binding
@@ -100,6 +101,9 @@ from `structuredContent.details.response`, the server's PublishedOperation
 endpoint-response seam.
 
 The Studio version tools are also preflighted before the first server mutation.
+Map, app, and dashboard each exercise layer, style, view, widget, and control
+mutations before validation; family-specific shortcuts or embedded lookalikes
+cannot satisfy the release roster.
 The journey does not treat `honua_studio_get_draft` as reopen evidence: every
 family must capture its `itemId`, immutable `versionId`, `contentHash`, and the
 new draft whose `baseVersionId` points back to that exact version. After the

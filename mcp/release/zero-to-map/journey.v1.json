@@ -498,6 +498,36 @@
           "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
+          "id": "add-map-widget",
+          "title": "Add the assessed-value chart to the map",
+          "kind": "mcp",
+          "tool": "honua_studio_add_widget",
+          "arguments": {
+            "draftId": "${mapDraftId}",
+            "generation": "${mapGeneration}",
+            "widget": {
+              "id": "value-by-zone",
+              "kind": "chart",
+              "title": "Assessed value by zone",
+              "sourceId": "parcels",
+              "config": { "categoryField": "zone", "valueField": "assessed_value", "aggregate": "sum" }
+            }
+          },
+          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
+          "id": "add-map-control",
+          "title": "Add the layer-list control to the map",
+          "kind": "mcp",
+          "tool": "honua_studio_add_control",
+          "arguments": {
+            "draftId": "${mapDraftId}",
+            "generation": "${mapGeneration}",
+            "control": { "id": "layers", "kind": "layer-list", "title": "Layers", "sourceId": "parcels" }
+          },
+          "captures": [{ "variable": "mapGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
           "id": "validate-map-draft",
           "title": "Validate the composed map draft",
           "kind": "mcp",
@@ -610,6 +640,31 @@
           "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
+          "id": "style-app-buffer-layer",
+          "title": "Apply the buffer style in the app",
+          "kind": "mcp",
+          "tool": "honua_studio_set_layer_style",
+          "arguments": {
+            "draftId": "${appDraftId}",
+            "generation": "${appGeneration}",
+            "layerId": "parcel-buffer",
+            "styleRef": "zero-to-map-buffer"
+          },
+          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
+          "id": "set-app-view",
+          "title": "Set the app map view",
+          "kind": "mcp",
+          "tool": "honua_studio_set_view",
+          "arguments": {
+            "draftId": "${appDraftId}",
+            "generation": "${appGeneration}",
+            "view": { "bbox": [-157.862, 21.3064, -157.8595, 21.3083], "crs": "EPSG:4326" }
+          },
+          "captures": [{ "variable": "appGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
           "id": "add-app-chart",
           "title": "Add the assessed-value chart",
           "kind": "mcp",
@@ -714,17 +769,7 @@
             "schemaVersion": "1.0",
             "body": {
               "title": "Parcel assessment dashboard",
-              "map": { "itemId": "${mapItemId}", "versionId": "${mapVersionId}" },
-              "widgets": [
-                {
-                  "id": "assessed-value-by-zone",
-                  "kind": "chart",
-                  "sourceId": "honua://services/${serviceName}/layers/${parcelsLayerId}",
-                  "categoryField": "zone",
-                  "valueField": "assessed_value",
-                  "aggregate": "sum"
-                }
-              ]
+              "map": { "itemId": "${mapItemId}", "versionId": "${mapVersionId}" }
             }
           },
           "captures": [
@@ -732,6 +777,79 @@
             { "variable": "dashboardItemId", "pointers": ["/structuredContent/itemId"] },
             { "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }
           ]
+        },
+        {
+          "id": "add-dashboard-buffer-layer",
+          "title": "Add the retained analysis artifact to the dashboard",
+          "kind": "mcp",
+          "tool": "honua_studio_add_layer",
+          "arguments": {
+            "draftId": "${dashboardDraftId}",
+            "generation": "${dashboardGeneration}",
+            "layer": {
+              "id": "parcel-buffer",
+              "sourceId": "honua://artifacts/${bufferArtifactId}",
+              "type": "fill",
+              "title": "25 m parcel buffer",
+              "visible": true
+            }
+          },
+          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
+          "id": "style-dashboard-buffer-layer",
+          "title": "Apply the buffer style in the dashboard",
+          "kind": "mcp",
+          "tool": "honua_studio_set_layer_style",
+          "arguments": {
+            "draftId": "${dashboardDraftId}",
+            "generation": "${dashboardGeneration}",
+            "layerId": "parcel-buffer",
+            "styleRef": "zero-to-map-buffer"
+          },
+          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
+          "id": "set-dashboard-view",
+          "title": "Set the dashboard map view",
+          "kind": "mcp",
+          "tool": "honua_studio_set_view",
+          "arguments": {
+            "draftId": "${dashboardDraftId}",
+            "generation": "${dashboardGeneration}",
+            "view": { "bbox": [-157.862, 21.3064, -157.8595, 21.3083], "crs": "EPSG:4326" }
+          },
+          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
+          "id": "add-dashboard-chart",
+          "title": "Add the assessed-value chart to the dashboard",
+          "kind": "mcp",
+          "tool": "honua_studio_add_widget",
+          "arguments": {
+            "draftId": "${dashboardDraftId}",
+            "generation": "${dashboardGeneration}",
+            "widget": {
+              "id": "value-by-zone",
+              "kind": "chart",
+              "title": "Assessed value by zone",
+              "sourceId": "parcels",
+              "config": { "categoryField": "zone", "valueField": "assessed_value", "aggregate": "sum" }
+            }
+          },
+          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
+        },
+        {
+          "id": "add-dashboard-layer-control",
+          "title": "Add the layer-list control to the dashboard",
+          "kind": "mcp",
+          "tool": "honua_studio_add_control",
+          "arguments": {
+            "draftId": "${dashboardDraftId}",
+            "generation": "${dashboardGeneration}",
+            "control": { "id": "layers", "kind": "layer-list", "title": "Layers", "sourceId": "parcels" }
+          },
+          "captures": [{ "variable": "dashboardGeneration", "pointers": ["/structuredContent/generation"] }]
         },
         {
           "id": "validate-dashboard-draft",

@@ -280,12 +280,15 @@ export async function runZeroToMapJourney(
 ): Promise<ZeroToMapReceipt> {
   const now = options.now ?? (() => new Date());
   if (options.resume && !options.execute) throw new Error("A journey checkpoint can be resumed only in live mode.");
-  const resumeStageIndex = options.resume ? validateJourneyResume(plan, options.resume) : 0;
+  const configuredVariables: Record<string, unknown> = { ...plan.variables, ...options.variables };
+  const checkpointSeeds = checkpointSeedVariables(configuredVariables);
+  const resumeStageIndex = options.resume ? validateJourneyResume(plan, options.resume, options.variables) : 0;
   const startedAt = options.resume?.startedAt ?? now().toISOString();
-  const capturedVariables: Record<string, unknown> = { ...options.resume?.capturedVariables };
+  const capturedVariables: Record<string, unknown> = options.resume
+    ? { ...options.resume.capturedVariables }
+    : { ...checkpointSeeds };
   const variables: Record<string, unknown> = {
-    ...plan.variables,
-    ...options.variables,
+    ...configuredVariables,
     journeyId: plan.journeyId,
     releaseContract: plan.releaseContract,
     ...capturedVariables,
@@ -434,7 +437,11 @@ export async function runZeroToMapJourney(
  * plan. Returning the resume stage index lets the executor preserve the prior
  * receipts without replaying any mutating action.
  */
-export function validateJourneyResume(plan: ZeroToMapPlan, resume: JourneyResumeState): number {
+export function validateJourneyResume(
+  plan: ZeroToMapPlan,
+  resume: JourneyResumeState,
+  executionVariables: Readonly<Record<string, unknown>> = {},
+): number {
   if (!Number.isFinite(Date.parse(resume.startedAt))) throw new Error("checkpoint startedAt must be an ISO timestamp");
   const stageIndex = plan.stages.findIndex((stage) => stage.id === resume.resumeAt.stageId);
   if (stageIndex < 0) throw new Error(`checkpoint resume stage is not in this plan: ${resume.resumeAt.stageId}`);
@@ -448,7 +455,10 @@ export function validateJourneyResume(plan: ZeroToMapPlan, resume: JourneyResume
     throw new Error("checkpoint completed stage prefix does not reach the declared resume point");
   }
 
-  const restoredCaptures: Record<string, unknown> = {};
+  const restoredCaptures: Record<string, unknown> = checkpointSeedVariables({
+    ...plan.variables,
+    ...executionVariables,
+  });
   for (let index = 0; index < resume.completedStages.length; index += 1) {
     const actualStage = resume.completedStages[index];
     const plannedStage = plan.stages[index];
@@ -487,6 +497,16 @@ export function validateJourneyResume(plan: ZeroToMapPlan, resume: JourneyResume
     throw new Error("checkpoint captured variables do not match the completed action receipts");
   }
   return stageIndex;
+}
+
+/** Persist only the non-secret deterministic plan identity needed by external evidence producers. */
+function checkpointSeedVariables(variables: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const serviceName = variables.serviceName;
+  if (serviceName === undefined) return {};
+  if (typeof serviceName !== "string" || serviceName.trim().length === 0) {
+    throw new Error("serviceName must be a non-empty string when checkpointed");
+  }
+  return { serviceName };
 }
 
 function resolveReceiptRequest(

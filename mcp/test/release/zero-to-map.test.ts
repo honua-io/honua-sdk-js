@@ -149,6 +149,55 @@ describe("zero-to-map D9.3 release journey", () => {
         ]),
       });
     }
+    const compositionTools = {
+      map: [
+        "honua_studio_add_layer",
+        "honua_studio_set_layer_style",
+        "honua_studio_set_view",
+        "honua_studio_add_widget",
+        "honua_studio_add_control",
+      ],
+      app: [
+        "honua_studio_add_layer",
+        "honua_studio_set_layer_style",
+        "honua_studio_set_view",
+        "honua_studio_add_widget",
+        "honua_studio_add_control",
+      ],
+      dashboard: [
+        "honua_studio_add_layer",
+        "honua_studio_set_layer_style",
+        "honua_studio_set_view",
+        "honua_studio_add_widget",
+        "honua_studio_add_control",
+      ],
+    } as const;
+    const familyActionIds = {
+      map: ["add-map-parcels-layer", "style-map-buffer-layer", "set-map-view", "add-map-widget", "add-map-control"],
+      app: [
+        "add-app-parcels-layer",
+        "style-app-buffer-layer",
+        "set-app-view",
+        "add-app-chart",
+        "add-app-layer-control",
+      ],
+      dashboard: [
+        "add-dashboard-buffer-layer",
+        "style-dashboard-buffer-layer",
+        "set-dashboard-view",
+        "add-dashboard-chart",
+        "add-dashboard-layer-control",
+      ],
+    } as const;
+    for (const family of ["map", "app", "dashboard"] as const) {
+      expect(familyActionIds[family].map((id) => studio.get(id)?.tool)).toEqual(compositionTools[family]);
+      for (const actionId of familyActionIds[family]) {
+        expect(studio.get(actionId)).toMatchObject({
+          arguments: { draftId: `\${${family}DraftId}`, generation: `\${${family}Generation}` },
+          captures: [{ variable: `${family}Generation`, pointers: ["/structuredContent/generation"] }],
+        });
+      }
+    }
 
     const consoleContract = JSON.parse(
       await readFile(`${bundleRoot}/contracts/console-receipt.schema.json`, "utf8"),
@@ -520,6 +569,7 @@ describe("zero-to-map D9.3 release journey", () => {
       stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
     );
     const seenArguments = new Map<string, Readonly<Record<string, unknown>>>();
+    const studioLayerArguments: Readonly<Record<string, unknown>>[] = [];
     const studio = {
       map: {
         draftId: "11111111-1111-4111-8111-111111111111",
@@ -563,6 +613,7 @@ describe("zero-to-map D9.3 release journey", () => {
       },
       async callTool(tool, args) {
         seenArguments.set(tool, args);
+        if (tool === "honua_studio_add_layer") studioLayerArguments.push(args);
         if (tool === "honua_admin_connection_create") {
           return adminOperation("admin.connection.create", { data: { connectionId: "connection-1" } });
         }
@@ -857,9 +908,13 @@ describe("zero-to-map D9.3 release journey", () => {
         distance: 0.00025,
       },
     });
-    expect(seenArguments.get("honua_studio_add_layer")).toMatchObject({
-      draftId: studio.app.draftId,
-    });
+    expect(studioLayerArguments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ draftId: studio.map.draftId }),
+        expect.objectContaining({ draftId: studio.app.draftId }),
+        expect.objectContaining({ draftId: studio.dashboard.draftId }),
+      ]),
+    );
     expect(publicationArguments).toEqual([
       expect.objectContaining({ draftId: studio.map.reopenedDraftId, route: "zero-to-map-map" }),
       expect.objectContaining({ draftId: studio.app.reopenedDraftId, route: "zero-to-map" }),

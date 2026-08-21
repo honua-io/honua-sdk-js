@@ -40,6 +40,7 @@ function fixturePlan() {
     releaseContract: bindings.releaseContract,
     fixtures: [],
     dependencyRefs: [],
+    variables: { serviceName: "zero-to-map" },
     stages: [1, 2, 3, 4, 5]
       .map((number) => ({
         number,
@@ -118,6 +119,7 @@ describe("zero-to-map pause/resume checkpoint", () => {
     expect(snapshot?.resumeAt).toEqual({ stageId: "console", actionId: "console-approval" });
     const checkpoint = createZeroToMapCheckpoint(bindings, snapshot as JourneyPauseSnapshot, "2026-08-20T12:00:00Z");
     expect(JSON.stringify(checkpoint)).not.toContain("must-never-persist");
+    expect(checkpoint.resume.capturedVariables.serviceName).toBe("zero-to-map");
     expect(checkpoint.consoleReceiptRequest.matches).toMatchObject({
       "/journeyId": bindings.journeyId,
       "/resourceId": "runtime-5",
@@ -156,6 +158,16 @@ describe("zero-to-map pause/resume checkpoint", () => {
     expect(resumed.stages.slice(0, 5)).toEqual(first.stages.slice(0, 5));
     expect(mutations).toBe(5);
     expect(httpCalls).toEqual(["https://example.test/app"]);
+
+    await expect(
+      runZeroToMapJourney(plan, adapter({}), {
+        execute: true,
+        resume: {
+          ...checkpoint.resume,
+          capturedVariables: { ...checkpoint.resume.capturedVariables, serviceName: "lookalike-service" },
+        },
+      }),
+    ).rejects.toThrow("captured variables do not match");
   });
 
   it("rejects tampering, stale or mismatched bindings, credential captures, and consumed replay", async () => {
