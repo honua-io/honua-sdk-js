@@ -559,11 +559,12 @@ async function writePrivateFile(filePath: string, content: string): Promise<void
   let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
     handle = await open(temporary, "wx", 0o600);
+    if (process.platform === "win32") await enforcePrivateAccess(temporary);
     await handle.writeFile(content, "utf8");
     await handle.sync();
     await handle.close();
     handle = undefined;
-    await enforcePrivateAccess(temporary);
+    if (process.platform !== "win32") await enforcePrivateAccess(temporary);
     await rejectSymbolicLink(filePath);
     await rename(temporary, filePath);
     await verifyPrivateAccess(filePath);
