@@ -466,6 +466,7 @@ export function validateJourneyResume(
     ...plan.variables,
     ...executionVariables,
   });
+  let previousFinishedAt = Date.parse(resume.startedAt);
   for (let index = 0; index < resume.completedStages.length; index += 1) {
     const actualStage = resume.completedStages[index];
     const plannedStage = plan.stages[index];
@@ -491,11 +492,57 @@ export function validateJourneyResume(
       ) {
         throw new Error(`checkpoint action ${plannedStage.id}[${actionIndex}] is not an exact passed plan action`);
       }
-      const allowedCaptures = new Set((plannedAction.captures ?? []).map((capture) => capture.variable));
-      for (const [name, value] of Object.entries(actualAction.captures ?? {})) {
-        if (!allowedCaptures.has(name))
-          throw new Error(`checkpoint action ${actualAction.id} has unknown capture ${name}`);
-        if (Object.hasOwn(restoredCaptures, name)) throw new Error(`checkpoint capture ${name} is duplicated`);
+      const actionStartedAt = Date.parse(actualAction.startedAt);
+      const actionFinishedAt = Date.parse(actualAction.finishedAt);
+      if (
+        !Number.isFinite(actionStartedAt) ||
+        !Number.isFinite(actionFinishedAt) ||
+        actionStartedAt < previousFinishedAt ||
+        actionFinishedAt < actionStartedAt
+      ) {
+        throw new Error(`checkpoint action ${actualAction.id} is outside the completed receipt timeline`);
+      }
+      previousFinishedAt = actionFinishedAt;
+
+      const plannedCaptures = plannedAction.captures ?? [];
+      const actualCaptures = actualAction.captures ?? {};
+      const plannedCaptureNames = plannedCaptures.map((capture) => capture.variable).sort();
+      const actualCaptureNames = Object.keys(actualCaptures).sort();
+      if (stableValue(plannedCaptureNames) !== stableValue(actualCaptureNames)) {
+        throw new Error(`checkpoint action ${actualAction.id} does not contain its exact planned captures`);
+      }
+
+      const beforeAction = { ...restoredCaptures };
+      const captureSources = new Map<string, { variable: string; value: unknown }>();
+      for (const capture of plannedCaptures) {
+        const name = capture.variable;
+        const value = actualCaptures[name];
+        if (value === undefined) throw new Error(`checkpoint action ${actualAction.id} has undefined capture ${name}`);
+        if (Object.hasOwn(restoredCaptures, name)) {
+          assertMutableGenerationAdvance(plannedAction, name, restoredCaptures[name], value);
+        }
+        const expected =
+          typeof capture.equals === "string"
+            ? resolveTemplateValue(capture.equals, {
+                ...plan.variables,
+                ...executionVariables,
+                ...beforeAction,
+              })
+            : capture.equals;
+        if (expected !== undefined && value !== expected) {
+          throw new Error(
+            `checkpoint capture ${name} does not match its planned value: expected ${JSON.stringify(expected)}, got ${JSON.stringify(value)}`,
+          );
+        }
+
+        const sourceKey = stableValue({ pointers: capture.pointers, parsedPointers: capture.parsedPointers });
+        const priorSource = captureSources.get(sourceKey);
+        if (priorSource && priorSource.value !== value) {
+          throw new Error(
+            `checkpoint action ${actualAction.id} captured different values from the same response source for ${priorSource.variable} and ${name}`,
+          );
+        }
+        captureSources.set(sourceKey, { variable: name, value });
         restoredCaptures[name] = value;
       }
     }
@@ -504,6 +551,29 @@ export function validateJourneyResume(
     throw new Error("checkpoint captured variables do not match the completed action receipts");
   }
   return stageIndex;
+}
+
+/**
+ * Studio draft generations are the only intentionally replaceable checkpoint
+ * capture. The plan must explicitly consume the prior value and the response
+ * must advance it by exactly one; immutable ids, hashes, and names remain
+ * single-assignment.
+ */
+function assertMutableGenerationAdvance(action: JourneyAction, name: string, previous: unknown, next: unknown): void {
+  const declaredInput = action.kind === "mcp" ? action.arguments.generation : undefined;
+  if (!name.endsWith("Generation") || declaredInput !== `\${${name}}`) {
+    throw new Error(`checkpoint capture ${name} is duplicated`);
+  }
+  if (
+    !Number.isSafeInteger(previous) ||
+    (previous as number) < 1 ||
+    !Number.isSafeInteger(next) ||
+    next !== (previous as number) + 1
+  ) {
+    throw new Error(
+      `checkpoint mutable capture ${name} must advance by exactly one; got ${JSON.stringify(previous)} -> ${JSON.stringify(next)}`,
+    );
+  }
 }
 
 /** Persist only the non-secret deterministic plan identity needed by external evidence producers. */
@@ -834,6 +904,7 @@ function pointerPairs(value: unknown, path: string): Array<readonly [string, str
 function parseCaptures(value: unknown, path: string): readonly JourneyCapture[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) throw new Error(`${path} must be an array`);
+  const variables = new Set<string>();
   return value.map((candidate, index) => {
     const capture = record(candidate, `${path}[${index}]`);
     const pointers = stringArray(capture.pointers, `${path}[${index}].pointers`);
@@ -851,8 +922,11 @@ function parseCaptures(value: unknown, path: string): readonly JourneyCapture[] 
     ) {
       throw new Error(`${path}[${index}].equals must be a string, number, or boolean`);
     }
+    const variable = nonEmptyString(capture.variable, `${path}[${index}].variable`);
+    if (variables.has(variable)) throw new Error(`${path}[${index}].variable duplicates ${variable}`);
+    variables.add(variable);
     return {
-      variable: nonEmptyString(capture.variable, `${path}[${index}].variable`),
+      variable,
       pointers,
       ...(parsedPointers ? { parsedPointers } : {}),
       ...(equals !== undefined ? { equals } : {}),

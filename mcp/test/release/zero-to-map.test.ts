@@ -15,9 +15,11 @@ import {
   type JourneyAdapter,
   type JourneyBlockedError,
   type JourneyExecutionResult,
+  type JourneyPauseSnapshot,
   ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
   parseZeroToMapPlan,
   runZeroToMapJourney,
+  validateJourneyResume,
 } from "../../src/release/zero-to-map.js";
 
 const bundleRoot = fileURLToPath(new URL("../../release/zero-to-map/", import.meta.url));
@@ -638,7 +640,7 @@ describe("zero-to-map D9.3 release journey", () => {
     });
   });
 
-  it("threads captured ids and generations through a fully simulated live journey", async () => {
+  it("pauses and resumes the canonical captured-id and mutable-generation journey without replay", async () => {
     const plan = await loadPlan();
     const requiredTools = plan.stages.flatMap((stage) =>
       stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
@@ -679,6 +681,8 @@ describe("zero-to-map D9.3 release journey", () => {
     const publicUrls: string[] = [];
     let layerId = 0;
     let proposalGeneration = 0;
+    let consoleReceiptAvailable = false;
+    let paused: JourneyPauseSnapshot | undefined;
     const adapter: JourneyAdapter = {
       async runCli(args) {
         return cliResult(args);
@@ -858,6 +862,7 @@ describe("zero-to-map D9.3 release journey", () => {
       },
       async readReceipt(actionId) {
         expect(actionId).toBe("console-approval");
+        if (!consoleReceiptAvailable) return undefined;
         return {
           value: {
             schemaVersion: ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA,
@@ -975,17 +980,68 @@ describe("zero-to-map D9.3 release journey", () => {
       },
     };
 
-    const receipt = await runZeroToMapJourney(plan, adapter, {
+    const executionVariables = {
+      dbPassword: "not-recorded",
+      fixtureBaseUrl: "https://fixtures.example.test",
+      candidateId: "candidate-1",
+      releaseId: "release-1",
+    };
+    const first = await runZeroToMapJourney(plan, adapter, {
       execute: true,
       now: deterministicClock(),
-      variables: {
-        fixtureBaseUrl: "https://fixtures.example.test",
-        candidateId: "candidate-1",
-        releaseId: "release-1",
+      variables: executionVariables,
+      onExternalReceiptMissing(snapshot) {
+        paused = snapshot;
       },
     });
 
+    expect(first.status).toBe("blocked");
+    expect(paused?.resumeAt).toEqual({ stageId: "console", actionId: "console-approval" });
+    expect(validateJourneyResume(plan, paused as JourneyPauseSnapshot, executionVariables)).toBe(5);
+
+    const generationJump = structuredClone(paused as JourneyPauseSnapshot);
+    const firstMapMutation = generationJump.completedStages[3]?.actions.find(
+      (action) => action.id === "add-map-parcels-layer",
+    );
+    if (!firstMapMutation?.captures) throw new Error("canonical map generation capture is missing");
+    (firstMapMutation.captures as Record<string, unknown>).mapGeneration = 3;
+    expect(() => validateJourneyResume(plan, generationJump, executionVariables)).toThrow(
+      "must advance by exactly one",
+    );
+
+    const finalGenerationMismatch = structuredClone(paused as JourneyPauseSnapshot);
+    (finalGenerationMismatch.capturedVariables as Record<string, unknown>).mapGeneration = 999;
+    expect(() => validateJourneyResume(plan, finalGenerationMismatch, executionVariables)).toThrow(
+      "captured variables do not match",
+    );
+
+    const duplicateImmutablePlan = structuredClone(plan) as typeof plan;
+    const duplicateImmutableResume = structuredClone(paused as JourneyPauseSnapshot);
+    const testConnection = duplicateImmutablePlan.stages[1]?.actions.find((action) => action.id === "test-connection");
+    const testConnectionReceipt = duplicateImmutableResume.completedStages[1]?.actions.find(
+      (action) => action.id === "test-connection",
+    );
+    if (!testConnection || !testConnectionReceipt) throw new Error("canonical connection test action is missing");
+    (testConnection as { captures?: Array<{ variable: string; pointers: string[] }> }).captures = [
+      { variable: "connectionId", pointers: ["/structuredContent/connectionId"] },
+    ];
+    (testConnectionReceipt as { captures?: Record<string, unknown> }).captures = { connectionId: "connection-1" };
+    expect(() => validateJourneyResume(duplicateImmutablePlan, duplicateImmutableResume, executionVariables)).toThrow(
+      "checkpoint capture connectionId is duplicated",
+    );
+
+    const mutationArgumentsBeforeResume = publicationArguments.length + studioLayerArguments.length;
+    consoleReceiptAvailable = true;
+    const receipt = await runZeroToMapJourney(plan, adapter, {
+      execute: true,
+      now: deterministicClock(),
+      variables: executionVariables,
+      resume: paused as JourneyPauseSnapshot,
+    });
+
     expect(receipt.status, JSON.stringify(receipt, null, 2)).toBe("passed");
+    expect(receipt.stages.slice(0, 5)).toEqual(first.stages.slice(0, 5));
+    expect(publicationArguments.length + studioLayerArguments.length).toBe(mutationArgumentsBeforeResume);
     expect(receipt.blockers).toEqual([]);
     expect(receipt.dependencyRefs).toContain("honua-server#3268 synchronous OGC process execution and GeoJSON inputs");
     expect(receipt.stages.every((stage) => stage.status === "passed")).toBe(true);
