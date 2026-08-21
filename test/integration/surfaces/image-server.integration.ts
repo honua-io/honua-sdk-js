@@ -65,7 +65,11 @@ if (config && !config.imageServiceId) {
         const headers: Record<string, string> = {};
         if (config.apiKey) headers["X-API-Key"] = config.apiKey;
         if (config.bearerToken) headers.Authorization = `Bearer ${config.bearerToken}`;
-        const assetResponse = await fetch(new URL(exported.href!, config.baseUrl), { headers });
+        const targetUrl = new URL(config.baseUrl);
+        const assetUrl = new URL(exported.href!, targetUrl);
+        expect(["http:", "https:"]).toContain(assetUrl.protocol);
+        expect(assetUrl.origin).toBe(targetUrl.origin);
+        const assetResponse = await fetch(assetUrl, { headers, redirect: "error" });
         expect(assetResponse.ok).toBe(true);
         expect(assetResponse.headers.get("content-type")?.split(";", 1)[0]).toBe("image/png");
 
