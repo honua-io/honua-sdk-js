@@ -36,7 +36,7 @@ integrationSuite("OGC API Processes", "ogc-processes", ({ client, context }) => 
     });
   });
 
-  it("describes the first registered process when one exists", async () => {
+  it("describes the first registered process when one exists", async ({ skip }) => {
     const list = await runWithDiagnostics(context, "client.ogcProcesses().list", async () => {
       const r = await processes.list();
       expect(Array.isArray(r.processes)).toBe(true);
@@ -46,6 +46,7 @@ integrationSuite("OGC API Processes", "ogc-processes", ({ client, context }) => 
     if (!first) {
       // Soft skip — execute is exercised in dedicated server tests but
       // the seed lane does not require a process to be registered.
+      skip();
       return;
     }
     await runWithDiagnostics(context, "client.ogcProcesses().describe", async () => {

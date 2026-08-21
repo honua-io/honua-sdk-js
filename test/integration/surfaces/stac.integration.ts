@@ -26,10 +26,11 @@ integrationSuite("STAC", "stac", ({ client, context, config }) => {
     });
   });
 
-  it("fetches the configured STAC collection when it is advertised", async () => {
+  it("fetches the configured STAC collection when it is advertised", async ({ skip }) => {
     const collections = await runWithDiagnostics(context, "client.stac().collections", async () => stac.collections());
     const ids = collections.collections.map((entry) => String(entry.id));
     if (!ids.includes(String(config.stacCollectionId))) {
+      skip();
       return;
     }
     await runWithDiagnostics(context, "client.stac().collection", async () => {

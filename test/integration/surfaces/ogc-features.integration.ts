@@ -48,7 +48,7 @@ integrationSuite("OGC API Features", "ogc-features", ({ client, context, config 
     });
   });
 
-  it("fetches a single item by id", async () => {
+  it("fetches a single item by id", async ({ skip }) => {
     const items = await runWithDiagnostics(context, "client.ogcFeatures().collection().items", async () => {
       const r = await collection.items({ limit: 1 });
       expect(r.type).toBe("FeatureCollection");
@@ -58,6 +58,7 @@ integrationSuite("OGC API Features", "ogc-features", ({ client, context, config 
     if (featureId === undefined || featureId === null) {
       // Server returned features without ids — record an explicit
       // soft-skip rather than asserting an unsupported behavior.
+      skip();
       return;
     }
     await runWithDiagnostics(context, "client.ogcFeatures().collection().item", async () => {

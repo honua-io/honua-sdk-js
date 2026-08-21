@@ -20,7 +20,7 @@ integrationSuite("WMS", "wms", ({ client, context, config }) => {
     });
   });
 
-  it("renders a GetMap image for the first advertised layer", async () => {
+  it("renders a GetMap image for the first advertised layer", async ({ skip }) => {
     const capabilities = await runWithDiagnostics(context, "client.wms().capabilities", async () => {
       const r = await wms.capabilities();
       expect(r.version.length).toBeGreaterThan(0);
@@ -28,7 +28,8 @@ integrationSuite("WMS", "wms", ({ client, context, config }) => {
     });
     const advertised = capabilities.layers.find((layer) => typeof layer.name === "string" && layer.name.length > 0);
     if (!advertised?.name) {
-      return; // Server advertised only group layers — skip render.
+      skip(); // Server advertised only group layers.
+      return;
     }
     await runWithDiagnostics(context, "client.wms().map", async () => {
       const image = await wms.map({
