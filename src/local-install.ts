@@ -604,9 +604,7 @@ async function enforcePrivateAccess(filePath: string): Promise<void> {
   }
 
   const directory = path.dirname(filePath);
-  const identity = await runCommand("whoami", ["/user", "/fo", "csv", "/nh"], directory);
-  const sid = identity.stdout.match(/"(S-\d+(?:-\d+)+)"/i)?.[1];
-  if (identity.exitCode !== 0 || !sid) throw new Error("Could not resolve the Windows owner SID for a private file.");
+  const sid = await windowsOwnerSid(directory);
   const acl = await runCommand("icacls", [filePath, "/inheritance:r", "/grant:r", `*${sid}:(F)`], directory);
   if (acl.exitCode !== 0) throw new Error(`Could not establish an owner-only Windows ACL: ${acl.stderr || acl.stdout}`);
 }
@@ -620,9 +618,36 @@ async function verifyPrivateAccess(filePath: string): Promise<void> {
     throw new Error(`Credential file permissions are not owner-only: ${filePath}`);
   }
   if (process.platform === "win32") {
-    const result = await runCommand("icacls", [filePath, "/verify"], path.dirname(filePath));
-    if (result.exitCode !== 0) throw new Error(`Could not verify the Windows private-file ACL: ${result.stderr}`);
+    const directory = path.dirname(filePath);
+    const sid = await windowsOwnerSid(directory);
+    const script = [
+      "& { param([string]$credentialPath, [string]$expectedSid)",
+      "$acl = Get-Acl -LiteralPath $credentialPath",
+      "$rules = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]))",
+      "$full = [System.Security.AccessControl.FileSystemRights]::FullControl",
+      "$allow = [System.Security.AccessControl.AccessControlType]::Allow",
+      "$valid = $acl.AreAccessRulesProtected -and $rules.Count -eq 1 -and " +
+        "$rules[0].IdentityReference.Value -eq $expectedSid -and -not $rules[0].IsInherited -and " +
+        "$rules[0].AccessControlType -eq $allow -and (($rules[0].FileSystemRights -band $full) -eq $full)",
+      "if (-not $valid) { Write-Error 'private ACL mismatch'; exit 1 }",
+      "}",
+    ].join("; ");
+    const result = await runCommand(
+      "powershell.exe",
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script, filePath, sid],
+      directory,
+    );
+    if (result.exitCode !== 0) {
+      throw new Error(`Windows credential ACL is not owner-only: ${result.stderr || result.stdout}`);
+    }
   }
+}
+
+async function windowsOwnerSid(directory: string): Promise<string> {
+  const identity = await runCommand("whoami", ["/user", "/fo", "csv", "/nh"], directory);
+  const sid = identity.stdout.match(/"(S-\d+(?:-\d+)+)"/i)?.[1];
+  if (identity.exitCode !== 0 || !sid) throw new Error("Could not resolve the Windows owner SID for a private file.");
+  return sid;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
