@@ -7,6 +7,7 @@ const identity = {
   clientVersion: "1.2.3",
   deploymentTarget: "local-docker",
   sourceSha: "a".repeat(40),
+  producerSourceSha: "c".repeat(40),
   imageDigest: `sha256:${"b".repeat(64)}`,
   fixtureRevision: "fixture-1",
   evidenceUri: "https://example.test/run/1",
