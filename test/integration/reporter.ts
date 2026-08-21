@@ -39,6 +39,7 @@ export interface IntegrationMetaDocument {
   serverReleaseChannel: string | undefined;
   serverImage: string | undefined;
   serverCommit: string | undefined;
+  candidateCutAt?: string;
   /**
    * Pinned geospatial-grpc conformance fixtures version exercised this run, or
    * `undefined` when the conformance lane is not configured. Set by the

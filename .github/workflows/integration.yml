@@ -40,6 +40,9 @@ on:
       server_commit:
         description: "Honua Server commit SHA recorded into integration-meta.json (external mode). Leave blank when unknown — do not set to the SDK commit."
         required: false
+      candidate_cut_at:
+        description: "Frozen candidate cut timestamp for external certification evidence."
+        required: false
       server_image:
         description: "Immutable image digest actually deployed by the external target (required with base_url)."
         required: false
@@ -65,6 +68,7 @@ env:
   # also be immutable digest references so evidence cannot drift between runs.
   HONUA_INTEGRATION_SERVER_IMAGE: ${{ vars.HONUA_INTEGRATION_SERVER_IMAGE || 'ghcr.io/honua-io/honua-server@sha256:78e3088d64d832d3e2752c87d80bfcad201b414f4525989ca5d9a242cd5fee8a' }}
   HONUA_INTEGRATION_SERVER_COMMIT: ${{ vars.HONUA_INTEGRATION_SERVER_COMMIT || 'f897700159e2791c9468c6ca85bb4e2a3a8d8433' }}
+  HONUA_CANDIDATE_CUT_AT: ${{ vars.HONUA_CANDIDATE_CUT_AT || '2026-08-20T07:58:03Z' }}
   HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.3' }}
   # Deterministic container passwords for the self-contained stack. These are
   # NOT secrets (the stack is ephemeral and never exposed off the runner); the
@@ -91,6 +95,7 @@ jobs:
       HONUA_INTEGRATION_COLLECTION_ID: ${{ vars.HONUA_INTEGRATION_COLLECTION_ID || '1000' }}
       HONUA_INTEGRATION_TILE_MATRIX_SET: ${{ vars.HONUA_INTEGRATION_TILE_MATRIX_SET || 'WebMercatorQuad' }}
       HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE: ${{ github.event.inputs.server_commit || vars.HONUA_INTEGRATION_SERVER_COMMIT }}
+      HONUA_CANDIDATE_CUT_AT_OVERRIDE: ${{ github.event.inputs.candidate_cut_at || vars.HONUA_CANDIDATE_CUT_AT }}
       HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE: ${{ github.event.inputs.server_image || vars.HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE }}
       HONUA_DEPLOYMENT_TARGET_OVERRIDE: ${{ github.event.inputs.deployment_target || vars.HONUA_INTEGRATION_DEPLOYMENT_TARGET }}
     steps:
@@ -221,6 +226,7 @@ jobs:
           {
             echo "HONUA_INTEGRATION_SERVER_IMAGE=${HONUA_INTEGRATION_EXTERNAL_SERVER_IMAGE}"
             echo "HONUA_INTEGRATION_SERVER_COMMIT=${HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE:-}"
+            echo "HONUA_CANDIDATE_CUT_AT=${HONUA_CANDIDATE_CUT_AT_OVERRIDE:-}"
             echo "HONUA_DEPLOYMENT_TARGET=${HONUA_DEPLOYMENT_TARGET_OVERRIDE}"
             echo "HONUA_CERTIFICATION_EXTERNAL=true"
           } >> "$GITHUB_ENV"

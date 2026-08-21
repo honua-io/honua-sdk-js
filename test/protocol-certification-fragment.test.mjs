@@ -10,6 +10,7 @@ const identity = {
   imageDigest: `sha256:${"b".repeat(64)}`,
   fixtureRevision: "fixture-1",
   evidenceUri: "https://example.test/run/1",
+  cutAt: "2026-08-19T00:00:00Z",
 };
 
 test("normalizes execution and preserves missing operation gaps", () => {
@@ -25,7 +26,14 @@ test("normalizes execution and preserves missing operation gaps", () => {
     }] }],
   });
 
-  assert.equal(fragment.complete, true);
+  assert.equal(fragment.schema, "honua.protocol-certification-fragment/v1");
+  assert.equal(fragment.producer, "honua-sdk-js");
+  assert.deepEqual(fragment.candidate, {
+    source_sha: identity.sourceSha,
+    image_digest: identity.imageDigest,
+    cut_at: identity.cutAt,
+  });
+  assert.equal(fragment.operation_scope.complete, true);
   assert.equal(fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "metadata").result, "pass");
   assert.deepEqual(fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "query").failure_messages, ["boom"]);
   const missing = fragment.observations.find((row) => row.surface === "wcs" && row.operation === "get-coverage");
@@ -41,7 +49,7 @@ test("marks evidence incomplete when a suite report is unavailable", () => {
     now: "2026-08-20T00:00:00.000Z",
   });
 
-  assert.equal(fragment.complete, false);
+  assert.equal(fragment.operation_scope.complete, false);
   assert.ok(fragment.observations.every((row) => row.result === "skip"));
 });
 

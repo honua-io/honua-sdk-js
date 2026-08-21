@@ -93,8 +93,15 @@ function statusFor(matches) {
 export function buildFragment({ reports, identity, complete = true, now = new Date().toISOString() }) {
   const tests = reports.flatMap(assertions);
   return {
-    schema_version: "1.0.0",
-    complete,
+    schema: "honua.protocol-certification-fragment/v1",
+    producer: "honua-sdk-js",
+    generated_at: now,
+    candidate: {
+      source_sha: identity.sourceSha,
+      image_digest: identity.imageDigest,
+      cut_at: identity.cutAt,
+    },
+    operation_scope: { complete, owner_issue: GAP_OWNER },
     observations: OPERATIONS.map(([surface, operation, surfacePattern, operationPattern]) => {
       const matches = tests.filter(({ text }) => surfacePattern.test(text) && operationPattern.test(text));
       const result = statusFor(matches);
@@ -156,6 +163,7 @@ async function main() {
       imageDigest: required("image-digest", argument("image-digest", imageDigest)),
       fixtureRevision: required("fixture-revision", argument("fixture-revision", metadata.conformanceFixturesVersion)),
       evidenceUri: required("evidence-uri", argument("evidence-uri", process.env.HONUA_EVIDENCE_URI)),
+      cutAt: required("candidate-cut-at", argument("candidate-cut-at", metadata.candidateCutAt)),
       startedAt: argument("started-at", metadata.startedAt),
     },
   });
