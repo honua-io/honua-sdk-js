@@ -1,10 +1,11 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { run } from "../src/cli/main.js";
+import { writePrivateFileAtomic } from "../src/private-file.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -165,6 +166,41 @@ describe("honua admin", () => {
     });
   });
 
+  it("deep-redacts credential-bearing dry-run headers, query values, and bodies", async () => {
+    const output = capture();
+    const secrets = ["bearer-secret", "cookie-secret", "query-secret", "body-secret", "nested-secret"];
+    const code = await run([
+      "admin",
+      "connect",
+      "createConnection",
+      "--header",
+      "Authorization=Bearer bearer-secret",
+      "--header",
+      "Cookie=honua-admin-auth-session=cookie-secret",
+      "--query",
+      "accessToken=query-secret",
+      "--body",
+      '{"name":"local","password":"body-secret","nested":{"clientSecret":"nested-secret"},"secretReference":"vault://connection"}',
+      "--dry-run",
+      "--json",
+    ]);
+    expect(code).toBe(0);
+    const rendered = output.join("");
+    for (const secret of secrets) expect(rendered).not.toContain(secret);
+    expect(JSON.parse(rendered)).toMatchObject({
+      request: {
+        headers: { Authorization: "[REDACTED]", Cookie: "[REDACTED]" },
+        query: { accessToken: "[REDACTED]" },
+        body: {
+          name: "local",
+          password: "[REDACTED]",
+          nested: { clientSecret: "[REDACTED]" },
+          secretReference: "vault://connection",
+        },
+      },
+    });
+  });
+
   it("requires --yes before a mutating request", async () => {
     const output = capture();
     const code = await run([
@@ -239,6 +275,57 @@ describe("honua admin", () => {
       }
     },
   );
+
+  it("rolls back issuance when the prepared one-time sink pathname is substituted", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-admin-secret-substitution-"));
+    const secretOutput = path.join(directory, "credential");
+    const stolen = path.join(directory, "stolen.tmp");
+    const output = capture();
+    let issued = false;
+    const fetchFn = vi.fn(async () => {
+      if (!issued) {
+        issued = true;
+        const temporary = readdirSync(directory).find(
+          (name) => name.startsWith(".credential.") && name.endsWith(".tmp"),
+        );
+        if (!temporary) throw new Error("prepared sink temp was not found");
+        const temporaryPath = path.join(directory, temporary);
+        renameSync(temporaryPath, stolen);
+        await writePrivateFileAtomic(temporaryPath, "attacker-substitution");
+        return new Response(JSON.stringify(ADMIN_SECRET_CASES[0].response), {
+          status: 201,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return Response.json({ success: true, data: { status: "revoked" } });
+    });
+    vi.stubGlobal("fetch", fetchFn);
+    try {
+      expect(
+        await run([
+          "admin",
+          "api",
+          "createAdminApiKey",
+          "--base-url",
+          "https://example.test",
+          "--admin-key",
+          "root",
+          "--body",
+          "{}",
+          "--yes",
+          "--secret-output",
+          secretOutput,
+        ]),
+        output.join(""),
+      ).toBe(2);
+      expect(fetchFn).toHaveBeenCalledTimes(2);
+      expect(output.join("")).not.toContain(ADMIN_SECRET_CASES[0].secret);
+      expect(readFileSync(stolen).includes(Buffer.from(ADMIN_SECRET_CASES[0].secret))).toBe(false);
+      expect(readdirSync(directory)).not.toContain("credential");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
   it.each(ADMIN_SECRET_CASES)(
     "recovers or rolls back $operationId when the requested sink is raced after issuance",

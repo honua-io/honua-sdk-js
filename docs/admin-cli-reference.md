@@ -11,11 +11,19 @@ the generated request or response contract.
 
 Common options: `--body @file.json`, repeated `--path name=value`, repeated
 `--query name=value`, `--json`, `--dry-run`, `--yes`, and `--profile <name>`.
+Credential-bearing Admin requests require HTTPS; plain HTTP is accepted only
+for exact loopback development hosts. Base URLs with user information, query
+parameters, or fragments are rejected, and redirects are never followed.
+`--dry-run` preserves request structure but replaces credential-bearing header,
+query, and nested body values with `[REDACTED]`.
 
 The six one-time-secret operations (`createAdminApiKey`, `rotateAdminApiKey`, `registerOAuthClient`, `createEmbedKey`, `issueAdminOperatorBearer`, `rotateEmbedKey`) fail closed unless
 `--secret-output <new-private-file>` is supplied. The CLI atomically creates that file with
 private permissions, refuses overwrite/reuse, and prints only allowlisted resource metadata plus
 the sink path and SHA-256 digest; plaintext material is never written to stdout or stderr.
+Existing saved profiles and local-install credential files are consumed only
+after the same owner-only permission/ACL proof succeeds; permissive legacy files
+must be rotated or reconciled rather than silently reused.
 
 ## connect
 
@@ -447,4 +455,3 @@ the sink path and SHA-256 digest; plaintext material is never written to stdout 
 | `uploadLicenseFile` | `POST` | `/license/upload` | Upload License File |
 | `validateConfigurationSecrets` | `GET` | `/configuration/secrets/validate` | Validate Configuration Secrets |
 | `verifyObservabilityAudit` | `GET` | `/observability/audit/verify` | Verify Audit Trail Integrity |
-

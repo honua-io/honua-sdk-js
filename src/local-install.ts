@@ -20,7 +20,8 @@ import {
   ADMIN_RELEASE_OPERATION_COUNT,
   ADMIN_RELEASE_SERVER_SHA,
 } from "./control-plane/generated/admin-operations.js";
-import { writePrivateFileAtomic } from "./private-file.js";
+import { verifyPrivateFile, writePrivateFileAtomic } from "./private-file.js";
+import { resolveExecutableFromPath } from "./process-executable.js";
 
 export type LocalInstallProfile = "quickstart" | "gp-dev";
 
@@ -116,6 +117,15 @@ export async function installHonuaLocal(
   const mcpConfigFile = path.join(directory, ".mcp.json");
   const claudeDesktopConfigFile = path.join(directory, "claude_desktop_config.json");
   const existingEnv = await readEnv(envFile);
+  const [hasMcpConfig, hasClaudeConfig] = await Promise.all([
+    verifyPrivateFileIfPresent(mcpConfigFile),
+    verifyPrivateFileIfPresent(claudeDesktopConfigFile),
+  ]);
+  if (!existingEnv.HONUA_ADMIN_KEY && (hasMcpConfig || hasClaudeConfig)) {
+    throw new Error(
+      "Refusing to overwrite an existing credential-bearing MCP config without its matching verified HONUA_ADMIN_KEY. Revoke or reconcile the prior local credential first.",
+    );
+  }
   const reused = Object.keys(existingEnv).length > 0;
   const secret = runtime.randomSecret ?? ((bytes: number) => randomBytes(bytes).toString("hex"));
   const env: Record<string, string | undefined> & {
@@ -134,16 +144,19 @@ export async function installHonuaLocal(
     HONUA_ADMIN_KEY: existingEnv.HONUA_ADMIN_KEY,
   };
 
+  const dockerCommand = runtime.run
+    ? "docker"
+    : await resolveExecutableFromPath("docker", { excludedDirectory: directory });
   await mkdir(directory, { recursive: true });
   await writePrivateFileAtomic(envFile, renderEnv(env));
   await writeFile(composeFile, renderLocalCompose({ profile }), "utf8");
 
   const run = runtime.run ?? runCommand;
-  await requireCommand(run, "docker", ["version", "--format", "{{.Server.Version}}"], directory, "Docker Engine");
-  await requireCommand(run, "docker", ["compose", "version"], directory, "Docker Compose v2");
+  await requireCommand(run, dockerCommand, ["version", "--format", "{{.Server.Version}}"], directory, "Docker Engine");
+  await requireCommand(run, dockerCommand, ["compose", "version"], directory, "Docker Compose v2");
   await requireCommand(
     run,
-    "docker",
+    dockerCommand,
     ["compose", "--project-directory", directory, "--file", composeFile, "up", "-d", "--wait"],
     directory,
     "Honua local stack",
@@ -212,20 +225,28 @@ export async function getHonuaLocalStatus(
   }
   const baseUrl = `http://127.0.0.1:${env.HONUA_HTTP_PORT}`;
   const run = runtime.run ?? runCommand;
-  const compose = await run(
-    "docker",
-    [
-      "compose",
-      "--project-directory",
+  let compose: CommandResult;
+  try {
+    const dockerCommand = runtime.run
+      ? "docker"
+      : await resolveExecutableFromPath("docker", { excludedDirectory: resolved });
+    compose = await run(
+      dockerCommand,
+      [
+        "compose",
+        "--project-directory",
+        resolved,
+        "--file",
+        path.join(resolved, "compose.yaml"),
+        "ps",
+        "--format",
+        "json",
+      ],
       resolved,
-      "--file",
-      path.join(resolved, "compose.yaml"),
-      "ps",
-      "--format",
-      "json",
-    ],
-    resolved,
-  ).catch((error: unknown) => ({ exitCode: 1, stdout: "", stderr: errorMessage(error) }));
+    );
+  } catch (error) {
+    compose = { exitCode: 1, stdout: "", stderr: errorMessage(error) };
+  }
   let ready = false;
   try {
     const response = await (runtime.fetchFn ?? fetch)(`${baseUrl}/healthz/ready`);
@@ -531,6 +552,7 @@ async function runCommand(command: string, args: readonly string[], cwd: string)
 
 async function readEnv(filePath: string): Promise<Record<string, string>> {
   try {
+    await verifyPrivateFile(filePath);
     const raw = await readFile(filePath, "utf8");
     return Object.fromEntries(
       raw
@@ -541,8 +563,23 @@ async function readEnv(filePath: string): Promise<Record<string, string>> {
           return separator > 0 ? [line.slice(0, separator), line.slice(separator + 1)] : [line, ""];
         }),
     );
-  } catch {
-    return {};
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw new Error(
+      `Refusing to read local credentials from an unverified private file ${filePath}: ${errorMessage(error)}`,
+    );
+  }
+}
+
+async function verifyPrivateFileIfPresent(filePath: string): Promise<boolean> {
+  try {
+    await verifyPrivateFile(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw new Error(
+      `Refusing to reuse local credentials after an unverified credential file ${filePath}: ${errorMessage(error)}`,
+    );
   }
 }
 

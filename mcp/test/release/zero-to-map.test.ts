@@ -515,6 +515,44 @@ describe("zero-to-map D9.3 release journey", () => {
     ]);
   });
 
+  it("rejects a live catalog with tools beyond the exact 432-tool default roster", async () => {
+    const plan = await loadPlan();
+    const requiredTools = plan.stages.flatMap((stage) =>
+      stage.actions.filter((action) => action.kind === "mcp").map((action) => action.tool),
+    );
+    let mutationCalled = false;
+    const adapter: JourneyAdapter = {
+      async runCli(args) {
+        return cliResult(args);
+      },
+      async listTools() {
+        return [...completeCatalog(requiredTools), { name: "honua_unexpected_extra", inputSchema: { type: "object" } }];
+      },
+      async callTool() {
+        mutationCalled = true;
+        return {};
+      },
+      async readResource() {
+        return {};
+      },
+      async runGpServer() {
+        mutationCalled = true;
+        return {};
+      },
+      async readReceipt() {
+        return undefined;
+      },
+      async checkHttp() {
+        return {};
+      },
+    };
+
+    const receipt = await runZeroToMapJourney(plan, adapter, { execute: true, now: deterministicClock() });
+    expect(receipt.status).toBe("blocked");
+    expect(receipt.stages[1]?.actions[0]).toMatchObject({ code: "mcp-catalog-incomplete" });
+    expect(mutationCalled).toBe(false);
+  });
+
   it("fails closed before mutation until the exact Studio version lifecycle tools are advertised", async () => {
     const plan = await loadPlan();
     const requiredTools = [

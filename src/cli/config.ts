@@ -16,7 +16,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { writePrivateFileAtomic } from "../private-file.js";
+import { verifyPrivateFileSync, writePrivateFileAtomic } from "../private-file.js";
 
 export interface HonuaCliConfig {
   baseUrl?: string;
@@ -69,9 +69,22 @@ export function configPath(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(configDir(env), "config.json");
 }
 
-/** Read the persisted config, returning `{}` when absent or unreadable. */
+/** Read the persisted config, returning `{}` only when absent or privately stored but malformed. */
 export function readConfig(env: NodeJS.ProcessEnv = process.env): HonuaCliConfig {
   const file = configPath(env);
+  try {
+    fs.lstatSync(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
+  }
+  try {
+    verifyPrivateFileSync(file);
+  } catch (error) {
+    throw new Error(
+      `Refusing to read CLI credentials from an unverified private file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   try {
     const raw = fs.readFileSync(file, "utf8");
     const parsed = JSON.parse(raw) as HonuaCliConfig;

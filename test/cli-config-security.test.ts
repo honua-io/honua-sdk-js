@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -43,6 +43,19 @@ describe("CLI credential config persistence", () => {
     }
   });
 
+  it("refuses to consume a legacy config whose privacy was never verified", () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "honua-cli-config-legacy-"));
+    const env = { HONUA_CONFIG_HOME: directory };
+    const file = configPath(env);
+    writeFileSync(file, '{"adminKey":"possibly-exposed"}\n', { encoding: "utf8", mode: 0o644 });
+    if (process.platform !== "win32") chmodSync(file, 0o644);
+    try {
+      expect(() => readConfig(env)).toThrow("Refusing to read CLI credentials from an unverified private file");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it.skipIf(process.platform === "win32")("refuses a symbolic-link config destination", async () => {
     const directory = mkdtempSync(path.join(tmpdir(), "honua-cli-config-symlink-"));
     const outside = path.join(directory, "outside.json");
@@ -51,6 +64,7 @@ describe("CLI credential config persistence", () => {
     mkdirSync(env.HONUA_CONFIG_HOME, { recursive: true });
     symlinkSync(outside, configPath(env));
     try {
+      expect(() => readConfig(env)).toThrow("unverified private file");
       await expect(writeConfig({ apiKey: "must-not-escape" }, env)).rejects.toThrow("symbolic-link credential file");
       expect(readFileSync(outside, "utf8")).toBe("preserve\n");
     } finally {

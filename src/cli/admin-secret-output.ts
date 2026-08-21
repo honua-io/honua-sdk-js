@@ -81,19 +81,27 @@ export async function prepareAdminSecretSink(outputPath: string): Promise<Prepar
     `.${path.basename(resolved)}.${randomBytes(12).toString("hex")}.tmp`,
   );
   let handle: Awaited<ReturnType<typeof open>> | undefined;
+  let sinkIdentity: { readonly dev: bigint; readonly ino: bigint } | undefined;
   try {
     handle = await open(temporary, "wx", 0o600);
+    const metadata = await handle.stat({ bigint: true });
+    if (!metadata.isFile()) throw new Error("secret sink handle is not regular");
+    sinkIdentity = { dev: metadata.dev, ino: metadata.ino };
     await restrictPrivateFile(temporary);
     await verifyPrivateFile(temporary);
+    await requireSinkIdentity(temporary, sinkIdentity, [1n]);
     await handle.truncate(MAX_ONE_TIME_SECRET_BYTES);
     await handle.sync();
+    await requireSinkIdentity(temporary, sinkIdentity, [1n]);
   } catch {
     await handle?.close().catch(() => undefined);
-    await unlink(temporary).catch(() => undefined);
+    if (sinkIdentity) await unlinkSinkIdentity(temporary, sinkIdentity, [1n]);
     throw secretSinkError();
   }
   if (!handle) throw secretSinkError();
+  if (!sinkIdentity) throw secretSinkError();
   const privateHandle = handle;
+  const privateIdentity = sinkIdentity;
 
   let committed = false;
   let retained = false;
@@ -105,7 +113,7 @@ export async function prepareAdminSecretSink(outputPath: string): Promise<Prepar
   };
   const cleanup = async (): Promise<void> => {
     await close();
-    await unlink(temporary).catch(() => undefined);
+    await unlinkSinkIdentity(temporary, privateIdentity, [1n, 2n]);
   };
 
   return {
@@ -116,18 +124,24 @@ export async function prepareAdminSecretSink(outputPath: string): Promise<Prepar
       let linked = false;
       let durable = false;
       try {
+        await requireSinkIdentity(temporary, privateIdentity, [1n]);
         await privateHandle.writeFile(secret, { encoding: "utf8" });
         await privateHandle.truncate(Buffer.byteLength(secret, "utf8"));
         await privateHandle.sync();
         durable = true;
+        await requireSinkIdentity(temporary, privateIdentity, [1n]);
         await close();
         await verifyPrivateFile(temporary);
+        await requireSinkIdentity(temporary, privateIdentity, [1n]);
         await link(temporary, resolved);
         linked = true;
         await verifyPrivateFile(resolved);
+        await requireSinkIdentity(temporary, privateIdentity, [2n]);
+        await requireSinkIdentity(resolved, privateIdentity, [2n]);
         await syncPrivateFileDirectory(resolved);
         committed = true;
         await unlink(temporary);
+        await requireSinkIdentity(resolved, privateIdentity, [1n]);
         await syncPrivateFileDirectory(resolved);
         return {
           path: resolved,
@@ -139,15 +153,16 @@ export async function prepareAdminSecretSink(outputPath: string): Promise<Prepar
           const candidate = linked ? resolved : temporary;
           try {
             await verifyPrivateFile(candidate);
+            await requireSinkIdentity(candidate, privateIdentity, linked ? [1n, 2n] : [1n]);
             recoveryPath = candidate;
           } catch {
             recoveryPath = undefined;
           }
         }
-        if (linked && recoveryPath !== resolved) await unlink(resolved).catch(() => undefined);
+        if (linked && recoveryPath !== resolved) await unlinkSinkIdentity(resolved, privateIdentity, [1n, 2n]);
         if (recoveryPath) {
           retained = true;
-          if (recoveryPath === resolved) await unlink(temporary).catch(() => undefined);
+          if (recoveryPath === resolved) await unlinkSinkIdentity(temporary, privateIdentity, [1n, 2n]);
           throw new SecretSinkCommitError(recoveryPath);
         }
         await cleanup();
@@ -158,6 +173,36 @@ export async function prepareAdminSecretSink(outputPath: string): Promise<Prepar
       if (!committed && !retained) await cleanup();
     },
   };
+}
+
+async function unlinkSinkIdentity(
+  filePath: string,
+  expected: { readonly dev: bigint; readonly ino: bigint },
+  allowedLinks: readonly bigint[],
+): Promise<void> {
+  try {
+    await requireSinkIdentity(filePath, expected, allowedLinks);
+    await unlink(filePath);
+  } catch {
+    // Never remove a pathname unless it still identifies the sink we created.
+  }
+}
+
+async function requireSinkIdentity(
+  filePath: string,
+  expected: { readonly dev: bigint; readonly ino: bigint },
+  allowedLinks: readonly bigint[],
+): Promise<void> {
+  const metadata = await lstat(filePath, { bigint: true });
+  if (
+    !metadata.isFile() ||
+    metadata.isSymbolicLink() ||
+    metadata.dev !== expected.dev ||
+    metadata.ino !== expected.ino ||
+    !allowedLinks.includes(metadata.nlink)
+  ) {
+    throw new Error("One-time-secret sink pathname identity changed during issuance.");
+  }
 }
 
 /** Strip one-time material and commit it only to the prepared private sink. */

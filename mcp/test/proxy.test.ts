@@ -145,6 +145,17 @@ describe("proxy option resolution (#1950)", () => {
     expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "ftp://x/mcp" })).toThrow(/http or https/);
   });
 
+  it("refuses plaintext non-loopback and ambiguous credential endpoints", () => {
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://example.test/mcp" })).toThrow(/requires HTTPS/);
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "https://user:pass@example.test/mcp" })).toThrow(
+      /must not include/,
+    );
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "https://example.test/mcp?token=secret" })).toThrow(
+      /must not include/,
+    );
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://127.0.0.1:8080/mcp" })).not.toThrow();
+  });
+
   it("accepts HONUA_MCP_URL as an alias", () => {
     const opts = resolveProxyOptions({ HONUA_MCP_URL: "https://demo.honua.io/mcp" });
     expect(opts.remoteUrl).toBe("https://demo.honua.io/mcp");

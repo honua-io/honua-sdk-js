@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, open, readFile, rename, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { constants } from "node:fs";
+import { access, lstat, mkdir, open, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HonuaClient } from "@honua/sdk-js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { listAllTools } from "../certification/admin-parity.js";
 import { validateAgainstSchema } from "../certification/json-schema.js";
+import { requireSecureCredentialEndpoint } from "../credential-endpoint.js";
 import {
   type ZeroToMapCheckpoint,
   type ZeroToMapCheckpointBindings,
@@ -148,19 +151,8 @@ class LiveAdapter implements JourneyAdapter {
 
   async listTools(): Promise<readonly { name: string; inputSchema: Readonly<Record<string, unknown>> }[]> {
     const client = await this.client();
-    const tools: { name: string; inputSchema: Readonly<Record<string, unknown>> }[] = [];
-    let cursor: string | undefined;
-    const seenCursors = new Set<string>();
-    do {
-      const result = await client.listTools(cursor ? { cursor } : undefined);
-      tools.push(...result.tools.map((tool) => ({ name: tool.name, inputSchema: tool.inputSchema })));
-      cursor = result.nextCursor;
-      if (cursor && seenCursors.has(cursor)) {
-        throw new Error(`MCP tools/list repeated cursor ${cursor}`);
-      }
-      if (cursor) seenCursors.add(cursor);
-    } while (cursor);
-    return tools;
+    const tools = await listAllTools(client);
+    return tools.map((tool) => ({ name: tool.name, inputSchema: tool.inputSchema }));
   }
 
   async callTool(tool: string, args: Readonly<Record<string, unknown>>): Promise<JourneyExecutionResult> {
@@ -329,7 +321,7 @@ export async function runZeroToMapCli(
   }
   const planBytes = await readFile(options.planPath);
   const plan = parseZeroToMapPlan(JSON.parse(planBytes.toString("utf8")) as unknown);
-  const liveOptions = options.execute ? await prepareLiveOptions(options) : options;
+  const liveOptions = options.execute ? await prepareLiveOptions(options, env) : options;
   const bindings = options.execute
     ? checkpointBindings(liveOptions, plan.journeyId, plan.releaseContract, planBytes)
     : undefined;
@@ -484,16 +476,17 @@ export function parseZeroToMapCliArgs(argv: readonly string[], env: NodeJS.Proce
   };
 }
 
-async function prepareLiveOptions(options: CliOptions): Promise<CliOptions> {
+async function prepareLiveOptions(options: CliOptions, env: NodeJS.ProcessEnv): Promise<CliOptions> {
   if (!options.sourceRevision || !/^[0-9a-f]{40}$/.test(options.sourceRevision)) {
     throw new Error("HONUA_SOURCE_REVISION must be the exact 40-character SDK candidate SHA");
   }
   if (!options.mcpUrl) throw new Error("--mcp-url is required for live execution");
+  requireSecureCredentialEndpoint(options.mcpUrl, "--mcp-url");
   requireBindingVariable(options.variables, "candidateId");
   requireBindingVariable(options.variables, "releaseId");
   if (options.target === "local-docker") {
     if (options.provisionReceiptPath) throw new Error("--provision-receipt is valid only with --target aws-ecs");
-    return options;
+    return { ...options, honuaCommand: await resolveLiveExecutable(options.honuaCommand, env, process.cwd()) };
   }
   if (!options.provisionReceiptPath) throw new Error("--target aws-ecs requires --provision-receipt");
   const provisionBytes = await readFile(options.provisionReceiptPath);
@@ -508,6 +501,53 @@ async function prepareLiveOptions(options: CliOptions): Promise<CliOptions> {
     provisionBinding,
     provisionReceiptSha256: createHash("sha256").update(provisionBytes).digest("hex"),
   };
+}
+
+/** Resolve the live mutating CLI without permitting Windows' cwd-first executable search. */
+export async function resolveLiveExecutable(
+  command: string,
+  env: NodeJS.ProcessEnv,
+  excludedDirectory: string,
+): Promise<string> {
+  if (path.isAbsolute(command)) return verifyLiveExecutable(command, excludedDirectory);
+  if (command.includes("/") || command.includes("\\")) {
+    throw new Error(`Live Honua CLI path must be absolute: ${command}`);
+  }
+  const names = process.platform === "win32" ? windowsExecutableNames(command, env.PATHEXT) : [command];
+  for (const rawDirectory of (env.PATH ?? "").split(path.delimiter)) {
+    const directory = rawDirectory.trim().replace(/^"|"$/g, "");
+    if (!directory || !path.isAbsolute(directory)) continue;
+    for (const name of names) {
+      try {
+        return await verifyLiveExecutable(path.join(directory, name), excludedDirectory);
+      } catch {
+        // Continue through the absolute PATH roster, never the working directory.
+      }
+    }
+  }
+  throw new Error(`Live Honua CLI was not found in an absolute PATH entry: ${command}`);
+}
+
+function windowsExecutableNames(command: string, pathExt: string | undefined): readonly string[] {
+  if (path.extname(command)) return [command];
+  return [...new Set((pathExt ?? ".COM;.EXE;.BAT;.CMD").split(";").map((value) => value.trim().toLowerCase()))]
+    .filter((extension) => /^\.[a-z0-9]+$/.test(extension))
+    .map((extension) => `${command}${extension}`);
+}
+
+async function verifyLiveExecutable(candidate: string, excludedDirectory: string): Promise<string> {
+  const [resolved, excluded] = await Promise.all([
+    realpath(candidate),
+    realpath(excludedDirectory).catch(() => path.resolve(excludedDirectory)),
+  ]);
+  const relative = path.relative(excluded, resolved);
+  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+    throw new Error("Refusing to execute the live Honua CLI from the working directory.");
+  }
+  const metadata = await lstat(resolved);
+  if (!metadata.isFile()) throw new Error("Live Honua CLI is not a regular file.");
+  if (process.platform !== "win32") await access(resolved, constants.X_OK);
+  return resolved;
 }
 
 function checkpointBindings(
@@ -586,7 +626,12 @@ function runProcess(
   env: NodeJS.ProcessEnv,
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, [...args], { env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const childEnv = process.platform === "win32" ? { ...env, NoDefaultCurrentDirectoryInExePath: "1" } : env;
+    const child = spawn(command, [...args], {
+      env: childEnv,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let outputBytes = 0;

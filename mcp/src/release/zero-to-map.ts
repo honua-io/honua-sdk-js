@@ -728,11 +728,11 @@ async function assertMcpCatalog(plan: ZeroToMapPlan, adapter: JourneyAdapter): P
     missingAdmin.length > 0 ||
     unexpectedAdmin.length > 0 ||
     excludedAdmin.length > 0 ||
-    staticToolCount < MCP_DEFAULT_STATIC_TOOL_COUNT ||
-    catalog.length < MCP_DEFAULT_TOTAL_TOOL_COUNT
+    staticToolCount !== MCP_DEFAULT_STATIC_TOOL_COUNT ||
+    catalog.length !== MCP_DEFAULT_TOTAL_TOOL_COUNT
   ) {
     throw new JourneyBlockedError(
-      `MCP catalog does not satisfy the complete Admin/default roster: total=${catalog.length} (minimum ${MCP_DEFAULT_TOTAL_TOOL_COUNT}), static=${staticToolCount} (minimum ${MCP_DEFAULT_STATIC_TOOL_COUNT}), admin=${adminNames.length} (expected ${ADMIN_MCP_PUBLISHED_TOOL_NAMES.length}); missingAdmin=${missingAdmin.join(", ") || "none"}; unexpectedAdmin=${unexpectedAdmin.join(", ") || "none"}; excludedAdmin=${excludedAdmin.join(", ") || "none"}; duplicates=${duplicateNames.join(", ") || "none"}`,
+      `MCP catalog does not satisfy the exact Admin/default roster: total=${catalog.length} (expected ${MCP_DEFAULT_TOTAL_TOOL_COUNT}), static=${staticToolCount} (expected ${MCP_DEFAULT_STATIC_TOOL_COUNT}), admin=${adminNames.length} (expected ${ADMIN_MCP_PUBLISHED_TOOL_NAMES.length}); missingAdmin=${missingAdmin.join(", ") || "none"}; unexpectedAdmin=${unexpectedAdmin.join(", ") || "none"}; excludedAdmin=${excludedAdmin.join(", ") || "none"}; duplicates=${duplicateNames.join(", ") || "none"}`,
       "mcp-catalog-incomplete",
     );
   }

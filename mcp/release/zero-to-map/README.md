@@ -35,9 +35,13 @@ they are never reported as runtime blockers on a passed live receipt.
 
 The `configs` directory contains equivalent examples for Claude Desktop,
 Claude Code, and Cursor. Each launches the existing `honua-mcp-proxy` and points
-it at the remote HTTP MCP endpoint. Set `HONUA_MCP_AUTH_TOKEN` separately when
+it at the remote MCP endpoint. Set `HONUA_MCP_AUTH_TOKEN` separately when
 the deployment requires bearer authentication; do not put credentials in the
 journey plan or a release receipt.
+Credential-bearing proxy and live-journey endpoints require HTTPS, except for
+exact loopback HTTP used by the bounded local-Docker profile. User information,
+query parameters, fragments, cross-origin redirects, and catalogs other than
+the exact 432-tool default roster fail closed before the first mutation.
 
 ## Run a live candidate
 

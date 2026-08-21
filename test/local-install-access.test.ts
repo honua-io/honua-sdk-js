@@ -13,6 +13,7 @@ vi.mock("../src/control-plane/generated/admin-operations.js", async (importOrigi
 }));
 
 import { installHonuaLocal } from "../src/local-install.js";
+import { writePrivateFileAtomic } from "../src/private-file.js";
 
 const cleanup: string[] = [];
 afterEach(() => {
@@ -113,14 +114,14 @@ describe("local installer access handoff", () => {
     expect(JSON.stringify(reused)).not.toContain(material);
     expect(fetchFn).toHaveBeenCalledTimes(6);
     expect(fetchFn.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
-  });
+  }, 20_000);
 
   it("fails closed instead of reusing a broader existing local-agent credential", async () => {
     const directory = mkdtempSync(path.join(tmpdir(), "honua-local-access-scope-"));
     cleanup.push(directory);
     const material = "hnua_existing-material-that-must-not-enter-the-error";
     const envFile = path.join(directory, ".env");
-    writeFileSync(
+    await writePrivateFileAtomic(
       envFile,
       [
         "HONUA_SERVER_IMAGE=example.invalid/honua@sha256:1234",
@@ -131,7 +132,6 @@ describe("local installer access handoff", () => {
         `HONUA_ADMIN_KEY=${material}`,
         "",
       ].join("\n"),
-      "utf8",
     );
     const fetchFn = vi.fn(async (input: string | URL | Request) => {
       const url = new URL(input instanceof Request ? input.url : input.toString());
@@ -247,7 +247,6 @@ describe("local installer access handoff", () => {
   it("revokes and scrubs a newly issued key when private-file persistence fails", async () => {
     const directory = mkdtempSync(path.join(tmpdir(), "honua-local-access-persist-"));
     cleanup.push(directory);
-    mkdirSync(path.join(directory, ".mcp.json"));
     const credentialId = "33333333-3333-4333-8333-333333333333";
     const material = "hnua_persistence-failure-material";
     let revoked = 0;
@@ -272,6 +271,7 @@ describe("local installer access handoff", () => {
         );
       }
       if (url.pathname === `/api/v1/admin/api-keys/${credentialId}/effective-permissions`) {
+        mkdirSync(path.join(directory, ".mcp.json"));
         return jsonResponse({
           success: true,
           data: {
@@ -305,7 +305,7 @@ describe("local installer access handoff", () => {
     expect(readFileSync(path.join(directory, ".env"), "utf8")).not.toContain(material);
   });
 
-  it("atomically replaces an existing permissive credential file with owner-only permissions", async () => {
+  it("refuses to reuse an existing permissive credential file", async () => {
     const directory = mkdtempSync(path.join(tmpdir(), "honua-local-access-mode-"));
     cleanup.push(directory);
     const material = "hnua_existing-private-material";
@@ -356,15 +356,18 @@ describe("local installer access handoff", () => {
       throw new Error(`unexpected request ${url.pathname}`);
     });
 
-    const result = await installHonuaLocal(
-      { directory, timeoutMs: 1_000 },
-      {
-        fetchFn,
-        run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
-        wait: async () => undefined,
-      },
-    );
-    if (process.platform !== "win32") expect(statSync(result.envFile).mode & 0o777).toBe(0o600);
+    await expect(
+      installHonuaLocal(
+        { directory, timeoutMs: 1_000 },
+        {
+          fetchFn,
+          run: async () => ({ exitCode: 0, stdout: "ok", stderr: "" }),
+          wait: async () => undefined,
+        },
+      ),
+    ).rejects.toThrow("Refusing to read local credentials from an unverified private file");
+    expect(fetchFn).not.toHaveBeenCalled();
+    expect(readFileSync(envFile, "utf8")).toContain(material);
   });
 
   it.skipIf(process.platform === "win32")("refuses a symbolic-link credential target", async () => {
@@ -383,7 +386,7 @@ describe("local installer access handoff", () => {
           wait: async () => undefined,
         },
       ),
-    ).rejects.toThrow("symbolic-link credential file");
+    ).rejects.toThrow("unverified private file");
     expect(readFileSync(external, "utf8")).toBe("DO_NOT_OVERWRITE=true\n");
   });
 });

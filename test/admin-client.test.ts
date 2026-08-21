@@ -86,7 +86,17 @@ describe("generated admin REST client", () => {
 
     expect(observed?.url).toBe("https://example.test/api/v1/admin/connections/conn%2F1");
     expect(new Headers(observed?.init?.headers).get("X-API-Key")).toBe("admin-key");
+    expect(observed?.init?.redirect).toBe("manual");
     expect(result.data).toEqual({ id: "conn-1", name: "local" });
+  });
+
+  it("refuses credential-bearing endpoints outside HTTPS or exact loopback HTTP", () => {
+    expect(() => new HonuaAdminClient({ baseUrl: "http://example.test" })).toThrow("requires HTTPS");
+    expect(() => new HonuaAdminClient({ baseUrl: "http://user:pass@127.0.0.1" })).toThrow("must not include");
+    expect(() => new HonuaAdminClient({ baseUrl: "https://example.test?credential=1" })).toThrow("must not include");
+    expect(() => new HonuaAdminClient({ baseUrl: "https://example.test#credential" })).toThrow("must not include");
+    expect(() => new HonuaAdminClient({ baseUrl: "http://127.0.0.1:8080" })).not.toThrow();
+    expect(() => new HonuaAdminClient({ baseUrl: "http://[::1]:8080" })).not.toThrow();
   });
 
   it("does not let per-call headers override the configured admin credential", async () => {

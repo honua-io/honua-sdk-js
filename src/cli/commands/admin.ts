@@ -88,7 +88,7 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     body: readBody(getString(parsed, "body")),
   };
   if (getBoolean(parsed, "dry-run")) {
-    printLine(renderJson({ operationId, ...descriptor, request, executed: false }));
+    printLine(renderJson({ operationId, ...descriptor, request: redactAdminRequest(request), executed: false }));
     return;
   }
   const secretOutput = getString(parsed, "secret-output");
@@ -311,6 +311,61 @@ function compactRequest(request: {
     ...(Object.keys(request.headers).length > 0 ? { headers: request.headers } : {}),
     ...(request.body !== undefined ? { body: request.body } : {}),
   };
+}
+
+const REDACTED_ADMIN_VALUE = "[REDACTED]";
+
+function redactAdminRequest(request: {
+  path: Record<string, unknown>;
+  query: Record<string, unknown>;
+  headers: Record<string, string>;
+  body: unknown;
+}): typeof request {
+  return {
+    path: redactAdminValue(request.path, "path") as Record<string, unknown>,
+    query: redactAdminValue(request.query, "query") as Record<string, unknown>,
+    headers: redactAdminValue(request.headers, "headers") as Record<string, string>,
+    body: redactAdminValue(request.body, "body"),
+  };
+}
+
+function redactAdminValue(value: unknown, location: "path" | "query" | "headers" | "body"): unknown {
+  if (Array.isArray(value)) return value.map((entry) => redactAdminValue(entry, location));
+  if (!value || typeof value !== "object") return value;
+  const redacted: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    redacted[key] = isSensitiveAdminField(key, location) ? REDACTED_ADMIN_VALUE : redactAdminValue(entry, location);
+  }
+  return redacted;
+}
+
+function isSensitiveAdminField(key: string, location: "path" | "query" | "headers" | "body"): boolean {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (
+    normalized.endsWith("reference") ||
+    normalized.endsWith("ref") ||
+    normalized.endsWith("id") ||
+    normalized.endsWith("digest") ||
+    normalized.endsWith("hash") ||
+    normalized.endsWith("prefix") ||
+    normalized.endsWith("type") ||
+    normalized.endsWith("endpoint")
+  ) {
+    return false;
+  }
+  if (location === "headers") {
+    return (
+      normalized === "authorization" ||
+      normalized === "cookie" ||
+      normalized === "setcookie" ||
+      normalized === "xapikey" ||
+      /(?:credential|password|passwd|secret|token|privatekey|signature|connectionstring|sasurl)/.test(normalized)
+    );
+  }
+  return (
+    /(?:credential|credentials|password|passwd|secret|secretvalue|token|tokenvalue|privatekey)$/.test(normalized) ||
+    /^(?:authorization|cookie|apikey|adminkey|embedkey|connectionstring|sasurl)$/.test(normalized)
+  );
 }
 
 function callDynamic(

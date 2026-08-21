@@ -123,6 +123,12 @@ export class HonuaAdminClient {
     if (baseUrl.protocol !== "http:" && baseUrl.protocol !== "https:") {
       throw new Error("Admin client baseUrl must use http or https.");
     }
+    if (baseUrl.username || baseUrl.password || baseUrl.search || baseUrl.hash) {
+      throw new Error("Admin client baseUrl must not include credentials, query parameters, or a fragment.");
+    }
+    if (baseUrl.protocol === "http:" && !isLoopbackHost(baseUrl.hostname)) {
+      throw new Error("Admin client requires HTTPS except for exact loopback HTTP development endpoints.");
+    }
     this.#baseUrl = baseUrl.toString().replace(/\/+$/, "");
     this.#basePath = normalizeBasePath(options.basePath ?? ADMIN_API_BASE_PATH);
     this.#fetch = options.fetchFn ?? fetch;
@@ -149,11 +155,17 @@ export class HonuaAdminClient {
       headers,
       body,
       signal: request.signal,
+      redirect: "manual",
     });
     const data = await readResponse(response);
     if (!response.ok) throw new HonuaAdminApiError(operationId, response, data);
     return { operationId, data: data as AdminOperationResponse<Id>, response };
   }
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
 }
 
 export function createHonuaAdminClient(options: AdminClientOptions): HonuaAdminClient {
