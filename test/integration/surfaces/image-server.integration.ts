@@ -39,5 +39,19 @@ if (config && !config.imageServiceId) {
         expect(metadata.serviceDescription ?? imageServiceId).toBeTruthy();
       });
     });
+
+    it("exports the seeded raster image [cert:imageserver/export-image#positive] [cert:imageserver/export-image#media-schema]", async () => {
+      await runWithDiagnostics(context, "client.imageService().exportImage", async () => {
+        const exported = await image.exportImage({
+          bbox: [-122.5, 37.7, -122.35, 37.84],
+          size: [256, 256],
+          bboxSr: 4326,
+          imageSr: 4326,
+          format: "png",
+        });
+        expect(exported).toBeDefined();
+        expect(typeof exported.href === "string" || exported.extent !== undefined).toBe(true);
+      });
+    });
   });
 }

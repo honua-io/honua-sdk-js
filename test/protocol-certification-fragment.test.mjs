@@ -163,7 +163,6 @@ test("production integration tests declare every currently executable certificat
     "featureserver/delete-features",
     "featureserver/attachments",
     "geocoding/reverse",
-    "imageserver/export-image",
     "ogc-coverages/landing",
     "ogc-coverages/conformance",
     "ogc-coverages/coverage",
