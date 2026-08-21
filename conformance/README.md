@@ -108,9 +108,10 @@ The lane pins and records the server under test into
 
 | Field | Value |
 | --- | --- |
-| Image | `ghcr.io/honua-io/honua-server:nightly-6d34dd1` |
-| Server commit | `6d34dd1` (nightly 2026-07-05) |
-| Digest | `sha256:080d7e87f7b1e4c36a917adddb567bfe7148d47e7d2d016480fb4e39187515db` |
+| Image | `ghcr.io/honua-io/honua-server@sha256:78e3088d64d832d3e2752c87d80bfcad201b414f4525989ca5d9a242cd5fee8a` |
+| Server commit | `6d13c20fdf131a04cdfe2658ff84d3b55c3f5b76` |
+| Candidate cut | `2026-08-20T07:58:03Z` |
+| Digest | `sha256:78e3088d64d832d3e2752c87d80bfcad201b414f4525989ca5d9a242cd5fee8a` |
 | Fixtures version | `0.2.0-alpha.1` |
 
 The pin is set at workflow level in `.github/workflows/integration.yml`
