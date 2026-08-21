@@ -899,7 +899,21 @@ describe("zero-to-map D9.3 release journey", () => {
 
     expect(first.status).toBe("blocked");
     expect(paused?.resumeAt).toEqual({ stageId: "console", actionId: "console-approval" });
+    expect(paused?.capturedVariables.fixtureBaseUrl).toBe("https://fixtures.example.test");
     expect(validateJourneyResume(plan, paused as JourneyPauseSnapshot, executionVariables)).toBe(5);
+    expect(
+      validateJourneyResume(plan, paused as JourneyPauseSnapshot, {
+        dbPassword: executionVariables.dbPassword,
+        candidateId: executionVariables.candidateId,
+        releaseId: executionVariables.releaseId,
+      }),
+    ).toBe(5);
+    expect(() =>
+      validateJourneyResume(plan, paused as JourneyPauseSnapshot, {
+        ...executionVariables,
+        fixtureBaseUrl: "https://lookalike.example.test",
+      }),
+    ).toThrow("checkpoint seed fixtureBaseUrl");
 
     const generationJump = structuredClone(paused as JourneyPauseSnapshot);
     const firstMapMutation = generationJump.completedStages[3]?.actions.find(
@@ -973,6 +987,21 @@ describe("zero-to-map D9.3 release journey", () => {
     expect(receipt.stages.slice(0, 5)).toEqual(first.stages.slice(0, 5));
     expect(publicationArguments.length + studioLayerArguments.length).toBe(mutationArgumentsBeforeResume);
     expect(receipt.blockers).toEqual([]);
+
+    for (const fixtureBaseUrl of [
+      "http://fixtures.example.test",
+      "https://user:password@fixtures.example.test",
+      "https://127.0.0.1",
+      "https://fixtures.local",
+      "https://[::1]",
+    ]) {
+      await expect(
+        runZeroToMapJourney(plan, adapter, {
+          execute: true,
+          variables: { ...executionVariables, fixtureBaseUrl },
+        }),
+      ).rejects.toThrow(/public HTTPS|loopback or private/);
+    }
     expect(receipt.dependencyRefs).toContain("honua-server#3268 synchronous OGC process execution and GeoJSON inputs");
     expect(receipt.stages.every((stage) => stage.status === "passed")).toBe(true);
     expect(seenArguments.get("honua_admin_connection_test")).toEqual({ id: "connection-1" });

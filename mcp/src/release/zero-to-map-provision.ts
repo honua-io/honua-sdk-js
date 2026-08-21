@@ -122,21 +122,29 @@ function normalizeUrl(value: string): string {
   return url.toString().replace(/\/$/, "");
 }
 
-function publicHttps(value: unknown, path: string): string {
+export function publicHttps(value: unknown, path: string): string {
   const result = text(value, path);
   const url = new URL(result);
   if (url.protocol !== "https:" || url.username || url.password || !url.hostname) {
     throw new Error(`${path} must be a public HTTPS URL without credentials`);
   }
-  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  const host = url.hostname
+    .toLowerCase()
+    .replace(/^\[|\]$/g, "")
+    .replace(/\.$/, "");
   if (
     host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local") ||
     host === "0.0.0.0" ||
     host === "::1" ||
     host.startsWith("127.") ||
     host.startsWith("10.") ||
+    host.startsWith("169.254.") ||
     host.startsWith("192.168.") ||
-    /^172\.(?:1[6-9]|2[0-9]|3[01])\./.test(host)
+    /^172\.(?:1[6-9]|2[0-9]|3[01])\./.test(host) ||
+    /^(?:fc|fd)[0-9a-f]{2}:/.test(host) ||
+    /^fe[89ab][0-9a-f]:/.test(host)
   ) {
     throw new Error(`${path} must not use a loopback or private endpoint`);
   }
