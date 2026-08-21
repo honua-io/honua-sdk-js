@@ -181,12 +181,13 @@ integrationSuite("Realtime SSE", SURFACE, ({ client, config }) => {
       ],
     });
     const addResult = mutation.addResults?.[0];
-    expect(addResult?.success).toBe(true);
     const addedId = addResult?.objectId;
-    expect(addedId).toBeDefined();
-    if (addedId === undefined) throw new Error("controlled realtime mutation did not return an object id");
-
+    let primaryError: unknown;
     try {
+      expect(addResult?.success).toBe(true);
+      expect(addedId).toBeDefined();
+      if (addedId === undefined) throw new Error("controlled realtime mutation did not return an object id");
+
       const resumedUrl = new URL(streamingUrl);
       resumedUrl.searchParams.set("mode", "snapshot-then-delta");
       resumedUrl.searchParams.set("requestId", "sdk-certification-resume-reconnect");
@@ -204,7 +205,7 @@ integrationSuite("Realtime SSE", SURFACE, ({ client, config }) => {
         { sourceId: config.serviceId, layerId: config.layerId, resumeFrom: checkpoint },
         {
           next(event) {
-            if (!isServerDataEvent(event) || !eventContainsFeatureId(event, addedId)) return;
+            if (!isReplayOfAddedFeature(event, addedId)) return;
             resumedState = reduceRealtimeFeatureState(resumedState, event);
             const nextCheckpoint = realtimeResumeCheckpoint(resumedState);
             if (nextCheckpoint?.cursor !== undefined || nextCheckpoint?.sequence !== undefined) {
@@ -243,36 +244,47 @@ integrationSuite("Realtime SSE", SURFACE, ({ client, config }) => {
       if (checkpoint.sequence !== undefined && nextCheckpoint.sequence !== undefined) {
         expect(nextCheckpoint.sequence).toBeGreaterThan(checkpoint.sequence);
       }
-    } finally {
-      const cleanup = await client.applyEdits({
-        serviceId: config.serviceId,
-        layerId: config.layerId,
-        deletes: [addedId],
-      });
-      expect(cleanup.deleteResults?.[0]?.success).toBe(true);
+    } catch (error) {
+      primaryError = error;
     }
+
+    let cleanupError: unknown;
+    if (addedId !== undefined) {
+      try {
+        const cleanup = await client.applyEdits({
+          serviceId: config.serviceId,
+          layerId: config.layerId,
+          deletes: [addedId],
+        });
+        expect(cleanup.deleteResults?.[0]?.success).toBe(true);
+      } catch (error) {
+        cleanupError = error;
+      }
+    }
+
+    if (primaryError !== undefined) {
+      if (cleanupError !== undefined) {
+        throw new AggregateError(
+          [primaryError, cleanupError],
+          "realtime resume certification failed and controlled-feature cleanup also failed",
+          { cause: primaryError },
+        );
+      }
+      throw primaryError;
+    }
+    if (cleanupError !== undefined) throw cleanupError;
   });
 });
 
 function isServerDataEvent(event: RealtimeFeatureEvent): boolean {
-  return (
-    event.type === "delta" ||
-    event.type === "upsert" ||
-    event.type === "delete" ||
-    event.type === "snapshot"
-  );
+  return event.type === "delta" || event.type === "upsert" || event.type === "delete" || event.type === "snapshot";
 }
 
-function eventContainsFeatureId(event: RealtimeFeatureEvent, expectedId: unknown): boolean {
+function isReplayOfAddedFeature(event: RealtimeFeatureEvent, expectedId: unknown): boolean {
   const expected = String(expectedId);
   if (event.type === "upsert") return String(event.feature.id) === expected;
-  if (event.type === "delete") return String(event.id) === expected;
-  if (event.type === "snapshot") return event.features.some((feature) => String(feature.id) === expected);
   if (event.type === "delta") {
-    return (
-      event.upserts?.some((feature) => String(feature.id) === expected) === true ||
-      event.deletes?.some((feature) => String(feature.id) === expected) === true
-    );
+    return event.upserts?.some((feature) => String(feature.id) === expected) === true;
   }
   return false;
 }
