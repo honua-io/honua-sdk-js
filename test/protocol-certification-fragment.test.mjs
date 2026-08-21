@@ -170,7 +170,13 @@ test("machine-readable certification contract matches emitted operation identiti
   const fragment = buildFragment({
     identity: licensedIdentity,
     licensedProof: licensedProof(),
-    reports: [],
+    reports: [{ testResults: [{
+      name: "test/integration/surfaces/realtime.integration.ts Realtime SSE",
+      assertionResults: [
+        { title: "subscribes and decodes [cert:realtime/subscribe#positive] [cert:realtime/subscribe#media-schema]", status: "passed" },
+        { title: "resumes after reconnect [cert:realtime/resume#positive] [cert:realtime/resume#media-schema]", status: "passed" },
+      ],
+    }] }],
     now: "2026-08-19T00:02:00Z",
   });
   assert.deepEqual(
@@ -186,6 +192,15 @@ test("machine-readable certification contract matches emitted operation identiti
   assert.equal(certificationContract.canonicalClient, "@honua/sdk-js");
   assert.equal(certificationContract.clientVersion, packageJson.version);
   assert.equal("fixtureRevision" in certificationContract, false);
+  assert.throws(
+    () => buildFragment({
+      identity: licensedIdentity,
+      licensedProof: licensedProof(),
+      reports: [],
+      now: "2026-08-19T00:02:00Z",
+    }),
+    /licensed certification requires realtime\/subscribe to pass; observed skip/,
+  );
 });
 
 test("accepts only a digest-bound closed licensed proof", () => {

@@ -712,7 +712,7 @@ function convertField(field: ProtoFieldDefinition): HonuaFieldInfo {
   return {
     name: field.name,
     type: FIELD_TYPE_MAP[field.fieldType] ?? "esriFieldTypeString",
-    alias: field.name,
+    alias: field.alias || field.name,
     length: field.length || undefined,
     nullable: field.nullable,
   };

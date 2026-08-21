@@ -186,6 +186,9 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
       const result = Object.values(facetStatuses).some((status) => status === "fail")
         ? "fail"
         : Object.values(facetStatuses).every((status) => status === "pass") ? "pass" : "skip";
+      if (resolvedIdentity.entitlementPolicyRevision && result !== "pass") {
+        throw new Error(`licensed certification requires ${surface}/${operation} to pass; observed ${result}`);
+      }
       const normalizedFacets = Object.fromEntries(
         scenarioFacets.map((facet) => [facet, facetStatuses[facet] === "pass" ? "pass" : "fail"]),
       );

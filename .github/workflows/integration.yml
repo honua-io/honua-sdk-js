@@ -75,7 +75,7 @@ env:
   HONUA_INTEGRATION_SERVER_COMMIT: ${{ vars.HONUA_INTEGRATION_SERVER_COMMIT || '6d13c20fdf131a04cdfe2658ff84d3b55c3f5b76' }}
   HONUA_CANDIDATE_CUT_AT: ${{ vars.HONUA_CANDIDATE_CUT_AT || '2026-08-20T07:58:03Z' }}
   HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID: ${{ (vars.HONUA_INTEGRATION_SERVER_IMAGE != '' || vars.HONUA_INTEGRATION_SERVER_COMMIT != '' || vars.HONUA_CANDIDATE_CUT_AT != '') && !(vars.HONUA_INTEGRATION_SERVER_IMAGE != '' && vars.HONUA_INTEGRATION_SERVER_COMMIT != '' && vars.HONUA_CANDIDATE_CUT_AT != '') }}
-  HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.1.0-alpha.3' }}
+  HONUA_CONFORMANCE_FIXTURES_VERSION: ${{ github.event.inputs.fixtures_version || vars.HONUA_CONFORMANCE_FIXTURES_VERSION || '0.2.0-alpha.1' }}
   # Deterministic container passwords for the self-contained stack. These are
   # NOT secrets (the stack is ephemeral and never exposed off the runner); the
   # encryption master-key/salt are the same fixed test values honua-server's own
