@@ -29,6 +29,15 @@ test("rejects partial self-contained candidate identity overrides", () => {
   );
 });
 
+test("ignores self-contained override state for external certification", () => {
+  assert.doesNotThrow(() =>
+    validateIdentityOverrideEnvironment({
+      HONUA_CERTIFICATION_EXTERNAL: "true",
+      HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID: "true",
+    }),
+  );
+});
+
 test("normalizes execution and preserves missing operation gaps", () => {
   const fragment = buildFragment({
     identity,

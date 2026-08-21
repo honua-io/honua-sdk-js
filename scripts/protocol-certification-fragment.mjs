@@ -171,7 +171,10 @@ function argument(name, fallback) {
 }
 
 export function validateIdentityOverrideEnvironment(environment = process.env) {
-  if (environment.HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID === "true") {
+  if (
+    environment.HONUA_CERTIFICATION_EXTERNAL !== "true" &&
+    environment.HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID === "true"
+  ) {
     throw new Error(
       "HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together",
     );
