@@ -119,7 +119,10 @@ describe("zero-to-map pause/resume checkpoint", () => {
       }),
       {
         execute: true,
-        variables: { dbPassword: "must-never-persist" },
+        variables: {
+          dbPassword: "must-never-persist",
+          fixtureBaseUrl: "https://fixtures.example.test/",
+        },
         now: clock(),
         onExternalReceiptMissing(value) {
           snapshot = value;
@@ -133,6 +136,7 @@ describe("zero-to-map pause/resume checkpoint", () => {
     const checkpoint = createZeroToMapCheckpoint(bindings, snapshot as JourneyPauseSnapshot, "2026-08-20T12:00:00Z");
     expect(JSON.stringify(checkpoint)).not.toContain("must-never-persist");
     expect(checkpoint.resume.capturedVariables.serviceName).toBe("zero-to-map");
+    expect(checkpoint.resume.capturedVariables.fixtureBaseUrl).toBe("https://fixtures.example.test");
     expect(checkpoint.consoleReceiptRequest.matches).toMatchObject({
       "/journeyId": bindings.journeyId,
       "/resourceId": "runtime-5",
@@ -180,7 +184,7 @@ describe("zero-to-map pause/resume checkpoint", () => {
           capturedVariables: { ...checkpoint.resume.capturedVariables, serviceName: "lookalike-service" },
         },
       }),
-    ).rejects.toThrow("captured variables do not match");
+    ).rejects.toThrow("checkpoint seed serviceName");
   });
 
   it("rejects tampering, stale or mismatched bindings, credential captures, and consumed replay", async () => {

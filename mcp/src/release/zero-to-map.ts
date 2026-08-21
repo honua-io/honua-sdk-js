@@ -1,3 +1,5 @@
+import { publicHttps } from "./zero-to-map-provision.js";
+
 /**
  * Contract-first runner for the 2026.1 zero-to-map release journey.
  *
@@ -479,10 +481,17 @@ export function validateJourneyResume(
     throw new Error("checkpoint completed stage prefix does not reach the declared resume point");
   }
 
-  const restoredCaptures: Record<string, unknown> = checkpointSeedVariables({
+  const expectedSeeds = checkpointSeedVariables({
     ...plan.variables,
     ...executionVariables,
   });
+  const persistedSeeds = checkpointSeedVariables(resume.capturedVariables);
+  for (const [name, value] of Object.entries(expectedSeeds)) {
+    if (persistedSeeds[name] !== value) {
+      throw new Error(`checkpoint seed ${name} does not match the current plan or execution input`);
+    }
+  }
+  const restoredCaptures: Record<string, unknown> = { ...persistedSeeds };
   let previousFinishedAt = Date.parse(resume.startedAt);
   for (let index = 0; index < resume.completedStages.length; index += 1) {
     const actualStage = resume.completedStages[index];
@@ -617,14 +626,21 @@ function assertMutableGenerationAdvance(
   }
 }
 
-/** Persist only the non-secret deterministic plan identity needed by external evidence producers. */
+/** Persist only validated, non-secret deterministic inputs needed by external evidence producers. */
 function checkpointSeedVariables(variables: Readonly<Record<string, unknown>>): Record<string, unknown> {
+  const seeds: Record<string, unknown> = {};
   const serviceName = variables.serviceName;
-  if (serviceName === undefined) return {};
-  if (typeof serviceName !== "string" || serviceName.trim().length === 0) {
-    throw new Error("serviceName must be a non-empty string when checkpointed");
+  if (serviceName !== undefined) {
+    if (typeof serviceName !== "string" || serviceName.trim().length === 0) {
+      throw new Error("serviceName must be a non-empty string when checkpointed");
+    }
+    seeds.serviceName = serviceName;
   }
-  return { serviceName };
+  const fixtureBaseUrl = variables.fixtureBaseUrl;
+  if (fixtureBaseUrl !== undefined) {
+    seeds.fixtureBaseUrl = publicHttps(fixtureBaseUrl, "fixtureBaseUrl").replace(/\/$/, "");
+  }
+  return seeds;
 }
 
 function resolveReceiptRequest(
