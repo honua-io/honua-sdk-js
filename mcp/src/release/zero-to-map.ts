@@ -12,6 +12,23 @@ export const ZERO_TO_MAP_RECEIPT_SCHEMA = "honua.zero-to-map.receipt/v1" as cons
 export const ZERO_TO_MAP_CONSOLE_RECEIPT_SCHEMA = "honua.zero-to-map.console-receipt/v1" as const;
 export const ZERO_TO_MAP_CONSOLE_RECEIPT_REQUEST_SCHEMA = "honua.zero-to-map.console-receipt-request/v1" as const;
 
+const STUDIO_GENERATION_MUTATION_TOOLS = new Set([
+  "honua_studio_add_control",
+  "honua_studio_add_layer",
+  "honua_studio_add_widget",
+  "honua_studio_bind_interaction",
+  "honua_studio_propose_publication",
+  "honua_studio_set_layer_style",
+  "honua_studio_set_layer_visibility",
+  "honua_studio_set_view",
+]);
+
+const STUDIO_GENERATION_CAPTURE_POINTERS = ["/structuredContent/generation"] as const;
+const STUDIO_PUBLICATION_GENERATION_CAPTURE_POINTERS = [
+  "/structuredContent/draft/generation",
+  "/structuredContent/generation",
+] as const;
+
 export type JourneyActionKind = "cli" | "mcp" | "mcp-resource" | "gpserver" | "receipt" | "http";
 export type JourneyActionStatus = "passed" | "blocked" | "failed" | "skipped";
 export type JourneyStatus = "passed" | "blocked" | "failed";
@@ -512,7 +529,7 @@ export function validateJourneyResume(
         const value = actualCaptures[name];
         if (value === undefined) throw new Error(`checkpoint action ${actualAction.id} has undefined capture ${name}`);
         if (Object.hasOwn(restoredCaptures, name)) {
-          assertMutableGenerationAdvance(plannedAction, name, restoredCaptures[name], value);
+          assertMutableGenerationAdvance(plannedAction, capture, restoredCaptures[name], value);
         }
         const expected =
           typeof capture.equals === "string"
@@ -552,10 +569,34 @@ export function validateJourneyResume(
  * must advance it by exactly one; immutable ids, hashes, and names remain
  * single-assignment.
  */
-function assertMutableGenerationAdvance(action: JourneyAction, name: string, previous: unknown, next: unknown): void {
-  const declaredInput = action.kind === "mcp" ? action.arguments.generation : undefined;
-  if (!name.endsWith("Generation") || declaredInput !== `\${${name}}`) {
+function assertMutableGenerationAdvance(
+  action: JourneyAction,
+  capture: JourneyCapture,
+  previous: unknown,
+  next: unknown,
+): void {
+  const name = capture.variable;
+  const generationSuffix = "Generation";
+  if (
+    action.kind !== "mcp" ||
+    !STUDIO_GENERATION_MUTATION_TOOLS.has(action.tool) ||
+    !name.endsWith(generationSuffix) ||
+    name.length === generationSuffix.length
+  ) {
     throw new Error(`checkpoint capture ${name} is duplicated`);
+  }
+  const draftIdName = `${name.slice(0, -generationSuffix.length)}DraftId`;
+  const expectedPointers =
+    action.tool === "honua_studio_propose_publication"
+      ? STUDIO_PUBLICATION_GENERATION_CAPTURE_POINTERS
+      : STUDIO_GENERATION_CAPTURE_POINTERS;
+  if (
+    action.arguments.generation !== `\${${name}}` ||
+    action.arguments.draftId !== `\${${draftIdName}}` ||
+    capture.parsedPointers !== undefined ||
+    stableValue(capture.pointers) !== stableValue(expectedPointers)
+  ) {
+    throw new Error(`checkpoint mutable capture ${name} is not the same Studio draft generation stream`);
   }
   if (
     !Number.isSafeInteger(previous) ||
