@@ -171,13 +171,24 @@ function argument(name, fallback) {
 }
 
 export function validateIdentityOverrideEnvironment(environment = process.env) {
-  if (
-    environment.HONUA_CERTIFICATION_EXTERNAL !== "true" &&
-    environment.HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID === "true"
-  ) {
+  if (environment.HONUA_CERTIFICATION_EXTERNAL === "true") return;
+  if (environment.HONUA_SELF_CONTAINED_IDENTITY_OVERRIDE_INVALID === "true") {
     throw new Error(
       "HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together",
     );
+  }
+  if (!/@sha256:[0-9a-f]{64}$/.test(environment.HONUA_INTEGRATION_SERVER_IMAGE ?? "")) {
+    throw new Error("HONUA_INTEGRATION_SERVER_IMAGE must be an immutable sha256 digest reference");
+  }
+  if (!/^[0-9a-f]{40}$/.test(environment.HONUA_INTEGRATION_SERVER_COMMIT ?? "")) {
+    throw new Error("HONUA_INTEGRATION_SERVER_COMMIT must be a full lowercase commit SHA");
+  }
+  const cutAt = environment.HONUA_CANDIDATE_CUT_AT ?? "";
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(cutAt) ||
+    Number.isNaN(Date.parse(cutAt))
+  ) {
+    throw new Error("HONUA_CANDIDATE_CUT_AT must be a valid UTC ISO-8601 timestamp");
   }
 }
 

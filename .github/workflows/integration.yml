@@ -181,6 +181,8 @@ jobs:
             echo "::error::HONUA_INTEGRATION_SERVER_IMAGE, HONUA_INTEGRATION_SERVER_COMMIT, and HONUA_CANDIDATE_CUT_AT must be overridden together"
             exit 1
           fi
+          node --input-type=module -e \
+            'import { validateIdentityOverrideEnvironment } from "./scripts/protocol-certification-fragment.mjs"; validateIdentityOverrideEnvironment(process.env);'
           echo "Starting Honua Server (${HONUA_INTEGRATION_SERVER_IMAGE})..."
           docker run -d --name honua-server --network "$NET" -p 8080:8080 \
             -e ASPNETCORE_ENVIRONMENT=Production \

@@ -38,6 +38,23 @@ test("ignores self-contained override state for external certification", () => {
   );
 });
 
+test("validates the complete self-contained candidate identity", () => {
+  const valid = {
+    HONUA_INTEGRATION_SERVER_IMAGE: `ghcr.io/honua/server@sha256:${"a".repeat(64)}`,
+    HONUA_INTEGRATION_SERVER_COMMIT: "b".repeat(40),
+    HONUA_CANDIDATE_CUT_AT: "2026-08-20T07:58:03Z",
+  };
+  assert.doesNotThrow(() => validateIdentityOverrideEnvironment(valid));
+  assert.throws(
+    () => validateIdentityOverrideEnvironment({ ...valid, HONUA_INTEGRATION_SERVER_COMMIT: "main" }),
+    /full lowercase commit SHA/,
+  );
+  assert.throws(
+    () => validateIdentityOverrideEnvironment({ ...valid, HONUA_CANDIDATE_CUT_AT: "yesterday" }),
+    /UTC ISO-8601/,
+  );
+});
+
 test("normalizes execution and preserves missing operation gaps", () => {
   const fragment = buildFragment({
     identity,
