@@ -55,12 +55,11 @@ if (config && !config.imageServiceId) {
         expect(exported.width).toBe(256);
         expect(exported.height).toBe(256);
         expect(exported.extent).toBeDefined();
-        expect([
-          exported.extent?.xmin,
-          exported.extent?.ymin,
-          exported.extent?.xmax,
-          exported.extent?.ymax,
-        ].every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate))).toBe(true);
+        expect(
+          [exported.extent?.xmin, exported.extent?.ymin, exported.extent?.xmax, exported.extent?.ymax].every(
+            (coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate),
+          ),
+        ).toBe(true);
 
         const headers: Record<string, string> = {};
         if (config.apiKey) headers["X-API-Key"] = config.apiKey;
