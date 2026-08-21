@@ -162,8 +162,17 @@ test("marks evidence incomplete when a suite report is unavailable", () => {
 test("machine-readable certification contract matches emitted operation identities", () => {
   const communityFragment = buildFragment({ identity, reports: [] });
   assert.equal(communityFragment.observations.some((row) => row.surface === "realtime"), false);
-  const licensedIdentity = { ...identity, deploymentTarget: "licensed-release" };
-  const fragment = buildFragment({ identity: licensedIdentity, licensedProof: licensedProof(), reports: [] });
+  const licensedIdentity = {
+    ...identity,
+    deploymentTarget: "licensed-release",
+    startedAt: "2026-08-19T00:00:00Z",
+  };
+  const fragment = buildFragment({
+    identity: licensedIdentity,
+    licensedProof: licensedProof(),
+    reports: [],
+    now: "2026-08-19T00:02:00Z",
+  });
   assert.deepEqual(
     fragment.observations.map(({ capability_key, surface, operation, scenario_facets }) => ({
       capability_key,
@@ -171,8 +180,9 @@ test("machine-readable certification contract matches emitted operation identiti
       operation,
       scenario_facets,
     })),
-    certificationContract.operations,
+    certificationContract.operations.filter(({ surface }) => surface === "realtime"),
   );
+  assert.ok(fragment.observations.every(({ deployment_target }) => deployment_target === "licensed-release"));
   assert.equal(certificationContract.canonicalClient, "@honua/sdk-js");
   assert.equal(certificationContract.clientVersion, packageJson.version);
   assert.equal("fixtureRevision" in certificationContract, false);
@@ -195,6 +205,19 @@ test("accepts only a digest-bound closed licensed proof", () => {
       reports: [],
     }),
     /closed proof artifact/,
+  );
+  assert.throws(
+    () => buildFragment({
+      identity: {
+        ...identity,
+        deploymentTarget: "licensed-release",
+        startedAt: "2026-08-19T00:02:00Z",
+      },
+      licensedProof: licensedProof(),
+      reports: [],
+      now: "2026-08-19T00:03:00Z",
+    }),
+    /within the certification execution interval/,
   );
 });
 

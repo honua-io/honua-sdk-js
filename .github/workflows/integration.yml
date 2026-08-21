@@ -89,12 +89,16 @@ jobs:
   integration:
     name: Integration + Conformance
     runs-on: ubuntu-24.04
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && 'licensed-certification' || 'unlicensed-integration' }}
     env:
       # External-override credentials/target (empty in self-contained mode). The
       # self-contained mode overwrites the base URL and surface coordinates via
       # $GITHUB_ENV after the server is up.
       HONUA_INTEGRATION_BASE_URL: ${{ github.event.inputs.base_url || vars.HONUA_INTEGRATION_BASE_URL }}
       HONUA_INTEGRATION_API_KEY: ${{ secrets.HONUA_INTEGRATION_API_KEY }}
+      HONUA_LICENSED_CERTIFICATION_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_BASE_URL || '' }}
+      HONUA_LICENSED_CERTIFICATION_ALLOWED_HOST: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && vars.HONUA_LICENSED_CERTIFICATION_ALLOWED_HOST || '' }}
+      HONUA_LICENSED_CERTIFICATION_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.licensed_certification && secrets.HONUA_LICENSED_CERTIFICATION_API_KEY || '' }}
       HONUA_INTEGRATION_SEED_PROFILE: ${{ github.event.inputs.seed_profile || vars.HONUA_INTEGRATION_SEED_PROFILE || 'places-roads-v1' }}
       HONUA_INTEGRATION_SERVICE_ID: ${{ vars.HONUA_INTEGRATION_SERVICE_ID || 'test_service_gw0' }}
       HONUA_INTEGRATION_LAYER_ID: ${{ vars.HONUA_INTEGRATION_LAYER_ID || '1000' }}
@@ -114,6 +118,34 @@ jobs:
       - name: Resolve run mode
         id: mode
         run: |
+          set -euo pipefail
+          if [ "${HONUA_LICENSED_CERTIFICATION:-false}" = "true" ]; then
+            if [ -z "${HONUA_LICENSED_CERTIFICATION_BASE_URL:-}" ] ||
+               [ -z "${HONUA_LICENSED_CERTIFICATION_ALLOWED_HOST:-}" ] ||
+               [ -z "${HONUA_LICENSED_CERTIFICATION_API_KEY:-}" ]; then
+              echo "::error::Licensed certification requires environment-scoped base URL, allowed host, and API key configuration."
+              exit 1
+            fi
+            LICENSED_URL="$HONUA_LICENSED_CERTIFICATION_BASE_URL" \
+            LICENSED_ALLOWED_HOST="$HONUA_LICENSED_CERTIFICATION_ALLOWED_HOST" \
+              node --input-type=module <<'EOF'
+            const url = new URL(process.env.LICENSED_URL);
+            if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
+              throw new Error("Licensed certification base URL must be credential-free HTTPS without query or fragment.");
+            }
+            if (url.hostname !== process.env.LICENSED_ALLOWED_HOST || (url.port && url.port !== "443")) {
+              throw new Error("Licensed certification base URL is not on the environment allowlist.");
+            }
+            EOF
+            HONUA_INTEGRATION_BASE_URL="$HONUA_LICENSED_CERTIFICATION_BASE_URL"
+            HONUA_INTEGRATION_API_KEY="$HONUA_LICENSED_CERTIFICATION_API_KEY"
+            export HONUA_INTEGRATION_BASE_URL HONUA_INTEGRATION_API_KEY
+            echo "::add-mask::$HONUA_INTEGRATION_API_KEY"
+            {
+              echo "HONUA_INTEGRATION_BASE_URL=$HONUA_INTEGRATION_BASE_URL"
+              echo "HONUA_INTEGRATION_API_KEY=$HONUA_INTEGRATION_API_KEY"
+            } >> "$GITHUB_ENV"
+          fi
           if [ -n "${HONUA_INTEGRATION_BASE_URL:-}" ]; then
             echo "mode=external" >> "$GITHUB_OUTPUT"
             echo "::notice::Integration lane running in EXTERNAL-OVERRIDE mode against ${HONUA_INTEGRATION_BASE_URL}"
@@ -282,6 +314,9 @@ jobs:
           if [ "${{ steps.mode.outputs.mode }}" = "self-contained" ]; then docker logs honua-server || true; fi
           exit 1
 
+      - name: Capture certification execution start
+        run: echo "HONUA_CERTIFICATION_STARTED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
+
       - name: Probe licensed certification identity
         if: env.HONUA_LICENSED_CERTIFICATION == 'true'
         run: |
@@ -348,9 +383,6 @@ jobs:
           chmod +x conformance/fetch-fixtures.sh
           conformance/fetch-fixtures.sh --version "${HONUA_CONFORMANCE_FIXTURES_VERSION}" --dest "${GITHUB_WORKSPACE}/conformance-fixtures"
           echo "HONUA_CONFORMANCE_FIXTURES_DIR=${GITHUB_WORKSPACE}/conformance-fixtures" >> "$GITHUB_ENV"
-
-      - name: Capture certification execution start
-        run: echo "HONUA_CERTIFICATION_STARTED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_ENV"
 
       - name: Run integration surfaces
         run: npm run test:integration -- --reporter=default --reporter=json --outputFile=test-results/integration-vitest.json

@@ -149,6 +149,14 @@ function facetsFor(operation) {
 
 export function buildFragment({ reports, identity, licensedProof, complete = true, now = new Date().toISOString() }) {
   const resolvedIdentity = resolveCertificationIdentity(identity, licensedProof);
+  const startedAt = resolvedIdentity.startedAt ?? now;
+  if (resolvedIdentity.entitlementPolicyRevision) {
+    if (!isStrictUtcTimestamp(startedAt) || !isStrictUtcTimestamp(now)
+      || Date.parse(resolvedIdentity.entitlementCheckedAt) < Date.parse(startedAt)
+      || Date.parse(resolvedIdentity.entitlementCheckedAt) > Date.parse(now)) {
+      throw new Error("licensed entitlement check must occur within the certification execution interval");
+    }
+  }
   const tests = reports.flatMap(assertions);
   const payloadBase64 = Buffer.from(JSON.stringify(reports), "utf8").toString("base64");
   return {
@@ -162,7 +170,9 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
     },
     operation_scope: { complete, owner_issue: GAP_OWNER },
     observations: OPERATIONS
-      .filter(([surface]) => surface !== "realtime" || resolvedIdentity.entitlementPolicyRevision)
+      .filter(([surface]) => resolvedIdentity.entitlementPolicyRevision
+        ? surface === "realtime"
+        : surface !== "realtime")
       .map(([surface, operation, surfacePattern, operationPattern, titlePattern]) => {
       const licensed = surface === "realtime";
       const authPolicyRevision = licensed ? LICENSED_AUTH_POLICY_REVISION : AUTH_POLICY_REVISION;
@@ -179,7 +189,6 @@ export function buildFragment({ reports, identity, licensedProof, complete = tru
       const normalizedFacets = Object.fromEntries(
         scenarioFacets.map((facet) => [facet, facetStatuses[facet] === "pass" ? "pass" : "fail"]),
       );
-      const startedAt = resolvedIdentity.startedAt ?? now;
       const contractRevision = `sdk-js-certification@${resolvedIdentity.producerSourceSha}`;
       const evidenceReceipt = result === "skip" ? null : {
         schema: "honua.certification-evidence-receipt/v1",
