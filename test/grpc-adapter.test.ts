@@ -111,6 +111,18 @@ describe("toProtoQueryRequest", () => {
     ).toThrow("objectIds must contain only safe integers");
   });
 
+  it("requires canonical signed-int64 object ID strings without losing precision", () => {
+    const result = toProtoQueryRequest({
+      serviceId: "svc",
+      layerId: 0,
+      objectIds: "9223372036854775807,-9223372036854775808",
+    });
+    expect(result.objectIds).toEqual([9223372036854775807n, -9223372036854775808n]);
+    for (const objectIds of ["10,,30", "0x10", "+10", "-0", "9223372036854775808"]) {
+      expect(() => toProtoQueryRequest({ serviceId: "svc", layerId: 0, objectIds })).toThrow(/objectIds/);
+    }
+  });
+
   it("converts orderByFields and returnDistinct", () => {
     const result = toProtoQueryRequest({
       serviceId: "test",

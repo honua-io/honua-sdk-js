@@ -119,6 +119,20 @@ const STATISTIC_TYPE_MAP: Record<string, StatisticType> = {
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
+const MIN_PROTO_INT64 = -(1n << 63n);
+const MAX_PROTO_INT64 = (1n << 63n) - 1n;
+
+function toProtoObjectId(value: string): bigint {
+  const token = value.trim();
+  if (!/^(?:0|-?[1-9][0-9]*)$/.test(token)) {
+    throw new RangeError("string objectIds must contain canonical decimal int64 values");
+  }
+  const parsed = BigInt(token);
+  if (parsed < MIN_PROTO_INT64 || parsed > MAX_PROTO_INT64) {
+    throw new RangeError("string objectIds must remain within the signed int64 range");
+  }
+  return parsed;
+}
 
 function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: number): bigint {
   if (!Number.isSafeInteger(value) || value < 0) {
@@ -159,7 +173,7 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   if (request.objectIds !== undefined) {
     const ids =
       typeof request.objectIds === "string"
-        ? request.objectIds.split(",").map((id) => BigInt(id.trim()))
+        ? request.objectIds.split(",").map(toProtoObjectId)
         : request.objectIds.map((id) => {
             if (!Number.isSafeInteger(id)) {
               throw new RangeError("objectIds must contain only safe integers for the gRPC int64 contract");
