@@ -6,9 +6,9 @@
   "gate": "fixture",
   "status": "passed",
   "sdkMode": "source",
-  "sourceRevision": "da5102660977cad3907e69247eaf2cb10ba369b6",
-  "sourceDigest": "3680f693239a1a4ff88718f68051984186adcc786f845691695d1d8e122c897e",
-  "runRoot": "samples/evidence/service-explorer/runs/11618b4d-2f5c-4c5b-8121-328ea8828a7c",
+  "sourceRevision": "acd8836c6260f906ab17c3230e0ccbb3a5e31b69",
+  "sourceDigest": "a2aa68a52f4e5e01437a8444aa45e6a2b2ae7af93ed55f23d50cb5aa54dce196",
+  "runRoot": "samples/evidence/service-explorer/runs/72ef927f-dafa-46cf-934e-d7bed2051bfe",
   "command": {
     "argv": [
       "npm",
@@ -24,15 +24,15 @@
     "path": "scripts/sample-runner.mjs",
     "sha256": "d051efbc4743c0fbc0a51de15c4c92bcce537f63446b8118f628ba151c552e6f"
   },
-  "observedAt": "2026-08-21T17:38:59.869Z",
-  "expiresAt": "2026-08-28T17:38:59.869Z",
-  "durationMs": 1453.120334000001,
+  "observedAt": "2026-08-22T02:42:39.788Z",
+  "expiresAt": "2026-08-29T02:42:39.788Z",
+  "durationMs": 1527.0758369999985,
   "artifacts": [
     {
       "kind": "fixture-probe-report",
-      "path": "samples/evidence/service-explorer/runs/11618b4d-2f5c-4c5b-8121-328ea8828a7c/artifacts/fixture.json",
+      "path": "samples/evidence/service-explorer/runs/72ef927f-dafa-46cf-934e-d7bed2051bfe/artifacts/fixture.json",
       "bytes": 717,
-      "sha256": "1bef76d88ee1441fff7c13a6df118fb36a2fa73ae7ec8908dbef09218c9b6994"
+      "sha256": "56ae77ebe74bb05f7df13b05a2ea0ef8302400c63adf3832c53dc92a63bba0e4"
     }
   ]
 }
