@@ -183,8 +183,8 @@ describe("gRPC FeatureService compiler", () => {
         where: "status = 'A'",
         outFields: ["id", "status"],
         orderBy: "id DESC",
-        resultOffset: 5,
-        resultRecordCount: 25,
+        resultOffsetLong: "5",
+        resultRecordCountLong: "25",
         spatialFilter: {
           geometryType: "esriGeometryEnvelope",
           spatialRelationship: "SPATIAL_RELATIONSHIP_INTERSECTS",

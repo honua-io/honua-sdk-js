@@ -160,7 +160,12 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
     const ids =
       typeof request.objectIds === "string"
         ? request.objectIds.split(",").map((id) => BigInt(id.trim()))
-        : request.objectIds.map((id) => BigInt(id));
+        : request.objectIds.map((id) => {
+            if (!Number.isSafeInteger(id)) {
+              throw new RangeError("objectIds must contain only safe integers for the gRPC int64 contract");
+            }
+            return BigInt(id);
+          });
     msg.objectIds = ids;
   }
 

@@ -105,6 +105,12 @@ describe("toProtoQueryRequest", () => {
     );
   });
 
+  it("rejects numeric object IDs that cannot be represented exactly as protobuf int64", () => {
+    expect(() =>
+      toProtoQueryRequest({ serviceId: "svc", layerId: 0, objectIds: [Number.MAX_SAFE_INTEGER + 1] }),
+    ).toThrow("objectIds must contain only safe integers");
+  });
+
   it("converts orderByFields and returnDistinct", () => {
     const result = toProtoQueryRequest({
       serviceId: "test",

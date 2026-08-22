@@ -624,8 +624,8 @@ export interface GrpcCompiledQueryV1 {
   readonly returnGeometry?: boolean;
   readonly outSr?: string | number;
   readonly orderBy?: string;
-  readonly resultOffset?: number;
-  readonly resultRecordCount?: number;
+  readonly resultOffsetLong?: string;
+  readonly resultRecordCountLong?: string;
   readonly spatialFilter?: {
     readonly geometry: { readonly [key: string]: JsonValue };
     readonly geometryType: EsriGeometryType;

@@ -228,8 +228,8 @@ export function compileGrpcQuery(source: QueryIrSourceIdentity, query: Canonical
           },
         }
       : {}),
-    ...(query.pagination?.offset !== undefined ? { resultOffset: query.pagination.offset } : {}),
-    ...(query.pagination?.limit !== undefined ? { resultRecordCount: query.pagination.limit } : {}),
+    ...(query.pagination?.offset !== undefined ? { resultOffsetLong: String(query.pagination.offset) } : {}),
+    ...(query.pagination?.limit !== undefined ? { resultRecordCountLong: String(query.pagination.limit) } : {}),
     ...aggregation,
   };
 }
