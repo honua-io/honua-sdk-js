@@ -270,6 +270,11 @@ function collectOperations(document) {
         tags: operation.tags ?? [],
         mutating: !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase()),
         group: classifyGroup(operation.operationId, route),
+        requestContentTypes: Object.keys(operation.requestBody?.content ?? {}).sort(),
+        responseContentTypes: Object.entries(operation.responses ?? {})
+          .filter(([status]) => /^2\d\d$/.test(status) || status === "2XX")
+          .flatMap(([, response]) => Object.keys(response?.content ?? {}))
+          .sort(),
       });
     }
   }
@@ -282,7 +287,9 @@ function renderCatalog(source, operations, coverage) {
       (operation) =>
         `  ${JSON.stringify(operation.id)}: { method: ${JSON.stringify(operation.method)}, path: ${JSON.stringify(operation.path)}, ` +
         `summary: ${JSON.stringify(operation.summary)}, tags: ${JSON.stringify(operation.tags)}, ` +
-        `mutating: ${operation.mutating}, group: ${JSON.stringify(operation.group)} },`,
+        `mutating: ${operation.mutating}, group: ${JSON.stringify(operation.group)}, ` +
+        `requestContentTypes: ${JSON.stringify(operation.requestContentTypes)}, ` +
+        `responseContentTypes: ${JSON.stringify(operation.responseContentTypes)} },`,
     )
     .join("\n");
   const publishedToolNames = coverage.projected.map((operation) => `  ${JSON.stringify(operation.toolName)},`).join("\n");

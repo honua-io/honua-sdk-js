@@ -9,7 +9,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { HonuaAdminClient } from "./control-plane/admin-client.js";
@@ -96,12 +96,17 @@ export interface LocalInstallStatus {
 }
 
 export const LOCAL_INSTALL_SERVER_IMAGE = ADMIN_LOCAL_SERVER_IMAGE;
+export const LOCAL_INSTALL_MCP_PACKAGE = "@honua/mcp-server@0.1.7-beta.0";
+
+function isAdminReleaseContractCompatible(): boolean {
+  return Boolean(ADMIN_RELEASE_CONTRACT_COMPATIBLE);
+}
 
 export async function installHonuaLocal(
   options: LocalInstallOptions,
   runtime: LocalInstallRuntime = {},
 ): Promise<LocalInstallResult> {
-  if (!ADMIN_RELEASE_CONTRACT_COMPATIBLE) {
+  if (!isAdminReleaseContractCompatible()) {
     throw new Error(
       `Honua local install is blocked: the manifest-pinned server ${ADMIN_RELEASE_SERVER_SHA} exposes ` +
         `${ADMIN_RELEASE_OPERATION_COUNT} Admin REST operations, but the 2026.1 SDK requires 396 ` +
@@ -171,8 +176,7 @@ export async function installHonuaLocal(
       env.HONUA_ADMIN_KEY = credential.material;
       await writePrivateFileAtomic(envFile, renderEnv(env));
       const mcpConfig = renderMcpConfig(baseUrl, credential.material);
-      await writePrivateFileAtomic(mcpConfigFile, mcpConfig);
-      await writePrivateFileAtomic(claudeDesktopConfigFile, mcpConfig);
+      await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, mcpConfig);
     } catch (error) {
       env.HONUA_ADMIN_KEY = undefined;
       const client = new HonuaAdminClient({ baseUrl, adminKey: env.HONUA_ADMIN_PASSWORD, fetchFn: runtime.fetchFn });
@@ -183,8 +187,7 @@ export async function installHonuaLocal(
   } else {
     credential = await resolveExistingAdminKey(baseUrl, env.HONUA_ADMIN_KEY, runtime.fetchFn);
     const mcpConfig = renderMcpConfig(baseUrl, credential.material);
-    await writePrivateFileAtomic(mcpConfigFile, mcpConfig);
-    await writePrivateFileAtomic(claudeDesktopConfigFile, mcpConfig);
+    await writeMcpConfigs(mcpConfigFile, claudeDesktopConfigFile, mcpConfig);
   }
 
   return {
@@ -335,7 +338,7 @@ export function renderMcpConfig(baseUrl: string, adminKey: string): string {
       mcpServers: {
         honua: {
           command: "npx",
-          args: ["-y", "--package", "@honua/mcp-server", "honua-mcp-proxy"],
+          args: ["-y", "--package", LOCAL_INSTALL_MCP_PACKAGE, "honua-mcp-proxy"],
           env: {
             HONUA_MCP_REMOTE_URL: `${baseUrl}/mcp`,
             HONUA_ADMIN_KEY: adminKey,
@@ -346,6 +349,29 @@ export function renderMcpConfig(baseUrl: string, adminKey: string): string {
     null,
     2,
   )}\n`;
+}
+
+async function writeMcpConfigs(mcpPath: string, claudePath: string, content: string): Promise<void> {
+  const [previousMcp, previousClaude] = await Promise.all([
+    readFile(mcpPath).catch((error: unknown) => (isMissingFile(error) ? undefined : Promise.reject(error))),
+    readFile(claudePath).catch((error: unknown) => (isMissingFile(error) ? undefined : Promise.reject(error))),
+  ]);
+  try {
+    await writePrivateFileAtomic(mcpPath, content);
+    await writePrivateFileAtomic(claudePath, content);
+  } catch (error) {
+    await Promise.all([restorePrivateFile(mcpPath, previousMcp), restorePrivateFile(claudePath, previousClaude)]);
+    throw error;
+  }
+}
+
+async function restorePrivateFile(filePath: string, content: Buffer | undefined): Promise<void> {
+  if (content === undefined) await rm(filePath, { force: true });
+  else await writePrivateFileAtomic(filePath, content.toString("utf8"));
+}
+
+function isMissingFile(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
 export function cloudInstallHandoff(stack = "aws"): {
@@ -510,10 +536,16 @@ async function waitForReady(url: string, timeoutMs: number, runtime: LocalInstal
   let last = "no response";
   while (now() < deadline) {
     try {
-      const response = await fetchFn(url);
-      const body = await response.text();
-      last = `HTTP ${response.status}: ${body}`;
-      if (response.ok && body.trim().toLowerCase() === "ready") return;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - now()));
+      try {
+        const response = await fetchFn(url, { signal: controller.signal });
+        const body = await response.text();
+        last = `HTTP ${response.status}: ${body}`;
+        if (response.ok && body.trim().toLowerCase() === "ready") return;
+      } finally {
+        clearTimeout(timer);
+      }
     } catch (error) {
       last = errorMessage(error);
     }

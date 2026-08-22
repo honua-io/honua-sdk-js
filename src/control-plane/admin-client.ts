@@ -149,7 +149,12 @@ export class HonuaAdminClient {
     const headers = new Headers(this.#headers);
     mergeHeaders(headers, request.headers as HeadersInit | undefined);
     if (this.#credential) headers.set("X-API-Key", this.#credential);
-    const body = encodeBody(request.body, request.contentType as string | undefined, headers);
+    const body = encodeBody(
+      request.body,
+      request.contentType as string | undefined,
+      headers,
+      descriptor.requestContentTypes,
+    );
     const response = await this.#fetch(url, {
       method: descriptor.method,
       headers,
@@ -209,21 +214,32 @@ function mergeHeaders(target: Headers, source: HeadersInit | undefined): void {
   for (const [name, value] of new Headers(source)) target.set(name, value);
 }
 
-function encodeBody(value: unknown, contentType: string | undefined, headers: Headers): BodyInit | null {
+function encodeBody(
+  value: unknown,
+  contentType: string | undefined,
+  headers: Headers,
+  declaredContentTypes: readonly string[],
+): BodyInit | null {
   if (value === undefined) return null;
-  const selected = contentType ?? "application/json";
+  const selected = contentType ?? defaultRequestContentType(declaredContentTypes);
   if (selected === "multipart/form-data") return toFormData(value);
   headers.set("Content-Type", selected);
   if (selected.includes("json")) return JSON.stringify(value);
   if (
     typeof value === "string" ||
+    value instanceof Uint8Array ||
     value instanceof Blob ||
     value instanceof FormData ||
     value instanceof URLSearchParams
   ) {
-    return value;
+    return value as BodyInit;
   }
   return String(value);
+}
+
+function defaultRequestContentType(declaredContentTypes: readonly string[]): string {
+  if (declaredContentTypes.includes("application/json")) return "application/json";
+  return declaredContentTypes[0] ?? "application/json";
 }
 
 function toFormData(value: unknown): FormData {

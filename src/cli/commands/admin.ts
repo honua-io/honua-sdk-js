@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import path from "node:path";
 
@@ -38,6 +38,8 @@ GROUPS
 
 REQUEST OPTIONS
   --body <json|@file>       JSON request body
+  --content-type <media>    Request media type (inferred when omitted)
+  --output <file|->         Write binary responses to a file or stdout
   --path <name=value>       Path parameter (repeatable)
   --query <name=value>      Query parameter (repeatable)
   --header <name=value>     Request header (repeatable)
@@ -85,7 +87,8 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
     path: assignments(getArray(parsed, "path"), "path"),
     query: assignments(getArray(parsed, "query"), "query"),
     headers: stringAssignments(getArray(parsed, "header"), "header"),
-    body: readBody(getString(parsed, "body")),
+    body: readBody(getString(parsed, "body"), getString(parsed, "content-type") ?? descriptor.requestContentTypes[0]),
+    contentType: getString(parsed, "content-type"),
   };
   if (getBoolean(parsed, "dry-run")) {
     printLine(renderJson({ operationId, ...descriptor, request: redactAdminRequest(request), executed: false }));
@@ -118,7 +121,7 @@ export async function adminCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   });
   if (!oneTimeSecret) {
     const result = await callDynamic(client, operationId, compactRequest(request));
-    printLine(renderJson(result.data));
+    writeAdminResponse(result.data, getString(parsed, "output"));
     return;
   }
 
@@ -289,11 +292,14 @@ function parseScalar(value: string): unknown {
   return value;
 }
 
-function readBody(value: string | undefined): unknown {
+function readBody(value: string | undefined, contentType: string | undefined): unknown {
   if (!value) return undefined;
-  const raw = value.startsWith("@") ? readFileSync(value.slice(1), "utf8") : value;
+  const raw = value.startsWith("@")
+    ? readFileSync(value.slice(1), isJsonContentType(contentType) ? "utf8" : undefined)
+    : value;
+  if (!isJsonContentType(contentType)) return raw;
   try {
-    return JSON.parse(raw);
+    return JSON.parse(typeof raw === "string" ? raw : raw.toString("utf8"));
   } catch {
     throw new ArgError("--body must be JSON or @file containing JSON.");
   }
@@ -304,13 +310,30 @@ function compactRequest(request: {
   query: Record<string, unknown>;
   headers: Record<string, string>;
   body: unknown;
+  contentType?: string;
 }): Record<string, unknown> {
   return {
     ...(Object.keys(request.path).length > 0 ? { path: request.path } : {}),
     ...(Object.keys(request.query).length > 0 ? { query: request.query } : {}),
     ...(Object.keys(request.headers).length > 0 ? { headers: request.headers } : {}),
     ...(request.body !== undefined ? { body: request.body } : {}),
+    ...(request.contentType !== undefined ? { contentType: request.contentType } : {}),
   };
+}
+
+function isJsonContentType(contentType: string | undefined): boolean {
+  return contentType === undefined || contentType.toLowerCase().includes("json");
+}
+
+function writeAdminResponse(data: unknown, outputPath: string | undefined): void {
+  if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
+    if (!outputPath) throw new ArgError("Binary Admin response requires --output <file|->.");
+    const bytes = Buffer.from(data instanceof ArrayBuffer ? new Uint8Array(data) : data);
+    if (outputPath === "-") process.stdout.write(bytes);
+    else writeFileSync(outputPath, bytes, { flag: "wx", mode: 0o600 });
+    return;
+  }
+  printLine(renderJson(data));
 }
 
 const REDACTED_ADMIN_VALUE = "[REDACTED]";

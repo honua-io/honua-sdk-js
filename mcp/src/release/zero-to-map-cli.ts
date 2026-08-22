@@ -2,7 +2,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { access, lstat, mkdir, open, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, open, readFile, realpath, rename, unlink, writeFile } from "node:fs/promises";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { HonuaClient } from "@honua/sdk-js";
@@ -605,12 +605,17 @@ export async function claimZeroToMapCheckpoint(path: string, digest: string): Pr
   assertZeroToMapCheckpointDigest(checkpoint, digest);
   const claimPath = `${path}.claimed-${digest}`;
   const lockPath = `${claimPath}.lock`;
+  let lockCreated = false;
+  let renamed = false;
   try {
     const lock = await open(lockPath, "wx");
     await lock.close();
+    lockCreated = true;
     await rename(path, claimPath);
+    renamed = true;
     return claimPath;
   } catch (error) {
+    if (lockCreated && !renamed) await unlink(lockPath).catch(() => undefined);
     const code = (error as NodeJS.ErrnoException).code;
     throw new Error(
       code === "ENOENT" || code === "EEXIST"
@@ -627,11 +632,17 @@ function runProcess(
 ): Promise<{ exitCode: number; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const childEnv = process.platform === "win32" ? { ...env, NoDefaultCurrentDirectoryInExePath: "1" } : env;
-    const child = spawn(command, [...args], {
-      env: childEnv,
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    const isWindowsShim =
+      process.platform === "win32" && [".bat", ".cmd"].includes(path.extname(command).toLowerCase());
+    const child = spawn(
+      isWindowsShim ? (env.ComSpec ?? process.env.ComSpec ?? "cmd.exe") : command,
+      isWindowsShim ? ["/d", "/s", "/c", windowsCommandLine([command, ...args])] : [...args],
+      {
+        env: childEnv,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      },
+    );
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let outputBytes = 0;
@@ -669,6 +680,10 @@ function runProcess(
       });
     });
   });
+}
+
+function windowsCommandLine(args: readonly string[]): string {
+  return args.map((value) => `"${value.replaceAll('"', '\\"')}"`).join(" ");
 }
 
 export function parseInstallAccessCredential(stdout: string): {
@@ -927,8 +942,11 @@ function publishedOperation(value: unknown):
 function redactCliArgs(args: readonly string[]): readonly string[] {
   const redacted = [...args];
   for (let index = 0; index < redacted.length; index += 1) {
-    if (["--api-key", "--password", "--token"].includes(redacted[index] ?? "")) {
+    const argument = redacted[index] ?? "";
+    if (["--api-key", "--admin-key", "--password", "--token"].includes(argument)) {
       if (index + 1 < redacted.length) redacted[index + 1] = "[REDACTED]";
+    } else if (["--api-key", "--admin-key", "--password", "--token"].some((flag) => argument.startsWith(`${flag}=`))) {
+      redacted[index] = `${argument.slice(0, argument.indexOf("=") + 1)}[REDACTED]`;
     }
   }
   return redacted;
