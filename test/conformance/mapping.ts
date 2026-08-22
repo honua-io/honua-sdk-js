@@ -64,8 +64,8 @@ export interface CanonQueryRequest {
   outFields?: string[];
   returnGeometry?: boolean;
   outSr?: CanonSpatialReference;
-  resultOffset?: number;
-  resultRecordCount?: number;
+  resultOffsetLong?: string | number;
+  resultRecordCountLong?: string | number;
   orderBy?: string;
   spatialFilter?: Record<string, unknown>;
 }
@@ -120,17 +120,29 @@ export function canonRequestToQuery(req: CanonQueryRequest): Query {
   }
   const orderBy = parseOrderBy(req.orderBy);
   if (orderBy) query.orderBy = orderBy;
-  const limit = req.resultRecordCount;
-  const offset = req.resultOffset;
-  if (typeof limit === "number" || typeof offset === "number") {
+  const limit = canonicalInt64ToSafeInteger(req.resultRecordCountLong, "resultRecordCountLong");
+  const offset = canonicalInt64ToSafeInteger(req.resultOffsetLong, "resultOffsetLong");
+  if (limit !== undefined || offset !== undefined) {
     query.pagination = {
-      ...(typeof limit === "number" ? { limit } : {}),
-      ...(typeof offset === "number" ? { offset } : {}),
+      ...(limit !== undefined ? { limit } : {}),
+      ...(offset !== undefined ? { offset } : {}),
     };
   }
   const wkid = req.outSr?.latestWkid ?? req.outSr?.wkid;
   if (typeof wkid === "number") query.outSr = wkid;
   return query;
+}
+
+function canonicalInt64ToSafeInteger(value: string | number | undefined, field: string): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value < 0) throw new RangeError(`${field} must be a non-negative safe integer`);
+    return value;
+  }
+  if (!/^(0|[1-9][0-9]*)$/.test(value)) throw new RangeError(`${field} must be a canonical non-negative int64 string`);
+  const exact = BigInt(value);
+  if (exact > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError(`${field} exceeds the SDK safe-integer boundary`);
+  return Number(exact);
 }
 
 // ── Golden response → expected Result contract ──────────────────────────────

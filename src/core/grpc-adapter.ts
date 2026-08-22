@@ -21,7 +21,7 @@ import {
   SpatialRelationship,
   StatisticDefinitionSchema,
   StatisticType,
-} from "../gen/honua/v1/feature_service_pb.js";
+} from "../gen/geospatial/v1/index.js";
 import { HonuaGrpcError } from "./errors.js";
 import type {
   HonuaCountResponse,
@@ -119,6 +119,27 @@ const STATISTIC_TYPE_MAP: Record<string, StatisticType> = {
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
 const MIN_SAFE_INTEGER_BIGINT = BigInt(Number.MIN_SAFE_INTEGER);
+const MIN_PROTO_INT64 = -(1n << 63n);
+const MAX_PROTO_INT64 = (1n << 63n) - 1n;
+
+function toProtoObjectId(value: string): bigint {
+  const token = value.trim();
+  if (!/^(?:0|-?[1-9][0-9]*)$/.test(token)) {
+    throw new RangeError("string objectIds must contain canonical decimal int64 values");
+  }
+  const parsed = BigInt(token);
+  if (parsed < MIN_PROTO_INT64 || parsed > MAX_PROTO_INT64) {
+    throw new RangeError("string objectIds must remain within the signed int64 range");
+  }
+  return parsed;
+}
+
+function toProtoPageInt64(field: "resultOffset" | "resultRecordCount", value: number): bigint {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new RangeError(`${field} must be a non-negative safe integer for the gRPC int64 contract`);
+  }
+  return BigInt(value);
+}
 
 /**
  * Converts a SDK QueryFeaturesRequest into a proto QueryFeaturesRequest message.
@@ -152,16 +173,21 @@ export function toProtoQueryRequest(request: QueryFeaturesRequest) {
   if (request.objectIds !== undefined) {
     const ids =
       typeof request.objectIds === "string"
-        ? request.objectIds.split(",").map((id) => BigInt(id.trim()))
-        : request.objectIds.map((id) => BigInt(id));
+        ? request.objectIds.split(",").map(toProtoObjectId)
+        : request.objectIds.map((id) => {
+            if (!Number.isSafeInteger(id)) {
+              throw new RangeError("objectIds must contain only safe integers for the gRPC int64 contract");
+            }
+            return BigInt(id);
+          });
     msg.objectIds = ids;
   }
 
   if (request.resultOffset !== undefined) {
-    msg.resultOffset = request.resultOffset;
+    msg.resultOffsetLong = toProtoPageInt64("resultOffset", request.resultOffset);
   }
   if (request.resultRecordCount !== undefined) {
-    msg.resultRecordCount = request.resultRecordCount;
+    msg.resultRecordCountLong = toProtoPageInt64("resultRecordCount", request.resultRecordCount);
   }
   if (request.orderByFields !== undefined) {
     msg.orderBy = request.orderByFields;
@@ -705,7 +731,7 @@ function convertField(field: ProtoFieldDefinition): HonuaFieldInfo {
   return {
     name: field.name,
     type: FIELD_TYPE_MAP[field.fieldType] ?? "esriFieldTypeString",
-    alias: field.name,
+    alias: field.alias || field.name,
     length: field.length || undefined,
     nullable: field.nullable,
   };

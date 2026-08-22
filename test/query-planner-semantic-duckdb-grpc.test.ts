@@ -198,7 +198,7 @@ function schema(
       {
         method: "declared",
         protocol: "grpc",
-        source: "honua.v1.FeatureService/QueryFeatures",
+        source: "geospatial.v1.FeatureService/QueryFeatures",
       },
     ],
   });
@@ -211,7 +211,7 @@ function nonSpatialSchema(fields: readonly LogicalField[]): SourceSchemaV2 {
     geometry: { state: "none", reason: "no-geometry-fields" },
     temporal: { state: "none" },
     openContent: "closed",
-    provenance: [{ method: "declared", protocol: "grpc", source: "honua.v1.FeatureService/QueryFeatures" }],
+    provenance: [{ method: "declared", protocol: "grpc", source: "geospatial.v1.FeatureService/QueryFeatures" }],
   });
 }
 
@@ -293,15 +293,15 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     const hostileGrpc = compiled(grpc(attributeQuery<"grpc">(adversarial)));
     expect(hostileGrpc).toMatchObject({
       compiler: "honua-grpc-semantic-query-v1",
-      service: "honua.v1.FeatureService",
+      service: "geospatial.v1.FeatureService",
       method: "QueryFeatures",
       serviceId: "incidents",
       layerId: 0,
       outFields: ["id", "status", "preciseAmount"],
       returnGeometry: false,
       orderBy: "amount DESC",
-      resultOffset: 7,
-      resultRecordCount: 25,
+      resultOffsetLong: "7",
+      resultRecordCountLong: "25",
       usesNativeFilter: false,
     });
     expect(hostileGrpc.where).toBe(
@@ -505,7 +505,7 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
       where: "status = 'open'",
       returnGeometry: false,
       orderBy: "status ASC",
-      resultRecordCount: 10,
+      resultRecordCountLong: "10",
       groupBy: ["status"],
       outStatistics: [
         {
@@ -803,7 +803,7 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
     });
   });
 
-  it("rejects spatial composition and pagination the QueryFeatures message cannot preserve", () => {
+  it("rejects spatial composition while preserving exact int64-range pagination", () => {
     const query = createSemanticQueryBuilder<Incident, "grpc", "primary-geometry">();
     const spatial = defineSpatialNode<Incident, "primary-geometry">({
       kind: "spatial",
@@ -829,8 +829,8 @@ describe("semantic DuckDB and Honua gRPC compilers", () => {
       source: { serviceId: "incidents", layerId: 0 },
     });
     expect(pageResult).toMatchObject({
-      outcome: "unsupported",
-      diagnostics: [{ code: "unsupported-node", path: "$.page.offset" }],
+      outcome: "compiled",
+      artifact: { resultOffsetLong: "2147483648" },
     });
   });
 

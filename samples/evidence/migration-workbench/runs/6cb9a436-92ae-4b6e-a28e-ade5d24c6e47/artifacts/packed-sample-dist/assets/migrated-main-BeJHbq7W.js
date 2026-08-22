@@ -1,6 +1,6 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./esm-43ltykJI.js","./esm-DWXyzSch.js","./file-Cyyt2sFU.js","./esm-BfJANlUL.js","./feature_service_pb-JUs0NsW2.js","./feature_service_pb-CqnVVhF4.js","./grpc-adapter-Cc1K3q0j.js","./errors-Drc_agSl.js"])))=>i.map(i=>d[i]);
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./esm-BvKGtSr1.js","./esm-BLeFQxnU.js","./file-C7ic42ti.js","./esm-D_dJovGL.js","./feature_service_pb-DiLFpbJT.js","./feature_service_pb-CAtjTHk9.js","./grpc-adapter-C6_9HR0C.js","./errors-C01noQ6Y.js"])))=>i.map(i=>d[i]);
 import { t as __vitePreload } from "./preload-helper-CW7Fztz1.js";
-import { a as HonuaNetworkError, c as HonuaSdkError, i as HonuaHttpError, n as HonuaCapabilityNotSupportedError, o as HonuaTimeoutError, s as HonuaWfsExceptionError, t as HonuaAbortError } from "./errors-Drc_agSl.js";
+import { a as HonuaNetworkError, c as HonuaSdkError, i as HonuaHttpError, n as HonuaCapabilityNotSupportedError, o as HonuaTimeoutError, s as HonuaWfsExceptionError, t as HonuaAbortError } from "./errors-C01noQ6Y.js";
 function createHonuaCacheState(init) {
 	return {
 		scope: init.scope,
@@ -83,7 +83,7 @@ function normalizeMaximumResponseBytes(value) {
 	return value;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/path-utils.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/path-utils.js
 /**
 * Linear-time string trimming helpers used for URL and path normalization.
 *
@@ -147,7 +147,7 @@ function encodePathSegments(value) {
 	return value.split("/").map((segment) => encodeURIComponent(segment)).join("/");
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/compatibility.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/compatibility.js
 /**
 * Server compatibility contract parsing and evaluation. Decodes the
 * `GET /api/v1/admin/capabilities` envelope into the typed
@@ -309,7 +309,7 @@ function getReleaseChannelRank(releaseChannel) {
 	}
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/geoservices.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/geoservices.js
 /**
 * Esri GeoServices wire methods: service/layer metadata plus the
 * FeatureServer / MapServer operation endpoints (query, applyEdits,
@@ -571,7 +571,7 @@ function appendQueryExtraParams(params, request) {
 	}
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/odata-key-path.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/odata-key-path.js
 /**
 * Encode an OData key predicate without hiding its structural grammar.
 *
@@ -601,7 +601,7 @@ function encodeOdataKeyPredicatePath(key) {
 	return output;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/odata.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/odata.js
 /**
 * OData v4 entity-set adapter. Wraps an OData entity set behind the shared
 * `Source<T>` contract surface in `src/contract/source.ts`.
@@ -1427,7 +1427,7 @@ function matchPropertyValueBool(inner, property) {
 	}
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/ogc-endpoint-layout.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/ogc-endpoint-layout.js
 /**
 * OGC API endpoint-layout resolution.
 *
@@ -1587,7 +1587,7 @@ async function resolveOgcEndpointLayout(transport, mode = "honua-facade") {
 	}
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wire-shared.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wire-shared.js
 /**
 * Helpers shared across the per-protocol wire modules and the client's
 * transport core: header merging and the common OGC metadata query-param
@@ -1649,7 +1649,7 @@ function responseExceededTransferLimit(response) {
 	return typeof response === "object" && response !== null && response.exceededTransferLimit === true;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/ogc-features.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/ogc-features.js
 /**
 * OGC API Features wire methods. Concrete URL-building, param
 * serialization, and request shaping for the OGC API Features endpoints,
@@ -1753,7 +1753,7 @@ async function deleteOgcItem(transport, request) {
 	await transport.requestJson("DELETE", `${path}?${params.toString()}`, void 0, request.signal);
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/ogc-maps.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/ogc-maps.js
 /**
 * OGC API Maps surface. Server-rendered map images at the dataset or
 * collection level, with optional styled-output access. The runtime
@@ -1901,7 +1901,7 @@ function ogcMapAcceptHeader(format) {
 	return OGC_MAP_SHORT_TO_MEDIA.get(lower) ?? format;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/contract/jobs.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/contract/jobs.js
 /**
 * Canonical async-operation surface. `IJobRun` is the protocol-neutral
 * vocabulary every long-running operation in the SDK speaks. It is the
@@ -1943,7 +1943,7 @@ var HonuaJobPollTimeoutError = class extends Error {
 	}
 };
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/ogc-conformance.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/ogc-conformance.js
 /**
 * `true` when the conformance response advertises a class containing
 * the given substring. Lets callers gate features on a specific
@@ -1955,7 +1955,7 @@ function hasOgcConformanceClass(conformance, classSubstring) {
 	return false;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/ogc-processes.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/ogc-processes.js
 /**
 * OGC API Processes surface. Process discovery, execution, and async
 * job tracking against any conformant Part 1 (Core) server — a raw
@@ -2807,7 +2807,7 @@ function preferHeaderForExecute(request) {
 	if (request.mode === "sync") return { Prefer: "respond-sync" };
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/ogc-records.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/ogc-records.js
 /**
 * OGC API Records surface. Records are catalog metadata documents about
 * resources (services, collections, maps, scenes, STAC collections, source
@@ -3266,7 +3266,7 @@ async function fetchOgcTile(transport, request) {
 	return transport.requestBytes("GET", path, request.accept, void 0, request.signal);
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/pbf-decoder.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/pbf-decoder.js
 /**
 * Minimal protobuf wire-format reader and Esri PBF query response decoder.
 *
@@ -3839,7 +3839,7 @@ function isPbfResponse(response) {
 	return ct.includes("application/x-protobuf") || ct.includes("application/protobuf");
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/process-runner.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/process-runner.js
 var HonuaProcessRunner = class {
 	adapter;
 	constructor(adapter) {
@@ -4121,7 +4121,7 @@ function wait(ms, signal) {
 	});
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/request-pipeline.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/request-pipeline.js
 var DEFAULT_RETRY_STATUSES = new Set([
 	429,
 	502,
@@ -4331,7 +4331,7 @@ function isObject$2(value) {
 	return typeof value === "object" && value !== null;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/stac.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/stac.js
 /**
 * STAC API search surface. STAC builds on OGC API Features, so this
 * class wraps the STAC catalog landing, collections listing, items, and
@@ -4652,7 +4652,7 @@ function stacFieldsCsv(fields) {
 	return parts.length > 0 ? parts.join(",") : void 0;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/contract/spatial-aggregation.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/contract/spatial-aggregation.js
 /**
 * Protocol-neutral request and response shapes for indexed spatial aggregation.
 *
@@ -4894,7 +4894,7 @@ function isPositiveInteger(value) {
 	return Number.isInteger(value) && value > 0;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/surfaces.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/surfaces.js
 var HonuaService = class {
 	client;
 	serviceId;
@@ -6806,7 +6806,7 @@ function extractOgcFeatures(response) {
 	return response.features;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wfs-capabilities.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wfs-capabilities.js
 /**
 * Hand-rolled XML walker for the two WFS surfaces that the canonical adapter
 * actually has to read: `wfs:WFS_Capabilities` (operation list, output formats
@@ -7376,7 +7376,7 @@ function findChildren(node, local) {
 	return node.children.filter((c) => c.local === local);
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wfs-protocol-error.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wfs-protocol-error.js
 /** Typed, credential-safe fail-closed WFS protocol error. */
 var HonuaWfsProtocolError = class extends HonuaSdkError {
 	reason;
@@ -7390,7 +7390,7 @@ var HonuaWfsProtocolError = class extends HonuaSdkError {
 	}
 };
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wfs.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wfs.js
 /**
 * Runtime classes for the WFS 2.0 adapter. Three layers:
 *
@@ -7991,7 +7991,7 @@ function rethrowAsWfsExceptionIfPossible(err) {
 	}
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wms-axis.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wms-axis.js
 /**
 * WMS 1.3.0 axis-order helpers, shared by the first-party WMS client path and
 * the Esri-compat `WMSLayer` so both emit BBOX in the authority-defined axis
@@ -8049,7 +8049,7 @@ function wmsBboxRequiresAxisSwap(crs) {
 	return code !== void 0 && WMS_LATLON_GEOGRAPHIC_EPSG.has(code);
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/xml-text.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/xml-text.js
 /**
 * Single-pass XML text decoding used by the WMS/WMTS capabilities parsers.
 *
@@ -8126,7 +8126,7 @@ function decodeEntity(entity) {
 	}
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/capabilities-xml.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/capabilities-xml.js
 /**
 * Bounded XML tree used by the WMS/WMTS capabilities readers.
 *
@@ -8371,7 +8371,7 @@ function freezeElement(node) {
 	});
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wms-capabilities.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wms-capabilities.js
 /**
 * Bounded WMS capabilities projection.
 *
@@ -8603,7 +8603,7 @@ function findWmsLayer(capabilities, name) {
 	for (const layer of iterateWmsLayers(capabilities)) if (layer.name === name) return layer;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wms.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wms.js
 /**
 * First-party WMS 1.3.0 adapter. `HonuaWms` is the service-level handle
 * returned by `client.wms(serviceId)`; `HonuaWmsLayer` is the bound
@@ -8927,7 +8927,7 @@ function extractFeatureInfoFeatures(parsed) {
 	return out;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wms-types.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wms-types.js
 /**
 * Public request/response envelopes for the WMS / WMTS first-party
 * adapter. Kept in their own module so the canonical SDK surface
@@ -8960,7 +8960,7 @@ function wmtsExtensionForFormat(format) {
 	return WMTS_TILE_FORMAT_TO_EXTENSION.get(format.toLowerCase()) ?? "png";
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wmts-capabilities.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wmts-capabilities.js
 /** Bounded WMTS 1.0 capabilities projection. @module */
 var incompleteTileMatrixSets = /* @__PURE__ */ new WeakSet();
 var HonuaWmtsCapabilitiesParseError = class extends HonuaSdkError {
@@ -9187,7 +9187,7 @@ function findWmtsTileMatrixSet(capabilities, identifier) {
 	return capabilities.tileMatrixSets.find((tileMatrixSet) => tileMatrixSet.identifier === identifier);
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/wmts.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/wmts.js
 /**
 * First-party WMTS 1.0.0 adapter. `HonuaWmts` is the service-level
 * handle returned by `client.wmts(serviceId)`; `HonuaWmtsLayer` is a
@@ -9488,7 +9488,7 @@ function wmtsRestExtraParamsSuffix(extraParams) {
 	return serialized.length > 0 ? `?${serialized}` : "";
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/core/client.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/core/client.js
 function normalizeBaseUrl(baseUrl) {
 	return trimTrailingSlashes(baseUrl);
 }
@@ -9738,9 +9738,9 @@ var HonuaClient = class HonuaClient {
 		let initPromise = this.connectClientPromise;
 		if (!initPromise) {
 			initPromise = Promise.all([
-				__vitePreload(() => import("./esm-43ltykJI.js"), __vite__mapDeps([0,1,2]), import.meta.url),
-				__vitePreload(() => import("./esm-BfJANlUL.js"), __vite__mapDeps([3,2,1]), import.meta.url),
-				__vitePreload(() => import("./feature_service_pb-JUs0NsW2.js"), __vite__mapDeps([4,5,2]), import.meta.url)
+				__vitePreload(() => import("./esm-BvKGtSr1.js"), __vite__mapDeps([0,1,2]), import.meta.url),
+				__vitePreload(() => import("./esm-D_dJovGL.js"), __vite__mapDeps([3,2,1]), import.meta.url),
+				__vitePreload(() => import("./feature_service_pb-DiLFpbJT.js"), __vite__mapDeps([4,5,2]), import.meta.url)
 			]).then(([{ createClient }, { createGrpcWebTransport }, { FeatureService }]) => {
 				const transport = createGrpcWebTransport(this.connectTransportOptions());
 				this.connectClient = createClient(FeatureService, transport);
@@ -9798,7 +9798,7 @@ var HonuaClient = class HonuaClient {
 		}
 	}
 	static async loadGrpcAdapter() {
-		return __vitePreload(() => import("./grpc-adapter-Cc1K3q0j.js"), __vite__mapDeps([6,7,5,2]), import.meta.url);
+		return __vitePreload(() => import("./grpc-adapter-C6_9HR0C.js"), __vite__mapDeps([6,7,5,2]), import.meta.url);
 	}
 	get isGrpcWeb() {
 		return this.transport === "grpc-web";
@@ -11222,7 +11222,7 @@ function mergePathWithQueryParams(path, additionalParams) {
 	return `${nextQuery.length > 0 ? `${basePath}?${nextQuery}` : basePath}${hash}`;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/event-bus.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/event-bus.js
 var CompatEventBus = class {
 	listenersByType;
 	anyListeners;
@@ -11293,7 +11293,7 @@ function isRecord$5(value) {
 	return typeof value === "object" && value !== null;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/url.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/url.js
 var ABSOLUTE_URL_RE = /^[A-Za-z][A-Za-z\d+.-]*:\/\//;
 var PROTOCOL_RELATIVE_URL_RE = /^\/\//;
 var RELATIVE_URL_BASE = "https://honua.invalid";
@@ -11328,7 +11328,7 @@ function parseServiceUrl(url) {
 	};
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/feature-layer.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/feature-layer.js
 var DEFAULT_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 var FeatureLayerCompat = class {
 	url;
@@ -11922,7 +11922,7 @@ function copyToArrayBuffer(chunk) {
 	return copy.buffer;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/feature-table.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/feature-table.js
 var FeatureTableHighlightIdsCompat = class {
 	values;
 	listeners;
@@ -12340,7 +12340,7 @@ function compareAttributeValues(a, b) {
 	return String(a).localeCompare(String(b));
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/map.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/map.js
 var MapCompat = class {
 	basemap;
 	ground;
@@ -12541,7 +12541,7 @@ function normalizeInsertIndex(index, length) {
 	return Math.min(Math.max(Number.isFinite(index) ? Math.trunc(index) : length, 0), length);
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/widget-host.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/widget-host.js
 /**
 * `HonuaWidgetHost` — mounts the app-platform survival-tier web components
 * (`@honua/sdk-js/web-components`, moving to `@honua/app-platform`) into the
@@ -12741,7 +12741,7 @@ function resolveContainer(container) {
 	if (typeof container === "object" && container !== null && typeof container.appendChild === "function") return container;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/layer-list.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/layer-list.js
 var LayerListCompat = class {
 	view;
 	map;
@@ -13039,7 +13039,7 @@ function isRecord$2(value) {
 	return typeof value === "object" && value !== null;
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/feature-filter.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/feature-filter.js
 /**
 * ArcGIS `FeatureFilter` shim.
 *
@@ -13180,7 +13180,7 @@ var FeatureFilterCompat = class FeatureFilterCompat {
 	}
 };
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/map-view.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/map-view.js
 var MapViewPopupCompat = class {
 	visible;
 	location;
@@ -14137,7 +14137,7 @@ function extractPopupOptions(popup) {
 	};
 }
 //#endregion
-//#region .tmp/sample-runner/3d64b7a9-0e54-4d26-bfea-6e6509d1b9ce/packed-sdk/extract/package/dist/src/esri-compat/popup.js
+//#region .tmp/sample-runner/a5e3e281-76d4-424f-9224-3d438283017e/packed-sdk/extract/package/dist/src/esri-compat/popup.js
 var PopupCompat = class {
 	view;
 	container;

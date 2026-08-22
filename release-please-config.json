@@ -84,6 +84,11 @@
           "type": "json",
           "path": "config/sdk-coverage.v1.json",
           "jsonpath": "$.sdk.version"
+        },
+        {
+          "type": "json",
+          "path": "config/protocol-certification.v1.json",
+          "jsonpath": "$.clientVersion"
         }
       ],
       "changelog-sections": [

@@ -29,6 +29,33 @@ import {
 } from "../harness.js";
 
 const SURFACE = "grpc";
+const INT64_MIN = -(1n << 63n);
+const INT64_MAX = (1n << 63n) - 1n;
+
+function exactObjectId(value: unknown): bigint {
+  if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
+  if (typeof value !== "string" || !/^(?:0|-?[1-9][0-9]*)$/.test(value)) {
+    throw new Error(`gRPC response returned a non-canonical int64 object ID: ${String(value)}`);
+  }
+  const parsed = BigInt(value);
+  if (parsed < INT64_MIN || parsed > INT64_MAX) {
+    throw new Error(`gRPC response returned an out-of-range int64 object ID: ${value}`);
+  }
+  return parsed;
+}
+
+it.each([
+  ["-9223372036854775808", INT64_MIN],
+  ["0", 0n],
+  ["9223372036854775807", INT64_MAX],
+])("preserves canonical int64 object ID %s", (value, expected) => {
+  expect(exactObjectId(value)).toBe(expected);
+});
+
+it.each(["-0", "+1", "01", "9223372036854775808", "-9223372036854775809"])(
+  "rejects non-canonical or out-of-range int64 object ID %s",
+  (value) => expect(() => exactObjectId(value)).toThrow(),
+);
 
 integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, config }) => {
   // Bounded, replay-safe query: `where=1=1` with a small record cap so the
@@ -61,9 +88,14 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
         await makeGrpcClient().queryFeatures({ ...baseQuery, resultRecordCount: 1 });
         return undefined;
       } catch (error) {
+        if ((process.env.HONUA_DEPLOYMENT_TARGET ?? "").trim() === "local-docker") {
+          throw error;
+        }
         // A gRPC-web transport that the server does not serve surfaces as a
         // Connect "unimplemented"/network error rather than an HTTP status the
-        // classifier recognizes, so treat any probe failure as a clean gap.
+        // classifier recognizes. An external deployment may explicitly omit
+        // the optional transport, but the deterministic self-contained lane
+        // advertises gRPC-web and therefore fails closed above.
         const gap =
           classifyCapabilityGap("gRPC-web FeatureService", error) ??
           ({
@@ -84,7 +116,7 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     return gap;
   };
 
-  it("round-trips a query over the gRPC-web transport", async (ctx) => {
+  it("round-trips a query over the gRPC-web transport [cert:grpc-web/query#positive] [cert:grpc-web/query#pagination] [cert:grpc-web/query#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     const grpc = makeGrpcClient();
     const result = await runWithDiagnostics(context, "grpc queryFeatures", () => grpc.queryFeatures(baseQuery));
@@ -92,9 +124,40 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     expect(Array.isArray(features)).toBe(true);
     expect(features.length).toBeGreaterThan(0);
     expect(features[0]?.attributes).toBeDefined();
+    const objectIdField =
+      result.objectIdFieldName ??
+      Object.keys(features[0]?.attributes ?? {}).find((field) => field.toLowerCase() === "objectid");
+    expect(typeof objectIdField).toBe("string");
+    if (!objectIdField) throw new Error("gRPC response did not identify an object-id field");
+
+    const firstPage = await runWithDiagnostics(context, "grpc first page", () =>
+      grpc.queryFeatures({
+        ...baseQuery,
+        orderByFields: `${objectIdField} ASC`,
+        resultOffset: 0,
+        resultRecordCount: 1,
+      }),
+    );
+    const secondPage = await runWithDiagnostics(context, "grpc second page", () =>
+      grpc.queryFeatures({
+        ...baseQuery,
+        orderByFields: `${objectIdField} ASC`,
+        resultOffset: 1,
+        resultRecordCount: 1,
+      }),
+    );
+    expect(firstPage.features).toHaveLength(1);
+    expect(secondPage.features).toHaveLength(1);
+    const firstId = exactObjectId(firstPage.features?.[0]?.attributes?.[objectIdField]);
+    const secondId = exactObjectId(secondPage.features?.[0]?.attributes?.[objectIdField]);
+    expect(secondId > firstId).toBe(true);
+    if ((process.env.HONUA_DEPLOYMENT_TARGET ?? "").trim() === "local-docker") {
+      expect(firstPage.features?.[0]?.attributes).toMatchObject({ objectid: 4, name: "alpha" });
+      expect(secondPage.features?.[0]?.attributes).toMatchObject({ objectid: 5, name: "beta" });
+    }
   });
 
-  it("returns query parity with the REST transport", async (ctx) => {
+  it("returns query parity with the REST transport [cert:grpc-web/rest-parity#positive] [cert:grpc-web/rest-parity#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     const grpc = makeGrpcClient();
     const [rest, grpcResult] = await Promise.all([
@@ -114,7 +177,7 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     }
   });
 
-  it("attaches the configured auth credential to gRPC-web requests", async (ctx) => {
+  it("attaches the configured auth credential to gRPC-web requests [cert:grpc-web/authentication#positive] [cert:grpc-web/authentication#auth] [cert:grpc-web/authentication#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     if (!config.apiKey && !config.bearerToken) {
       ctx.skip("no apiKey/bearerToken configured; no credential to assert on the wire");
@@ -137,7 +200,7 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     expect(attached).toBe(true);
   });
 
-  it("replays a transient failure through the gRPC-web retry/backoff path", async (ctx) => {
+  it("replays a transient failure through the gRPC-web retry/backoff path [cert:grpc-web/retry#positive] [cert:grpc-web/retry#negative] [cert:grpc-web/retry#media-schema]", async (ctx) => {
     if (await skipIfUnavailable(ctx)) return;
     // Fail the first gRPC-web POST with HTTP 503 (Connect maps this to the
     // retryable `unavailable` code), then delegate to the real transport. A

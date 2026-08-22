@@ -99,7 +99,8 @@
   "/scene-workspace was reset for the shipped MapLibre and Cesium state-sync ports (#1049): the documented 2D/3D camera correspondence, the shared port core (echo suppression, bounded convergence, disposal-safe listeners, degradation reporting), the live 2D camera/selection/filter/time/detail bindings, and the live globe camera/selection/entity-visibility/clock bindings measured 150,950 minified / 45,737 gzip bytes on their own, so both ceilings were set to that actual plus ~10%. Re-measured on the tree merged with #1048's Cesium clock binding, #1052's planner-selected columnar execution, #1054's offline-store trust, and #1051's precision/asset metadata, the entrypoint is 164,659 minified / 49,971 gzip. That sits inside the ceilings this work set, so they are recorded rather than widened again — the headroom is thin, and the next change that actually exceeds them should reset against its own measurement. No new dependency enters the entrypoint's static graph — both renderers stay duck-typed and CesiumJS is still reached only through a lazy dynamic import — and root, /honua, and browser ceilings are unchanged because the scene surface remains subpath-only.",
   "/offline was reset for the replica conflict policy contract and reviewed conflict resolutions (#1047). replayOfflineEditPass now accepts a ReplicaConflictPolicy and classifies every member of the shipped union — manual and server-wins are carried out from queue-side state, client-wins and last-writer-wins are refused by name — and the durable queue gained a reviewed-resolution transition (a conflict-resolved audit event, the requeue-or-abandon disposition, the unacknowledged-by-server marker, persisted-record validation for the new outcome, and credential screening of the reviewer-authored strings on the way in and on the way back out), with recordOfflineConflictResolution taking a SyncConflictResolution unchanged and the projection publishing the closed conflict. Trunk measured 162,099 minified / 43,827 gzip before this change and 173,311 / 46,255 after, so both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the graph — the replica-sync coupling stays type-only, so no dist/src/offline/*.js imports anything from src/replica-sync — and /offline remains subpath-only, so root, /honua, and browser barrels are unchanged.",
   "/scene-workspace was reset for the entity refresh diff and the single-owner scene mount (#1050) — the thin headroom #1049 flagged is what this change spent. refresh() no longer discards the snapshot: it diffs on identity (the projected entity id qualified by geometry kind) plus an order-independent per-facet configuration fingerprint, reuses a byte-identical feature's live Entity untouched, writes only the changed facets of a changed feature onto the Entity it already has, replaces on a geometry-kind change or an unfingerprintable feature, releases departures last so a failure cannot leave a hole, and reports every crossing through a CesiumEntityRebuildBoundary vocabulary. mountCesiumScene adds the owner that composes the entity mount with the primitive mount behind one dispose(). Measured 170,924 minified / 51,989 gzip bytes; both exceeded ceilings are reset to measured actual plus ~10% headroom. No new dependency enters the static graph — the owner delegates to the two existing mounts, the fingerprint reuses the planner's canonicalization the entity path already imported, and CesiumJS is still reached only through a lazy dynamic import — and root, /honua, and browser ceilings are unchanged because the scene surface remains subpath-only.",
-  "/pmtiles gained its first dedicated guard with #1118 and was narrowed before promotion: the authenticated bounded inspector uses PMTiles-specific endpoint, identity, hostile-cache validation, and the same HonuaClient.pipelineFetch range primitive as generic connect() without retaining dist/src/connect.js. The corrected public subpath measures 339,031 minified / 91,407 gzip bytes inside its dedicated ceilings, and the 32,718 / 9,293 tree-shake:pmtiles-lifecycle guard remains isolated from generic discovery/render/plugin/runtime inputs. Final review replaced the duplicated generic/focused cache validators with one pure PMTiles v7 validator called by both orchestrators; generic connect does not import the focused high-level runner, and /pmtiles still forbids dist/src/connect.js. Exact base-to-head minified deltas are root +2,646 (774,616 actual), browser-iife +2,588 (775,214), browser-esm +2,724 (773,881), tree-shake:root-createHonua +2,298 (736,588), tree-shake:map-source-workflow +171 (45,994), and tree-shake:error-leaf +37 (15,894); /runtime gzip remains +24 (167,908). Existing root/browser-esm and compact error-family ceilings still hold and are not widened again. Only browser-iife and tree-shake:root-createHonua newly exceed their exact-base ceilings, so those two are reset to actual plus 10%; every other shared ceiling is unchanged."
+  "/pmtiles gained its first dedicated guard with #1118 and was narrowed before promotion: the authenticated bounded inspector uses PMTiles-specific endpoint, identity, hostile-cache validation, and the same HonuaClient.pipelineFetch range primitive as generic connect() without retaining dist/src/connect.js. The corrected public subpath measures 339,031 minified / 91,407 gzip bytes inside its dedicated ceilings, and the 32,718 / 9,293 tree-shake:pmtiles-lifecycle guard remains isolated from generic discovery/render/plugin/runtime inputs. Final review replaced the duplicated generic/focused cache validators with one pure PMTiles v7 validator called by both orchestrators; generic connect does not import the focused high-level runner, and /pmtiles still forbids dist/src/connect.js. Exact base-to-head minified deltas are root +2,646 (774,616 actual), browser-iife +2,588 (775,214), browser-esm +2,724 (773,881), tree-shake:root-createHonua +2,298 (736,588), tree-shake:map-source-workflow +171 (45,994), and tree-shake:error-leaf +37 (15,894); /runtime gzip remains +24 (167,908). Existing root/browser-esm and compact error-family ceilings still hold and are not widened again. Only browser-iife and tree-shake:root-createHonua newly exceed their exact-base ceilings, so those two are reset to actual plus 10%; every other shared ceiling is unchanged.",
+  "Canonical geospatial-grpc v0.2.0-alpha.1 replaces the retired single-file Honua binding with the complete generated dependency closure. Only the eleven exceeded metrics are reset from exact-head measurements: /honua 258,855 gzip; /source-schema 211,604 gzip; /source-capability-discovery 221,182 gzip; /esri-compat 1,060,943 minified; /controls 284,766 gzip; HonuaClient 260,855 minified / 69,127 gzip; root-connect 647,035 minified / 173,773 gzip; and FeatureLayerCompat 275,782 minified / 72,330 gzip. Each changed ceiling is ceil(actual * 1.1); all other ceilings remain unchanged."
  ],
  "entrypoints": {
   ".": {
@@ -108,7 +109,7 @@
   },
   "/honua": {
    "min": 959741,
-   "gzip": 257025
+   "gzip": 284741
   },
   "/contract": {
    "min": 410199,
@@ -116,7 +117,7 @@
   },
   "/source-schema": {
    "min": 947680,
-   "gzip": 210929
+   "gzip": 232765
   },
   "/source-capabilities": {
    "min": 263724,
@@ -124,7 +125,7 @@
   },
   "/source-capability-discovery": {
    "min": 984868,
-   "gzip": 220779
+   "gzip": 243301
   },
   "/plugin": {
    "min": 70888,
@@ -171,7 +172,7 @@
    "gzip": 57188
   },
   "/esri-compat": {
-   "min": 1050877,
+   "min": 1167038,
    "gzip": 287597
   },
   "/expr": {
@@ -216,7 +217,7 @@
   },
   "/controls": {
    "min": 1062543,
-   "gzip": 284617
+   "gzip": 313243
   },
   "/web-components": {
    "min": 1147007,
@@ -243,12 +244,12 @@
    "gzip": 227031
   },
   "tree-shake:HonuaClient": {
-   "min": 260072,
-   "gzip": 65132
+   "min": 286941,
+   "gzip": 76040
   },
   "tree-shake:root-connect": {
-   "min": 642920,
-   "gzip": 170904
+   "min": 711739,
+   "gzip": 191151
   },
   "tree-shake:source-capabilities-evaluate": {
    "min": 18332,
@@ -271,8 +272,8 @@
    "gzip": 73892
   },
   "tree-shake:esri-compat-FeatureLayerCompat": {
-   "min": 273400,
-   "gzip": 69700
+   "min": 303361,
+   "gzip": 79563
   },
   "tree-shake:map-source-workflow": {
    "min": 50594,
