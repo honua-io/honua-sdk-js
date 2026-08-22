@@ -5,9 +5,12 @@ import test from "node:test";
 import {
   buildFragment,
   GAP_OWNER,
+  LICENSED_PROOF_SCHEMA,
   validateCertificationIdentity,
   validateIdentityOverrideEnvironment,
+  validateLicensedProof,
 } from "../scripts/protocol-certification-fragment.mjs";
+import { createHash } from "node:crypto";
 
 const certificationContract = JSON.parse(readFileSync(new URL("../config/protocol-certification.v1.json", import.meta.url), "utf8"));
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
@@ -22,6 +25,33 @@ const identity = {
   evidenceUri: "https://github.com/honua-io/honua-sdk-js/actions/runs/1",
   cutAt: "2026-08-19T00:00:00Z",
 };
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function licensedProof(overrides = {}) {
+  const proof = {
+    schema: LICENSED_PROOF_SCHEMA,
+    verification: "live-server-capability-probe-v1",
+    policy_revision: "honua-pro-feature-subscriptions-v1",
+    deployment_target: "licensed-release",
+    checked_at: "2026-08-19T00:01:00Z",
+    license_identity: { license_id: "license-1", edition: "Pro", issued_at: null, validation_state: "Valid" },
+    entitlement: { key: "streaming.feature-subscriptions", active: true },
+    license_fingerprint: "",
+    ...overrides,
+  };
+  proof.license_fingerprint = overrides.license_fingerprint ?? `sha256:${createHash("sha256").update(canonicalJson({
+    license_identity: proof.license_identity,
+    entitlement: proof.entitlement,
+  })).digest("hex")}`;
+  return proof;
+}
 
 test("rejects partial self-contained candidate identity overrides", () => {
   assert.throws(
@@ -130,7 +160,25 @@ test("marks evidence incomplete when a suite report is unavailable", () => {
 });
 
 test("machine-readable certification contract matches emitted operation identities", () => {
-  const fragment = buildFragment({ identity, reports: [] });
+  const communityFragment = buildFragment({ identity, reports: [] });
+  assert.equal(communityFragment.observations.some((row) => row.surface === "realtime"), false);
+  const licensedIdentity = {
+    ...identity,
+    deploymentTarget: "licensed-release",
+    startedAt: "2026-08-19T00:00:00Z",
+  };
+  const fragment = buildFragment({
+    identity: licensedIdentity,
+    licensedProof: licensedProof(),
+    reports: [{ testResults: [{
+      name: "test/integration/surfaces/realtime.integration.ts Realtime SSE",
+      assertionResults: [
+        { title: "subscribes and decodes [cert:realtime/subscribe#positive] [cert:realtime/subscribe#media-schema]", status: "passed" },
+        { title: "resumes after reconnect [cert:realtime/resume#positive] [cert:realtime/resume#media-schema]", status: "passed" },
+      ],
+    }] }],
+    now: "2026-08-19T00:02:00Z",
+  });
   assert.deepEqual(
     fragment.observations.map(({ capability_key, surface, operation, scenario_facets }) => ({
       capability_key,
@@ -138,11 +186,68 @@ test("machine-readable certification contract matches emitted operation identiti
       operation,
       scenario_facets,
     })),
-    certificationContract.operations,
+    certificationContract.operations.filter(({ surface }) => surface === "realtime"),
   );
+  assert.ok(fragment.observations.every(({ deployment_target }) => deployment_target === "licensed-release"));
   assert.equal(certificationContract.canonicalClient, "@honua/sdk-js");
   assert.equal(certificationContract.clientVersion, packageJson.version);
   assert.equal("fixtureRevision" in certificationContract, false);
+  assert.throws(
+    () => buildFragment({
+      identity: licensedIdentity,
+      licensedProof: licensedProof(),
+      reports: [],
+      now: "2026-08-19T00:02:00Z",
+    }),
+    /licensed certification requires realtime\/subscribe to pass; observed skip/,
+  );
+  assert.throws(
+    () => buildFragment({
+      identity: licensedIdentity,
+      licensedProof: licensedProof(),
+      reports: [{ testResults: [{
+        name: "test/integration/surfaces/realtime.integration.ts Realtime SSE",
+        assertionResults: [
+          { title: "subscribes and decodes [cert:realtime/subscribe#positive] [cert:realtime/subscribe#media-schema]", status: "passed" },
+        ],
+      }] }],
+      now: "2026-08-19T00:02:00Z",
+    }),
+    /licensed certification requires realtime\/resume to pass; observed skip/,
+  );
+});
+
+test("accepts only a digest-bound closed licensed proof", () => {
+  const proof = licensedProof();
+  assert.doesNotThrow(() => validateLicensedProof(proof, "licensed-release"));
+  assert.throws(
+    () => validateLicensedProof({ ...proof, license_fingerprint: `sha256:${"0".repeat(64)}` }, "licensed-release"),
+    /fingerprint does not match/,
+  );
+  assert.throws(
+    () => validateLicensedProof(licensedProof({ entitlement: { key: "streaming.feature-subscriptions", active: false } }), "licensed-release"),
+    /active streaming entitlement/,
+  );
+  assert.throws(
+    () => buildFragment({
+      identity: { ...identity, entitlementPolicyRevision: "honua-pro-feature-subscriptions-v1" },
+      reports: [],
+    }),
+    /closed proof artifact/,
+  );
+  assert.throws(
+    () => buildFragment({
+      identity: {
+        ...identity,
+        deploymentTarget: "licensed-release",
+        startedAt: "2026-08-19T00:02:00Z",
+      },
+      licensedProof: licensedProof(),
+      reports: [],
+      now: "2026-08-19T00:03:00Z",
+    }),
+    /within the certification execution interval/,
+  );
 });
 
 test("production integration tests declare every currently executable certification marker", () => {
@@ -163,7 +268,6 @@ test("production integration tests declare every currently executable certificat
     "featureserver/delete-features",
     "featureserver/attachments",
     "geocoding/reverse",
-    "imageserver/export-image",
     "ogc-coverages/landing",
     "ogc-coverages/conformance",
     "ogc-coverages/coverage",

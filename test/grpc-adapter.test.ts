@@ -22,7 +22,7 @@ import {
   SpatialReferenceSchema,
   SpatialRelationship,
   StatisticType,
-} from "../src/gen/honua/v1/feature_service_pb.js";
+} from "../src/gen/geospatial/v1/index.js";
 
 describe("toProtoQueryRequest", () => {
   it("converts a minimal request", () => {
@@ -89,8 +89,38 @@ describe("toProtoQueryRequest", () => {
       resultRecordCount: 50,
     });
 
-    expect(result.resultOffset).toBe(100);
-    expect(result.resultRecordCount).toBe(50);
+    expect(result.resultOffsetLong).toBe(100n);
+    expect(result.resultRecordCountLong).toBe(50n);
+  });
+
+  it("rejects paging values that cannot be represented exactly as protobuf int64", () => {
+    expect(() =>
+      toProtoQueryRequest({ serviceId: "svc", layerId: 0, resultOffset: Number.MAX_SAFE_INTEGER + 1 }),
+    ).toThrow("resultOffset must be a non-negative safe integer");
+    expect(() => toProtoQueryRequest({ serviceId: "svc", layerId: 0, resultRecordCount: 1.5 })).toThrow(
+      "resultRecordCount must be a non-negative safe integer",
+    );
+    expect(() => toProtoQueryRequest({ serviceId: "svc", layerId: 0, resultOffset: -1 })).toThrow(
+      "resultOffset must be a non-negative safe integer",
+    );
+  });
+
+  it("rejects numeric object IDs that cannot be represented exactly as protobuf int64", () => {
+    expect(() =>
+      toProtoQueryRequest({ serviceId: "svc", layerId: 0, objectIds: [Number.MAX_SAFE_INTEGER + 1] }),
+    ).toThrow("objectIds must contain only safe integers");
+  });
+
+  it("requires canonical signed-int64 object ID strings without losing precision", () => {
+    const result = toProtoQueryRequest({
+      serviceId: "svc",
+      layerId: 0,
+      objectIds: "9223372036854775807,-9223372036854775808",
+    });
+    expect(result.objectIds).toEqual([9223372036854775807n, -9223372036854775808n]);
+    for (const objectIds of ["10,,30", "0x10", "+10", "-0", "9223372036854775808"]) {
+      expect(() => toProtoQueryRequest({ serviceId: "svc", layerId: 0, objectIds })).toThrow(/objectIds/);
+    }
   });
 
   it("converts orderByFields and returnDistinct", () => {
@@ -221,6 +251,7 @@ describe("fromProtoQueryResponse", () => {
 
     const field = create(FieldDefinitionSchema);
     field.name = "name";
+    field.alias = "Display name";
     field.fieldType = FieldType.STRING;
     field.length = 255;
     field.nullable = true;
@@ -235,6 +266,7 @@ describe("fromProtoQueryResponse", () => {
     expect(result.spatialReference).toEqual({ wkid: 4326 });
     expect(result.fields).toHaveLength(1);
     expect(result.fields[0].name).toBe("name");
+    expect(result.fields[0].alias).toBe("Display name");
     expect(result.fields[0].type).toBe("esriFieldTypeString");
     expect(result.features).toHaveLength(1);
     expect(result.features[0].attributes.name).toBe("TestName");

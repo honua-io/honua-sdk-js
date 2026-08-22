@@ -27,7 +27,7 @@ describe("HonuaClient transport selection", () => {
     await Promise.all([
       import("@connectrpc/connect"),
       import("@connectrpc/connect-web"),
-      import("../src/gen/honua/v1/feature_service_pb.js"),
+      import("../src/gen/geospatial/v1/feature_service_pb.js"),
     ]);
 
     const client = new HonuaClient({

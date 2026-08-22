@@ -1,5 +1,5 @@
 import type { Client, Interceptor } from "@connectrpc/connect";
-import type { FeatureService } from "../gen/honua/v1/feature_service_pb.js";
+import type { FeatureService } from "../gen/geospatial/v1/feature_service_pb.js";
 import {
   HONUA_DEFAULT_METADATA_STALE_IF_ERROR_MS,
   type HonuaCacheValidator,
@@ -574,7 +574,7 @@ export class HonuaClient {
       initPromise = Promise.all([
         import("@connectrpc/connect"),
         import("@connectrpc/connect-web"),
-        import("../gen/honua/v1/feature_service_pb.js"),
+        import("../gen/geospatial/v1/feature_service_pb.js"),
       ]).then(([{ createClient }, { createGrpcWebTransport }, { FeatureService }]) => {
         const transport = createGrpcWebTransport(this.connectTransportOptions());
         this.connectClient = createClient(FeatureService, transport);

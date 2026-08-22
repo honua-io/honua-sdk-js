@@ -27,7 +27,7 @@ export const FIXTURES_DIR_ENV = "HONUA_CONFORMANCE_FIXTURES_DIR";
 export const FIXTURES_VERSION_ENV = "HONUA_CONFORMANCE_FIXTURES_VERSION";
 
 /** The fixture version this SDK release is wired against. */
-export const PINNED_FIXTURES_VERSION = "0.1.0-alpha.3";
+export const PINNED_FIXTURES_VERSION = "0.2.0-alpha.1";
 
 /** A parsed manifest entry: fixture file → fully-qualified message type. */
 export interface ManifestEntry {

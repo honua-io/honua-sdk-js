@@ -37,8 +37,8 @@ const CANON_REQUEST: CanonQueryRequest = {
   outFields: ["OBJECTID", "NAME", "AREA"],
   returnGeometry: true,
   outSr: { wkid: 4326, latestWkid: 4326 },
-  resultOffset: 0,
-  resultRecordCount: 10,
+  resultOffsetLong: "0",
+  resultRecordCountLong: "10",
   orderBy: "NAME ASC",
 };
 
@@ -88,6 +88,15 @@ describe("conformance gate effectiveness (negative drift detection)", () => {
     expect(query.pagination).toEqual({ limit: 10, offset: 0 });
     expect(query.outSr).toBe(4326);
     expect(query.returnGeometry).toBe(true);
+  });
+
+  it("fails closed when canonical int64 pagination cannot be represented exactly", () => {
+    expect(() => canonRequestToQuery({ ...CANON_REQUEST, resultOffsetLong: "9007199254740992" })).toThrow(
+      /safe-integer boundary/,
+    );
+    expect(() => canonRequestToQuery({ ...CANON_REQUEST, resultRecordCountLong: "1.5" })).toThrow(
+      /canonical non-negative int64/,
+    );
   });
 
   it("reports zero drift for a conformant live Result", () => {

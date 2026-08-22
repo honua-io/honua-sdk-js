@@ -1,6 +1,6 @@
 /**
  * Compile canonical query IR to a deterministic, inspectable description of the
- * `honua.v1.FeatureService/QueryFeatures` unary gRPC request — without pulling
+ * `geospatial.v1.FeatureService/QueryFeatures` unary gRPC request — without pulling
  * the `@bufbuild/protobuf` runtime into the planner graph.
  *
  * The compiled object mirrors the generated `QueryFeaturesRequest` message
@@ -98,7 +98,7 @@ export interface SemanticGrpcCompiledQueryV1 {
   readonly dialect: "honua-grpc";
   readonly schemaFingerprint: SourceSchemaV2["fingerprint"];
   readonly queryFingerprint: `sha256:${string}`;
-  readonly service: "honua.v1.FeatureService";
+  readonly service: "geospatial.v1.FeatureService";
   readonly method: "QueryFeatures";
   readonly serviceId: string;
   readonly layerId: number;
@@ -107,8 +107,8 @@ export interface SemanticGrpcCompiledQueryV1 {
   readonly returnGeometry: boolean;
   readonly outSr?: SemanticGrpcSpatialReference;
   readonly orderBy?: string;
-  readonly resultOffset?: number;
-  readonly resultRecordCount?: number;
+  readonly resultOffsetLong?: string;
+  readonly resultRecordCountLong?: string;
   readonly spatialFilter?: {
     readonly geometry: SemanticGrpcGeometry;
     readonly spatialRelationship: SemanticGrpcSpatialRelationship;
@@ -206,7 +206,7 @@ export function compileGrpcQuery(source: QueryIrSourceIdentity, query: Canonical
 
   return {
     compiler: "honua-grpc-query-features-v1",
-    service: "honua.v1.FeatureService",
+    service: "geospatial.v1.FeatureService",
     method: "QueryFeatures",
     serviceId: source.serviceId,
     layerId: source.layerId,
@@ -228,8 +228,8 @@ export function compileGrpcQuery(source: QueryIrSourceIdentity, query: Canonical
           },
         }
       : {}),
-    ...(query.pagination?.offset !== undefined ? { resultOffset: query.pagination.offset } : {}),
-    ...(query.pagination?.limit !== undefined ? { resultRecordCount: query.pagination.limit } : {}),
+    ...(query.pagination?.offset !== undefined ? { resultOffsetLong: String(query.pagination.offset) } : {}),
+    ...(query.pagination?.limit !== undefined ? { resultRecordCountLong: String(query.pagination.limit) } : {}),
     ...aggregation,
   };
 }
@@ -319,7 +319,7 @@ export function compileSemanticGrpcQuery<TRecord, TSpatiality extends SourceSpat
       dialect: "honua-grpc",
       schemaFingerprint: schema.fingerprint,
       queryFingerprint: hashSemanticQuery(query, { schema, protocol: "grpc" }),
-      service: "honua.v1.FeatureService",
+      service: "geospatial.v1.FeatureService",
       method: "QueryFeatures",
       serviceId: source.serviceId,
       layerId: source.layerId,
@@ -328,8 +328,8 @@ export function compileSemanticGrpcQuery<TRecord, TSpatiality extends SourceSpat
       returnGeometry: query.kind === "aggregate" ? false : projection.returnGeometry,
       ...(outSr ? { outSr } : {}),
       ...(orderBy ? { orderBy } : {}),
-      ...(page?.kind === "offset" ? { resultOffset: page.offset } : {}),
-      ...(page?.limit !== undefined ? { resultRecordCount: page.limit } : {}),
+      ...(page?.kind === "offset" ? { resultOffsetLong: String(page.offset) } : {}),
+      ...(page?.limit !== undefined ? { resultRecordCountLong: String(page.limit) } : {}),
       ...(spatialFilter ? { spatialFilter } : {}),
       ...aggregation,
       usesNativeFilter: state.usesNativeFilter,
@@ -359,11 +359,11 @@ function verifiedGrpcSource(value: SemanticGrpcSourceIdentity): SemanticGrpcSour
 
 function verifyGrpcPage(page: RuntimeGrpcQuery["page"]): void {
   if (!page) return;
-  if (page.limit !== undefined && page.limit > 2_147_483_647) {
-    semanticUnsupported("unsupported-node", "$.page.limit", "QueryFeatures result_record_count is int32-bounded");
+  if (page.limit !== undefined && (!Number.isSafeInteger(page.limit) || page.limit < 0)) {
+    semanticUnsupported("unsupported-node", "$.page.limit", "QueryFeatures result_record_count must be an exact int64");
   }
-  if (page.kind === "offset" && page.offset > 2_147_483_647) {
-    semanticUnsupported("unsupported-node", "$.page.offset", "QueryFeatures result_offset is int32-bounded");
+  if (page.kind === "offset" && (!Number.isSafeInteger(page.offset) || page.offset < 0)) {
+    semanticUnsupported("unsupported-node", "$.page.offset", "QueryFeatures result_offset must be an exact int64");
   }
 }
 
