@@ -174,7 +174,7 @@ jobs:
             if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day || date.getUTCHours() !== hour || date.getUTCMinutes() !== minute || date.getUTCSeconds() !== second) {
               throw new Error("Licensed certification candidate cut must be a valid UTC timestamp.");
             }
-            EOF
+          EOF
             HONUA_INTEGRATION_BASE_URL="$HONUA_LICENSED_CERTIFICATION_BASE_URL"
             HONUA_INTEGRATION_API_KEY="$HONUA_LICENSED_CERTIFICATION_API_KEY"
             HONUA_INTEGRATION_SERVER_COMMIT_OVERRIDE="$HONUA_LICENSED_CERTIFICATION_SERVER_COMMIT"
