@@ -121,11 +121,14 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     );
     expect(firstPage.features).toHaveLength(1);
     expect(secondPage.features).toHaveLength(1);
-    const firstId = Number(firstPage.features?.[0]?.attributes?.[objectIdField]);
-    const secondId = Number(secondPage.features?.[0]?.attributes?.[objectIdField]);
-    expect(Number.isSafeInteger(firstId)).toBe(true);
-    expect(Number.isSafeInteger(secondId)).toBe(true);
-    expect(secondId).toBeGreaterThan(firstId);
+    const exactObjectId = (value: unknown): bigint => {
+      if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
+      if (typeof value === "string" && /^-?(?:0|[1-9][0-9]*)$/.test(value)) return BigInt(value);
+      throw new Error(`gRPC response returned a non-canonical int64 object ID: ${String(value)}`);
+    };
+    const firstId = exactObjectId(firstPage.features?.[0]?.attributes?.[objectIdField]);
+    const secondId = exactObjectId(secondPage.features?.[0]?.attributes?.[objectIdField]);
+    expect(secondId > firstId).toBe(true);
     if ((process.env.HONUA_DEPLOYMENT_TARGET ?? "").trim() === "local-docker") {
       expect(firstPage.features?.[0]?.attributes).toMatchObject({ objectid: 4, name: "alpha" });
       expect(secondPage.features?.[0]?.attributes).toMatchObject({ objectid: 5, name: "beta" });
