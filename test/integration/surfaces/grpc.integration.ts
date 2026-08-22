@@ -29,6 +29,33 @@ import {
 } from "../harness.js";
 
 const SURFACE = "grpc";
+const INT64_MIN = -(1n << 63n);
+const INT64_MAX = (1n << 63n) - 1n;
+
+function exactObjectId(value: unknown): bigint {
+  if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
+  if (typeof value !== "string" || !/^(?:0|-?[1-9][0-9]*)$/.test(value)) {
+    throw new Error(`gRPC response returned a non-canonical int64 object ID: ${String(value)}`);
+  }
+  const parsed = BigInt(value);
+  if (parsed < INT64_MIN || parsed > INT64_MAX) {
+    throw new Error(`gRPC response returned an out-of-range int64 object ID: ${value}`);
+  }
+  return parsed;
+}
+
+it.each([
+  ["-9223372036854775808", INT64_MIN],
+  ["0", 0n],
+  ["9223372036854775807", INT64_MAX],
+])("preserves canonical int64 object ID %s", (value, expected) => {
+  expect(exactObjectId(value)).toBe(expected);
+});
+
+it.each(["-0", "+1", "01", "9223372036854775808", "-9223372036854775809"])(
+  "rejects non-canonical or out-of-range int64 object ID %s",
+  (value) => expect(() => exactObjectId(value)).toThrow(),
+);
 
 integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, config }) => {
   // Bounded, replay-safe query: `where=1=1` with a small record cap so the
@@ -121,11 +148,6 @@ integrationSuite("gRPC-web transport", SURFACE, ({ client: restClient, context, 
     );
     expect(firstPage.features).toHaveLength(1);
     expect(secondPage.features).toHaveLength(1);
-    const exactObjectId = (value: unknown): bigint => {
-      if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
-      if (typeof value === "string" && /^-?(?:0|[1-9][0-9]*)$/.test(value)) return BigInt(value);
-      throw new Error(`gRPC response returned a non-canonical int64 object ID: ${String(value)}`);
-    };
     const firstId = exactObjectId(firstPage.features?.[0]?.attributes?.[objectIdField]);
     const secondId = exactObjectId(secondPage.features?.[0]?.attributes?.[objectIdField]);
     expect(secondId > firstId).toBe(true);
