@@ -96,11 +96,27 @@ return a structured result
 instead of crashing, hanging, or returning misleading empty data. This is the
 same skip-with-reason honesty the certification suite uses.
 
+### Bootstrap-only local installation
+
+Local installation is deliberately absent from the ordinary `honua-mcp`
+catalog. During an explicitly approved laptop bootstrap, start a separate,
+single-purpose process that exposes only `honua_admin_install_local`:
+
+```bash
+HONUA_MCP_BOOTSTRAP=1 npx -y -p @honua/mcp-server honua-mcp
+```
+
+The tool requires `confirm: true`. Stop and remove this bootstrap server from
+the MCP client configuration after installation; the normal platform-free
+server remains read-only and cannot invoke the installer.
+
 ## Environment Variables
 
-- `HONUA_BASE_URL` (required): absolute base URL — a public ArcGIS folder
+- `HONUA_BASE_URL` (required in normal mode): absolute base URL — a public ArcGIS folder
   (`https://services.arcgis.com/<org>/arcgis`) or a Honua deployment
   (`https://honua.example.com`).
+- `HONUA_MCP_BOOTSTRAP` (bootstrap only): set to `1` or `true` to start the
+  isolated local-install catalog instead of the ordinary read-only server.
 - `HONUA_TRANSPORT` (optional): `grpc-web` (default, Honua deployments) or `rest`.
   Use `rest` for plain public ArcGIS/OGC endpoints.
 - `HONUA_API_KEY` (optional): API key when your deployment requires it. Public
