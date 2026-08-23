@@ -69,6 +69,26 @@ export const TRUSTED_PRIMARY_SOURCE_PREFIXES = Object.freeze({
     "https://registry.npmjs.org/maplibre-gl",
     "https://www.npmjs.com/package/maplibre-gl",
   ]),
+  "mapbox-gl": Object.freeze([
+    "https://docs.mapbox.com/",
+    "https://github.com/mapbox/",
+    "https://registry.npmjs.org/mapbox-gl",
+    "https://www.npmjs.com/package/mapbox-gl",
+  ]),
+  "@carto/api-client": Object.freeze([
+    "https://docs.carto.com/",
+    "https://carto.com/",
+    "https://github.com/CartoDB/",
+    "https://registry.npmjs.org/@carto/api-client",
+    "https://www.npmjs.com/package/@carto/api-client",
+  ]),
+  "@feltmaps/js-sdk": Object.freeze([
+    "https://developers.felt.com/",
+    "https://felt.com/",
+    "https://github.com/felt/",
+    "https://registry.npmjs.org/@feltmaps/js-sdk",
+    "https://www.npmjs.com/package/@feltmaps/js-sdk",
+  ]),
 });
 
 /** Operation axis rendered by the comparison page (#499 REQ-003). */
@@ -166,10 +186,32 @@ export function validateCompetitorEvidence(document, { now, schema, rootDir = DE
           `so evidence cannot whitelist its own source (REQ-005)`,
       );
     }
-    if (!trusted.some((prefix) => record.sourceUrl.startsWith(prefix))) {
+    const sources = [
+      { url: record.sourceUrl, sourceType: record.sourceType, supports: ["claim", "operations"] },
+      ...(record.supportingSources ?? []),
+    ];
+    for (const source of sources) {
+      if (source.sourceType !== "primary") {
+        fail(`evidence record "${record.id}": supporting source ${source.url} is not primary (REQ-005)`);
+      }
+      if (!trusted.some((prefix) => source.url.startsWith(prefix))) {
+        fail(
+          `evidence record "${record.id}": source URL ${source.url} is not under a trusted primary-source origin for ` +
+            `${record.package} (${trusted.join(", ")}) — a restatement of a vendor claim is not primary evidence (REQ-005)`,
+        );
+      }
+    }
+    if (
+      record.metrics.some((metric) => metric.key === "latestVersion") &&
+      !sources.some(
+        (source) =>
+          source.url.startsWith("https://registry.npmjs.org/") ||
+          source.url.startsWith("https://www.npmjs.com/package/"),
+      )
+    ) {
       fail(
-        `evidence record "${record.id}": sourceUrl ${record.sourceUrl} is not under a trusted primary-source origin for ` +
-          `${record.package} (${trusted.join(", ")}) — a restatement of a vendor claim is not primary evidence (REQ-005)`,
+        `evidence record "${record.id}": latestVersion is not backed by a package-registry primary source ` +
+          `(add supportingSources[].supports = ["metric:latestVersion"])`,
       );
     }
 
@@ -181,6 +223,12 @@ export function validateCompetitorEvidence(document, { now, schema, rootDir = DE
     }
     if (expiresAt <= observedAt) {
       fail(`evidence record "${record.id}": expiresAt (${record.expiresAt}) must be after observedAt (${record.observedAt})`);
+    }
+    if (observedAt > instant || retrievedAt > instant) {
+      fail(
+        `evidence record "${record.id}": observations cannot come from the future ` +
+          `(observedAt ${record.observedAt}, retrievedAt ${record.retrievedAt})`,
+      );
     }
 
     // NFR-002 freshness is deliberately NOT enforced here. Records are
@@ -303,9 +351,10 @@ export function assertComparableMetrics(metrics, { caveat, context = "comparison
 /** Render the provenance footer shared by every projected external claim. */
 export function formatProvenance(record) {
   const historical = record.historical ? "**Historical evidence.** " : "";
+  const sources = [record.sourceUrl, ...(record.supportingSources ?? []).map((source) => source.url)];
   return (
     `${historical}${record.product} \`${record.package}\` ${record.versionLine} · ` +
     `observed ${record.observedAt}, retrieved ${record.retrievedAt}, expires ${record.expiresAt} · ` +
-    `primary source: <${record.sourceUrl}>`
+    `primary source${sources.length === 1 ? "" : "s"}: ${sources.map((url) => `<${url}>`).join("; ")}`
   );
 }

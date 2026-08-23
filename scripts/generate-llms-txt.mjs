@@ -77,7 +77,7 @@ const SECTIONS = [
       {
         path: "docs/comparison.md",
         description:
-          "Generated comparison page: named category boundaries (headless client vs renderer vs all-in-one SDK), bundle sizes, protocol coverage and operation-level behaviour vs raw MapLibre / arcgis-rest-js / OpenLayers, the scripted time-to-first-map benchmark, and the competitor-evidence contract (primary sources, dated observations, no current claim from historical figures).",
+          "Generated comparison page: named category boundaries (headless client vs renderer vs vendor-integrated or hosted-application SDK), bundle sizes, protocol coverage, and operation-level behaviour vs MapLibre, ArcGIS REST JS, OpenLayers, Mapbox GL JS, CARTO API Client, and Felt JS SDK; plus the scripted time-to-first-map benchmark and competitor-evidence contract (primary sources, dated observations, no current claim from historical figures).",
       },
       {
         path: "docs/listings/npm-search-verification.md",

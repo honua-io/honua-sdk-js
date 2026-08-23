@@ -45,6 +45,13 @@ function validDocument() {
         claim: "OpenLayers is a map rendering library.",
         sourceUrl: "https://openlayers.org/doc/",
         sourceType: "primary",
+        supportingSources: [
+          {
+            url: "https://registry.npmjs.org/ol",
+            sourceType: "primary",
+            supports: ["versionLine", "metric:latestVersion"],
+          },
+        ],
         observedAt: "2026-01-01",
         retrievedAt: "2026-01-02",
         expiresAt: "2027-01-01",
@@ -56,7 +63,7 @@ function validDocument() {
   };
 }
 
-const NOW = "2026-08-02";
+const NOW = "2026-08-23";
 const validate = (document, now = NOW) => validateCompetitorEvidence(document, { now, rootDir: ROOT });
 
 test("the committed evidence document is valid today", () => {
@@ -147,6 +154,28 @@ test("a source URL outside the trusted origins for the package fails validation"
     () => validate(document),
     (error) => error instanceof CompetitorEvidenceError && /not under a trusted primary-source origin/.test(error.message),
   );
+});
+
+test("an additional source outside the trusted origins fails validation", () => {
+  const document = validDocument();
+  document.records[0].supportingSources[0].url = "https://some-blog.invalid/npm-version";
+  assert.throws(
+    () => validate(document),
+    (error) => error instanceof CompetitorEvidenceError && /not under a trusted primary-source origin/.test(error.message),
+  );
+});
+
+test("a registry-derived version must cite the package registry", () => {
+  const document = validDocument();
+  document.records[0].supportingSources[0].url = "https://openlayers.org/releases/";
+  assert.throws(() => validate(document), /latestVersion is not backed by a package-registry primary source/);
+});
+
+test("an observation or retrieval date in the future fails validation", () => {
+  const document = validDocument();
+  document.records[0].observedAt = "2026-08-24";
+  document.records[0].retrievedAt = "2026-08-24";
+  assert.throws(() => validate(document), /observations cannot come from the future/);
 });
 
 test("a record cannot whitelist its own source origin", () => {
@@ -264,7 +293,14 @@ test("the committed @arcgis/core build metrics are labelled historical and are n
 
 test("every competitor column projected onto the page states all rendered operations", () => {
   const evidence = loadCompetitorEvidence({ rootDir: ROOT, now: NOW });
-  for (const id of ["maplibre-gl-scope", "esri-arcgis-rest-js-scope", "openlayers-scope"]) {
+  for (const id of [
+    "maplibre-gl-scope",
+    "esri-arcgis-rest-js-scope",
+    "openlayers-scope",
+    "mapbox-gl-js-scope-2026-08",
+    "carto-api-client-scope-2026-08",
+    "felt-js-sdk-scope-2026-08",
+  ]) {
     const record = evidence.byId.get(id);
     assert.ok(record, `${id} must exist`);
     for (const key of OPERATION_KEYS) {
@@ -342,4 +378,8 @@ test("the generated comparison page projects the evidence and states no current 
   assert.match(page, /### Evidence contract/);
   // Operation cells must be traceable to a dated, sourced observation.
   assert.match(page, /Competitor columns as observed/);
+  assert.match(page, /Mapbox GL JS/);
+  assert.match(page, /CARTO for Developers/);
+  assert.match(page, /Felt JavaScript SDK/);
+  assert.match(page, /registry\.npmjs\.org\/@feltmaps\/js-sdk/);
 });

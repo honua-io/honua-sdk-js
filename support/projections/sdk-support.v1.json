@@ -1949,19 +1949,23 @@
     },
     {
       "id": "geoservices-gp-discovery-standalone",
-      "label": "GeoServices GPServer discovery",
+      "label": "GeoServices GPServer discovery and execution",
       "protocol": "geoservices-gp-service",
       "operations": [
-        "discovery"
+        "discovery",
+        "geoprocess"
       ],
       "environment": "standalone",
-      "executionMode": "discovery",
+      "executionMode": "native",
       "status": "supported",
       "backendNeeded": "Any ArcGIS Server GPServer endpoint",
-      "api": "discoverGeoServices()",
-      "notes": "Returns task execution and job-lifecycle metadata without starting a job or inventing a queryable Source.",
+      "api": "discoverGeoServices(), HonuaClient.geoprocessing(), HonuaClient.geoprocessingRunner(), Source.protocol()",
+      "notes": "Discovery returns task and job-lifecycle metadata without starting work. Explicit calls through the typed GP service or unified process runner submit, poll, cancel, and fetch results without inventing a queryable Source.",
       "evidence": [
-        "geoservices-discovery-fixtures"
+        "geoservices-discovery-fixtures",
+        "geoservices-conformance",
+        "geoprocessing-job-run-fixtures",
+        "process-runner-fixtures"
       ]
     },
     {

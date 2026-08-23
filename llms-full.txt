@@ -244,11 +244,9 @@ Runtime support, stated up front:
 Starting from scratch? `create-honua-app` scaffolds a working app instead of
 assembling peers — a Vite + TypeScript (or React) starter that already connects
 to an endpoint and mounts a source, pinned to a published SDK version and
-rendering a committed fixture on the first `npm run dev`. It is **not yet
-published to npm** (`npm create honua-app` lands with the next release —
-tracked on the repo's own
-[npm-search evidence page](./docs/listings/npm-search-verification.md)); until
-then, both starters open in a browser playground with no install at all — see
+rendering a committed fixture on the first `npm run dev`. The package is
+published on npm, so `npm create honua-app` is the shortest supported path;
+both starters also open in a browser playground with no install at all — see
 [`docs/playgrounds.md`](./docs/playgrounds.md) and
 [`docs/create-honua-app.md`](./docs/create-honua-app.md).
 
@@ -1677,11 +1675,12 @@ WebKit and repeats source and packed SDK modes. If only the packed lane fails, i
 
 # How Honua compares
 
-**MapLibre gives you the map. Honua gives you everything else.** `@honua/sdk-js` is a typed,
-protocol-neutral geospatial *service client* and migration toolkit that rides open renderers —
-it is **not** a rendering engine, so this page does not compare rendering. It compares the
-things Honua actually claims: the bytes you ship, the protocols you get a real client for,
-and how fast a new project reaches a working map.
+**MapLibre renders the map. Honua connects, plans, and governs the GIS data around it.**
+`@honua/sdk-js` is a typed, protocol-neutral geospatial *service client* and migration toolkit
+that rides open renderers —
+it is **not** a rendering engine. This page does not rank rendering quality; it compares the
+things Honua actually claims and the direct SDKs developers evaluate beside it: package shape,
+service/data behavior, application workflow, and time to a working map.
 
 Four ground rules keep this page honest:
 
@@ -1689,11 +1688,11 @@ Four ground rules keep this page honest:
    `npm run docs:comparison` from committed, regenerable inputs; CI fails when it drifts
    (`npm run docs:comparison:check`). See [Methodology](#methodology-and-freshness).
 2. **Every external figure, and every operation-level cell, is a structured evidence record**,
-   not prose — with a primary source URL, the version it describes, an observation date, an
+   not prose — with primary source URLs, the version they describe, an observation date, an
    expiry, its methodology, and its metric's unit and compression. See
    [Evidence contract](#evidence-contract). The protocol-coverage table is the one exception,
    and says so where it appears.
-3. **Categories are never mixed silently.** A renderer, a headless client, and an all-in-one
+3. **Categories are never mixed silently.** A renderer, a headless client, and a vendor-integrated
    SDK are different products; the boundary is named below before anything is compared.
 4. **Non-goals are stated.** Esri's 3D/SceneView stack and MapLibre's rendering quality are
    not competitions we enter; see the
@@ -1709,19 +1708,23 @@ column first, and only compares within a category — or says explicitly when it
 | --- | --- | --- |
 | Honua SDK | `@honua/sdk-js` | Headless service clients |
 | MapLibre GL JS | `maplibre-gl` (6.0.0 pinned and measured here; 6.1.0 published) | Renderer engines |
-| ArcGIS Maps SDK for JavaScript | `@arcgis/core` | All-in-one renderer SDKs |
+| ArcGIS Maps SDK for JavaScript | `@arcgis/core` | Vendor-integrated renderer SDKs |
 | ArcGIS REST JS | `@esri/arcgis-rest-request` | Headless service clients |
 | OpenLayers | `ol` | Renderer engines |
+| Mapbox GL JS | `mapbox-gl` | Vendor-integrated renderer SDKs |
+| CARTO for Developers | `@carto/api-client` | Headless service clients |
+| Felt JavaScript SDK | `@feltmaps/js-sdk` | Hosted map application SDKs |
 
 What each category means:
 
 - **Headless service clients.** Typed data/service clients that talk to geospatial services and hand results to a renderer they do not own. They ship no map engine, so their bytes are not comparable with a renderer's.
 - **Renderer engines.** Map rendering engines (and their bundled format parsers). They draw maps; they do not provide a first-party typed client for service discovery, paging, edits, or capability negotiation.
-- **All-in-one renderer SDKs.** Products that bundle a renderer AND their vendor's service client in one package. Comparing one of these against a headless client alone is category error: the honest counterpart is client + renderer together.
+- **Vendor-integrated renderer SDKs.** Renderer SDKs integrated with a vendor's styles, data, and application ecosystem. Specialized service APIs may live in separate packages, so the honest comparison is a complete application stack rather than a headless client alone.
+- **Hosted map application SDKs.** Client SDKs that control maps, layers, interactions, authoring, and application UI hosted by a vendor platform. They compare directly on application workflow and developer experience, while persistence, rendering, and deployment remain platform-bound.
 
 The consequence, stated up front: `@honua/sdk-js` ships no renderer, so its byte count is not
-comparable with `@arcgis/core`'s or `ol`'s on its own. Where this page puts them near each
-other it compares *Honua + MapLibre* against the all-in-one SDK, and says so at the point of
+comparable with `@arcgis/core`'s, `mapbox-gl`'s, `@feltmaps/js-sdk`'s, or `ol`'s on its own. Where this page puts them near each
+other it compares *Honua + MapLibre* against a vendor-integrated SDK, and says so at the point of
 comparison.
 
 ## Bundle size
@@ -1776,16 +1779,31 @@ Why they are not combined: Bundles a renderer, so the only category-correct coun
 Provenance — **Historical evidence.** ArcGIS Maps SDK for JavaScript `@arcgis/core` 4.30 · observed 2024-06-27, retrieved 2026-07-13, expires 2027-07-13 · primary source: <https://github.com/Esri/jsapi-resources/blob/9fe7d8cc709c5daf3a342e921e897d459955b347/core-samples/.metrics/4.30.0.csv>
 
 **ArcGIS REST JS (`@esri/arcgis-rest-request`) — 4.10.3.** ArcGIS REST JS is Esri's lightweight, modular REST client family for ArcGIS services. It provides no map runtime; it exposes ArcGIS service metadata, paging parameters, an output-spatial-reference parameter, and applyEdits, and its geocoding and routing packages address Esri's ArcGIS location services. It exposes no query-plan/explain surface and its request helpers are stateless.
-It is the one alternative here in Honua's own category, so the comparison that matters is
+It is one of the direct headless alternatives here, so the comparison that matters is
 protocol and operation coverage (below), not bytes. If all you need is small requests against
 ArcGIS-only services, it is a fine, lighter choice.
 
-Provenance — ArcGIS REST JS `@esri/arcgis-rest-request` 4.10.3 · observed 2026-07-13, retrieved 2026-08-02, expires 2027-07-13 · primary source: <https://developers.arcgis.com/arcgis-rest-js/>
+Provenance — ArcGIS REST JS `@esri/arcgis-rest-request` 4.10.3 · observed 2026-07-13, retrieved 2026-08-02, expires 2027-07-13 · primary sources: <https://developers.arcgis.com/arcgis-rest-js/>; <https://registry.npmjs.org/@esri/arcgis-rest-request>
 
 **OpenLayers (`ol`) — 10.10.0.** OpenLayers is a map rendering library that also ships format parsers (for example GeoJSON, EsriJSON, WFS/GML), tile/image sources, WMS/WMTS capabilities parsers, and built-in coordinate transforms. It provides no cross-protocol discovery contract, no service paging client, and no query-plan surface; WFS transactions are built as XML the caller sends.
 A renderer engine, not a headless service client. Its footprint depends heavily on which modules a consumer tree-shakes, so no single bundle number is quoted; the category-correct comparison is operation coverage of its first-party format/source modules.
 
-Provenance — OpenLayers `ol` 10.10.0 · observed 2026-07-13, retrieved 2026-08-02, expires 2027-07-13 · primary source: <https://openlayers.org/>
+Provenance — OpenLayers `ol` 10.10.0 · observed 2026-07-13, retrieved 2026-08-02, expires 2027-07-13 · primary sources: <https://openlayers.org/>; <https://registry.npmjs.org/ol>
+
+**Mapbox GL JS (`mapbox-gl`) — 3.29.0 package / 3.28.1 documentation.** Mapbox GL JS is a polished commercial web map SDK centered on the Map class and Mapbox Style Specification. It renders configured vector, raster, raster-array, DEM, GeoJSON, image, video, and model sources and provides projections, globe, terrain, and 3D styling, but it does not provide Honua-style arbitrary GIS endpoint discovery, cross-protocol capability negotiation, or semantic query planning.
+A vendor-integrated renderer SDK whose specialized web-service APIs remain separate. It compares directly with Honua plus a renderer on map-runtime developer experience, 3D, and lifecycle; it is not a like-for-like package-size comparison with the headless Honua client alone.
+
+Provenance — Mapbox GL JS `mapbox-gl` 3.29.0 package / 3.28.1 documentation · observed 2026-08-23, retrieved 2026-08-23, expires 2027-08-23 · primary sources: <https://docs.mapbox.com/mapbox-gl-js/guides/>; <https://registry.npmjs.org/mapbox-gl>
+
+**CARTO for Developers (`@carto/api-client`) — 0.5.33.** CARTO's API client provides typed warehouse table, SQL query, tileset, H3, Quadbin, raster, and boundary data-source models that feed deck.gl layers and widget calculations. It is a direct SDK competitor in cloud-native spatial analytics, while remaining CARTO-platform-specific rather than an arbitrary open GIS endpoint client.
+A headless data/application client that delegates rendering to deck.gl and targets CARTO-managed warehouse APIs. It compares directly with Honua's Source, query-planning, columnar/tiled handoff, and warehouse roadmap, but not with Honua's open-protocol endpoint breadth. Deployment and licensing are platform-level comparisons outside this package-scoped record.
+
+Provenance — CARTO for Developers `@carto/api-client` 0.5.33 · observed 2026-08-23, retrieved 2026-08-23, expires 2027-08-23 · primary sources: <https://docs.carto.com/carto-for-developers/reference/data-sources>; <https://registry.npmjs.org/@carto/api-client>; <https://docs.carto.com/carto-for-developers/reference/carto-widgets-reference/models/gettable>; <https://docs.carto.com/carto-for-developers/reference/fetchmap>
+
+**Felt JavaScript SDK (`@feltmaps/js-sdk`) — 1.10.2.** Felt's JavaScript SDK exposes a FeltController for embedded or in-product hosted maps, including viewport, layers, cursor-paged feature reads, selection, session-scoped layers and elements, drawing tools, UI panels and actions, filters, statistics, and events. It is a direct benchmark for hosted application coherence; SDK-created elements and GeoJSON layers are ephemeral and are not evidence of persisted collaborative authoring.
+A hosted application-control SDK, not a renderer-neutral service kernel. It compares directly on embedded-controller, layer, selection, UI, event, and session-scoped authoring developer experience; it does not compare directly on open-protocol discovery, general CRS or planning, persisted feature transactions, or self-hosted portability.
+
+Provenance — Felt JavaScript SDK `@feltmaps/js-sdk` 1.10.2 · observed 2026-08-23, retrieved 2026-08-23, expires 2027-08-23 · primary sources: <https://developers.felt.com/js-sdk-api-reference/layers/layerscontroller>; <https://registry.npmjs.org/@feltmaps/js-sdk>; <https://developers.felt.com/js-sdk-api-reference/elements>; <https://developers.felt.com/js-sdk/general-concepts>
 
 ## Protocol coverage
 
@@ -1800,7 +1818,7 @@ manual assembly, — not provided.
 maintained characterisations of each product's documented protocol surface, not evidence
 records — treat them as orientation and check the linked products for anything load-bearing.
 
-| Protocol lane | Honua SDK | raw `maplibre-gl` | `@esri/arcgis-rest-js` | OpenLayers |
+| Protocol lane | Honua SDK | raw `maplibre-gl` | `@esri/arcgis-rest-request` | OpenLayers |
 | --- | --- | --- | --- | --- |
 | Esri GeoServices (FeatureServer query/edit) | ✓ typed client | — | ✓ | ◐ (a) |
 | Esri GeoServices (MapServer / ImageServer render) | ✓ typed client | ◐ (b) | — | ✓ |
@@ -1840,29 +1858,32 @@ repository — a capability-matrix operation, a shipped source file, or an expor
 generation fails if an anchor disappears, so a claim here cannot outlive its implementation.
 
 Every competitor cell is **projected from that product's evidence record** — not written
-inline here — so each column is bound to the version, primary source, and expiry shown beneath
+inline here — so each column is bound to the version, primary sources, and expiry shown beneath
 the table, and generation fails if a record omits a row that the page renders. Cells stay
 deliberately coarse: ✓ first-party, ◐ partial or caller-assembled, — not provided.
 
-| Operation | What it means | Honua SDK | `maplibre-gl` | `@esri/arcgis-rest-request` | `ol` |
-| --- | --- | --- | --- | --- | --- |
-| Discovery | enumerate datasets/layers from a service root with typed metadata | ✓ typed `describe()` contract | — | ✓ ArcGIS service metadata | ◐ WMS/WMTS capabilities parsers only |
-| Paging | walk a result set past the service page limit | ✓ streamed + bounded queries | — | ◐ params exposed; caller drives the loop | — |
-| Edits | create/update/delete features through the protocol's transaction | ✓ GeoServices / OGC Features / WFS / OData | — | ✓ ArcGIS `applyEdits` | ◐ `ol/format/WFS` builds transaction XML |
-| CRS | declare, validate, and negotiate coordinate reference systems | ✓ validated PROJJSON + per-source CRS | ◐ renders in its own display projection | ◐ output-spatial-reference parameter | ✓ built-in transforms |
-| Capability negotiation | know before you call whether an operation is supported | ✓ claimed / observed / effective | — | ◐ service metadata you interpret | — |
-| Planning / explainability | inspect the accepted plan before execution | ✓ `explainQuery` + `hashQueryPlan` | — | — | — |
-| Rendering | draw the map | — (by design: rides a renderer) | ✓ | — | ✓ |
-| Lifecycle | tear down sources, layers, and listeners deterministically | ✓ `dispose()` on the mounted bridge | ✓ `map.remove()` | — stateless requests | ✓ map/layer disposal |
+| Operation | What it means | Honua SDK | `maplibre-gl` | `@esri/arcgis-rest-request` | `ol` | `mapbox-gl` | `@carto/api-client` | `@feltmaps/js-sdk` |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Discovery | enumerate datasets/layers from a service root with typed metadata | ✓ typed `describe()` contract | — | ✓ ArcGIS service metadata | ◐ WMS/WMTS capabilities parsers only | ◐ configured Mapbox/style sources, not arbitrary GIS service discovery | ◐ fetchMap enumerates layers for a known Builder map; no arbitrary service-root discovery | ◐ enumerates layers/entities inside a known Felt map; no endpoint discovery |
+| Paging | walk a result set past the service page limit | ✓ streamed + bounded queries | — | ◐ params exposed; caller drives the loop | — | — renderer tile/source loading, not a typed feature paging client | ◐ getTable exposes limit, offset, and total; caller drives the page loop | ◐ getFeatures returns page tokens; caller drives the loop |
+| Edits | create/update/delete features through the protocol's transaction | ✓ GeoServices / OGC Features / WFS / OData | — | ✓ ArcGIS `applyEdits` | ◐ `ol/format/WFS` builds transaction XML | — no first-party persistent feature edit transaction in GL JS | — documented API-client data-source surface is read/visualization oriented | — no persisted feature transaction; SDK-created elements and GeoJSON layers are session-only |
+| CRS | declare, validate, and negotiate coordinate reference systems | ✓ validated PROJJSON + per-source CRS | ◐ renders in its own display projection | ◐ output-spatial-reference parameter | ✓ built-in transforms | ◐ display projections and globe; not a general source reprojection client | — no general CRS declaration, validation, or negotiation contract | — no general projection/CRS contract in the JS SDK |
+| Capability negotiation | know before you call whether an operation is supported | ✓ claimed / observed / effective | — | ◐ service metadata you interpret | — | — | ◐ typed source/warehouse contracts; no negotiated runtime capability document | — fixed hosted controller surface |
+| Planning / explainability | inspect the accepted plan before execution | ✓ `explainQuery` + `hashQueryPlan` | — | — | — | — | — accepts SQL or named sources; no accepted-plan or explain result | — |
+| Rendering | draw the map | — (by design: rides a renderer) | ✓ | — | ✓ | ✓ first-party 2D/3D renderer | — delegates rendering to deck.gl/basemap integrations | ✓ embeds and controls the Felt-hosted renderer; renderer is outside the package |
+| Lifecycle | tear down sources, layers, and listeners deterministically | ✓ `dispose()` on the mounted bridge | ✓ `map.remove()` | — stateless requests | ✓ map/layer disposal | ✓ Map instance and event/source/layer lifecycle | ◐ fetchMap auto-refresh exposes stopAutoRefresh; no universal source disposal | ◐ event APIs return unsubscribe functions; no documented controller/iframe dispose contract |
 
 Competitor columns as observed:
 
 - `maplibre-gl` 6.1.0 — observed 2026-08-02, expires 2027-08-02, from <https://maplibre.org/maplibre-gl-js/docs/>
 - `@esri/arcgis-rest-request` 4.10.3 — observed 2026-07-13, expires 2027-07-13, from <https://developers.arcgis.com/arcgis-rest-js/>
 - `ol` 10.10.0 — observed 2026-07-13, expires 2027-07-13, from <https://openlayers.org/>
+- `mapbox-gl` 3.29.0 package / 3.28.1 documentation — observed 2026-08-23, expires 2027-08-23, from <https://docs.mapbox.com/mapbox-gl-js/guides/>
+- `@carto/api-client` 0.5.33 — observed 2026-08-23, expires 2027-08-23, from <https://docs.carto.com/carto-for-developers/reference/data-sources>
+- `@feltmaps/js-sdk` 1.10.2 — observed 2026-08-23, expires 2027-08-23, from <https://developers.felt.com/js-sdk-api-reference/layers/layerscontroller>
 
-Read the rendering row as the point of the whole page: Honua deliberately scores `—` there.
-It is a data client. The comparison it invites is on the other seven rows.
+Read the rendering row as an architectural boundary: Honua deliberately scores `—` there.
+Mapbox and Felt own or host a renderer, CARTO delegates to deck.gl, and Honua composes interchangeable renderers.
 
 ## Time to first map
 
@@ -1919,17 +1940,19 @@ are not prose. Each is a record in
 [`docs/data/competitor-evidence.v1.json`](./data/competitor-evidence.v1.json), validated against
 [`schemas/competitor-evidence.v1.json`](../schemas/competitor-evidence.v1.json) by
 `scripts/lib/competitor-evidence.mjs`. Every record must carry the product and the **exact**
-package it represents, the version or release line, the claim, a primary source URL, `observedAt`,
+package it represents, the version or release line, the claim, its primary source URLs, `observedAt`,
 `expiresAt`, its methodology, each metric's unit and compression, and comparability notes.
 
 Generation — and therefore CI — **fails** when:
 
 - a projected claim has no evidence record, or the record is missing a required field;
 - a **projected** record has expired (`expiresAt` in the past);
-- a record's `sourceUrl` is not under a trusted primary-source origin **for that package**.
+- any record `sourceUrl` or `supportingSources` URL is not under a trusted primary-source origin **for that package**.
   The trusted origins live in code (`TRUSTED_PRIMARY_SOURCE_PREFIXES`), not in the evidence
   file, so a record cannot whitelist its own source and a third-party restatement of a vendor
   number cannot pass as primary evidence. A package with no trusted entry cannot be projected;
+- a registry-derived `latestVersion` metric has no package-registry source;
+- `observedAt` or `retrievedAt` is later than the validation instant;
 - the page would **combine or rank metrics whose unit or compression differ** without an
   explicit rendered caveat;
 - the page renders an operation row a competitor's record does not state;
@@ -10133,7 +10156,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | GeoServices ImageServer reads | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | connect(), discoverGeoServices(), HonuaClient.imageService, Source.protocol(), @honua/sdk-js/raster | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[integration: image-service-integration](../test/integration/surfaces/image-server.integration.ts)<br>[fixture: unified-raster-fixtures](../test/unified-raster.test.ts) | Discovers ImageServer metadata and creates a Source only when catalog query and pagination support are advertised; the experimental raster facade adds bounded bbox rendering, explicit one-based band selection, identify, and presentation handoffs without inventing statistics endpoints. |
 | Unified bounded direct COG operations | `open-endpoint` | `experimental` | `client-only` | `native` | A static host with exact HTTP Range and readable CORS headers plus a caller-injected structural COG decoder | @honua/sdk-js/raster | [fixture: unified-raster-fixtures](../test/unified-raster.test.ts) | Consumes the dynamic STAC COG handoff or an explicit COG media type, structurally validates the object, enforces byte/range/pixel budgets, and provides bounded windows, one-based bands, statistics, histograms, value inspection, progress, cancellation, and MapLibre mounting. |
 | GeoServices GeometryServer discovery | `open-endpoint` | `supported` | `standalone` | `discovery` | Any ArcGIS Server GeometryServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns advertised geometry operations as metadata-only descriptors; it never invents a queryable Source. |
-| GeoServices GPServer discovery | `open-endpoint` | `supported` | `standalone` | `discovery` | Any ArcGIS Server GPServer endpoint | discoverGeoServices() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts) | Returns task execution and job-lifecycle metadata without starting a job or inventing a queryable Source. |
+| GeoServices GPServer discovery and execution | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server GPServer endpoint | discoverGeoServices(), HonuaClient.geoprocessing(), HonuaClient.geoprocessingRunner(), Source.protocol() | [fixture: geoservices-discovery-fixtures](../test/geoservices-discovery.test.ts)<br>[fixture: geoservices-conformance](../test/contract/geoservices-conformance.test.ts)<br>[fixture: geoprocessing-job-run-fixtures](../test/contract/geoprocessing-job-run.test.ts)<br>[fixture: process-runner-fixtures](../test/process-runner.test.ts) | Discovery returns task and job-lifecycle metadata without starting work. Explicit calls through the typed GP service or unified process runner submit, poll, cancel, and fetch results without inventing a queryable Source. |
 | Esri compatibility layer | `open-endpoint` | `supported` | `standalone` | `native` | Any ArcGIS Server or ArcGIS Online endpoint | @honua/sdk-js/esri-compat | [fixture: esri-compat-fixtures](../test/feature-layer-compat.test.ts) | Compatibility classes parse public GeoServices URLs and create their own client. |
 | ArcGIS scanner and migration codemod | `open-endpoint` | `supported` | `build-time` | `static` | None | @honua/sdk-js/migration, honua-migrate | [fixture: migration-fixtures](../test/migration-codemod.test.ts) | Static analysis and rewrites run locally; no service is involved. |
 | Geometry operations | `open-endpoint` | `supported` | `client-only` | `native` | None | @honua/sdk-js/geometry | [fixture: geometry-fixtures](../test/geometry/ops.test.ts) | Buffer, area, simplify, measure, and reprojection run in the client through optional peers. |

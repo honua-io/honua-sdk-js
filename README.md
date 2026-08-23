@@ -234,11 +234,9 @@ Runtime support, stated up front:
 Starting from scratch? `create-honua-app` scaffolds a working app instead of
 assembling peers — a Vite + TypeScript (or React) starter that already connects
 to an endpoint and mounts a source, pinned to a published SDK version and
-rendering a committed fixture on the first `npm run dev`. It is **not yet
-published to npm** (`npm create honua-app` lands with the next release —
-tracked on the repo's own
-[npm-search evidence page](./docs/listings/npm-search-verification.md)); until
-then, both starters open in a browser playground with no install at all — see
+rendering a committed fixture on the first `npm run dev`. The package is
+published on npm, so `npm create honua-app` is the shortest supported path;
+both starters also open in a browser playground with no install at all — see
 [`docs/playgrounds.md`](./docs/playgrounds.md) and
 [`docs/create-honua-app.md`](./docs/create-honua-app.md).
 
