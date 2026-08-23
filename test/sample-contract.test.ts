@@ -14,6 +14,7 @@ import {
   serializeAttestation,
   skipAttestationLanes,
 } from "../scripts/lib/skip-attestation-renewal.mjs";
+import { SEALED_VERSION_STAMPS } from "../scripts/release-seal.mjs";
 import {
   buildBrowserArtifactManifest,
   classifyConfigurationName,
@@ -23,6 +24,7 @@ import {
   generateCiSelection,
   generateGoldenJourneyVisualEvidence,
   generateSiteProjection,
+  generateSiteProjectionV4,
   generatedOutputDrift,
   generatedOutputs,
   inspectSampleConfiguration,
@@ -940,6 +942,112 @@ describe("sample publication contract", () => {
     expect(compareReleases("0.2.0-beta.0", "0.2.0-beta.0")).toBe(0);
     expect(compareReleases("0.2.0-beta.1", "0.2.0-beta.0")).toBeGreaterThan(0);
     expect(compareReleases("0.2.0", "0.2.0-beta.0")).toBeGreaterThan(0);
+  });
+
+  // honua-io/honua-sdk-js#1338. `releaseTag` promised a literal tag a consumer
+  // could resolve; since #1325 made publication content-addressed the value has
+  // been a `{sourceCommit}` template, so the old name invites a consumer to use
+  // it verbatim and resolve nothing. The rename could not be made in place --
+  // the committed handoff content-binds site-projection.v3.schema.json's exact
+  // bytes -- so it is versioned. These tests hold both halves of that bargain:
+  // v4 really renames, and v3 really does not move.
+  describe("site projection v4", () => {
+    it("renames releaseTag to releaseTagTemplate and changes nothing else", async () => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      const packageJson = await readJson("package.json");
+      const v3 = generateSiteProjection(catalog, packageJson);
+      const v4 = generateSiteProjectionV4(v3);
+
+      expect(v4.format).toBe("honua.site.sdk-sample-projection.v4");
+      expect(v4.schemaVersion).toBe(4);
+      expect(v4.sampleBundles.publication.releaseTagTemplate).toBe("sample-bundles-{sourceCommit}");
+      expect(v4.sampleBundles.publication).not.toHaveProperty("releaseTag");
+
+      // The rename is the ENTIRE delta. Anything else that diverges here is a
+      // second emitter of the same facts drifting, which is the failure mode
+      // deriving v4 by upgrade was chosen to make impossible.
+      const rebuilt = JSON.parse(JSON.stringify(v3));
+      rebuilt.format = "honua.site.sdk-sample-projection.v4";
+      rebuilt.schemaVersion = 4;
+      const { releaseTag, ...rest } = rebuilt.sampleBundles.publication;
+      rebuilt.sampleBundles.publication = { ...rest, releaseTagTemplate: releaseTag };
+      expect(JSON.parse(JSON.stringify(v4))).toEqual(rebuilt);
+
+      // v3 is untouched by the upgrade: the committed handoff content-binds its
+      // schema bytes, so a mutating upgrade would break existing consumers.
+      expect(v3.format).toBe("honua.site.sdk-sample-projection.v3");
+      expect(v3.sampleBundles.publication.releaseTag).toBe("sample-bundles-{sourceCommit}");
+      expect(v3.sampleBundles.publication).not.toHaveProperty("releaseTagTemplate");
+    });
+
+    it("validates against the v4 schema and refuses a v4 that kept the old spelling", async () => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      const packageJson = await readJson("package.json");
+      const v3 = generateSiteProjection(catalog, packageJson);
+      const v4 = generateSiteProjectionV4(v3);
+      await expect(validateSiteProjection(v4)).resolves.toBeUndefined();
+      await expect(validateSiteProjection(v3)).resolves.toBeUndefined();
+
+      // The rename only means something if the schema rejects the old name.
+      const regressed = JSON.parse(JSON.stringify(v4));
+      regressed.sampleBundles.publication.releaseTag = regressed.sampleBundles.publication.releaseTagTemplate;
+      delete regressed.sampleBundles.publication.releaseTagTemplate;
+      await expect(validateSiteProjection(regressed)).rejects.toThrow();
+
+      // Carrying both spellings is not a compatible middle ground either.
+      const both = JSON.parse(JSON.stringify(v4));
+      both.sampleBundles.publication.releaseTag = both.sampleBundles.publication.releaseTagTemplate;
+      await expect(validateSiteProjection(both)).rejects.toThrow();
+
+      // The template value is pinned, so a consumer cannot be handed a literal
+      // tag under a name that promises substitution.
+      const literal = JSON.parse(JSON.stringify(v4));
+      literal.sampleBundles.publication.releaseTagTemplate = "sample-bundles-latest";
+      await expect(validateSiteProjection(literal)).rejects.toThrow();
+    });
+
+    it("upgrades only from v3, and names an unregistered projection version", async () => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      const packageJson = await readJson("package.json");
+      const v3 = generateSiteProjection(catalog, packageJson);
+
+      const legacy = JSON.parse(JSON.stringify(v3));
+      legacy.format = "honua.site.sdk-sample-projection.v2";
+      legacy.schemaVersion = 2;
+      delete legacy.sampleBundles;
+      expect(() => generateSiteProjectionV4(legacy)).toThrow(/upgrades from v3/u);
+      // Deliberately mistyped: upgrading an already-upgraded projection is the
+      // caller error this invariant exists to catch, so the test has to make it.
+      expect(() =>
+        generateSiteProjectionV4(generateSiteProjectionV4(v3) as unknown as ReturnType<typeof generateSiteProjection>),
+      ).toThrow(/upgrades from v3/u);
+
+      const missingPointer = JSON.parse(JSON.stringify(v3));
+      delete missingPointer.sampleBundles.publication.releaseTag;
+      expect(() => generateSiteProjectionV4(missingPointer)).toThrow(/no sampleBundles\.publication\.releaseTag/u);
+
+      // A future v5 that nobody registered used to fall through to v3's schema
+      // and fail on a `format` const mismatch, which reads as "malformed
+      // payload" rather than "unregistered version". Say which it is.
+      const future = JSON.parse(JSON.stringify(v3));
+      future.format = "honua.site.sdk-sample-projection.v5";
+      future.schemaVersion = 5;
+      await expect(validateSiteProjection(future)).rejects.toThrow(/unsupported site projection/u);
+    });
+
+    it("is emitted as a generated artifact and sealed to the release version", async () => {
+      const catalog = await readJson("samples/catalog.v2.json");
+      const packageJson = await readJson("package.json");
+      const outputs = await generatedOutputs(catalog, packageJson);
+      const emitted = outputs.get("samples/dist/honua-site-samples.v4.json");
+      expect(emitted).toBeDefined();
+      expect(JSON.parse(emitted!).sampleBundles.publication.releaseTagTemplate).toBe("sample-bundles-{sourceCommit}");
+
+      // A version-stamped artifact outside SEALED_VERSION_STAMPS is exactly how
+      // a release strands a stale pointer, so the seal must cover v4 too.
+      expect(SEALED_VERSION_STAMPS.map((stamp) => stamp.path)).toContain("samples/dist/honua-site-samples.v4.json");
+      expect(JSON.parse(emitted!).catalog.version).toBe(packageJson.version);
+    });
   });
 
   // Reads real qualification evidence for all four golden journeys

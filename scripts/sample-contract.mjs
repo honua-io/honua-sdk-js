@@ -7814,7 +7814,7 @@ function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = [])
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
-    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers.",
+    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers, and [`v4`](../../samples/dist/honua-site-samples.v4.json) is published for cutover -- identical to v3 except that `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the name the `{sourceCommit}` template has needed since honua-io/honua-sdk-js#1325.",
     "",
   ].join("\n");
 }
