@@ -1077,6 +1077,28 @@ describe("mountSourceToCesium refresh diff", () => {
     // `undefined` and replaces rather than reusing.
     expect(cesiumEntityFingerprint({ ...item, properties: { at: new Date() } as never })).toBeUndefined();
   });
+
+  it("joins fingerprint facets with a NUL that no canonical JSON facet can contain", () => {
+    const item = {
+      id: "entity",
+      featureId: "entity",
+      properties: Object.freeze({ label: "Medic" }),
+      geometry: Object.freeze({ kind: "point" as const, coordinates: [-157.85, 21.3, 0] as const }),
+    };
+    const fingerprint = cesiumEntityFingerprint(item);
+    // Pinned deliberately: the separator is written `\0` in source rather than as a
+    // literal U+0000, which would classify the file as binary to grep and git grep
+    // (honua-io/honua-sdk-js#1332). Respelling it as a printable character would be
+    // a silent collision hazard, so assert the byte itself and not just the shape.
+    expect(fingerprint).toBeDefined();
+    const segments = (fingerprint as string).split("\u0000");
+    expect(segments).toHaveLength(3);
+    expect(segments.every((segment) => segment.length > 0)).toBe(true);
+    // A separator that any facet could itself contain would let two distinct
+    // features share a fingerprint; canonical JSON escapes U+0000, so NUL cannot.
+    expect(segments.some((segment) => segment.includes("\u0000"))).toBe(false);
+    expect(JSON.stringify("\u0000")).toBe('"\\u0000"');
+  });
 });
 
 const cesiumModule: CesiumEntityRuntimeModule = {
