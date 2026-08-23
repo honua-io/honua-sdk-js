@@ -606,16 +606,14 @@ export async function claimZeroToMapCheckpoint(path: string, digest: string): Pr
   const claimPath = `${path}.claimed-${digest}`;
   const lockPath = `${claimPath}.lock`;
   let lockCreated = false;
-  let renamed = false;
   try {
     const lock = await open(lockPath, "wx");
     await lock.close();
     lockCreated = true;
     await rename(path, claimPath);
-    renamed = true;
     return claimPath;
   } catch (error) {
-    if (lockCreated && !renamed) await unlink(lockPath).catch(() => undefined);
+    if (lockCreated) await unlink(lockPath).catch(() => undefined);
     const code = (error as NodeJS.ErrnoException).code;
     throw new Error(
       code === "ENOENT" || code === "EEXIST"
@@ -635,7 +633,7 @@ function runProcess(
     const isWindowsShim =
       process.platform === "win32" && [".bat", ".cmd"].includes(path.extname(command).toLowerCase());
     const child = spawn(
-      isWindowsShim ? (env.ComSpec ?? process.env.ComSpec ?? "cmd.exe") : command,
+      isWindowsShim ? "C:\\Windows\\System32\\cmd.exe" : command,
       isWindowsShim ? ["/d", "/s", "/c", windowsCommandLine([command, ...args])] : [...args],
       {
         env: childEnv,

@@ -98,7 +98,6 @@ export async function prepareAdminSecretSink(outputPath: string): Promise<Prepar
     if (sinkIdentity) await unlinkSinkIdentity(temporary, sinkIdentity, [1n]);
     throw secretSinkError();
   }
-  if (!handle || !sinkIdentity) throw secretSinkError();
   const privateHandle = handle;
   const privateIdentity = sinkIdentity;
 
