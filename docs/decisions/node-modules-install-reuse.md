@@ -14,36 +14,61 @@ does not survive measurement.
 #1336 estimated *"roughly 1.6 minutes per job of setup x 9 jobs"*, and projected a
 fully green graph at 66.1 billed minutes against the monolith's 39.6.
 
-Measured across the eight most recent completed `SDK Verification` runs
-(workflow 335749058), summing every `Install dependencies` and `Install JS SDK
-dependencies` step:
+Measured over these eight `SDK Verification` runs (workflow 335749058), summing
+every `Install dependencies` and `Install JS SDK dependencies` step. The run IDs
+are pinned so the figures below can be re-derived rather than re-sampled:
+
+| run | created (UTC) | result | billed | saved if installs were free |
+|---|---|---|---:|---:|
+| 32659751859 | 2026-08-23T18:58:41 | success | 57 m | 1 m |
+| 32659540648 | 2026-08-23T18:54:41 | failure | 56 m | 1 m |
+| 32657626299 | 2026-08-23T18:18:35 | failure | 54 m | 1 m |
+| 32607176648 | 2026-08-23T00:10:42 | failure | 55 m | 1 m |
+| 32606989166 | 2026-08-23T00:06:16 | failure | 51 m | 0 m |
+| 32606986743 | 2026-08-23T00:06:13 | failure | 36 m | 2 m |
+| 32606422513 | 2026-08-22T23:53:27 | cancelled | 49 m | 1 m |
+| 32606420503 | 2026-08-22T23:53:24 | failure | 34 m | 0 m |
+
+Most of these runs are red — at the time of sampling every PR was failing on a
+lapsed Kepler audit exception (#1407), unrelated to install cost. That shortens
+some jobs and so lowers the billed totals, but it does not touch the per-install
+figure, which is what the decision rests on. The two green-run totals are 57 and
+51 billed minutes.
+
+**Units matter here, because the issue's estimate was per job.** Across 96 jobs
+there are 96 install *steps*, but only **88 jobs install at all**: `verified`
+runs none, and `mcp` runs two (a root `npm ci` and an MCP-directory `npm ci`).
+The two counts coincide; they are not the same measurement.
 
 | | |
 |---|---|
-| jobs sampled | 96 (12 per run) |
-| `npm ci` total | 734 s |
-| **`npm ci` per job** | **7.6 s** |
+| install steps observed | 96 (over 96 jobs, 88 of which install) |
+| install seconds, total | 734 s |
+| **per install step** | **7.6 s** |
+| **per job that installs** | **8.3 s** |
 | billed minutes, as measured | 392 |
-| billed minutes if every `npm ci` were **free** | 385 |
+| billed minutes if every install were **free** | 385 |
 | **saving** | **7 min across 8 runs — 0.88 min per run, 1.8%** |
 
-The per-job install is **7.6 seconds, not 1.6 minutes** — off by a factor of
-about sixteen. `actions/setup-node`'s npm cache already removed this cost; the
-step that remains is linking a mostly-cached tree.
+Against #1336's per-job estimate the comparable figure is **8.3 seconds, not 1.6
+minutes** — off by a factor of about twelve, and no framing of the units gets
+within an order of magnitude of the estimate. `actions/setup-node`'s npm cache
+already removed this cost; what remains is linking a mostly-cached tree.
 
-Measured green-run totals were 51–57 billed minutes, not the projected 66.1.
+Per job, the spread is flat: 7.6–8.6 s everywhere except `Verify: MCP` at 11.2 s,
+which is the job running two installs.
 
 ## Why 1.8% is an upper bound, not a target
 
 That figure assumes install becomes **free**. It cannot. A reused tree still has
 to be downloaded, verified against its admission contract, and extracted, and the
-tree is far larger than `dist/`. Realistically the change trades ~7.6 s of `npm
-ci` for a comparable or greater artifact download and digest verification, so the
+tree is far larger than `dist/`. Realistically the change trades ~8 s of install
+for a comparable or greater artifact download and digest verification, so the
 true saving rounds to zero.
 
 Billing makes it worse. GitHub bills per **started minute per job**, so shaving
-7.6 s off a job removes a billed minute only when that job's wall time sits
-within 7.6 s above a minute boundary. In the sample that happened on roughly one
+about 8 s off a job removes a billed minute only when that job's wall time sits
+within those 8 s of a minute boundary. In the sample that happened on roughly one
 job per run — the "saved" column is 0–2 minutes, and it is 0 for two of the eight
 runs.
 
@@ -70,15 +95,26 @@ an order of magnitude more billed time than every `npm ci` in the graph combined
 
 ## Standing constraint, whatever is decided later
 
-`quickstart-budget` must **never** consume a shared install. It measures a clean
-install from a cold cache; feeding it a warm tree would make it measure nothing
-and report success. It is excluded here by construction, since nothing is shared,
-and any future reuse proposal has to exclude it explicitly.
+`quickstart-budget` must **never** consume a shared `node_modules` tree. Its
+five-minute clock covers `npm ci`, browser provisioning, the fixture build, and
+the first usable map — a new user's *clean install*. Handing it an already-linked
+tree would delete the `npm ci` leg of the promise it exists to enforce and let
+the lane report success without having measured that leg at all.
+
+To be precise about what "clean" means here, since it is easy to overclaim:
+`setup-node` runs with `cache: npm` **before** the clock starts
+(`.github/workflows/sdk-verification.yml`), so the npm *download* cache is warm.
+The lane measures a clean install, not a cold cache. That is the enforced
+contract, and it is unaffected by this decision either way.
+
+It is excluded today by construction, since nothing is shared. Any future reuse
+proposal has to exclude it explicitly.
 
 ## Reopening this
 
 Worth revisiting only if the per-job install cost changes by an order of
 magnitude — a much larger dependency tree, the loss of `setup-node` caching, or a
 registry slow enough that `npm ci` stops being cache-dominated. Re-run the
-measurement above before reopening; the argument here is entirely a consequence
-of the 7.6 s figure, not of the integrity concern on its own.
+measurement above against fresh runs before reopening; the argument here is
+entirely a consequence
+of the ~8 s figure, not of the integrity concern on its own.
