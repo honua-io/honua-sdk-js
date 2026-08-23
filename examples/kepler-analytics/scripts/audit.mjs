@@ -14,9 +14,28 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 // Temporary, Kepler-example-only exception for upstream advisories that have
 // no fixed release. A short lifetime forces a fresh dependency review rather
 // than allowing this policy to become a permanent audit bypass.
+//
+// Renewed 2026-08-23. The review that renews it, in full, so the next reviewer
+// can tell what was checked rather than trusting that something was:
+//
+//   - Both advisories are still unfixed at every published version. The GitHub
+//     Advisory API reports `first_patched_version: null` with a vulnerable
+//     range of `<= 2.0.2` for each, and 2.0.2 is the latest image-size on npm.
+//     There is no version to upgrade to; this is not a deferred upgrade.
+//   - The reviewed edge is unchanged and is already current.
+//     `texture-compressor@1.0.2` -- the latest release -- still declares
+//     `image-size: ^0.7.4`, resolving to 0.7.5 in the lock. Bumping
+//     texture-compressor would not move image-size.
+//   - Both advisories are denial-of-service through infinite loops in the JXL,
+//     HEIF, and ICNS parsers. This example never decodes those formats;
+//     image-size arrives only through @loaders.gl/textures -> texture-compressor
+//     and is not reachable from any Kepler sample path.
+//
+// Renew only after repeating those three checks. If a patched image-size is
+// ever published, take the upgrade and delete this exception instead.
 export const IMAGE_SIZE_EXCEPTION = Object.freeze({
-  reviewedOn: "2026-08-08",
-  expiresOn: "2026-08-22",
+  reviewedOn: "2026-08-23",
+  expiresOn: "2026-09-06",
   packageName: "image-size",
   packageVersion: "0.7.5",
   advisories: Object.freeze({
