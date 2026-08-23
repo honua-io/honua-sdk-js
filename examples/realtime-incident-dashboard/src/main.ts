@@ -37,6 +37,7 @@ import {
   reconcileIncidentReceiptDiagnostics,
 } from "./diagnostics.js";
 import { HONOLULU_CENTER, INCIDENT_LAYER_ID, INCIDENT_SOURCE_ID, INITIAL_INCIDENTS } from "./fixtures.js";
+import { setControlDisabled } from "./focus-safe-controls.js";
 import { type IncidentMapLoadTarget, createIncidentLifecycle, initializeIncidentMap } from "./lifecycle.js";
 import {
   INCIDENT_METADATA_CACHE_STATE,
@@ -719,6 +720,7 @@ async function bootstrap(): Promise<void> {
   const repeatEditButton = getElement<HTMLButtonElement>("#repeat-edit");
   const simulateConflictButton = getElement<HTMLButtonElement>("#simulate-conflict");
   const resetEditButton = getElement<HTMLButtonElement>("#reset-edit");
+
   const editStatus = getElement<HTMLSelectElement>("#edit-status");
   const editAssigned = getElement<HTMLInputElement>("#edit-assigned");
 
@@ -907,13 +909,13 @@ async function bootstrap(): Promise<void> {
       );
       setText("#edit-guard-reason", latestMutationGuard.reason);
       setText("#edit-revision", incident?.revision === undefined ? "-" : String(incident.revision));
-      editStatus.disabled = !latestMutationGuard.enabled;
-      editAssigned.disabled = !latestMutationGuard.enabled;
-      stageEditButton.disabled = !latestMutationGuard.enabled;
-      submitEditButton.disabled = !latestMutationGuard.enabled || !stagedEdit;
-      repeatEditButton.disabled = !latestMutationGuard.enabled || !lastSubmittedEdit;
-      simulateConflictButton.disabled = !latestMutationGuard.enabled || !stagedEdit;
-      resetEditButton.disabled = !latestMutationGuard.enabled;
+      setControlDisabled(editStatus, !latestMutationGuard.enabled);
+      setControlDisabled(editAssigned, !latestMutationGuard.enabled);
+      setControlDisabled(stageEditButton, !latestMutationGuard.enabled);
+      setControlDisabled(submitEditButton, !latestMutationGuard.enabled || !stagedEdit);
+      setControlDisabled(repeatEditButton, !latestMutationGuard.enabled || !lastSubmittedEdit);
+      setControlDisabled(simulateConflictButton, !latestMutationGuard.enabled || !stagedEdit);
+      setControlDisabled(resetEditButton, !latestMutationGuard.enabled);
     }
 
     function stageEdit(): string | null {
@@ -932,8 +934,8 @@ async function bootstrap(): Promise<void> {
       setText("#edit-revision", String(stagedEdit.expectedRevision));
       setText("#edit-idempotency", stagedEdit.idempotencyKey);
       setText("#edit-outcome", `Staged against revision ${stagedEdit.expectedRevision}.`);
-      submitEditButton.disabled = false;
-      simulateConflictButton.disabled = false;
+      setControlDisabled(submitEditButton, false);
+      setControlDisabled(simulateConflictButton, false);
       return stagedEdit.idempotencyKey;
     }
 
