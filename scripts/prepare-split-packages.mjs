@@ -19,6 +19,11 @@ const ROOT_LICENSE_PATH = path.join(PROJECT_ROOT, "LICENSE");
 // Keep published package install support aligned with the SDK runtime floor,
 // even when repo-only tooling or example dependencies need a newer Node patch.
 const publishedEngines = { node: ">=20.0.0" };
+const OPTIONAL_GRPC_RUNTIME_PEERS = [
+  "@bufbuild/protobuf",
+  "@connectrpc/connect",
+  "@connectrpc/connect-web",
+];
 
 if (!fs.existsSync(DIST_SRC_ROOT)) {
   process.stderr.write(
@@ -327,19 +332,18 @@ function createSdkPackage() {
       },
     },
     dependencies: {
-      "@bufbuild/protobuf": rootPackageJson.dependencies["@bufbuild/protobuf"],
-      "@connectrpc/connect": rootPackageJson.dependencies["@connectrpc/connect"],
-      "@connectrpc/connect-web": rootPackageJson.dependencies["@connectrpc/connect-web"],
       "@mapbox/jsonlint-lines-primitives": rootPackageJson.dependencies["@mapbox/jsonlint-lines-primitives"],
       "@maplibre/maplibre-gl-style-spec": rootPackageJson.dependencies["@maplibre/maplibre-gl-style-spec"],
     },
     peerDependencies: {
+      ...optionalGrpcRuntimePeerDependencies(),
       "@deck.gl/layers": rootPackageJson.peerDependencies["@deck.gl/layers"],
       "@kepler.gl/actions": rootPackageJson.peerDependencies["@kepler.gl/actions"],
       "@kepler.gl/processors": rootPackageJson.peerDependencies["@kepler.gl/processors"],
       "apache-arrow": rootPackageJson.peerDependencies["apache-arrow"],
     },
     peerDependenciesMeta: {
+      ...optionalGrpcRuntimePeerDependenciesMeta(),
       "@deck.gl/layers": { optional: true },
       "@kepler.gl/actions": { optional: true },
       "@kepler.gl/processors": { optional: true },
@@ -655,6 +659,25 @@ function createAppPlatformPackage() {
       "This package is generated from `@honua/sdk-js` build artifacts.",
     ].join("\n"),
   );
+}
+
+function optionalGrpcRuntimePeerDependencies() {
+  return Object.fromEntries(
+    OPTIONAL_GRPC_RUNTIME_PEERS.map((name) => {
+      const versionRange = rootPackageJson.peerDependencies?.[name];
+      if (typeof versionRange !== "string" || versionRange.length === 0) {
+        throw new Error(`root package is missing the optional gRPC runtime peer ${name}`);
+      }
+      if (rootPackageJson.peerDependenciesMeta?.[name]?.optional !== true) {
+        throw new Error(`root package must mark the gRPC runtime peer ${name} optional`);
+      }
+      return [name, versionRange];
+    }),
+  );
+}
+
+function optionalGrpcRuntimePeerDependenciesMeta() {
+  return Object.fromEntries(OPTIONAL_GRPC_RUNTIME_PEERS.map((name) => [name, { optional: true }]));
 }
 
 function copySourceCapabilityContractSupport(packageRoot) {
