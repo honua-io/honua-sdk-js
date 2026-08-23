@@ -12,7 +12,8 @@
     "externalReplacements",
     "qualityProfiles",
     "samples",
-    "routes"
+    "routes",
+    "sampleBundles"
   ],
   "properties": {
     "format": {
@@ -23,12 +24,7 @@
     },
     "catalog": {
       "type": "object",
-      "required": [
-        "format",
-        "schemaVersion",
-        "package",
-        "version"
-      ],
+      "required": ["format", "schemaVersion", "package", "version"],
       "properties": {
         "format": {
           "const": "honua.sdk.sample-catalog.v2"
@@ -47,12 +43,7 @@
     },
     "contract": {
       "type": "object",
-      "required": [
-        "producer",
-        "consumer",
-        "executableSourceOwner",
-        "presentationOwner"
-      ],
+      "required": ["producer", "consumer", "executableSourceOwner", "presentationOwner"],
       "properties": {
         "producer": {
           "const": "honua-io/honua-sdk-js#540"
@@ -108,12 +99,7 @@
   "$defs": {
     "goldenJourney": {
       "type": "object",
-      "required": [
-        "id",
-        "title",
-        "status",
-        "candidateSampleId"
-      ],
+      "required": ["id", "title", "status", "candidateSampleId"],
       "properties": {
         "id": {
           "type": "string"
@@ -122,10 +108,7 @@
           "type": "string"
         },
         "status": {
-          "enum": [
-            "planned",
-            "qualified"
-          ]
+          "enum": ["planned", "qualified"]
         },
         "candidateSampleId": {
           "type": "string"
@@ -135,11 +118,7 @@
     },
     "externalReplacement": {
       "type": "object",
-      "required": [
-        "id",
-        "title",
-        "url"
-      ],
+      "required": ["id", "title", "url"],
       "properties": {
         "id": {
           "type": "string"
@@ -196,11 +175,7 @@
     },
     "qualityProfile": {
       "type": "object",
-      "required": [
-        "id",
-        "description",
-        "gates"
-      ],
+      "required": ["id", "description", "gates"],
       "properties": {
         "id": {
           "type": "string"
@@ -216,17 +191,10 @@
     },
     "replacement": {
       "type": "object",
-      "required": [
-        "kind",
-        "id"
-      ],
+      "required": ["kind", "id"],
       "properties": {
         "kind": {
-          "enum": [
-            "sample",
-            "journey",
-            "external"
-          ]
+          "enum": ["sample", "journey", "external"]
         },
         "id": {
           "type": "string"
@@ -236,19 +204,10 @@
     },
     "lifecycle": {
       "type": "object",
-      "required": [
-        "state",
-        "reason"
-      ],
+      "required": ["state", "reason"],
       "properties": {
         "state": {
-          "enum": [
-            "active",
-            "rework",
-            "merge",
-            "replace",
-            "retire"
-          ]
+          "enum": ["active", "rework", "merge", "replace", "retire"]
         },
         "reason": {
           "type": "string"
@@ -273,46 +232,32 @@
             "not": {
               "anyOf": [
                 {
-                  "required": [
-                    "targetRelease"
-                  ]
+                  "required": ["targetRelease"]
                 },
                 {
-                  "required": [
-                    "replacement"
-                  ]
+                  "required": ["replacement"]
                 }
               ]
             }
           },
           "else": {
-            "required": [
-              "targetRelease"
-            ]
+            "required": ["targetRelease"]
           }
         },
         {
           "if": {
             "properties": {
               "state": {
-                "enum": [
-                  "merge",
-                  "replace",
-                  "retire"
-                ]
+                "enum": ["merge", "replace", "retire"]
               }
             }
           },
           "then": {
-            "required": [
-              "replacement"
-            ]
+            "required": ["replacement"]
           },
           "else": {
             "not": {
-              "required": [
-                "replacement"
-              ]
+              "required": ["replacement"]
             }
           }
         }
@@ -321,11 +266,7 @@
     },
     "source": {
       "type": "object",
-      "required": [
-        "repository",
-        "path",
-        "docsPath"
-      ],
+      "required": ["repository", "path", "docsPath"],
       "properties": {
         "repository": {
           "const": "honua-io/honua-sdk-js"
@@ -341,10 +282,7 @@
     },
     "sdk": {
       "type": "object",
-      "required": [
-        "package",
-        "version"
-      ],
+      "required": ["package", "version"],
       "properties": {
         "package": {
           "const": "@honua/sdk-js"
@@ -357,34 +295,13 @@
     },
     "publicData": {
       "type": "object",
-      "required": [
-        "mode",
-        "authMode",
-        "provenance",
-        "attribution",
-        "freshness",
-        "configurationStatus"
-      ],
+      "required": ["mode", "authMode", "provenance", "attribution", "freshness", "configurationStatus"],
       "properties": {
         "mode": {
-          "enum": [
-            "fixture",
-            "public-live",
-            "demo-live",
-            "authenticated-live",
-            "hybrid",
-            "none"
-          ]
+          "enum": ["fixture", "public-live", "demo-live", "authenticated-live", "hybrid", "none"]
         },
         "authMode": {
-          "enum": [
-            "none",
-            "anonymous",
-            "api-key",
-            "bearer",
-            "oauth",
-            "host-mediated"
-          ]
+          "enum": ["none", "anonymous", "api-key", "bearer", "oauth", "host-mediated"]
         },
         "provenance": {
           "type": "string"
@@ -396,11 +313,7 @@
           "type": "string"
         },
         "configurationStatus": {
-          "enum": [
-            "approved",
-            "not-required",
-            "legacy-unsafe"
-          ]
+          "enum": ["approved", "not-required", "legacy-unsafe"]
         },
         "configurationGap": {
           "type": "string"
@@ -416,15 +329,11 @@
             }
           },
           "then": {
-            "required": [
-              "configurationGap"
-            ]
+            "required": ["configurationGap"]
           },
           "else": {
             "not": {
-              "required": [
-                "configurationGap"
-              ]
+              "required": ["configurationGap"]
             }
           }
         }
@@ -433,56 +342,29 @@
     },
     "fixtureEvidence": {
       "type": "object",
-      "required": [
-        "mode",
-        "status"
-      ],
+      "required": ["mode", "status"],
       "properties": {
         "mode": {
           "const": "fixture"
         },
         "status": {
-          "enum": [
-            "executed",
-            "not-applicable",
-            "planned"
-          ]
+          "enum": ["executed", "not-applicable", "planned"]
         }
       },
       "additionalProperties": false
     },
     "liveEvidence": {
       "type": "object",
-      "required": [
-        "mode",
-        "status"
-      ],
+      "required": ["mode", "status"],
       "properties": {
         "mode": {
-          "enum": [
-            "public-live",
-            "demo-live",
-            "authenticated",
-            "degraded",
-            "unavailable"
-          ]
+          "enum": ["public-live", "demo-live", "authenticated", "degraded", "unavailable"]
         },
         "targetMode": {
-          "enum": [
-            "public-live",
-            "demo-live",
-            "authenticated"
-          ]
+          "enum": ["public-live", "demo-live", "authenticated"]
         },
         "status": {
-          "enum": [
-            "executed",
-            "not-applicable",
-            "planned",
-            "skipped",
-            "credential-unavailable",
-            "failed"
-          ]
+          "enum": ["executed", "not-applicable", "planned", "skipped", "credential-unavailable", "failed"]
         },
         "evidencePath": {
           "type": "string"
@@ -497,38 +379,24 @@
           "if": {
             "properties": {
               "status": {
-                "enum": [
-                  "executed",
-                  "skipped",
-                  "credential-unavailable",
-                  "failed"
-                ]
+                "enum": ["executed", "skipped", "credential-unavailable", "failed"]
               }
             }
           },
           "then": {
-            "required": [
-              "evidencePath",
-              "expiresAt"
-            ]
+            "required": ["evidencePath", "expiresAt"]
           },
           "else": {
             "not": {
               "anyOf": [
                 {
-                  "required": [
-                    "evidencePath"
-                  ]
+                  "required": ["evidencePath"]
                 },
                 {
-                  "required": [
-                    "expiresAt"
-                  ]
+                  "required": ["expiresAt"]
                 },
                 {
-                  "required": [
-                    "targetMode"
-                  ]
+                  "required": ["targetMode"]
                 }
               ]
             }
@@ -538,24 +406,15 @@
           "if": {
             "properties": {
               "status": {
-                "enum": [
-                  "skipped",
-                  "credential-unavailable",
-                  "failed"
-                ]
+                "enum": ["skipped", "credential-unavailable", "failed"]
               }
             }
           },
           "then": {
-            "required": [
-              "targetMode"
-            ],
+            "required": ["targetMode"],
             "properties": {
               "mode": {
-                "enum": [
-                  "degraded",
-                  "unavailable"
-                ]
+                "enum": ["degraded", "unavailable"]
               }
             }
           }
@@ -571,17 +430,11 @@
           "then": {
             "properties": {
               "mode": {
-                "enum": [
-                  "public-live",
-                  "demo-live",
-                  "authenticated"
-                ]
+                "enum": ["public-live", "demo-live", "authenticated"]
               }
             },
             "not": {
-              "required": [
-                "targetMode"
-              ]
+              "required": ["targetMode"]
             }
           }
         }
@@ -620,29 +473,16 @@
           "type": "string"
         },
         "sourceKind": {
-          "enum": [
-            "root-example",
-            "docs-example"
-          ]
+          "enum": ["root-example", "docs-example"]
         },
         "track": {
-          "enum": [
-            "golden",
-            "recipe",
-            "lab",
-            "fixture"
-          ]
+          "enum": ["golden", "recipe", "lab", "fixture"]
         },
         "journeyId": {
           "type": "string"
         },
         "supportTier": {
-          "enum": [
-            "supported",
-            "experimental",
-            "internal",
-            "deprecated"
-          ]
+          "enum": ["supported", "experimental", "internal", "deprecated"]
         },
         "lifecycle": {
           "$ref": "#/$defs/lifecycle"
@@ -690,10 +530,7 @@
         },
         "evidence": {
           "type": "object",
-          "required": [
-            "fixture",
-            "live"
-          ],
+          "required": ["fixture", "live"],
           "properties": {
             "fixture": {
               "$ref": "#/$defs/fixtureEvidence"
@@ -712,11 +549,7 @@
     },
     "route": {
       "type": "object",
-      "required": [
-        "id",
-        "route",
-        "ownership"
-      ],
+      "required": ["id", "route", "ownership"],
       "properties": {
         "id": {
           "type": "string"
@@ -726,10 +559,7 @@
           "pattern": "^[-a-z0-9]+\\.html$"
         },
         "ownership": {
-          "enum": [
-            "sdk-projection",
-            "site-exception"
-          ]
+          "enum": ["sdk-projection", "site-exception"]
         },
         "sampleId": {
           "type": "string"
@@ -744,20 +574,10 @@
           "type": "string"
         },
         "track": {
-          "enum": [
-            "golden",
-            "recipe",
-            "lab",
-            "fixture"
-          ]
+          "enum": ["golden", "recipe", "lab", "fixture"]
         },
         "supportTier": {
-          "enum": [
-            "supported",
-            "experimental",
-            "internal",
-            "deprecated"
-          ]
+          "enum": ["supported", "experimental", "internal", "deprecated"]
         },
         "capabilities": {
           "type": "array",
@@ -774,40 +594,26 @@
               "const": "sdk-projection"
             }
           },
-          "required": [
-            "sampleId"
-          ],
+          "required": ["sampleId"],
           "not": {
             "anyOf": [
               {
-                "required": [
-                  "exceptionReason"
-                ]
+                "required": ["exceptionReason"]
               },
               {
-                "required": [
-                  "title"
-                ]
+                "required": ["title"]
               },
               {
-                "required": [
-                  "summary"
-                ]
+                "required": ["summary"]
               },
               {
-                "required": [
-                  "track"
-                ]
+                "required": ["track"]
               },
               {
-                "required": [
-                  "supportTier"
-                ]
+                "required": ["supportTier"]
               },
               {
-                "required": [
-                  "capabilities"
-                ]
+                "required": ["capabilities"]
               }
             ]
           }
@@ -818,18 +624,9 @@
               "const": "site-exception"
             }
           },
-          "required": [
-            "exceptionReason",
-            "title",
-            "summary",
-            "track",
-            "supportTier",
-            "capabilities"
-          ],
+          "required": ["exceptionReason", "title", "summary", "track", "supportTier", "capabilities"],
           "not": {
-            "required": [
-              "sampleId"
-            ]
+            "required": ["sampleId"]
           }
         }
       ],
@@ -837,34 +634,18 @@
     },
     "sampleBundles": {
       "type": "object",
-      "required": [
-        "format",
-        "schemaVersion",
-        "publication",
-        "sampleIds"
-      ],
+      "required": ["format", "schemaVersion", "publication", "sampleIds"],
       "properties": {
         "format": {
           "description": "Format of the bundle manifest this projection points at. Generation always emits `honua.sdk.sample-bundles.v2` (honua-io/honua-sdk-js#656); `...v1` remains accepted only so the currently-committed samples/dist/honua-site-samples.v2.json -- generated before the cutover and deliberately not resealed by a feature PR, per the derived-artifact decoupling policy in docs/sample-bundles.md -- stays schema-valid until the next regenerate-derived-artifacts.yml run. Tighten back to a v2 const once that reseal has landed.",
-          "enum": [
-            "honua.sdk.sample-bundles.v1",
-            "honua.sdk.sample-bundles.v2"
-          ]
+          "enum": ["honua.sdk.sample-bundles.v1", "honua.sdk.sample-bundles.v2"]
         },
         "schemaVersion": {
-          "enum": [
-            1,
-            2
-          ]
+          "enum": [1, 2]
         },
         "publication": {
           "type": "object",
-          "required": [
-            "repo",
-            "releaseTagTemplate",
-            "manifestAsset",
-            "bundleAsset"
-          ],
+          "required": ["repo", "releaseTagTemplate", "manifestAsset", "bundleAsset"],
           "properties": {
             "repo": {
               "type": "string"
@@ -895,22 +676,14 @@
           "description": "Per-bundle publication truth for every id in sampleIds, so a gallery card can state runtime prerequisites without fetching the bundle manifest. `requires-host-fixture-service` needs the declared hostFixtureRoutes; `requires-live-endpoint` depends on an audited, semantically smoked external service and must never be labeled standalone.",
           "items": {
             "type": "object",
-            "required": [
-              "id",
-              "runnability",
-              "hostFixtureRoutes"
-            ],
+            "required": ["id", "runnability", "hostFixtureRoutes"],
             "properties": {
               "id": {
                 "type": "string"
               },
               "runnability": {
                 "type": "string",
-                "enum": [
-                  "standalone",
-                  "requires-host-fixture-service",
-                  "requires-live-endpoint"
-                ]
+                "enum": ["standalone", "requires-host-fixture-service", "requires-live-endpoint"]
               },
               "hostFixtureRoutes": {
                 "type": "array",
@@ -928,11 +701,7 @@
           "description": "Every catalog sample id not in sampleIds, with a machine-readable exclusion reason (honua-io/honua-sdk-js#656 REQ-004).",
           "items": {
             "type": "object",
-            "required": [
-              "id",
-              "category",
-              "reason"
-            ],
+            "required": ["id", "category", "reason"],
             "properties": {
               "id": {
                 "type": "string"

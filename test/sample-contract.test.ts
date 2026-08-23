@@ -1004,6 +1004,15 @@ describe("sample publication contract", () => {
       const literal = JSON.parse(JSON.stringify(v4));
       literal.sampleBundles.publication.releaseTagTemplate = "sample-bundles-latest";
       await expect(validateSiteProjection(literal)).rejects.toThrow();
+
+      // `sampleBundles` must be REQUIRED at the top level, not merely
+      // constrained when present. JSON Schema applies the nested
+      // publication rules only if the object exists, so without this a v4
+      // document with the whole bundle pointer removed would validate -- and
+      // the pointer is the entire reason v4 exists.
+      const withoutBundles = JSON.parse(JSON.stringify(v4));
+      delete withoutBundles.sampleBundles;
+      await expect(validateSiteProjection(withoutBundles)).rejects.toThrow();
     });
 
     it("upgrades only from v3, and names an unregistered projection version", async () => {
