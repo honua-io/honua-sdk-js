@@ -260,6 +260,10 @@
       "types": "./dist/src/cli/main.d.ts",
       "default": "./dist/src/cli/main.js"
     },
+    "./local-install": {
+      "types": "./dist/src/local-install.d.ts",
+      "default": "./dist/src/local-install.js"
+    },
     "./diagnostics": {
       "types": "./dist/src/diagnostics/index.d.ts",
       "default": "./dist/src/diagnostics/index.js"
@@ -307,6 +311,8 @@
   },
   "scripts": {
     "clean": "node scripts/clean-dist.mjs",
+    "admin-client:generate": "node scripts/generate-admin-client.mjs write",
+    "admin-client:check": "node scripts/generate-admin-client.mjs check",
     "compile": "npm run clean --silent && tsc -p tsconfig.json",
     "build": "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
     "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",
@@ -776,6 +782,7 @@
     "maplibre-gl": "^6.0.0",
     "maplibre-gl-v5": "npm:maplibre-gl@^5.24.0",
     "marked": "^15.0.12",
+    "openapi-typescript": "7.9.1",
     "pmtiles": "^4.4.1",
     "proj4": "^2.20.9",
     "react": "^19.2.7",
@@ -784,6 +791,7 @@
     "terra-draw-maplibre-gl-adapter": "^1.4.1",
     "typescript": "^5.9.2",
     "uplot": "^1.6.32",
+    "vega-lite": "^6.4.3",
     "vite": "^8.0.16",
     "vitest": "^4.0.16",
     "ws": "^8.21.1",

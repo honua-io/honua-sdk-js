@@ -80,7 +80,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.7-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 25 experimental subpaths may change before 1.0, and
+by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -116,8 +116,9 @@ clients, styling, interactions, editing, geocoding, migration tooling — the gl
 team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 
 - **Protocol-neutral data access.** One `Source.query(...)` call works against
-  GeoServices, OGC, WFS, OData and friends — including typed execution against raw
-  OGC API Processes servers (experimental). Capability misses throw
+  GeoServices, OGC, WFS, OData and friends. Geoprocessing uses one `IJobRun`
+  lifecycle across raw OGC API Processes and Esri-compatible GPServer tasks.
+  Capability misses throw
   `HonuaCapabilityNotSupportedError` instead of returning empty results. Large
   results ride an experimental columnar data plane (GeoArrow batches, streaming
   backpressure, worker-side aggregation —
@@ -179,8 +180,8 @@ Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw st
 OGC API Tiles (`beta`), Maps (`beta`), and Records
 (`beta`) also discover and use raw advertised paths. OGC API Processes
 keeps two honest lanes against a raw server:
-discovery (`experimental`, `standalone`) and
-typed execution (`experimental`, `standalone`).
+discovery (`supported`, `standalone`) and
+typed execution (`supported`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 `MapPackage`s, realtime, collaboration, compatibility metadata, a richer hosted
@@ -519,6 +520,8 @@ tables, and backwards-compatibility policy live in:
 - [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` standalone bridge cookbook
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
+- [`docs/geoprocessing.md`](./docs/geoprocessing.md) — one job lifecycle across OGC API Processes, Esri GPServer compatibility, and AI-selected operations
+- [`docs/zero-to-map-release-journey.md`](./docs/zero-to-map-release-journey.md) — contract-first 2026.1 install → admin/GP → Studio → human Console gate walkthrough
 - [`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md) — provider-pluggable geocoding & routing adapters
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
@@ -619,7 +622,7 @@ correctly use this SDK:
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
     `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
     `/offline`, `/diagnostics`, `/routing`, `/cog`, `/pmtiles`, `/stac`, `/raster`, `/coverages`, `/columnar-workflow`, `/kepler`, `/analytics`, `/analytics/uplot`, `/zarr`,
-    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 25 experimental subpaths in total.
+    `/pmtiles-protocol-plugin.js`, `/local-install` — with `/query-planner` below, 26 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.

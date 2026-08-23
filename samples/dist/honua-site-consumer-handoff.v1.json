@@ -28,8 +28,8 @@
       "schemaPath": "samples/contract/v2/schemas/capability-sample-matrix.schema.json",
       "format": "honua.site.sdk-capability-sample-matrix.v1",
       "schemaVersion": 1,
-      "bytes": 505738,
-      "sha256": "2d34de4434797c05e1b80760369296d758cc2de0a20a50dbc6b54abb6f8e7151",
+      "bytes": 506450,
+      "sha256": "00eed70b8721142a5e4736b0c96dbc9675ccf9a8e2bce8d930c422322723b6ee",
       "schemaBytes": 17472,
       "schemaSha256": "e3461600712fc68471add33da434d9ea2477ca391643c79c199481ab1f820953"
     },
@@ -345,7 +345,7 @@
     "canonicalRoutes": 32,
     "legacyRoutes": 20,
     "lifecycleNotices": 12,
-    "gaps": 469,
+    "gaps": 470,
     "qualifiedMatrixCells": {
       "goldenJourneys": 4,
       "protocolOperations": 5,
@@ -5705,6 +5705,15 @@
     },
     {
       "targetType": "package-entrypoint",
+      "targetId": "./local-install",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+      "candidateRoutes": []
+    },
+    {
+      "targetType": "package-entrypoint",
       "targetId": "./nl-map-control",
       "supportStatus": "experimental",
       "coverageState": "experimental",
@@ -9872,19 +9881,19 @@
     {
       "targetType": "support-claim",
       "targetId": "ogc-processes-discovery-standalone",
-      "supportStatus": "experimental",
-      "coverageState": "experimental",
+      "supportStatus": "supported",
+      "coverageState": "planned",
       "candidateSampleIds": [],
-      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
       "candidateRoutes": []
     },
     {
       "targetType": "support-claim",
       "targetId": "ogc-processes-execution-standalone",
-      "supportStatus": "experimental",
-      "coverageState": "experimental",
+      "supportStatus": "supported",
+      "coverageState": "planned",
       "candidateSampleIds": [],
-      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
       "candidateRoutes": []
     },
     {

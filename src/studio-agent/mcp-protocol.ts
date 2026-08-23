@@ -145,7 +145,7 @@ export type McpToolErrorCode =
   | "unknown"
   | string;
 
-/** The 14 `honua_studio_*` composition/lifecycle tools this session can route to. */
+/** The 15 `honua_studio_*` composition/lifecycle tools this session can route to. */
 export const HONUA_STUDIO_MCP_TOOL_NAMES = [
   "honua_studio_create_draft",
   "honua_studio_get_draft",
@@ -155,6 +155,7 @@ export const HONUA_STUDIO_MCP_TOOL_NAMES = [
   "honua_studio_add_layer",
   "honua_studio_remove_layer",
   "honua_studio_set_layer_style",
+  "honua_studio_set_layer_visibility",
   "honua_studio_set_view",
   "honua_studio_add_widget",
   "honua_studio_remove_widget",

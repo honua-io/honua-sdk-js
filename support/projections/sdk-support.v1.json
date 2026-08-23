@@ -2395,7 +2395,7 @@
       ],
       "environment": "standalone",
       "executionMode": "discovery",
-      "status": "experimental",
+      "status": "supported",
       "backendNeeded": "Any link-driven OGC API Processes server",
       "api": "discoverOgcProcesses()",
       "notes": "Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection.",
@@ -2413,10 +2413,10 @@
       ],
       "environment": "standalone",
       "executionMode": "native",
-      "status": "experimental",
+      "status": "supported",
       "backendNeeded": "Any conformant OGC API Processes Part 1 (Core) server",
       "api": "client.ogcProcesses({ basePath, conformance }).execute()",
-      "notes": "Executes at the discovered service root in both Core response shapes (synchronous 200 results and Prefer: respond-async 201 + Location), then follows the advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture-proven; no public endpoint permits anonymous execution, so there is no live lane.",
+      "notes": "Executes at the discovered service root in both Core response shapes (Prefer: respond-sync with synchronous 200 results, or Prefer: respond-async with 201 + Location), then follows advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Contract and integration proven; the anonymous geometry.buffer live step remains explicitly blocked on honua-server#3268 and honua-demo-infra#68.",
       "evidence": [
         "ogc-processes-fixtures",
         "ogc-processes-integration"
@@ -3039,6 +3039,10 @@
       },
       {
         "subpath": "./studio-agent",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./local-install",
         "status": "experimental"
       },
       {

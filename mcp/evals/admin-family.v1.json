@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "honua.admin-family-scorecard.v1",
+  "recordedAt": "2026-08-20",
+  "family": "honua_admin_*",
+  "restOperationCount": 396,
+  "expectedPublishedTools": 385,
+  "expectedExcludedOperations": 11,
+  "defaultStaticToolCount": 47,
+  "expectedDefaultTotalTools": 432,
+  "adminApi": {
+    "repository": "honua-io/honua-server",
+    "sha": "f897700159e2791c9468c6ca85bb4e2a3a8d8433",
+    "sha256": "edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a"
+  },
+  "adminMcpCoverage": {
+    "path": "config/admin-mcp-coverage.v1.json",
+    "sha256": "0b24f61feefe18177e0abc76c491b2c86827b30a5dd45092a595cd595376f088",
+    "exclusionRosterSha256": "d93bdf6c31e6c532d5483b08315fed5decdd8f5cc56900e59e45be2eddb2fb6f",
+    "serverSha": null,
+    "reviewServerSha": "c810ef3df29269527d4eceb26151921c8c5d5eab",
+    "status": "review-head-validated-awaiting-merged-trunk-pin"
+  },
+  "releaseCandidate": {
+    "status": "blocked-server-pin-regresses-admin-contract",
+    "serverSha": "4a7903c2ef764ffeaa60083689f73b9e42bbc6a3",
+    "restOperationCount": 395
+  },
+  "checks": [
+    {
+      "name": "HTTP/proxy names, schemas, and annotations",
+      "status": "implemented-awaiting-live-candidate",
+      "evidence": "mcp/test/certification/admin-parity.test.ts"
+    },
+    {
+      "name": "approval outcomes",
+      "status": "fixture-covered-awaiting-server-catalog",
+      "evidence": "mcp/test/certification/admin-parity.test.ts"
+    },
+    {
+      "name": "secret_ref handling",
+      "status": "coverage-roster-and-schema-covered-awaiting-live-candidate",
+      "evidence": "mcp/test/certification/admin-parity.test.ts"
+    }
+  ]
+}

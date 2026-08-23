@@ -91,7 +91,7 @@ export type {
   HonuaProvenanceDataBinding,
 } from "./provenance.js";
 
-export { HONUA_VEGA_LITE_SCHEMA_V5, chartWidgetToVegaLiteSpec } from "./chart-spec.js";
+export { HONUA_VEGA_LITE_SCHEMA, chartWidgetToVegaLiteSpec } from "./chart-spec.js";
 export type {
   HonuaChartEncoding,
   HonuaChartEncodingChannel,

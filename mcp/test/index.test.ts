@@ -6,6 +6,7 @@ import { SERVER_VERSION, createClientFromEnv, createServer, resolveRuntimeOption
 import * as layerSchemaResource from "../src/resources/layer-schema.js";
 import * as servicesResource from "../src/resources/services.js";
 import * as stylesResource from "../src/resources/styles.js";
+import * as adminInstallLocal from "../src/tools/admin-install-local.js";
 import * as applyStylePreset from "../src/tools/apply-style-preset.js";
 import * as countFeatures from "../src/tools/count-features.js";
 import * as describeLayer from "../src/tools/describe-layer.js";
@@ -60,6 +61,9 @@ describe("MCP server setup", () => {
     const applyStyleSpy = vi
       .spyOn(applyStylePreset, "execute")
       .mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
+    const installSpy = vi
+      .spyOn(adminInstallLocal, "execute")
+      .mockResolvedValue({ content: [{ type: "text", text: "{}" }], structuredContent: { status: "ready" } } as never);
     const servicesReadSpy = vi.spyOn(servicesResource, "read").mockResolvedValue({ contents: [] });
     const layerReadSpy = vi.spyOn(layerSchemaResource, "read").mockResolvedValue({ contents: [] });
     const stylesCatalogSpy = vi.spyOn(stylesResource, "readCatalog").mockResolvedValue({ contents: [] });
@@ -79,6 +83,7 @@ describe("MCP server setup", () => {
       "honua_explain_capability_gap",
       "honua_get_style",
       "honua_apply_style_preset",
+      "honua_admin_install_local",
     ]);
     expect(resourceSpy.mock.calls.map((call) => call[0])).toEqual([
       "services-catalog",
@@ -86,6 +91,13 @@ describe("MCP server setup", () => {
       "styles-catalog",
       "style",
     ]);
+    const installRegistration = toolSpy.mock.calls.find((call) => call[0] === "honua_admin_install_local");
+    expect(installRegistration?.[3]).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    });
 
     const toolInputs: Record<string, Record<string, unknown>> = {
       honua_list_sources: {},
@@ -98,11 +110,12 @@ describe("MCP server setup", () => {
       honua_explain_capability_gap: { protocol: "wmts", capability: "query" },
       honua_get_style: { styleId: "topographic" },
       honua_apply_style_preset: { styleId: "topographic" },
+      honua_admin_install_local: { directory: ".honua", confirm: true },
     };
 
     for (const [name, args] of Object.entries(toolInputs)) {
       const registration = toolSpy.mock.calls.find((call) => call[0] === name);
-      const handler = registration?.[3] as (input: unknown) => Promise<unknown>;
+      const handler = registration?.at(-1) as (input: unknown) => Promise<unknown>;
       await handler(args);
     }
 
@@ -124,6 +137,9 @@ describe("MCP server setup", () => {
     expect(explainSpy).toHaveBeenCalledWith(client, { protocol: "wmts", capability: "query" });
     expect(getStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });
     expect(applyStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });
+    expect(installSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ directory: ".honua", profile: "quickstart", confirm: true }),
+    );
 
     const servicesRegistration = resourceSpy.mock.calls.find((call) => call[0] === "services-catalog");
     const servicesHandler = servicesRegistration?.[2] as (uri: URL) => Promise<unknown>;

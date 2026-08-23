@@ -17,6 +17,7 @@ import {
   type ServerCapabilities,
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { requireSecureCredentialEndpoint } from "./credential-endpoint.js";
 import { SERVER_VERSION } from "./index.js";
 
 /**
@@ -51,20 +52,12 @@ export function resolveProxyOptions(env: NodeJS.ProcessEnv = process.env): Proxy
     throw new Error("HONUA_MCP_REMOTE_URL environment variable is required (the remote honua /mcp endpoint to proxy).");
   }
 
-  let parsed: URL;
-  try {
-    parsed = new URL(remoteUrl);
-  } catch {
-    throw new Error(`HONUA_MCP_REMOTE_URL must be a valid absolute URL: ${remoteUrl}`);
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(`HONUA_MCP_REMOTE_URL must use http or https: ${remoteUrl}`);
-  }
+  const parsed = requireSecureCredentialEndpoint(remoteUrl, "HONUA_MCP_REMOTE_URL");
 
   return {
     remoteUrl: parsed.toString(),
     authToken: env.HONUA_MCP_AUTH_TOKEN,
-    apiKey: env.HONUA_API_KEY,
+    apiKey: env.HONUA_ADMIN_KEY ?? env.HONUA_API_KEY,
   };
 }
 
@@ -82,9 +75,10 @@ export function buildUpstreamHeaders(options: ProxyOptions): Record<string, stri
 
 /** Connect an upstream MCP client to the remote honua /mcp over streamable HTTP. */
 export async function connectUpstream(options: ProxyOptions): Promise<Client> {
+  const remoteUrl = requireSecureCredentialEndpoint(options.remoteUrl, "remote MCP URL");
   const headers = buildUpstreamHeaders(options);
-  const transport = new StreamableHTTPClientTransport(new URL(options.remoteUrl), {
-    requestInit: Object.keys(headers).length > 0 ? { headers } : undefined,
+  const transport = new StreamableHTTPClientTransport(remoteUrl, {
+    requestInit: { ...(Object.keys(headers).length > 0 ? { headers } : {}), redirect: "manual" },
   });
   const client = new Client({ name: "honua-mcp-stdio-proxy", version: SERVER_VERSION });
   await client.connect(transport);

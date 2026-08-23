@@ -10,12 +10,12 @@
       "path": "config/support-manifest.v1.json",
       "format": "honua.sdk.support-manifest.v1",
       "schemaVersion": 1,
-      "sha256": "24214594d0216445555234f20ecd440c91b022f0e6e93e7cdc743cfe8618c33f"
+      "sha256": "7be32a1a3cdffbf65efd2a215ceb0f76ef2bb0009d6353bc96086d90db0f223f"
     },
     "packageExports": {
       "path": "package.json",
       "package": "@honua/sdk-js",
-      "sha256": "ac48d1d08f3f65c0a55ef56a5b6132cc29187cdc8204d2f572368049a8b56252"
+      "sha256": "c8a1839f7c8a25b800698716efeb865a82b33a98b6a348d33d6dd10101da0f2f"
     },
     "catalog": {
       "path": "samples/catalog.v2.json",
@@ -249,6 +249,7 @@
       "./interactions",
       "./interactions/declarative",
       "./kepler",
+      "./local-install",
       "./map",
       "./migration",
       "./nl-map-control",
@@ -10037,7 +10038,7 @@
       ],
       "api": "discoverOgcProcesses()",
       "apiEntrypoints": [],
-      "supportStatus": "experimental",
+      "supportStatus": "supported",
       "environment": "standalone",
       "executionMode": "discovery",
       "truthEvidence": [
@@ -10046,8 +10047,8 @@
       ],
       "candidateEvidence": [],
       "coverage": {
-        "state": "experimental",
-        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -10062,7 +10063,7 @@
       ],
       "api": "client.ogcProcesses({ basePath, conformance }).execute()",
       "apiEntrypoints": [],
-      "supportStatus": "experimental",
+      "supportStatus": "supported",
       "environment": "standalone",
       "executionMode": "native",
       "truthEvidence": [
@@ -10071,8 +10072,8 @@
       ],
       "candidateEvidence": [],
       "coverage": {
-        "state": "experimental",
-        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "state": "planned",
+        "reason": "SDK support is present, but no catalog sample maps to this exact cell.",
         "candidateSampleIds": [],
         "qualifyingSampleIds": [],
         "evidenceBindingIds": []
@@ -11060,6 +11061,21 @@
       }
     },
     {
+      "subpath": "./local-install",
+      "supportStatus": "experimental",
+      "targets": {
+        "types": "./dist/src/local-install.d.ts",
+        "default": "./dist/src/local-install.js"
+      },
+      "coverage": {
+        "state": "experimental",
+        "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier.",
+        "candidateSampleIds": [],
+        "qualifyingSampleIds": [],
+        "evidenceBindingIds": []
+      }
+    },
+    {
       "subpath": "./map",
       "supportStatus": "supported",
       "targets": {
@@ -11936,6 +11952,14 @@
     {
       "targetType": "package-entrypoint",
       "targetId": "./kepler",
+      "supportStatus": "experimental",
+      "coverageState": "experimental",
+      "candidateSampleIds": [],
+      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+    },
+    {
+      "targetType": "package-entrypoint",
+      "targetId": "./local-install",
       "supportStatus": "experimental",
       "coverageState": "experimental",
       "candidateSampleIds": [],
@@ -15397,18 +15421,18 @@
     {
       "targetType": "support-claim",
       "targetId": "ogc-processes-discovery-standalone",
-      "supportStatus": "experimental",
-      "coverageState": "experimental",
+      "supportStatus": "supported",
+      "coverageState": "planned",
       "candidateSampleIds": [],
-      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "support-claim",
       "targetId": "ogc-processes-execution-standalone",
-      "supportStatus": "experimental",
-      "coverageState": "experimental",
+      "supportStatus": "supported",
+      "coverageState": "planned",
       "candidateSampleIds": [],
-      "reason": "SDK support truth is beta or experimental; sample evidence cannot promote the support tier."
+      "reason": "SDK support is present, but no catalog sample maps to this exact cell."
     },
     {
       "targetType": "support-claim",

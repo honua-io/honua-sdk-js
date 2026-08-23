@@ -23,7 +23,8 @@
   "type": "module",
   "bin": {
     "honua-mcp": "dist/src/index.js",
-    "honua-mcp-proxy": "dist/src/proxy.js"
+    "honua-mcp-proxy": "dist/src/proxy.js",
+    "honua-zero-to-map-release": "dist/src/release/zero-to-map-cli.js"
   },
   "exports": {
     ".": {
@@ -53,6 +54,8 @@
     "certify:standalone-ogc": "npm run build --silent && node dist/src/certification/cli.js --target standalone-ogc",
     "test:certification:nl-map-control": "vitest run test/certification/nl-map-control.test.ts",
     "test:certification": "npm run build --silent && vitest run test/certification && node dist/src/certification/cli.js",
+    "test:certification:admin": "vitest run test/proxy.test.ts test/certification/admin-parity.test.ts",
+    "certify:admin-parity": "npm run build --silent && node dist/src/certification/admin-parity.js",
     "test:certification:artifact": "npm run build --silent && node dist/src/certification/cli.js --artifact-only",
     "test:certification:standalone": "npm run build --silent && node dist/src/certification/cli.js --target standalone",
     "test:certification:standalone-ogc": "npm run build --silent && node dist/src/certification/cli.js --target standalone-ogc",
@@ -64,6 +67,7 @@
     "leaderboard": "node scripts/render-leaderboard.mjs",
     "test:eval": "npm run build --silent && vitest run test/eval && node dist/src/eval/cli.js --offline",
     "test:eval:artifact": "npm run build --silent && node dist/src/eval/cli.js --artifact-only",
+    "release:zero-to-map": "npm run build --silent && node dist/src/release/zero-to-map-cli.js",
     "lint": "biome lint src/ test/",
     "lint:fix": "biome lint --write src/ test/",
     "format": "biome format src/ test/",
@@ -95,6 +99,7 @@
   },
   "files": [
     "dist/src",
+    "release/zero-to-map",
     "certification/geospatial-mcp-schemas",
     "README.md",
     "LICENSE"

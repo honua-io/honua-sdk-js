@@ -144,8 +144,12 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await page.keyboard.press("Enter");
     await expect(page.locator("#edit-outcome")).toContainText("Staged against revision 1");
     await simulateConflict.focus();
+    await expect(simulateConflict).toBeFocused();
     await page.keyboard.press("Enter");
+    await expect(page.locator("#edit-outcome")).toContainText("Concurrent update published");
+    await expect(submitEdit).toBeEnabled();
     await submitEdit.focus();
+    await expect(submitEdit).toBeFocused();
     await page.keyboard.press("Space");
     await expect(page.locator("#edit-outcome")).toContainText("Conflict:");
     await stageEdit.focus();

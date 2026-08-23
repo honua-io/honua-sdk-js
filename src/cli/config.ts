@@ -16,11 +16,20 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { verifyPrivateFileSync, writePrivateFileAtomic } from "../private-file.js";
 
 export interface HonuaCliConfig {
   baseUrl?: string;
   apiKey?: string;
   locatorName?: string;
+  profiles?: Record<
+    string,
+    {
+      baseUrl?: string;
+      apiKey?: string;
+      adminKey?: string;
+    }
+  >;
 }
 
 export interface ResolvedConnection {
@@ -60,9 +69,22 @@ export function configPath(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(configDir(env), "config.json");
 }
 
-/** Read the persisted config, returning `{}` when absent or unreadable. */
+/** Read the persisted config, returning `{}` only when absent or privately stored but malformed. */
 export function readConfig(env: NodeJS.ProcessEnv = process.env): HonuaCliConfig {
   const file = configPath(env);
+  try {
+    fs.lstatSync(file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    throw error;
+  }
+  try {
+    verifyPrivateFileSync(file);
+  } catch (error) {
+    throw new Error(
+      `Refusing to read CLI credentials from an unverified private file ${file}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   try {
     const raw = fs.readFileSync(file, "utf8");
     const parsed = JSON.parse(raw) as HonuaCliConfig;
@@ -73,22 +95,18 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): HonuaCliConfig
 }
 
 /** Persist the config file (used by `honua login`). Returns the path written. */
-export function writeConfig(config: HonuaCliConfig, env: NodeJS.ProcessEnv = process.env): string {
+export async function writeConfig(config: HonuaCliConfig, env: NodeJS.ProcessEnv = process.env): Promise<string> {
   const dir = configDir(env);
   fs.mkdirSync(dir, { recursive: true });
   const file = configPath(env);
-  fs.writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-  try {
-    fs.chmodSync(file, 0o600);
-  } catch {
-    // best-effort on platforms without POSIX modes
-  }
+  await writePrivateFileAtomic(file, `${JSON.stringify(config, null, 2)}\n`);
   return file;
 }
 
 export interface ResolveOptions {
   baseUrl?: string;
   apiKey?: string;
+  profile?: string;
   env?: NodeJS.ProcessEnv;
 }
 
@@ -100,6 +118,10 @@ export interface ResolveOptions {
 export function resolveConnection(options: ResolveOptions = {}): ResolvedConnection {
   const env = options.env ?? process.env;
   const saved = readConfig(env);
+  const profile = options.profile ? saved.profiles?.[options.profile] : undefined;
+  if (options.profile && !profile) {
+    throw new Error(`Honua profile "${options.profile}" was not found in ${configPath(env)}.`);
+  }
 
   let baseUrl: string | undefined;
   let source: ResolvedConnection["source"] = "config";
@@ -109,6 +131,9 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
   } else if (env.HONUA_BASE_URL && env.HONUA_BASE_URL.trim() !== "") {
     baseUrl = env.HONUA_BASE_URL;
     source = "env";
+  } else if (profile?.baseUrl && profile.baseUrl.trim() !== "") {
+    baseUrl = profile.baseUrl;
+    source = "config";
   } else if (saved.baseUrl && saved.baseUrl.trim() !== "") {
     baseUrl = saved.baseUrl;
     source = "config";
@@ -123,7 +148,26 @@ export function resolveConnection(options: ResolveOptions = {}): ResolvedConnect
   const apiKey =
     (options.apiKey && options.apiKey.trim() !== "" ? options.apiKey : undefined) ??
     (env.HONUA_API_KEY && env.HONUA_API_KEY.trim() !== "" ? env.HONUA_API_KEY : undefined) ??
+    (profile?.apiKey && profile.apiKey.trim() !== "" ? profile.apiKey : undefined) ??
     (saved.apiKey && saved.apiKey.trim() !== "" ? saved.apiKey : undefined);
 
   return { baseUrl: stripTrailingSlashes(baseUrl), apiKey, source };
+}
+
+export interface ResolvedAdminConnection extends ResolvedConnection {
+  adminKey?: string;
+}
+
+/** Resolve admin auth, preferring the dedicated root key over the general API key. */
+export function resolveAdminConnection(options: ResolveOptions & { adminKey?: string } = {}): ResolvedAdminConnection {
+  const env = options.env ?? process.env;
+  const saved = readConfig(env);
+  const profile = options.profile ? saved.profiles?.[options.profile] : undefined;
+  const connection = resolveConnection(options);
+  const adminKey =
+    (options.adminKey && options.adminKey.trim() !== "" ? options.adminKey : undefined) ??
+    (env.HONUA_ADMIN_KEY && env.HONUA_ADMIN_KEY.trim() !== "" ? env.HONUA_ADMIN_KEY : undefined) ??
+    (profile?.adminKey && profile.adminKey.trim() !== "" ? profile.adminKey : undefined) ??
+    connection.apiKey;
+  return { ...connection, adminKey };
 }

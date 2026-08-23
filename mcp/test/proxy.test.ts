@@ -63,7 +63,14 @@ describe("stdio proxy parity (#1950)", () => {
       const normalize = (tools: typeof upstreamTools) =>
         [...tools]
           .sort((a, b) => a.name.localeCompare(b.name))
-          .map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }));
+          .map((t) => ({
+            name: t.name,
+            title: t.title,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            outputSchema: t.outputSchema,
+            annotations: t.annotations,
+          }));
 
       expect(downstreamTools.length).toBeGreaterThan(0);
       expect(normalize(downstreamTools)).toEqual(normalize(upstreamTools));
@@ -138,6 +145,17 @@ describe("proxy option resolution (#1950)", () => {
     expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "ftp://x/mcp" })).toThrow(/http or https/);
   });
 
+  it("refuses plaintext non-loopback and ambiguous credential endpoints", () => {
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://example.test/mcp" })).toThrow(/requires HTTPS/);
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "https://user:pass@example.test/mcp" })).toThrow(
+      /must not include/,
+    );
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "https://example.test/mcp?token=secret" })).toThrow(
+      /must not include/,
+    );
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://127.0.0.1:8080/mcp" })).not.toThrow();
+  });
+
   it("accepts HONUA_MCP_URL as an alias", () => {
     const opts = resolveProxyOptions({ HONUA_MCP_URL: "https://demo.honua.io/mcp" });
     expect(opts.remoteUrl).toBe("https://demo.honua.io/mcp");
@@ -150,6 +168,15 @@ describe("proxy option resolution (#1950)", () => {
       apiKey: "key",
     });
     expect(headers).toEqual({ Authorization: "Bearer tok", "x-api-key": "key" });
+  });
+
+  it("prefers HONUA_ADMIN_KEY for the admin operation family", () => {
+    const opts = resolveProxyOptions({
+      HONUA_MCP_REMOTE_URL: "https://demo.honua.io/mcp",
+      HONUA_ADMIN_KEY: "admin",
+      HONUA_API_KEY: "general",
+    });
+    expect(opts.apiKey).toBe("admin");
   });
 
   it("omits headers when no credentials are configured", () => {

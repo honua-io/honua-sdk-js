@@ -8,7 +8,7 @@ import type { HonuaGeneratedAppChartWidget } from "../../src/generated-app/manif
 import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../../src/runtime/map-package.js";
 import {
   HONUA_PACKAGE_PROVENANCE_FORMAT_V1,
-  HONUA_VEGA_LITE_SCHEMA_V5,
+  HONUA_VEGA_LITE_SCHEMA,
   chartWidgetToVegaLiteSpec,
   getPackageProvenance,
   validatePackageProvenance,
@@ -158,7 +158,8 @@ describe("chartWidgetToVegaLiteSpec", () => {
       groupBy: "status",
     };
     const spec = chartWidgetToVegaLiteSpec(widget);
-    expect(spec?.$schema).toBe(HONUA_VEGA_LITE_SCHEMA_V5);
+    expect(spec?.$schema).toBe(HONUA_VEGA_LITE_SCHEMA);
+    expect(spec?.data).toEqual({ name: "c1" });
     expect(typeof spec?.mark === "object" && spec?.mark.type).toBe("bar");
     expect(spec?.encoding.x?.field).toBe("status");
     expect(spec?.encoding.y?.aggregate).toBe("count");

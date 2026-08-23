@@ -1,0 +1,33 @@
+{
+  "type": "FeatureCollection",
+  "name": "zero_to_map_parcels",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "P-101",
+      "properties": { "parcel_id": "P-101", "assessed_value": 420000, "zone": "R-1" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-157.8616, 21.3067], [-157.8608, 21.3067], [-157.8608, 21.3073], [-157.8616, 21.3073], [-157.8616, 21.3067]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "P-102",
+      "properties": { "parcel_id": "P-102", "assessed_value": 675000, "zone": "B-2" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-157.8607, 21.3067], [-157.8599, 21.3067], [-157.8599, 21.3073], [-157.8607, 21.3073], [-157.8607, 21.3067]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "P-103",
+      "properties": { "parcel_id": "P-103", "assessed_value": 910000, "zone": "R-1" },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-157.8616, 21.3074], [-157.8599, 21.3074], [-157.8599, 21.3080], [-157.8616, 21.3080], [-157.8616, 21.3074]]]
+      }
+    }
+  ]
+}

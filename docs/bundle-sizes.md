@@ -19,11 +19,11 @@ _Generated 2026-08-22 at commit `3a80040b`._
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.8 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
 | `/source-capability-discovery` (GeoServices/OData/WMS/WMTS schema-bound evaluation) | 940.6 KiB | 961.8 KiB | 216.1 KiB | 237.6 KiB |
 | `/plugin` (registry + certification, no heavy peers) | 67.2 KiB | 69.2 KiB | 20.3 KiB | 21.9 KiB |
-| `/agent-tools` | 44.5 KiB | 48.1 KiB | 12.2 KiB | 13.3 KiB |
+| `/agent-tools` | 45.3 KiB | 48.1 KiB | 12.4 KiB | 13.3 KiB |
 | `/agent-safety` | 68.7 KiB | 73.2 KiB | 19.0 KiB | 20.5 KiB |
-| `/nl-map-control` | 86.4 KiB | 94.2 KiB | 25.1 KiB | 25.3 KiB |
+| `/nl-map-control` | 87.2 KiB | 94.2 KiB | 25.3 KiB | 27.9 KiB |
 | `/interactions/declarative` (ADR-0030 compiler over the existing binding primitives) | 14.3 KiB | 15.8 KiB | 5.0 KiB | 5.5 KiB |
-| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 25.4 KiB | 27.9 KiB | 8.1 KiB | 8.9 KiB |
+| `/studio-agent` (SSE + MCP transports and the turn loop; bundles its agent-tools dependency) | 26.1 KiB | 27.9 KiB | 8.3 KiB | 8.9 KiB |
 | `/runtime` | 608.0 KiB | 612.2 KiB | 164.3 KiB | 180.4 KiB |
 | `/realtime` | 80.6 KiB | 86.2 KiB | 23.1 KiB | 25.0 KiB |
 | `/offline` | 171.1 KiB | 186.2 KiB | 45.5 KiB | 49.7 KiB |
