@@ -1296,6 +1296,7 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(bumpedOutputs, currentOutputs)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
       "samples/dist/honua-site-samples.v3.json",
+      "samples/dist/honua-site-samples.v4.json",
       "samples/dist/capability-sample-matrix.v1.json",
       "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",
@@ -1320,6 +1321,7 @@ describe("sample publication contract", () => {
     expect(generatedOutputDrift(bumpedOutputs, integrityDrift)).toEqual([
       "samples/dist/honua-site-samples.v2.json",
       "samples/dist/honua-site-samples.v3.json",
+      "samples/dist/honua-site-samples.v4.json",
       "samples/dist/capability-sample-matrix.v1.json",
       "samples/dist/honua-site-consumer-handoff.v1.json",
       "samples/dist/honua-site-consumer-handoff.v2.json",

@@ -397,25 +397,53 @@ export function effectiveCatalog(
   catalog: SampleCatalog,
   packageJson: { name: string; version: string },
 ): SampleCatalog & { sdk: { package: string; version: string } };
-export function generateSiteProjection(
-  catalog: SampleCatalog,
-  packageJson: { name: string; version: string },
-): {
-  format: "honua.site.sdk-sample-projection.v3";
-  schemaVersion: 3;
+export type SiteProjectionBundles<PublicationT> = {
+  format: string;
+  schemaVersion: number;
+  publication: PublicationT;
+  sampleIds: string[];
+  published: Array<{ id: string; runnability: string; hostFixtureRoutes: string[] }>;
+  excluded: Array<{ id: string; category: string; reason: string }>;
+};
+// Type aliases, not interfaces: an interface has no implicit index signature,
+// so an intersection built from one stops being assignable to the
+// `Record<string, unknown>` parameters the validators declare.
+export type SiteProjectionBody = {
   samples: ProjectedSample[];
   routes: Array<Record<string, unknown>>;
   goldenJourneys: GoldenJourney[];
   externalReplacements: Array<{ id: string; title: string; url: string }>;
-  sampleBundles: {
-    format: string;
-    schemaVersion: number;
-    publication: { repo: string; releaseTag: string; manifestAsset: string; bundleAsset: string };
-    sampleIds: string[];
-    published: Array<{ id: string; runnability: string; hostFixtureRoutes: string[] }>;
-    excluded: Array<{ id: string; category: string; reason: string }>;
-  };
 };
+export type SiteProjectionV3 = SiteProjectionBody & {
+  format: "honua.site.sdk-sample-projection.v3";
+  schemaVersion: 3;
+  sampleBundles: SiteProjectionBundles<{
+    repo: string;
+    releaseTag: string;
+    manifestAsset: string;
+    bundleAsset: string;
+  }>;
+};
+/**
+ * v3 with `sampleBundles.publication.releaseTag` renamed to
+ * `releaseTagTemplate` (honua-io/honua-sdk-js#1338). The old name promised a
+ * literal tag; the value has been a `{sourceCommit}` template since #1325.
+ */
+export type SiteProjectionV4 = SiteProjectionBody & {
+  format: "honua.site.sdk-sample-projection.v4";
+  schemaVersion: 4;
+  sampleBundles: SiteProjectionBundles<{
+    repo: string;
+    releaseTagTemplate: string;
+    manifestAsset: string;
+    bundleAsset: string;
+  }>;
+};
+export function generateSiteProjection(
+  catalog: SampleCatalog,
+  packageJson: { name: string; version: string },
+): SiteProjectionV3;
+export function generateSiteProjectionV4(projection: SiteProjectionV3): SiteProjectionV4;
 export function collectQualificationEvidence(
   catalog: SampleCatalog,
   options?: { receiptRoot?: string; goldenVisualEvidencePath?: string },
