@@ -181,7 +181,7 @@ OGC API Tiles (`beta`), Maps (`beta`), and Records
 (`beta`) also discover and use raw advertised paths. OGC API Processes
 keeps two honest lanes against a raw server:
 discovery (`supported`, `standalone`) and
-typed execution (`supported`, `standalone`).
+typed execution (`experimental`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
 `MapPackage`s, realtime, collaboration, compatibility metadata, a richer hosted

@@ -544,12 +544,13 @@ test("the OGC discovery/execution line is represented as separate claims", () =>
   assert.equal(discovery.status, "supported");
   assert.equal(discovery.environment, "standalone");
   assert.equal(discovery.executionMode, "discovery");
-  assert.equal(execution.status, "supported");
+  assert.equal(execution.status, "experimental");
   assert.equal(execution.environment, "standalone");
   assert.equal(execution.executionMode, "native");
   assert.notDeepEqual(discovery.operations, execution.operations);
-  // Execution is fixture-proven only; no public endpoint permits anonymous
-  // execution, so it must not borrow the discovery lane's live evidence.
+  // Execution is fixture/contract-proven only; no governed live lane has
+  // executed a process yet, so it must remain experimental and must not borrow
+  // the discovery lane's live evidence.
   assert.ok(discovery.evidence.includes("live-conformance"));
   assert.ok(!execution.evidence.includes("live-conformance"));
 });

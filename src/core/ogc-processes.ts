@@ -1090,11 +1090,7 @@ export async function executeOgcProcess(
   transport: HonuaProtocolTransport,
   request: OgcProcessExecuteRequest,
 ): Promise<HonuaOgcProcessJobAccepted> {
-  const headers = mergeHeaders(
-    { "Content-Type": "application/json", Accept: "application/json" },
-    request.headers,
-    preferHeaderForExecute(request),
-  );
+  const headers = executionHeaders(request);
   const path = `${processesBase(request)}/processes/${encodeURIComponent(request.processId)}/execution`;
   // `document` is the only response mode the SDK decodes: its body is the
   // output-id-keyed map that `JobResult.outputs` is defined over. (honua-server
@@ -1230,16 +1226,21 @@ export async function cancelOgcProcessJob(
 }
 
 /**
- * Build the execution preference header. Honua and other Processes servers
- * use the symmetric `respond-sync` token for an explicit synchronous request;
- * `"auto"` omits `Prefer` and accepts either response shape.
+ * Build the execution preference header defined by OGC API Processes 1.0.
+ * Requirement 25 selects synchronous execution by omitting `Prefer`; only an
+ * explicit asynchronous request sends the standard `respond-async` token.
+ * Clients remain prepared for either response shape.
  */
-function preferHeaderForExecute(request: OgcProcessExecuteRequest): { Prefer: string } | undefined {
+function executionHeaders(request: OgcProcessExecuteRequest): Headers {
+  const headers = new Headers(
+    mergeHeaders({ "Content-Type": "application/json", Accept: "application/json" }, request.headers),
+  );
+  // `mode` is the sole authority for this protocol semantic. A shared caller
+  // header bag must not silently turn `auto` / `sync` into an async request or
+  // smuggle a different preference into the explicit async mode.
+  headers.delete("Prefer");
   if (request.mode === "async") {
-    return { Prefer: "respond-async" };
+    headers.set("Prefer", "respond-async");
   }
-  if (request.mode === "sync") {
-    return { Prefer: "respond-sync" };
-  }
-  return undefined;
+  return headers;
 }
