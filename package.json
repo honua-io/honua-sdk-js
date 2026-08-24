@@ -710,6 +710,7 @@
     "test:pr-issue-disposition": "node --test test/scripts/pr-issue-disposition.test.mjs",
     "test:backlog-dependencies": "node --test test/scripts/backlog-dependencies.test.mjs",
     "test:stranded-merges": "node --test test/scripts/stranded-merge-detector.test.mjs",
+    "test:scheduled-live-health": "node --test test/scripts/scheduled-live-health.test.mjs",
     "stranded-merges:sweep": "node scripts/stranded-merge-detector.mjs",
     "backlog:dependencies:dry-run": "node scripts/reconcile-backlog-dependencies.mjs",
     "backlog:dependencies:apply": "node scripts/reconcile-backlog-dependencies.mjs --apply",

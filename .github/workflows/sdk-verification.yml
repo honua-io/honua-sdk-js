@@ -147,6 +147,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test scheduled/live health policy
+        run: npm run test:scheduled-live-health
+
       - name: Test SDK build evidence policy
         run: node --test test/scripts/sdk-build-evidence.test.mjs
 

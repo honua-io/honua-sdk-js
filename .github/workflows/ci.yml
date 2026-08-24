@@ -103,6 +103,9 @@ jobs:
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
 
+      - name: Test scheduled/live health policy
+        run: npm run test:scheduled-live-health
+
       - name: Test protocol certification policy
         run: node --test test/protocol-certification-fragment.test.mjs
 
@@ -240,6 +243,9 @@ jobs:
 
       - name: Test stranded-merge detection policy
         run: node --test test/scripts/stranded-merge-detector.test.mjs
+
+      - name: Test scheduled/live health policy
+        run: npm run test:scheduled-live-health
 
       # The enforceable five-minute clock includes npm ci, browser
       # provisioning, the fixture build, and the first usable map.
