@@ -118,6 +118,7 @@ vi.mock("cesium", () => ({
   },
 }));
 
+import { HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
 import {
   CESIUM_SCENE_CAPABILITIES,
   type CesiumCameraLike,
@@ -500,9 +501,13 @@ describe("cesium scene adapter", () => {
         expect(terrainFromUrl).not.toHaveBeenCalled();
 
         const cesium = (await import("cesium")) as never;
-        await expect(applyCesiumTerrain(scene, primitive, cesium)).rejects.toThrow(
-          `Terrain protocol '${protocol}' is not supported by cesium`,
-        );
+        const rejected = applyCesiumTerrain(scene, primitive, cesium);
+        await expect(rejected).rejects.toBeInstanceOf(HonuaCapabilityNotSupportedError);
+        await expect(rejected).rejects.toMatchObject({
+          capability: "terrain",
+          protocol,
+          sourceId: `${protocol}-terrain`,
+        });
         expect(terrainFromUrl).not.toHaveBeenCalled();
       },
     );

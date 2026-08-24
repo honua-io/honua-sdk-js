@@ -595,16 +595,14 @@ import {
 
 const primitives: SceneRuntimePrimitive[] = [
   {
-    kind: "elevation-source",
-    id: "site-terrain",
-    sourceId: "site-terrain",
-    protocol: "raster-dem",
-    url: "https://terrain.example.test/tiles",
-    encoding: "mapbox",
+    kind: "model-layer",
+    id: "site-model",
+    uri: "https://models.example.test/tileset.json",
+    format: "3d-tiles",
     sourceVersion: "dem-2026.2",
     cache: { status: "stale", scope: "tiles" },
-    // Survey-grade heights, published through an encoding that quantizes to 0.1 m.
-    precision: { verticalMeters: 0.01 },
+    // Survey-grade source coordinates rendered through float32 geocentric storage.
+    precision: { horizontalMeters: 0.01, coordinateFrame: "geocentric", coordinateStorage: "float32" },
   },
 ];
 
