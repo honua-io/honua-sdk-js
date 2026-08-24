@@ -171,6 +171,15 @@ test("a registry-derived version must cite the package registry", () => {
   assert.throws(() => validate(document), /latestVersion is not backed by a package-registry primary source/);
 });
 
+test("a registry source attributed only to claim or operations is not version evidence", () => {
+  // The hole this closes: the URL prefix alone used to satisfy the predicate,
+  // so a registry source added for `operations` still passed as the backing for
+  // latestVersion — an unbacked version claim reaching the comparison page.
+  const document = validDocument();
+  document.records[0].supportingSources[0].supports = ["claim", "operations"];
+  assert.throws(() => validate(document), /latestVersion is not backed by a package-registry primary source/);
+});
+
 test("an observation or retrieval date in the future fails validation", () => {
   const document = validDocument();
   document.records[0].observedAt = "2026-08-24";

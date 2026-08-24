@@ -91,6 +91,16 @@ export const TRUSTED_PRIMARY_SOURCE_PREFIXES = Object.freeze({
   ]),
 });
 
+const PACKAGE_REGISTRY_PREFIXES = Object.freeze([
+  "https://registry.npmjs.org/",
+  "https://www.npmjs.com/package/",
+]);
+
+/** True when a URL is a package-registry origin, the only admissible version evidence. */
+function isPackageRegistryUrl(url) {
+  return PACKAGE_REGISTRY_PREFIXES.some((prefix) => String(url ?? "").startsWith(prefix));
+}
+
 /** Operation axis rendered by the comparison page (#499 REQ-003). */
 export const OPERATION_KEYS = Object.freeze([
   "discovery",
@@ -186,8 +196,15 @@ export function validateCompetitorEvidence(document, { now, schema, rootDir = DE
           `so evidence cannot whitelist its own source (REQ-005)`,
       );
     }
+    // A record's own sourceUrl carries the product claim and its operation
+    // cells. It only also carries the registry version when it *is* the
+    // package registry -- otherwise the version must be attributed explicitly
+    // through supportingSources[].supports.
+    const primarySourceSupports = isPackageRegistryUrl(record.sourceUrl)
+      ? ["claim", "operations", "versionLine", "metric:latestVersion"]
+      : ["claim", "operations"];
     const sources = [
-      { url: record.sourceUrl, sourceType: record.sourceType, supports: ["claim", "operations"] },
+      { url: record.sourceUrl, sourceType: record.sourceType, supports: primarySourceSupports },
       ...(record.supportingSources ?? []),
     ];
     for (const source of sources) {
@@ -201,17 +218,20 @@ export function validateCompetitorEvidence(document, { now, schema, rootDir = DE
         );
       }
     }
+    // A registry URL is only version evidence when the record actually
+    // attributes the version to it. Without the `supports` marker a source
+    // added for `claim` or `operations` alone would silently back an unbacked
+    // version claim, which is exactly what the per-source attribution contract
+    // exists to prevent (REQ-005).
     if (
       record.metrics.some((metric) => metric.key === "latestVersion") &&
       !sources.some(
-        (source) =>
-          source.url.startsWith("https://registry.npmjs.org/") ||
-          source.url.startsWith("https://www.npmjs.com/package/"),
+        (source) => isPackageRegistryUrl(source.url) && (source.supports ?? []).includes("metric:latestVersion"),
       )
     ) {
       fail(
         `evidence record "${record.id}": latestVersion is not backed by a package-registry primary source ` +
-          `(add supportingSources[].supports = ["metric:latestVersion"])`,
+          `attributed to it (add supportingSources[].supports = ["metric:latestVersion"])`,
       );
     }
 

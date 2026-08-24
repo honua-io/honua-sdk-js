@@ -1949,7 +1949,7 @@
     },
     {
       "id": "geoservices-gp-discovery-standalone",
-      "label": "GeoServices GPServer discovery and execution",
+      "label": "GeoServices GPServer discovery and asynchronous execution",
       "protocol": "geoservices-gp-service",
       "operations": [
         "discovery",
@@ -1958,9 +1958,9 @@
       "environment": "standalone",
       "executionMode": "native",
       "status": "supported",
-      "backendNeeded": "Any ArcGIS Server GPServer endpoint",
+      "backendNeeded": "Any ArcGIS Server GPServer endpoint for discovery; execution additionally requires the task to be published for asynchronous submission (submitJob)",
       "api": "discoverGeoServices(), HonuaClient.geoprocessing(), HonuaClient.geoprocessingRunner(), Source.protocol()",
-      "notes": "Discovery returns task and job-lifecycle metadata without starting work. Explicit calls through the typed GP service or unified process runner submit, poll, cancel, and fetch results without inventing a queryable Source.",
+      "notes": "Discovery returns task and job-lifecycle metadata for every task without starting work. Execution is asynchronous only: the typed GP service and the unified process runner submit, poll, cancel, and fetch results over submitJob/jobs/cancel, so a synchronous task that advertises only execute is discovered and reported with sdkSupported false rather than run.",
       "evidence": [
         "geoservices-discovery-fixtures",
         "geoservices-conformance",

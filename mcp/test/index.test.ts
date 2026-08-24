@@ -1,7 +1,12 @@
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { HonuaClient } from "@honua/sdk-js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createFixtureClient } from "../src/certification/fixture-client.js";
 import {
   SERVER_VERSION,
   createBootstrapServer,
@@ -178,6 +183,88 @@ describe("MCP server setup", () => {
     expect(installSpy).toHaveBeenCalledWith(
       expect.objectContaining({ directory: ".honua", profile: "quickstart", confirm: true }),
     );
+  });
+});
+
+/**
+ * #1412 fail-closed dispatch proof.
+ *
+ * Unregistering `honua_admin_install_local` from {@link createServer} is a
+ * catalog change; it is NOT on its own proof that the ordinary server refuses
+ * to RUN the installer. An agent that already knows the tool name can send a
+ * `tools/call` for it without ever reading the catalog. This exercises exactly
+ * that hostile path over a real MCP transport and asserts the dispatch aborts
+ * in the protocol router -- before argument parsing, and therefore before any
+ * filesystem, Docker, or credential mutation the installer would perform.
+ */
+describe("ordinary MCP server local-install dispatch", () => {
+  it("refuses a direct honua_admin_install_local call before any filesystem, Docker, or credential mutation", async () => {
+    const installSpy = vi.spyOn(adminInstallLocal, "execute");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const scratch = mkdtempSync(path.join(tmpdir(), "honua-mcp-fail-closed-"));
+    // Deliberately NOT created: installHonuaLocal would mkdir it, write
+    // compose.yaml/.env/MCP config into it, and spawn Docker there. Its absence
+    // after the call is the mutation-free assertion.
+    const directory = path.join(scratch, "install-target");
+
+    const server = createServer(createFixtureClient());
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "fail-closed-probe", version: "1.0.0" });
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+
+    try {
+      const catalog = await client.listTools();
+      expect(catalog.tools.map((tool) => tool.name)).not.toContain("honua_admin_install_local");
+
+      // The hostile call: fully-formed, confirm=true, name known out of band.
+      const refusal = (await client.callTool({
+        name: "honua_admin_install_local",
+        arguments: { directory, profile: "quickstart", confirm: true },
+      })) as { isError?: boolean; content: { type: string; text: string }[] };
+
+      // -32602 (invalid params) from the router: the name never resolved to a
+      // handler, so nothing downstream of registration ever ran.
+      expect(refusal.isError).toBe(true);
+      expect(refusal.content[0]?.text).toMatch(/-32602/);
+      expect(refusal.content[0]?.text).toMatch(/honua_admin_install_local not found/);
+
+      expect(installSpy).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(existsSync(directory)).toBe(false);
+    } finally {
+      await client.close();
+      await server.close();
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("still exposes the installer on the bootstrap server, so the refusal above is scoping and not absence", async () => {
+    const installSpy = vi
+      .spyOn(adminInstallLocal, "execute")
+      .mockResolvedValue({ content: [{ type: "text", text: "{}" }], structuredContent: { status: "ready" } } as never);
+
+    const server = createBootstrapServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "bootstrap-probe", version: "1.0.0" });
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+
+    try {
+      const catalog = await client.listTools();
+      expect(catalog.tools.map((tool) => tool.name)).toEqual(["honua_admin_install_local"]);
+
+      await client.callTool({
+        name: "honua_admin_install_local",
+        arguments: { directory: ".honua", confirm: true },
+      });
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ directory: ".honua", profile: "quickstart", confirm: true }),
+      );
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 });
 
