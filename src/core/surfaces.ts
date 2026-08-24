@@ -1,4 +1,4 @@
-import { HonuaJobPollTimeoutError, isJobTerminal } from "../contract/jobs.js";
+import { isJobTerminal } from "../contract/jobs.js";
 import type {
   IJobRun,
   JobError,
@@ -29,6 +29,7 @@ import type { SourceId } from "../contract/types.js";
 import type { HonuaMetadataRequestOptions } from "./cache-state.js";
 import type { HonuaClient } from "./client.js";
 import { HonuaCapabilityNotSupportedError } from "./errors.js";
+import { JobRunLifecycle } from "./job-run-lifecycle.js";
 import type { OgcApiLayoutMode } from "./ogc-endpoint-layout.js";
 import { encodeServiceIdPath } from "./path-utils.js";
 import type {
@@ -1943,11 +1944,7 @@ export class HonuaGeoprocessingJobRun<T = unknown> implements IJobRun<T> {
     signal?: AbortSignal,
   ) => Promise<Record<string, unknown>>;
   private readonly cancelFn: (jobId: string, signal?: AbortSignal) => Promise<HonuaGeoprocessingJob>;
-  private currentStatus: JobStatus;
-  private currentProgress: JobProgress | undefined;
-  private terminalSnapshot: JobSnapshot<T> | undefined;
-  private terminalPromise: Promise<JobResult<T>> | undefined;
-  private readonly listeners = new Set<JobSnapshotListener<T>>();
+  private readonly lifecycle: JobRunLifecycle<T>;
 
   public constructor(options: HonuaGeoprocessingJobRunOptions) {
     this.client = options.client;
@@ -1981,119 +1978,53 @@ export class HonuaGeoprocessingJobRun<T = unknown> implements IJobRun<T> {
           serviceId: this.serviceId,
           taskName: this.taskName,
         }).cancelJob(jobId, { signal }));
-    this.currentStatus = geoprocessingStatusToJobStatus(options.initialJob?.jobStatus);
-    this.currentProgress = progressFromGeoprocessingJob(options.initialJob);
+    this.lifecycle = new JobRunLifecycle<T>({
+      id: this.id,
+      initialStatus: geoprocessingStatusToJobStatus(options.initialJob?.jobStatus),
+      initialProgress: progressFromGeoprocessingJob(options.initialJob),
+      pollIntervalMs: this.pollIntervalMs,
+      poll: async (signal) => this.translateGeoprocessingJob(await this.pollFn(this.id, signal), signal),
+    });
   }
 
   public get status(): JobStatus {
-    return this.currentStatus;
+    return this.lifecycle.status;
   }
 
   public get progress(): JobProgress | undefined {
-    return this.currentProgress;
+    return this.lifecycle.progress;
   }
 
   public async poll(): Promise<JobSnapshot<T>> {
-    if (this.terminalSnapshot) return this.terminalSnapshot;
-    const job = await this.pollFn(this.id);
-    return this.handleGeoprocessingJob(job);
+    return this.lifecycle.poll();
   }
 
   public watch(listener: JobSnapshotListener<T>): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return this.lifecycle.watch(listener);
   }
 
   public async results(options: JobResultsOptions = {}): Promise<JobResult<T>> {
-    if (!this.terminalPromise) {
-      // Reset the cached promise if the poll loop rejects (abort / deadline /
-      // attempt cap / transient poll error) so a later results() call can retry
-      // rather than being permanently poisoned while the job may still be
-      // running and pollable.
-      this.terminalPromise = this.runUntilTerminal(options).catch((error) => {
-        this.terminalPromise = undefined;
-        throw error;
-      });
-    }
-    return this.terminalPromise;
+    return this.lifecycle.results(options);
   }
 
   public async cancel(): Promise<JobStatus> {
-    if (this.terminalSnapshot) return this.currentStatus;
-    const cancelled = await this.cancelFn(this.id);
-    const snapshot = await this.handleGeoprocessingJob(cancelled);
-    return snapshot.status;
+    return this.lifecycle.cancel(async () => this.translateGeoprocessingJob(await this.cancelFn(this.id)));
   }
 
-  private async runUntilTerminal(options: JobResultsOptions = {}): Promise<JobResult<T>> {
-    const { signal } = options;
-    const baseIntervalMs = options.pollIntervalMs ?? this.pollIntervalMs;
-    const maxIntervalMs = options.maxPollIntervalMs ?? Math.max(baseIntervalMs, 30_000);
-    const startedAt = Date.now();
-    let attempts = 0;
-
-    while (!this.terminalSnapshot) {
-      if (signal?.aborted) {
-        throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
-      }
-      if (options.maxAttempts !== undefined && attempts >= options.maxAttempts) {
-        throw new HonuaJobPollTimeoutError(
-          `Job ${this.id} did not reach a terminal state within ${options.maxAttempts} poll attempt(s)`,
-          "max-attempts",
-          this.id,
-          this.currentStatus,
-        );
-      }
-
-      let job: HonuaGeoprocessingJob;
-      try {
-        job = await this.pollFn(this.id, signal);
-      } catch (error) {
-        if (signal?.aborted) {
-          throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
-        }
-        throw error;
-      }
-      attempts += 1;
-      await this.handleGeoprocessingJob(job);
-      if (this.terminalSnapshot) break;
-
-      if (options.deadlineMs !== undefined && Date.now() - startedAt >= options.deadlineMs) {
-        throw new HonuaJobPollTimeoutError(
-          `Job ${this.id} did not reach a terminal state within ${options.deadlineMs}ms`,
-          "deadline",
-          this.id,
-          this.currentStatus,
-        );
-      }
-
-      // Capped exponential backoff instead of a fixed interval, matching the
-      // OGC Processes and geospatial-grpc job pollers.
-      const intervalMs = Math.min(maxIntervalMs, baseIntervalMs * 2 ** (attempts - 1));
-      if (intervalMs > 0) await gpDelay(intervalMs, signal);
-    }
-    if (this.terminalSnapshot.status === "successful" && this.terminalSnapshot.result) {
-      return this.terminalSnapshot.result;
-    }
-    const error = this.terminalSnapshot.error;
-    throw new Error(error?.message ?? `GeoServices GP job ended in ${this.terminalSnapshot.status}`);
-  }
-
-  private async handleGeoprocessingJob(job: HonuaGeoprocessingJob | undefined): Promise<JobSnapshot<T>> {
+  private async translateGeoprocessingJob(
+    job: HonuaGeoprocessingJob | undefined,
+    signal?: AbortSignal,
+  ): Promise<JobSnapshot<T>> {
     const status = geoprocessingStatusToJobStatus(job?.jobStatus);
     const progress = progressFromGeoprocessingJob(job);
-    this.currentStatus = status;
-    this.currentProgress = progress;
 
     if (status === "successful") {
-      const outputs = await this.resolveOutputs(job);
+      const outputs = await this.resolveOutputs(job, signal);
       const snapshot: JobSnapshot<T> = {
         status,
         progress,
         result: { outputs },
       };
-      this.terminalSnapshot = snapshot;
-      this.notify(snapshot);
       return snapshot;
     }
 
@@ -2104,32 +2035,26 @@ export class HonuaGeoprocessingJobRun<T = unknown> implements IJobRun<T> {
         progress,
         ...(error ? { error } : {}),
       };
-      this.terminalSnapshot = snapshot;
-      this.notify(snapshot);
       return snapshot;
     }
 
     const snapshot: JobSnapshot<T> = { status, progress };
-    this.notify(snapshot);
     return snapshot;
   }
 
-  private async resolveOutputs(job: HonuaGeoprocessingJob | undefined): Promise<Record<string, T>> {
+  private async resolveOutputs(
+    job: HonuaGeoprocessingJob | undefined,
+    signal?: AbortSignal,
+  ): Promise<Record<string, T>> {
     if (this.resultNames.length === 0) {
       return (job?.results ?? {}) as Record<string, T>;
     }
 
     const outputs: Record<string, T> = {};
     for (const resultName of this.resultNames) {
-      outputs[resultName] = (await this.resultFn(this.id, resultName)) as T;
+      outputs[resultName] = (await this.resultFn(this.id, resultName, signal)) as T;
     }
     return outputs;
-  }
-
-  private notify(snapshot: JobSnapshot<T>): void {
-    for (const listener of this.listeners) {
-      listener(snapshot);
-    }
   }
 }
 
@@ -2164,10 +2089,7 @@ function geoprocessingStatusToJobStatus(value: string | undefined): JobStatus {
 function progressFromGeoprocessingJob(job: HonuaGeoprocessingJob | undefined): JobProgress | undefined {
   if (!job) return undefined;
   const message = job.messages?.at(-1)?.description;
-  const status = geoprocessingStatusToJobStatus(job.jobStatus);
-  const percent = status === "successful" ? 100 : status === "accepted" ? 5 : status === "running" ? 50 : undefined;
-  if (percent === undefined && message === undefined) return undefined;
-  return { ...(percent !== undefined ? { percent } : {}), ...(message !== undefined ? { message } : {}) };
+  return message === undefined ? undefined : { message };
 }
 
 function geoprocessingJobError(status: JobStatus, job: HonuaGeoprocessingJob | undefined): JobError | undefined {
@@ -2183,24 +2105,6 @@ function geoprocessingJobError(status: JobStatus, job: HonuaGeoprocessingJob | u
     code: status === "dismissed" ? "GeoServicesJobDismissed" : "GeoServicesJobFailed",
     message,
   };
-}
-
-function gpDelay(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal?.aborted) {
-      resolve();
-      return;
-    }
-    const onAbort = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
