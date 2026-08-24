@@ -8,12 +8,12 @@ esbuild `--bundle --minify`, target `es2020`, runtime peers (`maplibre-gl`, `ces
 `@connectrpc/*`) kept external. Ceilings are enforced in CI via `npm run verify:bundle-budgets`
 (budgets live in [`bundle-budgets.json`](../bundle-budgets.json), set to actual + ~10% headroom).
 
-_Generated 2026-08-24 at commit `0aba7b0a`._
+_Generated 2026-08-24 at commit `c263f502`._
 
 | Entrypoint | Min | Min budget | Gzip | Gzip budget |
 | --- | ---: | ---: | ---: | ---: |
-| `.` (root) | 772.9 KiB | 829.3 KiB | 208.7 KiB | 211.8 KiB |
-| `/honua` | 935.6 KiB | 937.2 KiB | 252.9 KiB | 278.1 KiB |
+| `.` (root) | 772.8 KiB | 829.3 KiB | 208.7 KiB | 211.8 KiB |
+| `/honua` | 935.6 KiB | 937.2 KiB | 253.0 KiB | 278.1 KiB |
 | `/contract` | 368.2 KiB | 400.6 KiB | 99.1 KiB | 108.0 KiB |
 | `/source-schema` (focused schema + pinned PROJJSON validator) | 906.6 KiB | 925.5 KiB | 206.8 KiB | 227.3 KiB |
 | `/source-capabilities` (static evidence ingestion + lightweight evaluator) | 254.8 KiB | 257.5 KiB | 31.4 KiB | 33.2 KiB |
@@ -55,7 +55,7 @@ _Generated 2026-08-24 at commit `0aba7b0a`._
 | tree-shake guard (`{ evaluateCapabilityProfile }` only, CRS/PROJJSON validator excluded) | 16.4 KiB | 17.9 KiB | 5.7 KiB | 6.2 KiB |
 | tree-shake guard (`{ HonuaTimeoutError }` only, descriptive code registry excluded) | 16.3 KiB | 17.1 KiB | 4.3 KiB | 4.5 KiB |
 | explicit registry import (`{ HONUA_ERROR_CODE_REGISTRY }`, full descriptive summaries) | 17.0 KiB | 18.5 KiB | 3.6 KiB | 3.9 KiB |
-| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 734.5 KiB | 791.3 KiB | 198.7 KiB | 210.6 KiB |
+| tree-shake guard (`{ createHonua }` managed discovery + accepted-plan facade) | 734.5 KiB | 791.3 KiB | 198.8 KiB | 210.6 KiB |
 | tree-shake guard (`{ FeatureLayerCompat }` from `/esri-compat`) | 269.8 KiB | 296.3 KiB | 70.8 KiB | 77.7 KiB |
 | tree-shake guard (`{ buffer }` from `/geometry`, turf bundled) | 287.5 KiB | 316.3 KiB | 65.6 KiB | 72.2 KiB |
 | tree-shake guard (`{ mountSourceToMapLibre }` from `/map`) | 45.6 KiB | 49.4 KiB | 13.7 KiB | 14.0 KiB |

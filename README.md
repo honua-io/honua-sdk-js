@@ -306,10 +306,10 @@ generated from that measurement, tree-shake guards included:
 | `@honua/sdk-js` (root) | 208.7 KiB |
 | `{ HonuaClient }` from the root (tree-shake guard) | 67.7 KiB |
 | `{ connect }` from the root (tree-shake guard) | 169.9 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 198.7 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 198.8 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 169.9 KiB gzip and `{ createHonua }` 198.7 KiB against the 208.7 KiB root, so size-sensitive
+alone costs 169.9 KiB gzip and `{ createHonua }` 198.8 KiB against the 208.7 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
