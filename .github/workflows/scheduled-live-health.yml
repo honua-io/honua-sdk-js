@@ -44,7 +44,17 @@ jobs:
         run: |
           set -euo pipefail
           title="Scheduled/live lane health alert"
-          body="$(node -e 'const p=require("./scheduled-live-health.v1.json"); console.log(`Required scheduled/live evidence is unhealthy: ${p.requiredFailures.join(", ")}.\n\nRun: ${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}\nGenerated: ${p.generatedAt}`)"
+          body="$(node <<'NODE'
+          const fs = require("node:fs");
+          const run = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          try {
+            const projection = JSON.parse(fs.readFileSync("scheduled-live-health.v1.json", "utf8"));
+            console.log(`Required scheduled/live evidence is unhealthy: ${projection.requiredFailures.join(", ")}.\n\nRun: ${run}\nGenerated: ${projection.generatedAt}`);
+          } catch (error) {
+            console.log(`Scheduled/live health projection failed before producing a readable artifact.\n\nRun: ${run}\nFailure: ${error instanceof Error ? error.message : String(error)}`);
+          }
+          NODE
+          )"
           existing="$(gh issue list --state open --search "${title} in:title" --json number,title --jq ".[] | select(.title == \"${title}\") | .number" | head -1)"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"

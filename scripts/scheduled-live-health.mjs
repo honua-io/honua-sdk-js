@@ -7,6 +7,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function classifyLane(lane, run, now = new Date()) {
   if (!run) return { status: "never-run", ageDays: null };
   const ageDays = (now.getTime() - Date.parse(run.created_at)) / DAY_MS;
+  if (!lane.eligibleEvents?.includes(run.event) || (lane.branch && run.head_branch !== lane.branch)) {
+    return { status: "ineligible-run", ageDays };
+  }
   if (run.status !== "completed") return { status: "running", ageDays };
   if (run.conclusion !== "success") return { status: "failing", ageDays };
   if (ageDays > lane.maxAgeDays) return { status: "stale", ageDays };
@@ -19,7 +22,24 @@ export async function buildScheduledLiveHealth(config, options = {}) {
   const fetchRun = options.fetchRun ?? githubRunFetcher(config.repository, options.token);
   const lanes = [];
   for (const lane of config.lanes) {
-    const run = await fetchRun(lane.workflow);
+    let run = null;
+    let queryError = null;
+    try {
+      run = await fetchRun(lane);
+    } catch (error) {
+      queryError = error instanceof Error ? error.message : String(error);
+    }
+    if (queryError) {
+      lanes.push({
+        ...lane,
+        status: "query-error",
+        ageDays: null,
+        lastRun: null,
+        triage: null,
+        queryError,
+      });
+      continue;
+    }
     const state = classifyLane(lane, run, now);
     lanes.push({
       ...lane,
@@ -51,14 +71,22 @@ export async function buildScheduledLiveHealth(config, options = {}) {
 }
 
 function githubRunFetcher(repository, token) {
-  return async (workflow) => {
-    const response = await fetch(
-      `https://api.github.com/repos/${repository}/actions/workflows/${encodeURIComponent(workflow)}/runs?per_page=1`,
-      { headers: { accept: "application/vnd.github+json", "user-agent": "honua-sdk-live-health", ...(token ? { authorization: `Bearer ${token}` } : {}) } },
-    );
-    if (!response.ok) throw new Error(`GitHub runs query failed for ${workflow}: HTTP ${response.status}`);
-    const payload = await response.json();
-    return payload.workflow_runs?.[0] ?? null;
+  return async (lane) => {
+    if (!Array.isArray(lane.eligibleEvents) || lane.eligibleEvents.length === 0) {
+      throw new Error(`Lane ${lane.id} has no eligibleEvents contract`);
+    }
+    const runs = await Promise.all(lane.eligibleEvents.map(async (event) => {
+      const query = new URLSearchParams({ per_page: "1", event });
+      if (lane.branch) query.set("branch", lane.branch);
+      const response = await fetch(
+        `https://api.github.com/repos/${repository}/actions/workflows/${encodeURIComponent(lane.workflow)}/runs?${query}`,
+        { headers: { accept: "application/vnd.github+json", "user-agent": "honua-sdk-live-health", ...(token ? { authorization: `Bearer ${token}` } : {}) } },
+      );
+      if (!response.ok) throw new Error(`GitHub runs query failed for ${lane.workflow} (${event}): HTTP ${response.status}`);
+      const payload = await response.json();
+      return payload.workflow_runs?.[0] ?? null;
+    }));
+    return runs.filter(Boolean).sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0] ?? null;
   };
 }
 
