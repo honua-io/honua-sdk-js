@@ -112,7 +112,11 @@ describe("geoprocessing / canonical IJobRun lifecycle", () => {
     expect(job.type).toBe("Analysis/OverlayFacilities");
 
     const observed: string[] = [];
-    job.watch((snapshot) => observed.push(snapshot.status));
+    const progress: Array<number | undefined> = [];
+    job.watch((snapshot) => {
+      observed.push(snapshot.status);
+      progress.push(snapshot.progress?.percent);
+    });
 
     const result = await (job as IJobRun<Record<string, unknown>>).results();
     expect(result.outputs.outputLayer).toMatchObject({
@@ -122,6 +126,35 @@ describe("geoprocessing / canonical IJobRun lifecycle", () => {
     });
     expect(job.status).toBe("successful");
     expect(observed).toEqual(["running", "successful"]);
+    expect(progress).toEqual([undefined, undefined]);
+  });
+
+  it("throws the exported typed job failure for GPServer failures", async () => {
+    const client = makeMockClient({
+      routes: [
+        [
+          "/rest/services/Analysis/GPServer/OverlayFacilities/submitJob",
+          () => jsonResponse({ jobId: "gp-failed", jobStatus: "esriJobSubmitted" }),
+        ],
+        [
+          "/rest/services/Analysis/GPServer/OverlayFacilities/jobs/gp-failed",
+          () =>
+            jsonResponse({
+              jobId: "gp-failed",
+              jobStatus: "esriJobFailed",
+              messages: [{ type: "esriJobMessageTypeError", description: "Overlay failed" }],
+            }),
+        ],
+      ],
+    });
+    const job = await client
+      .geoprocessing("Analysis", "OverlayFacilities")
+      .submit({ parameters: {} }, { pollIntervalMs: 0 });
+    await expect(job.results()).rejects.toMatchObject({
+      name: "HonuaJobFailedError",
+      status: "failed",
+      errorCode: "GeoServicesJobFailed",
+    });
   });
 
   it("maps cancellation to dismissed and keeps cancel idempotent after terminal state", async () => {

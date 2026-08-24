@@ -34,10 +34,10 @@ import type {
   JobSnapshotListener,
   JobStatus,
 } from "../contract/jobs.js";
-import { HonuaJobPollTimeoutError, isJobTerminal } from "../contract/jobs.js";
+import { isJobTerminal } from "../contract/jobs.js";
 import type { HonuaClient } from "./client.js";
-import { HonuaSdkError } from "./error-envelope.js";
 import { HonuaCapabilityNotSupportedError } from "./errors.js";
+import { JobRunLifecycle } from "./job-run-lifecycle.js";
 import { hasOgcConformanceClass } from "./ogc-conformance.js";
 import type { HonuaProtocolTransport } from "./protocol-transport.js";
 import type {
@@ -133,7 +133,6 @@ const DEFAULT_POLL_INTERVAL_MS = 1_000;
  * never reaches a terminal state must not poll forever. Callers who genuinely
  * want a longer wait pass their own `deadlineMs`.
  */
-const DEFAULT_POLL_DEADLINE_MS = 600_000;
 
 /** Honua facade path prefix for OGC API Processes. */
 const PROCESSES_FACADE_BASE = "/ogc/processes";
@@ -542,11 +541,7 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
   /** Server-advertised routes, refreshed from every `links[]` the job reports. */
   private statusPath: string | undefined;
   private resultsPath: string | undefined;
-  private currentStatus: JobStatus;
-  private currentProgress: JobProgress | undefined;
-  private terminalSnapshot: JobSnapshot<T> | undefined;
-  private terminalPromise: Promise<JobResult<T>> | undefined;
-  private readonly listeners = new Set<JobSnapshotListener<T>>();
+  private readonly lifecycle: JobRunLifecycle<T>;
 
   public constructor(options: HonuaOgcProcessJobOptions) {
     this.client = options.client;
@@ -563,8 +558,14 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
     this.pollFn = options.pollFn ?? ((jobId, signal) => this.fetchStatus(jobId, signal));
     const initial = options.initialStatus;
     this.absorbLinks(initial?.links);
-    this.currentStatus = (initial?.status as JobStatus) ?? "accepted";
-    this.currentProgress = progressFromOgcStatus(initial);
+    this.lifecycle = new JobRunLifecycle<T>({
+      id: this.id,
+      initialStatus: (initial?.status as JobStatus) ?? "accepted",
+      initialProgress: progressFromOgcStatus(initial),
+      pollIntervalMs: () => this.pollIntervalMs,
+      pollBudget: this.pollBudget,
+      poll: async (signal) => this.translateOgcStatus(await this.pollFn(this.id, signal)),
+    });
   }
 
   private async fetchStatus(jobId: string, signal?: AbortSignal): Promise<HonuaOgcProcessJobStatus> {
@@ -600,62 +601,37 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
   }
 
   public get status(): JobStatus {
-    return this.currentStatus;
+    return this.lifecycle.status;
   }
 
   public get progress(): JobProgress | undefined {
-    return this.currentProgress;
+    return this.lifecycle.progress;
   }
 
   public async poll(): Promise<JobSnapshot<T>> {
-    if (this.terminalSnapshot) {
-      return this.terminalSnapshot;
-    }
-    const ogcStatus = await this.pollFn(this.id);
-    return this.handleOgcStatus(ogcStatus);
+    return this.lifecycle.poll();
   }
 
   public watch(listener: JobSnapshotListener<T>): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return this.lifecycle.watch(listener);
   }
 
   public async results(options: JobResultsOptions = {}): Promise<JobResult<T>> {
-    if (!this.terminalPromise) {
-      // Reset the cached promise if the poll loop rejects (abort / deadline /
-      // attempt cap) so a later results() call can retry rather than being
-      // permanently poisoned by a transient cancellation.
-      this.terminalPromise = this.runUntilTerminal(this.resolveBudget(options)).catch((error) => {
-        this.terminalPromise = undefined;
-        throw error;
-      });
-    }
-    return this.terminalPromise;
-  }
-
-  /**
-   * Layer the caller's bounds over the handle's default budget, then guarantee
-   * a bound exists. NFR-001: `results()` is never an unbounded retry loop, so a
-   * caller that names neither a deadline nor an attempt cap still inherits
-   * {@link DEFAULT_POLL_DEADLINE_MS}.
-   */
-  private resolveBudget(options: JobResultsOptions): JobResultsOptions {
-    const merged: JobResultsOptions = { ...this.pollBudget, ...options };
-    if (merged.deadlineMs !== undefined || merged.maxAttempts !== undefined) return merged;
-    return { ...merged, deadlineMs: DEFAULT_POLL_DEADLINE_MS };
+    return this.lifecycle.results(options);
   }
 
   public async cancel(): Promise<JobStatus> {
-    if (this.terminalSnapshot) {
-      return this.currentStatus;
-    }
+    if (this.lifecycle.terminal) return this.lifecycle.status;
     this.assertDismissDeclared();
+    return this.lifecycle.cancel(() => this.cancelSnapshot());
+  }
+
+  private async cancelSnapshot(): Promise<JobSnapshot<T>> {
     try {
       // DELETE targets the job resource itself, so it follows the same
       // advertised route the status polls use rather than re-templating it.
       const cancelled = await this.client.cancelOgcProcessJob(this.jobRequest(this.statusPath));
-      const snapshot = await this.handleOgcStatus(cancelled);
-      return snapshot.status;
+      return this.translateOgcStatus(cancelled);
     } catch (error) {
       const statusCode = (error as { statusCode?: number } | undefined)?.statusCode;
       // `IJobRun.cancel` is documented as idempotent: when the job is
@@ -674,7 +650,7 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
       // "completed job" claim cannot be confirmed and the original 409
       // is the most honest signal.
       if (statusCode === 404) {
-        return this.currentStatus;
+        return { status: this.lifecycle.status, progress: this.lifecycle.progress };
       }
       if (statusCode === 409 && isCompletedJobConflict(error)) {
         let fresh: HonuaOgcProcessJobStatus;
@@ -686,68 +662,14 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
           // 409 instead of letting the poll-side error swallow it.
           throw error;
         }
-        const snapshot = await this.handleOgcStatus(fresh);
+        const snapshot = await this.translateOgcStatus(fresh);
         if (!isJobTerminal(snapshot.status)) {
           throw error;
         }
-        return snapshot.status;
+        return snapshot;
       }
       throw error;
     }
-  }
-
-  private async runUntilTerminal(options: JobResultsOptions = {}): Promise<JobResult<T>> {
-    const { signal } = options;
-    const baseIntervalMs = options.pollIntervalMs ?? this.pollIntervalMs;
-    const maxIntervalMs = options.maxPollIntervalMs ?? Math.max(baseIntervalMs, 30_000);
-    const startedAt = Date.now();
-    let attempts = 0;
-
-    while (!this.terminalSnapshot) {
-      if (signal?.aborted) {
-        throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
-      }
-      if (options.maxAttempts !== undefined && attempts >= options.maxAttempts) {
-        throw new HonuaJobPollTimeoutError(
-          `Job ${this.id} did not reach a terminal state within ${options.maxAttempts} poll attempt(s)`,
-          "max-attempts",
-          this.id,
-          this.currentStatus,
-        );
-      }
-
-      let ogcStatus: HonuaOgcProcessJobStatus;
-      try {
-        ogcStatus = await this.pollFn(this.id, signal);
-      } catch (error) {
-        if (signal?.aborted) {
-          throw new HonuaJobPollTimeoutError(`Job ${this.id} poll aborted`, "aborted", this.id, this.currentStatus);
-        }
-        throw error;
-      }
-      attempts += 1;
-      await this.handleOgcStatus(ogcStatus);
-      if (this.terminalSnapshot) break;
-
-      if (options.deadlineMs !== undefined && Date.now() - startedAt >= options.deadlineMs) {
-        throw new HonuaJobPollTimeoutError(
-          `Job ${this.id} did not reach a terminal state within ${options.deadlineMs}ms`,
-          "deadline",
-          this.id,
-          this.currentStatus,
-        );
-      }
-
-      // Capped exponential backoff instead of a fixed interval.
-      const intervalMs = Math.min(maxIntervalMs, baseIntervalMs * 2 ** (attempts - 1));
-      if (intervalMs > 0) {
-        await delay(intervalMs, signal);
-      }
-    }
-    if (this.terminalSnapshot.status === "successful" && this.terminalSnapshot.result) {
-      return this.terminalSnapshot.result;
-    }
-    throw makeJobFailedError(this.terminalSnapshot);
   }
 
   /**
@@ -756,11 +678,9 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
    * result document inline so the snapshot's `result.outputs` is
    * populated by the time `runUntilTerminal` / `poll` resolves.
    */
-  private async handleOgcStatus(ogcStatus: HonuaOgcProcessJobStatus): Promise<JobSnapshot<T>> {
+  private async translateOgcStatus(ogcStatus: HonuaOgcProcessJobStatus): Promise<JobSnapshot<T>> {
     const status = (ogcStatus.status as JobStatus) ?? "accepted";
     const progress = progressFromOgcStatus(ogcStatus);
-    this.currentStatus = status;
-    this.currentProgress = progress;
     // Routes the server publishes on this document win over the Core template.
     this.absorbLinks(ogcStatus.links);
 
@@ -782,8 +702,6 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
           progress,
           result: { outputs: results as Record<string, T> },
         };
-        this.terminalSnapshot = snapshot;
-        this.notify(snapshot);
         return snapshot;
       } catch (error) {
         // A fail-closed capability refusal is not a job failure: the job may
@@ -799,9 +717,6 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
             message: error instanceof Error ? error.message : String(error),
           },
         };
-        this.currentStatus = "failed";
-        this.terminalSnapshot = failure;
-        this.notify(failure);
         return failure;
       }
     }
@@ -813,13 +728,10 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
         progress,
         ...(error ? { error } : {}),
       };
-      this.terminalSnapshot = snapshot;
-      this.notify(snapshot);
       return snapshot;
     }
 
     const snapshot: JobSnapshot<T> = { status, progress };
-    this.notify(snapshot);
     return snapshot;
   }
 
@@ -858,16 +770,6 @@ export class HonuaOgcProcessJobRun<T = unknown> implements IJobRun<T> {
       missingClass: PROCESSES_CONFORMANCE.dismiss,
       construct: JOB_CONTROL.dismiss,
     });
-  }
-
-  private notify(snapshot: JobSnapshot<T>): void {
-    for (const listener of this.listeners) {
-      try {
-        listener(snapshot);
-      } catch {
-        // Listener exceptions must not break the runner; log silently.
-      }
-    }
   }
 }
 
@@ -915,19 +817,7 @@ export class HonuaOgcProcessSyncRun<T = unknown> implements IJobRun<T> {
 }
 
 /** Error thrown when `IJobRun.results()` resolves a non-success terminal. */
-export class HonuaJobFailedError extends HonuaSdkError {
-  public readonly status: JobStatus;
-  public readonly errorCode: string | undefined;
-  public readonly details: unknown;
-
-  public constructor(message: string, status: JobStatus, errorCode?: string, details?: unknown) {
-    super("core.job-failed", message, { context: { status, errorCode } });
-    this.name = "HonuaJobFailedError";
-    this.status = status;
-    this.errorCode = errorCode;
-    this.details = details;
-  }
-}
+export { HonuaJobFailedError } from "./job-run-errors.js";
 
 /**
  * Honua-server emits problem-details JSON for DELETE /jobs/{id} 409s. The
@@ -985,30 +875,6 @@ function clampPercent(value: number): number {
   if (value < 0) return 0;
   if (value > 100) return 100;
   return value;
-}
-
-function makeJobFailedError<T>(snapshot: JobSnapshot<T>): HonuaJobFailedError {
-  const error: JobError | undefined = snapshot.error;
-  const message = error?.message ?? `Job ended in non-success terminal state: ${snapshot.status}`;
-  return new HonuaJobFailedError(message, snapshot.status, error?.code, error?.details);
-}
-
-function delay(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve) => {
-    if (signal?.aborted) {
-      resolve();
-      return;
-    }
-    const onAbort = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-    const timer = setTimeout(() => {
-      signal?.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    signal?.addEventListener("abort", onAbort, { once: true });
-  });
 }
 
 export function createHonuaOgcProcesses(client: HonuaClient): HonuaOgcProcesses {
