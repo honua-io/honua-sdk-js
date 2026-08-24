@@ -35,12 +35,29 @@ import {
   normalizeSmoke,
   parseUniqueJson,
   parseCanonicalArchive,
+  synchronizeActionPins,
   validateDeterministicReceipt,
   validateManifest,
   validateRunReceipt,
   validateWorkflowDocument,
   validateWorkflowFile,
 } from "../../scripts/immutable-sample-bundle-attestation.mjs";
+
+test("derives a visible action-pin record update from the workflow", async () => {
+  const source = await readFile(path.join(ROOT, "scripts/immutable-sample-bundle-attestation.mjs"), "utf8");
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  const replacement = "f".repeat(40);
+  workflow.jobs["build-and-smoke"].steps.find((step) => step.uses === ACTIONS.uploadArtifact).uses =
+    `actions/upload-artifact@${replacement}`;
+
+  const synchronized = synchronizeActionPins(source, workflow);
+
+  assert.match(synchronized, new RegExp(`uploadArtifact:\\s*"actions/upload-artifact@${replacement}"`, "u"));
+  assert.throws(
+    () => synchronizeActionPins(source, { jobs: { bad: { steps: [{ uses: "actions/upload-artifact@v4" }] } } }),
+    /full commit SHA/u,
+  );
+});
 import {
   pack,
   canonicalGzip,
