@@ -73,6 +73,10 @@ export class JobRunLifecycle<T> {
     if (!this.cancelPromise) {
       this.cancelPromise = cancel()
         .then((snapshot) => {
+          // A poll may have observed an authoritative terminal while the
+          // transport cancellation was in flight. Never let the older cancel
+          // response overwrite that terminal race winner.
+          if (this.terminalSnapshot) return this.currentStatus;
           const status = this.observe(snapshot).status;
           if (!isJobTerminal(status)) this.cancelPromise = undefined;
           return status;
@@ -114,7 +118,7 @@ export class JobRunLifecycle<T> {
       this.assertWithinBudget(options, attempts, startedAt);
       let snapshot: JobSnapshot<T>;
       try {
-        snapshot = await this.options.poll(options.signal);
+        snapshot = await this.pollWithinBudget(options, startedAt);
       } catch (error) {
         if (options.signal?.aborted) this.throwTimeout("aborted", options);
         throw error;
@@ -137,6 +141,38 @@ export class JobRunLifecycle<T> {
     );
   }
 
+  private async pollWithinBudget(options: JobResultsOptions, startedAt: number): Promise<JobSnapshot<T>> {
+    if (options.signal === undefined && options.deadlineMs === undefined) return this.options.poll();
+
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let rejectBoundary!: (error: PollBoundaryReached) => void;
+    const boundary = new Promise<never>((_resolve, reject) => {
+      rejectBoundary = reject;
+    });
+    const reachBoundary = (reason: "aborted" | "deadline") => {
+      controller.abort();
+      rejectBoundary(new PollBoundaryReached(reason));
+    };
+    const onAbort = () => reachBoundary("aborted");
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+
+    if (options.deadlineMs !== undefined) {
+      const remainingMs = Math.max(0, options.deadlineMs - (Date.now() - startedAt));
+      timer = setTimeout(() => reachBoundary("deadline"), remainingMs);
+    }
+
+    try {
+      return await Promise.race([this.options.poll(controller.signal), boundary]);
+    } catch (error) {
+      if (error instanceof PollBoundaryReached) this.throwTimeout(error.reason, options);
+      throw error;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      options.signal?.removeEventListener("abort", onAbort);
+    }
+  }
+
   private assertWithinBudget(options: JobResultsOptions, attempts: number, startedAt: number): void {
     if (options.signal?.aborted) this.throwTimeout("aborted", options);
     if (options.maxAttempts !== undefined && attempts >= options.maxAttempts)
@@ -153,6 +189,12 @@ export class JobRunLifecycle<T> {
           ? `did not reach a terminal state within ${options.deadlineMs}ms`
           : `did not reach a terminal state within ${options.maxAttempts} poll attempt(s)`;
     throw new HonuaJobPollTimeoutError(`Job ${this.options.id} ${suffix}`, reason, this.options.id, this.currentStatus);
+  }
+}
+
+class PollBoundaryReached extends Error {
+  public constructor(public readonly reason: "aborted" | "deadline") {
+    super(reason);
   }
 }
 

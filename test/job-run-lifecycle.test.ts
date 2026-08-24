@@ -46,6 +46,26 @@ describe("shared IJobRun lifecycle parity kernel", () => {
     expect(polls()).toBe(0);
   });
 
+  it("enforces the deadline while a status request is still in flight", async () => {
+    vi.useFakeTimers();
+    let pollSignal: AbortSignal | undefined;
+    const run = new JobRunLifecycle<number>({
+      id: "job-hung",
+      initialStatus: "running",
+      pollIntervalMs: 0,
+      poll: async (signal) => {
+        pollSignal = signal;
+        return new Promise<JobSnapshot<number>>(() => {});
+      },
+    });
+    const result = run.results({ deadlineMs: 50 });
+    const assertion = expect(result).rejects.toMatchObject({ reason: "deadline" });
+    await vi.advanceTimersByTimeAsync(50);
+    await assertion;
+    expect(pollSignal?.aborted).toBe(true);
+    vi.useRealTimers();
+  });
+
   it("resets the terminal promise after timeout so callers can retry", async () => {
     const { run } = lifecycle([{ status: "running" }, { status: "successful", result: { outputs: { value: 42 } } }]);
     await expect(run.results({ maxAttempts: 1 })).rejects.toBeInstanceOf(HonuaJobPollTimeoutError);
@@ -90,5 +110,18 @@ describe("shared IJobRun lifecycle parity kernel", () => {
     release({ status: "dismissed" });
     await expect(Promise.all([first, second])).resolves.toEqual(["dismissed", "dismissed"]);
     expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a terminal snapshot observed while cancellation is in flight", async () => {
+    const { run } = lifecycle([{ status: "successful", result: { outputs: { value: 42 } } }]);
+    let release!: (snapshot: JobSnapshot<number>) => void;
+    const pending = new Promise<JobSnapshot<number>>((resolve) => {
+      release = resolve;
+    });
+    const cancelling = run.cancel(() => pending);
+    await run.poll();
+    release({ status: "dismissed" });
+    await expect(cancelling).resolves.toBe("successful");
+    expect(run.terminal).toMatchObject({ status: "successful", result: { outputs: { value: 42 } } });
   });
 });
