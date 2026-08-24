@@ -251,6 +251,7 @@ import {
   addCesium3DTileset,
   addCesiumImageryLayer,
   addCesiumModel,
+  applyCesiumScenePrimitives,
   createSceneWorkspace,
   diagnoseScenePrimitives,
   mountScenePrimitivesToCesium,
@@ -749,15 +750,13 @@ if (
   diagnoseScenePrimitives(
     [
       {
-        kind: "elevation-source",
-        id: "terrain",
-        sourceId: "terrain",
-        protocol: "raster-dem",
-        url: "https://example.test/terrain",
-        encoding: "mapbox",
+        kind: "model-layer",
+        id: "model",
+        uri: "https://example.test/tileset.json",
+        format: "3d-tiles",
         sourceVersion: "dem-2026.2",
         cache: { status: "stale" },
-        precision: { verticalMeters: 0.01 },
+        precision: { horizontalMeters: 0.05, coordinateFrame: "geocentric", coordinateStorage: "float32" },
       },
     ],
     CESIUM_SCENE_CAPABILITIES,
@@ -769,11 +768,30 @@ if (
   throw new Error("Scene precision and asset-metadata diagnostics missing from @honua/app-platform/scene-workspace");
 if (
   diagnoseScenePrimitives(
-    [{ kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "custom" }],
+    [{ kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "quantized-mesh" }],
     CESIUM_SCENE_CAPABILITIES,
   ).some((diagnostic) => diagnostic.code !== "scene-primitive-terrain-source-missing-url")
 )
   throw new Error("Per-protocol terrain endpoint validation missing from @honua/app-platform/scene-workspace");
+{
+  const unsupportedOnly = await applyCesiumScenePrimitives(
+    { camera: {} },
+    [
+      {
+        kind: "elevation-source",
+        id: "raster-dem",
+        sourceId: "raster-dem",
+        protocol: "raster-dem",
+        url: "https://example.test/terrain/{z}/{x}/{y}.png",
+      },
+    ],
+  );
+  if (
+    unsupportedOnly.status !== "unsupported" ||
+    !unsupportedOnly.diagnostics.some((diagnostic) => diagnostic.code === "scene-primitive-unsupported")
+  )
+    throw new Error("Unsupported-only Cesium plans require the optional cesium peer");
+}
 if (typeof HonuaMap !== "function")
   throw new Error("HonuaMap export missing from @honua/sdk/map");
 if (typeof validateHonuaStyle !== "function")

@@ -560,12 +560,16 @@ function diagnoseScenePrimitiveStructure(
           ),
         ];
       if (!terrain.protocols.includes(primitive.protocol)) {
+        const fallback =
+          capabilities.renderer === "cesium"
+            ? "Publish quantized-mesh terrain for Cesium, or route raster DEM/Terrain-RGB to MapLibre 2.5D."
+            : "Use terrain-rgb/raster-dem for MapLibre 2.5D or route quantized mesh to Cesium.";
         return [
           unsupported(
             primitive,
             capabilities,
             `Terrain protocol '${primitive.protocol}' is not supported by ${capabilities.renderer}.`,
-            "Use terrain-rgb/raster-dem for MapLibre 2.5D or route to a Cesium-style adapter.",
+            fallback,
           ),
         ];
       }
@@ -811,11 +815,11 @@ function diagnostic(
  * Endpoint and range validation for an elevation source, applied to every
  * terrain protocol rather than `terrain-rgb` alone.
  *
- * `quantized-mesh`, `raster-dem`, `image-service`, `i3s`, and `custom` all reach
- * a renderer through the same door — `CesiumTerrainProvider.fromUrl(url)` or a
- * MapLibre `raster-dem` source — and every one of them fails opaquely on an
- * absent or malformed endpoint. Failing closed here keeps that failure legible
- * and keeps it off the live scene.
+ * Renderer capability filtering happens before this function. The protocols a
+ * renderer actually supports then receive the same endpoint and range checks;
+ * a missing or malformed endpoint must not reach either a quantized-mesh
+ * provider or a MapLibre `raster-dem` source. Failing closed here keeps that
+ * failure legible and keeps it off the live scene.
  */
 function diagnoseRenderableTerrain(
   primitive: SceneElevationSourcePrimitive,
