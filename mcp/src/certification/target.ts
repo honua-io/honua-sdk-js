@@ -5,7 +5,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createClientFromEnv, createServer } from "../index.js";
 import type { AuthMode } from "../provenance.js";
-import { type ProxyOptions, connectUpstream } from "../proxy.js";
+import { type ProxyOptions, connectUpstream, resolveProxyOptions } from "../proxy.js";
 import { createStandaloneFixtureClient } from "./census-fixture-client.js";
 import { type MockUpstream, startMockUpstream } from "./mock-upstream.js";
 import { OGC_ENDPOINT } from "./ogc-data.js";
@@ -81,19 +81,10 @@ export function resolveTargetMode(env: NodeJS.ProcessEnv = process.env): CertTar
 
 /** Resolve the remote `/mcp` endpoint + credentials from the environment. */
 export function resolveRemoteProxyOptions(env: NodeJS.ProcessEnv): ProxyOptions {
-  const remoteUrl = env.HONUA_MCP_REMOTE_URL ?? env.HONUA_MCP_URL;
-  if (!remoteUrl) {
+  if (!(env.HONUA_MCP_REMOTE_URL ?? env.HONUA_MCP_URL)) {
     throw new Error("HONUA_MCP_REMOTE_URL is required for remote / stdio-proxy certification against a live /mcp.");
   }
-  const parsed = new URL(remoteUrl);
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(`HONUA_MCP_REMOTE_URL must use http or https: ${remoteUrl}`);
-  }
-  return {
-    remoteUrl: parsed.toString(),
-    authToken: env.HONUA_MCP_AUTH_TOKEN,
-    apiKey: env.HONUA_API_KEY,
-  };
+  return resolveProxyOptions(env);
 }
 
 /** Resolve the built `honua-mcp-proxy` entry usable from src (vitest) or dist. */
@@ -271,31 +262,31 @@ async function openStdioProxyTarget(env: NodeJS.ProcessEnv): Promise<Certificati
 
   // Upstream: a live /mcp when configured, otherwise the in-process mock.
   let mock: MockUpstream | undefined;
-  let upstreamUrl: string;
-  let upstreamToken: string | undefined;
+  let upstreamOptions: ProxyOptions;
   let backend: "mock-upstream" | "live";
   if (env.HONUA_MCP_REMOTE_URL ?? env.HONUA_MCP_URL) {
-    const options = resolveRemoteProxyOptions(env);
-    upstreamUrl = options.remoteUrl;
-    upstreamToken = options.authToken;
+    upstreamOptions = resolveRemoteProxyOptions(env);
     backend = "live";
   } else {
     mock = await startMockUpstream();
-    upstreamUrl = mock.url;
-    upstreamToken = mock.authToken;
+    upstreamOptions = { remoteUrl: mock.url, authToken: mock.authToken };
     backend = "mock-upstream";
   }
 
   const spawnProxyClient = async (withAuth: boolean): Promise<Client> => {
     const childEnv: Record<string, string> = {
       ...(process.env as Record<string, string>),
-      HONUA_MCP_REMOTE_URL: upstreamUrl,
+      HONUA_MCP_REMOTE_URL: upstreamOptions.remoteUrl,
     };
-    if (withAuth && upstreamToken) {
-      childEnv.HONUA_MCP_AUTH_TOKEN = upstreamToken;
+    delete childEnv.HONUA_MCP_AUTH_TOKEN;
+    delete childEnv.HONUA_ADMIN_KEY;
+    delete childEnv.HONUA_API_KEY;
+    if (withAuth && upstreamOptions.authToken) {
+      childEnv.HONUA_MCP_AUTH_TOKEN = upstreamOptions.authToken;
+    } else if (withAuth && upstreamOptions.apiKey) {
+      childEnv.HONUA_API_KEY = upstreamOptions.apiKey;
     } else {
-      delete childEnv.HONUA_MCP_AUTH_TOKEN;
-      delete childEnv.HONUA_API_KEY;
+      // Keep the certification's anonymous negative control credential-free.
     }
     const transport = new StdioClientTransport({
       command: process.execPath,
@@ -314,8 +305,8 @@ async function openStdioProxyTarget(env: NodeJS.ProcessEnv): Promise<Certificati
   return {
     mode: "stdio-proxy",
     backend,
-    serverLabel: `honua-mcp-proxy → ${backend === "live" ? upstreamUrl : "in-process mock /mcp"}`,
-    authMode: upstreamToken ? "bearer" : env.HONUA_API_KEY ? "api-key" : "anonymous",
+    serverLabel: `honua-mcp-proxy → ${backend === "live" ? upstreamOptions.remoteUrl : "in-process mock /mcp"}`,
+    authMode: upstreamOptions.authToken ? "bearer" : upstreamOptions.apiKey ? "api-key" : "anonymous",
     honuaTransport: env.HONUA_TRANSPORT ?? null,
     client,
     supportsUnauthenticatedPass: true,
