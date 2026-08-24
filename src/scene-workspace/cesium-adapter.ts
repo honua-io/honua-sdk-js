@@ -30,11 +30,14 @@
  * @module
  */
 
+import { HonuaCapabilityNotSupportedError } from "../core/errors.js";
 import {
   type CesiumClockTarget,
   type CesiumSceneTimeApplication,
   applyCesiumSceneTime,
+  cesiumClockPlanWrites,
   restoreCesiumClock,
+  sceneTimelineToCesiumClockPlan,
 } from "./cesium-time.js";
 import {
   RENDERER_WGS84_SPATIAL_CAPABILITIES,
@@ -56,15 +59,17 @@ import type { SceneCameraState, SceneWorkspaceState } from "./types.js";
 /**
  * Capabilities advertised by the Cesium adapter. Unlike the MapLibre 2.5D
  * adapter, Cesium is a true globe renderer: full 3D camera with
- * heading/pitch/roll/height, terrain across the common elevation protocols, and
- * model layers for 3D Tiles / glTF / I3S / point clouds.
+ * heading/pitch/roll/height, quantized-mesh terrain, and model layers for 3D
+ * Tiles / glTF / I3S / point clouds. Other terrain protocols remain valid
+ * renderer-neutral primitive vocabulary but are not materialized by this
+ * adapter.
  */
 export const CESIUM_SCENE_CAPABILITIES: SceneRuntimeCapabilities = {
   renderer: "cesium",
   camera: true,
   ground: true,
   terrain: {
-    protocols: ["quantized-mesh", "terrain-rgb", "raster-dem", "image-service", "custom"],
+    protocols: ["quantized-mesh"],
     supportsExaggeration: true,
   },
   imagery: {
@@ -810,16 +815,20 @@ function assertRenderableModelLayer(primitive: SceneModelLayerPrimitive): void {
  * provider or vertical exaggeration is touched, mirroring
  * {@link assertRenderableModelLayer}.
  *
- * Every terrain protocol reaches Cesium through `CesiumTerrainProvider.fromUrl`,
- * which rejects opaquely on a missing or malformed endpoint — and an elevation
- * source in an unhonorable CRS or vertical datum would place the whole globe's
- * heights wrong while reporting success. Neither may reach a live scene.
+ * Only quantized mesh reaches Cesium through `CesiumTerrainProvider.fromUrl`.
+ * Other protocols fail against the adapter capability contract here, before
+ * the optional peer is loaded. A malformed endpoint or an elevation source in
+ * an unhonorable CRS/vertical datum likewise must not reach a live scene.
  */
 function assertRenderableTerrain(primitive: SceneElevationSourcePrimitive): void {
   const validation = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
     (diagnostic) => diagnostic.status === "unsupported",
   );
-  if (validation) throw new Error(`${validation.code}: ${validation.message}`);
+  if (!validation) return;
+  if (validation.code === "scene-primitive-unsupported") {
+    throw new HonuaCapabilityNotSupportedError("terrain", primitive.protocol, primitive.sourceId);
+  }
+  throw new Error(`${validation.code}: ${validation.message}`);
 }
 
 /**
@@ -1166,12 +1175,10 @@ function trimTrailingSlashes(value: string): string {
 /**
  * Wire a terrain provider from an elevation-source primitive onto the scene.
  *
- * `quantized-mesh` maps to `CesiumTerrainProvider.fromUrl` natively. `terrain-rgb`
- * / `raster-dem` (Mapbox/Terrarium-encoded raster DEM tiles) are treated the
- * same way: Cesium consumes a quantized-mesh-style endpoint at `url`, so we wire
- * the provider when a `url` is present and otherwise leave the globe on its
- * default ellipsoid (the diagnostic already flags a missing url). Exaggeration
- * is applied via the scene's `verticalExaggeration`.
+ * `quantized-mesh` maps to `CesiumTerrainProvider.fromUrl` natively. Raster DEM,
+ * Terrain-RGB, ImageServer, and custom primitives fail closed in
+ * {@link assertRenderableTerrain}; they are never reinterpreted as quantized
+ * mesh. Exaggeration is applied via the scene's `verticalExaggeration`.
  */
 export async function applyCesiumTerrain(
   scene: CesiumSceneLike,
@@ -1499,7 +1506,23 @@ export async function applyCesiumScenePrimitivesInternal(
   const { signal, reuse, state } = options;
   signal?.throwIfAborted();
   const diagnostics = [...diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABILITIES)];
-  const cesium = await loadCesium();
+  const unsupportedPrimitives = new Set(
+    primitives.filter((primitive) =>
+      diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).some(
+        (diagnostic) => diagnostic.status === "unsupported",
+      ),
+    ),
+  );
+  const timelinePlan = sceneTimelineToCesiumClockPlan(state?.timeline);
+  const timelineNeedsRuntime =
+    target.clock !== undefined &&
+    (target.clockOwnership ?? "adapter") === "adapter" &&
+    cesiumClockPlanWrites(timelinePlan);
+  const primitiveNeedsRuntime = primitives.some((primitive) => !unsupportedPrimitives.has(primitive));
+  // An unsupported-only plan remains useful without the optional peer: return
+  // its fail-closed diagnostics instead of replacing them with a module loader
+  // error. Unbound/host-owned time is likewise diagnosable without Cesium.
+  const cesium = primitiveNeedsRuntime || timelineNeedsRuntime ? await loadCesium() : undefined;
   signal?.throwIfAborted();
   // Time first: entity availability, time-dynamic tileset content, and clock-
   // driven properties are all evaluated against the clock, so a resource that
@@ -1508,14 +1531,7 @@ export async function applyCesiumScenePrimitivesInternal(
   const time = applyCesiumSceneTime(target, state?.timeline, cesium);
   diagnostics.push(...time.diagnostics);
   const toCartesian = (longitude: number, latitude: number, height: number): unknown =>
-    cesium.Cartesian3.fromDegrees(longitude, latitude, height);
-  const unsupportedPrimitives = new Set(
-    primitives.filter((primitive) =>
-      diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).some(
-        (diagnostic) => diagnostic.status === "unsupported",
-      ),
-    ),
-  );
+    cesium!.Cartesian3.fromDegrees(longitude, latitude, height);
   const layers = new Map<string, CesiumLayerHandle>();
   const mounted = new Map<string, CesiumLayerHandle | undefined>();
   const created: string[] = [];
@@ -1563,7 +1579,7 @@ export async function applyCesiumScenePrimitivesInternal(
       if (primitive.kind === "elevation-source") {
         const previousProvider = scene.terrainProvider;
         terrainWasApplied = true;
-        const handle = await applyCesiumTerrainInternal(scene, primitive, cesium, false, signal);
+        const handle = await applyCesiumTerrainInternal(scene, primitive, cesium!, false, signal);
         if (handle) {
           if (previousProvider && previousProvider !== scene.terrainProvider) {
             deferredTerrainProviders.push(previousProvider);
@@ -1589,7 +1605,7 @@ export async function applyCesiumScenePrimitivesInternal(
           mounted.set(key, undefined);
           continue;
         }
-        registerHandle(key, await addCesiumImageryLayer(scene, primitive, cesium, { ...(signal ? { signal } : {}) }));
+        registerHandle(key, await addCesiumImageryLayer(scene, primitive, cesium!, { ...(signal ? { signal } : {}) }));
         continue;
       }
       if (primitive.kind === "model-layer") {
@@ -1597,9 +1613,9 @@ export async function applyCesiumScenePrimitivesInternal(
         // as unsupported above and was filtered into `unsupportedPrimitives`.
         const materializationOptions = { ...(signal ? { signal } : {}) };
         if (primitive.format === "3d-tiles") {
-          registerHandle(key, await addCesium3DTileset(scene, primitive, cesium, materializationOptions));
+          registerHandle(key, await addCesium3DTileset(scene, primitive, cesium!, materializationOptions));
         } else {
-          registerHandle(key, await addCesiumModel(scene, primitive, cesium, materializationOptions));
+          registerHandle(key, await addCesiumModel(scene, primitive, cesium!, materializationOptions));
         }
         continue;
       }

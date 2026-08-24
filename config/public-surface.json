@@ -360,6 +360,7 @@
     { "subpath": "./stac", "tier": "experimental" },
     { "subpath": "./raster", "tier": "experimental" },
     { "subpath": "./coverages", "tier": "experimental" },
+    { "subpath": "./zarr", "tier": "experimental" },
     { "subpath": "./geoparquet", "tier": "experimental" },
     { "subpath": "./columnar-workflow", "tier": "experimental" },
     { "subpath": "./query-planner", "tier": "experimental" },
@@ -379,6 +380,7 @@
     { "subpath": "./routing", "tier": "experimental" },
     { "subpath": "./interactions/declarative", "tier": "experimental" },
     { "subpath": "./studio-agent", "tier": "experimental" },
+    { "subpath": "./local-install", "tier": "experimental" },
 
     { "subpath": "./app", "tier": "deprecated", "replacement": "@honua/app-platform/app", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },
     { "subpath": "./app-controller", "tier": "deprecated", "replacement": "@honua/app-platform/app-controller", "introducedIn": "0.1.0-beta.0", "removeIn": "0.2.0" },

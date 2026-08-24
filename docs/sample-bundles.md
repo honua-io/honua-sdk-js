@@ -291,7 +291,8 @@ a catalog promotion, not a bundling change.
 
 The manifest intentionally carries no wall-clock timestamp so a rebuild at
 the same commit with the same `package-lock.json` (hashed into
-`build.lockfileSha256`) reproduces byte-identical file hashes -- Vite/Rollup
+`build.lockfileSha256`, the dependency digest) reproduces byte-identical file
+hashes -- Vite/Rollup
 content-hashed chunk names are a pure function of chunk content given a
 pinned toolchain. No other nondeterminism was observed across repeated local
 builds; if CI ever needs to tolerate a nondeterministic asset, prefer fixing
@@ -393,18 +394,43 @@ Instead, `.github/workflows/ci.yml`:
   steps) so a broken build fails CI like any other gate;
 - on trunk pushes only, uploads `.artifacts/sample-bundles/` as a versioned
   workflow artifact (`sample-bundles`, same pattern as `sdk-coverage-v1`);
-- on trunk pushes only, a dedicated `sample-bundles-release` job (`needs:
-  js-sdk`, scoped `permissions: contents: write`) rebuilds and publishes the
-  manifest plus a `sample-bundles.tar.gz` of every bundle directory as
-  assets on a rolling `sample-bundles-latest` GitHub Release, updated
-  (`--clobber`) on every trunk push. This gives honua-samples a stable,
-  plain-HTTPS-fetchable URL that does not depend on a workflow-artifact run
-  ID or Actions API auth:
+- publication is content-addressed and immutable, one release per source
+  commit, produced by
+  [`publish-content-addressed-sample-bundles.yml`](../.github/workflows/publish-content-addressed-sample-bundles.yml)
+  and documented in [immutable-sample-bundles.md](./immutable-sample-bundles.md).
+  Tags are `sample-bundles-<full-source-SHA>`:
 
   ```sh
-  gh release download sample-bundles-latest -R honua-io/honua-sdk-js \
+  gh release download "sample-bundles-$(git rev-parse trunk)" \
+    -R honua-io/honua-sdk-js \
     -p 'sample-bundles.v2.json' -p 'sample-bundles.tar.gz'
   ```
+
+  The publication workflow's action SHAs are duplicated in the immutable
+  attestation policy deliberately: a supply-chain pin change must be visible in
+  both the workflow and its reviewed policy record. After Dependabot updates a
+  pinned action, run:
+
+  ```sh
+  npm run samples:bundles:attestation:sync-actions
+  ```
+
+  The command derives only the known action pins from the workflow, rewrites
+  only their policy-record values, and immediately reruns the strict workflow
+  policy. Review and commit the resulting diff alongside the workflow bump.
+  Unknown actions, abbreviated SHAs, conflicting pins, and any other workflow
+  drift still fail closed.
+
+  > **The rolling `sample-bundles-latest` release is retired.** Repository
+  > immutable releases were enabled org-wide on 2026-08-13 and applied
+  > retroactively, permanently freezing that release at its 2026-08-13T10:32Z
+  > assets. Every subsequent attempt to update it failed with
+  > `HTTP 422: target_commitish cannot be changed when release is immutable`,
+  > which is what kept `SDK CI` red on trunk. The rolling pattern is
+  > structurally incompatible with immutable releases -- the release and its
+  > tag can no longer be deleted or updated -- so the job that maintained it
+  > has been removed rather than patched. Consumers must move to the
+  > per-commit tag above.
 
 ## Discovery from the site projection
 
@@ -419,6 +445,30 @@ there is exactly one authoritative source for each) -- so a consumer that
 already fetches the projection can find the manifest, state every runnable
 card's prerequisites, and explain every un-bundled card, without guessing a
 path, a prerequisite, or a reason.
+
+The pointer names the publication by **template, not by literal tag**:
+`sampleBundles.publication.releaseTag` is `sample-bundles-{sourceCommit}`, and a
+consumer substitutes the full 40-character SHA of the source commit whose
+bundles it wants. It previously carried the fixed value `sample-bundles-latest`;
+that release was permanently frozen by the retroactive org-wide
+immutable-releases change described above, so a fixed tag in a derived artifact
+can only ever name stale bytes (honua-io/honua-sdk-js#1325). The projection is
+itself a deterministic derived artifact, so it cannot embed the SHA of the
+commit that generates it -- a template is the only pointer that can be both
+honest and reproducible.
+
+The field is named `releaseTag` **in v3** and `releaseTagTemplate` in v4. The
+rename could not be made in place: this repo binds a schema's exact bytes into
+the committed consumer handoff and fails any referenced-schema edit without a
+version bump, so it was versioned instead (honua-io/honua-sdk-js#1338).
+
+`samples/dist/honua-site-samples.v4.json` is emitted alongside v3 and is
+identical to it apart from that rename -- it is derived from v3 by
+`generateSiteProjectionV4`, so the two cannot drift. v3 stays byte-valid, and
+retires once honua-site cuts over to v4.
+
+Whichever version you read, read the value as a template: if it contains
+`{sourceCommit}`, substitute before use.
 
 `sampleBundles.excluded` and `sampleBundles.published` remain optional in the
 projection schemas for compatibility. Current generation emits a v2

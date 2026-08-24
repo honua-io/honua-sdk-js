@@ -6,7 +6,7 @@ feature identity, authoritative details, overlapping-result navigation,
 attachments, related records, selection, cache scope, and realtime freshness
 in one public contract.
 
-```ts
+```ts doc-test=skip reason="requires ambient application context and MapLibre host instances"
 import {
   createHonuaFeatureInspectionFromApplicationContext,
   defineHonuaFeatureInspection,

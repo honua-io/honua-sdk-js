@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  ADMIN_FAMILY_PATH,
   OUTPUT_PATH,
   RUNS_DIR,
   buildScorecardModel,
@@ -200,6 +201,24 @@ test("rendering is deterministic and clock-free", () => {
   assert.equal(first, second);
   const today = new Date().toISOString().slice(0, 10);
   assert.ok(!first.includes(today) || committedArtifacts().some((a) => String(a.generatedAt).startsWith(today)));
+});
+
+test("publishes the complete classified admin family without claiming an unrun candidate pass", () => {
+  const artifact = JSON.parse(fs.readFileSync(path.join(root, ADMIN_FAMILY_PATH), "utf8"));
+  const markdown = generateScorecardMarkdown(root);
+  assert.equal(artifact.restOperationCount, 396);
+  assert.equal(artifact.expectedPublishedTools, 385);
+  assert.equal(artifact.expectedExcludedOperations, 11);
+  assert.equal(artifact.defaultStaticToolCount, 47);
+  assert.equal(artifact.expectedDefaultTotalTools, 432);
+  assert.equal(artifact.expectedPublishedTools + artifact.expectedExcludedOperations, artifact.restOperationCount);
+  assert.equal(artifact.defaultStaticToolCount + artifact.expectedPublishedTools, artifact.expectedDefaultTotalTools);
+  assert.match(markdown, /## Admin operation family/);
+  assert.match(markdown, /honua_admin_\*/);
+  assert.match(markdown, /432 tools/);
+  assert.match(markdown, /one-time-secret\/session operations are explicitly excluded/);
+  assert.match(markdown, /blocked-server-pin-regresses-admin-contract/);
+  assert.match(markdown, /not a fabricated live pass receipt/);
 });
 
 test("every non-passing graded run is published, not just the wins", () => {

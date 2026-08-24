@@ -1,76 +1,317 @@
 name: Browser Impact Observation
 
-# Report-only shadow router for honua-io/honua-sdk-js#1286. It deliberately
-# runs for every trunk PR. The authoritative JS SDK job continues to execute
-# every Playwright spec until the documented 20-run parity threshold passes.
+# Trusted, report-only shadow router for honua-io/honua-sdk-js#1286. This
+# workflow always executes from the default branch after the canonical SDK CI
+# run completes. Candidate content is checked out only as inert data; no script,
+# action, package hook, or generated executable from the pull request runs here.
 on:
-  pull_request:
-    branches: [trunk]
+  workflow_run:
+    workflows: ["SDK CI"]
+    types: [completed]
   workflow_dispatch:
     inputs:
-      base_sha:
-        description: Base commit for an explicit observation
+      run_id:
+        description: Completed canonical SDK CI workflow run ID
         required: true
         type: string
-      head_sha:
-        description: Head commit for an explicit observation
+      run_attempt:
+        description: Exact completed workflow run attempt
+        required: true
+        type: string
+      run_conclusion:
+        description: Exact completed workflow run conclusion
         required: true
         type: string
 
 permissions:
+  actions: read
+  checks: read
   contents: read
+  pull-requests: read
 
 concurrency:
-  group: browser-impact-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: browser-impact-${{ github.event.workflow_run.id || inputs.run_id }}-${{ github.event.workflow_run.run_attempt || inputs.run_attempt }}
+  cancel-in-progress: false
 
 jobs:
   observe:
     name: Compare browser impact routing
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.pull_requests[0].base.ref ==
+         github.event.repository.default_branch)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
+    env:
+      SOURCE_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+      SOURCE_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt || inputs.run_attempt }}
+      SOURCE_RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion || inputs.run_conclusion }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Checkout trusted observer policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-          repository: ${{ github.repository }}
-          # PR CI's authoritative JS SDK job uses this same synthetic merge
-          # snapshot. Manual observations retain their explicit head input.
-          ref: ${{ github.event_name == 'pull_request' && github.sha || inputs.head_sha }}
+          persist-credentials: false
+          ref: ${{ github.sha }}
 
-      - name: Validate policy and ownership fixtures
+      - name: Reject non-default manual dispatch
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/${{ github.event.repository.default_branch }}" ]]
+
+      - name: Validate trusted policy and identity fixtures
         run: |
           node scripts/browser-impact-observe.mjs validate
           node --test test/scripts/browser-impact-observe.test.mjs
+          node --test test/scripts/trusted-pr-workflow-run.test.cjs
 
-      - name: Observe exact diff
+      - name: Resolve exact SDK CI browser authority
+        id: resolve
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
-          EVALUATION_SHA: ${{ github.event_name == 'pull_request' && github.sha || inputs.head_sha }}
-          SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || inputs.head_sha }}
-          PR_NUMBER: ${{ github.event.pull_request.number || 0 }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY_ID: ${{ github.event.repository.id }}
+        with:
+          script: |
+            const {
+              SUPERSEDED_SOURCE_RUN,
+              resolveTrustedPullRequestWorkflowRun,
+            } = require("./scripts/trusted-pr-workflow-run.cjs");
+            let resolved;
+            try {
+              resolved = await resolveTrustedPullRequestWorkflowRun({
+              github,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              runId: process.env.SOURCE_RUN_ID,
+              runAttempt: process.env.SOURCE_RUN_ATTEMPT,
+              runConclusion: process.env.SOURCE_RUN_CONCLUSION,
+              workflowPath: ".github/workflows/ci.yml",
+              workflowName: "SDK CI",
+              jobName: "JS SDK",
+              defaultBranch: process.env.DEFAULT_BRANCH,
+              repositoryId: Number(process.env.REPOSITORY_ID),
+            });
+            } catch (error) {
+              if (error?.code !== SUPERSEDED_SOURCE_RUN) throw error;
+              // Not a failure: the immutable run no longer names an observable
+              // pull request. Skip the observation and let the superseded
+              // record step publish why, so the skip is visible rather than
+              // silent.
+              core.warning(
+                `Browser impact observation skipped: ${error.reason}. ` +
+                  `SDK CI run ${process.env.SOURCE_RUN_ID} attempt ${process.env.SOURCE_RUN_ATTEMPT} ` +
+                  `is no longer bound to an observable pull request.`,
+              );
+              core.setOutput("superseded", "true");
+              core.setOutput("superseded_reason", error.reason);
+              core.setOutput("superseded_detail", JSON.stringify(error.detail ?? {}));
+              return;
+            }
+            core.setOutput("superseded", "false");
+            core.setOutput("pull_request", resolved.pullRequestNumber);
+            core.setOutput("base_sha", resolved.baseSha);
+            core.setOutput("head_sha", resolved.headSha);
+            core.setOutput("job_id", resolved.job.id);
+            core.setOutput("job_name", resolved.job.name);
+            core.setOutput("job_conclusion", resolved.job.conclusion);
+            core.setOutput("check_run_id", resolved.checkRun.id);
+
+      - name: Reconstruct event-time synthetic merge as inert data
+        id: merge
+        if: steps.resolve.outputs.superseded != 'true'
+        shell: bash
+        env:
+          PR_NUMBER: ${{ steps.resolve.outputs.pull_request }}
+          BASE_SHA: ${{ steps.resolve.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.resolve.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CANDIDATE_ROOT: ${{ runner.temp }}/browser-impact-candidate
         run: |
-          if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
-            git fetch --no-tags --filter=blob:none \
-              "https://github.com/${GITHUB_REPOSITORY}.git" \
-              "$BASE_SHA"
-          fi
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin \
+            "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/browser-impact/${PR_NUMBER}/head" \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/browser-impact/${PR_NUMBER}/base-tip"
+          [[ "$(git rev-parse "refs/remotes/origin/browser-impact/${PR_NUMBER}/head^{commit}")" == "$HEAD_SHA" ]]
           git cat-file -e "$BASE_SHA^{commit}"
-          git merge-base "$BASE_SHA" "$EVALUATION_SHA" >/dev/null
-          node scripts/browser-impact-observe.mjs observe \
+          MERGE_JSON=$(node scripts/browser-impact-observe.mjs reconstruct \
             --base "$BASE_SHA" \
-            --head "$EVALUATION_SHA" \
-            --source-head "$SOURCE_HEAD_SHA" \
+            --head "$HEAD_SHA" \
+            --candidate-root "$CANDIDATE_ROOT")
+          MERGE_SHA=$(jq -er '.merge_sha' <<<"$MERGE_JSON")
+          MERGE_TREE_SHA=$(jq -er '.merge_tree_sha' <<<"$MERGE_JSON")
+          [[ "$MERGE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MERGE_TREE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          echo "merge_sha=$MERGE_SHA" >> "$GITHUB_OUTPUT"
+          echo "merge_tree_sha=$MERGE_TREE_SHA" >> "$GITHUB_OUTPUT"
+          echo "candidate_root=$CANDIDATE_ROOT" >> "$GITHUB_OUTPUT"
+
+      - name: Observe exact browser impact
+        if: steps.resolve.outputs.superseded != 'true'
+        env:
+          BASE_SHA: ${{ steps.resolve.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.resolve.outputs.head_sha }}
+          MERGE_SHA: ${{ steps.merge.outputs.merge_sha }}
+          PR_NUMBER: ${{ steps.resolve.outputs.pull_request }}
+          CANDIDATE_ROOT: ${{ steps.merge.outputs.candidate_root }}
+          SOURCE_JOB_ID: ${{ steps.resolve.outputs.job_id }}
+          SOURCE_JOB_NAME: ${{ steps.resolve.outputs.job_name }}
+          SOURCE_JOB_CONCLUSION: ${{ steps.resolve.outputs.job_conclusion }}
+          SOURCE_CHECK_RUN_ID: ${{ steps.resolve.outputs.check_run_id }}
+        run: |
+          node scripts/browser-impact-observe.mjs observe \
+            --root "$CANDIDATE_ROOT" \
+            --policy "$GITHUB_WORKSPACE/.github/data/browser-impact-policy.v1.json" \
+            --base "$BASE_SHA" \
+            --head "$MERGE_SHA" \
+            --source-head "$HEAD_SHA" \
             --repository "$GITHUB_REPOSITORY" \
             --pr "$PR_NUMBER" \
+            --observer-run-id "$GITHUB_RUN_ID" \
+            --observer-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --observer-event "$GITHUB_EVENT_NAME" \
+            --observer-ref "$GITHUB_REF" \
+            --observer-repository "$GITHUB_REPOSITORY" \
+            --source-run-id "$SOURCE_RUN_ID" \
+            --source-run-attempt "$SOURCE_RUN_ATTEMPT" \
+            --source-run-conclusion "$SOURCE_RUN_CONCLUSION" \
+            --source-job-id "$SOURCE_JOB_ID" \
+            --source-job-name "$SOURCE_JOB_NAME" \
+            --source-job-conclusion "$SOURCE_JOB_CONCLUSION" \
+            --source-check-run-id "$SOURCE_CHECK_RUN_ID" \
             --output test-results/browser-impact-observation.json \
             --markdown test-results/browser-impact-summary.md
           cat test-results/browser-impact-summary.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Retain shadow evidence
+      - name: Revalidate source identity before publishing evidence
+        id: revalidate
+        if: steps.resolve.outputs.superseded != 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY_ID: ${{ github.event.repository.id }}
+          EXPECTED_PR: ${{ steps.resolve.outputs.pull_request }}
+          EXPECTED_BASE: ${{ steps.resolve.outputs.base_sha }}
+          EXPECTED_HEAD: ${{ steps.resolve.outputs.head_sha }}
+          EXPECTED_JOB_ID: ${{ steps.resolve.outputs.job_id }}
+          EXPECTED_JOB_CONCLUSION: ${{ steps.resolve.outputs.job_conclusion }}
+          EXPECTED_CHECK_RUN_ID: ${{ steps.resolve.outputs.check_run_id }}
+        with:
+          script: |
+            const {
+              SUPERSEDED_SOURCE_RUN,
+              resolveTrustedPullRequestWorkflowRun,
+            } = require("./scripts/trusted-pr-workflow-run.cjs");
+            let resolved;
+            try {
+              resolved = await resolveTrustedPullRequestWorkflowRun({
+              github,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              runId: process.env.SOURCE_RUN_ID,
+              runAttempt: process.env.SOURCE_RUN_ATTEMPT,
+              runConclusion: process.env.SOURCE_RUN_CONCLUSION,
+              workflowPath: ".github/workflows/ci.yml",
+              workflowName: "SDK CI",
+              jobName: "JS SDK",
+              defaultBranch: process.env.DEFAULT_BRANCH,
+              repositoryId: Number(process.env.REPOSITORY_ID),
+            });
+            } catch (error) {
+              if (error?.code !== SUPERSEDED_SOURCE_RUN) throw error;
+              // The pull request moved while this observation ran. The evidence
+              // just produced describes a superseded head, so it is replaced by
+              // a superseded record rather than published as a comparison.
+              core.warning(
+                `Browser impact evidence withheld: ${error.reason} during observation.`,
+              );
+              core.setOutput("superseded", "true");
+              core.setOutput("superseded_reason", error.reason);
+              core.setOutput("superseded_detail", JSON.stringify(error.detail ?? {}));
+              return;
+            }
+            core.setOutput("superseded", "false");
+            const expected = {
+              pullRequestNumber: Number(process.env.EXPECTED_PR),
+              baseSha: process.env.EXPECTED_BASE,
+              headSha: process.env.EXPECTED_HEAD,
+              jobId: Number(process.env.EXPECTED_JOB_ID),
+              jobConclusion: process.env.EXPECTED_JOB_CONCLUSION,
+              checkRunId: Number(process.env.EXPECTED_CHECK_RUN_ID),
+            };
+            if (
+              resolved.pullRequestNumber !== expected.pullRequestNumber ||
+              resolved.baseSha !== expected.baseSha ||
+              resolved.headSha !== expected.headSha ||
+              resolved.job.id !== expected.jobId ||
+              resolved.job.conclusion !== expected.jobConclusion ||
+              resolved.checkRun.id !== expected.checkRunId
+            ) {
+              core.setFailed("SDK CI source identity changed during observation");
+            }
+
+      - name: Revalidate event-time merge tree before publishing evidence
+        if: >-
+          steps.resolve.outputs.superseded != 'true' &&
+          steps.revalidate.outputs.superseded != 'true'
+        shell: bash
+        env:
+          PR_NUMBER: ${{ steps.resolve.outputs.pull_request }}
+          BASE_SHA: ${{ steps.resolve.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.resolve.outputs.head_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_MERGE_TREE_SHA: ${{ steps.merge.outputs.merge_tree_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            "+refs/pull/${PR_NUMBER}/head:refs/remotes/origin/browser-impact/${PR_NUMBER}/head" \
+            "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/browser-impact/${PR_NUMBER}/base-tip"
+          [[ "$(git rev-parse "refs/remotes/origin/browser-impact/${PR_NUMBER}/head^{commit}")" == "$HEAD_SHA" ]]
+          CURRENT_MERGE_TREE_SHA=$(node scripts/browser-impact-observe.mjs event-tree \
+            --base "$BASE_SHA" \
+            --head "$HEAD_SHA")
+          [[ "$CURRENT_MERGE_TREE_SHA" == "$EXPECTED_MERGE_TREE_SHA" ]]
+
+      # A skipped observation must never look like a successful one. This step
+      # replaces the evidence the observer always uploads with a record that
+      # names the skipped run and the reason, and repeats it in the job summary.
+      - name: Record superseded observation
+        if: >-
+          steps.resolve.outputs.superseded == 'true' ||
+          steps.revalidate.outputs.superseded == 'true'
+        shell: bash
+        env:
+          SUPERSEDED_STAGE: ${{ steps.resolve.outputs.superseded == 'true' && 'resolve' || 'revalidate' }}
+          SUPERSEDED_REASON: ${{ steps.resolve.outputs.superseded_reason || steps.revalidate.outputs.superseded_reason }}
+          SUPERSEDED_DETAIL: ${{ steps.resolve.outputs.superseded_detail || steps.revalidate.outputs.superseded_detail }}
+        run: |
+          set -euo pipefail
+          rm -f test-results/browser-impact-observation.json test-results/browser-impact-summary.md
+          node scripts/browser-impact-observe.mjs superseded \
+            --reason "$SUPERSEDED_REASON" \
+            --stage "$SUPERSEDED_STAGE" \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-run-id "$SOURCE_RUN_ID" \
+            --source-run-attempt "$SOURCE_RUN_ATTEMPT" \
+            --source-run-conclusion "$SOURCE_RUN_CONCLUSION" \
+            --observer-run-id "$GITHUB_RUN_ID" \
+            --observer-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --detail "$SUPERSEDED_DETAIL" \
+            --output test-results/browser-impact-observation.json \
+            --markdown test-results/browser-impact-summary.md
+          cat test-results/browser-impact-summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain trusted shadow evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: browser-impact-${{ github.run_id }}
+          name: browser-impact-${{ env.SOURCE_RUN_ID }}-${{ env.SOURCE_RUN_ATTEMPT }}
           path: |
             test-results/browser-impact-observation.json
             test-results/browser-impact-summary.md

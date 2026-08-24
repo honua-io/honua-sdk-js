@@ -114,6 +114,7 @@
     "playwright.config.mjs",
     "playwright.first-map.config.mjs",
     "scripts/browser-impact-observe.mjs",
+    "scripts/trusted-pr-workflow-run.cjs",
     "scripts/lib/prepared-sdk-artifact.mjs",
     "scripts/prepare-sdk-test-artifacts.mjs",
     "examples/shared/**",
@@ -127,6 +128,7 @@
     "src/runtime/**",
     "src/style/**",
     "test/scripts/browser-impact-observe.test.mjs",
+    "test/scripts/trusted-pr-workflow-run.test.cjs",
     "tsconfig.json",
     "vite.config.ts"
   ],

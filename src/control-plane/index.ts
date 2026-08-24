@@ -24,6 +24,48 @@ export {
   createHonuaControlPlane,
 } from "./client.js";
 export type { HonuaControlPlaneClientOptions } from "./client.js";
+export {
+  HonuaAdminApiError,
+  HonuaAdminClient,
+  createHonuaAdminClient,
+} from "./admin-client.js";
+export type {
+  AdminClientOptions,
+  AdminOperationContentType,
+  AdminOperationRequest,
+  AdminOperationRequestBody,
+  AdminOperationResponse,
+  AdminOperationResult,
+} from "./admin-client.js";
+export {
+  ADMIN_API_BASE_PATH,
+  ADMIN_API_OPERATION_COUNT,
+  ADMIN_API_SERVER_SHA,
+  ADMIN_API_SPEC_SHA256,
+  ADMIN_MCP_CONTRACT_SERVER_SHA,
+  ADMIN_MCP_CONTRACT_REVIEW_SERVER_SHA,
+  ADMIN_MCP_CONTRACT_STATUS,
+  ADMIN_MCP_COVERAGE_SHA256,
+  ADMIN_MCP_EXCLUDED_OPERATION_COUNT,
+  ADMIN_MCP_EXCLUDED_OPERATIONS,
+  ADMIN_MCP_EXCLUSION_ROSTER_SHA256,
+  ADMIN_MCP_PUBLISHED_TOOL_NAMES,
+  ADMIN_OPERATIONS,
+  ADMIN_PUBLISHED_OPERATION_COUNT,
+  ADMIN_RELEASE_CONTRACT_COMPATIBLE,
+  ADMIN_RELEASE_CONTRACT_STATUS,
+  ADMIN_RELEASE_OPERATION_COUNT,
+  ADMIN_RELEASE_SERVER_SHA,
+  MCP_DEFAULT_STATIC_TOOL_COUNT,
+  MCP_DEFAULT_TOTAL_TOOL_COUNT,
+} from "./generated/admin-operations.js";
+export type {
+  AdminMcpExcludedOperation,
+  AdminMcpPublishedToolName,
+  AdminOperationDescriptor,
+  AdminOperationId,
+} from "./generated/admin-operations.js";
+export type { components as AdminApiComponents, operations as AdminApiOperations } from "./generated/admin-api.js";
 export type { StudioCapabilityManifest } from "../studio/capability-manifest.js";
 export { HONUA_CAPABILITY_MANIFEST_PATH, HONUA_CONTROL_PLANE_BASE_PATH } from "./types.js";
 export type {

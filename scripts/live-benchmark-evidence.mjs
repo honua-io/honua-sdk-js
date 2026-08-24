@@ -31,6 +31,7 @@ export const LIVE_SKIP_REASON_CODES = Object.freeze({
   realtimeCapabilityProbeUnavailable: "realtime-capability-probe-unavailable",
   realtimeCapabilityDisabled: "realtime-capability-disabled",
   incidentDemoDatasetEmpty: "incident-demo-dataset-empty",
+  incidentDemoServiceMissing: "incident-demo-service-missing",
 });
 
 /**
@@ -48,6 +49,7 @@ export const INCIDENT_SKIP_RECONNECT_OUTCOMES = Object.freeze({
   [LIVE_SKIP_REASON_CODES.realtimeCapabilityProbeUnavailable]: "not-attempted-capability-unavailable",
   [LIVE_SKIP_REASON_CODES.realtimeCapabilityDisabled]: "not-attempted-capability-unavailable",
   [LIVE_SKIP_REASON_CODES.incidentDemoDatasetEmpty]: "not-attempted-demo-dataset-empty",
+  [LIVE_SKIP_REASON_CODES.incidentDemoServiceMissing]: "not-attempted-demo-service-missing",
 });
 
 /** Only reachable if a new skip code is added without mapping it; says no more than it knows. */
@@ -450,11 +452,27 @@ export async function collectLiveEvidence(env = process.env) {
         const snapshotUrl = `${honuaBaseUrl}/rest/services/maui-incidents/FeatureServer/0/query?where=1%3D1&outFields=*&resultRecordCount=10&f=json`;
         const snapshot = await requestJson(snapshotUrl, authHeaders);
         // A transport failure, non-2xx status, or timeout already threw above and
-        // stays `failed`. Only the two well-formed shapes are classified here: an
+        // stays `failed`. Only the well-formed shapes are classified here: an
         // error payload or a non-array `features` member is a genuine failure,
         // while an authenticated, schema-valid, zero-feature snapshot is an
         // honest skip because there is nothing for a delta to change.
         if (snapshot.body?.error) {
+          // One error payload is not a defect but an environment fact the probe
+          // positively established: a GeoServices 404 says this deployment does
+          // not publish the incident service at all, so no snapshot-plus-delta
+          // journey exists to demonstrate. Deploying and seeding it is owned by
+          // honua-demo#14. Every other error code -- an authorization refusal, a
+          // malformed query, a server fault -- still describes a service that is
+          // published and answering wrongly, and stays a recorded failure.
+          if (snapshot.body.error.code === 404) {
+            throw new SkipTargetError(
+              LIVE_SKIP_REASON_CODES.incidentDemoServiceMissing,
+              "Realtime feature streams are enabled, but the demo does not publish the maui-incidents " +
+                `feature service (${snapshot.body.error.message ?? "not found"}); a snapshot-plus-delta ` +
+                "journey cannot be demonstrated against a service that does not exist " +
+                "(deployment and seeding tracked by honua-demo#14)",
+            );
+          }
           throw new Error(
             `Incident snapshot query returned an error payload: ${snapshot.body.error.message ?? snapshot.body.error.code ?? "unspecified"}`,
           );

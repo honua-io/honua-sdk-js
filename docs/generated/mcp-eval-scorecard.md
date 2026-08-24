@@ -1,23 +1,25 @@
 <!-- GENERATED FILE — do not edit by hand. -->
 <!-- Regenerate with: npm run docs:mcp-scorecard -->
-<!-- Inputs: mcp/evals/runs/**/*.json (committed run artifacts), mcp/src/eval/corpus.ts, mcp/src/eval/operator-corpus.ts, mcp/src/eval/northstar-corpus.ts, mcp/src/eval/standalone-corpus.ts. -->
+<!-- Inputs: mcp/evals/runs/**/*.json (committed run artifacts), mcp/evals/admin-family.v1.json, mcp/src/eval/corpus.ts, mcp/src/eval/operator-corpus.ts, mcp/src/eval/northstar-corpus.ts, mcp/src/eval/standalone-corpus.ts. -->
 <!-- Freshness is enforced by npm run docs:mcp-scorecard:check. -->
 
 # Cross-model MCP eval scorecard
 
 How well do different client models actually drive Honua's MCP surface? This page is the
-answer, published rather than asserted. Every figure below is rendered from a committed run
+answer, published rather than asserted. Every observed result below is rendered from a committed run
 artifact under [`mcp/evals/runs/`](https://github.com/honua-io/honua-sdk-js/tree/trunk/mcp/evals/runs) — the same JSON the eval harness wrote,
-carrying the surface it ran against, how it authenticated, and (where the artifact is new
+admin release-readiness is read from [`mcp/evals/admin-family.v1.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/admin-family.v1.json) and stays blocked
+until a live candidate receipt exists. Run artifacts carry the surface they ran against, how they
+authenticated, and (where the artifact is new
 enough to record it) the negotiated MCP protocol version and the git SHA of the suite that
 produced it. Nothing here is hand-typed, and the generator recomputes every rate from the
 per-scenario rows before publishing it, so a summary that disagreed with its own graded
 evidence would fail the build instead of reaching this page.
 
-**Observation window:** 2026-07-05 → 2026-07-07
-(3 distinct observation dates,
+**Observation window:** 2026-07-05 → 2026-08-24
+(5 distinct observation dates,
 3 cross-model eval artifacts,
-3 certification artifacts).
+7 certification artifacts).
 
 > This is a small, honest corpus, not a benchmark leaderboard. Read
 > [What this does and does not measure](#what-this-does-and-does-not-measure) before citing a
@@ -93,6 +95,16 @@ Read these as capability signals, not bugs in the surface: the eval grades wheth
 *composed the right workflow*, so a smaller model that asked for clarification it did not need,
 or looped past its iteration budget, is exactly what the corpus is designed to expose.
 
+## Admin operation family
+
+The generated Admin REST client covers **396 operations**: **385** are published as Admin MCP tools and **11** one-time-secret/session operations are explicitly excluded. The default server roster is **432 tools** = **47 static** + **385 Admin MCP**. The row stays blocked until that exact paginated roster is certified against the same release candidate through both HTTP and the proxy.
+
+| Family | REST | Published | Excluded | Static | Default total | HTTP/proxy parity | Approval outcomes | Secret handling | Candidate status |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- |
+| `honua_admin_*` | 396 | 385 | 11 | 47 | 432 | implemented-awaiting-live-candidate | fixture-covered-awaiting-server-catalog | coverage-roster-and-schema-covered-awaiting-live-candidate | blocked-server-pin-regresses-admin-contract (`4a7903c2ef764ffeaa60083689f73b9e42bbc6a3`, 395 REST operations) |
+
+Evidence definition: [`mcp/test/certification/admin-parity.test.ts`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/test/certification/admin-parity.test.ts). REST source: `f897700159e2791c9468c6ca85bb4e2a3a8d8433` / `edbbef2c19d2730f2c87c0641e189ae9fa83c49f38e29eb40057789ade11555a`. MCP coverage: [`config/admin-mcp-coverage.v1.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/config/admin-mcp-coverage.v1.json) / `0b24f61feefe18177e0abc76c491b2c86827b30a5dd45092a595cd595376f088`; exclusion roster `d93bdf6c31e6c532d5483b08315fed5decdd8f5cc56900e59e45be2eddb2fb6f`. Reviewed server head: `c810ef3df29269527d4eceb26151921c8c5d5eab`. Final server contract head: review-head-validated-awaiting-merged-trunk-pin. This is a readiness row, not a fabricated live pass receipt.
+
 ## Protocol certification (zero-LLM control)
 
 Separate from the model eval, a deterministic certifier checks the same live surface against
@@ -105,25 +117,30 @@ schedule and it fails loudly.
 | 2026-07-05 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 15 | 15/15 | 2/3 | 1 | 0 | 12 | ❌ fail | not recorded |
 | 2026-07-06 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 20 | 20/20 | 11/13 | 2 | 5 | 7 | ❌ fail | `60dc44091089` |
 | 2026-07-07 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 20 | 20/20 | 11/13 | 2 | 5 | 10 | ❌ fail | `a09735af8725` |
+| 2026-08-18 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 47 | 25/25 | 2/3 | 1 | 6 | 33 | ❌ fail | `9dd5a707e2eb` |
+| 2026-08-18 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 10 | 3/3 | 1/1 | 0 | 8 | 39 | ❌ fail | `9dd5a707e2eb` |
+| 2026-08-24 | live honua /mcp (https://demo.honua.io/mcp) | `remote` | 52 | 25/25 | 3/4 | 1 | 5 | 38 | ❌ fail | `53a13832554c` |
+| 2026-08-24 | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | `standalone` | 10 | 3/3 | 1/1 | 0 | 8 | 39 | ❌ fail | `53a13832554c` |
 
-### Certification failures and skips — 2026-07-07
+### Certification failures and skips — 2026-08-24
 
-From [`mcp/evals/runs/2026-07-07/cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json). Failures are real conformance defects in the
+From [`mcp/evals/runs/2026-08-24/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-24/cert-standalone.json). Failures are real conformance defects in the
 certified surface, published unedited; skips name the reason they could not be checked.
 
 | Contract | Target | Status | Detail |
 | --- | --- | --- | --- |
 | `list-pagination` | `tools` | skipped | tools list is a single page (no nextCursor advertised) |
 | `list-pagination` | `resources` | skipped | resources list is a single page (no nextCursor advertised) |
-| `error-shape` | `honua_query_features` | failed | invalid arguments raised a protocol error instead of a structured tool error: MCP error -32602: Structured content does not match the tool's output schema: data must have required property 'serviceId', data must have required property 'layerId', data must have required property 'returnedCount', data must have required property 'limit', data must have required property 'exceededTransferLimit', data must have required property 'geojson' |
+| `auth-unauthenticated` | `tools/call` | skipped | target does not support an unauthenticated pass |
+| `auth-unauthenticated` | `resources/read` | skipped | target does not support an unauthenticated pass |
 | `mutating-round-trip` | `honua_edit_features` | skipped | honua_edit_features/honua_query_features not advertised by this surface (pre-P1 or read-only) |
 | `mutating-permission-denied` | `honua_edit_features` | skipped | honua_edit_features not advertised by this surface (pre-P1) |
-| `async-job-lifecycle` | `honua_execute_plan` | skipped | job lifecycle disabled for this target — set HONUA_MCP_CERT_ALLOW_MUTATION=1 to certify execution against a scratch target |
-| `query-pagination` | `honua_query_features` | failed | query pagination raised: MCP error -32602: Structured content does not match the tool's output schema: data must have required property 'serviceId', data must have required property 'layerId', data must have required property 'returnedCount', data must have required property 'limit', data must have required property 'exceededTransferLimit', data must have required property 'geojson' |
+| `async-job-lifecycle` | `honua_execute_plan` | skipped | honua_execute_plan not advertised by this surface (pre-P1) |
+| `query-pagination` | `honua_query_features` | skipped | surface returned a single page with no nextCursor (pagination not exercised — pre-P1 surface or fewer than 2 features) |
 
-The same run recorded **10 known standard gaps** — tool families in the
-geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), App composition, Feature editing, Map composition, Map composition (reference shape), Publishing, Style inspection).
-They are enumerated in [`mcp/evals/runs/2026-07-07/cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json) under `knownGaps`.
+The same run recorded **39 known standard gaps** — tool families in the
+geospatial-MCP standard the certified surface does not yet advertise (Analysis and geoprocessing (reference shape), Analysis verbs, App composition, Composition review (reference shape), Control-plane proposal (reference shape), Discovery and grounding (Honua extension), Discovery and query (reference shape), Execution, Execution (reference shape), Feature editing, Intent and planning, Map composition, Publishing, unclassified).
+They are enumerated in [`mcp/evals/runs/2026-08-24/cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-24/cert-standalone.json) under `knownGaps`.
 
 ## What this does and does not measure
 
@@ -165,6 +182,10 @@ Every artifact behind this page, with the surface it targeted and the suite that
 | [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-05/cert-demo.json) | 2026-07-05 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | not recorded | 15 | `unknown` | not recorded |
 | [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-06/cert-demo.json) | 2026-07-06 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 20 | `api-key` | `60dc44091089` |
 | [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-07-07/cert-demo.json) | 2026-07-07 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 20 | `api-key` | `a09735af8725` |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-18/cert-demo.json) | 2026-08-18 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 47 | `anonymous` | `9dd5a707e2eb` |
+| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-18/cert-standalone.json) | 2026-08-18 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 10 | `anonymous` | `9dd5a707e2eb` |
+| [`cert-demo.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-24/cert-demo.json) | 2026-08-24 | certification | live honua /mcp (https://demo.honua.io/mcp) | — | `2025-06-18` | 52 | `anonymous` | `53a13832554c` |
+| [`cert-standalone.json`](https://github.com/honua-io/honua-sdk-js/blob/trunk/mcp/evals/runs/2026-08-24/cert-standalone.json) | 2026-08-24 | certification | honua-mcp standalone → https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis (live public FeatureServer, no Honua surfaces) | — | not recorded | 10 | `anonymous` | `53a13832554c` |
 
 3 of the artifacts above predate the self-proving provenance
 block and therefore carry no suite SHA or negotiated protocol version. They are published

@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
+  copyFile,
   mkdtemp,
   mkdir,
   readFile,
   rename,
   rm,
+  symlink,
   unlink,
   writeFile,
 } from "node:fs/promises";
@@ -18,20 +20,51 @@ import { constants as zlibConstants, gunzipSync, gzipSync } from "node:zlib";
 import { parse as parseYaml } from "yaml";
 
 import {
+  assertLockfilePinInSync,
+  inspectLockfilePinAt,
+  lockfileDependencyDigest,
+  writeLockfilePinAt,
+} from "../../scripts/lib/lockfile-pin.mjs";
+import {
   ACTIONS,
   ACTION_COMMITS,
+  EXPECTED_LOCKFILE_SHA256,
   RUN_BODY_SHA256,
   classifyReleaseState,
   createReceipts,
   normalizeSmoke,
   parseUniqueJson,
   parseCanonicalArchive,
+  synchronizeActionPins,
   validateDeterministicReceipt,
   validateManifest,
   validateRunReceipt,
   validateWorkflowDocument,
   validateWorkflowFile,
 } from "../../scripts/immutable-sample-bundle-attestation.mjs";
+
+test("derives a visible action-pin record update from the workflow", async () => {
+  const source = await readFile(path.join(ROOT, "scripts/immutable-sample-bundle-attestation.mjs"), "utf8");
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  const replacement = "f".repeat(40);
+  workflow.jobs["build-and-smoke"].steps.find((step) => step.uses === ACTIONS.uploadArtifact).uses =
+    `actions/upload-artifact@${replacement}`;
+
+  const synchronized = synchronizeActionPins(source, workflow);
+
+  assert.match(synchronized, new RegExp(`uploadArtifact:\\s*"actions/upload-artifact@${replacement}"`, "u"));
+  assert.throws(
+    () => synchronizeActionPins(source, { jobs: { bad: { steps: [{ uses: "actions/upload-artifact@v4" }] } } }),
+    /exactly actions\/upload-artifact@<full commit SHA>/u,
+  );
+  assert.throws(
+    () =>
+      synchronizeActionPins(source, {
+        jobs: { bad: { steps: [{ uses: `actions/upload-artifact@${replacement}@typo` }] } },
+      }),
+    /exactly actions\/upload-artifact@<full commit SHA>/u,
+  );
+});
 import {
   pack,
   canonicalGzip,
@@ -49,7 +82,7 @@ const WORKFLOW = path.join(
 const SOURCE = "a".repeat(40);
 const EPOCH = 1_786_614_242;
 const LOCK_BYTES = Buffer.from('{"lockfileVersion":3}\n');
-const LOCK_SHA = createHash("sha256").update(LOCK_BYTES).digest("hex");
+const LOCK_SHA = lockfileDependencyDigest(LOCK_BYTES);
 
 function digest(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
@@ -453,7 +486,7 @@ function coverageSmokeJourney() {
 test("all actions are exact commit pins and attestation uses the verified object", () => {
   assert.equal(
     ACTIONS.attestBuildProvenance,
-    "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+    "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
   );
   for (const [repository, commit] of ACTION_COMMITS) {
     assert.match(repository, /^[a-z0-9-]+\/[a-z0-9-]+$/u);
@@ -463,6 +496,163 @@ test("all actions are exact commit pins and attestation uses the verified object
 
 test("the actual workflow passes parsed structural policy", async () => {
   await validateWorkflowFile(WORKFLOW);
+});
+
+test("the pinned lockfile digest still matches the committed lockfile", async () => {
+  // The privileged publish job never checks out source, so it can only judge
+  // the manifest's `build.lockfileSha256` against a constant carried in the
+  // workflow file itself. That constant therefore goes stale on every
+  // dependency bump, and until this guard existed it went stale *silently* —
+  // publication only discovered it at dispatch, months later
+  // (honua-io/honua-sdk-js#1325). Deliberately a hard failure: the pin has to
+  // move in the same change that moves the lockfile. The one deliberate,
+  // mechanical exception — Release Please's version bump, which rewrote the
+  // lockfile on every release branch and so failed this by construction
+  // (honua-io/honua-sdk-js#1357) — cannot move the digest at all, because the
+  // digest is taken over the dependency projection. Nothing is exempted here.
+  const result = await inspectLockfilePinAt(ROOT);
+  assert.equal(result.status, "in-sync", result.message);
+
+  // The guard reads the pin with an anchored regular expression so the same
+  // reader can run before `npm ci` and from the dependency-free release
+  // synchroniser. Bind that cheap reader to the genuinely parsed workflow
+  // document and to the exported constant, so neither can drift from the value
+  // the privileged job would actually receive.
+  const workflow = parseYaml(await readFile(WORKFLOW, "utf8"));
+  assert.equal(
+    workflow.jobs["attest-and-publish"].steps[1].env.EXPECTED_LOCKFILE_SHA256,
+    result.actual,
+  );
+  assert.equal(EXPECTED_LOCKFILE_SHA256, result.actual);
+  assert.equal(
+    lockfileDependencyDigest(await readFile(path.join(ROOT, "package-lock.json"))),
+    result.actual,
+  );
+  // The policy validator binds the same constant; both copies must agree.
+  await validateWorkflowFile(WORKFLOW);
+});
+
+test("an undeclared lockfile change still fails the pinned-digest guard", async (context) => {
+  // The criterion the #1357 fix had to keep: giving Release Please's version
+  // bump a path through the pin must not open one for a smuggled dependency
+  // change. Mutate a real checkout's lockfile without touching either bound
+  // copy, and prove the guard still rejects it.
+  const scratch = await mkdtemp(path.join(os.tmpdir(), "honua-lockfile-pin-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  await mkdir(path.join(scratch, ".github/workflows"), { recursive: true });
+  await mkdir(path.join(scratch, "scripts"), { recursive: true });
+  for (const file of [
+    "package-lock.json",
+    ".github/workflows/publish-content-addressed-sample-bundles.yml",
+    "scripts/immutable-sample-bundle-attestation.mjs",
+  ]) {
+    await copyFile(path.join(ROOT, file), path.join(scratch, file));
+  }
+  // Normalise the copy to in-sync first, so this reports the mutation and
+  // nothing else. Whether the repository itself is in sync is the subject of
+  // the guard above; it must not also decide the outcome here.
+  await writeLockfilePinAt(
+    scratch,
+    lockfileDependencyDigest(await readFile(path.join(scratch, "package-lock.json"))),
+  );
+  assert.equal((await inspectLockfilePinAt(scratch)).status, "in-sync");
+
+  const pristine = await readFile(path.join(scratch, "package-lock.json"), "utf8");
+  const lockfile = JSON.parse(pristine);
+  // A plausible smuggle: one more installed dependency, nothing else.
+  lockfile.packages["node_modules/honua-undeclared-dependency"] = {
+    version: "1.0.0",
+    resolved:
+      "https://registry.npmjs.org/honua-undeclared-dependency/-/honua-undeclared-dependency-1.0.0.tgz",
+    integrity: `sha512-${"A".repeat(86)}==`,
+  };
+  const smuggled = `${JSON.stringify(lockfile, null, 2)}\n`;
+  // A mutation test that mutated nothing would pass vacuously.
+  assert.notEqual(smuggled, pristine);
+  await writeFile(path.join(scratch, "package-lock.json"), smuggled);
+
+  const mutated = await inspectLockfilePinAt(scratch);
+  assert.equal(mutated.status, "stale");
+  assert.match(
+    mutated.message,
+    /^package-lock\.json dependencies now hash to [0-9a-f]{64}\./u,
+  );
+  // The failure has to keep naming both bound files or it is unactionable.
+  assert.match(
+    mutated.message,
+    /\.github\/workflows\/publish-content-addressed-sample-bundles\.yml/u,
+  );
+  assert.match(
+    mutated.message,
+    /scripts\/immutable-sample-bundle-attestation\.mjs/u,
+  );
+  await assert.rejects(() => assertLockfilePinInSync(scratch), {
+    message: mutated.message,
+  });
+
+  // And a release version bump cannot launder it: the digest is taken over the
+  // dependency projection, so bumping every first-party version on top of the
+  // smuggled dependency leaves the failure exactly where it was.
+  const released = JSON.parse(smuggled);
+  released.version = "9.9.9";
+  released.packages[""].version = "9.9.9";
+  assert.equal(
+    lockfileDependencyDigest(`${JSON.stringify(released, null, 2)}\n`),
+    mutated.actual,
+  );
+});
+
+test("receipts are generated from a checkout with no installed dependencies", async (context) => {
+  // The publisher runs `receipt` out of the pristine `governance/` checkout,
+  // which is deliberately never `npm ci`-installed, so the receipt path must
+  // resolve against builtins alone. A static `yaml` import made every
+  // publication die with ERR_MODULE_NOT_FOUND before it produced a single
+  // receipt (honua-io/honua-sdk-js#1325, run 31972413231).
+  const scratch = await mkdtemp(path.join(os.tmpdir(), "honua-governance-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  // Only `scripts/` has to be a real copy — it is what module resolution walks
+  // up from, and nothing above the scratch directory provides `node_modules`.
+  // Data roots the graph reads at import time are symlinked, so the tree stays
+  // faithful to a full checkout without copying 65 MB of samples.
+  execFileSync("cp", [
+    "-R",
+    path.join(ROOT, "scripts"),
+    path.join(scratch, "scripts"),
+  ]);
+  await symlink(path.join(ROOT, "samples"), path.join(scratch, "samples"));
+
+  // Prove the isolation is real rather than a vacuous pass: a bare specifier
+  // genuinely cannot resolve from there.
+  assert.throws(() =>
+    execFileSync(
+      process.execPath,
+      ["--input-type=module", "-e", "await import('yaml');"],
+      { cwd: scratch, stdio: "pipe" },
+    ),
+  );
+
+  const entrypoint = path.join(
+    scratch,
+    "scripts/immutable-sample-bundle-attestation.mjs",
+  );
+  let status = 0;
+  let stderr = "";
+  try {
+    execFileSync(process.execPath, [entrypoint, "receipt"], {
+      cwd: scratch,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    status = error.status;
+    stderr = String(error.stderr);
+  }
+
+  // It must fail on its arguments — that is proof the whole module graph
+  // loaded — and never on module resolution.
+  assert.equal(status, 1);
+  assert.doesNotMatch(stderr, /ERR_MODULE_NOT_FOUND/u);
+  assert.match(stderr, /--manifest is required/u);
 });
 
 test("structural policy rejects syntax mutations rather than comments", async () => {

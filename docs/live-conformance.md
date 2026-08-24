@@ -111,6 +111,30 @@ Discovery alone would only prove that a document parsed.
    Processes remains operation-only and is never represented as a fake
    protocol-neutral `Source`.
 
+The write-capable `process-execute` step is intentionally not inferred from
+this discovery target. It becomes eligible only when the governed Honua demo
+manifest advertises anonymous `geometry.buffer` execution with its input,
+lifecycle, and request-budget contract (honua-demo-infra#68, after
+honua-server#3268). Before then, candidate/release runs must emit a named
+blocked or skipped receipt for that step; they must not turn a discovered
+process id into execution evidence.
+
+The pre-capability receipt is therefore explicit and machine-readable:
+
+```json
+{
+  "step": "process-execute",
+  "status": "blocked",
+  "reasonCode": "demo-capability-not-advertised",
+  "dependencies": ["honua-server#3268", "honua-demo-infra#68"],
+  "executionClaimed": false
+}
+```
+
+This is contract evidence only. It is replaced by an executed receipt only
+after the reviewed demo manifest supplies the anonymous endpoint, advertised
+`geometry.buffer` inputs, job-control modes, and request budget.
+
 **The capability guard**, on every source-backed journey: call one capability
 the endpoint does **not** advertise and require
 `HonuaCapabilityNotSupportedError`. This is

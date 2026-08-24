@@ -36,3 +36,27 @@ test("introduction versions are explicit and enforced per capability", async () 
     new RegExp(`introductionVersions is missing a valid semver for ${key}`),
   );
 });
+
+test("GeoServices GP execution remains covered by the canonical support truth", async () => {
+  const current = await buildSdkCoverage();
+  const geoprocessing = current.doc.capabilities.find((capability) => capability.key === "process.geoprocessing");
+
+  assert.deepEqual(geoprocessing, {
+    key: "process.geoprocessing",
+    status: "covered",
+    sinceVersion: "0.1.0-beta.0",
+    entrypoints: [
+      "HonuaClient.geoprocessing()",
+      "HonuaClient.geoprocessingRunner()",
+      "Source.protocol()",
+      "discoverGeoServices()",
+    ],
+    evidence: [
+      "test/contract/geoprocessing-job-run.test.ts",
+      "test/contract/geoservices-conformance.test.ts",
+      "test/geoservices-discovery.test.ts",
+      "test/process-runner.test.ts",
+    ],
+    source: "support-manifest",
+  });
+});

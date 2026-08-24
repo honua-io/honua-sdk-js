@@ -1949,19 +1949,23 @@
     },
     {
       "id": "geoservices-gp-discovery-standalone",
-      "label": "GeoServices GPServer discovery",
+      "label": "GeoServices GPServer discovery and asynchronous execution",
       "protocol": "geoservices-gp-service",
       "operations": [
-        "discovery"
+        "discovery",
+        "geoprocess"
       ],
       "environment": "standalone",
-      "executionMode": "discovery",
+      "executionMode": "native",
       "status": "supported",
-      "backendNeeded": "Any ArcGIS Server GPServer endpoint",
-      "api": "discoverGeoServices()",
-      "notes": "Returns task execution and job-lifecycle metadata without starting a job or inventing a queryable Source.",
+      "backendNeeded": "Any ArcGIS Server GPServer endpoint for discovery; execution additionally requires the task to be published for asynchronous submission (submitJob)",
+      "api": "discoverGeoServices(), HonuaClient.geoprocessing(), HonuaClient.geoprocessingRunner(), Source.protocol()",
+      "notes": "Discovery returns task and job-lifecycle metadata for every task without starting work. Execution is asynchronous only: the typed GP service and the unified process runner submit, poll, cancel, and fetch results over submitJob/jobs/cancel, so a synchronous task that advertises only execute is discovered and reported with sdkSupported false rather than run.",
       "evidence": [
-        "geoservices-discovery-fixtures"
+        "geoservices-discovery-fixtures",
+        "geoservices-conformance",
+        "geoprocessing-job-run-fixtures",
+        "process-runner-fixtures"
       ]
     },
     {
@@ -2375,7 +2379,7 @@
       "status": "beta",
       "backendNeeded": "None (optional `cesium` peer)",
       "api": "@honua/app-platform/scene-workspace",
-      "notes": "Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, every declared imagery protocol (url-template, WMS, WMTS, single-tile, and both ArcGIS endpoint shapes) with the request each provider puts on the wire, glTF/GLB models, 3D-Tiles tilesets including a .pnts point cloud and the honua_style sidecar, the fail-closed rows for an undeclared imagery protocol and an unmaterialized model format, and a documented final-canvas GC floor whose listener budget is itself proven by an injected per-cycle leak (#928, #1055). Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table.",
+      "notes": "Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for quantized-mesh terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, quantized-mesh terrain (the adapter's only materialized terrain protocol), every declared imagery protocol (url-template, WMS, WMTS, single-tile, and both ArcGIS endpoint shapes) with the request each provider puts on the wire, glTF/GLB models, 3D-Tiles tilesets including a .pnts point cloud and the honua_style sidecar, an undeclared imagery protocol, and an unmaterialized model format. Unit fixtures additionally cover the fail-closed Terrain-RGB, raster DEM, ImageServer, and custom terrain rows. The browser lane also records a documented final-canvas GC floor whose listener budget is itself proven by an injected per-cycle leak (#928, #1055). Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table.",
       "evidence": [
         "scene-workspace-fixtures",
         "scene-state-sync-fixtures",
@@ -2395,7 +2399,7 @@
       ],
       "environment": "standalone",
       "executionMode": "discovery",
-      "status": "experimental",
+      "status": "supported",
       "backendNeeded": "Any link-driven OGC API Processes server",
       "api": "discoverOgcProcesses()",
       "notes": "Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection.",
@@ -2416,7 +2420,7 @@
       "status": "experimental",
       "backendNeeded": "Any conformant OGC API Processes Part 1 (Core) server",
       "api": "client.ogcProcesses({ basePath, conformance }).execute()",
-      "notes": "Executes at the discovered service root in both Core response shapes (synchronous 200 results and Prefer: respond-async 201 + Location), then follows the advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture-proven; no public endpoint permits anonymous execution, so there is no live lane.",
+      "notes": "Executes at the discovered service root in both Core response shapes (no Prefer header for the Requirement 25 synchronous default, or Prefer: respond-async for asynchronous negotiation), then follows advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture and integration-contract proven, but not yet governed-live executed; the anonymous geometry.buffer live step remains explicitly blocked on honua-server#3268 and honua-demo-infra#68.",
       "evidence": [
         "ogc-processes-fixtures",
         "ogc-processes-integration"
@@ -2962,6 +2966,10 @@
         "status": "experimental"
       },
       {
+        "subpath": "./zarr",
+        "status": "experimental"
+      },
+      {
         "subpath": "./geoparquet",
         "status": "experimental"
       },
@@ -3035,6 +3043,10 @@
       },
       {
         "subpath": "./studio-agent",
+        "status": "experimental"
+      },
+      {
+        "subpath": "./local-install",
         "status": "experimental"
       },
       {

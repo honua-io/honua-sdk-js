@@ -143,22 +143,33 @@ test("realtime incident dashboard keeps map, queue, filters, and detail linked",
     await expect(stageEdit).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.locator("#edit-outcome")).toContainText("Staged against revision 1");
-    await simulateConflict.focus();
-    await page.keyboard.press("Enter");
-    await submitEdit.focus();
-    await page.keyboard.press("Space");
+    await simulateConflict.press("Enter");
+    await expect(page.locator("#edit-outcome")).toContainText("Concurrent update published");
+    // #edit-outcome is written synchronously by the control, but the panel is
+    // re-rendered by the realtime event that control published, and that render
+    // arrives on its own schedule. Wait for it to reach the panel -- on the
+    // thing that makes the next step meaningful, not on a timer: the live
+    // record has moved past the staged revision, which is exactly why
+    // submitting must now conflict (honua-io/honua-sdk-js#1333).
+    await expect(page.locator("#edit-revision")).not.toHaveText("1");
+    await expect(submitEdit).toBeEnabled();
+    // `locator.press` rather than `focus()` + `keyboard.press`. The panel
+    // rewrites every control's `disabled` flag on each re-render, and disabling
+    // a focused control blurs it in a way re-enabling does not undo -- so a
+    // render landing in the gap between a separate focus() and keypress sent
+    // Space to the document and left this outcome line unchanged for the full
+    // 10s timeout. This keeps the keyboard semantics the test is here to cover
+    // while closing the gap and re-checking the control is actionable first.
+    await submitEdit.press("Space");
     await expect(page.locator("#edit-outcome")).toContainText("Conflict:");
-    await stageEdit.focus();
-    await page.keyboard.press("Enter");
-    await submitEdit.focus();
-    await page.keyboard.press("Enter");
+    await stageEdit.press("Enter");
+    await expect(page.locator("#edit-outcome")).toContainText("Staged against revision");
+    await submitEdit.press("Enter");
     await expect(page.locator("#edit-outcome")).toContainText("Applied:");
     await expect(page.locator("#detail-status")).toHaveText("Monitoring");
-    await repeatEdit.focus();
-    await page.keyboard.press("Space");
+    await repeatEdit.press("Space");
     await expect(page.locator("#edit-outcome")).toContainText("Duplicate:");
-    await resetEdit.focus();
-    await page.keyboard.press("Enter");
+    await resetEdit.press("Enter");
     await expect(page.locator("#edit-outcome")).toContainText("Reset:");
     await expect(page.locator("#detail-status")).toHaveText("Assigned");
 

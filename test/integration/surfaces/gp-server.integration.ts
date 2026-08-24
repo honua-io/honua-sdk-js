@@ -31,7 +31,7 @@ if (config && !config.gpServiceId) {
   integrationSuite("GPServer", "gp-server", ({ client, context, config }) => {
     const gp = client.geoprocessing(config.gpServiceId ?? config.serviceId, config.gpTaskName);
 
-    it("submits a GPServer job and reads its status", async () => {
+    it("submits a GPServer job and reads its status [cert:gpserver/submit-job#positive] [cert:gpserver/submit-job#media-schema] [cert:gpserver/job-status#positive] [cert:gpserver/job-status#media-schema]", async () => {
       const job = await runWithDiagnostics(context, "client.geoprocessing().submitJob", async () => {
         const parameters = parseJsonObject(process.env.HONUA_INTEGRATION_GP_PARAMETERS_JSON) ?? {};
         const result = await gp.submitJob({ parameters });

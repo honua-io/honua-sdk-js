@@ -21,7 +21,7 @@ export async function loginCommand(parsed: ParsedArgs, ctx: CommandContext): Pro
   const existing = readConfig();
   const config = { ...existing, baseUrl: stripTrailingSlashes(baseUrl) };
   if (apiKey) config.apiKey = apiKey;
-  const file = writeConfig(config);
+  const file = await writeConfig(config);
   printLine(
     renderDetail(
       { baseUrl: config.baseUrl, apiKey: config.apiKey ? "***saved***" : "(none — anonymous)", saved: file },

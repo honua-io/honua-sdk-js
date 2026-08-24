@@ -27,6 +27,23 @@ The migration package is no longer a generated SDK split. It is built from the
 `@honua/sdk-js/migration` remains a temporary forwarder. See the
 [transition policy](./migration-tool-transition.md).
 
+## Optional gRPC-Web runtime
+
+REST and open-protocol consumers do not install the Buf/Connect runtime. A
+consumer that selects `transport: "grpc-web"` must install the optional peers
+alongside the split SDK:
+
+```bash
+npm install @honua/sdk @bufbuild/protobuf @connectrpc/connect @connectrpc/connect-web
+```
+
+`npm run verify:split-packages` installs the generated package into a fresh
+consumer, opts into those peers, and executes a unary `QueryFeatures` call
+through the packed SDK's real protobuf adapter and Connect gRPC-Web transport.
+The deterministic in-process protocol fixture verifies request serialization,
+authentication headers, response framing, and response decoding without an
+external service. It does not replace live Honua Server conformance testing.
+
 ## How to build the split tarballs
 
 ```bash

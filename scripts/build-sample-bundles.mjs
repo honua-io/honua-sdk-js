@@ -28,7 +28,7 @@
  * prerequisites, and the exact commit / package version it was built from.
  *
  * Publication (workflow artifact + GitHub Release asset) happens in CI
- * (.github/workflows/ci.yml `sample-bundles-release` job); see
+ * (.github/workflows/publish-content-addressed-sample-bundles.yml); see
  * docs/sample-bundles.md for the consumer contract.
  *
  * Run with:
@@ -45,11 +45,10 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { lockfileDependencyDigest } from "./lib/lockfile-pin.mjs";
 import { runNpmSync } from "./lib/npm-cli.mjs";
 
 const require = createRequire(import.meta.url);
-const Ajv2020 = require("ajv/dist/2020").default;
-const addFormats = require("ajv-formats").default;
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(SCRIPT_DIR, "..");
@@ -951,7 +950,7 @@ export async function buildSampleBundleManifest({ gitCommit = gitSha() } = {}) {
   const packageJson = await readJson("package.json");
   const catalog = await readJson("samples/catalog.v2.json");
   verifySampleBundleAudit(catalog);
-  const packageLock = await readFile(path.join(PROJECT_ROOT, "package-lock.json"));
+  const packageLock = await readFile(path.join(PROJECT_ROOT, "package-lock.json"), "utf8");
 
   await rm(OUTPUT_ROOT, { recursive: true, force: true });
   await mkdir(OUTPUT_ROOT, { recursive: true });
@@ -971,7 +970,7 @@ export async function buildSampleBundleManifest({ gitCommit = gitSha() } = {}) {
     schemaVersion: 2,
     build: {
       node: packageJson.engines.node,
-      lockfileSha256: sha256(packageLock),
+      lockfileSha256: lockfileDependencyDigest(packageLock),
     },
     samples,
     excluded,
@@ -982,7 +981,14 @@ async function loadSchema() {
   return JSON.parse(await readFile(SCHEMA_PATH, "utf8"));
 }
 
+// Resolved on use, not on import. `scripts/immutable-sample-bundle-attestation.mjs`
+// imports this module purely for its policy constants and runs from the pristine
+// `governance/` checkout, which is deliberately never `npm ci`-installed; an
+// import-time `require` made every publication fail before it wrote a receipt
+// (honua-io/honua-sdk-js#1325). Only manifest validation genuinely needs Ajv.
 export async function validateSampleBundleManifest(manifest, { catalog } = {}) {
+  const Ajv2020 = require("ajv/dist/2020").default;
+  const addFormats = require("ajv-formats").default;
   const ajv = new Ajv2020({ allErrors: true, strict: false });
   addFormats(ajv);
   const validate = ajv.compile(await loadSchema());

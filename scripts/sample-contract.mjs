@@ -69,6 +69,8 @@ const LEGACY_SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v2.json";
 const LEGACY_SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.schema.json";
 const SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v3.json";
 const SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.v3.schema.json";
+const NEXT_SITE_PROJECTION_PATH = "samples/dist/honua-site-samples.v4.json";
+const NEXT_SITE_PROJECTION_SCHEMA_PATH = "samples/contract/v2/schemas/site-projection.v4.schema.json";
 const CAPABILITY_SAMPLE_MATRIX_PATH = "samples/dist/capability-sample-matrix.v1.json";
 const CAPABILITY_SAMPLE_MATRIX_SCHEMA_PATH =
   "samples/contract/v2/schemas/capability-sample-matrix.schema.json";
@@ -3640,9 +3642,28 @@ export function generateSiteProjection(catalog, packageJson) {
     sampleBundles: {
       format: "honua.sdk.sample-bundles.v2",
       schemaVersion: 2,
+      // Publication is content-addressed: one immutable release per source
+      // commit, tagged `sample-bundles-<full-source-SHA>`. This pointer used to
+      // name the rolling `sample-bundles-latest` release, which was permanently
+      // frozen when org-wide immutable releases were enabled on 2026-08-13
+      // (honua-io/honua-sdk-js#1325), so a fixed tag here can only ever name
+      // stale bytes. `releaseTag` now carries a TEMPLATE: substitute
+      // `{sourceCommit}` with the full 40-character source SHA whose bundles
+      // you want. The projection is a deterministic derived artifact and cannot
+      // embed the SHA of the commit that generates it, so a template is the
+      // only pointer that is both honest and reproducible.
+      //
+      // The field keeps its `releaseTag` name HERE, in v3, deliberately: the
+      // committed handoff content-binds site-projection.v3.schema.json's exact
+      // bytes, and `test/site-consumer-handoff.test.ts` fails any edit to a
+      // referenced schema without a version bump. So the clearer name is
+      // versioned rather than mutated in place -- `generateSiteProjectionV4`
+      // below emits the same pointer as `releaseTagTemplate`
+      // (honua-io/honua-sdk-js#1338). v3 stays byte-identical for existing
+      // consumers until honua-site cuts over to v4, after which v3 retires.
       publication: {
         repo: "honua-io/honua-sdk-js",
-        releaseTag: "sample-bundles-latest",
+        releaseTag: "sample-bundles-{sourceCommit}",
         manifestAsset: "sample-bundles.v2.json",
         bundleAsset: "sample-bundles.tar.gz",
       },
@@ -3651,6 +3672,49 @@ export function generateSiteProjection(catalog, packageJson) {
       excluded: deriveExcludedSamples(catalog),
     },
   };
+}
+
+/**
+ * The v4 site projection: v3 with `sampleBundles.publication.releaseTag`
+ * renamed to `releaseTagTemplate` (honua-io/honua-sdk-js#1338).
+ *
+ * Derived by upgrade rather than generated independently, mirroring the way the
+ * legacy v2 projection is derived by downgrade from v3. Two emitters of the
+ * same facts drift; one emitter plus a mechanical version adapter cannot. It
+ * also keeps the v3 bytes provably untouched, which is what lets the committed
+ * handoff keep content-binding v3's schema while the rename lands.
+ *
+ * The rename is the whole delta. `releaseTag` named a literal tag a consumer
+ * could resolve; since #1325 replaced the frozen `sample-bundles-latest`
+ * pointer with a content-addressed one, the value has been a template requiring
+ * `{sourceCommit}` substitution, and the old name invited a consumer to use it
+ * verbatim and resolve nothing.
+ */
+export function generateSiteProjectionV4(projection) {
+  invariant(
+    projection?.format === "honua.site.sdk-sample-projection.v3" && projection?.schemaVersion === 3,
+    "site projection v4 upgrades from v3",
+  );
+  const upgraded = structuredClone(projection);
+  upgraded.format = "honua.site.sdk-sample-projection.v4";
+  upgraded.schemaVersion = 4;
+  const publication = upgraded.sampleBundles?.publication;
+  invariant(
+    publication && typeof publication.releaseTag === "string",
+    "site projection v3 has no sampleBundles.publication.releaseTag to rename",
+  );
+  // Rebuild rather than delete-then-assign so the renamed key keeps v3's field
+  // order. The projection is serialized with stableJson, so ordering does not
+  // affect the emitted bytes; it keeps a v3/v4 diff readable as one rename.
+  upgraded.sampleBundles.publication = Object.fromEntries(
+    Object.entries(publication).map(([key, value]) => (key === "releaseTag" ? ["releaseTagTemplate", value] : [key, value])),
+  );
+  invariant(
+    !("releaseTag" in upgraded.sampleBundles.publication) &&
+      upgraded.sampleBundles.publication.releaseTagTemplate === publication.releaseTag,
+    "site projection v4 must carry the v3 pointer under releaseTagTemplate and drop releaseTag",
+  );
+  return upgraded;
 }
 
 function orderedUnique(values) {
@@ -7650,13 +7714,26 @@ export function generateCiSelection(catalog) {
   };
 }
 
+const SITE_PROJECTION_SCHEMA_BY_FORMAT = new Map([
+  ["honua.site.sdk-sample-projection.v2", { schemaVersion: 2, schemaPath: LEGACY_SITE_PROJECTION_SCHEMA_PATH }],
+  ["honua.site.sdk-sample-projection.v3", { schemaVersion: 3, schemaPath: SITE_PROJECTION_SCHEMA_PATH }],
+  ["honua.site.sdk-sample-projection.v4", { schemaVersion: 4, schemaPath: NEXT_SITE_PROJECTION_SCHEMA_PATH }],
+]);
+
 export async function validateSiteProjection(projection) {
   validateSensitiveMetadata(projection, "site projection");
-  const schemaPath =
-    projection?.format === "honua.site.sdk-sample-projection.v2" && projection?.schemaVersion === 2
-      ? LEGACY_SITE_PROJECTION_SCHEMA_PATH
-      : SITE_PROJECTION_SCHEMA_PATH;
-  await validateJsonSchema(projection, schemaPath);
+  // An unknown format used to fall through to the v3 schema, which then failed
+  // on a `format` const mismatch -- a real failure, but one that reads as "this
+  // projection is malformed" rather than "nobody taught the validator about
+  // this version". Name it instead: a new projection version that reaches here
+  // unregistered must not be validated against its predecessor's schema.
+  const contract = SITE_PROJECTION_SCHEMA_BY_FORMAT.get(projection?.format);
+  invariant(
+    contract !== undefined && projection?.schemaVersion === contract.schemaVersion,
+    `unsupported site projection ${JSON.stringify(projection?.format)} schemaVersion ${JSON.stringify(projection?.schemaVersion)}; ` +
+      `register it in SITE_PROJECTION_SCHEMA_BY_FORMAT with its schema`,
+  );
+  await validateJsonSchema(projection, contract.schemaPath);
 }
 
 export async function validateCiSelection(selection) {
@@ -7737,7 +7814,7 @@ function generatedCatalogMarkdown(catalog, packageJson, releaseMatrixLanes = [])
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ...rows,
     "",
-    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers.",
+    "The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers, and [`v4`](../../samples/dist/honua-site-samples.v4.json) is published for cutover -- identical to v3 except that `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the name the `{sourceCommit}` template has needed since honua-io/honua-sdk-js#1325.",
     "",
   ].join("\n");
 }
@@ -7809,6 +7886,10 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
   legacyProjection.format = "honua.site.sdk-sample-projection.v2";
   legacyProjection.schemaVersion = 2;
   delete legacyProjection.sampleBundles;
+  // v4 is emitted alongside v3, not instead of it: honua-site still reads v3,
+  // and the committed handoff content-binds v3's schema bytes. v3 retires once
+  // that cutover lands (honua-io/honua-sdk-js#1338).
+  const nextProjection = generateSiteProjectionV4(projection);
   const ciSelection = generateCiSelection(catalog);
   const supportTruth = options.supportTruth ?? (await readJson(SUPPORT_TRUTH_PATH));
   // Publication is intentionally anchored to the canonical evidence root. Tests inject
@@ -7845,6 +7926,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     verifyCheckout: options.verifyCheckout,
   });
   await validateSiteProjection(legacyProjection);
+  await validateSiteProjection(nextProjection);
   await validateSiteConsumerHandoff(legacyHandoff, {
     projection: legacyProjection,
     matrix: capabilityMatrix,
@@ -7870,6 +7952,7 @@ export async function generatedOutputs(catalog, packageJson, options = {}) {
     ],
     [LEGACY_SITE_PROJECTION_PATH, stableJson(legacyProjection)],
     [SITE_PROJECTION_PATH, stableJson(projection)],
+    [NEXT_SITE_PROJECTION_PATH, stableJson(nextProjection)],
     [CAPABILITY_SAMPLE_MATRIX_PATH, stableJson(capabilityMatrix)],
     [GOLDEN_VISUAL_EVIDENCE_PATH, stableJson(visualEvidence)],
     [LEGACY_SITE_CONSUMER_HANDOFF_PATH, stableJson(legacyHandoff)],
@@ -8238,7 +8321,9 @@ async function runContract(command, options = {}) {
   ]) {
     validateEvidenceEnvelope(await readJson(fixturePath));
   }
-  await validateSiteProjection(generateSiteProjection(catalog, packageJson));
+  const verifiedProjection = generateSiteProjection(catalog, packageJson);
+  await validateSiteProjection(verifiedProjection);
+  await validateSiteProjection(generateSiteProjectionV4(verifiedProjection));
   await validateCiSelection(generateCiSelection(catalog));
   const outputs = await generatedOutputs(catalog, packageJson, { verifyCheckout: options.verifyCheckout });
   if (command === "write") {

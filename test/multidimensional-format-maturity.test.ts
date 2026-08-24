@@ -90,7 +90,7 @@ describe("internal multidimensional format maturity contract", () => {
     extraProperty.unreviewed = true;
     expect(validate(extraProperty)).toBe(false);
     const publicExport = cloneDescriptor();
-    publicExport.policy.publicSdkExport = true;
+    publicExport.policy.publicSdkExport = false;
     expect(validate(publicExport)).toBe(false);
     const runnableSample = cloneDescriptor();
     runnableSample.policy.runnableSample = true;
@@ -110,7 +110,7 @@ describe("internal multidimensional format maturity contract", () => {
       endToEnd: { state: "unavailable" },
     });
     expect(formatById("zarr").maturity).toMatchObject({
-      client: { state: "unavailable" },
+      client: { state: "experimental" },
       server: { state: "experimental" },
       endToEnd: { state: "unavailable" },
     });
@@ -164,7 +164,8 @@ describe("internal multidimensional format maturity contract", () => {
     expect(zarr.contractLimits.crs.join(" ")).toContain("Cross-CRS");
     expect(zarr.contractLimits.budgets.join(" ")).toMatch(/64 KiB.*4096 chunks.*256 MiB.*16 MiB.*4 MiB/iu);
     expect(zarr.publicationGates).toHaveLength(10);
-    expect(zarr.publicationGates.every((gate: { state: string }) => gate.state === "missing")).toBe(true);
+    expect(zarr.publicationGates.filter((gate: { state: string }) => gate.state === "partial")).toHaveLength(3);
+    expect(zarr.publicationGates.filter((gate: { state: string }) => gate.state === "missing")).toHaveLength(7);
     expect(zarr.architecture.futureResponsibilities.map((item: { id: string }) => item.id)).toEqual([
       "metadata",
       "slice",
@@ -179,7 +180,7 @@ describe("internal multidimensional format maturity contract", () => {
       ...additionalServerEvidenceCommits.map((entry: { commit: string }) => entry.commit),
     ]);
     expect(admittedCommits).toEqual(
-      new Set(["61b7038e1887c98131aa217b6f0ae7869356a1f3", "639d37449fb8da5e9df4b12b7641ba4c6c5ac581"]),
+      new Set(["61b7038e1887c98131aa217b6f0ae7869356a1f3", "a0538439c2ee3ac108ff78b413689bdb7e830d5e"]),
     );
     const ids = new Set(references.map((reference: { id: string }) => reference.id));
     expect(ids.size).toBe(references.length);
@@ -201,7 +202,7 @@ describe("internal multidimensional format maturity contract", () => {
       ...ingestionBlockerIds,
       ...zarrBlockerIds,
     ]);
-    expect(descriptor.curriculum.currentState).toBe("architecture-only");
+    expect(descriptor.curriculum.currentState).toBe("client-slice");
     expect(descriptor.curriculum.futureSequence.map((phase: { order: number }) => phase.order)).toEqual([1, 2, 3, 4]);
     const knownBlockers = new Set([...ingestionBlockerIds, ...zarrBlockerIds]);
     for (const phase of descriptor.curriculum.futureSequence) {
@@ -209,7 +210,7 @@ describe("internal multidimensional format maturity contract", () => {
     }
   });
 
-  it("adds no public export, support truth, coverage claim, or runnable sample", () => {
+  it("publishes only the scoped Zarr client without support, coverage, or runnable sample claims", () => {
     const packageJson = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
     const publicSurface = fs.readFileSync(new URL("../config/public-surface.json", import.meta.url), "utf8");
     const supportManifest = JSON.parse(
@@ -221,10 +222,12 @@ describe("internal multidimensional format maturity contract", () => {
       fs.readFileSync(new URL("../samples/dist/sample-playgrounds.v1.json", import.meta.url), "utf8"),
     );
     const exampleNames = fs.readdirSync(new URL("../examples", import.meta.url));
+    expect(Object.keys(packageJson.exports)).toContain("./zarr");
     expect(Object.keys(packageJson.exports)).not.toEqual(
-      expect.arrayContaining(["./zarr", "./netcdf", "./hdf5", "./multidimensional"]),
+      expect.arrayContaining(["./netcdf", "./hdf5", "./multidimensional"]),
     );
-    expect(publicSurface).not.toMatch(/"\.\/(?:zarr|netcdf|hdf5|multidimensional)"/iu);
+    expect(publicSurface).toMatch(/"\.\/zarr"/u);
+    expect(publicSurface).not.toMatch(/"\.\/(?:netcdf|hdf5|multidimensional)"/iu);
     expect(governedFormatRecords(supportManifest.supportClaims, ["id", "label", "protocol", "api"])).toEqual([]);
     expect(governedFormatRecords(coverage.capabilities, ["key", "entrypoints"])).toEqual([]);
     expect(
@@ -263,9 +266,9 @@ describe("internal multidimensional format maturity contract", () => {
       "Zarr v3",
       "positive public live Zarr canary",
       "GRIB/GRIB2 is reference-only",
-      "no public export",
+      "no runnable sample",
       "full-file download",
-      "Maturity-only architecture guidance",
+      "Client-slice architecture guidance",
     ]) {
       expect(guide).toContain(required);
     }

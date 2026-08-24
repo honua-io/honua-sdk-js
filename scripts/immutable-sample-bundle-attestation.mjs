@@ -5,24 +5,34 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gunzipSync } from "node:zlib";
-import { parse as parseYaml } from "yaml";
 import {
   PUBLISHED_LIVE_SAMPLE_POLICY,
   SAMPLE_BUNDLE_STATIC_SMOKE_JOURNEYS,
 } from "./build-sample-bundles.mjs";
+import { lockfileDependencyDigest } from "./lib/lockfile-pin.mjs";
 
 export const WORKFLOW_PATH =
   ".github/workflows/publish-content-addressed-sample-bundles.yml";
 export const NODE_VERSION = "20.19.0";
+// The dependency digest of `package-lock.json` that the privileged publish job
+// is allowed to publish for -- `lockfileDependencyDigest`, not a digest of the
+// file's bytes. This is the bound copy: the authoritative one is the
+// `EXPECTED_LOCKFILE_SHA256` env value in the workflow above, and
+// `validateWorkflowDocument` asserts they are the same string, so neither can
+// move without the other. Only a human editing a real dependency change moves
+// it: nothing in CI can, because `GITHUB_TOKEN` cannot commit to
+// `.github/workflows/**` (#1357).
+export const EXPECTED_LOCKFILE_SHA256 =
+  "c972d360545928008e610b6dc9d34678faf04953011253f33479cc25a3d93397";
 export const ACTIONS = Object.freeze({
   checkout: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   setupNode: "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
   uploadArtifact:
-    "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
   downloadArtifact:
-    "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+    "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
   attestBuildProvenance:
-    "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+    "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
 });
 export const ACTION_COMMITS = new Map(
   Object.values(ACTIONS).map((value) => {
@@ -50,7 +60,7 @@ export const RUN_BODY_SHA256 = Object.freeze({
   "build-and-smoke/Stage transfer":
     "b6a12a3064dd6c7812fbd2aa8f6e24249e8766a230c8b098fe468e30f6603de9",
   "attest-and-publish/Validate all bytes before tokens":
-    "08c85cbc3182ff308b7f6266cc654b9743671ae57fbda4ed31e0cb1b6244ca48",
+    "1123caba9863f93123a946ed9d03be4863a4c1f53ed8d30cb9e946d61cc09a31",
   "attest-and-publish/Gate current trunk and immutable releases":
     "9fb1bf3829695d33d86aaf7834420aed11dfe6cf78dc65515473e093505c1c71",
   "attest-and-publish/Create or accept exact immutable release":
@@ -1461,7 +1471,7 @@ export async function createReceipts(options) {
   const manifest = parseUniqueJson(manifestBytes, "sample bundle manifest");
   const smoke = parseUniqueJson(smokeBytes, "browser smoke receipt");
   const pack = parseUniqueJson(packBytes, "pack metadata");
-  const lockfileSha256 = sha256(lockfileBytes);
+  const lockfileSha256 = lockfileDependencyDigest(lockfileBytes);
   const { files } = validateManifest(manifest, {
     sourceCommit: options.sourceCommit,
     lockfileSha256,
@@ -1612,7 +1622,10 @@ function exactObject(value, expected, label) {
 }
 
 function action(value, expected, label) {
-  invariant(value === expected, `${label} action pin drifted`);
+  invariant(
+    value === expected,
+    `${label} action pin drifted; run npm run samples:bundles:attestation:sync-actions and commit the reviewed pin-record diff`,
+  );
   const [repository, commit] = value.split("@");
   invariant(
     ACTION_COMMITS.get(repository) === commit && SHA.test(commit),
@@ -1893,8 +1906,7 @@ export function validateWorkflowDocument(workflow, { resolveAction } = {}) {
     privileged.steps[1].env,
     {
       SOURCE_COMMIT: "${{ github.sha }}",
-      EXPECTED_LOCKFILE_SHA256:
-        "0ec0a6ef311b26e9fc110617ccaf06f538e7ee6e2b5b4f12c1d6aaf0ac437570",
+      EXPECTED_LOCKFILE_SHA256,
     },
     "byte validation environment",
   );
@@ -2013,10 +2025,18 @@ async function resolveActionCommits() {
   return results;
 }
 
+// `yaml` is the only non-builtin dependency this module needs, and only the
+// `policy` command needs it. The `receipt` command runs from the pristine
+// `governance/` checkout, which is deliberately never `npm ci`-installed, so a
+// static import would make every publication fail with ERR_MODULE_NOT_FOUND
+// (honua-io/honua-sdk-js#1325). Loading it here keeps the receipt path
+// resolvable with no `node_modules` at all, which is the stronger guarantee:
+// nothing installed from the registry can influence the receipts.
 export async function validateWorkflowFile(
   workflowPath,
   { resolveActions = false } = {},
 ) {
+  const { parse: parseYaml } = await import("yaml");
   const workflow = parseYaml(await readFile(workflowPath, "utf8"));
   const resolved = resolveActions ? await resolveActionCommits() : null;
   return validateWorkflowDocument(workflow, {
@@ -2026,6 +2046,47 @@ export async function validateWorkflowFile(
   });
 }
 
+const ACTION_KEY_BY_REPOSITORY = Object.freeze({
+  "actions/checkout": "checkout",
+  "actions/setup-node": "setupNode",
+  "actions/upload-artifact": "uploadArtifact",
+  "actions/download-artifact": "downloadArtifact",
+  "actions/attest-build-provenance": "attestBuildProvenance",
+});
+
+/** Derive the reviewable pin record from the workflow's already-visible `uses` lines. */
+export function synchronizeActionPins(policySource, workflow) {
+  const observed = new Map();
+  for (const job of Object.values(workflow.jobs ?? {})) {
+    for (const step of job.steps ?? []) {
+      if (typeof step.uses !== "string") continue;
+      const repository = Object.keys(ACTION_KEY_BY_REPOSITORY).find((candidate) =>
+        step.uses.startsWith(`${candidate}@`),
+      );
+      if (!repository) continue;
+      const match = /^([^@]+)@([0-9a-f]{40})$/u.exec(step.uses);
+      invariant(
+        match?.[1] === repository,
+        `${repository} must use exactly ${repository}@<full commit SHA>`,
+      );
+      const commit = match[2];
+      const key = ACTION_KEY_BY_REPOSITORY[repository];
+      invariant(SHA.test(commit), `${repository} must remain pinned to a full commit SHA`);
+      const previous = observed.get(key);
+      invariant(!previous || previous === step.uses, `${repository} uses more than one commit in the workflow`);
+      observed.set(key, step.uses);
+    }
+  }
+  exactKeys(Object.fromEntries(observed), Object.values(ACTION_KEY_BY_REPOSITORY), "workflow action pins");
+  let next = policySource;
+  for (const [key, value] of observed) {
+    const pattern = new RegExp(`(${key}:\\s*(?:\\n\\s*)?)"[^"]+"`, "gu");
+    invariant((next.match(pattern) ?? []).length === 1, `policy source has no unique ${key} action pin`);
+    next = next.replace(pattern, `$1${JSON.stringify(value)}`);
+  }
+  return next;
+}
+
 async function main() {
   const { command, values } = parseArguments(process.argv.slice(2));
   if (command === "policy") {
@@ -2033,6 +2094,19 @@ async function main() {
       resolveActions: values.get("resolve-actions") === "true",
     });
     process.stdout.write("immutable sample bundle workflow policy: PASS\n");
+    return;
+  }
+  if (command === "sync-actions") {
+    const workflowPath = path.resolve(required(values, "workflow"));
+    const policySourcePath = path.resolve(fileURLToPath(import.meta.url));
+    const { parse: parseYaml } = await import("yaml");
+    const workflow = parseYaml(await readFile(workflowPath, "utf8"));
+    const source = await readFile(policySourcePath, "utf8");
+    const synchronized = synchronizeActionPins(source, workflow);
+    if (synchronized !== source) await writeFile(policySourcePath, synchronized);
+    process.stdout.write(
+      synchronized === source ? "immutable sample bundle action pins: already current\n" : "immutable sample bundle action pins: UPDATED; review and commit the diff\n",
+    );
     return;
   }
   if (command === "receipt") {

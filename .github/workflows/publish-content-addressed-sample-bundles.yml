@@ -177,7 +177,7 @@ jobs:
           test "$(find staged -mindepth 1 -maxdepth 1 | wc -l)" -eq 6
 
       - name: Upload governed publication
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: content-addressed-sample-bundles
           path: staged
@@ -197,7 +197,7 @@ jobs:
       id-token: write
     steps:
       - name: Download governed publication
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           name: content-addressed-sample-bundles
           path: staged
@@ -205,7 +205,11 @@ jobs:
       - name: Validate all bytes before tokens
         env:
           SOURCE_COMMIT: ${{ github.sha }}
-          EXPECTED_LOCKFILE_SHA256: 0ec0a6ef311b26e9fc110617ccaf06f538e7ee6e2b5b4f12c1d6aaf0ac437570
+          # The dependency digest of package-lock.json (see
+          # scripts/lib/lockfile-pin.mjs), not a digest of the file's bytes:
+          # a release version bump rewrites those and nothing in CI is able
+          # to move this constant (#1357).
+          EXPECTED_LOCKFILE_SHA256: c972d360545928008e610b6dc9d34678faf04953011253f33479cc25a3d93397
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -233,9 +237,9 @@ jobs:
           action_map = {
               "checkout": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
               "setupNode": "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
-              "uploadArtifact": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
-              "downloadArtifact": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
-              "attestBuildProvenance": "actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a",
+              "uploadArtifact": "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+              "downloadArtifact": "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+              "attestBuildProvenance": "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
           }
 
           def read_bytes(name):
@@ -641,22 +645,22 @@ jobs:
           test "$(jq -r .enforced_by_owner <<<"$IMMUTABLE")" = "true"
 
       - name: Attest sample-bundles.v2.json
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: staged/sample-bundles.v2.json
 
       - name: Attest sample-bundles.tar.gz
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: staged/sample-bundles.tar.gz
 
       - name: Attest sample-bundles-attestation.v1.json
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: staged/sample-bundles-attestation.v1.json
 
       - name: Attest sample-bundles-run-attestation.v1.json
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
         with:
           subject-path: staged/sample-bundles-run-attestation.v1.json
 

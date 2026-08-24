@@ -64,7 +64,8 @@
               "operator-requested-skip",
               "realtime-capability-probe-unavailable",
               "realtime-capability-disabled",
-              "incident-demo-dataset-empty"
+              "incident-demo-dataset-empty",
+              "incident-demo-service-missing"
             ]
           },
           "error": { "type": "string" },
@@ -156,6 +157,7 @@
                   "not-attempted-operator-skip",
                   "not-attempted-capability-unavailable",
                   "not-attempted-demo-dataset-empty",
+                  "not-attempted-demo-service-missing",
                   "not-attempted",
                   null
                 ]

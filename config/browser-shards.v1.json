@@ -1,0 +1,75 @@
+{
+  "format": "honua.browser-shards.v1",
+  "description": "Playwright specs partitioned by owned failure domain (honua-io/honua-sdk-js#1286). Every spec under test/playwright belongs to exactly one shard; scripts/browser-shards.mjs check fails on an orphan, so a new spec cannot be added without choosing an owner, and cannot silently stop running.",
+  "shards": [
+    {
+      "id": "offline",
+      "name": "Browser: offline and service worker",
+      "owns": "The offline region reference, its service-worker shell generation, IndexedDB persistence, and the on-disk/static asset serving those depend on. This shard is the one whose failures are caused by generated offline evidence drifting from compiled dist, so its inputs are normalized before it runs.",
+      "specs": ["columnar-batch-cache.spec.mjs", "offline-indexeddb.spec.mjs", "pmtiles-static.spec.mjs"]
+    },
+    {
+      "id": "realtime",
+      "name": "Browser: realtime and collaboration",
+      "owns": "Realtime subscriptions, checkpointing, collaborative and permitted editing surfaces, and the authenticated session they run inside. These stay realtime: splitting them out does not license a static substitute, and their concurrency and timing semantics are unchanged from the monolithic job.",
+      "specs": [
+        "edit-workflow-demo.spec.mjs",
+        "oauth-signin.spec.mjs",
+        "planning-permitting-editing.spec.mjs",
+        "planning-permitting-workbench.spec.mjs",
+        "realtime-checkpoint-store.spec.mjs",
+        "realtime-incident-dashboard.spec.mjs",
+        "shared-renderer-state.spec.mjs",
+        "sketch-editing.spec.mjs",
+        "unified-ops-workspace.spec.mjs"
+      ]
+    },
+    {
+      "id": "map",
+      "name": "Browser: heavyweight map, 3D, and Kepler",
+      "owns": "The expensive rendering surfaces: Kepler analytics, Cesium scenes, 2.5D storytelling, terrain and imagery rasters, and the large-payload geospatial formats behind them. This is the slowest shard by design, so isolating it is what keeps a Kepler regression from replaying every cheap browser test.",
+      "specs": [
+        "cesium-route-playback.spec.mjs",
+        "cesium-scene-adapter-fixtures.spec.mjs",
+        "coverages-wcs-basic.spec.mjs",
+        "imagery-cog-quickstart.spec.mjs",
+        "kepler-analytics-fixture.spec.mjs",
+        "kepler-arrow-packed.spec.mjs",
+        "overture-geoparquet.spec.mjs",
+        "spatial-analytics-workbench.spec.mjs",
+        "stac-imagery-browser.spec.mjs",
+        "storytelling-25d-map.spec.mjs",
+        "terrain-rgb-elevation.spec.mjs"
+      ]
+    },
+    {
+      "id": "examples",
+      "name": "Browser: examples and general smoke",
+      "owns": "Quickstarts, scaffolded and generated apps, the migration browser surfaces, web components, and the general-purpose smoke that proves an example still boots. A failure here is usually an example or a public-surface regression rather than a rendering one.",
+      "specs": [
+        "ai-spatial-app-builder.spec.mjs",
+        "analytics-uplot.spec.mjs",
+        "app-bootstrap-basic.spec.mjs",
+        "automatic-source-workflow.spec.mjs",
+        "columnar-query-quickstart.spec.mjs",
+        "geocoding-quickstart.spec.mjs",
+        "geoprocessing-job-runner.spec.mjs",
+        "mcp-gis-assistant.spec.mjs",
+        "migration-browser-maplibre.spec.mjs",
+        "migration-browser-real-sample.spec.mjs",
+        "migration-browser-smoke.spec.mjs",
+        "migration-workbench.spec.mjs",
+        "pseudo-locale.spec.mjs",
+        "query-planner-resource.spec.mjs",
+        "quickstart-map.spec.mjs",
+        "react-quickstart.spec.mjs",
+        "runtime-parity-showcase.spec.mjs",
+        "sample-console-teardown.spec.mjs",
+        "service-explorer.spec.mjs",
+        "web-components-basic.spec.mjs",
+        "web-components-csp.spec.mjs",
+        "web-components-memory-leak.spec.mjs"
+      ]
+    }
+  ]
+}

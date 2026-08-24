@@ -80,7 +80,7 @@ than one source require an explicit `sourceId` in the locator/options or in
 
 <!-- support-manifest:release:start -->
 **Release status: beta** (`0.1.7-beta.0`). The 22-entrypoint stable tier is guarded <!-- x-release-please-version -->
-by an API-surface gate; 24 experimental subpaths may change before 1.0, and
+by an API-surface gate; 26 experimental subpaths may change before 1.0, and
 18 deprecated compatibility subpaths have explicit removal versions. See
 [`config/support-manifest.v1.json`](./config/support-manifest.v1.json) for the versioned support truth,
 [`config/public-surface.json`](./config/public-surface.json) for its generated package projection,
@@ -116,8 +116,9 @@ clients, styling, interactions, editing, geocoding, migration tooling — the gl
 team hand-rolls. That integration layer is what `@honua/sdk-js` owns:
 
 - **Protocol-neutral data access.** One `Source.query(...)` call works against
-  GeoServices, OGC, WFS, OData and friends — including typed execution against raw
-  OGC API Processes servers (experimental). Capability misses throw
+  GeoServices, OGC, WFS, OData and friends. Geoprocessing uses one `IJobRun`
+  lifecycle across raw OGC API Processes and Esri-compatible GPServer tasks.
+  Capability misses throw
   `HonuaCapabilityNotSupportedError` instead of returning empty results. Large
   results ride an experimental columnar data plane (GeoArrow batches, streaming
   backpressure, worker-side aggregation —
@@ -179,7 +180,7 @@ Features, WFS 2.0, WMS 1.3, WMTS 1.0, STAC, and OData claims work against raw st
 OGC API Tiles (`beta`), Maps (`beta`), and Records
 (`beta`) also discover and use raw advertised paths. OGC API Processes
 keeps two honest lanes against a raw server:
-discovery (`experimental`, `standalone`) and
+discovery (`supported`, `standalone`) and
 typed execution (`experimental`, `standalone`).
 
 A [Honua Server](https://github.com/honua-io/honua-server) adds server-authored
@@ -233,11 +234,9 @@ Runtime support, stated up front:
 Starting from scratch? `create-honua-app` scaffolds a working app instead of
 assembling peers — a Vite + TypeScript (or React) starter that already connects
 to an endpoint and mounts a source, pinned to a published SDK version and
-rendering a committed fixture on the first `npm run dev`. It is **not yet
-published to npm** (`npm create honua-app` lands with the next release —
-tracked on the repo's own
-[npm-search evidence page](./docs/listings/npm-search-verification.md)); until
-then, both starters open in a browser playground with no install at all — see
+rendering a committed fixture on the first `npm run dev`. The package is
+published on npm, so `npm create honua-app` is the shortest supported path;
+both starters also open in a browser playground with no install at all — see
 [`docs/playgrounds.md`](./docs/playgrounds.md) and
 [`docs/create-honua-app.md`](./docs/create-honua-app.md).
 
@@ -300,17 +299,17 @@ generated from that measurement, tree-shake guards included:
 | Entrypoint (gzip) | Size |
 | --- | ---: |
 | `@honua/sdk-js/expr` | 2.4 KiB |
-| `@honua/sdk-js/geocoding` | 7.8 KiB |
+| `@honua/sdk-js/geocoding` | 7.9 KiB |
 | `@honua/sdk-js/webmap` | 7.6 KiB |
-| `@honua/sdk-js/style` | 16.1 KiB |
-| `@honua/sdk-js/map` | 51.5 KiB |
-| `@honua/sdk-js` (root) | 202.6 KiB |
-| `{ HonuaClient }` from the root (tree-shake guard) | 62.0 KiB |
-| `{ connect }` from the root (tree-shake guard) | 164.0 KiB |
-| `{ createHonua }` from the root (tree-shake guard) | 192.9 KiB |
+| `@honua/sdk-js/style` | 16.2 KiB |
+| `@honua/sdk-js/map` | 51.6 KiB |
+| `@honua/sdk-js` (root) | 208.7 KiB |
+| `{ HonuaClient }` from the root (tree-shake guard) | 67.7 KiB |
+| `{ connect }` from the root (tree-shake guard) | 169.9 KiB |
+| `{ createHonua }` from the root (tree-shake guard) | 198.7 KiB |
 
 The root is the whole reviewed kernel and the guards price its verbs honestly: importing `{ connect }`
-alone costs 164.0 KiB gzip and `{ createHonua }` 192.9 KiB against the 202.6 KiB root, so size-sensitive
+alone costs 169.9 KiB gzip and `{ createHonua }` 198.7 KiB against the 208.7 KiB root, so size-sensitive
 apps should import the focused subpaths rather than the root. Full per-entrypoint
 table (min + gzip, generated): [`docs/bundle-sizes.md`](./docs/bundle-sizes.md);
 refresh the table and this excerpt together with `npm run report:bundle-sizes`.
@@ -519,6 +518,8 @@ tables, and backwards-compatibility policy live in:
 - [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md) — `connect()` → `mountSource()` standalone bridge cookbook
 - [`docs/react.md`](./docs/react.md) — React bindings (`@honua/react`): provider, hooks, and map components
 - [`docs/geometry.md`](./docs/geometry.md) — `@honua/sdk-js/geometry` curated turf/proj4 ops (buffer/area/measure/simplify/reproject) + the `geometryEngine` compat shim
+- [`docs/geoprocessing.md`](./docs/geoprocessing.md) — one job lifecycle across OGC API Processes, Esri GPServer compatibility, and AI-selected operations
+- [`docs/zero-to-map-release-journey.md`](./docs/zero-to-map-release-journey.md) — contract-first 2026.1 install → admin/GP → Studio → human Console gate walkthrough
 - [`docs/geocoding-routing-providers.md`](./docs/geocoding-routing-providers.md) — provider-pluggable geocoding & routing adapters
 - [`docs/studio-package-contracts.md`](./docs/studio-package-contracts.md) — Studio package-family projections, validation envelope, capability manifest (`@honua/app-platform/studio`)
 - [`docs/features/README.md`](./docs/features/README.md) — capability snapshot
@@ -618,8 +619,8 @@ correctly use this SDK:
     [agent-safety threat model](./docs/agent-safety-threat-model.md).
   - **Experimental subpath-only APIs** (not re-exported from the root barrels):
     `/nl-map-control`, `/studio-agent`, `/interactions/declarative`, `/geoparquet`, `/source-schema`, `/source-capabilities`, `/source-capability-discovery`, `/cloud-native-discovery`, `/plugin`, `/deckgl`,
-    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/pmtiles`, `/stac`, `/raster`, `/coverages`, `/columnar-workflow`, `/kepler`, `/analytics`, `/analytics/uplot`,
-    `/pmtiles-protocol-plugin.js` — with `/query-planner` below, 24 experimental subpaths in total.
+    `/offline`, `/diagnostics`, `/routing`, `/cog`, `/pmtiles`, `/stac`, `/raster`, `/coverages`, `/columnar-workflow`, `/kepler`, `/analytics`, `/analytics/uplot`, `/zarr`,
+    `/pmtiles-protocol-plugin.js`, `/local-install` — with `/query-planner` below, 26 experimental subpaths in total.
   - The complete `/query-planner` subpath remains **experimental**. The stable root promotes a
     reviewed query-planner subset: `explainQuery`, `executeQueryPlan`, `hashQueryPlan`, the plan
     errors/version constants, and the types required to name the common explain/mount workflow.

@@ -30,6 +30,25 @@ describe("split package manifests", () => {
     expect(prepareScript).toContain('packageRoot, "connect-wfs.d.ts"');
   });
 
+  it("preserves optional Buf/Connect peers and exercises the installed gRPC-Web path", () => {
+    const prepareScript = fs.readFileSync(path.join(process.cwd(), "scripts/prepare-split-packages.mjs"), "utf8");
+    const verifier = fs.readFileSync(path.join(process.cwd(), "scripts/verify-split-packages.mjs"), "utf8");
+    const sdkFactory = prepareScript.slice(
+      prepareScript.indexOf("function createSdkPackage()"),
+      prepareScript.indexOf("function createCompatPackage()"),
+    );
+
+    expect(sdkFactory).toContain("...optionalGrpcRuntimePeerDependencies()");
+    expect(sdkFactory).toContain("...optionalGrpcRuntimePeerDependenciesMeta()");
+    expect(sdkFactory).not.toContain('rootPackageJson.dependencies["@bufbuild/protobuf"]');
+    expect(sdkFactory).not.toContain('rootPackageJson.dependencies["@connectrpc/connect"]');
+    expect(sdkFactory).not.toContain('rootPackageJson.dependencies["@connectrpc/connect-web"]');
+    expect(verifier).toContain('transport: "grpc-web"');
+    expect(verifier).toContain("geospatial.v1.FeatureService/QueryFeatures");
+    expect(verifier).toContain("packed-grpc-smoke");
+    expect(verifier).toContain("splitPackageGrpcSmoke=ok");
+  });
+
   it("verifies discoverability metadata for every generated package", () => {
     const verifier = fs.readFileSync(path.join(process.cwd(), "scripts/verify-split-packages.mjs"), "utf8");
     const discoverability = fs.readFileSync(

@@ -428,8 +428,8 @@ describe("terrain endpoint validation across protocols (#929)", () => {
 
 /** A renderer that does declare a floor, isolating the renderer-floor limit. */
 const COARSE_FLOOR_CAPABILITIES: SceneRuntimeCapabilities = {
-  ...CESIUM_SCENE_CAPABILITIES,
-  spatial: { ...CESIUM_SCENE_CAPABILITIES.spatial, precision: { horizontalMeters: 2, verticalMeters: 5 } },
+  ...ALL_PROTOCOL_CAPABILITIES,
+  spatial: { ...ALL_PROTOCOL_CAPABILITIES.spatial, precision: { horizontalMeters: 2, verticalMeters: 5 } },
 };
 
 describe("scene primitive precision diagnostics (#1051)", () => {
@@ -437,7 +437,7 @@ describe("scene primitive precision diagnostics (#1051)", () => {
     it("reports exact fidelity when the claimed height detail survives the encoding", () => {
       const diagnostics = diagnoseScenePrimitive(
         terrain({ protocol: "raster-dem", encoding: "mapbox", precision: { verticalMeters: 0.5 } }),
-        CESIUM_SCENE_CAPABILITIES,
+        ALL_PROTOCOL_CAPABILITIES,
       );
 
       expect(codes(diagnostics)).toEqual(["scene-primitive-precision-exact"]);
@@ -456,7 +456,7 @@ describe("scene primitive precision diagnostics (#1051)", () => {
     it("reports equivalent fidelity when the claim is finer than Terrain-RGB can encode", () => {
       const diagnostics = diagnoseScenePrimitive(
         terrain({ protocol: "terrain-rgb", encoding: "mapbox", precision: { verticalMeters: 0.01 } }),
-        CESIUM_SCENE_CAPABILITIES,
+        ALL_PROTOCOL_CAPABILITIES,
       );
 
       expect(codes(diagnostics)).toEqual(["scene-primitive-precision-equivalent"]);
@@ -479,11 +479,11 @@ describe("scene primitive precision diagnostics (#1051)", () => {
     it("uses the terrarium quantum for a terrarium-encoded source", () => {
       const equivalent = diagnoseScenePrimitive(
         terrain({ protocol: "raster-dem", encoding: "terrarium", precision: { verticalMeters: 0.002 } }),
-        CESIUM_SCENE_CAPABILITIES,
+        ALL_PROTOCOL_CAPABILITIES,
       );
       const exact = diagnoseScenePrimitive(
         terrain({ protocol: "raster-dem", encoding: "terrarium", precision: { verticalMeters: 0.01 } }),
-        CESIUM_SCENE_CAPABILITIES,
+        ALL_PROTOCOL_CAPABILITIES,
       );
 
       expect(codes(equivalent)).toEqual(["scene-primitive-precision-equivalent"]);
@@ -494,7 +494,7 @@ describe("scene primitive precision diagnostics (#1051)", () => {
     it("stays silent for an encoding whose quantum the plan does not publish", () => {
       const diagnostics = diagnoseScenePrimitive(
         terrain({ protocol: "raster-dem", encoding: "custom", precision: { verticalMeters: 0.001 } }),
-        CESIUM_SCENE_CAPABILITIES,
+        ALL_PROTOCOL_CAPABILITIES,
       );
 
       expect(codes(diagnostics)).toEqual(["scene-primitive-supported"]);
@@ -503,7 +503,7 @@ describe("scene primitive precision diagnostics (#1051)", () => {
     it("never assumes an encoding that was not declared", () => {
       const diagnostics = diagnoseScenePrimitive(
         terrain({ protocol: "raster-dem", precision: { verticalMeters: 0.001 } }),
-        CESIUM_SCENE_CAPABILITIES,
+        ALL_PROTOCOL_CAPABILITIES,
       );
 
       expect(codes(diagnostics)).toEqual(["scene-primitive-supported"]);
@@ -799,7 +799,7 @@ describe("scene primitive cache and source-version metadata (#1051)", () => {
           encoding: "mapbox",
           precision: { verticalMeters: 0.01, verticalMetres: 0.01 } as never,
         }),
-        CESIUM_SCENE_CAPABILITIES,
+        ALL_PROTOCOL_CAPABILITIES,
       );
 
       expect(codes(diagnostics)).toEqual(["scene-primitive-supported", "scene-primitive-asset-metadata-invalid"]);

@@ -19,6 +19,13 @@ execution evidence so none of those meanings has to be inferred from another.
 - `site-projection.v3.schema.json` contains presentation-safe metadata for every
   catalog entry and the existing route migration map. Commands, configuration
   names, credential material, and executable source are not copied to the site.
+- `site-projection.v4.schema.json` is identical to v3 except that
+  `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the
+  name the `{sourceCommit}` template has needed since
+  honua-io/honua-sdk-js#1325. It is emitted alongside v3 rather than replacing
+  it: the committed consumer handoff byte-binds the v3 schema, so the rename had
+  to be versioned (honua-io/honua-sdk-js#1338). v3 stays byte-valid until
+  honua-site cuts over to v4, after which v3 retires.
 - `capability-sample-matrix.schema.json` defines the generated support-to-sample
   coverage contract. `samples/dist/capability-sample-matrix.v1.json` joins the
   support manifest, exact package exports, catalog v2, and validated golden

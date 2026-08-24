@@ -13,6 +13,19 @@ name: MCP scheduled live certification
 # enabled here (HONUA_MCP_CERT_ALLOW_MUTATION is unset), so the scheduled cert
 # never mutates demo data — they skip-with-reason and are recorded loudly.
 #
+# Publication shape (honua-sdk-js#1351). The publish job used to `git push` the
+# report straight at trunk, which the branch ruleset rejects with GH013 — a
+# scheduled push at a protected branch can never succeed, so every weekly run
+# certified the surface and then threw the report away behind a red check run on
+# trunk. It now publishes the same commit through an automation pull request and
+# merges it once trunk's own required checks pass, the shape
+# regenerate-derived-artifacts.yml already uses. Publishing to an artifact or a
+# side branch instead was rejected: the committed corpus under mcp/evals/ is what
+# the leaderboard and the docs-site scorecard are derived from, and the
+# scorecard's freshness is itself a trunk gate (#960), so a report that never
+# reaches trunk makes those surfaces silently stale. Not publishing at all would
+# retire the certification record entirely.
+#
 # Required repo secret:
 #   HONUA_DEMO_MCP_API_KEY — x-api-key for https://demo.honua.io/mcp. Configure it
 #     under Settings → Secrets and variables → Actions. Without it the run reaches
@@ -112,10 +125,20 @@ jobs:
     needs: certify
     if: ${{ github.event_name == 'schedule' || inputs.publish }}
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
+      # contents+pull-requests publish the automation branch and its pull request;
+      # actions releases the pull_request check runs GitHub holds for approval
+      # because the pull request was opened with GITHUB_TOKEN.
       contents: write
+      pull-requests: write
+      actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The publication branch is pushed from this checkout, so it needs real
+          # history rather than the default shallow one.
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -147,15 +170,149 @@ jobs:
       - name: Regenerate published scorecard
         run: node scripts/generate-mcp-eval-scorecard.mjs write
 
-      - name: Commit report + leaderboard
+      - name: Open the publication pull request
+        id: publish
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           git config user.name "honua-ci[bot]"
           git config user.email "ci@honua.io"
           git add mcp/evals docs/generated/mcp-eval-scorecard.md
           if git diff --cached --quiet; then
-            echo "No changes to commit."
+            echo "No changes to publish."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git commit -m "chore(mcp): scheduled live-cert report + leaderboard [skip ci]"
-          git push
+          # Only the certification corpus and its two derived surfaces may ride
+          # this automation; anything else means a regenerator wrote outside its
+          # contract and must not be merged unattended.
+          while IFS= read -r changed_path; do
+            case "$changed_path" in
+              mcp/evals/runs/* | mcp/evals/LEADERBOARD.md | mcp/evals/leaderboard.html | \
+              docs/generated/mcp-eval-scorecard.md) ;;
+              *)
+                echo "Certification publication contains an unexpected path: $changed_path"
+                exit 1
+                ;;
+            esac
+          done < <(git diff --cached --name-only)
+          git commit -m "chore(mcp): publish scheduled live-certification report"
+          published="$(git rev-parse HEAD)"
+          branch="automation/mcp-certification-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git push origin "HEAD:refs/heads/$branch"
+          pr_url="$(gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
+            --base trunk \
+            --head "$branch" \
+            --title "chore(mcp): publish scheduled live-certification report" \
+            --body "Scheduled deterministic MCP certification of the live demo and standalone surfaces, run \`${GITHUB_RUN_ID}\`. The report, leaderboard, and docs-site scorecard are regenerated from that run and published here because trunk cannot be pushed directly.")"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "published=$published" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${pr_url##*/}" >> "$GITHUB_OUTPUT"
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      # GitHub holds pull_request workflows created by GITHUB_TOKEN for approval.
+      # Release only the runs attached to the exact published commit; their native
+      # pull-request check runs are what the trunk ruleset recognizes.
+      - name: Approve native checks for the publication pull request
+        if: steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.publish.outputs.branch }}
+          PUBLISHED: ${{ steps.publish.outputs.published }}
+          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          # The two workflows that carry trunk's three required contexts:
+          # "SDK CI" runs JS SDK and MCP SDK, "PR issue disposition" runs
+          # PR Issue Disposition. Waiting on the named workflows rather than on
+          # "something attached" keeps a later-appearing held run from being
+          # missed and then blocking the check wait until the job times out.
+          expected_workflows='["SDK CI","PR issue disposition"]'
+          for attempt in {1..30}; do
+            runs="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --branch "$BRANCH" \
+              --event pull_request \
+              --limit 30 \
+              --json databaseId,workflowName,conclusion,headSha)"
+            matching="$(jq \
+              --arg published "$PUBLISHED" \
+              --argjson expected "$expected_workflows" \
+              '[.[] | select(.headSha == $published and (.workflowName as $name | $expected | index($name)))]' \
+              <<<"$runs")"
+            while IFS= read -r run_id; do
+              gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/approve"
+            done < <(jq -r '.[] | select(.conclusion == "action_required") | .databaseId' <<<"$matching")
+            attached="$(jq 'map(.workflowName) | unique | length' <<<"$matching")"
+            held="$(jq '[.[] | select(.conclusion == "action_required")] | length' <<<"$matching")"
+            if [[ "$attached" -eq 2 && "$held" -eq 0 ]]; then
+              break
+            fi
+            if (( attempt == 30 )); then
+              echo "Native checks did not become runnable for publication PR #$PR_NUMBER."
+              exit 1
+            fi
+            sleep 10
+          done
+
+      - name: Merge the validated publication pull request
+        if: steps.publish.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED: ${{ steps.publish.outputs.published }}
+          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            required="$(gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --json name 2>/dev/null || true)"
+            if [[ -z "$required" ]]; then
+              required='[]'
+            fi
+            if [[ "$(jq 'length' <<<"$required")" -ge 3 ]]; then
+              break
+            fi
+            if (( attempt == 30 )); then
+              echo "Required checks did not attach to publication PR #$PR_NUMBER."
+              exit 1
+            fi
+            sleep 10
+          done
+          gh pr checks "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --required --watch --fail-fast --interval 10
+          # --match-head-commit refuses to merge anything but the commit whose
+          # paths were validated above and whose checks were just watched.
+          gh pr merge "$PR_NUMBER" \
+            --repo "$GITHUB_REPOSITORY" \
+            --merge \
+            --delete-branch \
+            --match-head-commit "$PUBLISHED"
+          # Merges performed with GITHUB_TOKEN emit no push event, so nothing would
+          # run against the resulting trunk head and it would carry no core check
+          # runs at all. Re-enter the derived-artifact automation, exactly as it
+          # does after its own token merge: it reseals whatever the new head made
+          # stale and then dispatches strict trunk CI itself. Dispatching ci.yml
+          # directly would run trunk's STRICT validation against a head whose
+          # derived artifacts have not been resealed yet, which fails on golden
+          # gate-receipt source digests for reasons this report did not cause.
+          gh workflow run regenerate-derived-artifacts.yml --repo "$GITHUB_REPOSITORY" --ref trunk
+
+      - name: Summarize publication
+        if: always()
+        env:
+          CHANGED: ${{ steps.publish.outputs.changed }}
+          PR_URL: ${{ steps.publish.outputs.pr_url }}
+        run: |
+          {
+            echo "## MCP scheduled live certification"
+            echo
+            if [[ "$CHANGED" == "true" ]]; then
+              echo "Report published through ${PR_URL}."
+            else
+              echo "The certification produced no corpus change, so nothing was published."
+            fi
+            echo
+            echo "The raw certification JSON and Markdown are always available as the"
+            echo "\`mcp-scheduled-cert\` artifact on this run, whether or not the corpus changed."
+          } >> "$GITHUB_STEP_SUMMARY"

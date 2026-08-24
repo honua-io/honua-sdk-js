@@ -1017,7 +1017,7 @@ function entityFingerprint(facets: EntityFacetFingerprints): string | undefined 
   if (facets.geometry === undefined || facets.properties === undefined || facets.availability === undefined) {
     return undefined;
   }
-  return `${facets.geometry} ${facets.properties} ${facets.availability}`;
+  return `${facets.geometry}\0${facets.properties}\0${facets.availability}`;
 }
 
 /**

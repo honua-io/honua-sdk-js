@@ -10,6 +10,7 @@ import { type NlMapControlMcpHost, registerNlMapControlMcpTools } from "./nl-map
 import * as layerSchemaResource from "./resources/layer-schema.js";
 import * as servicesResource from "./resources/services.js";
 import * as stylesResource from "./resources/styles.js";
+import * as adminInstallLocal from "./tools/admin-install-local.js";
 import * as applyStylePreset from "./tools/apply-style-preset.js";
 import * as countFeatures from "./tools/count-features.js";
 import * as describeLayer from "./tools/describe-layer.js";
@@ -198,6 +199,8 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
  * mutation, jobs, and publishing — is a superset reached over streamable-HTTP and
  * mirrored to stdio by `honua-mcp-proxy` ({@link runProxy}); it requires a Honua
  * deployment. Standalone is the front door; the proxy is the upgrade path.
+ * Local installation is intentionally absent from this catalog and is exposed
+ * only by {@link createBootstrapServer}.
  */
 export function createServer(client: HonuaClient, options: CreateServerOptions = {}) {
   const server = new McpServer({
@@ -303,6 +306,23 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
   return server;
 }
 
+/** Bootstrap-only MCP surface for a laptop that does not have Honua yet. */
+export function createBootstrapServer(): McpServer {
+  const server = new McpServer({ name: "honua-bootstrap", version: SERVER_VERSION });
+  registerLocalInstallTool(server);
+  return server;
+}
+
+function registerLocalInstallTool(server: McpServer): void {
+  server.tool(
+    "honua_admin_install_local",
+    "Install the manifest-pinned Honua Server, PostGIS, and Redis on this laptop, wait for readiness, bootstrap a scoped admin key, and write proxy MCP configuration. Requires confirm=true.",
+    adminInstallLocal.schema.shape,
+    { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
+    async (args) => adminInstallLocal.execute(adminInstallLocal.schema.parse(args)),
+  );
+}
+
 /* v8 ignore start -- live-process entry: wires the stdio transport to a real
    SDK client against HONUA_BASE_URL; exercised by running the bin, not unit tests.
    The unit-testable logic (option resolution, client construction, server wiring)
@@ -311,14 +331,14 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
  * Run the platform-free standalone server end-to-end over stdio.
  *
  * Builds a `HonuaClient` from the environment (`HONUA_BASE_URL` + optional
- * transport/auth) and exposes {@link createServer} — the nine read-only tools —
+ * transport/auth) and exposes {@link createServer} — the ten read-only tools —
  * to a stdio MCP client (Claude Desktop / Claude Code / any MCP agent). Point
  * `HONUA_BASE_URL` at any public FeatureServer/OGC endpoint; no Honua server is
  * required. For the Honua-enhanced `/mcp` catalog, use `honua-mcp-proxy` instead.
  */
 export async function runStandalone(env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  const client = createClientFromEnv(env);
-  const server = createServer(client);
+  const bootstrapOnly = env.HONUA_MCP_BOOTSTRAP === "1" || env.HONUA_MCP_BOOTSTRAP === "true";
+  const server = bootstrapOnly ? createBootstrapServer() : createServer(createClientFromEnv(env));
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

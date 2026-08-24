@@ -12,7 +12,7 @@ import { classifyCapabilityGap, integrationSuite, recordSurface, runWithDiagnost
 integrationSuite("OGC API Maps", "ogc-maps", ({ client, context, config }) => {
   const maps = client.ogcMaps();
 
-  it("returns the OGC Maps landing document", async () => {
+  it("returns the OGC Maps landing document [cert:ogc-maps/landing#positive] [cert:ogc-maps/landing#metadata] [cert:ogc-maps/landing#media-schema]", async () => {
     await runWithDiagnostics(context, "client.ogcMaps().landing", async () => {
       const landing = await maps.landing();
       expect(landing).toBeDefined();
@@ -20,14 +20,14 @@ integrationSuite("OGC API Maps", "ogc-maps", ({ client, context, config }) => {
     });
   });
 
-  it("declares OGC Maps conformance classes", async () => {
+  it("declares OGC Maps conformance classes [cert:ogc-maps/conformance#positive] [cert:ogc-maps/conformance#metadata] [cert:ogc-maps/conformance#media-schema]", async () => {
     await runWithDiagnostics(context, "client.ogcMaps().conformance", async () => {
       const conformance = await maps.conformance();
       expect(Array.isArray(conformance.conformsTo)).toBe(true);
     });
   });
 
-  it("renders a map image for the configured collection", async (ctx) => {
+  it("renders a map image for the configured collection [cert:ogc-maps/render#positive] [cert:ogc-maps/render#media-schema]", async (ctx) => {
     const collection = maps.collection(config.collectionId);
     // The server's OGC Maps rendering is raster-backed (IRasterMapRenderer);
     // a vector-only seeded collection yields "No map data found" (404). That

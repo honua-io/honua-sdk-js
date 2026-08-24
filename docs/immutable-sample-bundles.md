@@ -60,6 +60,47 @@ provenance predicate, and a GitHub-hosted runner.
 5. Dispatch the publisher exactly once from that exact current `trunk` SHA.
 6. Verify the release assets and attestations before making consumers bind the exact object.
 
+## Maintenance obligations between dispatches
+
+The publisher is dispatch-only, so anything that breaks it stays invisible until
+someone dispatches it — both obligations below had silently lapsed and were only
+discovered at dispatch (#1325). Each is now asserted by
+`npm run samples:bundles:test`, which `npm run samples:bundles:verify` chains on
+every CI run:
+
+- **The receipt path must resolve against Node builtins alone.** Receipts are
+  produced from the `governance/` checkout, which is deliberately never
+  `npm ci`-installed — nothing from the registry can influence a receipt. Any
+  import-time dependency added anywhere in that module graph, including a
+  transitive `require`, breaks every publication.
+- **`EXPECTED_LOCKFILE_SHA256` must move with the dependency set.** The
+  privileged job never checks out source, so it can only judge the manifest's
+  `build.lockfileSha256` against a constant carried in the workflow file and
+  bound again in `scripts/immutable-sample-bundle-attestation.mjs`. Every
+  dependency change invalidates it; update both copies in the same change.
+  `scripts/lib/lockfile-pin.mjs` reads, compares and rewrites the pair as one
+  unit, and the guard runs in two tiers: the `pr-fast`/`js-sdk` policy step
+  (`test/scripts/lockfile-pin.test.mjs`, before `npm ci`) and
+  `npm run samples:bundles:verify`.
+- **The digest is over the dependency projection, not the file's bytes.**
+  `lockfileDependencyDigest` hashes a canonical `package-lock.json` in which
+  the `version` of every package this repository owns -- the root document and
+  any `packages` entry outside `node_modules` -- is normalised away. Everything
+  an installed package contributes is kept: its version, `resolved`,
+  `integrity`, flags and the ranges the root declares. So adding, removing,
+  re-pointing or re-versioning a dependency always moves the pin, including a
+  dependency whose version is made to look exactly like a release bump, while
+  Release Please's version bump moves nothing.
+
+  That is deliberate and load-bearing rather than a convenience. A byte digest
+  was **unsatisfiable on any release branch by construction**: the release pull
+  request's whole job is to bump versions, which rewrote the lockfile, which
+  broke the pin, and the failure reached trunk through `release-please-ci`'s
+  dispatch-and-await (#1357). Nor could any job repair it -- `GITHUB_TOKEN`
+  cannot create a commit touching `.github/workflows/**`, so nothing in CI is
+  able to move the workflow's copy. Only a human editing a real dependency
+  change moves this constant.
+
 ## Fail-closed publisher guarantees
 
 The publisher is input-free and accepts only a manual dispatch of the exact current
@@ -78,10 +119,56 @@ byte equality. Absolute/traversing/control-character paths,
 links, devices, FIFOs, PAX/GNU extensions, duplicates, reordering, metadata drift,
 and manifest digest mismatches fail closed. All actions resolve to exact verified
 commit objects; provenance uses
-`actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a`.
+`actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8`.
 
 Immediately before release creation the workflow repeats the exact-ref and current
 trunk API gate. It also requires repository immutable releases to be both enabled
 and owner-enforced. Existing content-addressed releases are accepted only when the
 tag target, immutable state, asset set, sizes, and bytes are exact. The publisher
 never reads or modifies `sample-bundles-latest` and never overwrites an asset.
+
+## The rolling release is retired, not merely untouched
+
+This document originally read the sentence above as a coexistence guarantee: the
+content-addressed publisher would leave the rolling `sample-bundles-latest`
+release alone and the two would run side by side. That assumption did not
+survive contact with the org-level setting it depends on.
+
+Immutable releases were enabled org-wide on 2026-08-13 and applied
+**retroactively**, permanently freezing `sample-bundles-latest` (release id
+`356226688`, created 2026-07-19) at its 2026-08-13T10:32Z assets. The rolling
+job in `ci.yml` kept trying to move it and failed identically every run with
+`HTTP 422: target_commitish cannot be changed when release is immutable`, which
+is what held `SDK CI` red on trunk for 15 consecutive runs
+(honua-io/honua-sdk-js#1325). The rolling pattern is structurally incompatible
+with immutable releases -- the release and its tag can no longer be updated
+*or* deleted -- so the job was removed rather than repaired
+(honua-io/honua-sdk-js#1320).
+
+Two consequences a reader of this page needs:
+
+- **`sample-bundles-latest` is retired.** It is not a stale-but-refreshing
+  pointer; it is a permanent snapshot of one 2026-08-13 build and will never
+  advance. Its release notes additionally misstate their own provenance --
+  they name commit `6a5330899` while the frozen assets were built from
+  `9c88f65b8`, because the notes edit landed before the assets froze. Notes
+  remain editable and correcting them needs a repo admin.
+- **Consumers must resolve bundles by source commit.** The only supported
+  pointer is the per-commit tag `sample-bundles-<full-source-SHA>` described
+  above. The site projection carries it as a template rather than a fixed tag;
+  substitute the full 40-character SHA of the source commit whose bundles you
+  want.
+
+  The field name depends on which projection you read. In **v3** it is
+  `sampleBundles.publication.releaseTag`; in **v4** it is
+  `sampleBundles.publication.releaseTagTemplate`, which is what the value has
+  always been. The rename could not be made in place -- the committed handoff
+  byte-binds the v3 schema -- so it was versioned instead
+  (honua-io/honua-sdk-js#1338). v4 is emitted alongside v3 and is identical to
+  it apart from that rename; v3 stays byte-valid until honua-site cuts over. See
+  [sample-bundles.md](./sample-bundles.md) for the consumer walkthrough.
+
+The publisher's own policy assertion still holds and is now the stronger
+statement: it never reads or modifies the retired rolling release, and
+`scripts/immutable-sample-bundle-attestation.mjs` fails closed if the workflow
+ever references `sample-bundles-latest` again.

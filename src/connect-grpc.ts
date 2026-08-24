@@ -3,7 +3,7 @@
  *
  * Honua's gRPC-Web facade is a transport-selectable fast path over the same
  * canonical FeatureServer semantics as raw GeoServices REST discovery: the
- * generated `honua.v1.FeatureService` proto exposes only `QueryFeatures` /
+ * generated `geospatial.v1.FeatureService` proto exposes only `QueryFeatures` /
  * `QueryFeaturesStream` (no separate descriptor RPC), so this adapter fetches
  * service/layer metadata through the identical REST metadata endpoints
  * `discoverGeoServicesSources` uses (those endpoints are transport-agnostic —

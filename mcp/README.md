@@ -96,11 +96,27 @@ return a structured result
 instead of crashing, hanging, or returning misleading empty data. This is the
 same skip-with-reason honesty the certification suite uses.
 
+### Bootstrap-only local installation
+
+Local installation is deliberately absent from the ordinary `honua-mcp`
+catalog. During an explicitly approved laptop bootstrap, start a separate,
+single-purpose process that exposes only `honua_admin_install_local`:
+
+```bash
+HONUA_MCP_BOOTSTRAP=1 npx -y -p @honua/mcp-server honua-mcp
+```
+
+The tool requires `confirm: true`. Stop and remove this bootstrap server from
+the MCP client configuration after installation; the normal platform-free
+server remains read-only and cannot invoke the installer.
+
 ## Environment Variables
 
-- `HONUA_BASE_URL` (required): absolute base URL — a public ArcGIS folder
+- `HONUA_BASE_URL` (required in normal mode): absolute base URL — a public ArcGIS folder
   (`https://services.arcgis.com/<org>/arcgis`) or a Honua deployment
   (`https://honua.example.com`).
+- `HONUA_MCP_BOOTSTRAP` (bootstrap only): set to `1` or `true` to start the
+  isolated local-install catalog instead of the ordinary read-only server.
 - `HONUA_TRANSPORT` (optional): `grpc-web` (default, Honua deployments) or `rest`.
   Use `rest` for plain public ArcGIS/OGC endpoints.
 - `HONUA_API_KEY` (optional): API key when your deployment requires it. Public
@@ -387,7 +403,15 @@ Environment variables:
 - `HONUA_MCP_REMOTE_URL` (required; alias `HONUA_MCP_URL`): the remote honua
   `/mcp` endpoint to proxy.
 - `HONUA_MCP_AUTH_TOKEN` (optional): sent as `Authorization: Bearer <token>`.
-- `HONUA_API_KEY` (optional): sent as `x-api-key`.
+- `HONUA_ADMIN_KEY` or `HONUA_API_KEY` (optional): sent as `x-api-key`.
+
+Configure at most one authentication scheme and one API-key source. The proxy
+rejects bearer plus API-key authentication and rejects simultaneous
+`HONUA_ADMIN_KEY` / `HONUA_API_KEY` values instead of choosing by precedence.
+Credentialed endpoints require HTTPS except for exact `localhost`, `127.0.0.1`,
+or `[::1]` HTTP development endpoints. Userinfo, query parameters, fragments,
+non-HTTP(S) URLs are rejected before connect, and redirect targets are never
+followed or sent credentials.
 
 A parity test (`test/proxy.test.ts`) asserts the tool/resource/template catalog
 the downstream client sees is byte-identical to the upstream surface, that
@@ -495,6 +519,9 @@ Shared env for every live run:
 - `HONUA_MCP_AUTH_TOKEN`: sent as `Authorization: Bearer <token>` (preferred; ⇒ auth mode `bearer`).
 - `HONUA_API_KEY`: sent as `x-api-key` (⇒ auth mode `api-key`) when the deployment uses key auth instead.
 - `HONUA_EVAL_REQUIRE_AUTH=1` (recommended): fail fast if neither credential is present.
+
+Set exactly one of `HONUA_MCP_AUTH_TOKEN` or `HONUA_API_KEY` for authenticated
+live runs; ambiguous authentication fails closed.
 
 ```bash
 # Anthropic Claude (default claude-opus-4-8; override with HONUA_EVAL_ANTHROPIC_MODEL):

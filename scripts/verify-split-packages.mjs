@@ -15,6 +15,11 @@ const PACKAGES_ROOT = path.join(PROJECT_ROOT, "dist", "packages");
 const EXPECTED_PUBLISHED_NODE_ENGINE = ">=20.0.0";
 const ROOT_PACKAGE_JSON = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
 const EXPECTED_LICENSE = ROOT_PACKAGE_JSON.license;
+const OPTIONAL_GRPC_RUNTIME_PEERS = [
+  "@bufbuild/protobuf",
+  "@connectrpc/connect",
+  "@connectrpc/connect-web",
+];
 const CAPABILITY_PROFILE_COMPANIONS = new Set([
   "@honua/sdk-esri-compat",
   "@honua/react",
@@ -67,6 +72,28 @@ for (const [name, directory] of Object.entries(packageDirs)) {
     process.exit(1);
   }
 
+  if (name === "@honua/sdk") {
+    for (const peerName of OPTIONAL_GRPC_RUNTIME_PEERS) {
+      const expectedRange = ROOT_PACKAGE_JSON.peerDependencies?.[peerName];
+      if (
+        typeof expectedRange !== "string" ||
+        packageJson.peerDependencies?.[peerName] !== expectedRange ||
+        packageJson.peerDependenciesMeta?.[peerName]?.optional !== true
+      ) {
+        process.stderr.write(
+          `Split @honua/sdk must preserve ${peerName}@${expectedRange ?? "<missing>"} as an optional runtime peer.\n`,
+        );
+        process.exit(1);
+      }
+      if (packageJson.dependencies?.[peerName] !== undefined) {
+        process.stderr.write(
+          `Split @honua/sdk must not install optional gRPC runtime peer ${peerName} for REST-only consumers.\n`,
+        );
+        process.exit(1);
+      }
+    }
+  }
+
   if (
     CAPABILITY_PROFILE_COMPANIONS.has(name) &&
     packageJson?.peerDependencies?.["@honua/sdk"] !== ROOT_PACKAGE_JSON.version
@@ -117,6 +144,9 @@ try {
       "react-dom": ROOT_PACKAGE_JSON.devDependencies["react-dom"],
       "@honua/geometry": `file:${packageDirs["@honua/geometry"]}`,
       "@honua/app-platform": `file:${packageDirs["@honua/app-platform"]}`,
+      ...Object.fromEntries(
+        OPTIONAL_GRPC_RUNTIME_PEERS.map((name) => [name, ROOT_PACKAGE_JSON.peerDependencies[name]]),
+      ),
     },
   };
   fs.writeFileSync(
@@ -221,6 +251,7 @@ import {
   addCesium3DTileset,
   addCesiumImageryLayer,
   addCesiumModel,
+  applyCesiumScenePrimitives,
   createSceneWorkspace,
   diagnoseScenePrimitives,
   mountScenePrimitivesToCesium,
@@ -366,6 +397,81 @@ import { geometryEngineCompat } from "@honua/sdk-esri-compat";
 
 if (typeof HonuaClient !== "function") throw new Error("HonuaClient export missing");
 if (typeof connect !== "function") throw new Error("connect export missing from @honua/sdk");
+{
+  // Exercise the packed SDK's actual lazy Buf + Connect path without relying
+  // on an external Honua deployment. The fixture speaks the gRPC-Web framing
+  // protocol and returns an empty, successful QueryFeaturesResponse.
+  const frame = (flag, payload) => {
+    const framed = new Uint8Array(5 + payload.byteLength);
+    framed[0] = flag;
+    new DataView(framed.buffer).setUint32(1, payload.byteLength, false);
+    framed.set(payload, 5);
+    return framed;
+  };
+  const concatenate = (...parts) => {
+    const joined = new Uint8Array(parts.reduce((length, part) => length + part.byteLength, 0));
+    let offset = 0;
+    for (const part of parts) {
+      joined.set(part, offset);
+      offset += part.byteLength;
+    }
+    return joined;
+  };
+  let observedRequest;
+  const grpcClient = new HonuaClient({
+    baseUrl: "https://grpc.example.test",
+    transport: "grpc-web",
+    apiKey: "packed-consumer-key",
+    fetchFn: async (input, init) => {
+      const request = input instanceof Request ? input : undefined;
+      const headers = request?.headers ?? new Headers(init?.headers);
+      const requestBody = request
+        ? new Uint8Array(await request.arrayBuffer())
+        : new Uint8Array(await new Response(init?.body ?? null).arrayBuffer());
+      observedRequest = {
+        body: requestBody,
+        contentType: headers.get("content-type"),
+        method: request?.method ?? init?.method ?? "GET",
+        apiKey: headers.get("x-api-key"),
+        url: request?.url ?? String(input),
+      };
+
+      const message = frame(0, new Uint8Array());
+      const trailers = frame(0x80, new TextEncoder().encode("grpc-status: 0\\r\\n"));
+      return new Response(concatenate(message, trailers), {
+        status: 200,
+        headers: { "content-type": "application/grpc-web+proto" },
+      });
+    },
+  });
+  const result = await grpcClient.queryFeatures({
+    serviceId: "packed-grpc-smoke",
+    layerId: 7,
+    where: "OBJECTID > 0",
+    outFields: ["OBJECTID"],
+    returnGeometry: false,
+    extraParams: { returnCountOnly: true },
+  });
+
+  if (result.count !== 0)
+    throw new Error("packed @honua/sdk did not decode the gRPC-Web QueryFeatures response");
+  if (
+    observedRequest?.url !== "https://grpc.example.test/geospatial.v1.FeatureService/QueryFeatures" ||
+    observedRequest.method !== "POST" ||
+    !observedRequest.contentType?.startsWith("application/grpc-web+proto") ||
+    observedRequest.apiKey !== "packed-consumer-key"
+  )
+    throw new Error("packed @honua/sdk did not execute the expected authenticated Connect request");
+  const body = observedRequest.body;
+  const declaredLength = body.byteLength >= 5 ? new DataView(body.buffer, body.byteOffset, 5).getUint32(1, false) : -1;
+  if (
+    body[0] !== 0 ||
+    declaredLength !== body.byteLength - 5 ||
+    !new TextDecoder().decode(body.subarray(5)).includes("packed-grpc-smoke")
+  )
+    throw new Error("packed @honua/sdk did not serialize the QueryFeatures protobuf request");
+  console.log("splitPackageGrpcSmoke=ok");
+}
 if (typeof HonuaMapLayer !== "function") throw new Error("HonuaMapLayer export missing");
 if (typeof HonuaImageService !== "function")
   throw new Error("HonuaImageService export missing from @honua/sdk");
@@ -644,15 +750,13 @@ if (
   diagnoseScenePrimitives(
     [
       {
-        kind: "elevation-source",
-        id: "terrain",
-        sourceId: "terrain",
-        protocol: "raster-dem",
-        url: "https://example.test/terrain",
-        encoding: "mapbox",
+        kind: "model-layer",
+        id: "model",
+        uri: "https://example.test/tileset.json",
+        format: "3d-tiles",
         sourceVersion: "dem-2026.2",
         cache: { status: "stale" },
-        precision: { verticalMeters: 0.01 },
+        precision: { horizontalMeters: 0.05, coordinateFrame: "geocentric", coordinateStorage: "float32" },
       },
     ],
     CESIUM_SCENE_CAPABILITIES,
@@ -664,11 +768,30 @@ if (
   throw new Error("Scene precision and asset-metadata diagnostics missing from @honua/app-platform/scene-workspace");
 if (
   diagnoseScenePrimitives(
-    [{ kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "custom" }],
+    [{ kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "quantized-mesh" }],
     CESIUM_SCENE_CAPABILITIES,
   ).some((diagnostic) => diagnostic.code !== "scene-primitive-terrain-source-missing-url")
 )
   throw new Error("Per-protocol terrain endpoint validation missing from @honua/app-platform/scene-workspace");
+{
+  const unsupportedOnly = await applyCesiumScenePrimitives(
+    { camera: {} },
+    [
+      {
+        kind: "elevation-source",
+        id: "raster-dem",
+        sourceId: "raster-dem",
+        protocol: "raster-dem",
+        url: "https://example.test/terrain/{z}/{x}/{y}.png",
+      },
+    ],
+  );
+  if (
+    unsupportedOnly.status !== "unsupported" ||
+    !unsupportedOnly.diagnostics.some((diagnostic) => diagnostic.code === "scene-primitive-unsupported")
+  )
+    throw new Error("Unsupported-only Cesium plans require the optional cesium peer");
+}
 if (typeof HonuaMap !== "function")
   throw new Error("HonuaMap export missing from @honua/sdk/map");
 if (typeof validateHonuaStyle !== "function")

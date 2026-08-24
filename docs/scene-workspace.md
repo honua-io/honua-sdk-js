@@ -332,7 +332,8 @@ Scene primitives describe 3D intent without naming a renderer package:
   `raster-dem`, `quantized-mesh`, `image-service`, `i3s`, and `custom` — requires
   a renderable endpoint and in-range tile/zoom/exaggeration values; a missing or
   malformed endpoint fails closed rather than reaching a provider factory. See
-  [Terrain diagnostics](#terrain-diagnostics).
+  [Terrain diagnostics](#terrain-diagnostics). This is renderer-neutral
+  vocabulary, not a claim that every adapter materializes every protocol.
 - `imagery-layer`: URL-template, WMS, WMTS, single-tile, or ArcGIS imagery with
   explicit service configuration, opacity, attribution, and cache metadata.
   ArcGIS MapServer endpoints use Cesium's native MapServer provider; ImageServer
@@ -594,16 +595,14 @@ import {
 
 const primitives: SceneRuntimePrimitive[] = [
   {
-    kind: "elevation-source",
-    id: "site-terrain",
-    sourceId: "site-terrain",
-    protocol: "raster-dem",
-    url: "https://terrain.example.test/tiles",
-    encoding: "mapbox",
+    kind: "model-layer",
+    id: "site-model",
+    uri: "https://models.example.test/tileset.json",
+    format: "3d-tiles",
     sourceVersion: "dem-2026.2",
     cache: { status: "stale", scope: "tiles" },
-    // Survey-grade heights, published through an encoding that quantizes to 0.1 m.
-    precision: { verticalMeters: 0.01 },
+    // Survey-grade source coordinates rendered through float32 geocentric storage.
+    precision: { horizontalMeters: 0.01, coordinateFrame: "geocentric", coordinateStorage: "float32" },
   },
 ];
 
@@ -616,10 +615,21 @@ for (const diagnostic of diagnoseScenePrimitives(primitives, CESIUM_SCENE_CAPABI
 
 ### Terrain diagnostics
 
-Endpoint and range validation runs for every terrain protocol, not just
-`terrain-rgb`. `CesiumTerrainProvider.fromUrl` and MapLibre's `raster-dem`
-source both fail opaquely on an absent or malformed endpoint, so the check
-happens before either is constructed. Applying one primitive directly with
+Renderer capability validation runs before endpoint validation. The Cesium
+adapter advertises and materializes only `quantized-mesh`; it never passes
+Terrain-RGB, raster DEM, ImageServer, or custom bindings to
+`CesiumTerrainProvider.fromUrl`. MapLibre continues to materialize
+`terrain-rgb` and `raster-dem` through its `raster-dem` source path. The other
+protocol values remain portable descriptive primitive vocabulary for future or
+host-provided adapters.
+
+| Renderer | Materialized terrain protocols | Descriptive-only protocols |
+| --- | --- | --- |
+| Cesium | `quantized-mesh` | `terrain-rgb`, `raster-dem`, `image-service`, `i3s`, `custom` |
+| MapLibre | `terrain-rgb`, `raster-dem` | `quantized-mesh`, `image-service`, `i3s`, `custom` |
+
+For protocols a renderer accepts, endpoint and range validation happens before
+the provider/source is constructed. Applying one primitive directly with
 `applyCesiumTerrain()` throws, because the caller asked for exactly that
 binding; a batch apply through `applyCesiumScenePrimitives()` or
 `applyMapLibreScenePrimitives()` skips the offending primitive and keeps its

@@ -9,11 +9,31 @@ import { fileURLToPath } from "node:url";
 import { loadCurrentPullRequestDisposition } from "../../scripts/lib/github-pr-issue-disposition.mjs";
 import {
   DERIVED_ARTIFACT_EXEMPTION,
+  KEPLER_AUDIT_RENEWAL_EXEMPTION,
+  MCP_CERTIFICATION_EXEMPTION,
   PullRequestDispositionError,
   automationExemption,
   parsePullRequestDisposition,
   validatePullRequestDisposition,
 } from "../../scripts/lib/pr-issue-disposition.mjs";
+
+it("exempts only the exact same-repository Kepler renewal automation", () => {
+  const input = {
+    repository,
+    baseRepository: repository,
+    headRepository: repository,
+    baseRefName: "trunk",
+    baseSha: "b".repeat(40),
+    headSha: "a".repeat(40),
+    headRefName: "automation/kepler-audit-renewal-2026-09-01",
+    title: "chore(kepler): renew reviewed audit exception",
+    authorLogin: "github-actions[bot]",
+    authorType: "Bot",
+  };
+  assert.equal(automationExemption(input), KEPLER_AUDIT_RENEWAL_EXEMPTION);
+  assert.equal(automationExemption({ ...input, headRepository: "attacker/fork" }), null);
+  assert.equal(automationExemption({ ...input, title: "chore: arbitrary" }), null);
+});
 import {
   GITHUB_ACTIONS_APP_ID,
   publishReleasePleaseDispositionCheck,
@@ -229,32 +249,13 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /gh workflow run regenerate-derived-artifacts\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u);
     assert.match(
       workflow,
-      /name: Dispatch strict trunk CI and docs validation[\s\S]*gh workflow run ci\.yml[\s\S]*--ref trunk[\s\S]*-f publish_sample_bundles=true/u,
+      /name: Dispatch strict trunk CI and docs validation[\s\S]*gh workflow run ci\.yml[\s\S]*--ref trunk/u,
     );
-    const ciWorkflow = fs
-      .readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8")
-      .replaceAll("\r\n", "\n");
-    assert.match(
-      ciWorkflow,
-      /publish_sample_bundles:\n[\s\S]*?default: false\n[\s\S]*?type: boolean/u,
-    );
-    const sampleBundleRelease = ciWorkflow.slice(ciWorkflow.indexOf("  sample-bundles-release:"));
-    assert.match(
-      sampleBundleRelease,
-      /if: >-\n      \$\{\{ github\.ref == 'refs\/heads\/trunk'\n      && \(github\.event_name == 'push'\n      \|\| github\.event_name == 'workflow_dispatch' && inputs\.publish_sample_bundles\) \}\}/u,
-    );
-    assert.match(sampleBundleRelease, /needs: js-sdk/u);
-    assert.match(sampleBundleRelease, /name: Validate current trunk publication revision/u);
-    assert.match(sampleBundleRelease, /current_trunk" != "\$GITHUB_SHA"/u);
-    assert.match(sampleBundleRelease, /Trunk advanced before sample-bundle publication/u);
-    assert.doesNotMatch(sampleBundleRelease, /release_head_sha/u);
-    const publicationAllowed = (ref, eventName, publishSampleBundles) =>
-      ref === "refs/heads/trunk" &&
-      (eventName === "push" || (eventName === "workflow_dispatch" && publishSampleBundles));
-    assert.equal(publicationAllowed("refs/heads/trunk", "push", false), true);
-    assert.equal(publicationAllowed("refs/heads/trunk", "workflow_dispatch", false), false);
-    assert.equal(publicationAllowed("refs/heads/release-please--branches--trunk", "workflow_dispatch", true), false);
-    assert.equal(publicationAllowed("refs/heads/trunk", "workflow_dispatch", true), true);
+    // The rolling `sample-bundles-release` job that this block used to guard was
+    // retired: org-enforced immutable releases froze `sample-bundles-latest`
+    // permanently, so the job could only ever fail. Publication is now the
+    // content-addressed, one-release-per-commit workflow, which carries its own
+    // gates. Nothing here asserts a `ci.yml` publication surface any more.
     const migrationGeneration = workflow.indexOf("name: Regenerate migration-workbench artifacts");
     const llmsGeneration = workflow.indexOf("name: Regenerate llms.txt and comparison page");
     const comparisonCommand = workflow.indexOf("npm run docs:comparison", llmsGeneration);
@@ -299,7 +300,7 @@ describe("pull request issue disposition policy", () => {
     assert.match(workflow, /^permissions: read-all$/mu);
     assert.match(
       workflow,
-      /^  release-please:\n    if: \$\{\{ github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
+      /^  release-please:\n    if: \$\{\{ github\.ref == 'refs\/heads\/trunk' \}\}\n    runs-on: ubuntu-latest\n(?:    #[^\n]*\n)*    concurrency:\n      group: release-please-\$\{\{ github\.repository \}\}\n      cancel-in-progress: false\n    permissions:\n      actions: write\n      contents: write\n      pull-requests: write$/mu,
     );
     assert.match(
       workflow,
@@ -520,6 +521,92 @@ describe("pull request issue disposition policy", () => {
         `unexpected exemption for ${JSON.stringify(override)}`,
       );
     }
+  });
+
+  it("exempts only the exact MCP scheduled-certification automation identity", () => {
+    const fixture = {
+      repository,
+      body: "",
+      authorLogin: "github-actions[bot]",
+      authorType: "Bot",
+      headRefName: "automation/mcp-certification-32007819760-1",
+      headSha: "c".repeat(40),
+      headRepository: repository,
+      baseRefName: "trunk",
+      baseSha: "d".repeat(40),
+      baseRepository: repository,
+      title: "chore(mcp): publish scheduled live-certification report",
+    };
+    assert.equal(automationExemption(fixture), MCP_CERTIFICATION_EXEMPTION);
+    assert.deepEqual(validatePullRequestDisposition(fixture), {
+      status: "exempt",
+      exemption: MCP_CERTIFICATION_EXEMPTION,
+      closes: [],
+      refs: [],
+    });
+
+    for (const override of [
+      { authorLogin: "octocat[bot]" },
+      { authorType: "User" },
+      { headRefName: "automation/mcp-certification-32007819760" },
+      { headRefName: "automation/mcp-certification-32007819760-1-extra" },
+      { headRefName: "automation/derived-artifacts-32007819760-1" },
+      { title: "chore(mcp): publish scheduled live-certification report lookalike" },
+      { baseRefName: "release/next" },
+      { baseSha: "not-a-commit" },
+      { headSha: "not-a-commit" },
+      { headRepository: "mallory/honua-sdk-js" },
+      { baseRepository: "mallory/honua-sdk-js" },
+    ]) {
+      assert.equal(
+        automationExemption({ ...fixture, ...override }),
+        null,
+        `unexpected exemption for ${JSON.stringify(override)}`,
+      );
+    }
+  });
+
+  it("publishes the scheduled MCP certification through a checked automation PR, never a trunk push", () => {
+    const workflow = fs
+      .readFileSync(path.join(root, ".github/workflows/mcp-cert-scheduled.yml"), "utf8")
+      .replaceAll("\r\n", "\n");
+    // A scheduled push at trunk can only ever be rejected by the ruleset.
+    assert.doesNotMatch(workflow, /^\s*git push\s*$/mu);
+    assert.match(workflow, /branch="automation\/mcp-certification-\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}"/u);
+    assert.match(workflow, /--title "chore\(mcp\): publish scheduled live-certification report"/u);
+    assert.match(workflow, /git commit -m "chore\(mcp\): publish scheduled live-certification report"/u);
+    // The report must not be able to skip the checks it is merged on.
+    assert.doesNotMatch(workflow, /\[skip ci\]/u);
+    const prCreation = workflow.indexOf("gh pr create");
+    const nativeApproval = workflow.indexOf("name: Approve native checks for the publication pull request");
+    const requiredCheckWait = workflow.indexOf('gh pr checks "$PR_NUMBER"');
+    const merge = workflow.indexOf('gh pr merge "$PR_NUMBER"');
+    assert.ok(prCreation >= 0);
+    assert.ok(nativeApproval > prCreation);
+    assert.ok(requiredCheckWait > nativeApproval);
+    assert.ok(merge > requiredCheckWait);
+    assert.match(workflow, /actions\/runs\/\$run_id\/approve/u);
+    // The approval wait names the workflows carrying trunk's required contexts,
+    // so a late-appearing held run cannot stall the check wait unnoticed.
+    assert.match(workflow, /\["SDK CI","PR issue disposition"\]/u);
+    assert.match(workflow, /gh pr checks "\$PR_NUMBER"[\s\S]*--required --watch --fail-fast/u);
+    assert.match(workflow, /--match-head-commit "\$PUBLISHED"/u);
+    assert.doesNotMatch(workflow, /--auto/u);
+    // A token merge emits no push event, so trunk would otherwise carry no core
+    // check runs for the resulting head. Re-entering the derived-artifact
+    // automation reseals first and then dispatches strict trunk CI itself;
+    // dispatching ci.yml directly would validate an unresealed head.
+    assert.match(
+      workflow,
+      /gh workflow run regenerate-derived-artifacts\.yml --repo "\$GITHUB_REPOSITORY" --ref trunk/u,
+    );
+    assert.doesNotMatch(workflow, /gh workflow run ci\.yml/u);
+    // Nothing outside the certification corpus may ride the automation merge.
+    assert.match(workflow, /Certification publication contains an unexpected path/u);
+    // The evidence stays visible even when nothing is published.
+    assert.match(workflow, /name: Summarize publication/u);
+    assert.match(workflow, /mcp-scheduled-cert/u);
+    assert.doesNotMatch(workflow, /continue-on-error/u);
   });
 
   it("returns an explicit exemption without issue metadata", () => {

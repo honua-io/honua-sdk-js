@@ -260,6 +260,10 @@
       "types": "./dist/src/cli/main.d.ts",
       "default": "./dist/src/cli/main.js"
     },
+    "./local-install": {
+      "types": "./dist/src/local-install.d.ts",
+      "default": "./dist/src/local-install.js"
+    },
     "./diagnostics": {
       "types": "./dist/src/diagnostics/index.d.ts",
       "default": "./dist/src/diagnostics/index.js"
@@ -295,6 +299,10 @@
     "./coverages": {
       "types": "./dist/src/coverages/index.d.ts",
       "default": "./dist/src/coverages/index.js"
+    },
+    "./zarr": {
+      "types": "./dist/src/zarr/index.d.ts",
+      "default": "./dist/src/zarr/index.js"
     }
   },
   "bin": {
@@ -303,6 +311,8 @@
   },
   "scripts": {
     "clean": "node scripts/clean-dist.mjs",
+    "admin-client:generate": "node scripts/generate-admin-client.mjs write",
+    "admin-client:check": "node scripts/generate-admin-client.mjs check",
     "compile": "npm run clean --silent && tsc -p tsconfig.json",
     "build": "node scripts/prepare-sdk-test-artifacts.mjs --force-build",
     "prepare:test-sdk": "node scripts/prepare-sdk-test-artifacts.mjs --prepare",
@@ -312,6 +322,17 @@
     "build:browser": "node scripts/build-browser-bundle.mjs",
     "verify:browser": "npm run prepare:test-sdk --silent && npm run build:browser --silent && npm run prepare:test-sdk:adopt --silent && node scripts/verify-browser-bundle.mjs",
     "verify:browser:prepared": "npm run prepare:test-sdk:already --silent && npm run build:browser --silent && npm run prepare:test-sdk:adopt --silent && node scripts/verify-browser-bundle.mjs",
+    "offline:shell-manifest:generate": "npm run build --silent && node scripts/offline-shell-manifest.mjs write",
+    "offline:shell-manifest:test": "node --test test/scripts/offline-shell-manifest.test.mjs",
+    "offline:shell-manifest:check": "npm run offline:shell-manifest:test --silent && node scripts/offline-shell-manifest.mjs check",
+    "browser:shards:check": "node scripts/browser-shards.mjs check",
+    "browser:shards:test": "node --test test/scripts/browser-shards.test.mjs",
+    "sdk-build-evidence:test": "node --test test/scripts/sdk-build-evidence.test.mjs",
+    "ci:baseline:collect": "node scripts/ci-timing-baseline.mjs collect",
+    "ci:baseline:report": "node scripts/ci-timing-baseline.mjs report",
+    "ci:parity:collect": "node scripts/ci-shadow-parity.mjs collect",
+    "ci:parity:report": "node scripts/ci-shadow-parity.mjs report",
+    "verify:ci-graph": "node --test test/scripts/sdk-build-evidence.test.mjs test/scripts/browser-shards.test.mjs test/scripts/ci-timing-baseline.test.mjs test/scripts/sdk-verification-workflow.test.mjs && node scripts/browser-shards.mjs check",
     "report:bundle-sizes": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs",
     "verify:bundle-budgets": "npm run build:browser --silent && node scripts/report-bundle-sizes.mjs --check",
     "build:split-packages": "npm run prepare:test-sdk --silent && node scripts/prepare-split-packages.mjs && npm run prepare:test-sdk:adopt --silent",
@@ -410,12 +431,14 @@
     "samples:runner:test": "node --test test/scripts/sample-runner.test.mjs test/scripts/sample-gate-receipt.test.mjs test/scripts/release-matrix-receipt.test.mjs",
     "release:seal:check": "node scripts/release-seal.mjs check",
     "release:seal:test": "node --test test/scripts/release-seal.test.mjs",
+    "release:lockfile-pin:test": "node --test test/scripts/lockfile-pin.test.mjs",
     "samples:bundles:build": "node scripts/build-sample-bundles.mjs build",
     "samples:bundles:test": "node --test test/scripts/build-sample-bundles.test.mjs test/scripts/immutable-sample-bundle-attestation.test.mjs",
     "samples:bundles:verify": "npm run samples:bundles:test && node scripts/build-sample-bundles.mjs check",
     "samples:bundles:pack": "node scripts/pack-sample-bundles.mjs",
     "samples:bundles:attestation:receipt": "node scripts/immutable-sample-bundle-attestation.mjs receipt",
     "samples:bundles:attestation:policy": "node scripts/immutable-sample-bundle-attestation.mjs policy",
+    "samples:bundles:attestation:sync-actions": "node scripts/immutable-sample-bundle-attestation.mjs sync-actions --workflow .github/workflows/publish-content-addressed-sample-bundles.yml && npm run samples:bundles:attestation:policy -- --workflow .github/workflows/publish-content-addressed-sample-bundles.yml",
     "samples:bundles:smoke": "node scripts/smoke-sample-bundles.mjs",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",
@@ -688,6 +711,9 @@
     "test:pr-fast": "vitest run --config vitest.pr-fast.config.ts",
     "test:pr-issue-disposition": "node --test test/scripts/pr-issue-disposition.test.mjs",
     "test:backlog-dependencies": "node --test test/scripts/backlog-dependencies.test.mjs",
+    "test:stranded-merges": "node --test test/scripts/stranded-merge-detector.test.mjs",
+    "test:scheduled-live-health": "node --test test/scripts/scheduled-live-health.test.mjs",
+    "stranded-merges:sweep": "node scripts/stranded-merge-detector.mjs",
     "backlog:dependencies:dry-run": "node scripts/reconcile-backlog-dependencies.mjs",
     "backlog:dependencies:apply": "node scripts/reconcile-backlog-dependencies.mjs --apply",
     "validate:pr-fast": "node scripts/run-pr-fast.mjs",
@@ -760,6 +786,7 @@
     "maplibre-gl": "^6.0.0",
     "maplibre-gl-v5": "npm:maplibre-gl@^5.24.0",
     "marked": "^15.0.12",
+    "openapi-typescript": "7.9.1",
     "pmtiles": "^4.4.1",
     "proj4": "^2.20.9",
     "react": "^19.2.7",
@@ -768,10 +795,11 @@
     "terra-draw-maplibre-gl-adapter": "^1.4.1",
     "typescript": "^5.9.2",
     "uplot": "^1.6.32",
+    "vega-lite": "^6.4.3",
     "vite": "^8.0.16",
     "vitest": "^4.0.16",
     "ws": "^8.21.1",
-    "yaml": "2.8.1"
+    "yaml": "2.9.0"
   },
   "files": [
     "dist/src",

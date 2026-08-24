@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "honua.esri-gp-mcp-contract/v1",
+  "tools": [
+    {
+      "name": "honua_esri_gp_list_tasks",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output": {
+        "required": ["tasks"],
+        "taskFields": [
+          "taskName",
+          "processId",
+          "displayName",
+          "category",
+          "isAlias",
+          "supportsSynchronousExecution"
+        ]
+      }
+    },
+    {
+      "name": "honua_esri_gp_describe_task",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "taskName": { "type": "string" } },
+        "required": ["taskName"],
+        "additionalProperties": false
+      },
+      "output": {
+        "required": [
+          "taskName",
+          "processId",
+          "displayName",
+          "description",
+          "category",
+          "executionType",
+          "supportsSynchronousExecution",
+          "parameters"
+        ],
+        "parameterFields": [
+          "name",
+          "displayName",
+          "description",
+          "dataType",
+          "direction",
+          "parameterType",
+          "defaultValue",
+          "choiceList"
+        ]
+      }
+    },
+    {
+      "name": "honua_esri_gp_execute_task",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "serviceId": { "type": "string" },
+          "taskName": { "type": "string" },
+          "parameters": { "type": "object", "additionalProperties": true },
+          "idempotencyKey": { "type": "string" }
+        },
+        "required": ["serviceId", "taskName", "parameters"],
+        "additionalProperties": false
+      },
+      "output": {
+        "required": ["jobId", "status", "resourceUri", "serviceId", "taskName", "processId"]
+      }
+    }
+  ]
+}

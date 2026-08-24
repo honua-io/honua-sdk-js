@@ -112,6 +112,11 @@ custom query parameter can still pass one through `extraParams`.
 
 ### OGC API Processes
 
+For the end-to-end discover, describe, synchronous/asynchronous execute,
+results, and cancellation workflow—and the equivalent `IJobRun` lifecycle for
+Esri-compatible GPServer tasks—see the dedicated
+[geoprocessing guide](./geoprocessing.md).
+
 ```ts doc-test=skip reason="partial excerpt requires application host context"
 import type { IJobRun } from "@honua/sdk-js/honua";
 
@@ -194,8 +199,10 @@ Four properties hold whichever server is on the other end:
 
 - **Both Core response shapes.** `mode: "async"` sends
   `Prefer: respond-async` and expects `201` + `Location`; `mode: "sync"`
-  omits the header and expects `200` with the results document;
-  `mode: "auto"` (the default) accepts either. A synchronous execution
+  and `mode: "auto"` omit `Prefer`, following OGC API Processes Requirement 25;
+  `mode: "auto"` (the default) accepts either. The client also accepts either
+  response shape after `respond-async`, whether or not the optional
+  `Preference-Applied` header is present. A synchronous execution
   still returns an `IJobRun` — an already-terminal one with `id === ""`,
   since Core assigns no job identifier — so caller code is identical.
 - **Links over templates.** The job lifecycle follows the `Location`

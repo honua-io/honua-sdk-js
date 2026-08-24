@@ -533,14 +533,64 @@ relaxation. Release Please's version-bump commit never satisfies that on its own
 `release-please-config.json`, all inside the evidence-neutral source digest
 (`scripts/sample-gate-receipt.mjs`), which re-stales every sample gate receipt,
 and the derived sample artifacts it carries were generated before the bump, so
-they still self-report the previous version. The release therefore:
+they still self-report the previous version. The release therefore cuts the tag
+on a commit that is already sealed rather than sealing it afterwards
+(honua-io/honua-sdk-js#1350) -- a tag cannot be moved once its GitHub Release is
+published, because immutable releases protect it. In order:
 
-- waits for `regenerate-derived-artifacts.yml` to reseal evidence and regenerate
-  the projections against the bumped tree and merge that generated-only
+- Release Please cuts the JS SDK release as a **draft**
+  (`"draft": true` on the `"."` package in `release-please-config.json`), which
+  creates no Git tag at all and leaves nothing protected;
+- `regenerate-derived-artifacts.yml` reseals evidence and regenerates the
+  projections against the bumped tree, and merges that generated-only
   descendant;
-- verifies the descendant changed only generated paths, then moves the
-  `js-sdk-*` tag onto it, so the tag names the sealed commit;
-- publishes from that tag, and dispatches the First Map release smoke at it.
+- the release verifies the descendant changed only generated paths, then
+  *creates* the `js-sdk-*` tag on it, so the tag names the sealed commit the
+  first and only time it is written;
+- it re-reads the tag, publishes the draft release, and re-reads the tag once
+  more -- publishing a draft whose tag does not exist would make GitHub create
+  it on the unsealed bump commit;
+- it publishes from that tag, and dispatches the First Map release smoke at it.
+
+See [the decision record](./decisions/release-tag-sealing-under-immutable-releases.md)
+for why the tag can never be repaired after the fact.
+
+### Re-running trusted CI for an existing Release Please PR
+
+The `release-please-ci` job dispatches canonical CI when Release Please creates
+or refreshes its PR, and `release-please-disposition` publishes the required
+`JS SDK` and `MCP SDK` checks only after that exact run succeeds. If the PR
+already existed before that path ran (or a transient run must be replaced),
+re-run the trusted Release Please workflow on `trunk`; do not dispatch `ci.yml`
+directly, because that run alone cannot publish the required checks:
+
+```bash
+release_pr=1234
+gh pr view "$release_pr" --json headRefName \
+  --jq 'select(.headRefName == "release-please--branches--trunk") | .headRefName' \
+  | grep -qx release-please--branches--trunk
+
+dispatched_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+gh workflow run release-please.yml --ref trunk
+release_run=""
+for _ in {1..12}; do
+  release_run=$(gh run list --workflow release-please.yml --event workflow_dispatch \
+    --branch trunk --limit 10 --json databaseId,createdAt \
+    --jq "map(select(.createdAt >= \"$dispatched_at\"))[0].databaseId // empty")
+  test -z "$release_run" || break
+  sleep 5
+done
+test -n "$release_run"
+gh run watch "$release_run" --exit-status
+```
+
+This path runs Release Please first, so it may legitimately refresh the release
+branch. The trusted refresh job then discovers the canonical PR and head,
+dispatches `ci.yml` with both exact identities, waits for that named run, and
+publishes the two checks from the disposition job. Re-read `headRefOid` and the
+check rollup before merging. Never substitute a direct `ci.yml` dispatch, an
+alternate release branch, or locally rebuilt evidence: none can complete the
+trusted check-publication path.
 
 `npm run release:seal:check` is the gate that proves a commit is sealed (every
 gate receipt bound to this tree, derived artifacts stamping this release

@@ -41,7 +41,7 @@ jobs:
   # trunk, so it can never freshen the tree a tag already names. Waiting for one
   # on a tag run would burn 10+ minutes and still leave a stale tag stale, so
   # tag runs are gated by the strict release-seal check in the publish job
-  # instead -- and release-please.yml moves the tag onto the resealed commit
+  # instead -- and release-please.yml creates the tag on the resealed commit
   # before dispatching this workflow.
   ensure-fresh-evidence:
     name: Ensure derived artifacts are fresh

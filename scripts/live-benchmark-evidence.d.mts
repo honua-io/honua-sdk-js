@@ -4,6 +4,7 @@ export declare const LIVE_SKIP_REASON_CODES: {
   readonly realtimeCapabilityProbeUnavailable: "realtime-capability-probe-unavailable";
   readonly realtimeCapabilityDisabled: "realtime-capability-disabled";
   readonly incidentDemoDatasetEmpty: "incident-demo-dataset-empty";
+  readonly incidentDemoServiceMissing: "incident-demo-service-missing";
 };
 
 export type LiveSkipReasonCode = (typeof LIVE_SKIP_REASON_CODES)[keyof typeof LIVE_SKIP_REASON_CODES];
@@ -18,6 +19,7 @@ export declare const INCIDENT_SKIP_RECONNECT_OUTCOMES: {
   readonly "realtime-capability-probe-unavailable": "not-attempted-capability-unavailable";
   readonly "realtime-capability-disabled": "not-attempted-capability-unavailable";
   readonly "incident-demo-dataset-empty": "not-attempted-demo-dataset-empty";
+  readonly "incident-demo-service-missing": "not-attempted-demo-service-missing";
 };
 
 export type IncidentReconnectOutcome =

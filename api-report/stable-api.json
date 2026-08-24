@@ -5,7 +5,7 @@
       "subpath": "@honua/sdk-js",
       "types": "dist/src/index.d.ts",
       "exportCount": 172,
-      "signatureSha256": "6c71b8bdd097f16fe4c1f92608bd8849498fe3361d9e8552e4c9abbc0f7db64c",
+      "signatureSha256": "bac0a2a4b84cb401f3957cd44f8588bdeddb1321478912de847dec3650f67d2a",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -185,7 +185,7 @@
       "subpath": "@honua/sdk-js/browser",
       "types": "dist/src/index.d.ts",
       "exportCount": 172,
-      "signatureSha256": "6c71b8bdd097f16fe4c1f92608bd8849498fe3361d9e8552e4c9abbc0f7db64c",
+      "signatureSha256": "bac0a2a4b84cb401f3957cd44f8588bdeddb1321478912de847dec3650f67d2a",
       "exports": [
         "AdapterFor — type",
         "AdapterKind — type",
@@ -365,7 +365,7 @@
       "subpath": "@honua/sdk-js/honua",
       "types": "dist/src/honua.d.ts",
       "exportCount": 1182,
-      "signatureSha256": "e3f6300de7c92427c87df6b6118836612e021c153fda0f152d3a19c3665382de",
+      "signatureSha256": "52a76e06db6010b43f08977470c3bb46d20aaf9006639a96183d18805120d2a7",
       "exports": [
         "ALL_CAPABILITIES — const",
         "ANALYTICS_SOURCE_SCHEMA_VERSION — const",
@@ -3931,8 +3931,8 @@
     {
       "subpath": "@honua/sdk-js/agent-tools",
       "types": "dist/src/agent-tools/index.d.ts",
-      "exportCount": 63,
-      "signatureSha256": "544f6d6c7a9e5f311be6e745d4e2a952e58ed53cbbb9813607d7e547e7986814",
+      "exportCount": 64,
+      "signatureSha256": "9162dc5a28850ad646aba7c85847a5db4ba20868434b2bc4d93750117de80b48",
       "exports": [
         "AddLayerArgs — interface",
         "AddWidgetArgs — interface",
@@ -3983,6 +3983,7 @@
         "SetFilterArgs — interface",
         "SetLayerStyleArgs — interface",
         "SetViewportArgs — interface",
+        "SetVisibilityArgs — interface",
         "SummarizeSelectionArgs — interface",
         "adaptHonuaControllerToAgentRuntime — function",
         "adaptHonuaGeneratedAppRuntimeToAgentRuntime — function",

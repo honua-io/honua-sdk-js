@@ -1,0 +1,1891 @@
+{
+  "format": "honua.ci-timing-baseline.v1",
+  "repository": "honua-io/honua-sdk-js",
+  "workflow": "ci.yml",
+  "event": "pull_request",
+  "collectedAt": "2026-08-16T19:30:02Z",
+  "summary": {
+    "sampleSize": 49,
+    "criticalPath": {
+      "p50": 18.35,
+      "p90": 38.46666666666667,
+      "max": 44.333333333333336
+    },
+    "wallClock": {
+      "p50": 23.8,
+      "p90": 42.3,
+      "max": 2056.9166666666665
+    },
+    "billed": {
+      "p50": 24.533333333333335,
+      "p90": 44.71666666666667,
+      "max": 50.483333333333334
+    },
+    "jobs": [
+      {
+        "name": "JS SDK",
+        "runs": 49,
+        "p50": 18.35,
+        "p90": 38.46666666666667
+      },
+      {
+        "name": "MCP SDK",
+        "runs": 49,
+        "p50": 2.7333333333333334,
+        "p90": 2.9166666666666665
+      },
+      {
+        "name": "PR Fast (under 2 minutes)",
+        "runs": 49,
+        "p50": 1.6666666666666667,
+        "p90": 1.8833333333333333
+      },
+      {
+        "name": "Deterministic Benchmark Lab",
+        "runs": 49,
+        "p50": 1.5833333333333333,
+        "p90": 1.6833333333333333
+      },
+      {
+        "name": "Publish sample bundles release",
+        "runs": 32,
+        "p50": 0,
+        "p90": 0
+      }
+    ]
+  },
+  "runs": [
+    {
+      "runId": 31966061177,
+      "conclusion": "failure",
+      "createdAt": "2026-08-16T18:56:08Z",
+      "headSha": "8eee80b131d6edd92f7e9bcd3bafb332a1d498ea",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-16T18:56:11Z",
+          "completedAt": "2026-08-16T19:24:46Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T18:56:11Z",
+          "completedAt": "2026-08-16T18:57:49Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T18:56:11Z",
+          "completedAt": "2026-08-16T18:59:00Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T18:56:11Z",
+          "completedAt": "2026-08-16T18:57:49Z"
+        }
+      ]
+    },
+    {
+      "runId": 31962372165,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T17:41:48Z",
+      "headSha": "ee2671619336d478a9bde44b032bea04e6c5c292",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T17:42:02Z",
+          "completedAt": "2026-08-16T17:43:42Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T17:42:02Z",
+          "completedAt": "2026-08-16T17:43:43Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T17:42:02Z",
+          "completedAt": "2026-08-16T18:18:51Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T17:42:02Z",
+          "completedAt": "2026-08-16T17:44:57Z"
+        }
+      ]
+    },
+    {
+      "runId": 31959302174,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T16:40:30Z",
+      "headSha": "8b2df6061ad944ce520a04d564ea0c4cc35754aa",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:40:43Z",
+          "completedAt": "2026-08-16T16:42:19Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:40:44Z",
+          "completedAt": "2026-08-16T16:43:34Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:40:43Z",
+          "completedAt": "2026-08-16T16:42:18Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:40:43Z",
+          "completedAt": "2026-08-16T17:17:24Z"
+        }
+      ]
+    },
+    {
+      "runId": 31958546089,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T16:25:06Z",
+      "headSha": "4f9180f5a8b0253c37ab3248756cbb6676b43419",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:25:10Z",
+          "completedAt": "2026-08-16T16:27:14Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:25:10Z",
+          "completedAt": "2026-08-16T16:26:46Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:25:10Z",
+          "completedAt": "2026-08-16T17:01:50Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:25:09Z",
+          "completedAt": "2026-08-16T16:27:54Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T17:01:50Z",
+          "completedAt": "2026-08-16T17:01:50Z"
+        }
+      ]
+    },
+    {
+      "runId": 31958526350,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T16:24:42Z",
+      "headSha": "0ab90229330acb13c4fbee5af576afe958a4f513",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:24:46Z",
+          "completedAt": "2026-08-16T16:26:22Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:24:46Z",
+          "completedAt": "2026-08-16T16:27:27Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:24:46Z",
+          "completedAt": "2026-08-16T17:01:09Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T16:24:46Z",
+          "completedAt": "2026-08-16T16:26:19Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T17:01:10Z",
+          "completedAt": "2026-08-16T17:01:10Z"
+        }
+      ]
+    },
+    {
+      "runId": 31936210556,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T08:20:32Z",
+      "headSha": "519f56be0c4751741bad50e3fe0a69cda6a7b78e",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T08:20:35Z",
+          "completedAt": "2026-08-16T08:22:12Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T08:20:35Z",
+          "completedAt": "2026-08-16T08:56:59Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T08:20:35Z",
+          "completedAt": "2026-08-16T08:22:12Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T08:20:35Z",
+          "completedAt": "2026-08-16T08:22:53Z"
+        }
+      ]
+    },
+    {
+      "runId": 31935834199,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T08:11:45Z",
+      "headSha": "34033715e2dc5a5fdc6692a586062405837d05ca",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T08:11:49Z",
+          "completedAt": "2026-08-16T08:13:25Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T08:11:49Z",
+          "completedAt": "2026-08-16T08:13:45Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T08:11:49Z",
+          "completedAt": "2026-08-16T08:14:30Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T08:11:49Z",
+          "completedAt": "2026-08-16T08:50:09Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T08:50:09Z",
+          "completedAt": "2026-08-16T08:50:09Z"
+        }
+      ]
+    },
+    {
+      "runId": 31935130788,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T07:55:36Z",
+      "headSha": "808d0e554ea654ad1b3e1178046b1c481486ac3a",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T07:55:39Z",
+          "completedAt": "2026-08-16T07:58:29Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T07:55:40Z",
+          "completedAt": "2026-08-16T07:57:17Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T07:55:39Z",
+          "completedAt": "2026-08-16T08:32:20Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T07:55:39Z",
+          "completedAt": "2026-08-16T07:57:15Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T08:32:21Z",
+          "completedAt": "2026-08-16T08:32:20Z"
+        }
+      ]
+    },
+    {
+      "runId": 31934504764,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T07:40:57Z",
+      "headSha": "117868b586fd721788b667ccc7d42b1e047241d3",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T07:41:13Z",
+          "completedAt": "2026-08-16T07:43:00Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T07:41:13Z",
+          "completedAt": "2026-08-16T07:42:51Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T07:41:14Z",
+          "completedAt": "2026-08-16T08:18:53Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T07:41:13Z",
+          "completedAt": "2026-08-16T07:43:57Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T08:18:54Z",
+          "completedAt": "2026-08-16T08:18:53Z"
+        }
+      ]
+    },
+    {
+      "runId": 31932302798,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T06:48:25Z",
+      "headSha": "d776c01864a6315df0eda999a83ca271afe9b0c8",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T06:48:28Z",
+          "completedAt": "2026-08-16T07:26:06Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T06:48:28Z",
+          "completedAt": "2026-08-16T06:51:11Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T06:48:28Z",
+          "completedAt": "2026-08-16T06:49:42Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T06:48:29Z",
+          "completedAt": "2026-08-16T06:50:11Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T07:26:07Z",
+          "completedAt": "2026-08-16T07:26:06Z"
+        }
+      ]
+    },
+    {
+      "runId": 31932146338,
+      "conclusion": "failure",
+      "createdAt": "2026-08-16T06:44:37Z",
+      "headSha": "968106e25cfff86d6764eb879969cd7b1f79c2b0",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T06:44:40Z",
+          "completedAt": "2026-08-16T06:47:14Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-16T06:44:40Z",
+          "completedAt": "2026-08-16T06:45:09Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T06:44:40Z",
+          "completedAt": "2026-08-16T06:46:15Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-16T06:44:40Z",
+          "completedAt": "2026-08-16T06:45:12Z"
+        }
+      ]
+    },
+    {
+      "runId": 31930996276,
+      "conclusion": "failure",
+      "createdAt": "2026-08-16T06:15:50Z",
+      "headSha": "920441f3aee79f8ede787d28f23cef62c48b7648",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T06:15:53Z",
+          "completedAt": "2026-08-16T06:18:30Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-16T06:15:53Z",
+          "completedAt": "2026-08-16T06:17:31Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T06:15:53Z",
+          "completedAt": "2026-08-16T06:17:41Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-16T06:15:53Z",
+          "completedAt": "2026-08-16T06:18:02Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T06:18:03Z",
+          "completedAt": "2026-08-16T06:18:03Z"
+        }
+      ]
+    },
+    {
+      "runId": 31930163687,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T05:55:47Z",
+      "headSha": "2e33fd9d22c21b6a658ab05382efef90e4f7f2a3",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T05:55:51Z",
+          "completedAt": "2026-08-16T05:57:24Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T05:55:50Z",
+          "completedAt": "2026-08-16T05:57:30Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T05:55:51Z",
+          "completedAt": "2026-08-16T06:33:30Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T05:55:51Z",
+          "completedAt": "2026-08-16T05:58:49Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T06:33:31Z",
+          "completedAt": "2026-08-16T06:33:30Z"
+        }
+      ]
+    },
+    {
+      "runId": 31929352004,
+      "conclusion": "success",
+      "createdAt": "2026-08-16T05:35:10Z",
+      "headSha": "8dc4a1f001af75b9824469a44df0033ab8c29752",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T05:35:13Z",
+          "completedAt": "2026-08-16T06:13:21Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T05:35:13Z",
+          "completedAt": "2026-08-16T05:36:58Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T05:35:13Z",
+          "completedAt": "2026-08-16T05:36:50Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-16T05:35:13Z",
+          "completedAt": "2026-08-16T05:37:10Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T06:13:21Z",
+          "completedAt": "2026-08-16T06:13:21Z"
+        }
+      ]
+    },
+    {
+      "runId": 31851500380,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T23:46:34Z",
+      "headSha": "7ceea79b65193c067b9a8b2f6426759670f43297",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T23:46:38Z",
+          "completedAt": "2026-08-14T23:48:17Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T23:46:38Z",
+          "completedAt": "2026-08-14T23:49:15Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T23:46:37Z",
+          "completedAt": "2026-08-14T23:57:48Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T23:46:38Z",
+          "completedAt": "2026-08-14T23:48:18Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T23:57:49Z",
+          "completedAt": "2026-08-14T23:57:48Z"
+        }
+      ]
+    },
+    {
+      "runId": 31849715247,
+      "conclusion": "success",
+      "createdAt": "2026-08-14T23:15:33Z",
+      "headSha": "c73acf4a5114e9c4c358ae16bf9ece105a2bc7af",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T23:15:47Z",
+          "completedAt": "2026-08-14T23:17:20Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T23:15:48Z",
+          "completedAt": "2026-08-14T23:17:31Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T23:15:49Z",
+          "completedAt": "2026-08-14T23:18:41Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T23:15:48Z",
+          "completedAt": "2026-08-14T23:54:24Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T23:54:25Z",
+          "completedAt": "2026-08-14T23:54:24Z"
+        }
+      ]
+    },
+    {
+      "runId": 31847671206,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T22:42:46Z",
+      "headSha": "7895fd6db553f2d4770d14ec88e39f90b261d07b",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T22:42:49Z",
+          "completedAt": "2026-08-14T22:54:22Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T22:42:50Z",
+          "completedAt": "2026-08-14T22:45:49Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T22:42:50Z",
+          "completedAt": "2026-08-14T22:44:30Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T22:42:51Z",
+          "completedAt": "2026-08-14T22:44:39Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T22:54:22Z",
+          "completedAt": "2026-08-14T22:54:22Z"
+        }
+      ]
+    },
+    {
+      "runId": 31837504862,
+      "conclusion": "success",
+      "createdAt": "2026-08-14T20:21:05Z",
+      "headSha": "cd1ccd2e23e20f68e577e37f77571ea2632ca5ed",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T22:22:42Z",
+          "completedAt": "2026-08-14T23:00:21Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T22:22:42Z",
+          "completedAt": "2026-08-14T22:25:30Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T20:21:09Z",
+          "completedAt": "2026-08-14T20:22:41Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T20:21:09Z",
+          "completedAt": "2026-08-14T20:22:48Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T23:00:21Z",
+          "completedAt": "2026-08-14T23:00:21Z"
+        }
+      ]
+    },
+    {
+      "runId": 31829775834,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T18:40:45Z",
+      "headSha": "e2c2654fd8721f6d2ba4d04c15f22a0c88c87bbf",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-16T04:13:50Z",
+          "completedAt": "2026-08-16T04:57:43Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:40:48Z",
+          "completedAt": "2026-08-14T18:42:27Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:40:48Z",
+          "completedAt": "2026-08-14T18:42:20Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:40:48Z",
+          "completedAt": "2026-08-14T18:43:31Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-16T04:57:43Z",
+          "completedAt": "2026-08-16T04:57:43Z"
+        }
+      ]
+    },
+    {
+      "runId": 31829746210,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T18:40:21Z",
+      "headSha": "422f631d115daf087c1036b1dac6566b0a73a732",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:40:24Z",
+          "completedAt": "2026-08-14T18:43:03Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:40:24Z",
+          "completedAt": "2026-08-14T18:42:04Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:40:24Z",
+          "completedAt": "2026-08-14T18:41:44Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T18:40:25Z",
+          "completedAt": "2026-08-14T19:08:11Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T19:08:11Z",
+          "completedAt": "2026-08-14T19:08:11Z"
+        }
+      ]
+    },
+    {
+      "runId": 31829638755,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T18:39:01Z",
+      "headSha": "760a573e3de3e655097530ea49deecdf32ebe3ee",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:39:04Z",
+          "completedAt": "2026-08-14T18:41:50Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T18:39:04Z",
+          "completedAt": "2026-08-14T19:06:36Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:39:04Z",
+          "completedAt": "2026-08-14T18:40:33Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T18:39:05Z",
+          "completedAt": "2026-08-14T18:40:58Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T19:06:36Z",
+          "completedAt": "2026-08-14T19:06:36Z"
+        }
+      ]
+    },
+    {
+      "runId": 31824114685,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T17:27:58Z",
+      "headSha": "63e8192e13628cdab9b7dc5202b7ac372b6983cc",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T17:28:01Z",
+          "completedAt": "2026-08-14T17:30:37Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T17:28:01Z",
+          "completedAt": "2026-08-14T17:29:24Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T17:28:01Z",
+          "completedAt": "2026-08-14T17:29:39Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T17:28:01Z",
+          "completedAt": "2026-08-14T17:51:49Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T17:51:50Z",
+          "completedAt": "2026-08-14T17:51:49Z"
+        }
+      ]
+    },
+    {
+      "runId": 31824102035,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T17:27:48Z",
+      "headSha": "0aa09413612186ec90fedbf7dab611ea3234ed1a",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T17:27:52Z",
+          "completedAt": "2026-08-14T17:29:27Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T17:27:52Z",
+          "completedAt": "2026-08-14T17:30:37Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T17:27:52Z",
+          "completedAt": "2026-08-14T18:10:10Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T17:27:52Z",
+          "completedAt": "2026-08-14T17:29:24Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T18:10:10Z",
+          "completedAt": "2026-08-14T18:10:10Z"
+        }
+      ]
+    },
+    {
+      "runId": 31803547792,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T13:10:52Z",
+      "headSha": "436164689e681803ce57c80dfcdc483abbaa0315",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T13:10:56Z",
+          "completedAt": "2026-08-14T13:12:35Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T13:10:55Z",
+          "completedAt": "2026-08-14T13:12:32Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T13:10:56Z",
+          "completedAt": "2026-08-14T13:13:45Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T13:10:57Z",
+          "completedAt": "2026-08-14T13:40:16Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T13:40:16Z",
+          "completedAt": "2026-08-14T13:40:16Z"
+        }
+      ]
+    },
+    {
+      "runId": 31801788396,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T12:46:56Z",
+      "headSha": "e62114cd967df3852996f149ca457420f4a6965a",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T12:46:59Z",
+          "completedAt": "2026-08-14T13:05:20Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:47:00Z",
+          "completedAt": "2026-08-14T12:49:49Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:46:59Z",
+          "completedAt": "2026-08-14T12:48:33Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:47:00Z",
+          "completedAt": "2026-08-14T12:48:48Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T13:05:21Z",
+          "completedAt": "2026-08-14T13:05:20Z"
+        }
+      ]
+    },
+    {
+      "runId": 31800318534,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T12:26:17Z",
+      "headSha": "a9a3b2018f7a79e93705c5e3b905f1a56093a809",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:26:20Z",
+          "completedAt": "2026-08-14T12:27:50Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:26:20Z",
+          "completedAt": "2026-08-14T12:29:05Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:26:20Z",
+          "completedAt": "2026-08-14T12:27:56Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T12:26:21Z",
+          "completedAt": "2026-08-14T12:42:48Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T12:42:48Z",
+          "completedAt": "2026-08-14T12:42:48Z"
+        }
+      ]
+    },
+    {
+      "runId": 31799295045,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T12:11:43Z",
+      "headSha": "b593e0906ccf1685e0fcb42fd65f79f8509c31b4",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T12:11:46Z",
+          "completedAt": "2026-08-14T12:22:04Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:11:46Z",
+          "completedAt": "2026-08-14T12:13:25Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:11:46Z",
+          "completedAt": "2026-08-14T12:13:26Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T12:11:46Z",
+          "completedAt": "2026-08-14T12:14:02Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T12:22:05Z",
+          "completedAt": "2026-08-14T12:22:05Z"
+        }
+      ]
+    },
+    {
+      "runId": 31798237444,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:56:27Z",
+      "headSha": "f6cfbd7cfae9a1fa5f9f64dd883bb4fef15674e0",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:56:30Z",
+          "completedAt": "2026-08-14T11:59:03Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:56:30Z",
+          "completedAt": "2026-08-14T11:58:04Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:56:30Z",
+          "completedAt": "2026-08-14T11:58:13Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:56:31Z",
+          "completedAt": "2026-08-14T12:09:09Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T12:09:10Z",
+          "completedAt": "2026-08-14T12:09:10Z"
+        }
+      ]
+    },
+    {
+      "runId": 31797041630,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:38:36Z",
+      "headSha": "2439227b533bffe27c2534269021dcf24b9a78bc",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:38:39Z",
+          "completedAt": "2026-08-14T11:41:35Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:38:39Z",
+          "completedAt": "2026-08-14T11:40:14Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:38:39Z",
+          "completedAt": "2026-08-14T11:48:16Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:38:40Z",
+          "completedAt": "2026-08-14T11:40:17Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:48:17Z",
+          "completedAt": "2026-08-14T11:48:16Z"
+        }
+      ]
+    },
+    {
+      "runId": 31796923294,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:36:47Z",
+      "headSha": "ed5f10548c6b9b95c277c562aa74eb549d4efc84",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:36:50Z",
+          "completedAt": "2026-08-14T11:48:03Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:36:50Z",
+          "completedAt": "2026-08-14T11:39:33Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:36:50Z",
+          "completedAt": "2026-08-14T11:38:31Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:36:50Z",
+          "completedAt": "2026-08-14T11:38:21Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:48:03Z",
+          "completedAt": "2026-08-14T11:48:03Z"
+        }
+      ]
+    },
+    {
+      "runId": 31796824885,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:35:19Z",
+      "headSha": "bdc45dfa4ea2eef44155c2edfe2cb14589acca1f",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:35:22Z",
+          "completedAt": "2026-08-14T11:44:55Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:35:22Z",
+          "completedAt": "2026-08-14T11:36:57Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:35:22Z",
+          "completedAt": "2026-08-14T11:37:24Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:35:22Z",
+          "completedAt": "2026-08-14T11:36:55Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:44:56Z",
+          "completedAt": "2026-08-14T11:44:56Z"
+        }
+      ]
+    },
+    {
+      "runId": 31796630481,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:32:30Z",
+      "headSha": "3d965b178430e598e4a845b84fced4848ba36950",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:32:34Z",
+          "completedAt": "2026-08-14T11:34:17Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:32:35Z",
+          "completedAt": "2026-08-14T11:35:21Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:32:34Z",
+          "completedAt": "2026-08-14T11:34:22Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:32:34Z",
+          "completedAt": "2026-08-14T11:41:31Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:41:31Z",
+          "completedAt": "2026-08-14T11:41:31Z"
+        }
+      ]
+    },
+    {
+      "runId": 31796538384,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:31:09Z",
+      "headSha": "bfeea94411d8447034538c3c222b41c95ac37100",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:31:13Z",
+          "completedAt": "2026-08-14T11:43:12Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:31:12Z",
+          "completedAt": "2026-08-14T11:33:55Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:31:14Z",
+          "completedAt": "2026-08-14T11:32:57Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:31:13Z",
+          "completedAt": "2026-08-14T11:32:50Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:43:13Z",
+          "completedAt": "2026-08-14T11:43:13Z"
+        }
+      ]
+    },
+    {
+      "runId": 31796443688,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:29:51Z",
+      "headSha": "5b730f6f92f4bdad606431e91df739e29bb810aa",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:29:54Z",
+          "completedAt": "2026-08-14T11:40:37Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:29:54Z",
+          "completedAt": "2026-08-14T11:31:36Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:29:54Z",
+          "completedAt": "2026-08-14T11:32:46Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:29:54Z",
+          "completedAt": "2026-08-14T11:31:24Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:40:38Z",
+          "completedAt": "2026-08-14T11:40:37Z"
+        }
+      ]
+    },
+    {
+      "runId": 31796238342,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:26:46Z",
+      "headSha": "bd6199f8cd7909eaaa859da5dbd86cbd86d75436",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:26:51Z",
+          "completedAt": "2026-08-14T11:38:46Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:26:50Z",
+          "completedAt": "2026-08-14T11:28:33Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:26:49Z",
+          "completedAt": "2026-08-14T11:28:49Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:26:49Z",
+          "completedAt": "2026-08-14T11:28:22Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:38:46Z",
+          "completedAt": "2026-08-14T11:38:46Z"
+        }
+      ]
+    },
+    {
+      "runId": 31796200829,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:26:12Z",
+      "headSha": "142a19a72aa2a53a12ce894597ca631ef269f8bb",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:26:15Z",
+          "completedAt": "2026-08-14T11:27:47Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:26:16Z",
+          "completedAt": "2026-08-14T11:27:48Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:26:17Z",
+          "completedAt": "2026-08-14T11:29:11Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:26:16Z",
+          "completedAt": "2026-08-14T11:37:42Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:37:42Z",
+          "completedAt": "2026-08-14T11:37:42Z"
+        }
+      ]
+    },
+    {
+      "runId": 31795901088,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:21:45Z",
+      "headSha": "3e3641db4611c672c15cf819bb293ba60bc48611",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:21:49Z",
+          "completedAt": "2026-08-14T11:23:28Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:21:49Z",
+          "completedAt": "2026-08-14T11:24:35Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:21:49Z",
+          "completedAt": "2026-08-14T11:31:40Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:21:49Z",
+          "completedAt": "2026-08-14T11:23:25Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:31:41Z",
+          "completedAt": "2026-08-14T11:31:40Z"
+        }
+      ]
+    },
+    {
+      "runId": 31795661950,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:18:11Z",
+      "headSha": "182fdd78ed86e318f0c87fbf257c46beecbf8838",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:18:13Z",
+          "completedAt": "2026-08-14T11:19:45Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:18:14Z",
+          "completedAt": "2026-08-14T11:19:56Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:18:13Z",
+          "completedAt": "2026-08-14T11:20:52Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:18:14Z",
+          "completedAt": "2026-08-14T11:28:43Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:28:43Z",
+          "completedAt": "2026-08-14T11:28:43Z"
+        }
+      ]
+    },
+    {
+      "runId": 31795490769,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:15:37Z",
+      "headSha": "1658c1e143a18c46c36fddb8a5c3c05724c98544",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:15:40Z",
+          "completedAt": "2026-08-14T11:24:51Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:15:40Z",
+          "completedAt": "2026-08-14T11:17:13Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:15:40Z",
+          "completedAt": "2026-08-14T11:17:15Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:15:40Z",
+          "completedAt": "2026-08-14T11:18:44Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:24:52Z",
+          "completedAt": "2026-08-14T11:24:51Z"
+        }
+      ]
+    },
+    {
+      "runId": 31795296764,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T11:12:47Z",
+      "headSha": "8b47e2f36486ab14f06816fe8508cb51a5bf7ac5",
+      "jobs": [
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:12:51Z",
+          "completedAt": "2026-08-14T11:14:23Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T11:12:50Z",
+          "completedAt": "2026-08-14T11:14:48Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:12:51Z",
+          "completedAt": "2026-08-14T11:24:17Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:12:51Z",
+          "completedAt": "2026-08-14T11:14:29Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:24:17Z",
+          "completedAt": "2026-08-14T11:24:17Z"
+        }
+      ]
+    },
+    {
+      "runId": 31793701009,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T10:48:47Z",
+      "headSha": "374c4725c95b33583b898c169031c824e248db97",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:08:35Z",
+          "completedAt": "2026-08-14T11:10:34Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T11:08:35Z",
+          "completedAt": "2026-08-14T11:20:06Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:48:51Z",
+          "completedAt": "2026-08-14T10:51:41Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:48:50Z",
+          "completedAt": "2026-08-14T10:50:33Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T11:20:06Z",
+          "completedAt": "2026-08-14T11:20:06Z"
+        }
+      ]
+    },
+    {
+      "runId": 31793503884,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T10:45:45Z",
+      "headSha": "620f78b6ebd96ba0eb5ec48bdbea5a2c2d8b2b9b",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T10:45:48Z",
+          "completedAt": "2026-08-14T10:57:51Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:45:48Z",
+          "completedAt": "2026-08-14T10:47:23Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T10:45:48Z",
+          "completedAt": "2026-08-14T10:47:21Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:45:48Z",
+          "completedAt": "2026-08-14T10:48:27Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T10:57:51Z",
+          "completedAt": "2026-08-14T10:57:51Z"
+        }
+      ]
+    },
+    {
+      "runId": 31793337762,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T10:43:15Z",
+      "headSha": "9aa71d280bc58fe007aa7c4e96f37390bf479509",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T10:43:18Z",
+          "completedAt": "2026-08-14T10:45:06Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T10:43:18Z",
+          "completedAt": "2026-08-14T10:54:58Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:43:18Z",
+          "completedAt": "2026-08-14T10:45:58Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:43:18Z",
+          "completedAt": "2026-08-14T10:44:48Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T10:54:58Z",
+          "completedAt": "2026-08-14T10:54:58Z"
+        }
+      ]
+    },
+    {
+      "runId": 31793095614,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T10:39:40Z",
+      "headSha": "962f3206f8e7abfa93acacac348fb7556ecc868b",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T12:27:40Z",
+          "completedAt": "2026-08-14T13:12:00Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:39:43Z",
+          "completedAt": "2026-08-14T10:41:14Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:39:44Z",
+          "completedAt": "2026-08-14T10:41:32Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:39:43Z",
+          "completedAt": "2026-08-14T10:42:33Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T13:12:00Z",
+          "completedAt": "2026-08-14T13:12:00Z"
+        }
+      ]
+    },
+    {
+      "runId": 31793029978,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T10:38:39Z",
+      "headSha": "0047e9bfdba23b4ad5a50a13ac68b24b57288eee",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:38:42Z",
+          "completedAt": "2026-08-14T10:41:18Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T10:38:42Z",
+          "completedAt": "2026-08-14T10:40:14Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T10:38:42Z",
+          "completedAt": "2026-08-14T10:50:09Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T10:38:43Z",
+          "completedAt": "2026-08-14T10:40:30Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T10:50:09Z",
+          "completedAt": "2026-08-14T10:50:09Z"
+        }
+      ]
+    },
+    {
+      "runId": 31786648720,
+      "conclusion": "failure",
+      "createdAt": "2026-08-14T09:05:51Z",
+      "headSha": "3989ca8932e1f73536c80218ab593b677fa3254a",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T09:05:54Z",
+          "completedAt": "2026-08-14T09:08:34Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T09:05:55Z",
+          "completedAt": "2026-08-14T09:07:26Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T09:05:55Z",
+          "completedAt": "2026-08-14T09:24:02Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "failure",
+          "startedAt": "2026-08-14T09:05:55Z",
+          "completedAt": "2026-08-14T09:07:32Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T09:24:03Z",
+          "completedAt": "2026-08-14T09:24:03Z"
+        }
+      ]
+    },
+    {
+      "runId": 31786554634,
+      "conclusion": "success",
+      "createdAt": "2026-08-14T09:04:33Z",
+      "headSha": "f144fd3304dbc0227c292b48caed0819b99e6ff8",
+      "jobs": [
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T09:04:48Z",
+          "completedAt": "2026-08-14T09:06:31Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T09:04:47Z",
+          "completedAt": "2026-08-14T09:07:31Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T09:04:47Z",
+          "completedAt": "2026-08-14T09:43:15Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T09:04:49Z",
+          "completedAt": "2026-08-14T09:06:37Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T09:43:15Z",
+          "completedAt": "2026-08-14T09:43:15Z"
+        }
+      ]
+    },
+    {
+      "runId": 31782571807,
+      "conclusion": "success",
+      "createdAt": "2026-08-14T08:06:41Z",
+      "headSha": "9eb31527658183b9d4b6096d914c07d65f080956",
+      "jobs": [
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T08:06:56Z",
+          "completedAt": "2026-08-14T08:09:30Z"
+        },
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T08:06:56Z",
+          "completedAt": "2026-08-14T08:43:35Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T08:06:56Z",
+          "completedAt": "2026-08-14T08:08:32Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T08:06:56Z",
+          "completedAt": "2026-08-14T08:08:37Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T08:43:35Z",
+          "completedAt": "2026-08-14T08:43:35Z"
+        }
+      ]
+    },
+    {
+      "runId": 31779787157,
+      "conclusion": "success",
+      "createdAt": "2026-08-14T07:24:09Z",
+      "headSha": "06216743862a4fa11f21b896aa4bd91047eba8af",
+      "jobs": [
+        {
+          "name": "JS SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T07:30:16Z",
+          "completedAt": "2026-08-14T08:07:38Z"
+        },
+        {
+          "name": "Deterministic Benchmark Lab",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T07:24:13Z",
+          "completedAt": "2026-08-14T07:25:38Z"
+        },
+        {
+          "name": "PR Fast (under 2 minutes)",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T07:24:13Z",
+          "completedAt": "2026-08-14T07:26:12Z"
+        },
+        {
+          "name": "MCP SDK",
+          "conclusion": "success",
+          "startedAt": "2026-08-14T07:24:13Z",
+          "completedAt": "2026-08-14T07:27:08Z"
+        },
+        {
+          "name": "Publish sample bundles release",
+          "conclusion": "skipped",
+          "startedAt": "2026-08-14T08:07:38Z",
+          "completedAt": "2026-08-14T08:07:38Z"
+        }
+      ]
+    }
+  ]
+}

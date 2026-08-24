@@ -12,6 +12,7 @@
 import { ArgError, getString, parseArgs } from "./args.js";
 import type { FlagSpec, ParsedArgs } from "./args.js";
 import type { CommandContext, CommandHandler } from "./command.js";
+import { adminCommand } from "./commands/admin.js";
 import { layersCommand, servicesCommand } from "./commands/catalog.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { explainCommand } from "./commands/explain.js";
@@ -27,6 +28,15 @@ export const CLI_VERSION = "0.1.0";
 const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "base-url" },
   { name: "api-key" },
+  { name: "admin-key" },
+  { name: "profile" },
+  { name: "body" },
+  { name: "path", multiple: true },
+  { name: "query", multiple: true },
+  { name: "header", multiple: true },
+  { name: "secret-output" },
+  { name: "directory" },
+  { name: "http-port" },
   { name: "locator" },
   { name: "provider" },
   { name: "user-agent" },
@@ -61,11 +71,14 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "timeout-ms" },
   { name: "count", boolean: true },
   { name: "json", boolean: true },
+  { name: "dry-run", boolean: true },
+  { name: "yes", boolean: true },
   { name: "help", alias: "h", boolean: true },
   { name: "version", alias: "V", boolean: true },
 ];
 
 const COMMANDS: Record<string, CommandHandler> = {
+  admin: adminCommand,
   services: servicesCommand,
   layers: layersCommand,
   query: queryCommand,
@@ -133,9 +146,17 @@ SUPPORT DIAGNOSTICS
   honua doctor --replay <bundle.json> --base-url <server> --output <result.json>
       Emits local schema-validated sanitized evidence. Never uploads. Replay permits only bounded GET/HEAD.
 
+ADMIN CONTROL PLANE
+  honua admin <group> <operationId> [options]  Typed admin operation (connect/import/publish/
+                                               configure/secure/release/operate)
+  honua admin api <operationId> [options]      Complete 396-operation escape hatch
+  honua admin operations [group]               List generated operation inventory
+
 GLOBAL OPTIONS
   --base-url <url>     Server base URL (or env HONUA_BASE_URL)
   --api-key <key>      API key (or env HONUA_API_KEY; anonymous if omitted)
+  --admin-key <key>    Admin key (or env HONUA_ADMIN_KEY; admin commands only)
+  --profile <name>     Named connection profile from the Honua config file
   --json               Machine-readable JSON output
   -h, --help           Show help
   -V, --version        Show version
@@ -190,6 +211,8 @@ export async function run(argv: ReadonlyArray<string>, ctxOverride: Partial<Comm
   const ctx: CommandContext = {
     baseUrl: ctxOverride.baseUrl ?? getString(parsed, "base-url"),
     apiKey: ctxOverride.apiKey ?? getString(parsed, "api-key"),
+    adminKey: ctxOverride.adminKey ?? getString(parsed, "admin-key"),
+    profile: ctxOverride.profile ?? getString(parsed, "profile"),
   };
 
   try {

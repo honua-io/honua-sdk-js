@@ -30,7 +30,7 @@ if (config && (!config.wfsEndpointUrl || !config.wfsTypeName)) {
     const typeName = config.wfsTypeName ?? config.collectionId;
     const wfs = client.wfs(endpointUrl);
 
-    it("returns WFS capabilities for the configured endpoint", async () => {
+    it("returns WFS capabilities for the configured endpoint [cert:wfs/capabilities#positive] [cert:wfs/capabilities#metadata] [cert:wfs/capabilities#media-schema]", async () => {
       await runWithDiagnostics(context, "client.wfs().capabilities", async () => {
         const capabilities = await wfs.capabilities();
         expect(Array.isArray(capabilities.featureTypes)).toBe(true);
@@ -38,7 +38,7 @@ if (config && (!config.wfsEndpointUrl || !config.wfsTypeName)) {
       });
     });
 
-    it("fetches a bounded WFS feature page", async () => {
+    it("fetches a bounded WFS feature page [cert:wfs/get-feature#positive] [cert:wfs/get-feature#media-schema]", async () => {
       await runWithDiagnostics(context, "client.wfs().featureType().getFeature", async () => {
         const result = await wfs.featureType(typeName).getFeature({ count: 1 });
         expect(result.kind).toMatch(/json|raw/);

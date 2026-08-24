@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/zero-to-map-checkpoint.v1.json",
+  "title": "Honua zero-to-map pause/resume checkpoint",
+  "type": "object",
+  "required": ["schemaVersion", "state", "createdAt", "journeyId", "releaseContract", "target", "planSha256", "sourceRevision", "mcpEndpointSha256", "candidateId", "releaseId", "resume", "consoleReceiptRequest", "integrity"],
+  "properties": {
+    "schemaVersion": { "const": "honua.zero-to-map.checkpoint/v1" },
+    "state": { "enum": ["paused", "consumed"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "journeyId": { "type": "string", "minLength": 1 },
+    "releaseContract": { "type": "string", "minLength": 1 },
+    "target": { "enum": ["local-docker", "aws-ecs"] },
+    "planSha256": { "$ref": "#/$defs/sha256" },
+    "sourceRevision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "mcpEndpointSha256": { "$ref": "#/$defs/sha256" },
+    "candidateId": { "type": "string", "minLength": 1 },
+    "releaseId": { "type": "string", "minLength": 1 },
+    "provisionReceiptSha256": { "$ref": "#/$defs/sha256" },
+    "resume": {
+      "type": "object",
+      "required": ["startedAt", "capturedVariables", "completedStages", "resumeAt"],
+      "properties": {
+        "startedAt": { "type": "string", "format": "date-time" },
+        "capturedVariables": { "type": "object" },
+        "completedStages": { "type": "array", "items": { "$ref": "#/$defs/stageReceipt" } },
+        "resumeAt": {
+          "type": "object",
+          "required": ["stageId", "actionId"],
+          "properties": { "stageId": { "const": "console" }, "actionId": { "const": "console-approval" } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "consoleReceiptRequest": {
+      "type": "object",
+      "required": ["schemaVersion", "actionId", "receiptSchema", "matches", "requiredPointers", "equalPointers"],
+      "properties": {
+        "schemaVersion": { "const": "honua.zero-to-map.console-receipt-request/v1" },
+        "actionId": { "const": "console-approval" },
+        "receiptSchema": { "const": "honua.zero-to-map.console-receipt/v1" },
+        "matches": { "type": "object" },
+        "requiredPointers": { "type": "array", "items": { "type": "string", "pattern": "^/" } },
+        "equalPointers": {
+          "type": "array",
+          "items": { "type": "array", "prefixItems": [{ "type": "string", "pattern": "^/" }, { "type": "string", "pattern": "^/" }], "items": false }
+        }
+      },
+      "additionalProperties": false
+    },
+    "consumedAt": { "type": "string", "format": "date-time" },
+    "finalReceiptSha256": { "$ref": "#/$defs/sha256" },
+    "integrity": {
+      "type": "object",
+      "required": ["algorithm", "digest"],
+      "properties": { "algorithm": { "const": "sha256" }, "digest": { "$ref": "#/$defs/sha256" } },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "stageReceipt": {
+      "type": "object",
+      "required": ["number", "id", "title", "status", "actions"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "status": { "const": "passed" },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/actionReceipt" } }
+      },
+      "additionalProperties": false
+    },
+    "actionReceipt": {
+      "type": "object",
+      "required": ["id", "kind", "status", "startedAt", "finishedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["cli", "mcp", "mcp-resource", "gpserver", "receipt", "http"] },
+        "status": { "const": "passed" },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "object" },
+        "captures": { "type": "object" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "consumed" } } },
+      "then": { "required": ["consumedAt", "finalReceiptSha256"] },
+      "else": { "not": { "anyOf": [{ "required": ["consumedAt"] }, { "required": ["finalReceiptSha256"] }] } }
+    },
+    {
+      "if": { "properties": { "target": { "const": "aws-ecs" } } },
+      "then": { "required": ["provisionReceiptSha256"] },
+      "else": { "not": { "required": ["provisionReceiptSha256"] } }
+    }
+  ],
+  "additionalProperties": false
+}

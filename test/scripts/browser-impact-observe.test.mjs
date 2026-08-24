@@ -1,11 +1,20 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
   assignSpecs,
+  assertTrustedPolicyCommit,
+  buildTrust,
   discoverBrowserFixtureRoots,
   discoverLocalModuleDependencies,
   discoverSpecs,
@@ -13,7 +22,11 @@ import {
   loadPolicy,
   parseChangedPaths,
   pathMatches,
+  reconstructEventMerge,
   validatePolicy,
+  validateWorkflow,
+  supersededMarkdown,
+  supersededRecord,
 } from "../../scripts/browser-impact-observe.mjs";
 
 const policy = loadPolicy();
@@ -184,6 +197,50 @@ test("full upstream base fetch preserves the merge base for a fork head", () => 
   }
 });
 
+test("reconstructs the event-time merge after the live base advances", () => {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "honua-browser-event-merge-"));
+  const repository = join(fixtureRoot, "repository");
+  const candidate = join(fixtureRoot, "candidate");
+  mkdirSync(repository);
+  try {
+    git(repository, "init", "--initial-branch=trunk");
+    git(repository, "config", "user.email", "ci@example.invalid");
+    git(repository, "config", "user.name", "CI Fixture");
+    writeFileSync(join(repository, "base.txt"), "initial\n");
+    git(repository, "add", "base.txt");
+    git(repository, "commit", "-m", "initial");
+    git(repository, "switch", "-c", "feature");
+    writeFileSync(join(repository, "feature.txt"), "feature\n");
+    git(repository, "add", "feature.txt");
+    git(repository, "commit", "-m", "feature");
+    const headSha = git(repository, "rev-parse", "HEAD");
+    git(repository, "switch", "trunk");
+    writeFileSync(join(repository, "base.txt"), "event base\n");
+    git(repository, "add", "base.txt");
+    git(repository, "commit", "-m", "event base");
+    const eventBaseSha = git(repository, "rev-parse", "HEAD");
+    writeFileSync(join(repository, "later.txt"), "later trunk\n");
+    git(repository, "add", "later.txt");
+    git(repository, "commit", "-m", "later trunk");
+
+    const snapshot = reconstructEventMerge(eventBaseSha, headSha, candidate, repository);
+    assert.equal(
+      readFileSync(join(candidate, "base.txt"), "utf8").replaceAll("\r\n", "\n"),
+      "event base\n",
+    );
+    assert.equal(
+      readFileSync(join(candidate, "feature.txt"), "utf8").replaceAll("\r\n", "\n"),
+      "feature\n",
+    );
+    assert.equal(existsSync(join(candidate, "later.txt")), false);
+    assert.equal(git(candidate, "rev-parse", "HEAD^{tree}"), snapshot.merge_tree_sha);
+    assert.equal(git(candidate, "show", "-s", "--format=%P", "HEAD"), `${eventBaseSha} ${headSha}`);
+    git(repository, "worktree", "remove", "--force", candidate);
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
 test("rename parsing evaluates both source and destination paths", () => {
   const paths = parseChangedPaths(
     "R100\0examples/maplibre-quickstart/mock-server.mjs\0docs/archive/mock-server.mjs\0M\0README.md\0",
@@ -225,8 +282,254 @@ test("records the source head and merge-tree evaluation snapshot separately", ()
   assert.match(report.mode, /^observe$/u);
 });
 
+test("binds v2 evidence to a fixed ordered trusted-policy manifest", () => {
+  const trust = buildTrust({
+    observerRunId: "789",
+    observerRunAttempt: "1",
+    observerEvent: "workflow_run",
+    observerRef: "refs/heads/trunk",
+    observerRepository: "honua-io/honua-sdk-js",
+    sourceRunId: "123",
+    sourceRunAttempt: "2",
+    sourceRunConclusion: "failure",
+    sourceJobId: "456",
+    sourceJobName: "JS SDK",
+    sourceJobConclusion: "success",
+    sourceCheckRunId: "456",
+    policyCommitSha: "a".repeat(40),
+    observerWorkflowSha256: "d".repeat(64),
+    policyBlobSha256: "e".repeat(64),
+    resolverBlobSha256: "f".repeat(64),
+    selectorBlobSha256: "0".repeat(64),
+  });
+  const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
+  assert.equal(report.schema, "honua.sdk.browser-impact-observation/v2");
+  assert.equal(report.trust.source_run_id, 123);
+  assert.equal(report.trust.source_run_conclusion, "failure");
+  assert.equal(report.trust.source_job_conclusion, "success");
+  assert.equal(report.comparison.promotion_sample_eligible, true);
+  assert.match(report.trust.policy_manifest_sha256, /^[0-9a-f]{64}$/u);
+});
+
+test("excludes policy and source-workflow changes from promotion samples", () => {
+  const trust = buildTrust({
+    observerRunId: "789",
+    observerRunAttempt: "1",
+    observerEvent: "workflow_run",
+    observerRef: "refs/heads/trunk",
+    observerRepository: "honua-io/honua-sdk-js",
+    sourceRunId: "123",
+    sourceRunAttempt: "2",
+    sourceRunConclusion: "success",
+    sourceJobId: "456",
+    sourceJobName: "JS SDK",
+    sourceJobConclusion: "success",
+    sourceCheckRunId: "456",
+    policyCommitSha: "a".repeat(40),
+    observerWorkflowSha256: "b".repeat(64),
+    policyBlobSha256: "c".repeat(64),
+    resolverBlobSha256: "d".repeat(64),
+    selectorBlobSha256: "e".repeat(64),
+  });
+  const report = evaluate(
+    policy,
+    [".github/workflows/ci.yml", "scripts/trusted-pr-workflow-run.cjs"],
+    { trust },
+  );
+  assert.equal(report.comparison.promotion_sample_eligible, false);
+  assert.deepEqual(report.comparison.promotion_exclusion_reasons, [
+    "source-workflow-changed",
+    "trusted-observer-policy-changed",
+  ]);
+});
+
+test("excludes unattributed browser failures from promotion samples", () => {
+  const trust = buildTrust({
+    observerRunId: "789",
+    observerRunAttempt: "1",
+    observerEvent: "workflow_run",
+    observerRef: "refs/heads/trunk",
+    observerRepository: "honua-io/honua-sdk-js",
+    sourceRunId: "123",
+    sourceRunAttempt: "1",
+    sourceRunConclusion: "failure",
+    sourceJobId: "456",
+    sourceJobName: "JS SDK",
+    sourceJobConclusion: "failure",
+    sourceCheckRunId: "456",
+    policyCommitSha: "a".repeat(40),
+    observerWorkflowSha256: "b".repeat(64),
+    policyBlobSha256: "c".repeat(64),
+    resolverBlobSha256: "d".repeat(64),
+    selectorBlobSha256: "e".repeat(64),
+  });
+  const report = evaluate(policy, ["docs/decisions/unrelated.md"], { trust });
+  assert.equal(report.comparison.promotion_sample_eligible, false);
+  assert.deepEqual(report.comparison.promotion_exclusion_reasons, [
+    "browser-authority-failure-unattributed",
+  ]);
+});
+
+test("rejects incomplete or malformed trusted evidence identity", () => {
+  const valid = {
+    observerRunId: "789",
+    observerRunAttempt: "1",
+    observerEvent: "workflow_run",
+    observerRef: "refs/heads/trunk",
+    observerRepository: "honua-io/honua-sdk-js",
+    sourceRunId: "123",
+    sourceRunAttempt: "2",
+    sourceRunConclusion: "success",
+    sourceJobId: "456",
+    sourceJobName: "JS SDK",
+    sourceJobConclusion: "success",
+    sourceCheckRunId: "456",
+    policyCommitSha: "a".repeat(40),
+    observerWorkflowSha256: "b".repeat(64),
+    policyBlobSha256: "c".repeat(64),
+    resolverBlobSha256: "d".repeat(64),
+    selectorBlobSha256: "e".repeat(64),
+  };
+  assert.throws(() => buildTrust({ ...valid, sourceRunAttempt: "0" }), /source run attempt/u);
+  assert.throws(
+    () => buildTrust({ ...valid, policyCommitSha: "short" }),
+    /policy commit SHA/u,
+  );
+  assert.throws(
+    () => buildTrust({ ...valid, selectorBlobSha256: "short" }),
+    /selector_blob_sha256/u,
+  );
+  assert.throws(
+    () => buildTrust({ ...valid, observerRef: "refs/heads/feature" }),
+    /workflow identity/u,
+  );
+  assert.throws(
+    () => buildTrust({ ...valid, observerRepository: "fork/honua-sdk-js" }),
+    /workflow identity/u,
+  );
+});
+
+test("accepts the event policy snapshot when trunk advances", () => {
+  const eventPolicy = "a".repeat(40);
+  const laterTrunk = "b".repeat(40);
+  let observed;
+  assert.doesNotThrow(() =>
+    assertTrustedPolicyCommit(eventPolicy, laterTrunk, (ancestor, descendant) => {
+      observed = { ancestor, descendant };
+      return true;
+    }),
+  );
+  assert.deepEqual(observed, { ancestor: eventPolicy, descendant: laterTrunk });
+  assert.doesNotThrow(() =>
+    assertTrustedPolicyCommit(eventPolicy, eventPolicy, () => {
+      throw new Error("equal commits do not need an ancestry query");
+    }),
+  );
+});
+
+test("rejects an event policy snapshot outside default-branch history", () => {
+  assert.throws(
+    () => assertTrustedPolicyCommit("a".repeat(40), "b".repeat(40), () => false),
+    /not reachable from the fetched default branch/u,
+  );
+  assert.throws(
+    () => assertTrustedPolicyCommit("short", "b".repeat(40), () => true),
+    /commit or fetched default-branch head is invalid/u,
+  );
+});
+
+test("trusted observer workflow rejects permission and identity regressions", () => {
+  const fixtureRoot = mkdtempSync(join(tmpdir(), "honua-browser-impact-workflow-"));
+  const workflowDirectory = join(fixtureRoot, ".github", "workflows");
+  mkdirSync(workflowDirectory, { recursive: true });
+  const source = readFileSync(".github/workflows/browser-impact-observe.yml", "utf8");
+  try {
+    const workflowPath = join(workflowDirectory, "browser-impact-observe.yml");
+    writeFileSync(workflowPath, source);
+    assert.doesNotThrow(() => validateWorkflow(fixtureRoot));
+    for (const mutated of [
+      source.replace("  checks: read", "  checks: write"),
+      source.replace("  pull-requests: read", "  pull-requests: write"),
+      source.replace("  contents: read", "  contents: read\n  issues: read"),
+      source.replace('jobName: "JS SDK"', 'jobName: "MCP SDK"'),
+      source.replace('workflows: ["SDK CI"]', 'workflows: ["Lookalike"]'),
+      source.replace(
+        "github.event.workflow_run.pull_requests[0].base.ref ==",
+        "github.event.workflow_run.pull_requests[0].base.ref !=",
+      ),
+      source.replace(
+        'browser-impact-observe.mjs event-tree',
+        'browser-impact-observe.mjs validate',
+      ),
+      source.replace('--head "$MERGE_SHA"', '--head "$HEAD_SHA"'),
+      // The superseded classification and its evidence record are load-bearing:
+      // without them an unobservable source run is either a red build or a
+      // silent skip, which is the failure mode this observer already caused.
+      source.replace("browser-impact-observe.mjs superseded", "browser-impact-observe.mjs validate"),
+      source.replace("if: steps.resolve.outputs.superseded != 'true'\n        shell: bash", "shell: bash"),
+      source.replace('core.setOutput("superseded", "false");', ""),
+      source.replaceAll("core.warning(", "core.debug("),
+    ]) {
+      writeFileSync(workflowPath, mutated);
+      assert.throws(() => validateWorkflow(fixtureRoot), /browser observer/u);
+    }
+  } finally {
+    rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+});
+
 test("glob matching treats repository prefixes and wildcards deterministically", () => {
   assert.equal(pathMatches("src/offline/indexeddb.ts", "src/offline/**"), true);
   assert.equal(pathMatches("test/offline-region.test.ts", "test/offline-*.test.ts"), true);
   assert.equal(pathMatches("test/realtime.test.ts", "test/offline-*.test.ts"), false);
+});
+
+test("a superseded record can never be read as a successful observation", () => {
+  const record = supersededRecord({
+    reason: "source-run-head-superseded",
+    stage: "resolve",
+    repository: "honua-io/honua-sdk-js",
+    sourceRunId: "32083146632",
+    sourceRunAttempt: "1",
+    sourceRunConclusion: "failure",
+    observerRunId: "32084218948",
+    observerRunAttempt: "1",
+    detail: "pull request 1344 advanced",
+  });
+  assert.equal(record.schema, "honua.sdk.browser-impact-superseded/v1");
+  assert.notEqual(record.schema, "honua.sdk.browser-impact-observation/v2");
+  assert.equal(record.observed, false);
+  assert.equal(record.status, "superseded");
+  assert.equal(record.reason, "source-run-head-superseded");
+  assert.equal(record.source_run_id, 32083146632);
+  assert.equal(record.observer_run_id, 32084218948);
+  // No lane/comparison surface at all, so nothing downstream can mistake an
+  // empty comparison for a comparison that ran and selected nothing.
+  assert.equal(record.candidate, undefined);
+  assert.equal(record.comparison, undefined);
+  const markdown = supersededMarkdown(record);
+  assert.match(markdown, /SUPERSEDED \(not observed\)/u);
+  assert.match(markdown, /source-run-head-superseded/u);
+  assert.match(markdown, /32083146632/u);
+});
+
+test("a superseded record refuses an unrecognised or missing reason", () => {
+  const base = {
+    stage: "resolve",
+    repository: "honua-io/honua-sdk-js",
+    sourceRunId: "1",
+    sourceRunAttempt: "1",
+    sourceRunConclusion: "failure",
+    observerRunId: "2",
+    observerRunAttempt: "1",
+  };
+  for (const reason of [undefined, "", "flake", "unknown"]) {
+    assert.throws(() => supersededRecord({ ...base, reason }), /unknown superseded reason/u);
+  }
+  for (const field of ["sourceRunId", "observerRunId", "sourceRunAttempt"]) {
+    assert.throws(
+      () => supersededRecord({ ...base, reason: "pull-request-head-moved", [field]: "0" }),
+      /run id|run attempt/u,
+    );
+  }
 });

@@ -12,7 +12,7 @@ import { integrationSuite, runWithDiagnostics } from "../harness.js";
 integrationSuite("WMTS", "wmts", ({ client, context, config }) => {
   const wmts = client.wmts(config.serviceId);
 
-  it("reads service capabilities", async () => {
+  it("reads service capabilities [cert:wmts/capabilities#positive] [cert:wmts/capabilities#metadata] [cert:wmts/capabilities#media-schema]", async () => {
     await runWithDiagnostics(context, "client.wmts().capabilities", async () => {
       const capabilities = await wmts.capabilities();
       expect(capabilities.layers.length).toBeGreaterThan(0);
@@ -20,7 +20,7 @@ integrationSuite("WMTS", "wmts", ({ client, context, config }) => {
     });
   });
 
-  it("fetches a tile at zoom 0,0,0 when capabilities advertise a layer", async () => {
+  it("fetches a tile at zoom 0,0,0 when capabilities advertise a layer [cert:wmts/get-tile#positive] [cert:wmts/get-tile#media-schema]", async () => {
     const capabilities = await runWithDiagnostics(context, "client.wmts().capabilities", async () => {
       const r = await wmts.capabilities();
       expect(r.layers.length).toBeGreaterThan(0);
@@ -28,11 +28,11 @@ integrationSuite("WMTS", "wmts", ({ client, context, config }) => {
     });
     const advertisedLayer = capabilities.layers.find((layer) => typeof layer.identifier === "string");
     if (!advertisedLayer?.identifier) {
-      return;
+      throw new Error("WMTS capabilities did not advertise a layer with a usable identifier");
     }
     const advertisedMatrixSet = advertisedLayer.tileMatrixSetIds[0] ?? capabilities.tileMatrixSets[0]?.identifier;
     if (!advertisedMatrixSet) {
-      return;
+      throw new Error("WMTS capabilities did not advertise a usable tile matrix set");
     }
     await runWithDiagnostics(context, "client.wmts().tile", async () => {
       const tile = await wmts.tile({

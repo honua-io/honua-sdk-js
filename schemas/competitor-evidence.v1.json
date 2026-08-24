@@ -68,6 +68,24 @@
         }
       }
     },
+    "supportingSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "sourceType", "supports"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "sourceType": { "const": "primary" },
+        "supports": {
+          "description": "The exact part of the record this additional primary source supports.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["claim", "operations", "comparability", "versionLine", "metric:latestVersion"]
+          }
+        }
+      }
+    },
     "record": {
       "type": "object",
       "additionalProperties": false,
@@ -106,6 +124,12 @@
         "sourceType": {
           "description": "Only 'primary' is admissible for projection. 'secondary' records are retained for provenance but may not be rendered.",
           "enum": ["primary", "secondary"]
+        },
+        "supportingSources": {
+          "description": "Additional primary sources used when one URL cannot support both product behaviour and a registry-derived version or metric.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/supportingSource" }
         },
         "observedAt": { "$ref": "#/$defs/date" },
         "retrievedAt": { "$ref": "#/$defs/date" },

@@ -1359,17 +1359,7 @@ function safeOrigin(value: string | undefined): string | undefined {
  * event handlers, and control characters never reach a DOM interpretation.
  */
 export function sanitizeHonuaInspectionRichText(value: string): string {
-  const plainText = value
-    .replace(/<(script|style|iframe|object|embed)[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p\s*>/gi, "\n")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#(?:39|x27);/gi, "'");
+  const plainText = decodeHonuaInspectionEntities(stripHonuaInspectionMarkup(value));
   return [...plainText]
     .filter((character) => {
       const code = character.charCodeAt(0);
@@ -1379,6 +1369,58 @@ export function sanitizeHonuaInspectionRichText(value: string): string {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+const WITHHELD_INSPECTION_ELEMENTS = new Set(["script", "style", "iframe", "object", "embed"]);
+
+function stripHonuaInspectionMarkup(value: string): string {
+  let result = "";
+  let offset = 0;
+  let withheldElement: string | undefined;
+  while (offset < value.length) {
+    const open = value.indexOf("<", offset);
+    if (open < 0) {
+      if (!withheldElement) result += value.slice(offset);
+      break;
+    }
+    if (!withheldElement) result += value.slice(offset, open);
+    const close = value.indexOf(">", open + 1);
+    if (close < 0) {
+      if (!withheldElement) result += value.slice(open);
+      break;
+    }
+    const tag = value.slice(open + 1, close).trim();
+    const closing = tag.startsWith("/");
+    const name = (closing ? tag.slice(1) : tag).split(/[\s/]/, 1)[0]?.toLocaleLowerCase() ?? "";
+    if (withheldElement) {
+      if (closing && name === withheldElement) withheldElement = undefined;
+    } else if (!closing && WITHHELD_INSPECTION_ELEMENTS.has(name)) {
+      withheldElement = name;
+      result += " ";
+    } else if (name === "br" || (closing && name === "p")) {
+      result += "\n";
+    } else {
+      result += " ";
+    }
+    offset = close + 1;
+  }
+  return result;
+}
+
+function decodeHonuaInspectionEntities(value: string): string {
+  const entities: Readonly<Record<string, string>> = {
+    nbsp: " ",
+    lt: "<",
+    gt: ">",
+    amp: "&",
+    quot: '"',
+    "#39": "'",
+    "#x27": "'",
+  };
+  return value.replace(
+    /&(nbsp|lt|gt|amp|quot|#39|#x27);/gi,
+    (entity, name: string) => entities[name.toLocaleLowerCase()] ?? entity,
+  );
 }
 
 /** Resolve a display link without carrying credentials or unsafe schemes. */
