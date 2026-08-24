@@ -2417,10 +2417,10 @@
       ],
       "environment": "standalone",
       "executionMode": "native",
-      "status": "supported",
+      "status": "experimental",
       "backendNeeded": "Any conformant OGC API Processes Part 1 (Core) server",
       "api": "client.ogcProcesses({ basePath, conformance }).execute()",
-      "notes": "Executes at the discovered service root in both Core response shapes (Prefer: respond-sync with synchronous 200 results, or Prefer: respond-async with 201 + Location), then follows advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Contract and integration proven; the anonymous geometry.buffer live step remains explicitly blocked on honua-server#3268 and honua-demo-infra#68.",
+      "notes": "Executes at the discovered service root in both Core response shapes (no Prefer header for the Requirement 25 synchronous default, or Prefer: respond-async for asynchronous negotiation), then follows advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture and integration-contract proven, but not yet governed-live executed; the anonymous geometry.buffer live step remains explicitly blocked on honua-server#3268 and honua-demo-infra#68.",
       "evidence": [
         "ogc-processes-fixtures",
         "ogc-processes-integration"

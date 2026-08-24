@@ -1230,16 +1230,14 @@ export async function cancelOgcProcessJob(
 }
 
 /**
- * Build the execution preference header. Honua and other Processes servers
- * use the symmetric `respond-sync` token for an explicit synchronous request;
- * `"auto"` omits `Prefer` and accepts either response shape.
+ * Build the execution preference header defined by OGC API Processes 1.0.
+ * Requirement 25 selects synchronous execution by omitting `Prefer`; only an
+ * explicit asynchronous request sends the standard `respond-async` token.
+ * Clients remain prepared for either response shape.
  */
 function preferHeaderForExecute(request: OgcProcessExecuteRequest): { Prefer: string } | undefined {
   if (request.mode === "async") {
     return { Prefer: "respond-async" };
-  }
-  if (request.mode === "sync") {
-    return { Prefer: "respond-sync" };
   }
   return undefined;
 }

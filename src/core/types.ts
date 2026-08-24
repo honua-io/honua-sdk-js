@@ -1611,17 +1611,19 @@ export interface HonuaOgcProcessJobStatus {
  * Process-execution request envelope for `POST /processes/{id}/execution`
  * (OGC API — Processes Part 1: Core §7.11).
  *
- * `mode` selects the RFC 7240 preference the SDK sends:
+ * `mode` selects the OGC API Processes execution negotiation behavior:
  *
  * - `"async"` → `Prefer: respond-async`. A conformant server answers `201` with
  *   a `Location` header and a `statusInfo` body.
- * - `"sync"` → `Prefer: respond-sync`, and the caller asserts the process
- *   declares `sync-execute`. A supporting server answers `200` with the results document.
+ * - `"sync"` → no `Prefer` header (OGC Requirement 25), and the caller asserts
+ *   the process declares `sync-execute`. A supporting server answers `200` with
+ *   the results document.
  * - `"auto"` (default) → no `Prefer` header; whichever shape the server returns
  *   is adapted onto the same `IJobRun` surface.
  *
- * `respond-sync` remains a preference plus a capability assertion, never a guarantee: a server that
- * answers a `"sync"` request with a job still yields a pollable `IJobRun`.
+ * A server that answers a `"sync"` request with a job, or an `"async"` request
+ * synchronously, still yields the corresponding `IJobRun` shape; response
+ * status/body/links remain authoritative over the requested preference.
  */
 export interface OgcProcessExecuteRequest {
   processId: string;

@@ -38,9 +38,10 @@ console.log(description.inputs, description.outputs, description.jobControlOptio
 
 ## Execute GeoJSON synchronously
 
-`mode: "sync"` sends `Prefer: respond-sync` and is refused before the POST
-unless `geometry.buffer` advertises `sync-execute`. A synchronous response is
-adapted to an already-successful `IJobRun` with no job resource or polling.
+`mode: "sync"` omits `Prefer`, as required by OGC API Processes Requirement 25,
+and is refused before the POST unless `geometry.buffer` advertises
+`sync-execute`. A synchronous response is adapted to an already-successful
+`IJobRun` with no job resource or polling.
 
 ```ts doc-test=compile
 import { HonuaClient } from "@honua/sdk-js/honua";

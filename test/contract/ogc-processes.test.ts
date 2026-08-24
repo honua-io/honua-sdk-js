@@ -54,7 +54,7 @@ describe("ogc-processes / discovery", () => {
 });
 
 describe("ogc-processes / IJobRun lifecycle", () => {
-  it("executes a declared synchronous process with Prefer: respond-sync", async () => {
+  it.each(["sync", "auto"] as const)("executes a %s request without a Prefer header", async (mode) => {
     let prefer: string | null = null;
     const client = makeMockClient({
       routes: [
@@ -71,13 +71,46 @@ describe("ogc-processes / IJobRun lifecycle", () => {
     const run = await client.ogcProcesses().execute<Record<string, unknown>>({
       processId: "geometry.buffer",
       inputs: { geometry: { type: "Point", coordinates: [-157.8583, 21.3069] }, distance: 100 },
-      mode: "sync",
+      mode,
       jobControlOptions: ["sync-execute", "async-execute"],
     });
 
-    expect(prefer).toBe("respond-sync");
+    expect(prefer).toBeNull();
     expect(run.status).toBe("successful");
     expect((await run.results()).outputs.result).toMatchObject({ type: "Polygon" });
+  });
+
+  it("sends only respond-async and accepts Preference-Applied with an async response", async () => {
+    let prefer: string | null = null;
+    const client = makeMockClient({
+      routes: [
+        [
+          "/ogc/processes/processes/buffer/execution",
+          (_url, init) => {
+            prefer = new Headers(init?.headers).get("Prefer");
+            return new Response(JSON.stringify({ jobID: "job-preferred", status: "accepted", processID: "buffer" }), {
+              status: 201,
+              headers: {
+                "Content-Type": "application/json",
+                Location: "/ogc/processes/jobs/job-preferred",
+                "Preference-Applied": "respond-async",
+              },
+            });
+          },
+        ],
+      ],
+    });
+
+    const run = await client.ogcProcesses().execute({
+      processId: "buffer",
+      inputs: {},
+      mode: "async",
+      jobControlOptions: ["async-execute"],
+    });
+
+    expect(prefer).toBe("respond-async");
+    expect(run.id).toBe("job-preferred");
+    expect(run.status).toBe("accepted");
   });
 
   it("fails closed before POST when sync-execute is not advertised", async () => {
