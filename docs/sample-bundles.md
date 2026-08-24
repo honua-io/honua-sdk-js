@@ -457,12 +457,18 @@ itself a deterministic derived artifact, so it cannot embed the SHA of the
 commit that generates it -- a template is the only pointer that can be both
 honest and reproducible.
 
-The field is still named `releaseTag` rather than `releaseTagTemplate`, which
-would describe it better. That rename is a `site-projection.v3` schema edit, and
-this repo binds a schema's exact bytes into the committed consumer handoff and
-fails any referenced-schema edit without a version bump, so the rename needs a
-v4 projection bump -- tracked in honua-io/honua-sdk-js#1338. Until then, read
-the value as a template: if it contains `{sourceCommit}`, substitute before use.
+The field is named `releaseTag` **in v3** and `releaseTagTemplate` in v4. The
+rename could not be made in place: this repo binds a schema's exact bytes into
+the committed consumer handoff and fails any referenced-schema edit without a
+version bump, so it was versioned instead (honua-io/honua-sdk-js#1338).
+
+`samples/dist/honua-site-samples.v4.json` is emitted alongside v3 and is
+identical to it apart from that rename -- it is derived from v3 by
+`generateSiteProjectionV4`, so the two cannot drift. v3 stays byte-valid, and
+retires once honua-site cuts over to v4.
+
+Whichever version you read, read the value as a template: if it contains
+`{sourceCommit}`, substitute before use.
 
 `sampleBundles.excluded` and `sampleBundles.published` remain optional in the
 projection schemas for compatibility. Current generation emits a v2

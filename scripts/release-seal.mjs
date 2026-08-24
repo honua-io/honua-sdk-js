@@ -51,6 +51,7 @@ export const RELEASE_TAG_PREFIX = "js-sdk-";
 export const SEALED_VERSION_STAMPS = Object.freeze([
   { path: "samples/dist/honua-site-samples.v2.json", field: "catalog.version" },
   { path: "samples/dist/honua-site-samples.v3.json", field: "catalog.version" },
+  { path: "samples/dist/honua-site-samples.v4.json", field: "catalog.version" },
   { path: "samples/dist/capability-sample-matrix.v1.json", field: "sdk.version" },
   { path: "samples/dist/honua-site-consumer-handoff.v1.json", field: "sdk.version" },
   { path: "samples/dist/honua-site-consumer-handoff.v2.json", field: "sdk.version" },

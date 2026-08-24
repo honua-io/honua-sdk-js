@@ -155,12 +155,17 @@ Two consequences a reader of this page needs:
   remain editable and correcting them needs a repo admin.
 - **Consumers must resolve bundles by source commit.** The only supported
   pointer is the per-commit tag `sample-bundles-<full-source-SHA>` described
-  above. The site projection carries it as a template rather than a fixed tag
-  (`sampleBundles.publication.releaseTag` = `sample-bundles-{sourceCommit}`);
+  above. The site projection carries it as a template rather than a fixed tag;
   substitute the full 40-character SHA of the source commit whose bundles you
-  want. The field keeps the name `releaseTag` because renaming it is a v3 schema
-  edit that the committed handoff's byte-binding forbids without a version bump
-  (honua-io/honua-sdk-js#1338). See
+  want.
+
+  The field name depends on which projection you read. In **v3** it is
+  `sampleBundles.publication.releaseTag`; in **v4** it is
+  `sampleBundles.publication.releaseTagTemplate`, which is what the value has
+  always been. The rename could not be made in place -- the committed handoff
+  byte-binds the v3 schema -- so it was versioned instead
+  (honua-io/honua-sdk-js#1338). v4 is emitted alongside v3 and is identical to
+  it apart from that rename; v3 stays byte-valid until honua-site cuts over. See
   [sample-bundles.md](./sample-bundles.md) for the consumer walkthrough.
 
 The publisher's own policy assertion still holds and is now the stronger
