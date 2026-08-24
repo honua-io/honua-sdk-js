@@ -1,0 +1,72 @@
+name: Kepler audit exception renewal
+
+on:
+  schedule:
+    - cron: "17 16 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: kepler-audit-exception-renewal
+  cancel-in-progress: false
+
+jobs:
+  renew:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20.19.0"
+          cache: npm
+          cache-dependency-path: examples/kepler-analytics/package-lock.json
+
+      - name: Install reviewed Kepler dependency tree
+        run: npm ci --ignore-scripts --prefix examples/kepler-analytics
+
+      - name: Plan and apply a due renewal
+        id: renewal
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/renew-kepler-audit-exception.mjs --apply
+          if git diff --quiet -- examples/kepler-analytics/scripts/audit.mjs; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify renewed policy
+        if: steps.renewal.outputs.changed == 'true'
+        run: node --test examples/kepler-analytics/test/audit.test.mjs test/scripts/kepler-audit-renewal.test.mjs
+
+      - name: Publish renewal pull request
+        if: steps.renewal.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          today="$(date -u +%F)"
+          branch="automation/kepler-audit-renewal-${today}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add examples/kepler-analytics/scripts/audit.mjs
+          git commit -m "chore(kepler): renew reviewed audit exception"
+          gh auth setup-git
+          git push origin "$branch"
+          gh pr create \
+            --base trunk \
+            --head "$branch" \
+            --title "chore(kepler): renew reviewed audit exception" \
+            --body $'Automated pre-expiry review verified the exact npm audit allowlist, confirmed `image-size@2.0.2` remains latest, and confirmed `texture-compressor@1.0.2` still pins `image-size: ^0.7.4`.\n\nReviewer checklist:\n- [ ] Confirm neither advisory has gained a patched release.\n- [ ] Confirm the reviewed dependency edge remains current.\n- [ ] Confirm JXL, HEIF, and ICNS parsing remains unreachable from the Kepler sample.\n\nScheduled renewal automation; no issue disposition required.'
