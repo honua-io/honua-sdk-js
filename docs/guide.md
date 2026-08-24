@@ -558,28 +558,39 @@ for why the tag can never be repaired after the fact.
 ### Re-running trusted CI for an existing Release Please PR
 
 The `release-please-ci` job dispatches canonical CI when Release Please creates
-or refreshes its PR. If the PR already existed before that dispatch (or a
-transient run must be replaced), dispatch `ci.yml` against the canonical release
-branch and bind it to the PR's exact current head:
+or refreshes its PR, and `release-please-disposition` publishes the required
+`JS SDK` and `MCP SDK` checks only after that exact run succeeds. If the PR
+already existed before that path ran (or a transient run must be replaced),
+re-run the trusted Release Please workflow on `trunk`; do not dispatch `ci.yml`
+directly, because that run alone cannot publish the required checks:
 
 ```bash
 release_pr=1234
-release_head=$(gh pr view "$release_pr" --json headRefName,headRefOid \
-  --jq 'select(.headRefName == "release-please--branches--trunk") | .headRefOid')
-test -n "$release_head"
+gh pr view "$release_pr" --json headRefName \
+  --jq 'select(.headRefName == "release-please--branches--trunk") | .headRefName' \
+  | grep -qx release-please--branches--trunk
 
-gh workflow run ci.yml \
-  --ref release-please--branches--trunk \
-  -f release_pull_request_number="$release_pr" \
-  -f release_head_sha="$release_head"
+dispatched_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+gh workflow run release-please.yml --ref trunk
+release_run=""
+for _ in {1..12}; do
+  release_run=$(gh run list --workflow release-please.yml --event workflow_dispatch \
+    --branch trunk --limit 10 --json databaseId,createdAt \
+    --jq "map(select(.createdAt >= \"$dispatched_at\"))[0].databaseId // empty")
+  test -z "$release_run" || break
+  sleep 5
+done
+test -n "$release_run"
+gh run watch "$release_run" --exit-status
 ```
 
-Do not dispatch against `trunk`, a stale SHA, an alternate release branch, or a
-locally rebuilt artifact. The workflow validates the PR number, branch, and
-full lowercase head SHA before granting release-only evidence relaxations. It
-then publishes the canonical `JS SDK` and `MCP SDK` check runs back to that
-exact PR head. Re-read `headRefOid` before merging; if Release Please refreshed
-the branch, discard the stale result and repeat the dispatch for the new head.
+This path runs Release Please first, so it may legitimately refresh the release
+branch. The trusted refresh job then discovers the canonical PR and head,
+dispatches `ci.yml` with both exact identities, waits for that named run, and
+publishes the two checks from the disposition job. Re-read `headRefOid` and the
+check rollup before merging. Never substitute a direct `ci.yml` dispatch, an
+alternate release branch, or locally rebuilt evidence: none can complete the
+trusted check-publication path.
 
 `npm run release:seal:check` is the gate that proves a commit is sealed (every
 gate receipt bound to this tree, derived artifacts stamping this release
