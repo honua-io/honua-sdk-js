@@ -1622,7 +1622,10 @@ function exactObject(value, expected, label) {
 }
 
 function action(value, expected, label) {
-  invariant(value === expected, `${label} action pin drifted`);
+  invariant(
+    value === expected,
+    `${label} action pin drifted; run npm run samples:bundles:attestation:sync-actions and commit the reviewed pin-record diff`,
+  );
   const [repository, commit] = value.split("@");
   invariant(
     ACTION_COMMITS.get(repository) === commit && SHA.test(commit),
@@ -2043,6 +2046,47 @@ export async function validateWorkflowFile(
   });
 }
 
+const ACTION_KEY_BY_REPOSITORY = Object.freeze({
+  "actions/checkout": "checkout",
+  "actions/setup-node": "setupNode",
+  "actions/upload-artifact": "uploadArtifact",
+  "actions/download-artifact": "downloadArtifact",
+  "actions/attest-build-provenance": "attestBuildProvenance",
+});
+
+/** Derive the reviewable pin record from the workflow's already-visible `uses` lines. */
+export function synchronizeActionPins(policySource, workflow) {
+  const observed = new Map();
+  for (const job of Object.values(workflow.jobs ?? {})) {
+    for (const step of job.steps ?? []) {
+      if (typeof step.uses !== "string") continue;
+      const repository = Object.keys(ACTION_KEY_BY_REPOSITORY).find((candidate) =>
+        step.uses.startsWith(`${candidate}@`),
+      );
+      if (!repository) continue;
+      const match = /^([^@]+)@([0-9a-f]{40})$/u.exec(step.uses);
+      invariant(
+        match?.[1] === repository,
+        `${repository} must use exactly ${repository}@<full commit SHA>`,
+      );
+      const commit = match[2];
+      const key = ACTION_KEY_BY_REPOSITORY[repository];
+      invariant(SHA.test(commit), `${repository} must remain pinned to a full commit SHA`);
+      const previous = observed.get(key);
+      invariant(!previous || previous === step.uses, `${repository} uses more than one commit in the workflow`);
+      observed.set(key, step.uses);
+    }
+  }
+  exactKeys(Object.fromEntries(observed), Object.values(ACTION_KEY_BY_REPOSITORY), "workflow action pins");
+  let next = policySource;
+  for (const [key, value] of observed) {
+    const pattern = new RegExp(`(${key}:\\s*(?:\\n\\s*)?)"[^"]+"`, "gu");
+    invariant((next.match(pattern) ?? []).length === 1, `policy source has no unique ${key} action pin`);
+    next = next.replace(pattern, `$1${JSON.stringify(value)}`);
+  }
+  return next;
+}
+
 async function main() {
   const { command, values } = parseArguments(process.argv.slice(2));
   if (command === "policy") {
@@ -2050,6 +2094,19 @@ async function main() {
       resolveActions: values.get("resolve-actions") === "true",
     });
     process.stdout.write("immutable sample bundle workflow policy: PASS\n");
+    return;
+  }
+  if (command === "sync-actions") {
+    const workflowPath = path.resolve(required(values, "workflow"));
+    const policySourcePath = path.resolve(fileURLToPath(import.meta.url));
+    const { parse: parseYaml } = await import("yaml");
+    const workflow = parseYaml(await readFile(workflowPath, "utf8"));
+    const source = await readFile(policySourcePath, "utf8");
+    const synchronized = synchronizeActionPins(source, workflow);
+    if (synchronized !== source) await writeFile(policySourcePath, synchronized);
+    process.stdout.write(
+      synchronized === source ? "immutable sample bundle action pins: already current\n" : "immutable sample bundle action pins: UPDATED; review and commit the diff\n",
+    );
     return;
   }
   if (command === "receipt") {

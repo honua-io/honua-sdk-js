@@ -436,6 +436,7 @@
     "samples:bundles:pack": "node scripts/pack-sample-bundles.mjs",
     "samples:bundles:attestation:receipt": "node scripts/immutable-sample-bundle-attestation.mjs receipt",
     "samples:bundles:attestation:policy": "node scripts/immutable-sample-bundle-attestation.mjs policy",
+    "samples:bundles:attestation:sync-actions": "node scripts/immutable-sample-bundle-attestation.mjs sync-actions --workflow .github/workflows/publish-content-addressed-sample-bundles.yml && npm run samples:bundles:attestation:policy -- --workflow .github/workflows/publish-content-addressed-sample-bundles.yml",
     "samples:bundles:smoke": "node scripts/smoke-sample-bundles.mjs",
     "samples:artifacts": "npm run build:browser --silent && node scripts/sample-contract.mjs artifacts",
     "report:api": "npm run build --silent && node scripts/report-api-surface.mjs",

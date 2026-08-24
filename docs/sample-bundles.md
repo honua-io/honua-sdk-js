@@ -406,6 +406,21 @@ Instead, `.github/workflows/ci.yml`:
     -p 'sample-bundles.v2.json' -p 'sample-bundles.tar.gz'
   ```
 
+  The publication workflow's action SHAs are duplicated in the immutable
+  attestation policy deliberately: a supply-chain pin change must be visible in
+  both the workflow and its reviewed policy record. After Dependabot updates a
+  pinned action, run:
+
+  ```sh
+  npm run samples:bundles:attestation:sync-actions
+  ```
+
+  The command derives only the known action pins from the workflow, rewrites
+  only their policy-record values, and immediately reruns the strict workflow
+  policy. Review and commit the resulting diff alongside the workflow bump.
+  Unknown actions, abbreviated SHAs, conflicting pins, and any other workflow
+  drift still fail closed.
+
   > **The rolling `sample-bundles-latest` release is retired.** Repository
   > immutable releases were enabled org-wide on 2026-08-13 and applied
   > retroactively, permanently freezing that release at its 2026-08-13T10:32Z
