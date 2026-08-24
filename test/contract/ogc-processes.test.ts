@@ -72,6 +72,9 @@ describe("ogc-processes / IJobRun lifecycle", () => {
       processId: "geometry.buffer",
       inputs: { geometry: { type: "Point", coordinates: [-157.8583, 21.3069] }, distance: 100 },
       mode,
+      // Reused header bags cannot override the execution mode. Header names
+      // are deliberately mixed-case to prove case-insensitive removal.
+      headers: { pReFeR: "respond-async" },
       jobControlOptions: ["sync-execute", "async-execute"],
     });
 
@@ -105,6 +108,7 @@ describe("ogc-processes / IJobRun lifecycle", () => {
       processId: "buffer",
       inputs: {},
       mode: "async",
+      headers: { prefer: "wait=30" },
       jobControlOptions: ["async-execute"],
     });
 
