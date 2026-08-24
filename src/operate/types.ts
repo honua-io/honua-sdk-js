@@ -300,14 +300,65 @@ export interface HonuaAlertRuleWriteRequest {
   readonly ifMatch?: string;
 }
 
-/** Result of a dry-run rule evaluation; no alert is persisted. */
+/** Draft alert rule accepted by the server-side validation endpoint. */
+export interface HonuaAlertRuleDraft {
+  readonly channels?:
+    | readonly (
+        | "webhook"
+        | "websocket"
+        | "email"
+        | "digest"
+        | "aws_sns"
+        | "azure_eventgrid"
+        | "slack"
+        | "microsoft_teams"
+        | "aws_sqs"
+        | "azure_eventhub"
+      )[]
+    | null;
+  readonly conditionsJson?: string;
+  readonly cooldownSeconds?: number;
+  readonly editionRequired?: "pro" | "enterprise";
+  readonly isActive?: boolean;
+  readonly layerId: number;
+  readonly ruleName: string;
+  readonly serviceId: string;
+  readonly severity?: "info" | "warning" | "critical";
+  readonly triggerType: "enter" | "exit" | "dwell" | "threshold";
+  readonly zoneId?: number | null;
+}
+
+/** Optional unpersisted zone evaluated alongside a draft geofence rule. */
+export interface HonuaAlertZoneDraft {
+  readonly isActive?: boolean;
+  readonly metadata?: Readonly<Record<string, string | null>> | null;
+  readonly serviceId: string;
+  readonly srid?: number | null;
+  readonly wkt?: string | null;
+  readonly zoneName: string;
+}
+
+/** Payload for `POST /api/v1/admin/alerts/rules/test`. */
+export interface HonuaAlertRuleTestRequest {
+  readonly rule: HonuaAlertRuleDraft;
+  readonly zone?: HonuaAlertZoneDraft | null;
+}
+
+export interface HonuaAlertChannelValidationResult {
+  readonly channel: string;
+  readonly isAllowed: boolean;
+  readonly isConfigured: boolean;
+  readonly message: string;
+  readonly status: "configured" | "unconfigured" | "disabled" | "unauthorized";
+}
+
+/** Result of server-side draft validation; no rule, zone, or alert is persisted. */
 export interface HonuaAlertRuleTestResult {
-  readonly matched: boolean;
+  readonly deliveryChannels: readonly HonuaAlertChannelValidationResult[];
+  readonly errors: readonly string[];
   readonly evaluatedAt: string;
-  readonly observedValue?: number;
-  readonly sampleEventIds?: readonly string[];
-  readonly message?: string;
-  readonly problem?: HonuaProblemDetails;
+  readonly isValid: boolean;
+  readonly warnings: readonly string[];
 }
 
 /** A polygon/circle geofence zone an alert rule of kind `geofence` references. */
