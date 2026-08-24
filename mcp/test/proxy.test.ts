@@ -1,10 +1,12 @@
+import { createServer as createHttpServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { describe, expect, it } from "vitest";
 import { createFixtureClient } from "../src/certification/fixture-client.js";
 import { createServer } from "../src/index.js";
-import { buildUpstreamHeaders, createProxyServer, resolveProxyOptions } from "../src/proxy.js";
+import { buildUpstreamHeaders, connectUpstream, createProxyServer, resolveProxyOptions } from "../src/proxy.js";
 
 /**
  * Parity harness for honua-server #1950: the stdio proxy must expose the SAME
@@ -145,8 +147,10 @@ describe("proxy option resolution (#1950)", () => {
     expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "ftp://x/mcp" })).toThrow(/http or https/);
   });
 
-  it("refuses plaintext non-loopback and ambiguous credential endpoints", () => {
-    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://example.test/mcp" })).toThrow(/requires HTTPS/);
+  it("refuses credentialed plaintext non-loopback and ambiguous credential endpoints", () => {
+    expect(() =>
+      resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://example.test/mcp", HONUA_API_KEY: "key" }),
+    ).toThrow(/requires HTTPS/);
     expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "https://user:pass@example.test/mcp" })).toThrow(
       /must not include/,
     );
@@ -156,27 +160,180 @@ describe("proxy option resolution (#1950)", () => {
     expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://127.0.0.1:8080/mcp" })).not.toThrow();
   });
 
+  it.each(["http://localhost:8080/mcp", "http://127.0.0.1:8080/mcp", "http://[::1]:8080/mcp"])(
+    "allows credentialed HTTP for the exact loopback host %s",
+    (remoteUrl) => {
+      expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: remoteUrl, HONUA_API_KEY: "key" })).not.toThrow();
+    },
+  );
+
+  it.each(["http://localhost.example.test/mcp", "http://127.0.0.2/mcp", "http://0.0.0.0/mcp", "http://[::2]/mcp"])(
+    "rejects credentialed HTTP for the non-loopback host %s",
+    (remoteUrl) => {
+      expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: remoteUrl, HONUA_API_KEY: "key" })).toThrow(
+        /requires HTTPS/,
+      );
+    },
+  );
+
+  it("allows anonymous non-loopback HTTP without weakening URL validation", () => {
+    expect(resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://example.test/mcp" }).remoteUrl).toBe(
+      "http://example.test/mcp",
+    );
+    expect(() => resolveProxyOptions({ HONUA_MCP_REMOTE_URL: "http://example.test/mcp#token" })).toThrow(
+      /must not include/,
+    );
+  });
+
   it("accepts HONUA_MCP_URL as an alias", () => {
     const opts = resolveProxyOptions({ HONUA_MCP_URL: "https://demo.honua.io/mcp" });
     expect(opts.remoteUrl).toBe("https://demo.honua.io/mcp");
   });
 
-  it("builds bearer + api-key headers", () => {
-    const headers = buildUpstreamHeaders({
-      remoteUrl: "https://demo.honua.io/mcp",
-      authToken: "tok",
-      apiKey: "key",
-    });
-    expect(headers).toEqual({ Authorization: "Bearer tok", "x-api-key": "key" });
+  it("rejects bearer + api-key headers at the programmatic boundary", () => {
+    expect(() =>
+      buildUpstreamHeaders({
+        remoteUrl: "https://demo.honua.io/mcp",
+        authToken: "tok",
+        apiKey: "key",
+      }),
+    ).toThrow(/exactly one upstream authentication scheme/);
   });
 
-  it("prefers HONUA_ADMIN_KEY for the admin operation family", () => {
-    const opts = resolveProxyOptions({
-      HONUA_MCP_REMOTE_URL: "https://demo.honua.io/mcp",
-      HONUA_ADMIN_KEY: "admin",
-      HONUA_API_KEY: "general",
+  it("builds exactly one bearer or api-key header", () => {
+    expect(
+      buildUpstreamHeaders({
+        remoteUrl: "https://demo.honua.io/mcp",
+        authToken: "tok",
+      }),
+    ).toEqual({ Authorization: "Bearer tok" });
+    expect(
+      buildUpstreamHeaders({
+        remoteUrl: "https://demo.honua.io/mcp",
+        apiKey: "key",
+      }),
+    ).toEqual({ "x-api-key": "key" });
+  });
+
+  it("applies endpoint safety at the programmatic header boundary", () => {
+    expect(() =>
+      buildUpstreamHeaders({
+        remoteUrl: "http://example.test/mcp",
+        apiKey: "key",
+      }),
+    ).toThrow(/requires HTTPS/);
+  });
+
+  it("rejects conflicting Admin/API key environment sources", () => {
+    expect(() =>
+      resolveProxyOptions({
+        HONUA_MCP_REMOTE_URL: "https://demo.honua.io/mcp",
+        HONUA_ADMIN_KEY: "admin-secret",
+        HONUA_API_KEY: "api-secret",
+      }),
+    ).toThrow(/unset either HONUA_ADMIN_KEY or HONUA_API_KEY/);
+  });
+
+  it("rejects bearer plus API-key environment sources without exposing values", () => {
+    const bearer = "bearer-secret-must-not-leak";
+    const apiKey = "api-secret-must-not-leak";
+    let message = "";
+    try {
+      resolveProxyOptions({
+        HONUA_MCP_REMOTE_URL: "https://demo.honua.io/mcp",
+        HONUA_MCP_AUTH_TOKEN: bearer,
+        HONUA_API_KEY: apiKey,
+      });
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("exactly one upstream authentication scheme");
+    expect(message).not.toContain(bearer);
+    expect(message).not.toContain(apiKey);
+  });
+
+  it("rejects unsafe programmatic URLs without exposing embedded values", () => {
+    const secret = "url-secret-must-not-leak";
+    let message = "";
+    try {
+      buildUpstreamHeaders({
+        remoteUrl: `https://example.test/mcp?token=${secret}`,
+        apiKey: "key",
+      });
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("must not include");
+    expect(message).not.toContain(secret);
+  });
+
+  it("rejects programmatic userinfo and fragment URLs", () => {
+    expect(() =>
+      buildUpstreamHeaders({
+        remoteUrl: "https://user:pass@example.test/mcp",
+        authToken: "tok",
+      }),
+    ).toThrow(/must not include/);
+    expect(() =>
+      buildUpstreamHeaders({
+        remoteUrl: "https://example.test/mcp#credential",
+        authToken: "tok",
+      }),
+    ).toThrow(/must not include/);
+  });
+
+  it("does not forward credentials across redirects", async () => {
+    let redirectedRequests = 0;
+    const destination = createHttpServer((_request, response) => {
+      redirectedRequests += 1;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end("{}");
     });
-    expect(opts.apiKey).toBe("admin");
+    await new Promise<void>((resolve) => destination.listen(0, "127.0.0.1", resolve));
+    const destinationPort = (destination.address() as AddressInfo).port;
+    const redirector = createHttpServer((_request, response) => {
+      response.writeHead(302, { location: `http://127.0.0.1:${destinationPort}/stolen` });
+      response.end();
+    });
+    await new Promise<void>((resolve) => redirector.listen(0, "127.0.0.1", resolve));
+    const redirectorPort = (redirector.address() as AddressInfo).port;
+    const secret = "redirect-secret-must-not-leak";
+    try {
+      let message = "";
+      try {
+        await connectUpstream({
+          remoteUrl: `http://127.0.0.1:${redirectorPort}/mcp`,
+          authToken: secret,
+        });
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).not.toBe("");
+      expect(message).not.toContain(secret);
+      expect(redirectedRequests).toBe(0);
+    } finally {
+      await Promise.all([
+        new Promise<void>((resolve, reject) => redirector.close((error) => (error ? reject(error) : resolve()))),
+        new Promise<void>((resolve, reject) => destination.close((error) => (error ? reject(error) : resolve()))),
+      ]);
+    }
+  });
+
+  it("rejects non-http programmatic URLs", () => {
+    expect(() =>
+      buildUpstreamHeaders({
+        remoteUrl: "ftp://example.test/mcp",
+        authToken: "tok",
+      }),
+    ).toThrow(/must use http or https/);
+  });
+
+  it("normalizes an HTTPS option after validating its single auth source", () => {
+    const options = resolveProxyOptions({
+      HONUA_MCP_REMOTE_URL: "https://demo.honua.io/mcp",
+      HONUA_MCP_AUTH_TOKEN: "tok",
+    });
+    expect(options).toMatchObject({ remoteUrl: "https://demo.honua.io/mcp", authToken: "tok" });
   });
 
   it("omits headers when no credentials are configured", () => {

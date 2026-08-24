@@ -60,4 +60,43 @@ describe("zero-to-map live process boundary", () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  it("rejects ambiguous release-journey authentication before execution without leaking credentials", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "honua-live-auth-"));
+    const bearer = "journey-bearer-must-not-leak";
+    const apiKey = "journey-api-key-must-not-leak";
+    try {
+      let message = "";
+      try {
+        await runZeroToMapCli(
+          [
+            "--execute",
+            "--yes",
+            "--plan",
+            path.resolve("release/zero-to-map/journey.v1.json"),
+            "--mcp-url",
+            "https://example.test/mcp",
+            "--checkpoint",
+            path.join(directory, "checkpoint.json"),
+            "--var",
+            "candidateId=candidate-1",
+            "--var",
+            "releaseId=2026.1",
+          ],
+          {
+            HONUA_SOURCE_REVISION: "a".repeat(40),
+            HONUA_MCP_AUTH_TOKEN: bearer,
+            HONUA_API_KEY: apiKey,
+          },
+        );
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error);
+      }
+      expect(message).toContain("exactly one upstream authentication scheme");
+      expect(message).not.toContain(bearer);
+      expect(message).not.toContain(apiKey);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
