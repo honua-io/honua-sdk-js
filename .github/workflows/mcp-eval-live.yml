@@ -13,8 +13,8 @@ name: MCP Live Cross-Model Eval
 # runs as its own matrix leg so the artifacts compare cleanly.
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
-#   HONUA_MCP_AUTH_TOKEN  — bearer token for the live /mcp (optional; bearer wins)
-#   HONUA_MCP_API_KEY     — x-api-key for the live /mcp (used when no bearer)
+#   HONUA_MCP_AUTH_TOKEN  — bearer token for the live /mcp
+#   HONUA_MCP_API_KEY     — x-api-key for the live /mcp
 #   AWS_ACCESS_KEY_ID     — AWS credentials with Bedrock InvokeModel access
 #   AWS_SECRET_ACCESS_KEY
 #   AWS_SESSION_TOKEN     — optional, for temporary credentials
@@ -26,6 +26,14 @@ on:
         required: true
         default: https://demo.honua.io/mcp
         type: string
+      auth_mode:
+        description: "Authentication scheme for the live /mcp"
+        required: true
+        default: bearer
+        type: choice
+        options:
+          - bearer
+          - api-key
       corpus:
         description: "Corpus to run against the live surface"
         required: true
@@ -120,12 +128,12 @@ jobs:
 
       - name: Run live eval (Bedrock, ${{ matrix.model }})
         env:
-          # Auth-enforced live lane: no dev-auth bypass. Bearer takes precedence;
-          # the run refuses to proceed anonymously when require_auth is true. The
+          # Auth-enforced live lane: no dev-auth bypass. The selected single auth
+          # mode is explicit; the run refuses to proceed anonymously when require_auth is true. The
           # resolved auth mode + suite git SHA are recorded in the results artifact.
           HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url }}
-          HONUA_MCP_AUTH_TOKEN: ${{ secrets.HONUA_MCP_AUTH_TOKEN }}
-          HONUA_API_KEY: ${{ secrets.HONUA_MCP_API_KEY }}
+          HONUA_MCP_AUTH_TOKEN: ${{ inputs.auth_mode == 'bearer' && secrets.HONUA_MCP_AUTH_TOKEN || '' }}
+          HONUA_API_KEY: ${{ inputs.auth_mode == 'api-key' && secrets.HONUA_MCP_API_KEY || '' }}
           HONUA_EVAL_REQUIRE_AUTH: ${{ inputs.require_auth }}
           # Bedrock driver: opt-in flag + model id. Credentials come from the AWS
           # credential chain populated by the secrets below.
