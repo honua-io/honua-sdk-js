@@ -8,6 +8,7 @@ import {
   type HonuaAlert,
   type HonuaAlertActionRequest,
   type HonuaAlertRule,
+  type HonuaAlertRuleTestRequest,
   type HonuaAlertRuleTestResult,
   type HonuaAlertRuleWriteRequest,
   type HonuaGeofenceZone,
@@ -108,6 +109,29 @@ export class HonuaOperateClient {
       if (response.status === 204) return supported(undefined as T);
       const value = (await readJson(response)) as T;
       return supported(value);
+    } catch (error) {
+      return unsupportedFromError(capability, error);
+    }
+  }
+
+  /** @internal Request a server path outside the experimental Operate base. */
+  public async requestServerJson<T>(
+    capability: HonuaOperateCapability,
+    method: QueryMethod,
+    path: string,
+    body?: unknown,
+    options: HonuaOperateRequestOptions & { okStatuses?: readonly number[] } = {},
+  ): Promise<HonuaOperateResult<T>> {
+    try {
+      const response = await this.#client.pipelineFetch(
+        method,
+        path,
+        { headers: jsonHeaders(options.headers), body: body === undefined ? null : JSON.stringify(body) },
+        options.signal,
+        options.okStatuses ? { okStatuses: options.okStatuses } : {},
+      );
+      if (response.status === 204) return supported(undefined as T);
+      return supported((await readJson(response)) as T);
     } catch (error) {
       return unsupportedFromError(capability, error);
     }
@@ -279,17 +303,29 @@ export class HonuaAlertRulesClient {
     });
   }
 
+  /** Evaluate an unpersisted rule (and optional zone) against the server contract. */
+  public test(
+    request: HonuaAlertRuleTestRequest,
+    options?: HonuaOperateRequestOptions,
+  ): Promise<HonuaOperateResult<HonuaAlertRuleTestResult>>;
+  /**
+   * @deprecated The server has no persisted-rule test route. Pass a
+   * {@link HonuaAlertRuleTestRequest} draft instead. See honua-server#3388.
+   */
   public test(
     ruleId: string,
+    options?: HonuaOperateRequestOptions,
+  ): Promise<HonuaOperateResult<HonuaAlertRuleTestResult>>;
+  public test(
+    request: HonuaAlertRuleTestRequest | string,
     options: HonuaOperateRequestOptions = {},
   ): Promise<HonuaOperateResult<HonuaAlertRuleTestResult>> {
-    return this.#operate.requestJson(
-      "alert-rules",
-      "POST",
-      `/alert-rules/${encodeURIComponent(ruleId)}/test`,
-      {},
-      options,
-    );
+    if (typeof request === "string") {
+      throw new TypeError(
+        `alertRules.test(${JSON.stringify(request)}) can no longer target a persisted rule; pass { rule, zone? } to evaluate a draft via POST /api/v1/admin/alerts/rules/test`,
+      );
+    }
+    return this.#operate.requestServerJson("alert-rules", "POST", "/api/v1/admin/alerts/rules/test", request, options);
   }
 }
 

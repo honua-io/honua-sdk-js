@@ -615,6 +615,15 @@
       ]
     },
     {
+      "capability_key": "alerts.evaluation",
+      "surface": "alerts",
+      "operation": "evaluation",
+      "scenario_facets": [
+        "positive",
+        "media-schema"
+      ]
+    },
+    {
       "capability_key": "serve.wmts",
       "surface": "wmts",
       "operation": "capabilities",

@@ -18,13 +18,20 @@ function fixture(name: string): Fixture {
   return JSON.parse(readFileSync(resolve(fixturesDir, name), "utf8"));
 }
 
-function clientForFixture(contract: Fixture, capture?: Array<{ method: string; path: string }>): HonuaOperateClient {
+function clientForFixture(
+  contract: Fixture,
+  capture?: Array<{ method: string; path: string; body?: unknown }>,
+): HonuaOperateClient {
   return createHonuaOperate({
     client: new HonuaClient({
       baseUrl: "https://example.test",
       fetchFn: async (input, init) => {
         const url = new URL(String(input));
-        capture?.push({ method: String(init?.method ?? "GET"), path: `${url.pathname}${url.search}` });
+        capture?.push({
+          method: String(init?.method ?? "GET"),
+          path: `${url.pathname}${url.search}`,
+          ...(typeof init?.body === "string" ? { body: JSON.parse(init.body) } : {}),
+        });
         const body = contract.response.body === undefined ? null : JSON.stringify(contract.response.body);
         return new Response(body, { status: contract.response.status, headers: contract.response.headers });
       },
@@ -41,7 +48,7 @@ describe("operate observability client", () => {
 
   it("reads healthy server telemetry status with validators", async () => {
     const contract = fixture("telemetry-status-healthy.v1.json");
-    const requests: Array<{ method: string; path: string }> = [];
+    const requests: Array<{ method: string; path: string; body?: unknown }> = [];
     const operate = clientForFixture(contract, requests);
 
     const result = await operate.telemetry.status("server-prod");
@@ -68,7 +75,7 @@ describe("operate observability client", () => {
 
   it("queries alerts and exposes state-driven available actions", async () => {
     const contract = fixture("alert-critical-active.v1.json");
-    const requests: Array<{ method: string; path: string }> = [];
+    const requests: Array<{ method: string; path: string; body?: unknown }> = [];
     const operate = clientForFixture(contract, requests);
 
     const result = await operate.alerts.query({ limit: 2, targetId: "server-prod" });
@@ -145,6 +152,42 @@ describe("operate observability client", () => {
     expect(binding?.lastError?.code).toBe("delivery_channel_error");
   });
 
+  it("evaluates an alert-rule draft using the exact admin method, path, and payload", async () => {
+    const draft = {
+      rule: {
+        serviceId: "places",
+        layerId: 7,
+        ruleName: "High temperature",
+        triggerType: "threshold" as const,
+        conditionsJson: JSON.stringify({ field: "temperature", operator: "gt", value: 40 }),
+      },
+    };
+    const requests: Array<{ method: string; path: string; body?: unknown }> = [];
+    const operate = clientForFixture(
+      {
+        request: { method: "POST", path: "/api/v1/admin/alerts/rules/test", body: draft },
+        response: {
+          status: 200,
+          body: { isValid: true, errors: [], warnings: [], deliveryChannels: [], evaluatedAt: "2026-08-24T00:00:00Z" },
+        },
+      },
+      requests,
+    );
+
+    const result = await operate.alertRules.test(draft);
+
+    expect(requests[0]).toEqual({ method: "POST", path: "/api/v1/admin/alerts/rules/test", body: draft });
+    expect(result.supported && result.value.isValid).toBe(true);
+  });
+
+  it("keeps the legacy persisted-rule signature with an explicit migration error", () => {
+    const operate = clientForFixture({ request: { method: "POST", path: "" }, response: { status: 500 } });
+
+    expect(() => operate.alertRules.test("rule-123")).toThrowError(
+      /pass \{ rule, zone\? \}.*POST \/api\/v1\/admin\/alerts\/rules\/test/u,
+    );
+  });
+
   it("reads job detail with stages and state-driven actions", async () => {
     const contract = fixture("job-running.v1.json");
     const operate = clientForFixture(contract);
@@ -172,7 +215,7 @@ describe("operate observability client", () => {
 
   it("lists artifacts for an artifact-producing job", async () => {
     const contract = fixture("job-artifacts.v1.json");
-    const requests: Array<{ method: string; path: string }> = [];
+    const requests: Array<{ method: string; path: string; body?: unknown }> = [];
     const operate = clientForFixture(contract, requests);
 
     const result = await operate.jobs.artifacts("job-export-300");
