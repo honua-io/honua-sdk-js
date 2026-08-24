@@ -56,15 +56,17 @@ import type { SceneCameraState, SceneWorkspaceState } from "./types.js";
 /**
  * Capabilities advertised by the Cesium adapter. Unlike the MapLibre 2.5D
  * adapter, Cesium is a true globe renderer: full 3D camera with
- * heading/pitch/roll/height, terrain across the common elevation protocols, and
- * model layers for 3D Tiles / glTF / I3S / point clouds.
+ * heading/pitch/roll/height, quantized-mesh terrain, and model layers for 3D
+ * Tiles / glTF / I3S / point clouds. Other terrain protocols remain valid
+ * renderer-neutral primitive vocabulary but are not materialized by this
+ * adapter.
  */
 export const CESIUM_SCENE_CAPABILITIES: SceneRuntimeCapabilities = {
   renderer: "cesium",
   camera: true,
   ground: true,
   terrain: {
-    protocols: ["quantized-mesh", "terrain-rgb", "raster-dem", "image-service", "custom"],
+    protocols: ["quantized-mesh"],
     supportsExaggeration: true,
   },
   imagery: {
@@ -810,10 +812,10 @@ function assertRenderableModelLayer(primitive: SceneModelLayerPrimitive): void {
  * provider or vertical exaggeration is touched, mirroring
  * {@link assertRenderableModelLayer}.
  *
- * Every terrain protocol reaches Cesium through `CesiumTerrainProvider.fromUrl`,
- * which rejects opaquely on a missing or malformed endpoint — and an elevation
- * source in an unhonorable CRS or vertical datum would place the whole globe's
- * heights wrong while reporting success. Neither may reach a live scene.
+ * Only quantized mesh reaches Cesium through `CesiumTerrainProvider.fromUrl`.
+ * Other protocols fail against the adapter capability contract here, before
+ * the optional peer is loaded. A malformed endpoint or an elevation source in
+ * an unhonorable CRS/vertical datum likewise must not reach a live scene.
  */
 function assertRenderableTerrain(primitive: SceneElevationSourcePrimitive): void {
   const validation = diagnoseScenePrimitives([primitive], CESIUM_SCENE_CAPABILITIES).find(
@@ -1166,12 +1168,10 @@ function trimTrailingSlashes(value: string): string {
 /**
  * Wire a terrain provider from an elevation-source primitive onto the scene.
  *
- * `quantized-mesh` maps to `CesiumTerrainProvider.fromUrl` natively. `terrain-rgb`
- * / `raster-dem` (Mapbox/Terrarium-encoded raster DEM tiles) are treated the
- * same way: Cesium consumes a quantized-mesh-style endpoint at `url`, so we wire
- * the provider when a `url` is present and otherwise leave the globe on its
- * default ellipsoid (the diagnostic already flags a missing url). Exaggeration
- * is applied via the scene's `verticalExaggeration`.
+ * `quantized-mesh` maps to `CesiumTerrainProvider.fromUrl` natively. Raster DEM,
+ * Terrain-RGB, ImageServer, and custom primitives fail closed in
+ * {@link assertRenderableTerrain}; they are never reinterpreted as quantized
+ * mesh. Exaggeration is applied via the scene's `verticalExaggeration`.
  */
 export async function applyCesiumTerrain(
   scene: CesiumSceneLike,

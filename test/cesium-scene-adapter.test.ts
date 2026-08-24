@@ -263,7 +263,7 @@ describe("cesium scene adapter", () => {
   it("declares true-3D capabilities distinct from the MapLibre 2.5D adapter", () => {
     expect(CESIUM_SCENE_CAPABILITIES.renderer).toBe("cesium");
     expect(CESIUM_SCENE_CAPABILITIES.camera).toBe(true);
-    expect(CESIUM_SCENE_CAPABILITIES.terrain?.protocols).toContain("quantized-mesh");
+    expect(CESIUM_SCENE_CAPABILITIES.terrain?.protocols).toEqual(["quantized-mesh"]);
     expect(CESIUM_SCENE_CAPABILITIES.terrain?.supportsExaggeration).toBe(true);
     expect(CESIUM_SCENE_CAPABILITIES.imagery?.protocols).toEqual([
       "url-template",
@@ -466,6 +466,46 @@ describe("cesium scene adapter", () => {
       expect(scene.terrainProvider).toBeUndefined();
       expect(scene.verticalExaggeration).toBe(1);
     });
+
+    it.each<SceneElevationSourcePrimitive["protocol"]>(["terrain-rgb", "raster-dem", "image-service", "custom"])(
+      "fails closed instead of materializing descriptive %s terrain as quantized mesh",
+      async (protocol) => {
+        const camera = createMockCesiumCamera();
+        const scene = createMockCesiumScene();
+        const primitive: SceneElevationSourcePrimitive = {
+          kind: "elevation-source",
+          id: `${protocol}-terrain`,
+          sourceId: `${protocol}-terrain`,
+          protocol,
+          url: "https://example.test/terrain",
+          exaggeration: 2,
+        };
+
+        const result = await applyCesiumScenePrimitives({ camera, scene }, [primitive]);
+
+        expect(result.status).toBe("unsupported");
+        expect(result.layers.size).toBe(0);
+        expect(result.diagnostics).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              code: "scene-primitive-unsupported",
+              primitiveId: `${protocol}-terrain`,
+              status: "unsupported",
+              renderer: "cesium",
+            }),
+          ]),
+        );
+        expect(scene.terrainProvider).toBeUndefined();
+        expect(scene.verticalExaggeration).toBe(1);
+        expect(terrainFromUrl).not.toHaveBeenCalled();
+
+        const cesium = (await import("cesium")) as never;
+        await expect(applyCesiumTerrain(scene, primitive, cesium)).rejects.toThrow(
+          `Terrain protocol '${protocol}' is not supported by cesium`,
+        );
+        expect(terrainFromUrl).not.toHaveBeenCalled();
+      },
+    );
 
     it("ignores a stale terrain handle's remove() once a newer provider replaced it", async () => {
       const scene = createMockCesiumScene();
