@@ -43,6 +43,22 @@ describe("target mode resolution", () => {
     expect(opts.remoteUrl).toBe("https://demo.honua.io/mcp");
     expect(opts.authToken).toBe("tok");
   });
+
+  it("uses the proxy's fail-closed authentication rules for live certification", () => {
+    expect(() =>
+      resolveRemoteProxyOptions({
+        HONUA_MCP_REMOTE_URL: "https://demo.honua.io/mcp",
+        HONUA_MCP_AUTH_TOKEN: "tok",
+        HONUA_API_KEY: "key",
+      } as NodeJS.ProcessEnv),
+    ).toThrow(/exactly one upstream authentication scheme/);
+    expect(() =>
+      resolveRemoteProxyOptions({
+        HONUA_MCP_REMOTE_URL: "http://example.test/mcp",
+        HONUA_API_KEY: "key",
+      } as NodeJS.ProcessEnv),
+    ).toThrow(/requires HTTPS/);
+  });
 });
 
 describe("offline target end-to-end", () => {

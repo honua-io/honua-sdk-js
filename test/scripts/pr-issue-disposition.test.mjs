@@ -9,12 +9,31 @@ import { fileURLToPath } from "node:url";
 import { loadCurrentPullRequestDisposition } from "../../scripts/lib/github-pr-issue-disposition.mjs";
 import {
   DERIVED_ARTIFACT_EXEMPTION,
+  KEPLER_AUDIT_RENEWAL_EXEMPTION,
   MCP_CERTIFICATION_EXEMPTION,
   PullRequestDispositionError,
   automationExemption,
   parsePullRequestDisposition,
   validatePullRequestDisposition,
 } from "../../scripts/lib/pr-issue-disposition.mjs";
+
+it("exempts only the exact same-repository Kepler renewal automation", () => {
+  const input = {
+    repository,
+    baseRepository: repository,
+    headRepository: repository,
+    baseRefName: "trunk",
+    baseSha: "b".repeat(40),
+    headSha: "a".repeat(40),
+    headRefName: "automation/kepler-audit-renewal-2026-09-01",
+    title: "chore(kepler): renew reviewed audit exception",
+    authorLogin: "github-actions[bot]",
+    authorType: "Bot",
+  };
+  assert.equal(automationExemption(input), KEPLER_AUDIT_RENEWAL_EXEMPTION);
+  assert.equal(automationExemption({ ...input, headRepository: "attacker/fork" }), null);
+  assert.equal(automationExemption({ ...input, title: "chore: arbitrary" }), null);
+});
 import {
   GITHUB_ACTIONS_APP_ID,
   publishReleasePleaseDispositionCheck,

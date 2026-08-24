@@ -19,6 +19,14 @@ on:
         description: Remote /mcp endpoint (overrides the HONUA_MCP_REMOTE_URL secret when set)
         required: false
         type: string
+      auth_mode:
+        description: Authentication scheme for live certification
+        required: true
+        default: bearer
+        type: choice
+        options:
+          - bearer
+          - api-key
 
 # This lane only reads code and publishes an artifact.
 permissions:
@@ -59,8 +67,8 @@ jobs:
         env:
           HONUA_MCP_CERT_TARGET: ${{ inputs.target }}
           HONUA_MCP_REMOTE_URL: ${{ inputs.remote_url || secrets.HONUA_MCP_REMOTE_URL }}
-          HONUA_MCP_AUTH_TOKEN: ${{ secrets.HONUA_MCP_AUTH_TOKEN }}
-          HONUA_API_KEY: ${{ secrets.HONUA_API_KEY }}
+          HONUA_MCP_AUTH_TOKEN: ${{ inputs.auth_mode == 'bearer' && secrets.HONUA_MCP_AUTH_TOKEN || '' }}
+          HONUA_API_KEY: ${{ inputs.auth_mode == 'api-key' && secrets.HONUA_API_KEY || '' }}
         run: node dist/src/certification/cli.js
 
       - name: Admin MCP HTTP/proxy parity (432-tool default-roster release gate)
