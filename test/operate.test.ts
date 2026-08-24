@@ -168,7 +168,16 @@ describe("operate observability client", () => {
         request: { method: "POST", path: "/api/v1/admin/alerts/rules/test", body: draft },
         response: {
           status: 200,
-          body: { isValid: true, errors: [], warnings: [], deliveryChannels: [], evaluatedAt: "2026-08-24T00:00:00Z" },
+          body: {
+            success: true,
+            data: {
+              isValid: true,
+              errors: [],
+              warnings: [],
+              deliveryChannels: [],
+              evaluatedAt: "2026-08-24T00:00:00Z",
+            },
+          },
         },
       },
       requests,
@@ -178,6 +187,14 @@ describe("operate observability client", () => {
 
     expect(requests[0]).toEqual({ method: "POST", path: "/api/v1/admin/alerts/rules/test", body: draft });
     expect(result.supported && result.value.isValid).toBe(true);
+  });
+
+  it("rejects a malformed alert-rule test response envelope", async () => {
+    const operate = clientForFixture({
+      request: { method: "POST", path: "/api/v1/admin/alerts/rules/test" },
+      response: { status: 200, body: { success: true } },
+    });
+    await expect(operate.alertRules.test({ rule: {} as never })).rejects.toThrowError(/missing data/u);
   });
 
   it("keeps the legacy persisted-rule signature with an explicit migration error", () => {

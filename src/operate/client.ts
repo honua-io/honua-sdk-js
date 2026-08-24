@@ -325,7 +325,18 @@ export class HonuaAlertRulesClient {
         `alertRules.test(${JSON.stringify(request)}) can no longer target a persisted rule; pass { rule, zone? } to evaluate a draft via POST /api/v1/admin/alerts/rules/test`,
       );
     }
-    return this.#operate.requestServerJson("alert-rules", "POST", "/api/v1/admin/alerts/rules/test", request, options);
+    return this.#operate
+      .requestServerJson<{ readonly data?: unknown }>(
+        "alert-rules",
+        "POST",
+        "/api/v1/admin/alerts/rules/test",
+        request,
+        options,
+      )
+      .then((response) => {
+        if (!response.supported) return response;
+        return supported(alertRuleTestResult(response.value.data));
+      });
   }
 }
 
@@ -485,6 +496,24 @@ function normalizeBasePath(basePath: string): string {
 
 function supported<T>(value: T): HonuaOperateResult<T> {
   return { supported: true, value };
+}
+
+function alertRuleTestResult(value: unknown): HonuaAlertRuleTestResult {
+  if (!value || typeof value !== "object") throw new TypeError("Alert-rule test response is missing data.");
+  const result = value as Record<string, unknown>;
+  if (
+    typeof result.isValid !== "boolean" ||
+    !Array.isArray(result.errors) ||
+    !result.errors.every((entry) => typeof entry === "string") ||
+    !Array.isArray(result.warnings) ||
+    !result.warnings.every((entry) => typeof entry === "string") ||
+    !Array.isArray(result.deliveryChannels) ||
+    typeof result.evaluatedAt !== "string" ||
+    result.evaluatedAt.length === 0
+  ) {
+    throw new TypeError("Alert-rule test response data does not match the generated server contract.");
+  }
+  return result as unknown as HonuaAlertRuleTestResult;
 }
 
 function unsupportedFromError<T>(capability: HonuaOperateCapability, error: unknown): HonuaOperateResult<T> {

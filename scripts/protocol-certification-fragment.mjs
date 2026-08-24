@@ -13,6 +13,7 @@ export const LICENSED_PROOF_PATH = "test-results/licensed-certification-proof.js
 const LICENSED_CAPABILITY_KEY = "streaming.feature-subscriptions";
 
 const CAPABILITIES = {
+  alerts: "alerts.evaluation",
   featureserver: "serve.geoservices-featureserver",
   geocoding: "serve.geoservices-geocodeserver",
   geometryserver: "serve.geoservices-geometry-service",
@@ -37,6 +38,7 @@ const CAPABILITIES = {
 };
 
 const OPERATIONS = [
+  ["alerts", "evaluation", /alert/i, /evaluat|validat.*draft|draft.*validat/i],
   ["featureserver", "metadata", /feature[-_ ]?(?:server|service)/i, /metadata/i],
   ["featureserver", "query", /feature[-_ ]?(?:server|service)/i, /quer(y|ies).*feature/i],
   ["featureserver", "count", /feature[-_ ]?(?:server|service)/i, /count/i],

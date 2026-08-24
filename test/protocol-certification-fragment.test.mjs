@@ -115,6 +115,7 @@ test("normalizes execution and preserves missing operation gaps", () => {
       assertionResults: [
         { title: "returns metadata [cert:featureserver/metadata#positive] [cert:featureserver/metadata#metadata] [cert:featureserver/metadata#media-schema]", status: "passed" },
         { title: "queries features [cert:featureserver/query#positive] [cert:featureserver/query#pagination] [cert:featureserver/query#media-schema]", status: "failed", failureMessages: ["boom"] },
+        { title: "validates a draft [cert:alerts/evaluation#positive] [cert:alerts/evaluation#media-schema]", status: "passed" },
       ],
     }] }],
   });
@@ -140,6 +141,7 @@ test("normalizes execution and preserves missing operation gaps", () => {
     facet.result === "pass" && facet.evidence_digest === metadata.evidence_digest
   )));
   assert.deepEqual(fragment.observations.find((row) => row.surface === "featureserver" && row.operation === "query").failure_messages, ["boom"]);
+  assert.equal(fragment.observations.find((row) => row.surface === "alerts" && row.operation === "evaluation").result, "pass");
   const missing = fragment.observations.find((row) => row.surface === "wcs" && row.operation === "get-coverage");
   assert.equal(missing.result, "skip");
   assert.equal(missing.evidence_digest, null);
