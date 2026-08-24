@@ -55,7 +55,14 @@ test("derives a visible action-pin record update from the workflow", async () =>
   assert.match(synchronized, new RegExp(`uploadArtifact:\\s*"actions/upload-artifact@${replacement}"`, "u"));
   assert.throws(
     () => synchronizeActionPins(source, { jobs: { bad: { steps: [{ uses: "actions/upload-artifact@v4" }] } } }),
-    /full commit SHA/u,
+    /exactly actions\/upload-artifact@<full commit SHA>/u,
+  );
+  assert.throws(
+    () =>
+      synchronizeActionPins(source, {
+        jobs: { bad: { steps: [{ uses: `actions/upload-artifact@${replacement}@typo` }] } },
+      }),
+    /exactly actions\/upload-artifact@<full commit SHA>/u,
   );
 });
 import {

@@ -2060,10 +2060,18 @@ export function synchronizeActionPins(policySource, workflow) {
   for (const job of Object.values(workflow.jobs ?? {})) {
     for (const step of job.steps ?? []) {
       if (typeof step.uses !== "string") continue;
-      const [repository, commit] = step.uses.split("@");
+      const repository = Object.keys(ACTION_KEY_BY_REPOSITORY).find((candidate) =>
+        step.uses.startsWith(`${candidate}@`),
+      );
+      if (!repository) continue;
+      const match = /^([^@]+)@([0-9a-f]{40})$/u.exec(step.uses);
+      invariant(
+        match?.[1] === repository,
+        `${repository} must use exactly ${repository}@<full commit SHA>`,
+      );
+      const commit = match[2];
       const key = ACTION_KEY_BY_REPOSITORY[repository];
-      if (!key) continue;
-      invariant(SHA.test(commit ?? ""), `${repository} must remain pinned to a full commit SHA`);
+      invariant(SHA.test(commit), `${repository} must remain pinned to a full commit SHA`);
       const previous = observed.get(key);
       invariant(!previous || previous === step.uses, `${repository} uses more than one commit in the workflow`);
       observed.set(key, step.uses);
