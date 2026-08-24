@@ -199,6 +199,8 @@ export function createClientFromEnv(env: NodeJS.ProcessEnv = process.env): Honua
  * mutation, jobs, and publishing — is a superset reached over streamable-HTTP and
  * mirrored to stdio by `honua-mcp-proxy` ({@link runProxy}); it requires a Honua
  * deployment. Standalone is the front door; the proxy is the upgrade path.
+ * Local installation is intentionally absent from this catalog and is exposed
+ * only by {@link createBootstrapServer}.
  */
 export function createServer(client: HonuaClient, options: CreateServerOptions = {}) {
   const server = new McpServer({
@@ -282,8 +284,6 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     async (args) => applyStylePreset.execute(client, applyStylePreset.schema.parse(args)),
   );
 
-  registerLocalInstallTool(server);
-
   // ── Resources ──────────────────────────────────────────────────
 
   server.resource("services-catalog", servicesResource.uri, async (_uri) => servicesResource.read(client));
@@ -331,7 +331,7 @@ function registerLocalInstallTool(server: McpServer): void {
  * Run the platform-free standalone server end-to-end over stdio.
  *
  * Builds a `HonuaClient` from the environment (`HONUA_BASE_URL` + optional
- * transport/auth) and exposes {@link createServer} — the nine read-only tools —
+ * transport/auth) and exposes {@link createServer} — the ten read-only tools —
  * to a stdio MCP client (Claude Desktop / Claude Code / any MCP agent). Point
  * `HONUA_BASE_URL` at any public FeatureServer/OGC endpoint; no Honua server is
  * required. For the Honua-enhanced `/mcp` catalog, use `honua-mcp-proxy` instead.

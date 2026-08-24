@@ -16,7 +16,7 @@
  *
  * External (competitor) figures are NOT inline constants here. They are
  * schema-validated evidence records carrying product/package, version line,
- * primary source URL, observedAt/expiresAt, methodology, per-metric
+ * primary source URLs, observedAt/expiresAt, methodology, per-metric
  * unit + compression, and comparability notes (#499 REQ-005). Generation fails
  * when a record is missing, expired, non-primary, or when the page would
  * combine non-comparable metrics without a caveat (#499 NFR-002), and a
@@ -445,6 +445,9 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
   });
   const openlayers = projectEvidence(evidence, "openlayers-scope", { context: "the OpenLayers column" });
   const maplibreScope = projectEvidence(evidence, "maplibre-gl-scope", { context: "the MapLibre GL JS column" });
+  const mapbox = projectEvidence(evidence, "mapbox-gl-js-scope-2026-08", { context: "the Mapbox GL JS column" });
+  const carto = projectEvidence(evidence, "carto-api-client-scope-2026-08", { context: "the CARTO API client column" });
+  const felt = projectEvidence(evidence, "felt-js-sdk-scope-2026-08", { context: "the Felt JavaScript SDK column" });
   // The release-line statement below IS a claim about the product as it ships
   // today, so it must come from non-historical evidence. The 4.30 build metrics
   // are deliberately NOT passed through this gate — they would be refused.
@@ -505,11 +508,12 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "",
     "# How Honua compares",
     "",
-    "**MapLibre gives you the map. Honua gives you everything else.** `@honua/sdk-js` is a typed,",
-    "protocol-neutral geospatial *service client* and migration toolkit that rides open renderers —",
-    "it is **not** a rendering engine, so this page does not compare rendering. It compares the",
-    "things Honua actually claims: the bytes you ship, the protocols you get a real client for,",
-    "and how fast a new project reaches a working map.",
+    "**MapLibre renders the map. Honua connects, plans, and governs the GIS data around it.**",
+    "`@honua/sdk-js` is a typed, protocol-neutral geospatial *service client* and migration toolkit",
+    "that rides open renderers —",
+    "it is **not** a rendering engine. This page does not rank rendering quality; it compares the",
+    "things Honua actually claims and the direct SDKs developers evaluate beside it: package shape,",
+    "service/data behavior, application workflow, and time to a working map.",
     "",
     "Four ground rules keep this page honest:",
     "",
@@ -517,11 +521,11 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "   `npm run docs:comparison` from committed, regenerable inputs; CI fails when it drifts",
     "   (`npm run docs:comparison:check`). See [Methodology](#methodology-and-freshness).",
     "2. **Every external figure, and every operation-level cell, is a structured evidence record**,",
-    "   not prose — with a primary source URL, the version it describes, an observation date, an",
+    "   not prose — with primary source URLs, the version they describe, an observation date, an",
     "   expiry, its methodology, and its metric's unit and compression. See",
     "   [Evidence contract](#evidence-contract). The protocol-coverage table is the one exception,",
     "   and says so where it appears.",
-    "3. **Categories are never mixed silently.** A renderer, a headless client, and an all-in-one",
+    "3. **Categories are never mixed silently.** A renderer, a headless client, and a vendor-integrated",
     "   SDK are different products; the boundary is named below before anything is compared.",
     "4. **Non-goals are stated.** Esri's 3D/SceneView stack and MapLibre's rendering quality are",
     "   not competitions we enter; see the",
@@ -540,14 +544,17 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     `| ${arcgisCore.product} | \`${arcgisCore.package}\` | ${evidence.categories[arcgisCore.category].label} |`,
     `| ${arcgisRest.product} | \`${arcgisRest.package}\` | ${evidence.categories[arcgisRest.category].label} |`,
     `| ${openlayers.product} | \`${openlayers.package}\` | ${evidence.categories[openlayers.category].label} |`,
+    `| ${mapbox.product} | \`${mapbox.package}\` | ${evidence.categories[mapbox.category].label} |`,
+    `| ${carto.product} | \`${carto.package}\` | ${evidence.categories[carto.category].label} |`,
+    `| ${felt.product} | \`${felt.package}\` | ${evidence.categories[felt.category].label} |`,
     "",
     "What each category means:",
     "",
     ...Object.values(evidence.categories).map((category) => `- **${category.label}.** ${category.definition}`),
     "",
     "The consequence, stated up front: `@honua/sdk-js` ships no renderer, so its byte count is not",
-    "comparable with `@arcgis/core`'s or `ol`'s on its own. Where this page puts them near each",
-    "other it compares *Honua + MapLibre* against the all-in-one SDK, and says so at the point of",
+    "comparable with `@arcgis/core`'s, `mapbox-gl`'s, `@feltmaps/js-sdk`'s, or `ol`'s on its own. Where this page puts them near each",
+    "other it compares *Honua + MapLibre* against a vendor-integrated SDK, and says so at the point of",
     "comparison.",
     "",
     "## Bundle size",
@@ -600,7 +607,7 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     `Provenance — ${formatProvenance(arcgisCore)}`,
     "",
     `**${arcgisRest.product} (\`${arcgisRest.package}\`) — ${arcgisRest.versionLine}.** ${arcgisRest.claim}`,
-    "It is the one alternative here in Honua's own category, so the comparison that matters is",
+    "It is one of the direct headless alternatives here, so the comparison that matters is",
     "protocol and operation coverage (below), not bytes. If all you need is small requests against",
     "ArcGIS-only services, it is a fine, lighter choice.",
     "",
@@ -610,6 +617,21 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     `${openlayers.comparability}`,
     "",
     `Provenance — ${formatProvenance(openlayers)}`,
+    "",
+    `**${mapbox.product} (\`${mapbox.package}\`) — ${mapbox.versionLine}.** ${mapbox.claim}`,
+    `${mapbox.comparability}`,
+    "",
+    `Provenance — ${formatProvenance(mapbox)}`,
+    "",
+    `**${carto.product} (\`${carto.package}\`) — ${carto.versionLine}.** ${carto.claim}`,
+    `${carto.comparability}`,
+    "",
+    `Provenance — ${formatProvenance(carto)}`,
+    "",
+    `**${felt.product} (\`${felt.package}\`) — ${felt.versionLine}.** ${felt.claim}`,
+    `${felt.comparability}`,
+    "",
+    `Provenance — ${formatProvenance(felt)}`,
     "",
     "## Protocol coverage",
     "",
@@ -624,7 +646,7 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "maintained characterisations of each product's documented protocol surface, not evidence",
     "records — treat them as orientation and check the linked products for anything load-bearing.",
     "",
-    "| Protocol lane | Honua SDK | raw `maplibre-gl` | `@esri/arcgis-rest-js` | OpenLayers |",
+    "| Protocol lane | Honua SDK | raw `maplibre-gl` | `@esri/arcgis-rest-request` | OpenLayers |",
     "| --- | --- | --- | --- | --- |",
   );
   for (const lane of lanes) {
@@ -642,31 +664,32 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "generation fails if an anchor disappears, so a claim here cannot outlive its implementation.",
     "",
     "Every competitor cell is **projected from that product's evidence record** — not written",
-    "inline here — so each column is bound to the version, primary source, and expiry shown beneath",
+    "inline here — so each column is bound to the version, primary sources, and expiry shown beneath",
     "the table, and generation fails if a record omits a row that the page renders. Cells stay",
     "deliberately coarse: ✓ first-party, ◐ partial or caller-assembled, — not provided.",
     "",
-    `| Operation | What it means | Honua SDK | \`${maplibreScope.package}\` | \`${arcgisRest.package}\` | \`${openlayers.package}\` |`,
-    "| --- | --- | --- | --- | --- | --- |",
+    `| Operation | What it means | Honua SDK | \`${maplibreScope.package}\` | \`${arcgisRest.package}\` | \`${openlayers.package}\` | \`${mapbox.package}\` | \`${carto.package}\` | \`${felt.package}\` |`,
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   );
   for (const row of operations) {
     push(
       `| ${row.operation} | ${row.detail} | ${row.honua} | ${operationCell(maplibreScope, row.key)} | ` +
-        `${operationCell(arcgisRest, row.key)} | ${operationCell(openlayers, row.key)} |`,
+        `${operationCell(arcgisRest, row.key)} | ${operationCell(openlayers, row.key)} | ${operationCell(mapbox, row.key)} | ` +
+        `${operationCell(carto, row.key)} | ${operationCell(felt, row.key)} |`,
     );
   }
   push(
     "",
     "Competitor columns as observed:",
     "",
-    ...[maplibreScope, arcgisRest, openlayers].map(
+    ...[maplibreScope, arcgisRest, openlayers, mapbox, carto, felt].map(
       (record) =>
         `- \`${record.package}\` ${record.versionLine} — observed ${record.observedAt}, expires ${record.expiresAt}, ` +
         `from <${record.sourceUrl}>`,
     ),
     "",
-    "Read the rendering row as the point of the whole page: Honua deliberately scores `—` there.",
-    "It is a data client. The comparison it invites is on the other seven rows.",
+    "Read the rendering row as an architectural boundary: Honua deliberately scores `—` there.",
+    "Mapbox and Felt own or host a renderer, CARTO delegates to deck.gl, and Honua composes interchangeable renderers.",
     "",
   );
 
@@ -740,17 +763,19 @@ export function renderComparisonPage({ bundle, maplibre, lanes, operations, evid
     "[`docs/data/competitor-evidence.v1.json`](./data/competitor-evidence.v1.json), validated against",
     "[`schemas/competitor-evidence.v1.json`](../schemas/competitor-evidence.v1.json) by",
     "`scripts/lib/competitor-evidence.mjs`. Every record must carry the product and the **exact**",
-    "package it represents, the version or release line, the claim, a primary source URL, `observedAt`,",
+    "package it represents, the version or release line, the claim, its primary source URLs, `observedAt`,",
     "`expiresAt`, its methodology, each metric's unit and compression, and comparability notes.",
     "",
     "Generation — and therefore CI — **fails** when:",
     "",
     "- a projected claim has no evidence record, or the record is missing a required field;",
     "- a **projected** record has expired (`expiresAt` in the past);",
-    "- a record's `sourceUrl` is not under a trusted primary-source origin **for that package**.",
+    "- any record `sourceUrl` or `supportingSources` URL is not under a trusted primary-source origin **for that package**.",
     "  The trusted origins live in code (`TRUSTED_PRIMARY_SOURCE_PREFIXES`), not in the evidence",
     "  file, so a record cannot whitelist its own source and a third-party restatement of a vendor",
     "  number cannot pass as primary evidence. A package with no trusted entry cannot be projected;",
+    "- a registry-derived `latestVersion` metric has no package-registry source;",
+    "- `observedAt` or `retrievedAt` is later than the validation instant;",
     "- the page would **combine or rank metrics whose unit or compression differ** without an",
     "  explicit rendered caveat;",
     "- the page renders an operation row a competitor's record does not state;",

@@ -1,8 +1,19 @@
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { HonuaClient } from "@honua/sdk-js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SERVER_VERSION, createClientFromEnv, createServer, resolveRuntimeOptions } from "../src/index.js";
+import { createFixtureClient } from "../src/certification/fixture-client.js";
+import {
+  SERVER_VERSION,
+  createBootstrapServer,
+  createClientFromEnv,
+  createServer,
+  resolveRuntimeOptions,
+} from "../src/index.js";
 import * as layerSchemaResource from "../src/resources/layer-schema.js";
 import * as servicesResource from "../src/resources/services.js";
 import * as stylesResource from "../src/resources/styles.js";
@@ -61,9 +72,6 @@ describe("MCP server setup", () => {
     const applyStyleSpy = vi
       .spyOn(applyStylePreset, "execute")
       .mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
-    const installSpy = vi
-      .spyOn(adminInstallLocal, "execute")
-      .mockResolvedValue({ content: [{ type: "text", text: "{}" }], structuredContent: { status: "ready" } } as never);
     const servicesReadSpy = vi.spyOn(servicesResource, "read").mockResolvedValue({ contents: [] });
     const layerReadSpy = vi.spyOn(layerSchemaResource, "read").mockResolvedValue({ contents: [] });
     const stylesCatalogSpy = vi.spyOn(stylesResource, "readCatalog").mockResolvedValue({ contents: [] });
@@ -83,22 +91,14 @@ describe("MCP server setup", () => {
       "honua_explain_capability_gap",
       "honua_get_style",
       "honua_apply_style_preset",
-      "honua_admin_install_local",
     ]);
+    expect(toolSpy.mock.calls.some((call) => call[0] === "honua_admin_install_local")).toBe(false);
     expect(resourceSpy.mock.calls.map((call) => call[0])).toEqual([
       "services-catalog",
       "layer-schema",
       "styles-catalog",
       "style",
     ]);
-    const installRegistration = toolSpy.mock.calls.find((call) => call[0] === "honua_admin_install_local");
-    expect(installRegistration?.[3]).toMatchObject({
-      readOnlyHint: false,
-      destructiveHint: true,
-      idempotentHint: true,
-      openWorldHint: true,
-    });
-
     const toolInputs: Record<string, Record<string, unknown>> = {
       honua_list_sources: {},
       honua_list_services: {},
@@ -110,7 +110,6 @@ describe("MCP server setup", () => {
       honua_explain_capability_gap: { protocol: "wmts", capability: "query" },
       honua_get_style: { styleId: "topographic" },
       honua_apply_style_preset: { styleId: "topographic" },
-      honua_admin_install_local: { directory: ".honua", confirm: true },
     };
 
     for (const [name, args] of Object.entries(toolInputs)) {
@@ -137,10 +136,6 @@ describe("MCP server setup", () => {
     expect(explainSpy).toHaveBeenCalledWith(client, { protocol: "wmts", capability: "query" });
     expect(getStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });
     expect(applyStyleSpy).toHaveBeenCalledWith(client, { styleId: "topographic" });
-    expect(installSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ directory: ".honua", profile: "quickstart", confirm: true }),
-    );
-
     const servicesRegistration = resourceSpy.mock.calls.find((call) => call[0] === "services-catalog");
     const servicesHandler = servicesRegistration?.[2] as (uri: URL) => Promise<unknown>;
     await servicesHandler(new URL("honua://services"));
@@ -161,6 +156,115 @@ describe("MCP server setup", () => {
     expect(layerReadSpy).toHaveBeenCalledWith(client, "Parks", "0");
     expect(stylesCatalogSpy).toHaveBeenCalledWith(client);
     expect(styleReadSpy).toHaveBeenCalledWith(client, "topographic");
+  });
+
+  it("isolates local installation in the bootstrap-only catalog and fails closed without confirmation", async () => {
+    const toolSpy = vi.spyOn(McpServer.prototype, "tool");
+    const installSpy = vi
+      .spyOn(adminInstallLocal, "execute")
+      .mockResolvedValue({ content: [{ type: "text", text: "{}" }], structuredContent: { status: "ready" } } as never);
+
+    createBootstrapServer();
+
+    expect(toolSpy.mock.calls.map((call) => call[0])).toEqual(["honua_admin_install_local"]);
+    const installRegistration = toolSpy.mock.calls[0];
+    expect(installRegistration?.[3]).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: true,
+    });
+
+    const handler = installRegistration?.at(-1) as (input: unknown) => Promise<unknown>;
+    await expect(handler({ directory: ".honua" })).rejects.toThrow();
+    expect(installSpy).not.toHaveBeenCalled();
+
+    await handler({ directory: ".honua", confirm: true });
+    expect(installSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ directory: ".honua", profile: "quickstart", confirm: true }),
+    );
+  });
+});
+
+/**
+ * #1412 fail-closed dispatch proof.
+ *
+ * Unregistering `honua_admin_install_local` from {@link createServer} is a
+ * catalog change; it is NOT on its own proof that the ordinary server refuses
+ * to RUN the installer. An agent that already knows the tool name can send a
+ * `tools/call` for it without ever reading the catalog. This exercises exactly
+ * that hostile path over a real MCP transport and asserts the dispatch aborts
+ * in the protocol router -- before argument parsing, and therefore before any
+ * filesystem, Docker, or credential mutation the installer would perform.
+ */
+describe("ordinary MCP server local-install dispatch", () => {
+  it("refuses a direct honua_admin_install_local call before any filesystem, Docker, or credential mutation", async () => {
+    const installSpy = vi.spyOn(adminInstallLocal, "execute");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const scratch = mkdtempSync(path.join(tmpdir(), "honua-mcp-fail-closed-"));
+    // Deliberately NOT created: installHonuaLocal would mkdir it, write
+    // compose.yaml/.env/MCP config into it, and spawn Docker there. Its absence
+    // after the call is the mutation-free assertion.
+    const directory = path.join(scratch, "install-target");
+
+    const server = createServer(createFixtureClient());
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "fail-closed-probe", version: "1.0.0" });
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+
+    try {
+      const catalog = await client.listTools();
+      expect(catalog.tools.map((tool) => tool.name)).not.toContain("honua_admin_install_local");
+
+      // The hostile call: fully-formed, confirm=true, name known out of band.
+      const refusal = (await client.callTool({
+        name: "honua_admin_install_local",
+        arguments: { directory, profile: "quickstart", confirm: true },
+      })) as { isError?: boolean; content: { type: string; text: string }[] };
+
+      // -32602 (invalid params) from the router: the name never resolved to a
+      // handler, so nothing downstream of registration ever ran.
+      expect(refusal.isError).toBe(true);
+      expect(refusal.content[0]?.text).toMatch(/-32602/);
+      expect(refusal.content[0]?.text).toMatch(/honua_admin_install_local not found/);
+
+      expect(installSpy).not.toHaveBeenCalled();
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(existsSync(directory)).toBe(false);
+    } finally {
+      await client.close();
+      await server.close();
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  });
+
+  it("still exposes the installer on the bootstrap server, so the refusal above is scoping and not absence", async () => {
+    const installSpy = vi
+      .spyOn(adminInstallLocal, "execute")
+      .mockResolvedValue({ content: [{ type: "text", text: "{}" }], structuredContent: { status: "ready" } } as never);
+
+    const server = createBootstrapServer();
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "bootstrap-probe", version: "1.0.0" });
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+
+    try {
+      const catalog = await client.listTools();
+      expect(catalog.tools.map((tool) => tool.name)).toEqual(["honua_admin_install_local"]);
+
+      await client.callTool({
+        name: "honua_admin_install_local",
+        arguments: { directory: ".honua", confirm: true },
+      });
+      expect(installSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ directory: ".honua", profile: "quickstart", confirm: true }),
+      );
+    } finally {
+      await client.close();
+      await server.close();
+    }
   });
 });
 

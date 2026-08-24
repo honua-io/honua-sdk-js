@@ -142,4 +142,7 @@ test("buildPage is deterministic and carries the freshness contract", () => {
   const rootGzip = /\| `\.` \(root\) \| [\d.]+ KiB \| [\d.]+ KiB \| ([\d.]+ KiB) \|/.exec(committedBundleDoc);
   assert.ok(rootGzip, "committed bundle-sizes.md must measure the root entrypoint");
   assert.ok(first.includes(rootGzip[1]), "comparison page must carry the generated root gzip figure");
+  assert.match(first, /`mapbox-gl`/);
+  assert.match(first, /`@carto\/api-client`/);
+  assert.match(first, /`@feltmaps\/js-sdk`/);
 });
