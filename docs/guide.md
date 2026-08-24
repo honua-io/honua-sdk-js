@@ -553,6 +553,7 @@ published, because immutable releases protect it. In order:
 - it publishes from that tag, and dispatches the First Map release smoke at it.
 
 See [the decision record](./decisions/release-tag-sealing-under-immutable-releases.md)
+for why the tag can never be repaired after the fact.
 
 ### Re-running trusted CI for an existing Release Please PR
 
@@ -579,7 +580,6 @@ full lowercase head SHA before granting release-only evidence relaxations. It
 then publishes the canonical `JS SDK` and `MCP SDK` check runs back to that
 exact PR head. Re-read `headRefOid` before merging; if Release Please refreshed
 the branch, discard the stale result and repeat the dispatch for the new head.
-for why the tag can never be repaired after the fact.
 
 `npm run release:seal:check` is the gate that proves a commit is sealed (every
 gate receipt bound to this tree, derived artifacts stamping this release
