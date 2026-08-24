@@ -46,23 +46,52 @@ export interface ProxyOptions {
   apiKey?: string | undefined;
 }
 
+function isConfigured(value: string | undefined): value is string {
+  return value !== undefined && value.length > 0;
+}
+
+function validateAuthentication(options: ProxyOptions): "bearer" | "api-key" | "anonymous" {
+  const hasBearer = isConfigured(options.authToken);
+  const hasApiKey = isConfigured(options.apiKey);
+  if (hasBearer && hasApiKey) {
+    throw new Error(
+      "Configure exactly one upstream authentication scheme: unset either authToken/HONUA_MCP_AUTH_TOKEN or apiKey/HONUA_ADMIN_KEY/HONUA_API_KEY",
+    );
+  }
+  return hasBearer ? "bearer" : hasApiKey ? "api-key" : "anonymous";
+}
+
+function validateProxyOptions(options: ProxyOptions): URL {
+  const authMode = validateAuthentication(options);
+  return requireSecureCredentialEndpoint(options.remoteUrl, "remoteUrl", authMode !== "anonymous");
+}
+
 export function resolveProxyOptions(env: NodeJS.ProcessEnv = process.env): ProxyOptions {
   const remoteUrl = env.HONUA_MCP_REMOTE_URL ?? env.HONUA_MCP_URL;
   if (!remoteUrl) {
     throw new Error("HONUA_MCP_REMOTE_URL environment variable is required (the remote honua /mcp endpoint to proxy).");
   }
 
-  const parsed = requireSecureCredentialEndpoint(remoteUrl, "HONUA_MCP_REMOTE_URL");
+  const hasAdminKey = isConfigured(env.HONUA_ADMIN_KEY);
+  const hasApiKey = isConfigured(env.HONUA_API_KEY);
+  if (hasAdminKey && hasApiKey) {
+    throw new Error(
+      "Configure one API-key source: unset either HONUA_ADMIN_KEY or HONUA_API_KEY; credential precedence is not allowed",
+    );
+  }
 
-  return {
-    remoteUrl: parsed.toString(),
+  const options: ProxyOptions = {
+    remoteUrl,
     authToken: env.HONUA_MCP_AUTH_TOKEN,
-    apiKey: env.HONUA_ADMIN_KEY ?? env.HONUA_API_KEY,
+    apiKey: hasAdminKey ? env.HONUA_ADMIN_KEY : hasApiKey ? env.HONUA_API_KEY : undefined,
   };
+  const parsed = validateProxyOptions(options);
+  return { ...options, remoteUrl: parsed.toString() };
 }
 
 /** Build request headers for the upstream connection from the resolved options. */
 export function buildUpstreamHeaders(options: ProxyOptions): Record<string, string> {
+  validateProxyOptions(options);
   const headers: Record<string, string> = {};
   if (options.authToken) {
     headers.Authorization = `Bearer ${options.authToken}`;
@@ -75,8 +104,8 @@ export function buildUpstreamHeaders(options: ProxyOptions): Record<string, stri
 
 /** Connect an upstream MCP client to the remote honua /mcp over streamable HTTP. */
 export async function connectUpstream(options: ProxyOptions): Promise<Client> {
-  const remoteUrl = requireSecureCredentialEndpoint(options.remoteUrl, "remote MCP URL");
   const headers = buildUpstreamHeaders(options);
+  const remoteUrl = validateProxyOptions(options);
   const transport = new StreamableHTTPClientTransport(remoteUrl, {
     requestInit: { ...(Object.keys(headers).length > 0 ? { headers } : {}), redirect: "manual" },
   });
