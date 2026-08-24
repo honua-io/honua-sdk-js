@@ -11,6 +11,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { listAllTools } from "../certification/admin-parity.js";
 import { validateAgainstSchema } from "../certification/json-schema.js";
 import { requireSecureCredentialEndpoint } from "../credential-endpoint.js";
+import { type ProxyOptions, resolveProxyOptions } from "../proxy.js";
 import {
   type ZeroToMapCheckpoint,
   type ZeroToMapCheckpointBindings,
@@ -191,14 +192,15 @@ class LiveAdapter implements JourneyAdapter {
         "mcp-url-missing",
       );
     }
-    const endpoint = new URL(mcpUrl);
+    const proxyOptions = resolveJourneyProxyOptions(mcpUrl, this.env);
+    const endpoint = new URL(proxyOptions.remoteUrl);
     endpoint.pathname = endpoint.pathname.replace(/\/mcp\/?$/, "") || "/";
     endpoint.search = "";
     endpoint.hash = "";
     const client = new HonuaClient({
       baseUrl: endpoint.toString(),
-      apiKey: this.env.HONUA_API_KEY,
-      bearerToken: this.env.HONUA_MCP_AUTH_TOKEN,
+      apiKey: proxyOptions.apiKey,
+      bearerToken: proxyOptions.authToken,
     });
     const runner = client.geoprocessingRunner(action.serviceId, action.taskName);
     const job = await runner.execute<Record<string, unknown>>({
@@ -288,6 +290,7 @@ class LiveAdapter implements JourneyAdapter {
       ...(this.env as Record<string, string>),
       HONUA_MCP_REMOTE_URL: mcpUrl,
     };
+    resolveProxyOptions(childEnv);
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [proxyEntry],
@@ -482,6 +485,7 @@ async function prepareLiveOptions(options: CliOptions, env: NodeJS.ProcessEnv): 
   }
   if (!options.mcpUrl) throw new Error("--mcp-url is required for live execution");
   requireSecureCredentialEndpoint(options.mcpUrl, "--mcp-url");
+  resolveJourneyProxyOptions(options.mcpUrl, env);
   requireBindingVariable(options.variables, "candidateId");
   requireBindingVariable(options.variables, "releaseId");
   if (options.target === "local-docker") {
@@ -501,6 +505,15 @@ async function prepareLiveOptions(options: CliOptions, env: NodeJS.ProcessEnv): 
     provisionBinding,
     provisionReceiptSha256: createHash("sha256").update(provisionBytes).digest("hex"),
   };
+}
+
+function resolveJourneyProxyOptions(mcpUrl: string, env: NodeJS.ProcessEnv): ProxyOptions {
+  return resolveProxyOptions({
+    HONUA_MCP_REMOTE_URL: mcpUrl,
+    HONUA_MCP_AUTH_TOKEN: env.HONUA_MCP_AUTH_TOKEN,
+    HONUA_ADMIN_KEY: env.HONUA_ADMIN_KEY,
+    HONUA_API_KEY: env.HONUA_API_KEY,
+  });
 }
 
 /** Resolve the live mutating CLI without permitting Windows' cwd-first executable search. */

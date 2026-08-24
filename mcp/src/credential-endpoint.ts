@@ -1,5 +1,5 @@
-/** Validate a credential-bearing HTTP endpoint before any transport is created. */
-export function requireSecureCredentialEndpoint(value: string, label: string): URL {
+/** Validate an HTTP endpoint before any transport is created. */
+export function requireSecureCredentialEndpoint(value: string, label: string, credentialed = true): URL {
   let url: URL;
   try {
     url = new URL(value);
@@ -12,7 +12,7 @@ export function requireSecureCredentialEndpoint(value: string, label: string): U
   if (url.username || url.password || url.search || url.hash) {
     throw new Error(`${label} must not include embedded credentials, query parameters, or a fragment`);
   }
-  if (url.protocol === "http:" && !isLoopbackHost(url.hostname)) {
+  if (credentialed && url.protocol === "http:" && !isLoopbackHost(url.hostname)) {
     throw new Error(`${label} requires HTTPS except for exact loopback HTTP development endpoints`);
   }
   return url;
