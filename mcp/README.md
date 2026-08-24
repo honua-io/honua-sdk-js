@@ -403,7 +403,15 @@ Environment variables:
 - `HONUA_MCP_REMOTE_URL` (required; alias `HONUA_MCP_URL`): the remote honua
   `/mcp` endpoint to proxy.
 - `HONUA_MCP_AUTH_TOKEN` (optional): sent as `Authorization: Bearer <token>`.
-- `HONUA_API_KEY` (optional): sent as `x-api-key`.
+- `HONUA_ADMIN_KEY` or `HONUA_API_KEY` (optional): sent as `x-api-key`.
+
+Configure at most one authentication scheme and one API-key source. The proxy
+rejects bearer plus API-key authentication and rejects simultaneous
+`HONUA_ADMIN_KEY` / `HONUA_API_KEY` values instead of choosing by precedence.
+Credentialed endpoints require HTTPS except for exact `localhost`, `127.0.0.1`,
+or `[::1]` HTTP development endpoints. Userinfo, query parameters, fragments,
+non-HTTP(S) URLs are rejected before connect, and redirect targets are never
+followed or sent credentials.
 
 A parity test (`test/proxy.test.ts`) asserts the tool/resource/template catalog
 the downstream client sees is byte-identical to the upstream surface, that
@@ -511,6 +519,9 @@ Shared env for every live run:
 - `HONUA_MCP_AUTH_TOKEN`: sent as `Authorization: Bearer <token>` (preferred; ⇒ auth mode `bearer`).
 - `HONUA_API_KEY`: sent as `x-api-key` (⇒ auth mode `api-key`) when the deployment uses key auth instead.
 - `HONUA_EVAL_REQUIRE_AUTH=1` (recommended): fail fast if neither credential is present.
+
+Set exactly one of `HONUA_MCP_AUTH_TOKEN` or `HONUA_API_KEY` for authenticated
+live runs; ambiguous authentication fails closed.
 
 ```bash
 # Anthropic Claude (default claude-opus-4-8; override with HONUA_EVAL_ANTHROPIC_MODEL):
