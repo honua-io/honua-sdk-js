@@ -749,15 +749,13 @@ if (
   diagnoseScenePrimitives(
     [
       {
-        kind: "elevation-source",
-        id: "terrain",
-        sourceId: "terrain",
-        protocol: "raster-dem",
-        url: "https://example.test/terrain",
-        encoding: "mapbox",
+        kind: "model-layer",
+        id: "model",
+        uri: "https://example.test/tileset.json",
+        format: "3d-tiles",
         sourceVersion: "dem-2026.2",
         cache: { status: "stale" },
-        precision: { verticalMeters: 0.01 },
+        precision: { horizontalMeters: 0.05, coordinateFrame: "geocentric", coordinateStorage: "float32" },
       },
     ],
     CESIUM_SCENE_CAPABILITIES,
@@ -769,7 +767,7 @@ if (
   throw new Error("Scene precision and asset-metadata diagnostics missing from @honua/app-platform/scene-workspace");
 if (
   diagnoseScenePrimitives(
-    [{ kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "custom" }],
+    [{ kind: "elevation-source", id: "terrain", sourceId: "terrain", protocol: "quantized-mesh" }],
     CESIUM_SCENE_CAPABILITIES,
   ).some((diagnostic) => diagnostic.code !== "scene-primitive-terrain-source-missing-url")
 )
