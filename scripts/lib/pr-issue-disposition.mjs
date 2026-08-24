@@ -11,9 +11,11 @@ const MAX_EXPLANATION_LENGTH = 160;
 const SHA_PATTERN = /^[0-9a-f]{40}$/u;
 const DERIVED_ARTIFACT_BRANCH_PATTERN = /^automation\/derived-artifacts-[1-9][0-9]*-[1-9][0-9]*$/u;
 const MCP_CERTIFICATION_BRANCH_PATTERN = /^automation\/mcp-certification-[1-9][0-9]*-[1-9][0-9]*$/u;
+const KEPLER_AUDIT_RENEWAL_BRANCH_PATTERN = /^automation\/kepler-audit-renewal-\d{4}-\d{2}-\d{2}$/u;
 
 export const DERIVED_ARTIFACT_EXEMPTION = "Derived-artifact regeneration";
 export const MCP_CERTIFICATION_EXEMPTION = "MCP scheduled certification publication";
+export const KEPLER_AUDIT_RENEWAL_EXEMPTION = "Scheduled Kepler audit exception review";
 
 export class PullRequestDispositionError extends Error {
   constructor(code, message) {
@@ -97,6 +99,18 @@ export function automationExemption(input) {
     pullRequestTitle === "chore(mcp): publish scheduled live-certification report"
   ) {
     return MCP_CERTIFICATION_EXEMPTION;
+  }
+  if (
+    botActor &&
+    (login === "github-actions" || login === "github-actions[bot]" || login === "app/github-actions") &&
+    sameRepositoryAutomation &&
+    String(input.baseRefName ?? "") === "trunk" &&
+    KEPLER_AUDIT_RENEWAL_BRANCH_PATTERN.test(head) &&
+    SHA_PATTERN.test(String(input.baseSha ?? "")) &&
+    SHA_PATTERN.test(String(input.headSha ?? "")) &&
+    pullRequestTitle === "chore(kepler): renew reviewed audit exception"
+  ) {
+    return KEPLER_AUDIT_RENEWAL_EXEMPTION;
   }
   return null;
 }
