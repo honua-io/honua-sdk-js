@@ -7,7 +7,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export function classifyLane(lane, run, now = new Date()) {
   if (!run) return { status: "never-run", ageDays: null };
   const ageDays = (now.getTime() - Date.parse(run.created_at)) / DAY_MS;
-  if (!lane.eligibleEvents?.includes(run.event) || (lane.branch && run.head_branch !== lane.branch)) {
+  if (!isEligibleRun(lane, run)) {
     return { status: "ineligible-run", ageDays };
   }
   if (run.status !== "completed") return { status: "running", ageDays };
@@ -15,6 +15,12 @@ export function classifyLane(lane, run, now = new Date()) {
   if (ageDays > lane.maxAgeDays) return { status: "stale", ageDays };
   if (ageDays > lane.maxAgeDays - (lane.alertBeforeDays ?? 2)) return { status: "expiring", ageDays };
   return { status: "healthy", ageDays };
+}
+
+function isEligibleRun(lane, run) {
+  if (!lane.eligibleEvents?.includes(run.event) || (lane.branch && run.head_branch !== lane.branch)) return false;
+  if (run.event !== "workflow_dispatch" || lane.allowAnyWorkflowDispatch === true) return true;
+  return lane.eligibleWorkflowDispatchRunIds?.includes(run.id) === true;
 }
 
 export async function buildScheduledLiveHealth(config, options = {}) {
@@ -76,7 +82,7 @@ function githubRunFetcher(repository, token) {
       throw new Error(`Lane ${lane.id} has no eligibleEvents contract`);
     }
     const runs = await Promise.all(lane.eligibleEvents.map(async (event) => {
-      const query = new URLSearchParams({ per_page: "1", event });
+      const query = new URLSearchParams({ per_page: event === "workflow_dispatch" ? "100" : "1", event });
       if (lane.branch) query.set("branch", lane.branch);
       const response = await fetch(
         `https://api.github.com/repos/${repository}/actions/workflows/${encodeURIComponent(lane.workflow)}/runs?${query}`,
@@ -84,7 +90,7 @@ function githubRunFetcher(repository, token) {
       );
       if (!response.ok) throw new Error(`GitHub runs query failed for ${lane.workflow} (${event}): HTTP ${response.status}`);
       const payload = await response.json();
-      return payload.workflow_runs?.[0] ?? null;
+      return payload.workflow_runs?.find((run) => isEligibleRun(lane, run)) ?? null;
     }));
     return runs.filter(Boolean).sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))[0] ?? null;
   };

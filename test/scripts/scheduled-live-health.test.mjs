@@ -37,6 +37,9 @@ test("only unhealthy required lanes fail the named aggregate", async () => {
 test("manual and off-branch successes cannot replace the canonical lane contract", () => {
   assert.equal(classifyLane(lane, run({ event: "workflow_dispatch" }), now).status, "ineligible-run");
   assert.equal(classifyLane(lane, run({ head_branch: "experiment" }), now).status, "ineligible-run");
+  const reviewedDispatch = { ...lane, eligibleEvents: ["schedule", "workflow_dispatch"], eligibleWorkflowDispatchRunIds: [1] };
+  assert.equal(classifyLane(reviewedDispatch, run({ event: "workflow_dispatch" }), now).status, "healthy");
+  assert.equal(classifyLane(reviewedDispatch, run({ id: 2, event: "workflow_dispatch" }), now).status, "ineligible-run");
 });
 
 test("query failures are isolated per lane and only required lanes fail the aggregate", async () => {
