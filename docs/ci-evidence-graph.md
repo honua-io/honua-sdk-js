@@ -96,6 +96,13 @@ dependencies rather than sharing a node_modules artifact. Reusing the *build*
 was the scope here; reusing the *install* is a separate mechanism with its own
 integrity questions.
 
+That gap has since been measured and deliberately left open. Install costs
+**about 8 seconds** per job that runs one, not the 1.6 minutes #1336 assumed -- `actions/setup-node`'s npm
+cache already removed the cost -- so making install *free* would recover 1.8% of
+billed minutes, and a shared tree is not free. The reasoning and figures are in
+[`docs/decisions/node-modules-install-reuse.md`](./decisions/node-modules-install-reuse.md).
+The billed time worth attacking is `verify-core`, not the installs.
+
 ### Prerequisites the monolith supplied by accident
 
 Three cross-job prerequisites were invisible until the jobs were split, and each
