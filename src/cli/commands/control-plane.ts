@@ -22,7 +22,7 @@
  */
 
 import fs from "node:fs";
-import type { ConnectionTestInput, HonuaCommandInvocation, ImportCreateInput } from "../../control-plane/index.js";
+import type { ConnectionTestInput, HonuaCommandInvocation, HonuaCommandStatus, ImportCreateInput } from "../../control-plane/index.js";
 import { connectionTestCommand, importCreateCommand } from "../../control-plane/index.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getString } from "../args.js";
@@ -106,9 +106,33 @@ export async function connectionCommand(parsed: ParsedArgs, ctx: CommandContext)
     detail: (receipt) => ({
       connection: receipt.resourceRef?.id ?? "(unknown)",
       workspace: receipt.resourceRef?.workspaceId ?? "(default)",
-      reachable: receipt.status === "denied" ? "no" : "yes",
+      // A dry run deliberately skips the probe, so it has established nothing
+      // about reachability. Folding it in with the non-denied statuses printed
+      // "reachable: yes" for a connection the terminal never contacted, which
+      // is the one claim a preview must not make.
+      reachable: reachabilityLabel(receipt.status),
     }),
   });
+}
+
+/**
+ * Reachability as the receipt actually establishes it.
+ *
+ * `dry-run` means the probe never ran; `cancelled` and `error` mean it did not
+ * complete. None of those license a "yes", and none of them are a "no" either
+ * -- the connection may be perfectly reachable and simply untested.
+ */
+function reachabilityLabel(status: HonuaCommandStatus): string {
+  switch (status) {
+    case "ok":
+      return "yes";
+    case "denied":
+      return "no";
+    case "dry-run":
+      return "not probed";
+    default:
+      return "unknown";
+  }
 }
 
 export async function importCommand(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {

@@ -577,6 +577,35 @@ describe("the terminal release journey runs on the shared command layer", () => 
   // hatch over the pinned Admin OpenAPI contract, which wants a separate root
   // administrator credential, takes a hand-rolled `--body`, and emits no
   // receipt. Nothing in the journey is a surface-specific shortcut any more.
+  // A dry run skips the server probe by construction, so it has established
+  // nothing about reachability. Printing "reachable: yes" for a connection the
+  // terminal never contacted is the one claim a preview must not make -- and
+  // it is the claim an operator is most likely to act on.
+  it("does not report a dry-run connection probe as reachable", async () => {
+    const side = recorder(() => ({ body: { id: "conn-1", reachable: true } }));
+    vi.stubGlobal("fetch", side.fetchFn);
+    const output = capture();
+    const exitCode = await run([
+      "connection",
+      "test",
+      "conn-1",
+      "--actor",
+      "user-1",
+      "--tenant",
+      "acme",
+      "--dry-run",
+      "--base-url",
+      "https://example.test",
+    ]);
+    vi.restoreAllMocks();
+
+    expect(exitCode).toBe(0);
+    const text = output.join("");
+    expect(side.requests, "a dry run must not probe the server").toHaveLength(0);
+    expect(text).toContain("not probed");
+    expect(text).not.toMatch(/reachable:\s*yes/i);
+  });
+
   it("produces the same receipt from a CLI-shaped `honua import create` and a direct JS call", async () => {
     const job = { id: "job-7", status: "queued", links: { self: "/api/v1/admin/imports/job-7" } };
 
