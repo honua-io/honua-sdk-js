@@ -356,7 +356,12 @@ function checkPackageVersions(body, relFile, livePins) {
  */
 async function checkRegistryAvailability(livePins) {
   for (const { name, version } of livePins.values()) {
-    const url = `https://registry.npmjs.org/${name.replace("/", "%2f")}/${version}`;
+    // encodeURIComponent, not a single `replace("/", ...)`: a lone replace
+    // rewrites only the FIRST slash, so a crafted package name read out of a
+    // skill file could keep a second one and steer the request to another
+    // registry path. Encoding the whole segment closes that off, and is also
+    // the conventional npm spelling for a scoped name.
+    const url = `https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version)}`;
     let response;
     try {
       response = await fetch(url, { headers: { accept: "application/json" } });
