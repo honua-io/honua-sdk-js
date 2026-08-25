@@ -19,7 +19,10 @@
  *     the model stops asking. It never throws mid-stream. The composition tool
  *     set comes from paging the server's `tools/list` and filtering it through
  *     a {@link StudioToolPolicy} — see {@link StudioToolCatalog} for why a
- *     `honua_studio_` name prefix is never a routing credential.
+ *     `honua_studio_` name prefix is never a routing credential. Opt in to
+ *     `watchToolListChanged` and the session also subscribes to the server's
+ *     standalone `GET /mcp` notification stream ({@link McpNotificationStream})
+ *     and re-discovers on `notifications/tools/list_changed`.
  *
  * ```ts
  * import { createHonuaAiMapKit } from "@honua/sdk-js/agent-tools";
@@ -78,6 +81,14 @@ export type { FetchStudioAiCapabilitiesOptions, SseChatTransportOptions } from "
 
 export { MCP_DEFAULT_MAX_TOOL_LIST_PAGES, McpClient } from "./mcp-client.js";
 export type { McpClientOptions, McpListAllToolsOptions, McpToolListing } from "./mcp-client.js";
+
+export { MCP_TOOL_LIST_CHANGED_NOTIFICATION, McpNotificationStream } from "./mcp-notifications.js";
+export type {
+  McpNotification,
+  McpNotificationStreamOptions,
+  McpNotificationStreamStatus,
+  McpNotificationWatchOptions,
+} from "./mcp-notifications.js";
 
 export {
   HONUA_STUDIO_TOOL_FAMILY,

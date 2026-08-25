@@ -422,6 +422,13 @@ jobs:
           npm run verify:release-artifacts
           node --test test/scripts/verify-published-release.test.mjs
 
+      # 2026.1 certification denominator freeze (#39, AC1). Like the release
+      # artifact gate above it reads config/ and mcp/ rather than dist/, so it
+      # neither consumes nor invalidates the prepared build the surrounding
+      # gates share.
+      - name: Validate certification denominator freeze
+        run: npm run verify:certification-denominator
+
       - name: Code style
         run: npm run check
 
