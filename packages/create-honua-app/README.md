@@ -33,7 +33,7 @@ npm create honua-app@latest my-map -- --template react-ts
 | Template | What it shows |
 | --- | --- |
 | `vanilla-ts` | `connect → inspect → explain → query → mount`: the SDK owns the MapLibre map and mounts an accepted query plan. |
-| `react-ts` | The app owns a plain `maplibre-gl` map; `useMountedSource` from `@honua/sdk-js/react` mounts the discovered source onto it. |
+| `react-ts` | The app owns a plain `maplibre-gl` map; the same kernel connection inspects, explains, queries, and mounts onto it. |
 
 Both starters ship a committed GeoServices fixture served by the Vite dev and preview servers, so the green path
 never depends on a third-party endpoint, an account, or an API key. Set `VITE_HONUA_ENDPOINT` to run the same code

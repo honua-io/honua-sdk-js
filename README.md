@@ -26,35 +26,33 @@ widget mapped to its Honua/MapLibre disposition.
 
 ## A public endpoint to a styled map
 
-Nine application lines. No Honua server, no API key, no account — a public Esri Living
-Atlas FeatureServer becomes a styled, interactive MapLibre map:
+Ten application lines. No Honua server, no API key, no account — one lifecycle owner takes a
+public Esri Living Atlas FeatureServer through inspection, a bounded query, an explainable plan,
+and a styled MapLibre map:
 
 ```ts doc-test=compile
-import { connect } from "@honua/sdk-js";
-import { mountSource } from "@honua/sdk-js/map";
+import { createHonua } from "@honua/sdk-js";
+import { maplibreRenderer } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
-
 const endpoint = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/2020_Census_State_Apportionment/FeatureServer/0";
-const map = new maplibregl.Map({ container: "map", style: "https://demotiles.maplibre.org/style.json", center: [-98, 39], zoom: 3 });
-await map.once("load");
-const data = await connect({ endpoint, protocol: "auto", authorizationScopeFingerprint: "public" });
-await mountSource(map, data.source(), {
-  popup: { factory: () => new maplibregl.Popup(), fields: ["NAME", "Seats_2020"] },
-  hover: true,
-  fitBounds: true,
-});
+await using honua = createHonua();
+const data = await honua.connect(endpoint);
+const info = await data.inspect();
+const plan = await data.explain({ returnGeometry: true, pagination: { limit: 100 } }, { sourceId: info.defaultSourceId });
+const result = await data.query(plan);
+const map = await data.mount("#map", { renderer: maplibreRenderer(maplibregl), query: plan, sourceId: info.defaultSourceId });
+await map.ready;
 ```
 
-For those nine lines the bridge selected a materialization strategy from the source's
-declared capabilities, installed geometry-appropriate default styling, wired click popups
-and hover feature-state, fit the map to the data, and returned one owned handle
-(`setFilter()` diff-updates in place; `dispose()` removes everything the bridge added).
+For those ten lines the kernel owns discovery, the connection, cancellation, and the mounted
+map. `result` contains bounded execution evidence, while `plan` explains the accepted query.
+Leaving the `await using` scope disposes the map and connection; every operation also accepts
+an `AbortSignal` for caller cancellation.
 Run the canonical inspected workflow with `npm run demo:quickstart:mock`
 ([`examples/maplibre-quickstart/`](./examples/maplibre-quickstart/README.md)); the focused lower-level cookbook
 is [`docs/data-to-map-bridge.md`](./docs/data-to-map-bridge.md).
 
-For an application that opens more than one source or needs deterministic
-refresh and shutdown, put discovery under one instance-scoped owner:
+For an application that opens more than one source, keep the same instance-scoped owner:
 
 ```ts doc-test=compile
 import { createHonua } from "@honua/sdk-js";

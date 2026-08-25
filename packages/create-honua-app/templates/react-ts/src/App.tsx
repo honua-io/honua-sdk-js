@@ -1,6 +1,6 @@
 import { createHonua } from "@honua/sdk-js";
-import type { ConnectProtocolHint, Source } from "@honua/sdk-js";
-import { useMountedSource } from "@honua/sdk-js/react";
+import type { ConnectProtocolHint, RendererDiagnostic } from "@honua/sdk-js";
+import { maplibreRenderer } from "@honua/sdk-js/runtime";
 import * as maplibregl from "maplibre-gl";
 import type { RefObject } from "react";
 import { useEffect, useRef, useState } from "react";
@@ -34,9 +34,11 @@ const PROTOCOL = (
 const DATA_LANE = configuredEndpoint && configuredEndpoint.length > 0 ? "Live endpoint" : "Committed fixture";
 
 interface ConnectionState {
-  readonly source: Source | null;
   readonly sourceId?: string;
   readonly protocol?: string;
+  readonly diagnostics?: readonly RendererDiagnostic[];
+  readonly featureCount?: number;
+  readonly mounted: boolean;
   readonly error?: string;
 }
 
@@ -65,54 +67,69 @@ function useExternalMap(): { containerRef: RefObject<HTMLDivElement | null>; map
   return { containerRef, map };
 }
 
-/** Connect once per effect run and publish the discovered source. */
-function useHonuaSource(): ConnectionState {
-  const [state, setState] = useState<ConnectionState>({ source: null });
+/** Run the canonical kernel-owned lifecycle against the app-owned map. */
+function useHonuaMap(map: maplibregl.Map | null): ConnectionState {
+  const [state, setState] = useState<ConnectionState>({ mounted: false });
 
   useEffect(() => {
+    if (!map) return;
     const honua = createHonua();
-    let cancelled = false;
+    const cancellation = new AbortController();
     void (async () => {
       try {
         const connection = await honua.connect(
           { url: ENDPOINT, protocol: PROTOCOL },
-          { authorizationScopeFingerprint: "anonymous-public" },
+          { authorizationScopeFingerprint: "anonymous-public", signal: cancellation.signal },
         );
-        const inspection = await connection.inspect();
+        const inspection = await connection.inspect({ signal: cancellation.signal });
         const sourceId = inspection.defaultSourceId ?? inspection.sources[0]?.descriptor.id;
         if (!sourceId) throw new Error("The endpoint advertised no queryable source.");
-        if (cancelled) return;
-        setState({ source: connection.source(sourceId), sourceId, protocol: inspection.protocol });
+        const plan = await connection.explain(QUERY, { sourceId, signal: cancellation.signal });
+        const result = await connection.query(plan, { signal: cancellation.signal });
+        const mounted = await connection.mount(map, {
+          renderer: maplibreRenderer(maplibregl),
+          query: plan,
+          sourceId,
+          signal: cancellation.signal,
+        });
+        await mounted.ready;
+        setState({
+          sourceId,
+          protocol: inspection.protocol,
+          diagnostics: mounted.diagnostics,
+          featureCount: result.execution.terminal.featureCount,
+          mounted: true,
+        });
       } catch (error) {
-        if (!cancelled) setState({ source: null, error: error instanceof Error ? error.message : String(error) });
+        if (!cancellation.signal.aborted) {
+          setState({ mounted: false, error: error instanceof Error ? error.message : String(error) });
+        }
       }
     })();
     return () => {
-      cancelled = true;
+      cancellation.abort();
       void honua.dispose();
     };
-  }, []);
+  }, [map]);
 
   return state;
 }
 
 export function App() {
   const { containerRef, map } = useExternalMap();
-  const connection = useHonuaSource();
-  const mounted = useMountedSource(map, connection.source, { query: QUERY, fitBounds: true });
+  const connection = useHonuaMap(map);
 
-  const failure = connection.error ?? (mounted.error instanceof Error ? mounted.error.message : undefined);
-  const status = failure
-    ? `The workflow stopped: ${failure}`
-    : mounted.handle
-      ? "The queried source is mounted through the React bridge."
+  const status = connection.error
+    ? `The workflow stopped: ${connection.error}`
+    : connection.mounted
+      ? "The accepted plan is mounted through the kernel lifecycle."
       : "Connecting, discovering, and mounting…";
 
   return (
     <main className="app">
       <section className="panel" aria-label="Workflow">
         <p className="eyebrow">Honua JavaScript SDK · React</p>
-        <h1 className="title">connect → source → useMountedSource</h1>
+        <h1 className="title">connect → inspect → explain → query → mount</h1>
         <output className="status" aria-live="polite">
           {status}
         </output>
@@ -135,11 +152,11 @@ export function App() {
           </div>
           <div>
             <dt>Strategy</dt>
-            <dd>{mounted.diagnostics?.strategy ?? "—"}</dd>
+            <dd>{connection.diagnostics?.find((item) => item.strategy)?.strategy ?? "—"}</dd>
           </div>
           <div>
             <dt>Features</dt>
-            <dd id="fact-features">{mounted.diagnostics?.featureCount ?? "—"}</dd>
+            <dd id="fact-features">{connection.featureCount ?? "—"}</dd>
           </div>
         </dl>
         <p className="hint">

@@ -18,7 +18,7 @@ The starter package lives in this repository at `packages/create-honua-app`.
 | Template | Entry point | What it demonstrates |
 | --- | --- | --- |
 | `vanilla-ts` (default) | `src/main.ts` | `connect → inspect → explain → query → mount`. The SDK owns the MapLibre map and mounts an accepted query plan. |
-| `react-ts` | `src/App.tsx` | The app owns a plain `maplibre-gl` map; `useMountedSource` from `@honua/sdk-js/react` mounts the discovered source onto it. |
+| `react-ts` | `src/App.tsx` | The app owns a plain `maplibre-gl` map; the same kernel connection inspects, explains, queries, and mounts onto it. |
 
 Both templates pin **MapLibre GL JS 6.1.0**, the current major, and `npm run create-app:verify` fails if a template
 ever pins a major the SDK does not support. A scaffolded app installs `@honua/sdk-js` **from the registry**, so this
