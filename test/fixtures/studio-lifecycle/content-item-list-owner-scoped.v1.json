@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/content-items",
+    "query": {
+      "owner": "actor-mallory"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "items": [
+          {
+            "itemId": "b2a6e6a0-9b8e-4b2f-9a3a-6a6d9c8e6f31",
+            "packageKey": "parcels-overview",
+            "workspaceId": "studio",
+            "family": "map",
+            "state": "published",
+            "currentVersionId": "6f5c8945-a329-4680-b489-bb3a7ddc87b8",
+            "publishedVersionId": "6f5c8945-a329-4680-b489-bb3a7ddc87b8",
+            "ownerId": "actor-alice",
+            "createdBy": "alice",
+            "updatedBy": "alice",
+            "createdAt": "2026-05-24T00:00:00Z",
+            "updatedAt": "2026-06-01T00:00:00Z",
+            "publication": {
+              "publicationId": "d8b3d8a0-2f52-4a24-8a59-5bd596a3b7f4",
+              "routeSlug": "field/maps/parcels-overview",
+              "routePath": "/api/v1/published/field/maps/parcels-overview",
+              "lifecycle": "active",
+              "activeRevision": 2,
+              "updatedAt": "2026-06-01T00:10:00Z"
+            }
+          }
+        ],
+        "total": 1,
+        "nextCursor": null
+      },
+      "timestamp": "2026-06-01T00:17:00Z"
+    }
+  }
+}

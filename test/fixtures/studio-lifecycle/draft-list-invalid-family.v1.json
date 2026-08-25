@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/package-drafts",
+    "query": {
+      "family": "chart"
+    }
+  },
+  "response": {
+    "status": 400,
+    "body": {
+      "type": "https://honua.io/problems/studio",
+      "title": "Bad Request",
+      "status": 400,
+      "detail": "family filter is invalid: unknown value 'chart'"
+    }
+  }
+}

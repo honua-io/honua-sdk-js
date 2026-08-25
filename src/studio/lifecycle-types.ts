@@ -487,3 +487,157 @@ export interface StudioRollbackRequest {
   readonly createdBy?: string;
   readonly [extra: string]: unknown;
 }
+
+// ---------------------------------------------------------------------------
+// Content-item and draft enumeration (honua-server#3003)
+// ---------------------------------------------------------------------------
+
+/**
+ * A Studio content item's *derived* lifecycle state, as computed by the server
+ * from the item's pointers:
+ *
+ * - `draft` — no immutable version has been saved yet (`currentVersionId` is
+ *   absent);
+ * - `current` — a saved version exists but is not published;
+ * - `published` — `publishedVersionId` is set.
+ *
+ * This is deliberately distinct from a joined publication's *route* lifecycle
+ * ({@link StudioPublicationRouteLifecycle}), which describes the Content
+ * Publication Registry route rather than the Studio item.
+ *
+ * @experimental
+ */
+export type StudioContentItemState = "draft" | "current" | "published";
+
+/**
+ * The route lifecycle a joined Content Publication Registry publication
+ * reports. Kept open (`string & {}`) because the registry owns this vocabulary
+ * and may add values without a Studio change.
+ *
+ * @experimental
+ */
+export type StudioPublicationRouteLifecycle = "active" | "suspended" | "archived" | (string & {});
+
+/**
+ * The publication-registry lifecycle badge joined onto a
+ * {@link StudioContentItemListRow} (REQ-004), so a content browser can render
+ * lifecycle state without one extra call per row.
+ *
+ * The registry has no foreign key back to Studio: the join uses the convention
+ * that a publication's `sourceContentId` equals the Studio `itemId`. The badge
+ * therefore reflects the *route's* current state, which can be newer than the
+ * version Studio considers current or published, and is absent entirely when
+ * no publication references the item.
+ *
+ * @experimental
+ */
+export interface StudioContentItemPublicationBadge {
+  readonly publicationId: string;
+  readonly routeSlug: string;
+  readonly routePath: string;
+  readonly lifecycle: StudioPublicationRouteLifecycle;
+  readonly activeRevision: number;
+  readonly updatedAt: string;
+  readonly [extra: string]: unknown;
+}
+
+/**
+ * One row of `GET /content-items`. This is a *summary* projection, not a full
+ * content item: it deliberately carries no envelope. Fetch
+ * `contentVersions.get(itemId, versionId)` for package content.
+ *
+ * @experimental
+ */
+export interface StudioContentItemListRow {
+  readonly itemId: string;
+  readonly packageKey: string;
+  readonly workspaceId?: string;
+  readonly family: HonuaStudioPackageFamily | (string & {});
+  readonly state: StudioContentItemState | (string & {});
+  readonly currentVersionId?: string;
+  readonly publishedVersionId?: string;
+  /** Recorded owner (honua-server#3001). Absent for an ownerless legacy row. */
+  readonly ownerId?: string;
+  readonly createdBy?: string;
+  readonly updatedBy?: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly publication?: StudioContentItemPublicationBadge;
+  readonly [extra: string]: unknown;
+}
+
+/**
+ * A page of an opaque keyset-paginated Studio listing.
+ *
+ * `total` counts every row matching the query across *all* pages, not the page
+ * length. `nextCursor` is the opaque cursor to pass back as `cursor` for the
+ * following page; on the last page the server sends `null`, and its
+ * source-generated JSON context omits `null` properties, so it arrives as
+ * either `null` or absent — treat both as "no more pages" (which is exactly
+ * what {@link isStudioListExhausted} does).
+ *
+ * @experimental
+ */
+export interface StudioListPage<TItem> {
+  readonly items: readonly TItem[];
+  readonly total: number;
+  readonly nextCursor?: string | null;
+  readonly [extra: string]: unknown;
+}
+
+/** `GET /content-items` response. @experimental */
+export type StudioContentItemListResponse = StudioListPage<StudioContentItemListRow>;
+
+/**
+ * `GET /package-drafts` response. Rows are full {@link StudioPackageDraft}
+ * objects — identical to `GET /package-drafts/{draftId}` — and carry no
+ * publication badge: drafts are mutable and pre-publication by definition.
+ *
+ * @experimental
+ */
+export type StudioPackageDraftListResponse = StudioListPage<StudioPackageDraft>;
+
+/**
+ * Query filters shared by `GET /content-items` and `GET /package-drafts`.
+ *
+ * `family` accepts one family or several; several are sent as the server's
+ * comma-separated form (`family=map,dashboard`). An unknown family is rejected
+ * by the server with `400`.
+ *
+ * `q` is a case-insensitive substring match against `packageKey` only — there
+ * is no full-text index in this slice.
+ *
+ * `owner` is an exact match against the recorded owner. Note that with
+ * `Studio:EndUserAuthorization:Enabled` on, the server **forces** a non-admin
+ * caller's effective owner filter to their own resolved id and ignores this
+ * value; it is honored as supplied only for admins, or while that flag is off.
+ *
+ * @experimental
+ */
+export interface StudioListFilterOptions {
+  readonly family?: (HonuaStudioPackageFamily | (string & {})) | readonly (HonuaStudioPackageFamily | (string & {}))[];
+  readonly workspaceId?: string;
+  readonly owner?: string;
+  readonly q?: string;
+  /** Opaque cursor from a previous page's `nextCursor`. Never construct one by hand. */
+  readonly cursor?: string;
+  /**
+   * Page size. The server defaults to
+   * {@link HONUA_STUDIO_LIST_DEFAULT_LIMIT} and caps at
+   * {@link HONUA_STUDIO_LIST_MAX_LIMIT}.
+   */
+  readonly limit?: number;
+}
+
+/** `GET /package-drafts` filters. @experimental */
+export type StudioPackageDraftListOptions = StudioListFilterOptions;
+
+/**
+ * `GET /content-items` filters — the shared set plus `state`, a filter over
+ * the derived lifecycle state. Several states are sent comma-separated.
+ *
+ * @experimental
+ */
+export interface StudioContentItemListOptions extends StudioListFilterOptions {
+  readonly state?: (StudioContentItemState | (string & {})) | readonly (StudioContentItemState | (string & {}))[];
+}

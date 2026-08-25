@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/content-items"
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://honua.io/problems/studio",
+      "title": "Forbidden",
+      "status": 403,
+      "detail": "The caller's identity could not be resolved for this scoped Studio listing request.",
+      "code": "studio_authorization/authentication_required"
+    }
+  }
+}

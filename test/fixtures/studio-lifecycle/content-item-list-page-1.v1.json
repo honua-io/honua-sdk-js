@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/content-items",
+    "query": {
+      "family": "map",
+      "state": "published",
+      "limit": "2"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "items": [
+          {
+            "itemId": "b2a6e6a0-9b8e-4b2f-9a3a-6a6d9c8e6f31",
+            "packageKey": "parcels-overview",
+            "workspaceId": "studio",
+            "family": "map",
+            "state": "published",
+            "currentVersionId": "6f5c8945-a329-4680-b489-bb3a7ddc87b8",
+            "publishedVersionId": "6f5c8945-a329-4680-b489-bb3a7ddc87b8",
+            "ownerId": "actor-alice",
+            "createdBy": "alice",
+            "updatedBy": "alice",
+            "createdAt": "2026-05-24T00:00:00Z",
+            "updatedAt": "2026-06-01T00:00:00Z",
+            "publication": {
+              "publicationId": "d8b3d8a0-2f52-4a24-8a59-5bd596a3b7f4",
+              "routeSlug": "field/maps/parcels-overview",
+              "routePath": "/api/v1/published/field/maps/parcels-overview",
+              "lifecycle": "active",
+              "activeRevision": 2,
+              "updatedAt": "2026-06-01T00:10:00Z"
+            }
+          },
+          {
+            "itemId": "0d4f8b21-6c3e-4a7d-9f18-2b5e7c0a4d63",
+            "packageKey": "zoning-overview",
+            "workspaceId": "studio",
+            "family": "map",
+            "state": "published",
+            "currentVersionId": "c1a5f207-93b4-4d6e-8f21-4e0b6d95a3c7",
+            "publishedVersionId": "c1a5f207-93b4-4d6e-8f21-4e0b6d95a3c7",
+            "ownerId": "actor-alice",
+            "createdBy": "alice",
+            "updatedBy": "alice",
+            "createdAt": "2026-05-20T00:00:00Z",
+            "updatedAt": "2026-05-30T12:00:00Z",
+            "publication": {
+              "publicationId": "7b1e4c93-08af-4d52-9c36-1e5a8d0f2b74",
+              "routeSlug": "field/maps/zoning-overview",
+              "routePath": "/api/v1/published/field/maps/zoning-overview",
+              "lifecycle": "suspended",
+              "activeRevision": 5,
+              "updatedAt": "2026-05-31T08:20:00Z"
+            }
+          }
+        ],
+        "total": 3,
+        "nextCursor": "NjM5MTU3MzkyMDAwMDAwMDAwOjBkNGY4YjIxLTZjM2UtNGE3ZC05ZjE4LTJiNWU3YzBhNGQ2Mw=="
+      },
+      "timestamp": "2026-06-01T00:15:00Z"
+    }
+  }
+}
