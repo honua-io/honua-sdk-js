@@ -69,6 +69,13 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "bundle-id" },
   { name: "preview-bytes" },
   { name: "timeout-ms" },
+  { name: "package" },
+  { name: "message" },
+  { name: "workspace" },
+  { name: "actor" },
+  { name: "tenant" },
+  { name: "if-match" },
+  { name: "idempotency-key" },
   { name: "count", boolean: true },
   { name: "json", boolean: true },
   { name: "dry-run", boolean: true },
@@ -133,6 +140,18 @@ GEOCODING
 MAPS
   honua map export <service>[/<layers>] --bbox ... --size WxH [-o out.png]
   honua tiles <service> <z>/<x>/<y> [-o tile.png]
+
+  honua map publish [<mapId>] --package <json|@file> [options]
+      Publish a map package through the shared control-plane command layer.
+      --package <json|@file>     honua_map_package.v1 document (required)
+      --workspace <id>           Owning workspace
+      --message <text>           Publication message recorded with the version
+      --if-match <etag>          Optimistic-concurrency validator
+      --idempotency-key <key>    Explicit key (derived from the input otherwise)
+      --actor <id> --tenant <id> Acting identity echoed onto the receipt
+      --dry-run                  Print the plan; never contacts the server
+      --yes                      Required to actually publish
+      --json                     Emit the full command receipt
 
 AUTH / CONFIG
   honua login --base-url <url> [--api-key <key>]

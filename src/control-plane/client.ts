@@ -74,6 +74,8 @@ export class HonuaControlPlaneClient {
     return this.requestJson<T>("raw", request.method ?? "GET", request.path, request.body, {
       signal: request.signal,
       headers: request.headers,
+      idempotencyKey: request.idempotencyKey,
+      ifMatch: request.ifMatch,
       okStatuses: request.okStatuses,
     });
   }
@@ -111,7 +113,7 @@ export class HonuaControlPlaneClient {
         method,
         this.resolvePath(path),
         {
-          headers: jsonHeaders(options.headers),
+          headers: jsonHeaders(options),
           body: body === undefined ? null : JSON.stringify(body),
         },
         options.signal,
@@ -467,17 +469,27 @@ function withManifestQuery(path: string, environment?: string, workspaceId?: str
   return query ? `${path}?${query}` : path;
 }
 
-function jsonHeaders(headers: HeadersInit | undefined): HeadersInit {
+/**
+ * Base JSON headers plus the concurrency/idempotency options every request
+ * option bag can carry. An explicit `headers` entry always wins over the
+ * option-level `idempotencyKey`/`ifMatch` shorthand, and over the per-request
+ * `ifMatch` the resource clients fold in through {@link withIfMatch}.
+ */
+function jsonHeaders(options: HonuaControlPlaneRequestOptions): HeadersInit {
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
-    ...headersToRecord(headers),
+    ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+    ...(options.ifMatch ? { "If-Match": options.ifMatch } : {}),
+    ...headersToRecord(options.headers),
   };
 }
 
 function listHeaders(options: HonuaControlPlaneListOptions): HeadersInit {
   const headers: Record<string, string> = {
     Accept: "application/json",
+    ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+    ...(options.ifMatch ? { "If-Match": options.ifMatch } : {}),
     ...headersToRecord(options.headers),
   };
   if (options.validator?.etag) headers["If-None-Match"] = options.validator.etag;
