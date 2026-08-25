@@ -55,7 +55,7 @@ import {
   createEditSketchWorkflow,
 } from "../contract/edit-sketch.js";
 import type { SnappingConfig } from "../contract/edit-snapping.js";
-import type { CanonicalFeature, FeatureId, Source, SourceId } from "../contract/types.js";
+import type { CanonicalFeature, FeatureId, Protocol, Source, SourceId } from "../contract/types.js";
 import {
   type HonuaEditorAttachmentDraft,
   type HonuaEditorFormModel,
@@ -72,12 +72,14 @@ import {
   resolveEditorFields,
   resolveEditorOperations,
 } from "./feature-editor-model.js";
+import { type HonuaFeatureMutationReceipt, createHonuaFeatureMutationReceipt } from "./feature-mutation.js";
 
 /** Lifecycle state of the editor. Never `"committed"` for a rejected edit. */
 export type HonuaFeatureEditorStatus =
   | "idle"
   | "draft"
   | "submitting"
+  | "queued"
   | "committed"
   | "rejected"
   | "conflict"
@@ -91,6 +93,35 @@ export interface HonuaFeatureEditorIdentity {
   /** Concurrency token observed when the draft opened, when the source has one. */
   readonly version?: unknown;
   readonly versionField?: string;
+}
+
+export type HonuaFeatureEditorPreflightBlocker = "no-draft" | "conflict" | "submitting" | "queued";
+
+/** Value-free validation issue safe to show in a review or approval surface. */
+export type HonuaFeatureEditorPreflightIssue = Omit<EditWorkflowValidationError, "value">;
+
+/** Credential-free summary of the draft that would be transported. */
+export interface HonuaFeatureEditorDraftSummary {
+  readonly dirty: boolean;
+  readonly changedFields: readonly string[];
+  readonly geometry: "unchanged" | "set" | "cleared";
+  readonly attachments: Readonly<Record<"add" | "update" | "delete", number>>;
+}
+
+/**
+ * Transport-free review of the current edit attempt. It intentionally omits
+ * field values, geometry coordinates, attachment payloads, locators, and auth.
+ */
+export interface HonuaFeatureEditorPreflight {
+  readonly ready: boolean;
+  readonly transported: false;
+  readonly mutationId?: string;
+  readonly source: { readonly sourceId: SourceId; readonly protocol: Protocol };
+  readonly operation?: HonuaEditorOperation;
+  readonly identity?: HonuaFeatureEditorIdentity;
+  readonly draft?: HonuaFeatureEditorDraftSummary;
+  readonly validation: { readonly valid: boolean; readonly errors: readonly HonuaFeatureEditorPreflightIssue[] };
+  readonly blockers: readonly HonuaFeatureEditorPreflightBlocker[];
 }
 
 /** A failure surfaced to the UI, normalized from the contract's own failure list. */
@@ -125,10 +156,12 @@ export interface HonuaFeatureEditorSketchState {
 }
 
 /** Everything the editor UI renders. Carries no attachment payloads. */
-export interface HonuaFeatureEditorSnapshot {
+export interface HonuaFeatureEditorSnapshot<T = Record<string, unknown>> {
   readonly status: HonuaFeatureEditorStatus;
   readonly operation?: HonuaEditorOperation;
   readonly identity?: HonuaFeatureEditorIdentity;
+  /** Stable, credential-free identity allocated once for this draft attempt. */
+  readonly mutationId?: string;
   readonly operations: readonly HonuaEditorOperationAvailability[];
   readonly form?: HonuaEditorFormModel;
   readonly sketch?: HonuaFeatureEditorSketchState;
@@ -141,17 +174,22 @@ export interface HonuaFeatureEditorSnapshot {
   readonly busy: boolean;
   readonly message: string;
   readonly committedFeatureId?: FeatureId;
+  /** Credential-free receipt for the most recent accepted mutation. */
+  readonly mutationReceipt?: HonuaFeatureMutationReceipt<T>;
+  readonly offline?: HonuaFeatureEditorOfflineState;
 }
 
 /** Outcome of a `submit()` / `retry()`. `transported` is false for pre-flight rejections. */
-export interface HonuaFeatureEditorCommit {
+export interface HonuaFeatureEditorCommit<T = Record<string, unknown>> {
   readonly status: HonuaFeatureEditorStatus;
   readonly operation: HonuaEditorOperation;
   readonly transported: boolean;
   readonly committedFeatureId?: FeatureId;
   readonly failures: readonly HonuaFeatureEditorFailure[];
   readonly attachments: readonly HonuaEditorAttachmentDraft[];
-  readonly snapshot: HonuaFeatureEditorSnapshot;
+  readonly snapshot: HonuaFeatureEditorSnapshot<T>;
+  /** Present when the feature mutation was accepted, including attachment-partial outcomes. */
+  readonly mutationReceipt?: HonuaFeatureMutationReceipt<T>;
   /**
    * True when this submit no longer owned the workflow by the time the
    * transport settled — a newer draft had already been opened (or the draft was
@@ -166,6 +204,19 @@ export interface HonuaFeatureEditorCommit {
 
 /** Result of reconciling one external (realtime) feature change. */
 export type HonuaFeatureEditorExternalChangeOutcome = "ignored" | "reconciled" | "conflict";
+
+/** Durable offline queue state projected into the edit workflow. */
+export interface HonuaFeatureEditorOfflineState {
+  readonly sourceId: SourceId;
+  readonly queueId: string;
+  readonly idempotencyKey: string;
+  readonly state: "pending" | "retryable" | "applied" | "conflicted" | "cancelled" | "discarded";
+  readonly retryAt?: string;
+  readonly reasonCode?: string;
+  readonly appliedAt?: string;
+  readonly conflictId?: string;
+  readonly serverGeneration?: string;
+}
 
 export interface HonuaFeatureEditorOptions<T = Record<string, unknown>> {
   /** Editable source. Only the public `Source` contract is used. */
@@ -186,9 +237,13 @@ export interface HonuaFeatureEditorOptions<T = Record<string, unknown>> {
   readonly rollbackOnFailure?: boolean;
   /** Optimistic apply/rollback/commit hooks, passed straight to the edit session. */
   readonly optimistic?: EditWorkflowOptimisticHooks<T>;
+  /** Optional application identity factory used to deduplicate realtime echoes. */
+  readonly mutationId?: () => string;
+  /** Injectable clock for deterministic receipts. */
+  readonly now?: () => string;
 }
 
-type EditorListener = (snapshot: HonuaFeatureEditorSnapshot) => void;
+type EditorListener<T> = (snapshot: HonuaFeatureEditorSnapshot<T>) => void;
 
 const EMPTY_UNDO: EditSketchUndoSnapshot = { canUndo: false, canRedo: false, undoDepth: 0, redoDepth: 0 };
 
@@ -198,7 +253,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   public readonly source: Source<T>;
 
   readonly #options: HonuaFeatureEditorOptions<T>;
-  readonly #listeners = new Set<EditorListener>();
+  readonly #listeners = new Set<EditorListener<T>>();
   readonly #schemaFields: readonly EditWorkflowField[];
 
   #sketchTools: Partial<Record<EditSketchTool, EditSketchToolCapabilityInput>> | undefined;
@@ -213,6 +268,9 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   #conflict: HonuaFeatureEditorConflict | undefined;
   #message = "";
   #committedFeatureId: FeatureId | undefined;
+  #mutationReceipt: HonuaFeatureMutationReceipt<T> | undefined;
+  #mutationId: string | undefined;
+  #offline: HonuaFeatureEditorOfflineState | undefined;
   #abort: AbortController | undefined;
   /**
    * The model whose in-flight submit was cancelled. Identity, not a boolean:
@@ -233,7 +291,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   // ── subscription ───────────────────────────────────────────────────────
 
   /** Subscribes to snapshot changes. Mirrors the kit's `{ remove() }` idiom. */
-  public subscribe(listener: EditorListener): { remove(): void } {
+  public subscribe(listener: EditorListener<T>): { remove(): void } {
     this.#listeners.add(listener);
     return {
       remove: () => {
@@ -287,14 +345,46 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     return { valid: errors.length === 0, errors };
   }
 
+  /** Review the exact current attempt without calling an adapter or changing workflow state. */
+  public preflight(): HonuaFeatureEditorPreflight {
+    const model = this.#model;
+    const operation = this.#operation;
+    const validation = this.validate();
+    const blockers: HonuaFeatureEditorPreflightBlocker[] = [];
+    if (!model || !operation) blockers.push("no-draft");
+    if (this.#conflict) blockers.push("conflict");
+    if (this.#status === "submitting") blockers.push("submitting");
+    if (this.#status === "queued") blockers.push("queued");
+    const errors = validation.errors.map(({ code, fieldName, message }) => ({
+      code,
+      ...(fieldName ? { fieldName } : {}),
+      message,
+    }));
+    return Object.freeze({
+      ready: Boolean(model && operation && validation.valid && blockers.length === 0),
+      transported: false as const,
+      ...(model && this.#mutationId ? { mutationId: this.#mutationId } : {}),
+      source: Object.freeze({
+        sourceId: this.source.descriptor.id,
+        protocol: this.source.descriptor.protocol,
+      }),
+      ...(operation ? { operation } : {}),
+      ...(model && this.#identity ? { identity: Object.freeze({ ...this.#identity }) } : {}),
+      ...(model ? { draft: this.#draftSummary(model) } : {}),
+      validation: Object.freeze({ valid: validation.valid, errors: Object.freeze(errors) }),
+      blockers: Object.freeze(blockers),
+    });
+  }
+
   /** Current UI state. Never contains an attachment payload. */
-  public snapshot(): HonuaFeatureEditorSnapshot {
+  public snapshot(): HonuaFeatureEditorSnapshot<T> {
     const model = this.#model;
     const sketch = model?.snapshot().sketch;
     return {
       status: this.#status,
       ...(this.#operation ? { operation: this.#operation } : {}),
       ...(this.#identity ? { identity: this.#identity } : {}),
+      ...(model && this.#mutationId ? { mutationId: this.#mutationId } : {}),
       operations: this.operations(),
       ...(model && this.#operation
         ? {
@@ -327,6 +417,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
       busy: this.#status === "submitting",
       message: this.#message,
       ...(this.#committedFeatureId !== undefined ? { committedFeatureId: this.#committedFeatureId } : {}),
+      ...(this.#mutationReceipt ? { mutationReceipt: this.#mutationReceipt } : {}),
+      ...(this.#offline ? { offline: this.#offline } : {}),
     };
   }
 
@@ -344,7 +436,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
    * to reject. Accepting it closes the finished draft without touching the
    * committed status or message — nothing about the commit is retracted.
    */
-  public setSelection(feature: CanonicalFeature<T> | undefined): HonuaFeatureEditorSnapshot {
+  public setSelection(feature: CanonicalFeature<T> | undefined): HonuaFeatureEditorSnapshot<T> {
     if (this.#model && this.#status !== "committed") return this.snapshot();
     if (this.#model) {
       this.#model = undefined;
@@ -367,7 +459,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
    * operation is not truthfully available the draft is refused and the reason
    * recorded — never silently downgraded.
    */
-  public begin(operation: HonuaEditorOperation, feature?: CanonicalFeature<T>): HonuaFeatureEditorSnapshot {
+  public begin(operation: HonuaEditorOperation, feature?: CanonicalFeature<T>): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     const target = operation === "create" ? feature : (feature ?? this.#selection);
     this.#abort?.abort();
     // Any in-flight submit now belongs to a superseded draft, cancelled or not.
@@ -376,6 +469,9 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     this.#failures = [];
     this.#attachments = [];
     this.#committedFeatureId = undefined;
+    this.#mutationReceipt = undefined;
+    this.#mutationId = undefined;
+    this.#offline = undefined;
     this.#identity = this.#identityFor(target);
 
     // Resolve availability against the feature this draft would open on, not
@@ -403,6 +499,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     this.#operation = operation;
     this.#baseline = target ? cloneFeature(target) : undefined;
     this.#model = this.#createModel(operation, target);
+    this.#mutationId = this.#allocateMutationId();
     if (operation === "create") this.#seedCreateDefaults();
     this.#status = "draft";
     this.#message = draftMessage(operation);
@@ -410,7 +507,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   }
 
   /** Discards the draft and aborts any in-flight submit. */
-  public cancel(): HonuaFeatureEditorSnapshot {
+  public cancel(): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     if (this.#status === "submitting") this.#cancelledModel = this.#model;
     this.#abort?.abort();
     this.#abort = undefined;
@@ -420,15 +518,21 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     this.#conflict = undefined;
     this.#failures = [];
     this.#attachments = [];
+    this.#mutationReceipt = undefined;
+    this.#mutationId = undefined;
+    this.#offline = undefined;
     this.#status = "cancelled";
     this.#message = "Edit cancelled. Nothing was sent to the service.";
     return this.#notify();
   }
 
   /** Reverts the draft to the feature it opened on, keeping the draft open. */
-  public discardChanges(): HonuaFeatureEditorSnapshot {
+  public discardChanges(): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     this.#model?.discard();
     this.#attachments = [];
+    this.#mutationReceipt = undefined;
+    this.#offline = undefined;
     this.#failures = [];
     this.#conflict = undefined;
     if (this.#model) this.#status = "draft";
@@ -443,7 +547,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
    * (coded values resolve back to the domain code's type, so a numeric code
    * never reaches transport as a string).
    */
-  public setValue(name: string, raw: string | boolean | null): HonuaFeatureEditorSnapshot {
+  public setValue(name: string, raw: string | boolean | null): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     const model = this.#model;
     if (!model) return this.snapshot();
     const field = this.fields().find((entry) => entry.name === name) ?? { name };
@@ -453,7 +558,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   }
 
   /** Records several already-typed attribute values at once. */
-  public setValues(values: Readonly<Record<string, unknown>>): HonuaFeatureEditorSnapshot {
+  public setValues(values: Readonly<Record<string, unknown>>): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     const model = this.#model;
     if (!model) return this.snapshot();
     model.setValues(values as Partial<T>);
@@ -465,6 +571,9 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
 
   /** Arms a sketch tool. Unsupported tools report their reason rather than throwing. */
   public startSketch(tool: EditSketchTool): EditSketchToolCapability {
+    if (this.#status === "queued") {
+      return { tool, state: "unsupported", reason: "The draft is locked while its offline edit is queued." };
+    }
     const model = this.#model;
     if (!model) return { tool, state: "unsupported", reason: "No edit draft is open." };
     const capability = model.startSketch(tool);
@@ -477,7 +586,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   }
 
   /** Applies a geometry through the sketch workflow (undoable). */
-  public setGeometry(tool: EditSketchTool, geometry: Record<string, unknown> | null): HonuaFeatureEditorSnapshot {
+  public setGeometry(tool: EditSketchTool, geometry: Record<string, unknown> | null): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     const model = this.#model;
     if (!model) return this.snapshot();
     model.setSketchGeometry(tool, geometry);
@@ -486,6 +596,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   }
 
   public undo(): boolean {
+    if (this.#status === "queued") return false;
     const undone = this.#model?.undo() ?? false;
     if (undone) {
       this.#afterEdit();
@@ -495,6 +606,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   }
 
   public redo(): boolean {
+    if (this.#status === "queued") return false;
     const redone = this.#model?.redo() ?? false;
     if (redone) {
       this.#afterEdit();
@@ -512,7 +624,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   public stageAttachment(
     attachment: Blob | File | string,
     options: { name?: string; contentType?: string; parentId?: FeatureId } = {},
-  ): HonuaFeatureEditorSnapshot {
+  ): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     const model = this.#model;
     if (!model) return this.snapshot();
     model.stageAttachmentAdd(attachment, options);
@@ -525,7 +638,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   public stageAttachmentDelete(
     attachmentIds: readonly FeatureId[],
     options: { parentId?: FeatureId } = {},
-  ): HonuaFeatureEditorSnapshot {
+  ): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     const model = this.#model;
     if (!model) return this.snapshot();
     model.stageAttachmentDelete(attachmentIds, options);
@@ -544,7 +658,8 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
    */
   public configureSketchTools(
     tools: Partial<Record<EditSketchTool, EditSketchToolCapabilityInput>>,
-  ): HonuaFeatureEditorSnapshot {
+  ): HonuaFeatureEditorSnapshot<T> {
+    if (this.#status === "queued") return this.snapshot();
     // Idempotent: re-declaring the same tool support must not rebuild an open
     // draft (a sketch adapter may re-announce it on every attach).
     if (JSON.stringify(this.#sketchTools ?? null) === JSON.stringify(tools)) return this.snapshot();
@@ -570,11 +685,21 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
    * parked (`transported: false`). Every non-success result maps to a
    * rejected / conflict / unsupported state — never `"committed"`.
    */
-  public async submit(): Promise<HonuaFeatureEditorCommit> {
+  public async submit(): Promise<HonuaFeatureEditorCommit<T>> {
     const model = this.#model;
     const operation = this.#operation;
     if (!model || !operation) {
       return this.#preflightRejection("create", "No edit draft is open.", "validation");
+    }
+    if (this.#status === "queued") {
+      return {
+        status: "queued",
+        operation,
+        transported: false,
+        failures: this.#failures,
+        attachments: this.#attachments,
+        snapshot: this.snapshot(),
+      };
     }
     if (this.#conflict) {
       return this.#preflightRejection(
@@ -595,9 +720,13 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
       this.#message = "The draft was not sent: fix the highlighted problems first.";
       return this.#commit(operation, false);
     }
+    const mutationId = this.#mutationId ?? this.#allocateMutationId();
+    this.#mutationId = mutationId;
 
     this.#status = "submitting";
     this.#failures = [];
+    this.#mutationReceipt = undefined;
+    this.#offline = undefined;
     this.#message = `Applying the ${operation}…`;
     this.#notify();
 
@@ -623,6 +752,26 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
 
     this.#failures = result.failures.map(normalizeFailure);
     this.#attachments = attachmentDraftsFromResult(model, result.attachmentResults);
+
+    if (result.status === "succeeded" || result.status === "partial") {
+      const committedFeatureId = result.committedFeatureId ?? this.#identity?.featureId;
+      const feature =
+        operation === "delete" ? undefined : featureAfterCommit(model.snapshot().feature, committedFeatureId);
+      this.#mutationReceipt = createHonuaFeatureMutationReceipt({
+        mutationId,
+        acceptedAt: this.#options.now?.() ?? new Date().toISOString(),
+        sourceId: this.source.descriptor.id,
+        protocol: this.source.descriptor.protocol,
+        operation,
+        status: result.status === "succeeded" ? "accepted" : "partially-accepted",
+        ...(committedFeatureId !== undefined ? { featureId: committedFeatureId } : {}),
+        ...(feature ? { feature } : {}),
+        attachmentMutations: result.attachmentResults.length,
+        optimistic: result.optimistic,
+      });
+    } else {
+      this.#mutationReceipt = undefined;
+    }
 
     const conflictFailure = result.failures.find((failure) => failure.kind === "conflict");
     if (result.status === "succeeded") {
@@ -650,12 +799,95 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
   }
 
   /** Re-submits after a rejection (or after a resolved conflict). */
-  public async retry(): Promise<HonuaFeatureEditorCommit> {
+  public async retry(): Promise<HonuaFeatureEditorCommit<T>> {
     if (this.#status === "submitting") {
       return this.#preflightRejection(this.#operation ?? "create", "An edit is already in flight.", "validation");
     }
+    if (this.#status === "queued") return this.submit();
     if (this.#status !== "conflict") this.#status = "draft";
     return this.submit();
+  }
+
+  /**
+   * Project a durable offline queue transition into the online workflow's
+   * recoverable states. The queue remains authoritative; only identities and
+   * reason codes enter the component, never credentials or persisted payloads.
+   */
+  public applyOfflineState(state: HonuaFeatureEditorOfflineState): HonuaFeatureEditorSnapshot<T> {
+    if (state.sourceId !== this.source.descriptor.id || !this.#model || !this.#operation) return this.snapshot();
+    this.#mutationId = state.idempotencyKey;
+    this.#offline = Object.freeze({ ...state });
+    this.#failures = [];
+
+    if (state.state === "pending" || state.state === "retryable") {
+      this.#conflict = undefined;
+      this.#status = "queued";
+      this.#message =
+        state.state === "retryable"
+          ? `The edit remains offline and will retry${state.retryAt ? ` after ${state.retryAt}` : ""}.`
+          : "The edit is saved in the offline queue and will apply after reconnect.";
+      return this.#notify();
+    }
+
+    if (state.state === "conflicted") {
+      this.#status = "conflict";
+      this.#conflict = {
+        reason: state.conflictId
+          ? `Offline replay conflict ${state.conflictId} requires a decision.`
+          : "The offline edit conflicts with the current server feature.",
+        ...(this.#identity?.version !== undefined ? { mine: this.#identity.version } : {}),
+        ...(state.serverGeneration !== undefined ? { theirs: state.serverGeneration } : {}),
+        choices: CONFLICT_CHOICES,
+      };
+      this.#message = "The offline edit conflicted after reconnect. Choose how to resolve it.";
+      return this.#notify();
+    }
+
+    if (state.state === "cancelled") {
+      this.#conflict = undefined;
+      this.#status = "rejected";
+      this.#failures = [
+        {
+          kind: "transport",
+          operation: "session",
+          description: state.reasonCode
+            ? `The offline edit was cancelled: ${state.reasonCode}.`
+            : "The offline edit was cancelled before it reached the service.",
+        },
+      ];
+      this.#message = this.#failures[0]?.description ?? "The offline edit was cancelled.";
+      return this.#notify();
+    }
+
+    if (state.state === "discarded") {
+      this.#conflict = undefined;
+      this.#model = undefined;
+      this.#operation = undefined;
+      this.#baseline = undefined;
+      this.#status = "idle";
+      this.#message = "The offline edit was discarded; the server version remains authoritative.";
+      return this.#notify();
+    }
+
+    const operation = this.#operation;
+    this.#conflict = undefined;
+    const featureId = this.#identity?.featureId;
+    const feature = operation === "delete" ? undefined : featureAfterCommit(this.#model.snapshot().feature, featureId);
+    this.#mutationReceipt = createHonuaFeatureMutationReceipt({
+      mutationId: state.idempotencyKey,
+      acceptedAt: state.appliedAt ?? this.#options.now?.() ?? new Date().toISOString(),
+      sourceId: this.source.descriptor.id,
+      protocol: this.source.descriptor.protocol,
+      operation,
+      status: "accepted",
+      ...(featureId !== undefined ? { featureId } : {}),
+      ...(feature ? { feature } : {}),
+    });
+    this.#status = "committed";
+    this.#committedFeatureId = featureId;
+    this.#baseline = cloneFeature(this.#model.snapshot().feature);
+    this.#message = "The offline edit was accepted after reconnect.";
+    return this.#notify();
   }
 
   // ── conflict resolution ────────────────────────────────────────────────
@@ -670,9 +902,13 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
    * - `"reload"` closes the draft; the host is expected to reopen it on fresh
    *   server state.
    */
-  public resolveConflict(choice: HonuaFeatureEditorConflictChoice): HonuaFeatureEditorSnapshot {
+  public resolveConflict(choice: HonuaFeatureEditorConflictChoice): HonuaFeatureEditorSnapshot<T> {
     const conflict = this.#conflict;
     if (!conflict) return this.snapshot();
+    if (this.#offline?.state === "conflicted") {
+      this.#message = "Resolve this conflict through the offline queue so the durable edit and the UI stay consistent.";
+      return this.#notify();
+    }
     if (choice === "reload") {
       this.#conflict = undefined;
       this.#model = undefined;
@@ -752,6 +988,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
    *   untouched and parked until {@link resolveConflict} records a decision.
    */
   public applyExternalChange(feature: CanonicalFeature<T>): HonuaFeatureEditorExternalChangeOutcome {
+    if (this.#status === "queued") return "ignored";
     const model = this.#model;
     const identity = this.#identity;
     if (!model || identity === undefined || identity.featureId === undefined) return "ignored";
@@ -882,10 +1119,42 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     };
   }
 
+  #allocateMutationId(): string {
+    const value = this.#options.mutationId?.() ?? defaultMutationId(this.source.descriptor.id);
+    const normalized = value.trim();
+    if (!normalized) throw new TypeError("mutationId must be a non-empty string.");
+    return normalized;
+  }
+
+  #draftSummary(model: EditSketchWorkflowModel<T>): HonuaFeatureEditorDraftSummary {
+    const feature = model.snapshot().feature;
+    const current = feature.attributes as Record<string, unknown>;
+    const baseline = (this.#baseline?.attributes ?? {}) as Record<string, unknown>;
+    const changedFields = [...new Set([...Object.keys(baseline), ...Object.keys(current)])]
+      .filter((field) => !sameScalar(baseline[field], current[field]))
+      .sort();
+    const geometry = sameScalar(this.#baseline?.geometry, feature.geometry)
+      ? "unchanged"
+      : feature.geometry === null || feature.geometry === undefined
+        ? "cleared"
+        : "set";
+    const attachments = { add: 0, update: 0, delete: 0 };
+    for (const attachment of this.#attachments) attachments[attachment.operation] += 1;
+    return Object.freeze({
+      dirty: model.dirty(),
+      changedFields: Object.freeze(changedFields),
+      geometry,
+      attachments: Object.freeze(attachments),
+    });
+  }
+
   #afterEdit(): void {
     if (this.#status === "committed" || this.#status === "rejected" || this.#status === "cancelled") {
+      if (this.#status === "committed") this.#mutationId = this.#allocateMutationId();
       this.#status = "draft";
       this.#failures = [];
+      this.#mutationReceipt = undefined;
+      this.#offline = undefined;
       this.#message = draftMessage(this.#operation ?? "update");
     }
   }
@@ -903,7 +1172,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     description: string,
     kind: EditWorkflowFailureKind,
     status: HonuaFeatureEditorStatus = "rejected",
-  ): HonuaFeatureEditorCommit {
+  ): HonuaFeatureEditorCommit<T> {
     this.#status = status;
     this.#failures = [{ kind, operation: "session", description }];
     this.#message = description;
@@ -915,6 +1184,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
       failures: this.#failures,
       attachments: this.#attachments,
       snapshot: this.snapshot(),
+      ...(this.#mutationReceipt ? { mutationReceipt: this.#mutationReceipt } : {}),
     };
   }
 
@@ -927,7 +1197,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     operation: HonuaEditorOperation,
     model: EditSketchWorkflowModel<T>,
     result: EditWorkflowSubmitResult<T>,
-  ): HonuaFeatureEditorCommit {
+  ): HonuaFeatureEditorCommit<T> {
     return {
       status: "cancelled",
       operation,
@@ -939,7 +1209,7 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
     };
   }
 
-  #commit(operation: HonuaEditorOperation, transported: boolean): HonuaFeatureEditorCommit {
+  #commit(operation: HonuaEditorOperation, transported: boolean): HonuaFeatureEditorCommit<T> {
     const snapshot = this.#notify();
     return {
       status: this.#status,
@@ -951,10 +1221,11 @@ export class HonuaFeatureEditorWorkflow<T = Record<string, unknown>> {
       failures: this.#failures,
       attachments: this.#attachments,
       snapshot,
+      ...(this.#mutationReceipt ? { mutationReceipt: this.#mutationReceipt } : {}),
     };
   }
 
-  #notify(): HonuaFeatureEditorSnapshot {
+  #notify(): HonuaFeatureEditorSnapshot<T> {
     const snapshot = this.snapshot();
     for (const listener of [...this.#listeners]) listener(snapshot);
     return snapshot;
@@ -1156,4 +1427,18 @@ function sameScalar(left: unknown, right: unknown): boolean {
     return JSON.stringify(left) === JSON.stringify(right);
   }
   return String(left) === String(right);
+}
+
+let mutationSequence = 0;
+
+function defaultMutationId(sourceId: SourceId): string {
+  const randomUuid = (globalThis.crypto as { randomUUID?: () => string } | undefined)?.randomUUID;
+  if (randomUuid) return randomUuid.call(globalThis.crypto);
+  mutationSequence += 1;
+  return `${String(sourceId)}:${Date.now()}:${mutationSequence}`;
+}
+
+function featureAfterCommit<T>(feature: CanonicalFeature<T>, featureId: FeatureId | undefined): CanonicalFeature<T> {
+  const cloned = cloneFeature(feature);
+  return featureId === undefined ? cloned : { ...cloned, id: featureId };
 }
