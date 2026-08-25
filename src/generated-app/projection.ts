@@ -166,7 +166,16 @@ export function projectMapPackageToGeneratedAppManifest(
   return clampGeneratedAppManifest({
     format: HONUA_GENERATED_APP_MANIFEST_FORMAT_V1,
     profile: HONUA_GENERATED_APP_PROFILE_OPERATIONS_DASHBOARD_V1,
-    appId: options.appId ?? mapPackage.previewArtifactId ?? mapPackage.mapPackageId,
+    // `previewArtifactId` is deliberately NOT a fallback here. It names a
+    // rendered *preview* artifact — an ephemeral by-product of composing the
+    // map — while `appId` is the manifest's stable identity, persisted inside
+    // `HonuaGeneratedAppManifestArtifact` and carried into every app package
+    // built from it. Preferring the preview id (as this once did) minted a
+    // persisted identity out of something that was never persisted, and did it
+    // in preference to the package's real server-assigned id. #1426: a preview
+    // is never reported as persisted. The preview reference still travels, in
+    // its own field, on `manifest.mapPackage.previewArtifactId`.
+    appId: options.appId ?? mapPackage.mapPackageId,
     title: options.title ?? mapPackage.templateId ?? "Generated operations dashboard",
     ...(options.version ? { version: options.version } : {}),
     data: { sourceId },

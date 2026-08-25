@@ -58,6 +58,7 @@ import {
   type HonuaCommand,
   type HonuaCommandContext,
   type HonuaCommandIdentity,
+  type HonuaCommandPlan,
   type HonuaCommandReceipt,
   type HonuaCommandStatus,
   type HonuaCommandTransport,
@@ -244,7 +245,7 @@ export class HonuaCommandRuntime {
 
     let plan: ReturnType<typeof command.plan>;
     try {
-      plan = command.plan(context);
+      plan = withoutResourceLink(command.plan(context));
     } catch (error) {
       throw toHonuaCommandError(error, command.id, failureContext);
     }
@@ -334,6 +335,28 @@ export function assertNoCommandKeyOverride(
       })),
     },
   );
+}
+
+/**
+ * Strip the resource link from a plan.
+ *
+ * A plan describes a request that has *not been issued* — and on a dry run it
+ * is the whole receipt, because `execute` is never reached. A link on it would
+ * therefore be a URL for a resource that may not exist, printed by the CLI and
+ * Studio next to the word "dry run", which is precisely honua-sdk-js#1426's
+ * "preview is never reported as persisted or published" failing. `plan` is
+ * already documented to carry no request body for a related reason; carrying no
+ * resource link is the same rule applied to the response side.
+ *
+ * The executed path is unaffected: a real invocation reports the `href` the
+ * *server* returned, on `HonuaCommandOutcome.resourceRef`. What a command can
+ * no longer do is predict one.
+ */
+function withoutResourceLink(plan: HonuaCommandPlan): HonuaCommandPlan {
+  const ref = plan.resourceRef;
+  if (!ref || ref.href === undefined) return plan;
+  const { href: _href, ...rest } = ref;
+  return { ...plan, resourceRef: rest };
 }
 
 function headerNames(headers: HeadersInit | undefined): string[] {

@@ -74,10 +74,16 @@ export interface RunCommandVerbOptions<TInput, TOutput> {
   readonly invocation: HonuaCommandInvocation;
   readonly parsed: ParsedArgs;
   readonly ctx: CommandContext;
-  /** Heading for a completed invocation. */
-  readonly title: string;
-  /** Heading for a `--dry-run` preview. */
-  readonly dryRunTitle: string;
+  /**
+   * Heading for the rendered receipt, chosen from the status the command
+   * actually reached.
+   *
+   * A fixed title plus a dry-run special case was not enough: `denied`,
+   * `cancelled` and `error` all fell through to the completed-invocation
+   * heading, so a refused publish printed "Map package published". Every
+   * status a verb can reach needs a heading that does not overclaim.
+   */
+  readonly heading: (status: HonuaCommandReceipt["status"]) => string;
   /**
    * Terminal confirmation message. When present, a non-dry-run invocation
    * requires `--yes`. This is terminal UX — it decides whether this terminal
@@ -121,7 +127,7 @@ export async function runCommandVerb<TInput, TOutput>(options: RunCommandVerbOpt
   printLine(
     renderDetail(
       { ...baseDetail(receipt), ...(options.detail?.(receipt) ?? {}) },
-      { title: receipt.status === "dry-run" ? options.dryRunTitle : options.title },
+      { title: options.heading(receipt.status) },
     ),
   );
 }

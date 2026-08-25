@@ -41,6 +41,13 @@ export type HonuaExportRedactionReason =
   | "authorization-scope"
   /** A source explicitly marked as not exportable by the plan or the source itself. */
   | "non-exportable-source"
+  /**
+   * A pointer to where the artifact is hosted or published (`links`, `href`,
+   * `publicationUrl`, `embedUrl`, ...). Not a secret — a claim. An exporter
+   * that cannot tell whether the thing it is exporting was ever persisted or
+   * published must not carry a URL that says it was.
+   */
+  | "publication-pointer"
   /** A value could not be represented safely (unserializable, cyclic, over budget). */
   | "unsupported-value";
 

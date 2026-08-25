@@ -500,6 +500,24 @@ function assertNlMapPlan(input: unknown): NlMapPlan {
         `Plan step "${step.id}" declares effect "${step.effect}" but tool "${step.tool}" has effect "${expectedEffect}".`,
       );
     }
+    // `propose` deletes `dryRun` from every call it builds — "execution policy
+    // decides dry runs; plans stay pure" — but the fingerprint is
+    // content-addressed rather than signed, so a hand-assembled plan can carry
+    // one back in. A dry-run call returns the `"dry-run"` agent-tool status:
+    // the action did not happen. `NlMapPlanReceipt.outcome` admits only
+    // `"succeeded"` and `"failed"`, so such a step would be *signed* into a
+    // receipt claiming the plan succeeded while none of its actions ran —
+    // honua-sdk-js#1426's "preview is never reported as persisted or
+    // published", inside the one artifact this module exists to make
+    // trustworthy. Refused before anything executes, rather than answered with
+    // a third receipt outcome for a state no proposed plan can reach.
+    const callArgs = (step.call as { readonly args?: unknown }).args;
+    if (typeof callArgs === "object" && callArgs !== null && "dryRun" in callArgs) {
+      throw new HonuaNlMapControlError(
+        "plan-invalid",
+        `Plan step "${step.id}" carries a "dryRun" argument. A previewed step produces no effect, and this plan's receipt can only report success or failure — it has no way to say "nothing happened". Propose the plan again and let the execution policy decide.`,
+      );
+    }
   }
   const derivedEffects = new Set(plan.steps.map((step) => step.effect));
   const declaredEffects = Array.isArray(plan.effects) ? plan.effects : [];

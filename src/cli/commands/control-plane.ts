@@ -105,8 +105,7 @@ export async function connectionCommand(parsed: ParsedArgs, ctx: CommandContext)
     invocation,
     parsed,
     ctx,
-    title: "Connection probed",
-    dryRunTitle: "Connection probe (dry run)",
+    heading: connectionTestHeading,
     confirm: "honua connection test issues a server-side probe. Re-run with --yes, or preview the plan with --dry-run.",
     detail: (receipt) => ({
       connection: receipt.resourceRef?.id ?? "(unknown)",
@@ -118,6 +117,44 @@ export async function connectionCommand(parsed: ParsedArgs, ctx: CommandContext)
       reachable: reachabilityLabel(receipt.status),
     }),
   });
+}
+
+/**
+ * Headings that do not overclaim.
+ *
+ * The shared adapter used to pair a fixed title with a dry-run special case,
+ * so `denied`, `cancelled` and `error` all rendered the completed-invocation
+ * heading -- a refused probe announced itself as a successful one. Each status
+ * a verb can reach gets its own heading instead.
+ */
+function connectionTestHeading(status: HonuaCommandStatus): string {
+  switch (status) {
+    case "ok":
+      return "Connection probed";
+    case "dry-run":
+      return "Connection probe (dry run)";
+    case "denied":
+      return "Connection probe denied";
+    case "cancelled":
+      return "Connection probe cancelled";
+    default:
+      return "Connection probe failed";
+  }
+}
+
+function importCreateHeading(status: HonuaCommandStatus): string {
+  switch (status) {
+    case "ok":
+      return "Import job created";
+    case "dry-run":
+      return "Import job (dry run)";
+    case "denied":
+      return "Import job denied";
+    case "cancelled":
+      return "Import job cancelled";
+    default:
+      return "Import job failed";
+  }
 }
 
 /**
@@ -151,8 +188,7 @@ export async function importCommand(parsed: ParsedArgs, ctx: CommandContext): Pr
     invocation,
     parsed,
     ctx,
-    title: "Import job created",
-    dryRunTitle: "Import job (dry run)",
+    heading: importCreateHeading,
     confirm: "honua import create mutates state. Re-run with --yes, or preview the plan with --dry-run.",
     detail: (receipt) => ({
       job: receipt.resourceRef?.id ?? "(not assigned)",
