@@ -310,10 +310,79 @@ export interface StudioVersionComparison {
 // ---------------------------------------------------------------------------
 
 /**
- * `pending` is reserved for later asynchronous publication execution and is
- * not emitted by the API service today.
+ * The six canonical publication-proposal lifecycle states a Studio
+ * publication proposal walks through, exactly as named in the server's
+ * publication workflow:
+ *
+ * - `AwaitingApproval` — the proposal is persisted and queued for a
+ *   *separate* approving principal. Non-terminal.
+ * - `Approved` — an approver (never the proposer — see the module doc on
+ *   {@link HonuaStudioPublicationRequestsClient}) cleared the proposal.
+ *   Non-terminal: publication has not executed yet.
+ * - `Executing` — the publication operation is running. Non-terminal.
+ * - `Active` — the publication is live. **The only state that carries a final
+ *   publication URL.**
+ * - `Rejected` — an approver declined the proposal. Terminal, not successful.
+ * - `Failed` — execution failed after approval. Terminal, not successful.
+ *
+ * @experimental
  */
-export type StudioPublicationRequestStatus = "accepted" | "rejected" | "pending" | (string & {});
+export type StudioPublicationLifecycleState =
+  | "AwaitingApproval"
+  | "Approved"
+  | "Executing"
+  | "Active"
+  | "Rejected"
+  | "Failed";
+
+/**
+ * `StudioPublicationRequest.status` as it arrives on the wire.
+ *
+ * Carries the six canonical {@link StudioPublicationLifecycleState} values
+ * plus the three legacy values the synchronous API service emitted before the
+ * proposal workflow shipped (`accepted`/`rejected` decided inline, `pending`
+ * reserved for asynchronous execution). The union stays open to
+ * `(string & {})` so a state this SDK release does not know about still
+ * round-trips instead of crashing the client — but an unrecognized value is
+ * never treated as terminal and never as success. Normalize with
+ * {@link normalizeStudioPublicationStatus} rather than comparing strings.
+ *
+ * @experimental
+ */
+export type StudioPublicationRequestStatus =
+  | StudioPublicationLifecycleState
+  | "accepted"
+  | "rejected"
+  | "pending"
+  | (string & {});
+
+/**
+ * The five distinct identifiers a publication proposal joins together, each
+ * addressing a different system:
+ *
+ * - `operationInstanceId` — the server-side publication operation instance.
+ * - `proposalId` — the governance proposal awaiting a separate approver.
+ * - `proposalUri` — the addressable location of that proposal. This is the
+ *   *proposal* resource, never the published artifact; the final publication
+ *   URL is {@link StudioPublicationRequest.publicationUrl} and appears only at
+ *   `Active`.
+ * - `auditId` — the immutable audit-log entry for the submission.
+ * - `correlationId` — the caller-visible correlation id threaded through
+ *   telemetry for the whole submit/approve/execute chain.
+ *
+ * All five are optional: a deployment that has not enabled the proposal
+ * workflow returns only the ones it produces. Every one that *is* returned is
+ * preserved verbatim end to end by this client.
+ *
+ * @experimental
+ */
+export interface StudioPublicationIdentifiers {
+  readonly operationInstanceId?: string;
+  readonly proposalId?: string;
+  readonly proposalUri?: string;
+  readonly auditId?: string;
+  readonly correlationId?: string;
+}
 
 /**
  * `POST /content-items/{itemId}/versions/{versionId}/publish-requests`
@@ -321,27 +390,51 @@ export type StudioPublicationRequestStatus = "accepted" | "rejected" | "pending"
  * `publicationIntent` when supplied; an invalid override fails with `400`
  * before a request is persisted. `warningAcknowledgment` is optional audit
  * text for `warning`-status versions.
+ *
+ * `contentHash` pins the exact immutable version bytes being proposed, and
+ * `idempotencyKey` gives the submission a stable identity so a retried or
+ * replayed submit resolves to the same proposal instead of creating a second
+ * one.
+ *
+ * A submission body may **not** carry approval or policy-override fields —
+ * see {@link HonuaStudioPublicationRequestsClient.create}, which rejects them
+ * client-side before any request is sent.
  */
 export interface StudioPublicationRequestInput {
   readonly intent?: StudioPublicationIntent;
   readonly warningAcknowledgment?: string;
+  readonly contentHash?: string;
+  readonly idempotencyKey?: string;
+  readonly correlationId?: string;
   readonly [extra: string]: unknown;
 }
 
 /**
- * A persisted publication request. Versions whose captured validation status
- * is `invalid` still produce a durable request with `status: "rejected"` and
- * do not move the published pointer; `valid`/`warning` versions are
- * `"accepted"` and do move it.
+ * A persisted publication request (proposal).
+ *
+ * Under the legacy synchronous behaviour, versions whose captured validation
+ * status is `invalid` still produce a durable request with
+ * `status: "rejected"` and do not move the published pointer, while
+ * `valid`/`warning` versions are `"accepted"` and do move it. Under the
+ * proposal workflow the request starts at `AwaitingApproval` and is walked to
+ * a terminal state by {@link HonuaStudioPublicationRequestsClient.poll}.
+ *
+ * `publicationUrl` is meaningful **only** when the status normalizes to
+ * `Active`; the client never surfaces it from any other state, even if a
+ * server sends one.
  */
-export interface StudioPublicationRequest {
+export interface StudioPublicationRequest extends StudioPublicationIdentifiers {
   readonly requestId: string;
   readonly itemId: string;
   readonly versionId: string;
   readonly status: StudioPublicationRequestStatus;
   readonly intent?: StudioPublicationIntent;
+  readonly contentHash?: string;
+  readonly publicationUrl?: string;
+  readonly reason?: string;
   readonly createdAt?: string;
   readonly createdBy?: string;
+  readonly updatedAt?: string;
   readonly [extra: string]: unknown;
 }
 
