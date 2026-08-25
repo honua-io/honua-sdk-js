@@ -490,13 +490,11 @@ function assertEmbeddedDataWithinBudgetDeep(
       continue;
     }
     if (typeof node !== "object" || node === null) continue;
-    if (!Array.isArray(node)) {
-      assertEmbeddedDataWithinBudget(node, path, maxEmbeddedBytes, packageId, "import");
-    }
     if (Array.isArray(node)) {
       node.forEach((child, index) => stack.push([`${path}[${index}]`, child]));
       continue;
     }
+    assertEmbeddedDataWithinBudget(node, path, maxEmbeddedBytes, packageId, "import");
     for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
       stack.push([`${path}.${key}`, child]);
     }
