@@ -357,6 +357,18 @@ jobs:
       - name: Validate release-seal policy
         run: npm run release:seal:test
 
+      # Release artifact manifest drift gate (#1337). Unlike release:seal:check
+      # this is safe on every branch: it compares config/release-artifacts.v1.json
+      # against the split-package generator, the publish workflows, and every
+      # tracked package.json, so a package that would silently enter or leave
+      # the coordinated cut fails here rather than at release time. The
+      # published-release verifier's own unit tests run alongside it; that
+      # verifier itself is a post-publish gate and lives in publish-js-sdk.yml.
+      - name: Validate release artifact manifest
+        run: |
+          npm run verify:release-artifacts
+          node --test test/scripts/verify-published-release.test.mjs
+
       - name: Code style
         run: npm run check
 

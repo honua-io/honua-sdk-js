@@ -203,6 +203,10 @@ jobs:
           npm run typecheck
           npm run check
           npm run samples:verify
+          # Every package this run is about to publish must be declared by the
+          # release manifest, and every package the repository can publish must
+          # be included in the cut or explicitly excluded (#1337).
+          npm run verify:release-artifacts
           npm test
           npm run build:split-packages:prepared
           npm run verify:split-packages:prepared
@@ -324,3 +328,99 @@ jobs:
         run: |
           echo "Dry run complete. Split packages verified:"
           ls -la ./dist/packages/
+
+  # Post-publish registry verification (#1337, AC6). A green publish step has
+  # never been evidence that the release reached consumers: 0.0.19 published
+  # while @honua/react 404'd, `latest` pointed at 0.0.6 for weeks, and three
+  # releases produced tags on the wrong commit. This job asks the registry --
+  # not the publisher -- for every artifact the release manifest includes, and
+  # verifies version, dist-tag, tarball integrity, Sigstore provenance, the npm
+  # publish attestation, and that the provenance's source commit is the commit
+  # the release tag names. It fails closed and always emits the receipt
+  # honua-io/honua-sdk-js#39 consumes.
+  verify-published-release:
+    name: Verify published release against the registry
+    needs: publish-js-packages
+    if: ${{ needs.publish-js-packages.result == 'success' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          # @honua/mcp-server and create-honua-app publish from their own
+          # Release Please tags rather than the sealed js-sdk tag, so their
+          # source-commit check resolves those tags locally.
+          fetch-tags: true
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20.19.0"
+
+      - name: Verify registry versions, integrity, provenance, and source SHA
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('js-sdk-v{0}', github.event.inputs.release_version) }}
+          SEALED_COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # npm's attestation endpoint trails the publish by seconds to a couple
+          # of minutes. Retry the whole verification rather than weakening any
+          # single check: a genuinely missing artifact still fails after the
+          # last attempt.
+          for attempt in 1 2 3 4 5; do
+            if node scripts/verify-published-release.mjs \
+              --tag "${RELEASE_TAG}" \
+              --commit "${SEALED_COMMIT}" \
+              --receipt test-results/published-release-verification.v1.json; then
+              exit 0
+            fi
+            if [[ "$attempt" -lt 5 ]]; then
+              echo "::notice::Registry verification attempt ${attempt} failed; retrying in 60s."
+              sleep 60
+            fi
+          done
+          echo "::error title=Published release verification failed for ${RELEASE_TAG}::The registry does not agree with the release manifest. See the receipt artifact for the failing checks."
+          exit 1
+
+      - name: Summarize the receipt
+        if: always()
+        run: |
+          set -euo pipefail
+          receipt=test-results/published-release-verification.v1.json
+          if [[ ! -f "$receipt" ]]; then
+            echo "No receipt was written; the verifier did not run." >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          {
+            echo "## Published release verification"
+            echo
+            RECEIPT="$receipt" node -e '
+              const receipt = JSON.parse(require("fs").readFileSync(process.env.RECEIPT, "utf8"));
+              console.log(`- status: \`${receipt.status}\``);
+              console.log(`- tag: \`${receipt.sealedTag}\` on \`${receipt.sealedCommit}\``);
+              console.log("");
+              console.log("| package | version | dist-tag | source commit | status |");
+              console.log("| --- | --- | --- | --- | --- |");
+              for (const artifact of receipt.artifacts) {
+                console.log(`| \`${artifact.npmName}\` | ${artifact.version} | ${artifact.distTag} | \`${artifact.sourceRevision ?? "unverified"}\` | ${artifact.status} |`);
+              }
+              for (const failure of receipt.failures) {
+                console.log("");
+                console.log(`- FAILED: ${failure}`);
+              }
+            '
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload published-release receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: published-release-verification
+          path: test-results/published-release-verification.v1.json
+          if-no-files-found: error
