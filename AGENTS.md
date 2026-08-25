@@ -167,7 +167,7 @@ Refs #1397 (server-discovered routing; family/view metadata remains, blocked on 
 Refs #1398 (proposal status client; draft enumeration remains, blocked on honua-server#3003)
 ```
 
-Check a body against the real validator before pushing instead of guessing:
+Syntax-check a body before pushing instead of guessing at the grammar:
 
 ```bash
 node --input-type=module -e '
@@ -175,6 +175,14 @@ import { parsePullRequestDisposition } from "./scripts/lib/pr-issue-disposition.
 import { readFileSync } from "node:fs";
 console.log(parsePullRequestDisposition(readFileSync("/tmp/body.md", "utf8")));'
 ```
+
+This covers the footer grammar only. The required check calls
+`validatePullRequestDisposition`, which additionally resolves each declared
+issue against the GitHub API — so a footer that is syntactically perfect still
+fails the gate when it names an issue that does not exist, is already closed,
+lives in another repository, or is actually a pull request, or when GitHub does
+not recognise a declared `Closes` reference. A clean parse means the grammar is
+right, not that the PR will pass.
 
 ### Keeping a PR mergeable
 
