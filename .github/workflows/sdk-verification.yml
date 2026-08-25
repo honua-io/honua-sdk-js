@@ -186,7 +186,10 @@ jobs:
         run: npm ci
 
       - name: Test verification graph policy
-        run: node --test test/scripts/sdk-verification-workflow.test.mjs
+        run: node --test test/scripts/sdk-verification-workflow.test.mjs test/scripts/unit-test-shards.test.mjs
+
+      - name: Verify every unit spec has exactly one shard
+        run: npm run unit:shards:check
 
       - name: Publish browser shard matrix
         id: matrix
@@ -477,9 +480,6 @@ jobs:
         # reference gates are a gate the graph must not retire.
         run: npm run qualification:app-platform:check
 
-      - name: Unit tests with coverage
-        run: npm run test:coverage:prepared
-
       # Re-runs the sample publication contract suite against a forward-shifted
       # validation clock (+35d, +95d) so a fixture whose validity silently
       # depends on the wall-clock date fails here rather than wedging trunk for
@@ -503,6 +503,91 @@ jobs:
         run: |
           echo "::error title=Sample publication contract::The sample publication contract failed. Read the failure in the 'Verify sample publication contract' step above; the correctness suite in this job ran to completion regardless. A golden-visual freshness lapse is renewed with 'npm run samples:generate' or 'gh workflow run regenerate-derived-artifacts.yml --repo honua-io/honua-sdk-js'."
           exit 1
+
+  unit-coverage:
+    name: "Unit coverage (${{ matrix.shard }}/4)"
+    needs: [admission, build]
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      HONUA_SOURCE_REVISION: ${{ needs.admission.outputs.head_sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the immutable SDK build
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+
+      - name: Admit the SDK build
+        run: node scripts/sdk-build-evidence.mjs verify --evidence .artifacts/sdk-build/evidence.v1.json
+
+      # Blob reports retain per-test coverage without applying four partial
+      # thresholds. The coverage-gate job below merges all four and evaluates
+      # the repository thresholds exactly once.
+      - name: Run unit coverage shard
+        id: unit_coverage
+        # Vitest's blob reporter records failed specs and partial coverage, but
+        # exits against the partial global threshold before reports can merge.
+        # Preserve that outcome in the blob; coverage-gate is the one verdict.
+        continue-on-error: true
+        run: node scripts/unit-test-shards.mjs run ${{ matrix.shard }}
+
+      - name: Upload raw unit coverage shard
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: unit-coverage-shard-${{ matrix.shard }}
+          path: .vitest-reports/
+          include-hidden-files: true
+          if-no-files-found: error
+
+  coverage-gate:
+    name: "Verify: merged unit coverage"
+    needs: [admission, unit-coverage]
+    if: needs.admission.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.admission.outputs.head_sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download every raw unit coverage shard
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: unit-coverage-shard-*
+          path: .vitest-reports
+          merge-multiple: true
+
+      - name: Merge reports and enforce coverage thresholds once
+        run: npx vitest --merge-reports=.vitest-reports --coverage
 
   verify-package:
     name: "Verify: package, publish surface, bundles"
@@ -757,7 +842,7 @@ jobs:
 
   verified:
     name: SDK verified
-    needs: [admission, quickstart-budget, build, verify-core, verify-package, verify-examples, mcp, browser]
+    needs: [admission, quickstart-budget, build, verify-core, unit-coverage, coverage-gate, verify-package, verify-examples, mcp, browser]
     if: always()
     runs-on: ubuntu-latest
     steps:

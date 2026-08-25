@@ -327,6 +327,8 @@
     "offline:shell-manifest:check": "npm run offline:shell-manifest:test --silent && node scripts/offline-shell-manifest.mjs check",
     "browser:shards:check": "node scripts/browser-shards.mjs check",
     "browser:shards:test": "node --test test/scripts/browser-shards.test.mjs",
+    "unit:shards:check": "node scripts/unit-test-shards.mjs check",
+    "unit:shards:test": "node --test test/scripts/unit-test-shards.test.mjs",
     "sdk-build-evidence:test": "node --test test/scripts/sdk-build-evidence.test.mjs",
     "ci:baseline:collect": "node scripts/ci-timing-baseline.mjs collect",
     "ci:baseline:report": "node scripts/ci-timing-baseline.mjs report",

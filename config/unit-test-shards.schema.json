@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://honua.io/schemas/sdk/unit-test-shards.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "format", "shardCount"],
+  "properties": {
+    "$schema": {"const": "./unit-test-shards.schema.json"},
+    "format": {"const": "honua.sdk.unit-test-shards.v1"},
+    "shardCount": {"type": "integer", "minimum": 2, "maximum": 8}
+  }
+}

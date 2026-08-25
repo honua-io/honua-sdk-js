@@ -130,6 +130,7 @@ spec at all, which is why it is written down.
 ```
 admission ──┬─ quickstart-budget          (clean install; deliberately no reuse)
             └─ build ──┬─ verify-core
+                       ├─ unit-coverage × 4 ── coverage-gate
                        ├─ verify-package
                        ├─ verify-examples
                        ├─ mcp
@@ -148,6 +149,30 @@ admission ──┬─ quickstart-budget          (clean install; deliberately n
 - **consumers** download that exact artifact, admit it, and run their gates
   against it. None of them rebuilds.
 - **verified** is the one aggregate result a reviewer reads.
+
+## Unit coverage shards
+
+The 554 Vitest unit specs are assigned deterministically across four workers by
+`scripts/unit-test-shards.mjs`, using the reviewed shard count in
+`config/unit-test-shards.v1.json`. Admission enumerates the repository and
+fails if a spec is absent, multiply owned, or a configured shard is empty.
+Each worker downloads and admits the same immutable SDK build used by the other
+consumers, then uploads a Vitest blob report. Workers do not apply partial
+coverage thresholds.
+
+`coverage-gate` downloads all four raw reports, merges them, and invokes Vitest
+with coverage enabled once. The existing global line, function, branch, and
+statement thresholds therefore remain one verdict over the complete suite.
+Both the shard matrix and merge gate are explicit dependencies of `verified`,
+so a missing shard, failed spec, failed threshold, skipped job, or cancelled job
+cannot produce a green aggregate.
+
+Exercise the partition locally with:
+
+```bash
+npm run unit:shards:check
+npm run unit:shards:test
+```
 
 ### Why the quickstart budget does not reuse the build
 
