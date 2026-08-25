@@ -372,6 +372,17 @@ jobs:
           npm run verify:release-artifacts
           node --test test/scripts/verify-published-release.test.mjs
 
+      # 2026.1 certification denominator freeze (#39, AC1). Regenerates the
+      # denominator from config/support-manifest.v1.json,
+      # config/protocol-certification.v1.json, the coverage crosswalk, the Admin
+      # MCP projection and the terminal journey, and fails when the frozen
+      # config/certification-denominator.v1.json no longer matches -- a
+      # `supported` row that never joined it would otherwise sit outside the
+      # certification run while the run still reported a full pass. Reads
+      # config/ and mcp/ only, so it neither consumes nor invalidates a build.
+      - name: Validate certification denominator freeze
+        run: npm run verify:certification-denominator
+
       - name: Code style
         run: npm run check
 
