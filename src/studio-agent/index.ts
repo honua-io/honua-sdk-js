@@ -14,9 +14,12 @@
  *     `@modelcontextprotocol/sdk`.
  *  3. **Session** ({@link createStudioAgentSession}) — the turn loop that
  *     streams a chat turn, dispatches the tool calls the model emits (local
- *     `@honua/sdk-js/agent-tools` verbs through a kit, `honua_studio_*`
+ *     `@honua/sdk-js/agent-tools` verbs through a kit, server-discovered
  *     composition tools through MCP), feeds results back, and repeats until
- *     the model stops asking. It never throws mid-stream.
+ *     the model stops asking. It never throws mid-stream. The composition tool
+ *     set comes from paging the server's `tools/list` and filtering it through
+ *     a {@link StudioToolPolicy} — see {@link StudioToolCatalog} for why a
+ *     `honua_studio_` name prefix is never a routing credential.
  *
  * ```ts
  * import { createHonuaAiMapKit } from "@honua/sdk-js/agent-tools";
@@ -73,8 +76,23 @@ export type { ChatTransport } from "./transport.js";
 export { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
 export type { FetchStudioAiCapabilitiesOptions, SseChatTransportOptions } from "./sse-transport.js";
 
-export { McpClient } from "./mcp-client.js";
-export type { McpClientOptions } from "./mcp-client.js";
+export { MCP_DEFAULT_MAX_TOOL_LIST_PAGES, McpClient } from "./mcp-client.js";
+export type { McpClientOptions, McpListAllToolsOptions, McpToolListing } from "./mcp-client.js";
+
+export {
+  HONUA_STUDIO_TOOL_FAMILY,
+  HONUA_STUDIO_TOOL_METADATA_KEY,
+  StudioToolCatalog,
+  readStudioToolClassification,
+} from "./tool-catalog.js";
+export type {
+  StudioToolCatalogEntry,
+  StudioToolClassification,
+  StudioToolDiscoveryReport,
+  StudioToolPolicy,
+  StudioToolRejection,
+  StudioToolRejectionReason,
+} from "./tool-catalog.js";
 
 export {
   McpProtocolError,

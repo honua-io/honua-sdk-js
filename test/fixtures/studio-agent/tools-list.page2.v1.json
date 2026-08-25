@@ -1,0 +1,149 @@
+{
+  "_fixture": "MCP `tools/list` result, page 2 of 2 (fetched with `cursor: \"studio-tools-page-2\"`). Carries three lifecycle verbs the SDK's deleted hard-coded table never knew about (save/reopen/publication status) plus two descriptors that MUST NEVER be routed: `honua_admin_purge_tenant` (classified into a family this session's policy does not approve) and `honua_studio_shadow_export` (carries no server classification at all — a `honua_studio_` prefix is not a routing credential). No `nextCursor`: this terminates the pagination loop.",
+  "tools": [
+    {
+      "name": "honua_studio_set_view",
+      "description": "Sets the draft map's initial camera/view state.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "view": { "type": "object" }
+        },
+        "required": ["draftId", "generation", "view"]
+      },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_add_widget",
+      "description": "Adds a dashboard widget to the draft composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "widget": { "type": "object" }
+        },
+        "required": ["draftId", "generation", "widget"]
+      },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_remove_widget",
+      "description": "Removes a dashboard widget from the draft composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "widgetId": { "type": "string" }
+        },
+        "required": ["draftId", "generation", "widgetId"]
+      },
+      "annotations": { "destructiveHint": true },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_bind_interaction",
+      "description": "Binds a declarative interaction (ADR-0030 vocabulary) inside the draft composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "interaction": { "type": "object" }
+        },
+        "required": ["draftId", "generation", "interaction"]
+      },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_remove_interaction",
+      "description": "Removes a declarative interaction binding from the draft composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "interactionId": { "type": "string" }
+        },
+        "required": ["draftId", "generation", "interactionId"]
+      },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_propose_publication",
+      "description": "Submits the draft for publication review.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "note": { "type": "string" }
+        },
+        "required": ["draftId", "generation"]
+      },
+      "_meta": {
+        "honua.studio": { "family": "honua.studio.composition", "view": "publication", "revision": "2026-08-01" }
+      }
+    },
+    {
+      "name": "honua_studio_save_draft",
+      "description": "Persists the draft and returns the saved generation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "draftId": { "type": "string" }, "generation": { "type": "integer" } },
+        "required": ["draftId", "generation"]
+      },
+      "_meta": {
+        "honua.studio": { "family": "honua.studio.composition", "view": "lifecycle", "revision": "2026-08-01" }
+      }
+    },
+    {
+      "name": "honua_studio_reopen_draft",
+      "description": "Reopens a previously saved or submitted draft for further editing.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "draftId": { "type": "string" } },
+        "required": ["draftId"]
+      },
+      "_meta": {
+        "honua.studio": { "family": "honua.studio.composition", "view": "lifecycle", "revision": "2026-08-01" }
+      }
+    },
+    {
+      "name": "honua_studio_publication_status",
+      "description": "Reads owner-scoped publication status for a draft.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "draftId": { "type": "string" } },
+        "required": ["draftId"]
+      },
+      "annotations": { "readOnlyHint": true, "idempotentHint": true },
+      "_meta": {
+        "honua.studio": { "family": "honua.studio.composition", "view": "publication", "revision": "2026-08-01" }
+      }
+    },
+    {
+      "name": "honua_admin_purge_tenant",
+      "description": "Permanently deletes every package owned by a tenant.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "tenantId": { "type": "string" } },
+        "required": ["tenantId"]
+      },
+      "annotations": { "destructiveHint": true },
+      "_meta": { "honua.studio": { "family": "honua.admin.tenancy", "view": "administration", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_shadow_export",
+      "description": "Exports the draft to an external endpoint. Carries NO server classification metadata.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "draftId": { "type": "string" }, "endpoint": { "type": "string" } },
+        "required": ["draftId", "endpoint"]
+      }
+    }
+  ]
+}

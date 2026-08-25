@@ -12,10 +12,20 @@
  *    vocabulary (`setViewport`, `setFilter`, `bindInteraction`, …) executed
  *    against the caller's own runtime through a {@link HonuaAiMapKit}, under
  *    that kit's policy (allowActions / dry-run / allowed sources / audit).
- *  - **Draft-mutating composition tools** — the `honua_studio_*` MCP tools
- *    (including `honua_studio_bind_interaction` /
- *    `honua_studio_remove_interaction`), routed through {@link McpClient} to
- *    the server that owns the composition draft.
+ *  - **Draft-mutating composition tools** — the Studio MCP tools the *server*
+ *    advertises through `tools/list`, routed through {@link McpClient} to the
+ *    server that owns the composition draft.
+ *
+ * **The composition plane is discovered, not hard-coded.** On the first
+ * `chat()` the session pages `tools/list` to completion, applies its
+ * {@link StudioToolPolicy}, and merges the approved descriptors into the tool
+ * set it advertises. Selection requires a positive signal — server-owned
+ * family/view classification, or an explicit configured allowlist — never a
+ * `honua_studio_` name prefix; `./tool-catalog.ts` documents why and what the
+ * server contract (honua-server#3428) looks like. The catalog is cached and
+ * invalidated by {@link StudioAgentSession.refreshTools} and
+ * {@link StudioAgentSession.reconnect}. Runtime-kit tools always win a name
+ * collision, so a server can never shadow a local runtime verb.
  *
  * Both planes are serialized through one promise queue, so a multi-tool
  * assistant turn applies strictly in order and two calls never race the same
@@ -53,15 +63,16 @@ import type {
   StudioAiToolChoice,
   StudioAiToolDefinition,
 } from "./ai-contract.js";
-import { McpClient } from "./mcp-client.js";
+import { McpClient, type McpToolListing } from "./mcp-client.js";
 import { isMcpGenerationConflict, isMcpToolError } from "./mcp-errors.js";
 import {
+  HONUA_STUDIO_MCP_TOOL_NAMES,
   type McpToolErrorCode,
   type McpToolsCallResult,
   type StudioMcpDraft,
-  isHonuaStudioMcpToolName,
 } from "./mcp-protocol.js";
 import { SseChatTransport, fetchStudioAiCapabilities } from "./sse-transport.js";
+import { StudioToolCatalog, type StudioToolDiscoveryReport, type StudioToolPolicy } from "./tool-catalog.js";
 import type { ChatTransport } from "./transport.js";
 
 /** The live composition draft `honua_studio_*` calls are applied to. */
@@ -85,8 +96,33 @@ export interface StudioAgentSessionOptions {
   readonly execute?: (call: HonuaAgentToolCall) => Promise<HonuaAgentToolResult>;
   /** Replaces the SSE transport. Supply a scripted transport to drive a session with no model. */
   readonly transport?: ChatTransport;
-  /** Replaces the MCP client used for `honua_studio_*` routing. */
+  /** Replaces the MCP client used for composition-tool routing. */
   readonly mcpClient?: McpClient;
+  /**
+   * Which server-advertised Studio descriptors this session may route and
+   * advertise. Defaults approve the canonical server family in every view, keep
+   * the allowlist empty, and use the deprecated
+   * {@link HONUA_STUDIO_MCP_TOOL_NAMES} table as the migration-diagnostic
+   * `required` baseline. See `./tool-catalog.ts`.
+   */
+  readonly studioTools?: StudioToolPolicy;
+  /**
+   * Skips `tools/list` discovery entirely. The session then advertises and
+   * routes only its runtime-kit tools. Use for a host with no MCP endpoint.
+   * @default false
+   */
+  readonly disableToolDiscovery?: boolean;
+  /**
+   * Wall-clock bound on one `tools/list` discovery pass (handshake plus every
+   * page). An MCP endpoint that accepts the request and never answers would
+   * otherwise hold every `chat()` open forever, since `fetch` has no deadline
+   * of its own. On expiry the pass fails like any other discovery failure: the
+   * turn degrades to runtime-kit tools, the reason is reported on
+   * {@link StudioAgentSession.toolDiscovery}, and the next turn retries.
+   * `0` disables the bound.
+   * @default 15000
+   */
+  readonly toolDiscoveryTimeoutMs?: number;
   /**
    * System prompt. A function is awaited once per `chat()` call, so a kit's
    * `systemPrompt()` re-reads live map context on every turn.
@@ -107,7 +143,9 @@ export interface StudioAgentSessionOptions {
 
 export type StudioAgentSessionEvent =
   | { readonly type: "chat"; readonly event: StudioAiChatEvent }
-  | { readonly type: "toolResult"; readonly result: StudioAgentToolDispatch };
+  | { readonly type: "toolResult"; readonly result: StudioAgentToolDispatch }
+  /** One completed `tools/list` discovery pass, including migration diagnostics. */
+  | { readonly type: "toolDiscovery"; readonly report: StudioToolDiscoveryReport };
 
 export type StudioAgentToolPlane = "runtime" | "composition";
 
@@ -157,21 +195,51 @@ export interface StudioAgentSession {
   readonly messages: ReadonlyArray<StudioAiChatMessage>;
   /** The draft `honua_studio_*` tools mutate, with the latest generation the session has seen. */
   readonly draft: StudioAgentDraftBinding | undefined;
-  /** The tool definitions advertised to the proxy, in the `{ name, description, inputSchema }` HTTP shape. */
+  /**
+   * The tool definitions advertised to the proxy, in the
+   * `{ name, description, inputSchema }` HTTP shape — runtime-kit tools, plus
+   * every server-discovered composition tool this session's policy approved.
+   * Before the first `chat()` (or {@link refreshTools}) this is the runtime-kit
+   * set alone, since discovery is asynchronous and lazy.
+   */
   readonly tools: ReadonlyArray<StudioAiToolDefinition>;
+  /** The composition tool names discovery selected, or `[]` before it has run. */
+  readonly compositionTools: ReadonlyArray<string>;
+  /** The last completed discovery pass, or `undefined` before the first one. */
+  readonly toolDiscovery: StudioToolDiscoveryReport | undefined;
   /** `GET /v1/studio/ai/capabilities`, fetched once and cached. */
   capabilities(): Promise<StudioAiCapabilitiesResponse>;
   /** The provider descriptor this session routes to, or `undefined` when it is not declared. */
   resolveProvider(): Promise<StudioAiCapability | undefined>;
   /** Runs one user turn to completion. Never throws. */
   chat(text: string, options?: StudioAgentChatOptions): Promise<StudioAgentTurn>;
+  /**
+   * Discards the cached tool catalog and re-runs `tools/list` discovery.
+   * Call after a server `notifications/tools/list_changed`, or after a server
+   * identity/profile/view revision change. Never throws — a failed pass leaves
+   * the previous catalog in place and is reported on the returned report.
+   */
+  refreshTools(): Promise<StudioToolDiscoveryReport>;
+  /**
+   * Drops the negotiated MCP session and invalidates the tool catalog, so the
+   * next turn re-handshakes and re-discovers. A reconnected principal may have
+   * a different catalog; nothing derived from the old one survives.
+   */
+  reconnect(): void;
   /** Attaches (or re-attaches) the composition draft. */
   attachDraft(draft: StudioAgentDraftBinding): void;
-  /** Clears the conversation history. Draft binding and capabilities cache survive. */
+  /** Clears the conversation history. Draft binding, tool catalog, and capabilities cache survive. */
   reset(): void;
 }
 
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
+/** Wall-clock bound on one `tools/list` discovery pass. See `toolDiscoveryTimeoutMs`. */
+const DEFAULT_TOOL_DISCOVERY_TIMEOUT_MS = 15_000;
+
+/** A turn the caller cancelled before it did any work. */
+function cancelledTurn(): StudioAgentTurn {
+  return { status: "cancelled", text: "", toolCalls: [], events: [], rounds: 0 };
+}
 
 export function createStudioAgentSession(options: StudioAgentSessionOptions): StudioAgentSession {
   return new StudioAgentSessionImpl(options);
@@ -180,10 +248,24 @@ export function createStudioAgentSession(options: StudioAgentSessionOptions): St
 class StudioAgentSessionImpl implements StudioAgentSession {
   readonly #options: StudioAgentSessionOptions;
   readonly #transport: ChatTransport;
-  readonly #tools: ReadonlyArray<StudioAiToolDefinition>;
+  readonly #runtimeTools: ReadonlyArray<StudioAiToolDefinition>;
   readonly #runtimeToolNames: ReadonlySet<string>;
   readonly #execute: ((call: HonuaAgentToolCall) => Promise<HonuaAgentToolResult>) | undefined;
   readonly #messages: StudioAiChatMessage[] = [];
+  /** Runtime tools plus the discovered composition tools. Recomputed on every discovery pass. */
+  #tools: ReadonlyArray<StudioAiToolDefinition>;
+  /** The routing authority for the composition plane. Empty until discovery runs. */
+  #catalog: StudioToolCatalog = StudioToolCatalog.empty();
+  #discovery: Promise<StudioToolDiscoveryReport> | undefined;
+  #discoveryReport: StudioToolDiscoveryReport | undefined;
+  /**
+   * Bumped by every `refreshTools()`/`reconnect()`. A pass that started under
+   * an older generation may not publish its result: `tools/list` already in
+   * flight when a reconnect lands describes the PREVIOUS MCP session and
+   * principal, and the reconnect contract says nothing derived from that
+   * catalog survives.
+   */
+  #discoveryGeneration = 0;
   #mcpClient: McpClient | undefined;
   #draft: StudioAgentDraftBinding | undefined;
   #capabilities: Promise<StudioAiCapabilitiesResponse> | undefined;
@@ -205,11 +287,14 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     const definitions: HonuaAgentToolDefinitionLike[] = [...(options.kit?.tools ?? []), ...(options.tools ?? [])];
     // The proxy forwards `tools` verbatim, and its HTTP tool shape is the same
     // `{ name, description, inputSchema }` triple the MCP exporter produces.
-    this.#tools = convertHonuaAgentToolDefinitions(
+    this.#runtimeTools = convertHonuaAgentToolDefinitions(
       dedupeByName(definitions),
       "mcp",
     ) as ReadonlyArray<StudioAiToolDefinition>;
-    this.#runtimeToolNames = new Set(this.#tools.map((tool) => tool.name));
+    this.#runtimeToolNames = new Set(this.#runtimeTools.map((tool) => tool.name));
+    // Composition tools are discovered asynchronously on the first `chat()`;
+    // until then the session advertises exactly what it can execute locally.
+    this.#tools = this.#runtimeTools;
     this.#execute = options.execute ?? options.kit?.execute.bind(options.kit);
   }
 
@@ -225,12 +310,37 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return this.#tools;
   }
 
+  public get compositionTools(): ReadonlyArray<string> {
+    return this.#catalog.names;
+  }
+
+  public get toolDiscovery(): StudioToolDiscoveryReport | undefined {
+    return this.#discoveryReport;
+  }
+
   public attachDraft(draft: StudioAgentDraftBinding): void {
     this.#draft = draft;
   }
 
   public reset(): void {
     this.#messages.length = 0;
+  }
+
+  public refreshTools(): Promise<StudioToolDiscoveryReport> {
+    this.#discoveryGeneration += 1;
+    this.#discovery = undefined;
+    return this.#ensureToolCatalog();
+  }
+
+  public reconnect(): void {
+    this.#mcpClient?.resetSession();
+    // Invalidate before clearing: a `tools/list` pass still in flight resolves
+    // with the old session's descriptors, and must not repopulate what the two
+    // lines below are clearing.
+    this.#discoveryGeneration += 1;
+    this.#discovery = undefined;
+    this.#catalog = StudioToolCatalog.empty();
+    this.#tools = this.#runtimeTools;
   }
 
   public capabilities(): Promise<StudioAiCapabilitiesResponse> {
@@ -258,7 +368,142 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     );
   }
 
+  // ── Tool discovery ──────────────────────────────────────────
+
+  /**
+   * Runs (or joins) one `tools/list` discovery pass. Concurrent callers share
+   * the in-flight pass; a completed pass is cached until
+   * {@link refreshTools}/{@link reconnect} invalidates it.
+   *
+   * A FAILED pass is never cached: a transient MCP outage must not permanently
+   * strip the composition plane from every later turn. The previous catalog
+   * (empty, on a first failure) stays in force so the session degrades to its
+   * runtime-kit tools instead of throwing into the turn loop.
+   */
+  #ensureToolCatalog(): Promise<StudioToolDiscoveryReport> {
+    if (this.#options.disableToolDiscovery) {
+      this.#discovery ??= Promise.resolve(this.#publishDiscovery(StudioToolCatalog.empty().report(0)));
+      return this.#discovery;
+    }
+    if (!this.#discovery) {
+      const generation = this.#discoveryGeneration;
+      this.#discovery = this.#discoverTools(generation).catch((error: unknown) => {
+        const report = {
+          ...this.#catalog.report(0),
+          errorMessage: `Studio tool discovery failed: ${errorMessage(error)}`,
+        };
+        // A superseded pass reports its own failure to whoever was awaiting it,
+        // but neither clears the newer pass's cache entry nor publishes over
+        // the newer pass's report.
+        if (generation !== this.#discoveryGeneration) return report;
+        this.#discovery = undefined;
+        return this.#publishDiscovery(report);
+      });
+    }
+    return this.#discovery;
+  }
+
+  async #discoverTools(generation: number): Promise<StudioToolDiscoveryReport> {
+    const listing = await this.#listAllToolsBounded();
+    const policy = this.#options.studioTools ?? {};
+    const catalog = StudioToolCatalog.fromDescriptors(listing.tools, {
+      ...policy,
+      // The historical hard-coded table is now only the migration-diagnostic
+      // baseline: a name here the live server does not advertise (or the policy
+      // does not approve) is REPORTED, never silently dropped, and never
+      // routed on the strength of appearing in this list.
+      required: policy.required ?? HONUA_STUDIO_MCP_TOOL_NAMES,
+    });
+    const report = catalog.report(listing.pages);
+    if (generation !== this.#discoveryGeneration) {
+      // `refreshTools()`/`reconnect()` superseded this pass while `tools/list`
+      // was in flight. These descriptors belong to the previous MCP session and
+      // principal, so they are returned to this pass's own awaiter and go no
+      // further — the catalog, the advertised tool set, and the published
+      // report all stay with the newer pass.
+      return report;
+    }
+    this.#catalog = catalog;
+    // Runtime tools first and unconditionally; a discovered descriptor sharing a
+    // runtime verb's name is dropped rather than merged, so a server can never
+    // shadow a local runtime tool the session executes itself.
+    this.#tools = [
+      ...this.#runtimeTools,
+      ...catalog.toolDefinitions().filter((tool) => !this.#runtimeToolNames.has(tool.name)),
+    ];
+    return this.#publishDiscovery(report);
+  }
+
+  /**
+   * One `tools/list` walk under a wall-clock bound. `fetch` imposes no deadline
+   * of its own, so without this an endpoint that accepts the POST and never
+   * responds blocks every `chat()` indefinitely. Expiry is surfaced as a plain
+   * discovery failure, which the caller already degrades to runtime-only tools
+   * and retries on the next turn.
+   */
+  async #listAllToolsBounded(): Promise<McpToolListing> {
+    const timeoutMs = this.#options.toolDiscoveryTimeoutMs ?? DEFAULT_TOOL_DISCOVERY_TIMEOUT_MS;
+    const client = this.#ensureMcpClient();
+    if (!(timeoutMs > 0)) return client.listAllTools();
+
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    try {
+      return await client.listAllTools({ signal: controller.signal });
+    } catch (error) {
+      if (timedOut) throw new Error(`tools/list did not respond within ${timeoutMs}ms.`);
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Awaits the shared discovery pass, but stops waiting the moment `signal`
+   * aborts. The pass itself is deliberately NOT cancelled: it is shared by
+   * every concurrent turn, and one caller walking away must not strip the
+   * composition plane from the others.
+   */
+  #awaitDiscovery(signal: AbortSignal): Promise<void> {
+    const discovery = this.#ensureToolCatalog().then(() => undefined);
+    return new Promise<void>((resolve) => {
+      const onAbort = (): void => resolve();
+      signal.addEventListener("abort", onAbort, { once: true });
+      void discovery.then(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      });
+    });
+  }
+
+  #publishDiscovery(report: StudioToolDiscoveryReport): StudioToolDiscoveryReport {
+    this.#discoveryReport = report;
+    this.#options.onEvent?.({ type: "toolDiscovery", report });
+    return report;
+  }
+
   public async chat(text: string, chatOptions: StudioAgentChatOptions = {}): Promise<StudioAgentTurn> {
+    const signal = chatOptions.signal ?? new AbortController().signal;
+    // Read the caller's cancellation BEFORE anything else. Discovery is an MCP
+    // `initialize` plus a full `tools/list` walk; an already-cancelled turn
+    // must not perform it.
+    if (signal.aborted) {
+      return cancelledTurn();
+    }
+
+    // Discovery next: the refusal check and the advertised tool set both read
+    // `#tools`, and a tool-carrying turn must know its full vocabulary. The
+    // wait is bounded by the caller's signal as well as by the pass's own
+    // timeout, so a hung MCP endpoint can no longer pin `chat()` open.
+    await this.#awaitDiscovery(signal);
+    if (signal.aborted) {
+      return cancelledTurn();
+    }
+
     const refusal = await this.#refusalReason();
     if (refusal) {
       return { status: "refused", text: "", toolCalls: [], events: [], errorMessage: refusal, rounds: 0 };
@@ -266,7 +511,6 @@ class StudioAgentSessionImpl implements StudioAgentSession {
 
     this.#messages.push({ role: "user", content: text });
 
-    const signal = chatOptions.signal ?? new AbortController().signal;
     const maxRounds = this.#options.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
     const events: StudioAiChatEvent[] = [];
     const dispatches: StudioAgentToolDispatch[] = [];
@@ -482,11 +726,25 @@ class StudioAgentSessionImpl implements StudioAgentSession {
   }
 
   async #dispatch(call: PendingToolCall): Promise<StudioAgentToolDispatch> {
-    if (isHonuaStudioMcpToolName(call.toolName)) {
-      return this.#dispatchComposition(call);
-    }
+    // Runtime first, matching the merge order in `#discoverTools`: a local
+    // runtime verb is never shadowed by a server descriptor of the same name.
     if (this.#runtimeToolNames.has(call.toolName)) {
       return this.#dispatchRuntime(call);
+    }
+    // The discovered, policy-approved catalog is the ONLY routing authority for
+    // the composition plane. A `honua_studio_`-prefixed name the server did not
+    // advertise (or the policy did not approve) is rejected here rather than
+    // being handed this session's draft identity and credentials.
+    if (this.#catalog.has(call.toolName)) {
+      return this.#dispatchComposition(call);
+    }
+    const rejection = this.#catalog.rejections.find((candidate) => candidate.name === call.toolName);
+    if (rejection) {
+      return reject(
+        call,
+        "composition",
+        `Tool "${call.toolName}" is not routable by this session: ${rejection.detail}`,
+      );
     }
     return reject(call, "unknown", `No tool named "${call.toolName}" is available to this session.`);
   }

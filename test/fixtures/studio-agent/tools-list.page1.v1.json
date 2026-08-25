@@ -1,0 +1,129 @@
+{
+  "_fixture": "MCP `tools/list` result, page 1 of 2. Mirrors the honua-server candidate Studio catalog: every descriptor carries the server-owned `_meta[\"honua.studio\"]` family/view classification honua-server#3428 will publish. Page 2 (`tools-list.page2.v1.json`) is fetched with `cursor: \"studio-tools-page-2\"`.",
+  "tools": [
+    {
+      "name": "honua_studio_create_draft",
+      "title": "Create draft",
+      "description": "Creates a new Studio package draft and returns its identity and generation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "packageKey": { "type": "string" }, "family": { "type": "string" } },
+        "required": ["family"]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": { "draftId": { "type": "string" }, "generation": { "type": "integer" } }
+      },
+      "annotations": { "title": "Create draft", "readOnlyHint": false, "destructiveHint": false },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_get_draft",
+      "title": "Get draft",
+      "description": "Reads a Studio package draft, including its current optimistic-concurrency generation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "draftId": { "type": "string" } },
+        "required": ["draftId"]
+      },
+      "annotations": { "readOnlyHint": true, "idempotentHint": true },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_update_draft",
+      "description": "Applies a partial envelope update to a Studio package draft.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "envelope": { "type": "object" }
+        },
+        "required": ["draftId", "generation"]
+      },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_validate_draft",
+      "description": "Validates a draft against its family schema and returns structured problem details.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "draftId": { "type": "string" } },
+        "required": ["draftId"]
+      },
+      "annotations": { "readOnlyHint": true },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_preview_draft",
+      "description": "Renders a preview payload for a draft without mutating it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "draftId": { "type": "string" } },
+        "required": ["draftId"]
+      },
+      "annotations": { "readOnlyHint": true },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_add_layer",
+      "description": "Adds a layer to the draft's map composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "layer": { "type": "object" }
+        },
+        "required": ["draftId", "generation", "layer"]
+      },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_remove_layer",
+      "description": "Removes a layer from the draft's map composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "layerId": { "type": "string" }
+        },
+        "required": ["draftId", "generation", "layerId"]
+      },
+      "annotations": { "destructiveHint": true },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_set_layer_style",
+      "description": "Replaces a layer's style specification.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "layerId": { "type": "string" },
+          "style": { "type": "object" }
+        },
+        "required": ["draftId", "generation", "layerId", "style"]
+      },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    },
+    {
+      "name": "honua_studio_set_layer_visibility",
+      "description": "Shows or hides a layer in the draft's map composition.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "draftId": { "type": "string" },
+          "generation": { "type": "integer" },
+          "layerId": { "type": "string" },
+          "visible": { "type": "boolean" }
+        },
+        "required": ["draftId", "generation", "layerId", "visible"]
+      },
+      "_meta": { "honua.studio": { "family": "honua.studio.composition", "view": "setup", "revision": "2026-08-01" } }
+    }
+  ],
+  "nextCursor": "studio-tools-page-2"
+}
