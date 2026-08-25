@@ -3464,7 +3464,15 @@ async function readShellState(page) {
 
 /** Wait for the reference workflow to publish a matching state, then return it. */
 async function referenceState(page, expected) {
-  await expect.poll(() => page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__)).toMatchObject(expected);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const state = window.__HONUA_OFFLINE_REFERENCE__;
+        if (state?.shellReady === false && state.error) throw new Error(`offline reference startup failed: ${state.error}`);
+        return state;
+      }),
+    )
+    .toMatchObject(expected);
   return page.evaluate(() => window.__HONUA_OFFLINE_REFERENCE__);
 }
 

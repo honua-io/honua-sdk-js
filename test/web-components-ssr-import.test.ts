@@ -28,8 +28,15 @@ describe("component kits are SSR-safe to import", () => {
     const kit = await import("../src/web-components/index.js");
     // The blanket auto-registration side effect runs on import and must no-op.
     expect(typeof kit.defineHonuaWebComponents).toBe("function");
+    expect(typeof kit.createHonuaApplicationContext).toBe("function");
+    expect(typeof kit.mountHonuaApplication).toBe("function");
     expect(() => kit.defineHonuaWebComponents()).not.toThrow();
     expect(kit.HONUA_COMPONENT_CATALOG.length).toBeGreaterThan(0);
+
+    const context = kit.createHonuaApplicationContext();
+    expect(context.snapshot.version).toBe(kit.HONUA_APPLICATION_CONTEXT_VERSION);
+    expect(context.statusPresentation("offline")).toMatchObject({ role: "status", ariaLive: "polite" });
+    context.dispose();
   });
 
   it("imports the controls entrypoint, which auto-registers, without touching a DOM", async () => {

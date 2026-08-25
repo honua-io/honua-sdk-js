@@ -9,7 +9,12 @@ import type {
   HonuaFeatureEditorElement,
   HonuaFeatureEditorWorkflow,
 } from "../src/web-components/index.js";
-import { createFeatureEditorWorkflow, defineHonuaWebComponents } from "../src/web-components/index.js";
+import {
+  createFeatureEditorWorkflow,
+  createHonuaApplicationContext,
+  defineHonuaWebComponents,
+  mountHonuaApplication,
+} from "../src/web-components/index.js";
 import type { HonuaEditorSubtypeConfig } from "../src/web-components/index.js";
 
 /**
@@ -180,7 +185,7 @@ describe("<honua-feature-editor> registration", () => {
       className: "HonuaFeatureEditorElement",
       supportTier: "production-tier",
       canonical: true,
-      events: ["honua-feature-edit-change", "honua-feature-edit-commit"],
+      events: ["honua-feature-edit-change", "honua-feature-edit-commit", "honua-feature-edit-offline-conflict"],
     });
   });
 
@@ -219,6 +224,46 @@ describe("<honua-feature-editor> registration", () => {
     expect(css).not.toMatch(/(?:^|[;{])\s*(?:left|right)\s*:/m);
   });
 
+  it("joins the application context for shared selection, edit state, authorization, and status", async () => {
+    defineHonuaWebComponents();
+    const source = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    const editor = document.createElement("honua-feature-editor") as HonuaFeatureEditorElement<PermitAttributes>;
+    editor.workflow = workflow;
+    const host = document.createElement("main");
+    host.append(editor);
+    document.body.append(host);
+    const context = createHonuaApplicationContext({
+      status: "ready",
+      binding: { source, sourceIdentity: "permits" },
+      authorization: { status: "authorized", scopes: ["permits:write"] },
+    });
+    const application = await mountHonuaApplication({ host, context, register: false });
+
+    context.update({ selection: [{ ...feature(), sourceId: "permits" }] });
+    expect(workflow.selection()?.attributes.permit_no).toBe("P-1");
+
+    workflow.begin("update");
+    expect(context.snapshot.edits).toEqual([
+      expect.objectContaining({ componentId: "honua-feature-editor", sourceId: "permits", status: "draft" }),
+    ]);
+
+    editor.selectedFeature = { ...feature(), id: 2 };
+    expect(context.snapshot.selection).toEqual([
+      expect.objectContaining({ id: 2, sourceId: "permits", attributes: expect.any(Object) }),
+    ]);
+
+    context.replaceAuthorization({ status: "unauthorized", principalId: "operator-b", scopes: [] });
+    expect(workflow.snapshot().status).toBe("cancelled");
+    expect(editor.getAttribute("aria-disabled")).toBe("");
+    expect(editor.shadowRoot?.querySelector("[data-application-status]")?.textContent).toBe(
+      "Authorization is required",
+    );
+
+    application.dispose();
+    context.dispose();
+  });
+
   it("emits narrow-container-safe layout rules", () => {
     defineHonuaWebComponents();
     const element = document.createElement("honua-feature-editor") as HonuaFeatureEditorElement<PermitAttributes>;
@@ -228,6 +273,28 @@ describe("<honua-feature-editor> registration", () => {
     expect(css).toContain("@media (max-width: 320px)");
     expect(css).toContain(".bar { align-items: flex-start; flex-direction: column; }");
     expect(css).toContain(".segmented button, .actions button { flex: 1 1 120px; min-width: 0; }");
+  });
+});
+
+describe("<honua-feature-editor> preflight review", () => {
+  it("exposes the workflow's transport-free credential-free review", () => {
+    const source = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES, mutationId: () => "element-draft-1" });
+    const element = mount(workflow);
+    workflow.begin("create");
+    setControl(element, "permit_no", "P-REVIEW");
+    setControl(element, "status", "open");
+    setControl(element, "priority", "2");
+
+    expect(element.preflight()).toMatchObject({
+      ready: true,
+      transported: false,
+      mutationId: "element-draft-1",
+      source: { sourceId: "permits", protocol: "geoservices-feature-service" },
+      operation: "create",
+    });
+    expect(JSON.stringify(element.preflight())).not.toContain("P-REVIEW");
+    expect(source.applyEdits).not.toHaveBeenCalled();
   });
 });
 
@@ -750,6 +817,34 @@ describe("<honua-feature-editor> realtime, conflict, and commit states", () => {
     query<HTMLButtonElement>(element, "[data-conflict='keep-mine']").click();
     expect(root(element).querySelector("[data-conflict-panel]")).toBeNull();
     expect(query<HTMLButtonElement>(element, "[data-action='submit']").disabled).toBe(false);
+  });
+
+  it("requests durable offline conflict resolution without mutating the queued record locally", () => {
+    const workflow = createFeatureEditorWorkflow({ source: makeSource() });
+    const selected = feature();
+    workflow.setSelection({ ...selected, attributes: { ...selected.attributes, version: 7 } });
+    workflow.begin("update");
+    workflow.setValue("status", "closed");
+    workflow.applyOfflineState({
+      sourceId: "permits",
+      queueId: `sha256:${"b".repeat(64)}`,
+      idempotencyKey: "offline-update-1",
+      state: "conflicted",
+      conflictId: "conflict-1",
+      serverGeneration: "8",
+    });
+    const element = mount(workflow);
+    const choices: unknown[] = [];
+    element.addEventListener("honua-feature-edit-offline-conflict", (event) => {
+      choices.push((event as CustomEvent).detail);
+    });
+
+    query<HTMLButtonElement>(element, "[data-conflict='keep-mine']").click();
+
+    expect(choices).toMatchObject([
+      { choice: "keep-mine", offline: { state: "conflicted", idempotencyKey: "offline-update-1" } },
+    ]);
+    expect(workflow.snapshot()).toMatchObject({ status: "conflict", offline: { state: "conflicted" } });
   });
 
   it("emits change and commit events, and never a payload, and never success for a rejection", async () => {
