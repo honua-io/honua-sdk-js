@@ -310,6 +310,11 @@ const FEATURE_EDITOR_SUITE = "test/web-components-feature-editor-element.test.ts
 const FEATURE_TABLE = "web-components.feature-table";
 const FEATURE_TABLE_SUITE = "test/web-components-feature-table-element.test.ts";
 
+/** `<honua-feature-inspection>` supported inspection workflow (issue #1298). */
+const FEATURE_INSPECTION = "web-components.feature-inspection";
+const FEATURE_INSPECTION_SUITE = "test/feature-inspection-qualification.test.ts";
+const FEATURE_INSPECTION_BROWSER_SUITE = "test/playwright/app-platform-reference-components.spec.mjs";
+
 /**
  * `<honua-time-slider>` (issue #959) is a view over the existing temporal
  * playback controller rather than a controller-driven component, so it is not
@@ -414,6 +419,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   "keyboard-behavior": {
     passing: [
       {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "Enter and Space activate search results, result navigation, refresh, close, attachment paging, and relationship paging from real keydown events; ArrowLeft/ArrowRight/Home/End navigate overlapping results, slash focuses search, Enter submits search, and Escape dismisses details with asserted state changes.",
+      },
+      {
         ids: ["web-components.map"],
         evidence: [BROWSER_SPEC],
         note: "The focused zoom control receives a real Enter key event and produces the same viewport event count as its pointer-activation baseline in the browser fixture.",
@@ -487,6 +497,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
 
   "screen-reader-semantics": {
     passing: [
+      {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "The focused suite asserts dialog/region labelling, aria-modal only on popup dialogs, combobox/listbox/option state, live status, alert diagnostics, busy state, selected search result, and labelled result/attachment/relationship navigation.",
+      },
       {
         ids: ["web-components.search"],
         evidence: ["test/web-components-search-element.test.ts"],
@@ -563,6 +578,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
 
   "focus-restoration": {
     passing: [
+      {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "The focused search input retains focus, live typed value, selection range, and direction across a state-driven shadow render, while closing a subsequently opened inspection restores the external map/table opener.",
+      },
       {
         ids: FOCUS_RESTORING_IDS,
         evidence: [LIFECYCLE_HARNESS],
@@ -647,6 +667,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
 
   "high-contrast": {
     passing: [
+      {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "The emitted stylesheet is asserted to provide forced-colors and prefers-contrast Canvas/CanvasText, ButtonFace/ButtonText, LinkText, Highlight focus, and non-color diagnostic boundaries.",
+      },
       {
         ids: [FEATURE_EDITOR],
         evidence: [FEATURE_EDITOR_SUITE],
@@ -788,6 +813,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   "responsive-layout": {
     passing: [
       {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "The focused stylesheet evidence asserts inline-size containment, shrinkable surfaces, anywhere wrapping, and both container- and viewport-based 320px rules that stack search, field, header, and paging controls.",
+      },
+      {
         ids: ["web-components.search"],
         evidence: ["test/web-components-search-element.test.ts"],
         note: "The search form uses a shrinkable grid and stacks its submit button full-width below 320px, asserted from the emitted stylesheet for narrow-container behavior.",
@@ -893,6 +923,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
 
   localization: {
     passing: [
+      {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "Every label, status, range, fallback attachment name, paging action, accessible name, and diagnostic displayed by the inspection element resolves through HonuaFeatureInspectionMessages; German injection and application-context status localization are asserted.",
+      },
       {
         ids: ["controls.basemap-switcher"],
         evidence: ["test/controls/accessibility.test.ts"],
@@ -1015,6 +1050,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   rtl: {
     passing: [
       {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "The component renders with dir=rtl and its emitted stylesheet is asserted to use inline-size, padding-inline-start, border-inline-start, and text-align:start without physical left/right declarations.",
+      },
+      {
         ids: [FEATURE_EDITOR],
         evidence: [FEATURE_EDITOR_SUITE],
         note: "The feature editor renders flex/grid surfaces without physical left/right declarations; an explicit dir=rtl fixture asserts the emitted stylesheet remains direction-neutral.",
@@ -1109,6 +1149,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   "visual-regression": {
     passing: [
       {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_BROWSER_SUITE],
+        note: "The packed-reference browser lane mounts the production inspection element in its deterministic empty state and compares it with committed Chromium baselines on every run, with animations disabled and the caret hidden.",
+      },
+      {
         ids: [FEATURE_EDITOR],
         evidence: ["test/playwright/web-components-basic.spec.mjs"],
         note: "The browser fixture mounts the production-tier feature editor in its deterministic empty state and compares it with a committed Playwright baseline on every run, with animations disabled and the caret hidden.",
@@ -1131,14 +1176,19 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
   "zero-console-error": {
     passing: [
       {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "console.error and console.warn are spied across mount, ten state renders, keyboard interaction, detach, reconnect, another interaction, and final teardown; neither is called.",
+      },
+      {
         ids: LIFECYCLE_HARNESS_IDS,
         evidence: [LIFECYCLE_HARNESS],
         note: "console.error and console.warn are spied for the whole mount / drive / re-render / unmount cycle and asserted never to be called.",
       },
       {
         ids: [FEATURE_TABLE],
-        evidence: [LIFECYCLE_HARNESS],
-        note: "Covered for the controller lane only. The bounded engine lane is not driven by the harness and no feature-table suite spies on the console, so its query, paging, and conflict paths are unswept.",
+        evidence: [LIFECYCLE_HARNESS, FEATURE_TABLE_SUITE],
+        note: "The cross-cutting harness covers the controller lane, while the feature-table suite spies on console.error and console.warn while driving the bounded engine through query, virtual paging, server sort, realtime conflict, and teardown paths.",
       },
       {
         ids: [
@@ -1181,6 +1231,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
 
   "deterministic-disposal": {
     passing: [
+      {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "Disconnecting removes the controller subscription and all three connection-scoped delegated shadow listeners; a key event at the detached shadow root reaches no controller, reconnect takes exactly one subscription/listener set, and final detach returns the collaborator listener count to zero.",
+      },
       {
         ids: LIFECYCLE_HARNESS_IDS,
         evidence: [LIFECYCLE_HARNESS],
@@ -1232,6 +1287,11 @@ const DECLARATIONS: Readonly<Record<HonuaComponentQualificationGateId, GateDecla
 
   "duplicate-listener": {
     passing: [
+      {
+        ids: [FEATURE_INSPECTION],
+        evidence: [FEATURE_INSPECTION_SUITE],
+        note: "After ten state-driven shadow renders, one Enter keydown invokes result navigation exactly once; after detach/reconnect, one ArrowRight again invokes it exactly once, proving delegated listeners are connection-scoped rather than render-scoped.",
+      },
       {
         ids: INTERACTIVE_HARNESS_IDS,
         evidence: [LIFECYCLE_HARNESS],

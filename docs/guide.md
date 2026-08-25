@@ -557,6 +557,12 @@ for why the tag can never be repaired after the fact.
 
 ### Re-running trusted CI for an existing Release Please PR
 
+A release PR that reports `mergeable_state=blocked` is usually missing its
+required checks rather than a review. See
+[the review-policy decision record](./decisions/release-automation-review-bypass.md)
+for how bot-authored release PRs are meant to satisfy branch protection, and
+why the Copilot review rule is currently disabled rather than bypassed.
+
 The `release-please-ci` job dispatches canonical CI when Release Please creates
 or refreshes its PR, and `release-please-disposition` publishes the required
 `JS SDK` and `MCP SDK` checks only after that exact run succeeds. If the PR

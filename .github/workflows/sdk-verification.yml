@@ -411,6 +411,14 @@ jobs:
       - name: Validate release-seal policy
         run: npm run release:seal:test
 
+      # Release artifact manifest drift gate (#1337). Reads the git tree and the
+      # workflow files only, so it neither consumes nor invalidates the prepared
+      # build the surrounding gates share.
+      - name: Validate release artifact manifest
+        run: |
+          npm run verify:release-artifacts
+          node --test test/scripts/verify-published-release.test.mjs
+
       - name: Code style
         run: npm run check
 
@@ -452,6 +460,12 @@ jobs:
 
       - name: Component qualification matrix
         run: node scripts/component-qualification.mjs check
+
+      - name: App-platform reference qualification
+        # Co-located with the component matrix, exactly as in ci.yml: the
+        # packed-workbench evidence projection and its explicitly open
+        # reference gates are a gate the graph must not retire.
+        run: npm run qualification:app-platform:check
 
       - name: Unit tests with coverage
         run: npm run test:coverage:prepared
