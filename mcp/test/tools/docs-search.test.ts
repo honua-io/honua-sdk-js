@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +7,9 @@ import {
   type CorpusDocument,
   excerptFor,
   execute,
+  queryTermsOf,
+  resolveCorpusRevision,
+  resolveDocsCorpus,
   resolveDocsRoot,
   resolveDocsVersion,
   schema,
@@ -60,7 +64,8 @@ async function run(root: string, input: unknown) {
 }
 
 afterEach(() => {
-  process.env.HONUA_DOCS_CORPUS_PATH = undefined;
+  delete process.env.HONUA_DOCS_CORPUS_PATH;
+  delete process.env.HONUA_SOURCE_REVISION;
   for (const dir of created.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -154,6 +159,105 @@ describe("honua_docs_search", () => {
     const root = resolveDocsRoot({});
     expect(root).toBeDefined();
     expect(fs.existsSync(path.join(root as string, "llms-full.txt"))).toBe(true);
+  });
+
+  it("drops stopwords so a natural-language question ranks on its meaningful terms", () => {
+    // The schema's own example query. Every document contains "how" and "do",
+    // so they matched everywhere, added frequency weight everywhere, and
+    // inflated the matched-term multiplier everywhere.
+    expect(queryTermsOf("how do I handle a capability error")).toEqual(["handle", "capability", "error"]);
+    // A query with nothing but stopwords keeps its tokens rather than matching
+    // nothing at all.
+    expect(queryTermsOf("how do I")).toEqual(["how", "do"]);
+  });
+
+  it("returns the dedicated error guide for the schema's example question", () => {
+    // Against the committed corpus this query previously ranked docs/guide.md,
+    // docs/protocol-capability-matrix.md and docs/offline-regions.md above
+    // docs/errors.md, so the default three results omitted it entirely.
+    const root = resolveDocsRoot({});
+    expect(root).toBeDefined();
+    const documents = splitCorpus(fs.readFileSync(path.join(root as string, "llms-full.txt"), "utf8"));
+    const terms = queryTermsOf("how do I handle a capability error");
+    const ranked = documents
+      .map((document) => ({ file: document.file, score: scoreDocument(document, terms) }))
+      .filter((entry) => entry.score > 0)
+      .sort((a, b) => b.score - a.score || a.file.localeCompare(b.file))
+      .slice(0, 3)
+      .map((entry) => entry.file);
+
+    expect(ranked).toContain("docs/errors.md");
+  });
+
+  it("reads the corpus the configured path names, whatever it is called", async () => {
+    // HONUA_DOCS_CORPUS_PATH documents a path to the corpus file itself. Using
+    // only its parent directory read <parent>/llms-full.txt instead: ENOENT for
+    // a corpus under another name, or a silent answer from a different file.
+    const root = fixtureRoot();
+    fs.renameSync(path.join(root, "llms-full.txt"), path.join(root, "corpus-snapshot.txt"));
+    process.env.HONUA_DOCS_CORPUS_PATH = path.join(root, "corpus-snapshot.txt");
+
+    const located = resolveDocsCorpus(process.env);
+    expect(located?.corpusPath).toBe(path.join(root, "corpus-snapshot.txt"));
+    expect(located?.root).toBe(root);
+
+    const result = await execute(undefined, schema.parse({ query: "capability error" }));
+    const payload = JSON.parse(result.content[0].text);
+    expect(payload.available).toBe(true);
+    expect(payload.corpus.file).toBe("corpus-snapshot.txt");
+    expect(payload.results[0].citation.file).toBe("docs/errors.md");
+  });
+
+  it("still accepts a configured directory that holds the corpus", () => {
+    const root = fixtureRoot();
+    expect(resolveDocsCorpus({ HONUA_DOCS_CORPUS_PATH: root })?.corpusPath).toBe(path.join(root, "llms-full.txt"));
+  });
+
+  it("pins citations to the corpus source commit when it can be established", async () => {
+    const root = fixtureRoot();
+    const revision = "a".repeat(40);
+    process.env.HONUA_SOURCE_REVISION = revision;
+    const payload = await run(root, { query: "capability error" });
+
+    expect(payload.corpus.sourceRevision).toBe(revision);
+    expect(payload.results[0].citation).toMatchObject({
+      sourceRevision: revision,
+      url: `https://github.com/honua-io/honua-sdk-js/blob/${revision}/docs/errors.md`,
+    });
+  });
+
+  it("reports a floating citation rather than a false pin when no commit is known", async () => {
+    // A tmpdir fixture is in no checkout, so nothing can vouch for these bytes.
+    const root = fixtureRoot();
+    const payload = await run(root, { query: "capability error" });
+
+    expect(payload.corpus.sourceRevision).toBeNull();
+    expect(payload.results[0].citation).toMatchObject({
+      sourceRevision: null,
+      url: "https://github.com/honua-io/honua-sdk-js/blob/trunk/docs/errors.md",
+    });
+  });
+
+  it("pins a committed corpus to HEAD and refuses to pin a modified one", () => {
+    // A locally regenerated llms-full.txt is at no commit, so pinning it to
+    // HEAD would produce a citation that looks exact and points at other text.
+    // Uses a throwaway repository so the result does not depend on whether the
+    // developer's own checkout happens to be clean.
+    const root = fixtureRoot();
+    const corpus = path.join(root, "llms-full.txt");
+    const run = (args: string[]) =>
+      execFileSync("git", args, { cwd: root, stdio: ["ignore", "ignore", "ignore"] });
+    run(["init", "--quiet", "--initial-branch", "trunk"]);
+    run(["config", "user.email", "test@example.com"]);
+    run(["config", "user.name", "Test"]);
+    run(["add", "."]);
+    run(["commit", "--quiet", "-m", "corpus"]);
+
+    const head = resolveCorpusRevision(root, corpus, {});
+    expect(head).toMatch(/^[0-9a-f]{40}$/);
+
+    fs.appendFileSync(corpus, "\n# File: docs/not-committed.md\n\nlocal edit\n");
+    expect(resolveCorpusRevision(root, corpus, {})).toBeUndefined();
   });
 
   it("validates its input", () => {
