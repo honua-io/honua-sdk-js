@@ -121,7 +121,24 @@ describe("everything ambiguous is excluded rather than assumed to agree", () => 
     ],
     [
       "graph-not-terminal",
-      { graphRuns: [graphRun("cancelled")], authoritativeRuns: [authoritativeRun(bothGreen)] },
+      {
+        graphRuns: [{ ...graphRun("failure"), jobs: [job(GRAPH_GATE_JOB, "cancelled")] }],
+        authoritativeRuns: [authoritativeRun(bothGreen)],
+      },
+    ],
+    [
+      "graph-run-cancelled",
+      {
+        graphRuns: [{ ...graphRun("failure"), conclusion: "cancelled" }],
+        authoritativeRuns: [authoritativeRun(bothGreen)],
+      },
+    ],
+    [
+      "authoritative-run-cancelled",
+      {
+        graphRuns: [graphRun("success")],
+        authoritativeRuns: [{ ...authoritativeRun(bothGreen), conclusion: "cancelled" }],
+      },
     ],
     [
       "authoritative-gate-missing",
@@ -163,7 +180,17 @@ describe("everything ambiguous is excluded rather than assumed to agree", () => 
     ]);
     assert.equal(summary.comparable, 0);
     assert.equal(summary.agreed, 0);
-    assert.equal(summary.exclusions["graph-not-terminal"], 1);
+    assert.equal(summary.exclusions["graph-run-cancelled"], 1);
+  });
+
+  it("does not convert a cancelled run into a disagreement when its always aggregate failed", () => {
+    const observation = compareHead({
+      headSha: "a".repeat(40),
+      graphRuns: [{ ...graphRun("failure"), conclusion: "cancelled" }],
+      authoritativeRuns: [authoritativeRun(bothGreen)],
+    });
+    assert.equal(observation.comparable, false);
+    assert.equal(observation.reason, "graph-run-cancelled");
   });
 });
 

@@ -64,6 +64,8 @@ export const NOT_COMPARABLE_REASONS = Object.freeze([
   "missing-authoritative-run",
   "ambiguous-graph-run",
   "ambiguous-authoritative-run",
+  "graph-run-cancelled",
+  "authoritative-run-cancelled",
   "graph-gate-missing",
   "graph-not-terminal",
   "authoritative-gate-missing",
@@ -125,6 +127,14 @@ export function compareHead({ headSha, graphRuns = [], authoritativeRuns = [] })
 
   const [graphRun] = graphRuns;
   const [authoritativeRun] = authoritativeRuns;
+
+  // `cancel-in-progress` routinely stops a superseded head after the always()
+  // aggregate has started. That aggregate then exits failure because its
+  // dependencies were cancelled, but the workflow itself is still cancelled:
+  // no graph verdict exists to compare. Prefer the run-level conclusion so a
+  // synthetic aggregate failure cannot turn cancellation into disagreement.
+  if (graphRun.conclusion === "cancelled") return notComparable("graph-run-cancelled");
+  if (authoritativeRun.conclusion === "cancelled") return notComparable("authoritative-run-cancelled");
 
   const graphGate = jobsByName(graphRun, [GRAPH_GATE_JOB]).get(GRAPH_GATE_JOB);
   if (!graphGate) return notComparable("graph-gate-missing", GRAPH_GATE_JOB);
