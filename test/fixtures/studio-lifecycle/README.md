@@ -37,10 +37,37 @@ an RFC 7807 problem document with `type:
 - `content-version-not-found.v1.json` — the same route returning `404`.
 - `version-comparison.v1.json` — `POST
   /content-items/{itemId}/version-comparisons`.
-- `publish-request-accepted.v1.json` /
-  `publish-request-rejected.v1.json` — `POST
-  .../publish-requests` for a `valid` version (published pointer moves) and
-  an `invalid` one (`status: "rejected"`, pointer unchanged).
+- `publish-request-legacy-accepted.v1.json` /
+  `publish-request-legacy-rejected.v1.json` — `POST
+  .../publish-requests` under the **legacy synchronous** behaviour, for a
+  `valid` version (published pointer moves, `status: "accepted"`) and an
+  `invalid` one (`status: "rejected"`, pointer unchanged). These keep the
+  lower-case legacy status values on purpose; `normalizeStudioPublicationStatus`
+  maps them onto the canonical walk.
+- `publish-request-<state>.v1.json` — `GET
+  .../publish-requests/{requestId}`, one per canonical publication-proposal
+  state: `awaiting-approval`, `approved`, `executing`, `active`, `rejected`,
+  `failed`. Every one carries the five joined identifiers
+  (`operationInstanceId`, `proposalId`, `proposalUri`, `auditId`,
+  `correlationId`) plus the `contentHash` pin. Only `active` legitimately
+  carries `publicationUrl`.
+- `publish-request-failed.v1.json` and
+  `publish-request-unknown-status.v1.json` deliberately carry a
+  `publicationUrl` they have no right to — a hostile/misbehaving server —
+  so the tests can prove the client refuses to surface a final URL from any
+  state other than `Active`. `publish-request-unknown-status.v1.json` also
+  pins the "unknown status is neither terminal nor successful" rule.
+- `publish-request-idempotent-replay.v1.json` — a replayed `POST
+  .../publish-requests` carrying the same `idempotencyKey`, answered `200`
+  (not `201`) with byte-identical joined identifiers.
+- `publish-request-get-not-found.v1.json` /
+  `publish-request-forbidden.v1.json` — `404` and `403` (owner/tenant scope)
+  problem documents for the proposal read.
+- `publish-request-self-approval-forbidden.v1.json` — the server refusing a
+  proposer's attempt to approve their own publication with `403`. The SDK
+  exposes no approve method at all, so this route is only reachable through
+  the generic `raw()` escape hatch; the fixture pins that approval stays a
+  separate principal on the server side too.
 - `reopen.v1.json` — `POST .../versions/{versionId}/reopen`.
 - `rollback-request.v1.json` — `POST
   /content-items/{itemId}/rollback-requests`.
