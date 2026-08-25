@@ -98,29 +98,62 @@ Until that identity exists, wiring `create-github-app-token` into
 `release-please.yml` would add a code path that cannot be exercised, so it is
 deliberately not done here.
 
+With the login set widened (below), **the in-repo half of this issue is
+cleared**: the remaining work is org settings — re-enable ruleset `19494022`
+with the release identity as a bypass actor, and provision the App plus its
+secrets. No further code change is a prerequisite for either.
+
 ### Swapping the token is not a one-line change
 
 Two things have to move with it, and missing either breaks the release flow the
 moment the first App-authored PR appears.
 
-**The disposition gate recognises exactly one bot login.**
-`automationExemption()` in `scripts/lib/pr-issue-disposition.mjs` (lines 63-72)
-grants the Release Please exemption only when the actor login is
-`github-actions`, `github-actions[bot]`, or `app/github-actions`, *and* the head
-branch is `release-please--branches--trunk`, *and* the title is exactly
-`chore: release trunk`. A PR authored by a new App — `honua-release[bot]`, say —
-matches none of the login forms, so the required `PR Issue Disposition` check
-would reject the very first release PR the new identity opens. The login set has
-to accept the release App before the token is switched, not after, and the
-change wants a test in `test/scripts/pr-issue-disposition.test.mjs` pinning
-both the old and new logins.
+**The disposition gate recognised exactly one bot login. Fixed.**
+`automationExemption()` in `scripts/lib/pr-issue-disposition.mjs` used to grant
+the Release Please exemption only when the actor login was `github-actions`,
+`github-actions[bot]`, or `app/github-actions`, so a PR authored by a new App —
+`honua-release[bot]` — matched none of the login forms and the required
+`PR Issue Disposition` check would have rejected the very first release PR the
+new identity opened.
 
-**The exemption covers more than release-please.** The requirement names
-`automation/derived-artifacts-*` alongside `release-please--branches--trunk`,
-and those PRs are real: PR #1451 on that branch pattern merged into trunk while
-this record was being written. Whatever identity and bypass actor is
-provisioned has to cover the derived-artifact workflow too, or that lane simply
-inherits the deadlock this issue is about.
+The accepted logins are now derived from `RELEASE_AUTOMATION_APP_SLUGS`, an
+exported array of GitHub App slugs (`github-actions`, `honua-release`), each
+accepted in the three forms GitHub reports an App actor under — `slug`,
+`slug[bot]`, and `app/slug`. Adding a future identity is one array entry rather
+than three literals repeated per lane, and if the provisioned App is given a
+slug other than `honua-release` that array is the single place to change.
+
+Only the login set widened. Same-repository origin, base `trunk`, the exact
+head branch, both full-SHA shapes, and the exact title are unchanged, and
+`test/scripts/pr-issue-disposition.test.mjs` pins that: every accepted login
+form for both lanes, an arbitrary bot login (`octocat[bot]`,
+`honua-release-dispatch[bot]`) still refused, and each other condition still
+refused under the new login.
+
+The set is source-bound on purpose — no environment-variable override. The
+disposition gate executes from the pull request's own checkout, so reading the
+accepted logins from the environment would let a pull request widen the
+identity set it is being judged by.
+
+**The exemption covers more than release-please. Also fixed.** The requirement
+names `automation/derived-artifacts-*` alongside
+`release-please--branches--trunk`, and those PRs are real: PR #1451 on that
+branch pattern merged into trunk while this record was being written. The
+derived-artifact lane carried the same hardcoded logins and now shares
+`RELEASE_AUTOMATION_APP_SLUGS`, so it does not inherit the deadlock this issue
+is about. Whatever bypass actor is provisioned still has to cover that workflow
+on the org side.
+
+The two scheduled report lanes — `automation/mcp-certification-*` and
+`automation/kepler-audit-renewal-*` — were deliberately **not** widened. They
+publish on the workflow's own `GITHUB_TOKEN` and are no part of the release
+identity, so they stay pinned to the GitHub Actions logins; a test asserts the
+release App login is refused on both.
+
+Nothing else in the repository needs the wider set.
+`publishReleasePleaseDispositionCheck()` verifies `GITHUB_ACTIONS_APP_ID` on the
+check run it *creates*, which is the workflow's own token regardless of who
+authored the PR, so it is unaffected by the identity switch.
 
 With those in place the `release-please.yml` edit itself is small: mint the
 token in the release job and pass it where `secrets.GITHUB_TOKEN` is used at
