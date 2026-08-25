@@ -146,7 +146,10 @@ URLs.
 ## Capability and failure behavior
 
 - A requested execution mode missing from `jobControlOptions` raises
-  `HonuaCapabilityNotSupportedError` before any POST.
+  `HonuaCapabilityNotSupportedError` before any POST. A description or
+  process summary that omits `jobControlOptions` entirely advertises no
+  mode and is refused on the same grounds — absence is never read as
+  permission.
 - A non-success job makes `results()` throw `HonuaJobFailedError`, preserving
   the job status, server error code, and details.
 - Job polling follows same-origin `Location` and results links when advertised,
