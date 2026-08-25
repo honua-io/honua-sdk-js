@@ -339,6 +339,17 @@ export interface JourneyResumeState {
   readonly capturedVariables: Readonly<Record<string, unknown>>;
   readonly completedStages: readonly JourneyStageReceipt[];
   readonly resumeAt: JourneyResumePoint;
+  /**
+   * Catalog preflight evidence gathered before the pause.
+   *
+   * Every successful live journey pauses at the mandatory Console checkpoint
+   * and resumes at stage 6, and stages 6 and 7 contain no MCP action -- so the
+   * resumed run has nothing to re-derive this from. Without carrying it across
+   * the boundary the final receipt, which overwrites the pre-pause one, would
+   * silently drop the active-profile and roster-digest evidence from exactly
+   * the runs that succeeded.
+   */
+  readonly catalog?: ZeroToMapCatalogReceipt;
 }
 
 export interface JourneyPauseSnapshot extends JourneyResumeState {
@@ -443,7 +454,10 @@ export async function runZeroToMapJourney(
   };
   const stages: JourneyStageReceipt[] = [...(options.resume?.completedStages ?? [])];
   let stop: { status: "blocked" | "failed"; actionId: string } | undefined;
-  let catalogReceipt: ZeroToMapCatalogReceipt | undefined;
+  // Restored rather than re-derived: the preflight already ran in the pre-pause
+  // segment whose receipts arrive in `completedStages`, and no post-checkpoint
+  // stage issues an MCP action that could produce it again.
+  let catalogReceipt: ZeroToMapCatalogReceipt | undefined = options.resume?.catalog;
 
   try {
     for (let stageIndex = resumeStageIndex; stageIndex < plan.stages.length; stageIndex += 1) {
@@ -519,6 +533,7 @@ export async function runZeroToMapJourney(
                 capturedVariables: { ...capturedVariables },
                 completedStages: [...stages],
                 resumeAt: { stageId: stage.id, actionId: action.id },
+                ...(catalogReceipt ? { catalog: catalogReceipt } : {}),
                 consoleReceiptRequest: resolveReceiptRequest(action, variables),
               });
             } catch (pauseError) {

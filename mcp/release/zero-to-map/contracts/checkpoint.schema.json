@@ -29,7 +29,8 @@
           "required": ["stageId", "actionId"],
           "properties": { "stageId": { "const": "console" }, "actionId": { "const": "console-approval" } },
           "additionalProperties": false
-        }
+        },
+        "catalog": { "$ref": "#/$defs/catalogReceipt" }
       },
       "additionalProperties": false
     },
@@ -60,6 +61,52 @@
   },
   "$defs": {
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "catalogReceipt": {
+      "$comment": "Catalog preflight evidence carried across the Console pause. Stages 6 and 7 issue no MCP action, so a resumed run cannot re-derive it and its final receipt would otherwise overwrite the pre-pause one with no catalog evidence.",
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "activeProfiles",
+        "expectedTotalTools",
+        "advertisedTotalTools",
+        "baseStaticTools",
+        "baseAdminTools",
+        "auditedExclusions",
+        "profiles",
+        "catalogSha256",
+        "adminRosterSha256",
+        "staticRosterSha256",
+        "exclusionRosterSha256"
+      ],
+      "properties": {
+        "schemaVersion": { "const": "honua.zero-to-map.catalog/v1" },
+        "activeProfiles": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "expectedTotalTools": { "type": "integer", "minimum": 0 },
+        "advertisedTotalTools": { "type": "integer", "minimum": 0 },
+        "baseStaticTools": { "type": "integer", "minimum": 0 },
+        "baseAdminTools": { "type": "integer", "minimum": 0 },
+        "auditedExclusions": { "type": "integer", "minimum": 0 },
+        "profiles": { "type": "array", "items": { "$ref": "#/$defs/profileReceipt" } },
+        "catalogSha256": { "$ref": "#/$defs/sha256" },
+        "adminRosterSha256": { "$ref": "#/$defs/sha256" },
+        "staticRosterSha256": { "$ref": "#/$defs/sha256" },
+        "exclusionRosterSha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "profileReceipt": {
+      "type": "object",
+      "required": ["id", "expectedMembers", "advertisedMembers", "confirmedMembers", "nameResolvedMembers", "rosterSha256"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "expectedMembers": { "type": "integer", "minimum": 0 },
+        "advertisedMembers": { "type": "integer", "minimum": 0 },
+        "confirmedMembers": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "nameResolvedMembers": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "rosterSha256": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
     "stageReceipt": {
       "type": "object",
       "required": ["number", "id", "title", "status", "actions"],

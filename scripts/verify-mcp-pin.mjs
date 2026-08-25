@@ -30,6 +30,14 @@ const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 
 const NETWORK_GATE = "HONUA_MCP_PIN_LIVE_ENABLED";
 const REGISTRY = "https://registry.npmjs.org";
 const EXACT_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
+/**
+ * npm package name: an optional `@scope/` prefix and then one name segment.
+ * A name therefore carries at most one `/`. Enforcing that here is what makes
+ * the registry URL below identify the artifact being verified -- an unchecked
+ * name with extra separators would silently address a different registry path
+ * while every later assertion still compared the version it found there.
+ */
+const PACKAGE_NAME = /^(?:@[a-z0-9~][a-z0-9._~-]*\/)?[a-z0-9~][a-z0-9._~-]*$/;
 const SHA512_INTEGRITY = /^sha512-[A-Za-z0-9+/]{86}==$/;
 
 /** The dedicated live gate for the registry lane. Never enabled in PR CI. */
@@ -47,6 +55,10 @@ export function parsePackagePin(pin) {
   invariant(separator > 0, `MCP package pin ${pin} must be an exact name@version specifier`);
   const name = pin.slice(0, separator);
   const version = pin.slice(separator + 1);
+  invariant(
+    PACKAGE_NAME.test(name),
+    `MCP package pin ${pin} must name a valid npm package (an optional @scope/ prefix and one name segment)`,
+  );
   invariant(
     EXACT_VERSION.test(version),
     `MCP package pin ${pin} must name an exact version; tags and ranges ("latest", "^", "~", "*") are floating ` +
@@ -127,7 +139,9 @@ export function verifyMcpPinLineage({ pin, integrity, changelog, packageVersion,
 /** Registry proof. Requires the network and the dedicated live gate. */
 export async function verifyMcpPinPublication({ pin, integrity, fetchFn = fetch }) {
   const { name, version } = parsePackagePin(pin);
-  const response = await fetchFn(`${REGISTRY}/${name.replace("/", "%2f")}/${version}`, {
+  // The package name is one path segment, so every character it contains is
+  // percent-encoded rather than only the scope separator.
+  const response = await fetchFn(`${REGISTRY}/${encodeURIComponent(name)}/${version}`, {
     headers: { accept: "application/json" },
   });
   invariant(

@@ -42,6 +42,47 @@ describe("generated MCP client configuration pin", () => {
     }
   });
 
+  it("rejects a name that is not one npm package name, so the registry path cannot be redirected", () => {
+    // An npm name carries at most one "/" -- the scope separator. Extra
+    // separators would address a different registry path while the version and
+    // integrity assertions below still compared whatever they found there.
+    for (const malformed of [
+      "@honua/mcp-server/../other@0.1.4-beta.0",
+      "@honua/nested/name@0.1.4-beta.0",
+      "@honua/mcp server@0.1.4-beta.0",
+    ]) {
+      expect(() => parsePackagePin(malformed)).toThrow(/valid npm package/);
+    }
+  });
+
+  it("requests the pinned package as one fully encoded registry path segment", async () => {
+    const requestedUrls: string[] = [];
+    const fetchFn = vi.fn(async (url: string) => {
+      requestedUrls.push(url);
+      return new Response(
+        JSON.stringify({
+          version: LOCAL_INSTALL_MCP_PACKAGE_VERSION,
+          dist: { integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY, tarball: "https://registry.npmjs.org/x.tgz" },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+    await verifyMcpPinPublication({
+      pin: LOCAL_INSTALL_MCP_PACKAGE,
+      integrity: LOCAL_INSTALL_MCP_PACKAGE_INTEGRITY,
+      fetchFn,
+    });
+    expect(requestedUrls).toHaveLength(1);
+    const requested = new URL(String(requestedUrls[0]));
+    expect(requested.origin).toBe("https://registry.npmjs.org");
+    // Encoded, the scoped name is a single segment: /<name>/<version>.
+    expect(requested.pathname.split("/").filter(Boolean)).toEqual([
+      encodeURIComponent(LOCAL_INSTALL_MCP_PACKAGE_NAME),
+      LOCAL_INSTALL_MCP_PACKAGE_VERSION,
+    ]);
+    expect(requested.pathname).toContain("%2F");
+  });
+
   it("proves the pin is in this repository's release lineage and never ahead of mcp/package.json", async () => {
     const { changelog, packageVersion } = await repoInputs();
     const result = verifyMcpPinLineage({
