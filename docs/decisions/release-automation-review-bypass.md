@@ -96,11 +96,36 @@ needed, both outside this repository:
 
 Until that identity exists, wiring `create-github-app-token` into
 `release-please.yml` would add a code path that cannot be exercised, so it is
-deliberately not done here. When the app is provisioned, the workflow change is
-small: mint the token in the release job and pass it where
-`secrets.GITHUB_TOKEN` is used at `release-please.yml:40`, keeping
-`GITHUB_TOKEN` as the fallback so a missing secret degrades to today's
-behaviour rather than breaking the release.
+deliberately not done here.
+
+### Swapping the token is not a one-line change
+
+Two things have to move with it, and missing either breaks the release flow the
+moment the first App-authored PR appears.
+
+**The disposition gate recognises exactly one bot login.**
+`automationExemption()` in `scripts/lib/pr-issue-disposition.mjs` (lines 63-72)
+grants the Release Please exemption only when the actor login is
+`github-actions`, `github-actions[bot]`, or `app/github-actions`, *and* the head
+branch is `release-please--branches--trunk`, *and* the title is exactly
+`chore: release trunk`. A PR authored by a new App — `honua-release[bot]`, say —
+matches none of the login forms, so the required `PR Issue Disposition` check
+would reject the very first release PR the new identity opens. The login set has
+to accept the release App before the token is switched, not after, and the
+change wants a test in `test/scripts/pr-issue-disposition.test.mjs` pinning
+both the old and new logins.
+
+**The exemption covers more than release-please.** The requirement names
+`automation/derived-artifacts-*` alongside `release-please--branches--trunk`,
+and those PRs are real: PR #1451 on that branch pattern merged into trunk while
+this record was being written. Whatever identity and bypass actor is
+provisioned has to cover the derived-artifact workflow too, or that lane simply
+inherits the deadlock this issue is about.
+
+With those in place the `release-please.yml` edit itself is small: mint the
+token in the release job and pass it where `secrets.GITHUB_TOKEN` is used at
+line 40, keeping `GITHUB_TOKEN` as the fallback so a missing secret degrades to
+today's behaviour rather than breaking the release.
 
 ## What closes the issue
 
