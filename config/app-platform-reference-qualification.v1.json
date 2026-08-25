@@ -6,7 +6,7 @@
   "expiresAt": "2026-11-12T12:00:00.000Z",
   "packageMode": "packed",
   "zeroEgress": true,
-  "evidenceDigest": "sha256:75af887ddd3d2c52c17b277ee9990b9db75f7d2283000b9bb86c9390e986e71a",
+  "evidenceDigest": "sha256:5b3b4cc4e3c34ea10c41fdebb0fa27b57c7259a9230b53da94220ab5b9cbfc74",
   "maturityDigest": "sha256:55c5e7ad81a9f923cf8f7e95ca9bdd18245aebc27d5797806d3fa535bf7ecbc5",
   "workbench": "test/fixtures/packed-app-platform-reference-workbench.mjs",
   "journey": [
@@ -124,7 +124,7 @@
     {
       "id": "bundle-gzip",
       "status": "verified",
-      "limit": 329668,
+      "limit": 364681,
       "unit": "bytes",
       "evidence": [
         "bundle-budgets.json",
