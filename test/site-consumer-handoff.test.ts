@@ -943,7 +943,7 @@ describe("honua-site consumer handoff", () => {
     decompressionBomb.artifacts.blobs[0].contentBase64 = bombBytes.toString("base64");
     decompressionBomb.artifacts.blobs[0].encodedBytes = bombBytes.byteLength;
     await expect(validateLegacyVisualReceiptArchive(decompressionBomb, legacyHandoff)).rejects.toThrow(
-      "legacy visual artifact blob is missing or stale",
+      "legacy visual artifact blob is missing, malformed, or excessive",
     );
 
     const escapedArtifactPath = structuredClone(archive);
@@ -991,7 +991,7 @@ describe("honua-site consumer handoff", () => {
   });
 
   it(
-    "validates the self-contained legacy archive from extracted and shallow inputs",
+    "validates the self-contained legacy archive from extracted, shallow, and packed inputs",
     { timeout: 180_000 },
     async () => {
       const root = await mkdtemp(path.join(os.tmpdir(), "honua-legacy-archive-contexts-"));
@@ -1029,8 +1029,7 @@ describe("honua-site consumer handoff", () => {
         const tarball = path.join(packed, packResult[0].filename);
         execFileSync("tar", ["-xf", tarball, "-C", packed], { stdio: "ignore", windowsHide: true });
 
-        await expect(readFile(path.join(packed, "package", archivePath), "utf8")).rejects.toThrow();
-        const contexts = [extracted, shallow];
+        const contexts = [extracted, shallow, path.join(packed, "package")];
         const originalPath = process.env.PATH;
         process.env.PATH = "";
         try {
