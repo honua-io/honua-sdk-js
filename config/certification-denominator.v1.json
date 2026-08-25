@@ -59,7 +59,18 @@
       "wms",
       "wmts",
       "workspace-artifact"
-    ]
+    ],
+    "rendererBindings": {
+      "maplibre-raster": [
+        "ogc-maps",
+        "raster-tile"
+      ],
+      "maplibre-vector": [
+        "ogc-tiles",
+        "vector-tile"
+      ]
+    },
+    "rendererBindingSource": "src/runtime/source-bridge.ts"
   },
   "appPlatform": {
     "journey": [
@@ -126,6 +137,11 @@
       "path": "config/sdk-coverage.v1.json",
       "bytes": 20672,
       "sha256": "sha256:603126953a82eaeec6ff702ea9803d65d119f2a4be4e02878046d3b071f3c944"
+    },
+    {
+      "path": "src/runtime/source-bridge.ts",
+      "bytes": 16162,
+      "sha256": "sha256:1031db7b175e4ba0f12704638d7031892745d7e2fee510a3c2b698f508e7fd00"
     },
     {
       "path": "config/support-manifest.v1.json",
@@ -498,17 +514,18 @@
     }
   },
   "digests": {
-    "inputs": "sha256:4089a7039f1c5b2c92b0365b4c8e6a127c4be8ebd548afdad55e87a1837922a8",
+    "inputs": "sha256:0c685e1b8d5a74ce1b133a9dac3747e422a46d9e861a2d50bd073a3f2b1311bc",
     "capabilityProfile": "sha256:b39f35595f99d6b11e87c0bdf5752a09a34eae8cc01006c0d67d654afdf079f3",
     "supportProfile": "sha256:7aaa73ac15c045a52c790ca0fb6a27f4ec9665fe71b5051389a676da2c85be90",
-    "rows": "sha256:6cf5985b0406d41020cd28473d1a83fd90d8999b49d648e701ca753b6cd973a9"
+    "rows": "sha256:ceaa63dd8e89a32007e37d23ec06b2878ac008d96bc8b70cd30c09f2a3346f21"
   },
   "summary": {
     "rows": 294,
     "counting": 222,
     "visibleNonCounting": 72,
     "renderer": 2,
-    "portableMapArtifact": 44,
+    "portableMapArtifact": 48,
+    "rendererFromPortableMapArtifact": 2,
     "byTier": {
       "supported": 228,
       "beta": 24,
@@ -2219,6 +2236,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/16/operationClaims/0"
@@ -2246,6 +2264,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/16/operationClaims/0"
@@ -2273,6 +2292,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/16/operationClaims/0"
@@ -2297,6 +2317,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/1"
@@ -2321,6 +2344,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/1"
@@ -2345,6 +2371,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/4"
@@ -2369,6 +2398,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/0"
@@ -2393,6 +2425,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/0"
@@ -2417,6 +2452,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/0"
@@ -2441,6 +2479,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/1"
@@ -2465,6 +2506,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/1"
@@ -2489,6 +2533,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/2"
@@ -2513,6 +2560,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/3"
@@ -2538,6 +2588,9 @@
       "executionMode": "client-fallback",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-feature-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/1/operationClaims/5"
@@ -2562,6 +2615,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/4/operationClaims/0"
@@ -2586,6 +2640,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/5/operationClaims/0"
@@ -2612,6 +2667,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/3/operationClaims/1"
@@ -2636,6 +2692,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/3/operationClaims/0"
@@ -2660,6 +2717,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/3/operationClaims/0"
@@ -2684,6 +2742,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/3/operationClaims/0"
@@ -2708,6 +2767,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/3/operationClaims/1"
@@ -2732,6 +2792,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/3/operationClaims/2"
@@ -2756,6 +2817,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/0"
@@ -2781,6 +2845,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/0"
@@ -2806,6 +2873,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/0"
@@ -2831,6 +2901,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/1"
@@ -2856,6 +2929,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/1"
@@ -2881,6 +2957,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/2"
@@ -2905,6 +2984,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/4"
@@ -2929,6 +3011,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/5"
@@ -2954,6 +3039,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "geoservices-map-service"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/2/operationClaims/3"
@@ -2979,6 +3067,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/0/operationClaims/0"
@@ -3004,6 +3093,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/0/operationClaims/0"
@@ -3029,6 +3119,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/0/operationClaims/0"
@@ -3054,6 +3145,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/0/operationClaims/0"
@@ -3079,6 +3171,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/0/operationClaims/0"
@@ -3104,6 +3197,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/0/operationClaims/0"
@@ -3128,7 +3222,11 @@
       "environment": "client-only",
       "executionMode": "native",
       "renderer": true,
-      "portableMapArtifact": false,
+      "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-maps",
+        "raster-tile"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/18/operationClaims/0"
@@ -3155,7 +3253,11 @@
       "environment": "client-only",
       "executionMode": "native",
       "renderer": false,
-      "portableMapArtifact": false,
+      "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-maps",
+        "raster-tile"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/18/operationClaims/1"
@@ -3179,7 +3281,11 @@
       "environment": "client-only",
       "executionMode": "native",
       "renderer": true,
-      "portableMapArtifact": false,
+      "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-tiles",
+        "vector-tile"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/17/operationClaims/0"
@@ -3206,7 +3312,11 @@
       "environment": "client-only",
       "executionMode": "native",
       "renderer": false,
-      "portableMapArtifact": false,
+      "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-tiles",
+        "vector-tile"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/17/operationClaims/1"
@@ -3231,6 +3341,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "odata"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/14/operationClaims/0"
@@ -3255,6 +3368,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "odata"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/14/operationClaims/0"
@@ -3279,6 +3395,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "odata"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/14/operationClaims/0"
@@ -3303,6 +3422,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "odata"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/14/operationClaims/0"
@@ -3330,6 +3452,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/20/operationClaims/0"
@@ -3355,6 +3478,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-features"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/6/operationClaims/0"
@@ -3379,6 +3505,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-features"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/6/operationClaims/0"
@@ -3403,6 +3532,9 @@
       "executionMode": "client-fallback",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-features"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/6/operationClaims/1"
@@ -3427,6 +3559,9 @@
       "executionMode": "client-fallback",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-features"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/6/operationClaims/1"
@@ -3451,6 +3586,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-features"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/6/operationClaims/0"
@@ -3475,6 +3613,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-features"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/6/operationClaims/0"
@@ -3502,6 +3643,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-maps"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/8/operationClaims/0"
@@ -3530,6 +3674,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/9/operationClaims/0"
@@ -3558,6 +3703,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/9/operationClaims/1"
@@ -3585,6 +3731,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/9/operationClaims/1"
@@ -3612,6 +3759,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-tiles"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/7/operationClaims/0"
@@ -3640,6 +3790,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "ogc-tiles"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/7/operationClaims/0"
@@ -3665,6 +3818,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "pmtiles"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/15/operationClaims/0"
@@ -3689,6 +3845,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/10/operationClaims/0"
@@ -3713,6 +3870,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/10/operationClaims/0"
@@ -3737,6 +3895,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/10/operationClaims/0"
@@ -3764,6 +3923,7 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": false,
+      "portableMapArtifactBindings": [],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/21/operationClaims/0"
@@ -3789,6 +3949,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wfs"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/11/operationClaims/0"
@@ -3813,6 +3976,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wfs"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/11/operationClaims/0"
@@ -3837,6 +4003,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wfs"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/11/operationClaims/0"
@@ -3861,6 +4030,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wfs"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/11/operationClaims/0"
@@ -3885,6 +4057,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wfs"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/11/operationClaims/0"
@@ -3909,6 +4084,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wms"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/12/operationClaims/0"
@@ -3933,6 +4111,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wms"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/12/operationClaims/0"
@@ -3957,6 +4138,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wms"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/12/operationClaims/0"
@@ -3981,6 +4165,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wmts"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/13/operationClaims/0"
@@ -4005,6 +4192,9 @@
       "executionMode": "native",
       "renderer": false,
       "portableMapArtifact": true,
+      "portableMapArtifactBindings": [
+        "wmts"
+      ],
       "source": {
         "path": "config/support-manifest.v1.json",
         "pointer": "/protocols/13/operationClaims/0"

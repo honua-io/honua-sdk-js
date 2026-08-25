@@ -62,6 +62,7 @@ export const ADMIN_MCP_COVERAGE_PATH = "config/admin-mcp-coverage.v1.json";
 export const APP_PLATFORM_QUALIFICATION_PATH = "config/app-platform-reference-qualification.v1.json";
 export const JOURNEY_PATH = "mcp/release/zero-to-map/journey.v1.json";
 export const MAP_PACKAGE_SCHEMA_PATH = "schemas/honua-map-package.v1.json";
+export const SOURCE_BRIDGE_PATH = "src/runtime/source-bridge.ts";
 
 /** Every file the denominator is derived from, digested into the frozen artifact. */
 export const INPUT_PATHS = [
@@ -74,6 +75,7 @@ export const INPUT_PATHS = [
   RELEASE_ARTIFACTS_PATH,
   SDK_COVERAGE_CROSSWALK_PATH,
   SDK_COVERAGE_PATH,
+  SOURCE_BRIDGE_PATH,
   SUPPORT_MANIFEST_PATH,
 ];
 
@@ -123,6 +125,56 @@ const ADMIN_TOOL_PREFIX = "honua_admin_";
 export function portableMapArtifactProtocols(mapPackageSchema) {
   const values = mapPackageSchema?.$defs?.sourceBinding?.properties?.protocol?.enum;
   return Array.isArray(values) ? values.map((value) => value.replaceAll("_", "-")).sort() : [];
+}
+
+/**
+ * Which portable-map-artifact source bindings render through which MapLibre
+ * pipeline, read out of `toMapLibreNativeSource` in src/runtime/source-bridge.ts
+ * rather than restated here. That function IS the translation: a binding it
+ * projects onto a MapLibre source spec of `type: "vector"` renders through the
+ * vector source/layer wiring config/support-manifest.v1.json calls
+ * `maplibre-vector`, and `type: "raster"` through `maplibre-raster`.
+ *
+ * Without this join the denominator tags renderer rows and portable rows
+ * independently and no row carries both, so a run could pass an unrelated
+ * renderer row plus an unrelated portable row and never prove "representative
+ * MapLibre rendering FROM the portable map artifact". The conjunction is the
+ * requirement; two separately satisfiable checks are not it.
+ *
+ * Derived by the same read-the-source method scripts/verify-release-artifacts.mjs
+ * uses on the split-package generator, and guarded the same way: a parse that
+ * stops matching fails loudly instead of silently emptying the set.
+ *
+ * @returns {Map<string, string[]>} renderer protocol id -> map-package protocols reaching it
+ */
+export function mapLibreNativeBindings(sourceBridgeSource) {
+  const fn = /function toMapLibreNativeSource\([\s\S]*?\n\}/u.exec(sourceBridgeSource ?? "");
+  const bindings = new Map();
+  if (!fn) return bindings;
+  const body = fn[0];
+
+  const labels = [...body.matchAll(/case "([a-z_]+)":/gu)];
+  const terminator = body.search(/\n\s*default:/u);
+  for (let index = 0; index < labels.length; index += 1) {
+    const label = labels[index];
+    const next = labels[index + 1];
+    // Consecutive `case` labels share one body; only the last of a run has it.
+    const between = body.slice(label.index + label[0].length, next ? next.index : (terminator >= 0 ? terminator : body.length));
+    if (/^\s*$/u.test(between)) continue;
+    const type = /\btype:\s*"(vector|raster)"/u.exec(between);
+    if (!type) continue; // e.g. `pmtiles`, whose spec type is decided at runtime.
+    const rendererProtocol = `maplibre-${type[1]}`;
+    // Walk back over the labels that fell through into this body.
+    const group = [label[1]];
+    for (let back = index - 1; back >= 0; back -= 1) {
+      const gap = body.slice(labels[back].index + labels[back][0].length, labels[back + 1].index);
+      if (!/^\s*$/u.test(gap)) break;
+      group.unshift(labels[back][1]);
+    }
+    const reached = bindings.get(rendererProtocol) ?? [];
+    bindings.set(rendererProtocol, sortedUnique([...reached, ...group.map((value) => value.replaceAll("_", "-"))]));
+  }
+  return bindings;
 }
 
 function readJson(relativePath, projectRoot = PROJECT_ROOT) {
@@ -299,9 +351,14 @@ export function sdkOperationRows(supportManifest) {
  * which are tagged rather than split into their own family because they are the
  * same kind of manifest row read through the same join.
  */
-export function protocolOperationRows(supportManifest, mapPackageSchema = {}) {
+export function protocolOperationRows(supportManifest, mapPackageSchema = {}, sourceBridgeSource = "") {
   const rows = [];
-  const portable = new Set(portableMapArtifactProtocols(mapPackageSchema));
+  // Two ways a protocol row belongs to the portable map artifact: the artifact
+  // binds a source to it directly, or the artifact binds a source to something
+  // that renders through it. The second is what makes a renderer row portable.
+  const direct = portableMapArtifactProtocols(mapPackageSchema);
+  const viaRenderer = mapLibreNativeBindings(sourceBridgeSource);
+  const portable = new Set([...direct, ...viaRenderer.keys()]);
   const claimsByProtocol = new Map();
   for (const claim of supportManifest.supportClaims ?? []) {
     if (!claim.protocol) continue;
@@ -350,6 +407,9 @@ export function protocolOperationRows(supportManifest, mapPackageSchema = {}) {
             // "representative MapLibre rendering from the portable map artifact"
             // names rows the artifact can actually reference.
             portableMapArtifact: portable.has(protocol.id),
+            // Which map-package source bindings reach this row, so the artifact
+            // evidences the conjunction rather than asserting it.
+            portableMapArtifactBindings: viaRenderer.get(protocol.id) ?? (direct.includes(protocol.id) ? [protocol.id] : []),
             source: {
               path: SUPPORT_MANIFEST_PATH,
               pointer: `/protocols/${protocolIndex}/operationClaims/${claimIndex}`,
@@ -549,6 +609,28 @@ export function assertCertificationDenominatorInvariants(denominator) {
       `the denominator contains no counting row for any protocol ${MAP_PACKAGE_SCHEMA_PATH} can bind a source to, so the portable map artifact is no longer covered`,
     );
   }
+  // Both halves of the portable-map-artifact join must still be readable. Either
+  // one silently emptying would leave a denominator that reports no drift while
+  // proving strictly less than it claims.
+  if ((denominator.portableMapArtifact?.sourceProtocols ?? []).length === 0) {
+    errors.push(
+      `${MAP_PACKAGE_SCHEMA_PATH} declares no source bindings this gate can read, so the portable map artifact is no longer described`,
+    );
+  }
+  if (Object.keys(denominator.portableMapArtifact?.rendererBindings ?? {}).length === 0) {
+    errors.push(
+      `no portable map artifact source binding could be traced to a MapLibre pipeline through ${SOURCE_BRIDGE_PATH}, so this gate can no longer prove rendering from the portable map artifact`,
+    );
+  }
+  // The conjunction, and the reason the two checks above are not enough. #39
+  // requires "representative MapLibre rendering FROM the portable map artifact".
+  // A renderer row and a portable row that are different rows can each be
+  // satisfied in isolation without ever rendering a portable map.
+  if (!rows.some((row) => row.renderer === true && row.portableMapArtifact === true && row.counts)) {
+    errors.push(
+      `the denominator contains no counting row that is BOTH a renderer row and bound to the portable map artifact, so representative MapLibre rendering from the portable map artifact cannot be certified; check that ${SOURCE_BRIDGE_PATH} still projects map-package source bindings onto MapLibre-native sources`,
+    );
+  }
   const journeyTools = new Set(rows.filter((row) => row.family === "terminal-journey").map((row) => row.tool));
   for (const tool of STUDIO_LIFECYCLE_TOOLS) {
     if (!journeyTools.has(tool)) {
@@ -574,6 +656,7 @@ export function buildCertificationDenominator(inputs) {
     appPlatformQualification,
     journey,
     mapPackageSchema,
+    sourceBridgeSource,
     inputDigests,
   } = inputs;
 
@@ -590,7 +673,7 @@ export function buildCertificationDenominator(inputs) {
 
   const rows = [
     ...sdkOperationRows(supportManifest),
-    ...protocolOperationRows(supportManifest, mapPackageSchema),
+    ...protocolOperationRows(supportManifest, mapPackageSchema, sourceBridgeSource),
     ...certification.rows,
     ...journeyRows.rows,
   ].sort((left, right) => left.id.localeCompare(right.id));
@@ -632,6 +715,8 @@ export function buildCertificationDenominator(inputs) {
       $id: mapPackageSchema?.$id ?? null,
       title: mapPackageSchema?.title ?? null,
       sourceProtocols: portableMapArtifactProtocols(mapPackageSchema),
+      rendererBindings: Object.fromEntries([...mapLibreNativeBindings(sourceBridgeSource)].sort()),
+      rendererBindingSource: SOURCE_BRIDGE_PATH,
     },
     appPlatform: {
       journey: [...(appPlatformQualification.journey ?? [])],
@@ -654,6 +739,8 @@ export function buildCertificationDenominator(inputs) {
       visibleNonCounting: rows.filter((row) => !row.counts).length,
       renderer: rows.filter((row) => row.renderer === true).length,
       portableMapArtifact: rows.filter((row) => row.portableMapArtifact === true).length,
+      rendererFromPortableMapArtifact: rows.filter((row) => row.renderer === true && row.portableMapArtifact === true)
+        .length,
       byTier,
       byFamily,
     },
@@ -788,7 +875,43 @@ export function evaluateCertificationRun({ denominator, results }) {
     }
   }
 
+  errors.push(...evaluateRendererRequirement({ denominator, results }));
+
   return errors;
+}
+
+/**
+ * "Representative MapLibre rendering from the portable map artifact" is one
+ * requirement, not two. Passing a renderer row and separately passing a row the
+ * portable artifact can carry does not establish the conjunction: nothing in
+ * that pair ever rendered a portable map.
+ *
+ * So the requirement is satisfied only by a row that is BOTH -- a renderer row
+ * the portable map artifact can actually reach through
+ * src/runtime/source-bridge.ts. A denominator with no such row cannot certify
+ * the requirement at all, and says so rather than accepting the pair.
+ */
+export function evaluateRendererRequirement({ denominator, results }) {
+  const rows = denominator.rows ?? [];
+  const combined = rows.filter((row) => row.renderer === true && row.portableMapArtifact === true && row.counts);
+  if (combined.length === 0) {
+    const renderer = rows.filter((row) => row.renderer === true && row.counts).length;
+    const portable = rows.filter((row) => row.portableMapArtifact === true && row.counts).length;
+    return [
+      `the denominator has ${renderer} counting renderer rows and ${portable} counting portable-map-artifact rows but none that is both, so "representative MapLibre rendering from the portable map artifact" cannot be certified; satisfying the two independently does not satisfy the conjunction`,
+    ];
+  }
+  // Only a `passed` result counts. A skipped or failed result on the one row
+  // that could prove the conjunction leaves it unproven.
+  const passed = combined.filter((row) =>
+    (results ?? []).some((result) => result.rowId === row.id && result.status === "passed"),
+  );
+  if (passed.length === 0) {
+    return [
+      `no row proving MapLibre rendering from the portable map artifact passed (candidates: ${combined.map((row) => row.id).join(", ")})`,
+    ];
+  }
+  return [];
 }
 
 /** Read every input the builder needs from a checkout, digesting each file's bytes. */
@@ -808,6 +931,7 @@ export function loadCertificationDenominatorInputs(projectRoot = PROJECT_ROOT) {
     appPlatformQualification: readJson(APP_PLATFORM_QUALIFICATION_PATH, projectRoot),
     journey: readJson(JOURNEY_PATH, projectRoot),
     mapPackageSchema: readJson(MAP_PACKAGE_SCHEMA_PATH, projectRoot),
+    sourceBridgeSource: fs.readFileSync(path.join(projectRoot, SOURCE_BRIDGE_PATH), "utf8"),
     inputDigests,
   };
 }

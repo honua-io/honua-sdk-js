@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 import {
   buildCertificationDenominator,
   COUNTING_TIER,
+  evaluateRendererRequirement,
+  mapLibreNativeBindings,
   DENOMINATOR_PATH,
   DENOMINATOR_SCHEMA_PATH,
   digestBytes,
@@ -54,6 +56,7 @@ function cloneInputs() {
     appPlatformQualification: structuredClone(inputs.appPlatformQualification),
     journey: structuredClone(inputs.journey),
     mapPackageSchema: structuredClone(inputs.mapPackageSchema),
+    sourceBridgeSource: inputs.sourceBridgeSource,
     inputDigests: structuredClone(inputs.inputDigests),
   };
 }
@@ -220,11 +223,15 @@ test("the renderer rows are bound to the protocols the portable map artifact can
   // agree on which protocols a portable map can bind a source to.
   const schemaProtocols = new Set(frozen.portableMapArtifact.sourceProtocols);
   assert.ok(schemaProtocols.size > 0, "the map-package schema declares no source protocols");
+  // A protocol row belongs to the portable map artifact by either route: the
+  // artifact binds a source to it directly, or the artifact binds a source to
+  // something that renders through it (src/runtime/source-bridge.ts).
+  const rendersFor = new Set(Object.keys(frozen.portableMapArtifact.rendererBindings));
   for (const row of frozen.rows.filter((entry) => entry.family === "protocol-operation")) {
     assert.equal(
       row.portableMapArtifact,
-      schemaProtocols.has(row.subject),
-      `row "${row.id}" disagrees with the map-package schema about ${row.subject}`,
+      schemaProtocols.has(row.subject) || rendersFor.has(row.subject),
+      `row "${row.id}" disagrees with the portable map artifact about ${row.subject}`,
     );
   }
   assert.ok(frozen.summary.portableMapArtifact > 0);
@@ -234,9 +241,106 @@ test("the renderer rows are bound to the protocols the portable map artifact can
   const blind = cloneInputs();
   blind.mapPackageSchema = { $id: blind.mapPackageSchema.$id, title: blind.mapPackageSchema.title, $defs: {} };
   assert.ok(
-    buildCertificationDenominator(blind).errors.some((error) => error.includes("portable map artifact")),
+    buildCertificationDenominator(blind).errors.some((error) => error.includes("declares no source bindings")),
     "an unreadable map-package schema must fail",
   );
+});
+
+test("representative MapLibre rendering is proven FROM the portable map artifact, not beside it", () => {
+  // The conjunction #39 actually requires. Tagging renderer rows and portable
+  // rows independently is not it: if no row carries both, a run can pass an
+  // unrelated renderer row plus an unrelated portable row and never render a
+  // portable map. This asserts the intersection is non-empty and counting.
+  const combined = frozen.rows.filter((row) => row.renderer === true && row.portableMapArtifact === true);
+  assert.ok(combined.length > 0, "no row is both a renderer row and bound to the portable map artifact");
+  assert.equal(frozen.summary.rendererFromPortableMapArtifact, combined.length);
+  for (const row of combined) {
+    assert.ok(row.counts, `combined row "${row.id}" does not count`);
+    assert.ok(
+      row.portableMapArtifactBindings.length > 0,
+      `combined row "${row.id}" names no portable map artifact source binding`,
+    );
+    for (const binding of row.portableMapArtifactBindings) {
+      assert.ok(
+        frozen.portableMapArtifact.sourceProtocols.includes(binding),
+        `row "${row.id}" claims binding "${binding}", which the map-package schema does not declare`,
+      );
+    }
+  }
+});
+
+test("the renderer-to-portable-artifact join is read out of source-bridge.ts", () => {
+  // Derived, not restated: toMapLibreNativeSource IS the translation from a
+  // portable map artifact source binding to a MapLibre pipeline.
+  const derived = mapLibreNativeBindings(inputs.sourceBridgeSource);
+  assert.deepEqual(Object.fromEntries([...derived].sort()), frozen.portableMapArtifact.rendererBindings);
+  assert.deepEqual(derived.get("maplibre-vector"), ["ogc-tiles", "vector-tile"]);
+  assert.deepEqual(derived.get("maplibre-raster"), ["ogc-maps", "raster-tile"]);
+
+  // And the guard: a source file this gate can no longer read must fail loudly
+  // rather than quietly emptying the intersection back to zero.
+  assert.equal(mapLibreNativeBindings("// rewritten\n").size, 0);
+  const blind = cloneInputs();
+  blind.sourceBridgeSource = "// rewritten\n";
+  const blindErrors = buildCertificationDenominator(blind).errors;
+  assert.ok(
+    blindErrors.some((error) => error.includes(`traced to a MapLibre pipeline through`)),
+    `an unreadable source-bridge must fail loudly: ${blindErrors.join("\n")}`,
+  );
+  assert.ok(
+    blindErrors.some((error) => error.includes("BOTH a renderer row and bound to the portable map artifact")),
+    `an unreadable source-bridge must fail the conjunction invariant: ${blindErrors.join("\n")}`,
+  );
+});
+
+test("satisfying renderer and portable separately does not satisfy the combined requirement", () => {
+  // The exact pre-fix shape: the flags exist but no row carries both. Passing
+  // one of each must NOT certify "MapLibre rendering from the portable map
+  // artifact" -- nothing in that pair ever rendered a portable map.
+  const split = structuredClone(frozen);
+  for (const row of split.rows) {
+    if (row.renderer === true && row.portableMapArtifact === true) row.portableMapArtifact = false;
+  }
+  assert.ok(
+    split.rows.some((row) => row.renderer === true && row.counts),
+    "fixture must still contain a counting renderer row",
+  );
+  assert.ok(
+    split.rows.some((row) => row.portableMapArtifact === true && row.counts),
+    "fixture must still contain a counting portable row",
+  );
+  assert.equal(
+    split.rows.filter((row) => row.renderer === true && row.portableMapArtifact === true).length,
+    0,
+    "fixture must contain no combined row",
+  );
+
+  const errors = evaluateCertificationRun({ denominator: split, results: passingResults(split) });
+  assert.ok(
+    errors.some((error) => error.includes("does not satisfy the conjunction")),
+    `a run passing renderer and portable rows separately was accepted: ${errors.join("\n")}`,
+  );
+
+  // A denominator with no combined row cannot certify the requirement at all,
+  // however complete the rest of the run is.
+  assert.ok(
+    evaluateRendererRequirement({ denominator: split, results: passingResults(split) }).length > 0,
+    "the renderer requirement must be unsatisfiable without a combined row",
+  );
+});
+
+test("the one row proving portable-artifact rendering may not be skipped or failed", () => {
+  const combined = frozen.rows.filter((row) => row.renderer === true && row.portableMapArtifact === true && row.counts);
+  for (const status of ["skipped", "failed"]) {
+    const results = passingResults(frozen).map((result) =>
+      combined.some((row) => row.id === result.rowId) ? { rowId: result.rowId, status } : result,
+    );
+    const errors = evaluateRendererRequirement({ denominator: frozen, results });
+    assert.ok(
+      errors.some((error) => error.includes("passed")),
+      `${status}: the renderer requirement was treated as satisfied`,
+    );
+  }
 });
 
 test("the frozen digests cover every manifest the denominator was derived from", () => {
@@ -252,6 +356,7 @@ test("the frozen digests cover every manifest the denominator was derived from",
     "config/app-platform-reference-qualification.v1.json",
     "mcp/release/zero-to-map/journey.v1.json",
     "schemas/honua-map-package.v1.json",
+    "src/runtime/source-bridge.ts",
   ]) {
     assert.ok(digested.includes(required), `${required} is not digested into the freeze`);
   }
