@@ -1,6 +1,8 @@
 ---
 name: honua-arcgis-migration
 description: Use when migrating an existing ArcGIS Maps SDK for JavaScript (@arcgis/core) app to Honua — running the honua-migrate scan and codemod, reading the parity/gate reports, and resolving the manual-intervention warnings the codemod flags. Drives the real CLI in src/migration/cli.ts; do not hand-translate ArcGIS code without it.
+release: "2026.1"
+stages: []
 ---
 
 # ArcGIS → Honua migration

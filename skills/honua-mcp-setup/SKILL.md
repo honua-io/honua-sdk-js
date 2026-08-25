@@ -1,6 +1,8 @@
 ---
 name: honua-mcp-setup
 description: Use when connecting an MCP client (Claude Desktop, Claude Code, or any MCP-compatible agent) to ANY public ArcGIS/OGC FeatureServer via @honua/mcp-server — the platform-free geospatial MCP server. Covers pointing honua-mcp at a plain public endpoint (no Honua server needed), building and configuring the server, env vars, transports, graceful capability degradation, and the stdio proxy for a Honua /mcp catalog. Grounded in mcp/README.md and mcp/src.
+release: "2026.1"
+stages: []
 ---
 
 # Honua MCP server setup
@@ -103,6 +105,9 @@ Tools (all read-only):
 - `honua_explain_capability_gap` — protocol/capability guidance
 - `honua_get_style`, `honua_apply_style_preset` — server-side styling; on a plain
   FeatureServer these return a structured "not available on this target" result
+- `honua_docs_search` — answer a Honua documentation question from the local
+  versioned docs corpus (`llms-full.txt`), citing the source file and release
+  version; offline, and structured-unavailable when the corpus is not installed
 
 Address a source with one string, `<protocol>:<address>` — e.g.
 `ogc-features:hotels`, `stac:sentinel-2-l2a`, `wfs:topp:states`, `odata:People`,

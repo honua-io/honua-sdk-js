@@ -139,6 +139,7 @@ All read-only:
 - `honua_statistics`
 - `honua_explain_capability_gap`
 - `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
+- `honua_docs_search` — answer a Honua documentation question from the local versioned docs corpus (`llms-full.txt`), with a source-file and release-version citation per hit. Offline: reads committed files, never the network, and reports structured-unavailable when the corpus is not present in the installation. Point `HONUA_DOCS_CORPUS_PATH` at a generated `llms-full.txt` to supply the corpus explicitly.
 
 ### Protocol-neutral tool contract
 

@@ -1173,7 +1173,7 @@ Journey IDs are stable roadmap slots. `planned` candidates remain recipes or lab
 | <a id="unified-ops-workspace"></a>[`unified-ops-workspace`](../../examples/unified-ops-workspace/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Composes incident command, analysis, and shared workspace state. |
 | <a id="web-components-basic"></a>[`web-components-basic`](../../examples/web-components-basic/README.md) | lab | - | deprecated | retire | browser-lab | fixture | not-required | Demonstrates the SDK custom-element controls against a map. |
 
-The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers.
+The catalog also carries fixture/live evidence, evidence expiry, endpoint configuration names, provenance, attribution, freshness, lifecycle targets, validation profiles, and the complete 21-route honua.io migration mapping. The current presentation-safe projection is [`samples/dist/honua-site-samples.v3.json`](../../samples/dist/honua-site-samples.v3.json); v2 remains published for existing consumers, and [`v4`](../../samples/dist/honua-site-samples.v4.json) is published for cutover -- identical to v3 except that `sampleBundles.publication.releaseTag` is renamed `releaseTagTemplate`, the name the `{sourceCommit}` template has needed since honua-io/honua-sdk-js#1325.
 
 ---
 
@@ -10181,7 +10181,7 @@ where a claim works, while `discovery`, `native`, `client-fallback`, and
 | OGC API Coverages discovery and bounded retrieval | `open-endpoint` | `experimental` | `standalone` | `native` | Any compatible OGC API Coverages server | @honua/sdk-js/coverages createCoverageClient(), CoverageSource, @honua/sdk-js/raster | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts)<br>[integration: coverages-wcs-browser](../test/playwright/coverages-wcs-basic.spec.mjs)<br>[fixture: unified-raster-fixtures](../test/unified-raster.test.ts) | Discovers landing, conformance, collections, domain/grid and range schema metadata, then retrieves explicitly bounded TIFF/PNG coverage bodies through the shared authenticated request pipeline. A strict standalone browser fixture proves named properties, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists. |
 | WCS 2.0.1 discovery and bounded retrieval | `open-endpoint` | `experimental` | `standalone` | `native` | Any compatible WCS 2.0.1 KVP endpoint | @honua/sdk-js/coverages createWcsClient(), @honua/sdk-js/raster | [fixture: coverages-wcs-fixtures](../test/coverages-wcs.test.ts)<br>[integration: coverages-wcs-browser](../test/playwright/coverages-wcs-basic.spec.mjs)<br>[fixture: unified-raster-fixtures](../test/unified-raster.test.ts) | Supports GetCapabilities, DescribeCoverage, bounded GetCoverage, CRS/range/scaling/axis/temporal parameters, content negotiation, and structured OWS exceptions. A strict standalone browser fixture proves named RANGESUBSET, cancellation, degradation, zero external requests, and the shared MapLibre image handoff. The support claim remains experimental because no anonymous live canary exists. |
 | OGC API Records | `open-endpoint` | `beta` | `standalone` | `discovery` | Any link-driven OGC API Records server | connect(), Source protocol ogc-records | [fixture: ogc-records-fixtures](../test/connect-ogc.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers and queries the raw records path advertised by the service; does not require /ogc/records. Fixture-proven with scheduled anonymous live verification of one bounded record page. |
-| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, terrain, every declared imagery protocol (url-template, WMS, WMTS, single-tile, and both ArcGIS endpoint shapes) with the request each provider puts on the wire, glTF/GLB models, 3D-Tiles tilesets including a .pnts point cloud and the honua_style sidecar, the fail-closed rows for an undeclared imagery protocol and an unmaterialized model format, and a documented final-canvas GC floor whose listener budget is itself proven by an injected per-cycle leak (#928, #1055). Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table. |
+| Cesium 3D scene workspace | `open-endpoint` | `beta` | `client-only` | `native` | None (optional `cesium` peer) | @honua/app-platform/scene-workspace | [fixture: scene-workspace-fixtures](../test/scene-workspace.test.ts)<br>[fixture: scene-state-sync-fixtures](../test/scene-state-sync.test.ts)<br>[fixture: scene-primitive-diagnostics-fixtures](../test/scene-primitive-spatial-diagnostics.test.ts)<br>[fixture: cesium-scene-adapter-fixtures](../test/cesium-scene-adapter.test.ts)<br>[fixture: cesium-scene-mount-fixtures](../test/cesium-scene-mount.test.ts)<br>[integration: cesium-scene-adapter-browser](../test/playwright/cesium-scene-adapter-fixtures.spec.mjs)<br>[fixture: scene-bundle-isolation](../scripts/verify-split-packages.mjs) | Renderer-neutral scene state plus the Cesium primitive adapter and its bounded mount lifecycle for quantized-mesh terrain, imagery, 3D Tiles, and glTF/GLB model layers. Cesium is a lazily imported optional peer, so core and 2D consumers never load it. Beyond the unit fixtures, the adapter is proven against the real cesium package in headless Chromium with bounded teardown budgets; that browser matrix covers camera, quantized-mesh terrain (the adapter's only materialized terrain protocol), every declared imagery protocol (url-template, WMS, WMTS, single-tile, and both ArcGIS endpoint shapes) with the request each provider puts on the wire, glTF/GLB models, 3D-Tiles tilesets including a .pnts point cloud and the honua_style sidecar, an undeclared imagery protocol, and an unmaterialized model format. Unit fixtures additionally cover the fail-closed Terrain-RGB, raster DEM, ImageServer, and custom terrain rows. The browser lane also records a documented final-canvas GC floor whose listener budget is itself proven by an injected per-cycle leak (#928, #1055). Honua Server scene discovery, the elevation/analysis widgets, and the bounded Source-to-entity slice stay experimental — the entity slice now with its own real-Cesium browser evidence, a refresh that diffs instead of rebuilding (an unchanged feature keeps the same live Entity), the `mountCesiumScene` single owner over both mounts, and a recorded tier decision naming symbology as the one remaining blocker (#1050), not for want of proof — see the surface tiers table. |
 | OGC API Processes discovery | `open-endpoint` | `supported` | `standalone` | `discovery` | Any link-driven OGC API Processes server | discoverOgcProcesses() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[live: live-conformance](../scripts/live-conformance-evidence.mjs) | Discovers conformance and process metadata at raw paths. Processes are not a protocol-neutral Source; scheduled anonymous live verification proves operation-only discovery and a zero-request connect() rejection. |
 | OGC API Processes execution | `open-endpoint` | `experimental` | `standalone` | `native` | Any conformant OGC API Processes Part 1 (Core) server | client.ogcProcesses({ basePath, conformance }).execute() | [fixture: ogc-processes-fixtures](../test/connect-ogc-processes.test.ts)<br>[integration: ogc-processes-integration](../test/integration/surfaces/ogc-processes.integration.ts) | Executes at the discovered service root in both Core response shapes (no Prefer header for the Requirement 25 synchronous default, or Prefer: respond-async for asynchronous negotiation), then follows advertised Location and results links through the job lifecycle. Undeclared sync-execute / async-execute / dismiss fails closed with HonuaCapabilityNotSupportedError; polling is always bounded and abortable. Fixture and integration-contract proven, but not yet governed-live executed; the anonymous geometry.buffer live step remains explicitly blocked on honua-server#3268 and honua-demo-infra#68. |
 | Server compatibility gate | `server-attach` | `facade-required` | `honua-facade` | `facade` | Honua Server | HonuaClient.checkCompatibility() | [fixture: server-compatibility-fixtures](../test/server-compatibility.test.ts) | Reads the Honua administrative capabilities contract and should be skipped for standalone reads. |
@@ -12347,6 +12347,43 @@ published, because immutable releases protect it. In order:
 
 See [the decision record](./decisions/release-tag-sealing-under-immutable-releases.md)
 for why the tag can never be repaired after the fact.
+
+### Re-running trusted CI for an existing Release Please PR
+
+The `release-please-ci` job dispatches canonical CI when Release Please creates
+or refreshes its PR, and `release-please-disposition` publishes the required
+`JS SDK` and `MCP SDK` checks only after that exact run succeeds. If the PR
+already existed before that path ran (or a transient run must be replaced),
+re-run the trusted Release Please workflow on `trunk`; do not dispatch `ci.yml`
+directly, because that run alone cannot publish the required checks:
+
+```bash
+release_pr=1234
+gh pr view "$release_pr" --json headRefName \
+  --jq 'select(.headRefName == "release-please--branches--trunk") | .headRefName' \
+  | grep -qx release-please--branches--trunk
+
+dispatched_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+gh workflow run release-please.yml --ref trunk
+release_run=""
+for _ in {1..12}; do
+  release_run=$(gh run list --workflow release-please.yml --event workflow_dispatch \
+    --branch trunk --limit 10 --json databaseId,createdAt \
+    --jq "map(select(.createdAt >= \"$dispatched_at\"))[0].databaseId // empty")
+  test -z "$release_run" || break
+  sleep 5
+done
+test -n "$release_run"
+gh run watch "$release_run" --exit-status
+```
+
+This path runs Release Please first, so it may legitimately refresh the release
+branch. The trusted refresh job then discovers the canonical PR and head,
+dispatches `ci.yml` with both exact identities, waits for that named run, and
+publishes the two checks from the disposition job. Re-read `headRefOid` and the
+check rollup before merging. Never substitute a direct `ci.yml` dispatch, an
+alternate release branch, or locally rebuilt evidence: none can complete the
+trusted check-publication path.
 
 `npm run release:seal:check` is the gate that proves a commit is sealed (every
 gate receipt bound to this tree, derived artifacts stamping this release
@@ -17188,6 +17225,7 @@ All read-only:
 - `honua_statistics`
 - `honua_explain_capability_gap`
 - `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
+- `honua_docs_search` — answer a Honua documentation question from the local versioned docs corpus (`llms-full.txt`), with a source-file and release-version citation per hit. Offline: reads committed files, never the network, and reports structured-unavailable when the corpus is not present in the installation. Point `HONUA_DOCS_CORPUS_PATH` at a generated `llms-full.txt` to supply the corpus explicitly.
 
 ### Protocol-neutral tool contract
 
@@ -17612,18 +17650,81 @@ live `tools/list`, never against the vendored certification index).
 # Honua SDK agent skills
 
 Procedural [agent skills](https://code.claude.com/docs/en/skills) that teach
-coding agents to find, recommend, and correctly use `@honua/sdk-js`. Each skill
-is a directory with a `SKILL.md` (YAML frontmatter `name` + `description`, then a
-procedural body). The `description` states *when* the skill applies, so a
-compatible agent can load it on demand.
+coding and terminal agents to drive Honua correctly for a specific release. Each
+skill is a directory with a `SKILL.md` whose YAML frontmatter carries `name`,
+`description`, `release`, and `stages`, followed by a procedural body. The
+`description` states *when* the skill applies, so a compatible agent can load it
+on demand.
 
-## Available skills
+`release` pins the skill to a Honua release; `stages` names the
+[zero-to-map journey](../docs/zero-to-map-release-journey.md) stage(s) it
+serves (an empty list means the skill is not tied to a terminal stage).
+
+<!-- skills-table:start -->
+<!-- Generated by scripts/skills-readme.mjs. Do not edit by hand; run `npm run skills:readme`. -->
+
+## Available skills (release 2026.1)
+
+Every skill declares the release it was written for and the zero-to-map journey
+stage(s) it serves. `npm run verify:skills` fails when a skill drifts from the
+release, cites a tool or file that does not exist, pins a package version this
+repository does not publish, or leaves a journey stage with no skill.
+
+### Terminal-journey skills
+
+| Skill | Stage(s) | Use it when |
+| --- | --- | --- |
+| [`honua-datasource-connect`](./honua-datasource-connect/SKILL.md) | `admin` | Connecting Honua to a datasource and proving the connection works before publishing anything — creating a secure connection by secret reference, testing it, listing and validating tables, and discovering already-reachable sources on a plain endpoint. |
+| [`honua-diagnostics`](./honua-diagnostics/SKILL.md) | `console`, `artifact` | A Honua call fails, a deployment looks unhealthy, or a candidate needs a Console approval receipt — capturing a sanitized diagnostic bundle with honua doctor, reading health/audit/operation status, distinguishing capability gaps from real failures, and staying inside bounded, reversible remediation. |
+| [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) | `geoprocessing` | An agent must discover, execute, poll, cancel, and consume a Honua geoprocessing task — the Esri-compatible MCP GP roster, the native dataset-reference MCP verb, and the SDK's OGC API Processes / GPServer runners, including job polling to a terminal state and turning a result artifact into something a map can bind. |
+| [`honua-local-setup`](./honua-local-setup/SKILL.md) | `install` | Installing Honua on a laptop for the first time and handing the resulting credential to an agent — running the control-plane Docker installer, verifying API/MCP/Console readiness, and wiring an MCP client to the local deployment without ever reading or echoing secret material. |
+| [`honua-map-composition`](./honua-map-composition/SKILL.md) | `studio`, `proposal` | Composing a Honua map, app, or dashboard through Studio MCP tools and getting it toward publication — creating a draft, adding layers/widgets/controls/interactions, validating, saving an immutable version, reopening it, and recording publication intent without bypassing the human approval gate. |
+| [`honua-publish-layers`](./honua-publish-layers/SKILL.md) | `admin` | Turning an imported table into a served Honua layer and setting who can read it — publishing a layer from a tested connection, capturing the layer id, setting the service access policy, and confirming the layer is queryable. |
+| [`honua-style-verify`](./honua-style-verify/SKILL.md) | `studio`, `artifact` | Applying a style to a Honua layer or Studio draft and proving the rendered map is actually correct — resolving styles from the server, applying a preset client-side, setting a draft layer's style and visibility, framing the view, and verifying the approved public URL responds. |
+
+### Supporting skills
 
 | Skill | Use it when |
-|-------|-------------|
-| [`honua-sdk-quickstart`](./honua-sdk-quickstart/SKILL.md) | Writing/reviewing SDK code: client setup, the Dataset → Source → Query → Result contract, capability-error handling. |
-| [`honua-arcgis-migration`](./honua-arcgis-migration/SKILL.md) | Migrating an `@arcgis/core` app: driving the `honua-migrate` scan/codemod and resolving manual-intervention warnings. |
-| [`honua-mcp-setup`](./honua-mcp-setup/SKILL.md) | Connecting an MCP client to a Honua endpoint via `@honua/mcp-server`. |
+| --- | --- |
+| [`honua-arcgis-migration`](./honua-arcgis-migration/SKILL.md) | Migrating an existing ArcGIS Maps SDK for JavaScript (@arcgis/core) app to Honua — running the honua-migrate scan and codemod, reading the parity/gate reports, and resolving the manual-intervention warnings the codemod flags. |
+| [`honua-mcp-setup`](./honua-mcp-setup/SKILL.md) | Connecting an MCP client (Claude Desktop, Claude Code, or any MCP-compatible agent) to ANY public ArcGIS/OGC FeatureServer via @honua/mcp-server — the platform-free geospatial MCP server. |
+| [`honua-sdk-quickstart`](./honua-sdk-quickstart/SKILL.md) | Writing or reviewing code that uses @honua/sdk-js — installing the SDK, constructing a HonuaClient, building a Dataset/Source and querying features across GeoServices/OGC/WFS/STAC/OData, or handling capability errors. |
+
+### 2026.1 terminal-stage coverage
+
+Stages come from [`mcp/release/zero-to-map/journey.v1.json`](../mcp/release/zero-to-map/journey.v1.json)
+(see [the journey overview](../docs/zero-to-map-release-journey.md)). A stage with
+no skill fails `npm run verify:skills`.
+
+| # | Stage | Skill(s) |
+| --- | --- | --- |
+| 1 | `install` — Install Honua locally and verify the handoff surfaces | [`honua-local-setup`](./honua-local-setup/SKILL.md) |
+| 2 | `admin` — Configure a connection, import data, publish layers, and set access | [`honua-datasource-connect`](./honua-datasource-connect/SKILL.md) · [`honua-publish-layers`](./honua-publish-layers/SKILL.md) |
+| 3 | `geoprocessing` — Execute Buffer through AI-facing Esri MCP, GPServer compatibility, and direct analysis | [`honua-geoprocessing`](./honua-geoprocessing/SKILL.md) |
+| 4 | `studio` — Compose, validate, save, read, and reopen distinct map, app, and dashboard families | [`honua-map-composition`](./honua-map-composition/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
+| 5 | `proposal` — Propose publication without bypassing human confirmation | [`honua-map-composition`](./honua-map-composition/SKILL.md) |
+| 6 | `console` — Inspect and approve the candidate in Console | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) |
+| 7 | `artifact` — Verify the stable map, app, and dashboard URLs | [`honua-diagnostics`](./honua-diagnostics/SKILL.md) · [`honua-style-verify`](./honua-style-verify/SKILL.md) |
+
+<!-- skills-table:end -->
+
+## Drift gates
+
+The table above and everything it claims are checked, not trusted:
+
+```bash
+npm run verify:skills   # frontmatter, release, stage coverage, tools, versions, secrets, README freshness
+npm run skills:readme   # regenerate the managed table after adding or re-scoping a skill
+```
+
+`npm run verify:skills` fails when a skill's `release` is not the current
+release, a journey stage has no skill, a body cites an `npm run` script, repo
+file, or `honua_*` tool that does not exist, a body pins a package version this
+repository does not publish, or a body contains a credential-shaped literal. The
+optional registry lane
+(`HONUA_SKILLS_REGISTRY_LIVE_ENABLED=true npm run verify:skills`) additionally
+confirms each pinned version resolves on the public npm registry; it is never
+part of PR CI.
 
 ## Install into Claude Code (or a compatible agent)
 
@@ -17654,6 +17755,10 @@ For agents that ingest an [llms.txt](https://llmstxt.org/) index rather than
 skills, this repo also generates `llms.txt` (curated index) and `llms-full.txt`
 (concatenated docs corpus) at the repo root via `npm run docs:llms`. Point your
 assistant at those files to prime it with current APIs.
+
+The same corpus backs the `honua_docs_search` MCP tool
+(`mcp/src/tools/docs-search.ts`), which answers documentation questions from the
+committed docs and returns file plus release-version citations.
 
 ## Context7 registration
 
