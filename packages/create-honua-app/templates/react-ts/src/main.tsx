@@ -10,8 +10,8 @@ import "./styles.css";
 const container = document.getElementById("root");
 if (!container) throw new Error("Missing #root element");
 
-// StrictMode double-invokes effects in development. The SDK's React hooks are
-// StrictMode-safe, so the mount/unmount/mount cycle never leaks a map source.
+// StrictMode double-invokes effects in development. App owns cancellation and
+// SDK disposal, so the mount/unmount/mount cycle never leaks a map source.
 createRoot(container).render(
   <StrictMode>
     <App />

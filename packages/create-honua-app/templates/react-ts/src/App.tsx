@@ -37,7 +37,6 @@ interface ConnectionState {
   readonly sourceId?: string;
   readonly protocol?: string;
   readonly diagnostics?: readonly RendererDiagnostic[];
-  readonly featureCount?: number;
   readonly mounted: boolean;
   readonly error?: string;
 }
@@ -85,7 +84,6 @@ function useHonuaMap(map: maplibregl.Map | null): ConnectionState {
         const sourceId = inspection.defaultSourceId ?? inspection.sources[0]?.descriptor.id;
         if (!sourceId) throw new Error("The endpoint advertised no queryable source.");
         const plan = await connection.explain(QUERY, { sourceId, signal: cancellation.signal });
-        const result = await connection.query(plan, { signal: cancellation.signal });
         const mounted = await connection.mount(map, {
           renderer: maplibreRenderer(maplibregl),
           query: plan,
@@ -97,7 +95,6 @@ function useHonuaMap(map: maplibregl.Map | null): ConnectionState {
           sourceId,
           protocol: inspection.protocol,
           diagnostics: mounted.diagnostics,
-          featureCount: result.execution.terminal.featureCount,
           mounted: true,
         });
       } catch (error) {
@@ -153,10 +150,6 @@ export function App() {
           <div>
             <dt>Strategy</dt>
             <dd>{connection.diagnostics?.find((item) => item.strategy)?.strategy ?? "—"}</dd>
-          </div>
-          <div>
-            <dt>Features</dt>
-            <dd id="fact-features">{connection.featureCount ?? "—"}</dd>
           </div>
         </dl>
         <p className="hint">

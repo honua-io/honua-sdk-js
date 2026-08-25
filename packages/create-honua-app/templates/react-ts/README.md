@@ -1,10 +1,10 @@
 # Honua map app (React + TypeScript)
 
 A Vite + React + TypeScript starter for the [Honua JavaScript SDK](https://github.com/honua-io/honua-sdk-js). The app
-owns a plain `maplibre-gl` map and the SDK's React bridge mounts a discovered source onto it:
+owns a plain `maplibre-gl` map and runs the kernel lifecycle against it:
 
 ```text
-connect → source → useMountedSource
+connect → inspect → explain → mount
 ```
 
 ## Run it
@@ -34,15 +34,14 @@ endpoint or a server-side proxy.
 
 | File | Why |
 | --- | --- |
-| `src/App.tsx` | Connection, query, and the mounted-source hook. Change the query here. |
-| `src/main.tsx` | React root. `StrictMode` stays on: the SDK hooks are StrictMode-safe. |
+| `src/App.tsx` | Connection, accepted query plan, and kernel-owned mount lifecycle. Change the query here. |
+| `src/main.tsx` | React root. `StrictMode` stays on: cancellation and disposal make remounts safe. |
 | `src/fixture-endpoint.ts` | The same-origin path the offline fixture is served on. |
 | `src/maplibre-worker.ts` | MapLibre 6's ESM worker URL, resolved through Vite. Leave it alone unless you swap the renderer. |
 | `vite.config.ts` | The fixture service. Delete it once you point the app at a real endpoint. |
 
-`HonuaMapProvider` publishes an app-owned map to descendants when the map is created deeper in the tree; this starter
-passes the map to `useMountedSource` directly. Add `@vitejs/plugin-react` if you want React Fast Refresh — Vite
-compiles the JSX without it.
+The starter passes its app-owned map directly to `connection.mount` and disposes the kernel when React tears the
+effect down. Add `@vitejs/plugin-react` if you want React Fast Refresh — Vite compiles the JSX without it.
 
 ## Dependencies
 
