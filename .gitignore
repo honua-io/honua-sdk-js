@@ -24,3 +24,6 @@ node_modules
 !samples/evidence/**/*.tgz
 a.out
 .artifacts/
+
+# Agent worktrees created by Claude Code; never part of a commit.
+.claude/worktrees/

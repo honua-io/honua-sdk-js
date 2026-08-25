@@ -453,6 +453,12 @@ jobs:
       - name: Component qualification matrix
         run: node scripts/component-qualification.mjs check
 
+      - name: App-platform reference qualification
+        # Co-located with the component matrix, exactly as in ci.yml: the
+        # packed-workbench evidence projection and its explicitly open
+        # reference gates are a gate the graph must not retire.
+        run: npm run qualification:app-platform:check
+
       - name: Unit tests with coverage
         run: npm run test:coverage:prepared
 
