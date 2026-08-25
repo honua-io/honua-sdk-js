@@ -28,25 +28,21 @@
  * Approval is deliberately **not** part of this surface — see that class's
  * doc comment.
  *
- * ## Enumeration gap
+ * ## Enumeration
  *
- * The lifecycle API doc is explicit that **there is no endpoint to enumerate
- * drafts or content items** — only single-resource reads
- * (`GET /package-drafts/{draftId}`, `GET /content-items/{itemId}/versions`,
- * `GET /content-items/{itemId}/versions/{versionId}`) and the
- * family-discovery list (`GET /package-families`, which already returns every
- * family in one response and does need no list method of its own).
- * `honua-server#3003` tracks adding a draft/content-item enumeration
- * endpoint. Until it ships:
+ * `contentItems.list()` (`GET /content-items`) and `drafts.list()`
+ * (`GET /package-drafts`) are the content-browser entry points added by
+ * `honua-server#3003`: filters (`family`, `workspaceId`, `owner`, `q`, plus
+ * `state` for content items), opaque keyset-cursor pagination ordered by
+ * `updatedAt` then row id descending, and — for content items — a joined
+ * Content Publication Registry lifecycle badge per row, so a lifecycle badge
+ * costs no extra request. Both resource groups also expose a bounded
+ * `listAll()` async generator and a `collect()` convenience that walk the
+ * cursor for you; neither can loop forever (see
+ * {@link HONUA_STUDIO_LIST_MAX_PAGES}).
  *
- * - `contentVersions.list(itemId)` already covers version enumeration *for a
- *   known item* — the gap is discovering `itemId`/`draftId` values in the
- *   first place, not paging a known collection.
- * - `.raw()` reaches any endpoint honua-server adds before this client grows
- *   a dedicated method for it, without a breaking-change window.
- * - When the enumeration endpoint ships, it is additive: a new
- *   `drafts.list(options)` (or a new resource group) can be added without
- *   touching any existing method signature.
+ * Cursors are **opaque**. Pass a `nextCursor` back verbatim; never build,
+ * parse, or persist-and-mutate one.
  *
  * @module
  */
@@ -57,10 +53,17 @@ import type { QueryMethod } from "../core/types.js";
 import { HonuaStudioError, type HonuaStudioProblemDetails, classifyStudioProblemStatus } from "./lifecycle-errors.js";
 import type {
   StudioApiResponse,
+  StudioContentItemListOptions,
+  StudioContentItemListResponse,
+  StudioContentItemListRow,
   StudioContentVersion,
   StudioContentVersionListResponse,
+  StudioListFilterOptions,
+  StudioListPage,
   StudioPackageDraft,
   StudioPackageDraftCreateRequest,
+  StudioPackageDraftListOptions,
+  StudioPackageDraftListResponse,
   StudioPackageDraftReplaceRequest,
   StudioPackageFamilyCapabilities,
   StudioPreviewPlan,
@@ -121,6 +124,7 @@ export class HonuaStudioLifecycleClient {
 
   public readonly packageFamilies: HonuaStudioPackageFamiliesClient;
   public readonly drafts: HonuaStudioDraftsClient;
+  public readonly contentItems: HonuaStudioContentItemsClient;
   public readonly contentVersions: HonuaStudioContentVersionsClient;
   public readonly publicationRequests: HonuaStudioPublicationRequestsClient;
   public readonly rollbackRequests: HonuaStudioRollbackRequestsClient;
@@ -130,6 +134,7 @@ export class HonuaStudioLifecycleClient {
     this.#basePath = normalizeBasePath(options.basePath ?? HONUA_STUDIO_LIFECYCLE_BASE_PATH);
     this.packageFamilies = new HonuaStudioPackageFamiliesClient(this);
     this.drafts = new HonuaStudioDraftsClient(this);
+    this.contentItems = new HonuaStudioContentItemsClient(this);
     this.contentVersions = new HonuaStudioContentVersionsClient(this);
     this.publicationRequests = new HonuaStudioPublicationRequestsClient(this);
     this.rollbackRequests = new HonuaStudioRollbackRequestsClient(this);
@@ -139,7 +144,7 @@ export class HonuaStudioLifecycleClient {
     return this.#basePath;
   }
 
-  /** Escape hatch for endpoints without a dedicated method yet (see the module doc's "Enumeration gap"). */
+  /** Escape hatch for any endpoint that does not have a dedicated method on this client yet. */
   public raw<T = unknown>(request: HonuaStudioRawRequest): Promise<T> {
     return this.request<T>(request.method ?? "GET", request.path, request.body, {
       signal: request.signal,
@@ -207,6 +212,51 @@ export class HonuaStudioDraftsClient {
     return this.#lifecycle.request("POST", "/package-drafts", request, options);
   }
 
+  /**
+   * `GET /package-drafts` — one page of mutable drafts matching `filters`
+   * (`family`, `workspaceId`, `owner`, `q`), ordered by `updatedAt` then
+   * `draftId` descending.
+   *
+   * Rows are full {@link StudioPackageDraft} objects. Pass the response's
+   * `nextCursor` back as `filters.cursor` for the next page; its absence (or
+   * `null`) means this was the last one. Prefer {@link listAll} or
+   * {@link collect} over hand-rolling that loop.
+   */
+  // `async` so the client-side `limit` guard in `withStudioListQuery` surfaces
+  // as a rejected promise, exactly like every server-side failure on this
+  // client, rather than as a synchronous throw callers would have to catch
+  // separately.
+  public async list(
+    filters: StudioPackageDraftListOptions = {},
+    options: HonuaStudioRequestOptions = {},
+  ): Promise<StudioPackageDraftListResponse> {
+    return await this.#lifecycle.request("GET", withStudioListQuery("/package-drafts", filters), undefined, options);
+  }
+
+  /**
+   * Walk `GET /package-drafts` to completion, yielding each page verbatim.
+   * Bounded by `options.maxPages` — see {@link HonuaStudioContentItemsClient.listAll}
+   * for the shared pagination rules.
+   */
+  public listAll(
+    filters: StudioPackageDraftListOptions = {},
+    options: HonuaStudioPaginationOptions = {},
+  ): AsyncGenerator<StudioPackageDraftListResponse, void, undefined> {
+    return paginateStudioList<StudioPackageDraft>(
+      (pageFilters, pageOptions) => this.list(pageFilters, pageOptions),
+      filters,
+      options,
+    );
+  }
+
+  /** Accumulate every draft page into one {@link StudioListCollection}. */
+  public collect(
+    filters: StudioPackageDraftListOptions = {},
+    options: HonuaStudioPaginationOptions = {},
+  ): Promise<StudioListCollection<StudioPackageDraft>> {
+    return collectStudioList(this.listAll(filters, options));
+  }
+
   /** `GET /package-drafts/{draftId}` — retrieve a mutable draft. */
   public get(draftId: string, options: HonuaStudioRequestOptions = {}): Promise<StudioPackageDraft> {
     return this.#lifecycle.request("GET", `/package-drafts/${encodeURIComponent(draftId)}`, undefined, options);
@@ -270,6 +320,253 @@ export class HonuaStudioDraftsClient {
       options,
     );
   }
+}
+
+/** Page size `GET /content-items` and `GET /package-drafts` use when `limit` is omitted. */
+export const HONUA_STUDIO_LIST_DEFAULT_LIMIT = 25;
+
+/**
+ * Largest `limit` the Studio list endpoints accept. The server clamps anything
+ * larger down to this value rather than erroring, which would silently hand a
+ * caller fewer rows than they asked for, so this client rejects an oversized
+ * `limit` up front instead.
+ */
+export const HONUA_STUDIO_LIST_MAX_LIMIT = 1_000;
+
+/**
+ * Default hard bound on how many pages {@link HonuaStudioContentItemsClient.listAll}
+ * / {@link HonuaStudioDraftsClient.listAll} will fetch. There is no
+ * "walk forever" mode, and no option that produces one.
+ */
+export const HONUA_STUDIO_LIST_MAX_PAGES = 1_000;
+
+/** Per-call options for the bounded `listAll` / `collect` cursor walks. */
+export interface HonuaStudioPaginationOptions extends HonuaStudioRequestOptions {
+  /**
+   * Hard upper bound on the number of pages fetched, defaulting to
+   * {@link HONUA_STUDIO_LIST_MAX_PAGES}. Reaching it stops the walk; the last
+   * page yielded still carries the `nextCursor` to resume from, so nothing is
+   * lost — and {@link StudioListCollection.truncated} says it happened.
+   */
+  readonly maxPages?: number;
+}
+
+/**
+ * The result of accumulating a bounded cursor walk.
+ *
+ * `truncated: true` means the page cap was reached while the server was still
+ * advertising more rows — it is *not* an error and not a complete answer:
+ * resume from {@link StudioListCollection.nextCursor}.
+ */
+export interface StudioListCollection<TItem> {
+  /** Every row from every page fetched, in server order. */
+  readonly items: readonly TItem[];
+  /** How many pages were fetched. */
+  readonly pages: number;
+  /** The last page's `total` — every row matching the query server-side. */
+  readonly total: number;
+  /** The cursor to resume from; present only when `truncated` is true. */
+  readonly nextCursor: string | undefined;
+  /** True only when the page cap stopped a walk the server had not finished. */
+  readonly truncated: boolean;
+}
+
+/**
+ * True when a page is the last one — the server sends `nextCursor: null` on
+ * the final page, and its source-generated JSON context omits `null`
+ * properties, so "absent" and "null" mean the same thing. An empty-string
+ * cursor is treated as exhausted too rather than replayed as a filter value.
+ */
+export function isStudioListExhausted(page: StudioListPage<unknown>): boolean {
+  return typeof page.nextCursor !== "string" || page.nextCursor.length === 0;
+}
+
+/** `/content-items` — enumerate Studio content items with joined publication badges. */
+export class HonuaStudioContentItemsClient {
+  readonly #lifecycle: HonuaStudioLifecycleClient;
+
+  public constructor(lifecycle: HonuaStudioLifecycleClient) {
+    this.#lifecycle = lifecycle;
+  }
+
+  /**
+   * `GET /content-items` — one page of content items matching `filters`
+   * (`family`, `workspaceId`, `owner`, `state`, `q`), ordered by `updatedAt`
+   * then `itemId` descending so pages stay stable while other rows are
+   * concurrently created or updated.
+   *
+   * Each row is a summary projection — no envelope — carrying the derived
+   * `state` (`draft`/`current`/`published`) and, when the Content Publication
+   * Registry has a publication whose `sourceContentId` is this `itemId`, a
+   * joined `publication` badge with the route's *own* lifecycle. That join is
+   * batched server-side, so a badge costs no extra request.
+   *
+   * A non-admin caller under `Studio:EndUserAuthorization:Enabled` always gets
+   * their own content regardless of the `owner` filter they pass, and a caller
+   * whose id cannot be resolved at all is refused with `403` rather than shown
+   * an unscoped list. An unknown `family` or `state` value is `400`.
+   */
+  // `async` so the client-side `limit` guard in `withStudioListQuery` surfaces
+  // as a rejected promise, exactly like every server-side failure on this
+  // client, rather than as a synchronous throw callers would have to catch
+  // separately.
+  public async list(
+    filters: StudioContentItemListOptions = {},
+    options: HonuaStudioRequestOptions = {},
+  ): Promise<StudioContentItemListResponse> {
+    return await this.#lifecycle.request("GET", withStudioListQuery("/content-items", filters), undefined, options);
+  }
+
+  /**
+   * Walk `GET /content-items` to completion, yielding each page verbatim.
+   *
+   * - **Bounded by construction.** At most `options.maxPages` pages
+   *   ({@link HONUA_STUDIO_LIST_MAX_PAGES} by default) are fetched. Reaching
+   *   the cap ends the walk; the last yielded page still carries the
+   *   `nextCursor` to resume from.
+   * - **Cursors stay opaque.** Each request replays the previous page's
+   *   `nextCursor` verbatim; `filters.cursor` seeds the walk, so a walk can be
+   *   resumed exactly where a previous one stopped.
+   * - **Cancellable.** `options.signal` aborts the in-flight page request and
+   *   ends the iteration.
+   * - **A stuck server is not an infinite loop.** A page that repeats the
+   *   cursor it was fetched with throws {@link HonuaStudioError} rather than
+   *   paging forever.
+   * - **Standard error handling.** Every non-2xx surfaces as
+   *   {@link HonuaStudioError} with its RFC 7807 problem details.
+   */
+  public listAll(
+    filters: StudioContentItemListOptions = {},
+    options: HonuaStudioPaginationOptions = {},
+  ): AsyncGenerator<StudioContentItemListResponse, void, undefined> {
+    return paginateStudioList<StudioContentItemListRow>(
+      (pageFilters, pageOptions) => this.list(pageFilters, pageOptions),
+      filters,
+      options,
+    );
+  }
+
+  /** Accumulate every content-item page into one {@link StudioListCollection}. */
+  public collect(
+    filters: StudioContentItemListOptions = {},
+    options: HonuaStudioPaginationOptions = {},
+  ): Promise<StudioListCollection<StudioContentItemListRow>> {
+    return collectStudioList(this.listAll(filters, options));
+  }
+}
+
+/**
+ * The shared bounded cursor walk behind every `listAll`. Generic over the row
+ * type so content items and drafts get identical pagination semantics from one
+ * implementation.
+ */
+async function* paginateStudioList<TItem>(
+  fetchPage: (filters: StudioListFilterOptions, options: HonuaStudioRequestOptions) => Promise<StudioListPage<TItem>>,
+  filters: StudioListFilterOptions,
+  options: HonuaStudioPaginationOptions,
+): AsyncGenerator<StudioListPage<TItem>, void, undefined> {
+  const maxPages = normalizePageBound(options.maxPages);
+  const requestOptions: HonuaStudioRequestOptions = { signal: options.signal, headers: options.headers };
+  let cursor = filters.cursor;
+
+  for (let page = 0; page < maxPages; page += 1) {
+    throwIfAborted(options.signal);
+    const current: StudioListPage<TItem> = await fetchPage(
+      cursor === undefined ? filters : { ...filters, cursor },
+      requestOptions,
+    );
+    yield current;
+    if (isStudioListExhausted(current)) return;
+    const next = current.nextCursor as string;
+    // A server that hands back the cursor it was just given would otherwise
+    // spin until `maxPages`, re-fetching the same page every time.
+    if (next === cursor) {
+      throw new HonuaStudioError(
+        "internal",
+        500,
+        `Studio list pagination stalled: the server returned the same cursor it was queried with (${next}).`,
+      );
+    }
+    cursor = next;
+  }
+}
+
+/** Drain a bounded page walk into one {@link StudioListCollection}. */
+async function collectStudioList<TItem>(
+  pages: AsyncGenerator<StudioListPage<TItem>, void, undefined>,
+): Promise<StudioListCollection<TItem>> {
+  const items: TItem[] = [];
+  let pageCount = 0;
+  let total = 0;
+  let last: StudioListPage<TItem> | undefined;
+
+  for await (const page of pages) {
+    pageCount += 1;
+    total = page.total;
+    last = page;
+    items.push(...page.items);
+  }
+
+  // The generator stops either because the server said "no more" or because
+  // the page cap fired; only the second leaves a usable resume cursor behind.
+  const truncated = last !== undefined && !isStudioListExhausted(last);
+  return {
+    items,
+    pages: pageCount,
+    total,
+    nextCursor: truncated ? (last?.nextCursor ?? undefined) : undefined,
+    truncated,
+  };
+}
+
+function normalizePageBound(value: number | undefined): number {
+  if (value === undefined) return HONUA_STUDIO_LIST_MAX_PAGES;
+  if (!Number.isInteger(value) || value < 1) {
+    throw new TypeError(`maxPages must be an integer >= 1, received ${String(value)}.`);
+  }
+  return value;
+}
+
+/**
+ * Serialize the shared Studio list filters onto `path`.
+ *
+ * `family` and `state` accept one value or several and are sent in the
+ * server's comma-separated form. Blank strings are dropped rather than sent as
+ * an empty filter the server would trim to `null` anyway.
+ */
+function withStudioListQuery(path: string, filters: StudioContentItemListOptions): string {
+  const params = new URLSearchParams();
+  const family = joinListFilter(filters.family);
+  if (family) params.set("family", family);
+  const state = joinListFilter(filters.state);
+  if (state) params.set("state", state);
+  if (filters.workspaceId?.trim()) params.set("workspaceId", filters.workspaceId);
+  if (filters.owner?.trim()) params.set("owner", filters.owner);
+  if (filters.q?.trim()) params.set("q", filters.q);
+  if (filters.cursor) params.set("cursor", filters.cursor);
+  if (filters.limit !== undefined) params.set("limit", String(normalizeListLimit(filters.limit)));
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
+function joinListFilter(value: string | readonly string[] | undefined): string | undefined {
+  const values = (typeof value === "string" ? [value] : (value ?? [])).map((entry) => entry.trim()).filter(Boolean);
+  return values.length > 0 ? values.join(",") : undefined;
+}
+
+/**
+ * Reject a `limit` the server would not honor as asked. Below `1` it would be
+ * replaced with the default and above {@link HONUA_STUDIO_LIST_MAX_LIMIT} it
+ * would be silently clamped — both hand back a page size the caller did not
+ * request, which is worse than a thrown programming error.
+ */
+function normalizeListLimit(limit: number): number {
+  if (!Number.isInteger(limit) || limit < 1 || limit > HONUA_STUDIO_LIST_MAX_LIMIT) {
+    throw new TypeError(
+      `limit must be an integer between 1 and ${HONUA_STUDIO_LIST_MAX_LIMIT}, received ${String(limit)}.`,
+    );
+  }
+  return limit;
 }
 
 /** `/content-items/{itemId}/versions*` and `/version-comparisons` — immutable content versions. */

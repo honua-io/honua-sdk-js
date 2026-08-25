@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/package-drafts",
+    "query": {
+      "family": "query",
+      "q": "parcels",
+      "limit": "1",
+      "cursor": "NjM5MTU5ODg1MDAwMDAwMDAwOjVlMWM3YTk0LTJkNjgtNGIwMy05YzVmLThhNzJlMDRkMWI5Ng=="
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "success": true,
+      "data": {
+        "items": [
+          {
+            "draftId": "9f68b3d0-4e27-4c81-b6a5-0d39c7e51f42",
+            "itemId": "0d4f8b21-6c3e-4a7d-9f18-2b5e7c0a4d63",
+            "family": "query",
+            "packageKey": "parcels-query-archive",
+            "workspaceId": "workspace-ops",
+            "ownerId": "actor-alice",
+            "generation": 1,
+            "envelope": {
+              "family": "query",
+              "schemaVersion": "1.0",
+              "format": "studio_query_package.v1",
+              "body": {
+                "where": "status = 'active'"
+              }
+            },
+            "createdAt": "2026-06-01T08:00:00Z",
+            "updatedAt": "2026-06-01T17:40:00Z"
+          }
+        ],
+        "total": 2,
+        "nextCursor": null
+      },
+      "timestamp": "2026-06-02T09:20:01Z"
+    }
+  }
+}
