@@ -43,6 +43,80 @@ import { defineHonuaWebComponents } from "./elements.js";
 // tags when a `customElements` registry is present — is unchanged.
 defineHonuaWebComponents();
 
+// Supported application shell (issue #1297).
+export {
+  HONUA_APPLICATION_COMPONENT_CONVENTIONS,
+  HONUA_APPLICATION_CONTEXT_VERSION,
+  createHonuaApplicationContext,
+  mountHonuaApplication,
+  presentHonuaApplicationStatus,
+  registerHonuaApplicationComponents,
+} from "./application-context.js";
+export type {
+  CreateHonuaApplicationContextOptions,
+  HonuaApplicationAuthorization,
+  HonuaApplicationBinding,
+  HonuaApplicationContext,
+  HonuaApplicationContextChangeEvent,
+  HonuaApplicationContextChangedKey,
+  HonuaApplicationContextParticipant,
+  HonuaApplicationContextSnapshot,
+  HonuaApplicationContextUpdate,
+  HonuaApplicationDiagnostic,
+  HonuaApplicationDiagnosticSeverity,
+  HonuaApplicationDirection,
+  HonuaApplicationFreshness,
+  HonuaApplicationLocalePack,
+  HonuaApplicationRealtimeDelta,
+  HonuaApplicationStatus,
+  HonuaApplicationStatusPresentation,
+  HonuaApplicationThemeTokens,
+  HonuaApplicationTimeState,
+  HonuaMountedApplication,
+  MountHonuaApplicationOptions,
+} from "./application-context.js";
+
+// Supported feature inspection workflow (issue #1298).
+export {
+  HonuaFeatureInspectionElement,
+  createHonuaFeatureInspection,
+  createHonuaFeatureInspectionFromApplicationContext,
+  defineHonuaFeatureInspection,
+  formatHonuaInspectionValue,
+  sanitizeHonuaInspectionHref,
+  sanitizeHonuaInspectionRichText,
+} from "./feature-inspection.js";
+export type {
+  CreateHonuaFeatureInspectionFromApplicationContextOptions,
+  CreateHonuaFeatureInspectionOptions,
+  HonuaFeatureInspectionAttachment,
+  HonuaFeatureInspectionAttachmentPageRequest,
+  HonuaFeatureInspectionBoundedPage,
+  HonuaFeatureInspectionBudgets,
+  HonuaFeatureInspectionCandidate,
+  HonuaFeatureInspectionController,
+  HonuaFeatureInspectionDiagnostic,
+  HonuaFeatureInspectionDiagnosticCode,
+  HonuaFeatureInspectionExternalLinkDefinition,
+  HonuaFeatureInspectionFeature,
+  HonuaFeatureInspectionField,
+  HonuaFeatureInspectionLink,
+  HonuaFeatureInspectionMessages,
+  HonuaFeatureInspectionOrigin,
+  HonuaFeatureInspectionPage,
+  HonuaFeatureInspectionPresentation,
+  HonuaFeatureInspectionRealtimeUpdate,
+  HonuaFeatureInspectionRelationship,
+  HonuaFeatureInspectionRelationshipDefinition,
+  HonuaFeatureInspectionRelationshipPageRequest,
+  HonuaFeatureInspectionRelationshipPageResult,
+  HonuaFeatureInspectionSearchResult,
+  HonuaFeatureInspectionSearchState,
+  HonuaFeatureInspectionSelectionAdapter,
+  HonuaFeatureInspectionSnapshot,
+  HonuaFeatureInspectionStatus,
+} from "./feature-inspection.js";
+
 export {
   HonuaInMemoryWebComponentController,
   createHonuaWebComponentController,
@@ -196,6 +270,7 @@ export {
   filterClauseToExplorationClause,
   featureTableAriaRowCount,
   featureTableAriaSort,
+  featureTableColumnWindow,
   featureTablePageCacheKey,
   featureTableRowKey,
   featureTableWindow,
@@ -210,12 +285,17 @@ export type {
   HonuaFeatureTableBudgetLedger,
   HonuaFeatureTableBudgets,
   HonuaFeatureTableColumn,
+  HonuaFeatureTableColumnScrollMetrics,
+  HonuaFeatureTableColumnWindow,
   HonuaFeatureTableColumnType,
   HonuaFeatureTableConflict,
   HonuaFeatureTableConflictCode,
   HonuaFeatureTableCount,
   HonuaFeatureTableCountEvidence,
   HonuaFeatureTableExport,
+  HonuaFeatureTableExportAuthorization,
+  HonuaFeatureTableExportAuthorizationContext,
+  HonuaFeatureTableExportProvenance,
   HonuaFeatureTableExportRequest,
   HonuaFeatureTableFocus,
   HonuaFeatureTableFocusMove,
@@ -233,6 +313,11 @@ export type {
   HonuaFeatureTableScrollMetrics,
   HonuaFeatureTableSnapshot,
   HonuaFeatureTableState,
+  HonuaFeatureTableSecureExport,
+  HonuaFeatureTableSecureExportAdapter,
+  HonuaFeatureTableSecureExportRequest,
+  HonuaFeatureTableAggregation,
+  HonuaFeatureTableViewportMode,
   HonuaFeatureTableWindow,
   HonuaFeatureTableWorkConcern,
   HonuaFeatureTableWorkItem,
@@ -244,31 +329,71 @@ export {
   featureTableFocusMoveForKey,
   featureTableGridHtml,
   featureTableGridStyles,
+  featureTableWorkBadges,
   featureTableViewModel,
   legacyFeatureTableViewModel,
 } from "./feature-table-view.js";
 export type {
   HonuaFeatureTableMessages,
+  HonuaFeatureTableColumnControl,
   HonuaFeatureTableViewModel,
   HonuaFeatureTableViewRow,
+  HonuaFeatureTableWorkBadge,
 } from "./feature-table-view.js";
 
 // ── production-tier feature editor (issue #680) ──────────────────────────
 export { HonuaFeatureEditorElement, defineHonuaFeatureEditor } from "./feature-editor.js";
-export type { HonuaFeatureEditChangeDetail, HonuaFeatureEditCommitDetail } from "./feature-editor.js";
+export type {
+  HonuaFeatureEditChangeDetail,
+  HonuaFeatureEditCommitDetail,
+  HonuaFeatureEditOfflineConflictDetail,
+} from "./feature-editor.js";
 export { HonuaFeatureEditorWorkflow, createFeatureEditorWorkflow } from "./feature-editor-workflow.js";
 export type {
   HonuaFeatureEditorCommit,
   HonuaFeatureEditorConflict,
   HonuaFeatureEditorConflictChoice,
+  HonuaFeatureEditorDraftSummary,
   HonuaFeatureEditorExternalChangeOutcome,
   HonuaFeatureEditorFailure,
   HonuaFeatureEditorIdentity,
+  HonuaFeatureEditorOfflineState,
   HonuaFeatureEditorOptions,
+  HonuaFeatureEditorPreflight,
+  HonuaFeatureEditorPreflightBlocker,
+  HonuaFeatureEditorPreflightIssue,
   HonuaFeatureEditorSketchState,
   HonuaFeatureEditorSnapshot,
   HonuaFeatureEditorStatus,
 } from "./feature-editor-workflow.js";
+export {
+  HonuaFeatureEditorOfflineError,
+  offlineStateFromQueuedEdit,
+  queueHonuaFeatureEditorDraft,
+  reconcileHonuaFeatureEditorOfflineEdit,
+  resolveHonuaFeatureEditorOfflineConflict,
+} from "./feature-editor-offline.js";
+export type {
+  HonuaFeatureEditorOfflineErrorCode,
+  QueueHonuaFeatureEditorDraftOptions,
+  QueueHonuaFeatureEditorDraftResult,
+} from "./feature-editor-offline.js";
+export {
+  HONUA_FEATURE_MUTATION_RECEIPT_KIND,
+  HONUA_FEATURE_MUTATION_RECEIPT_VERSION,
+  createHonuaFeatureMutationReceipt,
+  createHonuaFeatureMutationReconciler,
+} from "./feature-mutation.js";
+export type {
+  CreateHonuaFeatureMutationReceiptInput,
+  HonuaFeatureMutationInvalidationTarget,
+  HonuaFeatureMutationOperation,
+  HonuaFeatureMutationParticipant,
+  HonuaFeatureMutationReceipt,
+  HonuaFeatureMutationReconciler,
+  HonuaFeatureMutationReconciliationFailure,
+  HonuaFeatureMutationReconciliationResult,
+} from "./feature-mutation.js";
 export {
   buildEditorFormModel,
   coerceEditorFieldValue,

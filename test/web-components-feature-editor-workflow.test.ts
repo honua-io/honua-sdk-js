@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AttachmentApi, Capability, EditEnvelope, EditResult, Source } from "../src/contract/types.js";
+import type { AttachmentApi, Capability, EditEnvelope, EditResult, Protocol, Source } from "../src/contract/types.js";
 import { HonuaCapabilityNotSupportedError } from "../src/core/errors.js";
+import { createMemoryOfflineEditQueue } from "../src/offline/edit-queue.js";
 import type { HonuaEditorSubtypeConfig } from "../src/web-components/feature-editor-model.js";
+import { queueHonuaFeatureEditorDraft } from "../src/web-components/feature-editor-offline.js";
 import { createFeatureEditorWorkflow } from "../src/web-components/feature-editor-workflow.js";
 import type {
   HonuaFeatureEditorSnapshot,
@@ -102,6 +104,7 @@ const ok = (
 
 interface FakeSourceOptions {
   capabilities?: readonly Capability[];
+  protocol?: Protocol;
   applyEdits?: (envelope: EditEnvelope<PermitAttributes>) => Promise<EditResult>;
   attachments?: Partial<AttachmentApi>;
   capabilityProfile?: { entries: readonly { id: string; effective: string; reasons?: readonly string[] }[] };
@@ -116,6 +119,7 @@ interface FakeSource {
 
 function makeSource(options: FakeSourceOptions = {}): FakeSource {
   const capabilities = new Set<Capability>(options.capabilities ?? ["query", "applyEdits"]);
+  const protocol = options.protocol ?? "geoservices-feature-service";
   // The default echoes the envelope so update/delete outcomes land in the
   // matching bucket, the way a real adapter reports them.
   const applyEdits = vi.fn(
@@ -128,7 +132,7 @@ function makeSource(options: FakeSourceOptions = {}): FakeSource {
       }),
   );
   const unsupported = (capability: string) => async () => {
-    throw new HonuaCapabilityNotSupportedError(capability, "geoservices-feature-service", "permits");
+    throw new HonuaCapabilityNotSupportedError(capability, protocol, "permits");
   };
   const add = vi.fn(
     options.attachments?.add ??
@@ -143,7 +147,7 @@ function makeSource(options: FakeSourceOptions = {}): FakeSource {
   const source = {
     descriptor: {
       id: "permits",
-      protocol: "geoservices-feature-service",
+      protocol,
       locator: { url: "https://example.test/FeatureServer/0" },
       capabilities,
       schema: { fields: options.fields ?? SCHEMA_FIELDS, primaryKey: "OBJECTID" },
@@ -289,6 +293,65 @@ describe("HonuaFeatureEditorWorkflow — capability gating", () => {
     workflow.setValue("status", "open");
     expect((await workflow.submit()).status).toBe("committed");
     expect(applyEdits.mock.calls[0]?.[0].updates?.[0]?.attributes.version).toBe(8);
+  });
+});
+
+describe("HonuaFeatureEditorWorkflow — preflight and mutation identity", () => {
+  it("reviews a credential-free draft without transport and preserves one identity through realtime and retry", async () => {
+    let attempt = 0;
+    const { source, applyEdits } = makeSource({
+      applyEdits: async () => {
+        attempt += 1;
+        return attempt === 1
+          ? ok([{ success: false, error: { code: 503, description: "retry later" } }])
+          : ok([{ id: 101, success: true }]);
+      },
+    });
+    const mutationId = vi.fn(() => "permit-attempt-1");
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES, mutationId });
+    workflow.setSelection(existing());
+    workflow.begin("update");
+    workflow.setValue("permit_no", "P-PRIVATE");
+
+    const review = workflow.preflight();
+    expect(review).toMatchObject({
+      ready: true,
+      transported: false,
+      mutationId: "permit-attempt-1",
+      source: { sourceId: "permits", protocol: "geoservices-feature-service" },
+      operation: "update",
+      identity: { sourceId: "permits", featureId: 1, version: 7 },
+      draft: { dirty: true, geometry: "unchanged", attachments: { add: 0, update: 0, delete: 0 } },
+      blockers: [],
+    });
+    expect(review.draft?.changedFields).toContain("permit_no");
+    expect(JSON.stringify(review)).not.toContain("P-PRIVATE");
+    expect(JSON.stringify(review)).not.toContain("example.test");
+    expect(applyEdits).not.toHaveBeenCalled();
+    expect(mutationId).toHaveBeenCalledOnce();
+
+    expect(workflow.applyExternalChange(existing({ status: "closed" }))).toBe("reconciled");
+    expect(workflow.preflight().mutationId).toBe("permit-attempt-1");
+    expect((await workflow.submit()).status).toBe("rejected");
+    const committed = await workflow.retry();
+    expect(committed.status).toBe("committed");
+    expect(committed.mutationReceipt?.mutationId).toBe("permit-attempt-1");
+    expect(mutationId).toHaveBeenCalledOnce();
+  });
+
+  it("reports validation and workflow blockers without exposing rejected values", () => {
+    const { source, applyEdits } = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES, mutationId: () => "blocked-1" });
+    expect(workflow.preflight()).toMatchObject({ ready: false, blockers: ["no-draft"] });
+
+    completeCreateDraft(workflow);
+    workflow.setValue("priority", "99");
+    const review = workflow.preflight();
+    expect(review.ready).toBe(false);
+    expect(review.validation.valid).toBe(false);
+    expect(review.validation.errors[0]).not.toHaveProperty("value");
+    expect(JSON.stringify(review)).not.toContain('"priority":99');
+    expect(applyEdits).not.toHaveBeenCalled();
   });
 });
 
@@ -461,14 +524,42 @@ describe("HonuaFeatureEditorWorkflow — subtype-driven availability from the se
 });
 
 describe("HonuaFeatureEditorWorkflow — submit outcomes", () => {
+  it.each(["geoservices-feature-service", "ogc-features"] as const)(
+    "uses the same create workflow for the %s Source contract",
+    async (protocol) => {
+      const { source, applyEdits } = makeSource({ protocol });
+      const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+      completeCreateDraft(workflow);
+      const commit = await workflow.submit();
+      expect(commit.status).toBe("committed");
+      expect(commit.mutationReceipt?.protocol).toBe(protocol);
+      expect(applyEdits).toHaveBeenCalledOnce();
+    },
+  );
+
   it("commits a create and records the server-assigned identity", async () => {
     const { source } = makeSource();
-    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    const workflow = createFeatureEditorWorkflow({
+      source,
+      subtypes: SUBTYPES,
+      mutationId: () => "permit-create-101",
+      now: () => "2026-08-14T12:00:00.000Z",
+    });
     completeCreateDraft(workflow);
     const commit = await workflow.submit();
     expect(commit).toMatchObject({ status: "committed", transported: true, committedFeatureId: 101 });
     expect(commit.snapshot.identity?.featureId).toBe(101);
     expect(commit.snapshot.dirty).toBe(false);
+    expect(commit.mutationReceipt).toMatchObject({
+      mutationId: "permit-create-101",
+      acceptedAt: "2026-08-14T12:00:00.000Z",
+      sourceId: "permits",
+      operation: "create",
+      status: "accepted",
+      featureId: 101,
+      selection: "select",
+    });
+    expect(commit.mutationReceipt?.feature?.id).toBe(101);
   });
 
   it("sends the sketched geometry with the edit", async () => {
@@ -524,6 +615,10 @@ describe("HonuaFeatureEditorWorkflow — submit outcomes", () => {
     expect(commit.status).toBe("rejected");
     expect(commit.snapshot.message).toMatch(/only partly applied/i);
     expect(commit.attachments[0]).toMatchObject({ name: "plan.pdf", status: "failed" });
+    expect(commit.mutationReceipt).toMatchObject({
+      status: "partially-accepted",
+      attachmentMutations: 1,
+    });
     expect(JSON.stringify(commit)).not.toContain("SECRET");
   });
 
@@ -1049,6 +1144,95 @@ describe("HonuaFeatureEditorWorkflow — undo, cancel, retry", () => {
     expect(workflow.redo()).toBe(false);
     expect(workflow.startSketch("point")).toMatchObject({ state: "unsupported" });
     expect((await workflow.submit()).transported).toBe(false);
+  });
+});
+
+describe("HonuaFeatureEditorWorkflow — offline queue and reconnect", () => {
+  const authorizationScopeDigest = `sha256:${"a".repeat(64)}` as const;
+
+  it("persists a validated draft without transporting it and renders a queued state", async () => {
+    const queue = createMemoryOfflineEditQueue();
+    const { source, applyEdits } = makeSource();
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    completeCreateDraft(workflow);
+
+    const result = await queueHonuaFeatureEditorDraft(workflow, queue, {
+      authorizationScopeDigest,
+      idempotencyKey: "permit-create-offline-1",
+    });
+
+    expect(result.enqueue.status).toBe("enqueued");
+    expect(result.snapshot).toMatchObject({
+      status: "queued",
+      offline: { state: "pending", idempotencyKey: "permit-create-offline-1" },
+    });
+    expect(applyEdits).not.toHaveBeenCalled();
+    const stored = await queue.list({ authorizationScopeDigest, sourceId: "permits" });
+    expect(stored[0]).toMatchObject({
+      state: "pending",
+      edit: { operation: "add", attributes: { permit_no: "P-9", status: "open", priority: 2 } },
+    });
+  });
+
+  it("projects retry, conflict, and accepted reconnect outcomes explicitly", () => {
+    const { source } = makeSource({ fields: EDITABLE_VERSION_FIELDS });
+    const workflow = createFeatureEditorWorkflow({ source, now: () => "2026-08-14T12:00:00.000Z" });
+    workflow.setSelection(existing({ version: 7 }));
+    workflow.begin("update");
+    workflow.setValue("status", "closed");
+    const common = {
+      sourceId: "permits",
+      queueId: `sha256:${"b".repeat(64)}`,
+      idempotencyKey: "permit-update-offline-1",
+    } as const;
+
+    expect(
+      workflow.applyOfflineState({
+        ...common,
+        state: "retryable",
+        retryAt: "2026-08-14T12:05:00.000Z",
+        reasonCode: "backpressure",
+      }),
+    ).toMatchObject({ status: "queued", offline: { state: "retryable" } });
+    expect(
+      workflow.applyOfflineState({
+        ...common,
+        state: "conflicted",
+        conflictId: "conflict-1",
+        serverGeneration: "8",
+      }),
+    ).toMatchObject({ status: "conflict", conflict: { mine: 7, theirs: "8" } });
+    const accepted = workflow.applyOfflineState({
+      ...common,
+      state: "applied",
+      appliedAt: "2026-08-14T12:06:00.000Z",
+    });
+    expect(accepted).toMatchObject({
+      status: "committed",
+      mutationReceipt: {
+        mutationId: "permit-update-offline-1",
+        acceptedAt: "2026-08-14T12:06:00.000Z",
+        status: "accepted",
+      },
+    });
+  });
+
+  it("refuses staged attachment payloads instead of silently dropping them", async () => {
+    const queue = createMemoryOfflineEditQueue();
+    const { source } = makeSource({ capabilities: ["query", "applyEdits", "attachments"] });
+    const workflow = createFeatureEditorWorkflow({ source, subtypes: SUBTYPES });
+    completeCreateDraft(workflow);
+    workflow.stageAttachment("blob://permit-plan", { name: "plan.pdf" });
+
+    await expect(
+      queueHonuaFeatureEditorDraft(workflow, queue, {
+        authorizationScopeDigest,
+        idempotencyKey: "permit-create-offline-attachment",
+      }),
+    ).rejects.toMatchObject({ code: "attachment-payload" });
+    await expect(queue.countByState({ authorizationScopeDigest, sourceId: "permits" })).resolves.toMatchObject({
+      pending: 0,
+    });
   });
 });
 

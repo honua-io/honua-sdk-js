@@ -16,6 +16,7 @@ import {
   explorationClauseToFilterClause,
   featureTableAriaRowCount,
   featureTableAriaSort,
+  featureTableColumnWindow,
   featureTablePageCacheKey,
   featureTableWindow,
   featureTableWorkByTier,
@@ -312,6 +313,18 @@ describe("budgets and virtualization (REQ-002)", () => {
   it("ships conservative default budgets", () => {
     expect(DEFAULT_FEATURE_TABLE_BUDGETS.maxCachedRows).toBeLessThan(TOTAL_ROWS);
     expect(DEFAULT_FEATURE_TABLE_BUDGETS.maxExportRows).toBeGreaterThan(DEFAULT_FEATURE_TABLE_BUDGETS.maxCachedRows);
+    expect(DEFAULT_FEATURE_TABLE_BUDGETS.maxRenderedColumns).toBeLessThanOrEqual(
+      DEFAULT_FEATURE_TABLE_BUDGETS.maxFields,
+    );
+  });
+
+  it("computes a bounded horizontal column window", () => {
+    expect(
+      featureTableColumnWindow(
+        { scrollLeft: 20 * 160, columnWidth: 160, viewportWidth: 4 * 160 },
+        { totalColumns: 64, maxRenderedColumns: 8, overscan: 1 },
+      ),
+    ).toEqual({ startIndex: 19, endIndex: 25 });
   });
 });
 
@@ -666,6 +679,27 @@ describe("bounded export (REQ-001)", () => {
 
     expect(result.content.split("\n")[1]).toBe('1,"A, ""B""",open,1');
   });
+
+  it("neutralizes spreadsheet formula and control prefixes in CSV cells", async () => {
+    const fixture = makeFixture({
+      totalRows: 6,
+      rows: (index) => ({
+        OBJECTID: index + 1,
+        NAME: ["=1+1", "+cmd", "-2+3", "@SUM(A1:A2)", "\tformula", "  =hidden"][index] ?? "safe",
+        STATUS: "open",
+        SEVERITY: 1,
+      }),
+    });
+    const table = makeTable(fixture, { budgets: { pageSize: 10 } });
+
+    const result = await table.export({ format: "csv" });
+    const names = result.content
+      .split("\n")
+      .slice(1)
+      .map((line) => line.split(",")[1]);
+
+    expect(names).toEqual(["'=1+1", "'+cmd", "'-2+3", "'@SUM(A1:A2)", "'\tformula", "'  =hidden"]);
+  });
 });
 
 describe("keyboard focus model (NFR-001)", () => {
@@ -721,6 +755,30 @@ describe("keyboard focus model (NFR-001)", () => {
         { field: "NAME", direction: "asc" },
       ]),
     ).toBe("other");
+  });
+
+  it("reveals a focused column outside the horizontal window", async () => {
+    const columns = Array.from({ length: 20 }, (_unused, index) => ({ field: `FIELD_${index}` }));
+    const fixture = makeFixture({
+      totalRows: 1,
+      rows: () => Object.fromEntries(columns.map((column, index) => [column.field, index])) as unknown as Row,
+    });
+    const table = makeTable(fixture, {
+      identityField: "FIELD_0",
+      columns,
+      budgets: { pageSize: 1, maxFields: 20, maxRenderedColumns: 4 },
+    });
+    await table.refresh();
+
+    table.setFocus({ rowKey: "incidents:0", field: "FIELD_12" });
+
+    expect(table.snapshot.columnWindow).toEqual({ startIndex: 9, endIndex: 13 });
+    expect(table.snapshot.renderedColumns.map((column) => column.field)).toEqual([
+      "FIELD_9",
+      "FIELD_10",
+      "FIELD_11",
+      "FIELD_12",
+    ]);
   });
 });
 
@@ -1126,6 +1184,124 @@ describe("engine lifecycle", () => {
   });
 });
 
+describe("#1300 application workflow gaps", () => {
+  it("executes bounded grouping/aggregation through the accepted query plan", async () => {
+    const requests: Query<Row>[] = [];
+    const table = createHonuaFeatureTable<Row>({
+      source: {
+        descriptor: descriptor(["query", "queryAggregate"]),
+        async query(request) {
+          requests.push(request ?? {});
+          return {
+            features: [{ attributes: { STATUS: "open", OBJECTID: 3 } as unknown as Row }],
+            exceededTransferLimit: false,
+          };
+        },
+      },
+      sourceId: "incidents",
+      identityField: "OBJECTID",
+      budgets: { pageSize: 10 },
+      planner: () =>
+        ({
+          id: "aggregate-plan",
+          fingerprint: "sha256:aggregate",
+          pushdown: "full",
+          fidelity: "exact",
+          steps: [],
+        }) as never,
+    });
+
+    const result = await table.aggregate({ groupBy: ["STATUS"], metrics: [{ fn: "count", field: "OBJECTID" }] });
+
+    expect(requests[0]?.aggregation).toEqual({
+      groupBy: ["STATUS"],
+      metrics: [{ fn: "count", field: "OBJECTID" }],
+    });
+    expect(requests[0]?.pagination?.limit).toBe(10);
+    expect(result.evidence.planId).toBe("aggregate-plan");
+    expect(result.rows).toHaveLength(1);
+  });
+
+  it("applies map extent only in linked viewport mode", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, { viewportExtent: { xmin: 1, ymin: 2, xmax: 3, ymax: 4 } });
+    await table.refresh();
+    expect(fixture.requests.at(-1)?.spatialFilter).toBeUndefined();
+
+    await table.setViewportMode("linked");
+    expect(fixture.requests.at(-1)?.spatialFilter?.geometry).toMatchObject({ xmin: 1, ymin: 2, xmax: 3, ymax: 4 });
+
+    await table.setViewportMode("independent");
+    expect(fixture.requests.at(-1)?.spatialFilter).toBeUndefined();
+  });
+
+  it("bounds projected fields and export bytes", async () => {
+    const table = makeTable(makeFixture(), {
+      columns: COLUMNS,
+      budgets: { pageSize: 10, maxFields: 2, maxExportBytes: 80 },
+    });
+    await table.refresh();
+
+    expect(table.snapshot.visibleColumns).toHaveLength(2);
+    expect(table.snapshot.ledger.exhausted).toContain("fields");
+    const exported = await table.export({ format: "csv" });
+    expect(new TextEncoder().encode(exported.content).byteLength).toBeLessThanOrEqual(80);
+    expect(exported.limit).toBe("export-bytes");
+  });
+
+  it("re-authorizes, re-executes, records provenance, and supports cancellation", async () => {
+    const fixture = makeFixture({ totalRows: 4 });
+    const table = makeTable(fixture, { budgets: { pageSize: 2, maxRequests: 10 } });
+    await table.refresh();
+    const before = fixture.requests.length;
+    const recorded: unknown[] = [];
+    const result = await table.secureExport({
+      format: "csv",
+      adapter: {
+        id: "host-policy",
+        authorize: () => ({ authorized: true, authorizationId: "decision-42" }),
+        record: (provenance) => {
+          recorded.push(provenance);
+        },
+      },
+    });
+
+    expect(fixture.requests.length).toBeGreaterThan(before);
+    expect(result.provenance).toMatchObject({ adapterId: "host-policy", authorizationId: "decision-42" });
+    expect(recorded).toEqual([result.provenance]);
+
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      table.secureExport({
+        format: "json",
+        signal: controller.signal,
+        adapter: { id: "host", authorize: () => ({ authorized: true, authorizationId: "x" }), record: () => {} },
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("marks filtered pages stale when realtime membership cannot be proven", async () => {
+    const table = makeTable(makeFixture(), { filters: [statusFilter("open")] });
+    await table.refresh();
+    const outcome = table.applyRealtimeDiff({
+      reset: false,
+      changes: [
+        {
+          kind: "update",
+          key: "incidents:1",
+          id: 1,
+          record: { feature: { attributes: { OBJECTID: 1, NAME: "Incident 1", STATUS: "closed", SEVERITY: 1 } } },
+        },
+      ],
+    });
+
+    expect(table.snapshot.state).toBe("stale");
+    expect(outcome.conflicts.map((conflict) => conflict.code)).toContain("filter-membership-unknown");
+    expect(outcome.patchedRowKeys).toEqual([]);
+  });
+});
+
 /**
  * Regression tests for the PR #801 code-quality review findings. Each of these
  * fails on the pre-fix engine.
@@ -1358,5 +1534,140 @@ describe("review regressions (PR #801)", () => {
     table.select(["incidents:2"]);
 
     expect(table.selectionTargets()).toEqual([{ sourceId: "incidents", id: 2 }]);
+  });
+});
+
+function spatialFilterClause(extent: {
+  readonly xmin: number;
+  readonly ymin: number;
+  readonly xmax: number;
+  readonly ymax: number;
+  readonly spatialReference?: unknown;
+}): FilterClause {
+  return {
+    id: "area-of-interest",
+    owner: { kind: "table", id: "grid" },
+    effect: "spatial-mask",
+    spatialScope: { extent: extent as never },
+  } as FilterClause;
+}
+
+describe("linked viewport combined with a spatial filter", () => {
+  it("intersects overlapping envelopes into one bounded filter", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 })],
+      viewportExtent: { xmin: 5, ymin: 5, xmax: 20, ymax: 20 },
+      viewportMode: "linked",
+    });
+    await table.refresh();
+
+    expect(fixture.requests.at(-1)?.spatialFilter?.geometry).toMatchObject({
+      xmin: 5,
+      ymin: 5,
+      xmax: 10,
+      ymax: 10,
+    });
+  });
+
+  // The intersection of two disjoint envelopes is empty, not inverted. Sending
+  // `xmin > xmax` to the source produced a protocol error or whatever the
+  // server made of it; the table now answers locally with the empty result the
+  // two filters actually describe.
+  it("answers a disjoint viewport locally instead of sending an inverted envelope", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 })],
+      viewportExtent: { xmin: 100, ymin: 100, xmax: 200, ymax: 200 },
+      viewportMode: "linked",
+    });
+    const snapshot = await table.refresh();
+
+    expect(fixture.requests).toHaveLength(0);
+    expect(snapshot.rows.filter(Boolean)).toHaveLength(0);
+    expect(snapshot.count).toMatchObject({ kind: "known", value: 0 });
+    for (const request of fixture.requests) {
+      const geometry = request.spatialFilter?.geometry as { xmin: number; xmax: number } | undefined;
+      if (geometry) expect(geometry.xmin).toBeLessThanOrEqual(geometry.xmax);
+    }
+  });
+
+  it("touching edges still intersect: a shared boundary is not disjoint", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 })],
+      viewportExtent: { xmin: 10, ymin: 10, xmax: 20, ymax: 20 },
+      viewportMode: "linked",
+    });
+    await table.refresh();
+
+    expect(fixture.requests.at(-1)?.spatialFilter?.geometry).toMatchObject({
+      xmin: 10,
+      ymin: 10,
+      xmax: 10,
+      ymax: 10,
+    });
+  });
+
+  it("panning back into the filtered area is not served the disjoint empty page", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 })],
+      viewportExtent: { xmin: 100, ymin: 100, xmax: 200, ymax: 200 },
+      viewportMode: "linked",
+    });
+    await table.refresh();
+    expect(fixture.requests).toHaveLength(0);
+
+    const snapshot = await table.setViewportExtent({ xmin: 2, ymin: 2, xmax: 8, ymax: 8 });
+    expect(fixture.requests.length).toBeGreaterThan(0);
+    expect(snapshot.rows.filter(Boolean).length).toBeGreaterThan(0);
+  });
+
+  // Coordinates only compare inside one spatial reference. Intersecting across
+  // two declared references would silently produce a wrong envelope.
+  it("refuses to intersect envelopes declared in different spatial references", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10, spatialReference: { wkid: 4326 } })],
+      viewportExtent: { xmin: 5, ymin: 5, xmax: 20, ymax: 20, spatialReference: { wkid: 3857 } },
+      viewportMode: "linked",
+    });
+
+    const snapshot = await table.refresh();
+    expect(snapshot.state).toBe("error");
+    expect(snapshot.message).toMatch(/spatial reference/i);
+    expect(fixture.requests).toHaveLength(0);
+  });
+});
+
+describe("bounded export byte budget", () => {
+  it("trims to the largest fitting prefix without re-encoding once per dropped row", async () => {
+    const table = makeTable(makeFixture({ totalRows: 400 }), {
+      columns: COLUMNS,
+      budgets: { pageSize: 400, maxExportRows: 400, maxExportBytes: 400 },
+    });
+    await table.refresh();
+
+    const exported = await table.export({ format: "csv" });
+    expect(new TextEncoder().encode(exported.content).byteLength).toBeLessThanOrEqual(400);
+    expect(exported.limit).toBe("export-bytes");
+    expect(exported.rowCount).toBeGreaterThan(0);
+
+    // The prefix is maximal: one more row would cross the budget.
+    const lines = exported.content.split("\n");
+    expect(lines).toHaveLength(exported.rowCount + 1);
+  });
+
+  it("emits nothing when even the header exceeds the budget", async () => {
+    const table = makeTable(makeFixture({ totalRows: 10 }), {
+      columns: COLUMNS,
+      budgets: { pageSize: 10, maxExportBytes: 1 },
+    });
+    await table.refresh();
+
+    const exported = await table.export({ format: "csv" });
+    expect(exported.content).toBe("");
+    expect(exported.rowCount).toBe(0);
   });
 });

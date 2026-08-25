@@ -420,6 +420,8 @@
     "samples:verify": "node scripts/sample-contract.mjs check",
     "qualification:components": "npm run build --silent && node scripts/component-qualification.mjs write",
     "qualification:components:check": "npm run build --silent && node scripts/component-qualification.mjs check",
+    "qualification:app-platform": "node scripts/app-platform-reference-qualification.mjs write",
+    "qualification:app-platform:check": "node --test test/scripts/app-platform-reference-qualification.test.mjs && node scripts/app-platform-reference-qualification.mjs check",
     "samples:fixtures:verify": "node samples/fixtures/verify.mjs && biome check samples/scenarios/ samples/fixtures/",
     "samples:fixtures:first-map-v2": "node scripts/refresh-first-map-tiger-v2.mjs",
     "samples:fixtures:first-map-v2:write": "node scripts/refresh-first-map-tiger-v2.mjs --write",

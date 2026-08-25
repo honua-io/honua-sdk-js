@@ -178,6 +178,17 @@ export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
     collidesWithIds: [],
   },
   {
+    id: "web-components.feature-inspection",
+    tag: "honua-feature-inspection",
+    source: "web-components",
+    className: "HonuaFeatureInspectionElement",
+    supportTier: "production-tier",
+    canonical: true,
+    requiredAdapters: ["application-context", "query-capable-source"],
+    events: [],
+    collidesWithIds: [],
+  },
+  {
     id: "web-components.search",
     tag: "honua-search",
     source: "web-components",
@@ -207,7 +218,7 @@ export const HONUA_COMPONENT_CATALOG: readonly HonuaComponentCatalogEntry[] = [
     supportTier: "production-tier",
     canonical: true,
     requiredAdapters: ["edit-capable-source"],
-    events: ["honua-feature-edit-change", "honua-feature-edit-commit"],
+    events: ["honua-feature-edit-change", "honua-feature-edit-commit", "honua-feature-edit-offline-conflict"],
     collidesWithIds: [],
   },
   {

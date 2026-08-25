@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://honua.io/schemas/app-platform-reference-qualification.v1.json",
+  "title": "Honua app-platform reference qualification matrix (v1)",
+  "description": "Generated packed-workbench qualification projection. Source of truth is config/app-platform-reference-evidence.v1.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "format",
+    "schemaVersion",
+    "observedAt",
+    "expiresAt",
+    "packageMode",
+    "zeroEgress",
+    "evidenceDigest",
+    "maturityDigest",
+    "workbench",
+    "journey",
+    "lanes",
+    "browsers",
+    "states",
+    "budgets",
+    "components",
+    "live",
+    "summary"
+  ],
+  "properties": {
+    "$schema": { "const": "./app-platform-reference-qualification.schema.json" },
+    "format": { "const": "honua.app-platform.reference-qualification.v1" },
+    "schemaVersion": { "const": 1 },
+    "observedAt": { "type": "string", "format": "date-time" },
+    "expiresAt": { "type": "string", "format": "date-time" },
+    "packageMode": { "const": "packed" },
+    "zeroEgress": { "const": true },
+    "evidenceDigest": { "$ref": "#/definitions/digest" },
+    "maturityDigest": { "$ref": "#/definitions/digest" },
+    "workbench": { "$ref": "#/definitions/path" },
+    "journey": {
+      "type": "array",
+      "items": { "enum": ["connect", "map", "inspect", "filter", "edit", "table", "export"] },
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true
+    },
+    "lanes": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/evidenceLane" },
+      "minItems": 2
+    },
+    "browsers": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/evidenceLane" },
+      "minItems": 1
+    },
+    "states": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/pathList" }
+    },
+    "budgets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "limit", "unit", "evidence"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["verified", "open"] },
+          "limit": { "type": "number", "minimum": 0 },
+          "unit": { "type": "string" },
+          "evidence": { "$ref": "#/definitions/pathArray" },
+          "note": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "tag",
+          "maturity",
+          "productionQualified",
+          "qualifiedGates",
+          "openGates",
+          "gateEvidence",
+          "unit",
+          "browser",
+          "journey"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "tag": { "type": "string", "pattern": "^honua-" },
+          "maturity": { "const": "production-tier" },
+          "productionQualified": { "type": "boolean" },
+          "qualifiedGates": { "$ref": "#/definitions/stringList" },
+          "openGates": { "$ref": "#/definitions/stringList" },
+          "gateEvidence": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/definitions/pathList" }
+          },
+          "unit": { "$ref": "#/definitions/pathList" },
+          "browser": { "$ref": "#/definitions/pathList" },
+          "journey": { "$ref": "#/definitions/pathList" }
+        }
+      }
+    },
+    "live": {
+      "type": "object",
+      "required": ["enabledBy", "status", "evidence"],
+      "properties": {
+        "enabledBy": { "type": "string" },
+        "status": { "enum": ["not-recorded", "recorded"] },
+        "evidence": { "type": "array", "items": { "$ref": "#/definitions/path" } },
+        "endpoint": { "type": "string" },
+        "version": { "type": "string" },
+        "authMode": { "type": "string" },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "supportedComponents",
+        "componentsWithUnitEvidence",
+        "componentsWithBrowserEvidence",
+        "componentsWithPackedJourneyEvidence",
+        "openQualificationGates",
+        "openBudgetGates"
+      ],
+      "properties": {
+        "supportedComponents": { "type": "integer", "minimum": 0 },
+        "componentsWithUnitEvidence": { "type": "integer", "minimum": 0 },
+        "componentsWithBrowserEvidence": { "type": "integer", "minimum": 0 },
+        "componentsWithPackedJourneyEvidence": { "type": "integer", "minimum": 0 },
+        "openQualificationGates": { "type": "integer", "minimum": 0 },
+        "openBudgetGates": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "definitions": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+    "pathList": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/path" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "pathArray": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/path" },
+      "uniqueItems": true
+    },
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "evidenceLane": {
+      "type": "object",
+      "required": ["id", "evidence"],
+      "properties": {
+        "id": { "type": "string" },
+        "environment": { "type": "string" },
+        "status": { "type": "string" },
+        "evidence": { "$ref": "#/definitions/pathList" }
+      }
+    }
+  }
+}
