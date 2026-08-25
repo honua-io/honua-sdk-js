@@ -14,6 +14,7 @@ import * as adminInstallLocal from "./tools/admin-install-local.js";
 import * as applyStylePreset from "./tools/apply-style-preset.js";
 import * as countFeatures from "./tools/count-features.js";
 import * as describeLayer from "./tools/describe-layer.js";
+import * as docsSearch from "./tools/docs-search.js";
 import * as explainCapabilityGap from "./tools/explain-capability-gap.js";
 import * as getExtent from "./tools/get-extent.js";
 import * as getStyle from "./tools/get-style.js";
@@ -282,6 +283,14 @@ export function createServer(client: HonuaClient, options: CreateServerOptions =
     "Resolve a style preset and its MapLibre stylesheet for client-side application. Read-only: returns the stylesheet to apply locally; it does not mutate server state. Degrades gracefully on a target with no styling surface.",
     applyStylePreset.schema.shape,
     async (args) => applyStylePreset.execute(client, applyStylePreset.schema.parse(args)),
+  );
+
+  server.tool(
+    "honua_docs_search",
+    "Answer a Honua documentation question from the local versioned documentation corpus (llms-full.txt), returning ranked excerpts with a source-file and release-version citation for each hit. Local and offline: reads committed docs, never the network. Use it before guessing at an API, a CLI flag, or a contract. Reports a structured 'not available' result when the corpus is not present in this installation.",
+    docsSearch.schema.shape,
+    { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    async (args) => docsSearch.execute(client, docsSearch.schema.parse(args)),
   );
 
   // ── Resources ──────────────────────────────────────────────────

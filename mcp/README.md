@@ -139,6 +139,7 @@ All read-only:
 - `honua_statistics`
 - `honua_explain_capability_gap`
 - `honua_get_style`, `honua_apply_style_preset` — structured-unavailable on a plain FeatureServer
+- `honua_docs_search` — answer a Honua documentation question from the local versioned docs corpus (`llms-full.txt`), with a source-file and release-version citation per hit. Each citation is pinned to the exact commit the corpus bytes come from, so it keeps naming the text that was searched after `trunk` moves; when that commit cannot be established (an installed package with no checkout, or a locally regenerated corpus) the citation reports `sourceRevision: null` and links to `trunk` rather than claiming a pin it cannot back. Offline: reads committed files, never the network, and reports structured-unavailable when the corpus is not present in the installation. Point `HONUA_DOCS_CORPUS_PATH` at a corpus file (any name) or at a directory holding `llms-full.txt` to supply the corpus explicitly; `HONUA_SOURCE_REVISION` declares the commit when git is unavailable.
 
 ### Protocol-neutral tool contract
 

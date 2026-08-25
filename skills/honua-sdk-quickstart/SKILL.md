@@ -1,6 +1,8 @@
 ---
 name: honua-sdk-quickstart
 description: Use when writing or reviewing code that uses @honua/sdk-js — installing the SDK, constructing a HonuaClient, building a Dataset/Source and querying features across GeoServices/OGC/WFS/STAC/OData, or handling capability errors. Ensures generated code targets the current Dataset → Source → Query → Result contract instead of guessed or outdated APIs.
+release: "2026.1"
+stages: []
 ---
 
 # Honua JS SDK quickstart

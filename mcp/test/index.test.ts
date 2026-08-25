@@ -91,6 +91,7 @@ describe("MCP server setup", () => {
       "honua_explain_capability_gap",
       "honua_get_style",
       "honua_apply_style_preset",
+      "honua_docs_search",
     ]);
     expect(toolSpy.mock.calls.some((call) => call[0] === "honua_admin_install_local")).toBe(false);
     expect(resourceSpy.mock.calls.map((call) => call[0])).toEqual([
@@ -110,6 +111,7 @@ describe("MCP server setup", () => {
       honua_explain_capability_gap: { protocol: "wmts", capability: "query" },
       honua_get_style: { styleId: "topographic" },
       honua_apply_style_preset: { styleId: "topographic" },
+      honua_docs_search: { query: "capability error" },
     };
 
     for (const [name, args] of Object.entries(toolInputs)) {
