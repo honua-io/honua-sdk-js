@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/studio/content-items/item-parcels-1/versions/version-parcels-1/publish-requests/publish-1"
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://honua.io/problems/studio",
+      "title": "Forbidden",
+      "status": 403,
+      "detail": "Principal \"actor-proposer-1\" is not the owner of content item \"item-parcels-1\" in this tenant.",
+      "code": "studio.publish-request.forbidden"
+    }
+  }
+}
