@@ -17,6 +17,8 @@ import { type HonuaErrorMetadata, HonuaSdkError, mergeHonuaErrorContext } from "
 export type HonuaMapPackageErrorStage =
   | "fetch"
   | "load"
+  | "export"
+  | "import"
   | "validate"
   | "update"
   | "style-compose"
@@ -70,6 +72,8 @@ export class HonuaMapPackageError extends HonuaSdkError {
 const MAP_PACKAGE_ERROR_CODES = {
   fetch: "runtime.map-package.fetch",
   load: "runtime.map-package.load",
+  export: "runtime.map-package.export",
+  import: "runtime.map-package.import",
   validate: "runtime.map-package.validate",
   update: "runtime.map-package.update",
   "style-compose": "runtime.map-package.style-compose",

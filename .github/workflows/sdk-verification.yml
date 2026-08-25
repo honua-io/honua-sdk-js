@@ -387,6 +387,9 @@ jobs:
       - name: Verify pinned PROJJSON validator
         run: npm run verify:projjson-validator
 
+      - name: Verify generated MapPackage schema validator
+        run: npm run verify:map-package-schema
+
       # Reported here, enforced at the end of the job (#1266 REQ-003): a
       # wall-clock evidence lapse must not cost this job its test signal. Read
       # the diagnosis at this step; read the verdict at the last step.

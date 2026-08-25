@@ -312,6 +312,8 @@ classification is conservatively non-retryable.
 | `runtime.map-package.fetch` | `runtime` | `network` | yes | Map package fetch failed |
 | `runtime.map-package.load` | `runtime` | `internal` | no | Map package load failed |
 | `runtime.map-package.validate` | `runtime` | `validation` | no | Map package validation failed |
+| `runtime.map-package.export` | `runtime` | `validation` | no | Map package export refused |
+| `runtime.map-package.import` | `runtime` | `validation` | no | Map package import refused |
 | `runtime.map-package.update` | `runtime` | `internal` | no | Map package update failed |
 | `runtime.map-package.style-compose` | `runtime` | `validation` | no | Map package style composition failed |
 | `runtime.map-package.source-bind` | `runtime` | `internal` | no | Map package source binding failed |

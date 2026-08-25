@@ -102,6 +102,26 @@ export type {
   ValidateMapPackageResult,
 } from "./map-package-validation.js";
 
+export {
+  DEFAULT_MAX_EMBEDDED_BYTES,
+  DEFAULT_MAX_PACKAGE_BYTES,
+  HONUA_MAP_PACKAGE_EXPORT_KIND_V1,
+  exportMapPackage,
+  importMapPackage,
+} from "./map-package-export.js";
+export type {
+  ExportMapPackageOptions,
+  HonuaMapPackageExport,
+  ImportMapPackageOptions,
+  ImportMapPackageResult,
+} from "./map-package-export.js";
+// The failure surface of `exportMapPackage` / `importMapPackage`. Re-exported
+// here so a `@honua/sdk` consumer can catch and inspect it without reaching
+// into `@honua/app-platform`, which re-exports the same symbols for the
+// component kit's export pipeline.
+export { HonuaExportSafetyError } from "../core/credential-redaction.js";
+export type { HonuaExportRedaction, HonuaExportRedactionReason } from "../core/credential-redaction.js";
+
 export { HonuaMapRuntime } from "./runtime.js";
 export type {
   HonuaMapRuntimeInternals,
@@ -121,6 +141,8 @@ export type {
 export { HONUA_MAP_PACKAGE_FORMAT_V1 } from "./map-package.js";
 export type {
   HonuaMapPackage,
+  HonuaMapPackageAttribution,
+  HonuaMapPackageDependency,
   HonuaMapPackageFormat,
   HonuaMapPackageInitialView,
   HonuaMapPackageLabelBinding,
@@ -128,10 +150,12 @@ export type {
   HonuaMapPackageLocator,
   HonuaMapPackagePopupBinding,
   HonuaMapPackageProtocol,
+  HonuaMapPackageProvenance,
   HonuaMapPackageSourceBinding,
   HonuaMapPackageStatus,
   HonuaMapPackageStyleRef,
   HonuaMapPackageThemeSpec,
+  HonuaMapPackageWidget,
   HonuaStyleRefBody,
   HonuaStyleRefLayerOverride,
 } from "./map-package.js";
