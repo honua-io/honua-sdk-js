@@ -245,7 +245,7 @@ export function importMapPackage(value: unknown, options: ImportMapPackageOption
 
   const serialized = JSON.stringify(value);
   assertWithinPackageBudget(serialized, maxPackageBytes, packageId, "import");
-  assertEmbeddedDataWithinBudget(mapPackage, "mapPackage", maxEmbeddedBytes, packageId, "import");
+  assertEmbeddedDataWithinBudgetDeep(mapPackage, "mapPackage", maxEmbeddedBytes, packageId);
   assertCredentialFreeExportText(scrubDataUriPayloads(serialized), "Imported MapPackage");
 
   const fingerprint = mapPackageFingerprint(mapPackage);
@@ -447,6 +447,59 @@ function assertEmbeddedDataWithinBudget(
       `Inline data at ${path}.${key} is ${bytes} bytes, over the ${maxEmbeddedBytes}-byte budget; a portable map package references data, it does not carry it.`,
       { packageId, stage, detail: { path: `${path}.${key}`, bytes, maxEmbeddedBytes } },
     );
+  }
+}
+
+/**
+ * The import-side per-value budget: {@link assertEmbeddedDataWithinBudget} at
+ * every node, plus the inline `data:` URI ceiling.
+ *
+ * The export side gets this for free because `sanitizeValue` recurses and
+ * checks each object as it descends. Import had no such walk and checked only
+ * the top-level `mapPackage` holder — which has no `data` or `features` key of
+ * its own, so the per-value budget was a no-op on the *reading* side, the one
+ * that actually pays for an oversized payload. An artifact carrying a 3 MiB
+ * inline GeoJSON body at `mapSpec.sources.*.data` was refused by the exporter
+ * at 256 KiB and accepted verbatim by the importer.
+ *
+ * Iterative rather than recursive: the input is whatever bytes a caller was
+ * handed, and a deeply nested document must fail on the budget rather than on
+ * the call stack. The whole-envelope budget is asserted before this runs, so
+ * the walk is bounded by that.
+ */
+function assertEmbeddedDataWithinBudgetDeep(
+  root: object,
+  rootPath: string,
+  maxEmbeddedBytes: number,
+  packageId: string | undefined,
+): void {
+  const stack: Array<[string, unknown]> = [[rootPath, root]];
+  while (stack.length > 0) {
+    const [path, node] = stack.pop() as [string, unknown];
+    if (typeof node === "string") {
+      if (isDataUri(node) && byteLength(node) > maxEmbeddedBytes) {
+        throw new HonuaMapPackageError(
+          `Inline data at ${path} is ${byteLength(node)} bytes, over the ${maxEmbeddedBytes}-byte budget; a portable map package references data, it does not carry it.`,
+          {
+            packageId,
+            stage: "import",
+            detail: { path, bytes: byteLength(node), maxEmbeddedBytes },
+          },
+        );
+      }
+      continue;
+    }
+    if (typeof node !== "object" || node === null) continue;
+    if (!Array.isArray(node)) {
+      assertEmbeddedDataWithinBudget(node, path, maxEmbeddedBytes, packageId, "import");
+    }
+    if (Array.isArray(node)) {
+      node.forEach((child, index) => stack.push([`${path}[${index}]`, child]));
+      continue;
+    }
+    for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
+      stack.push([`${path}.${key}`, child]);
+    }
   }
 }
 

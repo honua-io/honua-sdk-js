@@ -30,12 +30,17 @@
  * - **No self-approval.** Command input schemas are closed, so no transport can
  *   introduce an approval field the others lack; every receipt records
  *   `authorization: "server-enforced"`.
+ * - **No credential in the receipt's rendered fields.** A receipt is built to be
+ *   persisted and printed, so the plan's human-readable `summary` goes through
+ *   the SDK's one credential recognizer before it is recorded — an import's
+ *   presigned `sourceUrl` must not outlive its request in an audit log.
  *
  * @experimental
  * @module
  */
 
 import type { HonuaClient } from "../../core/client.js";
+import { redactHonuaExportText } from "../../core/credential-redaction.js";
 import type { HonuaStudioLifecycleClient } from "../../studio/lifecycle-client.js";
 import { HonuaControlPlaneClient } from "../client.js";
 import type { HonuaControlPlaneRequestOptions } from "../types.js";
@@ -347,6 +352,31 @@ function assertTransport(commandId: string, transport: HonuaCommandTransport): H
   );
 }
 
+/**
+ * Withhold credential material from the plan's human-readable summary.
+ *
+ * {@link HonuaCommandPlan} promises it "carries no request body: command inputs
+ * can contain connection credentials, and a plan is rendered to terminals and
+ * logs". Omitting the body is not on its own enough: a command builds its
+ * `summary` from its own input, and an import's `sourceUrl` is routinely a
+ * presigned URL whose query string *is* the credential. Interpolated into a
+ * receipt — which `serializeHonuaCommandReceipt` exists to persist, and which
+ * `honua map publish --json` prints verbatim — that URL outlives the request it
+ * authorized, in a log the caller believes is safe to keep.
+ *
+ * So the summary goes through the SDK's one credential recognizer
+ * (`src/core/credential-redaction.ts`) on the way onto the receipt. The
+ * substitution is deterministic, so two equivalent calls still agree on
+ * `auditKey`. `path` is deliberately left alone: it is documented as the
+ * request exactly as issued, is built only from percent-encoded resource ids,
+ * and redacting an id would misreport the request. `output` is left alone too
+ * — it is the command's return value, not a rendered preview.
+ */
+function redactPlanSummary(plan: HonuaCommandReceipt["plan"]): HonuaCommandReceipt["plan"] {
+  const summary = redactHonuaExportText(plan.summary);
+  return summary === plan.summary ? plan : { ...plan, summary };
+}
+
 function buildReceipt<TInput, TOutput>(parts: {
   readonly command: HonuaCommand<TInput, TOutput>;
   readonly status: HonuaCommandStatus;
@@ -369,7 +399,7 @@ function buildReceipt<TInput, TOutput>(parts: {
     correlationId: parts.correlationId,
     identity: parts.identity,
     authorization: "server-enforced",
-    plan: parts.plan,
+    plan: redactPlanSummary(parts.plan),
     ...(parts.resourceRef ? { resourceRef: parts.resourceRef } : {}),
     ...(parts.validators ? { validators: parts.validators } : {}),
     ...(parts.problem ? { problem: parts.problem } : {}),
