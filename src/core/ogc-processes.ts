@@ -212,7 +212,13 @@ function declaresConformanceClass(
   for (const uri of conformance?.conformsTo ?? []) {
     if (typeof uri !== "string") continue;
     const withoutFragment = uri.split("#")[0] ?? "";
-    const path = (withoutFragment.split("?")[0] ?? "").replace(/\/+$/, "");
+    let path = withoutFragment.split("?")[0] ?? "";
+    // Trailing slashes are trimmed by scanning, not by a `/+$/` regex: this
+    // string is server input, and that pattern backtracks on a URI made of
+    // many slashes.
+    let end = path.length;
+    while (end > 0 && path.charCodeAt(end - 1) === 47) end -= 1;
+    path = path.slice(0, end);
     if (path.endsWith(classSuffix)) return true;
   }
   return false;
