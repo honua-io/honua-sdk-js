@@ -112,6 +112,12 @@ export interface HonuaCommandResourceRef {
  *
  * Deliberately carries no request body: command inputs can contain connection
  * credentials, and a plan is rendered to terminals and logs.
+ *
+ * It also carries no **resource link**. `resourceRef.href` is dropped by the
+ * runtime before the plan reaches a receipt, so a dry run — which is nothing
+ * but this plan — cannot print a URL for a resource that was never created or
+ * published (honua-sdk-js#1426). A link appears on a receipt only when the
+ * *server* returned one to {@link HonuaCommand.execute}.
  */
 export interface HonuaCommandPlan {
   readonly method: QueryMethod;
@@ -119,6 +125,7 @@ export interface HonuaCommandPlan {
   readonly path: string;
   /** One-line human summary for CLI/Studio previews. */
   readonly summary: string;
+  /** Resource this request addresses. Any `href` is stripped by the runtime. */
   readonly resourceRef?: HonuaCommandResourceRef;
 }
 

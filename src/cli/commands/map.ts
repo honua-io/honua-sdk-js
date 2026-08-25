@@ -85,6 +85,36 @@ export function mapPublishInvocation(parsed: ParsedArgs): {
   };
 }
 
+/**
+ * Heading for a publish receipt.
+ *
+ * Only `ok` may say "published". A `dry-run` receipt never issued the request
+ * at all, and `denied` / `cancelled` / `error` issued one that did not publish;
+ * printing the success heading for any of those reports a publication that did
+ * not happen (honua-sdk-js#1426). An unrecognized future status falls back to a
+ * neutral line rather than to the successful one.
+ *
+ * Exported so a test can assert the mapping directly: the three failure
+ * statuses are not reachable through `map-package.publish` today, which is
+ * exactly why the heading must be right before one of them becomes reachable.
+ *
+ * @internal
+ */
+export function mapPublishHeading(status: HonuaCommandReceipt["status"]): string {
+  switch (status) {
+    case "ok":
+      return "Map package published";
+    case "dry-run":
+      return "Map package publish (dry run)";
+    case "denied":
+      return "Map package publish denied";
+    case "cancelled":
+      return "Map package publish cancelled";
+    default:
+      return "Map package publish failed";
+  }
+}
+
 async function mapPublish(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
   const { input, invocation } = mapPublishInvocation(parsed);
   // Terminal-UX confirmation only, matching `honua admin`'s gate on mutating
@@ -125,7 +155,7 @@ async function mapPublish(parsed: ParsedArgs, ctx: CommandContext): Promise<void
         authorization: receipt.authorization,
         auditKey: receipt.auditKey,
       },
-      { title: receipt.status === "dry-run" ? "Map package publish (dry run)" : "Map package published" },
+      { title: mapPublishHeading(receipt.status) },
     ),
   );
 }

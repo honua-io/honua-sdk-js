@@ -21,6 +21,18 @@
  *    GeoJSON bodies are measured and refused above an explicit budget, and the
  *    whole envelope is refused above a second one, so a package cannot become
  *    a de facto dataset that no client can afford to open.
+ * 3. **No claim that the map is hosted, saved, or published.** A package-level
+ *    location pointer — `links`, `href`, `publicationUrl`, `embedUrl`,
+ *    `permalink`, and their spelling variants — is withheld on export and
+ *    refused on import. This exporter deliberately holds *no* lifecycle
+ *    information (see below), so it cannot tell an ephemeral preview from an
+ *    immutable saved version; an artifact that cannot know it was published
+ *    must not carry a URL that says it was. #1426's "preview is never reported
+ *    as persisted or published" is therefore enforced by absence, at the
+ *    bytes, rather than by a client-minted lifecycle flag that a producer
+ *    could set wrongly. Per-source `locator.url`, `attribution[].url`, and
+ *    `legend[].iconUrl` are untouched: those address data and credit, not a
+ *    publication of this map.
  *
  * The envelope stamps {@link mapPackageFingerprint} so an import can prove the
  * bytes it read are the bytes that were written. That fingerprint is a
@@ -154,20 +166,24 @@ export function exportMapPackage(pkg: HonuaMapPackage, options: ExportMapPackage
   }
 
   const redactions: HonuaExportRedaction[] = [];
-  const sanitized = sanitizeValue(pkg, "", {
+  const sanitizedOrMarker = sanitizeValue(pkg, "", {
     redactions,
     maxEmbeddedBytes,
     packageId,
     rejectCredentials,
   }) as HonuaMapPackage | undefined;
 
-  if (sanitized === undefined || typeof sanitized !== "object") {
+  if (sanitizedOrMarker === undefined || typeof sanitizedOrMarker !== "object") {
     throw new HonuaMapPackageError("MapPackage did not survive export sanitization.", {
       packageId,
       stage: "export",
       detail: { redactions },
     });
   }
+
+  // Preview honesty (#1426). Runs on the sanitized body so its redactions are
+  // addressed by paths that exist in the emitted document.
+  const sanitized = withholdPublicationPointers(sanitizedOrMarker, redactions);
 
   // Sanitization *removes* values, so a package that validated on the way in
   // can be schema-invalid on the way out: a credential-shaped
@@ -214,9 +230,10 @@ export function exportMapPackage(pkg: HonuaMapPackage, options: ExportMapPackage
 /**
  * Reads an envelope produced by {@link exportMapPackage} back into a package.
  *
- * Re-applies both guarantees rather than trusting the envelope: the file may
- * have been hand-edited, produced by an older exporter, or supplied by someone
- * else entirely. A credential-bearing or over-budget envelope is refused.
+ * Re-applies all three guarantees rather than trusting the envelope: the file
+ * may have been hand-edited, produced by an older exporter, or supplied by
+ * someone else entirely. A credential-bearing, over-budget, or
+ * publication-asserting envelope is refused.
  */
 export function importMapPackage(value: unknown, options: ImportMapPackageOptions = {}): ImportMapPackageResult {
   if (!isRecord(value)) {
@@ -245,6 +262,7 @@ export function importMapPackage(value: unknown, options: ImportMapPackageOption
 
   const serialized = JSON.stringify(value);
   assertWithinPackageBudget(serialized, maxPackageBytes, packageId, "import");
+  assertNoPublicationPointers(value.mapPackage as Record<string, unknown>, packageId);
   assertEmbeddedDataWithinBudget(mapPackage, "mapPackage", maxEmbeddedBytes, packageId, "import");
   assertCredentialFreeExportText(scrubDataUriPayloads(serialized), "Imported MapPackage");
 
@@ -290,6 +308,89 @@ export function importMapPackage(value: unknown, options: ImportMapPackageOption
     redactions: Array.isArray(value.redactions) ? (value.redactions as HonuaExportRedaction[]) : [],
     diagnostics: validation.diagnostics,
   };
+}
+
+// ── preview honesty ──────────────────────────────────────────────────────
+
+/**
+ * Package-level property names that assert *where this map lives* — a hosted
+ * location, a publication, a share or embed target, a link relation set.
+ *
+ * Matched against whole property names at the package root only, so
+ * `sourceBindings[i].locator.url` (where the *data* is), `attribution[i].url`
+ * (whose data it is) and `legend[i].iconUrl` (a symbol) all survive: none of
+ * them claims anything about this map having been saved or published.
+ *
+ * The names are matched case-insensitively and ignoring `-`/`_` separators, so
+ * `publicationUrl`, `publication_url`, and `PUBLICATION-URL` are one name.
+ */
+const PUBLICATION_POINTER_KEYS: ReadonlySet<string> = new Set([
+  "links",
+  "link",
+  "self",
+  "selflink",
+  "href",
+  "url",
+  "uri",
+  "weburl",
+  "publicurl",
+  "publishedurl",
+  "publicationurl",
+  "publishurl",
+  "portalurl",
+  "itemurl",
+  "viewerurl",
+  "shareurl",
+  "embedurl",
+  "permalink",
+]);
+
+function publicationPointerName(key: string): string {
+  return key.toLowerCase().replace(/[-_\s]/g, "");
+}
+
+function isPublicationPointerKey(key: string): boolean {
+  return PUBLICATION_POINTER_KEYS.has(publicationPointerName(key));
+}
+
+/**
+ * Rebuild `pkg` without its package-level location pointers, recording each
+ * withheld key on `redactions`.
+ *
+ * Root-level only, and deliberately not routed through
+ * {@link ExportMapPackageOptions.credentials} `"reject"`: a publication pointer
+ * is not a secret that leaked, it is a claim the artifact is not entitled to
+ * make. Dropping it always — rather than refusing the export — keeps a package
+ * that a server happened to stamp with a self-link exportable, while making it
+ * impossible for those bytes to say the map is published.
+ */
+function withholdPublicationPointers(pkg: HonuaMapPackage, redactions: HonuaExportRedaction[]): HonuaMapPackage {
+  if (!Object.keys(pkg).some(isPublicationPointerKey)) return pkg;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(pkg)) {
+    if (isPublicationPointerKey(key)) {
+      redactions.push({ path: key, reason: "publication-pointer" });
+      continue;
+    }
+    out[key] = value;
+  }
+  return out as unknown as HonuaMapPackage;
+}
+
+/**
+ * Refuse an envelope whose package carries a location pointer.
+ *
+ * `exportMapPackage` never emits one, so reaching this means the file was
+ * hand-edited or written by something else — exactly the case where a reader
+ * would otherwise believe a URL that nothing in the artifact can substantiate.
+ */
+function assertNoPublicationPointers(pkg: Record<string, unknown>, packageId: string | undefined): void {
+  const offending = Object.keys(pkg).filter(isPublicationPointerKey).sort();
+  if (offending.length === 0) return;
+  throw new HonuaMapPackageError(
+    `Imported MapPackage carries package-level location pointer(s): ${offending.join(", ")}. A portable map artifact describes a map; it cannot assert where that map is hosted or published, because nothing in it records whether the map was ever persisted.`,
+    { packageId, stage: "import", detail: { properties: offending } },
+  );
 }
 
 // ── sanitization ─────────────────────────────────────────────────────────
