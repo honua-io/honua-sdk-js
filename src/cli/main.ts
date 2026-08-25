@@ -14,6 +14,7 @@ import type { FlagSpec, ParsedArgs } from "./args.js";
 import type { CommandContext, CommandHandler } from "./command.js";
 import { adminCommand } from "./commands/admin.js";
 import { layersCommand, servicesCommand } from "./commands/catalog.js";
+import { connectionCommand, importCommand } from "./commands/control-plane.js";
 import { doctorCommand } from "./commands/doctor.js";
 import { explainCommand } from "./commands/explain.js";
 import { geocodeCommand } from "./commands/geocode.js";
@@ -71,6 +72,11 @@ const GLOBAL_FLAGS: FlagSpec[] = [
   { name: "timeout-ms" },
   { name: "package" },
   { name: "message" },
+  { name: "source-kind" },
+  { name: "source-url" },
+  { name: "connection" },
+  { name: "title" },
+  { name: "options" },
   { name: "workspace" },
   { name: "actor" },
   { name: "tenant" },
@@ -86,6 +92,8 @@ const GLOBAL_FLAGS: FlagSpec[] = [
 
 const COMMANDS: Record<string, CommandHandler> = {
   admin: adminCommand,
+  connection: connectionCommand,
+  import: importCommand,
   services: servicesCommand,
   layers: layersCommand,
   query: queryCommand,
@@ -136,6 +144,23 @@ GEOCODING
       --provider honua|nominatim|photon|pelias   Geocoding provider (default honua)
       --base-url <url>     Provider endpoint (required for third-party providers; no default endpoint is baked in)
       --user-agent <ua>    User-Agent for Nominatim public-instance policy compliance
+
+CONTROL-PLANE COMMANDS (shared command layer; every transport uses these)
+  honua connection test <connectionId> [options]
+      Probe a stored connection through the shared connection.test command.
+      --workspace <id>           Owning workspace, when the deployment scopes them
+
+  honua import create --source-kind <kind> [options]
+      Enqueue an import job through the shared import.create command.
+      --source-kind <kind>       Import source kind, e.g. geojson or postgis (required)
+      --source-url <url>         Source URL, when the import reads a location
+      --connection <id>          Stored connection, when the import reads a system
+      --workspace <id>           Workspace that will own the imported content
+      --title <text>             Human title for the resulting content
+      --options <json|@file>     Import-kind-specific options, passed through verbatim
+
+  Both accept the shared command flags below, as honua map publish does:
+      --if-match / --idempotency-key / --actor / --tenant / --dry-run / --yes / --json
 
 MAPS
   honua map export <service>[/<layers>] --bbox ... --size WxH [-o out.png]
