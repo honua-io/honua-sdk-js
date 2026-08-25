@@ -10,10 +10,12 @@
  * mid-value, mid-line-terminator, mid-blank-line-terminator) is unit testable
  * without a real network stream.
  *
- * Only the two fields honua-server's `StudioAiProxyEndpoints` actually writes
- * are parsed (`event:`, `data:`); `id:`/`retry:`/comment (`:`-prefixed) lines
- * are recognized (so they don't corrupt buffering) and otherwise ignored,
- * matching the SSE spec's field vocabulary at
+ * Three fields are parsed: the two honua-server's `StudioAiProxyEndpoints`
+ * writes (`event:`, `data:`), plus `id:` — which the MCP notification stream
+ * (`./mcp-notifications.ts`) replays as `Last-Event-ID` when it reconnects, so
+ * a resumable server can pick up where the dropped subscription left off.
+ * `retry:`/comment (`:`-prefixed) lines are recognized (so they don't corrupt
+ * buffering) and otherwise ignored, matching the SSE spec's field vocabulary at
  * https://html.spec.whatwg.org/multipage/server-sent-events.html — a
  * generic-enough subset that a proxy/CDN "helpfully" re-chunking the stream
  * differently than a single write-per-line never breaks this parser.
@@ -26,6 +28,8 @@ export interface SseFrame {
   readonly event: string;
   /** Every `data:` line's value, joined with `\n` (spec: multiple `data:` lines accumulate into one multi-line value). */
   readonly data: string;
+  /** The `id:` field's value, when the frame carried one. Replayed as `Last-Event-ID` on a stream reconnect. */
+  readonly id?: string;
 }
 
 /**
@@ -38,6 +42,7 @@ export class SseFrameParser {
   #buffer = "";
   #pendingEvent = "";
   #pendingDataLines: string[] = [];
+  #pendingId: string | undefined;
   #hasPending = false;
 
   public push(chunk: string): SseFrame[] {
@@ -68,17 +73,28 @@ export class SseFrameParser {
       } else if (field === "data") {
         this.#pendingDataLines.push(value);
         this.#hasPending = true;
+      } else if (field === "id") {
+        // Spec: an `id` containing a NUL is ignored outright.
+        if (!value.includes("\u0000")) {
+          this.#pendingId = value;
+          this.#hasPending = true;
+        }
       }
-      // id:/retry:/unknown fields: recognized-but-ignored (not part of this contract).
+      // retry:/unknown fields: recognized-but-ignored (not part of this contract).
     }
     return frames;
   }
 
   #dispatchPending(): SseFrame | undefined {
     if (!this.#hasPending) return undefined;
-    const frame: SseFrame = { event: this.#pendingEvent || "message", data: this.#pendingDataLines.join("\n") };
+    const frame: SseFrame = {
+      event: this.#pendingEvent || "message",
+      data: this.#pendingDataLines.join("\n"),
+      ...(this.#pendingId !== undefined ? { id: this.#pendingId } : {}),
+    };
     this.#pendingEvent = "";
     this.#pendingDataLines = [];
+    this.#pendingId = undefined;
     this.#hasPending = false;
     return frame;
   }

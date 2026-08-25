@@ -27,6 +27,16 @@
  * {@link StudioAgentSession.reconnect}. Runtime-kit tools always win a name
  * collision, so a server can never shadow a local runtime verb.
  *
+ * **Opt in to `watchToolListChanged` and the catalog also refreshes itself.**
+ * A server that adds, retires, or re-authorizes a Studio tool mid-session
+ * announces it with `notifications/tools/list_changed`, which arrives on the
+ * standalone `GET /mcp` SSE stream rather than on any `POST` answer. With the
+ * option set the session subscribes after its first successful discovery pass
+ * and re-runs discovery on every such notification; left unset (the default)
+ * no stream is ever opened, so an existing consumer's network behavior is
+ * unchanged. {@link StudioAgentSession.close} and
+ * {@link StudioAgentSession.reconnect} tear the subscription down.
+ *
  * Both planes are serialized through one promise queue, so a multi-tool
  * assistant turn applies strictly in order and two calls never race the same
  * draft generation. A `failed_precondition` from a composition tool triggers
@@ -65,6 +75,12 @@ import type {
 } from "./ai-contract.js";
 import { McpClient, type McpToolListing } from "./mcp-client.js";
 import { isMcpGenerationConflict, isMcpToolError } from "./mcp-errors.js";
+import {
+  MCP_TOOL_LIST_CHANGED_NOTIFICATION,
+  type McpNotificationStream,
+  type McpNotificationStreamStatus,
+  type McpNotificationWatchOptions,
+} from "./mcp-notifications.js";
 import {
   HONUA_STUDIO_MCP_TOOL_NAMES,
   type McpToolErrorCode,
@@ -113,6 +129,26 @@ export interface StudioAgentSessionOptions {
    */
   readonly disableToolDiscovery?: boolean;
   /**
+   * Subscribes to the server's `GET /mcp` notification stream after the first
+   * successful discovery pass and re-runs discovery on every
+   * `notifications/tools/list_changed`, so a catalog the server changes
+   * mid-session does not go stale until the next `reconnect()`.
+   *
+   * Off by default: opening a second long-lived HTTP request is a network
+   * behavior change no existing consumer asked for, and a server that offers
+   * no such stream would be probed for nothing. When the server declines the
+   * channel (`405`/`501`) the subscription ends `unsupported` and the session
+   * carries on exactly as it does today.
+   * @default false
+   */
+  readonly watchToolListChanged?: boolean;
+  /**
+   * Backoff, budget, and observer overrides for the
+   * {@link watchToolListChanged} subscription. The session supplies
+   * `onNotification` itself; everything else is passed through.
+   */
+  readonly toolListChangedWatch?: Omit<McpNotificationWatchOptions, "onNotification">;
+  /**
    * Wall-clock bound on one `tools/list` discovery pass (handshake plus every
    * page). An MCP endpoint that accepts the request and never answers would
    * otherwise hold every `chat()` open forever, since `fetch` has no deadline
@@ -145,7 +181,13 @@ export type StudioAgentSessionEvent =
   | { readonly type: "chat"; readonly event: StudioAiChatEvent }
   | { readonly type: "toolResult"; readonly result: StudioAgentToolDispatch }
   /** One completed `tools/list` discovery pass, including migration diagnostics. */
-  | { readonly type: "toolDiscovery"; readonly report: StudioToolDiscoveryReport };
+  | { readonly type: "toolDiscovery"; readonly report: StudioToolDiscoveryReport }
+  /** A lifecycle transition of the opt-in `tools/list_changed` subscription. */
+  | {
+      readonly type: "toolWatch";
+      readonly status: McpNotificationStreamStatus;
+      readonly detail?: string;
+    };
 
 export type StudioAgentToolPlane = "runtime" | "composition";
 
@@ -207,6 +249,11 @@ export interface StudioAgentSession {
   readonly compositionTools: ReadonlyArray<string>;
   /** The last completed discovery pass, or `undefined` before the first one. */
   readonly toolDiscovery: StudioToolDiscoveryReport | undefined;
+  /**
+   * Lifecycle status of the `tools/list_changed` subscription, or `undefined`
+   * when `watchToolListChanged` is off or the subscription has not started.
+   */
+  readonly toolWatchStatus: McpNotificationStreamStatus | undefined;
   /** `GET /v1/studio/ai/capabilities`, fetched once and cached. */
   capabilities(): Promise<StudioAiCapabilitiesResponse>;
   /** The provider descriptor this session routes to, or `undefined` when it is not declared. */
@@ -230,6 +277,13 @@ export interface StudioAgentSession {
   attachDraft(draft: StudioAgentDraftBinding): void;
   /** Clears the conversation history. Draft binding, tool catalog, and capabilities cache survive. */
   reset(): void;
+  /**
+   * Releases the session's long-lived resources — today, the opt-in
+   * `tools/list_changed` subscription, whose in-flight `GET` is aborted rather
+   * than left to the host's connection pool. Idempotent. A closed session can
+   * still `chat()`; it simply stops watching for catalog changes.
+   */
+  close(): void;
 }
 
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
@@ -267,6 +321,14 @@ class StudioAgentSessionImpl implements StudioAgentSession {
    */
   #discoveryGeneration = 0;
   #mcpClient: McpClient | undefined;
+  /** The opt-in `tools/list_changed` subscription. `undefined` until the first successful discovery pass. */
+  #toolWatch: McpNotificationStream | undefined;
+  /**
+   * Set by {@link close} and never cleared. `reconnect()` also tears the
+   * subscription down, but it means "resubscribe under the new session"; only
+   * an explicit `close()` means "stop watching for good".
+   */
+  #toolWatchClosed = false;
   #draft: StudioAgentDraftBinding | undefined;
   #capabilities: Promise<StudioAiCapabilitiesResponse> | undefined;
   /** Serializes tool dispatch so a burst of tool calls applies strictly in order. */
@@ -318,6 +380,10 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return this.#discoveryReport;
   }
 
+  public get toolWatchStatus(): McpNotificationStreamStatus | undefined {
+    return this.#toolWatch?.status;
+  }
+
   public attachDraft(draft: StudioAgentDraftBinding): void {
     this.#draft = draft;
   }
@@ -332,7 +398,21 @@ class StudioAgentSessionImpl implements StudioAgentSession {
     return this.#ensureToolCatalog();
   }
 
+  public close(): void {
+    this.#toolWatchClosed = true;
+    // The stream reference is kept, not dropped: a consumer reading
+    // `toolWatchStatus` after `close()` should see `"closed"`, not `undefined`
+    // ("never started").
+    this.#toolWatch?.close();
+  }
+
   public reconnect(): void {
+    // The subscription is bound to the session id that is about to be dropped;
+    // a stream left open would keep replaying the OLD principal's catalog
+    // changes. Unlike `close()`, this is not a permanent stop — the next
+    // successful discovery pass opens a fresh one under the new session.
+    this.#toolWatch?.close();
+    this.#toolWatch = undefined;
     this.#mcpClient?.resetSession();
     // Invalidate before clearing: a `tools/list` pass still in flight resolves
     // with the old session's descriptors, and must not repopulate what the two
@@ -431,7 +511,45 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       ...this.#runtimeTools,
       ...catalog.toolDefinitions().filter((tool) => !this.#runtimeToolNames.has(tool.name)),
     ];
-    return this.#publishDiscovery(report);
+    const published = this.#publishDiscovery(report);
+    // Only now: the subscription needs the `Mcp-Session-Id` this pass's
+    // `initialize` negotiated, and a pass that failed or was superseded has no
+    // session worth subscribing with.
+    this.#ensureToolWatch();
+    return published;
+  }
+
+  // ── tools/list_changed subscription ─────────────────────────
+
+  /**
+   * Opens the `GET /mcp` notification subscription, if this session opted in
+   * and one is not already live. Idempotent, and safe to call from the
+   * discovery path a `list_changed` notification itself triggers — a live
+   * subscription short-circuits, so refreshing never restarts the stream that
+   * asked for the refresh.
+   */
+  #ensureToolWatch(): void {
+    if (!this.#options.watchToolListChanged) return;
+    if (this.#options.disableToolDiscovery) return;
+    if (this.#toolWatchClosed) return;
+    if (this.#toolWatch && !this.#toolWatch.terminated) return;
+
+    const overrides = this.#options.toolListChangedWatch ?? {};
+    this.#toolWatch = this.#ensureMcpClient().watchNotifications({
+      ...overrides,
+      onStatusChange: (status, detail) => {
+        this.#options.onEvent?.({ type: "toolWatch", status, ...(detail !== undefined ? { detail } : {}) });
+        overrides.onStatusChange?.(status, detail);
+      },
+      onNotification: (notification) => {
+        if (notification.method !== MCP_TOOL_LIST_CHANGED_NOTIFICATION) return;
+        // `refreshTools()` reports its own failures on the returned report and
+        // never rejects; the `catch` is belt-and-braces so an unexpected
+        // rejection can never become an unhandled rejection on the stream's
+        // read loop.
+        void this.refreshTools().catch(() => undefined);
+      },
+    });
   }
 
   /**
