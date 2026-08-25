@@ -221,7 +221,10 @@ Four properties hold whichever server is on the other end:
   this handle has read that carries no `jobControlOptions` advertises no
   execution mode, so an explicit `mode` against it is refused (pass
   `jobControlOptions` on the request to speak for a server that publishes
-  its modes somewhere else). Under `"strict"` a `/conformance` document
+  its modes somewhere else). Sources are ranked rather than merged: a full
+  description outranks a listing summary, which Core lets omit members the
+  description carries, so refreshing the process list never downgrades a
+  mode `describe()` already established. Under `"strict"` a `/conformance` document
   that declares no Core class refuses execution, and cancellation refuses
   unless something actually declared `dismiss`. Conformance URIs are
   matched as whole classes, so an unrecognised neighbour such as

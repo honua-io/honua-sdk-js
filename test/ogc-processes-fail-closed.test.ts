@@ -162,6 +162,50 @@ describe("ogc-processes fail-closed / advertised jobControlOptions", () => {
     expect(requests).toEqual(["GET /proc/processes"]);
   });
 
+  /**
+   * The other half of "absence is a declaration": a *summary* may legally omit
+   * what the full description carries, so a listing refresh must not be able to
+   * downgrade a mode the description already declared. Failing closed on an
+   * execution the server did declare is as wrong as permitting one it did not.
+   */
+  it("does not let a later list() downgrade the modes a describe() already learned", async () => {
+    // The description declares async-execute; the listing summary omits the
+    // member entirely, exactly as Core permits.
+    const { client, requests } = fixture({ jobControlOptions: ["async-execute"] });
+    const processes = client.ogcProcesses({ basePath: MOUNT });
+    await processes.describe("buffer");
+    await processes.list();
+
+    const run = await processes.execute({ processId: "buffer", mode: "async" });
+    expect(run.id).toBe(JOB_ID);
+    expect(requests).toEqual([
+      "GET /proc/processes/buffer",
+      "GET /proc/processes",
+      "POST /proc/processes/buffer/execution",
+    ]);
+
+    // Order does not rescue it either: the description still wins when it
+    // arrives first *or* second.
+    const reordered = fixture({ jobControlOptions: ["async-execute"] });
+    const reorderedProcesses = reordered.client.ogcProcesses({ basePath: MOUNT });
+    await reorderedProcesses.list();
+    await reorderedProcesses.describe("buffer");
+    await reorderedProcesses.execute({ processId: "buffer", mode: "async" });
+    expect(reordered.requests).toContain("POST /proc/processes/buffer/execution");
+
+    // And the precedence rule does not reopen the hole it sits next to: a
+    // process this handle has only ever seen as a summary still refuses.
+    const summaryOnly = fixture({ jobControlOptions: undefined, summarizeJobControl: true });
+    const summaryProcesses = summaryOnly.client.ogcProcesses({ basePath: MOUNT });
+    await summaryProcesses.list();
+    await expect(summaryProcesses.execute({ processId: "buffer", mode: "async" })).rejects.toMatchObject({
+      name: REFUSAL,
+      capability: "processes.async-execute",
+      context: { declaredJobControlOptions: "" },
+    });
+    expect(summaryOnly.requests).toEqual(["GET /proc/processes"]);
+  });
+
   it("refuses under strict when the description it fetched declares no execution mode", async () => {
     const { client, requests } = fixture({ jobControlOptions: undefined });
     const processes = client.ogcProcesses({ basePath: MOUNT, capabilityPolicy: "strict" });

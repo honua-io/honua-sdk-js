@@ -86,7 +86,9 @@ export interface HonuaOgcProcessesOptions {
    *   What was read counts, including silence: a description this handle has
    *   seen that carries no `jobControlOptions` advertises no execution mode,
    *   and an explicit `mode` against it is refused. Only a process this handle
-   *   has never read is treated as unknown rather than undeclared.
+   *   has never read is treated as unknown rather than undeclared. Sources are
+   *   ranked, not merged: a full description outranks a listing summary, so a
+   *   later `list()` never downgrades what `describe()` established.
    * - `"strict"` — resolve the conformance declaration and the process
    *   description first (both through the metadata cache) and refuse anything
    *   the server has not declared, including a `/conformance` document that
@@ -167,6 +169,17 @@ const PROCESSES_LINK_REL = {
   results: "http://www.opengis.net/def/rel/ogc/1.0/results",
   status: "self",
 } as const;
+
+/**
+ * A `jobControlOptions` declaration this handle has read, and how
+ * authoritative the source that carried it was. Core lets a process summary in
+ * a listing omit members the full description carries, so the two are not
+ * interchangeable: `"description"` outranks `"summary"`.
+ */
+interface JobControlDeclaration {
+  readonly options: readonly string[];
+  readonly source: "description" | "summary";
+}
 
 /** Job-control options a process declares in its description (Core §7.9). */
 const JOB_CONTROL = {
@@ -376,11 +389,14 @@ export class HonuaOgcProcesses {
   private declaredConformance: HonuaOgcProcessesConformanceInput | undefined;
   private conformancePromise: Promise<HonuaOgcProcessesConformanceInput> | undefined;
   /**
-   * `jobControlOptions` learned from `describe()` calls made through this
-   * handle. Callers that follow the natural discover → describe → execute flow
-   * therefore get process-level gating for free, with no extra round trip.
+   * `jobControlOptions` learned from `describe()` / `list()` calls made through
+   * this handle. Callers that follow the natural discover → describe → execute
+   * flow therefore get process-level gating for free, with no extra round trip.
+   *
+   * Each entry remembers which source taught it, because a later listing must
+   * not be able to downgrade what a description already established.
    */
-  private readonly jobControlByProcess = new Map<string, readonly string[]>();
+  private readonly jobControlByProcess = new Map<string, JobControlDeclaration>();
 
   public constructor(options: HonuaOgcProcessesOptions) {
     this.client = options.client;
@@ -409,9 +425,8 @@ export class HonuaOgcProcesses {
     for (const process of response?.processes ?? []) {
       // A summary that omits `jobControlOptions` advertises no execution mode;
       // recorded as an empty declaration so the mode gate refuses rather than
-      // reading silence as consent. A later `describe()` overwrites it with
-      // whatever the full description declares.
-      if (process?.id) this.jobControlByProcess.set(process.id, [...(process.jobControlOptions ?? [])]);
+      // reading silence as consent — but only where nothing better is known.
+      if (process?.id) this.rememberJobControl(process.id, process.jobControlOptions, "summary");
     }
     return response;
   }
@@ -419,8 +434,28 @@ export class HonuaOgcProcesses {
   public async describe(processId: string, request: OgcMetadataRequest = {}): Promise<HonuaOgcProcessDescription> {
     const description = await this.client.getOgcProcess(this.withBase({ ...request, processId }));
     // As in `list()`: an omitted `jobControlOptions` is an empty declaration.
-    this.jobControlByProcess.set(processId, [...(description?.jobControlOptions ?? [])]);
+    // A description is the authoritative source, so this always wins.
+    this.rememberJobControl(processId, description?.jobControlOptions, "description");
     return description;
+  }
+
+  /**
+   * Record what a process advertises, keeping the more authoritative source.
+   *
+   * Silence is still not consent — an omitted `jobControlOptions` is stored as
+   * an empty declaration, and an explicit mode against it is refused. But a
+   * process summary may legally omit what the full description declares, so a
+   * `list()` refresh after a `describe()` must not overwrite the description's
+   * answer with the listing's silence. Refusing an execution the server did
+   * declare is as wrong as permitting one it did not.
+   */
+  private rememberJobControl(
+    processId: string,
+    options: readonly string[] | undefined,
+    source: JobControlDeclaration["source"],
+  ): void {
+    if (source === "summary" && this.jobControlByProcess.get(processId)?.source === "description") return;
+    this.jobControlByProcess.set(processId, { options: [...(options ?? [])], source });
   }
 
   /**
@@ -446,7 +481,7 @@ export class HonuaOgcProcesses {
     const conformance = await this.assertExecutionDeclared(request);
     const accepted = await this.client.executeOgcProcess(executeRequest);
     const processId = accepted.processID ?? request.processId;
-    const jobControlOptions = request.jobControlOptions ?? this.jobControlByProcess.get(request.processId);
+    const jobControlOptions = request.jobControlOptions ?? this.jobControlByProcess.get(request.processId)?.options;
 
     if (accepted.synchronous === true) {
       // Core assigns no job identifier to a synchronous execution; the results
@@ -480,7 +515,7 @@ export class HonuaOgcProcesses {
     options: { processId?: string; basePath?: string; statusPath?: string; resultsPath?: string } = {},
   ): IJobRun<T> {
     const { basePath } = this.withBase(options);
-    const jobControlOptions = options.processId ? this.jobControlByProcess.get(options.processId) : undefined;
+    const jobControlOptions = options.processId ? this.jobControlByProcess.get(options.processId)?.options : undefined;
     return new HonuaOgcProcessJobRun<T>({
       client: this.client,
       jobId,
@@ -545,7 +580,7 @@ export class HonuaOgcProcesses {
     // shapes land on the same `IJobRun`. Only an explicit preference is gated.
     if (mode === "auto") return conformance;
 
-    let jobControlOptions = request.jobControlOptions ?? this.jobControlByProcess.get(request.processId);
+    let jobControlOptions = request.jobControlOptions ?? this.jobControlByProcess.get(request.processId)?.options;
     if (!jobControlOptions && this.capabilityPolicy === "strict") {
       const description = await this.describe(request.processId, request.signal ? { signal: request.signal } : {});
       // An omitted `jobControlOptions` is an empty declaration, never a wildcard:
