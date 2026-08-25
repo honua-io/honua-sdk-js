@@ -169,6 +169,29 @@ export function exportMapPackage(pkg: HonuaMapPackage, options: ExportMapPackage
     });
   }
 
+  // Sanitization *removes* values, so a package that validated on the way in
+  // can be schema-invalid on the way out: a credential-shaped
+  // `attribution[0].text` is withheld while its containing object remains, and
+  // `text` is required. Validating the pre-sanitization package alone would let
+  // the exporter emit an artifact its own `importMapPackage` rejects, which is
+  // precisely the "not portable" case the pre-check exists to prevent.
+  if (options.allowInvalid !== true) {
+    const postSanitization = validateMapPackage(sanitized);
+    if (hasMapPackageDiagnosticErrors(postSanitization.diagnostics)) {
+      throw new HonuaMapPackageError(
+        "Withholding credential material left a MapPackage that no longer satisfies its schema; refusing to export an artifact its own importer would reject.",
+        {
+          packageId,
+          stage: "export",
+          detail: {
+            diagnostics: postSanitization.diagnostics.filter((d) => d.severity === "error"),
+            redactions,
+          },
+        },
+      );
+    }
+  }
+
   const exportedAt = normalizeTimestamp(options.exportedAt);
   const envelope: HonuaMapPackageExport = {
     kind: HONUA_MAP_PACKAGE_EXPORT_KIND_V1,
@@ -226,7 +249,23 @@ export function importMapPackage(value: unknown, options: ImportMapPackageOption
   assertCredentialFreeExportText(scrubDataUriPayloads(serialized), "Imported MapPackage");
 
   const fingerprint = mapPackageFingerprint(mapPackage);
-  if (options.skipFingerprintCheck !== true && typeof value.fingerprint === "string") {
+  if (options.skipFingerprintCheck !== true) {
+    // A missing stamp is a failed integrity check, not an absent one.
+    // `fingerprint` is required by `HonuaMapPackageExport`, so an envelope
+    // without one was truncated, hand-edited, or written by something that is
+    // not this exporter — and treating that as "nothing to compare" let a
+    // mutated body through simply by deleting the field that would have caught
+    // it. Callers that knowingly rewrote the package pass `skipFingerprintCheck`.
+    if (typeof value.fingerprint !== "string" || value.fingerprint.length === 0) {
+      throw new HonuaMapPackageError(
+        "MapPackage export is missing its fingerprint stamp; pass skipFingerprintCheck to accept an unstamped envelope.",
+        {
+          packageId,
+          stage: "import",
+          detail: { stamped: value.fingerprint, recomputed: fingerprint },
+        },
+      );
+    }
     if (value.fingerprint !== fingerprint) {
       throw new HonuaMapPackageError("MapPackage export fingerprint does not match its body.", {
         packageId,
@@ -319,10 +358,10 @@ function sanitizeString(value: string, path: string, ctx: SanitizeContext): unkn
 
   if (isDataUri(value)) {
     // Bounded and scanned rather than dropped: an inline sprite or legend icon
-    // is legitimate content. The base64 payload is decoded and scanned as
-    // bytes, because a token hidden in a data: URI is exactly as disclosed as
-    // one in plain text, and scanning base64 as *text* only produces false
-    // positives.
+    // is legitimate content. The payload is decoded and scanned as bytes,
+    // because a token hidden in a data: URI is exactly as disclosed as one in
+    // plain text, and scanning the encoded form as *text* either produces a
+    // false positive on every base64 icon or misses a percent-escaped secret.
     if (byteLength(value) > ctx.maxEmbeddedBytes) {
       throw new HonuaMapPackageError(
         `Inline data at ${path} exceeds the ${ctx.maxEmbeddedBytes}-byte export budget; a portable map package references data, it does not carry it.`,
@@ -334,7 +373,14 @@ function sanitizeString(value: string, path: string, ctx: SanitizeContext): unkn
       );
     }
     const decoded = decodeDataUri(value);
-    if (decoded !== undefined) assertCredentialFreeExportBytes(decoded, `Inline data at ${path}`);
+    if (decoded === undefined) {
+      // Unscannable, therefore not provably credential-free. Withholding it is
+      // the fail-closed answer; emitting it would rely on a whole-envelope scan
+      // that `scrubDataUriPayloads` has already blinded to this value.
+      failOrRecord(ctx, path, "unsupported-value", `Inline data at ${path} has an undecodable payload.`);
+      return REDACTED_MARKER;
+    }
+    assertCredentialFreeExportBytes(decoded, `Inline data at ${path}`);
     return value;
   }
 
@@ -433,20 +479,37 @@ function looksLikeUrl(value: string): boolean {
 }
 
 /**
- * Decodes the payload of a base64 `data:` URI. Non-base64 payloads are left to
- * the text scan, which already covers them.
+ * Decodes the payload of a `data:` URI to the bytes it actually represents.
+ *
+ * Both encodings are decoded, not just base64. `scrubDataUriPayloads` replaces
+ * *every* data-URI payload before the whole-envelope text scan, so a payload
+ * this function declines to decode is a payload that nothing scans at all:
+ * `data:text/plain,token%3Ds3cr3t` was emitted verbatim, with the percent
+ * escape hiding it from the scan that a plain `token=…` would have tripped.
+ *
+ * `undefined` means "cannot be decoded", never "safe" — a truncated data URI,
+ * a malformed percent escape, or invalid base64. The caller withholds those
+ * rather than letting an unscannable payload through.
  */
 function decodeDataUri(value: string): Uint8Array | undefined {
   const comma = value.indexOf(",");
   if (comma === -1) return undefined;
-  if (!/;base64$/i.test(value.slice(0, comma))) return undefined;
   const payload = value.slice(comma + 1);
+  if (/;base64$/i.test(value.slice(0, comma))) {
+    try {
+      const binary = atob(payload);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    } catch {
+      return undefined;
+    }
+  }
   try {
-    const binary = atob(payload);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    return bytes;
+    return new TextEncoder().encode(decodeURIComponent(payload));
   } catch {
+    // A malformed percent escape. `decodeURIComponent` is the only decoder the
+    // payload claims, so what it refuses cannot be scanned.
     return undefined;
   }
 }

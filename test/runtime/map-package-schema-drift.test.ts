@@ -33,7 +33,7 @@ import {
   HONUA_MAP_PACKAGE_SCHEMA_PROTOCOLS,
   HONUA_MAP_PACKAGE_SCHEMA_STATUSES,
 } from "../../src/runtime/generated/map-package-schema-meta.js";
-import { HONUA_MAP_PACKAGE_FORMAT_V1 } from "../../src/runtime/index.js";
+import { HONUA_MAP_PACKAGE_FORMAT_V1, type HonuaMapPackage, validateMapPackage } from "../../src/runtime/index.js";
 
 const SCHEMA_URL = new URL("../../schemas/honua-map-package.v1.json", import.meta.url);
 const TYPES_URL = new URL("../../src/runtime/map-package.ts", import.meta.url);
@@ -135,6 +135,49 @@ function schemaNode(def: string): Record<string, unknown> {
 
 const interfaces = parseInterfaces(typesSource);
 
+const ANNOTATION_KEYWORDS = new Set(["title", "description", "$comment"]);
+const SCHEMA_MAP_KEYWORDS = new Set(["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"]);
+
+/**
+ * Every JSON Pointer at which the schema declares a *property* whose name
+ * collides with an annotation keyword. The compilation step in
+ * `scripts/generate-map-package-validator.mjs` strips annotation keywords, so
+ * each of these is a place where a property's constraints could be deleted
+ * from the generated validator while the published schema still advertises
+ * them.
+ */
+function collectAnnotationNamedProperties(node: unknown, pointer = "#", insideSchemaMap = false): string[] {
+  if (Array.isArray(node)) return node.flatMap((item, i) => collectAnnotationNamedProperties(item, `${pointer}/${i}`));
+  if (node === null || typeof node !== "object") return [];
+  const found: string[] = [];
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    const childPointer = `${pointer}/${key}`;
+    if (insideSchemaMap && ANNOTATION_KEYWORDS.has(key)) found.push(childPointer);
+    found.push(...collectAnnotationNamedProperties(value, childPointer, SCHEMA_MAP_KEYWORDS.has(key)));
+  }
+  return found;
+}
+
+function packageWithPopupTitle(title: unknown): HonuaMapPackage {
+  return {
+    mapPackageId: "pkg-drift",
+    format: HONUA_MAP_PACKAGE_FORMAT_V1,
+    sourceBindings: [
+      {
+        sourceId: "parcels",
+        protocol: "geoservices_feature_service",
+        locator: { url: "https://gis.example.com/arcgis/rest/services/Parcels/FeatureServer" },
+      },
+    ],
+    mapSpec: { version: 8, sources: {}, layers: [] },
+    popupBindings: [{ sourceId: "parcels", title }],
+  } as unknown as HonuaMapPackage;
+}
+
+function errorPaths(result: { diagnostics: readonly { severity: string; path?: string }[] }): string[] {
+  return result.diagnostics.filter((d) => d.severity === "error").map((d) => d.path ?? "");
+}
+
 describe("honua-map-package.v1 schema ↔ TypeScript drift", () => {
   test("the schema is the one the generated validator was built from", () => {
     expect(schema.$id).toBe(HONUA_MAP_PACKAGE_SCHEMA_ID);
@@ -149,6 +192,25 @@ describe("honua-map-package.v1 schema ↔ TypeScript drift", () => {
     const generated = fs.readFileSync(VALIDATOR_URL, "utf8");
     expect(generated).not.toMatch(/require\(/);
     expect(generated).not.toMatch(/from\s*["']ajv/);
+  });
+
+  test("a property named like an annotation keyword still constrains the generated validator", () => {
+    // The generator strips `title`/`description`/`$comment` before compiling,
+    // because the schema is the contract document and that prose would ship in
+    // `/runtime`'s bundle budget. Those are *keywords*; a property named
+    // `title` is data. Stripping it by name deleted `popupBindings[].title`'s
+    // `{type: "string", maxLength: 512}` from the compiled validator, so the
+    // SDK accepted a numeric or 5000-character popup title that the published
+    // schema rejects — the schema and the validator disagreeing is exactly the
+    // drift this suite exists to catch.
+    expect(
+      collectAnnotationNamedProperties(schema).sort(),
+      "a new annotation-named property needs a case below",
+    ).toEqual(["#/$defs/popupBinding/properties/title"]);
+
+    expect(errorPaths(validateMapPackage(packageWithPopupTitle(12345)))).toContain("popupBindings[0].title");
+    expect(errorPaths(validateMapPackage(packageWithPopupTitle("x".repeat(513))))).toContain("popupBindings[0].title");
+    expect(errorPaths(validateMapPackage(packageWithPopupTitle("Parcel detail")))).toEqual([]);
   });
 
   test("the schema pins the canonical format string", () => {

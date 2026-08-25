@@ -183,6 +183,83 @@ describe("credentials never survive an export", () => {
     tampered.fingerprint = mapPackageFingerprint(tampered.mapPackage);
     expect(() => importMapPackage(tampered)).toThrow(HonuaExportSafetyError);
   });
+
+  test("a percent-encoded data: URI payload is scanned, not waved through", () => {
+    // `scrubDataUriPayloads` blanks every data-URI payload before the
+    // whole-envelope text scan, so a payload the exporter does not decode
+    // itself is a payload nothing scans. A non-base64 `data:` URI used to take
+    // that route and carry its secret all the way into the emitted bytes.
+    const pkg = basePackage({
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [{ id: "parcels-fill", type: "fill", source: "parcels" }],
+        sprite: "data:text/plain,Bearer%20eyJhbGciOiJIUzI1NiJ9.payloadpayload.signature",
+      },
+    } as Partial<HonuaMapPackage>);
+    expect(() => exportMapPackage(pkg)).toThrow(HonuaExportSafetyError);
+  });
+
+  test("the same secret is caught whether it is base64 or percent encoded", () => {
+    const secret = "Bearer eyJhbGciOiJIUzI1NiJ9.payloadpayload.signature";
+    const encodings = [
+      `data:text/plain;base64,${Buffer.from(secret, "utf8").toString("base64")}`,
+      `data:text/plain,${encodeURIComponent(secret)}`,
+    ];
+    for (const sprite of encodings) {
+      const pkg = basePackage({
+        mapSpec: {
+          version: 8,
+          sources: {},
+          layers: [{ id: "parcels-fill", type: "fill", source: "parcels" }],
+          sprite,
+        },
+      } as Partial<HonuaMapPackage>);
+      expect(() => exportMapPackage(pkg), sprite.slice(0, 24)).toThrow(HonuaExportSafetyError);
+    }
+  });
+
+  test("an undecodable data: URI payload is withheld rather than assumed safe", () => {
+    const pkg = basePackage({
+      mapSpec: {
+        version: 8,
+        sources: {},
+        layers: [{ id: "parcels-fill", type: "fill", source: "parcels" }],
+        // A lone `%` is not a valid percent escape, so the payload cannot be
+        // decoded — and therefore cannot be proven credential-free.
+        sprite: "data:text/plain,100%discount",
+      },
+    } as Partial<HonuaMapPackage>);
+    const envelope = exportMapPackage(pkg);
+    expect(envelope.mapPackage.mapSpec.sprite).toBeUndefined();
+    expect(envelope.redactions.map((r) => r.path)).toContain("mapSpec.sprite");
+    expect(JSON.stringify(envelope)).not.toContain("100%discount");
+  });
+
+  test("withholding a credential must not emit a package the importer rejects", () => {
+    // `attribution[].text` is required by the schema. A credential-shaped
+    // value there is withheld, which leaves the attribution object without its
+    // required property: the exporter used to return that artifact happily and
+    // let `importMapPackage` be the one to reject it.
+    const pkg = basePackage({
+      attribution: [{ text: "Bearer eyJhbGciOiJIUzI1NiJ9.payloadpayload.signature", url: "https://example.com/c" }],
+    } as Partial<HonuaMapPackage>);
+    expect(() => exportMapPackage(pkg)).toThrow(HonuaMapPackageError);
+    expect(() => exportMapPackage(pkg)).toThrow(/no longer satisfies its schema/);
+  });
+
+  test("an export that survives sanitization intact still round-trips", () => {
+    // The guard above must not fire for the ordinary case: a redaction that
+    // removes an *optional* value leaves a valid package.
+    const pkg = basePackage({
+      attribution: [
+        { text: "City of Example", url: "https://example.com/credits?sig=Zm9vYmFyYmF6cXV4c2VjcmV0MTIzNDU2Nzg5MA" },
+      ],
+    } as Partial<HonuaMapPackage>);
+    const envelope = exportMapPackage(pkg);
+    expect(envelope.redactions.length).toBeGreaterThan(0);
+    expect(() => importMapPackage(JSON.parse(JSON.stringify(envelope)))).not.toThrow();
+  });
 });
 
 describe("unbounded embedded data is refused", () => {
@@ -256,6 +333,29 @@ describe("import fails closed", () => {
     const tampered = JSON.parse(JSON.stringify(envelope));
     tampered.mapPackage.initialView.zoom = 3;
     expect(() => importMapPackage(tampered)).toThrow(/fingerprint does not match/);
+  });
+
+  test("an envelope with no fingerprint stamp is refused, not silently trusted", () => {
+    // Deleting the stamp used to skip the comparison entirely, so the cheapest
+    // way past the integrity check was to remove the field that performs it.
+    const envelope = exportMapPackage(basePackage());
+    const unstamped = JSON.parse(JSON.stringify(envelope));
+    unstamped.mapPackage.initialView.zoom = 3;
+    delete unstamped.fingerprint;
+    expect(() => importMapPackage(unstamped)).toThrow(/missing its fingerprint stamp/);
+
+    // A non-string stamp is the same failure, not a different one.
+    const misstamped = JSON.parse(JSON.stringify(envelope));
+    misstamped.fingerprint = 42;
+    expect(() => importMapPackage(misstamped)).toThrow(/missing its fingerprint stamp/);
+  });
+
+  test("skipFingerprintCheck is the only way to import an unstamped envelope", () => {
+    const envelope = exportMapPackage(basePackage());
+    const unstamped = JSON.parse(JSON.stringify(envelope));
+    delete unstamped.fingerprint;
+    const imported = importMapPackage(unstamped, { skipFingerprintCheck: true });
+    expect(imported.fingerprint).toBe(envelope.fingerprint);
   });
 
   test("an invalid package is not exported in the first place", () => {

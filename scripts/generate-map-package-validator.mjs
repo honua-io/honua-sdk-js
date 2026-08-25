@@ -73,16 +73,48 @@ SOFTWARE.
  * Ajv inlines the compiled schema into the standalone bundle, so the prose in
  * `schemas/honua-map-package.v1.json` — which is long on purpose, because the
  * schema is the contract document as well as the validator — would ship in
- * `/runtime`'s bundle budget. `description` and `$comment` carry no validation
- * semantics, so the compilation view drops them. Nothing else is altered.
+ * `/runtime`'s bundle budget. `title`, `description` and `$comment` carry no
+ * validation semantics, so the compilation view drops them. Nothing else is
+ * altered.
+ *
+ * The distinction that matters here is *schema node* versus *property name*.
+ * `properties`, `patternProperties` and `$defs` are maps keyed by names chosen
+ * by the contract, and a map artifact may legitimately have a property called
+ * `title` — `popupBindings[].title` is one. Treating that key as an annotation
+ * keyword silently deleted its `{type: "string", maxLength: 512}` subschema
+ * from the compiled validator, so the generated function accepted a numeric or
+ * 5000-character popup title that the published schema rejects. Recursion
+ * therefore descends into those maps by value only, never inspecting their
+ * keys. Keywords whose values are plain data (`enum`, `const`, `default`,
+ * `examples`) are copied through untouched for the same reason.
  */
+const ANNOTATION_KEYWORDS = new Set(["title", "description", "$comment"]);
+const SCHEMA_MAP_KEYWORDS = new Set(["properties", "patternProperties", "$defs", "definitions", "dependentSchemas"]);
+const OPAQUE_DATA_KEYWORDS = new Set(["enum", "const", "default", "examples"]);
+
 function stripAnnotations(node) {
   if (Array.isArray(node)) return node.map(stripAnnotations);
   if (node === null || typeof node !== "object") return node;
   const out = {};
   for (const [key, value] of Object.entries(node)) {
-    if (key === "description" || key === "$comment" || key === "title") continue;
-    out[key] = stripAnnotations(value);
+    if (ANNOTATION_KEYWORDS.has(key)) continue;
+    if (OPAQUE_DATA_KEYWORDS.has(key)) {
+      out[key] = value;
+    } else if (SCHEMA_MAP_KEYWORDS.has(key)) {
+      out[key] = stripAnnotationsFromSchemaMap(value);
+    } else {
+      out[key] = stripAnnotations(value);
+    }
+  }
+  return out;
+}
+
+/** Strips annotations from each subschema of a name-keyed map without reading its keys. */
+function stripAnnotationsFromSchemaMap(node) {
+  if (node === null || typeof node !== "object" || Array.isArray(node)) return stripAnnotations(node);
+  const out = {};
+  for (const [name, subschema] of Object.entries(node)) {
+    out[name] = stripAnnotations(subschema);
   }
   return out;
 }
