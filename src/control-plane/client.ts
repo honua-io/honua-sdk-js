@@ -74,6 +74,8 @@ export class HonuaControlPlaneClient {
     return this.requestJson<T>("raw", request.method ?? "GET", request.path, request.body, {
       signal: request.signal,
       headers: request.headers,
+      idempotencyKey: request.idempotencyKey,
+      ifMatch: request.ifMatch,
       okStatuses: request.okStatuses,
     });
   }
@@ -111,7 +113,7 @@ export class HonuaControlPlaneClient {
         method,
         this.resolvePath(path),
         {
-          headers: jsonHeaders(options.headers),
+          headers: jsonHeaders(options),
           body: body === undefined ? null : JSON.stringify(body),
         },
         options.signal,
@@ -467,11 +469,25 @@ function withManifestQuery(path: string, environment?: string, workspaceId?: str
   return query ? `${path}?${query}` : path;
 }
 
-function jsonHeaders(headers: HeadersInit | undefined): HeadersInit {
+/**
+ * Base JSON headers plus the concurrency/idempotency options every request
+ * option bag can carry.
+ *
+ * The option-level `idempotencyKey`/`ifMatch` are applied **after** raw
+ * `headers`, so a raw `Idempotency-Key`/`If-Match` entry cannot silently
+ * replace the value the caller passed as an option — the command layer records
+ * that value on its receipt, and a receipt that disagrees with the wire is
+ * worse than no receipt. Per-request `ifMatch` on a resource-client method is
+ * folded into `headers` by {@link withIfMatch} and still applies whenever the
+ * option-level shorthand is absent, which is every existing call site.
+ */
+function jsonHeaders(options: HonuaControlPlaneRequestOptions): HeadersInit {
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
-    ...headersToRecord(headers),
+    ...headersToRecord(options.headers),
+    ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+    ...(options.ifMatch ? { "If-Match": options.ifMatch } : {}),
   };
 }
 
@@ -479,6 +495,8 @@ function listHeaders(options: HonuaControlPlaneListOptions): HeadersInit {
   const headers: Record<string, string> = {
     Accept: "application/json",
     ...headersToRecord(options.headers),
+    ...(options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {}),
+    ...(options.ifMatch ? { "If-Match": options.ifMatch } : {}),
   };
   if (options.validator?.etag) headers["If-None-Match"] = options.validator.etag;
   if (options.validator?.lastModified) headers["If-Modified-Since"] = options.validator.lastModified;

@@ -6,6 +6,11 @@
  * tokens, workspaces, connections, and sharing, with typed handoff through
  * MapPackage locators and SourceDescriptor-compatible shapes.
  *
+ * It also owns the shared application-command layer (`./commands/index.js`):
+ * one typed, idempotent command set that the CLI, MCP, Studio, and direct JS
+ * all dispatch through, so no surface reimplements domain sequencing or
+ * authorization policy.
+ *
  * @experimental This entrypoint is not yet covered by the SDK's semver contract
  *   — the surface may change in any minor release prior to `1.0.0`.
  * @module
@@ -24,6 +29,7 @@ export {
   createHonuaControlPlane,
 } from "./client.js";
 export type { HonuaControlPlaneClientOptions } from "./client.js";
+export * from "./commands/index.js";
 export {
   HonuaAdminApiError,
   HonuaAdminClient,

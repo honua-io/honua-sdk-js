@@ -60,6 +60,20 @@ export type HonuaControlPlaneResult<T> = HonuaControlPlaneSuccess<T> | HonuaCont
 export interface HonuaControlPlaneRequestOptions {
   readonly signal?: AbortSignal;
   readonly headers?: HeadersInit;
+  /**
+   * Sent as the `Idempotency-Key` request header. Lets a retried mutation
+   * collapse to one server-side effect. The shared command layer
+   * (`./commands/index.js`) derives one deterministically from the command id,
+   * the canonicalized input, and the tenant so the same logical request is
+   * idempotent across the CLI, MCP, Studio, and direct JS.
+   */
+  readonly idempotencyKey?: string;
+  /**
+   * Sent as the `If-Match` request header — the optimistic-concurrency
+   * validator from a prior {@link HonuaEntityValidators}. An explicit
+   * `headers` entry of the same name still wins.
+   */
+  readonly ifMatch?: string;
 }
 
 export interface HonuaControlPlaneListOptions extends HonuaControlPlaneRequestOptions {
