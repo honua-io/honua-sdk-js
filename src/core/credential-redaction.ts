@@ -68,9 +68,18 @@ export class HonuaExportSafetyError extends HonuaSdkError {
  * Property names that are never exported, whatever their value. Matched
  * case-insensitively against the whole key (substring match), so `apiKey`,
  * `X-API-KEY`, `refresh_token`, and `sessionCookie` are all caught.
+ *
+ * The `<qualifier>Key` family is enumerated rather than reduced to a bare
+ * `key`: `key` alone would refuse `primaryKey`, `layerKey`, `sortKey`, and the
+ * MapLibre style spec's own `*-key` properties, and an exporter that withholds
+ * a table's primary key is not safer, only broken. The qualifiers listed here
+ * have no innocent reading — `adminKey` in particular is the property name this
+ * repository's own CLI configuration uses for the root administrator
+ * credential (`profiles.<name>.adminKey`), so it must never ride out of an
+ * export or a diagnostic bundle.
  */
 const SENSITIVE_KEY =
-  /(?:api[-_]?key|auth|bearer|cookie|credential|cred(?:s)?\b|jwt|nonce|pass(?:word|wd)?|private[-_]?key|pwd|secret|session|sig(?:nature)?|subscription[-_]?key|token)/i;
+  /(?:api[-_]?key|(?:access|admin|encryption|master|root|signing)[-_]?key|auth|bearer|cookie|credential|cred(?:s)?\b|jwt|nonce|pass(?:word|wd)?|private[-_]?key|pwd|secret|session|sig(?:nature)?|subscription[-_]?key|token)/i;
 
 /** Property names that leak *authorization scope* rather than the secret itself. */
 const AUTHORIZATION_SCOPE_KEY =
@@ -109,7 +118,7 @@ const CREDENTIAL_PATTERNS: readonly [RegExp, string][] = [
   // under any entropy heuristic. `\b` before each name keeps `turnkey=` and
   // `monkey=` from matching.
   [
-    /\b(access[-_]?key|api[-_]?key|apikey|authorization|client[-_]?secret|cookie|credential|jwt|key|pass(?:password)?|password|pwd|se|secret|session|sig|signature|st|subscription[-_]?key|sv|token|x-amz-[a-z-]{1,32}|x-goog-[a-z-]{1,32})\s*[:=]\s*(?:"[^"]{0,512}"|'[^']{0,512}'|[^\s&,;}"']{1,512})/gi,
+    /\b(access[-_]?key|admin[-_]?key|api[-_]?key|apikey|authorization|client[-_]?secret|cookie|credential|encryption[-_]?key|jwt|key|master[-_]?key|pass(?:password)?|password|pwd|root[-_]?key|se|secret|session|sig|signature|signing[-_]?key|st|subscription[-_]?key|sv|token|x-amz-[a-z-]{1,32}|x-goog-[a-z-]{1,32})\s*[:=]\s*(?:"[^"]{0,512}"|'[^']{0,512}'|[^\s&,;}"']{1,512})/gi,
     `$1=${HONUA_EXPORT_REDACTED}`,
   ],
 ];
