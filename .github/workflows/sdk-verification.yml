@@ -543,9 +543,15 @@ jobs:
       # thresholds. The coverage-gate job below merges all four and evaluates
       # the repository thresholds exactly once.
       - name: Run unit coverage shard
+        id: unit_coverage
+        # Vitest's blob reporter records failed specs and partial coverage, but
+        # exits against the partial global threshold before reports can merge.
+        # Preserve that outcome in the blob; coverage-gate is the one verdict.
+        continue-on-error: true
         run: node scripts/unit-test-shards.mjs run ${{ matrix.shard }}
 
       - name: Upload raw unit coverage shard
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: unit-coverage-shard-${{ matrix.shard }}

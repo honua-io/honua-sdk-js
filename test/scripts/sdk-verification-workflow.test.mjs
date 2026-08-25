@@ -489,6 +489,11 @@ describe("the graph preserves the coverage ci.yml enforces today", () => {
       fs.readFileSync(path.join(root, "scripts/unit-test-shards.mjs"), "utf8"),
       /"--coverage", "--reporter=blob"/u,
     );
+    const shardStep = steps(graph, "unit-coverage").find((step) => step.id === "unit_coverage");
+    assert.equal(shardStep["continue-on-error"], true, "partial thresholds must be deferred to the merge");
+    const upload = steps(graph, "unit-coverage").find((step) => String(step.uses ?? "").includes("upload-artifact"));
+    assert.equal(upload.if, "always()", "failed specs must still reach the authoritative merge");
+    assert.equal(upload.with["if-no-files-found"], "error", "a shard without a blob must fail closed");
     const mergeScripts = steps(graph, "coverage-gate").map(stepScript).join("\n");
     assert.match(mergeScripts, /--merge-reports=.*--coverage/u);
     const download = steps(graph, "coverage-gate").find((step) => String(step.uses ?? "").includes("download-artifact"));
