@@ -111,6 +111,96 @@ When the user asks for a ticket, backlog item, epic, workstream, or GitHub issue
 - For work that spans the Honua platform, create an umbrella issue in the coordinating repo and child issues in implementation repos when the scope is concrete enough. If only one issue is requested, include an `Affected repos` section.
 - Use existing labels when practical: `enhancement`, `area/sdk`, `area/mcp`, `area/server`, `area/infrastructure`, `phase/MVP`, `phase/Beta`, `priority/P*`, and `effort/*`.
 
+## Pull Requests
+
+### Issue disposition footer (CI-enforced)
+
+Every PR body must end with a contiguous block of disposition lines. The
+required `PR Issue Disposition` check runs `scripts/check-pr-issue-disposition.mjs`
+and **fails the PR** on any deviation, so get it right when you open the PR
+rather than after a red check.
+
+Each line is exactly one of:
+
+```
+Closes #N
+Refs #N (explanation)
+```
+
+**Use `Closes` when every acceptance criterion on the issue is met.** Do not
+downgrade finished work to `Refs` out of caution — a closed issue is the point
+of the work, and leaving a satisfied issue open is its own kind of drift.
+
+**Use `Refs` only when the issue genuinely still has open acceptance
+criteria** after this PR merges, and say in the parenthetical what remains.
+Typical honest reasons: the rest needs a live candidate server, published
+registry bytes, a real release cut, a change in another repository, or a
+blocking issue. If you are using `Refs`, you should be able to name the
+specific unmet criterion.
+
+The explanation is not free-form. It must:
+
+- be 1–160 characters, trimmed, with no parentheses or newlines inside it;
+- contain at least one progress marker — `S<number>`, `slice`, `partial`,
+  `remain` / `remains` / `remaining`, `follow-up`, `blocked`, or `handoff`.
+
+Further rules the validator enforces:
+
+- The block may declare several issues (at most 20), one per line, with no
+  issue repeated.
+- No `Refs #N` may appear anywhere above the block — a stray one in the prose
+  fails as `misplaced-reference`.
+- No closing keyword tied to an issue (`close`/`closes`/`closed`,
+  `fix`/`fixes`/`fixed`, `resolve`/`resolves`/`resolved` followed by `#N`) may
+  appear above the block. Write neutral prose and keep closure intent only in
+  the footer. "This does not close #123" fails; say "this PR is not sufficient
+  on its own" instead.
+
+Valid examples:
+
+```
+Closes #1421
+```
+
+```
+Refs #1397 (server-discovered routing; family/view metadata remains, blocked on honua-server#3428)
+Refs #1398 (proposal status client; draft enumeration remains, blocked on honua-server#3003)
+```
+
+Check a body against the real validator before pushing instead of guessing:
+
+```bash
+node --input-type=module -e '
+import { parsePullRequestDisposition } from "./scripts/lib/pr-issue-disposition.mjs";
+import { readFileSync } from "node:fs";
+console.log(parsePullRequestDisposition(readFileSync("/tmp/body.md", "utf8")));'
+```
+
+### Keeping a PR mergeable
+
+- Trunk protection requires conversation resolution: every review thread must
+  be resolved before merge. Judge automated review findings on the evidence —
+  fix the real ones, and reject a false positive with concrete proof rather
+  than making a no-op change to silence it.
+- CI runs **trunk's** workflow against your branch. When a merged PR adds a new
+  gate, older branches fail with `Missing script: "<name>"` until they merge
+  trunk. Merge or rebase onto `origin/trunk` before diagnosing such a failure
+  as a defect in your own work.
+- `docs/bundle-sizes.md` is regenerated on trunk by automation and conflicts
+  often. Never hand-merge it: take trunk's copy and regenerate.
+
+  ```bash
+  git checkout origin/trunk -- docs/bundle-sizes.md
+  npm run report:bundle-sizes
+  npm run verify:bundle-budgets
+  ```
+
+- A ceiling that appears in more than one file must be changed in all of them.
+  The `/web-components` gzip ceiling, for example, lives in
+  `bundle-budgets.json`, `config/app-platform-reference-evidence.v1.json`, and
+  the generated `config/app-platform-reference-qualification.v1.json`
+  (regenerate with `npm run qualification:app-platform`).
+
 ## Specifica Requirement Format
 
 Use the Specifica format for product backlog issues, epics, and cross-repo workstreams. The issue body should be requirement-first and traceable, not a loose idea note.
