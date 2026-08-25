@@ -376,7 +376,12 @@ export class McpNotificationStream {
   }
 
   #handleFrame(id: string | undefined, data: string): void {
-    if (id) this.#lastEventId = id;
+    // An `id:` field with an empty value is how the SSE spec says a server
+    // clears its event cursor. Treating `""` as "no id present" kept the old
+    // cursor, so the next reconnect replayed from an event the server had
+    // explicitly retired. `undefined` (no field at all) still means "leave the
+    // cursor alone"; `""` means "forget it".
+    if (id !== undefined) this.#lastEventId = id === "" ? undefined : id;
     if (!data) return;
 
     let payload: unknown;

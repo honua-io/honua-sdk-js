@@ -320,6 +320,10 @@ class StudioAgentSessionImpl implements StudioAgentSession {
    * catalog survives.
    */
   #discoveryGeneration = 0;
+  /** A `tools/list_changed` refresh is running; see `#refreshFromNotification`. */
+  #toolRefreshInFlight = false;
+  /** A notification arrived mid-refresh and owes us one trailing walk. */
+  #toolRefreshPending = false;
   #mcpClient: McpClient | undefined;
   /** The opt-in `tools/list_changed` subscription. `undefined` until the first successful discovery pass. */
   #toolWatch: McpNotificationStream | undefined;
@@ -543,13 +547,46 @@ class StudioAgentSessionImpl implements StudioAgentSession {
       },
       onNotification: (notification) => {
         if (notification.method !== MCP_TOOL_LIST_CHANGED_NOTIFICATION) return;
+        void this.#refreshFromNotification();
+      },
+    });
+  }
+
+  /**
+   * Collapse a burst of `tools/list_changed` notifications into one trailing
+   * refresh.
+   *
+   * `refreshTools()` invalidates the shared discovery promise and starts a
+   * fresh paginated walk, so calling it per notification made a burst of N
+   * notifications into N concurrent walks against the same server — a
+   * thundering herd produced by the very mechanism meant to keep the catalog
+   * cheap to maintain.
+   *
+   * At most two refreshes are ever in play: the one running, and one queued
+   * behind it. A notification that arrives mid-refresh sets the pending flag
+   * rather than starting a walk, because that refresh may have already read
+   * the server state the notification is announcing; the trailing run is what
+   * guarantees the final state is observed.
+   */
+  async #refreshFromNotification(): Promise<void> {
+    if (this.#toolRefreshInFlight) {
+      this.#toolRefreshPending = true;
+      return;
+    }
+    this.#toolRefreshInFlight = true;
+    try {
+      do {
+        this.#toolRefreshPending = false;
         // `refreshTools()` reports its own failures on the returned report and
         // never rejects; the `catch` is belt-and-braces so an unexpected
         // rejection can never become an unhandled rejection on the stream's
         // read loop.
-        void this.refreshTools().catch(() => undefined);
-      },
-    });
+        await this.refreshTools().catch(() => undefined);
+      } while (this.#toolRefreshPending);
+    } finally {
+      this.#toolRefreshInFlight = false;
+      this.#toolRefreshPending = false;
+    }
   }
 
   /**

@@ -184,7 +184,9 @@ function unclassified(name: string): McpToolDescriptor {
 
 function notificationFrame(method: string, id?: string): string {
   const data = JSON.stringify({ jsonrpc: "2.0", method });
-  return `${id ? `id: ${id}\n` : ""}data: ${data}\n\n`;
+  // `id` absent omits the field entirely; `""` emits `id:` with an empty
+  // value, which is how SSE says "forget the cursor".
+  return `${id === undefined ? "" : `id: ${id}\n`}data: ${data}\n\n`;
 }
 
 async function waitFor(predicate: () => boolean, label: string, ticks = 500): Promise<void> {
@@ -276,6 +278,54 @@ describe("tools/list_changed subscription", () => {
     expect(server.listCalls).toBe(2);
     expect(server.getCount).toBe(1);
     expect(events.filter((event) => event.type === "toolDiscovery")).toHaveLength(2);
+    session.close();
+  });
+
+  // A burst is the normal shape of a server mutating several tools at once.
+  // Refreshing per notification turned N announcements into N concurrent
+  // paginated walks against the same server -- a thundering herd created by
+  // the mechanism meant to keep the catalog cheap.
+  it("coalesces a burst of notifications into one trailing refresh", async () => {
+    const server = createMcpTestServer({ pages: [{ tools: [classified("honua_studio_add_layer")] }] });
+    const session = makeWatchingSession(server);
+
+    await session.refreshTools();
+    expect(server.listCalls).toBe(1);
+    await waitFor(() => server.streams.length === 1, "the notification stream to open");
+
+    server.setPages([{ tools: [classified("honua_studio_add_layer"), classified("honua_studio_add_widget")] }]);
+    const stream = server.streams[0];
+    for (let i = 0; i < 5; i += 1) stream?.push(notificationFrame(MCP_TOOL_LIST_CHANGED_NOTIFICATION));
+
+    await waitFor(() => session.compositionTools.length === 2, "the catalog to reflect the burst");
+    // The final state is observed, which is the point of the trailing run...
+    expect(session.compositionTools).toEqual(["honua_studio_add_layer", "honua_studio_add_widget"]);
+    // ...but five announcements did not buy five walks. At most one refresh
+    // runs while one more is queued behind it, so the burst costs 2, not 5.
+    expect(server.listCalls).toBeLessThanOrEqual(3);
+    session.close();
+  });
+
+  // SSE: an `id:` field with an empty value retires the server's cursor. The
+  // truthiness check kept the old one, so a reconnect asked to replay from an
+  // event the server had explicitly dropped.
+  it("clears the resume cursor when the server sends an empty event id", async () => {
+    const server = createMcpTestServer({ pages: [{ tools: [classified("honua_studio_add_layer")] }] });
+    const session = makeWatchingSession(server);
+
+    await session.refreshTools();
+    await waitFor(() => server.streams.length === 1, "the notification stream to open");
+
+    const first = server.streams[0];
+    first?.push(notificationFrame(MCP_TOOL_LIST_CHANGED_NOTIFICATION, "evt-1"));
+    await waitFor(() => server.listCalls >= 2, "the first refresh");
+    // The server now retires its cursor.
+    first?.push(notificationFrame(MCP_TOOL_LIST_CHANGED_NOTIFICATION, ""));
+    await waitFor(() => server.listCalls >= 3, "the refresh after the cursor is cleared");
+
+    first?.end();
+    await waitFor(() => server.getHeaders.length === 2, "the stream to reconnect");
+    expect(server.getHeaders[1]?.["last-event-id"]).toBeUndefined();
     session.close();
   });
 
