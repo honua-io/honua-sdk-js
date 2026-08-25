@@ -53,14 +53,23 @@
  * (`content-type: application/json`) or, for a server running the
  * streaming-capable profile, a one-shot SSE frame carrying the same JSON-RPC
  * object (`content-type: text/event-stream`) — `#parseResponseBody` handles
- * both; this client never opens the optional standalone `GET /mcp` push
- * stream (off by default server-side, and irrelevant to a request/response
- * tool call).
+ * both.
+ *
+ * ## Server-initiated notifications
+ *
+ * `POST /mcp` can only ever carry an answer to something this client asked
+ * for, so it cannot deliver `notifications/tools/list_changed`. That travels
+ * the transport's other stream — the standalone `GET /mcp` SSE subscription —
+ * which {@link McpClient.watchNotifications} opens on demand. It is strictly
+ * opt-in: nothing on the request/response path starts it, and a server that
+ * does not offer the channel answers `405` and the subscription ends
+ * `unsupported` without erroring. See `./mcp-notifications.ts`.
  *
  * @module
  */
 import type { StudioAiTokenSource } from "./ai-contract.js";
 import { McpProtocolError, McpToolError, McpTransportError } from "./mcp-errors.js";
+import { McpNotificationStream, type McpNotificationWatchOptions } from "./mcp-notifications.js";
 import {
   type JsonRpcResponse,
   MCP_PROTOCOL_VERSION,
@@ -250,6 +259,32 @@ export class McpClient {
       `MCP tools/list did not terminate within ${maxPages} pages; refusing to page further.`,
       JSON_RPC_INTERNAL_ERROR,
     );
+  }
+
+  /**
+   * Subscribes to the server's standalone `GET /mcp` SSE stream and reports
+   * every server-initiated notification — `notifications/tools/list_changed`
+   * above all — until the subscription is closed, the server declines the
+   * channel, or the reconnect budget runs out.
+   *
+   * The returned stream reads this client's session id on every connect
+   * attempt, so a {@link resetSession} plus re-handshake is carried
+   * automatically. Call this only after (or alongside) a request that has
+   * established a session: an un-handshaken client sends no `Mcp-Session-Id`,
+   * which a session-enforcing server rejects.
+   *
+   * Nothing else on this client starts a stream — a consumer that never calls
+   * this never opens one.
+   */
+  public watchNotifications(options: McpNotificationWatchOptions = {}): McpNotificationStream {
+    return new McpNotificationStream({
+      baseUrl: this.#baseUrl,
+      ...(this.#auth ? { auth: this.#auth } : {}),
+      fetchImpl: this.#fetchImpl,
+      sessionId: () => this.#sessionId,
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      ...options,
+    }).start();
   }
 
   /**

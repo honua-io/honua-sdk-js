@@ -7,24 +7,31 @@
  *
  * `map publish` is the reference **thin transport adapter** for the shared
  * control-plane command layer (`src/control-plane/commands/`). It parses flags
- * into `MapPackagePublishInput` plus a `HonuaCommandInvocation` and renders the
- * returned receipt — nothing else. Idempotency, `If-Match`, dry run,
- * cancellation, validation, the typed error taxonomy, and receipt assembly all
- * live on the command, so a `honua map publish …` call and the equivalent
- * `runtime.execute(mapPackagePublishCommand, …)` call from MCP, Studio, or
- * plain JS produce the same receipt and the same `auditKey`. Compare with
- * `mapExport` below, which still speaks to the data-plane client directly.
+ * into `MapPackagePublishInput` plus a `HonuaCommandInvocation` and hands both
+ * to the shared `runCommandVerb` — nothing else. Idempotency, `If-Match`, dry
+ * run, cancellation, validation, the typed error taxonomy, and receipt
+ * assembly all live on the command, so a `honua map publish …` call and the
+ * equivalent `runtime.execute(mapPackagePublishCommand, …)` call from MCP,
+ * Studio, or plain JS produce the same receipt and the same `auditKey`.
+ *
+ * `map export` and `tiles` below are deliberately NOT command-layer verbs.
+ * They speak to the data-plane `HonuaClient` (`exportMap`, `imageService`),
+ * not to the control plane: there is no publication, no job hand-off, and no
+ * optimistic-concurrency sequencing to lift out of the transport, so routing
+ * them through a command would add a receipt to a plain read and remove
+ * nothing.
  *
  * @packageDocumentation
  */
 
 import fs from "node:fs";
-import type { HonuaCommandInvocation, HonuaCommandReceipt, MapPackagePublishInput } from "../../control-plane/index.js";
-import { HonuaCommandError, mapPackagePublishCommand } from "../../control-plane/index.js";
+import type { HonuaCommandInvocation, HonuaCommandStatus, MapPackagePublishInput } from "../../control-plane/index.js";
+import { mapPackagePublishCommand } from "../../control-plane/index.js";
 import type { HonuaMapPackage } from "../../runtime/index.js";
 import type { ParsedArgs } from "../args.js";
 import { ArgError, getBoolean, getString, parseBbox } from "../args.js";
-import { createClient, createCommandRuntime } from "../client.js";
+import { createClient } from "../client.js";
+import { cliCommandInvocation, runCommandVerb } from "../command-adapter.js";
 import type { CommandContext } from "../command.js";
 import { resolveConnection } from "../config.js";
 import { downloadCredentialedResource } from "../download.js";
@@ -60,14 +67,6 @@ export function mapPublishInvocation(parsed: ParsedArgs): {
   }
   const workspaceId = getString(parsed, "workspace");
   const message = getString(parsed, "message");
-  const actor = getString(parsed, "actor");
-  const tenantId = getString(parsed, "tenant");
-  const idempotencyKey = getString(parsed, "idempotency-key");
-  const ifMatch = getString(parsed, "if-match");
-  const identity = {
-    ...(actor ? { actor } : {}),
-    ...(tenantId ? { tenantId } : {}),
-  };
   return {
     input: {
       package: readMapPackage(packageRaw),
@@ -75,13 +74,7 @@ export function mapPublishInvocation(parsed: ParsedArgs): {
       ...(workspaceId ? { workspaceId } : {}),
       ...(message ? { message } : {}),
     },
-    invocation: {
-      transport: "cli",
-      ...(Object.keys(identity).length > 0 ? { identity } : {}),
-      ...(idempotencyKey ? { idempotencyKey } : {}),
-      ...(ifMatch ? { ifMatch } : {}),
-      ...(getBoolean(parsed, "dry-run") ? { dryRun: true } : {}),
-    },
+    invocation: cliCommandInvocation(parsed),
   };
 }
 
@@ -100,7 +93,7 @@ export function mapPublishInvocation(parsed: ParsedArgs): {
  *
  * @internal
  */
-export function mapPublishHeading(status: HonuaCommandReceipt["status"]): string {
+export function mapPublishHeading(status: HonuaCommandStatus): string {
   switch (status) {
     case "ok":
       return "Map package published";
@@ -117,47 +110,20 @@ export function mapPublishHeading(status: HonuaCommandReceipt["status"]): string
 
 async function mapPublish(parsed: ParsedArgs, ctx: CommandContext): Promise<void> {
   const { input, invocation } = mapPublishInvocation(parsed);
-  // Terminal-UX confirmation only, matching `honua admin`'s gate on mutating
-  // operations. It decides whether this terminal issues the command; it is not
-  // domain sequencing and not an authorization decision, both of which stay in
-  // the command layer and on the server respectively.
-  if (!invocation.dryRun && !getBoolean(parsed, "yes")) {
-    throw new ArgError("honua map publish mutates state. Re-run with --yes, or preview the plan with --dry-run.");
-  }
-  const runtime = createCommandRuntime({ baseUrl: ctx.baseUrl, apiKey: ctx.apiKey, profile: ctx.profile });
-
-  let receipt: HonuaCommandReceipt;
-  try {
-    receipt = await runtime.execute(mapPackagePublishCommand, input, invocation);
-  } catch (error) {
-    // Adaptation only: the taxonomy is the command layer's, not the CLI's.
-    if (error instanceof HonuaCommandError && (error.kind === "validation" || error.kind === "authorization")) {
-      throw new ArgError(error.message);
-    }
-    throw error;
-  }
-
-  if (getBoolean(parsed, "json")) {
-    printLine(renderJson(receipt));
-    return;
-  }
-  printLine(
-    renderDetail(
-      {
-        command: receipt.commandId,
-        status: receipt.status,
-        package: receipt.resourceRef?.id ?? "(not assigned)",
-        workspace: receipt.resourceRef?.workspaceId ?? "(default)",
-        request: `${receipt.plan.method} ${receipt.plan.path}`,
-        idempotencyKey: receipt.idempotencyKey,
-        correlationId: receipt.correlationId,
-        etag: receipt.validators?.etag ?? "(none)",
-        authorization: receipt.authorization,
-        auditKey: receipt.auditKey,
-      },
-      { title: mapPublishHeading(receipt.status) },
-    ),
-  );
+  await runCommandVerb({
+    command: mapPackagePublishCommand,
+    input,
+    invocation,
+    parsed,
+    ctx,
+    heading: mapPublishHeading,
+    confirm: "honua map publish mutates state. Re-run with --yes, or preview the plan with --dry-run.",
+    detail: (receipt) => ({
+      package: receipt.resourceRef?.id ?? "(not assigned)",
+      workspace: receipt.resourceRef?.workspaceId ?? "(default)",
+      etag: receipt.validators?.etag ?? "(none)",
+    }),
+  });
 }
 
 /** `--package '<json>'` or `--package @file.json`. */
