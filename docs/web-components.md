@@ -43,6 +43,65 @@ const controller = createHonuaWebComponentController({
 document.querySelector("honua-map")!.controller = controller;
 ```
 
+## Supported application shell
+
+The canonical `@honua/app-platform/web-components` package exposes one
+supported, versioned application context for the whole component suite. The
+deprecated `@honua/sdk-js/web-components` forwarding entrypoint exposes the
+same contract during the 0.1.x transition.
+
+```ts doc-test=skip reason="requires browser markup and a Source supplied by the application"
+import { createHonuaApplicationContext, mountHonuaApplication } from "@honua/app-platform/web-components";
+
+const context = createHonuaApplicationContext({
+  binding: { source: incidents, sourceIdentity: "incidents", plan: acceptedPlan },
+  authorization: { status: "authorized", principalId: "operator-17", scopes: ["incidents:read"] },
+  locale: { locale: "ar", direction: "rtl" },
+  theme: { accent: "#005ea8", colorScheme: "light dark" },
+});
+
+const application = await mountHonuaApplication({
+  host: document.querySelector("main")!,
+  context,
+});
+
+// Source or authorization replacement synchronously clears principal-bound
+// selection/edit state and aborts work owned by the previous identity.
+context.replaceBinding({ source: parcels, sourceIdentity: "parcels" });
+
+// Release the observer, component bindings, listeners, and owned resources.
+application.dispose();
+```
+
+`mountHonuaApplication()` registers the canonical suite once, binds existing
+and later `honua-*` descendants through their `applicationContext` property,
+and disconnects removed descendants. Components can implement the optional
+`honuaApplicationContextConnected`, `honuaApplicationContextChanged`, and
+`honuaApplicationContextDisconnected` lifecycle callbacks. The shell owns no
+result cache. `runSharedRequest()` only deduplicates in-flight work, and source,
+plan, or authorization invalidation aborts that work before the new identity is
+published.
+
+The supported status vocabulary is `idle`, `loading`, `ready`, `empty`,
+`stale`, `degraded`, `unauthorized`, `unsupported`, `offline`, and `failed`.
+`statusPresentation()` gives every component the same localized label,
+`role`, `aria-live`, busy, and recovery semantics. Changes use the supported
+`honua-application-context-change`, `honua-application-status-change`, and
+`honua-application-diagnostic` events. Component-specific properties and
+events remain at the production or survival tier recorded in the catalog;
+experimental adapters remain explicitly opt-in.
+
+Locale packs are scoped to a context and cover status messages plus
+`Intl.NumberFormat` / `Intl.DateTimeFormat` / unit defaults. The mount projects
+`lang` and `dir` (including RTL) on its host. Theme tokens map to the existing
+`--honua-ui-*` properties, while mount-local tokens override context tokens.
+Neither locale nor theme uses global mutable state, and disposal restores the
+host's original attributes and token values.
+
+The installed-package end-to-end journey, time-bounded evidence, budgets, and
+component-to-test mapping are published in the
+[Application Components Reference Workbench](./application-components-reference.md).
+
 `honua-map` owns a MapLibre GL JS map for package and controller bindings.
 Import MapLibre's CSS in browser demos, then pass either an inline `MapPackage`,
 a hosted package URL, or a controller whose state contains a package. MapLibre
@@ -367,6 +426,33 @@ still load a new question. `ledger.lifetimeRequests`, `ledger.rows`,
 is clamped and the result reports `truncated: true` with the `limit` that
 applied.
 
+CSV serialization treats leading `=`, `+`, `-`, `@`, tab, and carriage return
+as spreadsheet control syntax and prefixes those cells with an apostrophe.
+This prevents source-returned text from becoming an executable formula when a
+bounded CSV is opened in a spreadsheet application.
+
+`budgets.maxFields` bounds the projected and rendered column window, while
+`budgets.maxExportBytes` bounds the final UTF-8 artifact independently of the
+row ceiling. The column disclosure above the grid provides native checkbox
+controls for every declared field; hidden fields stay in the declarative model
+but leave the projection and DOM.
+
+Columns are horizontally virtualized independently of rows. The engine's
+`setColumnScroll(...)` computes a bounded window capped by
+`budgets.maxRenderedColumns`; the grid materializes only that slice plus
+inert leading/trailing spacers. `aria-colcount` continues to name every
+admitted visible field and each rendered header/cell carries its absolute
+`aria-colindex`, so assistive technology retains the full grid coordinates.
+`<honua-feature-table column-width="160">` controls the fixed width used for
+the horizontal window calculation.
+
+For downloadable artifacts, use `table.secureExport(...)`. Its required host
+adapter re-authorizes the current query, receives no credentials, and records a
+provenance envelope after the engine re-executes the accepted bounded query.
+The envelope names the host decision, adapter, authorization scope, accepted
+plan, row count, truncation, and timestamp. Aborting before authorization,
+during paging, or before audit recording prevents a successful result.
+
 ### Result truth, never a manufactured count
 
 `snapshot.state` is one of `idle`, `loading`, `ready`, `partial`, `stale`,
@@ -410,10 +496,31 @@ as a residual, and virtualization plus column formatting are always recorded as
 client presentation work. `featureTableWorkByTier(evidence, tier)` selects one
 tier.
 
+The grid projects that same evidence into a compact, accessible **Query
+execution** badge list. A Server, Worker, or Client badge is rendered only when
+the accepted evidence records work at that tier; its tooltip names every
+concern and detail, so the UI never infers pushdown from a protocol name.
+
 Page-cache identity (`featureTablePageCacheKey`) includes the source id and
 version, schema identity, accepted-plan fingerprint, filter, sort, projection,
 authorization scope, and freshness — so a stale page can never answer a
 different question.
+
+The table consumes only canonical `Source.query()`. Protocol translation of
+its filter, sort, projection, pagination, spatial, and aggregate requests is
+covered by the existing real adapter fixtures:
+
+| Protocol | Adapter evidence |
+| --- | --- |
+| GeoServices | `test/contract/geoservices-conformance.test.ts` |
+| OGC API Features | `test/contract/ogc-features-backend-agnostic.test.ts`, `test/contract/ogc-conformance.test.ts` |
+| WFS 2.0 | `test/contract/wfs-backend-agnostic.test.ts`, `test/contract/wfs.test.ts` |
+| OData v4 | `test/contract/odata-backend-agnostic.test.ts`, `test/contract/odata-conformance.test.ts` |
+
+The engine-level suite separately asserts that the accepted canonical request
+contains the expected page, sort, filter, extent, projection, and aggregation;
+the adapter suites above prove that request is translated without a
+table-specific protocol branch.
 
 ### Linked exploration state
 
@@ -424,6 +531,16 @@ changes to selection, sort, visible fields, and filters apply inward. Row keys
 and exploration selection targets round-trip deterministically through
 `table.keysForTargets()` and `table.selectionTargets()`, so map-to-table and
 table-to-map selection agree on identity.
+
+Extent linkage is explicit. A table starts in `"independent"` viewport mode;
+`setViewportMode("linked")` applies `setViewportExtent(...)` as a bounded
+spatial query. `linkFeatureTableToExploration(table, view, { extent: true })`
+tracks the shared map extent, while omitting the option keeps map navigation
+from changing the table question.
+
+`table.aggregate({ groupBy, metrics })` executes a single bounded aggregate
+request through the same planner, filter, extent, cancellation, and evidence
+seams as row navigation. Aggregate rows never enter the page cache.
 
 Selection is independent of cache residency: `keysForTargets()` resolves any
 target for the table's own source — computed from the target's id, not looked up
@@ -453,6 +570,7 @@ announces a documented conflict instead of failing silently:
 | `sort-key-changed`       | An update changed a sorted column's value           |
 | `selection-invalidated`  | Selected rows were deleted upstream                 |
 | `focused-row-deleted`    | The focused row was deleted upstream                |
+| `filter-membership-unknown` | An update may have moved a row into or out of the filtered result |
 | `snapshot-reset`         | A replacement snapshot arrived                      |
 | `schema-changed`         | The source schema changed                           |
 
@@ -526,6 +644,13 @@ const workflow = createFeatureEditorWorkflow({
 const editor = document.querySelector("honua-feature-editor")!;
 editor.workflow = workflow;
 editor.selectedFeature = selectedPermit; // drives update / delete availability
+
+workflow.begin("update");
+const review = workflow.preflight();
+// No adapter call occurs. The review contains source/feature identity, changed
+// field names, geometry/attachment counts, and validation — never values,
+// coordinates, attachment payloads, locators, or credentials.
+if (!review.ready) console.warn(review.blockers, review.validation.errors);
 ```
 
 What the element derives, and what it refuses:
@@ -556,6 +681,29 @@ What the element derives, and what it refuses:
 - **Redacted attachments.** Staged attachment payloads — including string URLs
   that may carry credentials — never enter component state or an emitted event;
   only name, content type, size, and status do.
+- **One mutation receipt.** An accepted or attachment-partial commit carries a
+  credential-free `mutationReceipt`. Feed it to
+  `createHonuaFeatureMutationReconciler(...)` to update the configured map,
+  table, details, counts, selection, tile, query, and offline owners once. The
+  receipt's `mutationId` also deduplicates the matching realtime echo.
+- **Review before transport.** `workflow.preflight()` is a dry-run contract for
+  approval UI and audit logs. It validates the current draft and returns only a
+  credential-free operation/source/identity summary plus changed field names,
+  geometry state, attachment counts, and blockers. It never calls an adapter.
+  Its `mutationId` is allocated when the draft opens and remains stable through
+  validation fixes, transport retry, realtime reconciliation, and the accepted
+  mutation receipt. The current `Source.applyEdits` contract does not accept an
+  idempotency key, so this identity deduplicates application reconciliation; it
+  does not yet make protocol transport idempotent.
+- **Explicit offline recovery.** `queueHonuaFeatureEditorDraft(...)` persists a
+  validated JSON-compatible draft through the canonical offline edit queue and
+  moves the editor to `queued`. Later queue records are projected with
+  `reconcileHonuaFeatureEditorOfflineEdit(...)` into retryable, conflict,
+  cancelled, or committed states. Staged attachments fail closed because the
+  queue cannot persist their payloads; they are never silently omitted. Resolve
+  the element's `honua-feature-edit-offline-conflict` request with
+  `resolveHonuaFeatureEditorOfflineConflict(...)`; the durable queue transition
+  happens before the component leaves its conflict state.
 - **Keyboard and screen-reader complete.** The whole workflow, geometry
   included, is usable without the map canvas: labelled native controls with
   `aria-required` / `aria-invalid` / `aria-describedby`, `role="alert"` problem
@@ -624,9 +772,9 @@ the manifest, so the tier can never be mistaken for gate completion.
 <!-- component-qualification:start -->
 <!-- GENERATED by scripts/component-qualification.mjs from src/controls/qualification.ts. Do not edit by hand; run npm run qualification:components. -->
 
-396 cells across 22 components x 18 gates: **327 passing**, 0 failing, 21 pending, 48 not applicable.
+414 cells across 23 components x 18 gates: **343 passing**, 0 failing, 21 pending, 50 not applicable.
 
-1 of 22 components have cleared every gate. That is a different axis from the catalog's `supportTier`, which records the functional maturity a feature issue delivered: 1 component(s) are `production-tier` and still carry open gates, listed per component as `openGates` in the manifest.
+2 of 23 components have cleared every gate. That is a different axis from the catalog's `supportTier`, which records the functional maturity a feature issue delivered: 2 component(s) are `production-tier` and still carry open gates, listed per component as `openGates` in the manifest.
 
 | Component | Tier | keyboard-behavior | screen-reader-semantics | focus-restoration | reduced-motion | high-contrast | responsive-layout | localization | pseudo-locale | rtl | visual-regression | strict-csp | zero-console-error | deterministic-disposal | duplicate-listener | memory-leak | ssr-import | secure-export | bundle-budget |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -638,6 +786,7 @@ the manifest, so the tier can never be mistaken for gate completion.
 | `honua-layer-list` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
 | `honua-legend` (web-components) | survival | n/a | pass | n/a | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | n/a | pass | pass | n/a | pass |
 | `honua-feature-table` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
+| `honua-feature-inspection` (web-components) | production | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | n/a | pass |
 | `honua-search` (web-components) | survival | pass | pass | pass | pass | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
 | `honua-editor` (web-components) | survival | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pending | pass | pass | pass | pass | pass | pass | n/a | pass |
 | `honua-feature-editor` (web-components) | production | pass | pass | pass | n/a | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | pass | n/a | pass |

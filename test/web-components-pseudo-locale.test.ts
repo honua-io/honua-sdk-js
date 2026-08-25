@@ -29,6 +29,7 @@ const factories: Readonly<Record<string, ElementFactory>> = {
   "web-components.feature-table": () => document.createElement("honua-feature-table"),
   "web-components.search": () => document.createElement("honua-search"),
   "web-components.editor": () => document.createElement("honua-editor"),
+  "web-components.feature-inspection": () => document.createElement("honua-feature-inspection"),
   "web-components.feature-editor": () => new HonuaFeatureEditorElement(),
   "web-components.chart": () => document.createElement("honua-chart"),
   "web-components.basemap-control": () => document.createElement("honua-basemap-control"),

@@ -43,11 +43,18 @@
 
 import type { EditSketchTool } from "../contract/edit-sketch.js";
 import type { CanonicalFeature } from "../contract/types.js";
+import type {
+  HonuaApplicationContext,
+  HonuaApplicationContextChangeEvent,
+  HonuaApplicationDiagnostic,
+} from "./application-context.js";
 import { renderCspSafeShadowHtml } from "./csp-styles.js";
 import type { HonuaEditorFieldControl, HonuaEditorOperation } from "./feature-editor-model.js";
 import type {
   HonuaFeatureEditorCommit,
   HonuaFeatureEditorConflictChoice,
+  HonuaFeatureEditorOfflineState,
+  HonuaFeatureEditorPreflight,
   HonuaFeatureEditorSnapshot,
   HonuaFeatureEditorWorkflow,
 } from "./feature-editor-workflow.js";
@@ -62,13 +69,19 @@ const globalDom = globalThis as typeof globalThis & {
 const HTMLElementBase: typeof HTMLElement = globalDom.HTMLElement ?? (class {} as unknown as typeof HTMLElement);
 
 /** Detail of the `honua-feature-edit-change` event (redacted snapshot). */
-export interface HonuaFeatureEditChangeDetail {
-  readonly snapshot: HonuaFeatureEditorSnapshot;
+export interface HonuaFeatureEditChangeDetail<T = Record<string, unknown>> {
+  readonly snapshot: HonuaFeatureEditorSnapshot<T>;
 }
 
 /** Detail of the `honua-feature-edit-commit` event (submit outcome). */
-export interface HonuaFeatureEditCommitDetail {
-  readonly commit: HonuaFeatureEditorCommit;
+export interface HonuaFeatureEditCommitDetail<T = Record<string, unknown>> {
+  readonly commit: HonuaFeatureEditorCommit<T>;
+}
+
+/** Durable offline conflict choice requested by the editor presentation. */
+export interface HonuaFeatureEditOfflineConflictDetail {
+  readonly choice: HonuaFeatureEditorConflictChoice;
+  readonly offline: HonuaFeatureEditorOfflineState;
 }
 
 const OPERATION_LABELS: Readonly<Record<HonuaEditorOperation, string>> = {
@@ -84,7 +97,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
 
   #workflow: HonuaFeatureEditorWorkflow<T> | undefined;
   #subscription: { remove(): void } | undefined;
-  #snapshot: HonuaFeatureEditorSnapshot | undefined;
+  #snapshot: HonuaFeatureEditorSnapshot<T> | undefined;
   #connected = false;
   #geometryDraft: string | undefined;
   #geometryError: string | undefined;
@@ -96,6 +109,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
    */
   #keydownListener: ((event: Event) => void) | undefined;
   #messages: HonuaFeatureEditorMessages = {};
+  #applicationContext: HonuaApplicationContext<T> | undefined;
 
   public get messages(): HonuaFeatureEditorMessages {
     return this.#messages;
@@ -132,9 +146,34 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     this.#snapshot = workflow.snapshot();
     this.#subscription = workflow.subscribe((snapshot) => {
       this.#snapshot = snapshot;
+      this.#publishApplicationState(snapshot);
       this.#dispatch("honua-feature-edit-change", { snapshot });
       this.render();
     });
+  }
+
+  /** Application shell context assigned and driven by `mountHonuaApplication()`. */
+  public get applicationContext(): HonuaApplicationContext<T> | undefined {
+    return this.#applicationContext;
+  }
+
+  public set applicationContext(context: HonuaApplicationContext<T> | undefined) {
+    if (context === this.#applicationContext) return;
+    this.#applicationContext = context;
+    this.#applyApplicationContext();
+  }
+
+  public honuaApplicationContextConnected(context: HonuaApplicationContext<T>): void {
+    this.applicationContext = context;
+  }
+
+  public honuaApplicationContextChanged(event: HonuaApplicationContextChangeEvent<T>): void {
+    if (event.current !== this.#applicationContext?.snapshot) return;
+    this.#applyApplicationContext(event);
+  }
+
+  public honuaApplicationContextDisconnected(context: HonuaApplicationContext<T>): void {
+    if (this.#applicationContext === context) this.applicationContext = undefined;
   }
 
   /** Equivalent to setting `.workflow`. */
@@ -154,11 +193,21 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
 
   public set selectedFeature(feature: CanonicalFeature<T> | undefined) {
     this.#workflow?.setSelection(feature);
+    const context = this.#applicationContext;
+    if (!context || context.disposed) return;
+    const sourceId = this.#workflow?.source.descriptor.id;
+    const selection = feature && sourceId ? [{ ...feature, sourceId }] : [];
+    if (!sameApplicationValue(context.snapshot.selection, selection)) context.update({ selection });
   }
 
   /** The last snapshot rendered. */
-  public get snapshot(): HonuaFeatureEditorSnapshot | undefined {
+  public get snapshot(): HonuaFeatureEditorSnapshot<T> | undefined {
     return this.#snapshot;
+  }
+
+  /** Credential-free, transport-free review of the current draft. */
+  public preflight(): HonuaFeatureEditorPreflight | undefined {
+    return this.#workflow?.preflight();
   }
 
   public attributeChangedCallback(): void {
@@ -238,6 +287,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
         <style>${editorStyles()}</style>
         <section class="panel" part="panel" role="region" aria-label="${escapeAttribute(label)}">
           <div class="bar"><h2>${escapeHtml(label)}</h2></div>
+          ${this.#applicationPresentationHtml()}
           <p class="empty" role="status">${escapeHtml(this.#messages.noWorkflow ?? "No edit workflow is attached. Set .workflow to an editable source's workflow.")}</p>
         </section>
       `;
@@ -249,6 +299,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
           <h2>${escapeHtml(label)}</h2>
           <span class="state" data-state>${escapeHtml(this.#messages.status?.[snapshot.status] ?? snapshot.status)}${snapshot.dirty ? ` • ${escapeHtml(this.#messages.unsaved ?? "unsaved")}` : ""}</span>
         </div>
+        ${this.#applicationPresentationHtml()}
         ${this.#operationsHtml(snapshot, label)}
         ${this.#conflictHtml(snapshot)}
         ${this.#formHtml(snapshot)}
@@ -261,7 +312,95 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     `;
   }
 
-  #operationsHtml(snapshot: HonuaFeatureEditorSnapshot, label: string): string {
+  #applyApplicationContext(event?: HonuaApplicationContextChangeEvent<T>): void {
+    const context = this.#applicationContext;
+    if (!context) {
+      this.removeAttribute("data-honua-status");
+      this.removeAttribute("aria-disabled");
+      this.render();
+      return;
+    }
+    const snapshot = context.snapshot;
+    this.setAttribute("data-honua-status", snapshot.status);
+    this.setAttribute("lang", snapshot.locale.locale);
+    this.setAttribute("dir", snapshot.locale.direction ?? "auto");
+    this.toggleAttribute("aria-disabled", snapshot.authorization.status === "unauthorized");
+    if (event?.changed.includes("authorization") || event?.changed.includes("binding")) this.#workflow?.cancel();
+    if (!event || event.changed.includes("selection")) {
+      const sourceId = this.#workflow?.source.descriptor.id;
+      if (sourceId) this.#workflow?.setSelection(canonicalFeatureForSource<T>(snapshot.selection, sourceId));
+    }
+    this.render();
+  }
+
+  #publishApplicationState(snapshot: HonuaFeatureEditorSnapshot<T>): void {
+    const context = this.#applicationContext;
+    const workflow = this.#workflow;
+    if (!context || !workflow || context.disposed || context.snapshot.authorization.status === "unauthorized") return;
+    const componentId = "honua-feature-editor";
+    const sourceId = workflow.source.descriptor.id;
+    const edit = {
+      componentId,
+      sourceId,
+      status: snapshot.status,
+      operation: snapshot.operation,
+      identity: snapshot.identity,
+      dirty: snapshot.dirty,
+      mutationReceipt: snapshot.mutationReceipt,
+    };
+    const retainEdit =
+      snapshot.dirty ||
+      snapshot.busy ||
+      snapshot.status === "draft" ||
+      snapshot.status === "queued" ||
+      snapshot.status === "rejected" ||
+      snapshot.status === "conflict" ||
+      snapshot.mutationReceipt !== undefined;
+    const edits = [
+      ...context.snapshot.edits.filter((entry) => !ownedApplicationEntry(entry, componentId, sourceId)),
+      ...(retainEdit ? [edit] : []),
+    ];
+    const editorDiagnostics: HonuaApplicationDiagnostic[] = snapshot.failures.map((failure) => ({
+      code: `feature-editor-${failure.kind}`,
+      message: failure.description,
+      severity: "error",
+      componentId,
+      status: snapshot.status === "unsupported" ? "unsupported" : "failed",
+    }));
+    if (snapshot.conflict) {
+      editorDiagnostics.push({
+        code: "feature-editor-conflict",
+        message: snapshot.conflict.reason,
+        severity: "warning",
+        componentId,
+        status: "degraded",
+      });
+    }
+    const diagnostics = [
+      ...context.snapshot.diagnostics.filter((entry) => entry.componentId !== componentId),
+      ...editorDiagnostics,
+    ];
+    const update = {
+      ...(!sameApplicationValue(context.snapshot.edits, edits) ? { edits } : {}),
+      ...(!sameApplicationValue(context.snapshot.diagnostics, diagnostics) ? { diagnostics } : {}),
+    };
+    if (Object.keys(update).length > 0) context.update(update);
+  }
+
+  #applicationPresentationHtml(): string {
+    const context = this.#applicationContext;
+    if (!context) return "";
+    const presentation = context.statusPresentation();
+    const diagnostics = context.snapshot.diagnostics.filter(
+      (diagnostic) => diagnostic.componentId === undefined || diagnostic.componentId === "honua-feature-editor",
+    );
+    return `<div data-application-presentation>
+      <p class="status" data-application-status role="${presentation.role}" aria-live="${presentation.ariaLive}" aria-busy="${String(presentation.busy)}">${escapeHtml(presentation.label)}</p>
+      ${diagnostics.map((diagnostic) => `<p class="problem" role="${diagnostic.severity === "error" ? "alert" : "status"}" data-application-diagnostic="${escapeAttribute(diagnostic.code)}">${escapeHtml(diagnostic.message)}</p>`).join("")}
+    </div>`;
+  }
+
+  #operationsHtml(snapshot: HonuaFeatureEditorSnapshot<T>, label: string): string {
     const buttons = snapshot.operations
       .map((availability) => {
         const active = snapshot.operation === availability.operation && snapshot.status !== "idle";
@@ -286,7 +425,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     `;
   }
 
-  #conflictHtml(snapshot: HonuaFeatureEditorSnapshot): string {
+  #conflictHtml(snapshot: HonuaFeatureEditorSnapshot<T>): string {
     const conflict = snapshot.conflict;
     if (!conflict) return "";
     const detail =
@@ -310,7 +449,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     `;
   }
 
-  #formHtml(snapshot: HonuaFeatureEditorSnapshot): string {
+  #formHtml(snapshot: HonuaFeatureEditorSnapshot<T>): string {
     const form = snapshot.form;
     if (!form) return "";
     if (form.controls.length === 0) {
@@ -373,7 +512,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     `;
   }
 
-  #geometryHtml(snapshot: HonuaFeatureEditorSnapshot, label: string): string {
+  #geometryHtml(snapshot: HonuaFeatureEditorSnapshot<T>, label: string): string {
     const sketch = snapshot.sketch;
     if (!sketch) return "";
     const tools = sketch.tools
@@ -400,7 +539,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     `;
   }
 
-  #attachmentsHtml(snapshot: HonuaFeatureEditorSnapshot): string {
+  #attachmentsHtml(snapshot: HonuaFeatureEditorSnapshot<T>): string {
     if (!snapshot.form) return "";
     if (!snapshot.attachmentsSupported) {
       return `
@@ -431,7 +570,7 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     `;
   }
 
-  #problemsHtml(snapshot: HonuaFeatureEditorSnapshot): string {
+  #problemsHtml(snapshot: HonuaFeatureEditorSnapshot<T>): string {
     const formErrors = snapshot.form?.formErrors ?? [];
     const fieldErrorCount = (snapshot.form?.controls ?? []).filter((control) => control.errors.length > 0).length;
     const validation =
@@ -458,10 +597,12 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     return `${validation}${failures}`;
   }
 
-  #actionsHtml(snapshot: HonuaFeatureEditorSnapshot): string {
+  #actionsHtml(snapshot: HonuaFeatureEditorSnapshot<T>): string {
     const hasDraft = snapshot.form !== undefined;
     const blockedByConflict = snapshot.conflict !== undefined;
-    const submitDisabled = !hasDraft || snapshot.busy || blockedByConflict || snapshot.form?.valid === false;
+    const offlineQueued = snapshot.status === "queued";
+    const submitDisabled =
+      !hasDraft || snapshot.busy || offlineQueued || blockedByConflict || snapshot.form?.valid === false;
     return `
       <div class="actions" role="group" aria-label="${escapeAttribute(this.#messages.editActionsLabel ?? "Edit actions")}">
         <button type="button" part="submit" data-action="submit"${submitDisabled ? " disabled" : ""}>${escapeHtml(
@@ -470,10 +611,10 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
             : (this.#messages.submit ?? "Submit"),
         )}</button>
         <button type="button" data-action="retry"${snapshot.status === "rejected" && !snapshot.busy ? "" : " disabled"}>${escapeHtml(this.#messages.retry ?? "Retry")}</button>
-        <button type="button" data-action="undo"${snapshot.undo.canUndo ? "" : " disabled"}>${escapeHtml(this.#messages.undo ?? "Undo")}</button>
-        <button type="button" data-action="redo"${snapshot.undo.canRedo ? "" : " disabled"}>${escapeHtml(this.#messages.redo ?? "Redo")}</button>
-        <button type="button" data-action="discard"${hasDraft && snapshot.dirty ? "" : " disabled"}>${escapeHtml(this.#messages.revert ?? "Revert")}</button>
-        <button type="button" data-action="cancel"${hasDraft && !snapshot.busy ? "" : " disabled"}>${escapeHtml(this.#messages.cancel ?? "Cancel")}</button>
+        <button type="button" data-action="undo"${snapshot.undo.canUndo && !offlineQueued ? "" : " disabled"}>${escapeHtml(this.#messages.undo ?? "Undo")}</button>
+        <button type="button" data-action="redo"${snapshot.undo.canRedo && !offlineQueued ? "" : " disabled"}>${escapeHtml(this.#messages.redo ?? "Redo")}</button>
+        <button type="button" data-action="discard"${hasDraft && snapshot.dirty && !offlineQueued ? "" : " disabled"}>${escapeHtml(this.#messages.revert ?? "Revert")}</button>
+        <button type="button" data-action="cancel"${hasDraft && !snapshot.busy && !offlineQueued ? "" : " disabled"}>${escapeHtml(this.#messages.cancel ?? "Cancel")}</button>
       </div>
     `;
   }
@@ -494,7 +635,13 @@ export class HonuaFeatureEditorElement<T = Record<string, unknown>> extends HTML
     root.querySelectorAll<HTMLButtonElement>("button[data-conflict]").forEach((button) => {
       button.addEventListener("click", () => {
         const choice = button.dataset.conflict as HonuaFeatureEditorConflictChoice | undefined;
-        if (choice) workflow.resolveConflict(choice);
+        if (!choice) return;
+        const offline = this.#snapshot?.offline;
+        if (offline?.state === "conflicted") {
+          this.#dispatch("honua-feature-edit-offline-conflict", { choice, offline });
+          return;
+        }
+        workflow.resolveConflict(choice);
       });
     });
 
@@ -682,7 +829,7 @@ function inferSketchTool(geometry: Record<string, unknown>): EditSketchTool | un
   return undefined;
 }
 
-function geometryStateText(sketch: NonNullable<HonuaFeatureEditorSnapshot["sketch"]>): string {
+function geometryStateText(sketch: NonNullable<HonuaFeatureEditorSnapshot<unknown>["sketch"]>): string {
   const snapping = sketch.snapping.enabled ? `snapping on (${sketch.snapping.tolerance}px)` : "snapping off";
   if (sketch.status === "sketching") return `Sketching with ${sketch.activeTool ?? "a tool"} — ${snapping}`;
   if (sketch.geometry === null) return `Geometry cleared — ${snapping}`;
@@ -762,6 +909,36 @@ function escapeHtml(value: string): string {
 
 function escapeAttribute(value: string): string {
   return escapeHtml(value).replace(/'/g, "&#39;");
+}
+
+function canonicalFeatureForSource<T>(
+  selection: readonly unknown[],
+  sourceId: string,
+): CanonicalFeature<T> | undefined {
+  const candidate = selection.find(
+    (entry) =>
+      isRecord(entry) && isRecord(entry.attributes) && (entry.sourceId === undefined || entry.sourceId === sourceId),
+  );
+  if (!candidate || !isRecord(candidate) || !isRecord(candidate.attributes)) return undefined;
+  return {
+    ...(typeof candidate.id === "string" || typeof candidate.id === "number" ? { id: candidate.id } : {}),
+    attributes: candidate.attributes as T,
+    ...(candidate.geometry === undefined
+      ? {}
+      : { geometry: (candidate.geometry as Record<string, unknown> | null) ?? null }),
+  };
+}
+
+function ownedApplicationEntry(entry: unknown, componentId: string, sourceId: string): boolean {
+  return isRecord(entry) && entry.componentId === componentId && entry.sourceId === sourceId;
+}
+
+function sameApplicationValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** Structural styles, themable through the shared `--honua-ui-*` properties. */

@@ -1189,6 +1189,22 @@ export const acceptsSceneSpatialReference = (
     },
   );
   process.stdout.write(componentSmokeResult.stdout);
+  fs.copyFileSync(
+    path.join(PROJECT_ROOT, "test", "fixtures", "packed-app-platform-reference-workbench.mjs"),
+    path.join(tempRoot, "packed-app-platform-reference-workbench.mjs"),
+  );
+  const referenceWorkbenchResult = runCommand(
+    "node",
+    ["packed-app-platform-reference-workbench.mjs"],
+    tempRoot,
+    {
+      env: {
+        ...process.env,
+        HONUA_PACKED_JSDOM_ENTRY: path.join(PROJECT_ROOT, "node_modules", "jsdom", "lib", "api.js"),
+      },
+    },
+  );
+  process.stdout.write(referenceWorkbenchResult.stdout);
 } finally {
   fs.rmSync(tempRoot, { recursive: true, force: true });
 }

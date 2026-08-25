@@ -11,6 +11,7 @@ const HOSTS = {
   "web-components.layer-list": "honua-layer-list",
   "web-components.legend": "honua-legend",
   "web-components.feature-table": "honua-feature-table",
+  "web-components.feature-inspection": "honua-feature-inspection",
   "web-components.search": "honua-search",
   "web-components.editor": "honua-editor",
   "web-components.feature-editor": "honua-feature-editor",

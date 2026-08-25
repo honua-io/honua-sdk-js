@@ -1,0 +1,204 @@
+{
+  "$schema": "./release-artifacts.schema.json",
+  "format": "honua.sdk.release-artifacts.v1",
+  "schemaVersion": 1,
+  "description": "Every npm artifact this repository can publish, each either included in the coordinated release cut or explicitly excluded with a reason. scripts/verify-release-artifacts.mjs fails when this file disagrees with scripts/prepare-split-packages.mjs or with what the publish workflows actually publish, so a new package cannot silently leave the cut.",
+  "registry": "https://registry.npmjs.org",
+  "repository": "honua-io/honua-sdk-js",
+  "cut": {
+    "sealedTagPrefix": "js-sdk-",
+    "sealedBy": ".github/workflows/release-please.yml",
+    "sealedByFunction": "dispatch_resealed_js_publish",
+    "driftGate": "scripts/verify-release-artifacts.mjs",
+    "publishedReleaseVerifier": "scripts/verify-published-release.mjs"
+  },
+  "included": [
+    {
+      "id": "sdk-js",
+      "npmName": "@honua/sdk-js",
+      "source": { "kind": "workspace-package", "packageManifest": "package.json" },
+      "versionSource": "package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-js-sdk.yml",
+        "workingDirectory": ".",
+        "publishArgument": ".",
+        "releaseTagPrefix": "js-sdk-",
+        "releasePleasePackage": "."
+      },
+      "sourceBinding": "sealed-js-sdk-tag",
+      "notes": "The coordinated install. Published from the sealed js-sdk-* tag together with the split packages below, in one workflow run."
+    },
+    {
+      "id": "sdk",
+      "npmName": "@honua/sdk",
+      "source": {
+        "kind": "split-package",
+        "generator": "scripts/prepare-split-packages.mjs",
+        "splitPackageDirectory": "honua-sdk"
+      },
+      "versionSource": "package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-js-sdk.yml",
+        "workingDirectory": ".",
+        "publishArgument": "./dist/packages/honua-sdk",
+        "releaseTagPrefix": "js-sdk-",
+        "releasePleasePackage": "."
+      },
+      "sourceBinding": "sealed-js-sdk-tag",
+      "notes": "Stable-tier split SDK. Versioned from the root manifest, so it can only ever ship at the root package's version."
+    },
+    {
+      "id": "sdk-esri-compat",
+      "npmName": "@honua/sdk-esri-compat",
+      "source": {
+        "kind": "split-package",
+        "generator": "scripts/prepare-split-packages.mjs",
+        "splitPackageDirectory": "honua-sdk-esri-compat"
+      },
+      "versionSource": "package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-js-sdk.yml",
+        "workingDirectory": ".",
+        "publishArgument": "./dist/packages/honua-sdk-esri-compat",
+        "releaseTagPrefix": "js-sdk-",
+        "releasePleasePackage": "."
+      },
+      "sourceBinding": "sealed-js-sdk-tag",
+      "notes": "Peer-depends on @honua/sdk at the exact same version; a partial cut would strand it."
+    },
+    {
+      "id": "react",
+      "npmName": "@honua/react",
+      "source": {
+        "kind": "split-package",
+        "generator": "scripts/prepare-split-packages.mjs",
+        "splitPackageDirectory": "honua-react"
+      },
+      "versionSource": "package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-js-sdk.yml",
+        "workingDirectory": ".",
+        "publishArgument": "./dist/packages/honua-react",
+        "releaseTagPrefix": "js-sdk-",
+        "releasePleasePackage": "."
+      },
+      "sourceBinding": "sealed-js-sdk-tag",
+      "notes": "React provider, hooks, and map components; optional react / react-dom peers."
+    },
+    {
+      "id": "geometry",
+      "npmName": "@honua/geometry",
+      "source": {
+        "kind": "split-package",
+        "generator": "scripts/prepare-split-packages.mjs",
+        "splitPackageDirectory": "honua-geometry"
+      },
+      "versionSource": "package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-js-sdk.yml",
+        "workingDirectory": ".",
+        "publishArgument": "./dist/packages/honua-geometry",
+        "releaseTagPrefix": "js-sdk-",
+        "releasePleasePackage": "."
+      },
+      "sourceBinding": "sealed-js-sdk-tag",
+      "notes": "Curated turf/proj4 geometry operations; backs the esri-compat geometryEngine shim."
+    },
+    {
+      "id": "app-platform",
+      "npmName": "@honua/app-platform",
+      "source": {
+        "kind": "split-package",
+        "generator": "scripts/prepare-split-packages.mjs",
+        "splitPackageDirectory": "honua-app-platform"
+      },
+      "versionSource": "package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-js-sdk.yml",
+        "workingDirectory": ".",
+        "publishArgument": "./dist/packages/honua-app-platform",
+        "releaseTagPrefix": "js-sdk-",
+        "releasePleasePackage": "."
+      },
+      "sourceBinding": "sealed-js-sdk-tag",
+      "notes": "Application-platform surfaces evicted from @honua/sdk-js in the 1.0 scope split (docs/decisions/scope-split-and-1.0.md)."
+    },
+    {
+      "id": "mcp-server",
+      "npmName": "@honua/mcp-server",
+      "source": { "kind": "workspace-package", "packageManifest": "mcp/package.json" },
+      "versionSource": "mcp/package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-mcp-server.yml",
+        "workingDirectory": "mcp",
+        "publishArgument": "",
+        "releaseTagPrefix": "mcp-server-",
+        "releasePleasePackage": "mcp"
+      },
+      "sourceBinding": "own-release-tag",
+      "notes": "In the cut but NOT sealed to the js-sdk tag: release-please.yml dispatches publish-mcp-server.yml against the mcp-server-* tag Release Please created on the version-bump commit, so its provenance names that commit rather than the resealed js-sdk commit."
+    },
+    {
+      "id": "create-honua-app",
+      "npmName": "create-honua-app",
+      "source": {
+        "kind": "workspace-package",
+        "packageManifest": "packages/create-honua-app/package.json"
+      },
+      "versionSource": "packages/create-honua-app/package.json",
+      "publish": {
+        "workflow": ".github/workflows/publish-create-honua-app.yml",
+        "workingDirectory": "packages/create-honua-app",
+        "publishArgument": "",
+        "releaseTagPrefix": "create-honua-app-",
+        "releasePleasePackage": "packages/create-honua-app"
+      },
+      "sourceBinding": "own-release-tag",
+      "notes": "Scaffold CLI published from source rather than from dist/. Same unsealed binding as @honua/mcp-server."
+    }
+  ],
+  "excluded": [
+    {
+      "id": "honua-migrate",
+      "npmName": "@honua/honua-migrate",
+      "source": { "kind": "external-repository", "repository": "honua-io/honua-migrate" },
+      "reason": "Owned and published by honua-io/honua-migrate on its own cadence. This repository only depends on it and proves the forwarder contract offline (scripts/verify-migration-forwarder-tarball.mjs); it is never built or published from this cut."
+    },
+    {
+      "id": "create-honua-app-template-vanilla-ts",
+      "npmName": "honua-app",
+      "source": {
+        "kind": "workspace-package",
+        "packageManifest": "packages/create-honua-app/templates/vanilla-ts/package.json"
+      },
+      "reason": "Scaffold template source shipped inside the create-honua-app tarball. It is the manifest a scaffolded user project receives, never a registry artifact, and stays private so it cannot be published."
+    },
+    {
+      "id": "create-honua-app-template-react-ts",
+      "npmName": "honua-app",
+      "source": {
+        "kind": "workspace-package",
+        "packageManifest": "packages/create-honua-app/templates/react-ts/package.json"
+      },
+      "reason": "Scaffold template source shipped inside the create-honua-app tarball. It is the manifest a scaffolded user project receives, never a registry artifact, and stays private so it cannot be published."
+    },
+    {
+      "id": "example-apps",
+      "source": { "kind": "workspace-tree", "sourceTree": "examples" },
+      "reason": "Runnable demo applications. They consume the published SDK rather than shipping as artifacts, and every package manifest under this tree stays private."
+    },
+    {
+      "id": "sample-playgrounds",
+      "source": { "kind": "workspace-tree", "sourceTree": "playgrounds" },
+      "reason": "Generated standalone projects (scripts/sample-playgrounds.mjs), regenerated per sample rather than versioned. Every package manifest under this tree stays private, so a new playground joins this exclusion automatically instead of silently entering the cut."
+    },
+    {
+      "id": "content-addressed-sample-bundles",
+      "source": {
+        "kind": "non-registry-artifact",
+        "workflow": ".github/workflows/publish-content-addressed-sample-bundles.yml"
+      },
+      "reason": "Content-addressed sample bundles ship as governed GitHub release artifacts reproduced from two independent builds. They are not npm packages, and that workflow never runs npm publish."
+    }
+  ]
+}
