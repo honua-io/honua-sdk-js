@@ -1536,3 +1536,138 @@ describe("review regressions (PR #801)", () => {
     expect(table.selectionTargets()).toEqual([{ sourceId: "incidents", id: 2 }]);
   });
 });
+
+function spatialFilterClause(extent: {
+  readonly xmin: number;
+  readonly ymin: number;
+  readonly xmax: number;
+  readonly ymax: number;
+  readonly spatialReference?: unknown;
+}): FilterClause {
+  return {
+    id: "area-of-interest",
+    owner: { kind: "table", id: "grid" },
+    effect: "spatial-mask",
+    spatialScope: { extent: extent as never },
+  } as FilterClause;
+}
+
+describe("linked viewport combined with a spatial filter", () => {
+  it("intersects overlapping envelopes into one bounded filter", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 })],
+      viewportExtent: { xmin: 5, ymin: 5, xmax: 20, ymax: 20 },
+      viewportMode: "linked",
+    });
+    await table.refresh();
+
+    expect(fixture.requests.at(-1)?.spatialFilter?.geometry).toMatchObject({
+      xmin: 5,
+      ymin: 5,
+      xmax: 10,
+      ymax: 10,
+    });
+  });
+
+  // The intersection of two disjoint envelopes is empty, not inverted. Sending
+  // `xmin > xmax` to the source produced a protocol error or whatever the
+  // server made of it; the table now answers locally with the empty result the
+  // two filters actually describe.
+  it("answers a disjoint viewport locally instead of sending an inverted envelope", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 })],
+      viewportExtent: { xmin: 100, ymin: 100, xmax: 200, ymax: 200 },
+      viewportMode: "linked",
+    });
+    const snapshot = await table.refresh();
+
+    expect(fixture.requests).toHaveLength(0);
+    expect(snapshot.rows.filter(Boolean)).toHaveLength(0);
+    expect(snapshot.count).toMatchObject({ kind: "known", value: 0 });
+    for (const request of fixture.requests) {
+      const geometry = request.spatialFilter?.geometry as { xmin: number; xmax: number } | undefined;
+      if (geometry) expect(geometry.xmin).toBeLessThanOrEqual(geometry.xmax);
+    }
+  });
+
+  it("touching edges still intersect: a shared boundary is not disjoint", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 })],
+      viewportExtent: { xmin: 10, ymin: 10, xmax: 20, ymax: 20 },
+      viewportMode: "linked",
+    });
+    await table.refresh();
+
+    expect(fixture.requests.at(-1)?.spatialFilter?.geometry).toMatchObject({
+      xmin: 10,
+      ymin: 10,
+      xmax: 10,
+      ymax: 10,
+    });
+  });
+
+  it("panning back into the filtered area is not served the disjoint empty page", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10 })],
+      viewportExtent: { xmin: 100, ymin: 100, xmax: 200, ymax: 200 },
+      viewportMode: "linked",
+    });
+    await table.refresh();
+    expect(fixture.requests).toHaveLength(0);
+
+    const snapshot = await table.setViewportExtent({ xmin: 2, ymin: 2, xmax: 8, ymax: 8 });
+    expect(fixture.requests.length).toBeGreaterThan(0);
+    expect(snapshot.rows.filter(Boolean).length).toBeGreaterThan(0);
+  });
+
+  // Coordinates only compare inside one spatial reference. Intersecting across
+  // two declared references would silently produce a wrong envelope.
+  it("refuses to intersect envelopes declared in different spatial references", async () => {
+    const fixture = makeFixture();
+    const table = makeTable(fixture, {
+      filters: [spatialFilterClause({ xmin: 0, ymin: 0, xmax: 10, ymax: 10, spatialReference: { wkid: 4326 } })],
+      viewportExtent: { xmin: 5, ymin: 5, xmax: 20, ymax: 20, spatialReference: { wkid: 3857 } },
+      viewportMode: "linked",
+    });
+
+    const snapshot = await table.refresh();
+    expect(snapshot.state).toBe("error");
+    expect(snapshot.message).toMatch(/spatial reference/i);
+    expect(fixture.requests).toHaveLength(0);
+  });
+});
+
+describe("bounded export byte budget", () => {
+  it("trims to the largest fitting prefix without re-encoding once per dropped row", async () => {
+    const table = makeTable(makeFixture({ totalRows: 400 }), {
+      columns: COLUMNS,
+      budgets: { pageSize: 400, maxExportRows: 400, maxExportBytes: 400 },
+    });
+    await table.refresh();
+
+    const exported = await table.export({ format: "csv" });
+    expect(new TextEncoder().encode(exported.content).byteLength).toBeLessThanOrEqual(400);
+    expect(exported.limit).toBe("export-bytes");
+    expect(exported.rowCount).toBeGreaterThan(0);
+
+    // The prefix is maximal: one more row would cross the budget.
+    const lines = exported.content.split("\n");
+    expect(lines).toHaveLength(exported.rowCount + 1);
+  });
+
+  it("emits nothing when even the header exceeds the budget", async () => {
+    const table = makeTable(makeFixture({ totalRows: 10 }), {
+      columns: COLUMNS,
+      budgets: { pageSize: 10, maxExportBytes: 1 },
+    });
+    await table.refresh();
+
+    const exported = await table.export({ format: "csv" });
+    expect(exported.content).toBe("");
+    expect(exported.rowCount).toBe(0);
+  });
+});

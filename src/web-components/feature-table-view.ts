@@ -82,7 +82,17 @@ export interface HonuaFeatureTableViewModel {
   /** Row height in CSS pixels; drives the virtualization spacers. */
   readonly rowHeight: number;
   readonly busy: boolean;
+  /**
+   * The user unchecked every column. Distinct from a merely empty horizontal
+   * window: the grid renders an explicit no-column state instead of a column
+   * the controls report as hidden.
+   */
+  readonly columnsHidden: boolean;
+  /** Announced in place of the grid when {@link columnsHidden} is set. */
+  readonly columnsHiddenLabel?: string;
 }
+
+const EMPTY_RESOLVED_COLUMNS: readonly HonuaFeatureTableResolvedColumn[] = Object.freeze([]);
 
 /** Caller-supplied labels and announcements for `<honua-feature-table>`. */
 export interface HonuaFeatureTableMessages {
@@ -90,7 +100,11 @@ export interface HonuaFeatureTableMessages {
   readonly count?: (count: HonuaFeatureTableCount) => string;
   readonly status?: Partial<Readonly<Record<HonuaFeatureTableState, string>>>;
   readonly state?: (state: HonuaFeatureTableState, count: HonuaFeatureTableCount, message?: string) => string;
+  /** Shown in place of the grid when every column has been hidden. */
+  readonly columnsHidden?: string;
 }
+
+const COLUMNS_HIDDEN_LABEL = "No visible columns — choose at least one column to show.";
 
 /** Human/screen-reader summary of the table's lifecycle state. */
 export function describeFeatureTableState(
@@ -133,7 +147,19 @@ export function featureTableViewModel<T>(
     readonly messages?: HonuaFeatureTableMessages;
   } = {},
 ): HonuaFeatureTableViewModel {
-  const columns = snapshot.renderedColumns.length > 0 ? snapshot.renderedColumns : snapshot.columns.slice(0, 1);
+  // An empty `renderedColumns` has two unrelated causes. A horizontal window
+  // that landed outside the visible set is a virtualization artifact, and
+  // falling back to the first declared column keeps the grid readable. Every
+  // column unchecked is a deliberate choice, and rendering column 0 anyway
+  // contradicted the checkbox that reported it hidden -- the values stayed on
+  // screen while `totalColumnCount` said zero. That case gets a real
+  // no-column state instead.
+  const columnsHidden = snapshot.columns.length > 0 && snapshot.visibleColumns.length === 0;
+  const columns = columnsHidden
+    ? EMPTY_RESOLVED_COLUMNS
+    : snapshot.renderedColumns.length > 0
+      ? snapshot.renderedColumns
+      : snapshot.columns.slice(0, 1);
   const rows: HonuaFeatureTableViewRow[] = snapshot.rows.map((row, offset) =>
     row ? viewRow(row, columns, snapshot.selection) : placeholderRow(snapshot.window.startIndex + offset, columns),
   );
@@ -160,6 +186,8 @@ export function featureTableViewModel<T>(
     workBadges: featureTableWorkBadges(snapshot.evidence),
     rowHeight: options.rowHeight ?? 32,
     busy: snapshot.state === "loading",
+    columnsHidden,
+    ...(columnsHidden ? { columnsHiddenLabel: options.messages?.columnsHidden ?? COLUMNS_HIDDEN_LABEL } : {}),
   });
 }
 
@@ -216,6 +244,9 @@ export function legacyFeatureTableViewModel<T>(
     workBadges: Object.freeze([]),
     rowHeight: options.rowHeight ?? 32,
     busy: model.status === "loading",
+    // The legacy single-page model has no column controls, so there is no way
+    // to hide every column from it.
+    columnsHidden: false,
   });
 }
 
@@ -393,7 +424,14 @@ export function featureTableGridHtml(model: HonuaFeatureTableViewModel): string 
         >
           <thead>
             <tr role="row" aria-rowindex="1">
-              ${leadingColumns > 0 ? '<th role="presentation" aria-hidden="true" data-column-leading></th>' : ""}
+              ${leadingColumns > 0 && !model.columnsHidden ? '<th role="presentation" aria-hidden="true" data-column-leading></th>' : ""}
+              ${
+                model.columnsHidden
+                  ? `<th role="columnheader" scope="col" aria-colindex="1" data-columns-hidden>${escapeHtml(
+                      columnsHiddenText(model),
+                    )}</th>`
+                  : ""
+              }
               ${model.columns
                 .map(
                   (column, index) => `
@@ -414,18 +452,24 @@ export function featureTableGridHtml(model: HonuaFeatureTableViewModel): string 
               </th>`,
                 )
                 .join("")}
-              ${trailingColumns > 0 ? '<th role="presentation" aria-hidden="true" data-column-trailing></th>' : ""}
+              ${trailingColumns > 0 && !model.columnsHidden ? '<th role="presentation" aria-hidden="true" data-column-trailing></th>' : ""}
             </tr>
           </thead>
           <tbody>
             ${
-              model.rows.length === 0
+              // Rows without columns have no cells to render, so a hidden-all
+              // grid states why it is empty rather than emitting cell-less rows.
+              model.columnsHidden
                 ? `<tr role="row"><td role="gridcell" colspan="${columnCount}" class="empty">${escapeHtml(
-                    model.statusLabel,
+                    columnsHiddenText(model),
                   )}</td></tr>`
-                : model.rows
-                    .map((row, rowOffset) => bodyRowHtml(row, rowOffset, model, focusedRow, focusedField, hasFocus))
-                    .join("")
+                : model.rows.length === 0
+                  ? `<tr role="row"><td role="gridcell" colspan="${columnCount}" class="empty">${escapeHtml(
+                      model.statusLabel,
+                    )}</td></tr>`
+                  : model.rows
+                      .map((row, rowOffset) => bodyRowHtml(row, rowOffset, model, focusedRow, focusedField, hasFocus))
+                      .join("")
             }
           </tbody>
         </table>
@@ -487,9 +531,14 @@ function bodyRowHtml(
             </tr>`;
 }
 
+function columnsHiddenText(model: HonuaFeatureTableViewModel): string {
+  return model.columnsHiddenLabel ?? COLUMNS_HIDDEN_LABEL;
+}
+
 function statusText(model: HonuaFeatureTableViewModel): string {
-  if (model.conflicts.length === 0) return model.statusLabel;
-  return `${model.statusLabel}. ${model.conflicts.map((conflict) => conflict.message).join(" ")}`;
+  const base = model.columnsHidden ? `${model.statusLabel}. ${columnsHiddenText(model)}` : model.statusLabel;
+  if (model.conflicts.length === 0) return base;
+  return `${base}. ${model.conflicts.map((conflict) => conflict.message).join(" ")}`;
 }
 
 /** Grid styles layered on top of the kit's shared `tableStyles()`. */

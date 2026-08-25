@@ -132,39 +132,69 @@ export function createHonuaFeatureMutationReconciler<T>(
   const byTarget = new Map(participants.map((participant) => [participant.target, participant] as const));
   const completed = new Set<string>();
   const appliedByMutation = new Map<string, Set<HonuaFeatureMutationInvalidationTarget>>();
+  // Deduplication is only as good as the moment it is read. `completed` is
+  // written after the last participant resolves and `appliedByMutation` after
+  // each one, so a local receipt and its realtime echo entering `reconcile()`
+  // together both saw an empty ledger and both applied every participant --
+  // the double-apply the ledger exists to prevent. Runs for one mutation id
+  // are chained instead, so the second one reads a settled ledger.
+  const inFlight = new Map<string, Promise<HonuaFeatureMutationReconciliationResult>>();
+
+  async function reconcileOnce(
+    receipt: HonuaFeatureMutationReceipt<T>,
+    options: { readonly signal?: AbortSignal },
+  ): Promise<HonuaFeatureMutationReconciliationResult> {
+    if (completed.has(receipt.mutationId)) {
+      return Object.freeze({ mutationId: receipt.mutationId, status: "duplicate", applied: [], failures: [] });
+    }
+    throwIfAborted(options.signal);
+    const previous = appliedByMutation.get(receipt.mutationId) ?? new Set<HonuaFeatureMutationInvalidationTarget>();
+    const applied: HonuaFeatureMutationInvalidationTarget[] = [];
+    const failures: HonuaFeatureMutationReconciliationFailure[] = [];
+    for (const target of receipt.invalidates) {
+      const participant = byTarget.get(target);
+      if (!participant || previous.has(target)) continue;
+      throwIfAborted(options.signal);
+      try {
+        await participant.apply(receipt, options.signal);
+        previous.add(target);
+        applied.push(target);
+      } catch (error) {
+        failures.push({ target, error });
+      }
+    }
+    if (failures.length === 0) {
+      completed.add(receipt.mutationId);
+      appliedByMutation.delete(receipt.mutationId);
+    } else {
+      appliedByMutation.set(receipt.mutationId, previous);
+    }
+    return Object.freeze({
+      mutationId: receipt.mutationId,
+      status: failures.length === 0 ? "applied" : "partial",
+      applied: Object.freeze(applied),
+      failures: Object.freeze(failures),
+    });
+  }
+
   return {
     async reconcile(receipt, options = {}) {
-      if (completed.has(receipt.mutationId)) {
-        return Object.freeze({ mutationId: receipt.mutationId, status: "duplicate", applied: [], failures: [] });
+      const pending = inFlight.get(receipt.mutationId);
+      const run = (async () => {
+        // A predecessor that rejected -- an aborted caller, say -- still
+        // settled the ledger it wrote, and must not reject this caller too.
+        if (pending) await pending.catch(() => undefined);
+        // Resumes rather than repeats: a fully applied predecessor is reported
+        // as `duplicate` here, a partial one leaves its outstanding targets in
+        // `appliedByMutation` for this pass to finish.
+        return reconcileOnce(receipt, options);
+      })();
+      inFlight.set(receipt.mutationId, run);
+      try {
+        return await run;
+      } finally {
+        if (inFlight.get(receipt.mutationId) === run) inFlight.delete(receipt.mutationId);
       }
-      throwIfAborted(options.signal);
-      const previous = appliedByMutation.get(receipt.mutationId) ?? new Set<HonuaFeatureMutationInvalidationTarget>();
-      const applied: HonuaFeatureMutationInvalidationTarget[] = [];
-      const failures: HonuaFeatureMutationReconciliationFailure[] = [];
-      for (const target of receipt.invalidates) {
-        const participant = byTarget.get(target);
-        if (!participant || previous.has(target)) continue;
-        throwIfAborted(options.signal);
-        try {
-          await participant.apply(receipt, options.signal);
-          previous.add(target);
-          applied.push(target);
-        } catch (error) {
-          failures.push({ target, error });
-        }
-      }
-      if (failures.length === 0) {
-        completed.add(receipt.mutationId);
-        appliedByMutation.delete(receipt.mutationId);
-      } else {
-        appliedByMutation.set(receipt.mutationId, previous);
-      }
-      return Object.freeze({
-        mutationId: receipt.mutationId,
-        status: failures.length === 0 ? "applied" : "partial",
-        applied: Object.freeze(applied),
-        failures: Object.freeze(failures),
-      });
     },
     clear(mutationId) {
       if (mutationId === undefined) {

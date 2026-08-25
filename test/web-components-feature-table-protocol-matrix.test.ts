@@ -242,7 +242,10 @@ describe("feature table / real Source adapter protocol matrix", () => {
     const secondPage = await table.setScroll({ scrollTop: 64, rowHeight: 32, viewportHeight: 32 });
     expect(secondPage.rows.flatMap((row) => (row ? [row.attributes.OBJECTID] : []))).toEqual([3]);
 
-    await table.setScroll({ scrollTop: 0, rowHeight: 32, viewportHeight: 32 });
+    // Back to the top with room for both rows of the page: the window follows
+    // the viewport, so asking for two rows of the filtered result means asking
+    // for a viewport two rows tall.
+    await table.setScroll({ scrollTop: 0, rowHeight: 32, viewportHeight: 64 });
     await table.setSort([{ field: "ACRES", direction: "desc" }]);
     const filtered = await table.setFilters([STATE_FILTER]);
     expect(filtered.rows.flatMap((row) => (row ? [row.attributes.OBJECTID] : []))).toEqual([1, 2]);

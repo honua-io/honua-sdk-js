@@ -142,4 +142,109 @@ describe("feature mutation reconciliation", () => {
     await expect(reconciler.reconcile(receipt, { signal: controller.signal })).rejects.toThrow("host disposed");
     expect(applyMap).not.toHaveBeenCalled();
   });
+  // A local receipt and its realtime echo can enter `reconcile()` in the same
+  // tick. Both used to read a ledger that is only written after the last
+  // participant resolves, so both applied every participant -- exactly the
+  // double-apply the ledger exists to prevent.
+  it("applies each participant once when a receipt and its realtime echo reconcile concurrently", async () => {
+    const applied: string[] = [];
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const participants: HonuaFeatureMutationParticipant<Record<string, unknown>>[] = [
+      {
+        target: "map",
+        apply: async () => {
+          applied.push("map");
+          await gate;
+        },
+      },
+      {
+        target: "table",
+        apply: () => {
+          applied.push("table");
+        },
+      },
+    ];
+    const reconciler = createHonuaFeatureMutationReconciler(participants);
+    const receipt = createHonuaFeatureMutationReceipt<Record<string, unknown>>({
+      mutationId: "edit-echo",
+      acceptedAt: "2026-08-14T12:00:00.000Z",
+      sourceId: "permits",
+      protocol: "ogc-features",
+      operation: "update",
+      status: "accepted",
+      featureId: 11,
+    });
+
+    const local = reconciler.reconcile(receipt);
+    const echo = reconciler.reconcile(receipt);
+    release?.();
+    const [first, second] = await Promise.all([local, echo]);
+
+    expect(applied.filter((target) => target === "map")).toHaveLength(1);
+    expect(applied.filter((target) => target === "table")).toHaveLength(1);
+    expect(first.status).toBe("applied");
+    expect(second.status).toBe("duplicate");
+    expect(second.applied).toEqual([]);
+  });
+
+  it("lets a concurrent echo finish the targets a partial run left outstanding", async () => {
+    let tableAttempts = 0;
+    const applyMap = vi.fn();
+    const reconciler = createHonuaFeatureMutationReconciler<Record<string, unknown>>([
+      { target: "map", apply: applyMap },
+      {
+        target: "table",
+        apply: () => {
+          tableAttempts += 1;
+          if (tableAttempts === 1) throw new Error("table refused the first pass");
+        },
+      },
+    ]);
+    const receipt = createHonuaFeatureMutationReceipt<Record<string, unknown>>({
+      mutationId: "edit-partial-echo",
+      acceptedAt: "2026-08-14T12:00:00.000Z",
+      sourceId: "permits",
+      protocol: "odata",
+      operation: "update",
+      status: "partially-accepted",
+      featureId: 12,
+    });
+
+    const [first, second] = await Promise.all([reconciler.reconcile(receipt), reconciler.reconcile(receipt)]);
+
+    expect(first.status).toBe("partial");
+    expect(second.status).toBe("applied");
+    expect(second.applied).toEqual(["table"]);
+    // The map participant already succeeded; the resumed pass must not repeat it.
+    expect(applyMap).toHaveBeenCalledOnce();
+    expect(tableAttempts).toBe(2);
+  });
+
+  it("a rejected run does not reject the reconciliation queued behind it", async () => {
+    const applyMap = vi.fn();
+    const reconciler = createHonuaFeatureMutationReconciler<Record<string, unknown>>([
+      { target: "map", apply: applyMap },
+    ]);
+    const receipt = createHonuaFeatureMutationReceipt<Record<string, unknown>>({
+      mutationId: "edit-queued",
+      acceptedAt: "2026-08-14T12:00:00.000Z",
+      sourceId: "permits",
+      protocol: "ogc-features",
+      operation: "update",
+      status: "accepted",
+      featureId: 13,
+    });
+    const controller = new AbortController();
+    controller.abort(new Error("host disposed"));
+
+    const aborted = reconciler.reconcile(receipt, { signal: controller.signal });
+    const queued = reconciler.reconcile(receipt);
+
+    await expect(aborted).rejects.toThrow("host disposed");
+    await expect(queued).resolves.toMatchObject({ status: "applied" });
+    expect(applyMap).toHaveBeenCalledOnce();
+  });
 });

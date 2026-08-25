@@ -883,6 +883,12 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     readonly query: Query<T>;
     readonly degraded: readonly DegradedReason[];
     readonly filterKey: string;
+    /**
+     * The linked viewport and the active spatial filter select disjoint areas,
+     * so no feature can satisfy both. The answer is known without asking the
+     * source, and asking would mean sending an inverted envelope.
+     */
+    readonly empty: boolean;
   } {
     const descriptor = options.source.descriptor;
     const projected = projectFilterRegistryToQuery(
@@ -905,7 +911,8 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
             viewportExtent.spatialReference,
           )
         : undefined;
-    const spatialFilter = combineFeatureTableSpatialFilters(extentFilter, projected.query.spatialFilter);
+    const combined = combineFeatureTableSpatialFilters(extentFilter, projected.query.spatialFilter);
+    const spatialFilter = combined.filter;
     const query: Query<T> = {
       ...(projected.where !== undefined ? { where: projected.where } : {}),
       ...(spatialFilter ? { spatialFilter } : {}),
@@ -915,7 +922,15 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       returnGeometry,
     };
     const extentKey = extentFilter ? JSON.stringify(extentFilter.geometry) : "independent";
-    return { query, degraded: projected.degraded ?? [], filterKey: `${projected.cacheKey}|viewport=${extentKey}` };
+    // The disjoint case is part of the cache identity: panning back into the
+    // filtered area must not be served the empty page cached while outside it.
+    const disjointKey = combined.disjoint ? "|disjoint" : "";
+    return {
+      query,
+      degraded: projected.degraded ?? [],
+      filterKey: `${projected.cacheKey}|viewport=${extentKey}${disjointKey}`,
+      empty: combined.disjoint,
+    };
   }
 
   function identity(filterKey: string, planFingerprint: string | undefined): HonuaFeatureTablePageIdentity {
@@ -1076,6 +1091,19 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
       cached.sequence = sequence;
       evidence = buildEvidence(plan, composed.degraded, cacheKey);
       return cached;
+    }
+    if (composed.empty) {
+      // No request: the intersection is empty by construction. The page is
+      // cached under the disjoint filter key so re-entering the filtered area
+      // rebuilds a real query rather than reusing this one.
+      sequence += 1;
+      const emptyPage: CachedPage<T> = { offset, rows: Object.freeze([]), bytes: 0, cacheKey, sequence };
+      pages.set(offset, emptyPage);
+      exhausted = true;
+      totalKnown = 0;
+      totalEvidence = "exhausted-pages";
+      evidence = buildEvidence(plan, composed.degraded, cacheKey);
+      return emptyPage;
     }
     if (ledger.requests >= budgets.maxRequests) {
       markExhausted("requests");
@@ -1586,6 +1614,13 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
   ): Promise<HonuaFeatureTableAggregation<T>> {
     throwIfAborted(aggregateOptions.signal);
     const composed = composeQuery({ limit: budgets.pageSize });
+    if (composed.empty) {
+      return Object.freeze({
+        rows: Object.freeze([]),
+        truncated: false,
+        evidence: buildEvidence(options.planner?.(composed.query), composed.degraded, composed.filterKey),
+      });
+    }
     const query: Query<T> = {
       ...composed.query,
       aggregation,
@@ -1698,6 +1733,11 @@ export function createHonuaFeatureTable<T = Record<string, unknown>>(
     while (rows.length < maxRows && requests < budgets.maxRequests && !sourceExhausted) {
       throwIfAborted(request.signal);
       const composed = composeQuery({ offset, limit: budgets.pageSize });
+      if (composed.empty) {
+        degraded = composed.degraded;
+        sourceExhausted = true;
+        break;
+      }
       const result = await options.source.query({
         ...composed.query,
         ...(request.signal ? { signal: request.signal } : {}),
@@ -2217,6 +2257,17 @@ function toCsv<T>(
   return lines.join("\n");
 }
 
+/**
+ * Largest row prefix that fits `maxBytes`, found by binary search.
+ *
+ * Trimming one row at a time re-encoded the whole export on every step, so a
+ * 10,000-row export of wide attributes could run thousands of full CSV/JSON
+ * encodings on the main thread -- a bounded export that freezes the page is
+ * not bounded. Both encoders are prefix-monotonic (a longer prefix is never
+ * fewer bytes: CSV appends whole lines, JSON appends whole elements), so the
+ * fitting prefixes form a contiguous range and bisection finds its edge in
+ * O(log n) encodings.
+ */
 function serializeBoundedExport<T>(
   format: "csv" | "json",
   rows: readonly HonuaFeatureTableRow<T>[],
@@ -2224,15 +2275,30 @@ function serializeBoundedExport<T>(
   columns: readonly HonuaFeatureTableResolvedColumn[],
   maxBytes: number,
 ): { readonly content: string; readonly rowCount: number; readonly truncated: boolean } {
-  let kept = rows.length;
-  while (kept >= 0) {
-    const content =
-      format === "csv" ? toCsv(rows.slice(0, kept), fields, columns) : toJson(rows.slice(0, kept), fields, columns);
-    if (new TextEncoder().encode(content).byteLength <= maxBytes) {
-      return { content, rowCount: kept, truncated: kept < rows.length };
+  const encoder = new TextEncoder();
+  const encode = (kept: number): string =>
+    format === "csv" ? toCsv(rows.slice(0, kept), fields, columns) : toJson(rows.slice(0, kept), fields, columns);
+  const fits = (content: string): boolean => encoder.encode(content).byteLength <= maxBytes;
+
+  const whole = encode(rows.length);
+  if (fits(whole)) return { content: whole, rowCount: rows.length, truncated: false };
+
+  // Invariant: `best` always fits, `high` never does. The header-only export
+  // is the floor; when even that overflows the budget nothing can be emitted.
+  let best: { content: string; rowCount: number } | undefined;
+  let low = 0;
+  let high = rows.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    const content = encode(middle);
+    if (fits(content)) {
+      best = { content, rowCount: middle };
+      low = middle + 1;
+    } else {
+      high = middle;
     }
-    kept -= 1;
   }
+  if (best) return { content: best.content, rowCount: best.rowCount, truncated: best.rowCount < rows.length };
   return { content: "", rowCount: 0, truncated: true };
 }
 
@@ -2254,12 +2320,39 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   throw error;
 }
 
+/**
+ * Intersection of the linked viewport extent with an existing envelope filter.
+ *
+ * Two envelopes that do not overlap have no intersection to express. Taking
+ * `max`/`min` anyway yields `xmin > xmax`, and that malformed envelope used to
+ * be sent to the source -- so panning away from the filtered area produced a
+ * protocol error or, worse, whatever the server made of inverted bounds,
+ * instead of the empty table the filters actually describe. `disjoint` is that
+ * empty result stated explicitly, and the caller answers it locally.
+ *
+ * Coordinates are only comparable inside one spatial reference, so two
+ * declared and differing references are refused rather than intersected as if
+ * the numbers lined up. This layer does not reproject.
+ */
+type CombinedFeatureTableSpatialFilter =
+  | { readonly disjoint: false; readonly filter: SpatialFilter | undefined }
+  | { readonly disjoint: true; readonly filter?: undefined };
+
+function sameSpatialReference(
+  left: HonuaExtent["spatialReference"] | undefined,
+  right: HonuaExtent["spatialReference"] | undefined,
+): boolean {
+  if (left === undefined || right === undefined) return true;
+  if (left === right) return true;
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function combineFeatureTableSpatialFilters(
   extent: SpatialFilter | undefined,
   existing: SpatialFilter | undefined,
-): SpatialFilter | undefined {
-  if (!extent) return existing;
-  if (!existing) return extent;
+): CombinedFeatureTableSpatialFilter {
+  if (!extent) return { disjoint: false, filter: existing };
+  if (!existing) return { disjoint: false, filter: extent };
   if (extent.geometryType !== "esriGeometryEnvelope" || existing.geometryType !== "esriGeometryEnvelope") {
     throw new Error(
       "A linked table extent cannot be combined exactly with a non-envelope spatial filter; use independent viewport mode or an envelope filter.",
@@ -2271,13 +2364,22 @@ function combineFeatureTableSpatialFilters(
   if (!values.every((value) => typeof value === "number" && Number.isFinite(value))) {
     throw new Error("A linked table extent and spatial filter must contain finite envelope coordinates.");
   }
-  return envelope(
-    Math.max(left.xmin as number, right.xmin as number),
-    Math.max(left.ymin as number, right.ymin as number),
-    Math.min(left.xmax as number, right.xmax as number),
-    Math.min(left.ymax as number, right.ymax as number),
-    (extent.geometry.spatialReference ?? existing.geometry.spatialReference) as HonuaExtent["spatialReference"],
-  );
+  const leftReference = left.spatialReference as HonuaExtent["spatialReference"] | undefined;
+  const rightReference = right.spatialReference as HonuaExtent["spatialReference"] | undefined;
+  if (!sameSpatialReference(leftReference, rightReference)) {
+    throw new Error(
+      "A linked table extent and spatial filter must share one spatial reference; reproject the filter or use independent viewport mode.",
+    );
+  }
+  const xmin = Math.max(left.xmin as number, right.xmin as number);
+  const ymin = Math.max(left.ymin as number, right.ymin as number);
+  const xmax = Math.min(left.xmax as number, right.xmax as number);
+  const ymax = Math.min(left.ymax as number, right.ymax as number);
+  if (xmin > xmax || ymin > ymax) return { disjoint: true };
+  return {
+    disjoint: false,
+    filter: envelope(xmin, ymin, xmax, ymax, (leftReference ?? rightReference) as HonuaExtent["spatialReference"]),
+  };
 }
 
 function clampColumnWindow(

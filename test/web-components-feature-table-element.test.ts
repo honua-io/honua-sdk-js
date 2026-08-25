@@ -626,6 +626,53 @@ describe("feature-table view helpers", () => {
     expect(featureTableGridHtml(model)).toContain('aria-rowcount="-1"');
   });
 
+  // Unchecking every column control left `renderedColumns` empty, and the
+  // fallback rendered the first declared column anyway -- the checkbox said
+  // hidden while its values stayed on screen and `totalColumnCount` read zero.
+  it("renders a real no-column state after every column is hidden", async () => {
+    const engine = makeEngine();
+    await engine.refresh();
+    await engine.setColumns([
+      { field: "OBJECTID", label: "ID", type: "integer", visible: false },
+      { field: "NAME", label: "Name", type: "string", visible: false },
+      { field: "SEVERITY", label: "Severity", type: "number", visible: false },
+    ]);
+
+    const model = featureTableViewModel(engine.snapshot);
+    expect(model.columnsHidden).toBe(true);
+    expect(model.columns).toHaveLength(0);
+    expect(model.totalColumnCount).toBe(0);
+    // The controls stay available so the user can restore a column.
+    expect(model.columnControls.every((control) => control.visible === false)).toBe(true);
+    expect(model.columnControls).toHaveLength(3);
+
+    const html = featureTableGridHtml(model);
+    expect(html).toContain("data-columns-hidden");
+    expect(html).not.toContain('data-field="NAME"');
+    expect(html).not.toContain("Incident 1");
+    expect(html).toContain("No visible columns");
+  });
+
+  it("keeps the first-column fallback when an empty window is only a virtualization artifact", async () => {
+    const engine = makeEngine();
+    await engine.refresh();
+
+    const model = featureTableViewModel({ ...engine.snapshot, renderedColumns: Object.freeze([]) });
+    expect(model.columnsHidden).toBe(false);
+    expect(model.columns).toHaveLength(1);
+    expect(model.columns[0]?.field).toBe("OBJECTID");
+  });
+
+  it("announces the hidden-column state in the live region", async () => {
+    const engine = makeEngine();
+    await engine.refresh();
+    await engine.setColumns([{ field: "OBJECTID", label: "ID", type: "integer", visible: false }]);
+
+    const html = featureTableGridHtml(featureTableViewModel(engine.snapshot));
+    const status = html.slice(html.indexOf("data-status"));
+    expect(status).toContain("No visible columns");
+  });
+
   it("does not claim server execution without accepted-plan evidence", async () => {
     const engine = makeEngine();
     await engine.setSort([{ field: "NAME", direction: "asc" }]);
