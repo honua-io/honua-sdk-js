@@ -12,6 +12,7 @@ import {
   KEPLER_AUDIT_RENEWAL_EXEMPTION,
   MCP_CERTIFICATION_EXEMPTION,
   PullRequestDispositionError,
+  RELEASE_AUTOMATION_APP_SLUGS,
   automationExemption,
   parsePullRequestDisposition,
   validatePullRequestDisposition,
@@ -520,6 +521,141 @@ describe("pull request issue disposition policy", () => {
         null,
         `unexpected exemption for ${JSON.stringify(override)}`,
       );
+    }
+  });
+
+  it("accepts every release-automation identity form without widening any other condition", () => {
+    // honua-sdk-js#1093: the release pull request moves from `GITHUB_TOKEN` to
+    // a GitHub App. The gate has to accept the App login before the token is
+    // switched, or the first pull request that identity opens fails the
+    // required check.
+    assert.deepEqual([...RELEASE_AUTOMATION_APP_SLUGS], ["github-actions", "honua-release"]);
+
+    const acceptedLogins = [
+      "github-actions",
+      "github-actions[bot]",
+      "app/github-actions",
+      "honua-release",
+      "honua-release[bot]",
+      "app/honua-release",
+      "HONUA-RELEASE[BOT]",
+    ];
+    const derivedArtifactFixture = {
+      repository,
+      body: "",
+      authorType: "Bot",
+      headRefName: "automation/derived-artifacts-29712056688-1",
+      headSha: "a".repeat(40),
+      headRepository: repository,
+      baseRefName: "trunk",
+      baseSha: "b".repeat(40),
+      baseRepository: repository,
+      title: "chore(evidence): regenerate derived artifacts",
+    };
+
+    for (const authorLogin of acceptedLogins) {
+      assert.equal(
+        automationExemption({ ...releasePleaseFixture, authorLogin }),
+        RELEASE_PLEASE_EXEMPTION,
+        `release-please exemption refused for ${authorLogin}`,
+      );
+      assert.equal(
+        automationExemption({ ...derivedArtifactFixture, authorLogin }),
+        DERIVED_ARTIFACT_EXEMPTION,
+        `derived-artifact exemption refused for ${authorLogin}`,
+      );
+    }
+
+    // An arbitrary bot login stays refused: only the listed App slugs pass.
+    for (const authorLogin of [
+      "honua-release-dispatch[bot]",
+      "honua-releases[bot]",
+      "release-please[bot]",
+      "octocat[bot]",
+      "app/octocat",
+      "honua-release-impostor",
+    ]) {
+      assert.equal(
+        automationExemption({ ...releasePleaseFixture, authorLogin }),
+        null,
+        `unexpected release-please exemption for ${authorLogin}`,
+      );
+      assert.equal(
+        automationExemption({ ...derivedArtifactFixture, authorLogin }),
+        null,
+        `unexpected derived-artifact exemption for ${authorLogin}`,
+      );
+    }
+
+    // The wider login set must not relax a single other condition.
+    for (const override of [
+      { authorType: "User" },
+      { headRefName: "release-please--branches--preview" },
+      { headRefName: "feature/arbitrary-release-branch" },
+      { title: "chore: release trunk (lookalike)" },
+      { baseRefName: "preview" },
+      { baseSha: "not-a-commit" },
+      { headSha: "not-a-commit" },
+      { headRepository: "mallory/honua-sdk-js" },
+      { baseRepository: "mallory/honua-sdk-js" },
+      { repository: "mallory/honua-sdk-js" },
+    ]) {
+      assert.equal(
+        automationExemption({ ...releasePleaseFixture, authorLogin: "honua-release[bot]", ...override }),
+        null,
+        `unexpected release-please exemption for ${JSON.stringify(override)}`,
+      );
+    }
+    for (const override of [
+      { authorType: "User" },
+      { headRefName: "automation/derived-artifacts-29712056688" },
+      { headRefName: "automation/derived-artifacts-29712056688-1-extra" },
+      { title: "chore(evidence): regenerate derived artifacts lookalike" },
+      { baseRefName: "release/next" },
+      { baseSha: "not-a-commit" },
+      { headSha: "not-a-commit" },
+      { headRepository: "mallory/honua-sdk-js" },
+      { baseRepository: "mallory/honua-sdk-js" },
+    ]) {
+      assert.equal(
+        automationExemption({ ...derivedArtifactFixture, authorLogin: "honua-release[bot]", ...override }),
+        null,
+        `unexpected derived-artifact exemption for ${JSON.stringify(override)}`,
+      );
+    }
+  });
+
+  it("keeps the scheduled report lanes pinned to the GitHub Actions identity", () => {
+    // These lanes publish on the workflow's own `GITHUB_TOKEN`; the release
+    // identity has no business authoring them, so it must not inherit them.
+    const scheduled = [
+      {
+        headRefName: "automation/mcp-certification-32007819760-1",
+        title: "chore(mcp): publish scheduled live-certification report",
+        exemption: MCP_CERTIFICATION_EXEMPTION,
+      },
+      {
+        headRefName: "automation/kepler-audit-renewal-2026-09-01",
+        title: "chore(kepler): renew reviewed audit exception",
+        exemption: KEPLER_AUDIT_RENEWAL_EXEMPTION,
+      },
+    ];
+    for (const { headRefName, title, exemption } of scheduled) {
+      const fixture = {
+        repository,
+        body: "",
+        authorType: "Bot",
+        headRefName,
+        headSha: "c".repeat(40),
+        headRepository: repository,
+        baseRefName: "trunk",
+        baseSha: "d".repeat(40),
+        baseRepository: repository,
+        title,
+      };
+      assert.equal(automationExemption({ ...fixture, authorLogin: "github-actions[bot]" }), exemption);
+      assert.equal(automationExemption({ ...fixture, authorLogin: "honua-release[bot]" }), null);
+      assert.equal(automationExemption({ ...fixture, authorLogin: "app/honua-release" }), null);
     }
   });
 
