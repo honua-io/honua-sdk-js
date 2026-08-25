@@ -245,8 +245,7 @@ describe("honua_docs_search", () => {
     // developer's own checkout happens to be clean.
     const root = fixtureRoot();
     const corpus = path.join(root, "llms-full.txt");
-    const run = (args: string[]) =>
-      execFileSync("git", args, { cwd: root, stdio: ["ignore", "ignore", "ignore"] });
+    const run = (args: string[]) => execFileSync("git", args, { cwd: root, stdio: ["ignore", "ignore", "ignore"] });
     run(["init", "--quiet", "--initial-branch", "trunk"]);
     run(["config", "user.email", "test@example.com"]);
     run(["config", "user.name", "Test"]);
