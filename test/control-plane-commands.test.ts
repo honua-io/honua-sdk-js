@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { connectionTestInvocation, importCreateInvocation } from "../src/cli/commands/control-plane.js";
 import { mapPublishInvocation } from "../src/cli/commands/map.js";
 import { run } from "../src/cli/main.js";
 import {
@@ -566,5 +567,172 @@ describe("no shared administrator credential and no client-side authorization by
     // The claim survives only as an echo on the receipt.
     expect(receipt.identity.actor).toBe("user-1");
     expect(receipt.authorization).toBe("server-enforced");
+  });
+});
+
+describe("the terminal release journey runs on the shared command layer", () => {
+  // `honua map publish` proved one verb. These cover the other two legs of the
+  // journey - probe a connection, start an import - which the terminal used to
+  // reach only through `honua admin <group> <operationId>`: the generic escape
+  // hatch over the pinned Admin OpenAPI contract, which wants a separate root
+  // administrator credential, takes a hand-rolled `--body`, and emits no
+  // receipt. Nothing in the journey is a surface-specific shortcut any more.
+  it("produces the same receipt from a CLI-shaped `honua import create` and a direct JS call", async () => {
+    const job = { id: "job-7", status: "queued", links: { self: "/api/v1/admin/imports/job-7" } };
+
+    const cli = recorder(() => ({ body: job }));
+    vi.stubGlobal("fetch", cli.fetchFn);
+    const output = capture();
+    const exitCode = await run([
+      "import",
+      "create",
+      "--source-kind",
+      "geojson",
+      "--source-url",
+      "https://example.test/a.geojson",
+      "--workspace",
+      "ws-1",
+      "--title",
+      "Parcels",
+      "--actor",
+      "user-1",
+      "--tenant",
+      "acme",
+      "--yes",
+      "--json",
+      "--base-url",
+      "https://example.test",
+    ]);
+    vi.restoreAllMocks();
+    expect(exitCode).toBe(0);
+    const cliReceipt = JSON.parse(output.join("")) as HonuaCommandReceipt;
+
+    const js = recorder(() => ({ body: job }));
+    const jsReceipt = await runtimeFor(js.fetchFn).execute(
+      importCreateCommand,
+      {
+        sourceKind: "geojson",
+        sourceUrl: "https://example.test/a.geojson",
+        workspaceId: "ws-1",
+        title: "Parcels",
+      },
+      { transport: "sdk", identity: { actor: "user-1", tenantId: "acme" } },
+    );
+
+    expect(cliReceipt.transport).toBe("cli");
+    expect(jsReceipt.transport).toBe("sdk");
+    expect(cliReceipt.auditKey).toBe(jsReceipt.auditKey);
+    expect({ ...cliReceipt, transport: undefined }).toEqual({ ...jsReceipt, transport: undefined });
+    expect(cli.requests[0].path).toBe(js.requests[0].path);
+    expect(cli.requests[0].body).toEqual(js.requests[0].body);
+    expect(cli.requests[0].headers["idempotency-key"]).toBe(js.requests[0].headers["idempotency-key"]);
+  });
+
+  it("previews `honua connection test` from the terminal without contacting the server", async () => {
+    const { requests, fetchFn } = recorder();
+    vi.stubGlobal("fetch", fetchFn);
+    const output = capture();
+    const exitCode = await run([
+      "connection",
+      "test",
+      "conn-1",
+      "--workspace",
+      "ws-1",
+      "--dry-run",
+      "--base-url",
+      "https://example.test",
+    ]);
+    vi.restoreAllMocks();
+    expect(exitCode).toBe(0);
+    expect(requests).toHaveLength(0);
+
+    // The terminal renders the receipt; it does not compute one of its own.
+    const rendered = output.join("");
+    const jsReceipt = await runtimeFor(recorder().fetchFn).execute(
+      connectionTestCommand,
+      { connectionId: "conn-1", workspaceId: "ws-1" },
+      { transport: "sdk", dryRun: true },
+    );
+    expect(rendered).toContain("Connection probe (dry run)");
+    expect(rendered).toContain(jsReceipt.auditKey);
+    expect(rendered).toContain(jsReceipt.idempotencyKey);
+    expect(rendered).toContain("server-enforced");
+  });
+
+  it("adapts connection and import flags into exactly the input and invocation a JS caller would pass", () => {
+    const connection = connectionTestInvocation({
+      positionals: ["conn-1"],
+      flags: { workspace: "ws-1", actor: "user-1", tenant: "acme", "dry-run": true },
+    });
+    expect(connection.input).toEqual({ connectionId: "conn-1", workspaceId: "ws-1" });
+    expect(connection.invocation).toEqual({
+      transport: "cli",
+      identity: { actor: "user-1", tenantId: "acme" },
+      dryRun: true,
+    });
+
+    const created = importCreateInvocation({
+      positionals: [],
+      flags: {
+        "source-kind": "postgis",
+        connection: "conn-1",
+        workspace: "ws-1",
+        title: "Parcels",
+        options: JSON.stringify({ schema: "public" }),
+        "idempotency-key": "key-explicit",
+        "if-match": 'W/"6"',
+      },
+    });
+    expect(created.input).toEqual({
+      sourceKind: "postgis",
+      connectionId: "conn-1",
+      workspaceId: "ws-1",
+      title: "Parcels",
+      options: { schema: "public" },
+    });
+    expect(created.invocation).toEqual({ transport: "cli", idempotencyKey: "key-explicit", ifMatch: 'W/"6"' });
+  });
+
+  it("leaves the cross-field rule to the command, so every transport reports it identically", async () => {
+    // `honua import create` requires neither `--source-url` nor `--connection`
+    // as a terminal-side rule: "one of these two" is the command's own
+    // `validate`, so the CLI cannot drift from MCP, Studio, or JS on it.
+    const { requests, fetchFn } = recorder();
+    vi.stubGlobal("fetch", fetchFn);
+    const output = capture();
+    const exitCode = await run([
+      "import",
+      "create",
+      "--source-kind",
+      "geojson",
+      "--yes",
+      "--base-url",
+      "https://example.test",
+    ]);
+    vi.restoreAllMocks();
+    expect(exitCode).toBe(2);
+    expect(output.join("")).toContain("one of `sourceUrl` or `connectionId` is required");
+    expect(requests).toHaveLength(0);
+  });
+
+  it("gives no terminal command verb a header pass-through onto a command invocation", () => {
+    // The CLI's `--header` flag reaches the `honua admin` escape hatch only.
+    // A command-layer verb builds its invocation from declared flags, so there
+    // is no terminal path that can put a forged `Idempotency-Key`, `If-Match`,
+    // or authority header on the wire ahead of the runtime's screens.
+    const flags = {
+      package: JSON.stringify(MAP_PACKAGE),
+      "source-kind": "geojson",
+      "source-url": "https://example.test/a.geojson",
+      header: ["X-Honua-Approver=self", "Idempotency-Key=forged"],
+    };
+    for (const invocation of [
+      mapPublishInvocation({ positionals: ["map-ops"], flags }).invocation,
+      connectionTestInvocation({ positionals: ["conn-1"], flags }).invocation,
+      importCreateInvocation({ positionals: [], flags }).invocation,
+    ]) {
+      expect(invocation.headers).toBeUndefined();
+      expect(invocation.transport).toBe("cli");
+    }
   });
 });
